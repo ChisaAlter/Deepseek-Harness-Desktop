@@ -18,8 +18,8 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "devDependencies": {
-    "electron": "^33.4.11",
-    "electron-builder": "^25.1.8"
+    "electron": "^39.8.10",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "ai.deepseek.harness.gui",
