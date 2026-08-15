@@ -2837,7 +2837,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ],
         })
       },
-      catalog: (request) => ok(request, {
+      catalog: request => ok(request, {
         skills: [
           { name: 'fixture-demo', description: 'fixture 技能样本', whenToUse: '仅供 UI 目录渲染验收', modelInvocable: true, userInvocable: true, source: 'user-dsh', provider: 'filesystem', owned: true },
           { name: 'fixture-user-only', description: 'fixture 仅用户技能样本', modelInvocable: false, userInvocable: true, source: 'bundled', provider: 'bundled', owned: false },
@@ -2852,7 +2852,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           content: 'fixture 技能正文',
         })
       },
-      save: (request) => ok(request, {
+      save: request => ok(request, {
         entry: {
           name: request.payload.name,
           description: request.payload.description,
@@ -2864,11 +2864,11 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           owned: true,
         },
       }),
-      remove: (request) => ok(request, {}),
+      remove: request => ok(request, {}),
     },
     mcp: {
-      describe: (request) => ok(request, { servers: [] }),
-      probe: (request) => ok(request, { ok: false as const, message: 'fixture probe unavailable' }),
+      describe: request => ok(request, { servers: [] }),
+      probe: request => ok(request, { ok: false as const, message: 'fixture probe unavailable' }),
     },
     goals: {
       // Compatibility face only: old API Proxy payloads and acknowledgements

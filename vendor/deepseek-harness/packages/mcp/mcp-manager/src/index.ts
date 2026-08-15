@@ -105,7 +105,7 @@ export class McpManagerService extends Service {
    * Snapshot every live server's status.
    * @returns status rows in settings order.
    */
-  async describe(): Promise<McpServerStatusView[]> {
+  describe(): McpServerStatusView[] {
     return [...this.mounts.entries()].map(([serverName, mounted]) => ({
       serverName,
       transport: mounted.profile.transport,
@@ -163,7 +163,8 @@ export class McpManagerService extends Service {
       // The observer carries the state machine; the ready outcome only adds
       // the startup-await diagnostic when nothing else did.
       if (outcome.error !== undefined && mounted.status.phase !== 'error' && mounted.status.phase !== 'disposed') {
-        this.ctx.logger.warn(`mcp-manager(${name}): initial connection failed: ${String(outcome.error)}`)
+        const detail = outcome.error instanceof Error ? outcome.error.message : JSON.stringify(outcome.error)
+        this.ctx.logger.warn(`mcp-manager(${name}): initial connection failed: ${detail}`)
       }
     })
     return mounted

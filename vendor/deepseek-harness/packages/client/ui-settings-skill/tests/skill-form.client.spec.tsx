@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { SkillForm } from '../src/client/SkillForm.tsx'
 import type { SkillFormProps } from '../src/client/SkillForm.tsx'
-import { en, type SkillKey } from '../src/client/locales.ts'
+import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-const t = ((key: SkillKey): string => en[key]) as (key: SkillKey) => string
+const t: SkillFormProps['t'] = key => en[key]
 
 function formApi(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
   return {

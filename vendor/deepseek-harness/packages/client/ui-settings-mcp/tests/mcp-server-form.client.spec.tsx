@@ -5,11 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { IApiClient, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { McpServerForm } from '../src/client/McpServerForm.tsx'
 import type { McpServerFormProps } from '../src/client/McpServerForm.tsx'
-import { en, type McpKey } from '../src/client/locales.ts'
+import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-const t = ((key: McpKey): string => en[key]) as McpServerFormProps['t']
+const t: McpServerFormProps['t'] = key => en[key]
 
 function namespace(servers: Record<string, unknown> = {}): SettingsNamespaceView {
   return {

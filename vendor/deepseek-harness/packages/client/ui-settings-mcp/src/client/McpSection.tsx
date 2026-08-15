@@ -101,7 +101,7 @@ function Loaded({ api, t }: McpSectionInjected): ReactNode {
       }
       setNamespace(mcp)
       setFailure(undefined)
-    } catch (error) {
+    } catch {
       setFailure(t('loadFailed'))
     }
   }
@@ -116,16 +116,15 @@ function Loaded({ api, t }: McpSectionInjected): ReactNode {
   }
 
   useEffect(() => {
-    let stale = false
     void (async () => {
       await loadSettings()
       await loadStatuses()
-      if (stale) return
       const timer = setInterval(() => { void loadStatuses() }, POLL_INTERVAL_MS)
       return () => { clearInterval(timer) }
     })().then(() => undefined, () => undefined)
-    return () => { stale = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one load per mount; the poll owns freshness
+    // One load per mount; the poll owns freshness. State writes after unmount
+    // are no-ops in React 18, so the async body needs no stale guard.
+    return () => {}
   }, [])
 
   const servers: ServerRow[] = (() => {

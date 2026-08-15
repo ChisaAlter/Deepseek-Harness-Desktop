@@ -64,13 +64,13 @@ async function harness(servers: Record<string, McpServerProfile> = {}): Promise<
   return ctx
 }
 
-async function statusOf(ctx: Context, name: string): Promise<McpServerStatusView | undefined> {
-  return (await ctx.mcpManager.describe()).find(view => view.serverName === name)
+function statusOf(ctx: Context, name: string): McpServerStatusView | undefined {
+  return ctx.mcpManager.describe().find(view => view.serverName === name)
 }
 
 async function waitForPhase(ctx: Context, name: string, phase: string): Promise<void> {
-  await vi.waitFor(async () => {
-    expect((await statusOf(ctx, name))?.status.phase).toBe(phase)
+  await vi.waitFor(() => {
+    expect(statusOf(ctx, name)?.status.phase).toBe(phase)
   })
 }
 
@@ -85,7 +85,7 @@ describe('mcp-manager', () => {
   it('mounts nothing for an empty section', async () => {
     const ctx = await harness()
     try {
-      expect(await ctx.mcpManager.describe()).toEqual([])
+      expect(ctx.mcpManager.describe()).toEqual([])
     } finally {
       await ctx.fiber.dispose()
     }
@@ -96,7 +96,7 @@ describe('mcp-manager', () => {
     try {
       await waitForPhase(ctx, 'fs', 'connected')
       await waitForTool(ctx, 'mcp__fs__add', true)
-      expect((await statusOf(ctx, 'fs'))?.transport).toBe('stdio')
+      expect(statusOf(ctx, 'fs')?.transport).toBe('stdio')
     } finally {
       await ctx.fiber.dispose()
     }
@@ -124,7 +124,7 @@ describe('mcp-manager', () => {
       await waitForTool(ctx, 'mcp__fs__add', true)
       await ctx.settings.mutate(NS, [{ op: 'unset', path: ['servers', 'fs'] }])
       await waitForTool(ctx, 'mcp__fs__add', false)
-      await vi.waitFor(async () => { expect(await ctx.mcpManager.describe()).toEqual([]) })
+      await vi.waitFor(async () => { expect(ctx.mcpManager.describe()).toEqual([]) })
     } finally {
       await ctx.fiber.dispose()
     }
@@ -138,7 +138,7 @@ describe('mcp-manager', () => {
         path: ['servers', 'Bad Name!'],
         value: stdioProfile(),
       }])).rejects.toThrow(/serverName/)
-      expect(await ctx.mcpManager.describe()).toEqual([])
+      expect(ctx.mcpManager.describe()).toEqual([])
     } finally {
       await ctx.fiber.dispose()
     }
@@ -150,7 +150,7 @@ describe('mcp-manager', () => {
     })
     try {
       await waitForPhase(ctx, 'ghost', 'error')
-      const status = await statusOf(ctx, 'ghost')
+      const status = statusOf(ctx, 'ghost')
       expect(status?.status.error).toBeDefined()
     } finally {
       await ctx.fiber.dispose()
@@ -170,7 +170,7 @@ describe('mcp-manager', () => {
       if (!result.ok) throw new Error(result.message)
       expect(result.tools.map(tool => tool.name)).toContain('add')
       // A probe never mounts anything.
-      expect(await ctx.mcpManager.describe()).toEqual([])
+      expect(ctx.mcpManager.describe()).toEqual([])
     } finally {
       await ctx.fiber.dispose()
     }

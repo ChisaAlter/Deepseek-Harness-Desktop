@@ -39,7 +39,10 @@ export function draftOf(initialName: string, stored: unknown): McpServerDraft {
     ? stored as Record<string, unknown>
     : {}
   const transport = value.transport === 'streamable-http' ? 'streamable-http' : 'stdio'
-  const stringField = (key: string): string => (typeof value[key] === 'string' ? value[key] as string : '')
+  const stringField = (key: string): string => {
+    const raw = value[key]
+    return typeof raw === 'string' ? raw : ''
+  }
   return {
     name: initialName,
     transport,
@@ -95,14 +98,15 @@ function splitLines(text: string): string[] {
 
 /** Parse KEY=VALUE (or Key: Value) lines; malformed lines are dropped. */
 function parsePairs(text: string, separator: string): Record<string, string> | undefined {
-  const entries = splitLines(text).map(line => {
+  const result: Record<string, string> = {}
+  for (const line of splitLines(text)) {
     const index = line.indexOf(separator)
-    if (index <= 0) return undefined
+    if (index <= 0) continue
     const key = line.slice(0, index).trim()
     const value = line.slice(index + 1).trim()
-    return key.length > 0 ? { [key]: value } : undefined
-  }).filter((entry): entry is Record<string, string> => entry !== undefined)
-  return entries.length > 0 ? Object.assign({}, ...entries) : undefined
+    if (key.length > 0) result[key] = value
+  }
+  return Object.keys(result).length > 0 ? result : undefined
 }
 
 /** Props of {@link McpServerForm}. */

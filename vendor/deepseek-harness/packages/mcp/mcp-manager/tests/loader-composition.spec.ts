@@ -92,6 +92,9 @@ describe('mcp-manager real Loader composition through cordis.yml', () => {
     await ctx.loader.await()
 
     expect(ctx.get('mcpManager')).toBeDefined()
+    // The context property face wraps service returns in a mirror proxy; the
+    // settings seam and this test read the real instance through ctx.get.
+    const manager = ctx.get('mcpManager')!
 
     // A committed section mounts the server live, without any restart.
     await ctx.settings.mutate(NS, [{
@@ -109,7 +112,7 @@ describe('mcp-manager real Loader composition through cordis.yml', () => {
       expect(ctx.tools.schemas().map(schema => schema.name)).toContain('mcp__fs__add')
     })
     await vi.waitFor(async () => {
-      expect((await ctx.mcpManager.describe())[0]?.status.phase).toBe('connected')
+      expect((await manager.describe())[0]?.status.phase).toBe('connected')
     })
 
     // Removing the server unmounts it.
@@ -118,7 +121,7 @@ describe('mcp-manager real Loader composition through cordis.yml', () => {
       expect(ctx.tools.schemas().map(schema => schema.name)).not.toContain('mcp__fs__add')
     })
     await vi.waitFor(async () => {
-      expect(await ctx.mcpManager.describe()).toEqual([])
+      expect(await manager.describe()).toEqual([])
     })
   })
 })
