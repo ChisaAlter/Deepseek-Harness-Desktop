@@ -11,10 +11,11 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
-import { dirname, join, sep } from 'node:path'
+import { homedir } from 'node:os'
+import { dirname, join, resolve, sep } from 'node:path'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { isSkillName } from '@deepseek-ai/dsh-skill'
-import type { SkillInvocationPolicy, SkillSummary } from '@deepseek-ai/dsh-skill'
+import type { SkillInvocationPolicy, SkillSource, SkillSummary } from '@deepseek-ai/dsh-skill'
 import z from '@deepseek-ai/schemastery'
 import type Schema from '@deepseek-ai/schemastery'
 import { parse, stringify } from 'yaml'
@@ -37,6 +38,12 @@ export class SkillAdminError extends Error {
 export interface Config {
   /** Explicit harness home override; defaults to `$DSH_HOME` then `~/.dsh`. */
   readonly dshHome?: string
+  /** Shared agent config root; defaults to `$DSH_AGENTS_HOME` then `~/.agents`. */
+  readonly agentsHome?: string
+  /** Workspace used to resolve project skill roots; defaults to `process.cwd()`. */
+  readonly projectCwd?: string
+  /** Bundled skill root; defaults to `$DSH_BUNDLED_SKILL_DIR` when set. */
+  readonly bundledSkillDir?: string
 }
 
 const USER_SKILL_SOURCE = 'user-dsh'
@@ -64,26 +71,46 @@ interface ParsedDiskSkill {
  * @param config - service configuration.
  */
 export class SkillAdminService extends Service {
-  static Config: Schema<Config> = z.object({ dshHome: z.string() })
+  static Config: Schema<Config> = z.object({
+    dshHome: z.string(),
+    agentsHome: z.string(),
+    projectCwd: z.string(),
+    bundledSkillDir: z.string(),
+  })
 
   private readonly root: string
+  private readonly agentsRoot: string
+  private readonly projectCwd: string
+  private readonly bundledRoot: string | undefined
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'skillAdmin')
     this.root = join(resolveDshHome(config.dshHome), 'skills')
+    this.agentsRoot = join(resolve(config.agentsHome ?? process.env.DSH_AGENTS_HOME ?? join(homedir(), '.agents')), 'skills')
+    this.projectCwd = resolve(config.projectCwd ?? process.cwd())
+    const bundled = config.bundledSkillDir ?? process.env.DSH_BUNDLED_SKILL_DIR
+    this.bundledRoot = bundled === undefined || bundled.length === 0 ? undefined : resolve(bundled)
   }
 
   /**
-   * List the merged catalog: every parseable skill under the user root plus
-   * every registry summary, deduplicated by name with the disk scan winning —
-   * the disk read is the freshest authority for the root this service owns.
+   * List the merged catalog: registry summaries plus every parseable skill
+   * under the writable user root and the read-only user-agents, project, and
+   * bundled roots. Same-name entries from different sources are all kept;
+   * a disk read wins over a registry row of the same source.
    * @returns sorted management entries.
    */
   async list(): Promise<SkillAdminEntry[]> {
-    const byName = new Map<string, SkillAdminEntry>()
-    for (const entry of await this.registryEntries()) byName.set(entry.name, entry)
-    for (const entry of await this.scanRoot()) byName.set(entry.name, entry)
-    return [...byName.values()].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)
+    const byKey = new Map<string, SkillAdminEntry>()
+    const put = (entry: SkillAdminEntry): void => {
+      byKey.set(`${entry.source}:${entry.name}`, entry)
+    }
+    for (const entry of await this.registryEntries()) put(entry)
+    for (const entry of await this.scanForeignRoots()) put(entry)
+    for (const entry of await this.scanRoot()) put(entry)
+    return [...byKey.values()].sort((left, right) => {
+      if (left.name !== right.name) return left.name < right.name ? -1 : 1
+      return left.source < right.source ? -1 : left.source > right.source ? 1 : 0
+    })
   }
 
   /**
@@ -184,27 +211,50 @@ export class SkillAdminService extends Service {
     }
   }
 
-  /** Every parseable skill under the user root, fresh from disk. */
+  /** Every parseable skill under the writable user root, fresh from disk. */
   private async scanRoot(): Promise<SkillAdminEntry[]> {
+    return this.scanRootAt(this.root, USER_SKILL_SOURCE, true)
+  }
+
+  /**
+   * Read-only roots the settings page still shows: user-agents, the project
+   * pair around `projectCwd`, and the bundled directory when one is configured.
+   */
+  private async scanForeignRoots(): Promise<SkillAdminEntry[]> {
+    const projectRoot = await findProjectRoot(this.projectCwd)
+    const roots: Array<{ path: string; source: SkillSource }> = [
+      { path: join(projectRoot, '.dsh', 'skills'), source: 'project-dsh' },
+      { path: join(projectRoot, '.agents', 'skills'), source: 'project-agents' },
+      { path: this.agentsRoot, source: 'user-agents' },
+    ]
+    if (this.bundledRoot !== undefined) roots.push({ path: this.bundledRoot, source: 'bundled' })
+    const result: SkillAdminEntry[] = []
+    for (const root of roots) result.push(...await this.scanRootAt(root.path, root.source, false))
+    return result
+  }
+
+  /** Every parseable skill under one disk root. */
+  private async scanRootAt(root: string, source: SkillSource, owned: boolean): Promise<SkillAdminEntry[]> {
     let entries
     try {
-      entries = await readdir(this.root, { withFileTypes: true, encoding: 'utf8' })
+      entries = await readdir(root, { withFileTypes: true, encoding: 'utf8' })
     } catch (error) {
       if (isAbsentError(error)) return []
       throw error
     }
     const result: SkillAdminEntry[] = []
     for (const entry of entries) {
+      if (owned && entry.name === '.system') continue
       const base = entry.name.endsWith('.md') ? entry.name.slice(0, -3) : entry.name
       if (!isSkillName(base)) continue
       const candidate = entry.isDirectory()
-        ? join(this.root, entry.name, SKILL_MARKDOWN)
+        ? join(root, entry.name, SKILL_MARKDOWN)
         : entry.isFile() && entry.name.endsWith('.md')
-          ? join(this.root, entry.name)
+          ? join(root, entry.name)
           : undefined
       if (candidate === undefined) continue
       const parsed = await this.parseSkillFile(candidate)
-      if (parsed !== undefined) result.push(this.entryOf(parsed, candidate))
+      if (parsed !== undefined) result.push(this.entryOf(parsed, candidate, source, owned))
     }
     return result
   }
@@ -260,15 +310,20 @@ export class SkillAdminService extends Service {
   }
 
   /** Build a management entry for one parsed disk skill. */
-  private entryOf(parsed: ParsedDiskSkill, path: string): SkillAdminEntry {
+  private entryOf(
+    parsed: ParsedDiskSkill,
+    path: string,
+    source: SkillSource = USER_SKILL_SOURCE,
+    owned = true,
+  ): SkillAdminEntry {
     return {
       name: parsed.name,
       description: parsed.description,
       ...parsed.whenToUse === undefined ? {} : { whenToUse: parsed.whenToUse },
       invocation: parsed.invocation,
-      source: USER_SKILL_SOURCE,
+      source,
       provider: USER_SKILL_PROVIDER,
-      owned: true,
+      owned,
       path,
     }
   }
@@ -353,4 +408,20 @@ function frontmatterBoolean(data: Record<string, unknown>, key: string): boolean
 function isAbsentError(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException).code
   return code === 'ENOENT' || code === 'ENOTDIR'
+}
+
+/** Nearest `.git` ancestor of `cwd`, or `cwd` itself when none exists. */
+async function findProjectRoot(cwd: string): Promise<string> {
+  let current = cwd
+  while (true) {
+    try {
+      const info = await stat(join(current, '.git'))
+      if (info.isDirectory() || info.isFile()) return current
+    } catch (error) {
+      if (!isAbsentError(error)) throw error
+    }
+    const parent = dirname(current)
+    if (parent === current) return cwd
+    current = parent
+  }
 }

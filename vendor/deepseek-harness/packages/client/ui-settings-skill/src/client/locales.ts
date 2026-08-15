@@ -31,6 +31,7 @@ export const en = {
   deleting: 'Deleting…',
   loadFailed: 'Loading skills failed',
   empty: 'No skills yet — create your first one.',
+  emptyOthers: 'No skills from other sources.',
   notOwnedHint: 'Skills from other sources cannot be edited here.',
 }
 
@@ -67,5 +68,6 @@ export const zh: Record<SkillKey, string> = {
   deleting: '删除中…',
   loadFailed: '加载技能失败',
   empty: '还没有技能——先创建一个吧。',
-  notOwnedHint: '其他来源的技能无法在此编辑。',
+  emptyOthers: '暂无其他来源的技能。',
+  notOwnedHint: '其他来源的技能只读，不能在此修改。',
 }

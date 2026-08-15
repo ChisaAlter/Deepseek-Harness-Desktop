@@ -4,12 +4,12 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { IApiClient, SkillAdminView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SkillsSection } from '../src/client/SkillsSection.tsx'
-import type { SkillsSectionInjected } from '../src/client/SkillsSection.tsx'
-import { en, type SkillKey } from '../src/client/locales.ts'
+import type { SkillsSectionInjected, SkillsSectionProps } from '../src/client/SkillsSection.tsx'
+import { en } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-const t = ((key: SkillKey): string => en[key]) as SkillsSectionInjected['t']
+const t: SkillsSectionInjected['t'] = key => en[key]
 
 const OWNED: SkillAdminView = {
   name: 'my-skill', description: 'Mine', modelInvocable: true, userInvocable: true,
@@ -45,6 +45,12 @@ function renderSection(overrides: Partial<SkillsSectionInjected> = {}) {
 }
 
 describe('SkillsSection', () => {
+  it('renders nothing before the slot injects its dependencies', () => {
+    const uninjected = {} as SkillsSectionProps
+    render(<SkillsSection {...uninjected} />)
+    expect(document.body.textContent).toBe('')
+  })
+
   it('groups owned and foreign skills and gates row actions on ownership', async () => {
     renderSection()
     expect(await screen.findByText('my-skill')).toBeTruthy()
@@ -54,6 +60,17 @@ describe('SkillsSection', () => {
     // The owned row offers edit and delete; the foreign row offers neither.
     expect(screen.getAllByRole('button', { name: en.edit })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: en.remove })).toHaveLength(1)
+  })
+
+  it('still renders the other-sources group when every catalog row is owned', async () => {
+    const api = skillsApi({
+      catalog: vi.fn(async () => ({ result: { ok: true as const, value: { skills: [OWNED] } } })),
+    })
+    renderSection({ api: api as unknown as Pick<IApiClient, 'skills'> })
+    expect(await screen.findByText('my-skill')).toBeTruthy()
+    expect(screen.getByText(en.groupOthers)).toBeTruthy()
+    expect(screen.getByText(en.emptyOthers)).toBeTruthy()
+    expect(screen.queryByText(en.notOwnedHint)).toBeNull()
   })
 
   it('shows the load failure instead of rows when the catalog rejects', async () => {

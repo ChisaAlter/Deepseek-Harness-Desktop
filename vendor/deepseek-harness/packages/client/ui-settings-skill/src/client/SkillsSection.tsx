@@ -75,7 +75,7 @@ function Loaded({ api, t }: SkillsSectionInjected): ReactNode {
         }
         setEntries(response.result.value.skills)
         setFailure(undefined)
-      } catch (error) {
+      } catch {
         // A transport failure rejects rather than answering; without this the
         // page would stay blank with no error shown.
         if (!stale) setFailure(t('loadFailed'))
@@ -93,7 +93,7 @@ function Loaded({ api, t }: SkillsSectionInjected): ReactNode {
       }
       setEntries(response.result.value.skills)
       setFailure(undefined)
-    } catch (error) {
+    } catch {
       setFailure(t('loadFailed'))
     }
   }
@@ -159,7 +159,7 @@ function Loaded({ api, t }: SkillsSectionInjected): ReactNode {
             <Group
               title={t('groupOthers')}
               entries={others}
-              empty={t('notOwnedHint')}
+              empty={t('emptyOthers')}
               t={t}
             />
           </>
@@ -220,7 +220,7 @@ function Group(props: {
       {entries.length === 0 ? <p className={styles['empty']}>{empty}</p> : null}
       <ul className={styles['rows']}>
         {entries.map(entry => (
-          <li key={entry.name} className={styles['row']}>
+          <li key={`${entry.source}:${entry.name}`} className={styles['row']}>
             <div className={styles['rowMain']}>
               <span className={styles['rowName']}>{entry.name}</span>
               <span className={styles['rowDesc']}>{entry.description}</span>

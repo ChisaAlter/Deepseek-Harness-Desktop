@@ -37,10 +37,24 @@ function memorySkill(name: string, description: string): SkillCandidate {
   }
 }
 
+async function writeSkill(root: string, name: string, description: string): Promise<void> {
+  await mkdir(join(root, name), { recursive: true })
+  await writeFile(
+    join(root, name, 'SKILL.md'),
+    `---\nname: ${name}\ndescription: ${description}\n---\n\n${name} body.`,
+    'utf8',
+  )
+}
+
 async function mounted(home: string): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SkillRegistry)
-  await ctx.plugin(SkillAdminService, { dshHome: home })
+  await ctx.plugin(SkillAdminService, {
+    dshHome: home,
+    agentsHome: join(home, 'agents-home'),
+    projectCwd: join(home, 'project'),
+    bundledSkillDir: join(home, 'bundled'),
+  })
   return ctx
 }
 
@@ -161,6 +175,28 @@ describe('skill-admin', () => {
     }
   })
 
+  it('lists user-agents, project, and bundled skills even though they are not writable here', async () => {
+    const home = await tempHome()
+    const ctx = await mounted(home)
+    try {
+      await writeSkill(join(home, 'agents-home', 'skills'), 'agents-one', 'From user-agents')
+      await writeSkill(join(home, 'project', '.dsh', 'skills'), 'project-dsh-one', 'From project-dsh')
+      await writeSkill(join(home, 'project', '.agents', 'skills'), 'project-agents-one', 'From project-agents')
+      await writeSkill(join(home, 'bundled'), 'bundled-one', 'From bundled')
+      await ctx.skillAdmin.save(saveInput('disk-one'))
+
+      const listed = await ctx.skillAdmin.list()
+      const byName = new Map(listed.map(entry => [entry.name, entry]))
+      expect(byName.get('agents-one')).toMatchObject({ owned: false, source: 'user-agents' })
+      expect(byName.get('project-dsh-one')).toMatchObject({ owned: false, source: 'project-dsh' })
+      expect(byName.get('project-agents-one')).toMatchObject({ owned: false, source: 'project-agents' })
+      expect(byName.get('bundled-one')).toMatchObject({ owned: false, source: 'bundled' })
+      expect(byName.get('disk-one')).toMatchObject({ owned: true, source: 'user-dsh' })
+    } finally {
+      await cleanup(home)
+    }
+  })
+
   it('discovers flat Markdown skills already present in the user root', async () => {
     const home = await tempHome()
     const ctx = await mounted(home)
@@ -185,10 +221,9 @@ describe('skill-admin', () => {
     try {
       ctx.skills.registerProvider(() => new MemoryProvider([memorySkill('memory-one', 'From memory')]))
       await ctx.skillAdmin.save(saveInput('demo', { content: 'Body text.' }))
-      expect(await ctx.skillAdmin.read('demo')).toEqual({
-        entry: expect.objectContaining({ name: 'demo', owned: true }),
-        content: 'Body text.',
-      })
+      const read = await ctx.skillAdmin.read('demo')
+      expect(read?.entry).toMatchObject({ name: 'demo', owned: true })
+      expect(read?.content).toBe('Body text.')
       expect(await ctx.skillAdmin.read('memory-one')).toBeUndefined()
       expect(await ctx.skillAdmin.read('nope')).toBeUndefined()
     } finally {
