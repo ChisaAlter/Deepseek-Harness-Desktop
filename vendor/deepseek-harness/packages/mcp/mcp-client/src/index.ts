@@ -17,12 +17,16 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
-import type { ReconnectConfig } from './connection.ts'
+import type { McpConnectionState, McpStatusObserver, ReconnectConfig } from './connection.ts'
+import { probeMcpServer } from './probe.ts'
+import type { McpToolInfo, ProbeResult } from './probe.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
 
 export type { McpResult } from './tools.ts'
-export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
+export type { ReconnectConfig, ResolvedReconnectPolicy, McpConnectionState, McpStatusObserver } from './connection.ts'
+export { probeMcpServer } from './probe.ts'
+export type { McpToolInfo, ProbeResult } from './probe.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'mcp-client'
@@ -104,26 +108,43 @@ const Reconnect: z<ReconnectConfig> = z.object({
   maxAttempts: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(RECONNECT_DEFAULTS.maxAttempts),
 })
 
+/**
+ * Shared stdio transport fields, without the `serverName` the plugin Config
+ * adds. Composable so a management service can validate server profiles with
+ * the exact same grammar the plugin instance itself validates.
+ */
+export const stdioTransportFields = {
+  transport: z.const('stdio'),
+  command: z.string().required(),
+  args: z.array(String).default([]),
+  env: z.dict(String).default({}),
+  cwd: z.string().default(''),
+  toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+  failOnStartupError: z.boolean().default(false),
+  reconnect: Reconnect,
+}
+
+/**
+ * Shared Streamable HTTP transport fields, without the `serverName` the
+ * plugin Config adds (see {@link stdioTransportFields}).
+ */
+export const streamableHttpTransportFields = {
+  transport: z.const('streamable-http'),
+  url: z.string().required(),
+  headers: z.dict(String).default({}),
+  toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+  failOnStartupError: z.boolean().default(false),
+  reconnect: Reconnect,
+}
+
 export const Config = z.union([
   z.object({
-    transport: z.const('stdio'),
+    ...stdioTransportFields,
     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
-    command: z.string().required(),
-    args: z.array(String).default([]),
-    env: z.dict(String).default({}),
-    cwd: z.string().default(''),
-    toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
-    failOnStartupError: z.boolean().default(false),
-    reconnect: Reconnect,
   }),
   z.object({
-    transport: z.const('streamable-http'),
+    ...streamableHttpTransportFields,
     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
-    url: z.string().required(),
-    headers: z.dict(String).default({}),
-    toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
-    failOnStartupError: z.boolean().default(false),
-    reconnect: Reconnect,
   }),
 ]) as unknown as z<Config>
 

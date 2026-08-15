@@ -24,6 +24,8 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { CallId } from '@deepseek-ai/dsh-llm'
 import { apply } from '@deepseek-ai/dsh-mcp-client/src/index.ts'
 import { publicToolName } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
+import { resolveReconnectPolicy, startConnection } from '@deepseek-ai/dsh-mcp-client/src/connection.ts'
+import { probeMcpServer } from '@deepseek-ai/dsh-mcp-client/src/probe.ts'
 import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
 const testToolSignal = new AbortController().signal
@@ -519,5 +521,85 @@ describe('streamable-http — in-process MCP server', () => {
   it('sends configured headers on every HTTP request', () => {
     expect(seenAuth.length).toBeGreaterThan(0)
     for (const auth of seenAuth) expect(auth).toBe('Bearer e2e-test-token')
+  })
+})
+
+// ---- Supervisor status observer and one-shot probe ----
+
+describe('connection status observer', () => {
+  let ctx: Context
+
+  const observerConfig: Config = {
+    transport: 'stdio',
+    serverName: 'observed',
+    command: process.execPath,
+    args: [fixtureServerPath],
+    env: {},
+    cwd: packageDir,
+    toolCallTimeoutMs: 15_000,
+    failOnStartupError: false,
+  }
+
+  beforeAll(async () => { ctx = await mountRegistry() })
+  afterAll(async () => { if (ctx) await ctx.fiber.dispose() })
+
+  it('reports connecting then connected for a live server, and disposed on teardown', async () => {
+    const phases: string[] = []
+    const handle = startConnection(ctx, observerConfig, resolveReconnectPolicy(undefined, 'observer-test'), state => phases.push(state.phase))
+    const outcome = await handle.ready
+    expect(outcome.error).toBeUndefined()
+    await vi.waitFor(() => { expect(phases).toContain('connected') })
+    expect(phases[0]).toBe('connecting')
+    await handle.dispose()
+    expect(phases).toContain('disposed')
+  })
+
+  it('reports an error phase when reconnect is disabled and the server cannot start', async () => {
+    const states: Array<{ phase: string; error?: string }> = []
+    const handle = startConnection(
+      ctx,
+      {
+        ...observerConfig,
+        serverName: 'ghost',
+        command: 'definitely-missing-mcp-command',
+        failOnStartupError: true,
+      },
+      resolveReconnectPolicy({ enabled: false }, 'observer-test'),
+      state => states.push(state),
+    )
+    await handle.ready
+    await vi.waitFor(() => { expect(states.some(state => state.phase === 'error')).toBe(true) })
+    expect(states.find(state => state.phase === 'error')?.error).toBeDefined()
+    await handle.dispose()
+  })
+})
+
+describe('probeMcpServer', () => {
+  const probeConfig: Config = {
+    transport: 'stdio',
+    serverName: 'probed',
+    command: process.execPath,
+    args: [fixtureServerPath],
+    env: {},
+    cwd: packageDir,
+    toolCallTimeoutMs: 15_000,
+    failOnStartupError: false,
+  }
+
+  it('lists the fixture tools without registering them anywhere', async () => {
+    const result = await probeMcpServer(probeConfig)
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.message)
+    const names = result.tools.map(tool => tool.name)
+    expect(names).toContain('add')
+    expect(names).toContain('admin.reset')
+    expect(result.tools.find(tool => tool.name === 'add')?.description).toBe('Adds two numbers.')
+  })
+
+  it('answers a refusal with a message when the server cannot start', async () => {
+    const result = await probeMcpServer({ ...probeConfig, command: 'definitely-missing-mcp-command' })
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected the probe to fail')
+    expect(result.message.length).toBeGreaterThan(0)
   })
 })
