@@ -183,6 +183,7 @@
     { "path": "./packages/skill/skill-badge" },
     { "path": "./packages/skill/skill-filesystem" },
     { "path": "./packages/skill/tool-skill" },
+    { "path": "./packages/skill/skill-admin" },
     { "path": "./packages/interaction/tool-ask-user" },
     { "path": "./packages/context/agent-instructions" },
     { "path": "./packages/core/agent-loop" },
