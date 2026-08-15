@@ -108,6 +108,13 @@ export const en = {
   visionModelOff: 'Off',
   visionModelSaveFailed: 'Saving the vision model failed',
   visionModelLoadFailed: 'Loading the model list failed',
+  inputTitle: 'Input types',
+  inputText: 'Text',
+  inputImage: 'Image',
+  inputInherited: 'Not set — inherits the provider defaults.',
+  defaultInputTitle: 'Default input types',
+  defaultInputHint: 'Applies to models on this route that declare none. Text is always accepted by any supported protocol.',
+  defaultInputEmpty: 'Pick at least one input type.',
 }
 
 /** The settings.models namespace key union. */
@@ -219,4 +226,11 @@ export const zh: { [Key in keyof typeof en]: string } = {
   visionModelOff: '不启用',
   visionModelSaveFailed: '保存识图模型失败',
   visionModelLoadFailed: '加载模型列表失败',
+  inputTitle: '输入类型',
+  inputText: '文本',
+  inputImage: '图像',
+  inputInherited: '未设置——继承提供方默认值。',
+  defaultInputTitle: '默认输入类型',
+  defaultInputHint: '应用于本路由下未声明的模型。任何受支持协议都必然接受文本。',
+  defaultInputEmpty: '请至少选择一种输入类型。',
 }

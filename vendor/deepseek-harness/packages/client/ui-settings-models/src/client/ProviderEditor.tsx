@@ -42,6 +42,30 @@ type EditorLayout = 'deepseek' | 'pi-ai' | 'unknown'
 /** The public DeepSeek endpoint shown as the deepseek base-URL placeholder. */
 const DEEPSEEK_PUBLIC_BASE_URL = 'https://api.deepseek.com'
 
+/**
+ * Route-level default input types, in the canonical pi-ai order (text first).
+ * Applies to models on this route that declare none; audio and other
+ * modalities wait for pi-ai upstream support.
+ */
+const DEFAULT_INPUT_CHOICES = [
+  { id: 'text', key: 'inputText' },
+  { id: 'image', key: 'inputImage' },
+] as const satisfies readonly { id: string; key: keyof typeof en }[]
+
+type DefaultInputId = (typeof DEFAULT_INPUT_CHOICES)[number]['id']
+
+/** The route's drafted default input types, valid entries only. */
+function defaultInputOf(draft: Record<string, unknown>): readonly DefaultInputId[] {
+  const value = draft['defaultInput']
+  if (!Array.isArray(value)) return []
+  return value.filter((id): id is DefaultInputId => id === 'text' || id === 'image')
+}
+
+/** Reorder a declared set into the canonical choice order. */
+function orderedDefaultInput(selected: readonly DefaultInputId[]): DefaultInputId[] {
+  return DEFAULT_INPUT_CHOICES.filter(choice => selected.includes(choice.id)).map(choice => choice.id)
+}
+
 /** Props of {@link ProviderEditor}. */
 export interface ProviderEditorProps {
   /** Provider route id. */
@@ -205,6 +229,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   // so a bad row is named by its position rather than by a blanket message.
   const modelFailure = validateDeepSeekModels(getPath(draft, ['models']))
   const keyFailure = apiKeyFailure(keyDraft)
+  // The route-level default input types: only an explicitly drafted empty set
+  // blocks the write (an absent field inherits the adapter's `['text']`).
+  const defaultInput = defaultInputOf(draft)
+  const defaultInputEmpty = hasPath(draft, ['defaultInput']) && defaultInput.length === 0
   // What a probe or a write must carry: the typed key with paste whitespace
   // removed. A blank field yields an empty string, which both call sites read
   // as "no key supplied" rather than as a key — that is how a card whose
@@ -452,6 +480,41 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 </div>
               )
               : null}
+            {/* The route-level default input types: the fallback a model with
+                no declaration of its own inherits. Empty is refused — nothing
+                sits below it to answer instead. */}
+            {family === 'pi-ai'
+              ? (
+                <fieldset className={styles['effortGroup']}>
+                  <legend className={styles['modelFieldLabel']}>{t('defaultInputTitle')}</legend>
+                  <div className={styles['effortOptions']}>
+                    {DEFAULT_INPUT_CHOICES.map((choice) => {
+                      const checked = defaultInput.includes(choice.id)
+                      return (
+                        <label className={styles['effortOption']} key={choice.id}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled}
+                            aria-label={t(choice.key)}
+                            onChange={() => {
+                              const next = checked
+                                ? defaultInput.filter(existing => existing !== choice.id)
+                                : orderedDefaultInput([...defaultInput, choice.id])
+                              setDraft(current => setPath(current, ['defaultInput'], next))
+                            }}
+                          />
+                          <span>{t(choice.key)}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  {defaultInputEmpty
+                    ? <p className={styles['error']}>{t('defaultInputEmpty')}</p>
+                    : <span className={styles['modelFieldLabel']}>{t('defaultInputHint')}</span>}
+                </fieldset>
+              )
+              : null}
             {/* Both families edit the same rows through the same contract; only
                 the extras differ — DeepSeek's inherited capacities, pi-ai's
                 endpoint interrogation. */}
@@ -500,6 +563,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         t={t}
         busy={busy}
         submitDisabled={disabled || layout === 'unknown'
+          || (layout === 'pi-ai' && defaultInputEmpty)
           || (props.credentialOnly !== true && modelFailure !== undefined)
           || shownKeyFailure !== undefined
           || (props.credentialRequired === true && keyValue.length === 0)}
