@@ -238,6 +238,9 @@
     - id: ui-settings-skill
       name: '@deepseek-ai/dsh-client-ui-settings-skill'
 
+    - id: ui-settings-mcp
+      name: '@deepseek-ai/dsh-client-ui-settings-mcp'
+
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'
 
