@@ -882,6 +882,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'mcpManager',
+    summary: 'Manage live MCP connections from the `mcp` settings section.',
+    description: 'Manage live MCP connections from the `mcp` settings section.',
+    methods: [
+      {
+        signature: 'describe(): McpServerStatusView[]',
+        description: 'Snapshot every live server\'s status.',
+        parameters: [],
+        returns: 'status rows in settings order.',
+      },
+      {
+        signature: 'async probe(input: McpProbeRequest): Promise<ProbeResult>',
+        description: 'Probe one draft server profile without mounting anything.',
+        parameters: [{ name: 'input', description: 'the namespace plus the draft transport profile.' }],
+        returns: 'the tool listing, or a refusal message.',
+      },
+    ],
+  },
+  {
     key: 'messageFeedback',
     summary: 'Storage-domain sidecar service.',
     description: 'Storage-domain sidecar service. It inspects persisted Session history and never creates or resumes an Agent or Session.',
@@ -1485,6 +1504,38 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'skillAdmin',
+    summary: 'Manage the user skill root.',
+    description: 'Manage the user skill root.',
+    methods: [
+      {
+        signature: 'async list(): Promise<SkillAdminEntry[]>',
+        description: 'List the merged catalog: every parseable skill under the user root plus every registry summary, deduplicated by name with the disk scan winning — the disk read is the freshest authority for the root this service owns.',
+        parameters: [],
+        returns: 'sorted management entries.',
+      },
+      {
+        signature: 'async read(name: string): Promise<{ entry: SkillAdminEntry; content: string } | undefined>',
+        description: 'Read one owned skill\'s body, or `undefined` when the name does not name a parseable skill in the user root.',
+        parameters: [{ name: 'name', description: 'kebab-case skill name.' }],
+        returns: 'the entry and body, or `undefined`.',
+      },
+      {
+        signature: 'async save(input: SkillSaveInput): Promise<SkillAdminEntry>',
+        description: 'Create or overwrite one user skill. An existing owned skill of the same name is replaced in place; a same-name skill provided by any other source is refused so the write cannot land where sessions would never see it.',
+        parameters: [{ name: 'input', description: 'validated save payload.' }],
+        returns: 'the entry as stored.',
+        throws: ['SkillAdminError naming the refused condition.'],
+      },
+      {
+        signature: 'async remove(name: string): Promise<void>',
+        description: 'Remove one owned skill\'s directory (or flat file) recursively.',
+        parameters: [{ name: 'name', description: 'kebab-case skill name.' }],
+        throws: ['SkillAdminError naming the refused condition.'],
+      },
+    ],
+  },
+  {
     key: 'skills',
     summary: 'Layered registry of skill providers, the host+per-scope shape the tools registry established.',
     description: 'Layered registry of skill providers, the host+per-scope shape the tools registry established. A registration files into the layer of its calling context\'s scope (scopeOf): host rows and repository plugins land in the global layer, while a plugin mounted by an agent preset\'s standing composition lands in that preset\'s layer. A read merges the global layer with the viewing scope\'s chain — the nearest layer\'s entry wins a duplicate name outright, and the rank order decides duplicates only within one layer. It exposes sorted invocation-neutral summaries and loads full skill bodies on demand.',
@@ -2020,6 +2071,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'request', description: 'Questions, owner agent, and abort signal.' }],
         returns: 'The answer chosen or typed by the human.',
         throws: ['{UserQuestionError} code `CALLER_NOT_LIVE` when a supplied agent is not the registry\'s exact live instance, or `DELEGATED_CALLER` when that live agent is owned by another agent.'],
+      },
+    ],
+  },
+  {
+    key: 'visionFallback',
+    summary: 'Owns the designated vision-model route and the image-to-text request rewrite.',
+    description: 'Owns the designated vision-model route and the image-to-text request rewrite. Mounted dormant: with no stored route the service reports itself unconfigured and rewriting passes messages through untouched.',
+    methods: [
+      {
+        signature: 'selection(): { provider: string; model: string } | undefined',
+        description: 'The stored vision-model route.',
+        parameters: [],
+        returns: 'the designated route, or undefined while unset (disabled).',
+      },
+      {
+        signature: 'configured(): boolean',
+        description: 'Whether a vision-model route is currently designated. Admission gates consult this to admit image prompts for text-only main models.',
+        parameters: [],
+        returns: 'whether rewriting can substitute image blocks.',
+      },
+      {
+        signature: 'async rewriteMessages( session: Session, route: { provider: string; model: string }, messages: Message[], signal: AbortSignal, ): Promise<Message[]>',
+        description: 'Rewrite one request\'s messages for a target model: when the target declares it does not accept images and a vision route is designated, every image block is replaced by its logged (or newly generated and logged) description text. Any other case returns the input untouched.',
+        parameters: [{ name: 'session', description: 'owning session; descriptions are read from and appended to its log.' }, { name: 'route', description: 'exact main-request route about to be dispatched.' }, { name: 'messages', description: 'derived request messages (never mutated).' }, { name: 'signal', description: 'main-request cancellation.' }],
+        returns: 'the original array, or a new array with image blocks substituted.',
       },
     ],
   },
@@ -3091,7 +3167,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'GenerateOptions',
-    declaration: 'export interface GenerateOptions {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: Message[];\n    system?: string;\n    tools?: ToolSchema[];\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: \'compaction\' | \'session-title\';\n}',
+    declaration: 'export interface GenerateOptions {\n    provider: string;\n    model: string;\n    reasoningEffort?: ReasoningEffortId;\n    messages: Message[];\n    system?: string;\n    tools?: ToolSchema[];\n    temperature?: number;\n    maxTokens?: number;\n    stop?: string[];\n    signal?: AbortSignal;\n    sessionId?: Branded<\'SessionId\'>;\n    purpose?: \'compaction\' | \'session-title\' | \'vision-describe\';\n}',
   },
   {
     name: 'GenericCallView',
@@ -3362,6 +3438,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ManualCompactAgentContext extends CompactionAgentContext {\n    runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>;\n}',
   },
   {
+    name: 'McpProbeRequest',
+    declaration: 'export type McpProbeRequest = {\n    serverName: string;\n} & McpServerProfile;',
+  },
+  {
+    name: 'McpServerProfile',
+    declaration: 'export type McpServerProfile = {\n    transport: \'stdio\';\n    command: string;\n    args?: string[];\n    env?: Record<string, string>;\n    cwd?: string;\n    toolCallTimeoutMs?: number;\n    reconnect?: ReconnectConfig;\n} | {\n    transport: \'streamable-http\';\n    url: string;\n    headers?: Record<string, string>;\n    toolCallTimeoutMs?: number;\n    reconnect?: ReconnectConfig;\n};',
+  },
+  {
+    name: 'McpToolInfo',
+    declaration: 'export interface McpToolInfo {\n    name: string;\n    description?: string;\n}',
+  },
+  {
     name: 'Message',
     declaration: 'export interface Message {\n    readonly id: MessageId;\n    readonly role: \'system\' | \'user\' | \'assistant\';\n    readonly content: ContentBlock[];\n    readonly source: MessageSource;\n}',
   },
@@ -3514,6 +3602,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type PreToolDecision = {\n    kind: \'allow\';\n} | {\n    kind: \'deny\';\n    reason: string;\n} | {\n    kind: \'ask\';\n    reason?: string;\n};',
   },
   {
+    name: 'ProbeResult',
+    declaration: 'export type ProbeResult = {\n    ok: true;\n    tools: McpToolInfo[];\n} | {\n    ok: false;\n    message: string;\n};',
+  },
+  {
     name: 'ProjectionChangeListener',
     declaration: 'export type ProjectionChangeListener = (session: Session, key: Extract<keyof SessionProjectionMap, string>, value: unknown, seq: number) => void;',
   },
@@ -3572,6 +3664,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ReasoningEffortId',
     declaration: 'export type ReasoningEffortId = Branded<\'ReasoningEffortId\'>;',
+  },
+  {
+    name: 'ReconnectConfig',
+    declaration: 'export interface ReconnectConfig {\n    enabled?: boolean;\n    initialDelayMs?: number;\n    maxDelayMs?: number;\n    maxAttempts?: number;\n}',
   },
   {
     name: 'RedactedSecret',
@@ -3635,7 +3731,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'RpcErrorDetailsMap',
-    declaration: 'export interface RpcErrorDetailsMap {\n    \'bad-request\': {\n        issues: ZodIssue[];\n    };\n    \'cancelled\': {};\n    \'session-not-found\': {\n        sessionId: SessionId;\n    };\n    \'model-unavailable\': {\n        provider: string;\n        model: string;\n    };\n    \'session-conflict\': {\n        sessionId: SessionId;\n        requestedCwd: string;\n        existingCwd?: string;\n    };\n    \'invalid-time-zone\': {\n        value: string;\n    };\n    \'workspace-attach-failed\': {\n        sessionId: SessionId;\n        workspaceId: string;\n    };\n    \'workspace-not-found\': {\n        workspaceId: string;\n    };\n    \'workspace-invalid-path\': {\n        path: string;\n    };\n    \'workspace-name-conflict\': {\n        name: string;\n    };\n    \'workspace-move-invalid\': {\n        workspaceId: string;\n        sessionId: SessionId;\n        beforeSessionId?: SessionId;\n    };\n    \'directory-unreadable\': {\n        path: string;\n    };\n    \'directory-exists\': {\n        path: string;\n    };\n    \'directory-create-failed\': {\n        path: string;\n    };\n    \'directory-picker-unavailable\': {\n        capability: string;\n    };\n    \'agent-preset-read-only\': {\n        agentPreset: string;\n        reason: string;\n    };\n    \'agent-preset-locked\': {\n        sessionId: SessionId;\n        agentPreset: string;\n    };\n    \'agent-preset-conflict\': {\n        sessionId: SessionId;\n        requestedPreset: string;\n        existingPreset?: string;\n    };\n    \'agent-preset-not-found\': {\n        agentPreset: string;\n      /* …truncated — full shape in source */',
+    declaration: 'export interface RpcErrorDetailsMap {\n    \'bad-request\': {\n        issues: ZodIssue[];\n    };\n    \'cancelled\': {};\n    \'session-not-found\': {\n        sessionId: SessionId;\n    };\n    \'model-unavailable\': {\n        provider: string;\n        model: string;\n    };\n    \'session-conflict\': {\n        sessionId: SessionId;\n        requestedCwd: string;\n        existingCwd?: string;\n    };\n    \'invalid-time-zone\': {\n        value: string;\n    };\n    \'workspace-attach-failed\': {\n        sessionId: SessionId;\n        workspaceId: string;\n        blank?: boolean;\n    };\n    \'workspace-not-found\': {\n        workspaceId: string;\n    };\n    \'workspace-invalid-path\': {\n        path: string;\n    };\n    \'workspace-name-conflict\': {\n        name: string;\n    };\n    \'workspace-move-invalid\': {\n        workspaceId: string;\n        sessionId: SessionId;\n        beforeSessionId?: SessionId;\n    };\n    \'directory-unreadable\': {\n        path: string;\n    };\n    \'directory-exists\': {\n        path: string;\n    };\n    \'directory-create-failed\': {\n        path: string;\n    };\n    \'directory-picker-unavailable\': {\n        capability: string;\n    };\n    \'agent-preset-read-only\': {\n        agentPreset: string;\n        reason: string;\n    };\n    \'agent-preset-locked\': {\n        sessionId: SessionId;\n        agentPreset: string;\n    };\n    \'agent-preset-conflict\': {\n        sessionId: SessionId;\n        requestedPreset: string;\n        existingPreset?: string;\n    };\n    \'agent-preset-not-found\': {\n        a /* …truncated — full shape in source */',
   },
   {
     name: 'RpcId',
@@ -4010,6 +4106,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ShellSandboxInfo {\n    mode: SandboxMode;\n    denied: boolean;\n    enforcement?: SandboxEnforcement;\n    runnerFailed?: boolean;\n}',
   },
   {
+    name: 'SkillAdminEntry',
+    declaration: 'export interface SkillAdminEntry {\n    readonly name: string;\n    readonly description: string;\n    readonly whenToUse?: string;\n    readonly invocation: SkillInvocationPolicy;\n    readonly source: SkillSource;\n    readonly provider: string;\n    readonly owned: boolean;\n    readonly path?: string;\n}',
+  },
+  {
     name: 'SkillCandidate',
     declaration: 'export interface SkillCandidate extends SkillSummary {\n    readonly rank: number;\n    readonly locator: unknown;\n    readonly path?: string;\n    readonly metadata?: Readonly<Record<string, unknown>>;\n}',
   },
@@ -4048,6 +4148,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillResourceBase',
     declaration: 'export type SkillResourceBase = {\n    readonly kind: \'directory\';\n    readonly path: string;\n} | {\n    readonly kind: \'url\';\n    readonly url: string;\n} | {\n    readonly kind: \'opaque\';\n    readonly description: string;\n};',
+  },
+  {
+    name: 'SkillSaveInput',
+    declaration: 'export interface SkillSaveInput {\n    readonly name: string;\n    readonly description: string;\n    readonly whenToUse?: string;\n    readonly content: string;\n    readonly modelInvocable: boolean;\n    readonly userInvocable: boolean;\n}',
   },
   {
     name: 'SkillSource',

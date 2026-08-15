@@ -837,6 +837,44 @@ stream(options: GenerateOptions): AsyncIterable<StreamChunk>
 
 Source: [`packages/llm/llm/src/index.ts:284`](../../packages/llm/llm/src/index.ts)
 
+<a id="ctxvisionfallback--visionfallback"></a>
+
+### `ctx.visionFallback` — `VisionFallback`
+
+Owns the designated vision-model route and the image-to-text request rewrite. Mounted dormant: with no stored route the service reports itself unconfigured and rewriting passes messages through untouched.
+
+```ts cordis-catalog
+/**
+ * The stored vision-model route.
+ * @returns the designated route, or undefined while unset (disabled).
+ */
+selection(): { provider: string; model: string } | undefined
+
+/**
+ * Whether a vision-model route is currently designated. Admission gates
+ * consult this to admit image prompts for text-only main models.
+ * @returns whether rewriting can substitute image blocks.
+ */
+configured(): boolean
+
+/**
+ * Rewrite one request's messages for a target model: when the target
+ * declares it does not accept images and a vision route is designated,
+ * every image block is replaced by its logged (or newly generated and
+ * logged) description text. Any other case returns the input untouched.
+ * @param session - owning session; descriptions are read from and appended to its log.
+ * @param route - exact main-request route about to be dispatched.
+ * @param messages - derived request messages (never mutated).
+ * @param signal - main-request cancellation.
+ * @returns the original array, or a new array with image blocks substituted.
+ */
+async rewriteMessages( session: Session, route: { provider: string; model: string }, messages: Message[], signal: AbortSignal, ): Promise<Message[]>
+```
+
+Types: [Session](session.md)
+
+Source: [`packages/llm/llm-vision-fallback/src/index.ts:130`](../../packages/llm/llm-vision-fallback/src/index.ts)
+
 <a id="llm-events"></a>
 
 ### `llm/*` events

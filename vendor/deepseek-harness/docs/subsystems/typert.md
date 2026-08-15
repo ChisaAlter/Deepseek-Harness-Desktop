@@ -248,7 +248,7 @@ Root interface of the unified API. New client-request domain = one new file pair
 respond(message: ClientResponse): Promise<RpcReceipt>
 ```
 
-Source: [`packages/host/apiproxy/src/api/index.ts:22`](../../packages/host/apiproxy/src/api/index.ts)
+Source: [`packages/host/apiproxy/src/api/index.ts:23`](../../packages/host/apiproxy/src/api/index.ts)
 
 <a id="ctxtypert--typertregistry"></a>
 

@@ -242,6 +242,49 @@ interface Config {
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxskilladmin--skilladminservice"></a>
+
+### `ctx.skillAdmin` — `SkillAdminService`
+
+Manage the user skill root.
+
+```ts cordis-catalog
+/**
+ * List the merged catalog: every parseable skill under the user root plus
+ * every registry summary, deduplicated by name with the disk scan winning —
+ * the disk read is the freshest authority for the root this service owns.
+ * @returns sorted management entries.
+ */
+async list(): Promise<SkillAdminEntry[]>
+
+/**
+ * Read one owned skill's body, or `undefined` when the name does not name a
+ * parseable skill in the user root.
+ * @param name - kebab-case skill name.
+ * @returns the entry and body, or `undefined`.
+ */
+async read(name: string): Promise<{ entry: SkillAdminEntry; content: string } | undefined>
+
+/**
+ * Create or overwrite one user skill. An existing owned skill of the same
+ * name is replaced in place; a same-name skill provided by any other source
+ * is refused so the write cannot land where sessions would never see it.
+ * @param input - validated save payload.
+ * @returns the entry as stored.
+ * @throws SkillAdminError naming the refused condition.
+ */
+async save(input: SkillSaveInput): Promise<SkillAdminEntry>
+
+/**
+ * Remove one owned skill's directory (or flat file) recursively.
+ * @param name - kebab-case skill name.
+ * @throws SkillAdminError naming the refused condition.
+ */
+async remove(name: string): Promise<void>
+```
+
+Source: [`packages/skill/skill-admin/src/index.ts:66`](../../packages/skill/skill-admin/src/index.ts)
+
 <a id="ctxskills--skillregistry"></a>
 
 ### `ctx.skills` — `SkillRegistry`
