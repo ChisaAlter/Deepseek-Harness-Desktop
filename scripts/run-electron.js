@@ -4,10 +4,24 @@ const { spawn } = require('child_process');
 
 const repoRoot = path.join(__dirname, '..');
 
+function isElectronBinary(file) {
+  if (!file || !fs.existsSync(file)) {
+    return false;
+  }
+  const base = path.basename(file);
+  // Packaged helpers such as elevate.exe, and the installed
+  // Deepseek-Harness-Desktop.exe, are not a source-launch Electron.
+  return /^(electron)(\.exe)?$/i.test(base);
+}
+
 function candidates() {
   const list = [];
-  if (process.env.ELECTRON_PATH) {
+  if (isElectronBinary(process.env.ELECTRON_PATH)) {
     list.push(process.env.ELECTRON_PATH);
+  } else if (process.env.ELECTRON_PATH) {
+    console.warn(
+      `忽略 ELECTRON_PATH（不是 electron.exe）：${process.env.ELECTRON_PATH}`,
+    );
   }
   list.push(
     path.join(repoRoot, 'node_modules', 'electron', 'dist', 'electron.exe'),
