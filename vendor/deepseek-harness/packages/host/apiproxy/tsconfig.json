@@ -78,6 +78,9 @@
       "path": "../../skill/skill"
     },
     {
+      "path": "../../skill/skill-admin"
+    },
+    {
       "path": "../../jobs/jobs"
     },
     {

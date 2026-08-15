@@ -222,6 +222,18 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
       async list(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { skills: [{ name: 'commit-helper', description: 'Git commits', modelInvocable: true }] } } }
       },
+      async catalog(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: { skills: [] } } }
+      },
+      async read(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'skill-not-found', message: 'stub', details: {} } } }
+      },
+      async save(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'skill-invalid-input', message: 'stub', details: {} } } }
+      },
+      async remove(request) {
+        return { rpcId: request.rpcId, result: { ok: false, error: { code: 'skill-not-found', message: 'stub', details: {} } } }
+      },
     },
     goals: {
       async create(request) {

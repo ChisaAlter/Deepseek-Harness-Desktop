@@ -89,7 +89,14 @@ function scriptedApi(overrides: {
       insertSessionBefore: r => ok(r, { workspace: { workspaceId: 'w1' as never, path: '/t', title: 't', sessionIds: [], createdAt: '0', updatedAt: '0' } }),
       archiveSession: r => ok(r, { archivedSessionIds: [r.payload.sessionId] }),
     },
-    skills: { list: r => ok(r, { skills: [] }), ...overrides.skills },
+    skills: {
+      list: r => ok(r, { skills: [] }),
+      catalog: r => ok(r, { skills: [] }),
+      read: r => err(r, { code: 'skill-not-found', message: 'stub', details: {} }),
+      save: r => err(r, { code: 'skill-invalid-input', message: 'stub', details: {} }),
+      remove: r => err(r, { code: 'skill-not-found', message: 'stub', details: {} }),
+      ...overrides.skills,
+    },
     agentPresets: {
       list: r => ok(r, { presets: [], authorable: false, hasDocument: false }),
       select: r => ok(r, { agentPreset: r.payload.agentPreset }),

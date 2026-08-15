@@ -23,6 +23,8 @@ import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-se
 import { SubagentError } from '@deepseek-ai/dsh-subagent'
 import type { SubagentListEntry as CatalogSubagentListEntry } from '@deepseek-ai/dsh-subagent'
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
+import { SkillAdminError } from '@deepseek-ai/dsh-skill-admin'
+import type { SkillAdminEntry, SkillAdminService } from '@deepseek-ai/dsh-skill-admin'
 import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
 import {
   workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId,
@@ -93,6 +95,7 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 import { approvalResponsePayloadSchema } from './api/approvals.schema.ts'
 import { imageLimitsProjectionSchema, sessionListMetadataProjectionSchema } from './api/sessions.schema.ts'
 import { questionResponsePayloadSchema } from './api/questions.schema.ts'
+import type { SkillAdminView } from './api/skills.ts'
 import type { ClientResponse, RpcError, RpcReceipt, RpcRequest, RpcResponse } from './api/rpc.ts'
 import { RpcId } from './api/rpc.ts'
 import type {
@@ -383,6 +386,63 @@ async function buildModelCatalog(ctx: Context): Promise<{
 /** Wrap an error result echoing the request's rpcId. */
 function err<T>(request: RpcRequest<unknown>, error: RpcError): RpcResponse<T> {
   return { rpcId: request.rpcId, result: { ok: false, error } }
+}
+
+/** The host skill management service, or `undefined` when the composition does not mount it. */
+function adminService(ctx: Context): SkillAdminService | undefined {
+  return ctx.get('skillAdmin')
+}
+
+/** Refusal for a composition without the skill management service. */
+function skillAdminAbsent(): RpcError {
+  return {
+    code: 'skill-admin-absent',
+    message: 'skill management is unavailable: the host composition does not mount @deepseek-ai/dsh-skill-admin',
+    details: {},
+  }
+}
+
+/**
+ * Map one skill-management failure to its wire error. Known `SkillAdminError`
+ * codes become the named skill-* refusals the settings page branches on;
+ * anything else stays `internal` with the raw text.
+ * @param error - the thrown value.
+ * @param operation - short operation label for the internal message.
+ * @returns the wire error.
+ */
+function skillAdminFailure(error: unknown, operation: string): RpcError {
+  if (error instanceof SkillAdminError) {
+    const code = error.code
+    const refused = { code, message: error.message, details: {} }
+    switch (code) {
+      case 'invalid-name':
+        return { ...refused, code: 'skill-invalid-name' }
+      case 'invalid-input':
+        return { ...refused, code: 'skill-invalid-input' }
+      case 'shadowed':
+        return { ...refused, code: 'skill-shadowed' }
+      case 'not-owned':
+        return { ...refused, code: 'skill-not-owned' }
+      case 'not-found':
+        return { ...refused, code: 'skill-not-found' }
+    }
+  }
+  return { code: 'internal', message: `skill ${operation} failed: ${String(error)}`, details: {} }
+}
+
+/** Flatten one management entry to its wire view. */
+function toSkillAdminView(entry: SkillAdminEntry): SkillAdminView {
+  return {
+    name: entry.name,
+    description: entry.description,
+    ...entry.whenToUse === undefined ? {} : { whenToUse: entry.whenToUse },
+    modelInvocable: entry.invocation.modelInvocable,
+    userInvocable: entry.invocation.userInvocable,
+    source: entry.source,
+    provider: entry.provider,
+    owned: entry.owned,
+    ...entry.path === undefined ? {} : { path: entry.path },
+  }
 }
 
 /**
@@ -3325,6 +3385,58 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           })
         } catch (error: unknown) {
           return err(request, { code: 'internal', message: `skill listing failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      // ── management surface: session-independent catalog, read, save, and
+      // remove over the user skill root, answered by the host skill-admin
+      // service. Every refusal is a named wire code, never a 500. ─────────
+      async catalog(request) {
+        const admin = adminService(ctx)
+        if (admin === undefined) return err(request, skillAdminAbsent())
+        try {
+          const skills = await admin.list()
+          return ok(request, { skills: skills.map(toSkillAdminView) })
+        } catch (error: unknown) {
+          return err(request, skillAdminFailure(error, 'catalog'))
+        }
+      },
+
+      async read(request) {
+        const admin = adminService(ctx)
+        if (admin === undefined) return err(request, skillAdminAbsent())
+        const { name } = request.payload
+        try {
+          const skill = await admin.read(name)
+          if (skill === undefined) {
+            return err(request, { code: 'skill-not-found', message: `skill "${name}" is not an owned skill`, details: { name } })
+          }
+          return ok(request, { entry: toSkillAdminView(skill.entry), content: skill.content })
+        } catch (error: unknown) {
+          return err(request, skillAdminFailure(error, `read "${name}"`))
+        }
+      },
+
+      async save(request) {
+        const admin = adminService(ctx)
+        if (admin === undefined) return err(request, skillAdminAbsent())
+        try {
+          const entry = await admin.save(request.payload)
+          return ok(request, { entry: toSkillAdminView(entry) })
+        } catch (error: unknown) {
+          return err(request, skillAdminFailure(error, `save "${request.payload.name}"`))
+        }
+      },
+
+      async remove(request) {
+        const admin = adminService(ctx)
+        if (admin === undefined) return err(request, skillAdminAbsent())
+        const { name } = request.payload
+        try {
+          await admin.remove(name)
+          return ok(request, {})
+        } catch (error: unknown) {
+          return err(request, skillAdminFailure(error, `remove "${name}"`))
         }
       },
     },

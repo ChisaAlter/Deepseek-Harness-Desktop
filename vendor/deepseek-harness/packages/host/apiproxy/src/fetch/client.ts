@@ -42,6 +42,12 @@ import {
 } from '../api/workspace.schema.ts'
 import { skillListValueSchema } from '../api/skills.schema.ts'
 import {
+  skillCatalogValueSchema,
+  skillReadValueSchema,
+  skillRemoveValueSchema,
+  skillSaveValueSchema,
+} from '../api/skills.schema.ts'
+import {
   agentPresetCopyValueSchema, agentPresetListValueSchema, agentPresetOpenDocumentValueSchema,
   agentPresetReadValueSchema, agentPresetRemoveValueSchema, agentPresetSelectValueSchema,
 } from '../api/agent-presets.schema.ts'
@@ -123,6 +129,10 @@ export interface IApiClient {
   }
   skills: {
     list(payload: RequestPayload<'skill.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.list'>>>
+    catalog(payload: RequestPayload<'skill.catalog'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.catalog'>>>
+    read(payload: RequestPayload<'skill.read'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.read'>>>
+    save(payload: RequestPayload<'skill.save'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.save'>>>
+    remove(payload: RequestPayload<'skill.remove'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.remove'>>>
   }
   agentPresets: {
     list(payload: RequestPayload<'agentPreset.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.list'>>>
@@ -199,6 +209,10 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'workspace.insertSessionBefore': workspaceInsertSessionBeforeValueSchema,
   'workspace.archiveSession': workspaceArchiveSessionValueSchema,
   'skill.list': skillListValueSchema,
+  'skill.catalog': skillCatalogValueSchema,
+  'skill.read': skillReadValueSchema,
+  'skill.save': skillSaveValueSchema,
+  'skill.remove': skillRemoveValueSchema,
   'agentPreset.list': agentPresetListValueSchema,
   'agentPreset.select': agentPresetSelectValueSchema,
   'agentPreset.read': agentPresetReadValueSchema,
@@ -458,6 +472,10 @@ export abstract class AbstractApiClient implements IApiClient {
 
   readonly skills: IApiClient['skills'] = {
     list: (payload, signal) => this.callUnary('skill.list', payload, signal),
+    catalog: (payload, signal) => this.callUnary('skill.catalog', payload, signal),
+    read: (payload, signal) => this.callUnary('skill.read', payload, signal),
+    save: (payload, signal) => this.callUnary('skill.save', payload, signal),
+    remove: (payload, signal) => this.callUnary('skill.remove', payload, signal),
   }
 
   // Annotated like every sibling, and load-bearing rather than cosmetic:

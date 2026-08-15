@@ -105,6 +105,18 @@ export interface RpcErrorDetailsMap {
   'subagent-not-resumable': { childSessionId: SessionId }
   'subagent-unauthorized': { childSessionId: SessionId }
   'subagent-delivery-unavailable': { childSessionId: SessionId }
+  /** The host composition does not mount the skill management service. */
+  'skill-admin-absent': {}
+  /** A skill write named an invalid skill name; the message names the value. */
+  'skill-invalid-name': {}
+  /** A skill write carried an invalid field (empty description); the message explains. */
+  'skill-invalid-input': {}
+  /** A skill write refused because another source already wins the name. */
+  'skill-shadowed': {}
+  /** An edit or removal refused because the skill is not owned by the user root. */
+  'skill-not-owned': {}
+  /** A management read or removal named no known skill. */
+  'skill-not-found': {}
   'internal': {}
 }
 
