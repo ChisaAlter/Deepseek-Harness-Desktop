@@ -17,14 +17,13 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
-import type { McpConnectionState, McpStatusObserver, ReconnectConfig } from './connection.ts'
-import { probeMcpServer } from './probe.ts'
-import type { McpToolInfo, ProbeResult } from './probe.ts'
+import type { ReconnectConfig } from './connection.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
 
 export type { McpResult } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy, McpConnectionState, McpStatusObserver } from './connection.ts'
+export { resolveReconnectPolicy, startConnection } from './connection.ts'
 export { probeMcpServer } from './probe.ts'
 export type { McpToolInfo, ProbeResult } from './probe.ts'
 
@@ -109,9 +108,10 @@ const Reconnect: z<ReconnectConfig> = z.object({
 })
 
 /**
- * Shared stdio transport fields, without the `serverName` the plugin Config
- * adds. Composable so a management service can validate server profiles with
- * the exact same grammar the plugin instance itself validates.
+ * Shared stdio transport fields, without the `serverName` and
+ * `failOnStartupError` the plugin Config adds. Composable so a management
+ * service can validate server profiles with the exact same grammar the plugin
+ * instance itself validates.
  */
 export const stdioTransportFields = {
   transport: z.const('stdio'),
@@ -120,20 +120,18 @@ export const stdioTransportFields = {
   env: z.dict(String).default({}),
   cwd: z.string().default(''),
   toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
-  failOnStartupError: z.boolean().default(false),
   reconnect: Reconnect,
 }
 
 /**
- * Shared Streamable HTTP transport fields, without the `serverName` the
- * plugin Config adds (see {@link stdioTransportFields}).
+ * Shared Streamable HTTP transport fields, without the `serverName` and
+ * `failOnStartupError` the plugin Config adds (see {@link stdioTransportFields}).
  */
 export const streamableHttpTransportFields = {
   transport: z.const('streamable-http'),
   url: z.string().required(),
   headers: z.dict(String).default({}),
   toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
-  failOnStartupError: z.boolean().default(false),
   reconnect: Reconnect,
 }
 
@@ -141,10 +139,12 @@ export const Config = z.union([
   z.object({
     ...stdioTransportFields,
     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
+    failOnStartupError: z.boolean().default(false),
   }),
   z.object({
     ...streamableHttpTransportFields,
     serverName: z.string().required().pattern(SERVER_NAME_PATTERN),
+    failOnStartupError: z.boolean().default(false),
   }),
 ]) as unknown as z<Config>
 

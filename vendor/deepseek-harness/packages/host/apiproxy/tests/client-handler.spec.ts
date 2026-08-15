@@ -92,9 +92,9 @@ function scriptedApi(overrides: {
     skills: {
       list: r => ok(r, { skills: [] }),
       catalog: r => ok(r, { skills: [] }),
-      read: r => err(r, { code: 'skill-not-found', message: 'stub', details: {} }),
-      save: r => err(r, { code: 'skill-invalid-input', message: 'stub', details: {} }),
-      remove: r => err(r, { code: 'skill-not-found', message: 'stub', details: {} }),
+      read: err,
+      save: err,
+      remove: err,
       ...overrides.skills,
     },
     agentPresets: {

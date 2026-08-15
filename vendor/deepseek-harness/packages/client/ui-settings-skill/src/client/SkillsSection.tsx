@@ -10,7 +10,6 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { IApiClient, SkillAdminView } from '@deepseek-ai/dsh-api-remotes/client'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SkillForm } from './SkillForm.tsx'
 import { messageOf } from './message.ts'
@@ -25,8 +24,11 @@ export interface SkillsSectionInjected {
   t: (key: keyof typeof en) => string
 }
 
-/** Props delivered by the slot outlet: owner share plus the inject face. */
-export type SkillsSectionProps = PropsRuntime<'settings.section'> & Partial<SkillsSectionInjected>
+/**
+ * Props delivered by the slot outlet: the inject face spread flat (the
+ * renderer erases the share boundary at the render call).
+ */
+export type SkillsSectionProps = Partial<SkillsSectionInjected>
 
 /** The shared create/edit dialog's open state. */
 interface FormState {
@@ -45,7 +47,7 @@ interface DeleteState {
 
 /**
  * Render the Skills section, guarded until the shell supplies the inject face.
- * @param props - owner plus injected dependencies.
+ * @param props - injected dependencies.
  * @returns the section, or null while the shell has not injected yet.
  */
 export function SkillsSection(props: SkillsSectionProps): ReactNode {
@@ -152,7 +154,7 @@ function Loaded({ api, t }: SkillsSectionInjected): ReactNode {
               empty={t('empty')}
               t={t}
               onEdit={(entry) => { void openEdit(entry) }}
-              onDelete={(entry) => { setDeleting({ entry, busy: false }) }}
+              onDelete={(entry) => { setDeleting({ entry, busy: false, failure: undefined }) }}
             />
             <Group
               title={t('groupOthers')}

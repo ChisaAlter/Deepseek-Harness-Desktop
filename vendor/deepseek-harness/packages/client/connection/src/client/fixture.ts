@@ -2837,7 +2837,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           ],
         })
       },
-      catalog: () => ok(request, {
+      catalog: (request) => ok(request, {
         skills: [
           { name: 'fixture-demo', description: 'fixture 技能样本', whenToUse: '仅供 UI 目录渲染验收', modelInvocable: true, userInvocable: true, source: 'user-dsh', provider: 'filesystem', owned: true },
           { name: 'fixture-user-only', description: 'fixture 仅用户技能样本', modelInvocable: false, userInvocable: true, source: 'bundled', provider: 'bundled', owned: false },
@@ -2864,7 +2864,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           owned: true,
         },
       }),
-      remove: () => ok(request, {}),
+      remove: (request) => ok(request, {}),
     },
     goals: {
       // Compatibility face only: old API Proxy payloads and acknowledgements

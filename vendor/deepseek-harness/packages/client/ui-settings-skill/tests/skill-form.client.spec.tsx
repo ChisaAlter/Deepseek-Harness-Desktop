@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { SkillForm } from '../src/client/SkillForm.tsx'
+import type { SkillFormProps } from '../src/client/SkillForm.tsx'
 import { en, type SkillKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -13,15 +14,19 @@ const t = ((key: SkillKey): string => en[key]) as (key: SkillKey) => string
 function formApi(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
   return {
     skills: {
+      list: vi.fn(async () => ({ result: { ok: true as const, value: { skills: [] } } })),
+      catalog: vi.fn(async () => ({ result: { ok: true as const, value: { skills: [] } } })),
+      read: vi.fn(async () => ({ result: { ok: true as const, value: { entry: {}, content: '' } } })),
+      remove: vi.fn(async () => ({ result: { ok: true as const, value: {} } })),
       save: vi.fn(async () => ({ result: { ok: true as const, value: { entry: {} } } })),
       ...overrides,
     },
   }
 }
 
-function renderForm(overrides: { api?: unknown; initialName?: string; initialContent?: string } = {}) {
-  const props = {
-    mode: 'create' as const,
+function renderForm(overrides: Partial<SkillFormProps> = {}) {
+  const props: SkillFormProps = {
+    mode: 'create',
     api: formApi() as unknown as Pick<IApiClient, 'skills'>,
     t,
     onClose: vi.fn(),
@@ -80,7 +85,6 @@ describe('SkillForm', () => {
   it('prefills an edit and omits nothing', async () => {
     renderForm({
       mode: 'edit',
-      initialName: 'existing',
       initial: {
         name: 'existing',
         description: 'Existing desc',
@@ -106,7 +110,7 @@ describe('SkillForm', () => {
         result: { ok: false as const, error: { code: 'skill-shadowed', message: 'taken by memory', details: {} } },
       })),
     })
-    const props = renderForm({ api })
+    const props = renderForm({ api: api as unknown as Pick<IApiClient, 'skills'> })
     fillRequired('taken', 'Desc', 'Body.')
     fireEvent.click(screen.getByRole('button', { name: en.save }))
     expect(await screen.findByText('taken by memory')).toBeTruthy()

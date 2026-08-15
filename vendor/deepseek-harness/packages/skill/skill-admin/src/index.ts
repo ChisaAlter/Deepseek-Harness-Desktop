@@ -43,6 +43,12 @@ const USER_SKILL_SOURCE = 'user-dsh'
 const USER_SKILL_PROVIDER = 'filesystem'
 const SKILL_MARKDOWN = 'SKILL.md'
 
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    skillAdmin: SkillAdminService
+  }
+}
+
 /** One disk skill parsed for management, before the wire entry is built. */
 interface ParsedDiskSkill {
   readonly name: string

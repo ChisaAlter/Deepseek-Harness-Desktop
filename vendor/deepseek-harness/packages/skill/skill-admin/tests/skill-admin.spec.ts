@@ -6,7 +6,6 @@ import { join } from 'node:path'
 import SkillRegistry, {
   type SkillCandidate,
   type SkillDefinition,
-  type SkillLookupOptions,
   type SkillProvider,
 } from '@deepseek-ai/dsh-skill'
 import SkillAdminService, { SkillAdminError } from '../src/index.ts'

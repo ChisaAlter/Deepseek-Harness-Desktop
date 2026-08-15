@@ -31,17 +31,39 @@ export type ProbeResult =
 export const DEFAULT_PROBE_TIMEOUT_MS = 10_000
 
 /**
+ * A probe target: the transport fields a draft server profile may carry. The
+ * fields the plugin Config defaults (`args`, `env`, `cwd`, timeouts,
+ * `failOnStartupError`) are optional here — the probe normalizes them itself.
+ */
+export type ProbeConfig =
+  | {
+    transport: 'stdio'
+    serverName: string
+    command: string
+    args?: string[]
+    env?: Record<string, string>
+    cwd?: string
+  }
+  | {
+    transport: 'streamable-http'
+    serverName: string
+    url: string
+    headers?: Record<string, string>
+  }
+
+/**
  * Probe one MCP server and list its tools.
- * @param config - resolved plugin config (transport + server identity); the
- *   `serverName` is used only for logging context and is never registered.
+ * @param config - probe target (transport + server identity); the
+ *   `serverName` is used only as transport context and is never registered.
  * @param timeoutMs - deadline for the whole probe, bounded by
  *   `MAX_TIMER_DELAY_MS`; an invalid value refuses the probe up front.
  * @returns the tool listing, or a refusal message.
  */
-export async function probeMcpServer(config: Config, timeoutMs: number = DEFAULT_PROBE_TIMEOUT_MS): Promise<ProbeResult> {
+export async function probeMcpServer(config: ProbeConfig, timeoutMs: number = DEFAULT_PROBE_TIMEOUT_MS): Promise<ProbeResult> {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_TIMER_DELAY_MS) {
     return { ok: false, message: `probe timeout must be a positive number no greater than ${MAX_TIMER_DELAY_MS}` }
   }
+  const fullConfig = normalizeProbeConfig(config)
   const client = new Client(
     { name: 'dsh-mcp-probe', version: '0.0.1' },
     { capabilities: {} },
@@ -54,7 +76,7 @@ export async function probeMcpServer(config: Config, timeoutMs: number = DEFAULT
   }, timeoutMs)
   timer.unref()
   try {
-    await client.connect(createTransport(config))
+    await client.connect(createTransport(fullConfig))
     const listing = await client.listTools()
     settled = true
     clearTimeout(timer)
@@ -76,5 +98,29 @@ export async function probeMcpServer(config: Config, timeoutMs: number = DEFAULT
       // The transport already closed (deadline or connect failure); the probe
       // outcome above already carries the reason.
     }
+  }
+}
+
+/** Materialize the transport defaults the plugin Config would have supplied. */
+function normalizeProbeConfig(config: ProbeConfig): Config {
+  if (config.transport === 'stdio') {
+    return {
+      transport: 'stdio',
+      serverName: config.serverName,
+      command: config.command,
+      args: config.args ?? [],
+      env: config.env ?? {},
+      cwd: config.cwd ?? '',
+      toolCallTimeoutMs: 60_000,
+      failOnStartupError: false,
+    }
+  }
+  return {
+    transport: 'streamable-http',
+    serverName: config.serverName,
+    url: config.url,
+    headers: config.headers ?? {},
+    toolCallTimeoutMs: 60_000,
+    failOnStartupError: false,
   }
 }

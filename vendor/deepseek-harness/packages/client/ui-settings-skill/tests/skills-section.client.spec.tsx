@@ -40,7 +40,7 @@ function renderSection(overrides: Partial<SkillsSectionInjected> = {}) {
     t,
     ...overrides,
   }
-  render(<SkillsSection close={() => {}} {...injected} />)
+  render(<SkillsSection {...injected} />)
   return injected
 }
 
