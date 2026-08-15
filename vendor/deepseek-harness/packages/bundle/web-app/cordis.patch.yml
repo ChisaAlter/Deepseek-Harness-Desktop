@@ -100,6 +100,11 @@
     - id: skill-admin
       name: '@deepseek-ai/dsh-skill-admin'
 
+    # Settings-driven MCP server manager: the `mcp` settings namespace, live
+    # mount/unmount of mcp-client connections, status, and probe.
+    - id: mcp-manager
+      name: '@deepseek-ai/dsh-mcp-manager'
+
     # The API gateway: the transport-agnostic dispatch face every client shape
     # shares. The base layer's agent-default-model service owns the default model.
     - id: api-gateway

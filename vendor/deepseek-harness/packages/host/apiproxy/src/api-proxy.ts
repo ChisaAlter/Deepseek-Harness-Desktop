@@ -260,7 +260,7 @@ function referencedImage(events: readonly SessionEvent[], attachmentId: string):
  * The vision-fallback namespace carries the designated vision-model route the
  * Models page writes; the host-side `dsh-llm-vision-fallback` plugin reads it.
  */
-const PRODUCT_SETTINGS_NAMESPACES = new Set(['ui-onboarding', AGENT_PRESET_SETTINGS_NAMESPACE, 'vision-fallback'])
+const PRODUCT_SETTINGS_NAMESPACES = new Set(['ui-onboarding', AGENT_PRESET_SETTINGS_NAMESPACE, 'vision-fallback', 'mcp'])
 
 /** Strict browser-zone profile: UTC or an IANA Area/Location-style identifier. */
 const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/
