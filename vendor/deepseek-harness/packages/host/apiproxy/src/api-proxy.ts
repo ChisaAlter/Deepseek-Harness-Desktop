@@ -25,6 +25,7 @@ import type { SubagentListEntry as CatalogSubagentListEntry } from '@deepseek-ai
 import { isUserInvocable } from '@deepseek-ai/dsh-skill'
 import { SkillAdminError } from '@deepseek-ai/dsh-skill-admin'
 import type { SkillAdminEntry, SkillAdminService } from '@deepseek-ai/dsh-skill-admin'
+import type { McpManagerService } from '@deepseek-ai/dsh-mcp-manager'
 import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
 import {
   workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId,
@@ -391,6 +392,20 @@ function err<T>(request: RpcRequest<unknown>, error: RpcError): RpcResponse<T> {
 /** The host skill management service, or `undefined` when the composition does not mount it. */
 function adminService(ctx: Context): SkillAdminService | undefined {
   return ctx.get('skillAdmin')
+}
+
+/** The host MCP server manager, or `undefined` when the composition does not mount it. */
+function mcpManagerService(ctx: Context): McpManagerService | undefined {
+  return ctx.get('mcpManager')
+}
+
+/** Refusal for a composition without the MCP server manager. */
+function mcpManagerAbsent(): RpcError {
+  return {
+    code: 'mcp-manager-absent',
+    message: 'MCP server management is unavailable: the host composition does not mount @deepseek-ai/dsh-mcp-manager',
+    details: {},
+  }
 }
 
 /** Refusal for a composition without the skill management service. */
@@ -3437,6 +3452,33 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
           return ok(request, {})
         } catch (error: unknown) {
           return err(request, skillAdminFailure(error, `remove "${name}"`))
+        }
+      },
+    },
+
+    // ── MCP server management: live status snapshot and one-shot draft
+    // probe, answered by the host mcp-manager service. Persistence rides the
+    // settings seam; this domain never writes. ────────────────────────────
+    mcp: {
+      async describe(request) {
+        const manager = mcpManagerService(ctx)
+        if (manager === undefined) return err(request, mcpManagerAbsent())
+        try {
+          const servers = await manager.describe()
+          return ok(request, { servers })
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: `mcp describe failed: ${String(error)}`, details: {} })
+        }
+      },
+
+      async probe(request) {
+        const manager = mcpManagerService(ctx)
+        if (manager === undefined) return err(request, mcpManagerAbsent())
+        try {
+          const result = await manager.probe(request.payload)
+          return ok(request, result)
+        } catch (error: unknown) {
+          return err(request, { code: 'internal', message: `mcp probe failed: ${String(error)}`, details: {} })
         }
       },
     },

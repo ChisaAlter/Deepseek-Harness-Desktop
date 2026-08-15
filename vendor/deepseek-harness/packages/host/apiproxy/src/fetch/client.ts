@@ -47,6 +47,7 @@ import {
   skillRemoveValueSchema,
   skillSaveValueSchema,
 } from '../api/skills.schema.ts'
+import { mcpDescribeValueSchema, mcpProbeValueSchema } from '../api/mcp.schema.ts'
 import {
   agentPresetCopyValueSchema, agentPresetListValueSchema, agentPresetOpenDocumentValueSchema,
   agentPresetReadValueSchema, agentPresetRemoveValueSchema, agentPresetSelectValueSchema,
@@ -134,6 +135,10 @@ export interface IApiClient {
     save(payload: RequestPayload<'skill.save'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.save'>>>
     remove(payload: RequestPayload<'skill.remove'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'skill.remove'>>>
   }
+  mcp: {
+    describe(payload: RequestPayload<'mcp.describe'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'mcp.describe'>>>
+    probe(payload: RequestPayload<'mcp.probe'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'mcp.probe'>>>
+  }
   agentPresets: {
     list(payload: RequestPayload<'agentPreset.list'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.list'>>>
     select(payload: RequestPayload<'agentPreset.select'>, signal?: AbortSignal): Promise<RpcResponse<ResponseValue<'agentPreset.select'>>>
@@ -213,6 +218,8 @@ const UNARY_VALUE_SCHEMAS: { [K in keyof RpcMethodMap]: z.ZodType<Wire<ResponseV
   'skill.read': skillReadValueSchema,
   'skill.save': skillSaveValueSchema,
   'skill.remove': skillRemoveValueSchema,
+  'mcp.describe': mcpDescribeValueSchema,
+  'mcp.probe': mcpProbeValueSchema,
   'agentPreset.list': agentPresetListValueSchema,
   'agentPreset.select': agentPresetSelectValueSchema,
   'agentPreset.read': agentPresetReadValueSchema,
@@ -476,6 +483,11 @@ export abstract class AbstractApiClient implements IApiClient {
     read: (payload, signal) => this.callUnary('skill.read', payload, signal),
     save: (payload, signal) => this.callUnary('skill.save', payload, signal),
     remove: (payload, signal) => this.callUnary('skill.remove', payload, signal),
+  }
+
+  readonly mcp: IApiClient['mcp'] = {
+    describe: (payload, signal) => this.callUnary('mcp.describe', payload, signal),
+    probe: (payload, signal) => this.callUnary('mcp.probe', payload, signal),
   }
 
   // Annotated like every sibling, and load-bearing rather than cosmetic:

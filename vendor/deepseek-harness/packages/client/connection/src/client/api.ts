@@ -11,6 +11,7 @@ export type {
   DirectoryEntry, DirectoryListing,
   ResponseValue, WorkspaceApi, WorkspaceId, WorkspaceView,
   SkillsApi, SkillAdminView, SkillEntry, SkillSaveRequest,
+  McpApi, McpProbeRequestView, McpProbeResultView, McpProbeToolView, McpServerStatusView,
   ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning,
   ModelReasoningEffort, ModelSelection, QueueAction, QueuedInboxItem, SessionModels,
   GoalsApi, GoalRef,

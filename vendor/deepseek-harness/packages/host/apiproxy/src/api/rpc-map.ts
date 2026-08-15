@@ -14,6 +14,7 @@ import type { SettingsApi } from './settings.ts'
 import type { CredentialsApi } from './credentials.ts'
 import type { LlmApi } from './llm.ts'
 import type { SubagentsApi } from './subagents.ts'
+import type { McpApi } from './mcp.ts'
 import type { RpcResponse } from './rpc.ts'
 
 /**
@@ -55,6 +56,8 @@ export interface RpcMethodMap {
   'skill.read': SkillsApi['read']
   'skill.save': SkillsApi['save']
   'skill.remove': SkillsApi['remove']
+  'mcp.describe': McpApi['describe']
+  'mcp.probe': McpApi['probe']
   'agentPreset.list': AgentPresetsApi['list']
   'agentPreset.select': AgentPresetsApi['select']
   'agentPreset.read': AgentPresetsApi['read']

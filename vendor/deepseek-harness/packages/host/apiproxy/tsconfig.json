@@ -81,6 +81,12 @@
       "path": "../../skill/skill-admin"
     },
     {
+      "path": "../../mcp/mcp-client"
+    },
+    {
+      "path": "../../mcp/mcp-manager"
+    },
+    {
       "path": "../../jobs/jobs"
     },
     {

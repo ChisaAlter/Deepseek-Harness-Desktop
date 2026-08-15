@@ -2866,6 +2866,10 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       }),
       remove: (request) => ok(request, {}),
     },
+    mcp: {
+      describe: (request) => ok(request, { servers: [] }),
+      probe: (request) => ok(request, { ok: false as const, message: 'fixture probe unavailable' }),
+    },
     goals: {
       // Compatibility face only: old API Proxy payloads and acknowledgements
       // adapt to the canonical fixture Remote implementation above.
@@ -3187,6 +3191,8 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'skill.read': return this.api.skills.read(request)
       case 'skill.save': return this.api.skills.save(request)
       case 'skill.remove': return this.api.skills.remove(request)
+      case 'mcp.describe': return this.api.mcp.describe(request)
+      case 'mcp.probe': return this.api.mcp.probe(request)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)
       case 'agentPreset.read': return this.api.agentPresets.read(request)

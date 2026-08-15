@@ -117,6 +117,8 @@ export interface RpcErrorDetailsMap {
   'skill-not-owned': {}
   /** A management read or removal named no known skill. */
   'skill-not-found': {}
+  /** The host composition does not mount the MCP server manager. */
+  'mcp-manager-absent': {}
   'internal': {}
 }
 
