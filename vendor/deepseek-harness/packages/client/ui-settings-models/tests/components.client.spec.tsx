@@ -2,6 +2,8 @@
 /** Section, setup-card, and hand-written editor behavior over a scripted wire face. */
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
+import type { ReactNode } from 'react'
 import Schema from '@deepseek-ai/schemastery'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
 import type { RpcResponse, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
@@ -13,6 +15,8 @@ import { pathOps } from '../src/client/ProviderEditor.tsx'
 import {
   DeepSeekModelsEditor, formatCapacity, modelDrafts, parseCapacity, validateDeepSeekModels,
 } from '../src/client/DeepSeekModelsEditor.tsx'
+import { ModelListEditor } from '../src/client/ModelListEditor.tsx'
+import type { ModelDraft, ProbeTarget } from '../src/client/ModelListEditor.tsx'
 import { apiKeyFailure } from '../src/client/apiKey.ts'
 import { deriveKeyRef, ModelsSettingsStore } from '../src/client/store.ts'
 import type { ProviderRow } from '../src/client/store.ts'
@@ -1330,6 +1334,88 @@ describe('ModelsSection', () => {
       { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
     )
     expect(failure).toBe('connection lost')
+  })
+})
+
+describe('input types', () => {
+  it('declares input types per model row and writes the canonical order', async () => {
+    const { mutate } = await mountSection()
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    await screen.findByLabelText(en.keyInput)
+    fireEvent.click(screen.getByText(en.customized))
+    fireEvent.click(screen.getByText(en.addModel))
+    const ids = screen.getAllByLabelText(new RegExp(en.modelId))
+    fireEvent.change(ids[0] as HTMLInputElement, { target: { value: 'vision-model' } })
+    expandRow(1)
+    // No declaration yet: the inheritance hint shows, and nothing is stored.
+    expect(screen.getByText(en.inputInherited)).toBeTruthy()
+    fireEvent.click(screen.getByLabelText(`${en.inputImage} 1`))
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
+    expect(mutate.mock.calls[0]?.[0]).toEqual({
+      ns: 'llm-pi-ai',
+      ops: [{
+        op: 'set',
+        path: ['providers', 'openai', 'models'],
+        value: [{ id: 'vision-model', input: ['image'] }],
+      }],
+      expectedRevision: 0,
+    })
+  })
+
+  it('declares and clears input types on a directly rendered row', () => {
+    const onChange = vi.fn()
+    const probe: ProbeTarget = { settingsNs: 'llm-pi-ai' }
+    function StatefulListEditor(): ReactNode {
+      const [models, setModels] = useState<ModelDraft[]>([{ id: 'm', input: ['text', 'image'] }])
+      return (
+        <ModelListEditor
+          models={models}
+          overridden={false}
+          probe={probe}
+          api={{ llm: { discoverModels: vi.fn() } } as never}
+          t={t}
+          disabled={false}
+          onChange={(next) => { onChange(next); setModels(next) }}
+        />
+      )
+    }
+    render(<StatefulListEditor />)
+    expandRow(1)
+    const image = screen.getByLabelText(`${en.inputImage} 1`) as HTMLInputElement
+    expect(image.checked).toBe(true)
+    fireEvent.click(image)
+    expect(onChange).toHaveBeenNthCalledWith(1, [{ id: 'm', input: ['text'] }])
+    fireEvent.click(screen.getByLabelText(`${en.inputText} 1`))
+    // Clearing the last declared type removes the field: inherit.
+    expect(onChange).toHaveBeenNthCalledWith(2, [{ id: 'm' }])
+    expect(screen.getByText(en.inputInherited)).toBeTruthy()
+  })
+
+  it('requires a non-empty route-level default input for pi-ai', async () => {
+    const { mutate } = await mountSection()
+    fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
+    await screen.findByLabelText(en.keyInput)
+    fireEvent.click(screen.getByText(en.customized))
+    const text = screen.getByLabelText(en.inputText) as HTMLInputElement
+    // The fixture stores no defaultInput: the field is absent, so nothing
+    // blocks the write and the hint explains inheritance.
+    expect(text.checked).toBe(false)
+    expect(screen.getByText(en.defaultInputHint)).toBeTruthy()
+    expect((screen.getByText(en.apply) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(text)
+    fireEvent.click(screen.getByLabelText(en.inputText))
+    // An explicitly emptied set is refused, like the host grammar refuses it.
+    expect(await screen.findByText(en.defaultInputEmpty)).toBeTruthy()
+    expect((screen.getByText(en.apply) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText(en.inputImage))
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
+    expect(mutate.mock.calls[0]?.[0]).toEqual({
+      ns: 'llm-pi-ai',
+      ops: [{ op: 'set', path: ['providers', 'openai', 'defaultInput'], value: ['image'] }],
+      expectedRevision: 0,
+    })
   })
 })
 

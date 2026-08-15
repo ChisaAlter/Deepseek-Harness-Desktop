@@ -141,6 +141,31 @@ function effortsOf(model: ModelDraft): Record<string, string | null> {
 }
 
 /**
+ * Input types this form can declare, in the canonical pi-ai order (text
+ * first). The wire spelling is the same string (`text: text`); audio and
+ * other modalities wait for pi-ai upstream support.
+ */
+const INPUT_CHOICES = [
+  { id: 'text', key: 'inputText' },
+  { id: 'image', key: 'inputImage' },
+] as const satisfies readonly { id: string; key: keyof typeof en }[]
+
+type InputId = (typeof INPUT_CHOICES)[number]['id']
+
+/** One model's declared input types, or `undefined` when it declares none. */
+function inputOf(model: ModelDraft): readonly InputId[] | undefined {
+  const value = model['input']
+  if (!Array.isArray(value)) return undefined
+  const declared = value.filter((id): id is InputId => id === 'text' || id === 'image')
+  return declared.length === 0 ? undefined : declared
+}
+
+/** Reorder a declared set into the canonical choice order. */
+function orderedInput(selected: readonly InputId[]): InputId[] {
+  return INPUT_CHOICES.filter(choice => selected.includes(choice.id)).map(choice => choice.id)
+}
+
+/**
  * What an empty capacity field is worth, shown as its placeholder so a row left
  * blank does not read as a model with no capacity at all.
  *
@@ -257,6 +282,13 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     else dict[id] = id
     const stillOffers = EFFORT_CHOICES.some(choice => Object.prototype.hasOwnProperty.call(dict, choice.id))
     patch(index, { reasoningEfforts: stillOffers ? dict : undefined })
+  }
+
+  /** Toggle one declared input type; an empty set removes the field (inherit). */
+  const toggleInput = (index: number, model: ModelDraft, id: InputId): void => {
+    const current = inputOf(model) ?? []
+    const next = current.includes(id) ? current.filter(existing => existing !== id) : [...current, id]
+    patch(index, { input: next.length === 0 ? undefined : orderedInput(next) })
   }
 
   const fetchModels = async (): Promise<void> => {
@@ -469,6 +501,29 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                     onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
                   />
                 </label>
+                <fieldset className={styles['effortGroup']}>
+                  <legend className={styles['modelFieldLabel']}>{t('inputTitle')}</legend>
+                  <div className={styles['effortOptions']}>
+                    {INPUT_CHOICES.map((choice) => {
+                      const checked = (inputOf(model) ?? []).includes(choice.id)
+                      return (
+                        <label className={styles['effortOption']} key={choice.id}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled}
+                            aria-label={`${t(choice.key)} ${index + 1}`}
+                            onChange={() => { toggleInput(index, model, choice.id) }}
+                          />
+                          <span>{t(choice.key)}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  {inputOf(model) === undefined
+                    ? <span className={styles['modelFieldLabel']}>{t('inputInherited')}</span>
+                    : null}
+                </fieldset>
               </div>
             )
             : null}
