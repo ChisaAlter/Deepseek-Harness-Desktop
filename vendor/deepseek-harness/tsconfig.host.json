@@ -141,6 +141,7 @@
     { "path": "./packages/session/session-projection" },
     { "path": "./packages/session/session-projection-cache" },
     { "path": "./packages/session/session-stats" },
+    { "path": "./packages/session/usage-stats" },
     { "path": "./packages/session-query/session-query" },
     { "path": "./packages/session-query/session-query-sqlite" },
     { "path": "./packages/settings/settings" },

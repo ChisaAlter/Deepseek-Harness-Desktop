@@ -29,6 +29,7 @@ import {
   workspaceRenameRequestSchema, workspaceRenameValueSchema, workspaceViewSchema,
 } from '../src/api/workspace.schema.ts'
 import { skillEntrySchema, skillListRequestSchema, skillListValueSchema } from '../src/api/skills.schema.ts'
+import { usageSummaryRequestSchema, usageSummaryValueSchema } from '../src/api/usage.schema.ts'
 import {
   agentPresetEntrySchema, agentPresetListValueSchema, agentPresetOpenDocumentValueSchema,
 } from '../src/api/agent-presets.schema.ts'
@@ -427,6 +428,29 @@ describe('skills domain schemas', () => {
     expect(() => skillEntrySchema.parse({ name: '', description: 'd', modelInvocable: true })).toThrow()
     // modelInvocable is required wire data: an entry without it fails.
     expect(() => skillEntrySchema.parse({ name: 'n', description: 'd' })).toThrow()
+  })
+})
+
+describe('usage domain schemas', () => {
+  it('accepts only 7 or 30 day windows', () => {
+    expect(usageSummaryRequestSchema.parse({ rangeDays: 7 }).rangeDays).toBe(7)
+    expect(usageSummaryRequestSchema.parse({ rangeDays: 30, timeZone: 'Asia/Shanghai' }).timeZone)
+      .toBe('Asia/Shanghai')
+    expect(() => usageSummaryRequestSchema.parse({ rangeDays: 14 })).toThrow()
+    expect(() => usageSummaryRequestSchema.parse({})).toThrow()
+    const value = usageSummaryValueSchema.parse({
+      rangeDays: 7,
+      totalTokens: 0,
+      sessionCount: 0,
+      messageCount: 0,
+      activeDays: 0,
+      currentStreak: 0,
+      topModel: null,
+      heatmap: [],
+      daily: [],
+      models: [],
+    })
+    expect(value.topModel).toBeNull()
   })
 })
 

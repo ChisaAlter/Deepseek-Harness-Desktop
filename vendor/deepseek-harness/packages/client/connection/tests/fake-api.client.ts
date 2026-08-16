@@ -217,6 +217,21 @@ export class FakeApiClient implements IApiClient {
     remove: (payload: { name: string }) => this.record('skill.remove', payload, Promise.resolve(ok({}))),
   }
 
+  readonly usage: IApiClient['usage'] = {
+    summary: (payload: { rangeDays: 7 | 30 }) => this.record('usage.summary', payload, Promise.resolve(ok({
+      rangeDays: payload.rangeDays,
+      totalTokens: 0,
+      sessionCount: 0,
+      messageCount: 0,
+      activeDays: 0,
+      currentStreak: 0,
+      topModel: null,
+      heatmap: [],
+      daily: [],
+      models: [],
+    }))),
+  }
+
   readonly mcp: IApiClient['mcp'] = {
     describe: () => this.record('mcp.describe', {}, Promise.resolve(ok({ servers: [] }))),
     probe: (payload: { serverName: string }) => this.record('mcp.probe', payload, Promise.resolve(ok({

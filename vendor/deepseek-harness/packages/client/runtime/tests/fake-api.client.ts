@@ -278,6 +278,21 @@ export class FakeApiClient implements IApiClient {
     }))),
   }
 
+  readonly usage: IApiClient['usage'] = {
+    summary: (payload: { rangeDays: 7 | 30 }) => this.record('usage.summary', payload, Promise.resolve(ok({
+      rangeDays: payload.rangeDays,
+      totalTokens: 0,
+      sessionCount: 0,
+      messageCount: 0,
+      activeDays: 0,
+      currentStreak: 0,
+      topModel: null,
+      heatmap: [],
+      daily: [],
+      models: [],
+    }))),
+  }
+
   readonly goals: IApiClient['goals'] = {
     create: payload => this.record('goal.create', payload, Promise.resolve(ok({ ref: { id: 'fake-goal' as never, revision: 1 } }))),
     edit: payload => this.record('goal.edit', payload, Promise.resolve(ok({ ref: { id: 'fake-goal' as never, revision: 1 } }))),

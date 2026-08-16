@@ -82,6 +82,7 @@ export const rpcErrorSchema: z.ZodType<RpcError> = z.discriminatedUnion('code', 
   z.object({ code: z.literal('skill-not-owned'), message: z.string(), details: z.object({}) }),
   z.object({ code: z.literal('skill-not-found'), message: z.string(), details: z.object({}) }),
   z.object({ code: z.literal('mcp-manager-absent'), message: z.string(), details: z.object({}) }),
+  z.object({ code: z.literal('usage-stats-absent'), message: z.string(), details: z.object({}) }),
   z.object({ code: z.literal('internal'), message: z.string(), details: z.object({}) }),
 ]) as unknown as z.ZodType<RpcError>
 

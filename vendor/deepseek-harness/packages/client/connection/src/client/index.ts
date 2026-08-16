@@ -19,6 +19,7 @@ export type {
   DirectoryEntry, DirectoryListing,
   ToolCallView, ToolResultView, WorkspaceApi, WorkspaceId, WorkspaceView,
   SkillsApi, SkillAdminView, SkillEntry, SkillSaveRequest,
+  UsageApi, UsageModelShareView, UsageRangeDays, UsageSummaryRequest, UsageSummaryView,
   McpApi, McpProbeRequestView, McpProbeResultView, McpProbeToolView, McpServerStatusView,
   ModelCatalogFailure, ModelCatalogModel, ModelProviderGroup, ModelReasoning,
   MessageId, ModelReasoningEffort, ModelSelection, QueueAction, QueuedInboxItem, SessionModels,

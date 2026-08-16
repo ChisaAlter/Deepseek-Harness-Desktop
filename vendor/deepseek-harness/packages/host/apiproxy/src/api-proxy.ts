@@ -26,6 +26,7 @@ import { isUserInvocable } from '@deepseek-ai/dsh-skill'
 import { SkillAdminError } from '@deepseek-ai/dsh-skill-admin'
 import type { SkillAdminEntry, SkillAdminService } from '@deepseek-ai/dsh-skill-admin'
 import type { McpManagerService } from '@deepseek-ai/dsh-mcp-manager'
+import type { UsageStats } from '@deepseek-ai/dsh-usage-stats'
 import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
 import {
   workspaceDomainState, workspaceRecord, WorkspaceId as brandWorkspaceId,
@@ -399,11 +400,25 @@ function mcpManagerService(ctx: Context): McpManagerService | undefined {
   return ctx.get('mcpManager')
 }
 
+/** The host usage-stats service, or `undefined` when the composition does not mount it. */
+function usageStatsService(ctx: Context): UsageStats | undefined {
+  return ctx.get('usageStats')
+}
+
 /** Refusal for a composition without the MCP server manager. */
 function mcpManagerAbsent(): RpcError {
   return {
     code: 'mcp-manager-absent',
     message: 'MCP server management is unavailable: the host composition does not mount @deepseek-ai/dsh-mcp-manager',
+    details: {},
+  }
+}
+
+/** Refusal for a composition without the usage-stats service. */
+function usageStatsAbsent(): RpcError {
+  return {
+    code: 'usage-stats-absent',
+    message: 'usage summary is unavailable: the host composition does not mount @deepseek-ai/dsh-usage-stats',
     details: {},
   }
 }
@@ -3456,9 +3471,22 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
       },
     },
 
-    // ── MCP server management: live status snapshot and one-shot draft
-    // probe, answered by the host mcp-manager service. Persistence rides the
-    // settings seam; this domain never writes. ────────────────────────────
+    usage: {
+      async summary(request, signal) {
+        const stats = usageStatsService(ctx)
+        if (stats === undefined) return err(request, usageStatsAbsent())
+        try {
+          return ok(request, await stats.summarize(request.payload, signal))
+        } catch (error) {
+          return err(request, {
+            code: 'internal',
+            message: `usage.summary failed: ${String(error)}`,
+            details: {},
+          })
+        }
+      },
+    },
+
     mcp: {
       async describe(request) {
         const manager = mcpManagerService(ctx)

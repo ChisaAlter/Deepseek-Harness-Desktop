@@ -2866,6 +2866,20 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       }),
       remove: request => ok(request, {}),
     },
+    usage: {
+      summary: request => ok(request, {
+        rangeDays: request.payload.rangeDays,
+        totalTokens: 0,
+        sessionCount: 0,
+        messageCount: 0,
+        activeDays: 0,
+        currentStreak: 0,
+        topModel: null,
+        heatmap: [],
+        daily: [],
+        models: [],
+      }),
+    },
     mcp: {
       describe: request => ok(request, { servers: [] }),
       probe: request => ok(request, { ok: false as const, message: 'fixture probe unavailable' }),
@@ -3193,6 +3207,7 @@ export class FixtureApiClient extends AbstractApiClient {
       case 'skill.remove': return this.api.skills.remove(request)
       case 'mcp.describe': return this.api.mcp.describe(request)
       case 'mcp.probe': return this.api.mcp.probe(request)
+      case 'usage.summary': return this.api.usage.summary(request, signal)
       case 'agentPreset.list': return this.api.agentPresets.list(request)
       case 'agentPreset.select': return this.api.agentPresets.select(request)
       case 'agentPreset.read': return this.api.agentPresets.read(request)

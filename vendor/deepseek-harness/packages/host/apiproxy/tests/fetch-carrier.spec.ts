@@ -235,6 +235,22 @@ function fakeApi(overrides: Partial<{ muxFrames: MuxFrame[]; hostFrames: HostFra
         return { rpcId: request.rpcId, result: { ok: false, error: { code: 'skill-not-found', message: 'stub', details: {} } } }
       },
     },
+    usage: {
+      async summary(request) {
+        return { rpcId: request.rpcId, result: { ok: true, value: {
+          rangeDays: request.payload.rangeDays,
+          totalTokens: 0,
+          sessionCount: 0,
+          messageCount: 0,
+          activeDays: 0,
+          currentStreak: 0,
+          topModel: null,
+          heatmap: [],
+          daily: [],
+          models: [],
+        } } }
+      },
+    },
     mcp: {
       async describe(request) {
         return { rpcId: request.rpcId, result: { ok: true, value: { servers: [] } } }

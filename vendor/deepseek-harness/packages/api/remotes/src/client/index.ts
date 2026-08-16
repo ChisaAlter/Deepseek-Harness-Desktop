@@ -39,6 +39,7 @@ export type {
   MuxFrame, PromptContentPart, QuestionResponsePayload, QueueAction, RpcError, RpcId, RpcReceipt,
   RpcRequest, RpcResponse, RpcResult, SessionId, SessionModels, SessionSearchItem,
   SessionSummary, SettingsNamespaceView, SettingsPathOpView, SkillAdminView, SkillEntry, SkillSaveRequest, StreamChunk,
+  UsageApi, UsageModelShareView, UsageRangeDays, UsageSummaryRequest, UsageSummaryView,
   McpApi, McpProbeRequestView, McpProbeResultView, McpProbeToolView, McpServerStatusView,
   SubagentAddress, SubagentCatalog, JobView, ToolCallView, ToolEventView, ToolResultView,
   WorkspaceId, WorkspaceView,

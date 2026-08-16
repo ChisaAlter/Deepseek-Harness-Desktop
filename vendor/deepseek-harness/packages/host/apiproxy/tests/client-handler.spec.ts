@@ -23,6 +23,7 @@ function scriptedApi(overrides: {
   host?: Partial<ApiProxy['host']>
   skills?: Partial<ApiProxy['skills']>
   mcp?: Partial<ApiProxy['mcp']>
+  usage?: Partial<ApiProxy['usage']>
   agentPresets?: Partial<ApiProxy['agentPresets']>
   events?: Partial<ApiProxy['events']>
   goals?: Partial<ApiProxy['goals']>
@@ -102,6 +103,21 @@ function scriptedApi(overrides: {
       describe: r => ok(r, { servers: [] }),
       probe: r => ok(r, { ok: false as const, message: 'stub' }),
       ...overrides.mcp,
+    },
+    usage: {
+      summary: r => ok(r, {
+        rangeDays: r.payload.rangeDays,
+        totalTokens: 0,
+        sessionCount: 0,
+        messageCount: 0,
+        activeDays: 0,
+        currentStreak: 0,
+        topModel: null,
+        heatmap: [],
+        daily: [],
+        models: [],
+      }),
+      ...overrides.usage,
     },
     agentPresets: {
       list: r => ok(r, { presets: [], authorable: false, hasDocument: false }),

@@ -28,7 +28,7 @@ Scan to join: tips, troubleshooting, and feature requests.
 - **Automatic Harness launch**: probes `127.0.0.1:3080` on startup — kills leftover dsh processes from a previous run, or hops to a free port if something else is bound there
 - **Three-stage launch chain**: bundled build in `vendor/deepseek-harness` → local `dsh` → `npx @deepseek-ai/dsh`; one of them will come up
 - **Auto workspace registration**: registers the workspace directory into Harness over RPC at boot, no manual setup
-- **Settings are Harness settings** (`Ctrl+,`): models, plugins, About, update check, and online install all live in the official settings panel
+- **Settings are Harness settings** (`Ctrl+,`): models, usage stats, plugins, About, update check, and online install all live in the official settings panel
 - **System tray**: show window, settings, restart Harness, quit. Settings → General → When closing the window can minimize to tray (default) or quit; quit stops the local Harness service and shows a fullscreen Closing overlay that follows the current light/dark theme
 - **Auto-update**: a green "Update available" button appears beside Settings when a newer release exists — one click updates online; Settings → About still offers a manual check
 - **API key stored separately**: `config.json` and `credentials.json` are split; the key is injected into the dsh process via `DEEPSEEK_API_KEY`

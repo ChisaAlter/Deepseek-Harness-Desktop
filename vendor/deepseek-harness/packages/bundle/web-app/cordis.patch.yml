@@ -84,10 +84,17 @@
     - id: session-stats
       name: '@deepseek-ai/dsh-session-stats'
 
+    # Cross-session token/message calendar for the settings usage page.
+    - id: usage-stats
+      name: '@deepseek-ai/dsh-usage-stats'
+
     # Phone remote shares this Host and cannot see a native OS chooser on the
     # desktop display. Pin the browse pair so every client gets the in-app
     # directory dialog; compose -native instead only on a display-local-only
     # deployment.
+    # Resolve bind host, SSH launch, and display once at boot, then mount the
+    # matching dual-face directory picker. Mount -native or -browse directly in
+    # an overlay to pin the interaction.
     - id: directory-picker
       name: '@deepseek-ai/dsh-host-directory-picker-browse'
 
@@ -237,6 +244,9 @@
 
     - id: ui-settings-skill
       name: '@deepseek-ai/dsh-client-ui-settings-skill'
+
+    - id: ui-settings-usage
+      name: '@deepseek-ai/dsh-client-ui-settings-usage'
 
     - id: ui-settings-mcp
       name: '@deepseek-ai/dsh-client-ui-settings-mcp'

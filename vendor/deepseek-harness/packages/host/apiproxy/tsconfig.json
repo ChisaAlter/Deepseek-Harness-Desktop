@@ -81,6 +81,9 @@
       "path": "../../skill/skill-admin"
     },
     {
+      "path": "../../session/usage-stats"
+    },
+    {
       "path": "../../mcp/mcp-client"
     },
     {

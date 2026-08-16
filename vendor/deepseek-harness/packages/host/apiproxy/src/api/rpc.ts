@@ -119,6 +119,8 @@ export interface RpcErrorDetailsMap {
   'skill-not-found': {}
   /** The host composition does not mount the MCP server manager. */
   'mcp-manager-absent': {}
+  /** The host composition does not mount the usage-stats service. */
+  'usage-stats-absent': {}
   'internal': {}
 }
 

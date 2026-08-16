@@ -17,6 +17,7 @@ import type { CredentialsApi } from './credentials.ts'
 import type { LlmApi } from './llm.ts'
 import type { DownloadsApi } from './downloads.ts'
 import type { McpApi } from './mcp.ts'
+import type { UsageApi } from './usage.ts'
 import type { ClientResponse, RpcReceipt } from './rpc.ts'
 
 /** Root interface of the unified API. New client-request domain = one new file pair + one field here + one map row. */
@@ -27,6 +28,7 @@ export interface ApiProxy {
   workspace: WorkspaceApi
   skills: SkillsApi
   mcp: McpApi
+  usage: UsageApi
   agentPresets: AgentPresetsApi
   events: EventsApi
   goals: GoalsApi
@@ -58,6 +60,7 @@ export type { JobView } from './jobs.ts'
 export type { WorkspaceApi, WorkspaceId, WorkspaceView } from './workspace.ts'
 export type { SkillsApi, SkillAdminView, SkillEntry, SkillSaveRequest } from './skills.ts'
 export type { McpApi, McpProbeRequestView, McpProbeResultView, McpProbeToolView, McpServerStatusView } from './mcp.ts'
+export type { UsageApi, UsageModelShareView, UsageRangeDays, UsageSummaryRequest, UsageSummaryView } from './usage.ts'
 export type { AgentPresetsApi, AgentPresetEntry } from './agent-presets.ts'
 export type { EventsApi, MuxFrame, HostFrame, QueuedInboxItem, ToolCallView, ToolEventView, ToolResultView } from './events.ts'
 export type { GoalsApi, GoalId, GoalRef } from './goals.ts'

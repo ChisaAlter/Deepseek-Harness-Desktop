@@ -51,6 +51,7 @@ import {
   skillSaveRequestSchema,
 } from '../api/skills.schema.ts'
 import { mcpDescribeRequestSchema, mcpProbeRequestSchema } from '../api/mcp.schema.ts'
+import { usageSummaryRequestSchema } from '../api/usage.schema.ts'
 import {
   agentPresetCopyRequestSchema, agentPresetListRequestSchema, agentPresetOpenDocumentRequestSchema,
   agentPresetReadRequestSchema, agentPresetRemoveRequestSchema, agentPresetSelectRequestSchema,
@@ -129,6 +130,7 @@ const UNARY_ROUTES: UnaryRoutes = {
   'skill.save': { schema: skillSaveRequestSchema, invoke: (api, r) => api.skills.save(r) },
   'skill.remove': { schema: skillRemoveRequestSchema, invoke: (api, r) => api.skills.remove(r) },
   'mcp.describe': { schema: mcpDescribeRequestSchema, invoke: (api, r) => api.mcp.describe(r) },
+  'usage.summary': { schema: usageSummaryRequestSchema, invoke: (api, r, signal) => api.usage.summary(r, signal) },
   'mcp.probe': { schema: mcpProbeRequestSchema, invoke: (api, r) => api.mcp.probe(r) },
   'agentPreset.list': { schema: agentPresetListRequestSchema, invoke: (api, r) => api.agentPresets.list(r) },
   'agentPreset.select': { schema: agentPresetSelectRequestSchema, invoke: (api, r) => api.agentPresets.select(r) },
