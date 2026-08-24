@@ -15,12 +15,26 @@ function harnessEnv() {
   };
 }
 
-function run(command, args, cwd) {
-  console.log(`> ${command} ${args.join(' ')}`);
-  const result = spawnSync(command, args, {
+function runGit(args, cwd) {
+  console.log(`> git ${args.join(' ')}`);
+  const result = spawnSync('git', args, {
     cwd,
     stdio: 'inherit',
     env: harnessEnv(),
+    shell: false,
+  });
+  if (result.status !== 0) {
+    process.exit(result.status || 1);
+  }
+}
+
+function runNode(args, cwd) {
+  console.log(`> node ${args.join(' ')}`);
+  const result = spawnSync(process.execPath, args, {
+    cwd,
+    stdio: 'inherit',
+    env: harnessEnv(),
+    shell: false,
   });
   if (result.status !== 0) {
     process.exit(result.status || 1);
@@ -30,7 +44,7 @@ function run(command, args, cwd) {
 if (!fs.existsSync(path.join(vendor, 'package.json'))) {
   const pin = readPin(root);
   fs.mkdirSync(path.dirname(vendor), { recursive: true });
-  run('git', ['clone', '--depth', '1', '--branch', pin.ref, pin.repo, vendor], root);
+  runGit(['clone', '--depth', '1', '--branch', pin.ref, pin.repo, vendor], root);
   const head = spawnSync('git', ['rev-parse', 'HEAD'], {
     cwd: vendor,
     encoding: 'utf8',
@@ -42,8 +56,8 @@ if (!fs.existsSync(path.join(vendor, 'package.json'))) {
   }
 }
 
-run(process.execPath, [pnpm, 'install', '--frozen-lockfile'], vendor);
-run(process.execPath, [pnpm, 'run', 'build'], vendor);
+runNode([pnpm, 'install', '--frozen-lockfile'], vendor);
+runNode([pnpm, 'run', 'build'], vendor);
 
 // Root build:lib:client copies Ghostty wasm/font; still ensure lib/assets beside client.js.
 const { ensureGhosttyAssetsInHarness, harnessHasGhosttyAssets, missingGhosttyAssetPaths } = require(
