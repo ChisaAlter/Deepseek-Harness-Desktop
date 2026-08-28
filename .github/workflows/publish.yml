@@ -1,0 +1,58 @@
+name: Publish dshbot
+
+# Publishes dshbot (this repo root) to the npm registry so
+# `dsh plugin --profile web add dshbot@<semver>` works.
+#
+# Trigger: push a tag `v<semver>` matching package.json (e.g.
+# `git tag v0.2.0 && git push origin v0.2.0`), or run the workflow manually.
+# Requires the `NPM_TOKEN` repository secret (an npm automation token with
+# publish rights on the `dshbot` package name); without it the job fails
+# early with a clear message instead of half-publishing.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish preflight (manifest integrity + tag/version match)
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            node scripts/check-publish.mjs "$GITHUB_REF_NAME"
+          else
+            node scripts/check-publish.mjs
+          fi
+
+      - name: Require NPM_TOKEN secret
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN repository secret is not configured." >&2
+            echo "Create an npm automation token with publish rights on 'dshbot'" >&2
+            echo "and add it as the NPM_TOKEN secret, then re-run this workflow." >&2
+            exit 1
+          fi
+
+      - name: Pack dry run (inspect the tarball manifest)
+        run: npm pack --dry-run
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
