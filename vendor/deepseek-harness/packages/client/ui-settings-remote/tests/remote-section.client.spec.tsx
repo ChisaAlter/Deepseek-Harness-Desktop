@@ -5,6 +5,19 @@ import { RemoteSection } from '../src/client/RemoteSection.tsx'
 import type { RemoteSectionProps } from '../src/client/RemoteSection.tsx'
 import type { RemotePatch, RemoteSnapshot } from '../src/client/desktop-shell.ts'
 import { en, type RemoteLocaleKey } from '../src/client/locales.ts'
+import { humanizeRelayError, humanizeRemoteError } from '../src/client/relay-copy.ts'
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
+  const actual = await vi.importActual<typeof import('@deepseek-ai/dsh-client-ui-primitives')>(
+    '@deepseek-ai/dsh-client-ui-primitives',
+  )
+  return {
+    ...actual,
+    writeClipboard: vi.fn(async () => true),
+  }
+})
+
+import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 
 afterEach(cleanup)
 
@@ -40,6 +53,7 @@ function renderRemote(overrides: Partial<RemoteSectionProps> = {}) {
     t,
     getRemote: vi.fn(async () => SNAP),
     saveRemote: vi.fn(async () => SNAP),
+    rotateRemoteToken: vi.fn(async () => SNAP),
     unbindRemoteDevice: vi.fn(async () => SNAP),
     ...overrides,
   } as RemoteSectionProps
@@ -47,11 +61,28 @@ function renderRemote(overrides: Partial<RemoteSectionProps> = {}) {
   return props
 }
 
+describe('relay-copy', () => {
+  it('maps relay_control_disconnected without exposing wire tokens elsewhere', () => {
+    expect(humanizeRelayError('relay_control_disconnected')).toBe('disconnected')
+    expect(humanizeRelayError('Unexpected server response: 401')).toBe('generic')
+  })
+
+  it('maps port-in-use English and Chinese messages', () => {
+    expect(humanizeRemoteError('EADDRINUSE :3180')).toBe('portInUse')
+    expect(humanizeRemoteError('手机配对页端口 3180 已被占用，请关闭占用进程')).toBe('portInUse')
+    expect(humanizeRemoteError('gateway down')).toBe('generic')
+  })
+})
+
 describe('RemoteSection', () => {
   it('keeps the Remote trigger dim until remote is on, then lights it', async () => {
     const props = renderRemote({
-      getRemote: vi.fn(async () => snap({ enabled: false, listening: false })),
-      saveRemote: vi.fn(async (patch: RemotePatch) => snap({ enabled: patch.remoteEnabled ?? false })),
+      getRemote: vi.fn(async () => snap({ enabled: false, listening: false, urls: [] })),
+      saveRemote: vi.fn(async (patch: RemotePatch) => snap({
+        enabled: patch.remoteEnabled ?? false,
+        listening: Boolean(patch.remoteEnabled),
+        urls: patch.remoteEnabled ? SNAP.urls : [],
+      })),
     })
     const trigger = await screen.findByRole('button', { name: en.trigger })
     expect(trigger.getAttribute('data-dsh-remote-trigger')).toBe('')
@@ -62,8 +93,8 @@ describe('RemoteSection', () => {
     expect(screen.getByRole('button', { name: en.trigger }).hasAttribute('data-on')).toBe(true)
   })
 
-  it('opens a popup with on/off, the QR plus its pairing link, without LAN/relay controls', async () => {
-    renderRemote()
+  it('opens a popup with on/off, the QR plus copy link, without LAN/relay controls or bare offer text', async () => {
+    renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByRole('dialog', { name: en.heading })
     expect(screen.getByRole('radio', { name: en.enabledOn })).toBeTruthy()
@@ -71,10 +102,9 @@ describe('RemoteSection', () => {
     expect(screen.queryByRole('radio', { name: en.modeLan })).toBeNull()
     expect(screen.queryByRole('radio', { name: en.modeRelay })).toBeNull()
     expect(screen.getByRole('img', { name: en.qr })).toBeTruthy()
-    expect(screen.getByText(en.pairingUrl)).toBeTruthy()
-    expect(screen.getByText('http://10.0.0.4:3180/#offer=abc')).toBeTruthy()
-    // One QR, two entries: the hint explaining App = link device vs
-    // browser = web client must ride with the QR.
+    expect(screen.getByRole('button', { name: en.copyLink })).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.rotateToken })).toBeTruthy()
+    expect(screen.queryByText(/#offer=/)).toBeNull()
     expect(screen.getByText(en.scanSplitHint)).toBeTruthy()
   })
 
@@ -95,12 +125,26 @@ describe('RemoteSection', () => {
       getRemote: vi.fn(async () => snap({ relayConnected: false, relayError: 'Unexpected server response: 401' })),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
-    await screen.findByText(en.relayDownWithError.replace('{message}', 'Unexpected server response: 401'))
+    await screen.findByText(en.relayDown)
+    expect(screen.queryByText(/401/)).toBeNull()
+    expect(screen.queryByText(/Unexpected/)).toBeNull()
     cleanup()
     renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByRole('img', { name: en.qr })
     expect(screen.queryByText(en.relayDown)).toBeNull()
+  })
+
+  it('maps relay_control_disconnected to relayDownDisconnected without wire token', async () => {
+    renderRemote({
+      getRemote: vi.fn(async () => snap({
+        relayConnected: false,
+        relayError: 'relay_control_disconnected',
+      })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await screen.findByText(en.relayDownDisconnected)
+    expect(screen.queryByText(/relay_control/)).toBeNull()
   })
 
   it('shows the off hint until the gateway is enabled', async () => {
@@ -112,7 +156,7 @@ describe('RemoteSection', () => {
   })
 
   it('keeps connection mode, bind scope, and LAN TLS off the pairing popup', async () => {
-    renderRemote()
+    renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByRole('dialog', { name: en.heading })
     expect(screen.queryByRole('radio', { name: en.modeLan })).toBeNull()
@@ -135,14 +179,15 @@ describe('RemoteSection', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByText(en.loading)
-    finish(SNAP)
+    finish(snap({ relayConnected: true }))
     await screen.findByRole('img', { name: en.qr })
   })
 
   it('shows a retry control when the first read fails, then the QR', async () => {
     const getRemote = vi.fn()
       .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce(SNAP)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(snap({ relayConnected: true }))
     renderRemote({ getRemote })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByText(en.error)
@@ -150,32 +195,33 @@ describe('RemoteSection', () => {
     await screen.findByRole('img', { name: en.qr })
   })
 
-  it('surfaces a save failure and stringifies non-Error load failures', async () => {
+  it('surfaces a save failure with human copy and stringifies non-Error load failures', async () => {
     renderRemote({ getRemote: vi.fn(async () => { throw 'offline' }) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByText(en.error)
     cleanup()
     const props = renderRemote({
+      getRemote: vi.fn(async () => snap({ relayConnected: true })),
       saveRemote: vi.fn(async () => { throw 'write failed' }),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     fireEvent.click(await screen.findByRole('radio', { name: en.enabledOff }))
     await waitFor(() => { expect(props.saveRemote).toHaveBeenCalled() })
-    await screen.findByText('Remote error: write failed')
+    await screen.findByText(en.statusErrorGeneric)
     cleanup()
     const fromSnap = renderRemote({
-      getRemote: vi.fn(async () => snap({ error: 'gateway down' })),
+      getRemote: vi.fn(async () => snap({ error: 'gateway down', relayConnected: true })),
       saveRemote: vi.fn(async () => { throw new Error('save exploded') }),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
-    await screen.findByText('Remote error: gateway down')
+    await screen.findByText(en.statusErrorGeneric)
     fireEvent.click(screen.getByRole('radio', { name: en.enabledOff }))
     await waitFor(() => { expect(fromSnap.saveRemote).toHaveBeenCalled() })
-    await screen.findByText('Remote error: save exploded')
+    await screen.findByText(en.statusErrorGeneric)
   })
 
   it('closes on mask click and Escape', async () => {
-    renderRemote()
+    renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByRole('dialog', { name: en.heading })
     const dialog = screen.getByRole('dialog', { name: en.heading })
@@ -189,15 +235,17 @@ describe('RemoteSection', () => {
     expect(screen.queryByRole('dialog', { name: en.heading })).toBeNull()
   })
 
-  it('shows a no-QR hint when enabled without a pairing URL', async () => {
+  it('shows a no-QR hint when enabled without a pairing URL after heal', async () => {
+    const empty = snap({ urls: [], relayConnected: true })
     renderRemote({
-      getRemote: vi.fn(async () => snap({ urls: [] })),
+      getRemote: vi.fn(async () => empty),
+      saveRemote: vi.fn(async () => empty),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByText(en.noQr)
   })
 
-  it('treats On as a retry when enabled but the daemon is not listening', async () => {
+  it('auto-saves remoteEnabled true once when open enabled without listening', async () => {
     const props = renderRemote({
       getRemote: vi.fn(async () => snap({
         enabled: true,
@@ -205,20 +253,62 @@ describe('RemoteSection', () => {
         urls: [],
         error: 'EADDRINUSE :3180',
       })),
-      saveRemote: vi.fn(async () => SNAP),
+      saveRemote: vi.fn(async () => snap({ relayConnected: true })),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
-    // Startup failure is visible, not a generic no-QR shrug.
-    await screen.findByText(en.notListening)
-    await screen.findByText('Remote error: EADDRINUSE :3180')
-    expect(screen.queryByText(en.noQr)).toBeNull()
-    // On re-saves remoteEnabled → main-process sync() restarts the daemon.
-    fireEvent.click(screen.getByRole('radio', { name: en.enabledOn }))
+    await screen.findByText(en.errorPortInUse)
+    expect(screen.queryByText(/EADDRINUSE/)).toBeNull()
     await waitFor(() => { expect(props.saveRemote).toHaveBeenCalledWith({ remoteEnabled: true }) })
     await screen.findByRole('img', { name: en.qr })
-    // Once listening again, On returns to a no-op.
+    expect(props.saveRemote).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('radio', { name: en.enabledOn }))
     expect(props.saveRemote).toHaveBeenCalledTimes(1)
+  })
+
+  it('auto-saves once when open enabled listening without pairing url', async () => {
+    const empty = snap({ urls: [], relayConnected: true })
+    const props = renderRemote({
+      getRemote: vi.fn(async () => empty),
+      saveRemote: vi.fn(async () => snap({ relayConnected: true })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await waitFor(() => { expect(props.saveRemote).toHaveBeenCalledWith({ remoteEnabled: true }) })
+    await screen.findByRole('img', { name: en.qr })
+    expect(props.saveRemote).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes remote snapshot immediately when the popup opens', async () => {
+    const getRemote = vi.fn(async () => snap({ relayConnected: true }))
+    renderRemote({ getRemote })
+    await waitFor(() => { expect(getRemote).toHaveBeenCalled() })
+    const beforeOpen = getRemote.mock.calls.length
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await screen.findByRole('img', { name: en.qr })
+    expect(getRemote.mock.calls.length).toBeGreaterThan(beforeOpen)
+  })
+
+  it('rotateRemoteToken only on refresh control click not on open', async () => {
+    const rotateRemoteToken = vi.fn(async () => snap({ relayConnected: true }))
+    renderRemote({
+      getRemote: vi.fn(async () => snap({ relayConnected: true })),
+      rotateRemoteToken,
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await screen.findByRole('img', { name: en.qr })
+    expect(rotateRemoteToken).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: en.rotateToken }))
+    await waitFor(() => { expect(rotateRemoteToken).toHaveBeenCalledTimes(1) })
+  })
+
+  it('copy link uses writeClipboard and shows copied feedback', async () => {
+    vi.mocked(writeClipboard).mockClear()
+    renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    fireEvent.click(await screen.findByRole('button', { name: en.copyLink }))
+    await waitFor(() => {
+      expect(writeClipboard).toHaveBeenCalledWith('http://10.0.0.4:3180/#offer=abc')
+    })
+    await screen.findByRole('button', { name: en.copiedLink })
   })
 
   it('renders the rail trigger without a text label', async () => {
@@ -243,10 +333,10 @@ describe('RemoteSection', () => {
       lastSeenAt: '2026-08-14T12:00:00.000Z',
       online: true,
     }
-    const withDevice = snap({ devices: [device] })
+    const withDevice = snap({ devices: [device], relayConnected: true })
     const props = renderRemote({
       getRemote: vi.fn(async () => withDevice),
-      unbindRemoteDevice: vi.fn(async () => snap({ devices: [] })),
+      unbindRemoteDevice: vi.fn(async () => snap({ devices: [], relayConnected: true })),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     fireEvent.click(await screen.findByRole('button', { name: `${en.devices} 1` }))
@@ -265,6 +355,7 @@ describe('RemoteSection', () => {
   it('opens an empty device dialog, surfaces unbind failures, and closes inner then outer on Escape', async () => {
     const props = renderRemote({
       getRemote: vi.fn(async () => snap({
+        relayConnected: true,
         devices: [
           { id: 'dev-2', name: 'Android' },
           { id: 'dev-3', name: 'Mac', lastSeenAt: 'not-a-date' },
@@ -278,7 +369,7 @@ describe('RemoteSection', () => {
     expect(screen.getByText(en.devicesSeen.replace('{time}', en.devicesSeenUnknown))).toBeTruthy()
     fireEvent.click(screen.getAllByRole('button', { name: en.unbind })[0]!)
     await waitFor(() => { expect(props.unbindRemoteDevice).toHaveBeenCalledWith('dev-2') })
-    await screen.findByText('Remote error: drop failed')
+    await screen.findByText(en.statusErrorGeneric)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: en.devicesManage })).toBeNull()
     expect(screen.getByRole('dialog', { name: en.heading })).toBeTruthy()
@@ -286,16 +377,21 @@ describe('RemoteSection', () => {
     expect(screen.queryByRole('dialog', { name: en.heading })).toBeNull()
     cleanup()
     const exploded = renderRemote({
-      getRemote: vi.fn(async () => snap({ devices: [{ id: 'dev-4', name: 'Windows' }] })),
+      getRemote: vi.fn(async () => snap({
+        relayConnected: true,
+        devices: [{ id: 'dev-4', name: 'Windows' }],
+      })),
       unbindRemoteDevice: vi.fn(async () => { throw new Error('drop exploded') }),
     })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     fireEvent.click(await screen.findByRole('button', { name: `${en.devices} 1` }))
     fireEvent.click(screen.getByRole('button', { name: en.unbind }))
     await waitFor(() => { expect(exploded.unbindRemoteDevice).toHaveBeenCalledWith('dev-4') })
-    await screen.findByText('Remote error: drop exploded')
+    await screen.findByText(en.statusErrorGeneric)
     cleanup()
-    renderRemote({ getRemote: vi.fn(async () => snap({ devices: [] })) })
+    renderRemote({
+      getRemote: vi.fn(async () => snap({ devices: [], relayConnected: true })),
+    })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     fireEvent.click(await screen.findByRole('button', { name: `${en.devices} 0` }))
     await screen.findByText(en.devicesEmpty)
@@ -307,19 +403,19 @@ describe('RemoteSection', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     try {
       const getRemote = vi.fn()
-        .mockResolvedValueOnce(SNAP)
-        .mockResolvedValueOnce(snap({ devices: [{ id: 'later', name: 'Android' }] }))
-        .mockRejectedValueOnce('poll fail')
-        .mockRejectedValueOnce(new Error('poll exploded'))
+        .mockResolvedValueOnce(snap({ relayConnected: true }))
+        .mockResolvedValueOnce(snap({
+          relayConnected: true,
+          devices: [{ id: 'later', name: 'Android' }],
+        }))
+        .mockRejectedValue('poll fail')
       renderRemote({ getRemote })
       fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
       await screen.findByRole('button', { name: `${en.devices} 0` })
       await vi.advanceTimersByTimeAsync(2000)
       await screen.findByRole('button', { name: `${en.devices} 1` })
       await vi.advanceTimersByTimeAsync(2000)
-      await screen.findByText('Remote error: poll fail')
-      await vi.advanceTimersByTimeAsync(2000)
-      await screen.findByText('Remote error: poll exploded')
+      await screen.findByText(en.statusErrorGeneric)
     } finally {
       vi.useRealTimers()
     }

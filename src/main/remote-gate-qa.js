@@ -17,6 +17,9 @@ const REMOTE_GATE_CASES = Object.freeze([
   { id: 'rem.pairingOffer', title: 'Enabled remote exposes a hash offer URL (not opened)' },
   { id: 'rem.qrVisible', title: 'Remote popup shows a QR face' },
   { id: 'rem.disabledStopped', title: 'Turning remote off stops the listener' },
+  { id: 'cold.openShowsQr', title: 'Preset-on: open popup without toggling shows QR' },
+  { id: 'cold.noBareOfferText', title: 'Popup text has no raw #offer= dump' },
+  { id: 'cold.copyAndRotateControls', title: 'Popup exposes copy-link and rotate controls' },
 ]);
 
 function sleep(ms) {
@@ -211,6 +214,73 @@ async function runRemoteGateQa(wc, helpers) {
       && !remoteHasError(disabled),
     `${summarizeRemoteQaDetail(disabled)}; portClosed=${portStopped}`,
   );
+
+  // Cold-open segment: remote already on → open popup without setRemote(true).
+  // Proves the Off→On dance is not required to surface a QR.
+  let cold = null;
+  try {
+    cold = await helpers.setRemote({ remoteEnabled: true, remoteMode: 'lan' });
+  } catch (error) {
+    cold = { error: String(error) };
+  }
+  cold = await waitUntil(async () => {
+    const next = await helpers.probeRemote();
+    return next && next.listening === true && pairingOffer(next) ? next : null;
+  }, 15_000) || cold;
+  await helpers.pressEscape(wc);
+
+  let coldQrOk = false;
+  let coldQrDetail = 'remote trigger missing';
+  let bareOffer = true;
+  let copyOk = false;
+  let rotateOk = false;
+  if (footer) {
+    await pageEval(wc, () => {
+      const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
+      if (trigger) trigger.click();
+      return Boolean(trigger);
+    });
+    const face = await waitUntil(() => pageEval(wc, () => {
+      const root = document.querySelector('[data-dsh-remote-panel], [role="dialog"]') || document.body;
+      const img = root.querySelector('img[src*="qr"], img[alt*="QR"], img[alt*="二维码"], svg');
+      const copy = root.querySelector('[data-dsh-remote-copy-link]');
+      const rotate = root.querySelector('[data-dsh-remote-rotate]');
+      const text = root.innerText || '';
+      return {
+        hasQr: Boolean(img) || /二维码|QR|配对/.test(text.slice(0, 200)),
+        bareOffer: text.includes('#offer='),
+        copy: Boolean(copy && dshShown(copy)),
+        rotate: Boolean(rotate && dshShown(rotate)),
+      };
+    }), 8_000);
+    coldQrOk = Boolean(face && face.hasQr);
+    coldQrDetail = face ? JSON.stringify(face) : 'popup opened but no QR face';
+    bareOffer = Boolean(face && face.bareOffer);
+    copyOk = Boolean(face && face.copy);
+    rotateOk = Boolean(face && face.rotate);
+    await helpers.pressEscape(wc);
+  }
+  rec(
+    'cold.openShowsQr',
+    coldQrOk && Boolean(pairingOffer(cold)) && !remoteHasError(cold),
+    coldQrDetail,
+  );
+  rec(
+    'cold.noBareOfferText',
+    coldQrOk && !bareOffer,
+    bareOffer ? 'popup text still dumps #offer=' : 'no bare #offer= in popup text',
+  );
+  rec(
+    'cold.copyAndRotateControls',
+    copyOk && rotateOk,
+    `copy=${copyOk}; rotate=${rotateOk}`,
+  );
+
+  try {
+    await helpers.setRemote({ remoteEnabled: false });
+  } catch {
+    // Best-effort teardown for the cold segment.
+  }
 
   const failed = steps.filter((s) => !s.ok && !s.optional).map((s) => s.name);
   return {

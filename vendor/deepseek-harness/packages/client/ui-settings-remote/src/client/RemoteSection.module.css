@@ -180,6 +180,17 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+.footer {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+
+.footerButton {
+  flex: 1;
+  min-width: 0;
+}
+
 .devicesChevron {
   display: inline-flex;
   color: var(--dsw-alias-label-tertiary);

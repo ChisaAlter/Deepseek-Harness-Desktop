@@ -364,6 +364,8 @@ class ChisaCodeRemote extends EventEmitter {
     this.error = '';
     this.starting = null;
     this.runtimeKey = '';
+    // After ensurePairing fails, get-remote polling must not hammer refreshPairing.
+    this.pairingEnsureBlocked = false;
   }
 
   async ensureApi() {
@@ -522,7 +524,27 @@ class ChisaCodeRemote extends EventEmitter {
       appBaseUrl,
       includeQr: false,
     });
+    this.pairingEnsureBlocked = false;
     return this.pairing;
+  }
+
+  /**
+   * Lazily mint a pairing URL when the daemon is up but snapshot urls are empty.
+   * Does not start/stop the daemon — that stays on sync().
+   * @returns {object} current snapshot
+   */
+  async ensurePairing() {
+    if (!this.daemon || (this.pairing && this.pairing.url) || this.pairingEnsureBlocked) {
+      return this.snapshot();
+    }
+    try {
+      await this.refreshPairing();
+    } catch (err) {
+      this.pairingEnsureBlocked = true;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!this.error) this.error = msg;
+    }
+    return this.snapshot();
   }
 
   async startDaemon() {
@@ -533,6 +555,7 @@ class ChisaCodeRemote extends EventEmitter {
         return this.startDaemon();
       }
       await this.refreshPairing();
+      this.pairingEnsureBlocked = false;
       return;
     }
     if (this.starting) {
@@ -580,6 +603,7 @@ class ChisaCodeRemote extends EventEmitter {
       this.runtimeKey = this.runtimeConfigKey(config);
       this.error = '';
       await this.refreshPairing();
+      this.pairingEnsureBlocked = false;
       this.emit('listening', this.snapshot());
     })();
 
@@ -786,7 +810,10 @@ class ChisaCodeRemote extends EventEmitter {
 
   rotateToken() {
     // Offer TTL is re-issued; sticky device secrets stay until unbind.
-    return this.refreshPairing().then(() => this.snapshot());
+    return this.refreshPairing().then((pairing) => {
+      this.pairingEnsureBlocked = false;
+      return this.snapshot();
+    });
   }
 
   unbindDevice(id) {
