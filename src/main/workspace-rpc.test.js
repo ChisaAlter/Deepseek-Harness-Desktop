@@ -28,6 +28,21 @@ test('ensureWorkspace uses the Harness unary route and full RPC envelope', async
   assert.deepEqual(value, { workspace: { path: 'C:\\work' }, created: true });
 });
 
+test('rpc attaches a redeemed session Cookie and still strips the token query', async () => {
+  let request;
+  await rpc('http://127.0.0.1:3080/?token=spent', 'workspace.create', { path: 'C:\\work' }, async (url, init) => {
+    request = { url, cookie: init.headers.Cookie };
+    const body = JSON.parse(init.body);
+    return Response.json({
+      type: 'server-response',
+      rpcId: body.rpcId,
+      result: { ok: true, value: {} },
+    });
+  }, { cookie: 'dsh-auth-x=tok' });
+  assert.equal(request.url, 'http://127.0.0.1:3080/api/workspace.create');
+  assert.equal(request.cookie, 'dsh-auth-x=tok');
+});
+
 test('rpc surfaces Harness business errors from a successful HTTP exchange', async () => {
   await assert.rejects(
     () => rpc('http://127.0.0.1:3080', 'workspace.create', { path: 'missing' }, async (_url, init) => {

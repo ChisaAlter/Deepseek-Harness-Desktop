@@ -8,13 +8,17 @@ function rpcEndpoint(baseUrl, method) {
   return endpoint.toString();
 }
 
-async function rpc(baseUrl, method, payload, fetchImpl = fetch) {
+async function rpc(baseUrl, method, payload, fetchImpl = fetch, options = {}) {
   const rpcId = randomUUID();
+  const headers = {
+    'content-type': 'application/json',
+  };
+  if (options.cookie) {
+    headers.Cookie = options.cookie;
+  }
   const response = await fetchImpl(rpcEndpoint(baseUrl, method), {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       type: 'client-request',
       rpcId,
@@ -42,8 +46,8 @@ async function rpc(baseUrl, method, payload, fetchImpl = fetch) {
   return parsed.result.value;
 }
 
-async function ensureWorkspace(baseUrl, workspacePath, fetchImpl = fetch) {
-  return rpc(baseUrl, 'workspace.create', { path: workspacePath }, fetchImpl);
+async function ensureWorkspace(baseUrl, workspacePath, fetchImpl = fetch, options = {}) {
+  return rpc(baseUrl, 'workspace.create', { path: workspacePath }, fetchImpl, options);
 }
 
 module.exports = {

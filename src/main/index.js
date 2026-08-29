@@ -288,7 +288,7 @@ const harness = new HarnessController({
   createMainWindow: createMainWindowWithClose,
   getMainWindow,
   showBoot,
-  showHarness,
+  showHarness: (url, extra) => showHarness(url, { cookie: dsh.sessionCookie, ...extra }),
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
@@ -304,7 +304,9 @@ const harness = new HarnessController({
   healDanglingBundles,
   saveConfig,
   appVersion: app.getVersion(),
-  ensureWorkspace,
+  ensureWorkspace: (url, workspace, fetchImpl, options) => (
+    ensureWorkspace(url, workspace, fetchImpl, { cookie: dsh.sessionCookie, ...options })
+  ),
 });
 
 async function pickWorkspace() {
