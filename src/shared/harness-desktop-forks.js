@@ -69,6 +69,11 @@ const FORK_FILE_MARKERS = [
   // Standing wallpaper fork on the upstream ui-theme package.
   { file: 'packages/client/ui-theme/src/client/WallpaperGalleryModal.tsx', includes: [] },
   { file: 'packages/client/ui-theme/src/client/WallpaperRow.tsx', includes: [] },
+  { file: 'packages/client/ui-theme/src/wallpaper.ts', includes: ['TRANSPARENT_ATTR', 'data-dsh-transparent'] },
+  { file: 'packages/client/ui-theme/src/styles/wallpaper.css', includes: ['html[data-dsh-transparent]'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx', includes: ['data-composer-beam'] },
+  { file: 'packages/client/ui-conversation/src/client/chat/StatsLine.tsx', includes: ['data-stats-line'] },
   // Desktop launcher recovery flag on the upstream CLI args parser.
   { file: 'apps/cli/src/args.ts', includes: ['skip-user-plugins'] },
   // Desktop composition carries the browse rows in the shipped base, so the
