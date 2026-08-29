@@ -65,6 +65,33 @@ export interface ContextBreakdownProjection {
   messageTokens: number
 }
 
+/**
+ * Price-independent usage buckets for one billing phase. `missInputTokens`
+ * carries uncached prompt input plus cache writes; `cacheReadTokens` the
+ * cache-hit prompt input; `outputTokens` the response output.
+ */
+export interface BilledUsageBuckets {
+  /** Uncached prompt input including cache writes, billed at the miss rate. */
+  missInputTokens: number
+  /** Cache-hit prompt input, billed at the cache-hit rate. */
+  cacheReadTokens: number
+  /** Response output. */
+  outputTokens: number
+}
+
+/**
+ * Whole-log billable usage split by the official peak/valley schedule. The
+ * buckets are price-independent: applying a price table is the read side's
+ * job, so user-edited prices never require a refold. Absent usage reports
+ * leave the totals at zero.
+ */
+export interface BilledUsageProjection {
+  /** Samples billed inside Beijing weekday peak windows. */
+  peak: BilledUsageBuckets
+  /** Samples billed outside every peak window, at the official idle column. */
+  offPeak: BilledUsageBuckets
+}
+
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
     /** Provider-reported usage accumulated across the complete durable log. */
@@ -73,5 +100,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     contextPressure: ContextPressureProjection
     /** Heuristic system/tools/message composition of the next request. */
     contextBreakdown: ContextBreakdownProjection
+    /** Whole-log usage split by the official peak/valley billing windows. */
+    billedUsage: BilledUsageProjection
   }
 }

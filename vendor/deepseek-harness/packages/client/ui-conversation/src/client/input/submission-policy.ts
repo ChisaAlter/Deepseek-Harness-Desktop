@@ -14,15 +14,20 @@ import {
   COMPOSER_RESIZE_HEIGHT_FIELD, COMPOSER_RESIZE_WIDTH_FIELD,
   DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM, DEFAULT_COMPOSER_RESIZE,
   DEFAULT_COMPOSER_RESIZE_HEIGHT, DEFAULT_COMPOSER_RESIZE_WIDTH,
-  DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS, STATS_LINE_FIELD, VIEW_TABS_FIELD,
+  DEFAULT_OFFICIAL_PEAK_VALLEY, DEFAULT_SESSION_COST, DEFAULT_SESSION_COST_PRICES,
+  DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS,
+  OFFICIAL_PEAK_VALLEY_FIELD, SESSION_COST_FIELD, SESSION_COST_PRICES_FIELD,
+  STATS_LINE_FIELD, VIEW_TABS_FIELD,
 } from '../../submission-settings.ts'
-import type { ConversationSettings } from '../../submission-settings.ts'
+import type { ConversationSettings, SessionCostPrices } from '../../submission-settings.ts'
 
 export {
   DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM, DEFAULT_COMPOSER_RESIZE,
   DEFAULT_COMPOSER_RESIZE_HEIGHT, DEFAULT_COMPOSER_RESIZE_WIDTH,
+  DEFAULT_OFFICIAL_PEAK_VALLEY, DEFAULT_SESSION_COST, DEFAULT_SESSION_COST_PRICES,
   DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS,
 } from '../../submission-settings.ts'
+export type { SessionCostModelPrice, SessionCostPrices } from '../../submission-settings.ts'
 
 /** Last drag-committed composer box size (null = that axis is not customized). */
 export interface ComposerResizeSize {
@@ -48,6 +53,12 @@ export class ComposerSubmissionPolicy {
   readonly composerResizeWidth: SnapshotStore<number | null> = createSnapshotStore(DEFAULT_COMPOSER_RESIZE_WIDTH)
   /** Reactive stats-strip source for the Settings row and StatsLine. */
   readonly statsLine: SnapshotStore<boolean> = createSnapshotStore(DEFAULT_STATS_LINE)
+  /** Reactive official peak/valley source for the Settings row and PeakValleyRow. */
+  readonly officialPeakValley: SnapshotStore<boolean> = createSnapshotStore(DEFAULT_OFFICIAL_PEAK_VALLEY)
+  /** Reactive session-cost source for the Settings row and the composer-dock cost figure. */
+  readonly sessionCost: SnapshotStore<boolean> = createSnapshotStore(DEFAULT_SESSION_COST)
+  /** Reactive per-model custom peak prices for the price panel and the cost figure. */
+  readonly sessionCostPrices: SnapshotStore<SessionCostPrices> = createSnapshotStore(DEFAULT_SESSION_COST_PRICES)
   /** Reactive view-tablist source for the Settings row and ConversationSessionHeader. */
   readonly viewTabs: SnapshotStore<boolean> = createSnapshotStore(DEFAULT_VIEW_TABS)
   /** Host writability for the Interface Switch; true when no scope is bound. */
@@ -149,6 +160,44 @@ export class ComposerSubmissionPolicy {
   }
 
   /**
+   * Change whether the peak/valley status row is force-enabled; the live value
+   * publishes before the durable write starts. The row also shows without this
+   * preference while a DeepSeek API route is detected, so off means "detection
+   * only", never "off outright".
+   * @param value - true force-paints the row; false leaves detection in charge.
+   */
+  setOfficialPeakValley(value: boolean): void {
+    if (this.officialPeakValley.getSnapshot() === value) return
+    this.officialPeakValley.set(value)
+    void this.host?.set(OFFICIAL_PEAK_VALLEY_FIELD, value)
+  }
+
+  /**
+   * Change whether the composer dock paints the session cost figure; the live
+   * value publishes before the durable write starts. The figure also requires
+   * a detected DeepSeek API route, so off means "never", on means "when the
+   * route is DeepSeek".
+   * @param value - true paints the cost figure while a DeepSeek route is known.
+   */
+  setSessionCost(value: boolean): void {
+    if (this.sessionCost.getSnapshot() === value) return
+    this.sessionCost.set(value)
+    void this.host?.set(SESSION_COST_FIELD, value)
+  }
+
+  /**
+   * Replace the user's per-model custom peak prices; the live value publishes
+   * before the durable write starts. Models absent from the record bill at
+   * official (or first-column) prices.
+   * @param prices - the complete replacement record.
+   */
+  setSessionCostPrices(prices: SessionCostPrices): void {
+    if (this.sessionCostPrices.getSnapshot() === prices) return
+    this.sessionCostPrices.set(prices)
+    void this.host?.set(SESSION_COST_PRICES_FIELD, prices)
+  }
+
+  /**
    * Change whether the session header paints Chat/Trajectory tabs; the live
    * value publishes before the durable write starts.
    * @param value - true paints the tablist when more than one view exists.
@@ -179,6 +228,18 @@ export class ComposerSubmissionPolicy {
     if (this.composerResizeWidth.getSnapshot() !== nextWidth) this.composerResizeWidth.set(nextWidth)
     const nextStats = section.statsLine !== false
     if (this.statsLine.getSnapshot() !== nextStats) this.statsLine.set(nextStats)
+    const nextPeakValley = section.officialPeakValley === true
+    if (this.officialPeakValley.getSnapshot() !== nextPeakValley) this.officialPeakValley.set(nextPeakValley)
+    const nextSessionCost = section.sessionCost === true
+    if (this.sessionCost.getSnapshot() !== nextSessionCost) this.sessionCost.set(nextSessionCost)
+    // Sanitize the loosely schema'd record at the durable boundary: only a
+    // plain string-keyed object adopts; anything else reads as "no custom
+    // prices" instead of leaking into price lookups.
+    const rawPrices: unknown = section.sessionCostPrices
+    const nextPrices = rawPrices !== null && typeof rawPrices === 'object' && !Array.isArray(rawPrices)
+      ? rawPrices as SessionCostPrices
+      : DEFAULT_SESSION_COST_PRICES
+    if (this.sessionCostPrices.getSnapshot() !== nextPrices) this.sessionCostPrices.set(nextPrices)
     const nextTabs = section.viewTabs !== false
     if (this.viewTabs.getSnapshot() !== nextTabs) this.viewTabs.set(nextTabs)
   }

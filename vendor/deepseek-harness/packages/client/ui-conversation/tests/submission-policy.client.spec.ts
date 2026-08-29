@@ -14,6 +14,7 @@ function chrome(over: Partial<ConversationSettings> = {}): ConversationSettings 
     composerResizeHeight: null,
     composerResizeWidth: null,
     statsLine: true,
+    officialPeakValley: false,
     viewTabs: true,
     ...over,
   }
@@ -210,5 +211,38 @@ describe('ComposerSubmissionPolicy', () => {
     })
     expect(policy.statsLine.getSnapshot()).toBe(true)
     expect(policy.viewTabs.getSnapshot()).toBe(true)
+  })
+
+  it('keeps officialPeakValley off while the Host section is missing and adopts true independently', () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    expect(policy.officialPeakValley.getSnapshot()).toBe(false)
+    host.publish({ status: 'unavailable', value: undefined, writable: false, mode: 'memory' })
+    expect(policy.officialPeakValley.getSnapshot()).toBe(false)
+    host.publish({
+      status: 'ready',
+      value: chrome({ officialPeakValley: true }),
+      revision: 1,
+      writable: true,
+    })
+    expect(policy.officialPeakValley.getSnapshot()).toBe(true)
+    policy.setOfficialPeakValley(false)
+    expect(policy.officialPeakValley.getSnapshot()).toBe(false)
+    expect(host.set).toHaveBeenCalledWith('officialPeakValley', false)
+    policy.setOfficialPeakValley(false)
+    expect(host.set).toHaveBeenCalledOnce()
+  })
+
+  it('treats a missing officialPeakValley field as detection-only', () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    policy.setOfficialPeakValley(true)
+    host.publish({
+      status: 'ready',
+      value: { busyEnter: 'queue' } as ConversationSettings,
+      revision: 1,
+      writable: true,
+    })
+    expect(policy.officialPeakValley.getSnapshot()).toBe(false)
   })
 })

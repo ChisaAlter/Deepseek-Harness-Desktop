@@ -37,11 +37,13 @@
   min-height: auto;
 }
 
-/* Message column: shared chat width (ConversationRoot --dsh-chat-content-width),
-   centered on the same axis as the input box (which caps at chat + 16px); the
+/* Message column: the box syncs with the composer card's width — the same
+   `--dsh-composer-resized-width` the dock rows read (published on the
+   conversation root), else the card's column cap — so the transcript stays
+   edge-flush with the input box through resizes and width drags; the
    scroller itself stays full-bleed. */
 .column {
-  max-width: var(--dsh-chat-content-width);
+  max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width));
   width: 100%;
   margin: 0 auto;
   display: flex;
@@ -176,7 +178,7 @@
   height: 0;
   display: flex;
   justify-content: flex-end;
-  padding-right: max(0px, calc((100% - var(--dsh-chat-content-width)) / 2));
+  padding-right: max(0px, calc((100% - var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width))) / 2));
   pointer-events: none;
 }
 
