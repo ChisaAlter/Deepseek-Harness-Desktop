@@ -19,6 +19,7 @@ import type {
   TokenSurfaceNode,
 } from './types.ts'
 import { contextBreakdownProjectionDefinition } from './breakdown-projection.ts'
+import { billedUsageProjectionDefinition } from './billed-usage-projection.ts'
 import { contextPressureProjectionDefinition, tokenUsageProjectionDefinition } from './usage-projection.ts'
 import { estimateContent, estimateHeader, estimateMessage, ROLE_OVERHEAD } from './estimate.ts'
 import { foldSurfaceTokens } from './surface-fold.ts'
@@ -88,6 +89,7 @@ export class TokenMeter extends Service {
       projectionCtx.sessionProjections.register(tokenUsageProjectionDefinition)
       projectionCtx.sessionProjections.register(contextPressureProjectionDefinition)
       projectionCtx.sessionProjections.register(contextBreakdownProjectionDefinition)
+      projectionCtx.sessionProjections.register(billedUsageProjectionDefinition)
     })
 
     // Readers catch up independently, while eager observation bounds ordinary

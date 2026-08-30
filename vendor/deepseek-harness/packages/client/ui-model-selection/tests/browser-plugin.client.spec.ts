@@ -14,9 +14,10 @@ import { createScope } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
-import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelProviderGroup, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import type { CommandContribution, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { ModelSelectInjected } from '../src/client/slots.ts'
+import { ModelDirectoryResolver } from '../src/client/service.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -54,36 +55,51 @@ const GROUPS = [{
 }]
 
 /** Boot the plugin over fake faces + a stateful fake host (current moves on selectModel). */
-async function bench() {
+async function bench(customGroups: ModelProviderGroup[] = GROUPS as ModelProviderGroup[], hostCatalog: ModelProviderGroup[] = []) {
   const ctx = new Context()
   let current: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
   const calls = { models: 0, select: 0 }
-  ctx.provide('connection', { api: { sessions: {
-    models: () => {
-      calls.models += 1
-      return Promise.resolve({
-        result: { ok: true as const, value: { current, routable, groups: GROUPS, failures: [] } },
-      })
+  ctx.provide('connection', { api: {
+    sessions: {
+      models: () => {
+        calls.models += 1
+        return Promise.resolve({
+          result: { ok: true as const, value: { current, routable, groups: customGroups, failures: [] } },
+        })
+      },
+      selectModel: (payload: { provider: string; model: string; reasoningEffort?: string }) => {
+        calls.select += 1
+        current = {
+          provider: payload.provider,
+          model: payload.model,
+          ...payload.reasoningEffort === undefined
+            ? {}
+            : { reasoningEffort: payload.reasoningEffort },
+        }
+        return Promise.resolve({ result: { ok: true as const, value: { selected: current } } })
+      },
     },
-    selectModel: (payload: { provider: string; model: string; reasoningEffort?: string }) => {
-      calls.select += 1
-      current = {
-        provider: payload.provider,
-        model: payload.model,
-        ...payload.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: payload.reasoningEffort },
-      }
-      return Promise.resolve({ result: { ok: true as const, value: { selected: current } } })
+    llm: {
+      models: () => Promise.resolve({
+        result: { ok: true as const, value: { groups: hostCatalog, failures: [] } },
+      }),
     },
-  } } })
+  } })
   // Whether the Host reports an adapter for the current route; the composer
   // block follows this, never catalog membership.
   let routable = true
   const blocks = new Map<SessionId, { reason: string } | undefined>()
+  const facts = new Map<SessionId, { provider: string | null }>()
+  const catalogs = new Map<SessionId, readonly { provider: string; id: string }[]>()
   ctx.provide('conversation', {
     blocks: {
       set: (id: SessionId, block: { reason: string } | undefined) => { blocks.set(id, block) },
+    },
+    modelFacts: {
+      set: (id: SessionId, fact: { provider: string | null }) => { facts.set(id, fact) },
+    },
+    modelCatalog: {
+      set: (id: SessionId, models: readonly { provider: string; id: string }[]) => { catalogs.set(id, models) },
     },
   })
   let contribution: CommandContribution | undefined
@@ -136,6 +152,9 @@ async function bench() {
     address: (id: SessionId) => { addressed.add(id) },
     setRoutable: (next: boolean) => { routable = next },
     blockOf: (key: string) => blocks.get(sid(key)),
+    factOf: (key: string) => facts.get(sid(key)),
+    catalogOf: (key: string) => catalogs.get(sid(key)),
+    resolver: () => ctx.get('modelDirectories') as ModelDirectoryResolver,
   }
 }
 
@@ -281,6 +300,93 @@ describe('ui-model-selection dual entry', () => {
     expect(b.blockOf('s1')).toBeUndefined()
   })
 
+  it('publishes the current provider route as a composer model fact', async () => {
+    const b = await bench()
+    b.mint('s1')
+    const face = b.seat().inject!(sid('s1'))
+    // Before the first load the route is unknown, never a guessed name.
+    expect(b.factOf('s1')).toEqual({ provider: null })
+    face.load()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(b.factOf('s1')).toEqual({ provider: 'deepseek-official' })
+    // A seat selection republishes through the same subscription immediately.
+    await face.select({ provider: 'other-relay', model: 'm1' })
+    expect(b.factOf('s1')).toEqual({ provider: 'other-relay' })
+  })
+
+  it('publishes the advertised model ids (provider-tagged) and remembers them in the fiber union', async () => {
+    const b = await bench()
+    b.mint('s1')
+    const face = b.seat().inject!(sid('s1'))
+    face.load()
+    await Promise.resolve()
+    await Promise.resolve()
+    // The session's catalog carries each advertised model with its provider.
+    expect(b.catalogOf('s1')).toEqual([
+      { provider: 'deepseek-official', id: 'deepseek-v4-flash' },
+      { provider: 'deepseek-official', id: 'deepseek-v4-pro' },
+    ])
+    // The resolver-level union remembers the models even after the session
+    // directory goes, so the root-scope price settings row can list them.
+    const union = b.resolver().catalogModelIds()
+    expect(union).toEqual([
+      { provider: 'deepseek-official', id: 'deepseek-v4-flash' },
+      { provider: 'deepseek-official', id: 'deepseek-v4-pro' },
+    ])
+  })
+
+  it('keeps a custom-provider model that is current but not in any loaded group in the catalog', async () => {
+    const b = await bench()
+    // The relay route is selected but its group is absent from the snapshot
+    // (catalog lookup failed, or the group simply did not load).
+    b.setHostCurrent({ provider: 'other-relay', model: 'm1' })
+    b.mint('s1')
+    const face = b.seat().inject!(sid('s1'))
+    face.load()
+    await Promise.resolve()
+    await Promise.resolve()
+    const catalog = b.catalogOf('s1')!
+    expect(catalog).toContainEqual({ provider: 'other-relay', id: 'm1' })
+    expect(b.resolver().catalogModelIds()).toContainEqual({ provider: 'other-relay', id: 'm1' })
+  })
+
+  it('keeps a model a custom provider serves alongside the official route in the model catalog', async () => {
+    const b = await bench([
+      { id: 'deepseek-official', name: 'DeepSeek', models: [{ id: 'deepseek-v4-flash', name: 'Flash' }] },
+      { id: 'my-gateway', name: 'My Relay', models: [{ id: 'other', name: 'Other' }] },
+    ] as ModelProviderGroup[])
+    // The custom route is current but its catalog group does not advertise the
+    // model (a failed lookup) — the same id the official route advertises.
+    b.setHostCurrent({ provider: 'my-gateway', model: 'deepseek-v4-flash' })
+    b.mint('s1')
+    const face = b.seat().inject!(sid('s1'))
+    face.load()
+    await Promise.resolve()
+    await Promise.resolve()
+    // The dock catalog keeps the custom current model even though another
+    // provider advertises the same id.
+    expect(b.catalogOf('s1')).toContainEqual({ provider: 'my-gateway', id: 'deepseek-v4-flash' })
+    expect(b.catalogOf('s1')).toContainEqual({ provider: 'deepseek-official', id: 'deepseek-v4-flash' })
+    // The settings-row union keeps both providers' same-id entries so the price
+    // panel can tell a custom gateway's DeepSeek model apart from the official
+    // column.
+    const catalogIds = b.resolver().catalogModelIds()
+    expect(catalogIds).toContainEqual({ provider: 'deepseek-official', id: 'deepseek-v4-flash' })
+    expect(catalogIds).toContainEqual({ provider: 'my-gateway', id: 'deepseek-v4-flash' })
+  })
+
+  it('seeds the settings-row catalog from the host-scoped llm.models without a session directory', async () => {
+    const b = await bench([], [
+      { id: 'my-gateway', name: 'My Relay', models: [{ id: 'deepseek-v4-flash', name: 'Flash Relay' }] },
+    ] as ModelProviderGroup[])
+    // No session directory is ever minted: the host catalog alone makes a
+    // newly added provider's model listable in the price settings panel.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(b.resolver().catalogModelIds()).toContainEqual({ provider: 'my-gateway', id: 'deepseek-v4-flash' })
+  })
+
   it('clears its block when the session scope goes', async () => {
     const b = await bench()
     const scope = b.mint('s1')
@@ -293,6 +399,9 @@ describe('ui-model-selection dual entry', () => {
 
     await scope.fiber.dispose()
     expect(b.blockOf('s1')).toBeUndefined()
+    // The model fact clears with the block: a later dock remount must not
+    // read a stale route from a disposed directory.
+    expect(b.factOf('s1')).toEqual({ provider: null })
   })
 
   it('an unknown session fails loud at the seat inject', async () => {

@@ -23,6 +23,15 @@ export const COMPOSER_RESIZE_WIDTH_FIELD = 'composerResizeWidth'
 /** Field carrying whether the composer dock paints the session stats strip. */
 export const STATS_LINE_FIELD = 'statsLine'
 
+/** Field carrying whether the official peak/valley status row is force-enabled. */
+export const OFFICIAL_PEAK_VALLEY_FIELD = 'officialPeakValley'
+
+/** Field carrying whether the composer dock paints the session cost figure. */
+export const SESSION_COST_FIELD = 'sessionCost'
+
+/** Field carrying the user's per-model custom peak-hour prices (absent model = use official/default). */
+export const SESSION_COST_PRICES_FIELD = 'sessionCostPrices'
+
 /** Field carrying whether the session header paints Chat/Trajectory tabs. */
 export const VIEW_TABS_FIELD = 'viewTabs'
 
@@ -50,6 +59,54 @@ export const DEFAULT_COMPOSER_RESIZE_WIDTH: number | null = null
 /** Default keeps the composer-dock session stats strip. */
 export const DEFAULT_STATS_LINE = true
 
+/** Default means the peak/valley row shows only while a DeepSeek API route is detected. */
+export const DEFAULT_OFFICIAL_PEAK_VALLEY = false
+
+/** Default hides the session cost figure until the user opts in. */
+export const DEFAULT_SESSION_COST = false
+
+/** Default means every model bills at its official (or first-column) price. */
+export const DEFAULT_SESSION_COST_PRICES: SessionCostPrices = {}
+
+/**
+ * Prices for one model, in CNY per million tokens. The base fields describe
+ * the peak column; off-peak billing reads the official idle column for an
+ * official model, the explicit {@link SessionCostModelPrice.idle} column when
+ * the user prices both periods, or the idle figure implied by the peaks for a
+ * single-priced model the official table does not name.
+ */
+export interface SessionCostModelPrice {
+  /** Cache-hit prompt input during peak hours. */
+  inputCacheHit: number
+  /** Cache-miss prompt input (cache writes included) during peak hours. */
+  inputCacheMiss: number
+  /** Response output during peak hours. */
+  output: number
+  /**
+   * Explicit off-peak column (peak/valley pricing mode): both periods billed
+   * as entered. Absent for single-priced models — the idle figure derives
+   * from the peaks.
+   */
+  idle?: {
+    /** Cache-hit prompt input during off-peak hours. */
+    inputCacheHit: number
+    /** Cache-miss prompt input (cache writes included) during off-peak hours. */
+    inputCacheMiss: number
+    /** Response output during off-peak hours. */
+    output: number
+  }
+}
+
+/**
+ * User-edited peak-hour prices keyed by `provider/model` (two providers may
+ * serve the same model id with different real-world prices, so each keeps its
+ * own slot). A bare model id remains accepted as a legacy key, billing it for
+ * any provider serving that model until the panel re-saves per provider. A
+ * model absent from the record bills at its official table column, or the
+ * table's first column when the official table does not name it.
+ */
+export type SessionCostPrices = Record<string, SessionCostModelPrice>
+
 /** Default keeps the Chat/Trajectory header tablist when more than one view exists. */
 export const DEFAULT_VIEW_TABS = true
 
@@ -67,6 +124,12 @@ export interface ConversationSettings {
   composerResizeWidth?: number | null
   /** Whether StatsLine paints session-stats figures in the composer-dock row. */
   statsLine: boolean
+  /** Whether the composer dock force-paints the official peak/valley status row. */
+  officialPeakValley: boolean
+  /** Whether the composer dock paints the session cost figure; absent/undefined reads as off. */
+  sessionCost?: boolean
+  /** User-edited per-model peak-hour prices; absent keys bill at official/default prices. */
+  sessionCostPrices?: SessionCostPrices
   /** Whether ConversationSessionHeader paints the Chat/Trajectory tablist. */
   viewTabs: boolean
 }
@@ -79,5 +142,14 @@ export const ConversationSettingsSchema: z<ConversationSettings> = z.object({
   [COMPOSER_RESIZE_HEIGHT_FIELD]: z.number().min(1).required(false),
   [COMPOSER_RESIZE_WIDTH_FIELD]: z.number().min(1).required(false),
   [STATS_LINE_FIELD]: z.boolean().default(DEFAULT_STATS_LINE),
+  [OFFICIAL_PEAK_VALLEY_FIELD]: z.boolean().default(DEFAULT_OFFICIAL_PEAK_VALLEY),
+  // Optional without a materialized default: the registered section defaults
+  // keep their pre-cost shape, and an absent field reads as off at adoption.
+  [SESSION_COST_FIELD]: z.boolean().required(false),
+  // Optional and intentionally loose at the schema: a schemastery dict would
+  // materialize an empty-object default into the registered section defaults,
+  // and the write path validates positivity at the price panel. Adoption
+  // sanitizes the shape before use.
+  [SESSION_COST_PRICES_FIELD]: z.any().required(false),
   [VIEW_TABS_FIELD]: z.boolean().default(DEFAULT_VIEW_TABS),
 })

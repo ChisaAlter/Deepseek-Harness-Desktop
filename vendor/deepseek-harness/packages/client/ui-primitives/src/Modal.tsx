@@ -42,7 +42,7 @@ export function Modal({
   footer?: ReactNode
   headerActions?: ReactNode
   className?: string | undefined
-  contentClassName?: string
+  contentClassName?: string | undefined
   headless?: boolean
 }) {
   const { mounted, state } = usePresence(open)

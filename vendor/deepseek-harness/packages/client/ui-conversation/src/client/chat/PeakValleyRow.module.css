@@ -1,0 +1,102 @@
+/* Official peak/valley status row under the session stats: 12/20 tertiary
+   text with a state-colored dot, phase label, per-second countdown, and (when
+   the session-cost preference is on) the running cost plus its price-settings
+   entry on the same line. */
+
+.root {
+  display: flex;
+  /* The box syncs with the composer card's width (see StatsLine.module.css);
+     the content centers on the shared axis. */
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width));
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0 16px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Phase group: dot + label + countdown share one hover anchor (the tooltip). */
+.phaseGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Period indicator. While the official-peak-valley preference is off the dot
+   stays neutral: the phase color is a visual hint for the colored mode, and
+   the row may then be visible purely because a DeepSeek route was detected.
+   Only alias tokens — the pair resolves per theme. */
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+}
+
+.phase {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.root[data-phase-color] .dot {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.root[data-phase-color] .phase {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.root[data-phase-color][data-phase='peak'] .dot {
+  background: var(--dsw-alias-state-error-primary);
+}
+
+.root[data-phase-color][data-phase='peak'] .phase {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* Fixed-width digits keep the per-second tick from joggling the layout. */
+.countdown {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.sep {
+  flex: none;
+  color: var(--dsw-alias-separator-primary);
+}
+
+.cost {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The price-settings entry reads as a quiet inline control, not a second
+   toolbar button. */
+.costSettings {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.costSettings:hover {
+  color: var(--dsw-alias-label-primary);
+}

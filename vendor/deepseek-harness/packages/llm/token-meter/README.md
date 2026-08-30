@@ -23,7 +23,7 @@ Usage accounting sums disjoint input, cache-read, cache-write, and output bucket
 
 ## Session projections
 
-When the composition provides `ctx.sessionProjections`, token-meter registers three units through an optional child fiber.
+When the composition provides `ctx.sessionProjections`, token-meter registers four units through an optional child fiber.
 
 `tokenUsage` carries the complete durable log's `uncachedInputTokens`, `outputTokens`, `cacheReadTokens`, and `cacheWriteTokens`. Usage chunks are counted even when a request later fails; a final assistant-message usage for the same `(turn, step)` replaces that sample instead of double-counting it. Reasoning remains an output subdivision. The single last-sample slot relies on a session-log ordering property: once a later step reports usage, a legal log never reports usage for an earlier step again.
 
@@ -33,7 +33,9 @@ When the composition provides `ctx.sessionProjections`, token-meter registers th
 
 `contextBreakdown` carries heuristic `systemTokens`, `toolsTokens`, and `messageTokens` — the context's composition rather than its provider-billed size. The envelope figures reprice last-wins on every `request/header`; the message figure replays `surface-fold.ts` — the same positional fold `measure()` runs — so it equals `measure().surfaceTokens` at every event boundary and compaction shrinks it the way it shrinks the next request. All three figures use the measurement service's fixed heuristic and are estimates: they will not sum to `projectedTokens`, whose provider anchor carries exactly the error — CJK text and JSON schemas underprice badly at four characters per token — that the composition rows still contain. Present them as an approximate composition, never as a total.
 
-All three units use the standard projection baseline, live frame, higher-seq-wins store, and JSON checkpoint paths. Unloading token-meter removes all three keys. A composition without the projection seam keeps the measurement service's existing behavior.
+`billedUsage` carries price-independent `peak` and `offPeak` bucket sets (`missInputTokens`, `cacheReadTokens`, `outputTokens`) over the complete durable log, split by the official DeepSeek billing schedule (`billing-window.ts`: Beijing weekday 09:00–12:00 ∪ 14:00–18:00, everything else off-peak). Cache writes bill as uncached input; each sample prices at its step's `step/start` instant, so a request straddling a boundary bills at the instant it began, and a sample without a matching step start falls back to its own event time. The buckets carry no prices — applying a rate table, official or user-edited, is the reader's job, so edited prices never require a refold. Samples follow the same replace-per-step rule as `tokenUsage`. The browser-side schedule twin lives in ui-conversation's `peak-valley.ts` and must change together with `billing-window.ts`.
+
+All four units use the standard projection baseline, live frame, higher-seq-wins store, and JSON checkpoint paths. Unloading token-meter removes all four keys. A composition without the projection seam keeps the measurement service's existing behavior.
 
 ### Context occupancy is an approximation, by design
 

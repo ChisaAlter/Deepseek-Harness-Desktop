@@ -23,7 +23,7 @@ fold 跟踪完整请求标头快照、步骤边界、表层追加与替换、成
 
 ## 会话投影
 
-当组合提供 `ctx.sessionProjections` 时，token-meter 会通过一个可选子 fiber 注册三个单元。
+当组合提供 `ctx.sessionProjections` 时，token-meter 会通过一个可选子 fiber 注册四个单元。
 
 `tokenUsage` 携带完整持久日志中的 `uncachedInputTokens`、`outputTokens`、`cacheReadTokens` 和 `cacheWriteTokens`。即使请求随后失败，用量分片仍会计入；同一 `(turn, step)` 的最终 assistant 消息用量会替换该样本，而不是重复计数。推理仍是输出的一个细分项。只保留单个最新样本，依赖的是会话日志的一条顺序性质：一旦某个更晚的步骤报告了用量，合法日志就绝不会再为更早的步骤报告用量。
 
@@ -33,7 +33,9 @@ fold 跟踪完整请求标头快照、步骤边界、表层追加与替换、成
 
 `contextBreakdown` 携带启发式的 `systemTokens`、`toolsTokens` 与 `messageTokens`，描述上下文的组成而非提供方计费规模。envelope 数字在每条 `request/header` 上按后者胜重新计价；消息数字重放 `surface-fold.ts`——也就是 `measure()` 运行的同一个带位置 fold——因此它在每个事件边界上都等于 `measure().surfaceTokens`，压缩会像缩小下一个请求那样缩小它。三个数字都使用测量服务的固定启发式规则，属于估算值：它们加起来不等于 `projectedTokens`——后者的提供方锚点所体现的恰好是这些明细行仍然带着的误差（按「4 字符 ≈ 1 token」计价，CJK 文本与 JSON schema 会被严重低估）。请把它们当作近似的**组成**呈现，而不是总量。
 
-三个单元都使用标准的投影基线、实时帧、seq 高者胜值仓和 JSON 检查点路径。卸载 token-meter 会移除这三个键。不带投影 seam 的组合会保留测量服务的既有行为。
+`billedUsage` 携带与价格无关的 `peak` 与 `offPeak` 桶（`missInputTokens`、`cacheReadTokens`、`outputTokens`），覆盖完整持久日志并按官方 DeepSeek 计费时刻表分桶（`billing-window.ts`：北京工作日 09:00–12:00 ∪ 14:00–18:00，其余全为空闲）。缓存写入按未命中输入计价；每个样本按其步骤的 `step/start` 时刻计价，跨边界的请求按它开始的时刻计价，没有匹配步骤开始的样本退回自身事件时间。这些桶不带任何价格——套用官方或用户编辑的费率表是读取方的职责，因此改价从不需要重折日志。样本沿用与 `tokenUsage` 相同的按步骤替换规则。浏览器侧的时刻表孪生体位于 ui-conversation 的 `peak-valley.ts`，必须与 `billing-window.ts` 一起修改。
+
+四个单元都使用标准的投影基线、实时帧、seq 高者胜值仓和 JSON 检查点路径。卸载 token-meter 会移除这四个键。不带投影 seam 的组合会保留测量服务的既有行为。
 
 ### 上下文占用率是刻意为之的近似值
 
