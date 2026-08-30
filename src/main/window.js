@@ -14,6 +14,8 @@ const {
   shouldAllowPrivilegedRedirect,
 } = require('./local-url');
 
+const { applyHarnessCookieToSession, launchTokenFromUrl, loadUrlAfterRedeem } = require('./harness-browser-auth');
+
 const PLUGIN_BOOT_TIMEOUT_MS = 90_000;
 const PLUGIN_BOOT_PROBE = `(() => {
   const boot = document.querySelector('[data-dshd-boot-status]');
@@ -361,19 +363,24 @@ function showBoot() {
   return win.loadFile(rendererFile('boot.html'));
 }
 
-function showHarness(baseUrl) {
+function showHarness(baseUrl, options = {}) {
   const loadUrl = rewriteLoopbackLoadUrl(baseUrl);
   if (!loadUrl) {
     return Promise.reject(new Error('Harness URL must be a loopback http(s) address'));
   }
+  const cookie = typeof options.cookie === 'string' ? options.cookie : '';
+  const viewUrl = cookie && launchTokenFromUrl(loadUrl) ? loadUrlAfterRedeem(loadUrl) : loadUrl;
   const win = createMainWindow();
   hideHarnessView(win);
   const bootReady = isBootLoaded(win)
     ? Promise.resolve()
     : win.loadFile(rendererFile('boot.html'));
-  return bootReady.then(() => {
+  return bootReady.then(async () => {
     const view = ensureHarnessView(win);
-    harnessOrigin = new URL(loadUrl).origin;
+    harnessOrigin = new URL(viewUrl).origin;
+    if (cookie) {
+      await applyHarnessCookieToSession(view.webContents.session, harnessOrigin, cookie);
+    }
     sendPluginBoot({
       ready: 0,
       total: 0,
@@ -382,7 +389,7 @@ function showHarness(baseUrl) {
       settled: false,
       error: '',
     });
-    return view.webContents.loadURL(loadUrl).then(() => watchPluginBoot(view, win));
+    return view.webContents.loadURL(viewUrl).then(() => watchPluginBoot(view, win));
   });
 }
 

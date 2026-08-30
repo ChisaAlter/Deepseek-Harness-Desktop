@@ -76,6 +76,11 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-settings-models/scripts/live-fetch-enrich-probe.ts': '// live probe\n',
       'packages/client/ui-theme/src/client/WallpaperGalleryModal.tsx': 'export const gallery = () => null\n',
       'packages/client/ui-theme/src/client/WallpaperRow.tsx': 'export const row = () => null\n',
+      'packages/client/ui-theme/src/wallpaper.ts': "export const TRANSPARENT_ATTR = 'data-dsh-transparent'\n",
+      'packages/client/ui-theme/src/styles/wallpaper.css': 'html[data-dsh-transparent] #dsh-wallpaper::after { background: transparent }\n',
+      'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n',
+      'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx': '<div data-composer-beam="" />\n',
+      'packages/client/ui-conversation/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
       'apps/cli/src/args.ts': "program.option('--skip-user-plugins', 'boot the shipped bundle template')\n",
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
@@ -111,6 +116,13 @@ test('assertDesktopForks throws when the header golden regains Session log', (t)
   const goldenPath = path.join(root, ...'apps/web/tests/snapshots/agent-preset-selection/header.expected.md'.split('/'));
   fs.writeFileSync(goldenPath, '- button "Session log"\n');
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /Session log/);
+});
+
+test('assertDesktopForks throws when transparent theme markers drop', (t) => {
+  const root = makeFixture(t);
+  const wallpaperPath = path.join(root, ...'packages/client/ui-theme/src/wallpaper.ts'.split('/'));
+  fs.writeFileSync(wallpaperPath, 'export const WALLPAPER_ATTR = "data-dsh-wallpaper"\n');
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /TRANSPARENT_ATTR|data-dsh-transparent/);
 });
 
 test('assertDesktopForks throws when copy-ghostty-assets drops out of package.json', (t) => {
