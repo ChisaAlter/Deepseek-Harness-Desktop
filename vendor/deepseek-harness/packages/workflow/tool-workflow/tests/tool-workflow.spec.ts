@@ -10,7 +10,7 @@ import type {
   WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowResult, WorkflowRun,
   WorkflowRunId as WorkflowRunIdType, WorkflowStartRequest,
 } from '@deepseek-ai/dsh-workflow'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import WorkerThreadWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as toolWorkflow from '../src/index.ts'
@@ -96,7 +96,7 @@ function execute(ctx: Context, args: unknown, extra?: {
 }): Promise<ToolExecutionResult> {
   return ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId('call-1'),
+    callId: ToolCallId('call-1'),
     name: 'workflow',
     arguments: args,
     ...extra?.agent ? { agent: extra.agent } : {},
@@ -379,6 +379,10 @@ describe('dsh-tool-workflow', () => {
     const section = sections.find(s => s.name === 'tool:orchestrate')
     expect(section?.text).toContain('orchestrate')
     expect(sections.some(s => s.name === 'tool:workflow')).toBe(false)
+    ctx.systemPrompt.section({ name: 'tool:cordis-order-probe', order: 115.5, text: 'Cordis' })
+    expect((await ctx.systemPrompt.assemble()).sections
+      .filter(s => s.name === 'tool:cordis-order-probe' || s.name === 'tool:orchestrate')
+      .map(s => s.name)).toEqual(['tool:cordis-order-probe', 'tool:orchestrate'])
     await fiber.dispose()
     expect(ctx.tools.get('orchestrate')).toBeUndefined()
     // …and gone with the fiber — a reload must not leak a stale section.
@@ -423,7 +427,7 @@ describe('dsh-tool-workflow', () => {
       await ctx.plugin(SubagentRuntime)
       ctx.subagents.registerProvider({
         name: 'spawn',
-        capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true },
+        capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: true },
         inheritsParentContext: false,
         start: () => Promise.reject(new Error('the parked-script fixture must not start a child')),
       })

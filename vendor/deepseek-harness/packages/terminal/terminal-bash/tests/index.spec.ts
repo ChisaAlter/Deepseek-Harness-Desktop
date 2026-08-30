@@ -379,7 +379,7 @@ describe('BashTerminalBackend startup rollback', () => {
     expect(spawned?.env?.PROMPT_COMMAND).toBeUndefined()
   })
 
-  it('keeps waiting for the marker prompt when the first send settles on silence', async () => {
+  it('keeps waiting for stdin_read when the first settled output only echoes the prompt literal', async () => {
     const ctx = new Context()
     await ctx.plugin(EmptySandbox)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
@@ -391,8 +391,8 @@ describe('BashTerminalBackend startup rollback', () => {
         const second = sends.length > 1
         return {
           done: Promise.resolve({
-            viewport: second ? 'dsh> ' : 'PowerShell 7.6.4\n',
-            waitReason: 'inferred_idle' as const,
+            viewport: second ? 'dsh> ' : "function prompt { 'dsh> ' }\n",
+            waitReason: second ? 'stdin_read' as const : 'inferred_idle' as const,
             sessionStatus: { kind: 'running' as const }, truncated: false,
           }),
           readOutput: () => ({ delta: '', truncated: false }),
@@ -433,6 +433,60 @@ describe('BashTerminalBackend startup rollback', () => {
     await expect(exited.spawn(spec(agent(ctx)))).rejects.toThrow('PTY shell exited during startup')
     const timedOut = new BashTerminalBackend(ctx, { ...config(), shellDialect: 'pwsh' }, async () => terminalHandle(), () => sessionFor('timeout'))
     await expect(timedOut.spawn(spec(agent(ctx)))).rejects.toThrow('did not reach readiness before startup timeout')
+  })
+
+  it('bounds all pwsh startup retries with one deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const ctx = new Context()
+      await ctx.plugin(EmptySandbox)
+      await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/workspace' })
+      const pending = Promise.withResolvers<{
+        viewport: string
+        waitReason: 'inferred_idle'
+        sessionStatus: { kind: 'running' }
+        truncated: boolean
+      }>()
+      let sends = 0
+      let cancellations = 0
+      let closes = 0
+      const session = {
+        motd: '',
+        startSend: () => {
+          sends += 1
+          return {
+            done: sends === 1
+              ? Promise.resolve({
+                viewport: 'setup echo', waitReason: 'inferred_idle' as const,
+                sessionStatus: { kind: 'running' as const }, truncated: false,
+              })
+              : pending.promise,
+            readOutput: () => ({ delta: '', truncated: false }),
+            cancel: () => { cancellations += 1; return true },
+          }
+        },
+        read: () => ({ text: '', totalLines: 0, lineBegin: 0, lineEnd: 0, truncated: false }),
+        close: () => { closes += 1; return Promise.resolve() },
+      } as unknown as LocalPtySession
+      const backend = new BashTerminalBackend(
+        ctx,
+        { ...config(), shellDialect: 'pwsh', shellPath: 'pwsh' },
+        async () => terminalHandle(),
+        () => session,
+      )
+
+      const spawning = backend.spawn(spec(agent(ctx)))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sends).toBe(2)
+      const rejected = expect(spawning).rejects.toThrow('did not reach readiness before startup timeout')
+      await vi.advanceTimersByTimeAsync(100)
+
+      await rejected
+      expect(cancellations).toBe(1)
+      expect(closes).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('forwards the spawn signal into the pwsh bootstrap sends', async () => {

@@ -1,0 +1,15 @@
+- dialog "选择要添加的模型":
+  - heading "选择要添加的模型" [level=2]
+  - button "关闭":
+    - img
+  - paragraph: 以下是模型提供方的可用模型，勾选要添加的模型。
+  - button "全选"
+  - list:
+    - listitem:
+      - checkbox "minimax-m1"
+      - text: minimax-m1
+    - listitem:
+      - checkbox "minimax-m2"
+      - text: minimax-m2
+  - button "取消"
+  - button "添加所选"

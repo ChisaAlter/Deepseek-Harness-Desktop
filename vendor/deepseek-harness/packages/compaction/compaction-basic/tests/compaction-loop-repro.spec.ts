@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { toolPairingBalancedAfter, toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction'
 import { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, resolveRetryPolicy , createMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, LlmResolvedModelInfo, ResolvedRetryPolicy, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { CallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -54,7 +54,7 @@ class StepwiseToolAdapter extends LlmAdapter {
     const n = this.calls
     this.calls += 1
     if (n < this.toolSteps) {
-      const id = CallId(`c${n}`)
+      const id = ToolCallId(`c${n}`)
       const args = `{"i":${n}}`
       yield { type: 'block-start', index: 0, blockType: 'text' }
       yield { type: 'block-end', index: 0, block: { type: 'text', text: `step ${n}` } }

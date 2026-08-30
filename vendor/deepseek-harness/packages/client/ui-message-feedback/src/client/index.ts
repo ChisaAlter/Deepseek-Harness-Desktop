@@ -7,13 +7,18 @@
  * @module @deepseek-ai/dsh-client-ui-message-feedback/client
  */
 
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the generated Remote API and ctx.remote merge through the Client assembly boundary.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the ui-conversation SlotMap merge (the assistant-actions entry).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the SlotRegistry service merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { MessageFeedbackController } from './controller.ts'
 import { MessageFeedbackActions } from './MessageFeedbackActions.tsx'
 import type { MessageFeedbackInjected } from './slots.ts'

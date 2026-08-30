@@ -23,7 +23,7 @@ Outside `landlock-run.yml`, each workflow that installed pnpm hand-provisioned i
 - **Convert serial-linux's store cache.** Rejected during implementation: the original proposal counted serial-linux among the symmetric setups, but its cache step is the producer half of the enterprise jobs' restore-only pairing — moving it to `setup-node`'s key format is the enterprise conversion by another route.
 - **Stop at the cache-bearing workflows and leave the other `corepack enable` sites.** Rejected: provisioning and caching are separable concerns, and leaving corepack in the cache-less jobs kept the future break and two provisioning idioms for no benefit.
 - **Rely on the runner image's Yarn.** Rejected: the hosted image exposes Yarn 1.22 after Corepack is removed, while the generated-project e2e requires Yarn 2 or newer. A locked root dev dependency makes that coverage independent of runner image contents.
-- **A composite action wrapping action-setup + setup-node.** Rejected for now: the remaining per-job variation (node-version matrices, per-platform conditional caching, the restore-only pairing) is deliberate policy, not boilerplate — a wrapper would grow mirroring inputs or flatten a real asymmetry, and the two-line pair is already near the floor.
+- **A composite action wrapping action-setup plus setup-node.** Rejected: the remaining per-job variation (Node-version matrices, per-platform conditional caching, and the restore-only pairing) is deliberate policy, not boilerplate. A wrapper would grow matching inputs or flatten a real asymmetry, while the two-line pair is already near the floor.
 
 ## Consequences
 

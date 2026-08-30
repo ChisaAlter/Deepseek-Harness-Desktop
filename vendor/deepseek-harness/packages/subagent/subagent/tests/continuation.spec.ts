@@ -12,7 +12,7 @@ import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import type { GenerateOptions, MessageId, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { CallId, createUserMessage, LlmAdapter } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage, LlmAdapter, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
@@ -22,6 +22,7 @@ import SubagentRuntime, {
 } from '../src/index.ts'
 import type { SubagentRunEndInfo, SubagentRunInfo } from '../src/index.ts'
 import * as SubagentInvariant from '../src/invariant.ts'
+import { TestSessionQuery } from './test-session-query.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
@@ -65,7 +66,10 @@ afterEach(async () => {
 })
 
 /** Boot the full continuable stack: loop, persistence, providers, and subagents. */
-async function setupWith(adapter: LlmAdapter, options: { persistence?: boolean } = {}) {
+async function setupWith(
+  adapter: LlmAdapter,
+  options: { persistence?: boolean; sessionQuery?: boolean } = {},
+) {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   let disposePersistence: (() => Promise<void>) | undefined
@@ -81,6 +85,7 @@ async function setupWith(adapter: LlmAdapter, options: { persistence?: boolean }
     })
   }
   await ctx.plugin(AgentLoop, { agents: [] })
+  if (options.sessionQuery !== false) await ctx.plugin(TestSessionQuery)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
   await ctx.plugin(SubagentFork, { providerName: 'fork' })
@@ -239,7 +244,7 @@ describe('SubagentRuntime.startContinuable', () => {
     const start = vi.fn(async () => { throw new Error('must not dispatch') })
     ctx.subagents.registerProvider({
       name: 'one-shot',
-      capabilities: { outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
+      capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
       inheritsParentContext: false,
       start,
     })
@@ -281,6 +286,40 @@ describe('SubagentRuntime.startContinuable', () => {
     expect(loaded.meta.id).toBe(started.childId)
     expect(loaded.meta.parentSession).toBe(SessionId('parent'))
     expect(loaded.meta.origin).toBe('subagent')
+  })
+
+  it('persists a selected reasoning effort and reapplies it on cold resume', async () => {
+    const effort = ReasoningEffortId('max')
+    const adapter = new MockAdapter([
+      textResponse('first answer'),
+      textResponse('resumed answer'),
+    ], {
+      efforts: [{ id: effort, name: 'Max' }],
+      defaultEffort: effort,
+    })
+    const { ctx, parent } = await setupWith(adapter)
+    parkParent(ctx, parent)
+    const childEfforts: Array<string | undefined> = []
+    ctx.on('agent/created', ({ agent }) => {
+      if (agent !== parent) childEfforts.push(agent.options.reasoningEffort)
+    })
+
+    const started = await ctx.subagents.startContinuable({
+      ...startSpec(parent),
+      request: {
+        prompt: message('selected reasoning'),
+        parent,
+        agentOptions: { reasoningEffort: effort },
+      },
+    })
+    await waitNoActivation(ctx, started.childId)
+    const loaded = await ctx.sessionPersistence.load(started.childId)
+    expect(loaded.events.find(event => event.type === 'subagent/descriptor')?.data)
+      .toMatchObject({ agentReasoningEffort: 'max' })
+
+    await followup(ctx, parent, started.childId, message('resume selected reasoning'))
+    await waitNoActivation(ctx, started.childId)
+    expect(childEfforts).toEqual(['max', 'max'])
   })
 
   it('rolls the child back completely when the caller signal aborts before acceptance', async () => {
@@ -421,6 +460,7 @@ describe('SubagentRuntime.startContinuable', () => {
     // afterEach closes it before removing the root (even on a failure path).
     cleanups.push(async () => { await freshPersistence.dispose() })
     await fresh.plugin(AgentLoop, { agents: [] })
+    await fresh.plugin(TestSessionQuery)
     await fresh.plugin(SubagentRuntime)
     await fresh.plugin(SubagentSpawn, { providerName: 'spawn' })
     const freshParent = fresh.agentLoop.create(SessionId('routeless-resume'), {})
@@ -484,6 +524,16 @@ describe('SubagentRuntime.startContinuable', () => {
 })
 
 describe('SubagentRuntime.followup residency routing', () => {
+  it('fails a cold follow-up when Session query is unavailable', async () => {
+    const { ctx, parent } = await setupWith(new MockAdapter([]), {
+      persistence: false,
+      sessionQuery: false,
+    })
+
+    await expect(followup(ctx, parent, SessionId('cold-without-query'), message('continue')))
+      .rejects.toMatchObject({ code: 'CONTINUATION_UNAVAILABLE' })
+  })
+
   it('enqueues in the same Activation while it is running, preserving one inbox FIFO', async () => {
     const releaseFirst = Promise.withResolvers<undefined>()
     const adapter = new GatedAdapter([
@@ -531,7 +581,7 @@ describe('SubagentRuntime.followup residency routing', () => {
     await ctx.plugin(SubagentInvariant)
     const disposeProvider = ctx.subagents.registerProvider({
       name: 'retired',
-      capabilities: { outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
+      capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
       inheritsParentContext: false,
       start: async () => { throw new Error('one-shot start is not used') },
       prepareContinuable: () => Promise.resolve({}),
@@ -635,7 +685,7 @@ describe('SubagentRuntime.followup residency routing', () => {
     const started = await ctx.subagents.startContinuable(startSpec(parent))
     await waitNoActivation(ctx, started.childId)
     const inspectStarted = Promise.withResolvers<undefined>()
-    const inspect = vi.spyOn(ctx.sessionPersistence, 'inspect').mockImplementation((_id, signal) => {
+    const inspect = vi.spyOn(ctx.sessionPersistence, 'borrowSession').mockImplementation((_id, signal) => {
       return new Promise<never>((_resolve, reject) => {
         if (signal === undefined) {
           reject(new Error('cold inspection must receive the followup signal'))
@@ -1351,8 +1401,8 @@ describe('continuable review regressions', () => {
       toolCallResponse('t1', 'noop', {}, 'partial one'),
       [
         { type: 'block-start', index: 0, blockType: 'tool-call' },
-        { type: 'tool-call-delta', index: 0, id: CallId('t2'), name: 'noop', argumentsDelta: '{}' },
-        { type: 'block-end', index: 0, block: { type: 'tool-call', id: CallId('t2'), name: 'noop', arguments: '{}' } },
+        { type: 'tool-call-delta', index: 0, id: ToolCallId('t2'), name: 'noop', argumentsDelta: '{}' },
+        { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('t2'), name: 'noop', arguments: '{}' } },
         { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } },
         { type: 'finish', reason: { kind: 'max-tokens' } },
       ],
@@ -2418,27 +2468,43 @@ describe('continuable errors', () => {
     hold.resolve(undefined)
   })
 
-  it('reapplies the descriptor model route on cold resume', async () => {
-    const { ctx, parent } = await setup([textResponse('first'), textResponse('resumed')])
+  it('reapplies the descriptor model route and reasoning effort on cold resume', async () => {
+    const effort = ReasoningEffortId('high')
+    const adapter = new MockAdapter([textResponse('first'), textResponse('resumed')], {
+      efforts: [{ id: effort, name: 'High' }],
+      defaultEffort: effort,
+    })
+    const { ctx, parent } = await setupWith(adapter)
     const started = await ctx.subagents.startContinuable({
       ...startSpec(parent),
       request: {
         prompt: message('routed work'),
         parent,
-        agentOptions: { provider: 'mock', model: 'child-model' },
+        agentOptions: { provider: 'mock', model: 'child-model', reasoningEffort: effort },
       },
     })
     await waitNoActivation(ctx, started.childId)
     const loaded = await ctx.sessionPersistence.load(started.childId)
     expect(loaded.events.find(event => event.type === 'subagent/descriptor')?.data)
-      .toMatchObject({ agentProvider: 'mock', agentModel: 'child-model' })
+      .toMatchObject({
+        agentProvider: 'mock',
+        agentModel: 'child-model',
+        agentReasoningEffort: 'high',
+      })
 
     // The resumed Activation runs on the declared route, not the parent's.
     await followup(ctx, parent, started.childId, message('again'))
     await vi.waitFor(() => {
-      expect(ctx.agents.get(started.childId)?.options.model).toBe('child-model')
+      expect(ctx.agents.get(started.childId)?.options).toMatchObject({
+        model: 'child-model',
+        reasoningEffort: 'high',
+      })
     })
     await waitNoActivation(ctx, started.childId)
+    const resumed = await ctx.sessionPersistence.load(started.childId)
+    expect(resumed.events.flatMap(event => event.type === 'request/header'
+      ? [event.data.header.config.reasoningEffort]
+      : [])).toEqual([effort, effort])
   })
 
   it('unloading the manager drains its live activations', async () => {

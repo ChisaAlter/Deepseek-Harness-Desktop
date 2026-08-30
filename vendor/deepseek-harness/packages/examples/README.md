@@ -1,17 +1,43 @@
-# examples/ — ready-to-run demo bundles
+---
+description: "The examples package group: reusable agent-spine composition bundles for tests and custom deployments."
+kind: "package-group"
+---
+
+# examples/ — reusable composition bundles
 
 English | [中文](README.zh.md)
 
-Pre-composed plugin bundles a thin leaf `cordis.yml` loads instead of assembling the spine and an entry point by hand. These are **demo / reference** packages — the `-demo` npm suffix marks each one as non-product surface, readable straight off the package name. The runnable leaves under the repo-root [`examples/`](../../examples/AGENTS.md) and the [Python SDK runtime](../../python/sdk-runtime/README.md) are the consumers; each is just its swappable backends plus one bundle entry.
+## Summary
+
+The examples group provides the reusable agent spine for tests and custom deployments that need a concrete composition without assembling it by hand. Its `-demo` npm suffix marks it as support infrastructure rather than a product interface. ACP, SDK, and one-shot applications launch through the `acp`, `sdk` or `sdk-minimal`, and `headless` profiles. This group contains no application entrypoint.
+
+## Table of Contents
+
+- [Packages](#packages)
+- [Related documentation](#related-documentation)
+- [Dev Note](#dev-note)
+
+-----
+
+<a id="packages"></a>
+## Packages
 
 | Package | npm name | Role |
 |---|---|---|
-| [`agent-spine-demo/`](agent-spine-demo/README.md) | `@deepseek-ai/dsh-agent-spine-demo` | Reusable agent-spine bundle |
-| [`acp-demo/`](acp-demo/README.md) | `@deepseek-ai/dsh-acp-demo` | ACP automation application bundle |
-| [`jsonrpc-demo/`](jsonrpc-demo/README.md) | `@deepseek-ai/dsh-sdk-jsonrpc-demo` | External-config JSON-RPC runtime |
+| [`agent-spine-demo/`](agent-spine-demo/README.md) | `@deepseek-ai/dsh-agent-spine-demo` | Working agent core you mount and configure with your own LLM and executor |
 
-`agent-spine-demo` is the shared bundle; `acp-demo` adds its automation entry point, while `jsonrpc-demo` boots a deployment-owned plugin tree. Product one-shot execution belongs to `dsh --profile headless`; no package in this directory provides it.
+`agent-spine-demo` is the shared agent core. Product application assemblies live under [`bundle/`](../bundle/README.md); this support package remains available to focused tests and custom compositions.
 
-These packages are not product API. Product seams and entry points remain in their owning groups; demo bundles select concrete compositions.
+-----
 
-Do not confuse this group with the repo-root [`examples/`](../../examples/AGENTS.md): that directory holds the runnable `cordis.yml` **leaves**; this group holds the **bundles** those leaves load.
+<a id="related-documentation"></a>
+## Related documentation
+
+- [ACP application bundle](../bundle/acp-app/README.md) — the `dsh --profile acp` application for programmatic clients.
+- [SDK application bundle](../bundle/sdk-app/README.md) — the `dsh --profile sdk` application for JSON-RPC clients.
+- [Minimal SDK bundle](../bundle/sdk-minimal/README.md) — the standalone two-tool SDK profile used by the Python example.
+
+<a id="dev-note"></a>
+## Dev Note
+
+None.

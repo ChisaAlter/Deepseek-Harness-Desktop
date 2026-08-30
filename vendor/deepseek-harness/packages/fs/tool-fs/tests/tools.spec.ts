@@ -8,7 +8,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type ToolResult } from '@deepseek-ai/dsh-tools'
 import { FileSystem, FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
@@ -113,7 +113,7 @@ let callCounter = 0
 function call(ctx: Context, name: string, args: unknown, agent?: object) {
   return ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId(`call-${++callCounter}`),
+    callId: ToolCallId(`call-${++callCounter}`),
     name,
     arguments: args,
     ...agent ? { agent: agent as never } : {},
@@ -158,11 +158,11 @@ describe('registration', () => {
 
   it('declares read parallel-safe while write/edit remain exclusive', async () => {
     const { ctx } = await setup()
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('read-safe'), name: 'read', arguments: { file_path: 'a.txt' } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('read-safe'), name: 'read', arguments: { file_path: 'a.txt' } }))
       .toEqual({ kind: 'parallel' })
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('write-exclusive'), name: 'write', arguments: { file_path: 'a.txt', content: 'x' } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('write-exclusive'), name: 'write', arguments: { file_path: 'a.txt', content: 'x' } }))
       .toEqual({ kind: 'exclusive' })
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('edit-exclusive'), name: 'edit', arguments: { file_path: 'a.txt', old_string: 'x', new_string: 'y' } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('edit-exclusive'), name: 'edit', arguments: { file_path: 'a.txt', old_string: 'x', new_string: 'y' } }))
       .toEqual({ kind: 'exclusive' })
   })
 
@@ -881,7 +881,7 @@ describe('sandbox escalation API (write/edit)', () => {
     // Pass a signal so the escalation ask forwards it to the approval request
     // (the request rides the tool-execution abort signal).
     await ctx.tools.execute({
-      callId: CallId('call-fs-esc-grant'),
+      callId: ToolCallId('call-fs-esc-grant'),
       name: 'write',
       arguments: { file_path: 'a.txt', content: 'x', sandbox_permissions: 'danger-full-access', justification: 'the test needs it' },
       agent: escalationAgent() as never,

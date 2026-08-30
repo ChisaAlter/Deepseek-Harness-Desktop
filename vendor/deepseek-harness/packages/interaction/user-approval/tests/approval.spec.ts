@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { carrierKeyOf, createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
@@ -60,7 +60,7 @@ describe('ApprovalService.request', () => {
     const ctx = await mounted()
     const { agent, appended } = fakeAgent()
 
-    const outcome = await ctx.approval.request(requestOf(agent, { callId: CallId('call-1'), reason: 'hook says ask' }))
+    const outcome = await ctx.approval.request(requestOf(agent, { callId: ToolCallId('call-1'), reason: 'hook says ask' }))
 
     expect(outcome).toBe('unavailable')
     expect(appended.map(e => e.type)).toEqual(['approval/asked', 'approval/decided'])
@@ -95,7 +95,7 @@ describe('ApprovalService.request', () => {
     })
     const request = requestOf(agent, {
       toolName: 'scoped-tool',
-      callId: CallId('scoped-call'),
+      callId: ToolCallId('scoped-call'),
       reason: 'scoped reason',
     })
 

@@ -6,13 +6,13 @@ Status: implemented
 
 ## 问题
 
-harness 使用 `Branded<B> = string & { readonly [BRAND]: B }` 机制，为 `CallId`（`packages/llm/llm/src/brand.ts`）和 agent（智能体）/会话共享的 `SessionId`（`packages/core/session/src/types.ts`）做 brand 处理；该机制由纯类型包 `@deepseek-ai/dsh-brand` 拥有，位于 `packages/util/brand/`，见其 [README](../../../../packages/util/brand/README.zh.md)，并为每个类型提供零开销的 cast 工厂。`dsh-brand` 还声明了治理策略：*「Branding 用于跨包边界且可能被混淆的 id；不是每个 string 都需要 brand。」* 这条策略是正确的；问题在于它只落实了一半。两处缺口使得结构相同但语义错误的 string 今天仍能通过类型检查器。
+harness 使用 `Branded<B> = string & { readonly [BRAND]: B }` 机制，为 `ToolCallId`（`packages/llm/llm/src/brand.ts`）和 agent（智能体）/会话共享的 `SessionId`（`packages/core/session/src/types.ts`）做 brand 处理；该机制由纯类型包 `@deepseek-ai/dsh-brand` 拥有，位于 `packages/util/brand/`，见其 [README](../../../../packages/util/brand/README.zh.md)，并为每个类型提供零开销的 cast 工厂。`dsh-brand` 还声明了治理策略：*「Branding 用于跨包边界且可能被混淆的 id；不是每个 string 都需要 brand。」* 这条策略是正确的；问题在于它只落实了一半。两处缺口使得结构相同但语义错误的 string 仍能通过类型检查器。
 
 **缺口 1：bash seam 中未 brand 的跨边界 ID。** 后台 job id 是普通 `string`：`BashTask.id: string`（`packages/shell/shell/src/types.ts`），作为 `string` 贯穿整个执行器 seam（`packages/shell/shell/src/index.ts` 中的 `ShellExecutor.get`/`ownerOf`/`readOutput`/`kill(id: string)`），再由面向模型的工具以 `string` 校验并传递（`validateJobId`、`assertTaskAccess`、`packages/shell/tool-bash/src/index.ts` 中 `job_id` 的 schema 参数）。它由每执行器计数器生成——`packages/shell/bash-local/src/index.ts` 中的 `` `bash-${this.nextTaskId++}` ``——其形状与 `SessionId` 的默认值**完全相同，都是 `name-N`**（`packages/core/session/src/index.ts` 中的 `` `session-${++counter}` ``）。bash job id 和会话 id 在调用点轻易就能互换，而编译器毫无反应。它是面向模型的 id（模型会把 `job_id` 传回 `bash_output`/`bash_kill`），所以该混淆可由不受信任的输入触达。
 
 bash **owner token** 是相关的子情形：`ShellExecRequest.owner?: string` 和 `ShellExecSpec.owner: string | undefined`（`packages/shell/shell/src/types.ts`）被文档描述为刻意*不透明*的隔离键，但在所有实际调用方中，该值就是所属 agent 共享的 `Agent.id`/`SessionId`（`callerToken = (exec) => exec.agent?.id`，位于 `packages/shell/tool-bash/src/index.ts`），只是披着另一个 seam 本地名称。它被用于访问控制比较（`owner !== callerToken(exec)`），因此一个不匹配但类型正确的 string 在此处就是跨会话隔离 bug，而当前类型系统无法捕获。这正是[统一 agent/session 标识决策](../simplification/2026-06-20-unify-agent-and-session-id.zh.md)覆盖的共享 id 别名。
 
-**缺口 2：*已经 brand* 的 ID 在边界处被侵蚀。** 就连 `CallId` 和 `SessionId` 也恰好在最容易混淆的地方退化为裸 `string`：注册表/store 键类型和公开方法参数。代表性位置包括会话存储、agent 注册表（二者都以共享的 `SessionId` 为键）、工具展示层的 call-id map、ACP（Agent Client Protocol）的会话记录，以及持久化协调器。在集合键处丢弃 brand，会让既有 brand 在查找时毫无价值；它们的价值只实现了一部分。
+**缺口 2：*已经 brand* 的 ID 在边界处被侵蚀。** 就连 `ToolCallId` 和 `SessionId` 也恰好在最容易混淆的地方退化为裸 `string`：注册表/store 键类型和公开方法参数。代表性位置包括会话存储、agent 注册表（二者都以共享的 `SessionId` 为键）、工具展示层的 call-id map、ACP（Agent Client Protocol）的会话记录，以及持久化协调器。在集合键处丢弃 brand，会让既有 brand 在查找时毫无价值；它们的价值只实现了一部分。
 
 ## 决策
 
@@ -22,7 +22,7 @@ bash **owner token** 是相关的子情形：`ShellExecRequest.owner?: string` �
 
 - **铸造独立的 `OwnerToken` brand。** 在 `packages/shell/shell/src/types.ts` 中添加 `OwnerToken = Branded<'OwnerToken'>`；将 `ShellExecRequest.owner` / `ShellExecSpec.owner` / `ShellExecutor.ownerOf` 的类型标注为 `OwnerToken | undefined`。`dsh-tool-bash` 消费方在边界处将 agent 共享的 `id`（`SessionId`）cast 为 `OwnerToken`——这是两套词汇唯一交汇的地方。bash Service Definition 从不导入 `dsh-session`。（理由见下一节。）
 
-- **阻止 brand 侵蚀。** 将既有 brand 传播到缺口 2 列出的 `Map` 键类型和公开方法参数中：`Map<SessionId, Session>`、`Map<SessionId, Agent>`、`get(id: SessionId)`、`Map<CallId, …>`、ACP 的 `SessionId` surface、协调器的 `Map<SessionId, …>`。这是变更中机械量最大的部分，也是让*既有* brand 在查找处真正发挥作用（而不仅仅标注在结构体字段上）的关键。
+- **阻止 brand 侵蚀。** 将既有 brand 传播到缺口 2 列出的 `Map` 键类型和公开方法参数中：`Map<SessionId, Session>`、`Map<SessionId, Agent>`、`get(id: SessionId)`、`Map<ToolCallId, …>`、ACP 的 `SessionId` surface、协调器的 `Map<SessionId, …>`。这是变更中机械量最大的部分，也是让*既有* brand 在查找处真正发挥作用（而不仅仅标注在结构体字段上）的关键。
 
 示意形状（工厂模式与已有的三个 brand 完全一致）：
 
@@ -56,11 +56,11 @@ export function OwnerToken(id: string): OwnerToken {
 - **`ToolName`**（`ToolRuntime` 的键）：由作者定义、人类可读，且很少与其他 id 混淆；最弱的候选，可能不值得加 brand。
 - **`ErrorCode`**（`HarnessError.code`）：一个封闭词汇（`ABORTED`、`NO_ADAPTER`……），不是逐实例的 id；如果要做，string 字面量联合类型比 brand 更合适。
 - **数值序号**：轮次号、步骤号和事件 `seq` 是 `number` 而非 `string`，`Branded<string>` 不适用；可以用并行的 `number & { readonly [BRAND]: B }` 变体来 brand 它们，但它们是位置序号、很少跨边界传递，收益较低。
-- **带校验的构造**：brand 工厂是纯 cast，无运行时检查，且每个边界（ACP `sessionId`、提供方签发的 `call.id`、`dsh-llm-deepseek` 中的空字符串回退）今天都信任裸 string。一个在边界处对格式错误的输入抛异常的 `SessionId.parse()` / `isValid()` 配套工具确实是缺口，但它是*运行时行为*变更，有自己的设计问题（什么算「格式错误」？失败时会怎样？），应在独立决策中处理，不应捆绑进这次纯类型变更。
+- **带校验的构造**：brand 工厂是纯 cast，无运行时检查，且每个边界（ACP `sessionId`、提供方签发的 `call.id`、`dsh-llm-deepseek` 中的空字符串回退）都信任裸 string。一个在边界处对格式错误的输入抛异常的 `SessionId.parse()` / `isValid()` 配套工具确实是缺口，但它是*运行时行为*变更，有自己的设计问题（什么算「格式错误」？失败时会怎样？），应在独立决策中处理，不应捆绑进这次纯类型变更。
 
 ## 验证
 
-已落地的不变式如下：`BashTaskId` 和 `OwnerToken` 定义在 `dsh-shell` 中，并端到端贯穿 Service Definition、`dsh-bash-local` 生成点与 `dsh-tool-bash` 面向模型的工具，且 `dsh-shell` 未添加对 `dsh-session` 的依赖；没有任何以范围内 brand id（`CallId`/`SessionId`/`BashTaskId`）为键的集合使用裸 `string`；公开方法参数和导出签名保留 brand；每个原始 string 进入的边界（提供方 call id、ACP 会话 id、模型提供的 `job_id`）都通过 cast 工厂构造 brand，而不是散落的 `as` cast。
+已落地的不变式如下：`BashTaskId` 和 `OwnerToken` 定义在 `dsh-shell` 中，并端到端贯穿 Service Definition、`dsh-bash-local` 生成点与 `dsh-tool-bash` 面向模型的工具，且 `dsh-shell` 未添加对 `dsh-session` 的依赖；没有任何以范围内 brand id（`ToolCallId`/`SessionId`/`BashTaskId`）为键的集合使用裸 `string`；公开方法参数和导出签名保留 brand；每个原始 string 进入的边界（提供方 call id、ACP 会话 id、模型提供的 `job_id`）都通过 cast 工厂构造 brand，而不是散落的 `as` cast。
 
 ## 后果
 

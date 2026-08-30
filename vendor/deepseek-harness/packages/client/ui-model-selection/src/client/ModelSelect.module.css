@@ -219,15 +219,6 @@
   white-space: nowrap;
 }
 
-.description {
-  overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .check {
   display: grid;
   place-items: center;

@@ -8,7 +8,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { toolInput } from './input.ts'
 import { operations } from './operations.ts'
 import { presentation } from './presentation.ts'
@@ -59,7 +59,7 @@ export function apply(ctx: Context, config: Config): void {
   const resolved = resolveConfig(config)
   ctx.systemPrompt.section({
     name: 'tool:session-query',
-    order: 113,
+    order: FIRST_PARTY_SECTION_ORDER.TOOL_SESSION_QUERY,
     text: PROMPT_TEXT,
   })
 

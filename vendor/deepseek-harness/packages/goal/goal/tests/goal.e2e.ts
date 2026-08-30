@@ -6,9 +6,9 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { decodeGoalChange } from '@deepseek-ai/dsh-goal'
 import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-loader-smoke'
 
-const binScript = fileURLToPath(new URL('../../../../examples/headless-agent/tests/fixtures/headless-driver.ts', import.meta.url))
+const binScript = fileURLToPath(new URL('../../../test-support/loader-smoke/tests/fixtures/headless-driver.ts', import.meta.url))
 const configPath = fileURLToPath(new URL(
-  '../../../../examples/headless-agent/tests/fixtures/goal-domain/cordis.yml',
+  './fixtures/domain/cordis.yml',
   import.meta.url,
 ))
 const repoTsconfig = fileURLToPath(new URL('../../../../tsconfig.json', import.meta.url))

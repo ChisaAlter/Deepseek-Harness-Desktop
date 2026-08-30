@@ -207,6 +207,8 @@ describe('same-session goal driving', () => {
     expect(rounds).toEqual([1, 2])
     expect(requestText(test.adapter.requests[0]!)).toContain('Round: 1/2')
     expect(requestText(test.adapter.requests[1]!)).toContain('Round: 2/2')
+    expect(test.agent.session.events.flatMap(event =>
+      event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial', 'series'])
   })
 
   it('never adopts activation from an already-live driver and waits for explicit resume', async () => {
@@ -325,6 +327,8 @@ describe('same-session goal driving', () => {
     expect(requestText(test.adapter.requests[0]!)).toContain('human goes first')
     expect(requestText(test.adapter.requests[0]!)).not.toContain('<goal_round>')
     expect(requestText(test.adapter.requests[1]!)).toContain('<goal_round>')
+    expect(test.agent.session.events.flatMap(event =>
+      event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial', 'series'])
   })
 
   it('makes a reserved round stale when a listener queues human work behind it', async () => {

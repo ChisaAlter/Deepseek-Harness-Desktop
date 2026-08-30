@@ -5,7 +5,7 @@ import AgentRegistry, { agentEvents, Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentStatus } from '@deepseek-ai/dsh-agent'
 import GoalService, { GoalId } from '@deepseek-ai/dsh-goal'
 import type { GoalRef } from '@deepseek-ai/dsh-goal'
-import { createUserMessage, CallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -91,7 +91,7 @@ async function execute(
 ): Promise<ToolExecutionResult> {
   const run = () => ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId(`call-${Math.random()}`),
+    callId: ToolCallId(`call-${Math.random()}`),
     name,
     arguments: args,
     ...agent === undefined ? {} : { agent },
@@ -123,7 +123,7 @@ describe('goal tool registration and presentation', () => {
     expect(['create_goal', 'get_goal', 'update_goal'].map(name => ctx.tools.get(name)?.name))
       .toEqual(['create_goal', 'get_goal', 'update_goal'])
     for (const name of ['create_goal', 'get_goal', 'update_goal']) {
-      expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId(name), name, arguments: {} }))
+      expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId(name), name, arguments: {} }))
         .toEqual({ kind: 'exclusive' })
     }
     const section = (await ctx.systemPrompt.assemble()).sections.find(item => item.name === 'tool:goal')
@@ -217,7 +217,7 @@ describe('goal tool execution authority', () => {
     openTurn(root, { kind: 'user' })
     const driverless = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('call-driverless'),
+      callId: ToolCallId('call-driverless'),
       name: 'get_goal',
       arguments: {},
       agent: root.agent,

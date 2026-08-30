@@ -8,9 +8,8 @@ import { randomUUID } from 'node:crypto'
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, type CallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type ToolCallId } from '@deepseek-ai/dsh-llm'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
-import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -18,44 +17,10 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     approval: ApprovalService
   }
-
-  interface Events {
-    /**
-     * Ask composed answerers for one decision. Return an outcome to claim the
-     * request or call `next()`; failure yields the fail-closed default.
-     * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
-     * @param req - the pending decision (agent, tool identity, reason, signal).
-     * @mode waterfall
-     */
-    'approval/request'(this: Scoped<ApprovalService>, req: ApprovalRequest, next: () => Promise<ApprovalOutcome>): Promise<ApprovalOutcome>
-  }
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
-    /**
-     * An approval question was put to the answerer chain — log-only audit
-     * (like `hook/*`; NOT a surface event, carries no `surfaceOp`). `id` pairs
-     * it with the `approval/decided` that always follows; `toolName` is the
-     * tool the question is about, `callId` the exact tool call when the asker
-     * had one, `reason` the asker's human-readable explanation (e.g. a hook's
-     * permission-decision reason).
-     */
-    'approval/asked': {
-      id: ApprovalRequestId
-      toolName: string
-      callId?: CallId
-      reason?: string
-    }
-    /**
-     * The outcome of a prior `approval/asked` (same `id`) — log-only audit.
-     * Exactly one per ask, appended when the outcome is known: a decision, a
-     * cancellation, or the fail-closed `'unavailable'`.
-     */
-    'approval/decided': {
-      id: ApprovalRequestId
-      outcome: ApprovalOutcome
-    }
     /**
      * The session's approval policy was switched — log-only, durable,
      * replayable, never in the model transcript (the model learns the policy
@@ -73,7 +38,7 @@ declare module '@deepseek-ai/dsh-session/types' {
 }
 
 import { ApprovalRequestId } from './types.ts'
-import type { ApprovalOutcome } from './types.ts'
+import type { ApprovalOutcome, ApprovalRequestEvent } from './types.ts'
 
 export { ApprovalRequestId } from './types.ts'
 export type { ApprovalOutcome } from './types.ts'
@@ -150,7 +115,7 @@ export function setApprovalPolicy(session: Session, policy: ApprovalPolicy): voi
  * Readonly same-process permission question. `callId` links to an already
  * presented tool call, so arguments are not duplicated here.
  */
-export interface ApprovalRequest {
+export interface ApprovalRequest extends ApprovalRequestEvent {
   /**
    * The agent on whose behalf the question is asked. Routes the question (a
    * UI answerer only answers for agents it owns) and receives the audit
@@ -163,7 +128,7 @@ export interface ApprovalRequest {
    * The exact tool call being decided, when the asker has one — lets a UI
    * attach the prompt to the tool call it already streamed.
    */
-  readonly callId?: CallId
+  readonly callId?: ToolCallId
   /** The asker's human-readable explanation of WHY it is asking. */
   readonly reason?: string
   /**
@@ -316,7 +281,7 @@ export class ApprovalService extends Service {
     // the containment into the caller.
     const answer: Promise<ApprovalOutcome> = Promise.resolve().then(
       () => this.ctx.waterfall(
-        scopeTarget(this, req.agent), 'approval/request', req,
+        scopeTarget(req.agent, req.agent), 'approval/request', req,
         () => Promise.resolve<ApprovalOutcome>('unavailable'),
       ),
     ).then(

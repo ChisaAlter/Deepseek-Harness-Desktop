@@ -39,7 +39,7 @@ interface ToolProviderResult {
 
 ## 提示词段落
 
-`PromptSection` 是一份只读的同进程注册约定。其文本可以是静态的，也可以从当前组装上下文动态解析。协作式组装完成后，一个有效的 `complete` 段会成为唯一的提示词段落。
+`PromptSection` 是一份只读的同进程注册约定。其文本可以是静态的，也可以从当前组装上下文动态解析。各段先按 order 升序排列，再按名称的代码单元顺序排列；`FIRST_PARTY_SECTION_ORDER` 公开仓库自带贡献的稀疏具名分配表。协作式组装完成后，一个有效的 `complete` 段会成为唯一的提示词段落。
 
 ```ts type-equiv
 /** One contributed section of the system prompt (registry input). */
@@ -47,9 +47,9 @@ interface PromptSection {
   /** Unique name — a duplicate registration throws (see {@link SystemPrompt.section}). */
   readonly name: string
   /**
-   * Sections are concatenated in ascending order. Convention: `-100` is the
-   * harness identity, `0` the deployment persona, tool guidance uses 100–199;
-   * other negative orders also render before the persona.
+   * Sections are concatenated in ascending order. Equal orders use code-unit
+   * name order. Repository-owned placements use
+   * {@link FIRST_PARTY_SECTION_ORDER}.
    */
   readonly order: number
   /**

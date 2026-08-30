@@ -256,101 +256,23 @@ Types: [Agent](core.md)
 
 Source: [`packages/extensions/cordis-host-runner/src/index.ts`](../../packages/extensions/cordis-host-runner/src/index.ts)
 
-<a id="ctxmcpserversfile--mcpserversfile"></a>
+<a id="ctxinspector--inspectorservice"></a>
 
-### `ctx.mcpServersFile` — `McpServersFile`
+### `ctx.inspector` — `InspectorService`
 
-Owns `$DSH_HOME/mcp-servers.yaml` and the live mcp-client children it describes.
+Shared Host/Client service façade over the realm's source publisher.
 
 ```ts cordis-catalog
 /**
- * Replace the child mounter. Tests call this before {@link start}.
- * @param mounter - child factory.
+ * Publish one JSON observation without waiting for Worker delivery.
+ * @param topic - Domain-owned topic name.
+ * @param payload - JSON value validated before it reaches the carrier.
+ * @param monotonicMs - Source-clock timestamp; defaults to `performance.now()`.
  */
-useMounter(mounter: McpClientMounter): void
-
-/**
- * Replace HTTP OAuth. Tests call this before {@link authorize}.
- * @param authorizeHttp - returns tokens for one MCP endpoint URL.
- */
-useAuthorizeHttp(authorizeHttp: (url: string) => Promise<McpOAuthTokens>): void
-
-/**
- * Load the document, mount enabled servers, and optionally watch.
- * @returns disposer that closes the watcher and child fibers.
- */
-start(): () => void
-
-/**
- * Current managed records with secrets masked.
- * @returns the managed records, secret fields masked.
- */
-listManaged(): readonly McpServerRecord[]
-
-/**
- * Current managed records including secret values. Host mutation uses this.
- * @returns the managed records with secret values intact.
- */
-listManagedRaw(): readonly McpServerRecord[]
-
-/**
- * Live child fiber phase for one managed id, or `null` when unmounted.
- * @param id - managed record id.
- * @returns the child's current fiber phase, or `null` when unmounted.
- */
-childPhase(id: string): ChildFiberPhase
-
-/**
- * Live connection health for one managed id's mounted child, when the child
- * reports through the mcp-client status registry.
- * @param id - managed record id.
- * @returns the child's connection status, or `undefined` for an unknown record.
- */
-childHealth(id: string): McpClientStatus | undefined
-
-/**
- * Live connection health for any mcp-client server mounted in this runtime —
- * managed or hand-composed — keyed by `serverName`.
- * @param serverName - the configured server identity.
- * @returns the server's connection status, or `undefined` when it is not mounted.
- */
-connectionStatus(serverName: string): McpClientStatus | undefined
-
-/**
- * Insert or replace one managed record and remount.
- * @param upsert - complete record.
- */
-upsert(upsert: McpServerUpsert): Promise<void>
-
-/**
- * Delete one managed record and unmount its child.
- * @param id - record id.
- */
-remove(id: string): Promise<void>
-
-/**
- * Enable or disable one managed record.
- * @param id - record id.
- * @param enabled - next enablement.
- */
-setEnabled(id: string, enabled: boolean): Promise<void>
-
-/**
- * Dispose and remount one managed child without rewriting the document.
- * Settings Refresh uses this after the connection supervisor has given up.
- * @param id - record id.
- */
-remount(id: string): Promise<void>
-
-/**
- * Run HTTP OAuth for one managed server, persist `Authorization`, and remount.
- * @param id - record id.
- * @returns after the bearer is stored and the child is remounted.
- */
-async authorize(id: string): Promise<void>
+publish(topic: string, payload: InspectorJsonValue, monotonicMs?: number): void
 ```
 
-Source: [`packages/mcp/mcp-servers-file/src/service.ts`](../../packages/mcp/mcp-servers-file/src/service.ts)
+Source: [`packages/experimental/inspector/src/index.ts`](../../packages/experimental/inspector/src/index.ts)
 
 <a id="cordis-events"></a>
 

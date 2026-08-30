@@ -1,5 +1,5 @@
 /** General Settings row for the Composer's busy-state Enter preference. */
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { BusyEnterBehavior } from '../contract/composer-submission.ts'

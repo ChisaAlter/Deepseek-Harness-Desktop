@@ -51,6 +51,12 @@ export interface SessionReferenceCandidate {
   label: string
   /** Source session working directory, when recorded. */
   cwd?: string
+  /**
+   * True when {@link SessionReferenceCandidate.cwd} is recorded and equals the
+   * requesting agent's. Hosts that only surface a distinguishing location
+   * read this instead of comparing paths they never received.
+   */
+  sameWorkspace: boolean
   /** Source session creation time in Unix epoch milliseconds. */
   createdAt: number
 }

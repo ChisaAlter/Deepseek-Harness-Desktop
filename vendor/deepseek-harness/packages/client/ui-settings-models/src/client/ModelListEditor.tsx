@@ -16,7 +16,6 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
@@ -24,15 +23,13 @@ import {
   enrichDiscoveredModelsBestEffort,
   type EnrichedDiscoveredModel,
 } from './models-dev-metadata.ts'
-import { messageOf } from './store.ts'
+import { messageOf, type ModelsWire } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
 /**
- * One configured model row. Structurally open, exactly like the DeepSeek
- * catalog editor's rows: a profile field this card does not edit — one a future
- * schema adds, or one hand-written in `settings.yaml` — has to survive being
- * edited here rather than being dropped by a rebuild.
+ * One configured model row. Fields this card does not edit must survive an
+ * edit rather than being dropped by a rebuild.
  */
 export type ModelDraft = DeepSeekModelDraft
 
@@ -86,7 +83,7 @@ export interface ModelListEditorProps {
    */
   probeBlocked?: keyof typeof en | undefined
   /** Wire face the fetch action calls. */
-  api: Pick<IApiClient, 'llm'>
+  api: Pick<ModelsWire, 'llm'>
   /** Section copy. */
   t: (key: keyof typeof en) => string
   /** Disable every control (read-only deployment or a pending write). */
@@ -284,18 +281,17 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     setBusy(true)
     setFailure(undefined)
     try {
-      const response = await api.llm.discoverModels({
-        settingsNs: probe.settingsNs,
+      const response = await api.llm.discoverModels(probe.settingsNs, {
         ...probe.provider === undefined ? {} : { provider: probe.provider },
         ...probe.baseURL === undefined || probe.baseURL.length === 0 ? {} : { baseURL: probe.baseURL },
         ...probe.api === undefined ? {} : { api: probe.api },
         ...probe.apiKey === undefined ? {} : { apiKey: probe.apiKey },
       })
-      if (!response.result.ok) {
-        setFailure(response.result.error.message)
+      if (!response.ok) {
+        setFailure(response.error.message)
         return
       }
-      const found = response.result.value.models
+      const found = response.value
       if (found.length === 0) {
         setFailure(t('fetchEmpty'))
         return

@@ -1,17 +1,43 @@
-# examples/：开箱可运行的演示组合包
+---
+description: "examples 包组：供测试与自定义部署使用的可复用 agent-spine 组合 bundle。"
+kind: "package-group"
+---
+
+# examples/：可复用组合 bundle
 
 [English](README.md) | 中文
 
-预先组合的插件组合包，供轻量叶节点 `cordis.yml` 加载，无需手工组装主干和运行入口。这些是 **演示／参考** 包；npm 名称的 `-demo` 后缀表明每个包都不属于产品对外接口，直接查看包名即可辨认。仓库根目录 [`examples/`](../../examples/AGENTS.md) 下的可运行叶节点与 [Python SDK 运行时](../../python/sdk-runtime/README.zh.md) 是消费方；每个消费方都只包含可替换后端和一个组合包入口。
+## 概述
+
+examples 组提供可复用 agent 主干，供需要具体组合但不想手工组装的测试与自定义部署使用。其 npm 名称中的 `-demo` 后缀表明它是支持基础设施，而非产品接口。ACP、SDK 与单次执行应用分别通过 `acp`、`sdk` 或 `sdk-minimal`、`headless` profile 启动。本组不包含应用入口。
+
+## 目录
+
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
+
+-----
+
+<a id="packages"></a>
+## 包
 
 | 包 | npm 名称 | 角色 |
 |---|---|---|
-| [`agent-spine-demo/`](agent-spine-demo/README.zh.md) | `@deepseek-ai/dsh-agent-spine-demo` | 可复用的 agent-spine（智能体主干）组合包 |
-| [`acp-demo/`](acp-demo/README.zh.md) | `@deepseek-ai/dsh-acp-demo` | ACP（Agent Client Protocol）自动化应用组合包 |
-| [`jsonrpc-demo/`](jsonrpc-demo/README.zh.md) | `@deepseek-ai/dsh-sdk-jsonrpc-demo` | 外部配置 JSON-RPC 运行时 |
+| [`agent-spine-demo/`](agent-spine-demo/README.zh.md) | `@deepseek-ai/dsh-agent-spine-demo` | 可挂载、可用自己的 LLM 与执行器配置的工作 agent 核心 |
 
-`agent-spine-demo` 是共享组合包；`acp-demo` 添加自动化入口，`jsonrpc-demo` 则启动由部署方拥有的插件树。产品单次执行由 `dsh --profile headless` 提供；本目录没有任何包提供该功能。
+`agent-spine-demo` 是共享 agent 核心。产品应用装配位于 [`bundle/`](../bundle/README.zh.md)；这个支持包继续供聚焦测试与自定义组合使用。
 
-这些包不是产品 API。产品 seam 与产品入口仍位于各自的归属组；演示组合包选择具体组合。
+-----
 
-不要将此组与仓库根目录的 [`examples/`](../../examples/AGENTS.md) 混淆：该目录存放可运行的 `cordis.yml` **叶节点**；此组存放这些叶节点加载的 **组合包**。
+<a id="related-documentation"></a>
+## 相关文档
+
+- [ACP 应用组合包](../bundle/acp-app/README.zh.md)——面向程序化客户端的 `dsh --profile acp` 应用。
+- [SDK 应用组合包](../bundle/sdk-app/README.zh.md)——面向 JSON-RPC 客户端的 `dsh --profile sdk` 应用。
+- [极简 SDK 组合包](../bundle/sdk-minimal/README.zh.md)——Python 示例使用的独立双工具 SDK profile。
+
+<a id="dev-note"></a>
+## 开发备注
+
+无。

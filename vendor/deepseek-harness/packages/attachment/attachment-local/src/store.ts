@@ -14,7 +14,10 @@ import type {
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
+import { normalizeImage } from './normalization.ts'
+import type { NormalizationPolicy } from './normalization.ts'
 import { detectImage, probeImage } from './image.ts'
+import type { DetectedImage } from './image.ts'
 
 const ID_PATTERN = /^sha256:([a-f0-9]{64})$/
 const durableHomes = new Set<string>()
@@ -33,38 +36,91 @@ function displayName(value: string | undefined): string | undefined {
   return clean === '' ? undefined : clean
 }
 
-function objectPath(root: string, sha256: string): string {
-  return join(root, 'objects', sha256.slice(0, 2), sha256)
-}
-
 function ensureReference(ref: ImageAttachmentRef): string {
   const match = ID_PATTERN.exec(String(ref.attachmentId))
   if (match?.[1] === undefined) throw new AttachmentError('Attachment reference is invalid.', 'INVALID_ATTACHMENT_REF')
   return match[1]
 }
 
+/**
+ * Derive the absolute immutable-object path for one normalized attachment.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param ref - durable normalized attachment reference.
+ * @returns provider-local path without reading the object.
+ */
+export function normalizedImagePath(root: string, ref: ImageAttachmentRef): string {
+  const sha256 = ensureReference(ref)
+  return join(root, 'objects', sha256.slice(0, 2), sha256)
+}
+
 async function inspectMetadata(
   data: Uint8Array,
   declaredMediaType: ImageAttachmentRef['mediaType'],
   limits: ImageAttachmentLimits,
-): Promise<Omit<ImageAttachmentRef, 'attachmentId' | 'name'>> {
+): Promise<DetectedImage> {
   if (data.byteLength === 0) throw new AttachmentError('Image is empty.', 'INVALID_IMAGE')
   const detected = await detectImage(data, { maxPixels: limits.maxImagePixels, maxDimension: limits.maxImageDimension })
   if (detected.mediaType !== declaredMediaType) throw new AttachmentError('Declared image type does not match its bytes.', 'IMAGE_TYPE_MISMATCH')
-  return { ...detected, bytes: data.byteLength }
+  return detected
 }
 
 /**
- * Run the full admission policy for one image without touching storage.
+ * Run the full admission policy for one image without touching storage,
+ * including normalization: a batch whose members all validate cannot later
+ * be refused by the normalized image byte cap during publication.
  * @param input - encoded bytes and declared metadata.
- * @param limits - resolved storage policy.
- * @returns completion after the encoded raster has been fully decoded.
+ * @param limits - resolved source admission policy.
+ * @param policy - resolved normalization policy.
+ * @returns completion after the raster has been decoded and its normalized version proven to fit.
  */
-export async function validateImageFile(input: SaveImageAttachment, limits: ImageAttachmentLimits): Promise<void> {
+export async function validateImageFile(
+  input: SaveImageAttachment,
+  limits: ImageAttachmentLimits,
+  policy: NormalizationPolicy,
+): Promise<void> {
+  await prepareImageFile(input, limits, policy)
+}
+
+/** Fully prepared normalized object, verified before any batch member is persisted. */
+export interface PreparedImageFile {
+  /** Deterministic normalized bytes whose digest is {@link ref.attachmentId}. */
+  data: Uint8Array
+  /** Durable reference describing {@link data}. */
+  ref: ImageAttachmentRef
+}
+
+/**
+ * Decode, normalize, and verify one submitted image without touching storage.
+ * @param input - submitted encoded bytes and declared media type.
+ * @param limits - source admission policy.
+ * @param policy - independent normalization policy.
+ * @returns immutable reference facts beside bytes ready for atomic publication.
+ */
+export async function prepareImageFile(
+  input: SaveImageAttachment,
+  limits: ImageAttachmentLimits,
+  policy: NormalizationPolicy,
+): Promise<PreparedImageFile> {
   if (input.data.byteLength > limits.maxImageBytes) {
     throw new AttachmentError('Image exceeds the configured byte limit.', 'IMAGE_TOO_LARGE')
   }
-  await inspectMetadata(input.data, input.mediaType, limits)
+  const detected = await inspectMetadata(input.data, input.mediaType, limits)
+  const normalized = await normalizeImage(input.data, detected, policy)
+  const sha256 = digest(normalized.data)
+  const name = displayName(input.name)
+  const downscaled = detected.width !== normalized.width || detected.height !== normalized.height
+  return {
+    data: normalized.data,
+    ref: {
+      attachmentId: AttachmentId(`sha256:${sha256}`),
+      mediaType: normalized.mediaType,
+      width: normalized.width,
+      height: normalized.height,
+      bytes: normalized.data.byteLength,
+      ...(name !== undefined ? { name } : {}),
+      ...downscaled ? { originalDimensions: { width: detected.width, height: detected.height } } : {},
+    },
+  }
 }
 
 /**
@@ -127,16 +183,20 @@ async function ensureDurableHome(path: string): Promise<string> {
 }
 
 /**
- * Save and verify immutable image bytes below a versioned attachment root.
+ * Publish one already verified normalized image below a versioned attachment root.
  * @param root - absolute `DSH_HOME/attachments/v1` root.
- * @param input - encoded bytes and declared metadata.
- * @param limits - resolved storage policy.
- * @returns durable content-addressed reference.
+ * @param prepared - deterministic normalized bytes and reference.
+ * @returns durable content-addressed normalized image reference.
  */
-export async function saveImageFile(root: string, input: SaveImageAttachment, limits: ImageAttachmentLimits): Promise<ImageAttachmentRef> {
-  if (input.data.byteLength > limits.maxImageBytes) throw new AttachmentError('Image exceeds the configured byte limit.', 'IMAGE_TOO_LARGE')
-  const metadata = await inspectMetadata(input.data, input.mediaType, limits)
-  const sha256 = digest(input.data)
+export async function commitPreparedImageFile(
+  root: string,
+  prepared: PreparedImageFile,
+): Promise<ImageAttachmentRef> {
+  const normalized = prepared.data
+  const sha256 = ensureReference(prepared.ref)
+  if (digest(normalized) !== sha256 || normalized.byteLength !== prepared.ref.bytes) {
+    throw new AttachmentError('Prepared attachment bytes do not match their reference.', 'ATTACHMENT_CORRUPT')
+  }
   const bucket = join(root, 'objects', sha256.slice(0, 2))
   const staging = join(root, 'tmp')
   // Establish DSH_HOME itself against the filesystem root once per process.
@@ -146,11 +206,11 @@ export async function saveImageFile(root: string, input: SaveImageAttachment, li
   await ensureDurableDirectory(bucket, boundary)
   await ensureDurableDirectory(staging, boundary)
   const temporary = join(staging, randomUUID())
-  const target = objectPath(root, sha256)
+  const target = normalizedImagePath(root, prepared.ref)
   let handle
   try {
     handle = await open(temporary, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY, 0o600)
-    await handle.writeFile(input.data)
+    await handle.writeFile(normalized)
     await handle.sync()
     await handle.close()
     handle = undefined
@@ -162,13 +222,18 @@ export async function saveImageFile(root: string, input: SaveImageAttachment, li
       const existing = new Uint8Array(await readFile(target))
       if (digest(existing) !== sha256) throw new AttachmentError('Stored attachment failed integrity verification.', 'ATTACHMENT_CORRUPT')
     }
+    // Windows shares the read-only attribute across hard links and refuses to
+    // unlink either name once it is set, so discard the staging name first.
+    await unlink(temporary)
+    // The target remains the sole link for a new object; this also restores
+    // read-only mode when the deduplication path observes an existing object.
+    await chmod(target, 0o400)
     // Persist the target entry and close a concurrent bucket-creation window
     // before the reference can reach a session checkpoint. The dedup path
     // repeats both syncs because it may observe another writer's link before
     // that writer reaches its own durability boundary.
     await syncDirectory(bucket)
     await syncDirectory(join(root, 'objects'))
-    await unlink(temporary)
   } catch (error) {
     /* v8 ignore next -- A descriptor can remain open only when the underlying write/sync/close operation fails. */
     if (handle !== undefined) await handle.close().catch(
@@ -185,12 +250,24 @@ export async function saveImageFile(root: string, input: SaveImageAttachment, li
     if (error instanceof AttachmentError) throw error
     throw new AttachmentError('Unable to persist image attachment.', 'ATTACHMENT_WRITE_FAILED', { cause: error })
   }
-  const name = displayName(input.name)
-  return {
-    attachmentId: AttachmentId(`sha256:${sha256}`),
-    ...metadata,
-    ...(name !== undefined ? { name } : {}),
-  }
+  return prepared.ref
+}
+
+/**
+ * Decode and normalize one image once, then publish the prepared object.
+ * @param root - absolute `DSH_HOME/attachments/v1` root.
+ * @param input - submitted encoded bytes and declared media type.
+ * @param limits - resolved source admission policy.
+ * @param policy - resolved normalization policy.
+ * @returns durable content-addressed normalized image reference.
+ */
+export async function saveImageFile(
+  root: string,
+  input: SaveImageAttachment,
+  limits: ImageAttachmentLimits,
+  policy: NormalizationPolicy,
+): Promise<ImageAttachmentRef> {
+  return commitPreparedImageFile(root, await prepareImageFile(input, limits, policy))
 }
 
 /**
@@ -210,7 +287,7 @@ export async function readImageFile(
   const sha256 = ensureReference(ref)
   let data: Uint8Array
   try {
-    data = new Uint8Array(await readFile(objectPath(root, sha256), { signal }))
+    data = new Uint8Array(await readFile(normalizedImagePath(root, ref), { signal }))
   } catch (error) {
     signal?.throwIfAborted()
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') throw new AttachmentError('Attachment object is missing.', 'ATTACHMENT_NOT_FOUND')

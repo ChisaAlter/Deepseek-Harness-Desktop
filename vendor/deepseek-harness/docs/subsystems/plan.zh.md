@@ -26,7 +26,7 @@ interface PlanModeConfig {
 }
 ```
 
-`section` 缺失、为空白或不是字符串，以及任何未知键，都会在插件加载时失败，而不是被忽略。计划模式激活期间，确切的 `section` 文本以 order 50 渲染为 `plan:policy` [系统提示词段落](system-prompt.zh.md)；未激活的计划模式不贡献任何文本。
+`section` 缺失、为空白或不是字符串，以及任何未知键，都会在插件加载时失败，而不是被忽略。计划模式激活期间，确切的 `section` 文本以 first-party 顺序 500 渲染为 `plan:policy` [系统提示词段落](system-prompt.zh.md)；未激活的计划模式不贡献任何文本。
 
 ## 退出工具与 `/plan` 命令
 

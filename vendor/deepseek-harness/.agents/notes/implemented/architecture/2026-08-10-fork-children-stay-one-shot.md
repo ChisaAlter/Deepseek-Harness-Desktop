@@ -12,7 +12,7 @@ The child-scoped `report` return channel is now the largest such addition, and s
 
 ## Decision
 
-Every shipped composition binds the fork delegation tool to `backgroundMode: one-shot`: [the base bundle](../../../../packages/bundle/base/cordis.patch.yml), [the ACP example](../../../../examples/acp-agent/cordis.yml), and [the headless example](../../../../examples/headless-agent/cordis.yml). The base bundle leaves `run_in_background` available, because it mounts a task service; the two examples set `enableRunInBackground: false`, because they mount none and a one-shot background start would otherwise fail at call time on a missing `tasks` service.
+Every shipped composition inherits the fork delegation tool's `backgroundMode: one-shot` from the [base bundle](../../../../packages/bundle/base/cordis.patch.yml). The base bundle leaves `run_in_background` available because it also mounts the task service needed to settle background work.
 
 One-shot children — foreground and background alike — are created through `SubagentRuntime.start()`, which never enters the continuable activation-setup registry, so neither `report` nor its prompt section is installed. A forked one-shot child's system prompt and tool schemas therefore equal its parent's, apart from the `persona` and `toolFilter` deltas a deployment opts into per delegation tool.
 

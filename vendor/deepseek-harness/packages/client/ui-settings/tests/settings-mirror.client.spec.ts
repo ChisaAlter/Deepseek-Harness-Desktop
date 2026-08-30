@@ -1,28 +1,25 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { RpcResponse, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SettingsDescribeMirror, type SettingsDescribeView } from '../src/client/settings-mirror.ts'
 
-let rpc = 0
+/** What a Remote call answers with: no carrier envelope, and a free-form failure code. */
+type Answer<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: { code: string; message: string; details: object } }
 
-function ok<T>(value: T): RpcResponse<T> {
-  return { rpcId: `mirror-${rpc++}` as never, result: { ok: true, value } }
+function ok<T>(value: T): Answer<T> {
+  return { ok: true, value }
 }
 
-function rejected<T>(message: string): RpcResponse<T> {
-  return {
-    rpcId: `mirror-${rpc++}` as never,
-    result: {
-      ok: false,
-      error: { code: 'settings-rejected', message, details: { ns: 'theme' } },
-    },
-  }
+function rejected<T>(message: string): Answer<T> {
+  return { ok: false, error: { code: 'settings-rejected', message, details: { ns: 'theme' } } }
 }
 
 function view(ns: string, revision = 0): SettingsNamespaceView {
   return { ns, schema: {}, value: { field: ns }, applies: 'live', secrets: [], revision }
 }
 
-function described(namespaces: SettingsNamespaceView[]): RpcResponse<SettingsDescribeView> {
+function described(namespaces: SettingsNamespaceView[]): Answer<SettingsDescribeView> {
   return ok({ writable: true, hasDocument: true, namespaces })
 }
 
@@ -34,7 +31,7 @@ function deferred<T>() {
 
 describe('SettingsDescribeMirror', () => {
   it('folds loads before the wire read into it, and mid-flight loads into one rerun', async () => {
-    const gate = deferred<RpcResponse<SettingsDescribeView>>()
+    const gate = deferred<Answer<SettingsDescribeView>>()
     const describeCall = vi.fn()
       .mockReturnValueOnce(gate.promise)
       .mockResolvedValue(described([view('theme', 1)]))
@@ -145,7 +142,7 @@ describe('SettingsDescribeMirror', () => {
   })
 
   it('starts no second run for a load issued inside the loading publish', async () => {
-    const gate = deferred<RpcResponse<SettingsDescribeView>>()
+    const gate = deferred<Answer<SettingsDescribeView>>()
     const describeCall = vi.fn().mockReturnValue(gate.promise)
     const mirror = new SettingsDescribeMirror({ settings: { describe: describeCall } } as never)
     let reentered = false
@@ -181,7 +178,7 @@ describe('SettingsDescribeMirror', () => {
   })
 
   it('re-reads after a folded write invalidates an in-flight document', async () => {
-    const slow = deferred<RpcResponse<SettingsDescribeView>>()
+    const slow = deferred<Answer<SettingsDescribeView>>()
     const describeCall = vi.fn()
       .mockResolvedValueOnce(described([view('theme', 4), view('locale', 1)]))
       .mockReturnValueOnce(slow.promise)
@@ -200,7 +197,7 @@ describe('SettingsDescribeMirror', () => {
   })
 
   it('re-reads after a pre-answer write invalidates the in-flight document', async () => {
-    const slow = deferred<RpcResponse<SettingsDescribeView>>()
+    const slow = deferred<Answer<SettingsDescribeView>>()
     const describeCall = vi.fn()
       .mockReturnValueOnce(slow.promise)
       .mockResolvedValueOnce(described([view('theme', 2)]))

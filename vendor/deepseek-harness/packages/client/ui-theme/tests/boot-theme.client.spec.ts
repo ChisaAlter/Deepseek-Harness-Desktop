@@ -11,8 +11,8 @@ function mockSystemDark(matches: boolean): void {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches }) as MediaQueryList))
 }
 
-function executeBootstrap(preference?: ThemePreference): void {
-  const row = bootThemeInjection(preference)
+function executeBootstrap(preference?: ThemePreference, fontSize?: number): void {
+  const row = bootThemeInjection(preference, fontSize)
   if (row.kind !== 'script') throw new Error('theme bootstrap row is not a script')
   runInNewContext(row.text, { document, matchMedia: globalThis.matchMedia })
 }
@@ -24,6 +24,7 @@ afterEach(() => {
   document.documentElement.style.fontSize = ''
   document.body.removeAttribute(DARK_ATTRIBUTE)
   document.body.style.cssText = ''
+  document.body.style.removeProperty('--dsh-content-font-size')
 })
 
 describe('theme bootstrap row', () => {
@@ -60,6 +61,14 @@ describe('theme bootstrap row', () => {
     expect(document.documentElement.style.colorScheme).toBe('light')
     expect(document.body.hasAttribute(DARK_ATTRIBUTE)).toBe(false)
   })
+  it('writes the durable content font size and defaults it to 14px', () => {
+    mockSystemDark(false)
+    executeBootstrap('light', 17)
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('17px')
+    executeBootstrap('light')
+    expect(document.body.style.getPropertyValue('--dsh-content-font-size')).toBe('14px')
+  })
+
   it('appends the script to a body-less fragment', () => {
     const html = injectBootTheme('<main>loading</main>', 'dark')
     expect(html.startsWith('<main>loading</main><script>')).toBe(true)
@@ -69,6 +78,7 @@ describe('theme bootstrap row', () => {
     mockSystemDark(false)
     const payload = buildThemeBootPayload({
       preference: 'light',
+      fontSize: 14,
       activeLightThemeId: 'celadon',
       activeDarkThemeId: 'deepseek',
       customThemes: [],

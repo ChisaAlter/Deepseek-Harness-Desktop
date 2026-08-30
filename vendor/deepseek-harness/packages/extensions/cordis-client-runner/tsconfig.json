@@ -24,7 +24,7 @@
       "path": "../../client/modules"
     },
     {
-      "path": "../../client/runtime"
+      "path": "../../client/ui-renderer"
     },
     {
       "path": "../../client/ui-slots"

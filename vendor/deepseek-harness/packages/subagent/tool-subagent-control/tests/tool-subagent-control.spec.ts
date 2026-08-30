@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -16,6 +16,7 @@ import { LlmAdapter } from '@deepseek-ai/dsh-llm'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import * as tool from '../src/index.ts'
 import { parkParent } from './park-parent.ts'
+import { TestSessionQuery } from './test-session-query.ts'
 
 /** One scripted response that may wait on a caller-released gate before streaming. */
 interface GatedEntry {
@@ -56,6 +57,7 @@ async function setupWith(adapter: MockAdapter | GatedAdapter) {
   const root = mkdtempSync(join(tmpdir(), 'dsh-tool-subagent-control-'))
   roots.push(root)
   await ctx.plugin(JsonlSessionPersistence, { root })
+  await ctx.plugin(TestSessionQuery)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
@@ -85,7 +87,7 @@ function callTool(
 ) {
   return ctx.tools.execute({
     signal,
-    callId: CallId(`call-${++calls}`),
+    callId: ToolCallId(`call-${++calls}`),
     name,
     arguments: args,
     ...agent !== undefined ? { agent: agent as never } : {},

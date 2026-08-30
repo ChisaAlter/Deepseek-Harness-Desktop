@@ -6,7 +6,7 @@
  */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /**
  * Identifies one workspace record. A generated uuid, never the path: path

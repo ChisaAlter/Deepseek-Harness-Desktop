@@ -9,7 +9,10 @@
   ],
   "references": [
     {
-      "path": "../runtime"
+      "path": "../store"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../ui-primitives"

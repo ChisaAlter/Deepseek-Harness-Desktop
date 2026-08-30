@@ -9,9 +9,11 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { CredentialKey, CredentialRecord, CredentialRef } from './types.ts'
+import type { CredentialInfo, CredentialKey, CredentialRecord, CredentialRef } from './types.ts'
 
-export type { ApiKeyRecord, CredentialKey, CredentialRecord, CredentialRef, GrantRecord } from './types.ts'
+export type {
+  ApiKeyRecord, CredentialInfo, CredentialKey, CredentialRecord, CredentialRef, GrantRecord,
+} from './types.ts'
 
 const REF_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
@@ -117,16 +119,6 @@ export interface ResolvedCredential {
   value: string
   /** Provider-defined source layer id (the local provider uses `env`, `file`, `project-env`, and `user-env`). */
   source: string
-}
-
-/** Source and writability facts for one reference, safe for configuration UIs — never the value. */
-export interface CredentialInfo {
-  /** Whether {@link CredentialProvider.resolve} would currently return a value. */
-  configured: boolean
-  /** Source layer currently supplying the value; absent while unconfigured. */
-  source?: string
-  /** Whether {@link CredentialProvider.set} would currently succeed for this reference. */
-  writable: boolean
 }
 
 /** Presence and writability facts for one record, safe for configuration UIs — never the value. */

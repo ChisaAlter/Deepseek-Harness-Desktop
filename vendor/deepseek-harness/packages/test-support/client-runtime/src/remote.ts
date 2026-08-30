@@ -1,19 +1,17 @@
-/** Test-owned Remote face: `$on` subscriptions driven by the internal forwarded-event plumbing. */
+/** Test-owned Remote face: `$on` subscriptions with an explicit test event driver. */
 import type { Context } from '@deepseek-ai/cordis'
 
 /**
  * Remote service test double for the forwarded-event path. Feature specs need
  * `ctx.remote.$on` to exist (their plugins inject `remote`) and need forwarded
- * host events to reach those subscribers, but not the generated namespaces or
- * the wire — so this double implements subscription and dispatch only.
+ * Host events to reach those subscribers, but not the wire — so this double
+ * implements subscription plus an explicit `emit` driver available only on the
+ * concrete test object. A spec that also calls one namespace scripts it through
+ * the constructor rather than reaching the real Client Remote service.
  *
- * Dispatch is driven the same way production drives it: `client/runtime` owns the
- * host frame sink and hands each decoded `host/remote-event` frame to
- * `$dispatch`. A spec therefore exercises its refresh chains by calling
- * `$dispatch(name, args)` on this double.
- *
- * `$mount` rejects: a spec that reaches a generated namespace through this
- * double has outgrown it and needs the real Client Remote service.
+ * `$mount` rejects: a spec that needs a real generated contribution installed —
+ * codecs, descriptors, and the wire — has outgrown this double and needs the
+ * real Client Remote service.
  *
  * One deliberate asymmetry with production: a throwing listener propagates out
  * of the emit instead of being contained and logged, so a spec cannot lean on
@@ -24,11 +22,22 @@ export class TestRemote {
   private readonly subscriptions = new Map<string, Set<(...args: never[]) => void>>()
 
   /**
-   * Register the double as `ctx.remote`.
+   * Register the double as `ctx.remote`, plus one service per scripted
+   * namespace so a plugin injecting `remote.<name>` also unparks.
    * @param ctx - the spec's root Context.
+   * @param namespaces - scripted namespace faces reached as `ctx.remote.<name>`.
    */
-  constructor(ctx: Context) {
+  constructor(ctx: Context, namespaces: Readonly<Record<string, object>> = {}) {
+    for (const name of Object.keys(namespaces)) {
+      // A namespace named after one of the double's own members would replace
+      // it, and `$mount`'s rejection is the contract a spec relies on.
+      if (name in TestRemote.prototype || name === 'subscriptions') {
+        throw new TypeError(`TestRemote: scripted namespace "${name}" would shadow the double's own member`)
+      }
+    }
+    Object.assign(this, namespaces)
     ctx.provide('remote', this)
+    for (const [name, face] of Object.entries(namespaces)) ctx.provide(`remote.${name}`, face)
   }
 
   /**
@@ -37,7 +46,7 @@ export class TestRemote {
    * @param event - forwarded host event name.
    * @param args - the Host argument list, verbatim.
    */
-  $dispatch(event: string, args: readonly unknown[]): void {
+  emit(event: string, args: readonly unknown[]): void {
     const listeners = this.subscriptions.get(event)
     if (listeners === undefined) return
     for (const listener of [...listeners]) listener(...args as never[])

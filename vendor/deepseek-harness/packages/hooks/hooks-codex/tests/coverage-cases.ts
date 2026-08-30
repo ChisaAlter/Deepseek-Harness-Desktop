@@ -458,8 +458,8 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       const ctx = await harness(join(d, 'hooks.json'), new MockAdapter([]))
       let ran = false
       ctx.tools.register(defineContentToolFixture({ name: 'Bash', description: 'b', parameters: { command: { type: 'string' } }, async execute() { ran = true; return [{ type: 'text', text: 'x' }] } }))
-      const { CallId } = await import('@deepseek-ai/dsh-llm')
-      const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'Bash', arguments: { command: 'x' } })
+      const { ToolCallId } = await import('@deepseek-ai/dsh-llm')
+      const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'Bash', arguments: { command: 'x' } })
       expect(ran).toBe(false) // denied
       expect(result.isError).toBe(true)
     })
@@ -469,8 +469,8 @@ export function defineCoverageCases(groups: CoverageGroup | readonly CoverageGro
       hooks(d, { PostToolUse: [{ hooks: [{ type: 'command', command: sh(d, 'pc.sh', '#!/usr/bin/env bash\necho \'{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"x"}}\'\n') }] }] })
       const ctx = await harness(join(d, 'hooks.json'), new MockAdapter([]))
       ctx.tools.register(defineContentToolFixture({ name: 'Bash', description: 'b', parameters: { command: { type: 'string' } }, async execute() { return [{ type: 'text', text: 'ok' }] } }))
-      const { CallId } = await import('@deepseek-ai/dsh-llm')
-      const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'Bash', arguments: { command: 'x' } })
+      const { ToolCallId } = await import('@deepseek-ai/dsh-llm')
+      const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'Bash', arguments: { command: 'x' } })
       expect(result.isError).toBeFalsy()
       expect(result.additionalContexts?.[0]?.content.some(b => b.type === 'text' && b.text === 'x')).toBe(true)
     })

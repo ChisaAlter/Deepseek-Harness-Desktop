@@ -19,38 +19,29 @@ import {
   collectReferenceTargets, createReferenceTargets, renderBlocks, renderFootnoteSection,
   wrapBlockChildren,
 } from './render.tsx'
-import type { MarkdownCodeLabels, MarkdownFileMentions, MarkdownRenderContext, ReferenceTargets } from './render.tsx'
+import type { MarkdownFileMentions, MarkdownLabels, MarkdownRenderContext, ReferenceTargets } from './render.tsx'
 import 'katex/dist/katex.min.css'
 import css from './MarkdownText.module.css'
 
-export type { MarkdownCodeLabels, MarkdownFileMentions } from './render.tsx'
-
-function markdownContext(
-  fields: Omit<MarkdownRenderContext, 'onTaskChecked'>,
-  onTaskChecked: ((markerOffset: number, checked: boolean) => void) | undefined,
-): MarkdownRenderContext {
-  return onTaskChecked === undefined ? fields : { ...fields, onTaskChecked }
-}
+export type { MarkdownCodeLabels, MarkdownFileMentions, MarkdownLabels } from './render.tsx'
 
 /** One settled full render: parse with math, resolve references, append the footnote section. */
 function renderSettled(
   text: string,
-  codeLabels: MarkdownCodeLabels | undefined,
+  labels: MarkdownLabels,
   fileMentions: MarkdownFileMentions | undefined,
-  onTaskChecked: ((markerOffset: number, checked: boolean) => void) | undefined,
 ): ReactNode[] {
   const root = parseGfmWithMath(text)
   const targets = createReferenceTargets()
   collectReferenceTargets(root.children, targets)
-  const context = markdownContext({
+  const context: MarkdownRenderContext = {
     streaming: false,
-    codeLabels,
+    labels,
     fileMentions,
     targets,
     footnoteOrder: [],
     footnoteCounts: new Map(),
-    source: text,
-  }, onTaskChecked)
+  }
   const blocks = wrapBlockChildren(
     renderBlocks(root.children.map((node, index) => ({ node, key: index })), context),
     false,
@@ -76,14 +67,8 @@ class StreamingRenderer {
   private lastText: string | null = null
   private lastRendered: ReactNode[] = []
 
-  /**
-   * @param codeLabels - Fence copy labels baked into cached elements; the owner replaces the renderer when they change.
-   * @param onTaskChecked - Optional task toggle forwarded into cached streaming elements.
-   */
-  constructor(
-    private readonly codeLabels: MarkdownCodeLabels | undefined,
-    private readonly onTaskChecked: ((markerOffset: number, checked: boolean) => void) | undefined,
-  ) {}
+  /** @param labels - Localized Markdown chrome baked into cached elements; the owner replaces the renderer when it changes. */
+  constructor(private readonly labels: MarkdownLabels) {}
 
   /**
    * Render the current accumulated text. Idempotent per text value, so React
@@ -113,15 +98,14 @@ class StreamingRenderer {
     }
     collectReferenceTargets(tail.map(block => block.node), frameTargets)
     if (newlyFrozen.length > 0) {
-      const frozenContext = markdownContext({
+      const frozenContext: MarkdownRenderContext = {
         streaming: true,
-        codeLabels: this.codeLabels,
+        labels: this.labels,
         fileMentions: undefined,
         targets: frameTargets,
         footnoteOrder: this.frozenFootnoteOrder,
         footnoteCounts: this.frozenFootnoteCounts,
-        source: text,
-      }, this.onTaskChecked)
+      }
       // Separator newlines are cached alongside the elements so the
       // assembled children match the settled pipeline's block wrapping.
       const batch = [...this.frozenElements]
@@ -132,15 +116,14 @@ class StreamingRenderer {
       this.frozenElements = batch
       this.frozenCount = frozen.length
     }
-    const tailContext = markdownContext({
+    const tailContext: MarkdownRenderContext = {
       streaming: true,
-      codeLabels: this.codeLabels,
+      labels: this.labels,
       fileMentions: undefined,
       targets: frameTargets,
       footnoteOrder: [...this.frozenFootnoteOrder],
       footnoteCounts: new Map(this.frozenFootnoteCounts),
-      source: text,
-    }, this.onTaskChecked)
+    }
     const children = [...this.frozenElements]
     for (const element of renderBlocks(tail, tailContext)) {
       if (children.length > 0) children.push('\n')
@@ -157,46 +140,38 @@ class StreamingRenderer {
 /**
  * Render untrusted assistant-authored Markdown as semantic React elements.
  * @param props - Markdown source text preserved by the session projection;
- * `streaming` renders fences and TeX plain (highlighting and KaTeX land on
- * the finalize swap) and parses incrementally across chunks; `codeLabels`
- * forwards localized copy-button labels to fence CodeBlocks — pass a
+ * `streaming` parses incrementally across chunks and highlights fences as
+ * they grow (each fence re-tokenizes only appended text; TeX stays literal
+ * until the finalize swap so incomplete formulae never flash errors);
+ * `labels` forwards localized fence and footnote chrome — pass a
  * reference-stable object (memoized per locale revision), because a new
  * identity discards the streaming render cache mid-message. `fileMentions`
  * links inline-code tokens its resolver recognizes as real files; this is
  * the single streaming gate — it applies to settled renders only, because a
  * streaming message's vocabulary is not final and frozen cached elements
- * must not bake in handlers that could go stale. `onTaskChecked` enables GFM
- * task checkboxes when the `[` source offset is known; omit it to keep
- * checkboxes disabled.
+ * must not bake in handlers that could go stale.
  * @returns A GFM document with TeX math rendered through KaTeX; raw HTML,
  * relative links, and unsafe protocols are disabled, while absolute HTTP(S)
  * images render directly.
  */
-export const MarkdownText = memo(function MarkdownText({ text, streaming = false, codeLabels, fileMentions, onTaskChecked }: {
+export const MarkdownText = memo(function MarkdownText({ text, streaming = false, labels, fileMentions }: {
   text: string
   streaming?: boolean
-  codeLabels?: MarkdownCodeLabels | undefined
+  labels: MarkdownLabels
   fileMentions?: MarkdownFileMentions | undefined
-  onTaskChecked?: (markerOffset: number, checked: boolean) => void
 }) {
   const streamRef = useRef<StreamingRenderer | null>(null)
-  const streamLabelsRef = useRef<MarkdownCodeLabels | undefined>(codeLabels)
-  const streamTaskRef = useRef(onTaskChecked)
+  const streamLabelsRef = useRef<MarkdownLabels>(labels)
   const children = useMemo(() => {
     if (!streaming) {
       streamRef.current = null
-      return renderSettled(text, codeLabels, fileMentions, onTaskChecked)
+      return renderSettled(text, labels, fileMentions)
     }
-    if (
-      streamRef.current === null
-      || streamLabelsRef.current !== codeLabels
-      || streamTaskRef.current !== onTaskChecked
-    ) {
-      streamRef.current = new StreamingRenderer(codeLabels, onTaskChecked)
-      streamLabelsRef.current = codeLabels
-      streamTaskRef.current = onTaskChecked
+    if (streamRef.current === null || streamLabelsRef.current !== labels) {
+      streamRef.current = new StreamingRenderer(labels)
+      streamLabelsRef.current = labels
     }
     return streamRef.current.render(text)
-  }, [text, streaming, codeLabels, fileMentions, onTaskChecked])
+  }, [text, streaming, labels, fileMentions])
   return <div className={css.markdown}>{children}</div>
 })

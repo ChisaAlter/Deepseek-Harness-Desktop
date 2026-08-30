@@ -7,8 +7,8 @@
  */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { PlanChip } from '../src/client/PlanModeControl.tsx'
 import type { PlanChipInjected } from '../src/client/index.ts'

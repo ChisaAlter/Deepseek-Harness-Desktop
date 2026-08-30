@@ -47,14 +47,16 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
+  ImageAttachmentAccess,
   LlmModelInfo,
   LlmProviderInfo,
   LlmResolvedModelInfo,
+  PreparedAdapterCall,
   ReasoningEffortId as ReasoningEffortIdType,
   ResolvedRetryPolicy,
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
-import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
@@ -92,6 +94,8 @@ export interface PiAiAdapterOptions {
   auth: PiAiAuthInjection
   /** Resolve the optional durable attachment service at request time. */
   resolveAttachments?: () => AttachmentStore | undefined
+  /** Bridge one attachment reference into the current model-tool execution world. */
+  resolveImageAccess?: (attachments: AttachmentStore, ref: ImageAttachmentRef) => ImageAttachmentAccess | undefined
   /**
    * Observe one assistant history message degrading to provider-neutral
    * conversion because its stored replay state is unusable by this build.
@@ -295,25 +299,44 @@ export class PiAiAdapter extends LlmAdapter {
   ): Promise<LlmResolvedModelInfo> {
     return Promise.resolve().then(() => {
       const snapshot = this.current()
-      const profile = this.profileOf(snapshot, provider)
-      const resolvedModel = this.modelOf(snapshot, provider, model)
-      const defaultLevel = describableReasoningLevel(resolvedModel, profile.reasoning)
-      // Only a cap the deployment configured is a request default; the
-      // catalog's `maxTokens` sizes the model and stops there.
-      const configuredMaxTokens = profile.configuredMaxTokens.get(model)
-      return {
-        provider,
-        id: model,
-        name: resolvedModel.name,
-        inputModalities: [...resolvedModel.input],
-        context: { contextWindow: resolvedModel.contextWindow },
-        ...configuredMaxTokens === undefined ? {} : { defaultMaxTokens: configuredMaxTokens },
-        ...reasoningInfo(resolvedModel, defaultLevel),
-      }
+      return this.modelInfo(snapshot, provider, model)
     })
   }
 
-  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+  private modelInfo(snapshot: PiAiSnapshot, provider: string, model: string): LlmResolvedModelInfo {
+    const profile = this.profileOf(snapshot, provider)
+    const resolvedModel = this.modelOf(snapshot, provider, model)
+    const defaultLevel = describableReasoningLevel(resolvedModel, profile.reasoning)
+    // Only a cap the deployment configured is a request default; the
+    // catalog's `maxTokens` sizes the model and stops there.
+    const configuredMaxTokens = profile.configuredMaxTokens.get(model)
+    return {
+      provider,
+      id: model,
+      name: resolvedModel.name,
+      inputModalities: [...resolvedModel.input],
+      context: { contextWindow: resolvedModel.contextWindow },
+      ...configuredMaxTokens === undefined ? {} : { defaultMaxTokens: configuredMaxTokens },
+      ...reasoningInfo(resolvedModel, defaultLevel),
+    }
+  }
+
+  override prepareCall(provider: string, model: string, _signal?: AbortSignal): Promise<PreparedAdapterCall> {
+    const snapshot = this.current()
+    return Promise.resolve({
+      model: this.modelInfo(snapshot, provider, model),
+      stream: options => this.streamWithSnapshot(options, snapshot),
+    })
+  }
+
+  stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    return this.streamWithSnapshot(options, this.current())
+  }
+
+  private async * streamWithSnapshot(
+    options: GenerateOptions,
+    snapshot: PiAiSnapshot,
+  ): AsyncIterable<StreamChunk> {
     if (options.stop !== undefined) {
       throw new LlmError('llm-pi-ai does not support GenerateOptions.stop', 'UNSUPPORTED_OPTION')
     }
@@ -322,7 +345,6 @@ export class PiAiAdapter extends LlmAdapter {
     // snapshot, and the credential freezes with them. A configuration change
     // mid-request builds a separate snapshot, so this request finishes under
     // the one it started with and the next call picks up the new one.
-    const snapshot = this.current()
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
     const reasoning = resolveReasoningLevel(
@@ -352,7 +374,15 @@ export class PiAiAdapter extends LlmAdapter {
       }
       const context = attachments === undefined
         ? toPiContext(options, undefined, onReplayDegrade)
-        : await toPiContext(options, attachments, onReplayDegrade, profile.maxRequestImageBytes)
+        : await toPiContext({ ...options, signal: watchdog.signal }, {
+          attachments,
+          resolveImageAccess: ref => this.config.resolveImageAccess?.(attachments, ref),
+          maxRequestImageBytes: profile.maxRequestImageBytes,
+          requestImagePolicy: {
+            maxPixels: profile.requestImagePixelBudget,
+            maxBytes: profile.requestImageMaxBytes,
+          },
+        }, onReplayDegrade)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
@@ -363,7 +393,7 @@ export class PiAiAdapter extends LlmAdapter {
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),
       })
-      const iterator = toStreamChunks(events, model.contextWindow)[Symbol.asyncIterator]()
+      const iterator = toStreamChunks(events, model.contextWindow, options.signal)[Symbol.asyncIterator]()
       let exhausted = false
       try {
         while (true) {

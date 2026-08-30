@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-session-query",
   "description": "Combined session query service contract with concrete reads, traces, and filters",
-  "version": "0.1.1-rc.1",
+  "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
   },
@@ -37,11 +37,20 @@
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-title": "workspace:^",
+    "@deepseek-ai/dsh-tool-todo": "workspace:^",
     "@deepseek-ai/dsh-session-persistence": "workspace:^",
+    "@deepseek-ai/dsh-session-projection": "workspace:^",
+    "@deepseek-ai/dsh-session-projection-cache": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-session-persistence": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-projection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-projection-cache": {
       "optional": true
     }
   },
@@ -51,7 +60,10 @@
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-title": "workspace:^",
+    "@deepseek-ai/dsh-tool-todo": "workspace:^",
     "@deepseek-ai/dsh-session-persistence": "workspace:^",
+    "@deepseek-ai/dsh-session-projection": "workspace:^",
+    "@deepseek-ai/dsh-session-projection-cache": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }
 }

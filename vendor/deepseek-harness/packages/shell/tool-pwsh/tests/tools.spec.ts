@@ -15,7 +15,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve as resolvePath } from 'node:path'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
@@ -271,7 +271,7 @@ let callCounter = 0
 function call(ctx: Context, name: string, args: unknown, agent?: Agent) {
   return ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId(`call-${++callCounter}`),
+    callId: ToolCallId(`call-${++callCounter}`),
     name,
     arguments: args,
     ...agent ? { agent } : {},
@@ -403,7 +403,7 @@ describe('execution through the bash seam', () => {
     bash.handler = () => runResult('ok\n')
     await ctx.tools.execute({
       signal: controller.signal,
-      callId: CallId('call-signal'),
+      callId: ToolCallId('call-signal'),
       name: 'pwsh',
       arguments: { command: 'Write-Output ok', description: 'ok' },
     })
@@ -626,7 +626,7 @@ describe('sandbox escalation through ctx.approval', () => {
     const agent = sandboxAgent(undefined, ctx)
     ctx.agents.register(agent)
     const foreground = await ctx.tools.execute({
-      callId: CallId('sandbox-signal'),
+      callId: ToolCallId('sandbox-signal'),
       name: 'pwsh',
       arguments: escalate,
       agent,
@@ -649,7 +649,7 @@ describe('sandbox escalation through ctx.approval', () => {
     const start = vi.spyOn(bash, 'start')
 
     const result = await ctx.tools.execute({
-      callId: CallId('cancelled-escalation-background'),
+      callId: ToolCallId('cancelled-escalation-background'),
       name: 'pwsh',
       arguments: { ...escalate, run_in_background: true },
       agent,
@@ -752,7 +752,7 @@ describe('background execution through the job runtime', () => {
     const controller = new AbortController()
     controller.abort()
     const result = await ctx.tools.execute({
-      callId: CallId('call-pre-aborted'),
+      callId: ToolCallId('call-pre-aborted'),
       name: 'pwsh',
       arguments: { command: 'Start-Sleep -Seconds 60', description: 'test command', run_in_background: true },
       signal: controller.signal,

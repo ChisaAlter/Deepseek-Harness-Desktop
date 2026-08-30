@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-26-packed-chunk-rows-by-default.md
-2026-07-26-packed-chunk-rows-by-default.md: 141c9a32a07b5cb4885a21b419df30d45dc1061b
-2026-07-26-packed-chunk-rows-by-default.zh.md: 30088b8640efa783380a3fe083ed82efdad9e5c8
+2026-07-26-packed-chunk-rows-by-default.md: 14da6b3cbe650e80118e7c960c96bf618acd1e48
+2026-07-26-packed-chunk-rows-by-default.zh.md: f62a8e52a67adc960ac3150552594b4f061e6205

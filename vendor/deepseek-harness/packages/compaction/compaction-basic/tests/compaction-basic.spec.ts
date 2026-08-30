@@ -4,6 +4,7 @@ import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import BasicCompactionEngine from '@deepseek-ai/dsh-compaction-basic'
 import type { BasicCompactionConfig } from '@deepseek-ai/dsh-compaction-basic'
 import { selectCompactableRange } from '@deepseek-ai/dsh-compaction-basic/src/region.ts'
+import { frameSummary } from '@deepseek-ai/dsh-compaction-basic/src/summarizer.ts'
 import type { SummarizationInput, SummaryResult } from '@deepseek-ai/dsh-compaction-basic/src/summarizer.ts'
 import { CompactionId, toolPairingBalancedAfter, toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction'
 import {
@@ -12,7 +13,7 @@ import {
   resolveTargetPolicy,
 } from '@deepseek-ai/dsh-compaction-basic/src/config.ts'
 import type { CompactionResult } from '@deepseek-ai/dsh-compaction'
-import LlmRuntime, { createUserMessage, CallId, CONTEXT_WINDOW_EXCEEDED_CODE, createToolResultMessage, LlmAdapter , createMessage } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, ToolCallId, CONTEXT_WINDOW_EXCEEDED_CODE, createToolResultMessage, LlmAdapter , createMessage } from '@deepseek-ai/dsh-llm'
 import type {
   ContentBlock,
   GenerateOptions,
@@ -142,7 +143,7 @@ function conversation(turns = 4, text = 'fixture '.repeat(40).trim()): Session {
 function toolConversation(): Session {
   const session = Session.create(SessionId('tools'))
   for (let turn = 1; turn <= 3; turn += 1) {
-    const callId = CallId(`call-${turn}`)
+    const callId = ToolCallId(`call-${turn}`)
     session.append('turn/start', { turn })
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: `request ${turn} `.repeat(300) }],
@@ -190,7 +191,7 @@ function toolConversation(): Session {
 /** One closed routed tool step followed by an open turn for rewrite events. */
 function oversizedToolResult(chars = 3_000, withCompactablePrompt = false): Session {
   const session = Session.create(SessionId(`oversized-tool-${chars}`))
-  const callId = CallId('oversized')
+  const callId = ToolCallId('oversized')
   session.append('turn/start', { turn: 1 })
   if (withCompactablePrompt) {
     session.append('user/message', createUserMessage({
@@ -568,7 +569,7 @@ describe('pressure measurement and retention', () => {
   it('declines forced overflow when the whole surface is one indivisible tool pair', async () => {
     const compact = service(compactConfig)
     const session = Session.create(SessionId('single-tool-pair'))
-    const callId = CallId('single-call')
+    const callId = ToolCallId('single-call')
     session.append('turn/start', { turn: 1 })
     session.append('step/start', { turn: 1, step: 1 })
     session.append('request/header', {
@@ -734,7 +735,7 @@ describe('pressure measurement and retention', () => {
   it('declines when rounding a cut would consume the only tool pair', () => {
     const ctx = createContext()
     const session = Session.create(SessionId('one-tool-pair'))
-    const callId = CallId('only')
+    const callId = ToolCallId('only')
     session.append('turn/start', { turn: 1 })
     session.append('step/start', { turn: 1, step: 1 })
     session.append('assistant/message', {
@@ -1183,7 +1184,7 @@ describe('default one-shot summarizer', () => {
     const { adapter, compact } = await summarizerHarness([
       { type: 'reasoning', text: 'private' },
       { type: 'text', text: 'public summary' },
-      { type: 'tool-call', id: CallId('unexpected'), name: 'x', arguments: '{}' },
+      { type: 'tool-call', id: ToolCallId('unexpected'), name: 'x', arguments: '{}' },
     ], undefined, MODEL, {
       auto: false,
       summarizationProvider: MODEL,
@@ -1199,7 +1200,7 @@ describe('default one-shot summarizer', () => {
       rawOutput: [
         { type: 'reasoning', text: 'private' },
         { type: 'text', text: 'public summary' },
-        { type: 'tool-call', id: CallId('unexpected'), name: 'x', arguments: '{}' },
+        { type: 'tool-call', id: ToolCallId('unexpected'), name: 'x', arguments: '{}' },
       ],
       llmStreamCall: true,
       provider: MODEL,
@@ -1417,7 +1418,7 @@ describe('default one-shot summarizer', () => {
   it('rejects image summary output nested in a tool result', async () => {
     const { compact } = await summarizerHarness([{
       type: 'tool-result',
-      toolCallId: CallId('summary-tool'),
+      toolCallId: ToolCallId('summary-tool'),
       content: [{
         type: 'image',
         attachment: {
@@ -1876,5 +1877,148 @@ describe('automatic listener and loader composition', () => {
     await preStep(ctx, agent(session, MODEL))
     expect(session.events.some(event => event.type === 'compaction/start')).toBe(false)
     expect(await recover(ctx, agent(session, MODEL), overflow())).toBe(false)
+  })
+})
+
+describe('route-priced image pressure', () => {
+  const IMAGE_VISUAL_TOKENS = 300
+  const IMAGE_HANDLE_TEXT = 'request preview'
+
+  class PricedContextAdapter extends ContextAdapter {
+    override imageRequestPricing(): { priceImages: (images: readonly unknown[]) => Array<{ visualTokens: number; text: string }> } {
+      return {
+        priceImages: images => images.map(() => ({
+          visualTokens: IMAGE_VISUAL_TOKENS,
+          text: IMAGE_HANDLE_TEXT,
+        })),
+      }
+    }
+  }
+
+  function pricedContext(contextWindow = 1_000): Context {
+    const ctx = new Context()
+    void new LlmRuntime(ctx)
+    void new TokenMeter(ctx)
+    ctx.llm.registerAdapter([MODEL], new PricedContextAdapter(contextWindow))
+    return ctx
+  }
+
+  /** Closed short-text turns whose user messages each carry one image. */
+  function imageConversation(turns = 4): Session {
+    const session = Session.create(SessionId(`image-dense-${turns}`))
+    for (let turn = 1; turn <= turns; turn += 1) {
+      session.append('turn/start', { turn })
+      session.append('user/message', createUserMessage({
+        content: [
+          { type: 'text', text: `image turn ${turn}` },
+          {
+            type: 'image',
+            attachment: {
+              attachmentId: AttachmentId(`sha256:${String(turn).repeat(8)}`),
+              mediaType: 'image/png',
+              bytes: 2048,
+              width: 800,
+              height: 800,
+              name: `shot-${turn}`,
+            },
+          },
+        ],
+        source: { kind: 'user' },
+      }), { surfaceOp: 'append' })
+      session.append('step/start', { turn, step: 1 })
+      if (turn === 1) {
+        session.append('request/header', {
+          header: { config: { provider: MODEL, model: MODEL } },
+          reason: 'initial',
+        })
+      }
+      session.append('assistant/message', {
+        turn,
+        step: 1,
+        message: createMessage({
+          role: 'assistant',
+          content: [{ type: 'text', text: `ok ${turn}` }],
+          source: {
+            kind: 'model',
+            ...{ provider: MODEL, model: MODEL },
+          },
+        }),
+      }, { surfaceOp: 'append' })
+      session.append('step/end', { turn, step: 1 })
+      session.append('turn/end', { turn, reason: { kind: 'completed' } })
+    }
+    session.append('turn/start', { turn: turns + 1 })
+    return session
+  }
+
+  it('selects an image-dense range only when the routed price counts visual tokens', () => {
+    const session = imageConversation()
+    const routed = pricedContext().tokenMeter.measure(session)
+    const neutral = createContext().tokenMeter.measure(session)
+
+    expect(routed.surfaceTokens).toBeGreaterThan(neutral.surfaceTokens + 4 * IMAGE_VISUAL_TOKENS - 200)
+    expect(routed.nodes.map(node => node.seq)).toEqual(neutral.nodes.map(node => node.seq))
+    expect(routed.nodes.map(node => node.heuristicTokens)).toEqual(neutral.nodes.map(node => node.tokens))
+
+    // The same verbatim tail budget retains almost everything under the
+    // neutral heuristic but forces a cut once visual tokens are counted.
+    expect(selectCompactableRange(session, neutral, 350)).toBeNull()
+    const range = selectCompactableRange(session, routed, 350)
+    expect(range).not.toBeNull()
+  })
+
+  it('accepts a summary larger than the span heuristic when the route price shrinks', async () => {
+    // A single short image message prices below a framed summary under the
+    // fixed heuristic but far above it under the route: the shrink comparison
+    // must ask whether the replacement lowers route pressure.
+    const ctx = pricedContext(1_000)
+    const session = imageConversation(1)
+    const before = ctx.tokenMeter.measure(session)
+    const imageNode = before.nodes[0]!
+    const compact = new TestCompactionEngine(ctx, { auto: false })
+    compact.summary = [{
+      type: 'text',
+      text: 'summary text sized between the heuristic and route prices of the shadowed image message, '
+        + 'long enough that the fixed heuristic alone would reject it as not smaller '
+        + 'while the route-priced comparison accepts the pressure reduction.',
+    }]
+    const framed = ctx.tokenMeter.estimateMessage(createUserMessage({
+      content: frameSummary(compact.summary),
+      source: { kind: 'plugin', plugin: 'test' },
+    }))
+    expect(framed).toBeGreaterThan(imageNode.heuristicTokens)
+    expect(framed).toBeLessThan(imageNode.tokens)
+
+    const result = await compact.compactRegion(imageNode.seq, imageNode.seq, agent(session), SIGNAL)
+    expect(result.shadowedSeqs).toEqual([imageNode.seq])
+    expect(result.shadowedTokenCount).toBe(imageNode.heuristicTokens)
+  })
+
+  it('triggers pressure compaction from routed visual tokens and logs heuristic shadow prices', async () => {
+    const ctx = pricedContext(1_000)
+    const session = imageConversation()
+    const before = ctx.tokenMeter.measure(session)
+    const compact = new TestCompactionEngine(ctx, {
+      auto: false,
+      thresholdRatio: 0.8,
+      retainTokens: 350,
+    })
+
+    // The same history stays below the 800-token threshold without pricing.
+    const neutralResult = await compactIfNeeded(service({
+      auto: false,
+      thresholdRatio: 0.8,
+      retainTokens: 350,
+    }), session)
+    expect(neutralResult).toBeNull()
+
+    const result = await compact.compactIfNeeded(agent(session), 'pressure', SIGNAL)
+    expect(result).not.toBeNull()
+    const summaryEvent = session.events.find(event => event.type === 'compaction/summary')
+    expect(summaryEvent).toBeDefined()
+    const shadowedHeuristic = before.nodes
+      .filter(node => result?.shadowedSeqs.includes(node.seq))
+      .reduce((total, node) => total + node.heuristicTokens, 0)
+    expect(summaryEvent?.data.shadowedTokenCount).toBe(shadowedHeuristic)
   })
 })

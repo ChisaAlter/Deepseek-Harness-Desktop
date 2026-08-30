@@ -293,8 +293,7 @@ describe('draft-provider model discovery', () => {
     })
     const probe = ctx.llm.discoverModels('llm-pi-ai', {
       baseURL: 'https://slow.example/v1',
-      signal: controller.signal,
-    })
+    }, controller.signal)
     await bodyRead.promise
     controller.abort('test cancellation')
 
@@ -306,8 +305,7 @@ describe('draft-provider model discovery', () => {
     const aborted = AbortSignal.abort('test cancellation')
     await expect(ctx.llm.discoverModels('llm-pi-ai', {
       baseURL: 'http://127.0.0.1:9/v1',
-      signal: aborted,
-    })).rejects.toMatchObject({ code: 'ABORTED' })
+    }, aborted)).rejects.toMatchObject({ code: 'ABORTED' })
   })
 
   it('is offered for the namespace, and refuses one it does not serve', async () => {

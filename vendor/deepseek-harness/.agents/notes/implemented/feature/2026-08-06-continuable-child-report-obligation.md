@@ -15,7 +15,7 @@ Each of those choices is defensible alone. Together they made the return channel
 The return channel is an instruction the child receives, not a capability it may discover. The report package installs two scope-local registrations into every continuable in-process child, and one disposer revokes both:
 
 - the `report` tool, whose description now states that the child calls it once before finishing with a self-contained final result, and earlier for progress that changes what the parent should do next;
-- a `tool:report` system-prompt section at order 117 carrying the same obligation in the child's own voice, so a child that never reads tool descriptions closely still receives it.
+- a `tool:report` system-prompt section at first-party order 2900 carrying the same obligation in the child's own voice, so a child that never reads tool descriptions closely still receives it.
 
 `reportDelivery` defaults to `next-step`. An accepted report wakes a parked parent driver or joins a running parent's nearest step boundary, matching the instruction to report findings that change the parent's next action. `quiet` remains available for deployments that prefer unread reports over model-work amplification. The [report/settlement ordering decision](../bug-fix/2026-08-17-subagent-report-settlement-ordering.md) owns the scheduling rationale.
 

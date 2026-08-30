@@ -9,7 +9,10 @@ const PACKAGE_NAME = '@deepseek-ai/dsh-session-log-export'
 export const name = 'session-export-invariant'
 export const inject = ['invariants']
 
-/** No runtime invariant: the command registry owns lifecycle pairing and ApiProxy owns ZIP integrity. */
+/**
+ * No runtime invariant: Connection and the command registry own both
+ * registrations, while each export reads authoritative Session services.
+ */
 const install: InvariantInstaller = () => {}
 
 /**

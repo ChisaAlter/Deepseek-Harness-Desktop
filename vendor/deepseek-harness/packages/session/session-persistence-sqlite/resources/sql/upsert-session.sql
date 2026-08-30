@@ -1,8 +1,8 @@
 INSERT INTO sessions
-  (id, version, created_at, cwd, parent_session, seed_length, origin,
+  (session_key, version, created_at, cwd, parent_session, seed_length, origin,
    delegation_depth, agent_preset, incarnation, revision)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-ON CONFLICT(id) DO UPDATE SET
+ON CONFLICT(session_key) DO UPDATE SET
   version = excluded.version,
   created_at = excluded.created_at,
   cwd = excluded.cwd,
@@ -10,4 +10,5 @@ ON CONFLICT(id) DO UPDATE SET
   seed_length = excluded.seed_length,
   origin = excluded.origin,
   delegation_depth = excluded.delegation_depth,
-  agent_preset = excluded.agent_preset;
+  agent_preset = excluded.agent_preset
+RETURNING id;

@@ -1,9 +1,9 @@
 /**
  * Theme bootstrap row for the browser's pre-plugin interval. Each index
- * render embeds the current durable color scheme plus the already derived
- * alias tokens for both halves; the browser resolves only `system`, then
- * writes the same DOM fields ui-layout's ThemePresenter owns after the
- * client plugin tree activates.
+ * render embeds the current durable built-in preference, content font size,
+ * derived alias tokens, and glass solidity; the browser resolves only
+ * `system`, then writes the same DOM fields ui-layout's ThemePresenter owns
+ * after the client plugin tree activates.
  */
 
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
@@ -11,7 +11,7 @@ import { deriveThemeTokens } from './derive.ts'
 import { DEFAULT_FAMILY_ID, type ThemeTokens } from './theme-family.ts'
 import { resolveThemeFamily } from './builtin-families.ts'
 import {
-  DEFAULT_PREFERENCE, DEFAULT_THEME_SETTINGS, resolveThemeSettings,
+  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, DEFAULT_THEME_SETTINGS, resolveThemeSettings,
   type ThemePreference, type ThemeSettings,
 } from './theme-settings.ts'
 import { TRANSPARENT_GLASS_SOLIDITY, isWallpaperDataUrl } from './wallpaper.ts'
@@ -20,6 +20,8 @@ import { TRANSPARENT_GLASS_SOLIDITY, isWallpaperDataUrl } from './wallpaper.ts'
 export interface ThemeBootPayload {
   /** Durable color-scheme preference. */
   preference: ThemePreference
+  /** Conversation content font size in px. */
+  fontSize: number
   /** Derived tokens for the light half (empty for the DeepSeek family). */
   lightTokens: ThemeTokens
   /** Derived tokens for the dark half (empty for the DeepSeek family). */
@@ -48,6 +50,7 @@ export function buildThemeBootPayload(section: ThemeSettings | undefined): Theme
   const transparent = settings.transparentTheme && isWallpaperDataUrl(settings.wallpaperImage)
   return {
     preference: settings.preference,
+    fontSize: settings.fontSize,
     lightTokens: tokensFor(settings, 'light'),
     darkTokens: tokensFor(settings, 'dark'),
     fontSizeInterface: settings.fontSizeInterface,
@@ -56,11 +59,14 @@ export function buildThemeBootPayload(section: ThemeSettings | undefined): Theme
 }
 
 function resolveBootPayload(
-  payload: ThemeBootPayload | ThemePreference = DEFAULT_PREFERENCE,
+  preferenceOrPayload: ThemeBootPayload | ThemePreference = DEFAULT_PREFERENCE,
+  fontSize: number = DEFAULT_FONT_SIZE,
 ): ThemeBootPayload {
-  return typeof payload === 'string'
-    ? buildThemeBootPayload({ ...DEFAULT_THEME_SETTINGS, preference: payload })
-    : payload
+  if (typeof preferenceOrPayload === 'string') {
+    const payload = buildThemeBootPayload({ ...DEFAULT_THEME_SETTINGS, preference: preferenceOrPayload })
+    return { ...payload, fontSize }
+  }
+  return preferenceOrPayload
 }
 
 /** Build the inline script body for one schema-validated boot payload. */
@@ -83,6 +89,7 @@ function bootThemeScript(payload: ThemeBootPayload): string {
     document.body.style.setProperty(name, value)
   }
   document.body.style.setProperty('--dsw-alias-glass-opacity', glassOpacity + '%')
+  document.body.style.setProperty('--dsh-content-font-size', ${JSON.stringify(`${payload.fontSize}px`)})
 })()`
 }
 
@@ -109,11 +116,19 @@ export function injectBootTheme(
 /**
  * The theme bootstrap as an injection row: an inline script immediately after
  * the opening body tag, before the shell mount and module script.
- * @param payload - Current Host-backed boot fields, or a bare preference.
+ * @param preferenceOrPayload - Current Host-backed built-in preference, or a
+ *   full boot payload that already includes tokens and glass.
+ * @param fontSize - Current Host-backed content font size in px. Ignored when
+ *   the first argument is a payload.
  * @returns the body script row.
  */
 export function bootThemeInjection(
-  payload: ThemeBootPayload | ThemePreference = DEFAULT_PREFERENCE,
+  preferenceOrPayload: ThemePreference | ThemeBootPayload = DEFAULT_PREFERENCE,
+  fontSize: number = DEFAULT_FONT_SIZE,
 ): IndexInjection {
-  return { kind: 'script', placement: 'body', text: bootThemeScript(resolveBootPayload(payload)) }
+  return {
+    kind: 'script',
+    placement: 'body',
+    text: bootThemeScript(resolveBootPayload(preferenceOrPayload, fontSize)),
+  }
 }

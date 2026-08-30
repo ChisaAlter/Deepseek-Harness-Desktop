@@ -1,20 +1,89 @@
+---
+description: "Theme and content-font-size settings for the dsh web client: --dsw-* token stylesheets, ThemeRuntime state, General settings rows, and the pre-plugin bootstrap."
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-client-ui-theme
 
 English | [中文](README.zh.md)
 
-Theme plugin: ThemeRuntime over the --dsw-* token base stylesheets (static scale + alias semantic layers). The service owns the live color-scheme preference (`light`/`dark`/`system`), the light and dark theme-family halves, derived `--dsw-alias-*` tokens, glass opacity, an optional wallpaper (frost + pixelate), and typography extras. It resolves `system` through `prefers-color-scheme`, picks the family for that half, and publishes immutable `ThemeSnapshot`s on the `theme/change` event; it never touches the DOM — ui-layout's presenter applies the resolved snapshot (`html { color-scheme }`, `body[data-ds-dark-theme]`, and inline alias tokens). The DeepSeek family ships empty derived tokens so the CSS sheets stay the product default. Other families keep the canvas at the seed background and paint the accent onto send, links, user bubbles, sidebar selection, and primary buttons so a custom color is visible in the chat chrome, not only on Appearance controls. A loopback browser provides the service immediately with `system` and DeepSeek halves, then loads the `ui-theme` section in the background and writes each product field through the Host settings API, whose local provider stores it in `$DSH_HOME/settings.yaml` by default; pushed settings changes and reconnects refetch it, rapid selections are serialized in gesture order with namespace revisions, and a rejected latest write reloads the durable value. A remote browser cannot access the privileged settings API, so its selection remains process-local. In-process `register()` theme ids remain an extension and do not cross the built-in settings schema; user-created families persist in `customThemes`. The [Host-backed preferences decision](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md) owns the persistence boundary. Durable writes from continuous controls are debounced (300 ms, coalesced per field) while the local snapshot publishes immediately, and Host echoes are not adopted while writes are queued or in flight, so slider drags stay fluid and never snap back. The Appearance page is a dedicated `settings.section` (`id: appearance`, order 5). The theme editor previews every draft edit live through `setPreviewFamily` — a transient family painted over the active halves without touching the settings scope; closing the editor (save, cancel, or unmount) restores the stored selection. Because only the half matching the resolved color scheme is visible, the editor states which half is currently painting and each library card badges that half as the current mode. A wallpaper data URL is optional; once set, frost and pixelate sliders appear. Pixelation draws the image into a canvas bitmap at `viewport / factor` and lets CSS `image-rendering: pixelated` stretch it back up; while a wallpaper is showing, glass opacity drives layered chrome solidity — the main canvas is the most see-through (never above 45% fill, so glass 100% still lets the image show through the chat), the sidebar sits halfway between the uncapped canvas curve and glass so glass 100% fully opaques the rail, and raised surfaces keep the full value. `#dsh-wallpaper::after` paints `--dsw-alias-bg-mask-1`. The terminal pane uses `--dsw-alias-terminal-pane` as an opaque canvas well (the sheet fallback, or a family's solid `--dsw-alias-bg-base`) rather than a raised layer-2 fill or wallpaper frost. Nested conversation / details / surfaces roots do not re-paint that canvas fill; the sidebar column and SidebarRoot both paint `--dsw-specific-sidebar-fill` over the frame canvas so the rail is thicker. The image is not embedded in the boot script.
+## Summary
 
-When the host composition includes an HTTP server, the host half injects a synchronous bootstrap immediately after the opening `<body>` tag. Each index response embeds the current preference, both already-derived half token maps, interface font size, and glass opacity; the browser resolves only `system` from the OS scheme, then sets `color-scheme`, `body[data-ds-dark-theme]`, and the active half's inline tokens before the shell loading page renders. Compositions without an HTTP server remain unaffected, and ThemeRuntime and ui-layout remain authoritative for client state and subsequent DOM updates after the plugin tree activates.
+`dsh-client-ui-theme` lets Web GUI users choose `light`, `dark`, or `system` and set conversation content text from 12 to 17 px in Settings. A loopback client stores both values in the `ui-theme` settings namespace, which the local provider persists in `$DSH_HOME/settings.yaml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package also ships the `--dsw-*` token stylesheets and injects a synchronous bootstrap so the selected palette and font size apply before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.
 
-`src/styles/` holds seven sheets, all imported by the web shell's `base.css`: `base.css`, `motion.css`, `design-platform.css`, `wallpaper.css`, `scrollbar.css`, `gradient-shadow-text.css`, and `shiki.css`. `motion.css` is the shared overlay / popover / fade / swap / flip recipe sheet and must follow `base.css`, which declares the duration and easing tokens. `scrollbar.css` is the sole consumer of the `--dsw-alias-scrollbar-*` tokens and must follow `design-platform.css`, which declares them. `wallpaper.css` paints the fixed wallpaper layer and clears the html/body/`#root` fills so mixed chrome tokens can show it.
+## Table of Contents
 
-Scrollbar rebinding contract: `scrollbar.css` binds `--dsh-scrollbar-thumb` and `--dsh-scrollbar-thumb-hover` on `body` to the l1 (base-surface) tokens, and both rendering paths read that pair. An elevated surface (menu, popover, dialog) sets `--dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2)` and `--dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2)` on its own container; one rebind retints whichever path the engine took. The pair's other legal target is `transparent`, which draws no thumb at all — [ui-sidebar](../ui-sidebar/README.md) rebinds its column that way while the pointer is elsewhere. A rebind to the l1 pair is not a rebind; it restates the base-surface default. `--dsh-scrollbar-width` mirrors the WebKit bar's layout width for surfaces that align themselves beside a space-consuming bar — [ui-conversation](../ui-conversation/README.md) reads it for the overlay composer seat's `right` offset — and the scrollbar-styles spec pairs it with the mirrored rule and the consumer.
+- [Use this package](#use-this-package)
+- [Understand the implementation](#understand-the-implementation)
+- [Further Exploration](#further-exploration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
-The two paths are mutually exclusive by construction. `scrollbar-width`/`scrollbar-color` sit inside `@supports not selector(::-webkit-scrollbar)` because a non-`auto` value of either makes Chromium and Safari discard every `::-webkit-scrollbar*` rule for that element, `::-webkit-scrollbar-thumb:hover` included — declaring both unconditionally leaves `--dsh-scrollbar-thumb-hover` with no rendering anywhere. Firefox therefore takes the standard properties and WebKit-based engines take the pseudo-elements, so the hover token only ever renders through the pseudo-element path. Reasoning and the measured computed values: [the scrollbar Agent Note](../../../.agents/notes/implemented/bug-fix/2026-07-28-themed-scrollbars-and-reserved-gutter.md).
+-----
 
+<a id="use-this-package"></a>
+## Use this package
+
+Users switch the color scheme and content font size from two rows in Settings (General section); both choices persist across restarts on a loopback browser. Feature plugins consume the current snapshot through `ctx.theme` and read the `--dsw-*` tokens in CSS; they do not manage theme state themselves.
+
+### Appearance and font size
+
+The plugin registers Appearance preference cubes and a font-size stepper in the General section. The stepper accepts integer values from 12 through 17 px and defaults to 14 px. It changes conversation headings and base text by the same increment, including the user bubble and composer draft; flow-row titles, summaries, and tables follow one step under the body size, while small text and code keep fixed sizes. Each accepted change writes through the Host settings API. Rapid changes serialize in gesture order with namespace revisions, and a rejected latest write reloads the durable values. Non-loopback pages keep both choices process-local.
+
+### Registering a theme
+
+A composition can register a third-party theme id with alias-token overrides through `ctx.theme`; the override layer folds into the active snapshot's tokens in registration order. Removing one never overwrites the last durable built-in preference. Third-party theme ids remain an in-process extension and do not cross the built-in settings schema.
+
+### Pre-plugin palette
+
+When the host composition includes an HTTP server, the host half embeds the registered `ui-theme` settings, or schema defaults, into each index response. Before the loading page renders, the browser sets `color-scheme`, `body[data-ds-dark-theme]`, and `--dsh-content-font-size`, so the first paint uses the selected palette and text size.
+
+-----
+
+<a id="understand-the-implementation"></a>
+## Understand the implementation
+
+<details>
+<summary>Implementation internals — click to expand</summary>
+
+The service owns theme and font-size state and publishes snapshots. The ui-layout presenter applies those snapshots, and the token sheets own the color and conversation text scales.
+
+### Stylesheets
+
+`src/styles/` holds five sheets imported in order by ui-theme's dynamic client entry: `base.css`, `design-platform.css`, `scrollbar.css`, `gradient-shadow-text.css`, and `shiki.css`. The client bundle compiles and injects them as plugin-owned global styles, so unload and HMR remove them with ui-theme. `scrollbar.css` is the sole consumer of the `--dsw-alias-scrollbar-*` tokens and must follow `design-platform.css`, which declares them.
+
+`gradient-shadow-text.css` derives `--dsh-content-font-delta` from `--dsh-content-font-size` and shifts the Markdown heading and base-text ladder by that increment. It also derives the secondary tier `--dsh-content-font-size-secondary` (setting −1 at ≤14, setting −2 above; 13px at the default) with its own `--dsh-content-font-delta-secondary` for the table variants and the flow rows one step under the body. Dense small and code variants stay fixed. Outside the ladder, the user bubble and composer draft read the body pair directly, and flow-row titles and summaries read the secondary pair.
+
+### Scrollbar rebinding
+
+`scrollbar.css` binds `--dsh-scrollbar-thumb` and `--dsh-scrollbar-thumb-hover` on `body` to the l1 base-surface tokens; an elevated surface (menu, popover, dialog) rebinds them to the l2 tokens on its own container, and the pair's other legal target is `transparent` (ui-sidebar rebinds its column that way while the pointer is elsewhere). `--dsh-scrollbar-width` mirrors the WebKit bar's layout width for surfaces that align beside a space-consuming bar. The two rendering paths are mutually exclusive by construction: Firefox takes the standard properties inside `@supports not selector(::-webkit-scrollbar)`, and WebKit-based engines take the pseudo-elements, so the hover token only ever renders through the pseudo-element path ([scrollbar note](../../../.agents/notes/implemented/bug-fix/2026-07-28-themed-scrollbars-and-reserved-gutter.md)).
+
+### Preference persistence
+
+The service provides itself immediately with the schema defaults on a loopback browser, then loads the `ui-theme` namespace and writes each accepted theme or font-size change through the Host settings API. Pushed settings changes and reconnects refetch the namespace. Non-loopback pages do not create that Host-backed scope. The persistence boundary is owned by the [Host-backed preferences note](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md).
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## Further Exploration
+
+These pages cover the layout presenter, the token consumers, and the styling rules.
+
+- [ui-layout](../ui-layout/README.md) — the presenter that applies the resolved theme snapshot.
+- [ui-sidebar](../ui-sidebar/README.md) — a consumer of the scrollbar rebinding contract.
+- [ui-conversation](../ui-conversation/README.md) — a consumer of `--dsh-scrollbar-width` for the composer seat.
+- [Web styling](../../../docs/web-styling.md) — the authoritative styling rules for web client components.
+- [Host-backed preferences](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md) — the persistence boundary decision.
+
+-----
+
+<a id="model-experience"></a>
 ## Model Experience
 
-None, as the theme service manages a browser preference; nothing here reaches a model request.
+None, as the package is a browser-side UI plugin layer that registers nothing model-facing.
 
 #### KV Cache effect
 
@@ -22,7 +91,20 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- **Third-party `register()` themes are an extension point, not a product** — registering one means overriding same-named alias variables; no validation exists that an override set is complete. User-created families persist in `customThemes` instead.
-- **VS Code theme import is deferred** — JSON ThemeFamily import/export ships; converting a VS Code theme document does not.
-- **The token sheets are the sole color authority** — values absent from cssdesign (for example the design's #4176E6 tab blue) are deliberately not appended; the nearest semantic token wins. Design-owner-approved additions are the exception and enter as a static step plus a semantic alias in the same change (`--dsw-static-blue-900` / `--dsw-alias-label-primary-bluish`).
-- **Desktop wallpaper gallery is SFW and catalog-bounded** — Wallhaven requests hardcode `purity=100` with no NSFW toggle or API key field; Bing year history depends on the third-party `bing.npanuhin.me` archive; custom HTTPS JSON catalogs are capped at five.
+<a id="known-limitations-and-deferred-work"></a>
+
+
+These limits define the theme extension surface and the color authority; they are current package constraints.
+
+- **Third-party themes are an extension point, not a product** — registering one means overriding same-named alias variables; no validation exists that an override set is complete.
+- **The token sheets are the sole color authority** — values absent from the design system are deliberately not appended; the nearest semantic token wins, and design-owner-approved additions enter as a static step plus a semantic alias in the same change.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+None.
+
+</details>

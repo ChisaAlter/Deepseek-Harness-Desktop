@@ -9,15 +9,15 @@ vi.mock('node:zlib', async (importOriginal) => {
   }
 })
 
-import { bindRecord, ZSTD_DATA_THRESHOLD_BYTES } from '../src/compression.ts'
+import { bindRecord } from '../src/compression.ts'
 
 describe('SQLite compression fallback', () => {
-  it('keeps large data as text when its Zstandard frame is not smaller', () => {
+  it('keeps data as text when its Zstandard frame is not smaller', () => {
     const event = {
       type: 'assistant/message',
       seq: 0,
       time: 1,
-      data: { text: 'x'.repeat(ZSTD_DATA_THRESHOLD_BYTES) },
+      data: { text: 'x' },
     } as unknown as SessionEvent
 
     expect(typeof bindRecord(event).data).toBe('string')

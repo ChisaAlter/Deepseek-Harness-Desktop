@@ -2,7 +2,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply, inject } from '../src/client/index.ts'
 import { OfficialBrandMark, OfficialBrandName } from '../src/client/Brand.tsx'
 

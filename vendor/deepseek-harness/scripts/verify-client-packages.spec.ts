@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   collectClientPackageViolations,
   collectRuntimeSourcePackageUses,
+  collectRuntimeSourceSpecifiers,
   collectSourcePackageUses,
   fixClientPackageManifests,
   readClientDeclarations,
@@ -32,6 +33,8 @@ function declaration(
     dynamic: true,
     external: [],
     inject: [],
+    runtimeSourceUses: {},
+    runtimeSourceSpecifiers: {},
     ...fields,
   }
 }
@@ -75,7 +78,7 @@ describe('source package uses', () => {
     const uses = collectSourcePackageUses('feature.tsx', [
       "import type { A } from '@deepseek-ai/dsh-a/subpath'",
       "declare module '@deepseek-ai/dsh-client-ui-slots' {}",
-      "const load = () => import('@deepseek-ai/dsh-b')",
+      "const load = () => import('@deepseek-ai/dsh-b/remote')",
       'export const view = <div />',
       "export type { Local } from './local.ts'",
     ].join('\n'))
@@ -95,12 +98,20 @@ describe('source package uses', () => {
       '@deepseek-ai/dsh-b',
       'react',
     ])
+    expect([...collectRuntimeSourceSpecifiers('feature.tsx', [
+      "import type { A } from '@deepseek-ai/dsh-a/subpath'",
+      "const load = () => import('@deepseek-ai/dsh-b/remote')",
+      'export const view = <div />',
+    ].join('\n'))].sort()).toEqual([
+      '@deepseek-ai/dsh-b/remote',
+      'react',
+    ])
   })
 })
 
 describe('package modes', () => {
   it('accepts one dynamic package and one statically linked package', () => {
-    const dynamic = pkg('runtime')
+    const dynamic = pkg('feature')
     const shell = pkg('ui-slots', { dynamic: false, staticLinked: true })
     expect(collectClientPackageViolations(facts([dynamic, shell]))).toEqual([])
   })
@@ -116,11 +127,11 @@ describe('package modes', () => {
 
   it('requires seeded workspace packages to use staticLinked and preloads to name dynamic rows', () => {
     const slots = declaration('ui-slots', { dynamic: false })
-    const runtime = declaration('runtime', { dynamic: false })
+    const bootstrap = declaration('bootstrap', { dynamic: false })
     const found = collectClientPackageViolations(facts([], {
-      declarations: [slots, runtime],
+      declarations: [slots, bootstrap],
       platformModules: [slots.name],
-      preloadedExternals: [runtime.name + '/client'],
+      preloadedExternals: [bootstrap.name + '/client'],
     }))
     expect(found).toHaveLength(2)
     expect(found.join('\n')).toContain('does not use the staticLinked preset')
@@ -128,14 +139,14 @@ describe('package modes', () => {
   })
 
   it('requires every preloaded external to have a parser preload row', () => {
-    const runtime = declaration('runtime')
+    const bootstrap = declaration('bootstrap')
     expect(collectClientPackageViolations(facts([], {
-      declarations: [runtime],
-      preloadedExternals: [runtime.name + '/client'],
+      declarations: [bootstrap],
+      preloadedExternals: [bootstrap.name + '/client'],
       parserPreloadIds: [],
     }))).toEqual([
       'packages/client/web/src/platform.ts: parser-preloaded external '
-      + '"@deepseek-ai/dsh-client-runtime/client" has no matching PARSER_PRELOAD_IDS row in '
+      + '"@deepseek-ai/dsh-client-bootstrap/client" has no matching PARSER_PRELOAD_IDS row in '
       + 'packages/client/modules/src/index.ts',
     ])
   })
@@ -144,12 +155,12 @@ describe('package modes', () => {
 describe('dependency sections', () => {
   it('accepts dynamic peer plus dev relationships, static dev inputs, and private dependencies', () => {
     const slots = pkg('ui-slots', { dynamic: false, staticLinked: true })
-    const runtime = pkg('runtime', {
+    const conversation = pkg('conversation', {
       inject: ['@deepseek-ai/dsh-client-feature'],
       sourceUses: {
-        '@deepseek-ai/dsh-agent': ['packages/client/runtime/src/index.ts'],
-        '@deepseek-ai/dsh-client-ui-slots': ['packages/client/runtime/src/client/slots.ts'],
-        react: ['packages/client/runtime/src/client/view.tsx'],
+        '@deepseek-ai/dsh-agent': ['packages/client/conversation/src/index.ts'],
+        '@deepseek-ai/dsh-client-ui-slots': ['packages/client/conversation/src/client/slots.ts'],
+        react: ['packages/client/conversation/src/client/view.tsx'],
       },
       dependencies: { immer: '^10.1.1' },
       peerDependencies: {
@@ -165,7 +176,7 @@ describe('dependency sections', () => {
         react: '^18.2.0',
       },
     })
-    expect(collectClientPackageViolations(facts([slots, runtime], {
+    expect(collectClientPackageViolations(facts([slots, conversation], {
       platformModules: ['react', slots.name],
     }))).toEqual([])
   })
@@ -245,10 +256,61 @@ describe('dependency sections', () => {
 })
 
 describe('module requests', () => {
-  it('accepts a dynamic row supplier and its client subpath', () => {
-    const ui = declaration('ui', { external: ['@deepseek-ai/dsh-client-slots/client'] })
+  it('rejects runtime requests from one client feature package to another dynamic row', () => {
+    const ui = declaration('ui', {
+      external: ['@deepseek-ai/dsh-client-slots/client'],
+      runtimeSourceUses: {
+        '@deepseek-ai/dsh-client-slots': ['packages/client/ui/src/client/index.ts'],
+      },
+    })
     const slots = declaration('slots')
-    expect(collectClientPackageViolations(facts([], { declarations: [ui, slots] }))).toEqual([])
+    expect(collectClientPackageViolations(facts([], { declarations: [ui, slots] }))).toEqual([
+      ui.manifest + ': client feature package requests runtime external '
+      + '"@deepseek-ai/dsh-client-slots/client"; import shared types only or call an injected Cordis service',
+    ])
+  })
+
+  it('rejects stale externals and accepts a runtime import outside client feature packages', () => {
+    const gateway = {
+      ...declaration('@deepseek-ai/dsh-api-gateway'), manifest: 'packages/api/gateway/package.json',
+    }
+    const stale = { ...declaration('@deepseek-ai/dsh-api-stale', {
+      external: ['@deepseek-ai/dsh-api-gateway/client'],
+    }), manifest: 'packages/api/stale/package.json' }
+    const live = { ...declaration('@deepseek-ai/dsh-api-live', {
+      external: ['@deepseek-ai/dsh-api-gateway/client'],
+      runtimeSourceUses: {
+        '@deepseek-ai/dsh-api-gateway': ['packages/api/live/src/client/index.ts'],
+      },
+      runtimeSourceSpecifiers: {
+        '@deepseek-ai/dsh-api-gateway/client': ['packages/api/live/src/client/index.ts'],
+      },
+    }), manifest: 'packages/api/live/package.json' }
+    expect(collectClientPackageViolations(facts([], {
+      declarations: [gateway, stale, live],
+    }))).toEqual([
+      stale.manifest + ': dsh.client.external "@deepseek-ai/dsh-api-gateway/client"'
+      + ' has no runtime import or re-export in production source; remove the stale declaration',
+    ])
+  })
+
+  it('requires the exact external subpath to be imported at runtime', () => {
+    const gateway = {
+      ...declaration('@deepseek-ai/dsh-api-gateway'), manifest: 'packages/api/gateway/package.json',
+    }
+    const subject = { ...declaration('@deepseek-ai/dsh-api-session-controller', {
+      external: ['@deepseek-ai/dsh-api-gateway/client'],
+      runtimeSourceUses: {
+        '@deepseek-ai/dsh-api-gateway': ['packages/api/session-controller/src/client/index.ts'],
+      },
+      runtimeSourceSpecifiers: {
+        '@deepseek-ai/dsh-api-gateway/remote': ['packages/api/session-controller/src/client/index.ts'],
+      },
+    }), manifest: 'packages/api/session-controller/package.json' }
+    expect(collectClientPackageViolations(facts([], { declarations: [gateway, subject] }))).toEqual([
+      subject.manifest + ': dsh.client.external "@deepseek-ai/dsh-api-gateway/client"'
+      + ' has no runtime import or re-export in production source; remove the stale declaration',
+    ])
   })
 
   it('rejects an explicit baseline request', () => {
@@ -275,14 +337,18 @@ describe('module requests', () => {
   })
 
   it('rejects synchronous module-request cycles but ignores inject cycles', () => {
-    const a = declaration('a', {
-      external: ['@deepseek-ai/dsh-client-b'],
-      inject: ['@deepseek-ai/dsh-client-b'],
-    })
-    const b = declaration('b', {
-      external: ['@deepseek-ai/dsh-client-a'],
-      inject: ['@deepseek-ai/dsh-client-a'],
-    })
+    const a = { ...declaration('@deepseek-ai/dsh-api-a', {
+      external: ['@deepseek-ai/dsh-api-b'],
+      inject: ['@deepseek-ai/dsh-api-b'],
+      runtimeSourceUses: { '@deepseek-ai/dsh-api-b': ['packages/api/a/src/client.ts'] },
+      runtimeSourceSpecifiers: { '@deepseek-ai/dsh-api-b': ['packages/api/a/src/client.ts'] },
+    }), manifest: 'packages/api/a/package.json' }
+    const b = { ...declaration('@deepseek-ai/dsh-api-b', {
+      external: ['@deepseek-ai/dsh-api-a'],
+      inject: ['@deepseek-ai/dsh-api-a'],
+      runtimeSourceUses: { '@deepseek-ai/dsh-api-a': ['packages/client/b/src/client.ts'] },
+      runtimeSourceSpecifiers: { '@deepseek-ai/dsh-api-a': ['packages/client/b/src/client.ts'] },
+    }), manifest: 'packages/api/b/package.json' }
     const found = collectClientPackageViolations(facts([], { declarations: [a, b] }))
     expect(found).toHaveLength(1)
     expect(found[0]).toContain('synchronous dsh.client.external cycle')

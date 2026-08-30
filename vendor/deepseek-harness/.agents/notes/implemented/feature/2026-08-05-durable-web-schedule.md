@@ -12,7 +12,7 @@ Busy Agents, long waits, wall-clock changes, cold Sessions, forks, persistence f
 
 ## Decision
 
-The [`examples/web-schedule`](../../../../examples/web-schedule/README.md) overlay explicitly loads `@deepseek-ai/dsh-time-context` and `@deepseek-ai/dsh-schedule`; the default Web tree remains unchanged. Schedule observes only root Agents published after the plugin loads and installs its three tools plus one disposable owner in that Agent scope. Cold history reads, already-published roots, child Agents, and other hosts do not activate it.
+The [Schedule guide](../../../../docs/user/guide/schedule.md) uses an overlay that explicitly loads `@deepseek-ai/dsh-time-context` and `@deepseek-ai/dsh-schedule`; the default Web tree remains unchanged. Schedule observes only root Agents published after the plugin loads and installs its three tools plus one disposable owner in that Agent scope. Cold history reads, already-published roots, child Agents, and other hosts do not activate it.
 
 The user-visible boundary is `session-local`: the original Session runs an on-time reminder only while live, does no external notification while cold, and processes an overdue reminder after it becomes live again. Due work waits until the Agent is fully idle, then enters the ordinary next-turn queue through `followup()`; it never steers the current turn and has no independent Web receipt ([conversational delivery](../simplification/2026-08-09-conversational-schedule-delivery.md)).
 

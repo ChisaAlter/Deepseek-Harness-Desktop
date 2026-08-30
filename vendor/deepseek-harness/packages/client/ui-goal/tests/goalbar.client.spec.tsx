@@ -1,7 +1,4 @@
 // @vitest-environment jsdom
-// GoalBar behavior: the docked strip above the composer — phase labels,
-// inline edit form, and resume/clear icon actions — driven purely through
-// props, no wire. Loading, absent, and complete goals render nothing.
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +9,6 @@ import { GoalBar } from '../src/client/GoalBar.tsx'
 import type { GoalActionResult, GoalBarActions } from '../src/client/slots.ts'
 import { zh } from '../src/client/locales.ts'
 
-// The framework-injected t seat, stubbed over the zh dictionaries (the default locale).
 const t: Parameters<typeof GoalBar>[0]['t'] = makeTranslate(zh, commonZh)
 
 afterEach(cleanup)

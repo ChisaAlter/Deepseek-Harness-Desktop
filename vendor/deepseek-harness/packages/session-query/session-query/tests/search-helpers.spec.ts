@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
@@ -31,7 +31,7 @@ function expectCode(code: SessionQueryErrorCode): Error {
 
 describe('session-query semantic extraction', () => {
   it('extracts first-party message, tool, todo, and failure detail', () => {
-    const callId = CallId('call')
+    const callId = ToolCallId('call')
     const messageContent: SessionEvent<'user/message'>['data']['content'] = [
       { type: 'text', text: ' visible ' },
       { type: 'reasoning', text: 'thought' },

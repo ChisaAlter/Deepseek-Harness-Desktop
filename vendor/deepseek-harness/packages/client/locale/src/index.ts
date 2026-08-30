@@ -6,7 +6,7 @@ import { LOCALE_SETTINGS_NAMESPACE, LocaleSettingsSchema } from './locale-settin
 
 export {
   LOCALE_IDS, LOCALE_PREFERENCE_FIELD, LOCALE_SETTINGS_NAMESPACE,
-  type LocaleId, type LocaleSettings,
+  type BuiltInLocaleId, type LocaleId, type LocaleSettings,
 } from './locale-settings.ts'
 
 /**

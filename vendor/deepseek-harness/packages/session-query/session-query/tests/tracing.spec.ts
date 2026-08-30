@@ -54,6 +54,10 @@ class TracePersistence extends SessionPersistence {
     return undefined
   }
 
+  borrowSession(_id: SessionIdType, _signal?: AbortSignal): ReturnType<SessionPersistence['borrowSession']> {
+    return Promise.reject(new Error('not used'))
+  }
+
   create(meta: SessionHeader): Promise<void> {
     TracePersistence.entries.set(meta.id, { meta: structuredClone(meta), events: [] })
     return Promise.resolve()

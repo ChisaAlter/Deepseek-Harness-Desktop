@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createUserMessage, CallId , createMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId , createMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionForkError, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
@@ -268,7 +268,7 @@ describe('SessionStore.fork', () => {
         return lastSeq(session)
       }],
       ['tool/call', (session) => {
-        const callId = CallId('call-open')
+        const callId = ToolCallId('call-open')
         session.append('turn/start', { turn: 1 })
         session.append('step/start', { turn: 1, step: 1 })
         session.append('assistant/message', {

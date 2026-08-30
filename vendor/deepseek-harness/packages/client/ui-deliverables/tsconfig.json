@@ -9,16 +9,31 @@
   ],
   "references": [
     {
+      "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
       "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../connection/tsconfig.client.json"
     },
     {
       "path": "../locale"
     },
     {
-      "path": "../runtime"
+      "path": "../store"
     },
     {
       "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-chat"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-primitives"
     },
     {
       "path": "../ui-slots"
@@ -28,6 +43,9 @@
     },
     {
       "path": "../../core/system-prompt"
+    },
+    {
+      "path": "../../core/session"
     }
   ]
 }

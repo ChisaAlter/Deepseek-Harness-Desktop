@@ -16,7 +16,7 @@ Client 运行时已经按 `callId` 配对工具调用/结果事件，并能从 C
 
 Conversation 数据组装遵循后续的 [Conversation 业务节点决策](2026-08-09-client-conversation-node-assembly.zh.md)。`ui-conversation` 的工具 Definition 从会话事件配对 root call/result，把 Code Dispatch edge fold 成递归 `ToolCallBlock.subCalls`，并生成一个稳定的 `tool-call` Chat Node；这里的数据职责只处理官方工具 identity 和拓扑，不解释具体工具名称的展示。
 
-[`ChatView`](../../../../packages/client/ui-conversation/src/client/chat/ChatView.tsx) 只按 Chat 快照的 `order` 放置通用 [`ChatNodeSeat`](../../../../packages/client/ui-conversation/src/client/chat/ChatNodeSeat.tsx)。Seat 以 `node.kind` 分发 `'conversation.chat.node'`；[`ui-tool`](../../../../packages/client/ui-tool/src/client/apply.ts) 注册 `tool-call` entry，并由 [`ToolCallTree`](../../../../packages/client/ui-tool/src/client/tool/ToolCallTree.tsx) 递归遍历 root block。每一层 root 或 child 都通过同一个 keyed/session `'tool.call.toolview'` 子 slot 以 `entryKey: toolName` 分发，缺少注册时渲染 `GenericToolCard`。
+[`ChatView`](../../../../packages/client/ui-chat/src/client/chat/ChatView.tsx) 只按 Chat 快照的 `order` 放置通用 [`ChatNodeSeat`](../../../../packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx)。Seat 以 `node.kind` 分发 `'conversation.chat.node'`；[`ui-tool`](../../../../packages/client/ui-tool/src/client/apply.ts) 注册 `tool-call` entry，并由 [`ToolCallTree`](../../../../packages/client/ui-tool/src/client/tool/ToolCallTree.tsx) 递归遍历 root block。每一层 root 或 child 都通过同一个 keyed/session `'tool.call.toolview'` 子 slot 以 `entryKey: toolName` 分发，缺少注册时渲染 `GenericToolCard`。
 
 业务工具插件接收一个标准 `ToolCallBlock`、identity、workspace cwd 和宿主动作，不读取会话、上下文或 Conversation assembler。skill（技能）仍是普通工具；它和其他业务工具使用同一 keyed slot 注册路径。
 

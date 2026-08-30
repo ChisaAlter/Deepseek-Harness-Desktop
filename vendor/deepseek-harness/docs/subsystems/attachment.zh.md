@@ -10,7 +10,7 @@
 
 ## 标识与经过校验的元数据
 
-`AttachmentId` 是带类型标记的不透明字符串。本地后端目前生成 `sha256:<digest>`，但消费方既不能解析这种表示，也不能据此派生文件系统路径。
+`AttachmentId` 是带类型标记的不透明字符串。本地后端目前生成 `sha256:<digest>`，但消费方既不能解析这种表示，也不能据此派生文件系统路径。消费方可以通过 `imageHostPath()` 询问附件提供方所持对象的位置，然后必须由当前执行文件系统判断模型工具能否读取该宿主路径。
 
 ```ts type-equiv
 /** Raster image formats accepted by the version-one attachment path. */
@@ -18,7 +18,7 @@ type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'
 ```
 
 ```ts type-equiv
-/** Durable, serializable metadata for one immutable image object. */
+/** Durable, serializable reference to one immutable normalized image. */
 interface ImageAttachmentRef {
   /** Opaque storage identifier; never a filesystem path or bearer URL. */
   attachmentId: AttachmentId
@@ -32,6 +32,14 @@ interface ImageAttachmentRef {
   height: number
   /** Optional display name stripped of local path information. */
   name?: string
+  /**
+   * Input dimensions after applying EXIF orientation and before normalization
+   * scaling. Present only when normalization reduced the image.
+   */
+  originalDimensions?: {
+    width: number
+    height: number
+  }
 }
 ```
 
@@ -47,6 +55,8 @@ interface ImageAttachmentLimits {
   mediaTypes: readonly ImageMediaType[]
 }
 ```
+
+本地后端每条消息最多准入 20 张图片，源图编码数据总量不超过 200 MiB。单张源图不得超过 20 MiB、64,000,000 像素和单边 8192 像素。这些源文件限制先于独立的规范化阶段执行；该阶段默认把长边限制为 2048 像素，把编码数据限制为 4 MiB。
 
 引用记录固有尺寸和编码长度，使客户端无需先解码即可排布历史记录；每次权威读取仍会根据对象重新校验摘要、媒体签名、尺寸和元数据。
 
@@ -83,7 +93,39 @@ interface StoredImageAttachment {
 }
 ```
 
-`saveImage()` 校验字节并以原子方式提交一个对象，之后才返回其引用。`validateImage()` 执行相同的准入检查，但不持久化任何内容；批量调用方会在保存任何成员前通过它校验所有成员，因此校验拒绝不会留下部分对象。`admitEncodedImages()` 是面向 base64 上传的 wire 入口：强制执行规范 base64，随后把批量准入委托给 `saveImages()`，由后者负责张数与聚合字节上限以及先全量校验再保存的顺序。`readImage()` 接受来自已授权会话路径的引用，只在完整性校验通过后返回字节。该服务刻意不规定保留策略：恢复和 fork 后的会话可能共享对象，因此基于引用的垃圾回收会延期实现，而不是与任何一个会话的删除绑定。
+```ts type-equiv
+/** Deterministic request-image policy selected by one exact model route. */
+interface ImageRequestPolicy {
+  /** Maximum width multiplied by height after aspect-preserving projection. */
+  maxPixels: number
+  /** Encoded-byte target before base64 expansion or Files API upload; the smallest quality-ladder output is kept when no quality fits. */
+  maxBytes: number
+}
+```
+
+```ts type-equiv
+/** Cached request version derived from one provider-independent normalized attachment. */
+interface RequestImageAttachment {
+  /** Cache and upload-index key over the attachment id, policy, and fixed encoder parameters. */
+  variantId: ImageVariantId
+  /** Durable normalized attachment from which this request version was derived. */
+  attachment: ImageAttachmentRef
+  /** Encoded request bytes. */
+  data: Uint8Array
+  mediaType: ImageMediaType
+  bytes: number
+  width: number
+  height: number
+  /** Provider-compatible sample depth proven after request encoding. */
+  depth: 'uchar'
+  /** Provider-compatible color space proven after request encoding. */
+  space: 'srgb'
+  /** Whether the encoded request version retains an alpha channel. */
+  hasAlpha: boolean
+}
+```
+
+`saveImage()` 准备并原子提交提供方无关的规范化附件，然后直接返回 `ImageAttachmentRef`。`saveImages()` 在发布批次前为每个成员各准备一次经过验证的附件，因此校验拒绝不会留下部分对象，发布也不会重复解码或选择质量。`admitEncodedImages()` 是面向 base64 上传的 wire 入口，把张数、聚合字节和有序批量准入交给 `saveImages()`。`readImage()` 校验来自已授权会话路径的规范化附件。`imageHostPath()` 只公开提供方所持对象的宿主位置，不判断当前工具执行环境能否读取它。`readImageRequest()` 按确切路由的像素和字节预算派生并缓存确定性请求版本。该版本包含编码字节和元数据，不包含执行环境路径。新条目在发布前完整解码，缓存命中只做有界元数据探测。调用方需要有序批次时，对单数方法使用 `Promise.all`。本地实现按需编码首选候选、合并相同请求身份的并发任务、允许每个等待方单独取消、没有等待方时停止共享任务，并通过实例级限流器限制全部变换，默认同时执行两项。该服务不规定保留策略：恢复和 fork 后的会话可能共享对象，因此基于引用的垃圾回收会延期实现，不与单个会话的删除绑定。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -109,19 +151,19 @@ Immutable binary attachment service. Implementations validate bytes before publi
 abstract validateImage(input: SaveImageAttachment): Promise<void>
 
 /**
- * Validate one ordered image batch before committing any member.
- * Validation failures start no writes; storage failures return no partial
- * references, although already published content-addressed objects may stay
- * unreachable until a future retention policy collects them.
- * @param inputs - encoded images in their owning message order.
- * @returns durable references in the exact input order.
+ * Validate and durably commit one ordered image batch.
+ * @param inputs - encoded images in owning-message order.
+ * @returns durable normalized attachment references in the same order after every member succeeds.
  */
 async saveImages(inputs: readonly SaveImageAttachment[]): Promise<readonly ImageAttachmentRef[]>
 
 /**
  * Validate and durably commit one image before its owning session event is appended.
+ * The returned reference describes the persisted normalized image. When
+ * normalization reduces the raster, its `originalDimensions` records the
+ * orientation-applied input dimensions.
  * @param input - encoded bytes, declared media type, and optional display name.
- * @returns a durable content-addressed reference.
+ * @returns the durable content-addressed normalized image reference.
  */
 abstract saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef>
 
@@ -129,10 +171,27 @@ abstract saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef>
  * Read one image and verify that bytes still match the recorded reference.
  * @param ref - durable reference from the session log.
  * @param signal - optional cancellation for backend read and verification work.
- * @returns the verified bytes and canonical reference.
+ * @returns the verified bytes and normalized attachment reference.
  * @throws the signal reason when aborted, or a storage error when verification fails.
  */
 abstract readImage(ref: ImageAttachmentRef, signal?: AbortSignal): Promise<StoredImageAttachment>
+
+/**
+ * Locate the provider-owned normalized object in the harness host filesystem.
+ * @param ref - durable normalized attachment reference.
+ * @returns an absolute host path, or undefined when this backend is not host-file-backed.
+ * @throws an AttachmentError when the durable reference is invalid.
+ */
+imageHostPath(ref: ImageAttachmentRef): string | undefined
+
+/**
+ * Generate or read one deterministic model-request version from the stored normalized image.
+ * @param ref - durable provider-independent normalized attachment reference.
+ * @param policy - exact route pixel budget and encoded-byte target; a target no ladder quality meets yields the smallest ladder output.
+ * @param signal - optional cancellation.
+ * @returns request bytes and the cache/upload identity covering every transform input.
+ */
+readImageRequest( ref: ImageAttachmentRef, policy: ImageRequestPolicy, signal?: AbortSignal, ): Promise<RequestImageAttachment>
 ```
 
 Source: [`packages/attachment/attachment/src/index.ts`](../../packages/attachment/attachment/src/index.ts)

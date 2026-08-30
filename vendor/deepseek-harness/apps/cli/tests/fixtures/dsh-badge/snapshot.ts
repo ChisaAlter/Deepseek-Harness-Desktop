@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import { agentEvents, Inbox, type Agent } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { boot, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-skill'
@@ -45,7 +45,7 @@ try {
     : undefined
   const summary = (await ctx.skills.list()).find(skill => skill.name === 'dsh-badge')
   const result = await ctx.tools.execute({
-    callId: CallId('dsh-badge-snapshot'),
+    callId: ToolCallId('dsh-badge-snapshot'),
     name: 'skill',
     arguments: { name: 'dsh-badge' },
     signal: new AbortController().signal,

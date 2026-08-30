@@ -15,6 +15,9 @@
       "path": "../../api/remotes/tsconfig.client.json"
     },
     {
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
       "path": "../../context/file-reference"
     },
     {
@@ -27,13 +30,19 @@
       "path": "../../typert/protocol"
     },
     {
+      "path": "../../util/workspace-path"
+    },
+    {
+      "path": "../connection/tsconfig.client.json"
+    },
+    {
       "path": "../locale"
     },
     {
-      "path": "../runtime"
+      "path": "../ui-input-trigger"
     },
     {
-      "path": "../ui-input-trigger"
+      "path": "../ui-primitives"
     },
     {
       "path": "../ui-slots"

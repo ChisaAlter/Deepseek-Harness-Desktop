@@ -2,12 +2,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {
   ContextMessageNode, ConversationNodeDefinition, ConversationPreviousContext,
   SteeringMessageNode, UserMessageNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
-import {
-  contextForm, contextProvenance,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-agent/types'
 import { trajectoryNode } from './trajectory-definition-common.ts'
+import { contextForm, contextProvenance } from './trajectory-event-projection.ts'
 
 /* jscpd:ignore-start -- Target-owned Definitions intentionally keep their event
  * state machines independent; see ../../../../../.agents/notes/implemented/
@@ -117,6 +115,6 @@ const trajectoryMessageDefinition: ConversationNodeDefinition<MessageNode> = {
  * @param ctx - Plugin context receiving the Definitions.
  */
 export function registerTrajectoryMessageDefinitions(ctx: Context): void {
-  ctx.conversationEvents.register(trajectoryInboxDefinition)
-  ctx.conversationEvents.register(trajectoryMessageDefinition)
+  ctx.uiConversation.events.register(trajectoryInboxDefinition)
+  ctx.uiConversation.events.register(trajectoryMessageDefinition)
 }

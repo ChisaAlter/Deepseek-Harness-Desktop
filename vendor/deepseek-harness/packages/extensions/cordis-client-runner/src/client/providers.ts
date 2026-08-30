@@ -2,7 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { JsonValue } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import { queryEventApi, queryServiceApi } from './api-catalog.ts'
 import type { ClientCordisInspectProviderRegistration } from './inspect-registry.ts'

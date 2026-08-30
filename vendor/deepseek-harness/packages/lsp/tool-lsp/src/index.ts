@@ -16,7 +16,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { assertNever } from '@deepseek-ai/dsh-llm'
 import { LspError } from '@deepseek-ai/dsh-lsp'
 import type {} from '@deepseek-ai/dsh-lsp'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
   DEFAULT_MAX_LOCATIONS,
@@ -101,7 +101,11 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('maxResultChars', resolved.maxResultChars)
   assertTimer('timeoutMs', resolved.timeoutMs)
 
-  ctx.systemPrompt.section({ name: 'tool:lsp', order: 112, text: LSP_PROMPT_TEXT })
+  ctx.systemPrompt.section({
+    name: 'tool:lsp',
+    order: FIRST_PARTY_SECTION_ORDER.TOOL_LSP,
+    text: LSP_PROMPT_TEXT,
+  })
 
   ctx.tools.register(defineTool({
     name: 'lsp',

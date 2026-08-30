@@ -92,7 +92,7 @@ interface SessionHeader {
 
 ## Format refusal — logs a build cannot faithfully read
 
-A backend refuses a log it cannot faithfully interpret with `SessionFormatUnsupportedError`, distinct from `SessionPersistenceCorruptionError` because nothing is damaged. A header `version` ahead of `SESSION_FORMAT_VERSION` names the direction ("written by a newer harness — upgrade the harness to open it"); one behind it states that this build ships no upgrade path. After legacy-shape normalization, an event type outside this build's generated vocabulary (`KNOWN_SESSION_EVENT_TYPES`, emitted by `gen-persistence-catalog`) refuses the same way unless the event's envelope carries `ignorable: true` — silently skipping an unrecognized required event could change how the rest of the log must be read. The message appends the raw log path when the backend keeps one artifact per session, so the refused text stays reachable. The JSONL backend refuses a foreign version straight from the raw header line, before validating today's header shape or decoding any event row — a structurally different future format still reports the upgrade direction, never "corrupt"; SQLite gates whole-file structure through its own `SCHEMA_VERSION` pragma first. Design rationale and the deferred upgrader chain live in the [session-log-version-mechanism note](../../.agents/notes/implemented/architecture/2026-08-10-session-log-version-mechanism.md).
+A backend refuses a log it cannot faithfully interpret with `SessionFormatUnsupportedError`, distinct from `SessionPersistenceCorruptionError` because nothing is damaged. A header `version` ahead of `SESSION_FORMAT_VERSION` names the direction ("written by a newer harness — upgrade the harness to open it"); one behind it states that this build ships no upgrade path. After legacy-shape normalization, an event type outside this build's generated set (`KNOWN_SESSION_EVENT_TYPES`, emitted by `gen-persistence-catalog`) also refuses reconstruction because silently skipping it could change how the rest of the log must be read. The message appends the raw log path when the backend keeps one artifact per session, so the refused text stays reachable. The JSONL backend refuses a foreign version straight from the raw header line, before validating this format version's header fields or decoding any event row — a structurally different future format still reports the upgrade direction, never "corrupt"; SQLite gates whole-file structure through its own `SCHEMA_VERSION` pragma first. Design rationale and the deferred upgrader chain live in the [fail-closed event-vocabulary note](../../.agents/notes/implemented/simplification/2026-08-25-fail-closed-session-event-vocabulary.md).
 
 ## `CreateSessionOptions` — seeding and metadata
 
@@ -234,7 +234,7 @@ interface SessionPersistenceSnapshot {
 All implement the same abstract `SessionPersistence` (locate/create/append/delete/prepare/load/inspect/readFrom/list/listSnapshots over `SessionEvent`, with optional cancellation on observation methods) and pass the shared `runPersistenceContract` suite:
 
 - **[dsh-session-persistence-jsonl](../../packages/session/session-persistence-jsonl)** — an append-only logical JSONL log per session, stored as checksummed concatenated Zstandard frames by default or raw lines by configuration, with crash-safe atomic writes, interrupted-turn recovery, and a read/replay path.
-- **[dsh-session-persistence-sqlite](../../packages/session/session-persistence-sqlite)** — an opt-in `node:sqlite` backend using schema 17 to store exact same-block delta runs in bounded physical `text-chunks`, `reasoning-chunks`, and `tool-call-chunks` rows. It reconstructs the complete logical event stream before returning it, packs only newly durable batches, and rejects older schemas rather than migrating them.
+- **[dsh-session-persistence-sqlite](../../packages/session/session-persistence-sqlite)** — an opt-in `node:sqlite` backend using schema 19 to store exact same-block delta runs in bounded physical `text-chunks`, `reasoning-chunks`, and `tool-call-chunks` rows. It reconstructs the complete logical event stream before returning it, packs only newly durable batches, and rejects older schemas rather than migrating them.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -285,6 +285,14 @@ readRaw(_id: SessionId, signal?: AbortSignal): Promise<SessionRawArtifact | unde
  * @param meta - the immutable header (id, version, cwd, lineage) to record.
  */
 abstract create(meta: SessionHeader): Promise<void>
+
+/**
+ * Ensure a live session has a durable header even when it has no events.
+ * Ordinary sessions remain lazily materialized; lifecycle frontends call
+ * this only when an empty session itself is a durable resumable resource.
+ * @param _session - exact live session whose registered header is materialized.
+ */
+ensureMaterialized(_session: Session): Promise<void>
 
 /**
  * Durably persist a batch of events. Honors the append-only and contiguous-
@@ -350,6 +358,17 @@ abstract load(id: SessionId): Promise<SessionInspection>
 abstract inspect(id: SessionId, signal?: AbortSignal): Promise<SessionInspection>
 
 /**
+ * Borrow one exact inspection while retaining any reusable prepared source.
+ * A cold observation must pin the exact prepared Session that a later
+ * {@link prepare} reserves. Implementations must not degrade this operation
+ * to a detached {@link inspect} result.
+ * @param id - persisted session to observe.
+ * @param signal - optional cancellation for preparation work.
+ * @returns a disposable immutable observation.
+ */
+abstract borrowSession(id: SessionId, signal?: AbortSignal): Promise<BorrowedSessionSource>
+
+/**
  * Read the stored events from `fromSeq` onward — the read-from-seq
  * primitive for read models that resume from a watermark (e.g. a persisted
  * projection cache folding only the tail past its checkpoint). Unlike
@@ -389,7 +408,7 @@ abstract list(signal?: AbortSignal): Promise<SessionHeader[]>
 abstract listSnapshots(signal?: AbortSignal): Promise<SessionPersistenceSnapshot[]>
 ```
 
-Types: [SessionEvent](session.md) · [SessionId](core.md)
+Types: [Session](session.md) · [SessionEvent](session.md) · [SessionId](core.md)
 
 Source: [`packages/session/session-persistence/src/index.ts`](../../packages/session/session-persistence/src/index.ts)
 

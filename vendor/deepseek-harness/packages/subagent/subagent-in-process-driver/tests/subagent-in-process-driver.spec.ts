@@ -1,4 +1,4 @@
-import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { type Agent, type AgentOptions } from '@deepseek-ai/dsh-agent'
@@ -177,8 +177,8 @@ describe('startInProcessRun', () => {
       toolCallResponse('t1', 'noop', {}, 'partial one'),
       [
         { type: 'block-start', index: 0, blockType: 'tool-call' },
-        { type: 'tool-call-delta', index: 0, id: CallId('t2'), name: 'noop', argumentsDelta: '{}' },
-        { type: 'block-end', index: 0, block: { type: 'tool-call', id: CallId('t2'), name: 'noop', arguments: '{}' } },
+        { type: 'tool-call-delta', index: 0, id: ToolCallId('t2'), name: 'noop', argumentsDelta: '{}' },
+        { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('t2'), name: 'noop', arguments: '{}' } },
         { type: 'usage', usage: { inputTokens: 20, outputTokens: 5 } },
         { type: 'finish', reason: { kind: 'max-tokens' } },
       ],

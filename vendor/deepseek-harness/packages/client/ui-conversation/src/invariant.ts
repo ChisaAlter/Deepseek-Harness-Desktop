@@ -15,10 +15,8 @@ export const name = 'client-ui-conversation-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: the conversation service emits no cordis events, and
- * both rings this package owns (the 'conversation.view' tab ring and the
- * 'conversation.chat.node' business renderer seat) ride the slot system, whose ledger
- * invariants live with the runtime slots package.
+ * No runtime invariant: Conversation Definitions, target builders, and Views
+ * are already validated by their owning registries and the Slot ledger.
  */
 const install: InvariantInstaller = () => {}
 

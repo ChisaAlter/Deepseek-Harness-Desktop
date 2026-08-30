@@ -192,7 +192,7 @@ describe('/feedback human command', () => {
     const test = await harness('feedback-only')
     await expect(run(test, ' gated sharing')).resolves.toEqual({
       kind: 'success',
-      text: `Feedback recorded for session ${test.session.id}\nAnonymous user: ${USER_ID}. Session sharing is feedback-gated; recording feedback releases the session prefix for sharing.`,
+      text: `Feedback recorded for session ${test.session.id}\nAnonymous user: ${USER_ID}. Session sharing is feedback-gated; recording feedback uploads the session records not yet shared.`,
     })
     expect(feedbackTexts(test.session)).toEqual(['gated sharing'])
   })

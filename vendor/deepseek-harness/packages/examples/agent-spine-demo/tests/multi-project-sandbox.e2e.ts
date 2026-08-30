@@ -8,7 +8,7 @@ import { SandboxBashExecutor } from '@deepseek-ai/dsh-bash-sandbox'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import * as FsPolicy from '@deepseek-ai/dsh-fs-observation-policy'
 import SandboxedFileSystem from '@deepseek-ai/dsh-fs-sandbox'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { LocalSandboxProvider } from '@deepseek-ai/dsh-sandbox-local'
 import { bwrapProfileArgs, seatbeltProfileArgs } from '@deepseek-ai/dsh-sandbox-local/src/profiles.ts'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
@@ -85,22 +85,22 @@ describe('one-context multi-project sandbox', () => {
     const { active, agentA, agentB } = await agents()
     const [aOwn, bOwn, aCross, bCross] = await Promise.all([
       active.tools.execute({
-        callId: CallId('bash-a-own'), name: 'bash', agent: agentA,
+        callId: ToolCallId('bash-a-own'), name: 'bash', agent: agentA,
         signal: new AbortController().signal,
         arguments: { command: 'printf a > a-owned.txt', description: 'Write project A marker' },
       }),
       active.tools.execute({
-        callId: CallId('bash-b-own'), name: 'bash', agent: agentB,
+        callId: ToolCallId('bash-b-own'), name: 'bash', agent: agentB,
         signal: new AbortController().signal,
         arguments: { command: 'printf b > b-owned.txt', description: 'Write project B marker' },
       }),
       active.tools.execute({
-        callId: CallId('bash-a-cross'), name: 'bash', agent: agentA,
+        callId: ToolCallId('bash-a-cross'), name: 'bash', agent: agentA,
         signal: new AbortController().signal,
         arguments: { command: `printf cross > ../${basename(projectB)}/from-a.txt`, description: 'Attempt project B write' },
       }),
       active.tools.execute({
-        callId: CallId('bash-b-cross'), name: 'bash', agent: agentB,
+        callId: ToolCallId('bash-b-cross'), name: 'bash', agent: agentB,
         signal: new AbortController().signal,
         arguments: { command: `printf cross > ../${basename(projectA)}/from-b.txt`, description: 'Attempt project A write' },
       }),
@@ -122,22 +122,22 @@ describe('one-context multi-project sandbox', () => {
     const { active, agentA, agentB } = await agents()
     const [aOwn, bOwn, aCross, bCross] = await Promise.all([
       active.tools.execute({
-        callId: CallId('fs-a-own'), name: 'write', agent: agentA,
+        callId: ToolCallId('fs-a-own'), name: 'write', agent: agentA,
         signal: new AbortController().signal,
         arguments: { file_path: 'a-owned.txt', content: 'a' },
       }),
       active.tools.execute({
-        callId: CallId('fs-b-own'), name: 'write', agent: agentB,
+        callId: ToolCallId('fs-b-own'), name: 'write', agent: agentB,
         signal: new AbortController().signal,
         arguments: { file_path: 'b-owned.txt', content: 'b' },
       }),
       active.tools.execute({
-        callId: CallId('fs-a-cross'), name: 'write', agent: agentA,
+        callId: ToolCallId('fs-a-cross'), name: 'write', agent: agentA,
         signal: new AbortController().signal,
         arguments: { file_path: join(projectB, 'from-a.txt'), content: 'cross' },
       }),
       active.tools.execute({
-        callId: CallId('fs-b-cross'), name: 'write', agent: agentB,
+        callId: ToolCallId('fs-b-cross'), name: 'write', agent: agentB,
         signal: new AbortController().signal,
         arguments: { file_path: join(projectA, 'from-b.txt'), content: 'cross' },
       }),
@@ -171,22 +171,22 @@ describe('one-context multi-project sandbox', () => {
 
     const [bashOwn, bashLexical, fsOwn, fsLexical] = await Promise.all([
       active.tools.execute({
-        callId: CallId('bash-symlink-own'), name: 'bash', agent: handle.agent,
+        callId: ToolCallId('bash-symlink-own'), name: 'bash', agent: handle.agent,
         signal: new AbortController().signal,
         arguments: { command: 'printf bash > bash-owned.txt', description: 'Write physical workspace marker' },
       }),
       active.tools.execute({
-        callId: CallId('bash-symlink-lexical'), name: 'bash', agent: handle.agent,
+        callId: ToolCallId('bash-symlink-lexical'), name: 'bash', agent: handle.agent,
         signal: new AbortController().signal,
         arguments: { command: `printf escaped > ${join(lexicalRoot, 'bash-escaped.txt')}`, description: 'Attempt lexical workspace write' },
       }),
       active.tools.execute({
-        callId: CallId('fs-symlink-own'), name: 'write', agent: handle.agent,
+        callId: ToolCallId('fs-symlink-own'), name: 'write', agent: handle.agent,
         signal: new AbortController().signal,
         arguments: { file_path: 'fs-owned.txt', content: 'fs' },
       }),
       active.tools.execute({
-        callId: CallId('fs-symlink-lexical'), name: 'write', agent: handle.agent,
+        callId: ToolCallId('fs-symlink-lexical'), name: 'write', agent: handle.agent,
         signal: new AbortController().signal,
         arguments: { file_path: join(lexicalRoot, 'fs-escaped.txt'), content: 'escaped' },
       }),
@@ -222,12 +222,12 @@ describe('one-context multi-project sandbox', () => {
 
     const [bashRead, fsRead] = await Promise.all([
       active.tools.execute({
-        callId: CallId('bash-symlink-parent-read'), name: 'bash', agent: handle.agent,
+        callId: ToolCallId('bash-symlink-parent-read'), name: 'bash', agent: handle.agent,
         signal: new AbortController().signal,
         arguments: { command: 'cat ../shared.txt', description: 'Read through the physical parent' },
       }),
       active.tools.execute({
-        callId: CallId('fs-symlink-parent-read'), name: 'read', agent: handle.agent,
+        callId: ToolCallId('fs-symlink-parent-read'), name: 'read', agent: handle.agent,
         signal: new AbortController().signal,
         arguments: { file_path: '../shared.txt' },
       }),

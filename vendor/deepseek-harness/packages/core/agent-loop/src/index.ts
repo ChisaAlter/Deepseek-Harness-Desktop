@@ -19,7 +19,7 @@ import type {
   ResumeAgentOptions,
   SessionStartSource,
 } from '@deepseek-ai/dsh-agent'
-import { errorChain } from '@deepseek-ai/dsh-llm'
+import { errorChain, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { SessionId, SessionPreparation } from '@deepseek-ai/dsh-session'
 import type { Session, SessionHeader } from '@deepseek-ai/dsh-session'
@@ -304,6 +304,7 @@ export class AgentLoop extends Service implements AgentFactory {
       sessionId: z.string().min(1),
       provider: z.string(),
       model: z.string(),
+      reasoningEffort: z.string().min(1) as z<ReturnType<typeof ReasoningEffortId>>,
       maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
       cwd: z.string(),
       resumeSessionId: z.string(),

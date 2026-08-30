@@ -30,11 +30,12 @@ import type {
   AgentSetupCommit,
   CreateAgentOptions,
 } from '@deepseek-ai/dsh-agent'
-import { boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId, boundContextSummary, createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionObservation, SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
@@ -417,14 +418,17 @@ export class SubagentContinuationManager {
     const childDepth = resolveChildDepth(parent, request.maxDepth)
     // Snapshot before any await: invalid descriptor JSON rejects the call
     // before a child exists, and the detached value is what reaches the log.
-    const agentProvider = request.agentOptions?.provider ?? parent.options.provider
-    const agentModel = request.agentOptions?.model ?? parent.options.model
+    const agentOptions = resolveChildAgentOptions(parent, request.agentOptions, childDepth)
+    const agentProvider = agentOptions.provider
+    const agentModel = agentOptions.model
+    const agentReasoningEffort = agentOptions.reasoningEffort
     const descriptor = snapshotSubagentDescriptor({
       mode: 'continuable',
       provider: spec.provider,
       label: spec.label,
       ...agentProvider !== undefined ? { agentProvider } : {},
       ...agentModel !== undefined ? { agentModel } : {},
+      ...agentReasoningEffort !== undefined ? { agentReasoningEffort } : {},
       ...request.persona !== undefined ? { persona: request.persona } : {},
       ...request.toolFilter !== undefined ? { toolFilter: request.toolFilter } : {},
     })
@@ -460,7 +464,7 @@ export class SubagentContinuationManager {
         provider: spec.provider,
         parent,
         create: { seed, meta: childSessionMeta(parent, childDepth, lineageSeedLength), delegatedPolicies },
-        agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
+        agentOptions,
         composition: { persona: request.persona, toolFilter: request.toolFilter },
         signal: spec.signal,
       })
@@ -936,7 +940,7 @@ export class SubagentContinuationManager {
   }
 
   /**
-   * Cold-resume a persisted child: inspect and authorize its Session, fold the
+   * Cold-resume a persisted child: retain and authorize its prepared Session, fold the
    * generic descriptor, create the Activation through `ctx.agents.resume()`,
    * and submit the waiting turn. This never dispatches through a subagent
    * provider — the persisted Session already holds the initial prefix and the
@@ -948,23 +952,27 @@ export class SubagentContinuationManager {
     content: ContentBlock[],
     options: SubagentFollowupOptions,
   ): Promise<MessageId> {
-    const persistence = this.requirePersistence()
-    let loaded: Awaited<ReturnType<typeof persistence.inspect>>
+    const query = this.requireSessionQuery()
+    let observation: SessionObservation
     try {
-      loaded = await persistence.inspect(childId, options.signal)
+      observation = await query.observeSession(childId, {
+        signal: options.signal,
+      })
     } catch (error: unknown) {
       options.signal.throwIfAborted()
       throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
     }
-    options.signal.throwIfAborted()
+    using source = observation
     this.assertAdmitting(parent)
     // Authorize the persisted header before folding: only the durable child's
     // exact live direct parent may continue it.
-    this.authorizeLineage(parent, childId, loaded.meta.parentSession)
+    this.authorizeLineage(parent, childId, source.header.parentSession)
     // Fold only the child's own suffix: a fork seed replays the parent's log,
     // which may carry an ANCESTOR's descriptor when the parent is itself a
     // continuable child.
-    const descriptor = foldSubagentDescriptor(loaded.events.slice(loaded.meta.seedLength ?? 0))
+    const descriptor = foldSubagentDescriptor(
+      source.events.slice(source.header.seedLength ?? 0),
+    )
     if (descriptor === undefined || descriptor.mode !== 'continuable') {
       throw new SubagentError(
         `subagent "${childId}" has no supported continuation state and cannot be resumed; `
@@ -981,6 +989,9 @@ export class SubagentContinuationManager {
         agentOptions: {
           ...descriptor.agentProvider !== undefined ? { provider: descriptor.agentProvider } : {},
           ...descriptor.agentModel !== undefined ? { model: descriptor.agentModel } : {},
+          ...descriptor.agentReasoningEffort !== undefined
+            ? { reasoningEffort: ReasoningEffortId(descriptor.agentReasoningEffort) }
+            : {},
         },
         composition: { persona: descriptor.persona, toolFilter: descriptor.toolFilter },
         signal: options.signal,
@@ -990,7 +1001,7 @@ export class SubagentContinuationManager {
       if (error instanceof SubagentError) throw error
       throw new SubagentError(`subagent "${childId}" is unavailable`, 'NOT_RESUMABLE', { cause: error })
     }
-    return this.submitMaterialized(activation, content, options.source, parent, options.signal)
+    return await this.submitMaterialized(activation, content, options.source, parent, options.signal)
   }
 
   /**
@@ -1539,6 +1550,19 @@ export class SubagentContinuationManager {
     }
     return persistence
   }
+
+  /** Resolve the Session query service used for cold child observations. */
+  private requireSessionQuery(): SessionQueryEngine {
+    const query = this.ctx.get('sessionQuery')
+    if (query === undefined) {
+      throw new SubagentError(
+        'continuable subagents require session query (load @deepseek-ai/dsh-session-query)',
+        'CONTINUATION_UNAVAILABLE',
+      )
+    }
+    return query
+  }
+
 }
 
 export type { SubagentDescriptorData }

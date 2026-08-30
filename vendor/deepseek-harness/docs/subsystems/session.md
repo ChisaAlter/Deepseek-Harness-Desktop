@@ -71,7 +71,7 @@ interface SessionEventMap {
    * JSON string exactly as the model produced it (unparsed). `callId` pairs the
    * call with its `tool/result`.
    */
-  'tool/call': { turn: number; step: number; callId: CallId; name: string; arguments: string }
+  'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string }
   /**
    * A completed tool call's model-facing result, optional internal failure
    * identity, and optional tool-private `meta` presentation payload. `meta` is
@@ -90,13 +90,16 @@ interface SessionEventMap {
     error?: { name: string; code: string }
     meta?: JsonValue
   }
-  /** Whole-list snapshot; latest write wins on replay. Log-only UI state; never derived history. */
-  'todo/write': { todos: TodoItem[] }
   /**
    * Full header for the next request, appended inside its step before dispatch.
    * It is log-only; the latest snapshot reconstructs the request header.
    */
-  'request/header': { header: EpochHeader; reason: RequestHeaderReason }
+  'request/header': {
+    header: EpochHeader
+    reason: RequestHeaderReason
+    /** A changed header also begins a distinct model-message series. */
+    startsSeries?: true
+  }
   /**
    * Route metadata for the next request, logged only when the route or capacity
    * changes. It does not participate in request reconstruction or header equality.
@@ -130,34 +133,11 @@ interface SessionEventMap {
 
 `UserMessage` is the identified, frozen user-role value shared by ordinary prompts, injected context, steering, and live inbox events. Event wrappers add only event-local position or outcome facts; the loop adds only driver-owned routing state while an item remains pending.
 
-### `TodoItem` — one todo-list entry
-
-The unit of the `todo/write` event's whole-list snapshot. Deliberately minimal — a `content` line and a three-state `status` (no id, priority, or `activeForm`): the list is replaced wholesale on every write, so entries need no stable identity. See the [todo_write Agent Note](../../.agents/notes/implemented/feature/2026-06-29-todo-write-tool.md).
-
-```ts type-equiv
-/**
- * One entry in an agent's todo list — the unit of the `todo/write`
- * {@link SessionEventMap} event's whole-list snapshot.
- *
- * Deliberately minimal: a human-readable `content` line and a three-state
- * `status`. No id, priority, or `activeForm` — the list is replaced wholesale
- * on every write (last-write-wins), so entries need no stable identity. The
- * three statuses describe the complete portable lifecycle needed by model and
- * UI consumers.
- */
-interface TodoItem {
-  /** What this task is — a short imperative line shown in the UI. */
-  content: string
-  /** Lifecycle state. `in_progress` marks a task being worked now; parallel work may mark several. */
-  status: 'pending' | 'in_progress' | 'completed'
-}
-```
-
 <a id="the-request-header-event-requestheader"></a>
 
 ### The request header event: `request/header`
 
-The request envelope — the `EpochHeader` (call config + markers for adapter-supplied defaults + rendered system prompt + assembled tool schemas) — is logged session state, so every conversation request is a pure function of the log (the reconstructability Agent Note). A full `request/header` snapshot with reason `'initial'` or `'resume'` records each loop-instance boundary; a later changed request records another full snapshot with reason `'change'`. `foldRequestHeader(events)` reconstructs the header by selecting the latest snapshot. The event is not a `SurfaceEventType`: it produces no LLM message.
+The request envelope — the `EpochHeader` (call config + markers for adapter-supplied defaults + rendered system prompt + assembled tool schemas) — is logged session state, so every conversation request is a pure function of the log (the reconstructability Agent Note). A full `request/header` snapshot with reason `'initial'` or `'resume'` records each loop-instance boundary; a changed request appends a snapshot with reason `'change'`; and an unchanged envelope beginning an explicitly declared message series or following a surface replacement appends a snapshot with reason `'series'`. A changed snapshot carries `startsSeries: true` when that request also begins a series. Ordinary append-only later Turns, further Steps, and retries in the same model-message series inherit the latest snapshot. `foldRequestHeader(events)` reconstructs the header by selecting the latest snapshot. The event is not a `SurfaceEventType`: it produces no LLM message.
 
 ```ts type-equiv
 /**
@@ -221,17 +201,6 @@ type SessionEvent<T extends SessionEventType = SessionEventType> = {
     /** Unix epoch milliseconds. */
     time: number
     data: SessionEventMap[K]
-    /**
-     * Marks an event a reader may safely skip when it does not recognize
-     * `type`. Absent means required: a reader meeting an unrecognized type
-     * without this marker MUST refuse to reconstruct the session instead of
-     * silently dropping the event, because an unrecognized required event may
-     * change how the rest of the log is interpreted. A writer sets `true` only
-     * on purely informational records whose loss cannot affect reconstruction;
-     * defaulting to required means a forgotten marker over-refuses (an
-     * inconvenience) rather than silently resuming a gutted session.
-     */
-    ignorable?: true
   } & (K extends SurfaceEventType ? {
     /**
      * Seq numbers of earlier events that this event cites as sources
@@ -596,9 +565,9 @@ Consumers that order Sessions by human activity exclude this boundary: picking a
 
 ## Plugin-contributed log-only events
 
-A plugin may declaration-merge extra `SessionEventMap` types. These are **log-only**: NOT `SurfaceEventType`s (they carry no `surfaceOp` and contribute nothing to derived history). Their owner decides whether they belong to an open execution turn or may stand between turns, and enforces any relation in its own invariant companion. The generated [persistence log event catalog](../persistence-catalog.md) enumerates every core and plugin-contributed event with its payload, surface badge, and declaration site; the compaction seam's `compaction/*` semantics are discussed on [compaction.md](compaction.md).
+A plugin may declaration-merge extra `SessionEventMap` types. These are **log-only**: NOT `SurfaceEventType`s (they carry no `surfaceOp` and contribute nothing to derived history). Their owner decides whether they belong to an open execution turn or may stand between turns, and enforces any relation in its own invariant companion. The generated [persistence log event catalog](../persistence-catalog.md) enumerates every core and plugin-contributed event; the compaction seam's `compaction/*` semantics are discussed on [compaction.md](compaction.md).
 
-When several events in one plugin-owned family assemble into one Web Client Conversation Node, every start, update, result, resource, or interruption event in that family carries or independently derives the same stable business id. This requirement applies to correlated Node families, not to every Session event; it lets the client group each event without guessing from adjacency or scanning history. See the [Conversation Node cookbook](../cookbook/adding-a-conversation-node.md).
+When several events in one plugin-owned family assemble into one Web Client Conversation Node, every start, update, result, resource, or interruption event in that family carries or independently derives the same stable business id. This requirement applies to correlated Node families, not to every Session event; it lets the client group each event without guessing from adjacency or scanning history. See the [Conversation subsystem](conversation.md).
 
 The hook bridges' `hook/invoked` / `hook/result` pairs (from `@deepseek-ai/dsh-hook-protocol`) correlate by `handlerId`. `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop` fire inside the loop's open turn, so their `hook/*` records are turn-enclosed by construction. `SessionStart` gets no `hook/*` record because it runs before turn 1; its context remains pending in the inbox until a waking delivery opens a turn (see [the hook-bridges Agent Note](../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md)).
 
@@ -608,6 +577,12 @@ What a persistence backend relies on: the durable log persists every event lossl
 
 The backends that consume this contract are on [persistence.md](persistence.md).
 
+## Remote catalog and workspace opening
+
+`ModelCatalog` is the Host-generation model directory returned by `session/modelCatalog`: it carries the deployment default, routable provider ids, successful provider groups, and isolated provider failures. It is not derived from one Session and remains separate from Session projections.
+
+`SessionOpenWorkspacePathRequest` carries an absolute or workspace-resolved `path`. `SessionOpenWorkspacePathValue` confirms that the Host accepted the native handoff. A Session-aware Client resolves relative paths against its current Session cwd when known; the controller hands the path to the opener unchanged and reports invalid requests, cancellation, and opener failures through the Session Remote error vocabulary.
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -615,6 +590,150 @@ The backends that consume this contract are on [persistence.md](persistence.md).
 ## Cordis API
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+
+<a id="ctxsessioncontroller--sessioncontroller"></a>
+
+### `ctx.sessionController` — `SessionController`
+
+Host service backing the generated `ctx.remote.session` namespace.
+
+```ts cordis-catalog
+/**
+ * Resolve or resume one ordinary Session for another Host API domain.
+ * @param sessionId - Session identity whose Agent owns the operation.
+ * @returns the live Agent or the stable Session-domain failure.
+ */
+resolveAgent(sessionId: SessionId): Promise<ApiSessionAgentResult>
+
+/**
+ * Inspect one attached or persisted Session without activating its Agent.
+ * @param sessionId - durable Session identity.
+ * @param signal - optional caller cancellation for persistence reads.
+ * @returns the current attached state or persisted header and event prefix.
+ */
+inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<{ meta: SessionHeader; events: SessionEvent[] }>
+
+/**
+ * Read all visible Session rows without resuming an Agent.
+ * @param _request - reserved empty list request.
+ * @param signal - cancellation for persistence reads.
+ * @returns visible Session summaries ordered by activity.
+ */
+@Remote('list') async list(_request: SessionListRequest, signal: AbortSignal): Promise<SessionListValue>
+
+/**
+ * Search visible Session content without resuming an Agent.
+ * @param request - literal message-content query.
+ * @param signal - cancellation for list and search reads.
+ * @returns authorized bounded Session search results.
+ */
+@Remote('search') search(request: SessionSearchRequest, signal: AbortSignal): Promise<SessionSearchValue>
+
+/**
+ * Create or idempotently adopt one ordinary Session.
+ * @param request - requested identity, location, and Agent preset.
+ * @returns the Session identity and resolved preset when configured.
+ */
+@Remote('create') create(request: SessionCreateRequest): Promise<SessionCreateValue>
+
+/**
+ * Select one Session-local model after explicitly resuming the Session.
+ * @param request - Session identity and requested model selection.
+ * @returns the normalized selection installed for the Session.
+ */
+@Remote('selectModel') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>
+
+/**
+ * Describe every currently routable model for Host-generation selectors.
+ * @returns provider-grouped models, the deployment default, and isolated provider failures.
+ */
+@Remote('modelCatalog') modelCatalog(): Promise<ModelCatalog>
+
+/**
+ * Report whether this deployment can hand a Session workspace path to a native desktop.
+ * @returns true when the matching open operation is available.
+ */
+@Remote canOpenWorkspacePath(): boolean
+
+/**
+ * Open one path prepared by a Session-aware caller on the Host desktop.
+ * @param request - path after best-effort Session workspace resolution.
+ * @param signal - caller lifetime; abort terminates the native command.
+ * @returns confirmation after the native opener accepts the path.
+ * @throws TypertRemoteFailure when the request is invalid, cancelled, or the opener fails.
+ */
+@Remote('openWorkspacePath') async openWorkspacePath( request: SessionOpenWorkspacePathRequest, signal: AbortSignal, ): Promise<SessionOpenWorkspacePathValue>
+
+/**
+ * Rename one Session after explicitly resuming it.
+ * @param request - Session identity and proposed title.
+ * @returns the accepted title and durable event sequence.
+ */
+@Remote('rename') rename(request: SessionRenameRequest): Promise<SessionRenameValue>
+
+/**
+ * Fork one cold-readable completed-turn prefix into a new Session.
+ * @param request - source Session and optional event anchor.
+ * @returns the new Session identity.
+ */
+@Remote('fork') fork(request: SessionForkRequest): Promise<SessionForkValue>
+
+/**
+ * Admit one prompt after explicitly resuming its Session.
+ * @param request - Session identity, prompt content, source metadata, and delivery mode.
+ * @param signal - caller cancellation before prompt admission begins.
+ * @returns acknowledgement that the Agent accepted the prompt.
+ */
+@Remote('prompt') prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>
+
+/**
+ * Read one image proven reachable from the addressed Session log.
+ * @param request - Session and attachment identities used for authorization.
+ * @returns the durable attachment reference and base64-encoded bytes.
+ */
+@Remote('attachment') attachment(request: SessionAttachmentRequest): Promise<SessionAttachmentValue>
+
+/**
+ * Mutate one still-pending queue occurrence on a live Agent.
+ * @param request - Session, queue item, and requested mutation.
+ * @returns acknowledgement that the queue mutation was applied.
+ */
+@Remote('updateQueue') updateQueue(request: SessionUpdateQueueRequest): SessionUpdateQueueValue
+
+/**
+ * Cancel one active Agent turn without dropping its pending inbox.
+ * @param request - Session whose active Agent turn is cancelled.
+ * @returns acknowledgement that cancellation was requested.
+ */
+@Remote('cancel') cancel(request: SessionCancelRequest): SessionCancelValue
+
+/**
+ * Read one cold-safe, message-aligned Session history page.
+ * @param request - durable address, backward cursor, and page budget.
+ * @param signal - cancellation for persistence reads.
+ * @returns one chronological page.
+ */
+@Remote('page') page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>
+
+/**
+ * Follow one Session log from its opening or resume cursor.
+ * @param request - durable address and last committed sequence already held by the caller.
+ * @param signal - cancellation owned by the Remote stream carrier.
+ * @returns a complete opening snapshot followed by gap-free event frames.
+ */
+@Remote({ mode: 'stream' }) follow(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame>
+
+/**
+ * Stream a complete live-control baseline followed by replacement frames.
+ * @param signal - cancellation owned by the Remote stream carrier.
+ * @returns one complete baseline followed by live replacement frames.
+ */
+@Remote({ mode: 'stream' }) control(signal: AbortSignal): AsyncIterable<SessionControlFrame>
+```
+
+Types: [SessionHeader](persistence.md) · [SessionId](core.md) · [SessionSearchRequest](session-query.md)
+
+Source: [`packages/api/session-controller/src/index.ts`](../../packages/api/session-controller/src/index.ts)
 
 <a id="ctxsessions--sessionstore"></a>
 
@@ -751,6 +870,106 @@ fork(source: SessionForkSource, boundary?: number, childSessionId?: SessionId): 
 Types: [CreateSessionOptions](persistence.md) · [PrepareSessionOptions](persistence.md) · [SessionId](core.md)
 
 Source: [`packages/core/session/src/index.ts`](../../packages/core/session/src/index.ts)
+
+<a id="api-session-events"></a>
+
+### `api-session/*` events
+
+<a id="api-sessionactivity--emit"></a>
+
+#### `api-session/activity` — emit
+
+One user-authored durable message advanced Session list activity.
+
+```ts cordis-catalog
+/**
+ * One user-authored durable message advanced Session list activity.
+ * @mode emit
+ * @param sessionId - addressed Session identity.
+ * @param updatedAt - durable message time used for list ordering.
+ */
+'api-session/activity'(sessionId: SessionId, updatedAt: number): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/session-controller/src/types.ts)
+
+<a id="api-sessionadded--emit"></a>
+
+#### `api-session/added` — emit
+
+A Session became visible to Session list consumers.
+
+```ts cordis-catalog
+/**
+ * A Session became visible to Session list consumers.
+ * @mode emit
+ * @param summary - initial list row for the Session.
+ */
+'api-session/added'(summary: SessionSummary): void
+```
+
+Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/session-controller/src/types.ts)
+
+<a id="api-sessionerror--emit"></a>
+
+#### `api-session/error` — emit
+
+One Agent failed outside a durable turn position.
+
+```ts cordis-catalog
+/**
+ * One Agent failed outside a durable turn position.
+ * @mode emit
+ * @param sessionId - Agent and Session identity.
+ * @param message - user-safe failure chain.
+ */
+'api-session/error'(sessionId: SessionId, message: string): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/session-controller/src/types.ts)
+
+<a id="api-sessionremoved--emit"></a>
+
+#### `api-session/removed` — emit
+
+A Session left the live Host registry.
+
+```ts cordis-catalog
+/**
+ * A Session left the live Host registry.
+ * @mode emit
+ * @param sessionId - removed Session identity.
+ */
+'api-session/removed'(sessionId: SessionId): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/session-controller/src/types.ts)
+
+<a id="api-sessionstatus--emit"></a>
+
+#### `api-session/status` — emit
+
+One Agent changed running state.
+
+```ts cordis-catalog
+/**
+ * One Agent changed running state.
+ * @mode emit
+ * @param sessionId - Agent and Session identity.
+ * @param running - whether the Agent is running.
+ */
+'api-session/status'(sessionId: SessionId, running: boolean): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/session-controller/src/types.ts)
 
 <a id="session-events"></a>
 

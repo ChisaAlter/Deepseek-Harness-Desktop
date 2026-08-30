@@ -1,13 +1,63 @@
+---
+description: "Web GUI 的外壳布局：三栏 AppFrame、拖动手柄与让步行为、面板几何服务与主题呈现；供窗口外观的用户与维护者阅读。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-client-ui-layout
 
 [English](README.md) | 中文
 
-外壳插件：四栏 AppFrame（拖动手柄与让步链）加 `ctx.layout` 面板几何服务；它注册到运行时拥有的 `root` slot，并声明 `sidebar`、`conversation`、`details`、`surfaces`、`shell.overlay`、`shell.titlebar.trailing` 和 `shell.terminalDrawer`。侧边栏的缩放边界是不可见命中条带，详情栏与 surfaces 栏边界则保留浮动胶囊；让步时先把 surfaces 压到下限，再压 details，再派生关闭 surfaces，再派生关闭 details。关闭的侧边栏仍保留 56px 控制栏；关闭的 details 与 surfaces 宽度为 0。竖屏且在 `PHONE_MAX`（768px）以下时，侧边栏与详情栏轨道归零：会话栏占满宽度，侧边栏变为覆盖抽屉，详情栏变为全屏覆盖层；此时不绘制拖动手柄。任何低于 1024px 的框架，以及任何 `[data-phone]` 框架，隐藏标题栏尾簇，避免 Session log、Git 和分栏开关盖住会话标题；slot 仍保持挂载。尾簇仍画在被挤窄的会话栏上时，AppFrame 发布 `--dshd-titlebar-conversation-reserve` 以及 `full` / `cozy` / `compact` 密度，让页头让位、标签收起（[标题栏拥挤](../../../.agents/notes/implemented/bug-fix/2026-08-17-titlebar-crowding-density.md)）。横屏把侧边栏留在网格里，不会自动收到 56px 轨道；横屏依据设备旋转（`screen.orientation.type`，该 type 过期或未触发 `orientation.change` 时再看物理 `screen.availWidth`/`availHeight`），而不是被键盘压矮的视口。该包还提供主题呈现器：它消费解析后的 `ctx.theme` 快照，并将其投影到 document（用 `html { color-scheme }` 驱动原生 UA 控件，依据当前配色方案设置 `body[data-ds-dark-theme]`，并将主题的别名 token 设为 body 上的内联变量，同时拥有一个 `<meta name="theme-color">`，其内容随计算后的 body 背景色更新）。在应用调色板和 token 后进行测量，可确保渲染后的背景成为唯一的颜色依据；呈现器在 dispose（资源释放）时会移除其自有的元数据节点，并一并清除其写入的其他全局状态。
+## 概述
 
-AppFrame 始终挂载会话栏、详情栏、surfaces 栏以及仅位于会话栏下方的终端抽屉；已连接 Session 通过 `SessionProvider` 渲染。布局 store 侧边栏以默认宽度启动，详情栏保持关闭。surfaces 宽度和终端抽屉高度把上次打开的尺寸（以及当时是否打开）写进 `localStorage` 键 `dshd.layout.panels`；侧边栏和详情栏仍是会话瞬时状态。hero 和其他未选中状态也会将详情栏的渲染宽度派生为零，但不会改变存储的宽度偏好。AppFrame 会跨越这些状态保留最后一个非 blank 会话 id：首个会话保持关闭；显式打开详情栏的操作会使用约定默认宽度；返回同一会话时恢复其未改变的宽度；选择不同会话时，详情栏会在绘制前关闭。标题栏开关只写入 surfaces 栏和终端抽屉，不会打开或关闭详情栏。AppFrame 的第一网格行是共享标题栏带：会话栏页头通过 subgrid 决定该行高度，该带只覆盖详情栏，surfaces 跨越所有行直到窗口顶部。surfaces 打开时，尾簇只占第 2–3 列，因此不会盖住右侧栏；窗口控件通过 surfaces 标签栏上的 `--dshd-wco-controls` 避让。surfaces 关闭时，尾簇伸到右缘，相对窗口控件做 inset。尾簇为 `-webkit-app-region: no-drag` 且 `width: max-content`。AppFrame 拥有一条横跨第 1 列到末列的 48px caption drag 带；Electron 注入脚本只绘制窗口控件板。侧边栏字标与折叠开关为 `no-drag` 空洞，字标盒子为 `width: max-content`，因此 logo 行中间的空隙仍留在 caption 带里。详情栏从下方的主体行开始，因此分割线不会穿过 Session log、Git 或窗口控件。会话 owner share 为空，侧边栏 owner share 只包含 `collapsed` 和 `width`；注册方通过标准钩子获取业务数据，并从各自的 inject 接口获取操作。
+本包提供 Web GUI 的外壳布局：一个三栏 AppFrame，带可缩放的侧栏与详情面板；一条让步链，在空间不足时先收缩详情栏、随后自动关闭它；以及 `ctx.layout` 面板几何服务，供其他插件调用以打开或关闭详情栏。它还承载主题呈现器，把解析后的配色方案、别名 token、正文字号与 `theme-color` 元数据投影到 document。需要标准窗口外观时选择它；面板几何是瞬时的，重新加载即重置。
 
-`/client` 导出表层包含插件主体（`apply`／`inject`）、`LayoutController` 和各个 owner-share 接口。AppFrame、面板 store 与让步求解器仍属于包内部。
+## 目录
 
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
+
+-----
+
+<a id="use-this-package"></a>
+## 使用本包
+
+在 root 槽位挂载本插件；它随即围绕占据侧栏、会话与详情栏的内容渲染应用框架。用户拖动不可见命中条带缩放侧栏、拖动浮动胶囊缩放详情面板；窗口变窄时只有详情栏收缩，随后自动关闭。关闭的侧栏保留 56px 控制栏；详情栏关闭到零宽度。
+
+### 主题呈现
+
+呈现器消费解析后的主题快照，并投影到 document：`html { color-scheme }` 驱动原生 UA 控件，依据当前配色方案设置 `body[data-ds-dark-theme]`，把主题的别名 token 与 `--dsh-content-font-size` 设为 body 上的内联变量，并持有一个 `<meta name="theme-color">`，其内容随计算后的 body 背景色更新。释放呈现器时，它会连同其他全局写入一起移除自己的元数据节点。
+
+-----
+
+<a id="understand-the-implementation"></a>
+## 理解实现
+
+<details>
+<summary>实现细节——点击展开</summary>
+
+一次 `register()` 调用把 `AppFrame` 贡献进运行时的内建 `'root'` 槽位，并在同一刻声明四个子槽位（`sidebar`、`conversation`、`details`、`shell.overlay`）、安放布局 store（面板几何）并接好 `ctx.layout` 面板动作服务。瞬时布局 store 以默认宽度启动侧栏、保持详情栏关闭，从不读写 `localStorage`。AppFrame 始终挂载会话与详情两栏；已连接 Session 经 `SessionProvider` 渲染。它把所选 Session 标题投影到构建配置的产品标题或本地化 `common.brand.localBuild` 回退值之上，因此 locale revision 会随根 entry 一起更新文档元数据。主题呈现器是第二个 effect：从解析后的快照做纯 DOM 写入——初始状态经 getter 读取一次，此后仅事件驱动，不经过 React。它先应用调色板、字号与 token 变量，再把渲染出的背景测量为唯一的颜色依据。
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## 进一步探索
+
+当布局面不够用时阅读以下页面。它们从框架进入它所渲染的栏与它所呈现的主题。
+
+- [ui-sidebar](../ui-sidebar/README.zh.md)——占据 `sidebar` 栏及其座位。
+- [ui-conversation](../ui-conversation/README.zh.md)——占据 `conversation` 与 `details` 栏。
+- [ui-theme](../ui-theme/README.zh.md)——呈现器消费其解析快照的主题 seam。
+- [Web 客户端架构](../../../.agents/notes/implemented/architecture/2026-07-19-gui-web-client-architecture.zh.md)——浏览器插件行如何加载并注册槽位。
+
+-----
+
+<a id="model-experience"></a>
 ## 模型体验
 
 无。布局外壳管理浏览器查看状态；这里没有任何内容进入模型请求。
@@ -16,8 +66,23 @@ AppFrame 始终挂载会话栏、详情栏、surfaces 栏以及仅位于会话�
 
 无；该包既不组装也不发送提供方请求。
 
-## 已知限制与暂缓事项
+## 已知限制与延期工作
 
-- **侧边栏和详情栏仍是会话瞬时状态**：重新加载会恢复侧边栏默认值并使详情栏保持关闭；在不同会话 id 之间切换同样会关闭详情栏，并忘记拖动后的宽度，而未选中表面会以零宽度渲染详情栏，但不会修改几何信息。surfaces 宽度和终端抽屉会记住上次打开的尺寸。
-- **让步链自动关闭通过推导零宽度实现，不会改动宽度偏好**：窗口变宽时面板会自行恢复；消费方禁止把 store 中的详情宽度当作实际渲染状态。
-- **挤压重排期间不提供滚动锚定**：布局变化可能移动读者的 viewport。
+<a id="known-limitations-and-deferred-work"></a>
+
+
+这些限制界定了当前布局行为。它们是当前包约束，不是通用窗口管理器对比或任务积压。
+
+- **面板几何是瞬时状态**——重新加载会恢复侧栏默认值并保持详情栏关闭；在不同会话 id 之间切换同样会关闭详情栏并忘记拖动后的宽度，而未选中表面以零宽度渲染详情栏却不修改几何。
+- **让步链自动关闭通过推导零宽度实现，不触碰偏好宽度**——窗口变宽时面板自行恢复；消费方不得把 store 中的详情宽度当作渲染真值。
+- **挤压重排期间无滚动锚定**——布局变化可能移动读者的视口。
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>维护者的工作上下文——点击展开</summary>
+
+无。
+
+</details>

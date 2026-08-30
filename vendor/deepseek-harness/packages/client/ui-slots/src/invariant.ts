@@ -16,7 +16,7 @@ export const inject = ['invariants']
 
 /**
  * No runtime invariant: a zero-dependency pure registry core — it emits no
- * cordis events itself (the runtime SlotRegistry wrapper owns the event
+ * cordis events itself (the `ui-renderer` SlotRegistry owns the event
  * bridge and its invariants); define/register/dispose sequencing is asserted
  * directly by this package's behavior specs.
  */

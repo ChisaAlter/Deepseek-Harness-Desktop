@@ -25,7 +25,7 @@ export type CodeJsonValue = null | boolean | number | string | CodeJsonValue[] |
  * injects a real error constructor under `name`; rejected member calls become
  * its instances and expose the exact member name through
  * `memberNameProperty`. Both strings are runtime data rather than knowledge
- * of a particular consumer such as Code Mode.
+ * of a particular consumer such as PTC mode.
  */
 export interface CodeBindingErrorClass {
   /** Constructor global and resulting `Error.name`; same portable identifier rule as {@link CodeBindingNamespace.global}. */

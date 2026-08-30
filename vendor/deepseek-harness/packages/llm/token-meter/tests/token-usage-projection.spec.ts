@@ -7,6 +7,7 @@ import type { Session } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import type { ContextPressureProjection, TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
+import { RetryId } from '@deepseek-ai/dsh-llm-retry'
 import { CompactionId } from '@deepseek-ai/dsh-compaction'
 import type {} from '../src/usage-projection.ts'
 
@@ -94,8 +95,15 @@ function appendSummaryMeter(ctx: Context, session: Session, start: number, end: 
 }
 
 describe('tokenUsage session projection', () => {
-  it('serves zero buckets for an empty log', async () => {
+  it('serves zero buckets without usage samples', async () => {
     const { ctx, session } = await harness()
+    expect(projected(ctx, session)).toEqual(ZERO)
+    session.append('llm/retry-started', {
+      retryId: RetryId('token-meter-no-usage-retry'),
+      turn: 1,
+      step: 1,
+      retry: 1,
+    })
     expect(projected(ctx, session)).toEqual(ZERO)
   })
 
@@ -144,6 +152,58 @@ describe('tokenUsage session projection', () => {
       uncachedInputTokens: 14,
       outputTokens: 5,
       cacheReadTokens: 8,
+      cacheWriteTokens: 1,
+    })
+  })
+
+  it('accumulates retried attempts while replacing samples within each attempt', async () => {
+    const { ctx, session } = await harness()
+    const retryId = RetryId('token-meter-retry')
+    session.append('turn/start', { turn: 1 })
+    startStep(session, 1, 1)
+    usageChunk(session, {
+      inputTokens: 10,
+      outputTokens: 2,
+      cacheReadTokens: 3,
+    }, 1, 1)
+    session.append('assistant/chunk', {
+      turn: 1,
+      step: 1,
+      chunk: {
+        type: 'finish',
+        reason: { kind: 'error', failure: { code: 'RATE_LIMIT', message: 'busy', status: 429 } },
+      },
+    })
+    session.append('llm/retry', {
+      retryId,
+      turn: 1,
+      step: 1,
+      provider: 'mock',
+      mode: 'normal',
+      policyKey: 'test',
+      retry: 1,
+      maxRetries: 1,
+      delayMs: 0,
+      failure: { code: 'RATE_LIMIT', message: 'busy', status: 429 },
+    })
+    session.append('llm/retry-started', { retryId, turn: 1, step: 1, retry: 1 })
+    const second = usageChunk(session, {
+      inputTokens: 12,
+      outputTokens: 4,
+      cacheReadTokens: 6,
+    }, 1, 1)
+    finalUsage(session, {
+      inputTokens: 14,
+      outputTokens: 5,
+      cacheReadTokens: 8,
+      cacheWriteTokens: 1,
+    }, 1, 1, [second])
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+
+    expect(projected(ctx, session)).toEqual({
+      uncachedInputTokens: 24,
+      outputTokens: 7,
+      cacheReadTokens: 11,
       cacheWriteTokens: 1,
     })
   })
@@ -357,7 +417,7 @@ describe('contextPressure session projection', () => {
     const changed: string[] = []
     ctx.sessionProjections.onChanged((_session, key) => { changed.push(key) })
 
-    session.append('todo/write', { todos: [] })
+    session.append('session/end-seed', {})
     expect(changed).not.toContain('contextPressure')
     // A repeated capacity record for the same window is also a no-op.
     recordContext(session, 'small', 64_000)

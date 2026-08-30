@@ -16,7 +16,7 @@ import type {
   DynamicCordisInventoryRow,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientModuleSystem } from '@deepseek-ai/dsh-client-modules/client'
-import type { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 // The Client Remote assembly is the one place the two planes meet: it mounts the
 // `dynamicCordisRunner` namespace and re-exports its payload vocabulary, so this
 // package names what it sends without importing a Host package.

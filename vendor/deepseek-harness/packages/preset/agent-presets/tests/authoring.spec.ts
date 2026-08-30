@@ -52,9 +52,11 @@ beforeEach(async () => {
       { path: join(FIXTURES, 'system'), trust: 'system' as const },
       { path: userRoot, trust: 'user' as const },
     ],
-    // Every roster in this file pins its own roots: the derived harness-home
-    // root would add the developer's real presets to what these assertions
-    // count, and `copy` would write into it.
+    // Every roster in this file pins its own roots: the package's shipped
+    // presets would shadow the fixture ids, and the derived harness-home root
+    // would add the developer's real presets to what these assertions count —
+    // and `copy` would write into it.
+    includeShippedRoot: false,
     includeUserRoot: false,
   })
 })
@@ -203,6 +205,7 @@ describe('a deployment with more than one user root', () => {
         { path: userRoot, trust: 'user' as const },
         { path: second, trust: 'user' as const },
       ],
+      includeShippedRoot: false,
       includeUserRoot: false,
     })
 
@@ -224,6 +227,7 @@ describe('a deployment with no writable root', () => {
     await readOnly.plugin(AgentPresets, {
       default: 'standard',
       roots: [{ path: join(FIXTURES, 'system'), trust: 'system' as const }],
+      includeShippedRoot: false,
       includeUserRoot: false,
     })
 
@@ -246,6 +250,7 @@ describe('a user root that does not exist yet', () => {
         { path: join(FIXTURES, 'system'), trust: 'system' as const },
         { path: absent, trust: 'user' as const },
       ],
+      includeShippedRoot: false,
       includeUserRoot: false,
     })
 
@@ -298,6 +303,11 @@ describe('a ghost directory under the user root', () => {
     await ctx.agentPresets.remove('ghost')
     expect(existsSync(join(userRoot, 'ghost'))).toBe(false)
     await ctx.agentPresets.copy('standard', 'ghost')
-    expect((await ctx.agentPresets.list()).find(preset => preset.id === 'ghost')?.broken).toBeUndefined()
+    expect((await ctx.agentPresets.list()).map(preset => preset.id)).toContain('ghost')
+    // A copy carries the whole preset directory, so a preset's own files
+    // travel with it. This fixture's rows reach OUTSIDE that directory, which
+    // no real preset does and which no copy can carry — so the claim here is
+    // the reclaimed id and the restored composition, not the rows' targets.
+    expect(existsSync(join(userRoot, 'ghost', COMPOSITION_FILE))).toBe(true)
   })
 })

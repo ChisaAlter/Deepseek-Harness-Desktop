@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { DirectoryListing } from '@deepseek-ai/dsh-client-runtime/client'
-import { DirectoryBrowseError } from '@deepseek-ai/dsh-client-runtime/client'
+import type { DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
 import { DirectoryBrowser } from '../src/client/DirectoryBrowser.tsx'
 
 afterEach(cleanup)
@@ -96,7 +95,7 @@ function listingFor(path?: string): DirectoryListing {
   }
   const found = tree[target]
   if (found === undefined) {
-    throw new DirectoryBrowseError({ code: 'directory-unreadable', message: `cannot list ${target}`, details: { path: target } })
+    throw new Error(`cannot list ${target}`)
   }
   return found
 }
@@ -567,7 +566,7 @@ describe('DirectoryBrowser', () => {
   it('re-parks focus on the edit zone when a failed pick unmounts a dot-revealed row', async () => {
     const listDirectory = vi.fn(async (path?: string) => {
       if (path === `${HOME}/.config`) {
-        throw new DirectoryBrowseError({ code: 'directory-unreadable', message: 'denied', details: { path } })
+        throw new Error('denied')
       }
       return listingFor(path)
     })
@@ -588,7 +587,7 @@ describe('DirectoryBrowser', () => {
   it('leaves focus on a surviving row when its pick fails', async () => {
     const listDirectory = vi.fn(async (path?: string) => {
       if (path === DOCS) {
-        throw new DirectoryBrowseError({ code: 'directory-unreadable', message: 'denied', details: { path } })
+        throw new Error('denied')
       }
       return listingFor(path)
     })
@@ -611,7 +610,7 @@ describe('DirectoryBrowser', () => {
       // The initial open lists home through the absent-path form; only the
       // parent leg names HOME explicitly.
       if (path === HOME) {
-        throw new DirectoryBrowseError({ code: 'directory-unreadable', message: 'parent gone', details: { path } })
+        throw new Error('parent gone')
       }
       return listingFor(path)
     })
@@ -1347,7 +1346,9 @@ describe('DirectoryBrowser', () => {
 
   it('keeps path entry available when the home listing fails', async () => {
     const listDirectory = vi.fn(async (): Promise<DirectoryListing> => {
-      throw new DirectoryBrowseError({ code: 'directory-unreadable', message: 'home unreadable', details: { path: HOME } })
+      throw Object.assign(new Error('directory browse failed: directory-unreadable: home unreadable'), {
+        rpcError: { code: 'directory-unreadable', message: 'home unreadable', details: { path: HOME } },
+      })
     })
     mount({ listDirectory })
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('home unreadable') })
@@ -1362,6 +1363,14 @@ describe('DirectoryBrowser', () => {
     listDirectory.mockImplementation(async (path?: string) => listingFor(path))
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => { expect(screen.getByText('harness')).toBeTruthy() })
+  })
+
+  it('falls back to the thrown message for an invalid RPC error payload', async () => {
+    const listDirectory = vi.fn(async (): Promise<DirectoryListing> => {
+      throw Object.assign(new Error('home unavailable'), { rpcError: null })
+    })
+    mount({ listDirectory })
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('home unavailable') })
   })
 
   it('disables Open and New folder while a path draft is uncommitted', async () => {
@@ -1390,7 +1399,6 @@ describe('DirectoryBrowser', () => {
     fireEvent.compositionEnd(pathInput)
     fireEvent.keyDown(pathInput, { key: 'Enter' })
     await waitFor(() => { expect(b.listDirectory).toHaveBeenLastCalledWith(DOCS, expect.any(AbortSignal)) })
-    // Create dialog: same guard.
     fireEvent.click(screen.getByRole('button', { name: 'browser.newFolder' }))
     const nameInput = screen.getByLabelText('browser.folderName')
     fireEvent.change(nameInput, { target: { value: '新建' } })
@@ -1408,7 +1416,7 @@ describe('DirectoryBrowser', () => {
     fireEvent.click(rowButton(itemNamed('Documents')))
     await waitFor(() => { expect(columns()).toHaveLength(2) })
     b.listDirectory.mockImplementation(async () => {
-      throw new DirectoryBrowseError({ code: 'directory-unreadable', message: 'denied', details: { path: HOME } })
+      throw new Error('denied')
     })
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: 'browser.home' }))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
@@ -1515,7 +1523,7 @@ describe('DirectoryBrowser', () => {
     const b = mount()
     await waitFor(() => { expect(itemNamed('Documents')).toBeTruthy() })
     b.listDirectory.mockImplementation(async () => {
-      throw new DirectoryBrowseError({ code: 'directory-unreadable', message: 'denied', details: { path: DOCS } })
+      throw new Error('denied')
     })
     fireEvent.click(rowButton(itemNamed('Documents')))
     await waitFor(() => { expect(screen.getByRole('alert').textContent).toBe('denied') })
@@ -1636,7 +1644,7 @@ describe('DirectoryBrowser', () => {
     const b = mount()
     await waitFor(() => { expect(itemNamed('Documents')).toBeTruthy() })
     b.createDirectory.mockRejectedValueOnce(
-      new DirectoryBrowseError({ code: 'directory-exists', message: 'taken already', details: { path: `${HOME}/x` } }))
+      new Error('taken already'))
     fireEvent.click(screen.getByRole('button', { name: 'browser.newFolder' }))
     expect(screen.getByText('browser.createIn:browser.home')).toBeTruthy()
     const input = screen.getByLabelText('browser.folderName')

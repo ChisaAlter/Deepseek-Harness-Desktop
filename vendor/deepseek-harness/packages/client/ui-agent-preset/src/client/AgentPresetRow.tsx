@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AgentPresetSettingsState } from './settings-store.ts'
 import { presetDisplayText, type AgentPresetSettingsKey } from './locales.ts'

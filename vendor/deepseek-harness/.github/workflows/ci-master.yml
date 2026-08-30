@@ -87,7 +87,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
 
       - uses: actions/setup-node@v6
         with:
@@ -131,7 +131,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
 
       - uses: actions/setup-node@v6
         with:
@@ -176,7 +176,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
 
       - uses: actions/setup-node@v6
         with:
@@ -264,7 +264,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The benchmark's Windows lanes deliberately skip the store cache like
       # the independent native Windows job; an empty input disables caching.
@@ -355,7 +355,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          dest: ${{ runner.temp }}/setup-pnpm
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Unlike the larger-runner suite, both platforms cache the store here:
       # the consolidated topology measures cache mechanics as workload.

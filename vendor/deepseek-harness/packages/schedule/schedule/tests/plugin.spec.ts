@@ -4,7 +4,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { agentEvents } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as toolSchedule from '../src/index.ts'
 
@@ -51,7 +51,7 @@ describe('Schedule plugin composition', () => {
 
     const created = await ctx.agents.withInitiator(root.agent, () => ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: CallId('schedule-plugin-create'),
+      callId: ToolCallId('schedule-plugin-create'),
       name: 'schedule_create',
       arguments: { prompt: 'future reminder', after_seconds: 3_600 },
       agent: root.agent,

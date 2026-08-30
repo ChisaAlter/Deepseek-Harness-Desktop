@@ -1,24 +1,25 @@
 /**
- * Lossless storage packing for `assistant/chunk` delta runs. Providers stream
+ * Lossless row packing for `assistant/chunk` delta runs. Providers stream
  * token-sized deltas, so a log stores hundreds of near-identical event lines
  * whose JSON envelopes dwarf their payloads (~56× measured on a real DeepSeek
  * session). This module packs each run of consecutive same-block delta chunks
  * into ONE storage row — `text-chunks`, `reasoning-chunks`, or
  * `tool-call-chunks` — and expands rows back to the exact original events.
  *
- * Storage rows are a durable-encoding vocabulary, NOT session events: they
- * never enter `Session.events`, have no `SessionEventMap` entry, and use bare
- * (slash-less) type tags so a reader cannot confuse them with the event
- * taxonomy (precedent: the JSONL header line's `session` tag). The encoder
- * whitelists exact shapes — anything it does not fully recognize is stored
- * verbatim, so unknown fields or future chunk variants lose compression, never
- * data. The decoder validates before expanding and fails loud on a malformed
- * row-tagged value instead of silently dropping a whole run.
+ * Packed rows are an encoding vocabulary, NOT session events: they never enter
+ * `Session.events`, have no `SessionEventMap` entry, and use bare (slash-less)
+ * type tags so a reader cannot confuse them with the event taxonomy
+ * (precedent: the JSONL header line's `session` tag). Persistence and bounded
+ * history transport both use the codec. The encoder whitelists exact shapes —
+ * anything it does not fully recognize stays verbatim, so unknown fields or
+ * future chunk variants lose compression, never data. The decoder validates
+ * before expanding and fails loud on a malformed row-tagged value instead of
+ * silently dropping a whole run.
  *
  * @module @deepseek-ai/dsh-session/chunk-rows
  */
 
-import { CallId, assertNever } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from './types.ts'
 
@@ -50,7 +51,7 @@ interface TextRunData extends RunDataBase {
 
 /** Payload of a `tool-call-chunks` row: the run-constant call identity plus each member's raw arguments fragment. */
 interface ToolCallRunData extends RunDataBase {
-  id: CallId
+  id: ToolCallId
   /** Present iff every member carried it, with one uniform value (a mixed run never packs). */
   name?: string
   args: string[]
@@ -68,6 +69,26 @@ export type ChunkRow =
 
 /** One durable log line's JSON value: a session event verbatim, or a packed chunk row. */
 export type StorageRecord = SessionEvent | ChunkRow
+
+/**
+ * Test whether an encoded record is a packed chunk row rather than a Session event.
+ * @param record - one persistence or bounded-history encoding record.
+ * @returns Whether the record is a packed chunk row.
+ */
+export function isChunkRow(record: StorageRecord): record is ChunkRow {
+  return record.type === 'text-chunks'
+    || record.type === 'reasoning-chunks'
+    || record.type === 'tool-call-chunks'
+}
+
+/**
+ * Number of logical Session events represented by one packed row.
+ * @param row - validated or encoder-produced packed row.
+ * @returns Count of consecutive chunk events in the row.
+ */
+export function chunkRowLength(row: ChunkRow): number {
+  return row.type === 'tool-call-chunks' ? row.data.args.length : row.data.texts.length
+}
 
 /**
  * Minimum members before a run packs. Below it a row's envelope rivals the
@@ -167,7 +188,7 @@ function buildRow(kind: DeltaKind, run: readonly DeltaEvent[]): ChunkRow {
       ...envelope,
       data: {
         ...base,
-        id: CallId(call.id),
+        id: ToolCallId(call.id),
         ...Object.hasOwn(call, 'name') ? { name: call.name as string } : {},
         args: run.map(event => (event.data.chunk as { argumentsDelta: string }).argumentsDelta),
       },
@@ -278,7 +299,7 @@ function validateRow(value: Record<string, unknown>, tag: ChunkRow['type']): Chu
   // outside any encoder's image: float arithmetic would round it to a
   // different number than exact arithmetic, a silent corruption. Within safe
   // range every step is exact, so the first departure is always caught.
-  if (!Number.isSafeInteger((value.seq0 as number) + payload.length - 1)) {
+  if (payload.length - 1 > Number.MAX_SAFE_INTEGER - (value.seq0 as number)) {
     malformed(tag, 'member seqs must stay safe integers')
   }
   let time = value.time0 as number
@@ -313,9 +334,11 @@ function expandRow(row: ChunkRow): SessionEvent[] {
           argumentsDelta: members[k] as string,
         }
         break
-      /* v8 ignore next 2 -- validateRow only returns the three row tags */
-      default:
-        return assertNever(row, 'chunk-rows expandRow')
+      /* v8 ignore next 4 -- validateRow only returns the three row tags */
+      default: {
+        const unreachable: never = row
+        throw new Error(`chunk-rows received unsupported row ${String(unreachable)}`)
+      }
     }
     events.push({
       type: 'assistant/chunk',

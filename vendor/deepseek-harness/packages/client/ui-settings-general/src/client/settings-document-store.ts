@@ -1,7 +1,7 @@
 /** State owner for the optional local settings-document action. */
 
-import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 
 /** Browser state of the Host-owned settings document. */
@@ -32,7 +32,7 @@ export class SettingsDocumentStore {
    * @param describeFace - the shared mirror's describe face (`hasDocument` source).
    */
   constructor(
-    private readonly api: Pick<IApiClient, 'settings'>,
+    private readonly remote: Pick<ClientRemote, 'settings'>,
     private readonly describeFace: SettingsDescribeFace,
   ) {}
 
@@ -63,8 +63,8 @@ export class SettingsDocumentStore {
       state.error = null
     })
     try {
-      const response = await this.api.settings.openDocument({})
-      if (!response.result.ok) throw new Error(response.result.error.message)
+      const result = await this.remote.settings.openSettingsDocument()
+      if (!result.ok) throw new Error(result.error.message)
     } catch (error) {
       this.store.update((state) => { state.error = messageOf(error) })
     } finally {

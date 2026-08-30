@@ -46,4 +46,4 @@ Host 通过 agent（智能体）注册表，以选定的种子和谱系创建子
 
 公开 API 保持精简且易于发现：活跃会话分支是 `ctx.sessions` 的一部分，紧邻 `create({ seed })`，而非一个独立服务或一对两步辅助函数。持久化继续通过现有的 `session/created` 和 `session/flush` 行为运作：fork 出的子会话创建时便带有种子事件，因此现有后端只需持久化该种子一次，并在 header 中保存 `parentSession`／`seedLength`。
 
-v1 范围仍然排除 ACP（Agent Client Protocol） `session/fork`、对未加载的已持久化会话的 fork、面向模型的工具，以及 subagent 重构。如果未来添加 ACP 方法，应在具备协议与快照覆盖后才声明支持该能力；本 Agent Note 不添加任何 ACP 协议行为，因此不需要 ACP 快照。fork 子会话的回放仍由现有的[种子边界测试 Agent Note](../testing/2026-06-22-fork-child-replay-seed-boundary.zh.md) 覆盖；store、Host、载体与客户端的专项测试固定边界和对账约定，真实 Chromium 场景则固定组装后的消息操作与谱系树。
+本决策排除 ACP（Agent Client Protocol）`session/fork`、对未加载的已持久化会话执行 fork、面向模型的工具，以及 subagent 重构。如果未来添加 ACP 方法，应在具备协议与快照覆盖后才声明支持该能力；本 Agent Note 不添加任何 ACP 协议行为，因此不需要 ACP 快照。fork 子会话的回放仍由现有的[种子边界测试 Agent Note](../testing/2026-06-22-fork-child-replay-seed-boundary.zh.md)覆盖；store、Host、载体与客户端的专项测试固定边界和对账约定，真实 Chromium 场景则固定组装后的消息操作与谱系树。

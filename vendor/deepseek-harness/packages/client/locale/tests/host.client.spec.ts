@@ -14,7 +14,7 @@ class MemorySettings extends SettingsProvider {
 }
 
 describe('locale host', () => {
-  it('registers an optional explicit locale preference with the Host settings lifecycle', async () => {
+  it('registers an open locale preference with the Host settings lifecycle', async () => {
     const ctx = new Context()
     await ctx.plugin(MemorySettings).await()
     const fiber = ctx.plugin({ apply })
@@ -23,7 +23,10 @@ describe('locale host', () => {
     expect(ctx.settings.get(ns)).toEqual({})
     await ctx.settings.update(ns, { preference: 'en' })
     expect(ctx.settings.get(ns)).toEqual({ preference: 'en' })
-    await expect(ctx.settings.update(ns, { preference: 'fr' })).rejects.toThrow()
+    await ctx.settings.update(ns, { preference: 'pt-BR' })
+    expect(ctx.settings.get(ns)).toEqual({ preference: 'pt-BR' })
+    await expect(ctx.settings.update(ns, { preference: 'bad locale' })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, { preference: '123' })).rejects.toThrow()
     await fiber.dispose()
     expect(ctx.settings.describe().map(row => row.ns)).not.toContain(ns)
   })

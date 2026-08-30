@@ -35,8 +35,9 @@ function view(defaultPreset: string, revision = 0, schema: SettingsNamespaceView
   }
 }
 
+/** The settings namespace answers over the Remote carrier, which has no envelope. */
 function ok<T>(value: T) {
-  return { rpcId: 'test', result: { ok: true as const, value } }
+  return { ok: true as const, value }
 }
 
 /** The permission controller over a real mirror and one fake wire. */
@@ -47,7 +48,7 @@ function permissionController(api: object) {
 }
 
 describe('permission settings store', () => {
-  it('derives dynamic options and preserves labels from the descriptor schema', () => {
+  it('derives dynamic options and host labels from the descriptor schema', () => {
     expect(resolveDefault(view('read-only'))).toEqual({
       currentValue: 'read-only',
       options: [
@@ -117,11 +118,11 @@ describe('permission settings store', () => {
       revision: 4,
     })
     await controller.select('workspace-write')
-    expect(mutate).toHaveBeenCalledWith({
-      ns: 'permission',
-      ops: [{ op: 'set', path: ['defaultPreset'], value: 'workspace-write' }],
-      expectedRevision: 4,
-    })
+    expect(mutate).toHaveBeenCalledWith(
+      'permission',
+      [{ op: 'set', path: ['defaultPreset'], value: 'workspace-write' }],
+      4,
+    )
     expect(controller.store.getSnapshot()).toMatchObject({
       status: 'ready',
       currentValue: 'workspace-write',
@@ -140,11 +141,8 @@ describe('permission settings store', () => {
     const failing = permissionController({
       describe: () => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: [view('read-only')] })),
       mutate: () => Promise.resolve({
-        rpcId: 'test',
-        result: {
-          ok: false as const,
-          error: { code: 'settings-conflict', message: 'stale', details: {} },
-        },
+        ok: false as const,
+        error: { code: 'settings-conflict', message: 'stale', details: {} },
       }),
     }).controller
     await failing.load()
@@ -171,8 +169,8 @@ describe('permission settings store', () => {
 
     const rejected = permissionController({
       describe: () => Promise.resolve({
-        rpcId: 'test',
-        result: { ok: false as const, error: { code: 'internal', message: 'offline', details: {} } },
+        ok: false as const,
+        error: { code: 'internal', message: 'offline', details: {} },
       }),
       mutate,
     }).controller

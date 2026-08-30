@@ -11,7 +11,7 @@ import type { GoalRef, GoalView } from '@deepseek-ai/dsh-goal'
 import { boundContextSummary, createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import {
   completionAuthority,
   goalToolExecution,
@@ -188,7 +188,7 @@ export function apply(ctx: Context, config: Config): void {
   const resolved = resolveConfig(config)
   ctx.systemPrompt.section({
     name: 'tool:goal',
-    order: 114,
+    order: FIRST_PARTY_SECTION_ORDER.TOOL_GOAL,
     text: guidance(resolved.blockedAfterConsecutiveRounds),
   })
 

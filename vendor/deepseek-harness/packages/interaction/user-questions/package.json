@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-user-questions",
   "description": "Abstract user-questions seam (ctx.userQuestions) for asking the human during agent runs",
-  "version": "0.1.1-rc.1",
+  "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
   },
@@ -40,12 +40,14 @@
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-scope": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-scope": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^"
   }
 }

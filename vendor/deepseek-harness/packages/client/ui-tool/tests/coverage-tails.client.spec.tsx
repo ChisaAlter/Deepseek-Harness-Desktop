@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-// Tool presentation branch tails not reached by the main acceptance specs.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import type { RunningToolCall, SessionId, SessionListState, ToolResultNode } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { GenericToolCard, type GenericToolCardProps } from '../src/client/tool/toolviews/GenericToolCard.tsx'
@@ -15,7 +16,6 @@ import { zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.t
 
 type BashRowProps = Parameters<typeof BashRow>[0]
 
-// Mirrors the real lookup chain (conversation namespace, then common).
 const t: GenericToolCardProps['t'] = makeTranslate(zh, commonZh)
 
 afterEach(cleanup)
@@ -57,7 +57,7 @@ describe('Tool presentation tails', () => {
       kind: 'tool-result', seq: 2, time: 2_000, callId: 'c5',
       call: { name: 'todo_write', argsRaw: '{"note":"x"}' },
       callTime: 1_000,
-      content: [], isError: false, callView: null, resultView: null, subCalls: [],
+      content: [], isError: false, subCalls: [],
     }
     const props: GenericToolCardProps = {
       callId: 'c5', toolName: 'todo_write', block: settled, openFile: vi.fn(), t,
@@ -72,7 +72,7 @@ describe('Tool presentation tails', () => {
       kind: 'tool-result', seq: 3, time: 3_000, callId: 'c1',
       call: { name: 'bash', argsRaw: '{"command":"make build","description":"Build"}' },
       callTime: 2_000,
-      content: [], isError: false, callView: null, resultView: null, subCalls: [],
+      content: [], isError: false, subCalls: [],
     }
     const view = render(<BashRow {...bashProps(settled)} />)
     const row = view.container.querySelector('[data-sample="bash"]')!
@@ -84,13 +84,13 @@ describe('Tool presentation tails', () => {
   it('BashRow carries data-state for running and StateDots for error/stopped', () => {
     const running: RunningToolCall = {
       callId: 'c1', name: 'bash', argsRaw: '{"command":"ls","description":"List"}',
-      turn: 1, step: 1, time: 1_000, callView: null, subCalls: [],
+      turn: 1, step: 1, time: 1_000, subCalls: [],
     }
     const errorResult: ToolResultNode = {
       kind: 'tool-result', seq: 1, time: 1_000, callId: 'c1',
       call: { name: 'bash', argsRaw: '{"command":"boom"}' },
       callTime: 500,
-      content: [], isError: true, callView: null, resultView: null, subCalls: [],
+      content: [], isError: true, subCalls: [],
     }
     const stoppedResult: ToolResultNode = {
       ...errorResult,

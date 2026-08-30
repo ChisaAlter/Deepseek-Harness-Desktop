@@ -332,6 +332,19 @@ describe('Zstandard frame structure', () => {
 })
 
 describe('JsonlSessionPersistence: default Zstandard encoding', () => {
+  it('materializes an explicitly durable empty session as one header frame', async () => {
+    const root = await freshRoot()
+    const ctx = await mount(root)
+    const session = ctx.sessions.create(SessionId('empty-zstd'), { meta: { cwd: '/work' } })
+
+    await ctx.sessionPersistence.ensureMaterialized(session)
+
+    const buffer = await readFile(logPath(root, '/work', session.id, 'zstd'))
+    expect(scanZstdFrames(buffer).frames).toHaveLength(1)
+    expect((await decodeCompleteFrames(buffer)).toString()).toBe(`${JSON.stringify(toHeaderLine(session.header))}\n`)
+    await expect(ctx.sessionPersistence.load(session.id)).resolves.toEqual({ meta: session.header, events: [] })
+  })
+
   it('writes .jsonl.zstd by default with one header frame and one first-batch frame', async () => {
     const root = await freshRoot()
     const ctx = await mount(root)
@@ -539,6 +552,7 @@ describe('JsonlSessionPersistence: default Zstandard encoding', () => {
     const root = await freshRoot()
     const ctx = await mount(root)
     const header = meta('recover-torn', '/proj')
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
     await ctx.sessionPersistence.create(header)
     await ctx.sessionPersistence.append(header.id, oneTurnLog())
     const path = logPath(root, header.cwd, header.id, 'zstd')
@@ -562,6 +576,7 @@ describe('JsonlSessionPersistence: default Zstandard encoding', () => {
     expect(loaded.events.some(event => event.type === 'assistant/chunk' && event.seq === 8)).toBe(false)
     expect(loaded.events[8]?.type).toBe('step/end')
     expect(loaded.events[9]?.type).toBe('turn/end')
+    expect(warn).toHaveBeenCalledWith('session-persistence-jsonl: session "recover-torn" recovered from a torn tail; incomplete tail bytes were discarded')
 
     const repaired = await readFile(path)
     expect(repaired.subarray(0, committed.length)).toEqual(committed)

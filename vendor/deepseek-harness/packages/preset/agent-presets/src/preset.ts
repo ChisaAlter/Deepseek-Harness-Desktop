@@ -1,5 +1,7 @@
 /** Agent-preset vocabulary shared by discovery, mounting, and consumers. */
 
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+
 /**
  * Where a preset's composition came from. A `system` preset ships with the
  * deployment; a `user` preset was authored locally, by a person or by an
@@ -55,8 +57,16 @@ export interface Config {
   /** Scanned roots in precedence order; an earlier root wins a duplicate id. */
   roots: PresetRoot[]
   /**
+   * Prepend this package's bundled shipped presets as a `system` root, before
+   * every configured root, so the shipped set always mounts and wins a
+   * duplicate id. The default survives a whole-`config` patch replacement;
+   * only an explicit `false` — a deployment supplying purely its own presets,
+   * or an embedder using the roster as bare machinery — drops the set.
+   */
+  includeShippedRoot: boolean
+  /**
    * Append the harness home's `USER_PRESET_DIR` as a `user` root, after every
-   * configured root. False mounts a roster over `roots` alone.
+   * configured root. False mounts a roster without the derived writable root.
    */
   includeUserRoot: boolean
 }
@@ -76,6 +86,22 @@ export class UnknownPresetError extends Error {
     readonly available: readonly string[],
   ) {
     super(`agent-presets: preset "${presetId}" not found (available: ${available.join(', ') || 'none'})`)
+  }
+}
+
+/**
+ * The session's composition is fixed: its conversation has started, so its
+ * history was produced under the preset it runs and swapping the composition
+ * would leave logged tool calls the new one cannot make.
+ */
+export class PresetLockedError extends Error {
+  constructor(
+    /** The session whose composition is already fixed. */
+    readonly sessionId: SessionId,
+    /** The preset that was refused. */
+    readonly presetId: string,
+  ) {
+    super(`agent-presets: session "${sessionId}" has already started; its agent preset is fixed`)
   }
 }
 
