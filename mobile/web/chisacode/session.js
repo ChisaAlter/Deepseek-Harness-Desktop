@@ -176,10 +176,10 @@ export async function pairFromOfferUrl(api, offerUrl) {
   try {
     offer = api.parseConnectionOfferFromUrl(offerUrl);
   } catch {
-    throw new Error('无效的配对链接（需要 ChisaCode offer v2）');
+    throw new Error('无效的配对链接（需要 dshd offer）');
   }
   if (!offer || !offer.serverId) {
-    throw new Error('无效的配对链接（需要 ChisaCode offer v2）');
+    throw new Error('无效的配对链接（需要 dshd offer）');
   }
 
   const stored = loadSecrets()[offer.serverId];

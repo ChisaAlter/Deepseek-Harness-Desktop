@@ -353,7 +353,7 @@ function composerOffline() {
 
 function connectionLabel() {
   return state.transport === 'chisacode'
-    ? 'ChisaCode v2 · 端到端加密'
+    ? 'dshd · 端到端加密'
     : channelLabel(origin);
 }
 
@@ -924,7 +924,7 @@ function renderApproval() {
 
 // —— 主机 RPC / shell —— //
 
-const LEGACY_HOST_RPC_MSG = '当前为 ChisaCode 配对会话，旧 Host RPC 已退役';
+const LEGACY_HOST_RPC_MSG = '当前为 dshd 配对会话，旧 Host RPC 已退役';
 
 function assertNotLegacyHostRpc() {
   if (state.transport === 'chisacode') {
@@ -1249,7 +1249,7 @@ async function finishChisaCodeConnect(paired, reconnected) {
 async function connect(offerUrl) {
   showError('');
   if (!hasOfferFragment(offerUrl)) {
-    throw new Error('请使用桌面端扫码配对二维码（ChisaCode offer）');
+    throw new Error('请使用桌面端扫码配对二维码（dshd offer）');
   }
   const api = await loadChisaCodeApi();
   await finishChisaCodeConnect(await pairFromOfferUrl(api, offerUrl), false);
@@ -2383,7 +2383,7 @@ function insertMention(path) {
 
 async function requestHost(name, payload = {}) {
   if (state.transport === 'chisacode') {
-    showBanner('ChisaCode 手机协议不能控制电脑窗口；请在电脑端操作');
+    showBanner('dshd 远程不能控制电脑窗口；请在电脑端操作');
     return;
   }
   try {
@@ -3127,7 +3127,7 @@ function renderWorkspacePane() {
 
 function renderHostRequestPane(pane) {
   if (state.transport === 'chisacode') {
-    options.append(descNode('ChisaCode 手机协议不控制电脑窗口。请在电脑端打开对应设置。'));
+    options.append(descNode('dshd 远程不控制电脑窗口。请在电脑端打开对应设置。'));
     const unavailable = primaryButton(`请在电脑端打开${pane}`, () => {});
     unavailable.disabled = true;
     options.append(unavailable);
@@ -3930,7 +3930,7 @@ function renderDialog() {
   if (kind === 'create-branch') {
     const { layer, dialog } = dialogLayer(true);
     if (state.transport === 'chisacode') {
-      dialogHead(dialog, '请在电脑端创建分支', '当前 ChisaCode 手机协议支持切换已有分支，但不支持创建普通分支。');
+      dialogHead(dialog, '请在电脑端创建分支', '当前 dshd 远程支持切换已有分支，但不支持创建普通分支。');
       dialogFoot(dialog, [primaryButton('知道了', closeGitLayer)]);
       dialogRoot.append(layer);
       return;

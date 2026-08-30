@@ -1,6 +1,6 @@
 /**
  * Ensure runtime artifacts match latest source before Electron starts.
- * Stops shipping stale ui-settings-remote/lib or missing ChisaCode links.
+ * Stops shipping stale ui-settings-remote/lib or missing dshd remote links.
  */
 import fs from 'node:fs';
 import path from 'node:path';

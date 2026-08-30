@@ -74,6 +74,31 @@ function pairingOffer(snap) {
   return typeof raw === 'string' && raw.includes('#offer=') ? raw : '';
 }
 
+/**
+ * Pairing chrome follows the live control socket: QR only when connected.
+ * @param {{ hasQr?: boolean, hasStatus?: boolean } | null} face
+ * @param {boolean} connected
+ * @returns {boolean}
+ */
+function pairingChromeMatchesRelay(face, connected) {
+  if (!face) return false;
+  if (connected) return Boolean(face.hasQr);
+  return !face.hasQr && Boolean(face.hasStatus);
+}
+
+/**
+ * Copy / rotate ride the same gate as the QR.
+ * @param {{ copy?: boolean, rotate?: boolean } | null} face
+ * @param {boolean} connected
+ * @param {boolean} clipHostOk
+ * @returns {boolean}
+ */
+function pairingControlsMatchRelay(face, connected, clipHostOk) {
+  if (!face) return false;
+  if (connected) return Boolean(face.copy && face.rotate && clipHostOk);
+  return !face.copy && !face.rotate;
+}
+
 function portOpen(port) {
   const target = Number(port);
   if (!Number.isInteger(target) || target <= 0) {
@@ -199,10 +224,20 @@ async function runRemoteGateQa(wc, helpers, { mode = 'full' } = {}) {
       const qr = await waitUntil(() => pageEval(wc, () => {
         const root = document.querySelector('[data-dsh-remote-panel], [role="dialog"]') || document.body;
         const mark = root.querySelector('[data-dsh-remote-qr] img, [data-dsh-remote-qr] svg');
-        return mark ? { kind: mark.tagName.toLowerCase() } : null;
+        const status = root.querySelector('[data-dsh-remote-status]');
+        if (!mark && !status) return null;
+        return {
+          hasQr: Boolean(mark),
+          kind: mark ? mark.tagName.toLowerCase() : '',
+          hasStatus: Boolean(status),
+        };
       }), 8_000);
-      qrOk = Boolean(qr);
-      qrDetail = qr ? JSON.stringify(qr) : 'popup opened but no [data-dsh-remote-qr] face';
+      const live = await helpers.probeRemote().catch(() => enabled);
+      const connected = Boolean(live && live.relayConnected);
+      qrOk = pairingChromeMatchesRelay(qr, connected);
+      qrDetail = qr
+        ? `${JSON.stringify(qr)}; relayConnected=${connected}`
+        : 'popup opened but no [data-dsh-remote-qr] face or status';
       await helpers.pressEscape(wc);
     }
     rec('rem.qrVisible', qrOk, qrDetail);
@@ -251,19 +286,26 @@ async function runRemoteGateQa(wc, helpers, { mode = 'full' } = {}) {
       const face = await waitUntil(() => pageEval(wc, () => {
         const root = document.querySelector('[data-dsh-remote-panel], [role="dialog"]') || document.body;
         const mark = root.querySelector('[data-dsh-remote-qr] img, [data-dsh-remote-qr] svg');
+        const status = root.querySelector('[data-dsh-remote-status]');
         const copy = root.querySelector('[data-dsh-remote-copy-link]');
         const rotate = root.querySelector('[data-dsh-remote-rotate]');
         const text = root.innerText || '';
-        return mark ? {
-          hasQr: true,
-          kind: mark.tagName.toLowerCase(),
+        if (!mark && !status) return null;
+        return {
+          hasQr: Boolean(mark),
+          kind: mark ? mark.tagName.toLowerCase() : '',
+          hasStatus: Boolean(status),
           bareOffer: text.includes('#offer='),
           copy: Boolean(copy && dshShown(copy)),
           rotate: Boolean(rotate && dshShown(rotate)),
-        } : null;
+        };
       }), 8_000);
-      coldQrOk = Boolean(face && face.hasQr);
-      coldQrDetail = face ? JSON.stringify(face) : 'popup opened but no [data-dsh-remote-qr] face';
+      const live = await helpers.probeRemote().catch(() => cold);
+      const connected = Boolean(live && live.relayConnected);
+      coldQrOk = pairingChromeMatchesRelay(face, connected);
+      coldQrDetail = face
+        ? `${JSON.stringify(face)}; relayConnected=${connected}`
+        : 'popup opened but no [data-dsh-remote-qr] face or status';
       bareOffer = Boolean(!face || face.bareOffer);
       copyOk = Boolean(face && face.copy);
       rotateOk = Boolean(face && face.rotate);
@@ -277,33 +319,37 @@ async function runRemoteGateQa(wc, helpers, { mode = 'full' } = {}) {
         clipboard = readMainClipboard();
       }
       await helpers.pressEscape(wc);
-    }
-    const offer = pairingOffer(cold);
-    let clipHostOk = false;
-    try {
-      const host = clipboard ? new URL(clipboard).hostname : '';
-      clipHostOk = Boolean(
-        clipboard.includes('#offer=')
-        && !['127.0.0.1', 'localhost', '::1'].includes(host),
+      const offer = pairingOffer(cold);
+      let clipHostOk = false;
+      try {
+        const host = clipboard ? new URL(clipboard).hostname : '';
+        clipHostOk = Boolean(
+          clipboard.includes('#offer=')
+          && !['127.0.0.1', 'localhost', '::1'].includes(host),
+        );
+      } catch {
+        clipHostOk = false;
+      }
+      rec(
+        'cold.openShowsQr',
+        coldQrOk && Boolean(offer) && !remoteHasError(cold),
+        coldQrDetail,
       );
-    } catch {
-      clipHostOk = false;
+      rec(
+        'cold.noBareOfferText',
+        Boolean(face) && !bareOffer,
+        bareOffer ? 'popup text still dumps #offer=' : 'no bare #offer= in popup text',
+      );
+      rec(
+        'cold.copyAndRotateControls',
+        pairingControlsMatchRelay(face, connected, clipHostOk),
+        `copy=${copyOk}; rotate=${rotateOk}; clipboardOffer=${clipHostOk}; relayConnected=${connected}`,
+      );
+    } else {
+      rec('cold.openShowsQr', false, coldQrDetail);
+      rec('cold.noBareOfferText', false, 'remote trigger missing');
+      rec('cold.copyAndRotateControls', false, 'remote trigger missing');
     }
-    rec(
-      'cold.openShowsQr',
-      coldQrOk && Boolean(offer) && !remoteHasError(cold),
-      coldQrDetail,
-    );
-    rec(
-      'cold.noBareOfferText',
-      coldQrOk && !bareOffer,
-      bareOffer ? 'popup text still dumps #offer=' : 'no bare #offer= in popup text',
-    );
-    rec(
-      'cold.copyAndRotateControls',
-      copyOk && rotateOk && clipHostOk,
-      `copy=${copyOk}; rotate=${rotateOk}; clipboardOffer=${clipHostOk}`,
-    );
   }
 
   const failed = steps.filter((s) => !s.ok && !s.optional).map((s) => s.name);
@@ -324,5 +370,7 @@ module.exports = {
   assertRemoteGateQaResult,
   remoteHasError,
   pairingOffer,
+  pairingChromeMatchesRelay,
+  pairingControlsMatchRelay,
   portOpen,
 };

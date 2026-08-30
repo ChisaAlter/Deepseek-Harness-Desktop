@@ -5,10 +5,13 @@
  * @param raw - snapshot `relayError` (may be empty).
  * @returns which locale key family to use; unknown → generic (no wire dump).
  */
-export function humanizeRelayError(raw: string): 'disconnected' | 'generic' {
+export function humanizeRelayError(raw: string): 'disconnected' | 'unavailable' | 'generic' {
   const s = raw.trim()
   if (s === 'relay_control_disconnected' || /relay_control_disconnected/i.test(s)) {
     return 'disconnected'
+  }
+  if (/\b503\b/.test(s) || /desktop relay is offline/i.test(s)) {
+    return 'unavailable'
   }
   return 'generic'
 }

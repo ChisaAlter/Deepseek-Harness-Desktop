@@ -46,3 +46,9 @@ test('browser scan keeps auto-connecting into the web client on #offer= boot', (
   );
   assert.match(appJs, /connect\(window\.location\.href\)/);
 });
+
+test('landing page warns that WeChat/QQ strip #offer= and paste must be complete', () => {
+  assert.match(indexHtml, /#offer=/);
+  assert.match(indexHtml, /微信/);
+  assert.match(indexHtml, /丢.*密钥|丢掉密钥/);
+});

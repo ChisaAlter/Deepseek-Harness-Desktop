@@ -176,9 +176,10 @@ export function RemoteSection({
       ? t('errorPortInUse')
       : t('statusErrorGeneric')
   } else if (enabled && !relayConnected) {
-    statusText = humanizeRelayError(relayError) === 'disconnected'
-      ? t('relayDownDisconnected')
-      : t('relayDown')
+    const relayKind = humanizeRelayError(relayError)
+    if (relayKind === 'disconnected') statusText = t('relayDownDisconnected')
+    else if (relayKind === 'unavailable') statusText = t('relayUnavailable')
+    else statusText = t('relayDown')
   } else if (enabled && !listening) {
     statusText = t('startingHint')
   }
@@ -264,7 +265,7 @@ export function RemoteSection({
                     {statusText}
                   </p>
                 ) : null}
-                {enabled && qr ? (
+                {enabled && relayConnected && qr ? (
                   <>
                     <div
                       className={css.qr}
@@ -273,7 +274,6 @@ export function RemoteSection({
                       data-dsh-remote-qr=""
                       dangerouslySetInnerHTML={{ __html: qr }}
                     />
-                    <p className={css.hint}>{t('scanSplitHint')}</p>
                     <div className={css.footer}>
                       <Button
                         size="sm"

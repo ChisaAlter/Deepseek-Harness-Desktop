@@ -4,11 +4,11 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-08-29 — 审查缺陷弥补（QR 只认 data-dsh-remote-qr、第二冷 boot、prestart 校验 copyLink）。报告：[remote-popover-ux.md](../qa/results/2026-08-29/remote-popover-ux.md)。 |
+| **last verified** | 2026-08-30 — 外出 QR 改公网 `/dshd/`；config 拒 `:8411` 作 SPA；落地页补 #offer= / 微信警告。 |
 
 ## User paths
 
-1. 桌面开启配对且中继已连接 → 侧栏扫码（`http://<LAN>:3180/#offer=` v2）→ 手机系统相机打开 SPA → `DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。
+1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（包装纸按网关模式：**局域网** `http://<LAN>:3180/` 本机 `mobile/web` SPA；**外出** `DEFAULT_PUBLIC_APP_BASE_URL`（公网 nginx `/dshd/`），系统相机打开浏览器公网页，App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin）→ `DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
 2. 再次打开手机 SPA（无 hash）：自动用最近一台的已存 `deviceSecret` sticky 重连，无需再扫，直至桌面 **解除配对**。连接页列出「已保存的电脑」（完整 sticky 记录，最近保存优先，显示中继 endpoint 与保存日期）：点选任一台走 `reconnectSticky` 手动重连（自动重连未定盘前行禁用），「忘记」清除该台的本机 secret。
 3. Android：原生扫码或粘贴完整配对 URL → 提取 offer 后由应用内 WebView 打开 APK 内置的同一 SPA → 后续启动直接从安全 asset origin 触发 SPA sticky 重连，不必重新访问 LAN `:3180` 页面。
 4. 设置 → 远程 → 网关：局域网 | 外出（文案区分）；传输始终走中继主机。
@@ -26,15 +26,17 @@
 
 ## Invariants
 
-- 手机 = **同协议客户端**（`mobile/web/chisacode/` + `@chisacode/client` bundle），不是旧 HTTP Host SPA。
+- 手机 = **同协议客户端**（`mobile/web/chisacode/` + `@chisacode/client` bundle），不是旧 HTTP Host SPA。用户可见名称是 **dshd daemon / dshd offer / dshd 远程**；协议实现仍是 vendored ChisaCode offer v2，不改 wire、包名或 sticky localStorage 键。
 - SPA 不得从 `host/offer.js` / `host/login.js` 进入 v1 Cookie 登录；扫描结果保留完整 `#offer=` URL 后交给 `parseConnectionOfferFromUrl`。
-- QR **落地页** = 本机 `mobile/web` on `:3180`（`preferredLanIp`），**永不**把中继 origin 当 SPA。
-- **一码两入口**（对齐上游，不出第二张码/第二套协议）：同一张 QR——Android App 内扫码＝链接设备（WebView SPA sticky）；相机 / 浏览器扫码＝打开 `:3180` 自动连入 **web 端**（不得改成「仅设备配对」或加二次确认门）。桌面弹窗（`scanSplitHint`）与落地页（`#entry-split-hint`）必须向用户说明该分流。
+- QR **落地页**：局域网模式 = `preferredLanIp():3180`（本机 `mobile/web`）；外出模式 = `DEFAULT_PUBLIC_APP_BASE_URL`（公网 nginx `/dshd/`），**不是**中继 `:8411`。系统相机外出打开浏览器公网页；App 内扫同一张码走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。
+- **sticky 三 origin 不互通**：公网 `/dshd`、LAN `:3180`、`appassets.androidplatform.net` 各自 localStorage；跨 origin 不能 sticky 重连。
+- 配对链接为 **HTTP 明文**；路径上 MITM 可读 `#offer=` hash。
+- **一码两入口**（对齐上游，不出第二张码/第二套协议）：同一张 QR——Android App 内扫码＝链接设备（WebView SPA sticky）；相机 / 浏览器扫码＝打开落地页自动连入 **web 端**（不得改成「仅设备配对」或加二次确认门）。分流说明只在落地页（`#entry-split-hint`）与 Android 系统选择器；桌面弹窗不再复述。
 - 系统相机 handoff：manifest 认领 `http://<any host>:3180` 的 `VIEW`（宽 host 匹配是唯一解，**禁止** `android:autoVerify`——系统选择器「用 App 打开＝链接设备 / 用浏览器打开＝web 端」就是产品行为）；安全闸门在 App 内——`PairingIntent.fromViewIntent` 必须用与扫码/粘贴同一套 `parsePairingLink` 语法全量重校验，intent data 只解析**永不加载**；垃圾 `:3180` 链接只在 Connect 屏提示，不得把已连接的 Web 会话踢回 Connect；非 VIEW 启动零副作用；`singleTask` + `onNewIntent` 复用实例，不堆叠 Activity。不自造 scheme，上游若引入正式移动 deep link 则跟随。
 - Offer 内 `relay.endpoint` = 传输中继；WS 必须 `role=client`；`useTls` 读写一致（`=== true`）。
 - Offer v1 / `POST /__remote__/login` / RemoteGateway 配对 **退役**。
-- 桌面 `relayConnected` 反映真实 control socket；未连接时 UI 明示，扫码无法完成绑定。
-- 侧栏弹窗：打开即 `getRemote`；`enabled && (!listening || !pairingUrl)` 至多一次 `saveRemote({remoteEnabled:true})` 自愈；弹窗 DOM **禁止** raw `relay_control_*` / 裸 `#offer=` 文本；有码时提供复制链接与刷新配对码；启动中用 `startingHint`，持久失败用人话 error，On 可重试。QR 闸门只认 `[data-dsh-remote-qr]`，禁止文案/`svg` 兜底。`qa:remote` 含 `DSH_QA_REMOTE=cold` 第二 boot；`prestart-ensure` 校验 `lib/client.js` 含 `copyLink`。
+- 桌面 `relayConnected` 反映真实 control socket；未连接时 UI 明示且**不**展示配对二维码 / 复制 / 刷新。`relay_control_disconnected` 不得覆盖更具体的 HTTP 失败（如 503）。内置中继 `125.124.85.212:8411` 回 503/`desktop relay is offline` 时文案为「默认中继暂时不可用」。
+- 侧栏弹窗：打开即 `getRemote`；`enabled && (!listening || !pairingUrl)` 至多一次 `saveRemote({remoteEnabled:true})` 自愈；弹窗 DOM **禁止** raw `relay_control_*` / 裸 `#offer=` 文本；**仅** `enabled && relayConnected && pairingUrl` 时提供二维码、复制链接与刷新配对码；启动中用 `startingHint`，持久失败用人话 error，On 可重试。QR 闸门只认 `[data-dsh-remote-qr]`，禁止文案/`svg` 兜底。`qa:remote` 含 `DSH_QA_REMOTE=cold` 第二 boot；`cold.openShowsQr` / `rem.qrVisible` 在中继未连时断言无 QR + 有 status。`prestart-ensure` 校验 `lib/client.js` 含 `copyLink`。
 - Android Compose 扫码框为正方形；会话走 APK 构建时纳入的同一 Web SPA（`WebViewAssetLoader` HTTPS origin），不另写一套 DaemonClient，也不依赖冷启动时仍能访问 LAN 落地页。
 - Android 升级后一次性清除旧 HTTP `deviceToken`/`origin`；不保留 `LoginClient`、Bearer `/api/*`、`/__remote__/shell/*` 原生 Chat 死路径。
 - Android 原生层只保存内置 SPA 已启用标记，不保存 offer；`deviceSecret` 由 SPA 保存在稳定 WebView asset origin 的 localStorage，直到桌面撤销或 SPA 断开设备。

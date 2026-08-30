@@ -12,9 +12,11 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { applyOfficialDeepSeekSpawnEnv } = require('../shared/official-deepseek-env');
 const {
+  DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_ENDPOINT,
   DEFAULT_RELAY_USE_TLS,
   listLanAddresses,
+  normalizePublicAppBaseUrl,
   preferredLanIp,
   publicUrl,
 } = require('../shared/lan');
@@ -114,7 +116,7 @@ function readDefaults() {
 async function loadServerApi() {
   if (!fs.existsSync(SERVER_EXPORT)) {
     throw new Error(
-      `ChisaCode server export missing at ${SERVER_EXPORT}. Run vendor sync / build packages/server.`,
+      `dshd remote runtime missing at ${SERVER_EXPORT}. Run vendor sync / build packages/server.`,
     );
   }
   return import(pathToFileURL(SERVER_EXPORT).href);
@@ -122,6 +124,16 @@ async function loadServerApi() {
 
 function modeIsAway(config) {
   return config.remoteMode === 'relay' || config.remoteMode === 'away';
+}
+
+function resolvedAppBaseUrl(config) {
+  if (modeIsAway(config)) {
+    return normalizePublicAppBaseUrl(config.remoteAppBaseUrl, {
+      relayEndpoint: (config.remoteRelayEndpoint || DEFAULT_RELAY_ENDPOINT).trim(),
+    }) || DEFAULT_PUBLIC_APP_BASE_URL;
+  }
+  const ip = preferredLanIp() || '127.0.0.1';
+  return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
 }
 
 function relayUseTls(config, endpoint) {
@@ -154,9 +166,10 @@ function publicDevicesFromStore(store) {
  * identifiers, read at the process boundary instead of by monkey-patching the
  * logger.
  * @param {{ msg?: unknown, err?: { message?: unknown } | null, reason?: unknown }} record
+ * @param {{ connected?: boolean, lastError?: string } | null} [previous]
  * @returns {{ connected: boolean, lastError: string } | null}
  */
-function relayStatusFromLogRecord(record) {
+function relayStatusFromLogRecord(record, previous) {
   if (!record || typeof record !== 'object') {
     return null;
   }
@@ -166,8 +179,13 @@ function relayStatusFromLogRecord(record) {
   }
   if (msg === 'relay_error' || msg === 'relay_control_disconnected') {
     const err = record.err;
-    const detail = (err && typeof err === 'object' && err.message) || record.reason || msg;
-    return { connected: false, lastError: String(detail || msg) };
+    const detail = (err && typeof err === 'object' && err.message) || record.reason || '';
+    const lastError = String(detail || msg);
+    const prior = previous && previous.lastError ? String(previous.lastError) : '';
+    const keepPrior = lastError === 'relay_control_disconnected'
+      && prior
+      && prior !== 'relay_control_disconnected';
+    return { connected: false, lastError: keepPrior ? prior : lastError };
   }
   return null;
 }
@@ -425,12 +443,12 @@ class ChisaCodeRemote extends EventEmitter {
   }
 
   /**
-   * QR / SPA landing is always the local mobile/web server — never the relay origin.
+   * QR / SPA landing: LAN mobile/web :3180 in LAN mode; public nginx SPA in Away mode.
    * @returns {string}
    */
   pairingAppBaseUrl() {
-    const ip = preferredLanIp() || '127.0.0.1';
-    return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
+    const config = this.getConfig() || {};
+    return resolvedAppBaseUrl(config);
   }
 
   async ensureMobileWebServer(config = this.getConfig() || {}) {
@@ -477,6 +495,14 @@ class ChisaCodeRemote extends EventEmitter {
     const relayEndpoint = (config.remoteRelayEndpoint || config.remoteRelayUrl || defaults.relayEndpoint || '').trim();
     const relayReady = Boolean(relayEndpoint);
     const addresses = listLanAddresses();
+    let snapshotAddress = preferredLanIp(addresses) || 'pair';
+    if (away && pairingUrl) {
+      try {
+        snapshotAddress = new URL(resolvedAppBaseUrl(config)).hostname;
+      } catch {
+        snapshotAddress = 'pair';
+      }
+    }
 
     return {
       available: true,
@@ -501,7 +527,7 @@ class ChisaCodeRemote extends EventEmitter {
       devices,
       pairingQr: '',
       urls: pairingUrl
-        ? [{ address: preferredLanIp(addresses) || 'pair', url: pairingUrl, pairingUrl }]
+        ? [{ address: snapshotAddress, url: pairingUrl, pairingUrl }]
         : [],
     };
   }
@@ -575,7 +601,11 @@ class ChisaCodeRemote extends EventEmitter {
       const agentStoragePath = path.join(home, 'agents');
       fs.mkdirSync(agentStoragePath, { recursive: true });
 
-      await this.ensureMobileWebServer(config);
+      if (modeIsAway(config)) {
+        await this.stopMobileWebServer();
+      } else {
+        await this.ensureMobileWebServer(config);
+      }
       this.relayState = { connected: false, lastError: '' };
 
       const daemonConfig = {
@@ -671,7 +701,7 @@ class ChisaCodeRemote extends EventEmitter {
     wireLineReader(child.stdout, (line) => { this.handleDaemonLogLine(handle, line); });
     wireLineReader(child.stderr, (line) => {
       handle.stderrTail = `${handle.stderrTail}${line}\n`.slice(-DAEMON_STDERR_TAIL_LIMIT);
-      this.log?.(`[chisacode-daemon] ${line}`);
+      this.log?.(`[dshd-daemon] ${line}`);
     });
     child.stdin?.on?.('error', () => {});
     child.on('error', (err) => {
@@ -708,13 +738,13 @@ class ChisaCodeRemote extends EventEmitter {
       record = JSON.parse(line);
     } catch {
       // Non-JSON output (native module noise); keep it visible.
-      this.log?.(`[chisacode-daemon] ${line}`);
+      this.log?.(`[dshd-daemon] ${line}`);
       return;
     }
     if (!record || typeof record !== 'object') {
       return;
     }
-    const status = relayStatusFromLogRecord(record);
+    const status = relayStatusFromLogRecord(record, this.relayState);
     if (status) {
       this.setRelayState(status);
     }
@@ -727,7 +757,7 @@ class ChisaCodeRemote extends EventEmitter {
     // Info-level daemon chatter stays out of the dsh log; lifecycle lines and
     // warn+ records are the operator-relevant slice.
     if (msg.startsWith('dshd_daemon_') || (typeof record.level === 'number' && record.level >= 40)) {
-      this.log?.(`[chisacode-daemon] ${line}`);
+      this.log?.(`[dshd-daemon] ${line}`);
     }
   }
 
@@ -749,7 +779,7 @@ class ChisaCodeRemote extends EventEmitter {
       this.error = `远程守护进程异常退出（${signal || `code ${code}`}），点「开启」重试`;
       this.relayState = { connected: false, lastError: this.error };
       this.pairing = { relayEnabled: false, url: null, qr: null };
-      this.log?.(`[chisacode-daemon] ${this.error}`);
+      this.log?.(`[dshd-daemon] ${this.error}`);
       this.emit('listening', this.snapshot());
     }
   }
@@ -838,6 +868,8 @@ class ChisaCodeRemote extends EventEmitter {
       mobileBind: config.remoteBindAddress === '127.0.0.1'
         ? '0.0.0.0'
         : (config.remoteBindAddress || '0.0.0.0'),
+      mode: modeIsAway(config) ? 'relay' : 'lan',
+      appBaseUrl: resolvedAppBaseUrl(config),
     });
   }
 }

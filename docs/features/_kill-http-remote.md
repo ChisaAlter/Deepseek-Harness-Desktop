@@ -1,6 +1,6 @@
 # HTTP RemoteGateway kill list (ChisaCode single-stack)
 
-Product pairing is **ChisaCode offer v2 + createChisaCodeDaemon + same-protocol phone**. The old HTTP path is retired as the main path. Dual-stack is **not** in scope unless explicitly re-opened.
+Product pairing is **dshd offer (vendored ChisaCode offer v2) + createChisaCodeDaemon + same-protocol phone**. The old HTTP path is retired as the main path. Dual-stack is **not** in scope unless explicitly re-opened.
 
 ## Vocabulary
 
@@ -17,6 +17,7 @@ Product pairing is **ChisaCode offer v2 + createChisaCodeDaemon + same-protocol 
 | `RemoteGateway` HTTP listener / `#offer=` v1 | Class may remain for legacy unit tests; **not** constructed in `index.js` |
 | `src/shared/offer.js` v1 encode | Desktop QR now from `generateLocalPairingOffer` |
 | Default HTTP relay `http://125.124.85.212:8411` | Allowed as **transport** default only. **Never** as QR / `appBaseUrl` SPA landing |
+| Public nginx SPA `http://125.124.85.212/dshd` | Away-mode QR landing path — separate from relay `:8411` transport port |
 | Host token / `remoteRelayToken` wall in gateway UI | Removed; field may linger for migration clear |
 | `mobile/web` HTTP Host SPA login + mux over `:3180` | Replaced by `chisacode/daemon-client.bundle.js` + `session.js` |
 | Android Offer v1 JSON login | Must move to same protocol client (tracked; web done first) |

@@ -65,6 +65,8 @@ describe('relay-copy', () => {
   it('maps relay_control_disconnected without exposing wire tokens elsewhere', () => {
     expect(humanizeRelayError('relay_control_disconnected')).toBe('disconnected')
     expect(humanizeRelayError('Unexpected server response: 401')).toBe('generic')
+    expect(humanizeRelayError('Unexpected server response: 503')).toBe('unavailable')
+    expect(humanizeRelayError('desktop relay is offline')).toBe('unavailable')
   })
 
   it('maps port-in-use English and Chinese messages', () => {
@@ -105,21 +107,30 @@ describe('RemoteSection', () => {
     expect(screen.getByRole('button', { name: en.copyLink })).toBeTruthy()
     expect(screen.getByRole('button', { name: en.rotateToken })).toBeTruthy()
     expect(screen.queryByText(/#offer=/)).toBeNull()
-    expect(screen.getByText(en.scanSplitHint)).toBeTruthy()
+    expect(screen.queryByText(en.scanSplitHint)).toBeNull()
   })
 
-  it('keeps the entry-split hint tied to the QR (absent while off)', async () => {
+  it('does not teach the scan split on the pairing popup', async () => {
+    renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await screen.findByRole('img', { name: en.qr })
+    expect(screen.queryByText(en.scanSplitHint)).toBeNull()
+    cleanup()
     renderRemote({ getRemote: vi.fn(async () => snap({ enabled: false, listening: false, urls: [] })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByText(en.offHint)
     expect(screen.queryByText(en.scanSplitHint)).toBeNull()
   })
 
-  it('states plainly that pairing cannot finish while the relay is offline', async () => {
+  it('hides pairing chrome while the relay is down', async () => {
     renderRemote()
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByRole('dialog', { name: en.heading })
     expect(screen.getByText(en.relayDown)).toBeTruthy()
+    expect(screen.queryByRole('img', { name: en.qr })).toBeNull()
+    expect(screen.queryByRole('button', { name: en.copyLink })).toBeNull()
+    expect(screen.queryByRole('button', { name: en.rotateToken })).toBeNull()
+    expect(screen.queryByText(en.scanSplitHint)).toBeNull()
     cleanup()
     renderRemote({
       getRemote: vi.fn(async () => snap({ relayConnected: false, relayError: 'Unexpected server response: 401' })),
@@ -128,11 +139,23 @@ describe('RemoteSection', () => {
     await screen.findByText(en.relayDown)
     expect(screen.queryByText(/401/)).toBeNull()
     expect(screen.queryByText(/Unexpected/)).toBeNull()
+    expect(screen.queryByRole('img', { name: en.qr })).toBeNull()
+    cleanup()
+    renderRemote({
+      getRemote: vi.fn(async () => snap({
+        relayConnected: false,
+        relayError: 'Unexpected server response: 503',
+      })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await screen.findByText(en.relayUnavailable)
+    expect(screen.queryByRole('img', { name: en.qr })).toBeNull()
     cleanup()
     renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByRole('img', { name: en.qr })
     expect(screen.queryByText(en.relayDown)).toBeNull()
+    expect(screen.queryByText(en.relayUnavailable)).toBeNull()
   })
 
   it('maps relay_control_disconnected to relayDownDisconnected without wire token', async () => {
@@ -145,6 +168,7 @@ describe('RemoteSection', () => {
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
     await screen.findByText(en.relayDownDisconnected)
     expect(screen.queryByText(/relay_control/)).toBeNull()
+    expect(screen.queryByRole('img', { name: en.qr })).toBeNull()
   })
 
   it('shows the off hint until the gateway is enabled', async () => {

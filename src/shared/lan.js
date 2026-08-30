@@ -12,6 +12,8 @@ const DEFAULT_RELAY_ENDPOINT = `${DEFAULT_RELAY_HOST}:${DEFAULT_RELAY_PORT}`;
 const DEFAULT_RELAY_ORIGIN = `http://${DEFAULT_RELAY_ENDPOINT}`;
 /** Transport default origin only — not a product SPA landing host (QR uses LAN :3180). */
 const DEFAULT_APP_BASE_URL = DEFAULT_RELAY_ORIGIN;
+/** Public nginx SPA path for Away-mode QR — not the relay WebSocket port. */
+const DEFAULT_PUBLIC_APP_BASE_URL = `http://${DEFAULT_RELAY_HOST}/dshd`;
 const DEFAULT_RELAY_USE_TLS = false;
 
 function isIpv4(address, family) {
@@ -72,6 +74,44 @@ function isPrivateLanIpv4(address) {
     return true;
   }
   return false;
+}
+
+function isLoopbackHostname(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+}
+
+/**
+ * Normalize a public SPA base URL for Away-mode QR (nginx path, not relay :8411).
+ * @param {string} value
+ * @param {{ relayEndpoint?: string }} [options]
+ * @returns {string}
+ */
+function normalizePublicAppBaseUrl(value, options = {}) {
+  const relayEndpoint = options.relayEndpoint ?? DEFAULT_RELAY_ENDPOINT;
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return '';
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return '';
+  }
+  const hostname = url.hostname;
+  if (isLoopbackHostname(hostname) || isVirtualOrLinkLocalIpv4(hostname) || isPrivateLanIpv4(hostname)) {
+    return '';
+  }
+  const hostPort = url.port ? `${hostname}:${url.port}` : hostname;
+  if (url.port === '8411' || hostPort === relayEndpoint) {
+    return '';
+  }
+  const pathname = url.pathname.replace(/\/$/, '');
+  return `${url.protocol}//${url.host}${pathname}`;
 }
 
 /**
@@ -192,12 +232,14 @@ module.exports = {
   DEFAULT_RELAY_ORIGIN,
   DEFAULT_RELAY_ENDPOINT,
   DEFAULT_APP_BASE_URL,
+  DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_USE_TLS,
   listLanAddresses,
   preferredLanIp,
   isVirtualOrLinkLocalIpv4,
   normalizeRelayOrigin,
   normalizeRelayEndpoint,
+  normalizePublicAppBaseUrl,
   pairingUrl,
   publicUrl,
   reachableAddresses,

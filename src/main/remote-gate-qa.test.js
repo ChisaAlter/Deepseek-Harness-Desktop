@@ -9,6 +9,8 @@ const {
   REMOTE_GATE_COLD_CASES,
   assertRemoteGateQaResult,
   pairingOffer,
+  pairingChromeMatchesRelay,
+  pairingControlsMatchRelay,
 } = require('./remote-gate-qa');
 
 test('remote gate cases cover NEG-001 and REM-001 without pairing fetch', () => {
@@ -41,6 +43,18 @@ test('pairingOffer only accepts hash offers', () => {
   assert.equal(pairingOffer({ urls: [{ pairingUrl: 'http://10.0.0.4:3180/#offer=abc' }] }), 'http://10.0.0.4:3180/#offer=abc');
   assert.equal(pairingOffer({ urls: [{ pairingUrl: 'http://10.0.0.4:3180/?token=abc' }] }), '');
   assert.equal(pairingOffer({ urls: [] }), '');
+});
+
+test('pairing chrome follows the live relay control socket', () => {
+  assert.equal(pairingChromeMatchesRelay({ hasQr: true, hasStatus: false }, true), true);
+  assert.equal(pairingChromeMatchesRelay({ hasQr: false, hasStatus: true }, false), true);
+  assert.equal(pairingChromeMatchesRelay({ hasQr: true, hasStatus: true }, false), false);
+  assert.equal(pairingChromeMatchesRelay({ hasQr: false, hasStatus: false }, false), false);
+  assert.equal(pairingChromeMatchesRelay(null, true), false);
+  assert.equal(pairingControlsMatchRelay({ copy: true, rotate: true }, true, true), true);
+  assert.equal(pairingControlsMatchRelay({ copy: true, rotate: true }, true, false), false);
+  assert.equal(pairingControlsMatchRelay({ copy: false, rotate: false }, false, false), true);
+  assert.equal(pairingControlsMatchRelay({ copy: true, rotate: false }, false, false), false);
 });
 
 test('assertRemoteGateQaResult rejects missing cases', () => {
