@@ -103,6 +103,14 @@ async function main() {
     const pairingUrl = remote.snapshot().urls[0]?.pairingUrl || '';
     console.log(`[e2e] pairing url: ${pairingUrl.slice(0, 80)}…`);
 
+    await check('pairingUrl 使用 LAN IP origin（非 loopback / 非 secure 掩盖）', async () => {
+      const u = new URL(pairingUrl);
+      assert(
+        !['127.0.0.1', 'localhost', '::1'].includes(u.hostname),
+        `loopback origin masks non-secure context bugs: ${u.hostname}`,
+      );
+    });
+
     // -- Browser side -------------------------------------------------------
     browser = await puppeteer.launch({
       executablePath: CHROME,

@@ -19,6 +19,9 @@ test('remote gate cases cover NEG-001 and REM-001 without pairing fetch', () => 
   assert.ok(ids.includes('rem.pairingOffer'));
   assert.ok(ids.includes('rem.qrVisible'));
   assert.ok(ids.includes('rem.disabledStopped'));
+  assert.ok(ids.includes('cold.openShowsQr'));
+  assert.ok(ids.includes('cold.noBareOfferText'));
+  assert.ok(ids.includes('cold.copyAndRotateControls'));
   assert.equal(new Set(ids).size, ids.length);
   const src = fs.readFileSync(path.join(__dirname, 'remote-gate-qa.js'), 'utf8');
   assert.doesNotMatch(src, /loadURL\(|BrowserWindow/);

@@ -165,6 +165,70 @@ test('refreshPairing passes LAN appBaseUrl and includeQr false', async () => {
   assert.equal(calls[0].relayUseTls, false);
 });
 
+test('ensurePairing mints when daemon up and url empty', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.pairing = { relayEnabled: false, url: null, qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=x', qr: null };
+    remote.pairingEnsureBlocked = false;
+    return remote.pairing;
+  };
+  const snap = await remote.ensurePairing();
+  assert.equal(refreshCalls, 1);
+  assert.equal(snap.urls[0].pairingUrl, 'http://10.0.0.4:3180/#offer=x');
+});
+
+test('ensurePairing no-ops when url present', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=y', qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    return remote.pairing;
+  };
+  await remote.ensurePairing();
+  assert.equal(refreshCalls, 0);
+});
+
+test('ensurePairing suppresses after failure until rotateToken clears it', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.pairing = { relayEnabled: false, url: null, qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    if (refreshCalls === 1) throw new Error('mint failed');
+    remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=z', qr: null };
+    remote.pairingEnsureBlocked = false;
+    return remote.pairing;
+  };
+  await remote.ensurePairing();
+  assert.equal(refreshCalls, 1);
+  assert.equal(remote.pairingEnsureBlocked, true);
+  await remote.ensurePairing();
+  assert.equal(refreshCalls, 1);
+  await remote.rotateToken();
+  assert.equal(refreshCalls, 2);
+  assert.equal(remote.pairingEnsureBlocked, false);
+  assert.ok(remote.snapshot().urls[0].pairingUrl.includes('#offer=z'));
+});
+
 // ---------------------------------------------------------------------------
 // Daemon child-process management (fake runner scripts, real spawns)
 // ---------------------------------------------------------------------------
