@@ -8,32 +8,26 @@
   {
     "id": "E1",
     "status": "Blocked",
-    "detail": "chooser opened but no workspaces in fresh chisacode home (C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-remote-ops-9BdBAv)",
-    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E1-new-session-chooser.png"
+    "detail": "workspace selected; no ready providers",
+    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E1-no-provider.png"
   },
   {
     "id": "E2",
     "status": "Blocked",
-    "detail": "send attempted; no stop control (idle/no stream)",
+    "detail": "send attempted; no stream and no user row",
     "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E2-send.png"
   },
   {
     "id": "E3",
-    "status": "Pass",
-    "detail": "权限 control opened",
-    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E3-open.png"
+    "status": "Blocked",
+    "detail": "权限 opened but no alternate value to switch",
+    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E3-blocked.png"
   },
   {
     "id": "E4",
-    "status": "Pass",
-    "detail": "模型 control opened",
-    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E4-open.png"
-  },
-  {
-    "id": "E5",
     "status": "Blocked",
-    "detail": "drawer open; no agent rows to rename/archive/delete",
-    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E5-drawer.png"
+    "detail": "模型 opened but no alternate value to switch",
+    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E4-blocked.png"
   },
   {
     "id": "E6",
@@ -55,39 +49,45 @@
   },
   {
     "id": "E9",
-    "status": "Pass",
-    "detail": "files pane rendered (read-only). — ▾Commit▾— · 已与上游同步更改文件先打开一个会话，文件浏览跟随该会话的工作区目录。",
+    "status": "Blocked",
+    "detail": "files pane still says open a session first",
     "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E9-files.png"
   },
   {
     "id": "E10",
-    "status": "Pass",
-    "detail": "diff pane: — ▾Commit▾— · 已与上游同步更改文件先打开一个会话，改动视图跟随该会话的工作区目录。",
+    "status": "Blocked",
+    "detail": "diff pane still says open a session first",
     "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E10-diff.png"
   },
   {
     "id": "E11",
-    "status": "Blocked",
-    "detail": "extensions surface text sample: 新会话 srv_F01_bVrAfZ2c 新会话 描述你想要构建的内容。工作区仍是电脑上的那一个。 权限 模型 新会话 Deepseek-Harness-Desktop 已归档会话 工作区 设置 工作区 × — ▾ Commit ▾ — · 已与上游同步 更改 文件 先打开一个会",
+    "status": "Pass",
+    "detail": "MCP/skills read-only list visible",
     "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E11-extensions.png"
+  },
+  {
+    "id": "E5",
+    "status": "Blocked",
+    "detail": "drawer open; no agent rows to rename/archive/delete",
+    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E5-drawer.png"
   },
   {
     "id": "E12",
     "status": "Pass",
-    "detail": "stopDaemon → visible disconnect banner; send should refuse",
+    "detail": "banner=true; draftKept=true; synced=true",
     "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E12-disconnected.png"
   },
   {
     "id": "E13",
     "status": "Pass",
-    "detail": "sticky reopen without hash: 已重连 srv_F01_bVrAfZ2c",
+    "detail": "sticky reopen without hash: 已重连 srv_VZdZydPoro4C",
     "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E13-sticky.png"
   },
   {
     "id": "E14",
     "status": "Pass",
-    "detail": "unbindDevice(dev_f631fa3e5657fb8a86cafc51fde6f39c) cleared active device",
-    "evidence": ""
+    "detail": "unbindDevice(dev_cf7d33cdb0f072c2fb809142ab24b900); web requires a new scan",
+    "evidence": "docs\\qa\\results\\2026-08-29\\ops-shots\\E14-revoke.png"
   },
   {
     "id": "Android",

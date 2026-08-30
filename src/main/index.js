@@ -52,12 +52,16 @@ const {
 const { watchSystemTheme } = require('./chrome');
 const { showClosingOverlay } = require('./closing-overlay');
 const { hideOnClose } = require('./close-behavior');
-const { qaFlag } = require('./qa-gate');
+const { qaFlag, qaRemoteMode: readRemoteMode } = require('./qa-gate');
 const { devToolsShortcutAllowed, attachDevToolsShortcut } = require('./devtools-shortcut');
 
 /** Packaged-gated QA flag (see qa-gate.js). */
 function qaEnv(name) {
   return qaFlag(name, { isPackaged: app.isPackaged });
+}
+
+function qaRemoteMode() {
+  return readRemoteMode({ isPackaged: app.isPackaged });
 }
 
 const dsh = new DshManager();
@@ -467,6 +471,7 @@ if (!gotLock) {
       const { createSmokeRunner } = require('./smoke');
       const smoke = createSmokeRunner({
         qaEnv,
+        qaRemoteMode,
         dsh,
         harness,
         loadConfig,

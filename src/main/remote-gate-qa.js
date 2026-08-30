@@ -8,7 +8,7 @@
 const net = require('net');
 const { PAGE_HELPERS, summarizeRemoteQaDetail } = require('./release-ui-walk');
 
-const REMOTE_GATE_CASES = Object.freeze([
+const REMOTE_GATE_NEG_REM_CASES = Object.freeze([
   { id: 'neg.available', title: 'Remote snapshot is available by default' },
   { id: 'neg.notEnabled', title: 'Remote stays off until the user turns it on' },
   { id: 'neg.notListening', title: 'Default config does not listen on the remote port' },
@@ -17,9 +17,17 @@ const REMOTE_GATE_CASES = Object.freeze([
   { id: 'rem.pairingOffer', title: 'Enabled remote exposes a hash offer URL (not opened)' },
   { id: 'rem.qrVisible', title: 'Remote popup shows a QR face' },
   { id: 'rem.disabledStopped', title: 'Turning remote off stops the listener' },
+]);
+
+const REMOTE_GATE_COLD_CASES = Object.freeze([
   { id: 'cold.openShowsQr', title: 'Preset-on: open popup without toggling shows QR' },
   { id: 'cold.noBareOfferText', title: 'Popup text has no raw #offer= dump' },
   { id: 'cold.copyAndRotateControls', title: 'Popup exposes copy-link and rotate controls' },
+]);
+
+const REMOTE_GATE_CASES = Object.freeze([
+  ...REMOTE_GATE_NEG_REM_CASES,
+  ...REMOTE_GATE_COLD_CASES,
 ]);
 
 function sleep(ms) {
@@ -80,7 +88,7 @@ function portOpen(port) {
   });
 }
 
-function assertRemoteGateQaResult(qa) {
+function assertRemoteGateQaResult(qa, { required = REMOTE_GATE_CASES } = {}) {
   if (!qa || qa.ok !== true) {
     const failed = (qa?.failed && qa.failed.length > 0)
       ? qa.failed
@@ -88,9 +96,17 @@ function assertRemoteGateQaResult(qa) {
     throw new Error(`Remote gate QA failed:\n${failed.join('\n')}\n${JSON.stringify(qa)}`);
   }
   const names = new Set((qa.steps || []).map((s) => s.name));
-  const missing = REMOTE_GATE_CASES.map((c) => c.id).filter((id) => !names.has(id));
+  const missing = required.map((c) => c.id).filter((id) => !names.has(id));
   if (missing.length > 0) {
     throw new Error(`Remote gate QA omitted required cases: ${missing.join(', ')}`);
+  }
+}
+
+function readMainClipboard() {
+  try {
+    return require('electron').clipboard.readText() || '';
+  } catch {
+    return '';
   }
 }
 
@@ -102,9 +118,10 @@ function assertRemoteGateQaResult(qa) {
  *   setRemote: (patch: object) => Promise<object>,
  * }} helpers
  */
-async function runRemoteGateQa(wc, helpers) {
+async function runRemoteGateQa(wc, helpers, { mode = 'full' } = {}) {
   const steps = [];
   const rec = makeRecorder(steps);
+  const coldOnly = mode === 'cold';
 
   await helpers.pressEscape(wc);
 
@@ -115,184 +132,194 @@ async function runRemoteGateQa(wc, helpers) {
     snap = { error: String(error) };
   }
 
-  rec(
-    'neg.available',
-    snap && snap.available === true && !remoteHasError(snap),
-    summarizeRemoteQaDetail(snap),
-  );
-  rec(
-    'neg.notEnabled',
-    snap != null && snap.enabled !== true && !remoteHasError(snap),
-    snap ? `enabled=${snap.enabled}` : 'no snapshot',
-  );
-  const defaultPort = Number(snap && snap.port) || 3180;
-  const listeningBefore = snap != null && snap.listening === true;
-  const portBefore = await portOpen(defaultPort);
-  rec(
-    'neg.notListening',
-    snap != null && !listeningBefore && !portBefore && !remoteHasError(snap),
-    `listening=${snap && snap.listening}; portOpen=${portBefore}`,
-  );
-
   const footer = await pageEval(wc, () => {
     const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
     if (trigger && dshShown(trigger)) return 'trigger';
     return dshFind('^remote$|^远程$') ? 'label' : null;
   });
-  rec('neg.footerPresent', footer != null, footer || 'no remote footer');
 
-  let enabled = null;
-  try {
-    enabled = await helpers.setRemote({ remoteEnabled: true, remoteMode: 'lan' });
-  } catch (error) {
-    enabled = { error: String(error) };
+  if (!coldOnly) {
+    rec(
+      'neg.available',
+      snap && snap.available === true && !remoteHasError(snap),
+      summarizeRemoteQaDetail(snap),
+    );
+    rec(
+      'neg.notEnabled',
+      snap != null && snap.enabled !== true && !remoteHasError(snap),
+      snap ? `enabled=${snap.enabled}` : 'no snapshot',
+    );
+    const defaultPort = Number(snap && snap.port) || 3180;
+    const listeningBefore = snap != null && snap.listening === true;
+    const portBefore = await portOpen(defaultPort);
+    rec(
+      'neg.notListening',
+      snap != null && !listeningBefore && !portBefore && !remoteHasError(snap),
+      `listening=${snap && snap.listening}; portOpen=${portBefore}`,
+    );
+    rec('neg.footerPresent', footer != null, footer || 'no remote footer');
+
+    let enabled = null;
+    try {
+      enabled = await helpers.setRemote({ remoteEnabled: true, remoteMode: 'lan' });
+    } catch (error) {
+      enabled = { error: String(error) };
+    }
+    enabled = await waitUntil(async () => {
+      const next = await helpers.probeRemote();
+      return next && next.listening === true ? next : null;
+    }, 15_000) || enabled;
+
+    const offer = pairingOffer(enabled);
+    const portAfter = await portOpen(Number(enabled && enabled.port) || defaultPort);
+    rec(
+      'rem.enabledListening',
+      enabled
+        && enabled.available === true
+        && enabled.enabled === true
+        && enabled.listening === true
+        && portAfter
+        && !remoteHasError(enabled),
+      `${summarizeRemoteQaDetail(enabled)}; portOpen=${portAfter}`,
+    );
+    rec(
+      'rem.pairingOffer',
+      Boolean(offer),
+      offer ? 'pairingUrl has #offer= (not fetched)' : 'no pairingUrl with #offer=',
+    );
+
+    let qrDetail = 'remote trigger missing';
+    let qrOk = false;
+    if (footer) {
+      await pageEval(wc, () => {
+        const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
+        if (trigger) trigger.click();
+        return Boolean(trigger);
+      });
+      const qr = await waitUntil(() => pageEval(wc, () => {
+        const root = document.querySelector('[data-dsh-remote-panel], [role="dialog"]') || document.body;
+        const mark = root.querySelector('[data-dsh-remote-qr] img, [data-dsh-remote-qr] svg');
+        return mark ? { kind: mark.tagName.toLowerCase() } : null;
+      }), 8_000);
+      qrOk = Boolean(qr);
+      qrDetail = qr ? JSON.stringify(qr) : 'popup opened but no [data-dsh-remote-qr] face';
+      await helpers.pressEscape(wc);
+    }
+    rec('rem.qrVisible', qrOk, qrDetail);
+
+    let disabled = null;
+    try {
+      disabled = await helpers.setRemote({ remoteEnabled: false });
+    } catch (error) {
+      disabled = { error: String(error) };
+    }
+    disabled = await waitUntil(async () => {
+      const next = await helpers.probeRemote();
+      return next && next.listening !== true ? next : null;
+    }, 15_000) || disabled;
+    const portStopped = !(await portOpen(Number(disabled && disabled.port) || defaultPort));
+    rec(
+      'rem.disabledStopped',
+      disabled != null
+        && disabled.enabled !== true
+        && disabled.listening !== true
+        && portStopped
+        && !remoteHasError(disabled),
+      `${summarizeRemoteQaDetail(disabled)}; portClosed=${portStopped}`,
+    );
   }
-  enabled = await waitUntil(async () => {
-    const next = await helpers.probeRemote();
-    return next && next.listening === true ? next : null;
-  }, 15_000) || enabled;
 
-  const offer = pairingOffer(enabled);
-  const portAfter = await portOpen(Number(enabled && enabled.port) || defaultPort);
-  rec(
-    'rem.enabledListening',
-    enabled
-      && enabled.available === true
-      && enabled.enabled === true
-      && enabled.listening === true
-      && portAfter
-      && !remoteHasError(enabled),
-    `${summarizeRemoteQaDetail(enabled)}; portOpen=${portAfter}`,
-  );
-  rec(
-    'rem.pairingOffer',
-    Boolean(offer),
-    offer ? 'pairingUrl has #offer= (not fetched)' : 'no pairingUrl with #offer=',
-  );
+  if (coldOnly) {
+    // Preset-on boot: wait for listening + offer. Never call setRemote before open.
+    const cold = await waitUntil(async () => {
+      const next = await helpers.probeRemote();
+      return next && next.listening === true && pairingOffer(next) && !remoteHasError(next) ? next : null;
+    }, 20_000) || snap;
 
-  let qrDetail = 'remote trigger missing';
-  let qrOk = false;
-  if (footer) {
-    await pageEval(wc, () => {
-      const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
-      if (trigger) trigger.click();
-      return Boolean(trigger);
-    });
-    const qr = await waitUntil(() => pageEval(wc, () => {
-      const root = document.querySelector('[data-dsh-remote-popover], [data-dsh-remote-panel], [role="dialog"]')
-        || document.body;
-      const canvas = root.querySelector('canvas');
-      const img = root.querySelector('img[src*="qr"], img[alt*="QR"], img[alt*="二维码"], svg');
-      if (canvas && canvas.width > 0 && canvas.height > 0) return { kind: 'canvas', w: canvas.width, h: canvas.height };
-      if (img) return { kind: img.tagName.toLowerCase() };
-      const text = (root.innerText || '').slice(0, 200);
-      return /二维码|QR|配对/.test(text) ? { kind: 'copy', text } : null;
-    }), 8_000);
-    qrOk = Boolean(qr);
-    qrDetail = qr ? JSON.stringify(qr) : 'popup opened but no QR face';
-    await helpers.pressEscape(wc);
-  }
-  rec('rem.qrVisible', qrOk, qrDetail);
-
-  let disabled = null;
-  try {
-    disabled = await helpers.setRemote({ remoteEnabled: false });
-  } catch (error) {
-    disabled = { error: String(error) };
-  }
-  disabled = await waitUntil(async () => {
-    const next = await helpers.probeRemote();
-    return next && next.listening !== true ? next : null;
-  }, 15_000) || disabled;
-  const portStopped = !(await portOpen(Number(disabled && disabled.port) || defaultPort));
-  rec(
-    'rem.disabledStopped',
-    disabled != null
-      && disabled.enabled !== true
-      && disabled.listening !== true
-      && portStopped
-      && !remoteHasError(disabled),
-    `${summarizeRemoteQaDetail(disabled)}; portClosed=${portStopped}`,
-  );
-
-  // Cold-open segment: remote already on → open popup without setRemote(true).
-  // Proves the Off→On dance is not required to surface a QR.
-  let cold = null;
-  try {
-    cold = await helpers.setRemote({ remoteEnabled: true, remoteMode: 'lan' });
-  } catch (error) {
-    cold = { error: String(error) };
-  }
-  cold = await waitUntil(async () => {
-    const next = await helpers.probeRemote();
-    return next && next.listening === true && pairingOffer(next) ? next : null;
-  }, 15_000) || cold;
-  await helpers.pressEscape(wc);
-
-  let coldQrOk = false;
-  let coldQrDetail = 'remote trigger missing';
-  let bareOffer = true;
-  let copyOk = false;
-  let rotateOk = false;
-  if (footer) {
-    await pageEval(wc, () => {
-      const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
-      if (trigger) trigger.click();
-      return Boolean(trigger);
-    });
-    const face = await waitUntil(() => pageEval(wc, () => {
-      const root = document.querySelector('[data-dsh-remote-panel], [role="dialog"]') || document.body;
-      const img = root.querySelector('img[src*="qr"], img[alt*="QR"], img[alt*="二维码"], svg');
-      const copy = root.querySelector('[data-dsh-remote-copy-link]');
-      const rotate = root.querySelector('[data-dsh-remote-rotate]');
-      const text = root.innerText || '';
-      return {
-        hasQr: Boolean(img) || /二维码|QR|配对/.test(text.slice(0, 200)),
-        bareOffer: text.includes('#offer='),
-        copy: Boolean(copy && dshShown(copy)),
-        rotate: Boolean(rotate && dshShown(rotate)),
-      };
-    }), 8_000);
-    coldQrOk = Boolean(face && face.hasQr);
-    coldQrDetail = face ? JSON.stringify(face) : 'popup opened but no QR face';
-    bareOffer = Boolean(face && face.bareOffer);
-    copyOk = Boolean(face && face.copy);
-    rotateOk = Boolean(face && face.rotate);
-    await helpers.pressEscape(wc);
-  }
-  rec(
-    'cold.openShowsQr',
-    coldQrOk && Boolean(pairingOffer(cold)) && !remoteHasError(cold),
-    coldQrDetail,
-  );
-  rec(
-    'cold.noBareOfferText',
-    coldQrOk && !bareOffer,
-    bareOffer ? 'popup text still dumps #offer=' : 'no bare #offer= in popup text',
-  );
-  rec(
-    'cold.copyAndRotateControls',
-    copyOk && rotateOk,
-    `copy=${copyOk}; rotate=${rotateOk}`,
-  );
-
-  try {
-    await helpers.setRemote({ remoteEnabled: false });
-  } catch {
-    // Best-effort teardown for the cold segment.
+    let coldQrOk = false;
+    let coldQrDetail = 'remote trigger missing';
+    let bareOffer = true;
+    let copyOk = false;
+    let rotateOk = false;
+    let clipboard = '';
+    if (footer) {
+      await pageEval(wc, () => {
+        const trigger = document.querySelector('[data-dsh-remote-trigger], [data-sidebar-action="remote"]');
+        if (trigger) trigger.click();
+        return Boolean(trigger);
+      });
+      const face = await waitUntil(() => pageEval(wc, () => {
+        const root = document.querySelector('[data-dsh-remote-panel], [role="dialog"]') || document.body;
+        const mark = root.querySelector('[data-dsh-remote-qr] img, [data-dsh-remote-qr] svg');
+        const copy = root.querySelector('[data-dsh-remote-copy-link]');
+        const rotate = root.querySelector('[data-dsh-remote-rotate]');
+        const text = root.innerText || '';
+        return mark ? {
+          hasQr: true,
+          kind: mark.tagName.toLowerCase(),
+          bareOffer: text.includes('#offer='),
+          copy: Boolean(copy && dshShown(copy)),
+          rotate: Boolean(rotate && dshShown(rotate)),
+        } : null;
+      }), 8_000);
+      coldQrOk = Boolean(face && face.hasQr);
+      coldQrDetail = face ? JSON.stringify(face) : 'popup opened but no [data-dsh-remote-qr] face';
+      bareOffer = Boolean(!face || face.bareOffer);
+      copyOk = Boolean(face && face.copy);
+      rotateOk = Boolean(face && face.rotate);
+      if (copyOk) {
+        await pageEval(wc, () => {
+          const copy = document.querySelector('[data-dsh-remote-copy-link]');
+          if (copy) copy.click();
+          return Boolean(copy);
+        });
+        await sleep(200);
+        clipboard = readMainClipboard();
+      }
+      await helpers.pressEscape(wc);
+    }
+    const offer = pairingOffer(cold);
+    let clipHostOk = false;
+    try {
+      const host = clipboard ? new URL(clipboard).hostname : '';
+      clipHostOk = Boolean(
+        clipboard.includes('#offer=')
+        && !['127.0.0.1', 'localhost', '::1'].includes(host),
+      );
+    } catch {
+      clipHostOk = false;
+    }
+    rec(
+      'cold.openShowsQr',
+      coldQrOk && Boolean(offer) && !remoteHasError(cold),
+      coldQrDetail,
+    );
+    rec(
+      'cold.noBareOfferText',
+      coldQrOk && !bareOffer,
+      bareOffer ? 'popup text still dumps #offer=' : 'no bare #offer= in popup text',
+    );
+    rec(
+      'cold.copyAndRotateControls',
+      copyOk && rotateOk && clipHostOk,
+      `copy=${copyOk}; rotate=${rotateOk}; clipboardOffer=${clipHostOk}`,
+    );
   }
 
   const failed = steps.filter((s) => !s.ok && !s.optional).map((s) => s.name);
+  const cases = (coldOnly ? REMOTE_GATE_COLD_CASES : REMOTE_GATE_NEG_REM_CASES).map((c) => c.id);
   return {
     ok: failed.length === 0,
     failed,
     steps,
-    cases: REMOTE_GATE_CASES.map((c) => c.id),
+    cases,
   };
 }
 
 module.exports = {
   REMOTE_GATE_CASES,
+  REMOTE_GATE_NEG_REM_CASES,
+  REMOTE_GATE_COLD_CASES,
   runRemoteGateQa,
   assertRemoteGateQaResult,
   remoteHasError,

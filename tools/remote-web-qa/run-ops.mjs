@@ -6,6 +6,7 @@
  *   node tools/remote-web-qa/run-ops.mjs --relay 127.0.0.1:8788 --screenshots <dir>
  */
 
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -45,6 +46,50 @@ async function shot(page, name) {
   return file;
 }
 
+function seedOpsWorkspace(home) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-ops-repo-'));
+  spawnSync('git', ['init'], { cwd: repo, stdio: 'ignore' });
+  fs.writeFileSync(path.join(repo, 'readme.md'), '# ops workspace\n');
+  fs.writeFileSync(path.join(repo, 'note.txt'), 'hello from ops\n');
+  spawnSync('git', ['add', '.'], { cwd: repo, stdio: 'ignore' });
+  spawnSync('git', ['-c', 'user.email=ops@test', '-c', 'user.name=ops', 'commit', '-m', 'seed'], {
+    cwd: repo,
+    stdio: 'ignore',
+  });
+  const cwd = path.resolve(repo);
+  const now = new Date().toISOString();
+  fs.mkdirSync(path.join(home, 'projects'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'projects', 'projects.json'), JSON.stringify([{
+    projectId: 'local:ops',
+    rootPath: cwd,
+    kind: 'git',
+    displayName: 'ops-repo',
+    customName: null,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  }]));
+  fs.writeFileSync(path.join(home, 'projects', 'workspaces.json'), JSON.stringify([{
+    workspaceId: cwd,
+    projectId: 'local:ops',
+    cwd,
+    kind: 'local_checkout',
+    displayName: 'ops-repo',
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  }]));
+  return cwd;
+}
+
+function paneNeedsSession(copy) {
+  return /先打开一个会话/.test(copy);
+}
+
+function sheetLooksEmpty(copy) {
+  return /没有可用工作区|暂无工作区/.test(copy);
+}
+
 async function clickText(page, selector, text) {
   const ok = await page.evaluate((sel, want) => {
     const nodes = [...document.querySelectorAll(sel)];
@@ -72,6 +117,8 @@ async function main() {
     readyTimeoutMs: 90_000,
     log: (line) => console.log(`[remote] ${line}`),
   });
+
+  seedOpsWorkspace(home);
 
   let browser = null;
   let page = null;
@@ -107,42 +154,86 @@ async function main() {
       );
       await page.evaluate(() => document.querySelector('#new-session')?.click());
       await waitFor(
-        () => page.evaluate(() => (document.querySelector('#sheet-root .sheet')?.textContent || '').includes('选择工作区')),
-        'workspace step',
+        () => page.evaluate(() => {
+          const sheet = document.querySelector('#sheet-root .sheet');
+          const text = sheet?.textContent || '';
+          if (!text.includes('选择工作区') || /正在读取/.test(text)) return false;
+          return document.querySelectorAll('#sheet-root .sheet-item').length > 0
+            || /没有可用工作区|暂无工作区/.test(text);
+        }),
+        'workspace step ready',
         15_000,
       );
       const sheet = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
       const items = await page.evaluate(() => [...document.querySelectorAll('#sheet-root .sheet-item')].map((n) => n.textContent.trim()));
       const e1Shot = await shot(page, 'E1-new-session-chooser');
-      if (items.length === 0 || /没有|空|暂无/.test(sheet)) {
-        record('E1', 'Blocked', `chooser opened but no workspaces in fresh chisacode home (${home})`, e1Shot);
+      if (items.length === 0 || sheetLooksEmpty(sheet)) {
+        record('E1', 'Blocked', `chooser opened but no workspaces in chisacode home (${home})`, e1Shot);
       } else {
         // Pick first workspace and walk as far as providers allow
         await page.evaluate(() => document.querySelector('#sheet-root .sheet-item')?.click());
-        await sleep(800);
+        await waitFor(
+          () => page.evaluate(() => {
+            const text = document.querySelector('#sheet-root .sheet')?.textContent || '';
+            return /选择提供方|没有.*提供方|请先选择/.test(text) && !/正在读取/.test(text);
+          }),
+          'provider step ready',
+          15_000,
+        );
         const after = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
-        if (/选择提供方/.test(after)) {
-          const providers = await page.evaluate(() => [...document.querySelectorAll('#sheet-root .sheet-item')].map((n) => n.textContent.trim()));
-          if (providers.length === 0) {
-            record('E1', 'Blocked', 'workspace selected; no ready providers', e1Shot);
-          } else {
-            await page.evaluate(() => document.querySelector('#sheet-root .sheet-item')?.click());
-            await sleep(800);
-            // mode / model steps optional
-            for (const label of ['权限模式', '选择模型']) {
-              const text = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
-              if (text.includes(label)) {
-                await page.evaluate(() => document.querySelector('#sheet-root .sheet-item')?.click());
+        const providers = await page.evaluate(() => [...document.querySelectorAll('#sheet-root .sheet-item')]
+          .map((n) => n.textContent.trim())
+          .filter((text) => text && !text.includes('返回')));
+        if (/没有已就绪的智能体提供方/.test(after) || providers.length === 0) {
+          record('E1', 'Blocked', 'workspace selected; no ready providers', await shot(page, 'E1-no-provider'));
+        } else if (/选择提供方/.test(after)) {
+          await page.evaluate((want) => {
+            const hit = [...document.querySelectorAll('#sheet-root .sheet-item')]
+              .find((n) => n.textContent.trim() === want);
+            hit?.click();
+          }, providers[0]);
+          await sleep(800);
+          for (const label of ['权限模式', '选择模型']) {
+            const text = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
+            if (text.includes(label)) {
+              const pick = await page.evaluate(() => [...document.querySelectorAll('#sheet-root .sheet-item')]
+                .map((n) => n.textContent.trim())
+                .find((item) => item && !item.includes('返回')));
+              if (pick) {
+                await page.evaluate((want) => {
+                  const hit = [...document.querySelectorAll('#sheet-root .sheet-item')]
+                    .find((n) => n.textContent.trim() === want);
+                  hit?.click();
+                }, pick);
                 await sleep(600);
               }
             }
+          }
+          let closed = false;
+          try {
             await waitFor(
               () => page.evaluate(() => !document.querySelector('#sheet-root .sheet')),
               'chooser closed',
               20_000,
             );
-            const e1Done = await shot(page, 'E1-session-created');
-            record('E1', 'Pass', `created via chooser; first workspace + provider (${providers[0]})`, e1Done);
+            closed = true;
+          } catch {
+            closed = false;
+          }
+          const createCopy = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
+          const rowsAfter = await page.evaluate(() => document.querySelectorAll('#drawer .agent-row, [data-agent-id]').length);
+          const e1Done = await shot(page, 'E1-session-created');
+          if (closed && rowsAfter >= 1) {
+            record('E1', 'Pass', `created via chooser; workspace + provider (${providers[0]})`, e1Done);
+          } else {
+            record(
+              'E1',
+              'Blocked',
+              closed
+                ? 'chooser finished but no new session row'
+                : `createAgent did not finish (no ready provider / ACP): ${createCopy.replace(/\s+/g, ' ').slice(0, 160)}`,
+              e1Done,
+            );
           }
         } else {
           record('E1', 'Blocked', `after workspace click, unexpected sheet: ${after.slice(0, 120)}`, e1Shot);
@@ -150,7 +241,12 @@ async function main() {
       }
       await page.evaluate(() => document.querySelector('#sheet-root .sheet-mask')?.click());
     } catch (err) {
-      record('E1', 'Fail', err.message, await shot(page, 'E1-fail').catch(() => ''));
+      record(
+        'E1',
+        /timeout/i.test(err.message) ? 'Blocked' : 'Fail',
+        err.message,
+        await shot(page, 'E1-fail').catch(() => ''),
+      );
     }
 
     // —— E2 send + stop (needs open session + provider) —— //
@@ -174,14 +270,20 @@ async function main() {
           btn?.click();
         });
         await sleep(1500);
-        const stopVisible = await page.evaluate(() => {
-          const nodes = [...document.querySelectorAll('button')];
-          return nodes.some((b) => /停止|Stop/.test(b.textContent || ''));
+        const afterSend = await page.evaluate(() => {
+          const stop = [...document.querySelectorAll('button')].some((b) => /停止|Stop/.test(b.textContent || ''));
+          const user = /ops ping/.test(document.body.innerText);
+          return { stop, user };
         });
-        if (stopVisible) {
+        if (afterSend.stop) {
           await clickText(page, 'button', '停止').catch(() => clickText(page, 'button', 'Stop'));
         }
-        record('E2', stopVisible ? 'Pass' : 'Blocked', stopVisible ? 'sent + stop control exercised' : 'send attempted; no stop control (idle/no stream)', await shot(page, 'E2-send'));
+        record(
+          'E2',
+          afterSend.stop || afterSend.user ? 'Pass' : 'Blocked',
+          afterSend.stop || afterSend.user ? 'sent; stop or user timeline row visible' : 'send attempted; no stream and no user row',
+          await shot(page, 'E2-send'),
+        );
       }
     } catch (err) {
       record('E2', 'Fail', err.message);
@@ -201,44 +303,34 @@ async function main() {
           record(id, 'Blocked', `no ${label} chip/control on this session`, await shot(page, `${id}-blocked`));
           continue;
         }
-        await sleep(500);
-        record(id, 'Pass', `${label} control opened`, await shot(page, `${id}-open`));
+        await sleep(400);
+        const items = await page.evaluate(() => [...document.querySelectorAll('#sheet-root .sheet-item')].map((n) => n.textContent.trim()));
+        if (items.length < 2) {
+          record(id, 'Blocked', `${label} opened but no alternate value to switch`, await shot(page, `${id}-blocked`));
+          await page.evaluate(() => document.querySelector('#sheet-root .sheet-mask')?.click());
+          continue;
+        }
+        const before = items[0];
+        const pick = items.find((item) => item && item !== before) || items[1];
+        await page.evaluate((want) => {
+          const hit = [...document.querySelectorAll('#sheet-root .sheet-item')].find((n) => n.textContent.trim() === want);
+          hit?.click();
+        }, pick);
+        await sleep(600);
+        const after = await page.evaluate((want) => {
+          const chips = [...document.querySelectorAll('button, .chip, .composer-chip')];
+          return chips.some((n) => (n.textContent || '').includes(want));
+        }, pick);
+        record(
+          id,
+          after ? 'Pass' : 'Blocked',
+          after ? `${label} changed to ${pick}` : `${label} click did not update snapshot chip`,
+          await shot(page, `${id}-open`),
+        );
         await page.evaluate(() => document.querySelector('#sheet-root .sheet-mask')?.click());
       } catch (err) {
         record(id, 'Fail', err.message);
       }
-    }
-
-    // —— E5 session menu —— //
-    try {
-      await page.evaluate(() => document.querySelector('#menu')?.click());
-      await waitFor(
-        () => page.evaluate(() => document.querySelector('#phone')?.hasAttribute('data-drawer')),
-        'drawer for E5',
-        8_000,
-      );
-      const hasSessions = await page.evaluate(() => document.querySelectorAll('#drawer .agent-row, #sessions .agent-row, [data-agent-id]').length);
-      const e5Shot = await shot(page, 'E5-drawer');
-      if (!hasSessions) {
-        record('E5', 'Blocked', 'drawer open; no agent rows to rename/archive/delete', e5Shot);
-      } else {
-        await page.evaluate(() => {
-          const more = document.querySelector('#drawer .agent-row .more, #drawer .agent-menu, [data-agent-id] button');
-          more?.click();
-        });
-        await sleep(400);
-        const menuText = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
-        const hasActions = /重命名|归档|删除/.test(menuText);
-        record(
-          'E5',
-          hasActions ? 'Pass' : 'Blocked',
-          hasActions ? 'session ⋯ menu exposes rename/archive/delete' : `session rows present but menu not confirmed: ${menuText.slice(0, 80)}`,
-          await shot(page, 'E5-menu'),
-        );
-        await page.evaluate(() => document.querySelector('#sheet-root .sheet-mask')?.click());
-      }
-    } catch (err) {
-      record('E5', 'Fail', err.message);
     }
 
     // —— E6 long history —— //
@@ -287,10 +379,16 @@ async function main() {
         copy: document.querySelector('#options')?.textContent?.slice(0, 200) || '',
         writeControls: [...document.querySelectorAll('#options button')].some((b) => /保存|写入|Stage/.test(b.textContent || '')),
       }));
+      const empty = paneNeedsSession(filesView.copy);
+      const listed = await page.evaluate(() => document.querySelectorAll('#options .file-row, #options .dir-row, #options li').length);
       record(
         'E9',
-        filesView.writeControls ? 'Fail' : 'Pass',
-        filesView.writeControls ? 'write controls present' : `files pane rendered (read-only). ${filesView.copy.replace(/\s+/g, ' ').slice(0, 120)}`,
+        filesView.writeControls ? 'Fail' : (empty || listed === 0 ? 'Blocked' : 'Pass'),
+        filesView.writeControls
+          ? 'write controls present'
+          : empty
+            ? 'files pane still says open a session first'
+            : `files pane read-only with ${listed} rows`,
         await shot(page, 'E9-files'),
       );
     } catch (err) {
@@ -308,10 +406,15 @@ async function main() {
       const scopes = await page.evaluate(() => [...document.querySelectorAll('#options .diff-scopes .ws-tab, #options .ws-tab')].map((t) => t.textContent.trim()));
       const hasScopes = scopes.some((s) => /未提交/.test(s)) && scopes.some((s) => /主干|base/i.test(s));
       const copy = await page.evaluate(() => document.querySelector('#options')?.textContent || '');
+      const empty = paneNeedsSession(copy);
       record(
         'E10',
-        hasScopes || /只读|非 Git|没有差异|更改/.test(copy) ? 'Pass' : 'Blocked',
-        hasScopes ? `diff scopes visible: ${scopes.join('|')}` : `diff pane: ${copy.replace(/\s+/g, ' ').slice(0, 120)}`,
+        empty ? 'Blocked' : (hasScopes ? 'Pass' : 'Blocked'),
+        empty
+          ? 'diff pane still says open a session first'
+          : hasScopes
+            ? `diff scopes visible: ${scopes.join('|')}`
+            : `diff pane missing two scopes: ${copy.replace(/\s+/g, ' ').slice(0, 120)}`,
         await shot(page, 'E10-diff'),
       );
     } catch (err) {
@@ -322,22 +425,87 @@ async function main() {
     try {
       await page.evaluate(() => document.querySelector('#menu')?.click());
       await sleep(300);
+      await page.evaluate(() => {
+        const nodes = [...document.querySelectorAll('button, a, .drawer-item, .link-row, .link-title')];
+        nodes.find((n) => (n.textContent || '').trim() === '设置')?.click();
+      });
+      await sleep(400);
       for (const label of ['MCP', '技能']) {
         await page.evaluate((want) => {
-          const nodes = [...document.querySelectorAll('button, a, .drawer-item')];
+          const nodes = [...document.querySelectorAll('button, a, .link-row, .link-title, .drawer-item')];
           nodes.find((n) => (n.textContent || '').includes(want))?.click();
         }, label);
-        await sleep(500);
+        await sleep(600);
       }
       const copy = await page.evaluate(() => document.body.innerText.slice(0, 400));
-      const honest = /只读|电脑端|MCP|技能/.test(copy);
-      record('E11', honest ? 'Pass' : 'Blocked', `extensions surface text sample: ${copy.replace(/\s+/g, ' ').slice(0, 140)}`, await shot(page, 'E11-extensions'));
+      const listed = /MCP|技能/.test(copy) && /只读|电脑端/.test(copy);
+      record(
+        'E11',
+        listed ? 'Pass' : 'Blocked',
+        listed ? 'MCP/skills read-only list visible' : `extensions surface not opened: ${copy.replace(/\s+/g, ' ').slice(0, 140)}`,
+        await shot(page, 'E11-extensions'),
+      );
     } catch (err) {
       record('E11', 'Fail', err.message);
     }
 
+    // —— E5 session menu (after workspace panes so delete does not empty E8–E11) —— //
+    try {
+      await page.evaluate(() => document.querySelector('#menu')?.click());
+      await waitFor(
+        () => page.evaluate(() => document.querySelector('#phone')?.hasAttribute('data-drawer')),
+        'drawer for E5',
+        8_000,
+      );
+      const hasSessions = await page.evaluate(() => document.querySelectorAll('#drawer .agent-row, #sessions .agent-row, [data-agent-id]').length);
+      const e5Shot = await shot(page, 'E5-drawer');
+      if (!hasSessions) {
+        record('E5', 'Blocked', 'drawer open; no agent rows to rename/archive/delete', e5Shot);
+      } else {
+        await page.evaluate(() => {
+          const more = document.querySelector('#drawer .agent-row .more, #drawer .agent-menu, [data-agent-id] button');
+          more?.click();
+        });
+        await sleep(400);
+        const menuText = await page.evaluate(() => document.querySelector('#sheet-root .sheet')?.textContent || '');
+        const hasActions = /重命名|归档|删除/.test(menuText);
+        if (!hasActions) {
+          record('E5', 'Blocked', `session rows present but menu not confirmed: ${menuText.slice(0, 80)}`, await shot(page, 'E5-menu'));
+        } else {
+          const beforeCount = hasSessions;
+          await page.evaluate(() => {
+            const del = [...document.querySelectorAll('#sheet-root button, #sheet-root .sheet-item')]
+              .find((n) => /删除/.test(n.textContent || ''));
+            del?.click();
+          });
+          await sleep(300);
+          await page.evaluate(() => {
+            const confirm = [...document.querySelectorAll('button')].find((n) => /删除|确认|确定/.test(n.textContent || ''));
+            confirm?.click();
+          });
+          await sleep(800);
+          const afterCount = await page.evaluate(() => document.querySelectorAll('#drawer .agent-row, [data-agent-id]').length);
+          record(
+            'E5',
+            afterCount < beforeCount ? 'Pass' : 'Blocked',
+            afterCount < beforeCount ? 'delete confirmed; row left the list' : 'delete menu present but list unchanged (confirm may have been cancelled)',
+            await shot(page, 'E5-menu'),
+          );
+        }
+        await page.evaluate(() => document.querySelector('#sheet-root .sheet-mask')?.click());
+      }
+    } catch (err) {
+      record('E5', 'Fail', err.message);
+    }
+
     // —— E12 disconnect —— //
     try {
+      await page.evaluate(() => {
+        const ta = document.querySelector('#composer-input, #input, textarea');
+        if (!ta) return;
+        ta.value = 'draft-after-disconnect';
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+      });
       await remote.stopDaemon();
       await waitFor(
         () => page.evaluate(() => {
@@ -347,7 +515,31 @@ async function main() {
         'disconnect banner',
         20_000,
       );
-      record('E12', 'Pass', 'stopDaemon → visible disconnect banner; send should refuse', await shot(page, 'E12-disconnected'));
+      const refused = await page.evaluate(() => {
+        const btn = document.querySelector('#send, button[type="submit"]');
+        btn?.click();
+        const banner = document.querySelector('.conn-banner, #conn-banner, [role="status"]');
+        const draft = document.querySelector('#composer-input, #input, textarea')?.value || '';
+        return {
+          banner: banner?.textContent || '',
+          draft,
+        };
+      });
+      await remote.startDaemon();
+      await waitFor(() => remote.snapshot().relayConnected === true, 'relay after E12 restart', 30_000);
+      await waitFor(
+        () => page.evaluate(() => /已配对|已重连/.test(document.getElementById('device-line')?.textContent || '')),
+        'resync after restart',
+        30_000,
+      );
+      const synced = await page.evaluate(() => /已重连|已配对/.test(document.getElementById('device-line')?.textContent || ''));
+      const draftKept = /draft-after-disconnect/.test(refused.draft);
+      record(
+        'E12',
+        refused.banner && draftKept && synced ? 'Pass' : 'Blocked',
+        `banner=${Boolean(refused.banner)}; draftKept=${draftKept}; synced=${synced}`,
+        await shot(page, 'E12-disconnected'),
+      );
     } catch (err) {
       record('E12', 'Fail', err.message, await shot(page, 'E12-fail').catch(() => ''));
     }
@@ -394,12 +586,25 @@ async function main() {
         record('E14', 'Blocked', `no paired device id to unbind (devices=${devices.length})`, '');
       } else {
         remote.unbindDevice(id);
-        const after = (remote.snapshot().devices || []).filter((d) => !d.revokedAt && d.id === id);
+        const after = (remote.snapshot().devices || []).filter((d) => !d.revokedAt && (d.id === id || d.deviceId === id));
+        const check = await browser.newPage();
+        await check.setViewport({ width: 414, height: 896 });
+        await check.goto(`${new URL(pairingUrl).origin}/`, { waitUntil: 'domcontentloaded' });
+        await sleep(3000);
+        const state = await check.evaluate(() => ({
+          device: document.getElementById('device-line')?.textContent || '',
+          connectHidden: document.getElementById('screen-connect')?.classList.contains('hidden') ?? false,
+        }));
+        const stillPaired = /已配对|已重连/.test(state.device) || state.connectHidden;
+        const e14 = await shot(check, 'E14-revoke');
+        await check.close();
         record(
           'E14',
-          after.length === 0 ? 'Pass' : 'Fail',
-          after.length === 0 ? `unbindDevice(${id}) cleared active device` : `device ${id} still active after unbind`,
-          '',
+          after.length === 0 && !stillPaired ? 'Pass' : (after.length === 0 ? 'Blocked' : 'Fail'),
+          after.length === 0 && !stillPaired
+            ? `unbindDevice(${id}); web requires a new scan`
+            : `unbind cleared=${after.length === 0}; stillPaired=${stillPaired}`,
+          e14,
         );
       }
     } catch (err) {

@@ -229,6 +229,31 @@ test('ensurePairing suppresses after failure until rotateToken clears it', async
   assert.ok(remote.snapshot().urls[0].pairingUrl.includes('#offer=z'));
 });
 
+test('ensurePairing unblocks after sync succeeds', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.runtimeKey = remote.runtimeConfigKey(remote.getConfig() || {});
+  remote.pairing = { relayEnabled: false, url: null, qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    if (refreshCalls === 1) throw new Error('mint failed');
+    remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=sync', qr: null };
+    remote.pairingEnsureBlocked = false;
+    return remote.pairing;
+  };
+  await remote.ensurePairing();
+  assert.equal(remote.pairingEnsureBlocked, true);
+  await remote.sync();
+  assert.equal(refreshCalls, 2);
+  assert.equal(remote.pairingEnsureBlocked, false);
+  assert.ok(remote.snapshot().urls[0].pairingUrl.includes('#offer=sync'));
+});
+
 // ---------------------------------------------------------------------------
 // Daemon child-process management (fake runner scripts, real spawns)
 // ---------------------------------------------------------------------------
