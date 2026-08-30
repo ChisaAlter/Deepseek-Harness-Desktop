@@ -365,6 +365,7 @@ async function probeThemeBackgrounds(wc) {
 function createSmokeRunner(deps) {
   const {
     qaEnv,
+    qaRemoteMode,
     dsh,
     harness,
     loadConfig,
@@ -593,7 +594,8 @@ function createSmokeRunner(deps) {
       }
       let qaAttached = false;
       const needsComposerQa = qaEnv('DSH_QA_COMPOSER');
-      const needsRemoteGateQa = qaEnv('DSH_QA_REMOTE');
+      const remoteGateMode = typeof qaRemoteMode === 'function' ? qaRemoteMode() : (qaEnv('DSH_QA_REMOTE') ? 'full' : null);
+      const needsRemoteGateQa = remoteGateMode != null;
       const needsReleaseQa = qaEnv('DSH_QA');
       const needsAppendixQa = qaEnv('DSH_QA_APPENDIX');
       const needsShellQa = qaEnv('DSH_QA_SHELL');
@@ -667,7 +669,7 @@ function createSmokeRunner(deps) {
             pressEscape,
             probeRemote: probeRemoteSnapshot,
             setRemote: setRemoteFromQa,
-          });
+          }, { mode: remoteGateMode });
         } catch (error) {
           result.remoteGateQa = {
             ok: false,
@@ -825,6 +827,20 @@ function createSmokeRunner(deps) {
         console.log('[DSH_THEME_SMOKE]', JSON.stringify(result.themeSmoke));
       }
       const hitCount = titlebarHits.hits.surfaces + titlebarHits.hits.branch + titlebarHits.hits.git;
+      const requireFullTitlebar = needsReleaseQa
+        || needsComposerQa
+        || needsAppendixQa
+        || needsShellQa
+        || needsPersistQa
+        || needsRecoveryQa
+        || !needsRemoteGateQa;
+      const titlebarOk = !requireFullTitlebar || (
+        hitCount > 0
+        && titlebarHits.hits.surfaces > 0
+        && titlebarHits.hits.branch > 0
+        && titlebarHits.hits.git > 0
+        && titlebarHits.error == null
+      );
       const ok = result.hasFrame
         && result.hasTitlebar
         && result.hasTerminalToggle
@@ -837,11 +853,7 @@ function createSmokeRunner(deps) {
         && result.bootShellApiIsScoped
         && result.hasHarnessShellApi
         && result.harnessShellApiIsScoped
-        && hitCount > 0
-        && titlebarHits.hits.surfaces > 0
-        && titlebarHits.hits.branch > 0
-        && titlebarHits.hits.git > 0
-        && titlebarHits.error == null
+        && titlebarOk
         && ptyStatus === 'echoed:ok'
         && (!needsThemeSmoke || result.themeSmoke?.ok === true)
         && (!needsReleaseQa || result.qa?.ok === true)

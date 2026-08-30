@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, IconChevronRightOutline14, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, FlipText, FLIP_TEXT_MS, IconChevronRightOutline14, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { RemotePatch, RemoteSnapshot } from './desktop-shell.ts'
@@ -266,7 +266,13 @@ export function RemoteSection({
                 ) : null}
                 {enabled && qr ? (
                   <>
-                    <div className={css.qr} role="img" aria-label={t('qr')} dangerouslySetInnerHTML={{ __html: qr }} />
+                    <div
+                      className={css.qr}
+                      role="img"
+                      aria-label={t('qr')}
+                      data-dsh-remote-qr=""
+                      dangerouslySetInnerHTML={{ __html: qr }}
+                    />
                     <p className={css.hint}>{t('scanSplitHint')}</p>
                     <div className={css.footer}>
                       <Button
@@ -278,11 +284,11 @@ export function RemoteSection({
                           void writeClipboard(pairingUrl).then((ok) => {
                             if (!ok) return
                             setCopied(true)
-                            window.setTimeout(() => { setCopied(false) }, 1000)
+                            window.setTimeout(() => { setCopied(false) }, FLIP_TEXT_MS)
                           })
                         }}
                       >
-                        {copied ? t('copiedLink') : t('copyLink')}
+                        <FlipText text={copied ? t('copiedLink') : t('copyLink')} />
                       </Button>
                       <Button
                         size="sm"

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {
   REMOTE_GATE_CASES,
+  REMOTE_GATE_COLD_CASES,
   assertRemoteGateQaResult,
   pairingOffer,
 } = require('./remote-gate-qa');
@@ -26,6 +27,14 @@ test('remote gate cases cover NEG-001 and REM-001 without pairing fetch', () => 
   const src = fs.readFileSync(path.join(__dirname, 'remote-gate-qa.js'), 'utf8');
   assert.doesNotMatch(src, /loadURL\(|BrowserWindow/);
   assert.match(src, /not fetched/);
+  assert.match(src, /data-dsh-remote-qr/);
+  assert.doesNotMatch(src, /\/二维码\|QR\|配对\//);
+  assert.match(src, /mode === 'cold'/);
+});
+
+test('cold cases are a required subset', () => {
+  const ids = REMOTE_GATE_COLD_CASES.map((c) => c.id);
+  assert.deepEqual(ids, ['cold.openShowsQr', 'cold.noBareOfferText', 'cold.copyAndRotateControls']);
 });
 
 test('pairingOffer only accepts hash offers', () => {
@@ -49,4 +58,9 @@ test('remote gate QA is wired into the main smoke path', () => {
   const smoke = fs.readFileSync(path.join(__dirname, 'smoke', 'index.js'), 'utf8');
   assert.match(smoke, /DSH_QA_REMOTE/);
   assert.match(smoke, /runRemoteGateQa/);
+  assert.match(smoke, /remoteGateMode/);
+  const runner = fs.readFileSync(path.join(__dirname, '..', '..', 'scripts', 'run-remote-gate-qa.mjs'), 'utf8');
+  assert.match(runner, /DSH_QA_REMOTE: 'cold'/);
+  const pkg = fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8');
+  assert.match(pkg, /prestart-ensure\.mjs && node scripts\/run-remote-gate-qa/);
 });

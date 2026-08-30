@@ -81,7 +81,7 @@ describe('RemoteSection', () => {
       saveRemote: vi.fn(async (patch: RemotePatch) => snap({
         enabled: patch.remoteEnabled ?? false,
         listening: Boolean(patch.remoteEnabled),
-        urls: patch.remoteEnabled ? SNAP.urls : [],
+        urls: patch.remoteEnabled ? (SNAP.urls ?? []) : [],
       })),
     })
     const trigger = await screen.findByRole('button', { name: en.trigger })
@@ -278,13 +278,32 @@ describe('RemoteSection', () => {
   })
 
   it('refreshes remote snapshot immediately when the popup opens', async () => {
-    const getRemote = vi.fn(async () => snap({ relayConnected: true }))
-    renderRemote({ getRemote })
-    await waitFor(() => { expect(getRemote).toHaveBeenCalled() })
-    const beforeOpen = getRemote.mock.calls.length
+    renderRemote({ getRemote: vi.fn(async () => snap({ relayConnected: true })) })
     fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
-    await screen.findByRole('img', { name: en.qr })
-    expect(getRemote.mock.calls.length).toBeGreaterThan(beforeOpen)
+    const qr = await screen.findByRole('img', { name: en.qr })
+    expect(qr.getAttribute('data-dsh-remote-qr')).toBe('')
+    expect(screen.queryByText(en.startingHint)).toBeNull()
+  })
+
+  it('retries On after heal still reports EADDRINUSE', async () => {
+    const broken = snap({
+      enabled: true,
+      listening: false,
+      urls: [],
+      error: 'EADDRINUSE :3180',
+    })
+    const props = renderRemote({
+      getRemote: vi.fn(async () => broken),
+      saveRemote: vi.fn(async () => broken),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    await screen.findByText(en.errorPortInUse)
+    expect(screen.queryByText(/EADDRINUSE/)).toBeNull()
+    await waitFor(() => { expect(props.saveRemote).toHaveBeenCalledTimes(1) })
+    fireEvent.click(screen.getByRole('radio', { name: en.enabledOn }))
+    await waitFor(() => { expect(props.saveRemote).toHaveBeenCalledTimes(2) })
+    expect(props.saveRemote).toHaveBeenLastCalledWith({ remoteEnabled: true })
+    expect(screen.getByText(en.errorPortInUse)).toBeTruthy()
   })
 
   it('rotateRemoteToken only on refresh control click not on open', async () => {

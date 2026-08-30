@@ -40,9 +40,9 @@ var require_crypto = __commonJS({
   }
 });
 
-// vendor/chisacode-remote/node_modules/tweetnacl/nacl-fast.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/tweetnacl/nacl-fast.js
 var require_nacl_fast = __commonJS({
-  "vendor/chisacode-remote/node_modules/tweetnacl/nacl-fast.js"(exports, module) {
+  "../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/tweetnacl/nacl-fast.js"(exports, module) {
     (function(nacl3) {
       "use strict";
       var gf = function(init) {
@@ -2264,9 +2264,9 @@ var require_nacl_fast = __commonJS({
   }
 });
 
-// vendor/chisacode-remote/node_modules/base64-js/index.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/base64-js/index.js
 var require_base64_js = __commonJS({
-  "vendor/chisacode-remote/node_modules/base64-js/index.js"(exports) {
+  "../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/base64-js/index.js"(exports) {
     "use strict";
     exports.byteLength = byteLength;
     exports.toByteArray = toByteArray3;
@@ -2365,7 +2365,7 @@ var require_base64_js = __commonJS({
   }
 });
 
-// vendor/chisacode-remote/node_modules/zod/v3/external.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/external.js
 var external_exports = {};
 __export(external_exports, {
   BRAND: () => BRAND,
@@ -2477,7 +2477,7 @@ __export(external_exports, {
   void: () => voidType
 });
 
-// vendor/chisacode-remote/node_modules/zod/v3/helpers/util.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/helpers/util.js
 var util;
 (function(util2) {
   util2.assertEqual = (_) => {
@@ -2611,7 +2611,7 @@ var getParsedType = (data) => {
   }
 };
 
-// vendor/chisacode-remote/node_modules/zod/v3/ZodError.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/ZodError.js
 var ZodIssueCode = util.arrayToEnum([
   "invalid_type",
   "invalid_literal",
@@ -2729,7 +2729,7 @@ ZodError.create = (issues) => {
   return error;
 };
 
-// vendor/chisacode-remote/node_modules/zod/v3/locales/en.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/locales/en.js
 var errorMap = (issue, _ctx) => {
   let message;
   switch (issue.code) {
@@ -2832,7 +2832,7 @@ var errorMap = (issue, _ctx) => {
 };
 var en_default = errorMap;
 
-// vendor/chisacode-remote/node_modules/zod/v3/errors.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/errors.js
 var overrideErrorMap = en_default;
 function setErrorMap(map) {
   overrideErrorMap = map;
@@ -2841,7 +2841,7 @@ function getErrorMap() {
   return overrideErrorMap;
 }
 
-// vendor/chisacode-remote/node_modules/zod/v3/helpers/parseUtil.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
   const { data, path, errorMaps, issueData } = params;
   const fullPath = [...path, ...issueData.path || []];
@@ -2951,14 +2951,14 @@ var isDirty = (x) => x.status === "dirty";
 var isValid = (x) => x.status === "valid";
 var isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
 
-// vendor/chisacode-remote/node_modules/zod/v3/helpers/errorUtil.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/helpers/errorUtil.js
 var errorUtil;
 (function(errorUtil2) {
   errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
   errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
 })(errorUtil || (errorUtil = {}));
 
-// vendor/chisacode-remote/node_modules/zod/v3/types.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
   constructor(parent, value, path, key) {
     this._cachedPath = [];
@@ -6406,7 +6406,7 @@ var coerce = {
 };
 var NEVER = INVALID;
 
-// vendor/chisacode-remote/packages/protocol/dist/client-capabilities.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/client-capabilities.js
 var CLIENT_CAPS = {
   reasoningMergeEnum: "reasoning_merge_enum",
   // COMPAT(customModeIcons): added in v0.1.84. Old clients pin AgentModeIcon to
@@ -6420,7 +6420,7 @@ var CLIENT_CAPS = {
   cindyModules: "cindy_modules"
 };
 
-// vendor/chisacode-remote/packages/protocol/dist/provider-manifest.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/provider-manifest.js
 var CLAUDE_MODES = [
   {
     id: "default",
@@ -6619,7 +6619,7 @@ var DEV_AGENT_PROVIDER_DEFINITIONS = [
 var BUILTIN_PROVIDER_IDS = AGENT_PROVIDER_DEFINITIONS.map((d) => d.id);
 var AgentProviderSchema = external_exports.string();
 
-// vendor/chisacode-remote/packages/protocol/dist/provider-config.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/provider-config.js
 var ProviderCommandDefaultSchema = external_exports.object({
   mode: external_exports.literal("default")
 }).strict();
@@ -6856,7 +6856,7 @@ var AgentProviderRuntimeSettingsMapSchema = external_exports.record(ProviderRunt
   }
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/chat/types.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/chat/types.js
 var ChatRoomSchema = external_exports.object({
   id: external_exports.string(),
   name: external_exports.string(),
@@ -6878,7 +6878,7 @@ var ChatRoomDetailSchema = ChatRoomSchema.extend({
   lastMessageAt: external_exports.string().nullable()
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/chat/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/chat/rpc-schemas.js
 var CHAT_WAIT_MAX_TIMEOUT_MS = 5 * 60 * 1e3;
 var ChatCreateRequestSchema = external_exports.object({
   type: external_exports.literal("chat/create"),
@@ -6981,7 +6981,7 @@ var ChatWaitResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/loop/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/loop/rpc-schemas.js
 var LoopLogEntrySchema = external_exports.object({
   seq: external_exports.number().int().positive(),
   timestamp: external_exports.string(),
@@ -7143,7 +7143,7 @@ var LoopStopResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/schedule/types.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/schedule/types.js
 var ScheduleStatusSchema = external_exports.enum(["active", "paused", "completed"]);
 var ScheduleCadenceSchema = external_exports.discriminatedUnion("type", [
   external_exports.object({
@@ -7213,7 +7213,7 @@ var ScheduleSummarySchema = StoredScheduleSchema.omit({
   runs: true
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/schedule/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/schedule/rpc-schemas.js
 var ScheduleCreateTargetSchema = external_exports.discriminatedUnion("type", [
   external_exports.object({
     type: external_exports.literal("self"),
@@ -7364,7 +7364,7 @@ var ScheduleUpdateResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/automation/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/automation/messages.js
 var AutomationInboundMessageSchemas = [
   ChatCreateRequestSchema,
   ChatListRequestSchema,
@@ -7412,7 +7412,7 @@ var AutomationOutboundMessageSchemas = [
   LoopStopResponseSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/generative-ui/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/generative-ui/rpc-schemas.js
 var GenerativeUiActionRequestPayloadShape = {
   requestId: external_exports.string(),
   /** Target agent session */
@@ -7443,7 +7443,7 @@ var GenerativeUiActionResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/terminal/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/terminal/messages.js
 var ListTerminalsRequestSchema = external_exports.object({
   type: external_exports.literal("list_terminals_request"),
   cwd: external_exports.string().optional(),
@@ -7651,7 +7651,7 @@ var TerminalOutboundMessageSchemas = [
   TerminalStreamExitSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/checkout/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/checkout/messages.js
 var CheckoutErrorCodeSchema = external_exports.enum([
   "NOT_GIT_REPO",
   "NOT_ALLOWED",
@@ -8280,7 +8280,7 @@ var CheckoutOutboundMessageSchemas = [
   GitHubSearchResponseSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/agent/attachments.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent/attachments.js
 var GitHubPrAttachmentSchema = external_exports.object({
   type: external_exports.literal("github_pr"),
   mimeType: external_exports.literal("application/github-pr"),
@@ -8353,7 +8353,7 @@ function normalizeAgentAttachments(input) {
 }
 var AgentAttachmentsSchema = external_exports.unknown().transform(normalizeAgentAttachments).optional();
 
-// vendor/chisacode-remote/packages/protocol/dist/workspace/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/workspace/messages.js
 var WorktreeSetupCommandSnapshotSchema = external_exports.object({
   index: external_exports.number().int().positive(),
   command: external_exports.string(),
@@ -8901,7 +8901,7 @@ var WorkspaceOutboundMessageSchemas = [
   FileDownloadTokenResponseSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/agent-types.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent-types.js
 function normalizeAgentModelDefinition(model) {
   const defaultThinkingOptionId = model.defaultThinkingOptionId ?? model.thinkingOptions?.find((option) => option.isDefault)?.id;
   if (!defaultThinkingOptionId || defaultThinkingOptionId === model.defaultThinkingOptionId) {
@@ -8921,7 +8921,7 @@ var TOOL_CALL_ICON_NAMES = [
   "mic_vocal"
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/provider/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/provider/messages.js
 var AgentModeSchema = external_exports.object({
   id: external_exports.string(),
   label: external_exports.string(),
@@ -9293,7 +9293,7 @@ var ProviderOutboundMessageSchemas = [
   ProviderToolingActionResponseMessageSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/agent/extensions.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent/extensions.js
 var McpStdioServerConfigSchema = external_exports.object({
   type: external_exports.literal("stdio"),
   command: external_exports.string(),
@@ -9628,7 +9628,7 @@ var AgentExtensionOutboundMessageSchemas = [
   AgentMcpServersDeleteResponseSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/chisacode-config-schema.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/chisacode-config-schema.js
 function normalizeLifecycleCommands(commands) {
   if (typeof commands === "string") {
     return commands.trim().length > 0 ? [commands] : [];
@@ -9689,7 +9689,7 @@ var ProjectConfigRpcErrorSchema = external_exports.discriminatedUnion("code", [
   external_exports.object({ code: external_exports.literal("write_failed") })
 ]);
 
-// vendor/chisacode-remote/packages/protocol/dist/daemon/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/daemon/messages.js
 var MutableDaemonProviderModelSchema = external_exports.object({
   id: external_exports.string().min(1),
   label: external_exports.string().min(1),
@@ -9911,7 +9911,7 @@ var DaemonStatusPayloadSchemas = [
   DaemonConfigChangedStatusPayloadSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/usage/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/usage/messages.js
 var UsageRangeDaysSchema = external_exports.union([external_exports.literal(7), external_exports.literal(30), external_exports.literal(180)]);
 var UsageExportFormatSchema = external_exports.enum(["json", "csv"]);
 var UsageSummaryGetRequestMessageSchema = external_exports.object({
@@ -9996,7 +9996,7 @@ var UsageOutboundMessageSchemas = [
   UsageClearResponseMessageSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/goal/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/goal/rpc-schemas.js
 var GoalStatusSchema = external_exports.enum([
   "active",
   "paused",
@@ -10089,7 +10089,7 @@ var GoalListResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/team/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/team/rpc-schemas.js
 var WorkerStatusSchema = external_exports.enum(["idle", "running", "done", "error", "archived"]);
 var TeamStatusSchema = external_exports.enum(["active", "completed", "cancelled"]);
 var WorkerRecordSchema = external_exports.object({
@@ -10255,7 +10255,7 @@ var TeamWorkerStatusResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/project-context/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/project-context/rpc-schemas.js
 var DiscoveredModuleSchema = external_exports.object({
   dir: external_exports.string(),
   name: external_exports.string(),
@@ -10308,7 +10308,7 @@ var ContextInvalidateResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/snapshot/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/snapshot/rpc-schemas.js
 var SnapshotKindSchema = external_exports.enum([
   "before-edit",
   "after-edit",
@@ -10388,7 +10388,7 @@ var SnapshotStatusResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/migration/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/migration/rpc-schemas.js
 var MigrationItemSchema = external_exports.object({
   kind: external_exports.enum(["agents-md"]),
   direction: external_exports.enum(["to-claude", "to-codex"]),
@@ -10437,7 +10437,7 @@ var MigrationAvailableNotificationSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/learn/rpc-schemas.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/learn/rpc-schemas.js
 var LearnRunStatusSchema = external_exports.enum([
   "collecting",
   "distilling",
@@ -10559,7 +10559,7 @@ var LearnCancelResponseSchema = external_exports.object({
   })
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/cindy/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/cindy/messages.js
 var CindyInboundMessageSchemas = [
   // Goal
   GoalSetRequestSchema,
@@ -10636,7 +10636,7 @@ var CindyOutboundMessageSchemas = [
   LearnCancelResponseSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/voice/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/voice/messages.js
 var VoiceAudioChunkMessageSchema = external_exports.object({
   type: external_exports.literal("voice_audio_chunk"),
   audio: external_exports.string(),
@@ -10796,11 +10796,11 @@ var VoiceOutboundMessageSchemas = [
   SetVoiceModeResponseMessageSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/agent-labels.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent-labels.js
 var AGENT_RELATION_KINDS = ["subagent", "detached", "handoff", "team-slot"];
 var AGENT_RELATION_SOURCES = ["mcp", "user", "system"];
 
-// vendor/chisacode-remote/packages/protocol/dist/agent-presets.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent-presets.js
 var AgentPresetSchema = external_exports.object({
   id: external_exports.string().min(1),
   label: external_exports.string().min(1),
@@ -10817,10 +10817,10 @@ var AgentPresetsPayloadSchema = external_exports.object({
   presets: external_exports.array(AgentPresetSchema)
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/agent-title-limits.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent-title-limits.js
 var MAX_EXPLICIT_AGENT_TITLE_CHARS = 200;
 
-// vendor/chisacode-remote/packages/protocol/dist/agent-lifecycle.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent-lifecycle.js
 var AGENT_LIFECYCLE_STATUSES = [
   "initializing",
   "idle",
@@ -10829,7 +10829,7 @@ var AGENT_LIFECYCLE_STATUSES = [
   "closed"
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/agent/state.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent/state.js
 var AgentStatusSchema = external_exports.enum(AGENT_LIFECYCLE_STATUSES);
 var AgentCapabilityFlagsSchema = external_exports.object({
   supportsStreaming: external_exports.boolean(),
@@ -11216,7 +11216,7 @@ var AgentListItemPayloadSchema = external_exports.object({
   providerUnavailable: external_exports.boolean().optional()
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/agent/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/agent/messages.js
 var AgentSessionConfigSchema = external_exports.object({
   provider: AgentProviderSchema,
   runtimeProvider: AgentProviderSchema.optional(),
@@ -11814,7 +11814,7 @@ var AgentOutboundMessageSchemas = [
   ListCommandsResponseSchema
 ];
 
-// vendor/chisacode-remote/packages/protocol/dist/messages.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/messages.js
 var AbortRequestMessageSchema = external_exports.object({
   type: external_exports.literal("abort_request")
 });
@@ -12191,7 +12191,7 @@ function parseServerInfoStatusPayload(payload) {
   return parsed.data;
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-transport-utils.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-transport-utils.js
 function copyArrayBufferViewToBuffer(data) {
   const view = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   const out = new Uint8Array(view.byteLength);
@@ -12296,7 +12296,7 @@ function decodeMessageData(data) {
   return null;
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-checkout-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-checkout-commands.js
 var CheckoutCommandClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -12565,7 +12565,7 @@ var CheckoutCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-checkout-subscriptions.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-checkout-subscriptions.js
 var CheckoutSubscriptionClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -12700,7 +12700,7 @@ function normalizeCheckoutDiffCompare(compare) {
   return compare.ignoreWhitespace === true ? { mode: "base", baseRef: trimmedBaseRef, ignoreWhitespace: true } : { mode: "base", baseRef: trimmedBaseRef };
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-config-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-config-commands.js
 var ConfigCommandClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -12760,7 +12760,7 @@ var ConfigCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-provider-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-provider-commands.js
 var PROVIDER_TOOLING_RPC_TIMEOUT_MS = 198e3;
 var ProviderCommandClient = class {
   constructor(transport) {
@@ -12882,7 +12882,7 @@ var ProviderCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-agent-extension-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-agent-extension-commands.js
 var AgentExtensionCommandClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -12983,7 +12983,7 @@ var AgentExtensionCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-automation-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-automation-commands.js
 var AutomationCommandClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -13256,7 +13256,7 @@ var AutomationCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-cindy-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-cindy-commands.js
 var CindyCommandClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -13590,7 +13590,7 @@ var CindyCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-workspace-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-workspace-commands.js
 var DEFAULT_OPEN_PROJECT_TIMEOUT_MS = 6e4;
 var WorkspaceCommandClient = class {
   constructor(transport) {
@@ -13677,7 +13677,7 @@ var WorkspaceCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-query-commands.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-query-commands.js
 var QueryCommandClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -13770,7 +13770,7 @@ var QueryCommandClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-runtime-metrics.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-runtime-metrics.js
 var DEFAULT_ROLLING_WINDOW_MS = 6e4;
 var DaemonClientRuntimeMetrics = class {
   constructor(logger, context, options) {
@@ -13941,7 +13941,7 @@ function getTopHandlerTimings(map, limit) {
   return rows.slice(0, limit);
 }
 
-// vendor/chisacode-remote/packages/protocol/dist/binary-frames/terminal.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/binary-frames/terminal.js
 var TerminalStreamResizeSchema = external_exports.object({
   rows: external_exports.number().int().positive(),
   cols: external_exports.number().int().positive()
@@ -14026,7 +14026,7 @@ function decodeJsonPayload(bytes) {
   }
 }
 
-// vendor/chisacode-remote/packages/protocol/dist/binary-frames/file-transfer.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/binary-frames/file-transfer.js
 var MAX_FILE_TRANSFER_BYTES = 64 * 1024 * 1024;
 var FileTransferOpcode = {
   FileBegin: 16,
@@ -14088,7 +14088,7 @@ function decodeJsonPayload2(bytes) {
   }
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-file-transfer.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-file-transfer.js
 var BinaryFileTransferManager = class {
   constructor(options) {
     this.pendingReads = /* @__PURE__ */ new Map();
@@ -14250,7 +14250,7 @@ function concatByteChunks(chunks, size) {
   return bytes;
 }
 
-// vendor/chisacode-remote/packages/client/dist/terminal-stream-router.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/terminal-stream-router.js
 var TerminalStreamRouter = class {
   constructor() {
     this.terminalSlots = /* @__PURE__ */ new Map();
@@ -14356,7 +14356,7 @@ var TerminalStreamRouter = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-terminal-client.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-terminal-client.js
 var TerminalClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -14575,7 +14575,7 @@ var TerminalClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-voice-client.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-voice-client.js
 var DEFAULT_DICTATION_FINISH_ACCEPT_TIMEOUT_MS = 15e3;
 var DEFAULT_DICTATION_FINISH_FALLBACK_TIMEOUT_MS = 5 * 60 * 1e3;
 var DEFAULT_DICTATION_FINISH_TIMEOUT_GRACE_MS = 5e3;
@@ -14767,7 +14767,7 @@ var VoiceClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-agent-lifecycle.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-agent-lifecycle.js
 var AgentLifecycleClient = class {
   constructor(transport) {
     this.transport = transport;
@@ -15027,7 +15027,7 @@ function resolveAgentConfig(options) {
   return { ...merged, provider: merged.provider, cwd: merged.cwd };
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-rpc-error.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-rpc-error.js
 var DaemonRpcError = class extends Error {
   constructor(params) {
     const parts = [params.error];
@@ -15043,7 +15043,7 @@ var DaemonRpcError = class extends Error {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-agent-interaction.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-agent-interaction.js
 var DEFAULT_FETCH_AGENT_TIMELINE_TIMEOUT_MS = 6e4;
 var AgentInteractionClient = class {
   constructor(transport) {
@@ -15137,7 +15137,7 @@ var AgentInteractionClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-request-coordinator.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-request-coordinator.js
 var DEFAULT_SEND_QUEUE_TIMEOUT_MS = 1e4;
 var DaemonRequestCoordinator = class {
   constructor(options) {
@@ -15321,7 +15321,7 @@ var DaemonRequestCoordinator = class {
   }
 };
 
-// vendor/chisacode-remote/packages/protocol/dist/daemon-endpoints.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/daemon-endpoints.js
 var CURRENT_RELAY_PROTOCOL_VERSION = "2";
 function normalizeRelayProtocolVersion(value, fallback = CURRENT_RELAY_PROTOCOL_VERSION) {
   if (value == null) {
@@ -15408,7 +15408,7 @@ function isRelayClientWebSocketUrl(url) {
   }
 }
 
-// vendor/chisacode-remote/packages/relay/src/crypto.ts
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/relay/src/crypto.ts
 var import_tweetnacl = __toESM(require_nacl_fast(), 1);
 var import_base64_js = __toESM(require_base64_js(), 1);
 var NONCE_LENGTH = import_tweetnacl.default.box.nonceLength;
@@ -15540,10 +15540,10 @@ function decrypt(sharedKey, data) {
   return { plaintext, seq, salt };
 }
 
-// vendor/chisacode-remote/packages/relay/src/encrypted-channel.ts
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/relay/src/encrypted-channel.ts
 var import_tweetnacl2 = __toESM(require_nacl_fast(), 1);
 
-// vendor/chisacode-remote/packages/relay/src/base64.ts
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/relay/src/base64.ts
 var import_base64_js2 = __toESM(require_base64_js(), 1);
 function arrayBufferToBase64(buffer) {
   return (0, import_base64_js2.fromByteArray)(new Uint8Array(buffer));
@@ -15561,7 +15561,7 @@ function base64ToArrayBuffer(base64) {
   return out.buffer;
 }
 
-// vendor/chisacode-remote/packages/relay/src/encrypted-channel.ts
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/relay/src/encrypted-channel.ts
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -15839,7 +15839,7 @@ function keysEqual(a, b) {
   return difference === 0;
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-relay-e2ee-transport.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-relay-e2ee-transport.js
 function createRelayE2eeTransportFactory(args) {
   return ({ url, headers }) => {
     const base = args.baseFactory({ url, headers });
@@ -15998,7 +15998,7 @@ function normalizeTransportError(error) {
   return { message: String(error) };
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-websocket-transport.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-websocket-transport.js
 function defaultWebSocketFactory(url, options) {
   const globalWs = globalThis.WebSocket;
   if (!globalWs) {
@@ -16115,7 +16115,7 @@ function bindWsHandler(ws, event, handler) {
   };
 }
 
-// vendor/chisacode-remote/packages/client/dist/sha256-hmac.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/sha256-hmac.js
 var K = [
   1116352408,
   1899447441,
@@ -16303,7 +16303,7 @@ function randomBase64UrlChallenge() {
   return base64urlEncode(bytes);
 }
 
-// vendor/chisacode-remote/packages/client/dist/relay-device-credentials.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/relay-device-credentials.js
 var RELAY_DEVICE_AUTH_VERSION = 1;
 function utf8Bytes(input) {
   if (typeof TextEncoder !== "undefined") {
@@ -16411,7 +16411,7 @@ function computeClientRelayDeviceAuthProof(deviceSecret, transcriptFields) {
   return hmacSha256Base64Url(utf8Bytes(deviceSecret), utf8Bytes(transcript));
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-connection-controller.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-connection-controller.js
 var DEFAULT_RECONNECT_BASE_DELAY_MS = 1500;
 var DEFAULT_RECONNECT_MAX_DELAY_MS = 3e4;
 var DEFAULT_CONNECT_TIMEOUT_MS = 15e3;
@@ -17025,7 +17025,7 @@ function toReasonCode(reason) {
   return "unknown";
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-inbound-controller.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-inbound-controller.js
 var perfNow2 = typeof performance !== "undefined" && typeof performance.now === "function" ? () => performance.now() : () => Date.now();
 var DaemonClientInboundController = class {
   constructor(options) {
@@ -17257,7 +17257,7 @@ var DaemonClientInboundController = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client-agent-waits.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client-agent-waits.js
 var AgentWaitClient = class {
   constructor(options) {
     this.options = options;
@@ -17411,7 +17411,7 @@ function toError(error) {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-// vendor/chisacode-remote/packages/client/dist/daemon-client.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/daemon-client.js
 var consoleLogger = {
   debug: () => {
   },
@@ -18219,7 +18219,7 @@ var DaemonClient = class {
   }
 };
 
-// vendor/chisacode-remote/packages/client/dist/index.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/client/dist/index.js
 function createChisaCodeClient(config) {
   const daemonClient = new DaemonClient({
     ...config,
@@ -18398,7 +18398,7 @@ function createGeneratedClientId() {
   return `chisacode-sdk-${randomId}`;
 }
 
-// vendor/chisacode-remote/packages/protocol/dist/relay-device-auth.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/relay-device-auth.js
 var RELAY_DEVICE_AUTH_VERSION2 = 1;
 var RelayAuthBootstrapSchema = external_exports.object({
   version: external_exports.literal(RELAY_DEVICE_AUTH_VERSION2),
@@ -18443,7 +18443,7 @@ var RelayDeviceAuthResultSchema = external_exports.object({
   securityLevel: external_exports.enum(["v2", "legacy"]).optional()
 });
 
-// vendor/chisacode-remote/packages/protocol/dist/connection-offer.js
+// ../Deepseek-Harness-Desktop/vendor/chisacode-remote/packages/protocol/dist/connection-offer.js
 var ConnectionOfferV2Schema = external_exports.object({
   v: external_exports.literal(2),
   serverId: external_exports.string().min(1),
