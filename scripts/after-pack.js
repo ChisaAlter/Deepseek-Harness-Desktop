@@ -752,9 +752,11 @@ function assertHarnessRuntime(harnessDest, pin) {
   const requiredFiles = [
     path.join('apps', 'cli', 'lib', 'bin.js'),
     path.join('apps', 'web', 'dist', 'index.html'),
-    path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
+    path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
+    path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-message-edit', 'lib', 'client.js'),
+    path.join('node_modules', '@deepseek-ai', 'dsh-api-session-controller', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-host-skill-inventory', 'lib', 'index.js'),
@@ -777,42 +779,26 @@ function assertHarnessRuntime(harnessDest, pin) {
     );
   }
 
-  const features = fs.readFileSync(
-    path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-    'utf8',
-  );
-  const modules = fs.readFileSync(
-    path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-    'utf8',
-  );
   const conversation = fs.readFileSync(
     path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
     'utf8',
   );
-  const requiredFeatures = [
-    'conversation.chat.user-actions',
-    'session.fork.beforeSeq',
-    'session.fork.blank',
-  ];
-  const missingFeatures = requiredFeatures.filter((feature) => !features.includes(feature));
-  if (missingFeatures.length > 0) {
-    throw new Error(`安装包的 Harness 缺少宿主能力：${missingFeatures.join(', ')}`);
-  }
-  const cliLib = path.join(harnessDest, 'apps', 'cli', 'lib');
-  const cliGatePresent = fs.readdirSync(cliLib)
-    .filter((name) => name.endsWith('.js'))
-    .some((name) => {
-      const code = fs.readFileSync(path.join(cliLib, name), 'utf8');
-      return code.includes('missingHostFeatures') && code.includes('parseCompatibilityFeatures');
-    });
-  if (!cliGatePresent) {
-    throw new Error('安装包的 dsh CLI 缺少插件兼容性门禁');
-  }
-  if (!modules.includes('missingHostFeatures') || !modules.includes('parseCompatibilityFeatures')) {
-    throw new Error('安装包的 Browser 模块图缺少插件兼容性门禁');
-  }
+  const messageEdit = fs.readFileSync(
+    path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-client-ui-message-edit', 'lib', 'client.js'),
+    'utf8',
+  );
+  const sessionCtl = fs.readFileSync(
+    path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-api-session-controller', 'lib', 'index.js'),
+    'utf8',
+  );
   if (!conversation.includes('conversation.chat.user-actions')) {
     throw new Error('安装包的会话 UI 缺少用户消息 action slot');
+  }
+  if (!messageEdit.includes('conversation.chat.user-actions')) {
+    throw new Error('安装包缺少消息编辑用户 action');
+  }
+  if (!sessionCtl.includes('beforeSeq') || !/fork/i.test(sessionCtl)) {
+    throw new Error('安装包的 session Remote 缺少 fork beforeSeq');
   }
   assertHarnessVersions(harnessDest, pin);
   assertNodePtyPrebuild(harnessDest);

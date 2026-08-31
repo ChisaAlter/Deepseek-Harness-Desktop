@@ -220,24 +220,23 @@ function writeAjv(dir, version) {
   fs.writeFileSync(path.join(dir, 'package.json'), `${JSON.stringify({ name: 'ajv', version })}\n`);
 }
 
-test('assertHarnessRuntime accepts a complete compatible host', (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-runtime-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+function writePinRuntimeFiles(root) {
   const files = new Map([
     [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
     [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
+    [path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js'), 'export {}\n'],
+    [path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'), 'export {}\n'],
     [
       path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
       'conversation.chat.user-actions\n',
+    ],
+    [
+      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-message-edit', 'lib', 'client.js'),
+      'conversation.chat.user-actions\n',
+    ],
+    [
+      path.join('node_modules', '@deepseek-ai', 'dsh-api-session-controller', 'lib', 'index.js'),
+      'fork accepts atSeq or beforeSeq\n',
     ],
     [path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'), 'export {}\n'],
     [path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'), 'export {}\n'],
@@ -252,6 +251,12 @@ test('assertHarnessRuntime accepts a complete compatible host', (t) => {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, content);
   }
+}
+
+test('assertHarnessRuntime accepts a complete compatible host', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-runtime-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  writePinRuntimeFiles(root);
   writeRuntimeVersions(root, RC7_PIN.npm);
   writeNodePtyPrebuild(root);
   writeDesktopForkPackages(root);
@@ -265,35 +270,7 @@ test('assertHarnessRuntime accepts a complete compatible host', (t) => {
 test('assertHarnessRuntime rejects a runtime missing a registered desktop fork package', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-fork-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const files = new Map([
-    [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
-    [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
-      'conversation.chat.user-actions\n',
-    ],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-skill-inventory', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'), 'export {}\n'],
-  ]);
-  for (const [relative, content] of files) {
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
+  writePinRuntimeFiles(root);
   writeDesktopForkPackages(root);
   // A stale deploy dir from before the desktop-owned market shipped: the
   // package is absent while every older gate file still exists.
@@ -329,39 +306,10 @@ test('assertHarnessRuntime rejects a fork package whose runtime entry is missing
 test('assertHarnessRuntime rejects a host missing Ghostty terminal assets', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-ghostty-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const files = new Map([
-    [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
-    [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
-      'conversation.chat.user-actions\n',
-    ],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-skill-inventory', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'), 'export {}\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-user-terminal', 'lib', 'client.js'),
-      'export {}\n',
-    ],
-  ]);
-  for (const [relative, content] of files) {
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
+  writePinRuntimeFiles(root);
+  const terminalClient = path.join(root, 'node_modules', '@deepseek-ai', 'dsh-client-ui-user-terminal', 'lib', 'client.js');
+  fs.mkdirSync(path.dirname(terminalClient), { recursive: true });
+  fs.writeFileSync(terminalClient, 'export {}\n');
   writeRuntimeVersions(root, RC7_PIN.npm);
   writeNodePtyPrebuild(root);
   writeDesktopForkPackages(root);
@@ -375,28 +323,8 @@ test('assertHarnessRuntime rejects a host missing Ghostty terminal assets', (t) 
 test('assertHarnessRuntime rejects a host missing MCP settings runtime', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-mcp-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const files = new Map([
-    [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
-    [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
-      'conversation.chat.user-actions\n',
-    ],
-  ]);
-  for (const [relative, content] of files) {
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
+  writePinRuntimeFiles(root);
+  fs.rmSync(path.join(root, 'node_modules', '@deepseek-ai', 'dsh-mcp-servers-file'), { recursive: true, force: true });
 
   assert.throws(
     () => assertHarnessRuntime(root, RC7_PIN),
@@ -414,42 +342,14 @@ test('assertHarnessRuntime rejects stale deploy output before archiving', (t) =>
 
   assert.throws(
     () => assertHarnessRuntime(root, RC7_PIN),
-    /dsh-app-boot.*features\.js/,
+    /dsh-app-boot.*index\.js/,
   );
 });
 
 test('assertHarnessRuntime rejects pin.npm mismatch', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-pin-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const files = new Map([
-    [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
-    [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
-      'conversation.chat.user-actions\n',
-    ],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-skill-inventory', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'), 'export {}\n'],
-  ]);
-  for (const [relative, content] of files) {
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
+  writePinRuntimeFiles(root);
   writeRuntimeVersions(root, '0.1.0-rc.5');
   writeNodePtyPrebuild(root);
   writeDesktopForkPackages(root);
@@ -463,35 +363,7 @@ test('assertHarnessRuntime rejects pin.npm mismatch', (t) => {
 test('assertHarnessRuntime rejects a missing node-pty prebuild', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-pty-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const files = new Map([
-    [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
-    [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
-      'conversation.chat.user-actions\n',
-    ],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-skill-inventory', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'), 'export {}\n'],
-  ]);
-  for (const [relative, content] of files) {
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
+  writePinRuntimeFiles(root);
   writeRuntimeVersions(root, RC7_PIN.npm);
   writeDesktopForkPackages(root);
   writeGhosttyTerminalPackage(root);
@@ -753,35 +625,7 @@ test('repairFlattenedVersionIsolation restores SDK ajv@8 after flat copy', async
 test('assertHarnessRuntime rejects MCP SDK resolving ajv major 6', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-ajv6-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const files = new Map([
-    [path.join('apps', 'cli', 'lib', 'bin.js'), 'export {}\n'],
-    [path.join('apps', 'cli', 'lib', 'plugin.js'), 'missingHostFeatures parseCompatibilityFeatures\n'],
-    [path.join('apps', 'web', 'dist', 'index.html'), '<!doctype html>\n'],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'features.js'),
-      'conversation.chat.user-actions session.fork.beforeSeq session.fork.blank\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
-      'missingHostFeatures parseCompatibilityFeatures\n',
-    ],
-    [
-      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
-      'conversation.chat.user-actions\n',
-    ],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-mcp-servers', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-host-skill-inventory', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'), 'export {}\n'],
-    [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'), 'export {}\n'],
-  ]);
-  for (const [relative, content] of files) {
-    const file = path.join(root, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
+  writePinRuntimeFiles(root);
   writeRuntimeVersions(root, RC7_PIN.npm);
   writeNodePtyPrebuild(root);
   writeDesktopForkPackages(root);
