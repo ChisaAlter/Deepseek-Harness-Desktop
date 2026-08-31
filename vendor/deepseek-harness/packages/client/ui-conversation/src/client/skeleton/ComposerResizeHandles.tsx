@@ -13,16 +13,6 @@ function seatOf(node: HTMLElement | null): HTMLElement | null {
   return node?.closest('[data-composer-seat]') ?? null
 }
 
-/**
- * Width publishes on the conversation root (the common ancestor of the
- * composer card and the message column), so the transcript column reads the
- * same `--dsh-composer-resized-width` the dock rows do; the composer seat
- * remains the fallback when no root ancestor exists (standalone bars).
- */
-function widthSeatOf(node: HTMLElement | null): HTMLElement | null {
-  return node?.closest('[data-conversation-root]') ?? seatOf(node)
-}
-
 function applyHeight(scroll: HTMLElement, height: number): void {
   const value = `${height}px`
   const seat = seatOf(scroll)
@@ -42,7 +32,7 @@ function applyHeight(scroll: HTMLElement, height: number): void {
 
 function applyWidth(card: HTMLElement, width: number): void {
   const value = `${width}px`
-  const seat = widthSeatOf(card)
+  const seat = seatOf(card)
   const targets = new Set<HTMLElement>([card])
   if (seat !== null) {
     for (const el of seat.querySelectorAll<HTMLElement>('[data-composer-card]')) {
@@ -59,7 +49,6 @@ function applyWidth(card: HTMLElement, width: number): void {
 
 function clearSize(scroll: HTMLElement | null, card: HTMLElement | null): void {
   const seat = seatOf(scroll) ?? seatOf(card)
-  const widthSeat = widthSeatOf(card) ?? seat
   const scrolls = seat === null
     ? (scroll === null ? [] : [scroll])
     : [...seat.querySelectorAll<HTMLElement>('[data-input-scroll], [data-approval-scroll]')]
@@ -76,20 +65,17 @@ function clearSize(scroll: HTMLElement | null, card: HTMLElement | null): void {
   }
   if (seat !== null) {
     seat.style.removeProperty(HEIGHT_VAR)
+    seat.style.removeProperty(WIDTH_VAR)
     delete seat.dataset.composerResized
-  }
-  if (widthSeat !== null) {
-    widthSeat.style.removeProperty(WIDTH_VAR)
-    delete widthSeat.dataset.composerResizedWidth
+    delete seat.dataset.composerResizedWidth
   }
 }
 
 function adoptFromSeat(scroll: HTMLElement, card: HTMLElement): void {
   const seat = seatOf(scroll) ?? seatOf(card)
-  const widthSeat = widthSeatOf(card)
-  if (seat === null && widthSeat === null) return
-  const height = seat?.style.getPropertyValue(HEIGHT_VAR) ?? ''
-  const width = widthSeat?.style.getPropertyValue(WIDTH_VAR) ?? ''
+  if (seat === null) return
+  const height = seat.style.getPropertyValue(HEIGHT_VAR)
+  const width = seat.style.getPropertyValue(WIDTH_VAR)
   if (height !== '') {
     scroll.style.height = height
     scroll.dataset.composerResized = ''

@@ -15,8 +15,6 @@ import type { ApprovalComposerInjected } from '../src/client/contract/slots.ts'
 import type { BeamRowInjected } from '../src/client/settings/BeamRow.tsx'
 import type { ResizeRowInjected } from '../src/client/settings/ResizeRow.tsx'
 import type { StatsLineRowInjected } from '../src/client/settings/StatsLineRow.tsx'
-import type { PeakValleySettingsRowInjected } from '../src/client/settings/PeakValleyRow.tsx'
-import type { PeakValleyRowInjected } from '../src/client/chat/PeakValleyRow.tsx'
 import type { ViewTabsRowInjected } from '../src/client/settings/ViewTabsRow.tsx'
 
 // The service reads its initial locale from the browser; these specs assert
@@ -130,7 +128,7 @@ describe('apply wiring', () => {
       .toEqual({ kind: 'single', scope: 'session' })
     expect(b.slots.entries('settings.general.item').map(entry => entry.options.id)).toEqual(['composer-enter'])
     expect(b.slots.entries('settings.interface.item').map(entry => entry.options.id)).toEqual([
-      'composer-beam', 'composer-resize', 'stats-line', 'session-cost', 'official-peak-valley', 'view-tabs',
+      'composer-beam', 'composer-resize', 'stats-line', 'view-tabs',
     ])
     const beam = b.slots.entries('settings.interface.item')[0]
     const beamInjected = (beam?.inject as unknown as () => BeamRowInjected)()
@@ -150,19 +148,11 @@ describe('apply wiring', () => {
     expect(statsInjected.hooks.statsLine.getSnapshot()).toBe(true)
     statsInjected.setStatsLine(false)
     expect(statsInjected.hooks.statsLine.getSnapshot()).toBe(false)
-    const tabs = b.slots.entries('settings.interface.item')[5]
+    const tabs = b.slots.entries('settings.interface.item')[3]
     const tabsInjected = (tabs?.inject as unknown as () => ViewTabsRowInjected)()
     expect(tabsInjected.hooks.viewTabs.getSnapshot()).toBe(true)
     tabsInjected.setViewTabs(false)
     expect(tabsInjected.hooks.viewTabs.getSnapshot()).toBe(false)
-    // The session-cost row sits directly below the stats row; the peak/valley
-    // row follows and reads the per-session model-fact store (default fact:
-    // route unknown).
-    const peakValley = b.slots.entries('settings.interface.item')[4]
-    const peakValleyInjected = (peakValley?.inject as unknown as () => PeakValleySettingsRowInjected)()
-    expect(peakValleyInjected.hooks.peakValley.getSnapshot()).toBe(false)
-    peakValleyInjected.setPeakValley(true)
-    expect(peakValleyInjected.hooks.peakValley.getSnapshot()).toBe(true)
     await b.runtime.dispose()
   })
 
@@ -173,15 +163,8 @@ describe('apply wiring', () => {
     // one search row registers under both grep and glob; the web rows register
     // one component under both web tool names.
     expect(b.slots.entries('conversation.chat.node').map(entry => entry.options.key)).not.toContain('tool-call')
-    // Stats stick with the composer (not inside ChatView); the official
-    // peak/valley row rides directly below in the same width column.
-    expect(b.slots.entries('conversation.composer.dock').map(e => e.options.id)).toEqual(['stats', 'peak-valley'])
-    const dockPeakValley = b.slots.entries('conversation.composer.dock')[1]
-    const dockInjected = (dockPeakValley?.inject as unknown as (id: SessionId) => PeakValleyRowInjected)(ROOT)
-    expect(dockInjected.hooks.peakValley.getSnapshot()).toBe(false)
-    expect(dockInjected.hooks.modelProvider.getSnapshot()).toEqual({ provider: null })
-    // The same session resolves the same store; another session gets its own.
-    expect(b.slots.entries('conversation.composer.dock')[1]?.inject).toBeTypeOf('function')
+    // Stats stick with the composer (not inside ChatView).
+    expect(b.slots.entries('conversation.composer.dock').map(e => e.options.id)).toEqual(['stats'])
     await b.runtime.dispose()
   })
 

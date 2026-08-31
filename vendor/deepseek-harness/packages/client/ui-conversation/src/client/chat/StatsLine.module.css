@@ -1,13 +1,12 @@
-/* Session stats row: 12/20 tertiary text under the flow. The box syncs with
-   the composer card's width (seat-published resized width, else the card's
-   column cap) and its content centers on the shared axis. */
+/* Session stats row: 12/20 tertiary text under the flow, aligned to the
+   shared message column axis (--dsh-chat-content-width). */
 
 .root {
   /* Block, not flex: text-overflow only elides a block's inline content, so
      an overlong line ends in … instead of a mid-glyph clip. */
   display: block;
   text-align: center;
-  max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width));
+  max-width: var(--dsh-chat-content-width);
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
