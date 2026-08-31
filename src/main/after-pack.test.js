@@ -228,6 +228,10 @@ function writePinRuntimeFiles(root) {
     [path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'), 'export {}\n'],
     [
       path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
+      'export {}\n',
+    ],
+    [
+      path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-chat', 'lib', 'client.js'),
       'conversation.chat.user-actions\n',
     ],
     [

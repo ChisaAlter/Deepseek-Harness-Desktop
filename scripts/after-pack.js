@@ -755,6 +755,7 @@ function assertHarnessRuntime(harnessDest, pin) {
     path.join('node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-modules', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
+    path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-chat', 'lib', 'client.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-message-edit', 'lib', 'client.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-api-session-controller', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-mcp-servers-file', 'lib', 'index.js'),
@@ -779,8 +780,8 @@ function assertHarnessRuntime(harnessDest, pin) {
     );
   }
 
-  const conversation = fs.readFileSync(
-    path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-client-ui-conversation', 'lib', 'client.js'),
+  const chat = fs.readFileSync(
+    path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-client-ui-chat', 'lib', 'client.js'),
     'utf8',
   );
   const messageEdit = fs.readFileSync(
@@ -791,8 +792,8 @@ function assertHarnessRuntime(harnessDest, pin) {
     path.join(harnessDest, 'node_modules', '@deepseek-ai', 'dsh-api-session-controller', 'lib', 'index.js'),
     'utf8',
   );
-  if (!conversation.includes('conversation.chat.user-actions')) {
-    throw new Error('安装包的会话 UI 缺少用户消息 action slot');
+  if (!chat.includes('conversation.chat.user-actions')) {
+    throw new Error('安装包的 Chat UI 缺少用户消息 action slot');
   }
   if (!messageEdit.includes('conversation.chat.user-actions')) {
     throw new Error('安装包缺少消息编辑用户 action');
