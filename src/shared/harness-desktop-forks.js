@@ -98,6 +98,10 @@ const FORK_FILE_MARKERS = [
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
   // Desktop fork: input.dock panels follow the drag-resized composer card.
   { file: 'apps/web/tests/composer-resize-dock.e2e.ts', includes: ['input.dock panels follow the composer drag width'] },
+  // The composer-width e2e driver is host-plane; keep it out of the
+  // client-registered apps/web tsc program so the phantom rootDir chain
+  // (scaffold → dsh-session-snapshot → loader-smoke) cannot break build:lib.
+  { file: 'apps/web/tsconfig.json', includes: ['composer-resize-dock.e2e.ts'] },
   // Session log download lives in the desktop titlebar capsule, never in the conversation header.
   { file: 'apps/web/tests/snapshots/agent-preset-selection/header.expected.md', excludes: ['button "Session log"'] },
   { file: 'package.json', includes: ['copy-ghostty-assets.mjs'] },

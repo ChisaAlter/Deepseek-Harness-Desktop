@@ -119,9 +119,9 @@ function isUserOwned(profileDir, destDir) {
  * there and never writes one back. A user-owned install (real directory or a
  * non-managed link in profile node_modules) makes the desktop back off
  * (`{ userOwned: true }`): no copy, no junction, overlay removed so a user
- * patch insert cannot double-mount. A non-junction marketplace install is
- * otherwise replaced with a junction to the desktop restyle so the projection
- * key and settings section stay unique. Missing `package.json` or zod returns
+ * patch insert cannot double-mount. Only when the profile has no
+ * node_modules entry does the desktop copy the bundle and manage the
+ * junction itself. Missing `package.json` or zod returns
  * `{ ok: false }` and removes the overlay so the controller never passes a
  * stale one.
  * @param {{ sourceDir?: string, profileDir?: string, disabledPlugins?: string[] }} [options]

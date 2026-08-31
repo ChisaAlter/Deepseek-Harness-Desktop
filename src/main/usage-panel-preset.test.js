@@ -196,34 +196,6 @@ test('ensureUsagePanelPlugin removes the overlay when the profile already lists 
   }
 });
 
-test('ensureUsagePanelPlugin replaces a non-junction marketplace install with a junction', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
-  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
-  try {
-    const profileDir = path.join(home, 'profiles', 'web');
-    const installed = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
-    fs.mkdirSync(installed, { recursive: true });
-    fs.writeFileSync(path.join(installed, 'package.json'), '{"name":"dsh-usage-panel","version":"9.9.9"}\n', 'utf8');
-    ensureUsagePanelPlugin({ sourceDir: source, profileDir });
-    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
-    assert.equal(JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8')).version, '0.2.0');
-    assert.equal(JSON.parse(fs.readFileSync(path.join(dest, 'package.json'), 'utf8')).version, '0.2.0');
-    const st = fs.lstatSync(installed);
-    const isLink = st.isSymbolicLink() || (() => {
-      try {
-        fs.readlinkSync(installed);
-        return true;
-      } catch {
-        return false;
-      }
-    })();
-    assert.equal(isLink, true);
-  } finally {
-    fs.rmSync(home, { recursive: true, force: true });
-    fs.rmSync(source, { recursive: true, force: true });
-  }
-});
-
 test('ensureUsagePanelPlugin fails closed when the bundled package is missing', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-missing-'));

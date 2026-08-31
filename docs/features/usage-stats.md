@@ -17,7 +17,7 @@
 
 - 预置包名 `dsh-usage-panel`；设置 section id `usage-stats`；投影 key `usagePanel`。同一 profile 只挂一份。
 - 挂载走桌面自有 overlay（`desktop-usage-panel.patch.yml`，仅全量启动经 `--patch` 传），不写 `cordis.patch.yml` 受管块（该文件纯用户所有，见 desktop-launcher 卡）；市场 bundle 已挂载或插件被禁用时 overlay 必须删除（insert + bundle 同时组合 = 双挂载）。
-- 桌面 `desktop-plugins` 副本赢过市场装的同名目录（junction 覆盖非 junction 安装）。
+- **用户自装优先**：profile `node_modules/dsh-usage-panel` 是真实目录（非本桌面管理的 junction）或指向第三方目标时，桌面后退（`{ userOwned: true }`，不覆盖、不重建 junction），并删除 overlay 防双挂载；用户安装存活。仅当 node_modules 无该条目时，桌面才复制预置包并自管 junction。
 - 只统计 Token 四桶；**计费为估算**（费用 = 峰谷桶 × 用户价格，全部本地计算,非账单）;不做余额 API。
 - 峰谷口径：北京时间 UTC+8 无夏令时,周一至五 09:00–12:00、14:00–18:00 高峰;整步按 step/start 时刻归类;compaction 不入费用桶;官方价目 asOf 2026-08-17 + 来源链接 + 单测锁值。
 - 不猜价：未定价模型显示"设置价格"/"—",绝不编造数字(竞品红线延续)。

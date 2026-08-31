@@ -253,7 +253,7 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
     );
     assert.deepEqual(
       harnessContents.ownerOptions.webPreferences.additionalArguments,
-      ['--dshd-shell-role=harness', '--dshd-remote-feature=1'],
+      ['--dshd-shell-role=harness', '--dshd-remote-feature=0'],
     );
 
     const sameOrigin = { prevented: false, preventDefault() { this.prevented = true; } };
