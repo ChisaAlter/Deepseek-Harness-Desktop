@@ -2,7 +2,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import {
   AllowedModelRouteSchema,
   assertAllowedModelRoutes,
@@ -17,7 +17,7 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** User-settings section for model-selectable subagent delegation. */
-export const SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE = settingsNamespace('subagent-model-selection')
+export const SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE = 'subagent-model-selection'
 
 /** Stored user preference; the shipped composition defaults it off. */
 export interface SubagentModelSelectionSettings {
@@ -60,19 +60,21 @@ export class SubagentModelSelectionConfig extends Service {
     }
     this.validate(entry)
     this.source = () => entry
-    installSettingsSection(
-      ctx,
-      SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE,
-      SUBAGENT_MODEL_SELECTION_SETTINGS_SCHEMA,
-      entry,
-      {
-        setSource: (source) => { this.source = source },
-        validate: (value) => { this.validate(value) },
-        // Consumers sample at Agent publication, so a settings update never
-        // rebuilds the tool definitions of an Agent that is already running.
-        onChange: () => {},
-      },
-    )
+    ctx.inject(['settings'], (settingsCtx) => {
+      settingsCtx.settings.installSection(
+        ctx,
+        SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE,
+        SUBAGENT_MODEL_SELECTION_SETTINGS_SCHEMA,
+        entry,
+        {
+          setSource: (source) => { this.source = source },
+          validate: (value) => { this.validate(value) },
+          // Consumers sample at Agent publication, so a settings update never
+          // rebuilds the tool definitions of an Agent that is already running.
+          onChange: () => {},
+        },
+      )
+    })
   }
 
   /**

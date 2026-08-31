@@ -4,6 +4,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { describe, expect, it, vi } from 'vitest'
 import SessionController from '../src/index.ts'
 import type { ApiSessionAgentController } from '../src/agent.ts'
@@ -124,7 +125,7 @@ describe('SessionController facade', () => {
       if (outcome === 'success') resolve.mockResolvedValue({ agent: live })
       else if (outcome === 'domain-error') {
         resolve.mockResolvedValue({
-          error: { code: 'internal', message: 'activation unavailable', details: {} },
+          error: new RemoteError('gateway/internal', 'activation unavailable', {}),
         })
       } else {
         resolve.mockRejectedValue(new Error('activation crashed'))

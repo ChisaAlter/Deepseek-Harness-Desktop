@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-api-workspace-controller",
   "description": "Workspace Remote commands and reconnect-safe state transport",
-  "version": "0.1.2-alpha.1",
+  "version": "0.1.2-alpha.2",
   "publishConfig": {
     "access": "public"
   },
@@ -70,6 +70,7 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@deepseek-ai/dsh-deque": "workspace:^",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

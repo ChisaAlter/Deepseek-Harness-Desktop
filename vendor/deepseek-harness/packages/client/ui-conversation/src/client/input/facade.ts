@@ -22,7 +22,7 @@ import { createEmptyHistoryState, registerHistory } from '@lexical/history'
 import { mergeRegister } from '@lexical/utils'
 import type {
   ArbitrateKey, ArbitrateOutcome, CommandClaim, ConsumeTokenRequest, DraftAttachmentId,
-  InputActions, InputEffect, InputNotice, InputState, InputTriggerController, PickOutcome,
+  InputActions, InputEditSpec, InputEffect, InputNotice, InputState, InputTriggerController, PickOutcome,
   Occurrence, QueuedMessage, ReferenceInsert, SessionInput, SubmitAttempt, SubmitImageAttachment,
   SubmitOutcome, TokenSpan,
 } from '../contract/input.ts'
@@ -169,6 +169,10 @@ export class SessionInputShell implements SessionInput {
     readonly controller: AbortController
     readonly imageIds: readonly DraftAttachmentId[]
   }>()
+  private edit: {
+    readonly spec: InputEditSpec
+    readonly stash: { readonly draft: string; readonly imageIds: readonly DraftAttachmentId[] }
+  } | undefined
 
   constructor(private readonly deps: SessionInputDeps) {
     this.editor = createEditor({
@@ -259,6 +263,40 @@ export class SessionInputShell implements SessionInput {
   }
 
   // ---- SessionInput face ----
+
+  /**
+   * Begin one composer edit session (message-edit): stash the live draft and
+   * images, seed the editor, and redirect submit to the spec's sink.
+   */
+  beginEdit(spec: InputEditSpec): boolean {
+    const phase = this.snapshot.phase
+    if (this.disposed || this.edit !== undefined || phase === 'adjudicating' || phase === 'submitting') {
+      return false
+    }
+    this.edit = { spec, stash: { draft: this.snapshot.draft, imageIds: this.imageIds } }
+    this.imageIds = []
+    this.setDraft(spec.seed)
+    return true
+  }
+
+  cancelEdit(): void {
+    const phase = this.snapshot.phase
+    if (
+      this.edit === undefined
+      || phase === 'adjudicating'
+      || phase === 'submitting'
+      || this.detachedDrafts.size > 0
+    ) return
+    this.finishEdit()
+  }
+
+  private finishEdit(): void {
+    const edit = this.edit
+    if (edit === undefined) return
+    this.edit = undefined
+    this.imageIds = edit.stash.imageIds
+    this.setDraft(edit.stash.draft)
+  }
 
   /**
    * Replace the whole draft (persisted-draft seed and programmatic writes).
@@ -366,9 +404,17 @@ export class SessionInputShell implements SessionInput {
         const flight = this.imageFlightSeq
         this.imageFlights.set(flight, { controller, imageIds })
         this.commitSend(imageIds)
-        void this.deps.defaultSink('', imageIds, mode, controller.signal).then((outcome) => {
+        const sink = this.edit !== undefined
+          ? (text: string, ids: readonly DraftAttachmentId[], signal: AbortSignal) =>
+            this.edit!.spec.submit(text, ids, signal)
+          : (text: string, ids: readonly DraftAttachmentId[], signal: AbortSignal) =>
+            this.deps.defaultSink(text, ids, mode, signal)
+        void sink('', imageIds, controller.signal).then((outcome) => {
           if (this.disposed || !this.imageFlights.delete(flight)) return
-          if (outcome.kind === 'success') return
+          if (outcome.kind === 'success') {
+            if (this.edit !== undefined) this.finishEdit()
+            return
+          }
           this.restoreImages(imageIds)
           if (outcome.text !== undefined) this.notify('error', outcome.text)
         }, (error: unknown) => {
@@ -452,8 +498,8 @@ export class SessionInputShell implements SessionInput {
    * subscribers never fire.
    */
   readonly lexicon: ObservableSnapshot<ReadonlyMap<'/' | '@', readonly string[]>> = {
-    getSnapshot: () => this.deps.inputTriggers?.()?.lexicon.getSnapshot() ?? EMPTY_LEXICON,
-    subscribe: fn => this.deps.inputTriggers?.()?.lexicon.subscribe(fn) ?? (() => {}),
+    getSnapshot: () => this.deps.inputTriggers?.()?.lexicon?.getSnapshot() ?? EMPTY_LEXICON,
+    subscribe: fn => this.deps.inputTriggers?.()?.lexicon?.subscribe(fn) ?? (() => {}),
   }
 
   // ---- scoped-event application verbs ----
@@ -467,6 +513,7 @@ export class SessionInputShell implements SessionInput {
    * @returns whether the edit applied (phase, span CAS, and leading guard passed).
    */
   beginCommand(claim: CommandClaim, span: TokenSpan): boolean {
+    if (this.edit !== undefined) return false
     const phase = this.core.state.phase
     if (phase !== 'plain' && phase !== 'claimed') return false
     if (span.draftRev !== this.rev) return false
@@ -577,6 +624,7 @@ export class SessionInputShell implements SessionInput {
       flight.controller.abort()
     }
     this.disposed = true
+    this.edit = undefined
     this.dispatchRun(({ type: 'release' }))
     this.unregister()
     this.editor.setRootElement(null)
@@ -696,8 +744,11 @@ export class SessionInputShell implements SessionInput {
       this.failedDetached.clear()
       this.failedRestoreRev = undefined
     }
+    const runSink = (text: string): Promise<SubmitOutcome> => this.edit !== undefined
+      ? this.edit.spec.submit(text, imageIds, attempt.signal)
+      : this.deps.defaultSink(text, imageIds, mode, attempt.signal)
     if (occurrences.length === 0) {
-      this.settleSink(attempt, this.deps.defaultSink(draft.trim(), imageIds, mode, attempt.signal))
+      this.settleSink(attempt, runSink(draft.trim()))
       return
     }
     const inputTriggers = this.deps.inputTriggers?.()
@@ -721,7 +772,7 @@ export class SessionInputShell implements SessionInput {
           cursor = part.offset + part.length
         }
         out += draft.slice(cursor)
-        this.settleSink(attempt, this.deps.defaultSink(out.trim(), imageIds, mode, attempt.signal))
+        this.settleSink(attempt, runSink(out.trim()))
       },
       (error: unknown) => {
         if (this.dead(attempt)) return
@@ -744,6 +795,7 @@ export class SessionInputShell implements SessionInput {
           return
         }
         this.detachedDrafts.delete(attempt.seq)
+        if (this.edit !== undefined) this.finishEdit()
         this.dispatchRun(({ type: 'sink-settled', attempt, ok: true, outcome }))
       },
       (error: unknown) => {
@@ -834,8 +886,8 @@ export class SessionInputShell implements SessionInput {
   /** Enter adjudication: poll the session controller; failure = notice + draft retained (never a silent downgrade). */
   private adjudicate(attempt: SubmitAttempt, draft: string): void {
     const inputTriggers = this.deps.inputTriggers?.()
-    if (inputTriggers === undefined) {
-      // No pipeline mounted: the '/' line is an ordinary message.
+    if (inputTriggers === undefined || this.edit !== undefined) {
+      // No pipeline, or an edit session: the '/' line is an ordinary message.
       this.dispatchRun(({ type: 'adjudicated', attempt, outcome: undefined }))
       return
     }
@@ -909,12 +961,14 @@ export class SessionInputShell implements SessionInput {
       ...(core.claim !== undefined ? { claim: core.claim } : {}),
       occurrences: this.projection.occurrences,
       queue: this.deps.queue?.getSnapshot() ?? EMPTY_QUEUE,
+      ...(this.edit === undefined ? {} : { edit: { key: this.edit.spec.key, label: this.edit.spec.label } }),
     }
   }
 
   private publish(): void {
     const next = this.compose()
     this.state.set(next)
+    if (this.edit !== undefined) return
     if (next.draft !== this.lastMirroredDraft) {
       this.lastMirroredDraft = next.draft
       this.mirrorFn?.(next.draft)

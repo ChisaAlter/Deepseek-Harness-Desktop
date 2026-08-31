@@ -5,6 +5,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { TeamMemberView as TeamRosterMember, TeamTaskId } from '@deepseek-ai/dsh-experimental-agent-team/client'
 import type {} from '@deepseek-ai/dsh-experimental-agent-team/remote'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import { TeamAction, type TeamActionInjected } from '../src/client/TeamAction.tsx'
 import { inject, mountAgentTeamUi } from '../src/client/mount.ts'
@@ -51,7 +52,7 @@ async function bench(options: {
   const remote = new RemoteService(ctx)
   const failure = {
     ok: false as const,
-    error: { code: 'internal', message: 'offline', details: {} },
+    error: new RemoteError('gateway/internal', 'offline', {}),
   }
   const view = {
     members: [{
@@ -204,18 +205,18 @@ describe('ui-team browser plugin', () => {
   it('returns Remote carrier failures unchanged', async () => {
     const view = await bench({ remoteFailure: 'view' })
     const viewActions = (view.entry()!.inject as unknown as () => TeamActionInjected)()
-    await expect(viewActions.load(SESSION)).resolves.toEqual({
+    await expect(viewActions.load(SESSION)).resolves.toMatchObject({
       ok: false,
-      error: { code: 'internal', message: 'offline', details: {} },
+      error: { code: 'gateway/internal', message: 'offline' },
     })
 
     const update = await bench({ remoteFailure: 'update' })
     const updateActions = (update.entry()!.inject as unknown as () => TeamActionInjected)()
     await expect(updateActions.updateTask(SESSION, {
       taskId: TASK_ID, expectedRevision: 1, action: 'delete',
-    })).resolves.toEqual({
+    })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'internal', message: 'offline', details: {} },
+      error: { code: 'gateway/internal', message: 'offline' },
     })
   })
 

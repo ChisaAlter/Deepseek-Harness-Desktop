@@ -24,6 +24,7 @@ import type {
   TokenUsage,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import { agentEvents, type Agent, type RequestErrorAction } from '@deepseek-ai/dsh-agent'
 import ToolResultPruner from '@deepseek-ai/dsh-compaction-tool-result-pruner'
@@ -73,6 +74,9 @@ class RoutedContextAdapter extends LlmAdapter {
 function createContext(contextWindow = 1_000): Context {
   const ctx = new Context()
   void new LlmRuntime(ctx)
+  // The registry is a required injection of TokenMeter (its three
+  // projection units register in the constructor); mount it synchronously.
+  new SessionProjectionRegistry(ctx)
   void new TokenMeter(ctx)
   ctx.llm.registerAdapter([MODEL, 'actual', 'unlisted-provider'], new ContextAdapter(contextWindow))
   return ctx
@@ -519,6 +523,7 @@ describe('pressure measurement and retention', () => {
   it('re-resolves capacity after a same-model-id provider switch in one session', async () => {
     const ctx = new Context()
     void new LlmRuntime(ctx)
+    new SessionProjectionRegistry(ctx)
     void new TokenMeter(ctx)
     ctx.llm.registerAdapter(['large', 'small'], new RoutedContextAdapter({
       large: 10_000,
@@ -546,6 +551,7 @@ describe('pressure measurement and retention', () => {
   it('requires capacity only for proactive pressure, not provider-confirmed overflow', async () => {
     const ctx = new Context()
     void new LlmRuntime(ctx)
+    new SessionProjectionRegistry(ctx)
     void new TokenMeter(ctx)
     ctx.llm.registerAdapter(['unknown-context'], new ContextAdapter(1_000))
     vi.spyOn(ctx.llm, 'resolveModelInfo').mockImplementation((provider, model) => Promise.resolve({
@@ -1163,6 +1169,7 @@ async function summarizerHarness(
 ): Promise<{ ctx: Context; adapter: ScriptedAdapter; compact: ExposedCompactionEngine }> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
+  await ctx.plugin(SessionProjectionRegistry)
   void new TokenMeter(ctx)
   const adapter = new ScriptedAdapter(blocks, finish)
   ctx.llm.registerAdapter([model], adapter)
@@ -1339,6 +1346,7 @@ describe('default one-shot summarizer', () => {
   it('fails clearly when no complete summarization target can be resolved', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
+    await ctx.plugin(SessionProjectionRegistry)
     void new TokenMeter(ctx)
     const compact = new ExposedCompactionEngine(ctx, { auto: false })
     await expect(compact.runSummarize(promptInput('history'), agent(Session.create(SessionId('model-less')))))
@@ -1853,6 +1861,7 @@ describe('automatic listener and loader composition', () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     const meterFiber = await ctx.plugin(TokenMeter)
     const compactFiber = await ctx.plugin(BasicCompactionEngine, { auto: false })
 
@@ -1866,6 +1875,7 @@ describe('automatic listener and loader composition', () => {
   it('removes its automatic listener with the plugin fiber', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(TokenMeter)
     const fiber = await ctx.plugin(TestCompactionEngine, {
       thresholdRatio: 0.5,
@@ -1898,6 +1908,7 @@ describe('route-priced image pressure', () => {
   function pricedContext(contextWindow = 1_000): Context {
     const ctx = new Context()
     void new LlmRuntime(ctx)
+    new SessionProjectionRegistry(ctx)
     void new TokenMeter(ctx)
     ctx.llm.registerAdapter([MODEL], new PricedContextAdapter(contextWindow))
     return ctx

@@ -230,7 +230,7 @@ function rpcFetchHandler(
       const message: ClientRequest = envelope.data
       if (message.method !== endpoint) {
         return errorResponse(message.rpcId, {
-          code: 'bad-request',
+          code: 'gateway/bad-request',
           message: `method ${JSON.stringify(message.method)} does not match endpoint ${JSON.stringify(endpoint)}`,
           details: { issues: [] },
         })
@@ -250,7 +250,7 @@ function invalidEnvelopeResponse(body: unknown, issues: readonly object[]): Resp
   const rawId = (body as { rpcId?: unknown } | null)?.rpcId
   const rpcId = typeof rawId === 'string' ? RpcId(rawId) : INVALID_REQUEST_RPC_ID
   return errorResponse(rpcId, {
-    code: 'bad-request',
+    code: 'gateway/bad-request',
     message: 'invalid client-request message',
     details: { issues },
   })

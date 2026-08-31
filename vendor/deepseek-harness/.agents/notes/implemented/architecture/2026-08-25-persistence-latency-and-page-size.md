@@ -16,7 +16,7 @@ The decision needs evidence from more varied sessions, including long event stre
 
 JSONL stores strictly increasing `sourceEventSeqs` as mixed scalar values and inclusive ranges; other orders remain verbatim. SQLite stores the same arrays as tagged zigzag-delta or `(start, count)` varints, choosing the smaller encoding. Both readers restore the original `number[]` before exposing an event.
 
-SQLite uses an internal integer `sessions.id` and keeps the public session id once in `sessions.session_key`, so event rows and their primary key do not repeat a text identifier. Each `events.data` value remains independently decodable: the writer tries level-3 Zstandard with the packaged 64 KiB raw-content dictionary and retains SQLite text when compression is not smaller. The dictionary bytes are part of schema 19 and a test pins their SHA-256 digest; replacing them requires another schema-version bump.
+SQLite uses an internal integer `sessions.id` and keeps the public session id once in `sessions.session_key`, so event rows and their primary key do not repeat a text identifier. Each `events.data` value remains independently decodable: the writer tries level-3 Zstandard with the packaged 64 KiB raw-content dictionary and retains SQLite text when compression is not smaller. The dictionary bytes are part of schema 20 and a test pins their SHA-256 digest; replacing them requires another schema-version bump.
 
 ### JSONL uses the standard Zstandard level
 
@@ -24,9 +24,9 @@ The JSONL writer keeps one checksummed Zstandard frame per durable append batch 
 
 ### New SQLite databases use 64 KiB pages
 
-The SQLite provider sets `page_size=65536` before initializing a pristine schema-19 database. An established schema-19 database retains its current page size because SQLite ignores the pragma after allocation.
+The SQLite provider sets `page_size=65536` before initializing a pristine schema-20 database. An established schema-20 database retains its current page size because SQLite ignores the pragma after allocation.
 
-The page size is part of schema 19's fixed physical layout and is applied through the package's closed SQL resources like the other fixed SQLite pragmas.
+The page size is part of schema 20's fixed physical layout and is applied through the package's closed SQL resources like the other fixed SQLite pragmas.
 
 ### Expanded benchmark
 
@@ -62,7 +62,7 @@ An otherwise identical SQLite build isolates the page-size effect: 4 KiB pages u
 
 JSONL keeps the low-cost provenance optimization without the level-19 write and fork penalty. SQLite exchanges approximately 5–26% more time across the measured operations for a 46.8% retained-size reduction; its full write remains materially faster than JSONL, and its suffix read remains much faster. Its complete read and fork are slightly slower than default-level JSONL on this expanded corpus.
 
-New SQLite databases use 64 KiB WAL frames and cache pages. Small databases may reserve more bytes for sparsely populated schema and metadata pages, while the measured multi-session workload gains substantially better `events` page utilization. Schema 19 rejects every other schema version rather than migrating it.
+New SQLite databases use 64 KiB WAL frames and cache pages. Small databases may reserve more bytes for sparsely populated schema and metadata pages, while the measured multi-session workload gains substantially better `events` page utilization. Schema 20 rejects every other schema version rather than migrating it.
 
 ## Related
 

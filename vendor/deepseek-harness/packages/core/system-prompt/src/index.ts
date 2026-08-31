@@ -55,8 +55,7 @@ export interface PromptSection {
   readonly name: string
   /**
    * Sections are concatenated in ascending order. Equal orders use code-unit
-   * name order. Repository-owned placements use
-   * {@link FIRST_PARTY_SECTION_ORDER}.
+   * name order.
    */
   readonly order: number
   /**
@@ -119,15 +118,7 @@ export interface PromptAssembly {
   variables: Record<string, string | undefined>
 }
 
-/**
- * Sparse integer placements for repository-owned prompt sections.
- *
- * Adjacent values differ by at least ten to keep the first-party groups sparse
- * and make accidental collisions mechanically detectable.
- * External plugins may use any finite order; equal orders are deterministic by
- * section name.
- */
-export const FIRST_PARTY_SECTION_ORDER = {
+const SECTION_ORDERS = {
   HARNESS_IDENTITY: -1000,
   HARNESS_SOURCE: -900,
   WEB_SURFACE: -800,
@@ -160,16 +151,25 @@ export const FIRST_PARTY_SECTION_ORDER = {
   STRUCTURED_OUTPUT: 9900,
 } as const
 
+/** Name of a centrally allocated prompt-section position. */
+export type PromptSectionOrderName = keyof typeof SECTION_ORDERS
+
+const CONTEXT_ORDERS = {
+  SANDBOX_POLICY: 110,
+  APPROVAL_POLICY: 115,
+  SUBAGENT_DELEGATION: 120,
+} as const
+
+/** Name of a centrally allocated runtime-context position. */
+export type PromptContextOrderName = keyof typeof CONTEXT_ORDERS
+
 /**
- * The deployment persona's section name and order. Exported because a
+ * The deployment persona's section name. Exported because a
  * composition can replace this slot — an agent preset shadows the
  * deployment's persona with its own — and both sides naming the same section
  * is what makes the replacement work rather than duplicate.
  */
 export const PERSONA_SECTION = 'deployment:persona'
-
-/** Prompt order of the persona slot. */
-export const PERSONA_ORDER = FIRST_PARTY_SECTION_ORDER.DEPLOYMENT_PERSONA
 
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
@@ -408,13 +408,13 @@ export class SystemPrompt extends Service {
     if (config.includeHarnessIdentity ?? true) {
       this.section({
         name: 'harness:identity',
-        order: FIRST_PARTY_SECTION_ORDER.HARNESS_IDENTITY,
+        order: this.getSectionOrder('HARNESS_IDENTITY'),
         text: 'You are an AI agent powered by DeepSeek Harness.',
       })
     }
     this.section({
       name: PERSONA_SECTION,
-      order: PERSONA_ORDER,
+      order: this.getSectionOrder('DEPLOYMENT_PERSONA'),
       // The fallback narrows the optional input type; the schema already defaults it.
       text: config.persona ?? '',
     })
@@ -438,6 +438,24 @@ export class SystemPrompt extends Service {
       layer => layer.sections.insert(section.name, section),
       { label: 'systemPrompt.section()' },
     )
+  }
+
+  /**
+   * Resolve the centrally owned placement of a repository prompt section.
+   * @param name - stable section placement name.
+   * @returns the section's numeric sort order.
+   */
+  getSectionOrder(name: PromptSectionOrderName): number {
+    return SECTION_ORDERS[name]
+  }
+
+  /**
+   * Resolve the centrally owned placement of a repository runtime context.
+   * @param name - stable context placement name.
+   * @returns the context's numeric sort order.
+   */
+  getContextOrder(name: PromptContextOrderName): number {
+    return CONTEXT_ORDERS[name]
   }
 
   /**

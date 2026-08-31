@@ -9,6 +9,7 @@ import {
   type ClientTransportHooks,
   type ConnectionGenerationSource,
   type ConnectionHandle,
+  type ConnectionState,
 } from '../src/client/index.ts'
 
 type Win = {
@@ -19,7 +20,18 @@ type Win = {
 afterEach(() => {
   delete (globalThis as Win).location
   delete (globalThis as Win).__DSH_TRANSPORT__
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
+
+class BrowserNetworkProbe extends EventTarget {
+  readonly navigator = { onLine: true }
+
+  setOnline(online: boolean): void {
+    this.navigator.onLine = online
+    this.dispatchEvent(new Event(online ? 'online' : 'offline'))
+  }
+}
 
 class GenerationProbe {
   private readonly active = new Set<() => void>()
@@ -133,6 +145,23 @@ describe('connection client apply', () => {
     errorSpy.mockRestore()
   })
 
+  it('does not notify state subscribers when a pre-ready loop stops', async () => {
+    ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
+    const handle = await mount()
+    handle.registerGenerationSource(signal => new Promise<void>((resolve) => {
+      signal.addEventListener('abort', () => { resolve() }, { once: true })
+    }))
+    const listener = vi.fn()
+    const unsubscribe = handle.state.subscribe(listener)
+    const loop = handle.start({})
+
+    loop.stop()
+
+    expect(handle.state.getSnapshot()).toBeUndefined()
+    expect(listener).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
   it('allows a replacement owner and ignores the previous owner handle', async () => {
     ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
     const handle = await mount()
@@ -154,6 +183,94 @@ describe('connection client apply', () => {
 
     second.stop()
     generation.end()
+  })
+
+  it('lets the connection service force only its current owner to reconnect', async () => {
+    ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
+    const handle = await mount()
+    installGeneration(handle)
+    const requested = vi.fn()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const loop = handle.start({ onReconnectRequested: requested }, {
+      backoffBaseMs: 60_000,
+      backoffFactor: 2,
+      backoffMaxMs: 120_000,
+      generationReadyTimeoutMs: 500,
+    })
+    try {
+      await vi.waitFor(() => { expect(handle.generation.getSnapshot()?.id).toBe(1) })
+      handle.reconnect()
+      await vi.waitFor(() => { expect(handle.generation.getSnapshot()?.id).toBe(2) })
+      expect(requested).toHaveBeenCalledOnce()
+      loop.stop()
+      handle.reconnect()
+      expect(requested).toHaveBeenCalledOnce()
+    } finally {
+      loop.stop()
+      warnSpy.mockRestore()
+    }
+  })
+
+  it('ignores a non-browser window shim without navigator state', async () => {
+    vi.stubGlobal('window', new EventTarget())
+    ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
+    const handle = await mount()
+    installGeneration(handle)
+    const loop = handle.start({})
+    try {
+      await vi.waitFor(() => { expect(handle.state.getSnapshot()).toBe('connected') })
+    } finally {
+      loop.stop()
+    }
+  })
+
+  it('feeds browser offline and online events into the owned retry loop', async () => {
+    vi.useFakeTimers()
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const browser = new BrowserNetworkProbe()
+    vi.stubGlobal('window', browser)
+    ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
+    const handle = await mount()
+    let calls = 0
+    const source: ConnectionGenerationSource = (signal, ready) => new Promise<void>((resolve) => {
+      calls++
+      ready({ home: '/h' })
+      signal.addEventListener('abort', () => { resolve() }, { once: true })
+    })
+    handle.registerGenerationSource(source)
+    const states: Array<ConnectionState | undefined> = []
+    const unsubscribe = handle.state.subscribe(() => { states.push(handle.state.getSnapshot()) })
+    const loop = handle.start({}, {
+      backoffBaseMs: 100,
+      backoffFactor: 2,
+      backoffMaxMs: 1_000,
+      generationReadyTimeoutMs: 500,
+    })
+    try {
+      await vi.advanceTimersByTimeAsync(0)
+      expect(handle.state.getSnapshot()).toBe('connected')
+      expect(calls).toBe(1)
+
+      browser.setOnline(false)
+      expect(handle.state.getSnapshot()).toBe('disconnected')
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(calls).toBe(1)
+
+      browser.setOnline(true)
+      expect(handle.state.getSnapshot()).toBe('connecting')
+      await vi.advanceTimersByTimeAsync(49)
+      expect(calls).toBe(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(calls).toBe(2)
+      expect(handle.state.getSnapshot()).toBe('connected')
+      expect(states).toEqual(['connected', 'disconnected', 'connecting', 'connected'])
+    } finally {
+      unsubscribe()
+      loop.stop()
+      randomSpy.mockRestore()
+      warnSpy.mockRestore()
+    }
   })
 
   it('does not announce a generation synchronously stopped by a generation subscriber', async () => {
@@ -180,7 +297,7 @@ describe('connection client apply', () => {
     }
   })
 
-  it('retracts the generation while reconnecting and publishes the next generation', async () => {
+  it('retracts the generation while connecting and publishes the next generation', async () => {
     ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
     const handle = await mount()
     const generation = installGeneration(handle)
@@ -192,11 +309,11 @@ describe('connection client apply', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const loop = handle.start({
       onStateChange: (state) => {
-        if (state === 'reconnecting') {
+        if (state === 'connecting') {
           reconnectSnapshots.push(handle.generation.getSnapshot()?.host.home)
         }
       },
-    }, { backoffBaseMs: 10, backoffFactor: 1, backoffMaxMs: 10, generationReadyTimeoutMs: 500 })
+    }, { backoffBaseMs: 10, backoffFactor: 2, backoffMaxMs: 80, generationReadyTimeoutMs: 500 })
     try {
       await vi.waitFor(() => {
         expect(handle.generation.getSnapshot()?.host.home).toBe('/h')
@@ -213,7 +330,45 @@ describe('connection client apply', () => {
     }
   })
 
-  it('does not announce reconnecting after a generation subscriber stops the loop', async () => {
+  it('publishes connection state directly on the service and isolates subscribers', async () => {
+    ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
+    const handle = await mount()
+    const generation = installGeneration(handle)
+    const snapshots: Array<ConnectionState | undefined> = []
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const unsubscribe = handle.state.subscribe(() => { snapshots.push(handle.state.getSnapshot()) })
+    const stopThrowing = handle.state.subscribe(() => { throw new Error('state subscriber failed') })
+    expect(handle.state.getSnapshot()).toBeUndefined()
+
+    const loop = handle.start({}, {
+      backoffBaseMs: 10,
+      backoffFactor: 2,
+      backoffMaxMs: 80,
+      generationReadyTimeoutMs: 500,
+    })
+    try {
+      await vi.waitFor(() => { expect(handle.state.getSnapshot()).toBe('connected') })
+      const connected = handle.state.getSnapshot()
+      expect(handle.state.getSnapshot()).toBe(connected)
+      generation.end()
+      await vi.waitFor(() => {
+        expect(snapshots).toEqual([
+          'connected',
+          'connecting',
+          'connected',
+        ])
+      })
+      expect(errorSpy).toHaveBeenCalledWith('[connection] state listener threw:', expect.any(Error))
+    } finally {
+      unsubscribe()
+      stopThrowing()
+      loop.stop()
+      errorSpy.mockRestore()
+    }
+    expect(handle.state.getSnapshot()).toBeUndefined()
+  })
+
+  it('does not announce disconnection after a generation subscriber stops the loop', async () => {
     ;(globalThis as Win).location = { hostname: 'localhost', search: '?fixture' }
     const handle = await mount()
     const generation = installGeneration(handle)
@@ -224,11 +379,11 @@ describe('connection client apply', () => {
       stoppedOnRetraction = true
       owner.loop.stop()
     })
-    const states: string[] = []
+    const states: ConnectionState[] = []
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const loop = handle.start({
       onStateChange: (state) => { states.push(state) },
-    }, { backoffBaseMs: 10, backoffFactor: 1, backoffMaxMs: 10, generationReadyTimeoutMs: 500 })
+    }, { backoffBaseMs: 10, backoffFactor: 2, backoffMaxMs: 80, generationReadyTimeoutMs: 500 })
     owner.loop = loop
     try {
       await vi.waitFor(() => {

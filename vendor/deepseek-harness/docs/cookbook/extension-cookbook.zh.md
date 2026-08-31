@@ -40,8 +40,9 @@ UI 插件从 `session/event` 事件流渲染（助手 token 流以 `assistant/ch
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 
 declare function render(text: string): void
 declare function onUserInput(handler: (text: string) => void): void
@@ -55,7 +56,7 @@ export function apply(ctx: Context) {
       render(event.data.chunk.text)
     }
   })
-  onUserInput(text => ctx.agents.get(SessionId('client-session'))?.followup(createUserMessage({
+  onUserInput(text => ctx.agents.get(brandString<SessionId>('client-session'))?.followup(createUserMessage({
     content: [{ type: 'text', text }],
     source: { kind: 'user' },
   })))

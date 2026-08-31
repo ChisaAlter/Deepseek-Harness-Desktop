@@ -4,6 +4,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { TodoItem } from '@deepseek-ai/dsh-tool-todo'
 import { type Agent } from '@deepseek-ai/dsh-agent'
@@ -30,6 +31,7 @@ async function setup(allowParallelInProgress: boolean): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(tool, { allowParallelInProgress })
   return ctx
 }
@@ -213,6 +215,7 @@ describe('dsh-tool-todo', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SessionProjectionRegistry)
     const fiber = await ctx.plugin(tool, { allowParallelInProgress: true })
     expect(ctx.tools.schemas().some(s => s.name === 'todo_write')).toBe(true)
     await fiber.dispose()
@@ -223,13 +226,13 @@ describe('dsh-tool-todo', () => {
     // A default export would make Loader unwrap only apply and drop `inject`.
     expect('default' in tool).toBe(false)
     expect(tool.name).toBe('tool-todo')
-    expect(tool.inject).toEqual(['tools'])
+    expect(tool.inject).toEqual(['tools', 'sessionProjections'])
 
     const loader = Object.create(Loader.prototype) as Loader
     const unwrapped = loader.unwrapExports(tool) as Record<string, unknown>
     expect(unwrapped).toBe(tool)
     expect(unwrapped.name).toBe('tool-todo')
-    expect(unwrapped.inject).toEqual(['tools'])
+    expect(unwrapped.inject).toEqual(['tools', 'sessionProjections'])
     expect(typeof unwrapped.apply).toBe('function')
   })
 })

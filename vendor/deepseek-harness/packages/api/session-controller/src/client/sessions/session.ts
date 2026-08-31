@@ -6,10 +6,7 @@ import type { AttachmentIdType, ImageAttachmentRef } from '@deepseek-ai/dsh-atta
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import {
-  SessionEventStream,
-  sessionStreamFailure,
-} from '../transport.ts'
+import { SessionEventStream } from '../transport.ts'
 import type { SessionJournalChange } from '../transport.ts'
 import type {
   PromptContentPart,
@@ -18,10 +15,7 @@ import type {
   SessionControlFrame,
   SessionQueuedItem,
   SessionRequestId,
-  SessionError,
 } from '../../types.ts'
-import type { ClientFailure, ClientResult } from '../contract/result.ts'
-import { transportResult } from '../contract/result.ts'
 import type {
   BeginSubmissionInput, PendingSubmissionRetirement, SessionFace, SubmissionHandle,
 } from '../contract/session.ts'
@@ -33,7 +27,8 @@ import type {
   SessionEventLikeEntry, SessionLiveEventEntry,
 } from '../contract/events.ts'
 import { Notifier } from './notifier.ts'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client'
+import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionRemotes } from './remotes.ts'
 import { ProjectionValueStore } from './projection-store.ts'
 import type { ProjectionsBaseline } from './projection-store.ts'
@@ -77,7 +72,7 @@ export class Session implements SessionFace {
   private baseSeq = 0
   private hasMore = false
   private openState: OpenState = 'cold'
-  private openError: ClientFailure | null = null
+  private openError: RemoteFailure | null = null
   private openPromise: Promise<void> | null = null
   /** Bumped by stream replacement to invalidate an in-flight doOpen. Stale
    *  passes drop all writes once the generation moves on. */
@@ -214,7 +209,7 @@ export class Session implements SessionFace {
     mode: 'queue' | 'steer',
     signal?: AbortSignal,
     requestId?: SessionRequestId,
-  ): Promise<ClientResult<{ accepted: true }>> {
+  ): Promise<RemoteResult<{ accepted: true }>> {
     this.promptError = null
     this.lastAgentError = null
     // Synchronous, before the first await: the blank → engaging edge must be
@@ -223,52 +218,26 @@ export class Session implements SessionFace {
     this.promptAttempted = true
     if (this.blankBit) this.firstPromptPendingTurn = true
     this.notifier.markDirty()
-    let result: ClientResult<{ accepted: true }>
-    try {
-      if (this.address === undefined) {
-        const clientTimeZone = resolvedClientTimeZone()
-        result = toSessionResult(await this.remote.session.prompt({
-          requestId: requestId ?? randomUUID() as SessionRequestId,
-          sessionId: this.sessionId,
-          mode,
-          content,
-          clientTimeZone,
-        }, signal))
-      } else if (this.address.mode === 'one-shot') {
-        result = {
-          ok: false,
-          error: {
-            code: 'subagent-not-resumable',
-            message: 'one-shot subagent conversations are read-only',
-            details: { childSessionId: this.address.childSessionId },
-          },
-        }
-      } else {
-        if (content.some(part => part.type === 'image')) {
-          result = {
-            ok: false,
-            error: {
-              code: 'attachment-error',
-              message: 'Image input is unavailable for subagent continuations.',
-              details: { reason: 'SUBAGENT_IMAGE_UNSUPPORTED' },
-            },
-          }
-        } else {
-          const routed = toSessionResult(await this.remote.subagents.prompt({
-            requestId: randomUUID() as SessionRequestId,
-            parentSessionId: this.address.parentSessionId,
-            childSessionId: this.address.childSessionId,
-            mode: this.address.mode,
-            content: content.flatMap(part => part.type === 'text'
-              ? [{ type: 'text' as const, text: part.text }]
-              : []),
-            clientTimeZone: resolvedClientTimeZone(),
-          }, signal))
-          result = routed.ok ? { ok: true, value: { accepted: true } } : routed
-        }
-      }
-    } catch (error) {
-      result = transportResult(error)
+    let result: RemoteResult<{ accepted: true }>
+    if (this.address === undefined) {
+      const clientTimeZone = resolvedClientTimeZone()
+      result = await this.remote.session.prompt({
+        requestId: requestId ?? randomUUID() as SessionRequestId,
+        sessionId: this.sessionId,
+        mode,
+        content,
+        clientTimeZone,
+      }, signal)
+    } else {
+      const routed = await this.remote.subagents.prompt({
+        requestId: randomUUID() as SessionRequestId,
+        parentSessionId: this.address.parentSessionId,
+        childSessionId: this.address.childSessionId,
+        mode: 'continuable',
+        content,
+        clientTimeZone: resolvedClientTimeZone(),
+      }, signal)
+      result = routed.ok ? { ok: true, value: { accepted: true } } : routed
     }
     if (!result.ok) {
       if (requestId !== undefined) this.retireFailedSubmission(requestId)
@@ -299,66 +268,38 @@ export class Session implements SessionFace {
    */
   async readAttachment(
     attachmentId: AttachmentIdType,
-  ): Promise<ClientResult<{ attachment: ImageAttachmentRef; data: Uint8Array }>> {
-    try {
-      const result = await this.remote.session.attachment({
-        sessionId: this.sessionId,
-        attachmentId,
-      })
-      if (!result.ok) return toSessionResult(result)
-      const binary = atob(result.value.data)
-      const data = Uint8Array.from(binary, char => char.charCodeAt(0))
-      return { ok: true, value: { attachment: result.value.attachment, data } }
-    } catch (error) {
-      return transportResult(error)
-    }
+  ): Promise<RemoteResult<{ attachment: ImageAttachmentRef; data: Uint8Array }>> {
+    const result = await this.remote.session.attachment({
+      sessionId: this.sessionId,
+      attachmentId,
+    })
+    if (!result.ok) return result
+    const binary = atob(result.value.data)
+    const data = Uint8Array.from(binary, char => char.charCodeAt(0))
+    return { ok: true, value: { attachment: result.value.attachment, data } }
   }
 
   /** Apply one operation to a still-pending queue occurrence. */
-  async updateQueue(itemId: MessageId, action: QueueAction): Promise<ClientResult<{ accepted: true }>> {
-    try {
-      return toSessionResult(await this.remote.session.updateQueue({ sessionId: this.sessionId, itemId, action }))
-    } catch (error) {
-      return transportResult(error)
-    }
+  async updateQueue(itemId: MessageId, action: QueueAction): Promise<RemoteResult<{ accepted: true }>> {
+    return this.remote.session.updateQueue({ sessionId: this.sessionId, itemId, action })
   }
 
   /**
    * Stop the active turn while the Host preserves pending inbox work; failures
-   * land in promptError (same error-strip display slot). A continuable
-   * subagent address routes through `subagents.interruptByParent`, whose durable
-   * parent-address authority works without a live parent Agent; a one-shot
-   * address stays uncancellable (the UI offers no stop action, so this arm is
-   * defensive).
+   * land in promptError (same error-strip display slot). A subagent address
+   * routes through `subagents.interruptByParent`, whose durable parent-address
+   * authority works without a live parent Agent.
    * @returns the cancel result.
    */
-  async cancel(): Promise<ClientResult<{ accepted: true }>> {
+  async cancel(): Promise<RemoteResult<{ accepted: true }>> {
     const address = this.address
-    if (address !== undefined && address.mode === 'one-shot') {
-      const result: ClientResult<{ accepted: true }> = {
-        ok: false,
-        error: {
-          code: 'subagent-delivery-unavailable',
-          message: 'subagent activation cancellation is unavailable',
-          details: { childSessionId: address.childSessionId },
-        },
-      }
-      this.promptError = { op: 'stop', error: result.error }
-      this.notifier.markDirty()
-      return result
-    }
-    let result: ClientResult<{ accepted: true }>
-    try {
-      result = address !== undefined
-        ? toSessionResult(await this.remote.subagents.interruptByParent(
-          address.childSessionId,
-          address.parentSessionId,
-          address.mode,
-        ))
-        : toSessionResult(await this.remote.session.cancel({ sessionId: this.sessionId }))
-    } catch (error) {
-      result = transportResult(error)
-    }
+    const result = address !== undefined
+      ? await this.remote.subagents.interruptByParent(
+        address.childSessionId,
+        address.parentSessionId,
+        'continuable',
+      )
+      : await this.remote.session.cancel({ sessionId: this.sessionId })
     if (!result.ok) {
       this.promptError = { op: 'stop', error: result.error }
       this.notifier.markDirty()
@@ -375,14 +316,10 @@ export class Session implements SessionFace {
    * @param title - raw title text (the host normalizes acceptance).
    * @returns the rename result (normalized accepted title + title event seq).
    */
-  async rename(title: string): Promise<ClientResult<{ title: string; seq: number }>> {
-    try {
-      const result = toSessionResult(await this.remote.session.rename({ sessionId: this.sessionId, title }))
-      if (result.ok) this.projections.apply('title', result.value.title, result.value.seq)
-      return result
-    } catch (error) {
-      return transportResult(error)
-    }
+  async rename(title: string): Promise<RemoteResult<{ title: string; seq: number }>> {
+    const result = await this.remote.session.rename({ sessionId: this.sessionId, title })
+    if (result.ok) this.projections.apply('title', result.value.title, result.value.seq)
+    return result
   }
 
   /**
@@ -390,7 +327,7 @@ export class Session implements SessionFace {
    * admission semantics (the host executor durably logs the lifecycle;
    * outcomes render as flow nodes, never as a response echo).
    * @param line - the full command line, leading slash included.
-   * @returns the admission result, or the error branch on transport failure.
+   * @returns the admission result.
    */
   async command(line: string): Promise<RemoteResult<{ matched: boolean }>> {
     const result = await this.remote.commands.execute(this.sessionId, line, [])
@@ -420,7 +357,7 @@ export class Session implements SessionFace {
     try {
       await events.prepend({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
     } catch (error) {
-      if (sessionStreamFailure(error) === undefined) {
+      if (!isRemoteFailure(error)) {
         console.error('[session-controller] loadOlder failed:', error)
       }
     } finally {
@@ -600,9 +537,10 @@ export class Session implements SessionFace {
       this.openState = 'open'
     } catch (error) {
       if (generation !== this.openGeneration || this.events !== events) return
+      if (!isRemoteFailure(error)) throw error
       this.events = undefined
       this.openState = 'error'
-      this.openError = openFailure(error)
+      this.openError = error
     } finally {
       if (generation === this.openGeneration) this.notifier.markDirty()
     }
@@ -714,11 +652,12 @@ export class Session implements SessionFace {
   /** Publish a terminal background failure only while this stream still owns the Session. */
   private failEventStream(events: SessionEventStream, generation: number, error: unknown): void {
     if (generation !== this.openGeneration || this.events !== events) return
+    if (!isRemoteFailure(error)) throw error
     this.openGeneration++
     this.events = undefined
     this.openPromise = null
     this.openState = 'error'
-    this.openError = openFailure(error)
+    this.openError = error
     void events.dispose()
     this.notifier.markDirty()
   }
@@ -773,18 +712,4 @@ function imageRefsIn(content: unknown): readonly ImageAttachmentRef[] {
     }
   }
   return refs
-}
-
-/** Convert a terminal Session stream failure to the Client error vocabulary. */
-function openFailure(error: unknown): ClientFailure {
-  const failure = sessionStreamFailure(error)
-  if (failure !== undefined) return failure as SessionError
-  const folded = transportResult<never>(error)
-  /* v8 ignore next -- transportResult never returns an ok result. */
-  if (folded.ok) throw new Error('transportResult returned an unexpected success')
-  return folded.error
-}
-/** Narrow a generated Session Remote failure to its service-owned error vocabulary. */
-function toSessionResult<T>(result: RemoteResult<T>): ClientResult<T> {
-  return result.ok ? result : { ok: false, error: result.error as SessionError }
 }

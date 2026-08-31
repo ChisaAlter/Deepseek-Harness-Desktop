@@ -31,30 +31,18 @@ export interface AgentPresetRoster {
   readonly authorable: boolean
 }
 
-/** Stable details for agent-preset failures returned by the Remote namespace. */
-export interface AgentPresetErrorDetailsMap {
-  /** A required preset id is empty. */
-  'bad-request': Record<never, never>
-  /** No configured root supplies the requested id. */
-  'agent-preset-not-found': { readonly agentPreset: string; readonly available: readonly string[] }
-  /** The id is unusable, already taken, or its composition cannot be installed. */
-  'agent-preset-invalid': { readonly agentPreset: string; readonly reason: string }
-  /** The preset ships with the deployment and is not the user's to change. */
-  'agent-preset-read-only': { readonly agentPreset: string; readonly reason: string }
-  /** The session's conversation has started, so its composition is fixed. */
-  'agent-preset-locked': { readonly sessionId: SessionId; readonly agentPreset: string }
-  /** The preset operation failed without a caller-actionable classification. */
-  internal: Record<never, never>
-}
-
-/** One agent-preset refusal as a client reads it. */
-export type AgentPresetError = {
-  [Code in keyof AgentPresetErrorDetailsMap]: {
-    readonly code: Code
-    readonly message: string
-    readonly details: AgentPresetErrorDetailsMap[Code]
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    /** No configured root supplies the requested id. */
+    'agent-preset/not-found': { readonly agentPreset: string; readonly available: readonly string[] }
+    /** The id is unusable, already taken, or its composition cannot be installed. */
+    'agent-preset/invalid': { readonly agentPreset: string; readonly reason: string }
+    /** The preset ships with the deployment and is not the user's to change. */
+    'agent-preset/read-only': { readonly agentPreset: string; readonly reason: string }
+    /** The session's conversation has started, so its composition is fixed. */
+    'agent-preset/locked': { readonly sessionId: SessionId; readonly agentPreset: string }
   }
-}[keyof AgentPresetErrorDetailsMap]
+}
 
 /** One preset's composition text beside the row it belongs to. */
 export interface AgentPresetDocument {

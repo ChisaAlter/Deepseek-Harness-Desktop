@@ -4,10 +4,8 @@
  * default (show) until a concrete section arrives; `value[field] !== false`
  * is the only hide predicate.
  */
-import {
-  createSnapshotStore, type SettingsScope, type SnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
-
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 /**
  * Live visibility plus Host writability for one boolean chrome field.
  * @typeParam T - durable section whose named field is the chrome flag.

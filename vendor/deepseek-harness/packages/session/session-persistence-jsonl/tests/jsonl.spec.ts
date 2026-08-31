@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
-import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import JsonlSessionPersistence from '../src/index.ts'
 import {
   encodeSegment, eventLines, logPath, projectDir, projectKey, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
 } from '../src/format.ts'
@@ -284,6 +284,17 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     expect((await stat(dir)).isDirectory()).toBe(true)
     expect((await stat(rawLogPath(root, '/work', m.id))).isFile()).toBe(true)
     expect((await ctx.sessionPersistence.list()).map(h => h.id)).toContain(m.id)
+  })
+
+  it('delete removes the session-owned directory', async () => {
+    const m = meta('deleted', '/work')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+    const dir = sessionDir(root, '/work', m.id)
+    expect((await stat(dir)).isDirectory()).toBe(true)
+    await ctx.sessionPersistence.delete(m.id)
+    await expect(stat(dir)).rejects.toThrow()
+    expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(m.id)
   })
 
   it('materializes an explicitly durable empty live session without an event row', async () => {

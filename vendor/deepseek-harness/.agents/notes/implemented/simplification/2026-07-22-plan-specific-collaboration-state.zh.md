@@ -14,7 +14,7 @@ Plan mode 还需要持久协作状态、可评审的计划产物、显式人工�
 
 ## 决策
 
-Plan mode 拥有一个 plan 专用产品包：位于 `packages/plan/plan-mode/` 的 `@deepseek-ai/dsh-plan-mode`。持久化事实为 `plan/mode: { active: boolean }`，由 `foldPlanMode(events)` 折叠，空日志值为 `false`。`ctx.planMode.get(agent)` 返回 `{ active, pending? }`，`set(agent, active)` 则记录在边界生效的选择。pre-step、重试、追加失败和 dispose（资源释放）栅栏保留相同的状态转换归属。
+Plan mode 拥有一个 plan 专用产品包：位于 `packages/plan/plan-mode/` 的 `@deepseek-ai/dsh-plan-mode`。持久化事实为 `plan/mode: { active: boolean }`，由本包的 `plan` 投影单元折叠——`planProjectionDefinition.apply` 作用于已提交事件，空日志折叠为未激活（`active: false`）——所有投影单元现在一律持久化，`persist` 选项已删除。host 逻辑通过 `ctx.sessionProjections.stateOf(session, 'plan')` 读取折叠结果，客户端视图为 `{ active, pending }`。`ctx.planMode.get(agent)` 返回 `{ active, pending? }`，`set(agent, active)` 则记录在边界生效的选择。pre-step、重试、追加失败和 dispose（资源释放）栅栏保留相同的状态转换归属。
 
 配置严格为 `{ section: string }`。该包自行注册固定的 `plan:policy` 段、`/plan [message]`、精确匹配的 `/plan off` 主动退出形式，以及 `exit_plan_mode`。不带参数的 `/plan` 选择激活；其他非空参数则先选择激活，再通过 `agent.steer()` 发送去除首尾空白后的文本，使该文本在受影响的步骤中成为一条记录到日志的普通用户消息。`/plan off` 选择未激活，不产生模型输入，并可取消仍待在边界生效的进入选择。即使 plan mode 未激活，退出工具仍保持注册，以确保请求工具目录稳定。
 

@@ -15,89 +15,26 @@ import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import {
-  DirectoryPicker, DirectoryPickerError, WINDOWS_VOLUME_ROOT,
+  DirectoryPicker, DirectoryPickerError,
 } from '@deepseek-ai/dsh-host-directory-picker'
 import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
 
-export { WINDOWS_VOLUME_ROOT }
-
-/** Letters probed for Win32 drive roots; order is the listing order. */
-const DRIVE_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-
 /**
- * Per-letter `stat` hang fence. An empty floppy/optical controller can block
- * indefinitely; past this bound the letter is omitted rather than stalling
- * the volume picker.
+ * Ancestor chain from the filesystem root to `target` inclusive — the
+ * breadcrumb rows of a listing, every one a jump target.
  */
-const DRIVE_PROBE_MS = 300
-
-/**
- * True when `path` is the Win32 volume-picker sentinel, compared with
- * Windows path semantics on every host so a typed wire value cannot miss
- * because POSIX `resolve` would treat the slashes as relative.
- * @param path - candidate list/create parent path.
- * @returns whether `path` names the volume picker.
- */
-export function isWindowsVolumeRoot(path: string): boolean {
-  return win32.normalize(path).toLowerCase() === win32.normalize(WINDOWS_VOLUME_ROOT).toLowerCase()
-}
-
-/**
- * Ancestor chain from the volume picker (Win32) or filesystem root (POSIX)
- * to `target` inclusive — the breadcrumb rows of a listing, every one a jump
- * target.
- * @param target - fully qualified directory that was listed.
- * @param platform - replaces `process.platform` for deterministic tests.
- * @returns root-to-target crumbs; Win32 prepends {@link WINDOWS_VOLUME_ROOT}.
- */
-export function ancestryCrumbs(target: string, platform: NodeJS.Platform = process.platform): DirectoryEntry[] {
+function ancestryCrumbs(target: string): DirectoryEntry[] {
   const crumbs: DirectoryEntry[] = []
   let current = target
   for (;;) {
     const parent = dirname(current)
     // basename of a root is '' — label the root crumb by its full path ('/', 'C:\').
     crumbs.unshift({ name: parent === current ? current : basename(current), path: current, hidden: false })
-    if (parent === current) break
+    if (parent === current) return crumbs
     current = parent
   }
-  if (platform === 'win32') {
-    crumbs.unshift({ name: WINDOWS_VOLUME_ROOT, path: WINDOWS_VOLUME_ROOT, hidden: false })
-  }
-  return crumbs
-}
-
-/** Probe used to decide whether a drive-root path is an enterable directory. */
-export type VolumeProbe = (path: string) => Promise<{ isDirectory(): boolean }>
-
-/**
- * List accessible Win32 drive roots by probing `A:\`…`Z:\`. Missing, blocked,
- * or non-directory letters are omitted; a probe that outlives
- * 300ms is skipped. Does not enumerate network neighborhood;
- * a fully qualified UNC path still lists through `list` directly.
- * @param probe - `stat`-compatible directory probe (injectable in tests).
- * @param signal - caller lifetime; abort rejects instead of returning a partial list.
- * @returns accessible drive-root entries in A–Z order; hanging letters omitted.
- */
-export async function listWindowsVolumes(
-  probe: VolumeProbe,
-  signal?: AbortSignal,
-): Promise<DirectoryEntry[]> {
-  const rows: Array<DirectoryEntry | null> = await Promise.all(Array.from(DRIVE_LETTERS).map(async (letter) => {
-    const path = `${letter}:\\`
-    const timeout = AbortSignal.timeout(DRIVE_PROBE_MS)
-    const combined = signal === undefined ? timeout : AbortSignal.any([signal, timeout])
-    try {
-      const info = await raceAbort(probe(path), combined)
-      if (!info.isDirectory()) return null
-      return { name: `${letter}:`, path, hidden: false }
-    } catch {
-      if (signal?.aborted) throw asError(signal.reason)
-      return null
-    }
-  }))
-  return rows.filter((row): row is DirectoryEntry => row !== null)
 }
 
 /**
@@ -122,7 +59,7 @@ export interface ListingCandidate {
   name: string
   /** Dirent says directory (no probe needed). */
   isDirectory: boolean
-  /** Dirent says symlink (enterability needs an opendir probe). */
+  /** Dirent says symlink (enterability needs a stat probe). */
   isSymbolicLink: boolean
 }
 
@@ -213,44 +150,28 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Whether `path` can be opened as a directory. Abort throws the caller's
- * reason; EPERM/EACCES, a broken symlink, and any other open failure mean
- * "not enterable" so the parent listing can omit the row instead of failing.
- * @param path - candidate filesystem path.
- * @param signal - caller lifetime; abort rejects with the abort reason.
- * @returns false when open fails for any reason other than abort.
- */
-export async function canOpenDirectory(path: string, signal?: AbortSignal): Promise<boolean> {
-  const opening = opendir(path)
-  try {
-    const dir = await raceAbort(opening, signal)
-    try {
-      await dir.close()
-    } catch {
-      /* v8 ignore next -- close of a just-opened probe handle; forcing a failure needs the filesystem torn down mid-request. */
-      swallowCloseFailure()
-    }
-    return true
-  } catch {
-    void opening.then(dir => dir.close().catch(swallowCloseFailure), () => {
-      // Open already rejected: nothing to close.
-    })
-    if (signal?.aborted) throw asError(signal.reason)
-    return false
-  }
-}
-
-/**
  * One listing row for a dirent, following symlinks to directories; null for
- * non-directories, broken/cyclic links, and directories the process cannot
- * open (Windows `System Volume Information` is the usual EPERM case). The
- * browser shows what can be entered; a row that cannot must not be clickable.
+ * non-directories and broken/cyclic links (skipped silently — the browser
+ * shows what can be entered, and a broken link cannot).
  */
 async function directoryRow(
-  parent: string, name: string, signal: AbortSignal | undefined,
+  parent: string, name: string, isDirectory: boolean, isSymbolicLink: boolean, signal: AbortSignal | undefined,
 ): Promise<DirectoryEntry | null> {
   const path = join(parent, name)
-  if (!await canOpenDirectory(path, signal)) return null
+  let enterable = isDirectory
+  if (!enterable && isSymbolicLink) {
+    try {
+      // The probe races the caller too: a symlink target on a stalled
+      // network filesystem must not keep a departed caller's request alive.
+      enterable = (await raceAbort(stat(path), signal)).isDirectory()
+    } catch {
+      /* v8 ignore next 2 -- an abort landing mid-probe needs a stalled stat; the per-candidate check in list covers the settled path. */
+      if (signal?.aborted) throw asError(signal.reason)
+      // Broken or cyclic symlink: stat is the probe, failure means "not enterable".
+      return null
+    }
+  }
+  if (!enterable) return null
   // POSIX hidden convention; Windows' hidden attribute is not exposed by
   // dirents (Known Limitations). The client owns whether hidden rows show.
   return { name, path, hidden: name.startsWith('.') }
@@ -295,21 +216,6 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
 
   private async list(path?: string, signal?: AbortSignal): Promise<DirectoryListing> {
     const home = homedir()
-    if (path !== undefined && isWindowsVolumeRoot(path)) {
-      if (process.platform !== 'win32') {
-        throw new DirectoryPickerError('directory-unreadable', path, `cannot list "${path}": volume picker is Win32-only`)
-      }
-      /* v8 ignore start -- Win32-only; `listWindowsVolumes` is covered with an injected probe. */
-      const entries = await listWindowsVolumes(stat, signal)
-      return {
-        path: WINDOWS_VOLUME_ROOT,
-        home,
-        crumbs: [{ name: WINDOWS_VOLUME_ROOT, path: WINDOWS_VOLUME_ROOT, hidden: false }],
-        entries,
-        truncated: false,
-      }
-      /* v8 ignore stop */
-    }
     // The seam contract takes fully qualified paths only; resolve() would
     // silently rebase a relative or empty wire value under the host process
     // cwd (or, for rooted drive-less Windows forms, its current drive).
@@ -321,8 +227,8 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
     // window of maxEntries + 1 candidates: memory stays bounded no matter how
     // many children the directory holds, the window keeps the name-sorted
     // head, and the +1 slot lets an in-window extra row prove the cut. A
-    // window candidate that turns out non-enterable (broken symlink, or a
-    // directory `opendir` refuses) is not backfilled from beyond the window — an eviction already marks the
+    // window candidate that turns out non-enterable (broken symlink) is not
+    // backfilled from beyond the window — an eviction already marks the
     // level truncated, which stays the honest answer.
     const keep = this.config.maxEntries + 1
     const window: ListingCandidate[] = []
@@ -349,7 +255,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
           const dirent = await raceAbort(level.read(), signal)
           if (dirent === null) break
           // Only rows a browser could enter contend for the window; dirent
-          // says "directory" outright, a symlink needs the later opendir probe.
+          // says "directory" outright, a symlink needs the later stat probe.
           if (!dirent.isDirectory() && !dirent.isSymbolicLink()) continue
           const candidate = { name: dirent.name, isDirectory: dirent.isDirectory(), isSymbolicLink: dirent.isSymbolicLink() }
           if (boundedInsert(window, candidate, keep)) evicted = true
@@ -371,9 +277,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
     } catch (error: unknown) {
       // An abort is the caller's own reason, not an unreadable directory.
       signal?.throwIfAborted()
-      const code = error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : ''
-      const detail = code === 'EPERM' || code === 'EACCES' ? 'not permitted' : messageOf(error)
-      throw new DirectoryPickerError('directory-unreadable', target, `cannot list ${target}: ${detail}`)
+      throw new DirectoryPickerError('directory-unreadable', target, `cannot list ${target}: ${messageOf(error)}`)
     }
     const entries: DirectoryEntry[] = []
     let truncated = evicted
@@ -381,7 +285,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
       // A caller that departed between reads and probes stops before the
       // next probe (each probe's own await is raced inside directoryRow).
       signal?.throwIfAborted()
-      const row = await directoryRow(target, candidate.name, signal)
+      const row = await directoryRow(target, candidate.name, candidate.isDirectory, candidate.isSymbolicLink, signal)
       if (row === null) continue
       if (entries.length === this.config.maxEntries) {
         truncated = true
@@ -393,9 +297,6 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
   }
 
   private async createDirectory(path: string, name: string): Promise<string> {
-    if (isWindowsVolumeRoot(path)) {
-      throw new DirectoryPickerError('directory-create-failed', path, `cannot create under "${path}": not a filesystem directory`)
-    }
     // Same fully-qualified fence as list: never rebase a parent under the
     // cwd or the current drive.
     if (!fullyQualified(path)) {

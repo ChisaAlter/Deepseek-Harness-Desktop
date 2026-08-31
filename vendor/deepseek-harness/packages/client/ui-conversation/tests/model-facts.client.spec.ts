@@ -1,7 +1,7 @@
 // ComposerModelFactRegistry: push-contract semantics over per-session stores.
 
 import { describe, expect, it } from 'vitest'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { ComposerModelFactRegistry } from '../src/client/input/model-facts.ts'
 
 const A = 'a' as SessionId

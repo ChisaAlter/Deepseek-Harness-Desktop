@@ -46,6 +46,22 @@ await runtime.dispose()
 
 A registered snapshot serializer folds CSS-module class hashes (`_frame_a1b2c3` → `frame`) so `.snap` files stay structural, and collapses `<svg>` internals to a `data-content` fingerprint. Suites needing a custom page frame use `root.declare(children, Frame)` instead of the auto frame; `dispose()` tears down views, feature fibers, minted scopes, and persisted store state on one axis and is idempotent.
 
+### Scripting Remote answers and failures
+
+`TestRemote` is the double for the `ctx.remote` face: it registers itself plus one service per scripted namespace so a plugin injecting `remote.<name>` unparks, drives `$on` subscriptions from an explicit test event driver, and exposes `$host` as a plain mutable field a spec assigns to script a homed or non-loopback Host. This package is also where a UI spec takes the `RemoteError` constructor as a value — the `dsh-api-remotes` facade cannot carry it, because a value import from a spec would pull that assembly's unbuilt `/remote` artifact chain.
+
+Script a failure by the code the Host would answer with, and assert the same way production code discriminates — on `code`, never on the class:
+
+```text
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+
+remote.goals.create.mockResolvedValue({
+  ok: false,
+  error: new RemoteError('goal/not-found', 'goal "g1" does not exist', { goalId: 'g1' }),
+})
+expect(view.getByRole('alert')).toHaveTextContent('goal/not-found')
+```
+
 ### When to use it
 
 Use the bench for feature suites that exercise slots, stores, rendering, and disposal under a real runtime — the production `SlotRegistry`, renderer, and provide-bundle materialization are mounted, never reimplemented. It is browser-side test infrastructure: it never reaches a model request, and feature packages depend on it in `devDependencies` only.
@@ -78,7 +94,7 @@ The bench copies no production logic: it mounts the production `SlotRegistry`, p
 | [`src/sessions.ts`](src/sessions.ts) + [`src/workspaces.ts`](src/workspaces.ts) | `ISessions`/`IWorkspaces` test doubles and `FixtureSession` behavior stubs |
 | [`src/fixtures.ts`](src/fixtures.ts) | Plain fixture builders: conversation snapshots, workspace list state |
 | [`src/snapshot.ts`](src/snapshot.ts) | DOM snapshot serializer (class-hash folding, `<svg>` fingerprint) |
-| [`src/remote.ts`](src/remote.ts) | `TestRemote` double for host RPC |
+| [`src/remote.ts`](src/remote.ts) | `TestRemote` double for host RPC, `RemoteError` value re-export |
 | [`src/translate.ts`](src/translate.ts) + [`src/locale-env.ts`](src/locale-env.ts) | Translation and pinned-browser-language test helpers |
 | [`src/settings-scope.ts`](src/settings-scope.ts) | `stubSettingsScope` with test-driven publications and a write spy |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the mounted production packages own theirs) |

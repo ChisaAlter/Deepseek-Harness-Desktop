@@ -6,12 +6,13 @@
  * back into the mirror.
  */
 
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   createSnapshotStore, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
 import type {
-  SchemaNode, SettingsDescribeFace, SettingsSchemaService, SettingsWireFace,
+  SchemaNode, SettingsDescribeFace, SettingsSchemaService,
 } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { displayPermissionPreset } from './presentation.ts'
 
@@ -94,12 +95,13 @@ export class PermissionPresetSettingsController {
 
   /**
    * @param describeFace - the shared mirror's read/fold face (descriptor and schema source).
-   * @param api - settings wire face for the `defaultPreset` write.
+   * @param ctx - the row plugin's context, whose `remote.settings` namespace
+   * carries the `defaultPreset` write.
    * @param schema - settings-owned schema operations.
    */
   constructor(
     private readonly describeFace: SettingsDescribeFace,
-    private readonly api: SettingsWireFace,
+    private readonly ctx: ClientContext,
     private readonly schema: SettingsSchemaService,
   ) {}
 
@@ -136,23 +138,26 @@ export class PermissionPresetSettingsController {
       draft.status = 'saving'
       draft.error = null
     })
+    let response
     try {
-      const response = await this.api.settings.mutate(
+      response = await this.ctx.remote.settings.mutate(
         PERMISSION_SETTINGS_NS,
         [{ op: 'set', path: ['defaultPreset'], value: preset }],
         view.revision,
       )
-      if (!response.ok) throw new Error(response.error.message)
+    } finally {
+      // Cleared before the fold below, whose publish reaches `derive` through
+      // this row's own subscription and is skipped while a save is pending.
       this.saving = false
-      if (this.disposed) return
-      // The mirror publish reaches this row's own subscription, so the fold
-      // is also what republishes the accepted value here.
-      this.describeFace.acceptView(response.value)
-    } catch (error) {
-      this.saving = false
-      if (this.disposed) return
-      this.fail(error)
     }
+    if (this.disposed) return
+    if (!response.ok) {
+      this.fail(response.error)
+      return
+    }
+    // The mirror publish reaches this row's own subscription, so the fold
+    // is also what republishes the accepted value here.
+    this.describeFace.acceptView(response.value)
   }
 
   /** Stop following the mirror; later publishes leave the snapshot alone. */

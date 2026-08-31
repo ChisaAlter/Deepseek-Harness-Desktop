@@ -11,10 +11,11 @@ import { dirname, isAbsolute, join, parse } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { FiberState, type Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Entry, EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import type { DeepSeekPluginPackageIdentity, DeepSeekPluginPackageInventoryExtension } from './types.ts'
 import type {} from './types.ts'
@@ -155,7 +156,7 @@ async function collectActivePluginPackages(
 ): Promise<DeepSeekPluginPackageIdentity[]> {
   const entries = activeEntries(ctx.loader)
   if (sessionId !== undefined && ctx.get('agentPresets') !== undefined) {
-    const agent = ctx.agents.get(SessionId(sessionId))
+    const agent = ctx.agents.get(brandString<SessionId>(sessionId))
     if (agent !== undefined) {
       // The optional peer is loaded only when its service is present. Its existing
       // mount query keeps Loader internals off the public AgentPresets service.

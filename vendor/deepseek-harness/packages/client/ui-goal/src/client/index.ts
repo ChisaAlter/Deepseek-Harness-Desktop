@@ -75,7 +75,7 @@ export function apply(ctx: ClientContext): void {
 
   const noCurrentGoal: GoalActionResult = {
     ok: false,
-    error: { code: 'no-current-goal', message: 'no current goal to mutate', details: {} },
+    error: { code: 'no-current-goal', message: 'no current goal to mutate' },
   }
 
   ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({

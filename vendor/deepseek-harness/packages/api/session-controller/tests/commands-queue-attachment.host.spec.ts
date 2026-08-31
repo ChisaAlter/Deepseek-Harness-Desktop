@@ -56,7 +56,7 @@ async function commandHarness(): Promise<{
 }
 
 async function expectFailure(operation: Promise<unknown>, code: string): Promise<void> {
-  await expect(operation).rejects.toMatchObject({ failure: { code } })
+  await expect(operation).rejects.toMatchObject({ code })
 }
 
 describe('Session queue commands', () => {
@@ -79,21 +79,21 @@ describe('Session queue commands', () => {
           },
         }],
       },
-    })), 'attachment-error')
+    })), 'session/attachment-invalid')
     await expectFailure(Promise.resolve().then(() => controller.updateQueue({
       sessionId: SessionId('missing'), itemId: queued.id, action: { kind: 'remove' },
-    })), 'queue-item-not-found')
+    })), 'session/queue-item-not-found')
     await expectFailure(Promise.resolve().then(() => controller.updateQueue({
       sessionId: agent.id, itemId: MessageId('missing'), action: { kind: 'remove' },
-    })), 'queue-item-not-found')
+    })), 'session/queue-item-not-found')
     await expectFailure(Promise.resolve().then(() => controller.updateQueue({
       sessionId: agent.id, itemId: nextStep.id, action: { kind: 'steer' },
-    })), 'steer-unavailable')
+    })), 'session/steer-unavailable')
 
     Object.assign(agent, { status: 'idle' })
     await expectFailure(Promise.resolve().then(() => controller.updateQueue({
       sessionId: agent.id, itemId: queued.id, action: { kind: 'steer' },
-    })), 'steer-unavailable')
+    })), 'session/steer-unavailable')
     expect(controller.updateQueue({
       sessionId: agent.id,
       itemId: queued.id,
@@ -114,7 +114,7 @@ describe('Session queue commands', () => {
 
     await expectFailure(Promise.resolve().then(() => controller.cancel({
       sessionId: SessionId('missing'),
-    })), 'session-not-found')
+    })), 'session/not-found')
     expect(controller.cancel({ sessionId: agent.id })).toEqual({ accepted: true })
     expect(cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
     await ctx.fiber.dispose()
@@ -160,11 +160,11 @@ describe('Session attachment authorization', () => {
     const inserted = imageRef('inserted')
     const streamed = imageRef('streamed')
     const events = [
-      event('fixture/direct', 0, {
+      { ...event('fixture/direct', 0, {
         content: [null, [], { type: 'tool-result', content: [{ type: 'text', text: 'none' }] }, {
           type: 'tool-result', content: [{ type: 'image', attachment: nested }],
         }],
-      }),
+      }), ignorable: true as const },
       { ...event('assistant/message', 1, {
         turn: 1,
         step: 1,
@@ -209,7 +209,7 @@ describe('Session attachment authorization', () => {
     )
     await expectFailure(noPersistenceController.attachment({
       sessionId: SessionId('missing'), attachmentId: AttachmentId('att'),
-    }), 'session-not-found')
+    }), 'session/not-found')
 
     const missing = new Context()
     await missing.plugin(SessionStore)
@@ -225,7 +225,7 @@ describe('Session attachment authorization', () => {
     )
     await expectFailure(missingController.attachment({
       sessionId: SessionId('missing'), attachmentId: 'att' as never,
-    }), 'session-not-found')
+    }), 'session/not-found')
 
     for (const thrown of [
       new AttachmentError('stored image is unavailable', 'ATTACHMENT_NOT_FOUND'),
@@ -239,7 +239,7 @@ describe('Session attachment authorization', () => {
       await expectFailure(fixture.controller.attachment({
         sessionId: fixture.sessionId,
         attachmentId: ref.attachmentId,
-      }), thrown instanceof AttachmentError ? 'attachment-error' : 'internal')
+      }), thrown instanceof AttachmentError ? 'session/attachment-invalid' : 'gateway/internal')
       await fixture.ctx.fiber.dispose()
     }
   })
@@ -257,7 +257,7 @@ describe('Session attachment authorization', () => {
 
     await expectFailure(controller.attachment({
       sessionId: SessionId('unreadable'), attachmentId: AttachmentId('att'),
-    }), 'internal')
+    }), 'gateway/internal')
     await ctx.fiber.dispose()
   })
 })

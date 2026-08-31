@@ -1073,12 +1073,20 @@ describe('Session', () => {
       { ...base, time: '1' },
       { ...base, time: 0.5 },
       { type: base.type, seq: base.seq, time: base.time },
+      { ...base, ignorable: false },
+      { ...base, ignorable: 'yes' },
     ]
 
     for (const [index, event] of cases.entries()) {
       expect(() => Session.create(SessionId(`bad-envelope-${index}`), [event as SessionEvent]))
         .toThrow(/invalid event envelope/)
     }
+
+    // `ignorable: true` is the one accepted marker value (unknown-type skip contract).
+    const marked = Session.create(SessionId('ignorable-envelope'), [
+      { ...base, ignorable: true } as SessionEvent,
+    ])
+    expect(marked.events[0]?.ignorable).toBe(true)
   })
 })
 

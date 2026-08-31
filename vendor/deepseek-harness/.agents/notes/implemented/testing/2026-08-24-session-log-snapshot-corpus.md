@@ -18,6 +18,8 @@ This decision supersedes the ACP-specific placement and controller ownership in 
 
 The recorded session remains the primary input and expected output. Human-originated messages drive the selected public interface, recorded assistant chunks drive deterministic model replay, and the normalized persisted result must equal the fixture. Parent and child sessions share one typed redaction map. Committed fixtures contain relationship-preserving identity tokens and replace request system prompts and tool schemas with tokens; each distinct header class retains one explicit sidecar owner.
 
+Scenario-owned HTTP fixtures separate the stable authority recorded in the session from their transport listener. Each fixture binds loopback port `0`, lets the operating system allocate and bind the port atomically, and maps the recorded URL or endpoint through the real provider to that listener. Any process-global transport interception matches only the recorded endpoint, is owned by the fixture fiber, and is restored before the listener closes.
+
 Every existing ACP scenario receives a behavior-preserving destination. Ordinary one-shot behavior uses the headless profile, persistent machine control uses the SDK profile, and only ACP protocol behavior remains ACP-owned. Web scenarios driven by a recorded session join the corpus and retain their ARIA or geometry expected output as secondary evidence. Web and package tests without a recorded-session source keep owner-local expected output and stop using snapshot paths or filenames.
 
 Workspace inputs remain scenario-local. A mutating scenario compares a complete expected final workspace that record and refresh never rewrite, so a model or tool self-report cannot satisfy the test. Existing intentional session reuse remains an explicit acyclic owner reference; the corpus adds no workspace inheritance or general fixture-merging mechanism.
@@ -34,6 +36,10 @@ Workspace inputs remain scenario-local. A mutating scenario compares a complete 
 
 **Deduplicate workspaces and recorded sessions automatically.** The current workspace duplication is small and intentional locality is easier to review. Only existing semantic session reuse justifies an explicit reference.
 
+**Bind the recorded URL's numeric port.** A stable listener port keeps transport and transcript values identical, but concurrent snapshot jobs on one host share the network namespace and race for that port.
+
+**Probe an unused port before launching the scenario.** Releasing a probed port before the child binds it creates a time-of-check/time-of-use race. Binding port `0` inside the owning process keeps allocation and ownership atomic.
+
 ## Invariants
 
 - Every existing recorded-session scenario has one passing replacement before its old owner is removed.
@@ -43,11 +49,12 @@ Workspace inputs remain scenario-local. A mutating scenario compares a complete 
 - Mutating scenarios verify their final workspace externally.
 - Owner-local process expectations use `*.expected.e2e.ts` and a separate built-output gate.
 - Source and built adapters install replay-only packages in isolated profile fallbacks; distinct prompt-section orders keep their request headers byte-identical.
+- Scenario HTTP fixtures bind OS-assigned loopback ports while preserving their recorded model-visible authorities.
 - Source and built launch modes, browser replay, SDK projections, packaged Python runtime cases, documentation gates, and repository hygiene pass.
 
 ## Consequences
 
-The corpus makes controller ownership visible: ordinary Agent behavior no longer inherits ACP protocol output, SDK and Web projections retain their interface-specific evidence, and only ACP cancellation and permission exchanges remain ACP-owned. Contributors review one normalized session diff plus the sidecars or UI expectations that add independent evidence. Adding a composition requires a manifest class pin; adding a volatile identity requires a typed relationship-preserving redaction rule rather than a broader text scrubber.
+The corpus makes controller ownership visible: ordinary Agent behavior no longer inherits ACP protocol output, SDK and Web projections retain their interface-specific evidence, and only ACP cancellation and permission exchanges remain ACP-owned. Contributors review one normalized session diff plus the sidecars or UI expectations that add independent evidence. Adding a composition requires a manifest class pin; adding a volatile identity requires a typed relationship-preserving redaction rule rather than a broader text scrubber. Concurrent jobs can replay network-backed fixtures without reserving repository-wide ports, at the cost of a fixture-local mapping between the recorded authority and its transport listener.
 
 ## Risks
 

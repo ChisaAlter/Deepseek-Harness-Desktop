@@ -4,8 +4,8 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { RemoteError, TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply as settingsApply, inject as settingsInject } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type {
@@ -27,12 +27,14 @@ async function bench(served?: string[]) {
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
-  const describeCredentials = vi.fn(() => Promise.resolve({ ok: false, error: { code: 'internal', message: 'no provider', details: {} } }))
+  const describeCredentials = vi.fn(() => Promise.resolve({
+    ok: false, error: new RemoteError('gateway/internal', 'no provider', {}),
+  }))
   const models = vi.fn(() => Promise.resolve({
     ok: true as const, value: { groups: [], failures: [] },
   }))
   const describeSettings = vi.fn(() => Promise.resolve(served === undefined
-    ? { ok: false, error: { code: 'internal', message: 'no provider', details: {} } }
+    ? { ok: false, error: new RemoteError('gateway/internal', 'no provider', {}) }
     : {
       ok: true,
       value: {
@@ -48,9 +50,6 @@ async function bench(served?: string[]) {
     session: { modelCatalog: models },
     settings: { describe: describeSettings },
   })
-  ctx.provide('connection', {
-    isLoopback: true,
-  } as never)
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, describeCredentials, describeSettings, models, remote,
@@ -67,7 +66,7 @@ function declareRoot(slots: SlotRegistry): () => void {
 describe('ui-settings-plugins apply', () => {
   it('declares the services it uses', () => {
     expect(inject).toEqual([
-      'slots', 'locale', 'connection', 'remote', 'remote.credentials', 'remote.session', 'settingsScope',
+      'slots', 'locale', 'remote', 'remote.credentials', 'remote.session', 'settingsScope',
     ])
   })
 

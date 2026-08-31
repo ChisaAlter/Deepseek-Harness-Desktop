@@ -3,7 +3,7 @@
 import type { ContentBlock } from './types.ts'
 import type { Message } from './message.ts'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
-import { assertNever } from './never.ts'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** Execution-world path that model tools can use to read one normalized attachment. */
 export interface ImageAttachmentAccess {

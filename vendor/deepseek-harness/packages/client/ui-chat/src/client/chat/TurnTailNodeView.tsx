@@ -2,7 +2,7 @@ import { memo } from 'react'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeViewProps, TurnTailOwnerProps } from '../contract/slots.ts'
 import { MessageIconActions } from './MessageIconActions.tsx'
-import { TurnUsageDisclosure } from './TurnUsageDisclosure.tsx'
+import { TurnTimePanel, TurnUsagePanel } from './TurnUsagePanel.tsx'
 import { assistantText } from './turn-assistant.ts'
 import css from './TurnTailNodeView.module.css'
 
@@ -16,6 +16,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
   const data = node.data
   const hasLaterChatNode = useChat(snapshot =>
     snapshot.locations.getTurn(data.turn).at(-1) !== node.key)
+  const isLatestTurn = useChat(snapshot => snapshot.timeline.turnOrder.at(-1) === data.turn)
   const turn = node.location.kind === 'turn' || node.location.kind === 'step'
     ? node.location.turn
     : undefined
@@ -34,24 +35,35 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
     ? null
     : renderSlot('conversation.chat.assistant-actions', { messageId })
   return (
-    <div className={css.root} data-turn-tail={data.turn} data-time-hover-root>
+    <div
+      className={css.root}
+      data-turn-tail={data.turn}
+      data-actions-reveal={isLatestTurn ? 'always' : 'hover'}
+    >
       {tail}
-      <div className={css.footer}>
-        {data.tokenUsage === undefined ? null : <TurnUsageDisclosure usage={data.tokenUsage} t={t} />}
-        <MessageIconActions
-          text={assistantText(closing.blocks)}
-          time={closing.time}
-          runMs={runMs}
-          ttftMs={data.ttftMs}
-          tokensPerSecond={data.tokensPerSecond}
-          clock="end"
-          onBranch={() => { forkAt(closing.finalNode.seq) }}
-          branchUnavailable={data.branchUnavailable || hasLaterChatNode}
-          className={css.actions}
-          extraActions={assistantActions}
-          t={t}
-        />
-      </div>
+      <MessageIconActions
+        text={assistantText(closing.blocks)}
+        time={closing.time}
+        clock="end"
+        onBranch={() => { forkAt(closing.finalNode.seq) }}
+        branchUnavailable={data.branchUnavailable || hasLaterChatNode}
+        className={css.actions}
+        extraActions={assistantActions}
+        usageAction={(
+          <>
+            {data.tokenUsage !== undefined && <TurnUsagePanel usage={data.tokenUsage} t={t} />}
+            {runMs !== undefined && (
+              <TurnTimePanel
+                runMs={runMs}
+                tokensPerSecond={data.tokensPerSecond}
+                ttftMs={data.ttftMs}
+                t={t}
+              />
+            )}
+          </>
+        )}
+        t={t}
+      />
     </div>
   )
 })

@@ -13,7 +13,7 @@ const read = (name: string): string =>
 
 function declarationsFrom(source: string, selector: string): string[] {
   const declarationText = source.replace(/\/\*[\s\S]*?\*\//g, ' ')
-  const rule = new RegExp(`(?:^|\\})\\s*${selector.replace(/[.[\]():*+^$\\]/g, '\\$&')}\\s*\\{([^{}]*)\\}`).exec(declarationText)
+  const rule = new RegExp(`(?:^|[{}])\\s*${selector.replace(/[.[\]():*+^$\\]/g, '\\$&')}\\s*\\{([^{}]*)\\}`).exec(declarationText)
   if (rule === null) throw new Error(`no \`${selector}\` rule`)
   return (rule[1] ?? '').split(';').map(part => part.trim()).filter(Boolean)
 }
@@ -45,14 +45,18 @@ describe('chat flow font-size axis', () => {
 
   it('the message clock and action glyphs scale with the text they serve', () => {
     const actions = read('MessageIconActions.module.css')
-    for (const selector of ['.timeStart', '.timeEnd']) {
-      expect(declarationsFrom(actions, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size, 14px)',
-      ]))
-    }
+    // Both clocks read the secondary tier: the assistant tail's meta line
+    // (the whole-line usage trigger) and the user row's clock stay one step
+    // under the body size so the two rows match.
+    expect(declarationsFrom(actions, '.timeStart')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+    ]))
+    expect(declarationsFrom(actions, '.timeEnd')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+    ]))
     expect(declarationsFrom(actions, '.action svg')).toEqual(expect.arrayContaining([
-      'width: calc(16px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(16px + var(--dsh-content-font-delta, 0px))',
+      'width: calc(15px + var(--dsh-content-font-delta, 0px))',
+      'height: calc(15px + var(--dsh-content-font-delta, 0px))',
     ]))
   })
 
@@ -80,8 +84,65 @@ describe('chat flow font-size axis', () => {
       .toEqual(expect.arrayContaining([`padding: 4px 0 4px ${indent}`]))
     expect(declarationsFrom(read('ContextInjectionRow.module.css'), '.body'))
       .toEqual(expect.arrayContaining([`margin: 4px 0 0 ${indent}`]))
-    expect(declarationsFrom(read('TurnUsageDisclosure.module.css'), '.details'))
-      .toEqual(expect.arrayContaining([`margin: 4px 0 0 ${indent}`]))
+  })
+
+  it('the usage-details trigger reads the secondary tier like its clock label', () => {
+    const css = read('TurnUsagePanel.module.css')
+    expect(declarationsFrom(css, '.trigger')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+    ]))
+  })
+
+  it('the usage pill sizes its glyph and hit height like the sibling action buttons', () => {
+    // The pill sits in the icon row right of the branch action; its data glyph
+    // and 28px hit height follow the same delta rule as `.action` so the row
+    // stays one height at every font size.
+    const css = read('TurnUsagePanel.module.css')
+    expect(declarationsFrom(css, '.trigger')).toEqual(expect.arrayContaining([
+      'height: calc(28px + var(--dsh-content-font-delta, 0px))',
+      'white-space: nowrap',
+      'min-width: 0',
+    ]))
+    expect(declarationsFrom(css, '.trigger svg')).toEqual(expect.arrayContaining([
+      'width: calc(15px + var(--dsh-content-font-delta, 0px))',
+      'height: calc(15px + var(--dsh-content-font-delta, 0px))',
+    ]))
+    // A narrow column trims the pill label to an ellipsis instead of letting
+    // it overflow or widen the chat column.
+    expect(declarationsFrom(css, '.label')).toEqual(expect.arrayContaining([
+      'min-width: 0',
+      'overflow: hidden',
+      'text-overflow: ellipsis',
+    ]))
+  })
+
+  it('narrow viewports collapse the stat pills to the action-button circle', () => {
+    // Below 480px the label hides and the pill takes the sibling `.action`
+    // geometry (28px width, 6px padding, centered glyph); the -6px
+    // label-padding rebate between adjacent pills resets so the icon pair
+    // keeps the row's plain 8px rhythm instead of overlapping.
+    const css = read('TurnUsagePanel.module.css')
+    const narrow = /@media \(max-width: 480px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? ''
+    expect(narrow).toMatch(/\.trigger \{[^}]*justify-content: center/)
+    expect(narrow).toMatch(/\.trigger \{[^}]*width: calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
+    expect(narrow).toMatch(/\.trigger \{[^}]*padding: 6px/)
+    expect(narrow).toMatch(/\.trigger \.label \{[^}]*display: none/)
+    expect(narrow).toMatch(/\.root \+ \.root \{[^}]*margin-left: 0/)
+  })
+
+  it('non-latest turn tails hide the whole actions row until hover or focus', () => {
+    // TurnTailNodeView tags its root data-actions-reveal='hover' for every
+    // turn but the latest; the gate lives under @media (hover: hover) so
+    // no-hover devices keep the row visible. 'always' has no rule at all —
+    // absence, not an override, keeps the latest turn's row shown.
+    const css = read('MessageIconActions.module.css')
+    expect(declarationsFrom(css, "[data-actions-reveal='hover'] .actions"))
+      .toEqual(expect.arrayContaining(['opacity: 0']))
+    expect(css).toMatch(
+      /\[data-actions-reveal='hover'\]:hover \.actions,\s*\[data-actions-reveal='hover'\]:focus-within \.actions \{\s*opacity: 1/,
+    )
+    expect(css).not.toContain("[data-actions-reveal='always']")
   })
 
   it('the interrupted-turn tag stays fixed like the dense token variants', () => {

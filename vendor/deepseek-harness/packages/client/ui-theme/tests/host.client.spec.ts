@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
-import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import {
   DEFAULT_PREFERENCE, DEFAULT_THEME_SETTINGS, THEME_SETTINGS_NAMESPACE, apply,
 } from '@deepseek-ai/dsh-client-ui-theme'
@@ -34,7 +34,7 @@ describe('ui-theme host', () => {
     await ctx.plugin(MemorySettings).await()
     const fiber = ctx.plugin({ apply })
     await fiber.await()
-    const ns = settingsNamespace(THEME_SETTINGS_NAMESPACE)
+    const ns = THEME_SETTINGS_NAMESPACE
     expect(resolveThemeSettings(ctx.settings.get(ns) as ThemeSettings | undefined)).toEqual(DEFAULT_THEME_SETTINGS)
     expect((ctx.settings.get(ns) as ThemeSettings).fontSize).toBe(14)
     expect((ctx.settings.get(ns) as ThemeSettings).preference).toBe(DEFAULT_PREFERENCE)
@@ -61,7 +61,7 @@ describe('ui-theme host', () => {
     expect(scriptText(rows[0])).toContain('const preference = "system"')
     expect(scriptText(rows[0])).toContain('const lightTokens = {}')
     expect(scriptText(rows[0])).toContain('"14px"')
-    await ctx.settings.update(settingsNamespace(THEME_SETTINGS_NAMESPACE), { preference: 'dark', fontSize: 17 })
+    await ctx.settings.update(THEME_SETTINGS_NAMESPACE, { preference: 'dark', fontSize: 17 })
     expect(scriptText(collect(ctx)[0])).toContain('const preference = "dark"')
     expect(scriptText(collect(ctx)[0])).toContain('"17px"')
     await fiber.dispose()

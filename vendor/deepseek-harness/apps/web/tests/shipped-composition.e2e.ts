@@ -10,7 +10,6 @@ import { afterEach, expect, it } from 'vitest'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { canonicalPath, writableRoots } from '@deepseek-ai/dsh-sandbox'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 // Empty type imports carry the tools/sandboxPolicy/approval Context merges.
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
@@ -20,7 +19,6 @@ import type {} from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-commands'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
-import { SHELL_TOOL } from './support.ts'
 
 const FILE_REFERENCE_PROMPT = fileURLToPath(new URL(
   './expected/web-runtime-context/file-reference-prompt.expected.md', import.meta.url,
@@ -37,7 +35,7 @@ const FILE_REFERENCE_PROMPT = fileURLToPath(new URL(
  */
 const EXPECTED_TOOLS = [
   'ask_user_question',
-  SHELL_TOOL,
+  'bash',
   'create_goal',
   'edit',
   'exit_plan_mode',
@@ -60,7 +58,7 @@ const EXPECTED_TOOLS = [
   'web_search',
   'workflow',
   'write',
-].sort()
+]
 
 /**
  * `glob` and `grep` come from `dsh-tool-fs-search`, which spawns the PACKAGED
@@ -102,7 +100,7 @@ it('assembles the shipped Web transport, catalog, guidance, and defaults', async
       ],
     }
   `)
-  await ctx.settings.update(settingsNamespace('llm-deepseek'), {
+  await ctx.settings.update('llm-deepseek', {
     retryPolicy: { mode: 'always', maxRetries: 5 },
   })
   expect(ctx.llm.providerRetryPolicy('deepseek-official')).toMatchInlineSnapshot(`
@@ -113,7 +111,7 @@ it('assembles the shipped Web transport, catalog, guidance, and defaults', async
       "mode": "always",
     }
   `)
-  await ctx.settings.update(settingsNamespace('llm-pi-ai'), {
+  await ctx.settings.update('llm-pi-ai', {
     providers: {
       openai: {},
       anthropic: { retryPolicy: { mode: 'always' } },
@@ -203,15 +201,15 @@ it('lets a preset producer reach the background-job registry', async () => {
   })
   try {
     const signal = new AbortController().signal
-    // `tool-bash`/`tool-pwsh` is a preset row and `tasks` is a host registry; the producer
+    // `tool-bash` is a preset row and `tasks` is a host registry; the producer
     // resolves it with `ctx.get`, so a registry hidden behind a preset realm
     // fails here — with every task control still listed in the catalog above.
     const started = await ctx.tools.execute({
       signal,
       callId: ToolCallId('shipped-bash-background'),
-      name: SHELL_TOOL,
+      name: 'bash',
       arguments: {
-        command: process.platform === 'win32' ? 'Write-Output SHIPPED_BACKGROUND_OK' : 'printf SHIPPED_BACKGROUND_OK',
+        command: 'printf SHIPPED_BACKGROUND_OK',
         description: 'shipped background probe',
         run_in_background: true,
       },
@@ -219,7 +217,7 @@ it('lets a preset producer reach the background-job registry', async () => {
     })
     expect({ isError: started.isError, content: started.content }).toEqual({
       isError: false,
-      content: [{ type: 'text', text: `started background job ${SHELL_TOOL}-1` }],
+      content: [{ type: 'text', text: 'started background job bash-1' }],
     })
 
     // The controller reads what the producer started: same registry, one
@@ -233,7 +231,7 @@ it('lets a preset producer reach the background-job registry', async () => {
     })
     expect(listed.isError).toBe(false)
     expect(listed.content).toEqual([
-      { type: 'text', text: expect.stringContaining(`${SHELL_TOOL}-1 [${SHELL_TOOL}]`) as unknown as string },
+      { type: 'text', text: expect.stringContaining('bash-1 [bash]') as unknown as string },
     ])
 
     // The full round trip: the output a host-plane producer wrote is collected
@@ -242,7 +240,7 @@ it('lets a preset producer reach the background-job registry', async () => {
       signal,
       callId: ToolCallId('shipped-task-output'),
       name: 'job_output',
-      arguments: { job_id: `${SHELL_TOOL}-1`, wait: true },
+      arguments: { job_id: 'bash-1', wait: true },
       agent: handle.agent,
     })
     expect(collected.isError).toBe(false)

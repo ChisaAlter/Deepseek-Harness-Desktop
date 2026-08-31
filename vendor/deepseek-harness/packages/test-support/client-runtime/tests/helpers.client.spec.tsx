@@ -32,6 +32,7 @@ function entry(seq: number): SessionLiveEventEntry {
       seq,
       time: seq,
       data: { seq },
+      ignorable: true,
     } as SessionLiveEventEntry['event'],
   }
 }

@@ -161,9 +161,9 @@ describe('SessionSkillCatalog', () => {
         'session "missing-skills" not found',
         'SESSION_QUERY_SESSION_NOT_FOUND',
       ),
-      code: 'session-not-found',
+      code: 'session/not-found',
     },
-    { error: new Error('storage offline'), code: 'internal' },
+    { error: new Error('storage offline'), code: 'gateway/internal' },
   ] as const)('classifies failed Session inspection as $code', async ({ error, code }) => {
     const ctx = await context()
     ctx.provide('sessionQuery', { observeSession: () => Promise.reject(error) } as never)
@@ -172,7 +172,7 @@ describe('SessionSkillCatalog', () => {
     await expect(catalog.list(
       { sessionId: SessionId('missing-skills') },
       new AbortController().signal,
-    )).rejects.toMatchObject({ failure: { code } })
+    )).rejects.toMatchObject({ code })
   })
 
   it('reports an absent skill registry instead of an empty catalog', async () => {
@@ -184,7 +184,7 @@ describe('SessionSkillCatalog', () => {
     const catalog = new SessionSkillCatalog(ctx)
 
     const failed = catalog.list({ sessionId }, new AbortController().signal)
-    await expect(failed).rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(failed).rejects.toMatchObject({ code: 'gateway/internal' })
     await expect(failed).rejects.toThrow('skill registry is absent')
   })
 
@@ -199,10 +199,10 @@ describe('SessionSkillCatalog', () => {
     const catalog = new SessionSkillCatalog(ctx)
 
     const unprojected = catalog.list({ sessionId }, new AbortController().signal)
-    await expect(unprojected).rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(unprojected).rejects.toMatchObject({ code: 'gateway/internal' })
     await expect(unprojected).rejects.toThrow('projected Session observation')
     const cwdless = catalog.list({ sessionId }, new AbortController().signal)
-    await expect(cwdless).rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(cwdless).rejects.toMatchObject({ code: 'gateway/internal' })
     await expect(cwdless).rejects.toThrow('has no project cwd')
   })
 
@@ -219,7 +219,7 @@ describe('SessionSkillCatalog', () => {
 
     await expect(catalog.list({ sessionId }, new AbortController().signal))
       .rejects.toMatchObject({
-        failure: { code: 'internal', message: 'skill listing failed: Error: catalog offline' },
+        code: 'gateway/internal', message: 'skill listing failed: Error: catalog offline',
       })
   })
 })

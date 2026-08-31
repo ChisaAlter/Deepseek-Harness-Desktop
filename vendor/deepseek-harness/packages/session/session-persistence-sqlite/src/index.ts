@@ -1,6 +1,6 @@
 /**
  * Opt-in SQLite persistence provider. Logical sessions remain unchanged;
- * the physical backend packs eligible chunk runs into schema-19 rows.
+ * the physical backend packs eligible chunk runs into schema-20 rows.
  * @module @deepseek-ai/dsh-session-persistence-sqlite
  */
 
@@ -108,14 +108,8 @@ export class SqliteSessionPersistence extends SessionPersistence {
     return this.coordinator.append(id, events)
   }
 
-  /**
-   * Remove one session's durable log. Unknown id rejects.
-   * An un-materialized create cancels and resolves.
-   * @param id - session to delete.
-   * @returns resolution after durability.
-   */
-  delete(id: SessionId): Promise<void> {
-    return this.coordinator.delete(id)
+  ['delete'](id: SessionId): Promise<void> {
+    return this.coordinator.remove(id)
   }
 
   override prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation> {

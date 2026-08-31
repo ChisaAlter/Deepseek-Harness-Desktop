@@ -196,7 +196,7 @@ function stubWorker(): {
     id: 1,
     failure: {
       kind: 'remote',
-      code: 'session-not-found',
+      code: 'session/not-found',
       message: 'fixture Session is absent',
       details: { sessionId: 'session-1' },
     },
@@ -211,7 +211,7 @@ function stubWorker(): {
   }, {
     message: 'fixture Session is absent',
     dshRemoteStreamFailure: {
-      kind: 'remote', code: 'session-not-found', details: { sessionId: 'session-1' },
+      kind: 'remote', code: 'session/not-found', details: { sessionId: 'session-1' },
     },
   })
 }

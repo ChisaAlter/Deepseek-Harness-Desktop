@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SkillInventoryDetail, SkillInventoryEntry } from '@deepseek-ai/dsh-api-remotes/client'
 import { SkillsSection } from '../src/client/SkillsSection.tsx'
 import type { SkillsSectionInjected, SkillsSectionProps } from '../src/client/SkillsSection.tsx'

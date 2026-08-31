@@ -63,7 +63,7 @@ export function scriptedSettingsRemote<View extends ScriptedNamespace>(
     return Promise.resolve(view === undefined
       ? {
         ok: false as const,
-        error: { code: 'settings-rejected', message: `no scripted namespace "${ns}"`, details: { ns } },
+        error: { code: 'settings/rejected', message: `no scripted namespace "${ns}"`, details: { ns } },
       }
       : { ok: true as const, value: view })
   }

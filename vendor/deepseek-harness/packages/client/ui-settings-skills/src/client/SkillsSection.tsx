@@ -9,7 +9,7 @@ import type {
   SkillInventoryEntry,
   SkillInventorySnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   Button,
   IconChevronDownOutline14,

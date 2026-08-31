@@ -1,16 +1,13 @@
 /** Behavior of the browse backend over a real temporary directory tree. */
 
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { DirectoryPickerError } from '@deepseek-ai/dsh-host-directory-picker'
 import type { DirectoryPickerBrowseCapability } from '@deepseek-ai/dsh-host-directory-picker'
-import BrowseDirectoryPicker, {
-  ancestryCrumbs, boundedInsert, canOpenDirectory, fullyQualified, isWindowsVolumeRoot, listWindowsVolumes, raceAbort,
-  WINDOWS_VOLUME_ROOT,
-} from '../src/index.ts'
+import BrowseDirectoryPicker, { boundedInsert, fullyQualified, raceAbort } from '../src/index.ts'
 import type { ListingCandidate } from '../src/index.ts'
 
 let root: string
@@ -160,13 +157,8 @@ describe('BrowseDirectoryPicker', () => {
     expect(tail).toMatchObject({ name: 'projects', path: join(root, 'projects'), hidden: false })
     expect(listing.crumbs.at(-2)!.path).toBe(root)
     expect(listing.crumbs.at(-2)!.name).toBe(basename(root))
-    if (process.platform === 'win32') {
-      expect(listing.crumbs[0]).toMatchObject({ name: WINDOWS_VOLUME_ROOT, path: WINDOWS_VOLUME_ROOT, hidden: false })
-      expect(listing.crumbs[1]!.name).toBe(listing.crumbs[1]!.path)
-    } else {
-      // The chain starts at the filesystem root, whose crumb is labeled by its full path.
-      expect(listing.crumbs[0]!.name).toBe(listing.crumbs[0]!.path)
-    }
+    // The chain starts at the filesystem root, whose crumb is labeled by its full path.
+    expect(listing.crumbs[0]!.name).toBe(listing.crumbs[0]!.path)
   })
 
   it('lists the home directory when no path is given', async () => {
@@ -197,63 +189,7 @@ describe('BrowseDirectoryPicker', () => {
     // Incomplete UNC prefixes collapse to drive-relative roots under resolve().
     expect(fullyQualified('\\\\', 'win32')).toBe(false)
     expect(fullyQualified('\\\\server', 'win32')).toBe(false)
-    expect(fullyQualified('\\\\.\\dsh-computer', 'win32')).toBe(true)
-    expect(fullyQualified(WINDOWS_VOLUME_ROOT, 'win32')).toBe(true)
-  })
-
-  it('recognizes the Win32 volume-picker path with Windows semantics on every host', () => {
-    expect(isWindowsVolumeRoot(WINDOWS_VOLUME_ROOT)).toBe(true)
-    expect(isWindowsVolumeRoot('C:\\')).toBe(false)
-    expect(isWindowsVolumeRoot('/')).toBe(false)
-  })
-
-  it('ancestryCrumbs prepends the volume picker only on Win32', () => {
-    const sample = join(root, 'projects')
-    const withoutVolume = ancestryCrumbs(sample, 'linux')
-    expect(withoutVolume[0]!.path).not.toBe(WINDOWS_VOLUME_ROOT)
-    expect(withoutVolume.at(-1)!.path).toBe(sample)
-    const withVolume = ancestryCrumbs(sample, 'win32')
-    expect(withVolume[0]).toMatchObject({ name: WINDOWS_VOLUME_ROOT, path: WINDOWS_VOLUME_ROOT, hidden: false })
-    expect(withVolume.slice(1)).toEqual(withoutVolume)
-  })
-
-  it('listWindowsVolumes keeps ready drive roots and skips missing or non-directory letters', async () => {
-    const probe = async (path: string): Promise<{ isDirectory(): boolean }> => {
-      if (path === 'C:\\') return { isDirectory: () => true }
-      if (path === 'D:\\') return { isDirectory: () => true }
-      if (path === 'E:\\') return { isDirectory: () => false }
-      throw Object.assign(new Error('missing'), { code: 'ENOENT' })
-    }
-    await expect(listWindowsVolumes(probe)).resolves.toEqual([
-      { name: 'C:', path: 'C:\\', hidden: false },
-      { name: 'D:', path: 'D:\\', hidden: false },
-    ])
-  })
-
-  it('listWindowsVolumes rejects with the caller reason when the scan is aborted', async () => {
-    const gone = new AbortController()
-    gone.abort(new Error('caller left'))
-    const probe = async (): Promise<{ isDirectory(): boolean }> => ({ isDirectory: () => true })
-    await expect(listWindowsVolumes(probe, gone.signal)).rejects.toThrow('caller left')
-  })
-
-  it('refuses the volume picker on non-Win32 hosts and refuses creating under it', async () => {
-    if (process.platform === 'win32') {
-      const listing = await capability.list(WINDOWS_VOLUME_ROOT)
-      expect(listing.path).toBe(WINDOWS_VOLUME_ROOT)
-      const tmpDrive = `${root[0]!.toUpperCase()}:\\`
-      expect(listing.entries.some(entry => entry.path.toUpperCase() === tmpDrive)).toBe(true)
-      const drive = await capability.list(tmpDrive)
-      expect(drive.crumbs[0]!.path).toBe(WINDOWS_VOLUME_ROOT)
-      expect(drive.entries.some(entry => /^system volume information$/i.test(entry.name))).toBe(false)
-    } else {
-      const failure = await capability.list(WINDOWS_VOLUME_ROOT).catch((error: unknown) => error)
-      expect(failure).toBeInstanceOf(DirectoryPickerError)
-      expect((failure as DirectoryPickerError).code).toBe('directory-unreadable')
-    }
-    const createFailure = await capability.createDirectory(WINDOWS_VOLUME_ROOT, 'X').catch((error: unknown) => error)
-    expect(createFailure).toBeInstanceOf(DirectoryPickerError)
-    expect((createFailure as DirectoryPickerError).code).toBe('directory-create-failed')
+    expect(fullyQualified('\\\\server\\', 'win32')).toBe(false)
   })
 
   it('rejects non-absolute paths instead of rebasing them under the process cwd', async () => {
@@ -267,26 +203,6 @@ describe('BrowseDirectoryPicker', () => {
       expect((createFailure as DirectoryPickerError).code).toBe('directory-create-failed')
       expect((createFailure as DirectoryPickerError).path).toBe(relative)
     }
-  })
-
-  it.skipIf(process.platform === 'win32')('omits a child directory that cannot be opened, instead of failing the parent listing', async () => {
-    const locked = join(root, 'locked-out')
-    await mkdir(locked)
-    await chmod(locked, 0)
-    try {
-      const listing = await capability.list(root)
-      expect(listing.entries.map(entry => entry.name)).not.toContain('locked-out')
-    } finally {
-      await chmod(locked, 0o755)
-    }
-  })
-
-  it('canOpenDirectory rejects with the caller reason when the probe is aborted', async () => {
-    const gone = new AbortController()
-    gone.abort(new Error('caller left'))
-    await expect(canOpenDirectory(root, gone.signal)).rejects.toThrow('caller left')
-    await expect(canOpenDirectory(join(root, 'no-such-dir'))).resolves.toBe(false)
-    await expect(canOpenDirectory(root)).resolves.toBe(true)
   })
 
   it('creates one child directory and surfaces it in the next listing', async () => {

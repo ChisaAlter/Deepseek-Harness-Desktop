@@ -4,6 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { SandboxBashExecutor } from '@deepseek-ai/dsh-bash-sandbox'
 import LocalSandboxProvider from '@deepseek-ai/dsh-sandbox-local'
 import { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { MemoryVfs } from '../../src/storage/memory.ts'
 import { setActiveVfs } from '../../src/storage/active.ts'
@@ -44,6 +45,7 @@ async function setup(mode: 'read-only' | 'workspace-write' | 'danger-full-access
   const ctx = new Context()
   contexts.push(ctx)
   await ctx.plugin(LocalSandboxProvider)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SandboxPolicyService, { mode, workspaceRoot: WORKSPACE })
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(SandboxBashExecutor, { cwd: WORKSPACE })

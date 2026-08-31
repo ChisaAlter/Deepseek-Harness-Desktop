@@ -15,6 +15,7 @@ const path = require('node:path');
 const { DshManager, missingDesktopForkPackages, harnessSpawnPlan } = require('./dsh');
 const { DESKTOP_PACKAGES } = require('../shared/harness-desktop-forks');
 const { readPin } = require('../shared/harness-upstream');
+const { isUnpublishedHarnessNpm } = require('./harness-browser-auth');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
 
 const EXPECTED_URL = 'http://127.0.0.1:3080';
@@ -451,6 +452,13 @@ test('npx fallback pins @deepseek-ai/dsh to pin.npm', () => {
     resolveNodeBin: () => process.execPath,
     readPin: () => pin,
   });
+  if (isUnpublishedHarnessNpm(pin.npm)) {
+    assert.throws(
+      () => manager.buildLaunch({ host: '127.0.0.1', port: 3080 }),
+      /尚未发布|npx/,
+    );
+    return;
+  }
   const launch = manager.buildLaunch({ host: '127.0.0.1', port: 3080 });
   assert.equal(launch.kind, 'npx');
   assert.ok(launch.args.includes(`@deepseek-ai/dsh@${pin.npm}`));
@@ -644,9 +652,31 @@ test('every launch kind passes --no-open so dsh web does not open the OS browser
     resolveNodeBin: () => process.execPath,
     readPin: () => pin,
   });
-  const npxLaunch = npx.buildLaunch({ host: '127.0.0.1', port: 3080 });
-  assert.equal(npxLaunch.kind, 'npx');
-  assert.equal(npxLaunch.args.includes('--no-open'), true);
+  if (isUnpublishedHarnessNpm(pin.npm)) {
+    assert.throws(
+      () => npx.buildLaunch({ host: '127.0.0.1', port: 3080 }),
+      /尚未发布|npx/,
+    );
+  } else {
+    const npxLaunch = npx.buildLaunch({ host: '127.0.0.1', port: 3080 });
+    assert.equal(npxLaunch.kind, 'npx');
+    assert.equal(npxLaunch.args.includes('--no-open'), true);
+  }
+  const publishedNpx = new DshManager({
+    sourceHarnessStatus: () => ({ present: false }),
+    resolveDshBin: () => null,
+    resolveNpx: () => 'npx',
+    resolveNodeBin: () => process.execPath,
+    readPin: () => ({
+      repo: pin.repo,
+      ref: pin.ref,
+      sha: pin.sha,
+      npm: '0.1.1-rc.1',
+    }),
+  });
+  const publishedLaunch = publishedNpx.buildLaunch({ host: '127.0.0.1', port: 3080 });
+  assert.equal(publishedLaunch.kind, 'npx');
+  assert.equal(publishedLaunch.args.includes('--no-open'), true);
 });
 
 test('source launch copies Ghostty assets beside client.js', () => {

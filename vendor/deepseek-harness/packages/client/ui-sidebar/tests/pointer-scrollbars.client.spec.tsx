@@ -8,7 +8,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { SidebarRootComponentProps, SidebarSectionOwnerProps } from '../src/client/contract/slots.ts'
+import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { SidebarRoot } from '../src/client/SidebarRoot.tsx'
+import { createSidebarNavStore } from '../src/client/stores.ts'
 import { en } from '../src/client/locales.ts'
 
 /** Pinned column box; the shell compares pointer coordinates against it. */
@@ -32,10 +34,12 @@ afterEach(() => {
  * @returns the column element and whether it currently carries the quiet state.
  */
 function mountColumn(): { column: HTMLElement; quiet: () => boolean } {
+  const nav = createSidebarNavStore().create()
   const view = render(
     <SidebarRoot
       collapsed={false} width={300}
-      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction} useWorkspaces={neverHook}
+      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
+      useStore={bindSnapshotSelector(nav.store)} actions={nav.actions}
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((_key: string, owner: SidebarSectionOwnerProps) =>
         <div data-testid="region" data-wide={owner.wide} />) as SidebarRootComponentProps['renderSlot']}

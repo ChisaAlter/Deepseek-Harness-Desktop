@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService, {
   SessionTitleProviderId,
   foldSessionTitle,
@@ -32,6 +33,7 @@ describe('SessionTitleService.rename', () => {
   it('appends a normalized user-source title', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const session = ctx.sessions.create(SessionId('rename-accept'))
     session.append('turn/start', { turn: 1 })
@@ -57,6 +59,7 @@ describe('SessionTitleService.rename', () => {
   it('rejects titles that normalize to empty and dead sessions', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const session = ctx.sessions.create(SessionId('rename-reject'))
     expect(() => ctx.sessionTitle.rename(session, '  [31m  ')).toThrow(/visible characters/)
@@ -68,6 +71,7 @@ describe('SessionTitleService.rename', () => {
   it('pins the title: later user messages schedule no automatic revision; refresh unpins', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const generate = vi.fn(async (request: SessionTitleProviderRequest) => ({
       title: 'Provider title',
@@ -105,6 +109,7 @@ describe('SessionTitleService.rename', () => {
   it('fallback-only refresh also unpins: the user title yields to a re-derived fallback', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const session = ctx.sessions.create(SessionId('rename-unpin-fallback'))
     session.append('turn/start', { turn: 1 })
@@ -126,6 +131,7 @@ describe('SessionTitleService.rename', () => {
   it('supersedes in-flight automatic generation: a late provider result cannot override the user title', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     // The provider parks on a test-held deferred so rename lands while its
     // generation is ACTIVE (not merely scheduled).
@@ -165,6 +171,7 @@ describe('SessionTitleService.rename', () => {
   it('fallback-only refresh keeps the user title when no fallback is derivable', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     // A 3-byte fallback cap cannot hold the 4-byte emoji prompt: the
     // re-derived fallback is empty, so the pinned title survives the refresh.
     await ctx.plugin(SessionTitleService, { ...CONFIG, fallbackMaxBytes: 3 })

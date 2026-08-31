@@ -24,6 +24,9 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../typert/protocol"
+    },
+    {
       "path": "../../client/connection/tsconfig.client.json"
     },
     {

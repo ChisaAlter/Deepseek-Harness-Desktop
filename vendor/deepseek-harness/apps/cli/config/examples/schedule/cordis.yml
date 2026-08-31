@@ -7,3 +7,6 @@
 
     - id: schedule
       name: '@deepseek-ai/dsh-schedule'
+
+- id: ui-schedule
+  disabled: false

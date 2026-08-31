@@ -36,13 +36,19 @@ describe('menuReduce hit', () => {
     expect(s.highlight).toBeNull()
   })
 
-  it('re-hit resets ready groups to pending under a bumped generation', () => {
+  it('re-hit resets ready groups to pending under a bumped generation, keeping items and highlight', () => {
     let s = open(['command'])
     s = menuReduce(s, { type: 'source-settled', generation: 1, source: 'command', items: [item('goal')] })
     s = menuReduce(s, { type: 'hit', hit: hit('g') })
     expect(s.generation).toBe(2)
-    expect(s.groups).toEqual([{ source: 'command', status: 'pending', items: [] }])
-    expect(s.highlight).toBeNull()
+    // Stale-while-revalidate: the previous query's items stay until the new
+    // generation settles and replaces them, and the highlight stays parked
+    // instead of blinking off between keystrokes.
+    expect(s.groups).toEqual([{ source: 'command', status: 'pending', items: [item('goal')] }])
+    expect(s.highlight).toEqual({ source: 'command', index: 0 })
+    s = menuReduce(s, { type: 'source-settled', generation: 2, source: 'command', items: [item('grep')] })
+    expect(s.groups).toEqual([{ source: 'command', status: 'ready', items: [item('grep')] }])
+    expect(s.highlight).toEqual({ source: 'command', index: 0 })
   })
 
   it('preserves a hidden group title through re-hit and settlement', () => {

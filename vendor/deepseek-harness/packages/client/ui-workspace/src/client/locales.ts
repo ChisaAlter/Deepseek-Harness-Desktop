@@ -6,11 +6,9 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'group.ungrouped': '任务',
+  'group.ungrouped': '未分组',
   'session.new': '新会话',
   'section.workspaces': '工作区',
-  'section.projects': '项目',
-  'section.tasks': '任务',
   'section.sessions': '会话',
   'section.archived': '已归档',
   'archived.missingTitle': '缺失会话',
@@ -48,7 +46,7 @@ export const zh = {
   'field.workspaceName': '工作区名称',
   'field.sessionName': '会话名称',
   'delete.workspace': '删除工作区',
-  'delete.desc': '将把“{name}”从工作区列表中移除。文件夹与会话记录会保留，其会话将显示在“任务”下。',
+  'delete.desc': '将把“{name}”从工作区列表中移除。文件夹与会话记录会保留，其会话将显示在“未分组”下。',
   'delete.pending': '正在删除工作区…',
   'menu.fork': '分叉会话',
   'menu.archiveSession': '归档会话',
@@ -77,6 +75,7 @@ export const zh = {
   'status.planReview': '计划待审',
   'status.waitingAnswer': '等待回答',
   'status.completed': '已完成',
+  'schedule.active': '有活动定时任务',
   'hover.created': '创建于 {time}',
   'hover.copied': '已复制',
   'date.ymd': '{y}年{m}月{d}日',
@@ -94,11 +93,9 @@ export type WorkspaceKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
-  'group.ungrouped': 'Tasks',
+  'group.ungrouped': 'Ungrouped',
   'session.new': 'New Session',
   'section.workspaces': 'Workspaces',
-  'section.projects': 'Projects',
-  'section.tasks': 'Tasks',
   'section.sessions': 'Sessions',
   'section.archived': 'Archived',
   'archived.missingTitle': 'Missing session',
@@ -136,7 +133,7 @@ export const en = {
   'field.workspaceName': 'Workspace name',
   'field.sessionName': 'Session name',
   'delete.workspace': 'Delete workspace',
-  'delete.desc': 'This removes “{name}” from the workspace list. The folder and session logs will be kept. Its sessions will appear under Tasks.',
+  'delete.desc': 'This removes “{name}” from the workspace list. The folder and session logs will be kept. Its sessions will appear under Ungrouped.',
   'delete.pending': 'Deleting workspace…',
   'menu.fork': 'Fork session',
   'menu.archiveSession': 'Archive session',
@@ -165,6 +162,7 @@ export const en = {
   'status.planReview': 'Plan awaiting review',
   'status.waitingAnswer': 'Waiting for answer',
   'status.completed': 'Completed',
+  'schedule.active': 'Has active scheduled task',
   'hover.created': 'Created {time}',
   'hover.copied': 'Copied',
   'date.ymd': '{y}-{m}-{d}',

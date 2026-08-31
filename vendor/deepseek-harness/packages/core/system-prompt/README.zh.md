@@ -51,7 +51,7 @@ kind: "package-reference"
 
 ### 贡献提示词段
 
-段携带静态或按上下文解析的文本与 `order`；它们先按 order 升序拼接，同号时再按名称的代码单元顺序排列。`FIRST_PARTY_SECTION_ORDER` 为仓库自带段分配稀疏且唯一的位置，外部段可以使用任意有限 order。`complete: true` 段会在组装后成为精确的完整提示词；有效的 complete 段超过一个时，组装会失败。
+段携带静态或按上下文解析的文本与 `order`；它们先按 order 升序拼接，同号时再按名称的代码单元顺序排列。仓库自带贡献方通过 `ctx.systemPrompt.getSectionOrder(name)` 解析集中分配的位置；runtime-context 贡献方使用 `getContextOrder(name)`。外部贡献可以使用任意有限 order。`complete: true` 段会在组装后成为精确的完整提示词；有效的 complete 段超过一个时，组装会失败。
 
 ```text
 ctx.systemPrompt.section({

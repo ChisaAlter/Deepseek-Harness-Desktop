@@ -6,9 +6,9 @@
 
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type {
-  ConversationSnapshot, SnapshotStore, UseProjection,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type {} from '@deepseek-ai/dsh-token-meter/client'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import type { ComposerCatalogModel, ComposerModelFact } from '../input/model-facts.ts'
@@ -51,8 +51,10 @@ export interface PeakValleyRowProps {
   useModelProvider: SnapshotSelectorHook<ComposerModelFact>
   /** The session's advertised models (the price panel merges them into its dropdown). */
   useModelCatalog?: SnapshotSelectorHook<readonly ComposerCatalogModel[]>
-  /** The conversation snapshot seat; the cost column reads the session's last-used model from it. */
-  useSession?: SnapshotSelectorHook<ConversationSnapshot>
+  /** Optional chat window; the cost column reads last-used model provenance when the seat exists. */
+  useChat?: SnapshotSelectorHook<{
+    legacy: { nodes: readonly { kind: string; provenance?: { provider: string; model: string } }[] }
+  }>
   /** Persisted session-cost preference (cost paints only while a DeepSeek route is known). */
   useSessionCost?: SnapshotSelectorHook<boolean>
   /** Persisted per-model custom prices backing the cost math and the price panel. */
@@ -78,7 +80,7 @@ const NO_CATALOG_MODELS: readonly ComposerCatalogModel[] = []
  * along because two providers may serve the same model id with different
  * user-priced columns.
  */
-function lastUsedModel(nodes: ConversationSnapshot['chat']['legacy']['nodes'] | undefined): { provider: string; model: string } | null {
+function lastUsedModel(nodes: readonly { kind: string; provenance?: { provider: string; model: string } }[] | undefined): { provider: string; model: string } | null {
   if (nodes === undefined) return null
   for (let i = nodes.length - 1; i >= 0; i -= 1) {
     const node = nodes[i]
@@ -90,11 +92,11 @@ function lastUsedModel(nodes: ConversationSnapshot['chat']['legacy']['nodes'] | 
 }
 
 export const PeakValleyRow = memo(function PeakValleyRow({
-  usePeakValley, useModelProvider, useModelCatalog, useSession, useSessionCost, useCostPrices, setCostPrices, useProjection, t,
+  usePeakValley, useModelProvider, useModelCatalog, useChat, useSessionCost, useCostPrices, setCostPrices, useProjection, t,
 }: PeakValleyRowProps) {
   const forceEnabled = usePeakValley(value => value)
   const fact = useModelProvider(value => value)
-  const settledNodes = useSession?.(s => s.chat.legacy.nodes)
+  const settledNodes = useChat?.(s => s.legacy.nodes)
   const costEnabled = useSessionCost?.(value => value) ?? false
   const customPrices = useCostPrices?.(value => value) ?? NO_CUSTOM_PRICES
   const catalogModels = useModelCatalog?.(value => value) ?? NO_CATALOG_MODELS

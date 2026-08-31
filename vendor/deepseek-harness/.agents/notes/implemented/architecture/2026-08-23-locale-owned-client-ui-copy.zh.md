@@ -12,7 +12,7 @@ typed locale namespace 与双语字典对等性可以证明已注册字典完整
 
 **所有产品编写的 client UI 措辞都由 locale 字典持有。** 可见文本、无障碍名称、tooltip、placeholder、空状态、状态标签、单位和格式模板必须经 typed `t` 席位或已本地化 prop 到达展示层。由用户、模型、提供方、插件、wire 对端或操作系统编写的值仍是数据并原样渲染；协议 tag、工具名称、路径、URL、JSON/JavaScript 字面量和稳定内部 id 不翻译。
 
-**Cordis-free 原子组件要求完整的本地化文案 prop，且自身不持有语言回落值。** `MarkdownText`、`JsonTree`、`TerminalBlock`、`DiffBlock`、`ReadBlock`、`SearchBlock`、`WebBlock`、`CodeBlock`、`JsonBlock`、`HoverCard` 与 `ConnectionBanner` 的 chrome 均由功能渲染点传入。这样既保留原子组件包的运行时独立性，也让遗漏成为类型错误，而不是静默选择中文或英文。共享用词进入 `common` namespace；功能专属短语留在决定其语义的功能侧。
+**Cordis-free 原子组件要求完整的本地化文案 prop，且自身不持有语言回落值。** `MarkdownText`、`JsonTree`、`TerminalBlock`、`DiffBlock`、`ReadBlock`、`SearchBlock`、`WebBlock`、`CodeBlock`、`JsonBlock`、`HoverCard` 与 `ConnectionIndicator` 的 chrome 均由功能渲染点传入。这样既保留原子组件包的运行时独立性，也让遗漏成为类型错误，而不是静默选择中文或英文。共享用词进入 `common` namespace；功能专属短语留在决定其语义的功能侧。
 
 **本地化展示文本绝不承担身份。** 模型与存储保留判别字段、稳定 id 和非展示 marker。渲染器先匹配再翻译，请求映射通过稳定的组成员关系进入 trajectory ledger。必须保存在视图模型中的 client 合成错误使用稳定 marker，只在展示时翻译。因此语言切换只改变措辞，不改变选择、分组、搜索身份或生命周期状态。
 

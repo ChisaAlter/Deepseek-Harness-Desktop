@@ -16,10 +16,9 @@ import type {
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
+import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { EMPTY_CONVERSATION_SNAPSHOT } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { createChatStore } from '../src/client/stores.ts'
 import { ChatView } from '../src/client/chat/ChatView.tsx'
@@ -92,7 +91,9 @@ function makeSessionSource(init: Partial<SessionSnapshot> = {}) {
   }
 }
 
-type ChatSlice = Partial<LegacyConversationSlice>
+type ChatSlice = Partial<LegacyConversationSlice> & {
+  readonly turnUsages?: NonNullable<Parameters<typeof chatSnapshotFixture>[0]>['turnUsages']
+}
 type HarnessUpdate = ChatSlice & Partial<SessionSnapshot> & { readonly chat?: ChatSnapshot }
 
 /** Scripted Chat target source, independent from Session lifecycle state. */
@@ -205,7 +206,7 @@ function makeHarness(
   chatSnapshot?: ChatSnapshot,
 ) {
   const {
-    chat: initialChat, nodes, partial, runningCalls, turnTimings, turnEnds,
+    chat: initialChat, nodes, partial, runningCalls, turnTimings, turnEnds, turnUsages,
     ...sessionInit
   } = init
   const chatSlice: ChatSlice = {
@@ -214,6 +215,7 @@ function makeHarness(
     ...(runningCalls === undefined ? {} : { runningCalls }),
     ...(turnTimings === undefined ? {} : { turnTimings }),
     ...(turnEnds === undefined ? {} : { turnEnds }),
+    ...(turnUsages === undefined ? {} : { turnUsages }),
   }
   const session = makeSessionSource({ ...sessionInit, ...sessionOverrides })
   const chatSource = makeChatSource(chatSlice, initialChat ?? chatSnapshot)
@@ -266,7 +268,13 @@ function makeHarness(
     )
     switch (nodeOwner.node.kind) {
       case 'user':
-        return <UserMessageNodeView {...nodeProps<'user'>()} />
+        return (
+          <UserMessageNodeView
+            {...nodeProps<'user'>()}
+            renderSlot={() => null}
+            SessionProvider={({ children }) => children}
+          />
+        )
       case 'steering':
         return <SteeringMessageNodeView {...nodeProps<'steering'>()} />
       case 'context':
@@ -1537,7 +1545,7 @@ describe('ChatView', () => {
     expect(view.container.querySelector('[data-turn-tail="1"]')?.textContent).toContain('用时 19秒')
   })
 
-  it('the settled footer appends first-step ttft and turn decode throughput', () => {
+  it('the settled footer exposes ttft, decode throughput, and usage as the details trigger', () => {
     const first: AssistantMessageNode = {
       kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1, blocks: [{ kind: 'text', text: 'mid' }],
       timing: { stepStartTime: 1_000, firstTokenTime: 2_200, completedTime: 5_200 },
@@ -1552,12 +1560,54 @@ describe('ChatView', () => {
       nodes: [user(1, 'hi'), first, second],
       turnTimings: new Map([[1, { startTime: 1_000, endTime: 20_000 }]]),
       turnEnds: new Map([[1, 20]]),
+      turnUsages: new Map([[1, {
+        uncachedInputTokens: 5_060,
+        cacheReadTokens: 4_940,
+        outputTokens: 100,
+        totalTokens: 10_100,
+      }]]),
     })
     const view = render(<h.ChatView {...h.props} />)
-    // First-step ttft (1.2s) plus 100 tokens over 5s of decode.
-    expect(view.container.querySelector('[data-turn-tail="1"]')?.textContent).toContain('用时 19秒')
-    expect(view.getAllByText(/首 token 1\.2秒/)).toHaveLength(1)
-    expect(view.getAllByText(/20 tok\/s/)).toHaveLength(1)
+    // The usage pill carries the compact total; cache hit stays dialog-only.
+    const trigger = view.getByRole('button', { name: /用量 10\.1K tok/ })
+    expect(trigger.textContent).toBe('用量 10.1K tok')
+    expect(view.queryByRole('dialog')).toBeNull()
+    fireEvent.click(trigger)
+    const dialog = view.getByRole('dialog')
+    expect(dialog.getAttribute('aria-label')).toBe('本轮用量')
+    expect(dialog.firstChild?.textContent).toBe('本轮用量10,100 tok')
+    expect(dialog.textContent).toContain('缓存命中49.4%')
+    expect(dialog.textContent).toContain('未缓存输入5,060 tok')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    // The time pill carries the run time; first-step ttft (1.2s) and 100
+    // tokens over 5s of decode move into its dialog.
+    const timeTrigger = view.getByRole('button', { name: /用时 19秒/ })
+    expect(timeTrigger.textContent).toBe('用时 19秒')
+    expect(view.queryByText(/速度 20 tok\/s|首 token/)).toBeNull()
+    fireEvent.click(timeTrigger)
+    const timeDialog = view.getByRole('dialog')
+    expect(timeDialog.getAttribute('aria-label')).toBe('本轮用时和速度')
+    expect(timeDialog.textContent).toContain('本轮总用时19秒')
+    expect(timeDialog.textContent).toContain('输出速度（TPS）20 tok/s')
+    expect(timeDialog.textContent).toContain('首 token 用时（TTFT）1.2秒')
+  })
+
+  it('withholds the usage-details trigger when turn usage is outside the window', () => {
+    const settled: AssistantMessageNode = {
+      kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1, blocks: [{ kind: 'text', text: 'answer' }],
+      timing: { stepStartTime: 1_000, firstTokenTime: 2_200, completedTime: 5_200 },
+      usage: { outputTokens: 40 },
+    }
+    const h = makeHarness({
+      nodes: [user(1, 'hi'), settled],
+      turnTimings: new Map([[1, { startTime: 1_000, endTime: 20_000 }]]),
+      turnEnds: new Map([[1, 20]]),
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    // Timing facts keep their pill, but with no usage in the window there is
+    // no usage pill to click.
+    expect(view.getByRole('button', { name: /用时/ })).toBeTruthy()
+    expect(view.queryByRole('button', { name: /用量/ })).toBeNull()
   })
 
   it('withholds ttft and throughput while the turn is still running', () => {
@@ -1575,15 +1625,30 @@ describe('ChatView', () => {
     expect(view.queryByText(/首 token|tok\/s/)).toBeNull()
   })
 
-  it('user and assistant message containers scope the hover-revealed time chrome', () => {
+  it('user rows and turn tails both gate the whole actions row by recency', () => {
     const h = makeHarness({
-      nodes: [user(1, 'hi'), assistant(2, 'answer')],
-      turnTimings: new Map([[1, { startTime: 1_000, endTime: 2_000 }]]),
-      turnEnds: new Map([[1, 2]]),
+      nodes: [
+        user(1, 'hi'),
+        assistant(2, 'answer'),
+        user(4, 'again'),
+        assistant(5, 'later answer', 2),
+      ],
+      turnTimings: new Map([
+        [1, { startTime: 1_000, endTime: 2_000 }],
+        [2, { startTime: 4_000, endTime: 5_000 }],
+      ]),
+      turnEnds: new Map([[1, 3], [2, 6]]),
     })
     const view = render(<h.ChatView {...h.props} />)
-    // The user row and the settled assistant's Turn Tail each own one clock scope.
-    expect(view.container.querySelectorAll('[data-time-hover-root]')).toHaveLength(2)
+    // The last user-authored row and the latest turn's tail stay shown;
+    // every earlier row of either kind reveals on hover.
+    const tails = view.container.querySelectorAll('[data-turn-tail]')
+    expect(new Map([...tails].map(tail => [
+      tail.getAttribute('data-turn-tail'), tail.getAttribute('data-actions-reveal'),
+    ]))).toEqual(new Map([['1', 'hover'], ['2', 'always']]))
+    const userRows = [...view.container.querySelectorAll('[data-actions-reveal]')]
+      .filter(row => row.getAttribute('data-turn-tail') === null)
+    expect(userRows.map(row => row.getAttribute('data-actions-reveal'))).toEqual(['hover', 'always'])
   })
 
   it('the run-time label is withheld when the turn start is outside the window', () => {
@@ -2216,7 +2281,7 @@ describe('ChatView', () => {
   it('shows open error and loading states', () => {
     const h = makeHarness({}, {
       openState: 'error',
-      openError: { code: 'internal', message: 'boom' } as never,
+      openError: { code: 'gateway/internal', message: 'boom' } as never,
     })
     const view = render(<h.ChatView {...h.props} />)
     expect(view.getByText(/历史加载失败：boom/)).toBeTruthy()

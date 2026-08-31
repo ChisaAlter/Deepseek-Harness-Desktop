@@ -1,6 +1,7 @@
 /** Reconnect-safe Workspace baseline and increment producer. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { Deque } from '@deepseek-ai/dsh-deque'
 import type { DomainChanged } from '@deepseek-ai/dsh-storage-domain'
 import type { Workspace, WorkspaceRecord } from '@deepseek-ai/dsh-workspace'
 import {
@@ -139,14 +140,14 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 }
 
 class WorkspaceFollower {
-  private readonly frames: WorkspaceFollowFrame[] = []
+  private readonly frames = new Deque<WorkspaceFollowFrame>()
   private waiting: (() => void) | undefined
   private closed = false
 
   push(frame: WorkspaceFollowFrame): void {
     /* v8 ignore next -- closed followers are removed before later publication can reach them. */
     if (this.closed) return
-    this.frames.push(frame)
+    this.frames.pushBack(frame)
     this.waiting?.()
   }
 
@@ -158,7 +159,7 @@ class WorkspaceFollower {
 
   async *read(signal: AbortSignal): AsyncIterable<WorkspaceFollowFrame> {
     while (!this.closed && !signal.aborted) {
-      const frame = this.frames.shift()
+      const frame = this.frames.popFront()
       if (frame !== undefined) {
         yield frame
         continue
@@ -178,7 +179,7 @@ class WorkspaceFollower {
       this.waiting = finish
       signal.addEventListener('abort', finish, { once: true })
       /* v8 ignore next -- native signals and the private queue cannot change during this synchronous setup. */
-      if (signal.aborted || this.closed || this.frames.length > 0) finish()
+      if (signal.aborted || this.closed || this.frames.size > 0) finish()
     })
   }
 }

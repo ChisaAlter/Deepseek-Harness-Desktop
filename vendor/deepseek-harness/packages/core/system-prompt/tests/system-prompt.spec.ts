@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt, {
-  AssembleContext, FIRST_PARTY_SECTION_ORDER, PromptAssembly, renderContextSnapshot, renderPrompt,
+  AssembleContext, PromptAssembly, renderContextSnapshot, renderPrompt,
 } from '@deepseek-ai/dsh-system-prompt'
+import type { PromptContextOrderName, PromptSectionOrderName } from '@deepseek-ai/dsh-system-prompt'
 
 /**
  * Every assembly carries the plugin's own built-ins — `harness:identity`
@@ -12,17 +13,39 @@ import SystemPrompt, {
  */
 const BUILT_IN = ['harness:identity', 'deployment:persona']
 const IDENTITY = 'You are an AI agent powered by DeepSeek Harness.'
+const SECTION_ORDER_NAMES = [
+  'HARNESS_IDENTITY', 'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA',
+  'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_BASH',
+  'TOOL_PWSH', 'TOOL_READ', 'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB',
+  'TOOL_GREP', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
+  'TOOL_LSP', 'TOOL_SESSION_QUERY', 'TOOL_GOAL', 'TOOL_CORDIS', 'TOOL_WORKFLOW',
+  'TOOL_RALPH', 'TOOL_SUBAGENT', 'TOOL_REPORT', 'TOOLS_SDK',
+  'DELIVERABLE_FILE_REFERENCES', 'STRUCTURED_OUTPUT',
+] as const satisfies readonly PromptSectionOrderName[]
+const CONTEXT_ORDER_NAMES = [
+  'SANDBOX_POLICY', 'APPROVAL_POLICY', 'SUBAGENT_DELEGATION',
+] as const satisfies readonly PromptContextOrderName[]
 function contributed(assembly: PromptAssembly): PromptAssembly['sections'] {
   return assembly.sections.filter(section => !BUILT_IN.includes(section.name))
 }
 
 describe('SystemPrompt', () => {
-  it('keeps first-party section placements unique, integral, and at least ten apart', () => {
-    const orders = Object.values(FIRST_PARTY_SECTION_ORDER)
+  it('keeps repository section placements unique, integral, and at least ten apart', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, {})
+    const orders = SECTION_ORDER_NAMES.map(name => ctx.systemPrompt.getSectionOrder(name))
     expect(orders.every(Number.isInteger)).toBe(true)
     expect(new Set(orders).size).toBe(orders.length)
     const sorted = [...orders].sort((a, b) => a - b)
     expect(sorted.slice(1).every((order, index) => order - sorted[index]! >= 10)).toBe(true)
+  })
+
+  it('keeps repository context placements unique and integral', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, {})
+    const orders = CONTEXT_ORDER_NAMES.map(name => ctx.systemPrompt.getContextOrder(name))
+    expect(orders.every(Number.isInteger)).toBe(true)
+    expect(new Set(orders).size).toBe(orders.length)
   })
 
   describe('built-in sections', () => {

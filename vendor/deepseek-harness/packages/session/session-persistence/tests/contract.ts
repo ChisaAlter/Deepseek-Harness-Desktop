@@ -455,14 +455,11 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
     it('delete of an un-materialized create cancels and resolves', async () => {
       const { persistence, dispose } = await make()
       try {
-        const m = meta('lazy-delete', '/work')
+        const m = meta('lazy-delete')
         await persistence.create(m)
         await persistence.delete(m.id)
         await expect(persistence.load(m.id)).rejects.toThrow()
         expect((await persistence.list()).map(h => h.id)).not.toContain(m.id)
-        await persistence.create(m)
-        await persistence.append(m.id, oneTurnLog())
-        expect((await persistence.load(m.id)).meta.id).toBe(m.id)
       } finally {
         await dispose()
       }

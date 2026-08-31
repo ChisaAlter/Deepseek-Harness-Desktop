@@ -105,6 +105,7 @@ This section explains the design behind the roster and the standing mount; obser
 |---|---|
 | [`src/index.ts`](src/index.ts) | Service entry: `Config` schema, settings namespace, roster API, standing-mount coordination |
 | [`src/discovery.ts`](src/discovery.ts) | Filesystem discovery: root scanning, health checks, id validation, ordering |
+| [`src/composition-inventory.ts`](src/composition-inventory.ts) | Flattened composition rows for plugin-listing surfaces: file reads with evaluated disabled gates, mount reads with fiber states |
 | [`src/preset.ts`](src/preset.ts) | Vocabulary: preset id rule, `AgentPreset` and `PresetRoot`, error types |
 | [`src/mount.ts`](src/mount.ts) | Subtree mounting, host base-URL handling, mount audit, `write()` suppression |
 | [`src/authoring.ts`](src/authoring.ts) | Copy/delete/read of locally authored presets, permission tightening |
@@ -116,6 +117,10 @@ This section explains the design behind the roster and the standing mount; obser
 ### The standing mount
 
 `ensureStanding` keeps one pending promise per preset id, single-flight, so two agents racing the first use of a preset share one composition. A settled failure is removed so a later session retries a preset whose file has been fixed. The mount runs in the roster service's own untraced context — a subtree minted from a traced context would resolve services through the caller's shadow fiber — so it survives every agent and unwinds only with whole-tree teardown. `serviceForAgent` reads an agent's instance of a service its preset mounted behind an `isolate` realm, which is otherwise invisible outside the group.
+
+### The composition inventory
+
+`compositionInventory()` answers plugin-listing surfaces with each preset's flattened rows beside its roster identity (id, trust, display name, default marking): a preset with a live standing mount — matched within this runtime's own root, so a second Cordis runtime in the same process never answers for it — answers from its newest generation's Loader entries, even when its file has since broken, because the mount is what sessions run and the broken verdict applies only to a preset nothing composed; one never composed since boot answers from its composition file with `!!js` disabled gates evaluated against the Loader context, so both answers reflect the same host. Reading never mounts a preset — a settings page listing every composition activates none of them. A gate the evaluator refuses stays `'conditional'`, and a file that stopped reading as a composition between discovery's health verdict and the row read is reported broken with the raced reason rather than dropped. The `./display` subpath exports the `presetDisplayText` fold mapping shipped preset ids to their dictionary copy keys; it has no imports, browser bundles inline it, and it is the one home for which shipped id carries which copy.
 
 ### The mount audit
 

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { GitChromeRow } from '../src/client/GitChromeRow.tsx'
 import type { GitChromeRowProps } from '../src/client/GitChromeRow.tsx'
 import { en } from '../src/client/locales.ts'
@@ -15,6 +15,7 @@ function mount(opts: { visible?: boolean; writable?: boolean } = {}) {
   const setTitlebarGit = vi.fn()
   const props: GitChromeRowProps = {
     useSessions: unused,
+    useSessionPendingInteraction: unused,
     useWorkspaces: unused,
     useTitlebarGit: bindSnapshotSelector(createSnapshotStore(opts.visible ?? true)),
     useWritable: bindSnapshotSelector(createSnapshotStore(opts.writable ?? true)),

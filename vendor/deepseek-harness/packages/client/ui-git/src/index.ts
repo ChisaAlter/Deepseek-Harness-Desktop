@@ -1,8 +1,8 @@
 /** Host loader entry for the browser-only git plugin. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { GIT_SETTINGS_NAMESPACE, GitSettingsSchema } from './git-settings.ts'
+import type {} from '@deepseek-ai/dsh-settings'
 
 export {
   DEFAULT_TITLEBAR_GIT, GIT_SETTINGS_NAMESPACE, TITLEBAR_GIT_FIELD,
@@ -16,7 +16,7 @@ export {
 export function apply(ctx: Context): void {
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.register(
-      settingsNamespace(GIT_SETTINGS_NAMESPACE),
+      GIT_SETTINGS_NAMESPACE,
       GitSettingsSchema,
     )
   })

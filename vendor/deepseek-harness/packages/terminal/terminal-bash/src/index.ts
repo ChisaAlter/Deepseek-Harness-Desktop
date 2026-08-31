@@ -11,7 +11,8 @@ import { TerminalBackendCleanupError } from '@deepseek-ai/dsh-terminal'
 import type { TerminalBackend, TerminalBackendSpawnSpec, TerminalSendOperation } from '@deepseek-ai/dsh-terminal'
 import type { SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
-import { effectiveSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-session-projection'
 import { ENCODING_PREAMBLE } from '@deepseek-ai/dsh-pwsh-local'
 import { type Config, type ResolvedConfig, resolveConfig, type ShellDialect, validateConfig } from './config.ts'
 import { LocalPtySession } from './session.ts'
@@ -22,12 +23,13 @@ export type { Config as TerminalLocalConfig } from './config.ts'
 
 /** Cordis plugin name. */
 export const name = 'terminal-bash'
-/** Required services: PTY registry, shared confinement policy, and process substrate. */
-export const inject = ['terminals', 'sandboxPolicy', 'subprocess']
+/** Required services: terminal registry, shared confinement policy, projection registry, and process substrate. */
+export const inject = ['terminals', 'sandboxPolicy', 'sessionProjections', 'subprocess']
 
 interface SandboxModeFenceState {
   pty: Context['terminals']
   sandboxPolicy: Context['sandboxPolicy']
+  sessionProjections: Context['sessionProjections']
 }
 
 const sandboxModeFences = new WeakMap<Agent, SandboxModeFenceState>()
@@ -37,15 +39,21 @@ function ensureSandboxModeFence(ctx: Context, owner: Agent): void {
   if (existing !== undefined) {
     existing.pty = ctx.terminals
     existing.sandboxPolicy = ctx.sandboxPolicy
+    existing.sessionProjections = ctx.sessionProjections
     return
   }
-  const state: SandboxModeFenceState = { pty: ctx.terminals, sandboxPolicy: ctx.sandboxPolicy }
+  const state: SandboxModeFenceState = {
+    pty: ctx.terminals,
+    sandboxPolicy: ctx.sandboxPolicy,
+    sessionProjections: ctx.sessionProjections,
+  }
   sandboxModeFences.set(owner, state)
   owner.ctx.on('internal/dispatch', (_mode, eventName, args) => {
     if (eventName !== 'session/event') return
     const [session, event] = args as [Session, SessionEvent]
     if (session !== owner.session || event.type !== 'sandbox/mode') return
-    const currentMode = effectiveSandboxMode(session.events) ?? state.sandboxPolicy.defaultMode
+    const folded = state.sessionProjections.stateOf(session, 'sandboxMode') ?? null
+    const currentMode = folded ?? state.sandboxPolicy.defaultMode
     if (event.data.mode === currentMode || !state.pty.hasOwnerActivity(owner)) return
     throw new Error(
       `cannot change sandbox mode from "${currentMode}" to "${event.data.mode}" while persistent terminal sessions are open or being created; wait for creation to settle and close them first`,

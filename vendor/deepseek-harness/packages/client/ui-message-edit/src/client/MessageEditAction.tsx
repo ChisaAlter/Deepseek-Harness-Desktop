@@ -20,8 +20,15 @@ import css from './MessageEditAction.module.css'
  * hook, and the shared interaction store (focus-return handshake).
  * @returns the pencil action, or nothing when this is not the latest user message.
  */
-export function MessageEditAction({ seq, content, startEdit, useSession, useStore, actions, t }: MessageEditActionProps) {
-  const latest = useSession(snapshot => snapshot.nodes.findLast(node => node.kind === 'user')?.seq === seq)
+export function MessageEditAction({ seq, content, startEdit, useSession, useChat, useStore, actions, t }: MessageEditActionProps) {
+  const latest = useChat((snapshot) => {
+    for (let index = snapshot.order.length - 1; index >= 0; index -= 1) {
+      const candidate = snapshot.nodes.get(snapshot.order[index] ?? '')
+      if (candidate?.kind !== 'user') continue
+      return (candidate.data as { seq: number }).seq === seq
+    }
+    return false
+  })
   const running = useSession(snapshot => snapshot.running)
   const returnFocus = useStore(state => state.returnFocusSeq === seq)
   const buttonRef = useRef<HTMLButtonElement | null>(null)

@@ -35,6 +35,7 @@ export type {
   CommandRowOwnerProps, CommandRowProps, DetailsInjected, DetailsSlotProps,
   DetailsToolOwnerProps, MessageImagesProps,
   TurnProcessOwnerProps, TurnTailOwnerProps, UseChat, UseChatNodeTurnData,
+  UserActionContentBlock, UserActionOwnerProps, UserEditorOwnerProps,
 } from './contract/slots.ts'
 export type {
   TurnProcessGeneration, TurnProcessSignature, TurnProcessSpec,

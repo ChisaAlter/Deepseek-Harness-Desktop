@@ -7,16 +7,14 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import type {
-  SubagentCatalog, SubagentControlErrorDetailsMap, SubagentListEntry,
+  SubagentCatalog, SubagentListEntry, SubagentPromptContentPart,
 } from './control-types.ts'
 import { SubagentError } from './error.ts'
-
-/** Strict browser-zone profile: UTC or an IANA Area/Location-style identifier. */
-const IANA_TIME_ZONE = /^[A-Za-z][A-Za-z0-9_+.-]*(?:\/[A-Za-z0-9_+.-]+)+$/
 
 const SESSION_ID_SCHEMA = z.string().min(1)
 const CONTROL_ID_SCHEMAS = {
@@ -34,47 +32,11 @@ const CONTROL_ID_SCHEMAS = {
 } as const
 
 /**
- * Validate and canonicalize one browser-supplied IANA zone at the wire boundary.
- * @param value - the browser's reported zone name.
- * @returns the canonical zone, or `undefined` when the name is unusable.
- */
-export function canonicalClientTimeZone(value: string): string | undefined {
-  if (value.length === 0 || value.trim() !== value
-    || (value !== 'UTC' && !IANA_TIME_ZONE.test(value))) return undefined
-  try {
-    const canonical = new Intl.DateTimeFormat('en-US', { timeZone: value })
-      .resolvedOptions().timeZone
-    /* v8 ignore next -- Intl returns UTC or a canonical IANA Area/Location for accepted input. */
-    if (canonical !== 'UTC' && !IANA_TIME_ZONE.test(canonical)) return undefined
-    return canonical
-  } catch {
-    // Intl rejects unsupported zone names; the caller maps that parser rejection.
-    return undefined
-  }
-}
-
-/**
- * Refuse one Remote call with a stable business failure the carrier preserves.
- * @param code - declared caller-facing code.
- * @param message - human-readable refusal.
- * @param details - that code's declared detail payload.
- * @returns Never — the failure is thrown.
- * @throws {TypertRemoteFailure} always.
- */
-export function rejectControl<Code extends keyof SubagentControlErrorDetailsMap>(
-  code: Code,
-  message: string,
-  details: SubagentControlErrorDetailsMap[Code],
-): never {
-  throw new TypertRemoteFailure({ code, message, details })
-}
-
-/**
  * Apply the subagent payload checks that are stricter than generated
  * branded-string codecs.
  * @param method - method name carried in the failure message.
  * @param payload - decoded control fields to validate.
- * @throws {TypertRemoteFailure} `bad-request` with the original Zod issues.
+ * @throws {RemoteError} `gateway/bad-request` with the original Zod issues.
  */
 export function validateControlRequest(
   method: keyof typeof CONTROL_ID_SCHEMAS,
@@ -82,10 +44,40 @@ export function validateControlRequest(
 ): void {
   const parsed = CONTROL_ID_SCHEMAS[method].safeParse(payload)
   if (!parsed.success) {
-    return rejectControl('bad-request', `invalid payload for ${method}`, {
-      issues: parsed.error.issues,
-    })
+    throw new RemoteError('gateway/bad-request', `invalid payload for ${method}`, { issues: parsed.error.issues })
   }
+}
+
+/**
+ * Admit the content one continuation may deliver, refusing every image.
+ *
+ * The blocks become the child's user message verbatim, and this surface admits
+ * no attachment: nothing here registers encoded bytes with the attachment
+ * service, so an image would reach the child as a reference nothing resolves.
+ * The wire accepts the encoded upload so this refusal — not a Client that
+ * strips the block — is what the caller is answered with. Other block types
+ * still cross unnarrowed.
+ * @param childSessionId - the addressed child, named by the refusal.
+ * @param content - blocks the caller asked to deliver.
+ * @returns the admitted blocks, in order, as the durable content vocabulary.
+ * @throws {RemoteError} `subagent/attachment-unsupported` when any block is an image.
+ */
+export function admitPromptContent(
+  childSessionId: SessionId,
+  content: readonly SubagentPromptContentPart[],
+): ContentBlock[] {
+  const admitted: ContentBlock[] = []
+  for (const block of content) {
+    if (block.type === 'image') {
+      throw new RemoteError(
+        'subagent/attachment-unsupported',
+        'subagent continuation does not accept images',
+        { childSessionId, reason: 'SUBAGENT_IMAGE_UNSUPPORTED' },
+      )
+    }
+    admitted.push(block)
+  }
+  return admitted
 }
 
 /**
@@ -118,20 +110,21 @@ export function catalogView(
  * @param error - the thrown value.
  * @param signal - the caller's cancellation.
  * @returns Never — the refusal is thrown.
- * @throws {TypertRemoteFailure} always.
+ * @throws {RemoteError} always.
  */
 export function rejectCatalogRead(error: unknown, signal: AbortSignal): never {
   if (isCancellation(error, signal)) {
-    return rejectControl('cancelled', 'subagent catalog read was cancelled', {})
+    throw new RemoteError('gateway/cancelled', 'subagent catalog read was cancelled', {}, { cause: error })
   }
   if (error instanceof SubagentError && error.code === 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE') {
-    return rejectControl(
-      'subagent-projections-unavailable',
+    throw new RemoteError(
+      'subagent/projections-unavailable',
       'subagent catalog is unavailable: this deployment does not mount the sessionProjections registry (load @deepseek-ai/dsh-session-projection)',
       {},
+      { cause: error },
     )
   }
-  return rejectControl('internal', 'subagent catalog read failed', {})
+  throw new RemoteError('gateway/internal', 'subagent catalog read failed', {}, { cause: error })
 }
 
 /**
@@ -142,37 +135,44 @@ export function rejectCatalogRead(error: unknown, signal: AbortSignal): never {
  * @param childSessionId - the addressed child.
  * @param signal - the caller's cancellation.
  * @returns Never — the refusal is thrown.
- * @throws {TypertRemoteFailure} always.
+ * @throws {RemoteError} always.
  */
 export function rejectPrompt(error: unknown, childSessionId: SessionId, signal: AbortSignal): never {
   if (isCancellation(error, signal)) {
-    return rejectControl('cancelled', 'subagent prompt was cancelled', {})
+    throw new RemoteError('gateway/cancelled', 'subagent prompt was cancelled', {}, { cause: error })
   }
   if (error instanceof SubagentError) {
     switch (error.code) {
       case 'NOT_RESUMABLE':
-        return rejectControl('subagent-not-resumable', 'subagent cannot be resumed', { childSessionId })
+        throw new RemoteError(
+          'subagent/not-resumable',
+          'subagent cannot be resumed',
+          { childSessionId },
+          { cause: error },
+        )
       case 'UNAUTHORIZED':
-        return rejectControl(
-          'subagent-unauthorized',
+        throw new RemoteError(
+          'subagent/unauthorized',
           'subagent does not belong to this parent',
           { childSessionId },
+          { cause: error },
         )
       case 'DRAINING':
       case 'ACTIVATION_CLOSING':
       case 'CONTINUATION_UNAVAILABLE':
       case 'PERSISTENCE_UNAVAILABLE':
-        return rejectControl(
-          'subagent-delivery-unavailable',
+        throw new RemoteError(
+          'subagent/delivery-unavailable',
           'subagent follow-up is temporarily unavailable',
           { childSessionId },
+          { cause: error },
         )
       // A code outside the admission vocabulary is not the caller's move to make.
       default:
         break
     }
   }
-  return rejectControl('internal', 'subagent prompt failed', {})
+  throw new RemoteError('gateway/internal', 'subagent prompt failed', {}, { cause: error })
 }
 
 function isCancellation(error: unknown, signal: AbortSignal): boolean {

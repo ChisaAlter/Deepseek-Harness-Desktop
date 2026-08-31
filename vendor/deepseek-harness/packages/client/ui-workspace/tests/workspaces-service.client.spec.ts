@@ -7,7 +7,8 @@ import type {
   IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { DirectoryBrowseError, UiWorkspaceService } from '../src/client/navigation.ts'
 
@@ -107,6 +108,11 @@ class FakeSessions {
   readonly create: ReturnType<typeof vi.fn<ISessions['create']>>
   readonly open: ReturnType<typeof vi.fn<(id: SessionId) => void>>
   readonly clear: ReturnType<typeof vi.fn<() => void>>
+  readonly deleteCalls: SessionId[] = []
+  onDelete: ISessions['delete'] = async (sessionId) => ({
+    deletedSessionIds: [sessionId],
+    archivedSessionIds: [],
+  })
 
   constructor(initial: SessionListState) {
     this.list = new MutableSource(initial)
@@ -119,15 +125,28 @@ class FakeSessions {
       this.list.update(state => ({ ...state, current: undefined }))
     })
   }
+
+  delete(sessionId: SessionId): ReturnType<ISessions['delete']> {
+    this.deleteCalls.push(sessionId)
+    return this.onDelete(sessionId)
+  }
 }
 
 class FakeWorkspaces implements IWorkspaces {
   readonly list: MutableSource<WorkspaceSnapshot>
   readonly archiveCalls: SessionId[] = []
+  readonly unarchiveCalls: SessionId[] = []
+  readonly echoCalls: SessionId[][] = []
   onArchive: IWorkspaces['archiveSession'] = async (sessionId) => {
     this.list.update(state => ({
       ...state,
       archivedSessionIds: [...state.archivedSessionIds, sessionId],
+    }))
+  }
+  onUnarchive: IWorkspaces['unarchiveSession'] = async (sessionId) => {
+    this.list.update(state => ({
+      ...state,
+      archivedSessionIds: state.archivedSessionIds.filter(id => id !== sessionId),
     }))
   }
 
@@ -144,6 +163,16 @@ class FakeWorkspaces implements IWorkspaces {
   archiveSession(sessionId: SessionId): Promise<void> {
     this.archiveCalls.push(sessionId)
     return this.onArchive(sessionId)
+  }
+
+  unarchiveSession(sessionId: SessionId): Promise<void> {
+    this.unarchiveCalls.push(sessionId)
+    return this.onUnarchive(sessionId)
+  }
+
+  applyArchivedEcho(archivedSessionIds: readonly SessionId[]): void {
+    this.echoCalls.push([...archivedSessionIds])
+    this.list.update(state => ({ ...state, archivedSessionIds: [...archivedSessionIds] }))
   }
 }
 
@@ -421,6 +450,25 @@ describe('UiWorkspaceService', () => {
     expect(b.workspaces.archiveCalls).toEqual([idle, idle])
   })
 
+  it('forwards unarchive and delete, installing the archive echo after delete', async () => {
+    const idle = sid('idle')
+    const b = bench()
+
+    await b.uiWorkspace.unarchiveSession(idle)
+    expect(b.workspaces.unarchiveCalls).toEqual([idle])
+
+    b.workspaces.onUnarchive = () => Promise.reject(new Error('unarchive rejected'))
+    await expect(b.uiWorkspace.unarchiveSession(idle)).rejects.toThrow('unarchive rejected')
+
+    await b.uiWorkspace.deleteSession(idle)
+    expect(b.sessions.deleteCalls).toEqual([idle])
+    expect(b.workspaces.echoCalls).toEqual([[]])
+
+    b.sessions.onDelete = () => Promise.reject(new Error('delete rejected'))
+    await expect(b.uiWorkspace.deleteSession(idle)).rejects.toThrow('delete rejected')
+    expect(b.workspaces.echoCalls).toEqual([[]])
+  })
+
   it('passes directory operations to the Host and preserves structured browse failures', async () => {
     const b = bench()
     b.directoryPicker.onPick = () => Promise.resolve({ ok: true, value: '/w/alpha' })
@@ -435,20 +483,20 @@ describe('UiWorkspaceService', () => {
     await expect(b.uiWorkspace.createDirectory('/home/u', 'new')).resolves.toBe('/home/u/new')
     expect(b.directoryPicker.callsOf('createDirectory')).toEqual([{ path: '/home/u', name: 'new' }])
     b.directoryPicker.onPick = () => Promise.resolve({
-      ok: false, error: { code: 'internal', message: 'no chooser', details: {} },
+      ok: false, error: new RemoteError('gateway/internal', 'no chooser', {}),
     })
     await expect(b.uiWorkspace.pickDirectory()).rejects.toThrow('directory picker failed: no chooser')
     b.directoryPicker.onList = () => Promise.resolve({
-      ok: false, error: { code: 'directory-unreadable', message: 'denied', details: { path: '/private' } },
+      ok: false, error: new RemoteError('directory-picker/unreadable', 'denied', { path: '/private' }),
     })
     const listFailure = b.uiWorkspace.listDirectory('/private')
     await expect(listFailure).rejects.toBeInstanceOf(DirectoryBrowseError)
-    await expect(listFailure).rejects.toMatchObject({ rpcError: { code: 'directory-unreadable' } })
+    await expect(listFailure).rejects.toMatchObject({ rpcError: { code: 'directory-picker/unreadable' } })
     b.directoryPicker.onCreateDirectory = () => Promise.resolve({
-      ok: false, error: { code: 'directory-exists', message: 'taken', details: { path: '/home/u/new' } },
+      ok: false, error: new RemoteError('directory-picker/exists', 'taken', { path: '/home/u/new' }),
     })
     await expect(b.uiWorkspace.createDirectory('/home/u', 'new')).rejects.toMatchObject({
-      rpcError: { code: 'directory-exists' },
+      rpcError: { code: 'directory-picker/exists' },
     })
   })
 })

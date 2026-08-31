@@ -227,9 +227,10 @@ Host service backing the generated `ctx.remote.credentials` namespace. It carrie
  * Describe several references for one configuration surface. Batched because
  * a settings page describes every reference its rows name at once, and one
  * round trip keeps those rows from settling separately.
- * @param refs - reference names, at most {@link MAX_DESCRIBE_REFS}; a name outside the grammar rejects the whole call as `bad-request`.
+ * @param refs - reference names, at most {@link MAX_DESCRIBE_REFS}; a name outside the grammar
+ *   rejects the whole call as `gateway/bad-request`.
  * @returns one view per requested name, keyed by that name.
- * @throws TypertRemoteFailure when the request is invalid or no credential provider is mounted.
+ * @throws RemoteError when the request is invalid or no credential provider is mounted.
  */
 @Remote async describe(refs: string[]): Promise<Record<string, CredentialInfo>>
 
@@ -238,14 +239,14 @@ Host service backing the generated `ctx.remote.credentials` namespace. It carrie
  * this direction only: no read path returns it.
  * @param ref - reference name to store under.
  * @param value - the non-empty secret value.
- * @throws TypertRemoteFailure when the request is invalid, no provider is mounted, or the provider refuses the write.
+ * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
  */
 @Remote async set(ref: string, value: string): Promise<void>
 
 /**
  * Remove one reference from a configuration surface.
  * @param ref - reference name to remove.
- * @throws TypertRemoteFailure when the request is invalid, no provider is mounted, or the provider refuses the write.
+ * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
  */
 @Remote async unset(ref: string): Promise<void>
 ```

@@ -25,7 +25,7 @@ import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/t
 import {
   createSnapshotStore, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
-import type { ClientFailure, ClientResult } from '../contract/result.ts'
+import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionEventSource } from '../contract/events.ts'
 import type { SessionFace } from '../contract/session.ts'
 import type { AgentContext, ISessions } from '../contract/sessions.ts'
@@ -101,7 +101,7 @@ export class SessionCreateError extends Error {
    * @param requestedSessionId - caller-preallocated id used for later stream/list reconciliation.
    */
   constructor(
-    readonly rpcError: ClientFailure,
+    readonly rpcError: RemoteFailure,
     readonly requestedSessionId: SessionId | undefined,
   ) {
     super(`session create failed: ${rpcError.code}: ${rpcError.message}`)
@@ -117,10 +117,26 @@ export class SessionForkError extends Error {
    * @param sourceSessionId - the session the fork was cut from.
    */
   constructor(
-    readonly rpcError: ClientFailure,
+    readonly rpcError: RemoteFailure,
     readonly sourceSessionId: SessionId,
   ) {
     super(`session fork failed: ${rpcError.code}: ${rpcError.message}`)
+  }
+}
+
+/** Structured session-delete failure. */
+export class SessionDeleteError extends Error {
+  override readonly name = 'SessionDeleteError'
+
+  /**
+   * @param rpcError - Host business or folded transport error.
+   * @param sessionId - archived root the delete named.
+   */
+  constructor(
+    readonly rpcError: RemoteFailure,
+    readonly sessionId: SessionId,
+  ) {
+    super(`session delete failed: ${rpcError.code}: ${rpcError.message}`)
   }
 }
 
@@ -335,7 +351,7 @@ export class ClientSessions implements ISessions {
   search(
     query: string,
     signal: AbortSignal,
-  ): Promise<ClientResult<{ items: SessionSearchResultItem[]; hasMore: boolean }>> {
+  ): Promise<RemoteResult<{ items: SessionSearchResultItem[]; hasMore: boolean }>> {
     return this.manager.search(query, signal)
   }
 
@@ -361,6 +377,14 @@ export class ClientSessions implements ISessions {
    */
   handleSessionRemoved(sessionId: Parameters<SessionManager['handleSessionRemoved']>[0]): void {
     this.manager.handleSessionRemoved(sessionId)
+  }
+
+  /**
+   * Apply one remotely forwarded durable Session destruction.
+   * @param sessionId - deleted Session identity.
+   */
+  handleSessionDeleted(sessionId: Parameters<SessionManager['handleSessionDeleted']>[0]): void {
+    this.manager.handleSessionDeleted(sessionId)
   }
 
   /**
@@ -428,6 +452,7 @@ export class ClientSessions implements ISessions {
   async fork(opts: {
     sessionId: SessionId
     atSeq?: number
+    beforeSeq?: number
     increaseTitle?: boolean
   }): Promise<SessionId> {
     const sourceTitle = opts.increaseTitle
@@ -435,10 +460,8 @@ export class ClientSessions implements ISessions {
       : undefined
     const result = await this.manager.fork({
       sessionId: opts.sessionId,
-      // Flooring lands inside the anchor's own turn (every turn opens with a
-      // turn/start), so the host's first-turn/end-at-or-after cut still ends
-      // on that turn — never clipped back to the previous one.
       ...(opts.atSeq === undefined ? {} : { atSeq: Math.floor(opts.atSeq) }),
+      ...(opts.beforeSeq === undefined ? {} : { beforeSeq: Math.floor(opts.beforeSeq) }),
     })
     if (!result.ok) throw new SessionForkError(result.error, opts.sessionId)
     this.projectList()
@@ -450,6 +473,23 @@ export class ClientSessions implements ISessions {
       if (!renamed.ok) throw new Error(`fork child rename failed: ${renamed.error.code}: ${renamed.error.message}`)
     }
     return childId
+  }
+
+  /**
+   * Destroy one archived Session log. On resolution deleted ids are gone from
+   * the list store.
+   * @param sessionId - archived root.
+   * @returns deleted identities and the Host archive-set echo.
+   * @throws {SessionDeleteError} when the Host refuses or the carrier folds.
+   */
+  async delete(sessionId: SessionId): Promise<{
+    deletedSessionIds: readonly SessionId[]
+    archivedSessionIds: readonly SessionId[]
+  }> {
+    const result = await this.manager.delete(sessionId)
+    if (!result.ok) throw new SessionDeleteError(result.error, sessionId)
+    this.projectList()
+    return result.value
   }
 
   /**

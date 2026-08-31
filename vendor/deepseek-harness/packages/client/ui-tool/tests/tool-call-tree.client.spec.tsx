@@ -2,7 +2,6 @@
 /** ToolCallTree-owned root/subcall markers and selection projection. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
-import type { ConnectionGeneration } from '@deepseek-ai/dsh-client-connection/client'
 import type { SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -23,7 +22,7 @@ const root = (callId: string, call: ToolResultNode['call']): ToolResultNode => (
 function props(
   block: ToolResultNode,
   selectedCallId?: string,
-  generation?: ConnectionGeneration,
+  home?: string,
   owners?: ToolCallOwnerProps[],
 ): ToolTreeProps {
   const snapshot = {} as SessionSnapshot
@@ -50,7 +49,7 @@ function props(
     inspectCall: vi.fn(),
     forkAt: vi.fn(),
     fileMentions: vi.fn(),
-    useConnectionGeneration: (selector => selector(generation)) as ToolTreeProps['useConnectionGeneration'],
+    useHostInfo: ((selector: (info: { home: string | undefined }) => unknown) => selector({ home })) as ToolTreeProps['useHostInfo'],
     t,
   } as unknown as ToolTreeProps
 }
@@ -98,7 +97,7 @@ describe('ToolCallTree', () => {
 
   it('abbreviates a POSIX home path in the generic tool summary', () => {
     const block = root('w1', { name: 'read', argsRaw: '{"path":"/h/docs/a.ts"}' })
-    const view = render(<ToolCallTree {...props(block, 'w1', { id: 1, host: { home: '/h' } })} />)
+    const view = render(<ToolCallTree {...props(block, 'w1', '/h')} />)
     expect(view.getByText('~/docs/a.ts')).toBeTruthy()
   })
 })

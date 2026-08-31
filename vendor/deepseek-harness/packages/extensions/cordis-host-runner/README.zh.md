@@ -131,7 +131,7 @@ runner 建立在两个分离之上。**注册表与沙箱是同一个服务。**
 - **`vmTimeoutMs` 只约束同步求值**——async 的 host 半函数体会逃出该上限，这与工具集基于协作的信任立场一致。
 - **陈旧成功的拒绝会让请求继续挂起**——作答页面点名的 revision 已被注册表越过时，该结论会被拒绝（`accepted: false`），请求保持可作答，直到另一个页面作答或调用方取消；浏览器半不读这个 ack。
 - **运行播报不携带服务声明**——浏览器半声明的 `inject` 是从它在页面里返回的插件上读出的，因此 `cordis/request-run` 只携带元数据，绝无代码或服务清单。
-- **`zod` 是生成的 Typert 契约面的运行时依赖，不是 `src` 的依赖**——`./typert` 与 `./remote` 解析到未打包的 `lib` 文件，其中带有裸的 `import { z } from 'zod'`，所以本包声明它，`knip.json` 也在这个 workspace 里忽略它；`src` 里没有任何代码 import zod。
+- **`zod` 是生成的 Typert 契约面的运行时依赖，不是 `src` 的依赖**——`./typert` 与 `./remote` 解析到未打包的 `lib` 文件，其中带有裸的 `import { z } from 'zod'`，所以即使 `src` 里没有任何代码 import zod，本包也要声明它。
 
 <a id="dev-note"></a>
 ### 开发备注

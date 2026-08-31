@@ -67,7 +67,13 @@ async function setup(
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
   await ctx.plugin(SubagentFork, { providerName: 'fork' })
   ctx.llm.registerAdapter(['mock'], new MockAdapter(script))
-  const parent = ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
+  const loop = ctx.get('agentLoop')
+  const parent = loop === undefined
+    ? (() => {
+      const session = ctx.sessions.create(SessionId('parent'))
+      return { id: session.id, session } as ReturnType<Context['agentLoop']['create']>
+    })()
+    : loop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
   return { ctx, parent }
 }
 

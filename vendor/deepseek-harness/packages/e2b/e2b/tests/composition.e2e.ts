@@ -14,6 +14,7 @@ import {
 import TerminalSessionService, { TerminalSessionId } from '@deepseek-ai/dsh-terminal'
 import { BashTerminalBackend } from '@deepseek-ai/dsh-terminal-bash'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import E2BSubprocessRuntime from '@deepseek-ai/dsh-subprocess-e2b'
 
@@ -52,6 +53,7 @@ describe.skipIf(!process.env.E2B_API_KEY)('E2B live Loader composition', () => {
         runtimeRoot: '/home/user/.dsh-e2b',
         getSandbox: async () => sandbox,
       } as never)
+      await ctx.plugin(SessionProjectionRegistry)
       const sandboxPolicyFiber = await ctx.plugin(SandboxPolicyService, {
         mode: 'danger-full-access',
         workspaceRoot: '/home/user',

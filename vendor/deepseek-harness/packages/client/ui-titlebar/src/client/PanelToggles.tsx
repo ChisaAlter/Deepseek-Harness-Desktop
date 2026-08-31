@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import {
   IconPanelBottomOutline16, IconPanelRightOutline16, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { isEditableKeyboardTarget, isSurfacesShortcut, isTerminalShortcut, isTextEntryTarget } from './keybindings.ts'

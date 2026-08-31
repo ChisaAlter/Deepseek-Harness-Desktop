@@ -935,7 +935,7 @@ async discoverModels( settingsNs: string, request: LlmModelDiscoveryRequest, sig
  * @param request - endpoint, protocol, and one-shot credential to use.
  * @param signal - caller cancellation supplied by the Remote carrier.
  * @returns advertised models in endpoint order.
- * @throws TypertRemoteFailure with `model-discovery-failed` when discovery refuses or fails.
+ * @throws RemoteError with `llm/model-discovery-rejected` when discovery refuses or fails.
  */
 @Remote('discoverModels') async remoteDiscoverModels( settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal, ): Promise<LlmDiscoveredModel[]>
 

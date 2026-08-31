@@ -57,11 +57,11 @@ Bootstrap combo 当前只登记 modules factory。启动内核把原始图与外
 
 ### 依赖声明
 
-每个 client 包都把 Cordis 保持为 matching `peerDependencies` 和 `devDependencies`。动态包若 import、re-export、augment 内部动态包，或在 `dsh.client.inject` 中命名它，就把该包保持为 matching peer 与开发依赖。静态 client 输入和 React 模块对动态包只是开发依赖，因为外壳提供其运行期身份。
+每个 Client 包都把 Cordis 保持为范围一致的 `peerDependencies` 和 `devDependencies`；Cordis 是唯一的 peer。Browser import、类型引用、模块扩充与 `dsh.client.inject` 都是开发输入，因为 Client 构建与发布 profile 会提供其运行期身份。同时发布 Host 入口的包把该入口的运行期 value import 放在 `dependencies`。[发布依赖门面](../process/2026-08-26-published-dependency-faces.zh.md)负责包发现、例外与显式 Host 名册。
 
 普通安装库仍放在 `dependencies`：动态构建可以内联私有实现，而 `staticLinked` 库会保留 bare import 交给最终宿主。各构建 face 独立决定 external，不由 npm 区段推导。发布文件列表覆盖产物实际可达的每个运行期入口、相对资产和声明文件。
 
-`verify-client-packages` 会检查这些分类、依赖区段、构建形态、parser preload 对齐、共享模块请求和模块图无环性。仓库 publint pass 负责检查发布闭包。该验证器的 `--fix` 模式只修复无歧义的 manifest 漂移。
+`verify-package-dependencies` 检查并修复依赖区段。`verify-client-packages` 检查构建形态、parser preload 对齐、共享模块请求和模块图无环性。仓库 publint pass 负责检查发布闭包。
 
 ## Alternatives considered
 
@@ -77,7 +77,7 @@ Bootstrap combo 当前只登记 modules factory。启动内核把原始图与外
 
 ## Consequences
 
-Npm 依赖在 peer 与开发区段间移动时，bundle 内容保持稳定，因为每个构建 face 都直接声明 external。静态库继续由宿主装配，动态包则保留统一产物与生命周期治理。
+内部 DSH 关系仅放在开发区段时，bundle 内容仍保持稳定，因为每个构建 face 都直接声明 external。静态库继续由宿主装配，动态包则保留统一产物与生命周期治理。发布 profile 拥有完整 Client 包名册，因此各 Client 包不再要求 npm 通过 peer placement 重复求解同一张图。
 
 启动协议依赖 modules 的 package id，modules 还必须保持运行期自包含。Combo 生成保留其普通 package 产物，并为其他全部 row 提供一条共享初始传输；HMR 使用同一条路由，并只把该 row 作为资源。缺少 bootstrap registration 会在 Cordis 启动前失败；后续插件 import、apply 与 service 等待失败仍由启动页的 ACTIVE 扫描呈现。
 

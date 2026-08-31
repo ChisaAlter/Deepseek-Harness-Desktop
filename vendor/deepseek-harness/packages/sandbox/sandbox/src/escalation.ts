@@ -16,7 +16,7 @@
  * @module dsh-sandbox/escalation
  */
 
-import { assertNever } from '@deepseek-ai/dsh-llm'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { SandboxMode } from './index.ts'
 
 /**

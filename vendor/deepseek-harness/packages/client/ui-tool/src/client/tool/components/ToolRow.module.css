@@ -103,9 +103,28 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* File-tool path: same geometry as .summary, with a persistent link affordance. */
+/* Diff-row +/- totals: the code font, matching the diff body the numbers
+   summarize; a wider gap keeps the digits from reading as part of the path.
+   Two px under the secondary tier (still riding the axis): mono digits read
+   optically larger than the sans path at the same size. Caption, one step
+   dimmer than the suffix's tertiary, so the digits stay behind the path. The
+   half-pixel nudge closes the baseline gap the size difference leaves under
+   the row's box-centering (a transform, so flex layout is untouched). */
+.diffStat {
+  margin-left: 10px;
+  font-family: var(--ds-font-family-code);
+  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 2px);
+  color: var(--dsw-alias-label-caption);
+  transform: translateY(0.5px);
+}
+
+/* File-tool path: same type as .summary, with a persistent link affordance.
+   Dotted dimmed underline: visible enough to say "clickable", light enough
+   that a long path doesn't read as one heavy rule under the row. Shrink-to-fit
+   (flex 0): the click target ends where the path text ends — the row's empty
+   remainder stays the expand/collapse toggle. */
 .fileLink {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -119,8 +138,9 @@
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-secondary);
-  text-decoration: underline;
-  text-decoration-color: var(--dsw-alias-label-quaternary);
+  text-decoration: underline dotted;
+  text-decoration-color: var(--dsw-alias-label-tertiary);
+  text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   cursor: pointer;
 }

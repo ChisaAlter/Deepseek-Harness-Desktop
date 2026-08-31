@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-primitives` is the web client's shared React component library: every feature plugin composes its UI from these atoms, and nothing here depends on Cordis or the slot system. It provides the control set (buttons, pills, inputs, menus, modals, toast banners, disclosure rows, hover cards, connection banners), the icon glyphs and brand marks, positioning hooks for anchored overlays, and the content renderers for agent output: markdown with TeX math, terminal output, file reads, diffs, search results, web retrieval, and JSON inspection. The renderers are built for untrusted model output — raw HTML is dropped, links are neutralized or opened safely, and ANSI escape sequences are parsed rather than passed through. User-facing copy is supplied through label props; the feature plugin that composes an atom owns localization.
+`dsh-client-ui-primitives` is the web client's shared React component library: every feature plugin composes its UI from these atoms, and nothing here depends on Cordis or the slot system. It provides the control set (buttons, pills, inputs, menus, modals, toast banners, disclosure rows, hover cards, connection indicators), the icon glyphs and brand marks, positioning hooks for anchored overlays, and the content renderers for agent output: markdown with TeX math, terminal output, file reads, diffs, search results, web retrieval, and JSON inspection. The renderers are built for untrusted model output — raw HTML is dropped, links are neutralized or opened safely, and ANSI escape sequences are parsed rather than passed through. User-facing copy is supplied through label props; the feature plugin that composes an atom owns localization.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Compose feature UI from these atoms whenever the web client needs a standard con
 
 ### Controls and icons
 
-`Button`, `Pill`, `Input`, `Menu`, `Modal`, `Tooltip`, `DisclosureRow`, `StateDot`, `HoverCard`, `Toast`, `ConnectionBanner`, `RiskConfirmation`, and the `OnboardingSurface` first-run takeover cover the common interaction shapes. The `ic_ds_*` icon set and the `FishLogo`/`BrandWordmark` marks fill brand and inline-icon slots. `useAnchoredPosition` and `useAnchoredMaxHeight` keep floating panels and bottom-anchored overlays clamped to the viewport and following their anchor. `HoverCard` keeps its portaled preview reachable across the anchor gap and can expose a copy button through the `copyText` prop. `Toast` holds for the window its owner names through `holdMs`, because how long a banner has to stay depends on how much there is to read; the same value drives its unmount timer and the stylesheet's fade delay, so the two cannot disagree.
+`Button`, `Pill`, `Input`, `Menu`, `Modal`, `Tooltip`, `DisclosureRow`, `StateDot`, `HoverCard`, `Toast`, `ConnectionIndicator`, `RiskConfirmation`, and the `OnboardingSurface` first-run takeover cover the common interaction shapes. The `ic_ds_*` icon set and `FishLogo`/`BrandWordmark` marks fill brand and inline-icon slots. `ConnectionIndicator` renders a warning-colored disconnected action, a connecting label whose one-to-three dots advance every 500ms independently of retry timing, or a success-colored recovered status. Every state reserves the widest supplied label and uses fixed icon and text columns, so copy changes do not move or resize the control. Its owner supplies visibility, the recovery hold, localized labels, and the immediate-reconnect callback; the primitive uses no native title tooltip. `useAnchoredPosition` and `useAnchoredMaxHeight` keep floating panels and bottom-anchored overlays clamped to the viewport and following their anchor. `HoverCard` keeps its portaled preview reachable across the anchor gap and can expose a copy button through the `copyText` prop. `Toast` holds for the window its owner names through `holdMs`, because how long a banner has to stay depends on how much there is to read; the same value drives its unmount timer and the stylesheet's fade delay, so the two cannot disagree.
 
 ### Rendering agent output
 
@@ -37,7 +37,7 @@ Compose feature UI from these atoms whenever the web client needs a standard con
 
 ### Localizing copy
 
-The atoms cannot read the application locale, so every piece of user-facing copy arrives through required label props. `HoverCard`, `TerminalBlock`, `JsonTree`, `CodeBlock`, `MarkdownText`, `JsonBlock`, `ConnectionBanner`, `Modal`, `DiffBlock`, `ReadBlock`, `SearchBlock`, and `WebBlock` accept complete localized labels. The package owns no language fallback; omission fails typechecking, and each feature maps its typed `t` seat into the primitive's label interface.
+The atoms cannot read the application locale, so every piece of user-facing copy arrives through required label props. `HoverCard`, `TerminalBlock`, `JsonTree`, `CodeBlock`, `MarkdownText`, `JsonBlock`, `ConnectionIndicator`, `Modal`, `DiffBlock`, `ReadBlock`, `SearchBlock`, and `WebBlock` accept complete localized labels. The package owns no language fallback; omission fails typechecking, and each feature maps its typed `t` seat into the primitive's label interface.
 
 -----
 

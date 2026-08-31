@@ -7,6 +7,7 @@ import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { agentEvents, Inbox, type Agent } from '@deepseek-ai/dsh-agent'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import * as timeContext from '@deepseek-ai/dsh-time-context'
 import type { Config } from '@deepseek-ai/dsh-time-context'
@@ -30,6 +31,7 @@ afterEach(() => {
 
 async function mount(config: Config = {}) {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentRegistry)
   const fiber = await ctx.plugin(timeContext, config)
   return { ctx, fiber }
@@ -137,6 +139,7 @@ class ScriptedAdapter extends LlmAdapter {
 async function loopHarness(adapter: ScriptedAdapter, config: Config = {}): Promise<Context> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(timeContext, config)
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -373,6 +376,7 @@ describe('configuration and lifecycle', () => {
 
   it('fails loud for an invalid explicit zone or an unavailable process zone', async () => {
     const invalid = new Context()
+    await invalid.plugin(SessionProjectionRegistry)
     await invalid.plugin(AgentRegistry)
     await expect(invalid.plugin(timeContext, { timeZone: 'Not/A_Real_Zone' })).rejects.toThrow(
       /invalid IANA timeZone/,
@@ -382,6 +386,7 @@ describe('configuration and lifecycle', () => {
       throw new RangeError('system zone unavailable')
     })
     const unresolved = new Context()
+    await unresolved.plugin(SessionProjectionRegistry)
     await unresolved.plugin(AgentRegistry)
     await expect(unresolved.plugin(timeContext, {})).rejects.toThrow(/failed to resolve the system time zone/)
   })
@@ -406,6 +411,33 @@ describe('configuration and lifecycle', () => {
     await fire(ctx, agent, 1, 2)
 
     expect(contextTexts(session)).toHaveLength(1)
+  })
+})
+
+describe('time-context projection fold edges', () => {
+  it('clears the open-turn injection time at the next turn start', async () => {
+    const { ctx } = await mount()
+    const session = Session.create(SessionId('same-turn'))
+    session.append('turn/start', { turn: 1 })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'reading' }],
+      source: { kind: 'plugin', plugin: 'time-context' },
+    }), { surfaceOp: 'append' })
+    expect(typeof ctx.sessionProjections.stateOf(session, 'timeContext')?.lastTurnInjectionTime).toBe('number')
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    session.append('turn/start', { turn: 2 })
+    expect(ctx.sessionProjections.stateOf(session, 'timeContext')).toMatchObject({
+      lastTurnInjectionTime: null,
+    })
+  })
+
+  it('keeps the open-turn injection time null when turn/end arrives first', async () => {
+    const { ctx } = await mount()
+    const session = Session.create(SessionId('end-without-start'))
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    expect(ctx.sessionProjections.stateOf(session, 'timeContext')).toMatchObject({
+      lastTurnInjectionTime: null,
+    })
   })
 })
 
@@ -485,11 +517,12 @@ describe('real Loader export path', () => {
     const unwrapped = loader.unwrapExports(timeContext) as Record<string, unknown>
     expect(unwrapped).toBe(timeContext)
     expect(unwrapped.name).toBe('time-context')
-    expect(unwrapped.inject).toEqual(['agents'])
+    expect(unwrapped.inject).toEqual(['agents', 'sessionProjections'])
     expect(unwrapped.Config).toBeDefined()
     expect(typeof unwrapped.apply).toBe('function')
 
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(AgentRegistry)
     const plugin = loader.unwrapExports(timeContext) as Parameters<Context['plugin']>[0]
     await ctx.plugin(plugin)

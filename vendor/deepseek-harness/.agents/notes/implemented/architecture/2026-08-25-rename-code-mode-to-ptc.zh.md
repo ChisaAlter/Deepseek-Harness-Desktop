@@ -34,4 +34,4 @@ Status: implemented
 
 ## 后果
 
-配置中写 `mode: code`、预设 id 为 `code`，在本构建上不再受支持。会话持久词汇仍为 `tool/code-dispatch*`、`tools-code-mode` 与 `:code:`，因此既有会话日志照常读取，无需 `SESSION_FORMAT_VERSION` 提升。堆叠的持久化 PR 负责重命名该词汇，并被阻塞到 v0→v1 迁移与其一同落地（版本机制见 [session event 词汇 Note](../simplification/2026-08-25-fail-closed-session-event-vocabulary.zh.md)）。无密钥的 snapshot refresh 携带本 PR 的词汇；持久化 PR 刷新包含分发的夹具。本 Note 所更名的已发布决策是 [PTC 基础 Note](../feature/2026-06-15-ptc.zh.md)。
+配置中写 `mode: code`、预设 id 为 `code`，在本构建上不再受支持。会话持久词汇仍为 `tool/code-dispatch*`、`tools-code-mode` 与 `:code:`，因此既有会话日志照常读取，无需 `SESSION_FORMAT_VERSION` 提升。堆叠的持久化 PR 负责重命名该词汇，并被阻塞到 v0→v1 迁移与其一同落地（版本机制见 [Session log 版本 Note](2026-08-10-session-log-version-mechanism.zh.md)）。无密钥的 snapshot refresh 携带本 PR 的词汇；持久化 PR 刷新包含分发的夹具。本 Note 所更名的已发布决策是 [PTC 基础 Note](../feature/2026-06-15-ptc.zh.md)。

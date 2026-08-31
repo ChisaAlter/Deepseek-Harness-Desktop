@@ -1,18 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import {
-  InvalidPresetIdError,
-  PresetExistsError,
-  UnknownPresetError,
-} from '@deepseek-ai/dsh-agent-presets'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import type { SettingsDescriptor, SettingsNamespace } from '@deepseek-ai/dsh-settings'
-import { TypertRemoteFailure, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+import type { SettingsDescriptor } from '@deepseek-ai/dsh-settings'
+import { RemoteError, remoteErrorOf, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import SettingsController from '../src/index.ts'
 import { MemorySettings } from '../../../settings/settings/tests/memory.ts'
 
-const NS = settingsNamespace('ui-test')
+const NS = 'ui-test'
 
 const Profile = z.object({
   preference: z.union(['light', 'dark']).default('light'),
@@ -52,8 +46,8 @@ class SlotlessSettings extends MemorySettings {
 
 /** A provider that refuses every write the way a read-only backing store would. */
 class RefusingSettings extends MemorySettings {
-  override mutate(ns: SettingsNamespace): Promise<void> {
-    return Promise.reject(new Error(`settings "${ns}" is read-only in this deployment`))
+  override mutate(): Promise<void> {
+    return Promise.reject(new Error('settings are read-only in this deployment'))
   }
 }
 
@@ -103,9 +97,8 @@ describe('the settings Remote namespace a configuration page calls', () => {
     ]
     for (const call of calls) {
       const failure = await Promise.resolve().then(call).catch((error: unknown) => error)
-      expect(failure).toBeInstanceOf(TypertRemoteFailure)
-      expect((failure as TypertRemoteFailure).failure).toEqual({
-        code: 'internal',
+      expect(remoteErrorOf(failure)).toMatchObject({
+        code: 'gateway/internal',
         message: 'settings service is absent: this deployment does not mount a settings provider (e.g. @deepseek-ai/dsh-settings-file) in its composition',
         details: {},
       })
@@ -186,16 +179,15 @@ describe('the settings Remote namespace a configuration page calls', () => {
     expect(replaced.secrets).toEqual([{ path: ['apiKey'], set: false }])
   })
 
-  it('refuses a stale write as settings-conflict carrying both revisions', async () => {
+  it('refuses a stale write as settings/conflict carrying both revisions', async () => {
     const { controller } = await boot()
     const held = controller.describe().namespaces[0]!.revision
     await controller.mutate('ui-test', [{ op: 'set', path: ['preference'], value: 'dark' }], held)
     const failure = await controller
       .mutate('ui-test', [{ op: 'set', path: ['preference'], value: 'light' }], held)
       .catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    const { code, details } = (failure as TypertRemoteFailure).failure
-    expect(code).toBe('settings-conflict')
+    const { code, details } = remoteErrorOf(failure) ?? {}
+    expect(code).toBe('settings/conflict')
     expect(details).toMatchObject({ ns: 'ui-test', expected: held })
   })
 
@@ -204,8 +196,8 @@ describe('the settings Remote namespace a configuration page calls', () => {
     for (const ns of ['Not A Namespace', 'unregistered']) {
       const failure = await controller.mutate(ns, [{ op: 'unset', path: ['preference'] }], undefined)
         .catch((error: unknown) => error)
-      expect((failure as TypertRemoteFailure).failure).toMatchObject({
-        code: 'settings-rejected',
+      expect(remoteErrorOf(failure)).toMatchObject({
+        code: 'settings/rejected',
         details: { ns },
       })
     }
@@ -219,17 +211,16 @@ describe('the settings Remote namespace a configuration page calls', () => {
       () => controller.mutate('', [], undefined),
     ]) {
       const failure = await call().catch((error: unknown) => error)
-      expect(failure).toBeInstanceOf(TypertRemoteFailure)
-      expect((failure as TypertRemoteFailure).failure).toMatchObject({ code: 'bad-request' })
+      expect(remoteErrorOf(failure)).toMatchObject({ code: 'gateway/bad-request' })
     }
   })
 
-  it('reports a refused write as settings-rejected carrying the seam message', async () => {
+  it('reports a refused write as settings/rejected carrying the seam message', async () => {
     const { controller } = await boot(RefusingSettings)
     const failure = await controller.mutate('ui-test', [{ op: 'unset', path: ['preference'] }], undefined)
       .catch((error: unknown) => error)
-    const { code, message } = (failure as TypertRemoteFailure).failure
-    expect(code).toBe('settings-rejected')
+    const { code, message } = remoteErrorOf(failure) ?? {}
+    expect(code).toBe('settings/rejected')
     expect(message).toContain('read-only in this deployment')
   })
 
@@ -237,15 +228,15 @@ describe('the settings Remote namespace a configuration page calls', () => {
     const { controller } = await boot(LiteralRefusingSettings)
     const failure = await controller.mutate('ui-test', [{ op: 'unset', path: ['preference'] }], undefined)
       .catch((error: unknown) => error)
-    expect((failure as TypertRemoteFailure).failure.message).toBe('the document is locked')
+    expect(remoteErrorOf(failure)?.message).toBe('the document is locked')
   })
 
   it('reports a namespace disposed between the write and its read-back', async () => {
     const { controller } = await boot(VanishingSettings)
     const failure = await controller.mutate('ui-test', [{ op: 'set', path: ['preference'], value: 'dark' }], undefined)
       .catch((error: unknown) => error)
-    const { code, message } = (failure as TypertRemoteFailure).failure
-    expect(code).toBe('internal')
+    const { code, message } = remoteErrorOf(failure) ?? {}
+    expect(code).toBe('gateway/internal')
     expect(message).toContain('was disposed after the mutate')
   })
 
@@ -265,13 +256,13 @@ describe('the settings Remote namespace a configuration page calls', () => {
   it('preserves settings-document absence, failure, and cancellation', async () => {
     const absent = await boot()
     const missingDocument = absent.controller.openSettingsDocument(new AbortController().signal)
-    await expect(missingDocument).rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(missingDocument).rejects.toMatchObject({ code: 'gateway/internal' })
     await expect(missingDocument).rejects.toThrow('no local document')
 
     const failed = await boot(DocumentSettings)
     vi.spyOn(failed.ctx.settings, 'prepareDocument').mockRejectedValue(new Error('read failed'))
     const failedRead = failed.controller.openSettingsDocument(new AbortController().signal)
-    await expect(failedRead).rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(failedRead).rejects.toMatchObject({ code: 'gateway/internal' })
     await expect(failedRead).rejects.toThrow('read failed')
 
     const cancelled = new AbortController()
@@ -279,7 +270,7 @@ describe('the settings Remote namespace a configuration page calls', () => {
     const prepare = vi.spyOn(failed.ctx.settings, 'prepareDocument')
     prepare.mockClear()
     await expect(failed.controller.openSettingsDocument(cancelled.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
     expect(prepare).not.toHaveBeenCalled()
   })
 
@@ -296,7 +287,7 @@ describe('the settings Remote namespace a configuration page calls', () => {
     abort.abort(new Error('cancelled'))
     prepared.resolve('/tmp/settings.yaml')
 
-    await expect(opening).rejects.toMatchObject({ failure: { code: 'cancelled' } })
+    await expect(opening).rejects.toMatchObject({ code: 'gateway/cancelled' })
     expect(openTextFile).not.toHaveBeenCalled()
   })
 
@@ -309,9 +300,7 @@ describe('the settings Remote namespace a configuration page calls', () => {
     })
 
     await expect(controller.openSettingsDocument(new AbortController().signal))
-      .rejects.toMatchObject({
-        failure: { code: 'internal', message: 'path open failed: no default editor' },
-      })
+      .rejects.toMatchObject({ code: 'gateway/internal', message: 'path open failed: no default editor' })
   })
 
   it('classifies cancellation while preparing or opening the settings document', async () => {
@@ -324,7 +313,7 @@ describe('the settings Remote namespace a configuration page calls', () => {
     })
     const preparingController = new SettingsController(preparing)
     await expect(preparingController.openSettingsDocument(prepareAbort.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
 
     const opening = new Context()
     await opening.plugin(DocumentSettings)
@@ -337,7 +326,7 @@ describe('the settings Remote namespace a configuration page calls', () => {
       },
     })
     await expect(openingController.openSettingsDocument(openAbort.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
   })
 
   it('opens a user Agent preset directory or returns its path without a native opener', async () => {
@@ -391,11 +380,11 @@ describe('the settings Remote namespace a configuration page calls', () => {
     } as never)
     const controller = new SettingsController(ctx)
     await expect(controller.openAgentPresetDirectory('standard', new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code: 'agent-preset-read-only' } })
+      .rejects.toMatchObject({ code: 'agent-preset/read-only' })
 
     const missing = new SettingsController(new Context())
     await expect(missing.openAgentPresetDirectory('mine', new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code: 'agent-preset-not-found' } })
+      .rejects.toMatchObject({ code: 'agent-preset/not-found' })
   })
 
   it('rejects an empty Agent preset id before resolving a provider', async () => {
@@ -405,23 +394,20 @@ describe('the settings Remote namespace a configuration page calls', () => {
     const controller = new SettingsController(ctx)
 
     await expect(controller.openAgentPresetDirectory('', new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code: 'bad-request' } })
+      .rejects.toMatchObject({ code: 'gateway/bad-request' })
     expect(resolve).not.toHaveBeenCalled()
   })
 
-  it.each([
-    [new UnknownPresetError('missing', ['standard']), 'agent-preset-not-found'],
-    [new InvalidPresetIdError('../bad'), 'agent-preset-invalid'],
-    [new PresetExistsError('taken'), 'agent-preset-invalid'],
-    [new TypertRemoteFailure({ code: 'cancelled', message: 'cancelled', details: {} }), 'cancelled'],
-    ['unexpected preset failure', 'internal'],
-  ] as const)('maps Agent preset resolution failure %#', async (error, code) => {
+  it('raises an Agent preset resolution failure as the roster reported it', async () => {
     const ctx = new Context()
-    ctx.provide('agentPresets', { resolve: async () => { throw error } } as never)
+    const reported = new RemoteError('agent-preset/not-found', 'no such preset', {
+      agentPreset: 'mine', available: ['standard'],
+    })
+    ctx.provide('agentPresets', { resolve: async () => { throw reported } } as never)
     const controller = new SettingsController(ctx)
 
     await expect(controller.openAgentPresetDirectory('mine', new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code } })
+      .rejects.toBe(reported)
   })
 
   it('classifies cancellation and non-Error failures from the preset opener', async () => {
@@ -441,10 +427,8 @@ describe('the settings Remote namespace a configuration page calls', () => {
     const controller = new SettingsController(ctx, { nativeOpen: true }, { openPath })
 
     await expect(controller.openAgentPresetDirectory('first', abort.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
     await expect(controller.openAgentPresetDirectory('second', new AbortController().signal))
-      .rejects.toMatchObject({
-        failure: { code: 'internal', message: 'path open failed: desktop unavailable' },
-      })
+      .rejects.toMatchObject({ code: 'gateway/internal', message: 'path open failed: desktop unavailable' })
   })
 })

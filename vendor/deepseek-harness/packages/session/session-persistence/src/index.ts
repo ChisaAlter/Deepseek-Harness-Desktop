@@ -82,12 +82,11 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     sessionPersistence: SessionPersistence
   }
-
   interface Events {
     /**
-     * One session's durable log was removed after durability.
-     * @param id - deleted session identity.
+     * One session's durable log was removed.
      * @mode emit
+     * @param id - deleted session identity.
      */
     'session-persistence/deleted'(id: SessionId): void
   }
@@ -189,7 +188,7 @@ export abstract class SessionPersistence extends Service {
    * @param id - session to delete.
    * @returns resolution after durability.
    */
-  abstract delete(id: SessionId): Promise<void>
+  abstract ['delete'](id: SessionId): Promise<void>
 
   /**
    * Prepare the exact unpublished Session used by resume. Implementations may

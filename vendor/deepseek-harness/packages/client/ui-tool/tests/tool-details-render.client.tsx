@@ -1,7 +1,6 @@
 /** Test adapter for the production conversation.details.tool registration. */
-import type { ConnectionGeneration } from '@deepseek-ai/dsh-client-connection/client'
 import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-controller/client'
-import { isJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+import { isJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
   ChatConversationViewNode, ChatSnapshot, ConversationNode, DetailsSlotProps,
   DetailsToolOwnerProps, RunningToolCall, ToolResultNode,
@@ -144,12 +143,12 @@ export function toolSessionEvents(nodes: readonly ToolResultNode[]): readonly Se
 /**
  * Bind ui-tool's details renderer to the conversation slot callback shape.
  * @param t - conversation locale seat used by Tool cards.
- * @param generation - optional Connection generation carrying the Host home.
+ * @param home - optional Host account home for POSIX `~` summaries.
  * @returns a direct-test renderSlot implementation.
  */
 export function renderToolDetails(
   t: TranslateNS<'conversation'>,
-  generation?: ConnectionGeneration,
+  home?: string,
 ): DetailsSlotProps['renderSlot'] {
   return (_key, owner) => {
     // PropsRenderSlots keeps its key generic even for this one-key share;
@@ -158,7 +157,7 @@ export function renderToolDetails(
     return <ToolDetails
       block={details.block}
       cwd={details.cwd}
-      useConnectionGeneration={selector => selector(generation)}
+      useHostInfo={selector => selector({ home, isLoopback: true })}
       t={t}
     />
   }

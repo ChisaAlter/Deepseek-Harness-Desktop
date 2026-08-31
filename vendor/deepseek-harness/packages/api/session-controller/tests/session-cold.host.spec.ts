@@ -13,7 +13,6 @@ import SessionStore from '@deepseek-ai/dsh-session'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { SessionHistoryController } from '@deepseek-ai/dsh-api-session-controller/src/history.ts'
 import { subagentIdentityProjectionDefinition } from '@deepseek-ai/dsh-subagent/src/projection.ts'
-import { TypertLookupFailure } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { createUserMessage, MessageId } from '@deepseek-ai/dsh-llm'
 import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
@@ -373,6 +372,7 @@ describe('cold history recovery view', () => {
       appendBatch: () => Promise.resolve(),
       commitRepair: () => Promise.resolve(),
       list: () => Promise.resolve([structuredClone(meta)]),
+      deleteStored: () => Promise.reject(new Error('unused')),
     }
     const coordinator = new PersistenceCoordinator(ctx, backend)
     providePersistence(ctx, {
@@ -493,17 +493,13 @@ describe('Remote Agent and Session lookup policy', () => {
     const sessionLookup = ctx.typert.lookups.get('session')
     if (agentLookup === undefined || sessionLookup === undefined) throw new Error('core lookup providers were not mounted')
     const ownershipFailure = {
-      failure: {
-        code: 'agent-busy',
-        details: { reason: 'use subagent delivery for this child session' },
-      },
+      code: 'session/agent-busy',
+      details: { reason: 'use subagent delivery for this child session' },
     }
 
     const coldFailure = Promise.resolve(agentLookup.resolve(coldId))
     const liveFailure = Promise.resolve(sessionLookup.resolve(liveSession.id))
-    await expect(coldFailure).rejects.toBeInstanceOf(TypertLookupFailure)
     await expect(coldFailure).rejects.toMatchObject(ownershipFailure)
-    await expect(liveFailure).rejects.toBeInstanceOf(TypertLookupFailure)
     await expect(liveFailure).rejects.toMatchObject(ownershipFailure)
     expect(resume).not.toHaveBeenCalled()
     expect(inspect).toHaveBeenCalledOnce()
@@ -576,14 +572,14 @@ describe('subagent ownership fence', () => {
     expect(prompt.ok).toBe(false)
     if (!prompt.ok) {
       expect(prompt.error).toMatchObject({
-        code: 'agent-busy',
+        code: 'session/agent-busy',
         details: { reason: 'use subagent delivery for this child session' },
       })
     }
 
     const create = await remote.create(request({ sessionId, cwd: '/proj' }))
     expect(create.ok).toBe(false)
-    if (!create.ok) expect(create.error.code).toBe('agent-busy')
+    if (!create.ok) expect(create.error.code).toBe('session/agent-busy')
     expect(resume).not.toHaveBeenCalled()
     expect(ctx.agents.get(sessionId)).toBeUndefined()
     expect(inspect).toHaveBeenCalledTimes(3)
@@ -626,7 +622,7 @@ describe('subagent ownership fence', () => {
     }))
     expect(resume).toHaveBeenCalledTimes(1)
     expect(prompt.ok).toBe(false)
-    if (!prompt.ok) expect(prompt.error.code).toBe('internal')
+    if (!prompt.ok) expect(prompt.error.code).toBe('gateway/internal')
   })
 
   it('rejects origin-marked and runtime-owned live children from generic controls', async () => {
@@ -661,7 +657,7 @@ describe('subagent ownership fence', () => {
 
     const stopped = await remote.cancel(request({ sessionId: originChild.id }))
     expect(stopped.ok).toBe(false)
-    if (!stopped.ok) expect(stopped.error.code).toBe('agent-busy')
+    if (!stopped.ok) expect(stopped.error.code).toBe('session/agent-busy')
     expect(cancel).not.toHaveBeenCalled()
 
     const queued = await remote.updateQueue(request({
@@ -670,7 +666,7 @@ describe('subagent ownership fence', () => {
       action: { kind: 'remove' },
     }))
     expect(queued.ok).toBe(false)
-    if (!queued.ok) expect(queued.error.code).toBe('agent-busy')
+    if (!queued.ok) expect(queued.error.code).toBe('session/agent-busy')
     expect(updateInbox).not.toHaveBeenCalled()
 
     const selection = await remote.selectModel(request({
@@ -679,11 +675,11 @@ describe('subagent ownership fence', () => {
       model: 'm',
     }))
     expect(selection.ok).toBe(false)
-    if (!selection.ok) expect(selection.error.code).toBe('agent-busy')
+    if (!selection.ok) expect(selection.error.code).toBe('session/agent-busy')
 
     const create = await remote.create(request({ sessionId: originChild.id, cwd: '/proj' }))
     expect(create.ok).toBe(false)
-    if (!create.ok) expect(create.error.code).toBe('agent-busy')
+    if (!create.ok) expect(create.error.code).toBe('session/agent-busy')
 
     expect(ctx.agents.get(originChild.id)).toBe(originChild)
   })
@@ -770,10 +766,10 @@ describe('subagent ownership fence', () => {
         content: [{ type: 'text' as const, text: 'invalid zone' }],
         clientTimeZone,
       }))
-      expect(invalid).toEqual({
+      expect(invalid).toMatchObject({
         ok: false,
         error: {
-          code: 'invalid-time-zone',
+          code: 'session/invalid-time-zone',
           message: 'clientTimeZone must be UTC or a valid IANA Area/Location name',
           details: { value: clientTimeZone },
         },
@@ -801,7 +797,7 @@ describe('degenerate composition (no persistence, no factory)', () => {
     })
     expect(response.ok).toBe(false)
     if (!response.ok) {
-      expect(response.error.code).toBe('session-not-found')
+      expect(response.error.code).toBe('session/not-found')
     }
   })
 
@@ -821,7 +817,7 @@ describe('degenerate composition (no persistence, no factory)', () => {
       throughSeq: -1,
     })
     expect(response.ok).toBe(false)
-    if (!response.ok) expect(response.error.code).toBe('session-not-found')
+    if (!response.ok) expect(response.error.code).toBe('session/not-found')
     expect(inspect).toHaveBeenCalledOnce()
   })
 })
@@ -850,7 +846,7 @@ describe('sessions.prompt synchronous rejection', () => {
       }))
       expect(response.ok).toBe(false)
       if (!response.ok) {
-        expect(response.error.code).toBe('agent-busy')
+        expect(response.error.code).toBe('session/agent-busy')
         expect(response.error.message).toBe('prompt rejected')
         expect(response.error.details).toEqual({
           reason: 'Error: agent "session-throwing" lifecycle disposed',
@@ -891,7 +887,7 @@ describe('sessions.prompt synchronous rejection', () => {
     expect(selection.ok).toBe(false)
     if (!selection.ok) {
       expect(selection.error).toMatchObject({
-        code: 'agent-busy',
+        code: 'session/agent-busy',
         details: { reason: 'use subagent delivery for this child session' },
       })
     }

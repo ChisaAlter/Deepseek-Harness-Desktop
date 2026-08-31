@@ -17,7 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
+  IconCloseOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -37,6 +37,9 @@ import { ContextMeter } from './ContextMeter.tsx'
 import { PermissionSelect } from './PermissionSelect.tsx'
 import { ComposerResizeHandles, useComposerResizeDrag } from './ComposerResizeHandles.tsx'
 import css from './InputBar.module.css'
+
+/** File-tree drag payload; kept local so this plugin does not import ui-files. */
+const COMPOSER_MENTION_DRAG_TYPE = 'application/x-dshd-composer-mention'
 
 export type InputBarProps = ComposerBarProps
 
@@ -58,7 +61,8 @@ export function InputBar({
   const composerResize = useComposerResize(value => value)
   const composerResizeHeight = useComposerResizeHeight(value => value)
   const composerResizeWidth = useComposerResizeWidth(value => value)
-  const sessionRow = useSessions(s => (sessionId === undefined ? undefined : s.byId[sessionId]))
+  const sessionRow = useSessions(s => (sessionId === undefined ? undefined : s.byId[sessionId])) as
+    { origin?: string; agentPreset?: string } | undefined
   const hideModelSeat = sessionRow?.origin === 'dshbot' || sessionRow?.agentPreset === 'dshbot-room'
   const hideRoomChrome = sessionRow?.agentPreset === 'dshbot-room'
   const promptError = useSession(s => s.promptError) ?? null
@@ -74,6 +78,7 @@ export function InputBar({
   // current; the bar renders the same DOM inert instead of a parallel tree.
   const live = input !== undefined && keyboard !== undefined && inputActions !== undefined
   const draft = input?.draft ?? ''
+  const edit = input?.edit ?? null
   const editor = keyboard?.editor ?? null
   const attachments = useMemo(
     () => input === undefined || draftImages === undefined ? [] : draftImages(input.imageIds),
@@ -98,13 +103,15 @@ export function InputBar({
   // and the user resubmits. A remount over a session whose machine still holds
   // an unresolved promptError deliberately re-announces it once — the failure
   // is still pending, and a transient banner is its only surface. Attachment
-  // rejections show product copy keyed by the wire reason; other codes are
-  // developer-facing and keep the raw message plus code.
+  // rejections show product copy keyed by the wire reason — whichever domain
+  // refused them; other codes are developer-facing and keep the raw message
+  // plus code.
   useEffect(() => {
     if (promptError === null) return
-    showToast(promptError.error.code === 'attachment-error'
-      ? attachmentErrorText(t, promptError.error.details.reason, imageLimits)
-      : `${promptError.error.message} (${promptError.error.code})`)
+    const { error } = promptError
+    showToast(error.code === 'session/attachment-invalid' || error.code === 'subagent/attachment-unsupported'
+      ? attachmentErrorText(t, error.details.reason, imageLimits)
+      : `${error.message} (${error.code})`)
   }, [promptError, showToast, t, imageLimits])
   useEffect(() => {
     if (notice?.level === 'error') showToast(notice.text)
@@ -265,6 +272,32 @@ export function InputBar({
 
   const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
 
+  // File-image drops live on `conversation.input.attachments`. Mention payloads
+  // (`application/x-dshd-composer-mention`) are claimed here so a file-tree
+  // drag inserts into the draft instead of falling through as native text.
+  useEffect(() => {
+    const hasMention = (event: globalThis.DragEvent): boolean =>
+      event.dataTransfer?.types.includes(COMPOSER_MENTION_DRAG_TYPE) ?? false
+    const onDragOver = (event: globalThis.DragEvent): void => {
+      if (!hasMention(event)) return
+      event.preventDefault()
+    }
+    const onDrop = (event: globalThis.DragEvent): void => {
+      if (!hasMention(event)) return
+      event.preventDefault()
+      const mention = event.dataTransfer?.getData(COMPOSER_MENTION_DRAG_TYPE) ?? ''
+      if (mention.length === 0 || keyboard === undefined) return
+      const current = keyboard.snapshot.draft
+      keyboard.paste(current.length === 0 ? mention : ` ${mention}`)
+    }
+    document.addEventListener('dragover', onDragOver)
+    document.addEventListener('drop', onDrop)
+    return () => {
+      document.removeEventListener('dragover', onDragOver)
+      document.removeEventListener('drop', onDrop)
+    }
+  }, [keyboard])
+
   // The keymap handlers read live bar state through this ref so the editor
   // registration survives re-renders without re-arming per keystroke.
   const gate = useRef({
@@ -301,6 +334,12 @@ export function InputBar({
       pasteText: (text) => {
         if (gate.current.machineBusy || gate.current.locked) return
         keyboard.paste(text)
+      },
+      cancelEdit: () => {
+        if (gate.current.machineBusy || gate.current.locked) return false
+        if (keyboard.snapshot.edit === undefined) return false
+        keyboard.cancelEdit()
+        return true
       },
     })
   }, [editor, keyboard])
@@ -435,6 +474,24 @@ export function InputBar({
         <div className={css.cardBody}>
         {overlay !== undefined && <div className={css.overlayAnchor}>{overlay}</div>}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
+        {edit !== null && (
+          <div className={css.editRow} role="status" data-edit-session>
+            <span className={css.editLabel}>{edit.label}</span>
+            <Tooltip label={t('input.editCancel')} side="top" delayMs={500}>
+              <button
+                type="button"
+                className={css.editCancel}
+                aria-label={t('input.editCancel')}
+                aria-keyshortcuts="Escape"
+                disabled={machineBusy}
+                onMouseDown={keepFocus}
+                onClick={() => keyboard?.cancelEdit()}
+              >
+                <IconCloseOutline16 size={14} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
         {renderSlot('conversation.input.attachments', {
           attachments,
           canAcceptDrop,

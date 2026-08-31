@@ -19,7 +19,8 @@
  * @module @deepseek-ai/dsh-session/chunk-rows
  */
 
-import { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from './types.ts'
 
@@ -188,7 +189,7 @@ function buildRow(kind: DeltaKind, run: readonly DeltaEvent[]): ChunkRow {
       ...envelope,
       data: {
         ...base,
-        id: ToolCallId(call.id),
+        id: brandString<ToolCallId>(call.id),
         ...Object.hasOwn(call, 'name') ? { name: call.name as string } : {},
         args: run.map(event => (event.data.chunk as { argumentsDelta: string }).argumentsDelta),
       },

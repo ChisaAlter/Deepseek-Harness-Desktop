@@ -10,9 +10,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-subagent'
 
 export const name = 'tool-subagent-control'
@@ -65,7 +66,7 @@ export function apply(ctx: Context): void {
       const message: ContentBlock[] = [{ type: 'text', text: args.message }]
       const messageId = await ctx.subagents.followup(
         parent,
-        SessionId(args.subagent_id),
+        brandString<SessionId>(args.subagent_id),
         message,
         {
           source: { kind: 'coordinator', form: 'relay', senderSessionId: parent.id },
@@ -113,7 +114,7 @@ export function apply(ctx: Context): void {
       }
       // The service authorizes the exact live caller against the target's
       // recorded lineage; the tool adds no authority of its own.
-      ctx.subagents.interrupt(SessionId(args.agent_id), { kind: 'ancestor', agent: caller })
+      ctx.subagents.interrupt(brandString<SessionId>(args.agent_id), { kind: 'ancestor', agent: caller })
       return Promise.resolve({ accepted: true })
     },
   }))

@@ -14,7 +14,7 @@ Status: implemented
 
 DeepSeek 搜索使用与官方会话适配器相同的 `DEEPSEEK_API_KEY` 凭据引用。提供方在每次搜索内部通过可选的 `ctx.credentials` 服务解析该引用；只有未挂载该 seam 的组合才会回退到启动进程的环境变量，非空的 `apiKey` 字面值仍作为程序化配置的最后兜底。因此，由 Web 的 Models 页存储或轮换的密钥无需重启即可用于下一次搜索，提供方也无需保留该值。由于 `WebSearchProvider.available()` 是同步方法，它会将已安装解析器视为本地可用；若动态凭据缺失，操作会以提供方专属错误码 `WEB_PROVIDER_CREDENTIAL_MISSING` 失败，而稳定的工具 schema 仍保持注册。
 
-搜索端点与 chat completions 保持独立：`DEEPSEEK_SEARCH_BASE_URL` 覆盖 Anthropic 兼容基址，`DEEPSEEK_BASE_URL` 则继续配置会话请求。每次 `web_search` 都会发起一次辅助 DeepSeek Messages 调用，并携带原生搜索服务器工具。发出请求前一刻，提供方会向发起请求的 agent（智能体）会话追加仅用于日志的 LLM（大语言模型）请求事件 `web/deepseek-search-llm-request`，其中包含已解析端点、API 版本，以及不含密钥的精确 JSON 请求体。凭据预检仍留在提供方内部，并与调用方取消存在竞态；这两项关注点都不会扩展通用 Web seam 或凭据 seam。
+搜索端点与 chat completions 保持独立：`DEEPSEEK_SEARCH_BASE_URL` 覆盖 Anthropic 兼容基址，`DEEPSEEK_BASE_URL` 则继续配置会话请求。每次 `web_search` 都会发起一次辅助 DeepSeek Messages 调用，并携带原生搜索服务器工具。发出请求前一刻，提供方会向发起请求的 agent（智能体）会话追加仅用于日志的 LLM（大语言模型）请求事件 `web/deepseek-search-llm-request`，其中包含已解析端点、API 版本，以及不含密钥的精确 JSON 请求体。请求发出后的失败会指出该端点；当端点不符合用户预期时，错误消息会要求会话模型指导用户在 Settings 中修改网页搜索的 Endpoint 字段。该设置页面不可用时，消息会说明 `DEEPSEEK_SEARCH_BASE_URL` 和 `web-search-deepseek.baseURL`；模型不得替用户选择或修改凭据发送目的地。凭据预检仍留在提供方内部，并与调用方取消存在竞态；这两项关注点都不会扩展通用 Web seam 或凭据 seam。
 
 默认挂载不会创建 Web 专用权限策略。`web_search` 与已启用的 `web_fetch` 调用会在 bash／文件系统沙箱及审批 preset 之外执行，并遵循 `dsh-tool-web` 的现有约定。HTTP 提供方把抓取限制到已验证的公开目的地址，但不限制公开数据出站。已交付的 `workspace-write` 默认值只管辖文件修改；若产品采取受限网络策略，就需要添加 `tools/pre-execute` 策略或按能力限制网络访问，而不能暗示文件系统访问模式会管辖 Web 调用。
 

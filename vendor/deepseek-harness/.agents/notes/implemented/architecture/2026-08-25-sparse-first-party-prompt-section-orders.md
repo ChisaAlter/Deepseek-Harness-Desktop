@@ -14,7 +14,7 @@ The shell guidance also followed filesystem guidance even though shell commands 
 
 ## Decision
 
-`@deepseek-ai/dsh-system-prompt` exports `FIRST_PARTY_SECTION_ORDER` as the single allocation for repository-owned sections. Every first-party contributor imports its named placement instead of declaring a numeric literal. Values are unique integers, and adjacent allocated values differ by at least ten.
+`@deepseek-ai/dsh-system-prompt` owns private named allocations for repository prompt sections and runtime contexts. Every repository contributor asks the live service for its typed placement through `ctx.systemPrompt.getSectionOrder(name)` or `getContextOrder(name)` instead of importing a value or declaring a numeric literal. Section values are unique integers, and adjacent allocated section values differ by at least ten; context values are unique integers in their independent sequence.
 
 The allocation preserves the established first-party sequence except for two deliberate changes: Bash, or PowerShell in the Windows composition, leads per-tool guidance; and sections that shared an order receive an explicit sequence. The groups are:
 
@@ -28,13 +28,15 @@ The allocation preserves the established first-party sequence except for two del
 | Generated protocol | `tools:sdk` 5000 |
 | Final-output obligations | deliverable file references 9000, `tool:structured_output` 9900 |
 
+The runtime-context allocation is `SANDBOX_POLICY` 110, `APPROVAL_POLICY` 115, and `SUBAGENT_DELEGATION` 120.
+
 `SystemPrompt.assemble()` sorts equal-order sections by code-unit section name after comparing `order`. This makes third-party collisions deterministic without locale-sensitive comparison. First-party contributors still receive distinct ranks so their intended sequence remains explicit rather than depending on the fallback.
 
-Dynamic `PromptContext` order and tool-schema `toolOrder` are separate sequences and remain unchanged. A scoped `deployment:persona` continues to shadow the global section by name before section sorting, so it shares `PERSONA_ORDER` rather than consuming another placement.
+Dynamic `PromptContext` order and tool-schema `toolOrder` are separate sequences. Prompt contexts use the service's independent context allocation, while tool schemas remain under `toolOrder`. A scoped `deployment:persona` continues to shadow the global section by name before section sorting and resolves the same `DEPLOYMENT_PERSONA` placement through the service.
 
 ## Verification
 
-The system-prompt unit suite verifies that every exported first-party value is an integer, every value is unique, adjacent values differ by at least ten, and opposite registration permutations produce the same code-unit name order for a tie. Real-composition snapshots pin the model-visible ordering change, including Bash before filesystem guidance and the explicit Cordis, workflow, Ralph, subagent, and report sequence.
+The system-prompt unit suite resolves every configured section and context name through the service. It verifies integer and unique values, at least ten points between adjacent section values, and the same code-unit name order for opposite registration permutations of a tie. Real-composition snapshots pin the model-visible ordering, including Bash before filesystem guidance and the explicit Cordis, workflow, Ralph, subagent, and report sequence.
 
 ## Alternatives considered
 
@@ -46,12 +48,12 @@ The system-prompt unit suite verifies that every exported first-party value is a
 
 **Preserve activation order for equal ranks.** Rejected because activation order is not a prompt-order decision and varies across valid compositions. Name order is deterministic for external collisions; explicit named placements carry first-party intent.
 
-**Renumber dynamic contexts and tool schemas in the same allocation.** Rejected because they are independently assembled sequences. Combining them would imply cross-sequence ordering that the runtime does not perform.
+**Put dynamic contexts and tool schemas in the section allocation.** Rejected because they are independently assembled sequences. Contexts receive their own named service allocation; combining either sequence with sections would imply cross-sequence ordering that the runtime does not perform.
 
 ## Consequences
 
 Numeric ranks are not rendered, so the renumbering alone does not change model text. Bash or PowerShell moves before other per-tool guidance, and previously tied sections acquire deterministic order; those model-visible changes update request-header snapshots and may invalidate provider prefix reuse from the first moved paragraph.
 
-An external plugin that chose a raw number specifically to sit between old first-party values may move relative to repository sections. This repository is pre-release and provides no compatibility shim for the old allocation; extensions can select positions from the exported current allocation. Equal external ranks remain supported and deterministic by name.
+An external plugin can choose any finite numeric order for its own section or context. Named order lookups are repository-owned placements rather than an extension API. Equal external section ranks remain supported and deterministic by name.
 
 The system-prompt package now knows the names and relative placement of repository features. That centralized coupling is deliberate: the registry already owns the ordering semantics, while distributed numeric literals made the same relationship implicit and uncheckable.

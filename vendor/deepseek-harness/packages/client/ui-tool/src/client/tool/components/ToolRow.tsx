@@ -2,6 +2,7 @@ import { useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode 
 import clsx from 'clsx'
 import {
   CodeBlock, DiffBlock, DisclosureRow, IconInspectOutline12, ReadBlock, SearchBlock, StateDot, TerminalBlock, WebBlock,
+  diffTotals,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { CHAT_DIFF_MAX_LINES, type DiffCardModel } from '../models/diff-card-model.ts'
@@ -129,7 +130,15 @@ export function ToolRow({
   // A failure must replace, not supplement, the normal summary.
   const failureLine = state === 'error' ? errorSummary ?? null : null
   const summaryText = failureLine ?? terminalBody?.description ?? summary
-  const suffix = failureLine === null ? summarySuffix ?? null : null
+  // A diff row's collapsed line carries the card's +/- totals (the same
+  // numbers the expanded footer prints) so the change size reads without
+  // expanding; an explicit summarySuffix (none today on diff rows) wins.
+  const diffStat = useMemo(() => {
+    if (diffBody === null) return null
+    const { added, removed } = diffTotals(diffBody.card.diffs)
+    return `+${added} -${removed}`
+  }, [diffBody])
+  const suffix = failureLine === null ? summarySuffix ?? diffStat : null
   const fileLink = filePath !== undefined && onOpenFile !== undefined && failureLine === null
   const toggleExpand = () => {
     setExpanded(v => !v)
@@ -184,7 +193,9 @@ export function ToolRow({
                 {summaryText}
               </span>
             )}
-            {suffix !== null && <span className={css.summarySuffix}>{suffix}</span>}
+            {suffix !== null && (
+              <span className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)}>{suffix}</span>
+            )}
           </>
         )}
       >

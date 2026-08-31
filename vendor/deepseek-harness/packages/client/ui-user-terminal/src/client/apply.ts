@@ -1,5 +1,5 @@
 /** Registers the bottom-drawer and right-panel Terminal shells on separate stores. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -12,6 +12,8 @@ import { en, NS, zh, type TerminalKey } from './locales.ts'
 import { bindPtyListeners } from './pty-bridge.ts'
 import { readPtyShell, type TerminalShellInjected } from './shell.ts'
 import { createTerminalSessionStore } from './stores.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 
 export type { TerminalDrawerProps } from './TerminalDrawer.tsx'
 export type { TerminalSurfaceProps } from './TerminalSurface.tsx'
@@ -33,14 +35,14 @@ interface WorkspacesFace {
   openPath?: (path: string, options?: { line?: number }) => Promise<void>
 }
 
-function layoutFace(ctx: ClientContext): Pick<TerminalShellInjected, 'toggleTerminalDrawer' | 'setTerminalDrawer'> {
+function layoutFace(ctx: Context): Pick<TerminalShellInjected, 'toggleTerminalDrawer' | 'setTerminalDrawer'> {
   return {
     toggleTerminalDrawer: () => { ctx.layout.toggleTerminalDrawer() },
     setTerminalDrawer: px => { ctx.layout.setTerminalDrawer(px) },
   }
 }
 
-function workflowFace(ctx: ClientContext): Pick<
+function workflowFace(ctx: Context): Pick<
   TerminalShellInjected,
   'mentionTerminal' | 'writeClipboard' | 'openWorkspacePath' | 'openLocalUrl' | 'openExternal'
 > {
@@ -80,7 +82,7 @@ function workflowFace(ctx: ClientContext): Pick<
  * Register dictionaries and inject each terminal shell onto its own store handle.
  * @param ctx - Client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-user-terminal: dictionaries')
   const drawerStore = createTerminalSessionStore()
   const surfaceStore = createTerminalSessionStore()

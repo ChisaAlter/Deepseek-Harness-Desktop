@@ -27,6 +27,7 @@ describe('keymap keydown routing', () => {
       submit,
       intakeFiles: () => {},
       pasteText: () => {},
+      cancelEdit: () => false,
     })
     fireEvent.keyDown(root, { key: 'Enter' })
     expect(submit).toHaveBeenCalledWith(false)
@@ -52,6 +53,7 @@ describe('keymap keydown routing', () => {
       submit: () => {},
       intakeFiles: () => {},
       pasteText: () => {},
+      cancelEdit: () => false,
     })
     const consumed = fireEvent.keyDown(root, { key: 'Tab', keyCode: 9 })
     expect(arbitrate).toHaveBeenCalledWith('tab', false)

@@ -2,6 +2,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService, {
   SessionTitleProviderId,
   type Config,
@@ -29,6 +30,7 @@ async function settle(): Promise<void> {
 async function setup(config: Config = CONFIG): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SessionTitleService, config)
   return ctx
 }
@@ -241,6 +243,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
   it('cancels a queued fallback when the session-title service unloads', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     const lifecycle: { fiber?: Fiber; session?: Session; inactiveRefresh?: Promise<unknown> } = {}
     ctx.on('internal/plugin', (subject) => {
       if (subject !== lifecycle.fiber || subject.uid !== null || lifecycle.session === undefined) return
@@ -273,6 +276,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
   it('suppresses a queued fallback failure after service unload begins', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     const fiber = await ctx.plugin(SessionTitleService, CONFIG)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined)
     const session = startSession(ctx, 'service-unload-started-fallback')
@@ -288,6 +292,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
   it('aborts pending and active provider work and drains ignored cancellation during service unload', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     const fiber = await ctx.plugin(SessionTitleService, CONFIG)
     const result = deferred<SessionTitleProviderResult>()
     const requests: SessionTitleProviderRequest[] = []

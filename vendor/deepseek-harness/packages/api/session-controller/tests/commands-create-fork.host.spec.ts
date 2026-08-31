@@ -1,9 +1,10 @@
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
-import { PresetMountError } from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent-presets'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { Workspace, WorkspaceId } from '@deepseek-ai/dsh-workspace'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -14,7 +15,7 @@ import { SessionCommandController } from '../src/commands.ts'
 import { installSessionReadTestServices, testSessionPersistence } from './test-remote.ts'
 
 async function expectFailure(operation: Promise<unknown>, code: string): Promise<void> {
-  await expect(operation).rejects.toMatchObject({ failure: { code } })
+  await expect(operation).rejects.toMatchObject({ code })
 }
 
 function controllerAgents(overrides: object = {}): ApiSessionAgentController {
@@ -76,7 +77,7 @@ describe('Session creation failures', () => {
     )
     await expectFailure(missingController.create({
       workspaceId: 'missing' as WorkspaceId,
-    }), 'workspace-not-found')
+    }), 'workspace/not-found')
     await missing.fiber.dispose()
 
     const failed = await baseContext()
@@ -97,26 +98,30 @@ describe('Session creation failures', () => {
     await expectFailure(failedController.create({
       sessionId: SessionId('workspace-session'),
       workspaceId: workspace.id,
-    }), 'workspace-attach-failed')
+    }), 'session/workspace-attach-failed')
     await failed.fiber.dispose()
   })
 
   it.each([
     {
-      error: new PresetMountError('broken', 'invalid composition'),
-      code: 'agent-preset-invalid',
+      error: new RemoteError(
+        'agent-preset/invalid',
+        'agent-presets: preset "broken" failed to mount: invalid composition',
+        { agentPreset: 'broken', reason: 'invalid composition' },
+      ),
+      code: 'agent-preset/invalid',
     },
     {
       error: new ApiSessionCwdConflict(SessionId('cwd-less'), '/requested', undefined),
-      code: 'session-conflict',
+      code: 'session/conflict',
     },
     {
       error: new ApiSessionCwdConflict(SessionId('wrong-cwd'), '/requested', '/stored'),
-      code: 'session-conflict',
+      code: 'session/conflict',
     },
     {
       error: new Error('factory unavailable'),
-      code: 'internal',
+      code: 'gateway/internal',
     },
   ])('maps $code creation failures', async ({ error, code }) => {
     const ctx = await baseContext()
@@ -140,7 +145,7 @@ describe('Session creation failures', () => {
     await expectFailure(controller.create({
       workspaceId: 'workspace-1' as WorkspaceId,
       cwd: '/workspace',
-    }), 'bad-request')
+    }), 'gateway/bad-request')
     await ctx.fiber.dispose()
   })
 
@@ -179,7 +184,7 @@ describe('Session fork failures', () => {
     )
     await expectFailure(unavailableController.fork({
       sessionId: SessionId('missing'),
-    }), 'session-not-found')
+    }), 'session/not-found')
     await withoutPersistence.fiber.dispose()
 
     const missing = await baseContext()
@@ -191,7 +196,7 @@ describe('Session fork failures', () => {
     const missingController = new SessionCommandController(missing, controllerAgents(), '/default')
     await expectFailure(missingController.fork({
       sessionId: SessionId('missing'),
-    }), 'session-not-found')
+    }), 'session/not-found')
     await missing.fiber.dispose()
   })
 
@@ -201,7 +206,7 @@ describe('Session fork failures', () => {
     vi.spyOn(ctx.sessionQuery, 'observeSession').mockRejectedValue(new Error('storage offline'))
     const controller = new SessionCommandController(ctx, controllerAgents(), '/default')
 
-    await expectFailure(controller.fork({ sessionId: SessionId('unreadable') }), 'internal')
+    await expectFailure(controller.fork({ sessionId: SessionId('unreadable') }), 'gateway/internal')
     await ctx.fiber.dispose()
   })
 
@@ -211,7 +216,7 @@ describe('Session fork failures', () => {
     const source = ctx.sessions.create(SessionId('empty-source'))
     const controller = new SessionCommandController(ctx, controllerAgents(), '/default')
 
-    await expectFailure(controller.fork({ sessionId: source.id }), 'fork-unavailable')
+    await expectFailure(controller.fork({ sessionId: source.id }), 'session/fork-unavailable')
     await ctx.fiber.dispose()
   })
 
@@ -225,7 +230,7 @@ describe('Session fork failures', () => {
       origin: 'subagent',
     })
     const lineageController = new SessionCommandController(lineage, controllerAgents(), '/default')
-    await expectFailure(lineageController.fork({ sessionId: child.id }), 'internal')
+    await expectFailure(lineageController.fork({ sessionId: child.id }), 'gateway/internal')
     await lineage.fiber.dispose()
 
     const creation = await baseContext()
@@ -233,7 +238,7 @@ describe('Session fork failures', () => {
     const source = completedSession(creation, 'creation-source', '/workspace')
     vi.spyOn(creation.agents, 'create').mockRejectedValue(new Error('factory failed'))
     const creationController = new SessionCommandController(creation, controllerAgents(), '/default')
-    await expectFailure(creationController.fork({ sessionId: source.id }), 'internal')
+    await expectFailure(creationController.fork({ sessionId: source.id }), 'gateway/internal')
     await creation.fiber.dispose()
   })
 
@@ -251,7 +256,7 @@ describe('Session fork failures', () => {
     )
     const controller = new SessionCommandController(ctx, controllerAgents(), '/default')
 
-    await expectFailure(controller.fork({ sessionId: source.id }), 'workspace-attach-failed')
+    await expectFailure(controller.fork({ sessionId: source.id }), 'session/workspace-attach-failed')
     const options = create.mock.calls[0]?.[0]
     if (options === undefined) throw new Error('Agent creation was not attempted')
     expect(options.meta).not.toHaveProperty('cwd')

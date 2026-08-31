@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { CommandDefinition } from '@deepseek-ai/dsh-commands'
-import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as SessionLogDownload from '../src/index.ts'
-import { SESSION_LOG_EXPORT_SETTINGS_NAMESPACE } from '../src/index.ts'
+import { SESSION_LOG_EXPORT_SETTINGS_NAMESPACE } from '../src/export-settings.ts'
 
 class MemorySettings extends SettingsProvider {
   readonly writable = true
@@ -23,7 +23,7 @@ describe('session-log-export host', () => {
     } as never)
     await ctx.plugin(MemorySettings).await()
     const fiber = await ctx.plugin(SessionLogDownload)
-    const ns = settingsNamespace(SESSION_LOG_EXPORT_SETTINGS_NAMESPACE)
+    const ns = SESSION_LOG_EXPORT_SETTINGS_NAMESPACE
     expect(ctx.settings.get(ns)).toEqual({ titlebarAction: true })
     await ctx.settings.update(ns, { titlebarAction: false })
     expect(ctx.settings.get(ns)).toEqual({ titlebarAction: false })

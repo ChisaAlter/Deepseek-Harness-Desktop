@@ -5,7 +5,7 @@
 // tag probe).
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import { makeTranslate, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
+import { makeTranslate, RemoteError, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import type { QueuedMessage } from '@deepseek-ai/dsh-api-session-controller/client'
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
 import { ComposerModelCatalogRegistry, ComposerModelFactRegistry } from '../src/client/input/model-facts.ts'
@@ -55,33 +55,33 @@ describe('ConversationController', () => {
 
   it('folds Session business failures into callback rejections', async () => {
     const b = await bench()
-    b.prompt.mockResolvedValueOnce({ ok: false, error: { code: 'agent-busy', message: 'busy', details: {} } } as never)
-    await expect(b.scoped.send('x')).rejects.toThrow('conversation.send failed: agent-busy: busy')
-    b.cancel.mockResolvedValueOnce({ ok: false, error: { code: 'internal', message: 'nope', details: {} } } as never)
-    await expect(b.scoped.cancel()).rejects.toThrow('conversation.cancel failed: internal: nope')
+    b.prompt.mockResolvedValueOnce({ ok: false, error: new RemoteError('session/agent-busy', 'busy', { reason: 'busy' }) } as never)
+    await expect(b.scoped.send('x')).rejects.toThrow('conversation.send failed: session/agent-busy: busy')
+    b.cancel.mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', 'nope', {}) } as never)
+    await expect(b.scoped.cancel()).rejects.toThrow('conversation.cancel failed: gateway/internal: nope')
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'internal', message: 'broken', details: {} },
+      ok: false, error: new RemoteError('gateway/internal', 'broken', {}),
     } as never)
     await expect(b.scoped.updateQueue('item-1' as never, { kind: 'steer' }))
-      .rejects.toThrow('conversation.updateQueue failed: internal: broken')
+      .rejects.toThrow('conversation.updateQueue failed: gateway/internal: broken')
     await b.runtime.dispose()
   })
 
   it('treats strict-steer races as converged Queue delivery', async () => {
     const b = await bench()
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'steer-unavailable', message: 'closed', details: {} },
+      ok: false, error: new RemoteError('session/steer-unavailable', 'closed', { itemId: 'item-1' as QueuedMessage['id'] }),
     } as never)
     await expect(b.scoped.updateQueue('item-1' as never, { kind: 'steer' })).resolves.toBeUndefined()
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'queue-item-not-found', message: 'claimed', details: {} },
+      ok: false, error: new RemoteError('session/queue-item-not-found', 'claimed', { itemId: 'item-1' as QueuedMessage['id'] }),
     } as never)
     await expect(b.scoped.updateQueue('item-2' as never, { kind: 'steer' })).resolves.toBeUndefined()
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'queue-item-not-found', message: 'claimed', details: {} },
+      ok: false, error: new RemoteError('session/queue-item-not-found', 'claimed', { itemId: 'item-1' as QueuedMessage['id'] }),
     } as never)
     await expect(b.scoped.updateQueue('item-3' as never, { kind: 'remove' }))
-      .rejects.toThrow('conversation.updateQueue failed: queue-item-not-found: claimed')
+      .rejects.toThrow('conversation.updateQueue failed: session/queue-item-not-found: claimed')
     await b.runtime.dispose()
   })
 
@@ -246,7 +246,7 @@ describe('sendSession submission echo', () => {
     const b = await echoBench()
     try {
       b.prompt.mockResolvedValueOnce({
-        ok: false, error: { code: 'attachment-error', message: 'nope', details: {} },
+        ok: false, error: new RemoteError('session/attachment-invalid', 'nope', { reason: 'nope' }),
       } as never)
       const [attachment] = b.root.createDraftImages([
         new File([Uint8Array.of(7)], 'kept.png', { type: 'image/png' }),
@@ -404,7 +404,7 @@ describe('InputHub queue steering (empty-draft accelerated Enter)', () => {
     })
     // The turn closes before the second row: the flush stops, silently.
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'steer-unavailable', message: 'closed', details: {} },
+      ok: false, error: new RemoteError('session/steer-unavailable', 'closed', { itemId: 'item-1' as QueuedMessage['id'] }),
     } as never)
     b.shell.steerQueue()
     await vi.waitFor(() => { expect(b.updateQueue).toHaveBeenCalledTimes(1) })
@@ -416,7 +416,7 @@ describe('InputHub queue steering (empty-draft accelerated Enter)', () => {
       draft.queue = [row('q-3')]
     })
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'queue-item-not-found', message: 'claimed', details: {} },
+      ok: false, error: new RemoteError('session/queue-item-not-found', 'claimed', { itemId: 'item-1' as QueuedMessage['id'] }),
     } as never)
     b.shell.steerQueue()
     await vi.waitFor(() => { expect(b.updateQueue).toHaveBeenCalledTimes(2) })
@@ -430,7 +430,7 @@ describe('InputHub queue steering (empty-draft accelerated Enter)', () => {
       draft.queue = [row('q-1'), row('q-2')]
     })
     b.updateQueue.mockResolvedValueOnce({
-      ok: false, error: { code: 'internal', message: 'broken', details: {} },
+      ok: false, error: new RemoteError('gateway/internal', 'broken', {}),
     } as never)
     b.shell.steerQueue()
     await vi.waitFor(() => {

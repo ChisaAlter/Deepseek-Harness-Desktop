@@ -2,7 +2,6 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent/types'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { createSessionControlStream } from './transport.ts'
 import { ClientSessions } from './sessions/service.ts'
 import type { SessionRemotes } from './sessions/remotes.ts'
@@ -13,7 +12,6 @@ export {
   SessionEventStream,
   SESSION_SEARCH_RESULT_LIMIT,
   SESSION_SEARCH_SNIPPET_MAX_CODE_POINTS,
-  sessionStreamFailure,
 } from './transport.ts'
 export type {
   ClientSessionPageRequest,
@@ -25,7 +23,7 @@ export type {
 } from './transport.ts'
 export { createScope, scopeOf } from './scope.ts'
 export type { AgentContext, AgentScopeHandle } from './scope.ts'
-export { SessionCreateError, SessionForkError } from './sessions/service.ts'
+export { SessionCreateError, SessionForkError, SessionDeleteError } from './sessions/service.ts'
 export type { SessionBinding, SessionListState, SessionSummary } from './sessions/service.ts'
 export type {
   SessionListPhase,
@@ -66,7 +64,6 @@ export type {
   QueuedMessage,
   SessionSnapshot,
 } from './contract/snapshot.ts'
-export type { ClientFailure, ClientResult } from './contract/result.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -75,9 +72,8 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Required wire, Remote, and Context projection services. */
+/** Required Remote and Context projection services. */
 export const inject = [
-  'connection',
   'typert',
   'remote',
   'remote.commands',
@@ -90,11 +86,11 @@ export const inject = [
  * @param ctx - Client Cordis context.
  */
 export function apply(ctx: Context): void {
-  const connection = ctx.get('connection') as ConnectionHandle
   const remotes = ctx.remote as unknown as SessionRemotes
   const sessions = new ClientSessions(ctx, remotes)
   ctx.remote.$on('api-session/added', (summary) => { sessions.handleSessionAdded(summary) })
   ctx.remote.$on('api-session/removed', (sessionId) => { sessions.handleSessionRemoved(sessionId) })
+  ctx.remote.$on('api-session/deleted', (sessionId) => { sessions.handleSessionDeleted(sessionId) })
   ctx.remote.$on('api-session/status', (sessionId, running) => {
     sessions.handleSessionStatus(sessionId, running)
   })
@@ -111,7 +107,7 @@ export function apply(ctx: Context): void {
   })
   control.start()
   ctx.on('connection/reset', () => { sessions.handleConnected() })
-  if (connection.generation.getSnapshot() !== undefined) sessions.handleConnected()
+  if (ctx.remote.$host.home !== undefined) sessions.handleConnected()
   ctx.typert.contexts.registerClient('agent', {
     identity: candidate => sessions.scopeOf(candidate),
     resolve: sessionId => sessions.resolveAgentScope(sessionId),

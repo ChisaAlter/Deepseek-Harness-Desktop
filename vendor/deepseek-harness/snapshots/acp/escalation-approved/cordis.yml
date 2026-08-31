@@ -34,7 +34,7 @@
   name: '@deepseek-ai/dsh-acp'
   config:
     provider: deepseek-official
-    model: deepseek-v4-pro
+    model: deepseek-v4-flash
 
 - id: system-prompt
   name: '@deepseek-ai/dsh-system-prompt'

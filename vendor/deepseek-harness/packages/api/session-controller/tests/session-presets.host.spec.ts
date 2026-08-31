@@ -6,9 +6,10 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentFactory } from '@deepseek-ai/dsh-agent'
-import { agentPresetProjectionDefinition, UnknownPresetError } from '@deepseek-ai/dsh-agent-presets'
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { describe, expect, it } from 'vitest'
 import { createSessionTestRemote } from './test-remote.ts'
 
@@ -26,7 +27,13 @@ function roster(ids: readonly string[]): unknown {
     defaultId: ids[0],
     resolve: (id?: string) => {
       const wanted = id ?? ids[0] ?? ''
-      if (!ids.includes(wanted)) return Promise.reject(new UnknownPresetError(wanted, ids))
+      if (!ids.includes(wanted)) {
+        return Promise.reject(new RemoteError(
+          'agent-preset/not-found',
+          `agent-presets: preset "${wanted}" not found (available: ${ids.join(', ') || 'none'})`,
+          { agentPreset: wanted, available: ids },
+        ))
+      }
       return Promise.resolve(presetOf(wanted))
     },
     mount: (_ctx: Context, id?: string) => Promise.resolve(presetOf(id ?? ids[0] ?? '')),
@@ -91,7 +98,7 @@ describe('session.create Agent preset identity', () => {
 
     const response = await remote.create({ sessionId: SessionId('s3'), agentPreset: 'nope' })
 
-    expect(response).toMatchObject({ ok: false, error: { code: 'agent-preset-not-found' } })
+    expect(response).toMatchObject({ ok: false, error: { code: 'agent-preset/not-found' } })
   })
 
   it('refuses to adopt a live Session under a different preset', async () => {
@@ -103,7 +110,7 @@ describe('session.create Agent preset identity', () => {
     expect(response).toMatchObject({
       ok: false,
       error: {
-        code: 'agent-preset-conflict',
+        code: 'agent-preset/conflict',
         details: {
           sessionId: 's4',
           requestedPreset: 'standard',
@@ -153,7 +160,7 @@ describe('session.create Agent preset identity', () => {
     expect(response).toMatchObject({
       ok: false,
       error: {
-        code: 'agent-preset-conflict',
+        code: 'agent-preset/conflict',
         details: {
           sessionId: 's7',
           requestedPreset: 'standard',

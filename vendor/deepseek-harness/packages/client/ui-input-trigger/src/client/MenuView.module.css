@@ -185,16 +185,20 @@
 }
 
 /* Breadcrumb header of a drilled source: pinned outside .viewport so the
-   descent stays reversible while the candidate list scrolls under it. */
+   descent stays reversible while the candidate list scrolls under it.
+   4px sides + the crumb's own 6px = the first crumb's text sits at 10px,
+   flush with .sectionTitle and the item icons. */
 .crumbs {
   flex: none;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 2px;
-  padding: 4px 6px 6px;
+  padding: 4px 4px 6px;
   margin-bottom: 2px;
-  border-bottom: 1px solid var(--dsw-alias-border-inverted);
+  /* l1, not border-inverted (the menu frame's dark-only stroke): the divider
+     needs to survive light mode too; in dark both resolve to white/0.06. */
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 /* Crumbs sit outside the listbox and take no keyboard highlight, so unlike
    .item they carry their own :hover tint with nothing to compete with. */

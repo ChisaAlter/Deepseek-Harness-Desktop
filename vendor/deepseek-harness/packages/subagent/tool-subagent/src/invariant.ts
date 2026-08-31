@@ -28,13 +28,17 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     const discoverable = schemas.some(schema => schema.name === 'list_subagent_models')
     if (
       (selectable || discoverable)
-      && (subagentModelSelectionPolicy(agent.session) === undefined || !selectable || !discoverable)
+      && (
+        subagentModelSelectionPolicy(ctx.sessionProjections, agent.session) === undefined
+        || !selectable
+        || !discoverable
+      )
     ) {
       fail('model-selectable subagent definitions require a durable policy, route fields, and list_subagent_models')
     }
     return next()
   }, { global: true })
-}, { inject: ['tools'] })
+}, { inject: ['tools', 'sessionProjections'] })
 
 /**
  * Register this package's invariant companion.

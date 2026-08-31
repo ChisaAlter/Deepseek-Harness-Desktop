@@ -9,20 +9,27 @@
 }
 
 .refChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  /* Plain inline, NOT inline-flex: a flex container takes its baseline from
+     its first flex item — the icon svg, which has no text baseline — so the
+     chip's label rode ~3px above the surrounding text in both surfaces. An
+     inline chip shares the consumer's baseline by construction. */
+  display: inline;
   margin: 0 2px;
   color: var(--dsw-alias-state-business-primary);
   font-weight: 500;
   white-space: nowrap;
-  vertical-align: baseline;
 }
 
-/* Inline reference glyphs (always ReferenceIcon svgs) ride the consumer's text
-   size: the 16px svg edge moves by the same px delta as the surrounding font. */
+/* Inline reference glyphs (always ReferenceIcon svgs) ride the consumer's own
+   font: 1em keeps the glyph at the text's size in the bubble (14px + user
+   setting), the queue preview's fixed 13px line, and any future consumer — a
+   px+delta size followed only the bubble axis and left the glyph oversized in
+   the queue row. */
 .refIcon {
-  flex: none;
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: 1em;
+  height: 1em;
+  margin-right: 4px;
+  /* Optical centering against the text: drops the glyph below the baseline by
+     a font-relative amount, so it holds across the font axis. */
+  vertical-align: -0.125em;
 }

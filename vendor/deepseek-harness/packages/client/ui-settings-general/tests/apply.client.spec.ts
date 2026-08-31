@@ -45,12 +45,15 @@ async function bench(isLoopback = true) {
   const settingsOpenDocument = vi.fn(() => Promise.resolve({
     ok: true as const, value: { opened: true as const },
   }))
-  ctx.provide('connection', {
-    isLoopback,
-  } as never)
-  new TestRemote(ctx, {
+  const remote = new TestRemote(ctx, {
     settings: { describe: settingsDescribe, openSettingsDocument: settingsOpenDocument },
   })
+  // The fixed Host facts the shell reads its loopback-only action from.
+  remote.$host = { home: undefined, isLoopback }
+  ctx.provide('connection', {
+    state: { getSnapshot: () => 'connected', subscribe: () => () => {} },
+    reconnect: () => {},
+  } as never)
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()
   return { ctx, slots: ctx.get('slots') as SlotRegistry, locale, settingsDescribe, settingsOpenDocument }
 }
@@ -140,8 +143,12 @@ describe('ui-settings-general apply', () => {
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     expect(b.locale.bind('settings')('title')).toBe('设置')
+    expect(b.locale.bind('settings')('connection.error')).toBe('连接异常')
+    expect(b.locale.bind('settings')('connection.connecting')).toBe('连接中')
+    expect(b.locale.bind('settings')('connection.connected')).toBe('连接成功')
     b.locale.setLocale('en')
     expect(b.locale.bind('settings')('close')).toBe('Close')
+    expect(b.locale.bind('settings')('connection.reconnect')).toBe('Disconnected, reconnect now')
     b.locale.setLocale('zh')
     await fiber.dispose()
     // The (ns, locale) seats are free again — the dictionary disposer ran.

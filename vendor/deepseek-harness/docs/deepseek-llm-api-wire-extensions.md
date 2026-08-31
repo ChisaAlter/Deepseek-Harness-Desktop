@@ -128,7 +128,7 @@ The `session` member is the exact `Session.header`, not a complete runtime Sessi
 
 ### Canonical event envelopes
 
-Each `events` item is a complete canonical `SessionEvent`, independent of every other request field. An event always carries `type`, `seq`, `time`, and `data`; surface events may additionally carry `sourceEventSeqs` and `surfaceOp`. The sender copies every present member without projection, redaction, or reconstruction.
+Each `events` item is a complete canonical `SessionEvent`, independent of every other request field. An event always carries `type`, `seq`, `time`, and `data`; it may carry `ignorable: true`, and surface events may additionally carry `sourceEventSeqs` and `surfaceOp`. The sender copies every present member without projection, redaction, or reconstruction.
 
 ### Acceptance watermark and at-least-once delivery
 
@@ -156,4 +156,4 @@ Transport and non-2xx failures append no watermark. A crash after endpoint accep
 
 The request headers expose the Harness application version, one anonymous Harness-home identity, and an optional Session identity. `dsh_plugin_packages` exposes active npm package names and versions. When enabled, `dsh_session_log` may expose the Session working directory, system-prompt snapshots, user and assistant content, raw assistant chunks, tool arguments and results, compaction summaries, feedback, and plugin-owned events. Adapter API keys are not Session events and therefore do not enter the field. A gateway selected through `baseURL` receives the same values as the official endpoint.
 
-Receivers address extension fields by name, dispatch each field by its own `version`, preserve distinct package versions, and ignore JSON member ordering. A session-log receiver validates the contiguous sequence range before interpreting event types. Every unrecognized canonical event prevents lossless reconstruction. The base request remains usable without either the registry or a particular contribution; field absence means that contribution did not apply to that request.
+Receivers address extension fields by name, dispatch each field by its own `version`, preserve distinct package versions, and ignore JSON member ordering. A session-log receiver validates the contiguous sequence range before interpreting event types. An unrecognized canonical event without `ignorable: true` prevents lossless reconstruction. The base request remains usable without either the registry or a particular contribution; field absence means that contribution did not apply to that request.

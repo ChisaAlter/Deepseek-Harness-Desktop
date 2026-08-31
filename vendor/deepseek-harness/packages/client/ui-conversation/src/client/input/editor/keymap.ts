@@ -36,6 +36,8 @@ export interface ComposerKeymapHandlers {
   intakeFiles(files: readonly File[]): void
   /** Pasted plain text (sanitized insertion through the shell). */
   pasteText(text: string): void
+  /** End a live composer edit session; true when Escape should be consumed. */
+  cancelEdit(): boolean
 }
 
 /** Composition state a keydown can trust (see the module doc's Safari note). */
@@ -92,6 +94,10 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
       // does NOT release (backspacing the token is the only exit gesture).
       handlers.dismissPopup()
       if (handlers.arbitrate('escape', isComposingEvent(event, recentlyComposing)) === 'consumed') {
+        event.preventDefault()
+        return true
+      }
+      if (!isComposingEvent(event, recentlyComposing) && handlers.cancelEdit()) {
         event.preventDefault()
         return true
       }

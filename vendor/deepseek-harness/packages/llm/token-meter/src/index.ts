@@ -6,11 +6,12 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { BlockAssembler, deepFreeze } from '@deepseek-ai/dsh-llm'
+import { BlockAssembler } from '@deepseek-ai/dsh-llm'
 import type { LlmImageRequestPricing, Message, TokenUsage } from '@deepseek-ai/dsh-llm'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { EpochHeader, Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { canonicalHeader, headerEquals, isSurfaceEvent } from '@deepseek-ai/dsh-session'
-// Type-only: resolves the optional projection registry Context declaration.
+// Type-only: activates the `ctx.sessionProjections` Context declaration.
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {
   TokenMeasurement,
@@ -26,6 +27,12 @@ import type { MeterSurfaceNode } from './surface-fold.ts'
 import { priceSurface } from './route-pricing.ts'
 
 export type * from './types.ts'
+// Module-edge re-export: forces the emitted index.d.ts to import the
+// projection-unit modules, so their SessionProjectionStateMap augmentations load
+// in aggregate programs that only import the package root.
+export type * from './usage-projection.ts'
+export type * from './breakdown-projection.ts'
+export type * from './billed-usage-projection.ts'
 
 /**
  * Raw anchor facts captured at the latest successful call; the baseline is
@@ -86,20 +93,18 @@ export class TokenMeter extends Service {
   // the public type excludes settings while validateConfigKeys rejects them.
   static Config: z<TokenMeterConfig> = z.object({}) as unknown as z<TokenMeterConfig>
 
+  static inject = ['sessionProjections']
+
   private readonly states = new WeakMap<Session, ReplayState>()
 
   constructor(ctx: Context, config: TokenMeterConfig = {}) {
     super(ctx, 'tokenMeter')
     validateConfigKeys(config)
 
-    // Projection registration is an optional child: compositions without the
-    // generic registry keep the meter's standalone read shape.
-    ctx.inject(['sessionProjections'], (projectionCtx) => {
-      projectionCtx.sessionProjections.register(tokenUsageProjectionDefinition)
-      projectionCtx.sessionProjections.register(contextPressureProjectionDefinition)
-      projectionCtx.sessionProjections.register(contextBreakdownProjectionDefinition)
-      projectionCtx.sessionProjections.register(billedUsageProjectionDefinition)
-    })
+    ctx.sessionProjections.register(tokenUsageProjectionDefinition)
+    ctx.sessionProjections.register(contextPressureProjectionDefinition)
+    ctx.sessionProjections.register(contextBreakdownProjectionDefinition)
+    ctx.sessionProjections.register(billedUsageProjectionDefinition)
 
     // Readers catch up independently, while eager observation bounds ordinary
     // read latency without creating state for sessions no consumer has read.

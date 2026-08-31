@@ -258,7 +258,7 @@ Host service backing `ctx.remote.skills` without activating a cold Agent.
  * @param request - Session identity whose cwd and preset select the catalog view.
  * @param signal - caller lifetime carried by the Remote transport; admitted catalog reads retain their existing completion semantics.
  * @returns user-invocable skill metadata without loading skill bodies.
- * @throws TypertRemoteFailure when the Session cannot be inspected or no registry can serve it.
+ * @throws RemoteError when the Session cannot be inspected or no registry can serve it.
  */
 @Remote async list(request: SkillListRequest, signal: AbortSignal): Promise<SkillListValue>
 ```

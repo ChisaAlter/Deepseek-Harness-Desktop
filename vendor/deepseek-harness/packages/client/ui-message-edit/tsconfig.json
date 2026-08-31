@@ -18,16 +18,28 @@
       "path": "../locale"
     },
     {
-      "path": "../runtime"
+      "path": "../ui-conversation"
     },
     {
-      "path": "../ui-conversation"
+      "path": "../ui-chat"
     },
     {
       "path": "../ui-primitives"
     },
     {
       "path": "../ui-slots"
+    },
+    {
+      "path": "../store"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../core/session"
     }
   ]
 }

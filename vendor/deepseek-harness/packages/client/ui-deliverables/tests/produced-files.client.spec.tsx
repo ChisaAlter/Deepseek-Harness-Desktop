@@ -20,7 +20,7 @@ import type {
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { makeTranslate, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { makeTranslate, RemoteError, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import {
   fitProducedFiles, ProducedFiles, type ProducedFilesInjected, type ProducedFilesProps,
 } from '../src/client/ProducedFiles.tsx'
@@ -578,16 +578,15 @@ describe('plugin registration', () => {
       name: 'root',
       children: { 'conversation.chat.turnTail': { kind: 'chain', scope: 'session' } },
     } as never, () => null)
-    const generation = { getSnapshot: () => undefined, subscribe: () => () => {} }
-    ctx.provide('connection', {
-      isLoopback: false,
-      generation,
-    } as never)
     // ui-theme's Appearance row binds a durable scope through these two.
     const session = {
       canOpenWorkspacePath: () => Promise.resolve({ ok: true as const, value: true }),
     }
-    ctx.provide('remote', { $on: () => () => {}, session } as never)
+    ctx.provide('remote', {
+      $on: () => () => {},
+      $host: { home: undefined, isLoopback: false },
+      session,
+    } as never)
     ctx.provide('remote.session', session as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     await ctx.plugin({ inject: localeInject, apply: applyLocale }).await()
@@ -636,20 +635,20 @@ describe('plugin registration', () => {
       name: 'root',
       children: { 'conversation.chat.turnTail': { kind: 'chain', scope: 'session' } },
     } as never, () => null)
-    ctx.provide('connection', {
-      isLoopback: true,
-      generation: { getSnapshot: () => undefined, subscribe: () => () => {} },
-    } as never)
     const first = Promise.withResolvers<{ ok: true; value: boolean }>()
     const second = Promise.withResolvers<{ ok: true; value: boolean }>()
-    const staleFailure = Promise.withResolvers<{ ok: true; value: boolean }>()
+    const staleFailure = Promise.withResolvers<{ ok: false; error: RemoteError }>()
     const capability = vi.fn()
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
       .mockReturnValueOnce(staleFailure.promise)
-      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', 'offline', {}) })
     const session = { canOpenWorkspacePath: capability }
-    ctx.provide('remote', { $on: () => () => {}, session } as never)
+    ctx.provide('remote', {
+      $on: () => () => {},
+      $host: { home: undefined, isLoopback: true },
+      session,
+    } as never)
     ctx.provide('remote.session', session as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     await ctx.plugin({ inject: localeInject, apply: applyLocale }).await()
@@ -671,7 +670,7 @@ describe('plugin registration', () => {
 
     ctx.emit('connection/reset')
     ctx.emit('connection/reset')
-    staleFailure.reject(new Error('stale offline'))
+    staleFailure.resolve({ ok: false, error: new RemoteError('gateway/internal', 'stale offline', {}) })
     await vi.waitFor(() => { expect(injected.hooks.workspacePathOpen.getSnapshot()).toBe(false) })
     await fiber.dispose()
   })

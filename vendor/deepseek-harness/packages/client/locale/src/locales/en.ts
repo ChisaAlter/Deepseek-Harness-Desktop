@@ -34,7 +34,6 @@ export const en = {
   'unknown': 'Unknown',
   'none': 'None',
   'truncated': 'Truncated',
-  'connection.reconnecting': 'Connection lost; reconnecting…',
   'json.collapseNode': 'Collapse JSON node',
   'json.expandNode': 'Expand JSON node',
   'json.label': 'JSON',

@@ -9,7 +9,7 @@ import {
   IconTrashOutline16,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { cwdFromSessions } from './cwd.ts'
 import { clampDrawerHeight, maxDrawerHeight, TERMINAL_DRAWER_DEFAULT } from './height.ts'

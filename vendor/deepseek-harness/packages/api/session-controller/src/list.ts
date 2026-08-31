@@ -8,7 +8,7 @@ import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
-import { TypertRemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
 import {
   SESSION_SEARCH_RESULT_LIMIT,
@@ -87,25 +87,23 @@ export class ApiSessionList {
     private readonly ctx: Context,
     private readonly coldBlankProbeMaxBytes: number,
   ) {
-    ctx.inject(['sessionProjections'], (projectionCtx) => {
-      projectionCtx.sessionProjections.register<'sessionListMetadata', SessionListMetadata>({
-        key: 'sessionListMetadata',
-        stateSchema: sessionListMetadataSchema,
-        init: () => ({ blank: true, lastPromptAt: null }),
-        apply: applySessionListMetadata,
-        wire: { viewSchema: sessionListMetadataSchema, view: state => state },
-        stateVersion: 1,
-      })
+    ctx.sessionProjections.register<'sessionListMetadata', SessionListMetadata>({
+      key: 'sessionListMetadata',
+      stateSchema: sessionListMetadataSchema,
+      init: () => ({ blank: true, lastPromptAt: null }),
+      apply: applySessionListMetadata,
+      wire: { viewSchema: sessionListMetadataSchema, view: state => state },
+      stateVersion: 1,
     })
-    ctx.inject(['sessionProjections', 'attachments'], (projectionCtx) => {
-      projectionCtx.sessionProjections.register<'imageLimits', null>({
+    ctx.inject(['attachments'], (attachmentCtx) => {
+      ctx.sessionProjections.register<'imageLimits', null>({
         key: 'imageLimits',
         stateSchema: z.null(),
         init: () => null,
         apply: state => state,
         wire: {
           viewSchema: imageLimitsSchema,
-          view: () => projectionCtx.attachments.imageLimits,
+          view: () => attachmentCtx.attachments.imageLimits,
         },
         stateVersion: 1,
       })
@@ -228,8 +226,8 @@ export class ApiSessionList {
     signal.throwIfAborted()
     const provider = this.ctx.get('sessionQuery')
     if (provider === undefined) {
-      reject(
-        'internal',
+      throw new RemoteError(
+        'gateway/internal',
         'session search is unavailable: this deployment does not mount @deepseek-ai/dsh-session-query',
         {},
       )
@@ -319,9 +317,9 @@ export class ApiSessionList {
     } catch (error: unknown) {
       signal.throwIfAborted()
       if (error instanceof SessionQueryError && error.code === 'SESSION_QUERY_ABORTED') {
-        reject('cancelled', 'session search was aborted', {})
+        throw new RemoteError('gateway/cancelled', 'session search was aborted', {})
       }
-      reject('internal', `session search failed: ${String(error)}`, {})
+      throw new RemoteError('gateway/internal', `session search failed: ${String(error)}`, {})
     }
   }
 
@@ -332,7 +330,7 @@ export class ApiSessionList {
     try {
       const block = session === undefined
         ? this.ctx.get('sessionProjectionCache')?.cachedSnapshot(header)
-        : this.ctx.get('sessionProjections')?.cachedSnapshot(session)
+        : this.ctx.sessionProjections.cachedSnapshot(session)
       return block !== undefined && Object.keys(block.values).length > 0
         ? {
           asOfSeq: block.asOfSeq,
@@ -353,23 +351,19 @@ export class ApiSessionList {
 function normalizeSearchQuery(query: string): string {
   const normalized = query.trim()
   if (normalized.length === 0) {
-    reject('bad-request', 'session search query must not be empty', {})
+    throw new RemoteError('gateway/bad-request', 'session search query must not be empty', {})
   }
   if (normalized.length > SESSION_SEARCH_QUERY_MAX_CHARS) {
-    reject(
-      'bad-request',
+    throw new RemoteError(
+      'gateway/bad-request',
       `session search query must contain at most ${SESSION_SEARCH_QUERY_MAX_CHARS} UTF-16 code units`,
       {},
     )
   }
   if (normalized.includes('\0')) {
-    reject('bad-request', 'session search query must not contain NUL', {})
+    throw new RemoteError('gateway/bad-request', 'session search query must not contain NUL', {})
   }
   return normalized
-}
-
-function reject(code: string, message: string, details: object): never {
-  throw new TypertRemoteFailure({ code, message, details })
 }
 
 function updatedAt(header: SessionHeader, metadata: SessionListMetadata | undefined): number {

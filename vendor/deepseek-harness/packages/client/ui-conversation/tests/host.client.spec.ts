@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
-import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import {
   CONVERSATION_SETTINGS_NAMESPACE, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM,
   DEFAULT_COMPOSER_RESIZE, DEFAULT_OFFICIAL_PEAK_VALLEY, DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS, apply,
@@ -20,7 +20,7 @@ describe('ui-conversation host', () => {
     await ctx.plugin(MemorySettings).await()
     const fiber = ctx.plugin({ apply })
     await fiber.await()
-    const ns = settingsNamespace(CONVERSATION_SETTINGS_NAMESPACE)
+    const ns = CONVERSATION_SETTINGS_NAMESPACE
     expect(ctx.settings.get(ns)).toEqual({
       busyEnter: DEFAULT_BUSY_ENTER_BEHAVIOR,
       composerBeam: DEFAULT_COMPOSER_BEAM,

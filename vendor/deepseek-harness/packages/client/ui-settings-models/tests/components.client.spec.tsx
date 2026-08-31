@@ -5,8 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import Schema from '@deepseek-ai/schemastery'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import type { JsonValue, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import { bindSnapshotSelector, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import type {
+  CredentialInfo, RemoteResult, SettingsNamespaceView,
+} from '@deepseek-ai/dsh-api-remotes/client'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import {
   ModelsSection, needsSetup, providerCopy, providerTargetLabel, removeProviderProfile,
 } from '../src/client/ModelsSection.tsx'
@@ -20,6 +23,8 @@ import type { ModelDraft, ProbeTarget } from '../src/client/ModelListEditor.tsx'
 import { apiKeyFailure } from '../src/client/apiKey.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { deriveKeyRef, ModelsSettingsStore } from '../src/client/store.ts'
+import { createModelsOperations } from '../src/client/operations.ts'
+import type { ModelsOperations } from '../src/client/operations.ts'
 import type { ProviderRow } from '../src/client/store.ts'
 import { en } from '../src/client/locales.ts'
 import { settingsSchema } from './settings-schema.client.ts'
@@ -141,8 +146,19 @@ function wireNamespaces(): SettingsNamespaceView[] {
 function remoteOk<T>(value: T) {
   return { ok: true as const, value }
 }
-function remoteFail(message: string, code = 'credential-rejected') {
-  return { ok: false as const, error: { code, message, details: {} } }
+/** The codes this page's scripted Host answers refuse with. */
+type RefusalCode = 'credential/rejected' | 'gateway/internal' | 'settings/conflict' | 'settings/rejected'
+
+/** One refusal per code, each carrying the details its own code declares. */
+const REFUSALS: { [Code in RefusalCode]: (message: string) => RemoteError<Code> } = {
+  'credential/rejected': message => new RemoteError('credential/rejected', message, { ref: 'DEEPSEEK_API_KEY' }),
+  'gateway/internal': message => new RemoteError('gateway/internal', message, {}),
+  'settings/conflict': message =>
+    new RemoteError('settings/conflict', message, { ns: 'llm-pi-ai', expected: 4, actual: 5 }),
+  'settings/rejected': message => new RemoteError('settings/rejected', message, { ns: 'llm-pi-ai' }),
+}
+function remoteFail(message: string, code: RefusalCode = 'credential/rejected') {
+  return { ok: false as const, error: REFUSALS[code](message) }
 }
 
 function scriptedFace(overrides: {
@@ -178,13 +194,16 @@ function scriptedFace(overrides: {
       mutate,
     },
     credentials: {
-      describe: vi.fn((refs: string[]) => Promise.resolve(remoteOk(
-        Object.fromEntries(refs.map(ref => [ref, {
-          configured: ref === 'OPENAI_API_KEY',
-          ...ref === 'OPENAI_API_KEY' ? { source: 'file' } : {},
-          writable: true,
-        }])),
-      ))),
+      // Typed as the Remote answer rather than the success branch alone: a
+      // case that scripts a refusal replaces this mock.
+      describe: vi.fn((refs: string[]): Promise<RemoteResult<Record<string, CredentialInfo>>> =>
+        Promise.resolve(remoteOk(
+          Object.fromEntries(refs.map(ref => [ref, {
+            configured: ref === 'OPENAI_API_KEY',
+            ...ref === 'OPENAI_API_KEY' ? { source: 'file' } : {},
+            writable: true,
+          }])),
+        ))),
       set,
       unset,
     },
@@ -192,7 +211,35 @@ function scriptedFace(overrides: {
   return { face, update, mutate, set, unset }
 }
 
-type WireFace = ConstructorParameters<typeof ModelsSettingsStore>[0]
+type PageContext = ConstructorParameters<typeof ModelsSettingsStore>[0]
+
+/**
+ * The page plugin's context, scripted down to the namespaces the page reaches.
+ * One context per face, as in production: an editor effect keyed by the context
+ * would otherwise re-probe on every render.
+ */
+const contexts = new WeakMap<object, PageContext>()
+function ctxWith(face: object): PageContext {
+  const existing = contexts.get(face)
+  if (existing !== undefined) return existing
+  const ctx = { remote: face } as unknown as PageContext
+  contexts.set(face, ctx)
+  return ctx
+}
+
+/**
+ * The cards' injected Host operations over the same script, bound once per face
+ * as the plugin body binds them: an editor effect keyed by this face would
+ * otherwise re-probe on every render.
+ */
+const operations = new WeakMap<object, ModelsOperations>()
+function operationsWith(face: object): ModelsOperations {
+  const existing = operations.get(face)
+  if (existing !== undefined) return existing
+  const bound = createModelsOperations(ctxWith(face))
+  operations.set(face, bound)
+  return bound
+}
 
 /** One recorded child-slot dispatch: seat name, owner share, kind options. */
 type RenderSlotCall = [name: string, owner: Record<string, unknown>, opts?: { entryKey?: string }]
@@ -218,20 +265,21 @@ function cardSeatCalls(
 
 async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
   const { face, update, mutate, set, unset } = scripted
-  const mirror = new SettingsDescribeMirror(face as never)
-  const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, mirror)
+  const ctx = ctxWith(face)
+  const mirror = new SettingsDescribeMirror(ctx)
+  const controller = new ModelsSettingsStore(ctx, settingsSchema, mirror)
   await controller.load()
   const renderSlot = stubRenderSlot()
   const injected: ModelsSectionProps = {
     controller,
     useSnapshot: bindSnapshotSelector(controller.store),
-    api: face as never,
+    operations: operationsWith(face),
     schema: settingsSchema,
     t,
     renderSlot: renderSlot as unknown as ModelsSectionProps['renderSlot'],
   }
   const view = render(<ModelsSection {...injected} />)
-  return { view, face, update, mutate, set, unset, controller, mirror, renderSlot }
+  return { view, ctx, face, update, mutate, set, unset, controller, mirror, renderSlot }
 }
 
 async function mountSection(overrides: Parameters<typeof scriptedFace>[0] = {}) {
@@ -355,12 +403,12 @@ describe('ModelsSection', () => {
     face.credentials.describe.mockImplementation((refs: string[]) => Promise.resolve(remoteOk(
       Object.fromEntries(refs.map(ref => [ref, { configured: false, writable: true }])),
     )))
-    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    const controller = new ModelsSettingsStore(ctxWith(face), settingsSchema, new SettingsDescribeMirror(ctxWith(face)))
     await controller.load()
     render(<ModelsSection
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
-      api={face as never}
+      operations={operationsWith(face)}
       schema={settingsSchema}
       t={t}
       renderSlot={() => null}
@@ -379,13 +427,13 @@ describe('ModelsSection', () => {
     face.credentials.describe.mockImplementation((refs: string[]) => Promise.resolve(remoteOk(
       Object.fromEntries(refs.map(ref => [ref, { configured: true, writable: true }])),
     )))
-    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    const controller = new ModelsSettingsStore(ctxWith(face), settingsSchema, new SettingsDescribeMirror(ctxWith(face)))
     await controller.load()
     cleanup()
     render(<ModelsSection
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
-      api={face as never}
+      operations={operationsWith(face)}
       schema={settingsSchema}
       t={t}
       renderSlot={() => null}
@@ -467,7 +515,7 @@ describe('ModelsSection', () => {
       namespace={wireNamespaces()[0]!}
       schema={settingsSchema}
       settingsPath={[]}
-      api={face as never}
+      operations={operationsWith(face)}
       t={t}
       readOnly={false}
       credentialOnly
@@ -726,7 +774,7 @@ describe('ModelsSection', () => {
       namespace={overridden}
       schema={settingsSchema}
       settingsPath={[]}
-      api={face as never}
+      operations={operationsWith(face)}
       t={t}
       readOnly={false}
       onClose={() => {}}
@@ -956,7 +1004,7 @@ describe('ModelsSection', () => {
       namespace={bare}
       schema={settingsSchema}
       settingsPath={[]}
-      api={face as never}
+      operations={operationsWith(face)}
       t={t}
       readOnly={false}
       onClose={() => {}}
@@ -1104,7 +1152,7 @@ describe('ModelsSection', () => {
 
   it('surfaces a rejected settings write and never stores the key after it', async () => {
     const { set } = await mountSection({
-      mutate: vi.fn(() => Promise.resolve(remoteFail('llm-pi-ai: unknown pi-ai provider "bogus"', 'settings-rejected'))),
+      mutate: vi.fn(() => Promise.resolve(remoteFail('llm-pi-ai: unknown pi-ai provider "bogus"', 'settings/rejected'))),
     })
     fireEvent.click(screen.getByText(en.add))
     await screen.findByLabelText(en.provider)
@@ -1114,38 +1162,28 @@ describe('ModelsSection', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('renders the card without the stored-key hint when the credential probe rejects', async () => {
-    // The probe is a placeholder hint, not a precondition: an escaping
-    // rejection would surface in the browser as an unhandled rejection.
+  it('renders the card without the stored-key hint when the credential probe is refused', async () => {
     const { face } = scriptedFace()
-    face.credentials.describe = vi.fn(() => Promise.reject(new Error('connection lost')))
-    const unhandled = vi.fn()
-    process.on('unhandledRejection', unhandled)
-    try {
-      const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
-      await controller.load()
-      render(<ModelsSection
-        controller={controller}
-        useSnapshot={bindSnapshotSelector(controller.store)}
-        api={face as never}
-        schema={settingsSchema}
-        t={t}
-        renderSlot={() => null}
-      />)
-      const key = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
-      expect(key.placeholder).toBe(en.keyPlaceholder)
-      await new Promise(resolve => setTimeout(resolve, 10))
-      expect(unhandled).not.toHaveBeenCalled()
-    } finally {
-      process.off('unhandledRejection', unhandled)
-    }
+    face.credentials.describe = vi.fn(() => Promise.resolve(remoteFail('no credential provider')))
+    const controller = new ModelsSettingsStore(ctxWith(face), settingsSchema, new SettingsDescribeMirror(ctxWith(face)))
+    await controller.load()
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      operations={operationsWith(face)}
+      schema={settingsSchema}
+      t={t}
+      renderSlot={() => null}
+    />)
+    const key = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
+    expect(key.placeholder).toBe(en.keyPlaceholder)
   })
 
   it('tells the user to reopen when another writer moved the namespace first', async () => {
     // The stale-draft overwrite: two tabs open the same card, the other saves,
     // and this one must be refused rather than replay its opening snapshot.
     const { set } = await mountDeepSeekCard({
-      mutate: vi.fn(() => Promise.resolve(remoteFail('changed since it was read', 'settings-conflict'))),
+      mutate: vi.fn(() => Promise.resolve(remoteFail('changed since it was read', 'settings/conflict'))),
     })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://mine' } })
@@ -1154,16 +1192,15 @@ describe('ModelsSection', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('keeps the card usable when the write rejects instead of answering', async () => {
-    // A transport failure (disconnect, or the 403 a non-loopback browser now
-    // gets on the whole configuration plane) rejects rather than returning a
-    // failed envelope: without a catch the card would stay busy forever.
-    await mountDeepSeekCard({ mutate: vi.fn(() => Promise.reject(new Error('connection lost'))) })
+  it('keeps the card usable after a refused write', async () => {
+    await mountDeepSeekCard({
+      mutate: vi.fn(() => Promise.resolve(remoteFail('the host refused', 'settings/rejected'))),
+    })
     fireEvent.click(screen.getByText(en.customized))
     fireEvent.change(screen.getByLabelText<HTMLInputElement>(en.baseUrl), { target: { value: 'https://next' } })
     fireEvent.click(screen.getByText(en.apply))
-    await screen.findByText('connection lost')
-    // Not stuck in `applying�`: the finally cleared busy, so Apply is live again.
+    await screen.findByText('the host refused')
+    // Not stuck in `applying…`: the finally cleared busy, so Apply is live again.
     expect(screen.getByText(en.apply)).toBeTruthy()
   })
 
@@ -1193,7 +1230,7 @@ describe('ModelsSection', () => {
 
   it('keeps a failed credential describe silent and the input usable', async () => {
     const { face, set } = await mountSection()
-    face.credentials.describe.mockImplementation(() => Promise.resolve(remoteFail('down', 'internal')) as never)
+    face.credentials.describe.mockImplementation(() => Promise.resolve(remoteFail('down', 'gateway/internal')))
     fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.editProvider) }))
     const editorKey = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
     expect(editorKey.placeholder).toBe(en.keyPlaceholderNative)
@@ -1260,14 +1297,14 @@ describe('ModelsSection', () => {
 
   it('renders the load failure with a retry control', async () => {
     const face = scriptedFace()
-    face.face.llm.listProviders = vi.fn(() => Promise.resolve(remoteFail('directory down', 'internal'))) as never
+    face.face.llm.listProviders = vi.fn(() => Promise.resolve(remoteFail('directory down', 'gateway/internal'))) as never
     const controller = new ModelsSettingsStore(
-      face.face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face.face as never))
+      ctxWith(face.face), settingsSchema, new SettingsDescribeMirror(ctxWith(face.face)))
     await controller.load()
     render(<ModelsSection
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
-      api={face.face as never}
+      operations={operationsWith(face.face)}
       schema={settingsSchema}
       t={t}
       renderSlot={() => null}
@@ -1284,13 +1321,13 @@ describe('ModelsSection', () => {
       hasDocument: false,
       namespaces: wireNamespaces(),
     })))
-    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    const controller = new ModelsSettingsStore(ctxWith(face), settingsSchema, new SettingsDescribeMirror(ctxWith(face)))
     await controller.load()
     cleanup()
     render(<ModelsSection
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
-      api={face as never}
+      operations={operationsWith(face)}
       schema={settingsSchema}
       t={t}
       renderSlot={() => null}
@@ -1348,11 +1385,11 @@ describe('ModelsSection', () => {
 
   it('loads on first render of an idle controller', async () => {
     const { face } = scriptedFace()
-    const controller = new ModelsSettingsStore(face as unknown as WireFace, settingsSchema, new SettingsDescribeMirror(face as never))
+    const controller = new ModelsSettingsStore(ctxWith(face), settingsSchema, new SettingsDescribeMirror(ctxWith(face)))
     render(<ModelsSection
       controller={controller}
       useSnapshot={bindSnapshotSelector(controller.store)}
-      api={face as never}
+      operations={operationsWith(face)}
       schema={settingsSchema}
       t={t}
       renderSlot={() => null}
@@ -1365,7 +1402,7 @@ describe('ModelsSection', () => {
     // would widen the write for no benefit.
     const { face, mutate, controller } = await mountSection()
     await removeProviderProfile(
-      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      operationsWith(face),
       controller,
       { settingsNs: 'llm-plain', settingsPath: ['ghost-profile'] },
     )
@@ -1378,11 +1415,11 @@ describe('ModelsSection', () => {
 
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {
     const { face, controller } = await mountSection({
-      mutate: vi.fn(() => Promise.resolve(remoteFail('read-only', 'settings-rejected'))),
+      mutate: vi.fn(() => Promise.resolve(remoteFail('read-only', 'settings/rejected'))),
     })
     const before = controller.store.getSnapshot().rows
     const failure = await removeProviderProfile(
-      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      operationsWith(face),
       controller,
       { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
     )
@@ -1392,7 +1429,7 @@ describe('ModelsSection', () => {
 
   it('keeps a failed identified deletion recoverable in its confirmation dialog', async () => {
     const mutate = vi.fn()
-      .mockResolvedValueOnce(remoteFail('the host refused', 'settings-rejected'))
+      .mockResolvedValueOnce(remoteFail('the host refused', 'settings/rejected'))
       .mockResolvedValueOnce(remoteOk(wireNamespaces()[2]!))
     const { unset } = await mountSection({ mutate })
     fireEvent.click(screen.getByRole('button', { name: openaiCopy(en.removeProvider) }))
@@ -1433,7 +1470,7 @@ describe('ModelsSection', () => {
       unset: vi.fn(() => Promise.resolve(remoteFail('credential is read-only'))),
     })
     const failure = await removeProviderProfile(
-      face as unknown as Parameters<typeof removeProviderProfile>[0],
+      operationsWith(face),
       controller,
       {
         settingsNs: 'llm-pi-ai',
@@ -1445,17 +1482,6 @@ describe('ModelsSection', () => {
     expect(mutate).not.toHaveBeenCalled()
   })
 
-  it('reports a transport rejection instead of failing the removal silently', async () => {
-    const { face, controller } = await mountSection({
-      mutate: vi.fn(() => Promise.reject(new Error('connection lost'))),
-    })
-    const failure = await removeProviderProfile(
-      face as unknown as Parameters<typeof removeProviderProfile>[0],
-      controller,
-      { settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'] },
-    )
-    expect(failure).toBe('connection lost')
-  })
 })
 
 describe('input types', () => {
@@ -1493,7 +1519,13 @@ describe('input types', () => {
           models={models}
           overridden={false}
           probe={probe}
-          api={{ llm: { discoverModels: vi.fn() } } as never}
+          operations={{
+            describeCredential: async () => undefined,
+            storeCredential: async () => undefined,
+            removeCredential: async () => undefined,
+            writeSettings: async () => ({ kind: 'refused', message: 'unused' }),
+            discoverModels: async () => ({ kind: 'found', models: [] }),
+          }}
           t={t}
           disabled={false}
           onChange={(next) => { onChange(next); setModels(next) }}

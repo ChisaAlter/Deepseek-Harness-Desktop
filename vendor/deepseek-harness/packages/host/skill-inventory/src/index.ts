@@ -7,9 +7,10 @@ import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import { isSkillName, type SkillDefinition, type SkillRegistry, type SkillSummary, type SkillViewOptions } from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-skill'
-import { TypertLookupFailure, TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from 'zod'
 import { parseSkillMarkdown, renderSkillInvocationMarkdown, renderSkillMarkdown } from './frontmatter.ts'
 import type {
@@ -187,11 +188,11 @@ export class SkillInventoryGateway extends TypertRemoteService {
     const agents = this.ctx.get('agents') as { get(id: string): object | undefined } | undefined
     const agent = agents?.get(sessionId)
     if (agent === undefined) {
-      throw new TypertLookupFailure({
-        code: 'session-not-found',
-        message: `session "${sessionId}" not found (not attached)`,
-        details: { sessionId },
-      })
+      throw new RemoteError(
+        'session/not-found',
+        `session "${sessionId}" not found (not attached)`,
+        { sessionId: sessionId as SessionId },
+      )
     }
     return agent
   }

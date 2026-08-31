@@ -118,7 +118,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 | [`src/mailbox.ts`](src/mailbox.ts) | 持久队列、目标本地投递、确认与恢复 |
 | [`src/task-board.ts`](src/task-board.ts) | 任务 CAS 命令、DAG 校验与派生视图 |
 | [`src/journal.ts`](src/journal.ts) | 串行化的 Lead 日志事务与提交通知 |
-| [`src/fold.ts`](src/fold.ts) | 解码并校验 Team 事件的严格回放折叠 |
+| [`src/projection.ts`](src/projection.ts) | 解码并校验 Team 事件的严格回放投影 |
 | [`src/activity.ts`](src/activity.ts) | 一次性变更等待者与 dispose 释放 |
 | [`src/lifecycle.ts`](src/lifecycle.ts) | 共享准入截止与有界结算 |
 | [`src/invariant.ts`](src/invariant.ts) | 在 append 前回放候选事件的不变式伴生插件 |

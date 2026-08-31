@@ -1,5 +1,5 @@
 ---
-description: "Branded<B> 名义类型原语，供拥有跨包边界 id 的包使用，并说明何时应添加品牌。"
+description: "供拥有跨包标识符的包使用的名义字符串类型与无状态构造函数。"
 kind: "package-library"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-brand` 借助其 `Branded<B>` 原语，让结构相同的字符串在类型层面不可互换：即使 `SessionId` 与 `ToolCallId` 在运行时都是普通 `string`，前者也无法传给期望后者的位置。由于品牌在编译期被擦除，比较、日志记录、JSON 序列化与协议格式（wire format）的行为都与普通字符串完全相同。它是纯类型包，没有运行时代码，也不依赖其他 harness 包，因此任何包都可以为自己拥有的 id 添加品牌，而无需导入不相关的能力包。拥有跨包 id 的包——`dsh-llm` 中的 `ToolCallId`、共享的 agent/会话 `SessionId`、`dsh-jobs` 中的 `JobId`——为该 id 添加品牌，并通过各 id 专用工厂构造。
+`dsh-brand` 让结构相同的字符串在类型层面不可互换：即使 `SessionId` 与 `ToolCallId` 在运行时都是普通字符串，前者也无法传给期望后者的位置。`brandString<T>()` 为领域拥有的字符串应用名义品牌且不持有共享运行时状态，让能力包可以拥有自己的具体 id 类型，而无需导入不相关的能力。
 
 ## 目录
 
@@ -25,26 +25,23 @@ kind: "package-library"
 
 当包拥有的 id 跨越包边界、并可能与其他包的 id 混淆时，为其添加品牌；并非每个字符串都需要品牌。品牌化 id 是给 TypeScript 调用方的约定：它只会进入期望它的函数，来自其他包的 id 会在编译期被拒绝。
 
-### 为 id 添加品牌
+### 为字符串添加品牌
 
-在所属包中声明品牌化类型及其构造工厂：
+在所属包中声明品牌化类型，并在该包准入字符串的位置应用品牌：
 
 ```ts
-import type { Branded } from '@deepseek-ai/dsh-brand'
+import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 
 export type SessionId = Branded<'SessionId'>
 
-/** Brand a string as a SessionId (a plain cast — zero runtime cost). */
-export function SessionId(id: string): SessionId {
-  return id as SessionId
-}
+const sessionId = brandString<SessionId>('session-1')
 ```
 
-工厂是一次普通类型断言，运行时成本为零。添加品牌后，该 id 在代码库中与普通字符串无异：它可以比较、记录日志、序列化为 JSON，并无需任何特殊处理即可跨越协议传输。
+`brandString()` 只改变静态类型，不执行运行时校验。所属类型若有领域文法，应在调用前完成校验。添加品牌后，该 id 与普通字符串一样比较、记录日志、序列化为 JSON 和跨 wire 传输。
 
 ### 何时添加品牌
 
-为跨包边界且可能被混淆的 id 添加品牌——`dsh-llm` 中的 `ToolCallId`、`dsh-session` 中共享的 agent/会话 `SessionId`、`dsh-jobs` 中的 `JobId`、`dsh-lsp` 中的 `LspProviderId`。不要为每个字符串都添加品牌：代价是每个构造点一个工厂、每个消费方一次类型导入，因此从不离开所属包的 id 不值得这样做。
+为跨包边界且可能被混淆的 id 添加品牌——`dsh-llm` 中的 `ToolCallId`、`dsh-session` 中共享的 agent/会话 `SessionId`、`dsh-jobs` 中的 `JobId`、`dsh-lsp` 中的 `LspProviderId`。从不离开所属包的字符串不需要这种抽象。
 
 -----
 
@@ -60,16 +57,16 @@ export function SessionId(id: string): SessionId {
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | `Branded<B>` 类型与私有 `BRAND` 符号——即整个包 |
+| [`src/index.ts`](src/index.ts) | 品牌化字符串类型及其无状态构造函数 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；擦除由编译器保证） |
 
-### 擦除如何工作
+### 值为何可移植
 
-该符号在运行时绝不存在：类型在编译期被擦除，因此品牌化值就是普通字符串，没有标签、没有原型、没有运行时检查。构造发生在所属包工厂内部的一次类型断言中，因此品牌只会在所属包声明它的地方被创建。
+私有 symbol 在运行时不存在：TypeScript 会将其擦除，因此品牌化值没有标签或 prototype。`brandString()` 原样返回输入。因此，彼此独立安装的副本无需共享注册表或 constructor identity，也会生成可互换的值。
 
 ### 为何保持无依赖
 
-把 `Branded` 放在独立包中，意味着 `dsh-jobs` 可以为 `JobId` 添加品牌，而无需仅为使用该原语导入不相关的能力包；品牌词汇也因此只有唯一归属。
+把这些 helper 放在独立包中，意味着 `dsh-jobs` 可以为 `JobId` 添加品牌，而无需导入不相关的能力包；每个能力仍然拥有其具体 id 的含义与校验。
 
 </details>
 

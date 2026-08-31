@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
-import { TypertRemoteFailure, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+import { remoteErrorOf, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import CredentialsController from '../src/credentials.ts'
 import { MemoryCredentials } from '../../../credentials/credentials/tests/memory.ts'
 
@@ -60,9 +60,8 @@ describe('the credentials Remote namespace a configuration surface calls', () =>
       () => ctx.credentialsController.unset('DEEPSEEK_API_KEY'),
     ]) {
       const failure = await call().catch((error: unknown) => error)
-      expect(failure).toBeInstanceOf(TypertRemoteFailure)
-      expect((failure as TypertRemoteFailure).failure).toEqual({
-        code: 'internal',
+      expect(remoteErrorOf(failure)).toMatchObject({
+        code: 'gateway/internal',
         message: 'credentials service is absent: this deployment does not mount a credential provider (e.g. @deepseek-ai/dsh-credentials-local) in its composition',
         details: {},
       })
@@ -87,8 +86,7 @@ describe('the credentials Remote namespace a configuration surface calls', () =>
       () => controller.unset('not a var'),
     ]) {
       const failure = await call().catch((error: unknown) => error)
-      expect(failure).toBeInstanceOf(TypertRemoteFailure)
-      expect((failure as TypertRemoteFailure).failure).toMatchObject({ code: 'bad-request' })
+      expect(remoteErrorOf(failure)).toMatchObject({ code: 'gateway/bad-request' })
     }
   })
 
@@ -97,7 +95,7 @@ describe('the credentials Remote namespace a configuration surface calls', () =>
     const accepted = Array.from({ length: 64 }, (_unused, index) => `REF_${String(index)}`)
     expect(Object.keys(await controller.describe(accepted))).toHaveLength(64)
     const failure = await controller.describe([...accepted, 'REF_64']).catch((error: unknown) => error)
-    expect((failure as TypertRemoteFailure).failure).toMatchObject({ code: 'bad-request' })
+    expect(remoteErrorOf(failure)).toMatchObject({ code: 'gateway/bad-request' })
   })
 
   it('answers only the fields the view declares, whatever a provider returns', async () => {
@@ -117,12 +115,11 @@ describe('the credentials Remote namespace a configuration surface calls', () =>
       .toEqual({ DEEPSEEK_API_KEY: { configured: false, writable: true } })
   })
 
-  it('reports a refused write as credential-rejected naming only the reference', async () => {
+  it('reports a refused write as credential/rejected naming only the reference', async () => {
     const controller = await boot({}, RejectingCredentials)
     const failure = await controller.set('DEEPSEEK_API_KEY', 'sk-live').catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertRemoteFailure)
-    const { code, message, details } = (failure as TypertRemoteFailure).failure
-    expect(code).toBe('credential-rejected')
+    const { code, message, details } = remoteErrorOf(failure) ?? {}
+    expect(code).toBe('credential/rejected')
     expect(message).toContain('read-only source')
     expect(details).toEqual({ ref: 'DEEPSEEK_API_KEY' })
   })
@@ -130,12 +127,12 @@ describe('the credentials Remote namespace a configuration surface calls', () =>
   it('reports an empty value as bad-request', async () => {
     const controller = await boot()
     const failure = await controller.set('DEEPSEEK_API_KEY', '').catch((error: unknown) => error)
-    expect((failure as TypertRemoteFailure).failure).toMatchObject({ code: 'bad-request' })
+    expect(remoteErrorOf(failure)).toMatchObject({ code: 'gateway/bad-request' })
   })
 
   it('stringifies a refusal that is not an Error', async () => {
     const controller = await boot({}, LiteralRejectingCredentials)
     const failure = await controller.set('DEEPSEEK_API_KEY', 'sk-live').catch((error: unknown) => error)
-    expect((failure as TypertRemoteFailure).failure.message).toBe('the store refused')
+    expect(remoteErrorOf(failure)?.message).toBe('the store refused')
   })
 })

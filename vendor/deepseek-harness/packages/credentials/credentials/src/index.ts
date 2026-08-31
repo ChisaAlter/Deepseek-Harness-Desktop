@@ -9,6 +9,7 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CredentialInfo, CredentialKey, CredentialRecord, CredentialRef } from './types.ts'
 
 export type {
@@ -29,7 +30,7 @@ export function credentialRef(value: string): CredentialRef {
   if (!isCredentialRefName(value)) {
     throw new TypeError(`credential ref "${value}" must match ${String(REF_PATTERN)}`)
   }
-  return value as CredentialRef
+  return brandString<CredentialRef>(value)
 }
 
 /**
@@ -71,7 +72,7 @@ export function credentialKey(scope: string, id: string): CredentialKey {
       throw new TypeError(`credential key segment "${segment}" must match ${String(KEY_SEGMENT_PATTERN)}`)
     }
   }
-  return `${scope}/${id}` as CredentialKey
+  return brandString<CredentialKey>(`${scope}/${id}`)
 }
 
 /**

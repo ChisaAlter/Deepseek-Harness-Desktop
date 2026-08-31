@@ -1,6 +1,6 @@
 # Deepseek-Harness-Desktop
 
-Desktop client for the official DeepSeek Harness Web UI — download, install, and run without starting `dsh web` yourself.
+Community desktop client that wraps the official DeepSeek Harness Web UI — download, install, and run without starting `dsh web` yourself.
 
 [中文](README.md) · English · [Download](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) · [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -15,6 +15,8 @@ Grab a build from [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desk
 | Intel Mac, Linux | [Run from source](#run-from-source) |
 
 The macOS build is unsigned: right-click → Open, or run `xattr -cr /Applications/Deepseek-Harness-Desktop.app`. Checksums are in `SHA512SUMS.txt` on the release page.
+
+After install, the launcher opens first and usually starts the desktop. If the desktop has no sessions yet and `~/.dsh` already has data, it stops on Import. Then pick a workspace and add an API key in Settings.
 
 ## What's new in 0.2.7
 
@@ -49,6 +51,7 @@ If the terminal still shows `Unable to load libghostty-vt (404)`, or you install
 - **Official UI** — chat, tool calls, and approvals are `dsh web`. There is no custom chat page.
 - **Launcher** — cold start opens the launcher (update prompt, import, versions, plugin forensics); tray can reopen it anytime.
 - **Git** — switch branches, commit, push, and open a pull request from the title bar.
+- **Remote** — open Remote at the bottom of the sidebar and scan the QR with a phone browser to join the same session (off by default).
 - **Files and terminal** — `Ctrl+\` opens the right column (Files / Diff / Browser / Agents); `` Ctrl+` `` opens the bottom terminal. A selection can join chat.
 - **Models** — thinking intensity for third-party models, vision fallback; the latest user message can be edited and resent.
 - **Appearance** — light / dark themes. Pick a wallpaper or Browse the gallery (categories, search, favorites; confirm crops to the window). Frost and pixelate stay on Appearance.
@@ -56,6 +59,17 @@ If the terminal still shows `Unable to load libghostty-vt (404)`, or you install
 - **Desktop shell** — minimize to tray, auto-update; if Harness dies, the window returns to a failure page and restarts. If a user plugin blocks startup, the launcher can disable that package or skip user plugins.
 
 `Ctrl+,` opens Settings.
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="assets/screenshot-surfaces.jpg" alt="Chat and right column" /></td>
+    <td align="center" width="50%"><img src="assets/screenshot-wallpaper.jpg" alt="Wallpaper" /></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="assets/screenshot-themes.jpg" alt="Appearance themes" /></td>
+    <td align="center" width="50%"><img src="assets/screenshot-appearance.jpg" alt="Appearance settings" /></td>
+  </tr>
+</table>
 
 ## Data directory
 
@@ -87,11 +101,11 @@ The first `setup:harness` builds the vendored `vendor/deepseek-harness` — slow
 
 Edit the UI in `vendor/deepseek-harness`. Follow the [design language](docs/design-language.en.md) and [motion](docs/motion.en.md). Product handbook: [docs/handbook](docs/handbook/README.md); behavior contracts: [Feature Spine](docs/features/README.md). After changing client sources, run `pnpm run build:lib:client` there and restart the desktop app.
 
-The current official baseline is `vendor/harness-upstream.json`: `0.1.1-rc.1` (`dsh-v0.1.1-rc.1` / `528c682e061696f5a160f363f236ecbf53cbd006`). The npx fallback is official `@deepseek-ai/dsh@0.1.1-rc.1` and does not include the titlebar, Git, surfaces column, or terminal drawer; those ship only on the source and packaged paths.
+The current official baseline is `vendor/harness-upstream.json`: `0.1.2-alpha.2` (`dsh-v0.1.2-alpha.2` / `0a53fb55bea101816fa226bb964ae2bed71c343b`). The npx fallback is official `@deepseek-ai/dsh@0.1.2-alpha.2` and does not include the titlebar, Git, surfaces column, or terminal drawer; those ship only on the source and packaged paths. Packaged 0.2.7 is still pinned to `0.1.1-rc.1`, which is not the source pin.
 
 ```powershell
 npm test              # desktop unit tests
-npm run sync:harness -- --ref dsh-v0.1.1-rc.1 --sha 528c682e061696f5a160f363f236ecbf53cbd006
+npm run sync:harness -- --ref dsh-v0.1.2-alpha.2 --sha 0a53fb55bea101816fa226bb964ae2bed71c343b
 npm run dist          # Windows installer
 npm run dist:mac      # macOS installer (must run on macOS)
 ```
@@ -100,7 +114,11 @@ Push a `v*` tag that matches `package.json`; GitHub Actions builds the Windows a
 
 ## Community
 
-Issues and PRs are welcome. Thanks to [Linux.do](https://linux.do).
+<p align="center">
+  <img src="assets/wechat-group.png" alt="WeChat group QR code" width="240" />
+</p>
+
+WeChat group (Chinese). Invite codes expire about once a week; open an [Issue](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues) if the code does not scan. Issues and PRs are welcome. Thanks to [Linux.do](https://linux.do).
 
 ## License
 

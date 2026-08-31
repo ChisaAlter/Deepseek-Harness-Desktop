@@ -16,7 +16,7 @@ Status: implemented
 
 JSONL 把严格递增的 `sourceEventSeqs` 存为标量值与闭区间的混合数组，其他顺序保持原样。SQLite 把同一数组存为带 tag 的 zigzag-delta 或 `(start, count)` varint，并选择更小的编码。两个读取方都会在暴露事件前还原原始 `number[]`。
 
-SQLite 使用内部整数 `sessions.id`，并只在 `sessions.session_key` 中保留一次公开会话 id，使事件行及其主键不再重复文本标识。每个 `events.data` 值仍可独立解码：写入方尝试用打包的 64 KiB raw-content 字典执行 level-3 Zstandard 压缩，结果不更小时保留 SQLite 文本。字典字节属于 schema 19，测试固定其 SHA-256 摘要；替换字典需要再次提升 schema 版本。
+SQLite 使用内部整数 `sessions.id`，并只在 `sessions.session_key` 中保留一次公开会话 id，使事件行及其主键不再重复文本标识。每个 `events.data` 值仍可独立解码：写入方尝试用打包的 64 KiB raw-content 字典执行 level-3 Zstandard 压缩，结果不更小时保留 SQLite 文本。字典字节属于 schema 20，测试固定其 SHA-256 摘要；替换字典需要再次提升 schema 版本。
 
 ### JSONL 使用 Zstandard 标准级别
 
@@ -24,9 +24,9 @@ JSONL 写入方继续为每个持久 append 批次写入一个带 checksum 的 Z
 
 ### 新建 SQLite 数据库使用 64 KiB page
 
-SQLite 提供方在初始化全新 schema-19 数据库前设置 `page_size=65536`。SQLite 在 page 已分配后会忽略该 pragma，因此已有 schema-19 数据库保留其当前 page size。
+SQLite 提供方在初始化全新 schema-20 数据库前设置 `page_size=65536`。SQLite 在 page 已分配后会忽略该 pragma，因此已有 schema-20 数据库保留其当前 page size。
 
-Page size 属于 schema 19 的固定物理布局，并与其他固定 SQLite pragma 一样通过包内封闭的 SQL 资源应用。
+Page size 属于 schema 20 的固定物理布局，并与其他固定 SQLite pragma 一样通过包内封闭的 SQL 资源应用。
 
 ### 扩展基准
 
@@ -62,7 +62,7 @@ Page size 属于 schema 19 的固定物理布局，并与其他固定 SQLite pra
 
 JSONL 保留低成本来源优化，同时避开 level-19 的写入与 fork 代价。SQLite 以实测各项操作约 5–26% 的额外耗时换取 46.8% 的保留体积缩减；其完整写入仍明显快于 JSONL，后缀读取也仍快得多。在这份扩展语料上，完整读取与 fork 略慢于默认级别 JSONL。
 
-新建 SQLite 数据库使用 64 KiB WAL frame 与 cache page。小型数据库可能为稀疏的 schema 与元数据 page 预留更多字节，而实测的多会话工作负载显著改善了 `events` page 利用率。Schema 19 会拒绝其他所有 schema 版本，而不是迁移它们。
+新建 SQLite 数据库使用 64 KiB WAL frame 与 cache page。小型数据库可能为稀疏的 schema 与元数据 page 预留更多字节，而实测的多会话工作负载显著改善了 `events` page 利用率。Schema 20 会拒绝其他所有 schema 版本，而不是迁移它们。
 
 ## 相关资料
 

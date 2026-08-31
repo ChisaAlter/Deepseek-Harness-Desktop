@@ -67,11 +67,14 @@ export const SHIPPED_PRESET_ROOT = fileURLToPath(new URL('../presets/', import.m
  * that produces a file the loader cannot even begin with — and it must accept
  * everything the loader accepts, which is why rows are only required to be
  * maps carrying a plugin `name` (groups recurse into their own lists).
+ *
+ * Shared with the composition inventory, whose file reads race edits against
+ * the health verdict and must judge the raced content by the same rule.
  * @param rows - the parsed composition document.
  * @param at - row-path prefix for nested diagnostics, empty at the top level.
  * @returns one human-readable reason, or undefined when the shape holds.
  */
-function entryListProblem(rows: unknown, at = ''): string | undefined {
+export function entryListProblem(rows: unknown, at = ''): string | undefined {
   if (!Array.isArray(rows)) {
     return at === ''
       ? 'the composition must be a top-level list of plugin rows'

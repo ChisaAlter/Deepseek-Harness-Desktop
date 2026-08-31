@@ -7,6 +7,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type {
   CandidateRequest, ClientSessionContext, InputTriggerCandidate, InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
@@ -84,6 +85,8 @@ async function bench(
     },
   })
   class RemoteService extends Service {
+    readonly $host = { home: HOME, isLoopback: true }
+
     constructor(serviceCtx: Context) {
       super(serviceCtx, 'remote')
     }
@@ -92,7 +95,6 @@ async function bench(
   ctx.provide('remote.fileReferences', { list: files })
   ctx.provide('remote.sessionReferenceResolver', { candidates: sessions })
   ctx.provide('locale', new LocaleRuntime(ctx))
-  ctx.provide('connection', { generation: { getSnapshot: () => ({ id: 1, host: { home: HOME } }) } })
   ctx.provide('sessions', { list: { getSnapshot: () => ({ byId: listed }) } })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
@@ -103,7 +105,7 @@ async function bench(
 describe('apply', () => {
   it('declares its services and releases the @ reference registration on disposal', async () => {
     expect(inject).toEqual([
-      'inputTriggers', 'locale', 'connection', 'sessions', 'remote', 'remote.fileReferences',
+      'inputTriggers', 'locale', 'sessions', 'remote', 'remote.fileReferences',
       'remote.sessionReferenceResolver',
     ])
     const { fiber } = await bench()
@@ -116,6 +118,8 @@ describe('apply', () => {
       },
     })
     class RemoteService extends Service {
+      readonly $host = { home: undefined, isLoopback: false }
+
       constructor(serviceCtx: Context) {
         super(serviceCtx, 'remote')
       }
@@ -124,7 +128,6 @@ describe('apply', () => {
     ctx.provide('remote.fileReferences', { list: () => Promise.resolve({ ok: true, value: [] }) })
     ctx.provide('remote.sessionReferenceResolver', { candidates: () => Promise.resolve({ ok: true, value: [] }) })
     ctx.provide('locale', new LocaleRuntime(ctx))
-    ctx.provide('connection', { generation: { getSnapshot: () => undefined } })
     ctx.provide('sessions', { list: { getSnapshot: () => ({ byId: {} }) } })
     const ownFiber = ctx.plugin({ inject: [...inject], apply })
     await ownFiber.await()
@@ -217,7 +220,10 @@ describe('candidates', () => {
         ok: true as const,
         value: [{ path: 'README.md', kind: 'file' as const }],
       })
-      .mockRejectedValueOnce(new Error('file scan failed'))
+      .mockResolvedValueOnce({
+        ok: false as const,
+        error: new RemoteError('gateway/internal', 'file scan failed', {}),
+      })
     const sessions = vi.fn(() => Promise.resolve({
       ok: true as const,
       value: [{
@@ -267,18 +273,16 @@ describe('candidates', () => {
       ok: true as const,
       value: [{ path: 'bad\nname', kind: 'file' as const }],
     }))
-    const sessions = vi.fn()
-      .mockRejectedValueOnce(new Error('session lookup failed'))
-      .mockResolvedValueOnce({
-        ok: false as const,
-        error: { code: 'internal', message: 'session lookup failed', details: {} },
-      })
+    const sessions = vi.fn(() => Promise.resolve({
+      ok: false as const,
+      error: new RemoteError('gateway/internal', 'session lookup failed', {}),
+    }))
     const { source } = await bench(files, sessions)
     await expect(source.candidates(session, request('bad'))).resolves.toEqual([])
 
     files.mockResolvedValueOnce({
       ok: false as const,
-      error: { code: 'internal', message: 'file lookup failed', details: {} },
+      error: new RemoteError('gateway/internal', 'file lookup failed', {}),
     } as never)
     await expect(source.candidates(session, request('bad'))).resolves.toEqual([])
   })

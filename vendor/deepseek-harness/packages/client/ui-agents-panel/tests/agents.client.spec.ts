@@ -2,7 +2,8 @@
  * listSessionAgents: catalog skip, label fallbacks, lineage, empty parent.
  */
 import { describe, expect, it } from 'vitest'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { listSessionAgents } from '../src/client/agents.ts'
 
 const PARENT = 'parent' as SessionId

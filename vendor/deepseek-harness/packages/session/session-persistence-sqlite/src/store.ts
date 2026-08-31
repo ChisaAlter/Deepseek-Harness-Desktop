@@ -15,6 +15,7 @@ import {
   type SessionId,
 } from '@deepseek-ai/dsh-session'
 import {
+  SessionPersistenceNotFoundError,
   SessionPersistenceRevision,
   type PersistenceBackend,
   type SessionPersistenceRevision as PersistenceRevision,
@@ -211,6 +212,23 @@ export class SqliteStore implements PersistenceBackend<number> {
     }
   }
 
+  /**
+   * Remove one session row. Events cascade.
+   * @param id - materialized session to delete.
+   */
+  async deleteStored(id: SessionId): Promise<void> {
+    await this.open()
+    this.db.exec(sql('begin-immediate'))
+    try {
+      validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
+      const deleted = this.db.prepare(sql('delete-session')).run(id)
+      if (Number(deleted.changes) !== 1) throw new SessionPersistenceNotFoundError(id)
+      this.db.exec(sql('commit'))
+    } catch (error: unknown) {
+      this.rollback(error, 'delete')
+    }
+  }
+
   async commitRepair(
     meta: SessionHeader,
     tornMarker: number | undefined,
@@ -249,24 +267,6 @@ export class SqliteStore implements PersistenceBackend<number> {
       this.db.exec(sql('commit'))
     } catch (error: unknown) {
       this.rollback(error, 'repair')
-    }
-  }
-
-  /**
-   * Remove one session's events and metadata row in a single transaction.
-   * @param id - session whose stored rows are deleted.
-   * @returns resolution after commit.
-   */
-  async deleteStored(id: SessionId): Promise<void> {
-    await this.open()
-    this.db.exec(sql('begin-immediate'))
-    try {
-      validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
-      this.db.prepare(sql('delete-events')).run(id)
-      this.db.prepare(sql('delete-session')).run(id)
-      this.db.exec(sql('commit'))
-    } catch (error: unknown) {
-      this.rollback(error, 'delete')
     }
   }
 
@@ -401,7 +401,7 @@ export class SqliteStore implements PersistenceBackend<number> {
       record.data,
       record.sourceEventSeqs,
       record.surfaceOp,
-      record.isPacked,
+      record.ignorable,
     )
   }
 

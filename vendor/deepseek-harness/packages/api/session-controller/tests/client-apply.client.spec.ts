@@ -57,18 +57,22 @@ async function mount(initialGeneration?: ConnectionGeneration): Promise<Bench> {
         return () => { generationListeners.delete(listener) }
       },
     },
+    state: { getSnapshot: () => 'connected' as const, subscribe: () => () => {} },
     rpc: {
       call: () => Promise.reject(new Error('unexpected generic RPC call')),
     },
+    reconnect: () => {},
     registerGenerationSource: () => () => {},
     start: () => ({ stop: () => {} }),
   }
-  ctx.reflect.provide('connection', connection)
   ctx.reflect.provide('remote', {
     ...remote,
     $stream: <Item>(options: RemoteStreamOptions<Item>) => (
       new RemoteStream(connection, options)
     ),
+    get $host() {
+      return { home: generation?.host.home, isLoopback: connection.isLoopback }
+    },
     $on: (event: string, listener: RemoteListener) => {
       const eventListeners = listeners.get(event) ?? new Set<RemoteListener>()
       eventListeners.add(listener)
@@ -136,6 +140,33 @@ describe('Session Controller Client apply', () => {
 
     bench.ctx.emit('connection/reset')
     expect(connected).toHaveBeenCalledOnce()
+  })
+
+  it('drops a deleted subagent instead of retaining it as idle durable', async () => {
+    const bench = await mount()
+    bench.dispatch('api-session/added', {
+      sessionId: sid('session-1'),
+      updatedAt: 1,
+      running: false,
+      blank: true,
+    })
+    bench.dispatch('api-session/added', {
+      sessionId: sid('child'),
+      origin: 'subagent',
+      parentSessionId: sid('session-1'),
+      running: true,
+      blank: false,
+      updatedAt: 1,
+    })
+    await flush()
+    expect(bench.sessions.list.getSnapshot().byId[sid('child')]).toMatchObject({
+      origin: 'subagent',
+      running: true,
+    })
+
+    bench.dispatch('api-session/deleted', sid('child'))
+    await flush()
+    expect(bench.sessions.list.getSnapshot().byId[sid('child')]).toBeUndefined()
   })
 
   it('accepts the control baseline, retries a carrier generation, and reports terminal protocol failure', async () => {

@@ -36,7 +36,7 @@ declare const text: string
 await writeFileAtomic('/home/u/.dsh/settings.yaml', text, { mode: 0o600 })
 ```
 
-Parent directories are created as needed, and readers observe either the old or the new complete content. On any failure the temporary file is removed and the failure is rethrown, so a failed replacement leaves the target untouched.
+Parent directories are created as needed, and readers observe either the old or the new complete content. On Windows, transient replacement interference reported as `EACCES`, `EBUSY`, or `EPERM` is retried for a bounded interval; any remaining failure removes the temporary file and leaves the target untouched.
 
 ### Coordinating writers
 
@@ -79,7 +79,7 @@ The package is built on one separation: the atomic commit owns the swap, and the
 
 ### Write path
 
-`writeFileAtomic` writes a random-suffix sibling opened with exclusive create (`wx`), then renames it over the target. The exclusive open refuses to follow a symlink planted at a guessable temp path; the same-directory sibling keeps the rename on one filesystem; and the rename replaces a symlinked target itself instead of writing through to its referent.
+`writeFileAtomic` writes a random-suffix sibling opened with exclusive create (`wx`), then renames it over the target. The exclusive open refuses to follow a symlink planted at a guessable temp path; the same-directory sibling keeps the rename on one filesystem; and the rename replaces a symlinked target itself instead of writing through to its referent. A Windows retry keeps the same complete sibling and uses bounded exponential backoff, so temporary use of the target by software outside the cooperative writer lock cannot turn a safe replacement into an immediate failure; the [retry decision](../../../.agents/notes/implemented/bug-fix/2026-08-29-windows-atomic-replace-retry.md) owns the rationale and rejected alternatives.
 
 `withFileLock` creates a `<filename>.lock` sibling with `wx`. `EEXIST` identifies contention directly; `EPERM` does so only when a fresh `lstat` confirms the lock path exists, covering Windows exclusive-create behavior without hiding an unrelated permission failure. The lock records its creator's PID and is removed by the holder in a `finally`; contention backs off exponentially and fails when the per-call `waitMs` deadline (default two seconds) passes.
 

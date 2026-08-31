@@ -9,24 +9,9 @@
  * through {@link SettingsDescribeMirror.acceptView}.
  */
 
-import type { ClientRemote, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-
-/**
- * The settings Remote methods browser configuration surfaces may reach: the
- * redacted read plus merge, replacement, and path-addressed writes.
- * Named once here so the consumers share one face instead of each re-deriving
- * it from the namespace.
- */
-export type SettingsRemote = Pick<ClientRemote['settings'], 'describe' | 'update' | 'replace' | 'mutate'>
-
-/** Wire face carrying the settings Remote namespace. */
-export interface SettingsWireFace {
-  /** The settings Remote namespace. */
-  settings: SettingsRemote
-}
-
-type SettingsFace = SettingsWireFace
 
 /** The full `settings.describe` answer the mirror serves. */
 export interface SettingsDescribeView {
@@ -92,11 +77,12 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
   private generation = 0
 
   /**
-   * @param api - settings wire face.
+   * @param ctx - the providing plugin's context, whose `remote.settings`
+   * namespace answers the describe read.
    * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    */
   constructor(
-    private readonly api: SettingsFace,
+    private readonly ctx: ClientContext,
     private readonly persistence: 'host' | 'memory' = 'host',
   ) {
     this.store = createSnapshotStore<SettingsMirrorSnapshot>({
@@ -194,7 +180,7 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
         const generation = ++this.generation
         let outcome: { view: SettingsDescribeView } | { failure: string }
         try {
-          const response = await this.api.settings.describe()
+          const response = await this.ctx.remote.settings.describe()
           outcome = response.ok
             ? { view: response.value }
             : { failure: response.error.message }

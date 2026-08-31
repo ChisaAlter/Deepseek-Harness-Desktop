@@ -252,6 +252,8 @@ describe('FileMutationRow diff card', () => {
       call: { name: 'write', argsRaw: writeArgs },
       meta: { diffs: [] },
     }), 'write')} />)
+    // The collapsed row already carries the card's +/- totals beside the path.
+    expect(view.getByText('+1 -0')).toBeTruthy()
     // The footer counts live inside the collapsed diff card.
     toggleRow(view)
     expect(view.getByText('└ +1 -0 · 1 个文件')).toBeTruthy()

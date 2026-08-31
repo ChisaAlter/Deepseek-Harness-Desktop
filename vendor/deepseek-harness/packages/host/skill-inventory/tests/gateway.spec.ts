@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 import SkillRegistry, { type SkillDefinition, type SkillSummary } from '@deepseek-ai/dsh-skill'
-import { remoteMethods, TypertLookupFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { remoteMethods, RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import SkillInventoryGateway, { parseSkillMarkdown } from '../src/index.ts'
 
 const contexts: Context[] = []
@@ -459,9 +459,9 @@ describe('SkillInventoryGateway', () => {
     const sessionId = 'missing-live-session'
 
     const failure = await gateway.list({ sessionId }).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertLookupFailure)
-    expect((failure as TypertLookupFailure).failure).toEqual({
-      code: 'session-not-found',
+    expect(failure).toBeInstanceOf(RemoteError)
+    expect(failure).toMatchObject({
+      code: 'session/not-found',
       message: `session "${sessionId}" not found (not attached)`,
       details: { sessionId },
     })

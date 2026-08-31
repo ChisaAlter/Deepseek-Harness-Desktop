@@ -14,7 +14,8 @@ import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { vi } from 'vitest'
 import {
-  TypertRemoteFailure,
+  RemoteError,
+  remoteErrorOf,
   type RemoteResult,
 } from '@deepseek-ai/dsh-typert-protocol'
 import SessionController from '../src/index.ts'
@@ -27,6 +28,8 @@ import type {
   SessionControlFrame,
   SessionCreateRequest,
   SessionCreateValue,
+  SessionDeleteRequest,
+  SessionDeleteValue,
   SessionForkRequest,
   SessionForkValue,
   SessionFollowFrame,
@@ -59,6 +62,7 @@ export interface TestSessionRemote {
   modelCatalog(): Promise<RemoteResult<ModelCatalog>>
   rename(request: SessionRenameRequest): Promise<RemoteResult<SessionRenameValue>>
   fork(request: SessionForkRequest): Promise<RemoteResult<SessionForkValue>>
+  delete(request: SessionDeleteRequest): Promise<RemoteResult<SessionDeleteValue>>
   prompt(request: SessionPromptRequest, signal?: AbortSignal): Promise<RemoteResult<SessionPromptValue>>
   attachment(request: SessionAttachmentRequest): Promise<RemoteResult<SessionAttachmentValue>>
   updateQueue(request: SessionUpdateQueueRequest): Promise<RemoteResult<SessionUpdateQueueValue>>
@@ -224,14 +228,13 @@ function remoteResult<T>(
     .catch((error: unknown) => ({
       ok: false as const,
       error: signal?.aborted === true
-        ? { code: 'cancelled', message: 'request was aborted', details: {} }
-        : error instanceof TypertRemoteFailure
-          ? error.failure
-          : {
-            code: 'internal',
-            message: error instanceof Error ? error.message : String(error),
-            details: {},
-          },
+        ? new RemoteError('gateway/cancelled', 'request was aborted', {})
+        : remoteErrorOf(error)
+          ?? new RemoteError(
+            'gateway/internal',
+            error instanceof Error ? error.message : String(error),
+            {},
+          ),
     }))
 }
 
@@ -256,6 +259,7 @@ export function createSessionTestRemote(
     modelCatalog: () => remoteResult(() => direct.modelCatalog()),
     rename: request => remoteResult(() => direct.rename(request)),
     fork: request => remoteResult(() => direct.fork(request)),
+    delete: request => remoteResult(() => direct.delete(request)),
     prompt: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.prompt(request, signal),
       signal,

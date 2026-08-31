@@ -8,13 +8,15 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId, type Session } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentService from '@deepseek-ai/dsh-subagent'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import TeamService, { foldTeam, TeamError, TeamId, TeamMessageId, TeamTaskId } from '../src/index.ts'
+import TeamService, { TeamError, TeamId, TeamMessageId, TeamTaskId } from '../src/index.ts'
 import { TeamRuntimeLifecycle } from '../src/lifecycle.ts'
+import { teamProjectionDefinition } from '../src/projection.ts'
 import type { TeamMemberSnapshot, TeamMessageSnapshot, TeamTaskSnapshot } from '../src/index.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 
@@ -26,17 +28,20 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-/** Detached durable Team read: the service exposes views, so assertions fold the Lead log. */
+/** Detached durable Team read through the same projection definition as the service. */
 function durable(agent: Agent): {
   members: TeamMemberSnapshot[]
   tasks: TeamTaskSnapshot[]
   pendingMessages: TeamMessageSnapshot[]
 } {
-  const state = foldTeam(agent.id, agent.session.events)
+  let projected = teamProjectionDefinition.init(agent.session.header)
+  for (const event of agent.session.events) projected = teamProjectionDefinition.apply(projected, event)
+  if (projected.failure !== undefined) throw new Error(projected.failure)
+  const state = projected
   return {
-    members: [...state.members.values()],
-    tasks: [...state.tasks.values()],
-    pendingMessages: [...state.messages.values()].filter(message => !state.delivered.has(message.id)),
+    members: state.members,
+    tasks: state.tasks,
+    pendingMessages: state.messages.filter(message => !state.delivered.includes(message.id)),
   }
 }
 
@@ -46,6 +51,7 @@ async function setup(
 ) {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
+  await ctx.plugin(SessionProjectionRegistry)
   const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-'))
   roots.push(storageRoot)
   await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
@@ -120,6 +126,21 @@ async function waitRunning(ctx: Context, id: SessionId): Promise<Agent> {
 }
 
 describe('Team identity and provisioning', () => {
+  it('rejects missing and failed authoritative Team projections', async () => {
+    const first = await setup([])
+    const journal = teamInternals(first.ctx).journal
+    const stateOf = first.ctx.sessionProjections.stateOf.bind(first.ctx.sessionProjections)
+    const stateOfSpy = vi.spyOn(first.ctx.sessionProjections, 'stateOf').mockImplementation((session, key) => (
+      key === 'agentTeam' ? undefined : stateOf(session, key)
+    ))
+    expect(() => journal.state(first.lead)).toThrow('Agent Teams projection is not registered')
+    stateOfSpy.mockImplementation((session, key) => key === 'agentTeam'
+      ? { ...teamProjectionDefinition.init(session.header), failure: 'failed Team projection' }
+      : stateOf(session, key))
+    expect(() => journal.state(first.lead)).toThrow('failed Team projection')
+    stateOfSpy.mockRestore()
+  })
+
   it('rejects deployment limits that are not positive safe integers', async () => {
     const fields = [
       'maxMembers',
@@ -138,6 +159,7 @@ describe('Team identity and provisioning', () => {
   it('supports direct-constructor defaults and recovers roots that already exist', async () => {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
     const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-direct-'))
     roots.push(storageRoot)
     await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
@@ -1331,6 +1353,7 @@ describe('Team mailbox and waiting', () => {
   it('waits for one change, supports cancellation, times out, and releases waiters on HMR disposal', async () => {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(SessionProjectionRegistry)
     const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-wait-'))
     roots.push(storageRoot)
     await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })

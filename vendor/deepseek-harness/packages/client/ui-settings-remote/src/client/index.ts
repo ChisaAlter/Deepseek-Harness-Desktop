@@ -4,13 +4,14 @@
  */
 
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { desktopShell, hasRemoteApi } from './desktop-shell.ts'
 import { GatewaySettingsTab } from './GatewaySettingsTab.tsx'
 import { RemoteSection, type RemoteSectionInjected } from './RemoteSection.tsx'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import {
   RemoteSettingsSection,
   type RemoteSettingsSectionInjected,
@@ -46,7 +47,7 @@ export const inject = ['slots', 'locale']
  * shell exposes remote APIs.
  * @param ctx - client context with slots and locale.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-remote: dictionaries')
 
   const shell = desktopShell()

@@ -12,9 +12,16 @@ import {
   type InvocationDescriptor,
   type TypertContextMap,
   type TypertContextWire,
-  TypertRemoteFailure,
+  RemoteError,
 } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'fixture/rejected': { readonly retryable: boolean }
+    'fixture/broken': { readonly count: bigint }
+  }
+}
 import { provideBrowserCredentials } from './browser-credentials.ts'
 import TypertGatewayService, {
   TypertGatewayError,
@@ -118,16 +125,12 @@ class FeedService extends Service {
 
   @Remote({ mode: 'stream' })
   reject(): Iterable<string> {
-    throw new TypertRemoteFailure({
-      code: 'fixture-rejected', message: 'fixture rejected the stream', details: { retryable: false },
-    })
+    throw new RemoteError('fixture/rejected', 'fixture rejected the stream', { retryable: false })
   }
 
   @Remote({ mode: 'stream' })
   rejectWithNonJsonDetails(): Iterable<string> {
-    throw new TypertRemoteFailure({
-      code: 'fixture-broken', message: 'fixture emitted invalid details', details: { count: 1n },
-    })
+    throw new RemoteError('fixture/broken', 'fixture emitted invalid details', { count: 1n })
   }
 
   unary(label: string): string {
@@ -215,7 +218,7 @@ afterEach(async () => {
 
 describe('Typert Remote streams', () => {
   it('validates the WebSocket heartbeat timer range', () => {
-    expect(TypertGatewayService.Config({})).toEqual({ websocketHeartbeatIntervalMs: 30_000 })
+    expect(TypertGatewayService.Config({})).toEqual({ websocketHeartbeatIntervalMs: 2_000 })
     expect(TypertGatewayService.Config({ websocketHeartbeatIntervalMs: MAX_TIMER_DELAY_MS }))
       .toEqual({ websocketHeartbeatIntervalMs: MAX_TIMER_DELAY_MS })
     for (const websocketHeartbeatIntervalMs of [0, 1.5, MAX_TIMER_DELAY_MS + 1]) {
@@ -262,7 +265,7 @@ describe('Typert Remote streams', () => {
     }))).resolves.toEqual([1n])
     await expect(ctx.typertGateway.stream({
       namespace: 'feed', method: 'missing', args: {},
-    })).rejects.toMatchObject({ code: 'result-invalid' })
+    })).rejects.toMatchObject({ code: 'gateway/result-invalid' })
 
     await expect(collect(await ctx.typertGateway.stream({
       namespace: 'feed', method: 'src', args: { label: 'c' },
@@ -286,10 +289,10 @@ describe('Typert Remote streams', () => {
     const { ctx } = await setup(false)
     await expect(ctx.typertGateway.invoke({
       namespace: 'feed', method: 'sync', args: { label: 'a' },
-    })).rejects.toMatchObject({ code: 'signature-invalid' } satisfies Partial<TypertGatewayError>)
+    })).rejects.toMatchObject({ code: 'gateway/signature-invalid' } satisfies Partial<TypertGatewayError>)
     await expect(ctx.typertGateway.stream({
       namespace: 'feed', method: 'unary', args: { label: 'a' },
-    })).rejects.toMatchObject({ code: 'signature-invalid' } satisfies Partial<TypertGatewayError>)
+    })).rejects.toMatchObject({ code: 'gateway/signature-invalid' } satisfies Partial<TypertGatewayError>)
   })
 
   it('uses the configured WebSocket heartbeat interval', { timeout: 1_000 }, async () => {
@@ -345,13 +348,13 @@ describe('Typert Remote streams', () => {
         { type: 'end', streamId: 'invalid' },
       ])
       expect(frames.find(frame => frame.streamId === 'non-json')).toMatchObject({
-        type: 'error', error: { code: 'internal' },
+        type: 'error', error: { code: 'gateway/internal' },
       })
       expect(frames.find(frame => frame.streamId === 'rejected')).toEqual({
         type: 'error',
         streamId: 'rejected',
         error: {
-          code: 'fixture-rejected',
+          code: 'fixture/rejected',
           message: 'fixture rejected the stream',
           details: { retryable: false },
         },

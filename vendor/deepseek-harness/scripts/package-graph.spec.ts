@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { renderModuleGraph } from './gen-module-graph.ts'
 import { collectPackageGraph } from './package-graph.ts'
 
 const roots: string[] = []
@@ -47,5 +48,25 @@ describe('collectPackageGraph', () => {
 
     expect(() => collectPackageGraph(root, ['client'], 'fixture'))
       .toThrow('fixture: @deepseek-ai/dsh-consumer references missing in-repo peer @deepseek-ai/dsh-missing')
+  })
+})
+
+describe('renderModuleGraph', () => {
+  it('renders the same peer edge in both generated languages', () => {
+    const packages = [
+      { short: 'provider', name: '@deepseek-ai/dsh-provider', group: 'core', rel: 'packages/core/provider', deps: [] },
+      { short: 'consumer', name: '@deepseek-ai/dsh-consumer', group: 'core', rel: 'packages/core/consumer', deps: ['provider'] },
+    ]
+
+    const english = renderModuleGraph(packages, 'en')
+    const chinese = renderModuleGraph(packages, 'zh')
+
+    expect(english).toContain('# Shared-instance dependency graph')
+    expect(chinese).toContain('# 共享实例依赖关系图')
+    expect(chinese).toContain('[English](module-graph.md) | 中文')
+    for (const output of [english, chinese]) {
+      expect(output).toContain('pkg_consumer --> pkg_provider')
+      expect(output).toContain('| [`consumer`](../packages/core/consumer) | `core` | [`provider`](../packages/core/provider) |')
+    }
   })
 })

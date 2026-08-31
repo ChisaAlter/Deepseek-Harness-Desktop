@@ -15,6 +15,7 @@ const unusedHook = (() => { throw new Error('unused by CloseBehaviorRow') }) as 
 function mount() {
   const props: CloseBehaviorRowProps = {
     useSessions: unusedHook,
+    useSessionPendingInteraction: unusedHook,
     useWorkspaces: unusedHook,
     t: key => (en as Record<string, string>)[key] ?? key,
   }
@@ -92,6 +93,7 @@ describe('CloseBehaviorRow', () => {
     }
     const view = render(<CloseBehaviorRow
       useSessions={unusedHook}
+      useSessionPendingInteraction={unusedHook}
       useWorkspaces={unusedHook}
       t={key => (en as Record<string, string>)[key] ?? key}
     />)

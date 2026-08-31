@@ -47,6 +47,10 @@ type WithoutId<T> = T extends { readonly id: TypeNodeId } ? Omit<T, 'id'> : neve
 
 type TypeNodeInput = WithoutId<TypeNodeModel>
 
+const PUBLIC_REMOTE_TYPE_ROOTS = new Set([
+  '@deepseek-ai/dsh-util-values',
+])
+
 /** Analysis failure with a source-oriented diagnostic. */
 export class TypertAnalysisError extends Error {
   override name = 'TypertAnalysisError'
@@ -1801,7 +1805,8 @@ class FaceAnalyzer {
     if (registration === undefined) this.fail(site, `type ${symbol.name} is not owned by a workspace package`)
     const candidates: RemoteTypeImportModel[] = []
     for (const [subpath, target] of packageExportTargets(registration.manifest)) {
-      if (subpath === '.' || subpath === './package.json' || subpath === './typert'
+      if ((subpath === '.' && !PUBLIC_REMOTE_TYPE_ROOTS.has(registration.name))
+        || subpath === './package.json' || subpath === './typert'
         || subpath === './client/typert' || subpath === './remote' || target.includes('*')) continue
       const sourceFile = this.sourceFiles.get(realPath(sourcePathForExport(registration.root, target)))
       if (sourceFile === undefined) continue

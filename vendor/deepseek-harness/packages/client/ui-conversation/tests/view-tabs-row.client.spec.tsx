@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ViewTabsRow } from '../src/client/settings/ViewTabsRow.tsx'
 import type { ViewTabsRowProps } from '../src/client/settings/ViewTabsRow.tsx'
 import { en } from '../src/client/locales.ts'
@@ -15,6 +15,7 @@ function mount(opts: { enabled?: boolean; writable?: boolean } = {}) {
   const setViewTabs = vi.fn()
   const props: ViewTabsRowProps = {
     useSessions: unused,
+    useSessionPendingInteraction: unused,
     useWorkspaces: unused,
     useViewTabs: bindSnapshotSelector(createSnapshotStore(opts.enabled ?? true)),
     useWritable: bindSnapshotSelector(createSnapshotStore(opts.writable ?? true)),

@@ -15,11 +15,11 @@
   cursor: pointer;
 }
 
-/* The 16px glyphs follow the same px delta as the text they serve; the CSS
+/* The 15px glyphs follow the same px delta as the text they serve; the CSS
    edge overrides each svg's own width/height attributes. */
 .action svg {
-  width: calc(16px + var(--dsh-content-font-delta, 0px));
-  height: calc(16px + var(--dsh-content-font-delta, 0px));
+  width: calc(15px + var(--dsh-content-font-delta, 0px));
+  height: calc(15px + var(--dsh-content-font-delta, 0px));
 }
 
 .action:hover {

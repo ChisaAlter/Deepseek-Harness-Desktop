@@ -6,8 +6,7 @@
  * Any behavior change here must be applied to all three copies.
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-
+import type { Context } from '@deepseek-ai/cordis'
 /** Structural conversation face; this package must not value-import ui-conversation. */
 interface ConversationDraftFace {
   input: {
@@ -31,7 +30,7 @@ interface SessionsDraftFace {
  * @param text - fragment to append, already formatted.
  * @returns true when a draft write happened.
  */
-export function appendToDraft(ctx: ClientContext, sessionId: string, text: string): boolean {
+export function appendToDraft(ctx: Context, sessionId: string, text: string): boolean {
   const conversation = ctx.get('conversation') as ConversationDraftFace | undefined
   if (conversation === undefined) return false
   const sessions = ctx.get('sessions') as SessionsDraftFace | undefined

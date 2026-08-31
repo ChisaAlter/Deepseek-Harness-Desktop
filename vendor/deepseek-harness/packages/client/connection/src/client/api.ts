@@ -2,8 +2,6 @@
 
 export type {
   ClientRequest,
-  RpcError,
-  RpcErrorCode,
   RpcMessage,
   RpcRequest,
   RpcResponse,

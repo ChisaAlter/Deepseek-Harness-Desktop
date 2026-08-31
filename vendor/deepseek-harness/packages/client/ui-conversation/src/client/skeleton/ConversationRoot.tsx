@@ -7,7 +7,7 @@ import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
-import { HeroGlow, HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
+import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the slot contract. */
@@ -144,7 +144,6 @@ export function ConversationRoot({
   const inputState = useInput(s => s)
   const cwd = useSessions(s => sessionId === undefined ? undefined : s.byId[sessionId]?.cwd)
   const summaryBlank = useSessions(s => sessionId === undefined ? undefined : s.byId[sessionId]?.blank)
-  const summaryOrigin = useSessions(s => sessionId === undefined ? undefined : s.byId[sessionId]?.origin)
   const workspaces = useWorkspaces(s => s)
   // A plugin this package cannot import (ui-model-selection) says this session cannot
   // send; its reason is already localized by whoever raised it.
@@ -266,15 +265,12 @@ export function ConversationRoot({
   // hidden instead of briefly rendering the parent-offline takeover.
   const parentAvailabilityPending = session?.subagent?.address.mode === 'continuable'
     && session.subagent.parentAvailable === undefined
-  // `origin: 'dshbot'` contacts are never the New Session draft: they skip
-  // hero chrome even while the log is still empty.
   const settling = sessionId !== undefined && (
-    (shellPhase === 'blank' && openState === 'loading' && summaryBlank !== true
-      && summaryOrigin !== 'dshbot')
+    (shellPhase === 'blank' && openState === 'loading' && summaryBlank !== true)
     || parentAvailabilityPending
   )
-  const hero = summaryOrigin !== 'dshbot' && (sessionId === undefined
-    || (shellPhase === 'blank' && (openState === 'open' || summaryBlank === true)))
+  const hero = sessionId === undefined
+    || (shellPhase === 'blank' && (openState === 'open' || summaryBlank === true))
   const zone: InputZone | undefined =
     session === undefined || inputState === undefined ? undefined : { session, input: inputState }
 
@@ -354,7 +350,6 @@ export function ConversationRoot({
 
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroGlow className={css.heroGlow} />}
       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
@@ -380,24 +375,26 @@ export function ConversationRoot({
   )
 
   return (
-    <div ref={rootResizeRef} className={css.root} data-phase={phase} data-conversation-root="">
+    <div ref={rootResizeRef} className={css.root} data-phase={phase}>
       {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
-      <div className={css.scrollBody} data-conversation-scroll="">
-        {sessionId === undefined ? null : renderSlot('conversation.session', {})}
-        {composerSeat}
+      <div className={css.body}>
+        <div className={css.scrollBody} data-conversation-scroll="">
+          {sessionId === undefined ? null : renderSlot('conversation.session', {})}
+          {composerSeat}
+        </div>
+        {/* Width handles only while a transcript is on screen; the hero has no
+            content column to size. */}
+        {phase === 'active' && (['left', 'right'] as const).map(side => (
+          <WidthHandle
+            key={side}
+            side={side}
+            onStart={onHandleStart}
+            onDrag={onHandleDrag}
+            onCommit={onHandleCommit}
+            onEnd={onHandleEnd}
+          />
+        ))}
       </div>
-      {/* Width handles only while a transcript is on screen; the hero has no
-          content column to size. */}
-      {phase === 'active' && (['left', 'right'] as const).map(side => (
-        <WidthHandle
-          key={side}
-          side={side}
-          onStart={onHandleStart}
-          onDrag={onHandleDrag}
-          onCommit={onHandleCommit}
-          onEnd={onHandleEnd}
-        />
-      ))}
     </div>
   )
 }

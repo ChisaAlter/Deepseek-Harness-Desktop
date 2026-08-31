@@ -215,7 +215,6 @@ export function ChatView({
   const inbox = useSession(s => s.queue)
   // Workspace root off the session list row: path summaries display relative to it.
   const cwd = useSessions(s => s.byId[sessionId]?.cwd)
-  const hideRoomChrome = useSessions(s => s.byId[sessionId]?.agentPreset === 'dshbot-room')
   const running = useSession(s => s.running)
   const openState = useSession(s => s.openState)
   const openError = useSession(s => s.openError)
@@ -261,13 +260,6 @@ export function ChatView({
     setFileOpenBusy(false)
   }, [])
 
-  const visibleOrder = useMemo(() => {
-    if (!hideRoomChrome) return order
-    return order.filter((key) => {
-      const kind = nodeStore.get(key)?.kind
-      return kind !== 'context' && kind !== 'turn-tail'
-    })
-  }, [order, nodeStore, hideRoomChrome])
   const pendingSteering = useMemo(
     () => inbox.filter(item => item.placement === 'steering'),
     [inbox],
@@ -593,11 +585,6 @@ export function ChatView({
               {t('chat.loadError', { message: openError.message, code: openError.code })}
             </div>
           )}
-          {visibleOrder.length === 0 && !running && (
-            <div className={css.empty} data-chat-empty="">
-              {renderSlot('conversation.chat.empty', {})}
-            </div>
-          )}
           {hasMore && (
             <div className={css.older}>
               <button type="button" disabled={loadingOlder} onClick={loadOlderAnchored}>
@@ -605,7 +592,7 @@ export function ChatView({
               </button>
             </div>
           )}
-          {visibleOrder.map(nodeKey => (
+          {order.map(nodeKey => (
             <ChatNodeSeat
               key={nodeKey}
               nodeKey={nodeKey}
@@ -630,7 +617,7 @@ export function ChatView({
               double-render the same wait. */}
           {/* Turn-level loading signal: rides the whole running turn (first-token
               wait, tool execution, streaming) so it never flickers per step. */}
-          {running && !hideRoomChrome && <TurnStatus startTime={runningTurnStart} t={t} />}
+          {running && <TurnStatus startTime={runningTurnStart} t={t} />}
           {pendingSteering.map(item => (
             <PendingSteeringBubble
               key={item.id}

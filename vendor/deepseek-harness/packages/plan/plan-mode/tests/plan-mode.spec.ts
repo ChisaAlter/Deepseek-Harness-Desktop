@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { RUN_CODE_NAME, defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import { Session, SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, type SessionEvent, type UserMessage } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import UserQuestionService, {
@@ -11,8 +11,11 @@ import UserQuestionService, {
 } from '@deepseek-ai/dsh-user-questions'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import { CodeRuntime, type CodeRunRequest, type CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
-import PlanModeController, { EXIT_PLAN_MODE, foldPlanMode, resolveConfig } from '../src/index.ts'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
+import PlanModeController, { EXIT_PLAN_MODE, planProjectionDefinition, resolveConfig } from '../src/index.ts'
 import type { PlanModeConfig } from '../src/index.ts'
+import type { PlanUnitState } from '../src/types.ts'
 
 const TEST_PLAN_SECTION = 'Test plan mode instructions.'
 const PLAN_CONFIG = { section: TEST_PLAN_SECTION } satisfies PlanModeConfig
@@ -72,8 +75,25 @@ function assembleFor(ctx: Context, agent: Agent) {
   return ctx.systemPrompt.assemble({ agent, scope: agent })
 }
 
+function foldPlanMode(events: readonly SessionEvent[], end = events.length): boolean {
+  let state: PlanUnitState = planProjectionDefinition.init()
+  let index = 0
+  for (const event of events) {
+    if (index >= end) break
+    index++
+    state = planProjectionDefinition.apply(state, event)
+  }
+  return state.active
+}
+
+async function mountProjectionSeam(ctx: Context): Promise<void> {
+  await ctx.plugin(SessionProjectionRegistry)
+  ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+}
+
 async function setup(config: PlanModeConfig = PLAN_CONFIG): Promise<Context> {
   const ctx = new Context()
+  await mountProjectionSeam(ctx)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(PlanModeController, config)
@@ -202,6 +222,33 @@ describe('foldPlanMode', () => {
 })
 
 describe('ctx.planMode: get/set', () => {
+  it('does not activate without the required projection registry', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(PlanModeController, PLAN_CONFIG)
+    expect(ctx.get('planMode')).toBeUndefined()
+  })
+
+  it('fails when the required plan projection key is absent', async () => {
+    const ctx = await setup()
+    const agent = await agentWithSession(ctx, 'missing-plan-projection')
+    vi.spyOn(ctx.sessionProjections, 'stateOf').mockReturnValue(undefined)
+    expect(() => ctx.planMode.get(agent)).toThrow('plan-mode requires the plan session projection')
+  })
+
+  it('registers plan state directly but requires turnBoundary state', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    const agent = await agentWithSession(ctx, 'missing-plan-projection-keys')
+    const planMode = new PlanModeController(ctx, PLAN_CONFIG)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(planMode.get(agent)).toEqual({ active: false })
+    expect(() => planMode.set(agent, true)).toThrow('plan-mode requires the turnBoundary session projection')
+  })
+
   it('reads the folded state', async () => {
     const ctx = await setup()
     const agent = await agentWithSession(ctx)
@@ -289,6 +336,7 @@ describe('the boundary flush', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await mountProjectionSeam(ctx)
     const fiber = await ctx.plugin(PlanModeController, PLAN_CONFIG)
     const agent = await agentWithSession(ctx)
     openTurn(agent.session)
@@ -441,6 +489,7 @@ describe('the soft layer', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await mountProjectionSeam(ctx)
     ctx.on('system-prompt/assemble', async (_assembly, _context, next) => {
       const final = await next()
       final.tools = [...final.tools, { name: 'added-later', description: 'added after next()', parameters: {} }]
@@ -468,6 +517,7 @@ describe('the soft layer', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime, { mode: 'ptc' })
     await ctx.plugin(FakeRuntime)
+    await mountProjectionSeam(ctx)
     await ctx.plugin(PlanModeController, PLAN_CONFIG)
     registerNamedTools(ctx, ['read', 'write'])
     const agent = await agentWithSession(ctx, 'agent-1', { active: true })
@@ -489,6 +539,7 @@ describe('the soft layer', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime, { mode: 'both' })
     await ctx.plugin(FakeRuntime)
+    await mountProjectionSeam(ctx)
     await ctx.plugin(PlanModeController, PLAN_CONFIG)
     registerNamedTools(ctx, ['read', 'write'])
     const agent = await agentWithSession(ctx, 'agent-1', { active: true })
@@ -510,6 +561,7 @@ describe('the soft layer', () => {
     await withPlanMode.plugin(SystemPrompt)
     await withPlanMode.plugin(ToolRuntime, { mode: 'ptc' })
     await withPlanMode.plugin(FakeRuntime)
+    await mountProjectionSeam(withPlanMode)
     await withPlanMode.plugin(PlanModeController, PLAN_CONFIG)
     registerNamedTools(withPlanMode, ['read', 'write'])
     const agent = await agentWithSession(withPlanMode)
@@ -723,6 +775,7 @@ describe('/plan', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(CommandRuntime)
+    await mountProjectionSeam(ctx)
     const fiber = await ctx.plugin(PlanModeController, PLAN_CONFIG)
     await new Promise(resolve => setImmediate(resolve))
     const agent = await agentWithSession(ctx)
@@ -869,6 +922,7 @@ describe('exit_plan_mode', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime, { mode: 'ptc' })
     await ctx.plugin(ExitRuntime)
+    await mountProjectionSeam(ctx)
     await ctx.plugin(PlanModeController, PLAN_CONFIG)
     await ctx.plugin(AgentRegistry)
     await ctx.plugin(UserQuestionService)
@@ -1046,6 +1100,7 @@ describe('exit_plan_mode', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await mountProjectionSeam(ctx)
     const fiber = await ctx.plugin(PlanModeController, PLAN_CONFIG)
     await ctx.plugin(AgentRegistry)
     await ctx.plugin(UserQuestionService)
@@ -1110,6 +1165,7 @@ describe('HMR disposal', () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
+    await mountProjectionSeam(ctx)
     const fiber = await ctx.plugin(PlanModeController, PLAN_CONFIG)
     const agent = await agentWithSession(ctx, 'disposed-recovery')
     openTurn(agent.session)

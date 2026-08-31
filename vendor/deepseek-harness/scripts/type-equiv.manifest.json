@@ -649,27 +649,27 @@
     {
       "doc": "docs/subsystems/session-title.md",
       "symbol": "SessionTitleProviderId",
-      "source": "packages/session/session-title/src/index.ts"
+      "source": "packages/session/session-title/src/types.ts"
     },
     {
       "doc": "docs/subsystems/session-title.md",
       "symbol": "SessionTitleModelProvenance",
-      "source": "packages/session/session-title/src/index.ts"
+      "source": "packages/session/session-title/src/types.ts"
     },
     {
       "doc": "docs/subsystems/session-title.md",
       "symbol": "SessionTitleSource",
-      "source": "packages/session/session-title/src/index.ts"
+      "source": "packages/session/session-title/src/types.ts"
     },
     {
       "doc": "docs/subsystems/session-title.md",
       "symbol": "SessionTitleEventData",
-      "source": "packages/session/session-title/src/index.ts"
+      "source": "packages/session/session-title/src/types.ts"
     },
     {
       "doc": "docs/subsystems/session-title.md",
       "symbol": "SessionTitleSnapshot",
-      "source": "packages/session/session-title/src/index.ts"
+      "source": "packages/session/session-title/src/types.ts"
     },
     {
       "doc": "docs/subsystems/session-title.md",
@@ -679,7 +679,7 @@
     {
       "doc": "docs/subsystems/session-title.md",
       "symbol": "SessionTitleUserMessage",
-      "source": "packages/session/session-title/src/index.ts"
+      "source": "packages/session/session-title/src/types.ts"
     },
     {
       "doc": "docs/subsystems/session-title.md",

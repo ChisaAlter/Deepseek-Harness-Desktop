@@ -1,2 +1,1 @@
-DELETE FROM sessions
-WHERE id = ?;
+DELETE FROM sessions WHERE session_key = ?;

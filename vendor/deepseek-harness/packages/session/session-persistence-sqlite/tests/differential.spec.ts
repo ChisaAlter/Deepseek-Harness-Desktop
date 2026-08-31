@@ -49,13 +49,14 @@ async function mount(name: BackendName, root: string): Promise<MountedBackend> {
 }
 
 function closedChunkLog(
-  entries: readonly { readonly chunk: StreamChunk; readonly time: number }[],
+  entries: readonly { readonly chunk: StreamChunk; readonly time: number; readonly ignorable?: true }[],
 ): SessionEvent[] {
-  const chunks = entries.map(({ chunk, time }, index): SessionEvent => ({
+  const chunks = entries.map(({ chunk, time, ignorable }, index): SessionEvent => ({
     type: 'assistant/chunk',
     seq: index + 2,
     time,
     data: { turn: 1, step: 1, chunk },
+    ...ignorable === true ? { ignorable } : {},
   }))
   return [
     { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
@@ -72,7 +73,7 @@ function closedChunkLog(
 }
 
 function packingMatrixLog(): SessionEvent[] {
-  const entries: { chunk: StreamChunk; time: number }[] = [
+  const entries: { chunk: StreamChunk; time: number; ignorable?: true }[] = [
     ...Array.from({ length: 5 }, (_, index) => ({
       chunk: { type: 'text-delta' as const, index: 0, text: `text-${index}` },
       time: 1_000 + index,
@@ -103,10 +104,24 @@ function packingMatrixLog(): SessionEvent[] {
     { chunk: { type: 'block-start', index: 4, blockType: 'text' }, time: 4_000 },
     { chunk: { type: 'text-delta', index: 4, text: 'short-a' }, time: 4_001 },
     { chunk: { type: 'text-delta', index: 4, text: 'short-b' }, time: 4_002 },
-    { chunk: { type: 'text-delta', index: 5, text: 'scalar-singleton' }, time: 4_003 },
+    { chunk: { type: 'text-delta', index: 5, text: 'scalar-envelope' }, time: 4_003, ignorable: true },
     { chunk: { type: 'finish', reason: { kind: 'stop' } }, time: 4_004 },
   ]
   return closedChunkLog(entries)
+}
+
+function storageTagCollisionLog(): SessionEvent[] {
+  return [
+    { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
+    ...['text-chunks', 'reasoning-chunks', 'tool-call-chunks'].map((type, index) => ({
+      type,
+      seq: index + 1,
+      time: index + 2,
+      data: { future: true },
+      ignorable: true as const,
+    }) as unknown as SessionEvent),
+    { type: 'turn/end', seq: 4, time: 5, data: { turn: 1, reason: { kind: 'completed' } } },
+  ]
 }
 
 function batches(events: readonly SessionEvent[], sizes: readonly number[]): SessionEvent[][] {
@@ -186,16 +201,35 @@ const randomWorkload = fc.record({
       { weight: 4, arbitrary: fc.integer({ min: 0, max: 10_000 }) },
       { weight: 1, arbitrary: fc.integer({ min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER }) },
     ),
+    ignorable: fc.option(fc.constant<true>(true), { nil: undefined }),
   }), { maxLength: 30 }),
   batchSizes: fc.array(fc.integer({ min: 1, max: 8 }), { minLength: 1, maxLength: 8 }),
 }).map(({ entries, batchSizes }) => ({
-  events: JSON.parse(JSON.stringify(closedChunkLog(entries))) as SessionEvent[],
+  events: JSON.parse(JSON.stringify(closedChunkLog(entries.map(({ chunk, time, ignorable }) => ({
+    chunk,
+    time,
+    ...ignorable === true ? { ignorable } : {},
+  }))))) as SessionEvent[],
   batchSizes,
 }))
 
 const randomizedDifferentialTimeoutMs = process.platform === 'win32' ? 120_000 : 60_000
 
 describe('SQLite cross-backend differential behavior', () => {
+  it('preserves ignorable logical events whose names match physical storage tags', async () => {
+    const events = storageTagCollisionLog()
+    const directory = await freshDirectory('dsh-sqlite-storage-tag-collision-')
+    const root = join(directory, 'sqlite')
+    await verifyBackend('sqlite', root, events, [2, 1])
+    const db = new DatabaseSync(join(root, 'sessions.db'), { readOnly: true })
+    try {
+      expect(db.prepare(testSql('count-physical-types')).all()).toEqual([])
+      expect(db.prepare(testSql('count-ignorable-events')).get()).toEqual({ count: 3 })
+    } finally {
+      db.close()
+    }
+  })
+
   it('matches JSONL/Zstandard for every packed kind, scalar fallback, suffix, partition, and reopen', async () => {
     const events = packingMatrixLog()
     for (const [partitionIndex, sizes] of [[events.length], [1], [2, 1, 5, 3]].entries()) {
@@ -219,6 +253,8 @@ describe('SQLite cross-backend differential behavior', () => {
                 { type: 'tool-call-chunks', count: 1 },
               ],
             ][partitionIndex])
+            expect(db.prepare(testSql('count-ignorable-events')).get())
+              .toEqual({ count: 1 })
           } finally {
             db.close()
           }

@@ -61,7 +61,7 @@ function optionsOf(value: PermissionSelect, t: (key: string) => string): SelectO
     .filter(option => option.value !== 'custom')
     .map(option => ({
       id: option.value,
-      label: displayPermissionPreset(option.value, option.name),
+      label: displayPermissionPreset(option.value, option.name, t),
       ...(option.description !== undefined ? { detail: option.description } : {}),
       ...(option.value === value.currentValue ? { active: true } : {}),
       ...(option.value === FULL_ACCESS_PRESET
@@ -92,6 +92,9 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     const disposers = [
       ctx.locale.register(ACCESS_NS, 'zh', {
+        'preset.readOnly': accessZh['preset.readOnly'],
+        'preset.workspaceWrite': accessZh['preset.workspaceWrite'],
+        'preset.fullAccess': accessZh['preset.fullAccess'],
         'confirm.title': accessZh['confirm.title'],
         'confirm.description': accessZh['confirm.description'],
         'confirm.acknowledge': accessZh['confirm.acknowledge'],
@@ -99,6 +102,9 @@ export function apply(ctx: ClientContext): void {
         'confirm.enable': accessZh['confirm.enable'],
       }),
       ctx.locale.register(ACCESS_NS, 'en', {
+        'preset.readOnly': accessEn['preset.readOnly'],
+        'preset.workspaceWrite': accessEn['preset.workspaceWrite'],
+        'preset.fullAccess': accessEn['preset.fullAccess'],
         'confirm.title': accessEn['confirm.title'],
         'confirm.description': accessEn['confirm.description'],
         'confirm.acknowledge': accessEn['confirm.acknowledge'],
@@ -117,7 +123,7 @@ export function apply(ctx: ClientContext): void {
 
   // The shared SettingsScope mirror updates after document commits and reconnects.
   const controller = new PermissionPresetSettingsController(
-    ctx.settingsScope.describe(), { settings: ctx.remote.settings }, ctx.settingsSchema)
+    ctx.settingsScope.describe(), ctx, ctx.settingsSchema)
   const load = (): Promise<void> => controller.load()
   const select = (preset: string): Promise<void> => controller.select(preset)
   const injected = (): PermissionRowInjected => ({

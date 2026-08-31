@@ -22,15 +22,15 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { JsonValue } from '@deepseek-ai/dsh-api-remotes/client'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apiKeyFailure } from './apiKey.ts'
 import { EditorFooter } from './EditorFooter.tsx'
 import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
-import { deriveKeyRef, messageOf } from './store.ts'
-import type { ModelsWire } from './store.ts'
+import { deriveKeyRef } from './store.ts'
+import type { ModelsOperations } from './operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -59,8 +59,8 @@ export interface CustomProviderCardProps {
    * than a silent overwrite of its whole profile.
    */
   revision: number
-  /** Wire faces for the write and for interrogating the endpoint. */
-  api: ModelsWire
+  /** The Host operations this card writes and interrogates through. */
+  operations: ModelsOperations
   /** Section copy. */
   t: (key: keyof typeof en) => string
   /** Disable writes (read-only settings provider). */
@@ -75,7 +75,7 @@ export interface CustomProviderCardProps {
  * @returns the creation card.
  */
 export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
-  const { taken, protocols, api, t } = props
+  const { taken, protocols, operations, t } = props
   // The write is checked against the revision on which this draft was opened.
   const [openedAt] = useState(() => props.revision)
   const [route, setRoute] = useState('')
@@ -147,12 +147,14 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       // `taken` is a snapshot too, so the id check alone cannot see a route
       // declared after this card opened; the revision makes that race a
       // `settings-conflict` instead of a write over the other profile.
-      const response = await api.settings.mutate(
+      const written = await operations.writeSettings(
         NS,
         [{ op: 'set', path: ['providers', route], value: profile as JsonValue }],
         openedAt,
       )
-      if (!response.ok) return response.error.message
+      if (written.kind !== 'written') {
+        return written.kind === 'conflict' ? t('conflict') : written.message
+      }
       // The provider now exists. A retry after the key write below fails must
       // not re-run this mutate: the revision it holds is the one this write
       // just superseded, so the Host would answer `settings-conflict` and the
@@ -160,10 +162,10 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
       setCommitted(true)
     }
     if (storesKey) {
-      const stored = await api.credentials.set(keyRef, keyValue)
+      const stored = await operations.storeCredential(keyRef, keyValue)
       // The profile landed; saying the key did not is the only honest report,
       // and the retry above now goes straight back to this write.
-      if (!stored.ok) return stored.error.message
+      if (stored !== undefined) return stored
     }
     return undefined
   }
@@ -178,10 +180,6 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         return
       }
       props.onClose(true)
-    } catch (error) {
-      // A transport failure rejects rather than answering; without this the
-      // card would stay busy with nothing shown.
-      setFailure(messageOf(error))
     } finally {
       setBusy(false)
     }
@@ -273,7 +271,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           ...keyValue.length === 0 ? {} : { apiKey: keyValue },
         }}
         probeBlocked={keyFailure === 'keyBlank' ? 'keyBlankNew' : keyFailure}
-        api={api}
+        operations={operations}
         t={t}
         disabled={profileDisabled}
       />

@@ -55,6 +55,7 @@ kind: "package-group"
 | [`ui-skill/`](ui-skill/README.zh.md) | 向内联建议添加 skill（技能）引用 | — |
 | [`ui-reference/`](ui-reference/README.zh.md) | 统一的 Web `@file` / `@session` 引用 source | — |
 | [`ui-subagent/`](ui-subagent/README.zh.md) | 提供 subagent（子智能体）导航、子级 transcript（文本记录）状态与内联引用 | — |
+| [`ui-schedule/`](ui-schedule/README.zh.md) | 在只读标题栏目录中列出当前 Session 的活动提醒 | — |
 | [`ui-jobs/`](ui-jobs/README.zh.md) | 在会话标题栏列出当前会话的后台任务 | — |
 | [`ui-model-selection/`](ui-model-selection/README.zh.md) | 在对话界面中提供模型选择 | — |
 | [`ui-permission-presets/`](ui-permission-presets/README.zh.md) | 配置默认权限并切换当前会话的访问模式 | — |

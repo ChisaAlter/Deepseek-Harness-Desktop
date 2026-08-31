@@ -51,7 +51,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### Contribute a prompt section
 
-Sections carry static or context-resolved text with an `order`; they are concatenated in ascending order and equal orders use code-unit name order. `FIRST_PARTY_SECTION_ORDER` assigns sparse, unique positions to repository-owned sections, while external sections may use any finite order. A `complete: true` section becomes the exact complete prompt after assembly; more than one effective complete section makes assembly fail.
+Sections carry static or context-resolved text with an `order`; they are concatenated in ascending order and equal orders use code-unit name order. Repository-owned contributors resolve centrally allocated positions through `ctx.systemPrompt.getSectionOrder(name)`; runtime-context contributors use `getContextOrder(name)`. External contributions may use any finite order. A `complete: true` section becomes the exact complete prompt after assembly; more than one effective complete section makes assembly fail.
 
 ```text
 ctx.systemPrompt.section({

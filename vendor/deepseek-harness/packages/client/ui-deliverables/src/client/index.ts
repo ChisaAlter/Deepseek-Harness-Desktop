@@ -7,7 +7,6 @@
  * composing this plugin out of cordis.yml removes both surfaces entirely;
  * the owning view renders an empty chain and inert prose at zero cost.
  */
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -32,14 +31,13 @@ export { ProducedFiles, type ProducedFilesProps } from './ProducedFiles.tsx'
 export { producedForClosing } from './turn-deliverables.ts'
 
 /** Required services for the tail-slot registration and its dictionaries. */
-export const inject = ['slots', 'locale', 'uiConversation', 'connection', 'remote', 'remote.session']
+export const inject = ['slots', 'locale', 'uiConversation', 'remote', 'remote.session']
 
 /**
  * Client plugin body: register the dictionaries and the turn-tail entry.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const connection = ctx.get('connection') as ConnectionHandle
   const workspacePathOpen = createSnapshotStore<boolean | undefined>(undefined)
   let requestedWorkspacePathOpen = false
   let capabilityRevision = 0
@@ -50,8 +48,6 @@ export function apply(ctx: ClientContext): void {
     const pending = ctx.remote.session.canOpenWorkspacePath()
       .then((result) => {
         if (revision === capabilityRevision) workspacePathOpen.set(result.ok && result.value)
-      }, () => {
-        if (revision === capabilityRevision) workspacePathOpen.set(false)
       })
       .finally(() => {
         if (pendingCapability === pending) pendingCapability = undefined
@@ -77,7 +73,7 @@ export function apply(ctx: ClientContext): void {
       select: selectProducedFiles,
       locale: NS,
       inject: () => ({
-        isLoopback: connection.isLoopback,
+        isLoopback: ctx.remote.$host.isLoopback,
         ensureWorkspacePathOpen,
         hooks: { workspacePathOpen },
       }),

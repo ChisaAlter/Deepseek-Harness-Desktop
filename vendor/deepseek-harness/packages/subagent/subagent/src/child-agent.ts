@@ -12,7 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentOptions, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { PERSONA_ORDER } from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { ToolRestriction } from '@deepseek-ai/dsh-tools'
 // Type-only: make `ctx.get('sandboxPolicy')` / `ctx.get('approval')` resolve
 // to the policy services when composed — delegation consumes both
@@ -202,10 +202,17 @@ export function applyChildComposition(
   composition: ChildComposition,
 ): void {
   childCtx.get('agentPresets')?.composeFrom(childCtx, parent.ctx)
-  // Order 120: after the sandbox:policy (110) and approval:policy (115) sentences.
-  childCtx.systemPrompt.context({ name: 'subagent:delegation', order: 120, text: SUBAGENT_DELEGATION_CONTEXT })
+  childCtx.systemPrompt.context({
+    name: 'subagent:delegation',
+    order: childCtx.systemPrompt.getContextOrder('SUBAGENT_DELEGATION'),
+    text: SUBAGENT_DELEGATION_CONTEXT,
+  })
   if (composition.persona !== undefined) {
-    childCtx.systemPrompt.section({ name: 'deployment:persona', order: PERSONA_ORDER, text: composition.persona })
+    childCtx.systemPrompt.section({
+      name: 'deployment:persona',
+      order: childCtx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA'),
+      text: composition.persona,
+    })
   }
   if (composition.toolFilter !== undefined) childCtx.tools.restrict(composition.toolFilter)
 }

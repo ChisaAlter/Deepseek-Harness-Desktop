@@ -370,7 +370,7 @@ describe('scenario: @path file mention', () => {
         .toContain('src/a.ts')
     })
     act(() => { b.controller.pick('path', 0) })
-    expect(b.textarea.value).toBe('[a.ts](src/a.ts) ')
+    expect(b.textarea.textContent).toBe('[a.ts](src/a.ts) ')
   })
 
   it('typing / does not fetch path candidates', async () => {

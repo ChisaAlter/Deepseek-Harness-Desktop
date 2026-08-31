@@ -30,6 +30,7 @@ function event(type: string, seq: number, data: unknown = {}): SessionEvent {
     seq,
     time: seq + 1,
     data,
+    ...type.startsWith('fixture/') ? { ignorable: true } : {},
   } as SessionEvent
 }
 
@@ -296,7 +297,7 @@ describe('SessionHistoryController', () => {
       id: session.id,
       events: [event('fixture/start', 0), skipped, gap],
     } as unknown as Session, gap)
-    await expect(followed.next()).rejects.toMatchObject({ failure: { code: 'internal' } })
+    await expect(followed.next()).rejects.toMatchObject({ code: 'gateway/internal' })
   })
 
   it('opens an empty source at cursor -1', async () => {
@@ -396,15 +397,15 @@ describe('SessionHistoryController', () => {
         mode: 'continuable',
       },
       throughSeq: 0,
-    }, signal)).rejects.toMatchObject({ failure: { code: 'subagent-unauthorized' } })
+    }, signal)).rejects.toMatchObject({ code: 'subagent/unauthorized' })
     await expect(transport.page({
       address: { kind: 'subagent', parentSessionId, childSessionId, mode: 'one-shot' },
       throughSeq: 0,
-    }, signal)).rejects.toMatchObject({ failure: { code: 'subagent-unauthorized' } })
+    }, signal)).rejects.toMatchObject({ code: 'subagent/unauthorized' })
     await expect(transport.page({
       address: { kind: 'session', sessionId: childSessionId },
       throughSeq: 0,
-    }, signal)).rejects.toMatchObject({ failure: { code: 'agent-busy' } })
+    }, signal)).rejects.toMatchObject({ code: 'session/agent-busy' })
   })
 
   it('preserves a cold inspection failure for the Gateway error branch', async () => {
@@ -438,10 +439,10 @@ describe('SessionHistoryController', () => {
       { address, throughSeq: -1, maxMessages: 0 },
       { address, throughSeq: -1, maxMessages: 1.5 },
     ]) {
-      await expect(transport.page(request, signal())).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+      await expect(transport.page(request, signal())).rejects.toMatchObject({ code: 'gateway/bad-request' })
     }
     await expect(transport.page({ address, throughSeq: 0 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'bad-request' } })
+      .rejects.toMatchObject({ code: 'gateway/bad-request' })
 
     const corrupt = await setup()
     const corruptId = SessionId('missing-through-seq')
@@ -455,7 +456,7 @@ describe('SessionHistoryController', () => {
     }, signal())).rejects.toMatchObject({ code: 'SESSION_QUERY_CORRUPT_SESSION' })
     for (const maxMessages of [0, 0.5]) {
       const iterator = transport.follow({ address, maxMessages }, signal())[Symbol.asyncIterator]()
-      await expect(iterator.next()).rejects.toMatchObject({ failure: { code: 'bad-request' } })
+      await expect(iterator.next()).rejects.toMatchObject({ code: 'gateway/bad-request' })
     }
   })
 
@@ -463,7 +464,7 @@ describe('SessionHistoryController', () => {
     const { ctx, transport } = await setup()
     const ordinary = { kind: 'session' as const, sessionId: SessionId('missing') }
     await expect(transport.page({ address: ordinary, throughSeq: -1 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+      .rejects.toMatchObject({ code: 'session/not-found' })
 
     const inspect = vi.fn(() => Promise.resolve(undefined))
     ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
@@ -471,7 +472,7 @@ describe('SessionHistoryController', () => {
       inspect,
     }) as never)
     await expect(transport.page({ address: ordinary, throughSeq: -1 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+      .rejects.toMatchObject({ code: 'session/not-found' })
     await expect(transport.page({
       address: {
         kind: 'subagent',
@@ -480,7 +481,7 @@ describe('SessionHistoryController', () => {
         mode: 'continuable',
       },
       throughSeq: -1,
-    }, signal())).rejects.toMatchObject({ failure: { code: 'subagent-not-found' } })
+    }, signal())).rejects.toMatchObject({ code: 'subagent/not-found' })
     expect(inspect).toHaveBeenCalledTimes(2)
   })
 
@@ -494,7 +495,7 @@ describe('SessionHistoryController', () => {
       inspect: () => Promise.resolve({ meta: firstHeader, events: [] }),
     }) as never)
     await expect(first.transport.page({ address, throughSeq: -1 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+      .rejects.toMatchObject({ code: 'session/not-found' })
 
     const second = await setup()
     const listed = { version: 0, id: sessionId, createdAt: 1, cwd: '/workspace' }
@@ -504,7 +505,7 @@ describe('SessionHistoryController', () => {
       inspect: () => Promise.resolve({ meta: inspected, events: [] }),
     }) as never)
     await expect(second.transport.page({ address, throughSeq: -1 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'session-not-found' } })
+      .rejects.toMatchObject({ code: 'session/not-found' })
   })
 
   it('serves cold ordinary history and validates every durable subagent descriptor state', async () => {
@@ -538,18 +539,18 @@ describe('SessionHistoryController', () => {
     const missing = await setup()
     cold(missing.ctx, childHeader, [])
     await expect(missing.transport.page({ address: childAddress, throughSeq: -1 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'subagent-catalog-diagnostic', details: { reason: 'corrupt' } } })
+      .rejects.toMatchObject({ code: 'subagent/catalog-diagnostic', details: { reason: 'corrupt' } })
 
     const corrupt = await setup()
     cold(corrupt.ctx, childHeader, [event('subagent/descriptor', 0, { version: 'bad' })])
     await expect(corrupt.transport.page({ address: childAddress, throughSeq: 0 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'subagent-catalog-diagnostic', details: { reason: 'corrupt' } } })
+      .rejects.toMatchObject({ code: 'subagent/catalog-diagnostic', details: { reason: 'corrupt' } })
 
     const ordinaryChild = await setup()
     const { origin: _origin, ...ordinaryChildHeader } = childHeader
     cold(ordinaryChild.ctx, ordinaryChildHeader, [])
     await expect(ordinaryChild.transport.page({ address: childAddress, throughSeq: -1 }, signal()))
-      .rejects.toMatchObject({ failure: { code: 'subagent-unauthorized' } })
+      .rejects.toMatchObject({ code: 'subagent/unauthorized' })
   })
 
   it('reports an unavailable descriptor when an observed child has no projection value', async () => {
@@ -578,7 +579,7 @@ describe('SessionHistoryController', () => {
       address: { kind: 'subagent', parentSessionId, childSessionId, mode: 'continuable' },
       throughSeq: -1,
     }, signal())).rejects.toMatchObject({
-      failure: { code: 'subagent-catalog-diagnostic', details: { reason: 'unsupported' } },
+      code: 'subagent/catalog-diagnostic', details: { reason: 'unsupported' },
     })
     await ctx.fiber.dispose()
   })

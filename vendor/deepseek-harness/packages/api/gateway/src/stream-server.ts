@@ -23,6 +23,7 @@ export type RemoteStreamFailureMapper = (error: unknown) => RemoteStreamFailure
 export class RemoteStreamMuxServer {
   private readonly server = new WebSocketServer({ noServer: true })
   private readonly connections = new Set<Promise<void>>()
+  private readonly heartbeatAlive = new WeakMap<WebSocket, boolean>()
   private heartbeatTimer: NodeJS.Timeout | undefined
 
   /**
@@ -44,6 +45,8 @@ export class RemoteStreamMuxServer {
    */
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     this.server.handleUpgrade(req, socket, head, (websocket) => {
+      this.heartbeatAlive.set(websocket, true)
+      websocket.on('pong', () => { this.heartbeatAlive.set(websocket, true) })
       this.startHeartbeat()
       const connection = new RemoteStreamMuxConnection(websocket, this.open, this.failure)
       const done = connection.run()
@@ -71,7 +74,13 @@ export class RemoteStreamMuxServer {
     if (this.heartbeatTimer !== undefined) return
     this.heartbeatTimer = setInterval(() => {
       for (const socket of this.server.clients) {
-        if (socket.readyState === WebSocket.OPEN) socket.ping()
+        if (socket.readyState !== WebSocket.OPEN) continue
+        if (this.heartbeatAlive.get(socket) === false) {
+          socket.terminate()
+          continue
+        }
+        this.heartbeatAlive.set(socket, false)
+        socket.ping()
       }
     }, this.heartbeatIntervalMs)
     this.heartbeatTimer.unref()

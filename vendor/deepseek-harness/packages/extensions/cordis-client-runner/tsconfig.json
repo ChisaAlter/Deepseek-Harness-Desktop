@@ -18,9 +18,6 @@
       "path": "../../api/remotes/tsconfig.client.json"
     },
     {
-      "path": "../../client/connection/tsconfig.client.json"
-    },
-    {
       "path": "../../client/modules"
     },
     {

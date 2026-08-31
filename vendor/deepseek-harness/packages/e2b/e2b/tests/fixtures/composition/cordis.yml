@@ -21,6 +21,9 @@
 - id: agents
   name: '@deepseek-ai/dsh-agent'
 
+- id: session-projection
+  name: '@deepseek-ai/dsh-session-projection'
+
 - id: sandbox-policy
   name: '@deepseek-ai/dsh-sandbox-policy'
   config:

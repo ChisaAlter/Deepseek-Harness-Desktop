@@ -45,7 +45,7 @@ export type { StubSettingsScope } from './settings-scope.ts'
 export { scriptedSettingsRemote } from './settings-remote.ts'
 export type { ScriptedNamespace, ScriptedSettingsRemote } from './settings-remote.ts'
 export { TestWorkspaces } from './workspaces.ts'
-export { TestRemote } from './remote.ts'
+export { RemoteError, TestRemote } from './remote.ts'
 export {
   chatSnapshot, conversationSnapshot, sessionSnapshot, workspaceSnapshot,
 } from './fixtures.ts'

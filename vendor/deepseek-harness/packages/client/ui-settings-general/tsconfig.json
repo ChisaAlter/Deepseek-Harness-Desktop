@@ -33,6 +33,9 @@
       "path": "../locale"
     },
     {
+      "path": "../connection/tsconfig.client.json"
+    },
+    {
       "path": "../../settings/settings"
     },
     {

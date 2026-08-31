@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/cookbook/adding-a-package.md
-adding-a-package.md: f228fa8871284b0473bcbb461157a142161abb81
-adding-a-package.zh.md: d60472cd9abc2a1fe7b5589ee8b6ca07a3c2f4b9
+adding-a-package.md: f38c0d3f3bdfe126ca1de4801548c546fc5994cc
+adding-a-package.zh.md: 11f6faa75e757b769ef84a039cef05afd1324a95

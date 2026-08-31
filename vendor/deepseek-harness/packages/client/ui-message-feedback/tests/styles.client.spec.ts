@@ -97,7 +97,7 @@ describe('MessageFeedbackActions theme styles', () => {
     // font size moves the row.
     expect(block('.action')).toMatch(/width:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
     expect(block('.action')).toMatch(/height:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
-    expect(block('.action svg')).toMatch(/width:\s*calc\(16px \+ var\(--dsh-content-font-delta, 0px\)\)/)
+    expect(block('.action svg')).toMatch(/width:\s*calc\(15px \+ var\(--dsh-content-font-delta, 0px\)\)/)
     expect(block('.noteOpen')).toMatch(/line-height:\s*calc\(28px \+ var\(--dsh-content-font-delta, 0px\)\)/)
   })
 })

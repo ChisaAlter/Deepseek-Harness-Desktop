@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { Session } from '../src/client/sessions/session.ts'
 import type { PendingSubmissionRetirement } from '../src/client/contract/session.ts'
 import type { SessionQueuedItem, SessionRequestId } from '../src/types.ts'
@@ -98,7 +99,7 @@ describe('beginSubmission', () => {
 describe('prompt-coupled retirement', () => {
   it('a rejected identified prompt retires its echo immediately alongside promptError', async () => {
     const { api, session } = makeSession()
-    api.onPrompt = () => Promise.resolve(err({ code: 'agent-busy', message: '忙', details: { reason: 'busy' } }))
+    api.onPrompt = () => Promise.resolve(err(new RemoteError('session/agent-busy', '忙', { reason: 'busy' })))
     const retirements: PendingSubmissionRetirement[] = []
     const handle = session.beginSubmission({
       text: '失败的',
@@ -121,7 +122,7 @@ describe('prompt-coupled retirement', () => {
 
   it('an unidentified prompt failure leaves registered echoes alone', async () => {
     const { api, session } = makeSession()
-    api.onPrompt = () => Promise.resolve(err({ code: 'agent-busy', message: '忙', details: { reason: 'busy' } }))
+    api.onPrompt = () => Promise.resolve(err(new RemoteError('session/agent-busy', '忙', { reason: 'busy' })))
     session.beginSubmission({ text: '还在', images: [] })
     await session.prompt([{ type: 'text', text: '另一个' }], 'queue')
     expect(session.getSnapshot().pendingSubmissions).toHaveLength(1)

@@ -29,6 +29,7 @@ describe('dsh-sdk-minimal bundle', () => {
       ['plugin-package-inventory-deepseek', '@deepseek-ai/dsh-plugin-package-inventory-deepseek'],
       ['llm-deepseek', '@deepseek-ai/dsh-llm-deepseek'],
       ['sandbox', '@deepseek-ai/dsh-sandbox-local'],
+      ['session-projection', '@deepseek-ai/dsh-session-projection'],
       ['sandbox-policy', '@deepseek-ai/dsh-sandbox-policy'],
       ['subprocess', '@deepseek-ai/dsh-subprocess-local'],
       ['pty', '@deepseek-ai/dsh-terminal'],

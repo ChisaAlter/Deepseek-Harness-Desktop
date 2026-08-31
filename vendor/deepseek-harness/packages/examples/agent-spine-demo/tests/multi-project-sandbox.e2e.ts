@@ -12,6 +12,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { LocalSandboxProvider } from '@deepseek-ai/dsh-sandbox-local'
 import { bwrapProfileArgs, seatbeltProfileArgs } from '@deepseek-ai/dsh-sandbox-local/src/profiles.ts'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import type { ToolResult } from '@deepseek-ai/dsh-tools'
@@ -50,6 +51,7 @@ beforeEach(async () => {
 
   ctx = new Context()
   await ctx.plugin(LocalSandboxProvider, {})
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: fallbackRoot })
   await ctx.plugin(LocalSubprocessRuntime)
   await ctx.plugin(SandboxBashExecutor, { cwd: fallbackRoot, timeoutMs: 30_000 })

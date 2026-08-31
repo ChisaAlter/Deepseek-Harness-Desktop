@@ -40,15 +40,29 @@ export interface TypertContextMap {}
 export interface TypertRemoteMap {}
 
 /**
- * One Remote call's failure as the carrier reported it. `code` stays open here:
- * the closed RPC code union belongs to the carrier package, which already
- * depends on this one, so naming it would invert that edge.
+ * Merge-extensible Remote failure vocabulary: this package declares the
+ * universal carrier codes once; the Gateway merges its infrastructure codes
+ * and every owner merges its domain codes next to the throwing code.
  */
-export interface RemoteFailure {
-  readonly code: string
-  readonly message: string
-  readonly details: object
+export interface RemoteErrorDetailsMap {
+  /** Owner-side business validation refused the request; `issues` carries codec output when one produced it. */
+  'gateway/bad-request': { readonly issues?: readonly object[] }
+  /** The call was cancelled by the carrier signal or the backend. */
+  'gateway/cancelled': {}
+  /** Carrier, dispatch, or unclassified Host failure. */
+  'gateway/internal': {}
 }
+
+/** Every declared Remote failure code. */
+export type RemoteErrorCode = keyof RemoteErrorDetailsMap
+
+/**
+ * One Remote call's failure: the code-discriminated union of RemoteError
+ * instances, so a `code` branch narrows `details` with no cast.
+ */
+export type RemoteFailure = {
+  [Code in RemoteErrorCode]: import('./remote-error.ts').RemoteError<Code>
+}[RemoteErrorCode]
 
 /**
  * What every generated Remote method resolves to. The Remote face itself folds

@@ -528,7 +528,7 @@ function detectBrowserLocale(locales: readonly LocaleDefinition[]): LocaleId | u
 }
 
 /** Required services: slot registration plus the settings transport. */
-export const inject = ['slots', 'connection', 'remote', 'settingsScope']
+export const inject = ['slots', 'remote', 'settingsScope']
 
 /**
  * Client plugin body: provide the locale service with base dictionaries and

@@ -88,7 +88,7 @@ describe('session/openWorkspacePath', () => {
     })
 
     await expect(remote.openWorkspacePath({ path: '' }))
-      .resolves.toMatchObject({ ok: false, error: { code: 'bad-request' } })
+      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
     expect(openPath).not.toHaveBeenCalled()
   })
 
@@ -105,13 +105,13 @@ describe('session/openWorkspacePath', () => {
     await expect(remote.openWorkspacePath({ path: 'result.html' }))
       .resolves.toMatchObject({
         ok: false,
-        error: { code: 'internal', message: 'path open failed: desktop unavailable' },
+        error: { code: 'gateway/internal', message: 'path open failed: desktop unavailable' },
       })
 
     const aborted = new AbortController()
-    aborted.abort(new Error('cancelled'))
+    aborted.abort(new Error('gateway/cancelled'))
     await expect(remote.openWorkspacePath({ path: 'result.html' }, aborted.signal))
-      .resolves.toMatchObject({ ok: false, error: { code: 'cancelled' } })
+      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/cancelled' } })
   })
 
   it('classifies opener cancellation and non-Error failures', async () => {
@@ -119,7 +119,7 @@ describe('session/openWorkspacePath', () => {
     const aborted = new AbortController()
     const openPath = vi.fn()
       .mockImplementationOnce(async () => {
-        aborted.abort(new Error('cancelled'))
+        aborted.abort(new Error('gateway/cancelled'))
         throw new Error('opening stopped')
       })
       .mockRejectedValueOnce('desktop unavailable')
@@ -130,11 +130,11 @@ describe('session/openWorkspacePath', () => {
     })
 
     await expect(controller.openWorkspacePath({ path: 'first.html' }, aborted.signal))
-      .rejects.toMatchObject({ failure: { code: 'cancelled' } })
+      .rejects.toMatchObject({ code: 'gateway/cancelled' })
     await expect(controller.openWorkspacePath({
       path: 'second.html',
     }, new AbortController().signal)).rejects.toMatchObject({
-      failure: { code: 'internal', message: 'path open failed: desktop unavailable' },
+      code: 'gateway/internal', message: 'path open failed: desktop unavailable',
     })
   })
 })

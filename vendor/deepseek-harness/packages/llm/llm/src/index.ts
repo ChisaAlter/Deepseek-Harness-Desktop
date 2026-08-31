@@ -7,7 +7,8 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
   GenerateOptions,
   LlmConfigurableProvider,
@@ -26,7 +27,7 @@ import { freezeMessage, type Message } from './message.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
-import { callConfigEquals, deepFreeze } from './call-config.ts'
+import { callConfigEquals } from './call-config.ts'
 import type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
@@ -35,7 +36,6 @@ import { contentHasImage, projectImagesForTextModel } from './content.ts'
 
 export * from './attribution.ts'
 export * from './brand.ts'
-export * from './never.ts'
 export * from './error.ts'
 export * from './api-key.ts'
 export * from './types.ts'
@@ -43,7 +43,7 @@ export * from './content.ts'
 export * from './message.ts'
 export * from './retry-policy.ts'
 export { BlockAssembler } from './assembler.ts'
-export { callConfigEquals, deepFreeze, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
+export { callConfigEquals, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
 export type { LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -615,7 +615,7 @@ export class LlmRuntime extends TypertRemoteService {
    * @param request - endpoint, protocol, and one-shot credential to use.
    * @param signal - caller cancellation supplied by the Remote carrier.
    * @returns advertised models in endpoint order.
-   * @throws TypertRemoteFailure with `model-discovery-failed` when discovery refuses or fails.
+   * @throws RemoteError with `llm/model-discovery-rejected` when discovery refuses or fails.
    */
   @Remote('discoverModels')
   async remoteDiscoverModels(
@@ -626,14 +626,15 @@ export class LlmRuntime extends TypertRemoteService {
     try {
       return await this.discoverModels(settingsNs, request, signal)
     } catch (error: unknown) {
-      throw new TypertRemoteFailure({
-        code: 'model-discovery-failed',
-        message: error instanceof Error ? error.message : String(error),
-        details: {
+      throw new RemoteError(
+        'llm/model-discovery-rejected',
+        error instanceof Error ? error.message : String(error),
+        {
           settingsNs,
           ...request.baseURL === undefined ? {} : { baseURL: request.baseURL },
         },
-      })
+        { cause: error },
+      )
     }
   }
 

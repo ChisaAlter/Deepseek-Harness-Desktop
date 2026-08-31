@@ -59,10 +59,6 @@ const LAYOUT_CHILDREN = {
  */
 async function bench(nodes: ToolResultNode[]) {
   const runtime = await SlotTestRuntime.create()
-  runtime.ctx.provide('connection', {
-    isLoopback: false,
-    generation: { getSnapshot: () => undefined, subscribe: () => () => {} },
-  })
   const openWorkspacePath = vi.fn(async () => ({ ok: true, value: { opened: true } }))
   new TestRemote(runtime.ctx, { session: { openWorkspacePath } })
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
@@ -205,10 +201,6 @@ describe('keyed toolview hole through the real machinery', () => {
 describe('registrant declaration injection', () => {
   it('runs a registrant before ui-tool and waits on the actual toolview declaration', async () => {
     const runtime = await SlotTestRuntime.create()
-    runtime.ctx.provide('connection', {
-      isLoopback: false,
-      generation: { getSnapshot: () => undefined, subscribe: () => () => {} },
-    })
     new TestRemote(runtime.ctx, {
       session: {
         openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })),

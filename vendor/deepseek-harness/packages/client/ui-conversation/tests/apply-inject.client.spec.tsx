@@ -14,6 +14,7 @@ import {
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { createConversationStore } from '../src/client/stores.ts'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -123,7 +124,7 @@ describe('Conversation inject API', () => {
     })
 
     b.sessionFake.prompt.mockResolvedValueOnce({
-      ok: false, error: { code: 'agent-busy', message: 'busy', details: { reason: 'busy' } },
+      ok: false, error: new RemoteError('session/agent-busy', 'busy', { reason: 'busy' }),
     })
     actions.setDraft('retry me')
     actions.submit()
@@ -139,7 +140,7 @@ describe('Conversation inject API', () => {
     expect(b.inputApi(ROOT).state).toBe(state)
 
     b.sessionFake.cancel.mockResolvedValueOnce({
-      ok: false, error: { code: 'internal', message: 'stop failed', details: {} },
+      ok: false, error: new RemoteError('gateway/internal', 'stop failed', {}),
     })
     b.composerApi(ROOT).stop!()
     await vi.waitFor(() => { expect(b.sessionFake.cancel).toHaveBeenCalledOnce() })

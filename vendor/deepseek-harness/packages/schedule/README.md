@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The schedule group provides session-local reminders for a running conversation: ask the agent to remind you later, at an absolute time, or on a fixed interval, and each reminder arrives as an ordinary message in the same conversation when it comes due. It contains one package with three tools — create, list, and cancel — and no UI or service interface of its own. Reminders survive restarts but stay inside the session: there is no email, SMS, or push notification. This page maps the group; the package README owns the per-package contract.
+The schedule group provides session-local reminders for a running conversation: ask the agent to remind you later, at an absolute time, or on a fixed interval, and each reminder arrives as an ordinary message in the same conversation when it comes due. Its host package owns the three management tools and can publish the complete active-record set through the optional Session projection registry. The separate [`ui-schedule`](../client/ui-schedule/README.md) browser plugin renders that projection as a read-only current-state catalog, while [`ui-workspace`](../client/ui-workspace/README.md) marks ordinary and search rows whose best-effort list value is non-empty. That marker reports cached active state, not a live runtime guarantee. Reminders survive restarts but stay inside the session: there is no email, SMS, or push notification. This page maps the group; each package README owns its contract.
 
 ## Table of Contents
 
@@ -24,7 +24,7 @@ The schedule group provides session-local reminders for a running conversation: 
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`schedule/`](schedule/README.md) | Session-local reminders: schedule a one-time or fixed-interval reminder, list what is pending, and cancel one; due reminders arrive as conversation messages | — (tools only, in the exact agent scope) |
+| [`schedule/`](schedule/README.md) | Session-local reminders: schedule, list, and cancel active records; publish an optional read-only projection for the header catalog and list-row marker; deliver due reminders as conversation messages | — (tools only, in the exact agent scope) |
 
 -----
 
@@ -34,6 +34,7 @@ The schedule group provides session-local reminders for a running conversation: 
 - [Session-local Schedule subsystem](../../docs/subsystems/schedule.md) — durable record, transition, view, and delivery contracts.
 - [Generated tool catalog](../../docs/tool-catalog.md#deepseek-aidsh-schedule) — the `schedule_create`/`schedule_list`/`schedule_delete` schemas the model receives.
 - [Schedule user guide](../../docs/user/guide/schedule.md) — the official configuration path for mounting the package.
+- [Web Schedule catalog](../client/ui-schedule/README.md) — the optional read-only browser presentation of active records.
 
 -----
 

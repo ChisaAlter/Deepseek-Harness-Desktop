@@ -3,8 +3,8 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
+import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionRequestId } from '../../types.ts'
-import type { ClientFailure } from './result.ts'
 
 /** One transient inbox occurrence from the authoritative queue snapshot. */
 export interface QueuedMessage {
@@ -53,7 +53,7 @@ export type OpenState = 'cold' | 'loading' | 'open' | 'error'
 /** Send/stop failure surfaced by Session consumers. */
 export interface PromptError {
   readonly op: 'send' | 'stop'
-  readonly error: ClientFailure
+  readonly error: RemoteFailure
 }
 
 /** Immutable Session lifecycle and control snapshot. */
@@ -70,7 +70,7 @@ export interface SessionSnapshot {
   } | null
   readonly removed: boolean
   readonly openState: OpenState
-  readonly openError: ClientFailure | null
+  readonly openError: RemoteFailure | null
   readonly hasMore: boolean
   readonly loadingOlder: boolean
   readonly promptError: PromptError | null

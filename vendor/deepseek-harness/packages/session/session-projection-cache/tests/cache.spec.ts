@@ -36,6 +36,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     'cache-test/marks': MarksState
     'cache-test/marks2': Map<string, string>
     'cache-test/count': number
+    'cache-test/secret': string
   }
   interface SessionProjectionMap {
     'cache-test/marks': { marks: string[] }
@@ -64,6 +65,14 @@ const marksUnit = (stateVersion = 1) => ({
   },
   stateVersion,
 }) satisfies ProjectionDefinition<'cache-test/marks', MarksState>
+
+const secretUnit = {
+  key: 'cache-test/secret',
+  stateSchema: z.string(),
+  init: () => '',
+  apply: state => state,
+  stateVersion: 1,
+} satisfies ProjectionDefinition<'cache-test/secret', string>
 
 /** One session's record document on the per-record medium. */
 const recordPath = (root: string, id: Session['id']): string =>
@@ -274,6 +283,24 @@ describe('SessionProjectionCache write policy', () => {
 })
 
 describe('SessionProjectionCache listing read', () => {
+  it('keeps host-only checkpoint state out of cached wire snapshots', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-projcache-'))
+    roots.push(root)
+    await seedRecord(root, 'host-state', {
+      'cache-test/marks': { ver: 1, seq: 4, val: { marks: ['wire'] } },
+      'cache-test/secret': { ver: 1, seq: 4, val: 'private prompt text' },
+    })
+    const { ctx, cache } = await harness({ root })
+    ctx.sessionProjections.register(secretUnit)
+    const header = headerOf(SessionId('host-state'))
+
+    expect(cache.cachedSnapshot(header)).toEqual({
+      asOfSeq: 4,
+      values: { 'cache-test/marks': { marks: ['wire'] } },
+    })
+    expect(JSON.stringify(cache.cachedSnapshot(header))).not.toContain('private prompt text')
+  })
+
   it('serves identity-matching rows with the cut watermark and refuses unrelated ones', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-projcache-'))
     roots.push(root)
@@ -415,15 +442,17 @@ describe('SessionProjectionCache cold-read seeding', () => {
     // Host-only unit: folded but not served; the refreshed row is written
     // back (fail-soft, fire-and-forget) once the write lands.
     expect(Object.keys(snapshot.values)).not.toContain('cache-test/count')
-    await settle()
-    expect((await storedRows(root, meta.id))?.['cache-test/count']?.seq).toBe(4)
+    await vi.waitFor(async () => {
+      expect((await storedRows(root, meta.id))?.['cache-test/count']?.seq).toBe(4)
+    })
     // No cached row yet: the first cold read folds from init over the full
     // log and creates the cache row (the `?? {}` seed path).
     const fresh = headerOf(SessionId('cold-fresh'), 10)
     cache.coldSnapshot(fresh, events)
     expect(apply).toHaveBeenCalledTimes(7) // 2 tail + 5 full
-    await settle()
-    expect((await storedRows(root, fresh.id))?.['cache-test/count']?.seq).toBe(4)
+    await vi.waitFor(async () => {
+      expect((await storedRows(root, fresh.id))?.['cache-test/count']?.seq).toBe(4)
+    })
   })
 
   it('coldSnapshot write-back is fail-soft: a failed durable write logs and never throws', async () => {

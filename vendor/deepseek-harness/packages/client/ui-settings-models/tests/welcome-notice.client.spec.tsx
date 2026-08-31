@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
+import { bindSnapshotSelector, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { Context } from '@deepseek-ai/cordis'
 import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
@@ -70,9 +70,10 @@ function mount(
       mutate,
     },
   }
-  const mirror = new SettingsDescribeMirror(api as never)
+  const ctx = { remote: api } as never
+  const mirror = new SettingsDescribeMirror(ctx)
   const scope = new SettingsScopeController<WelcomeSection>(
-    api as never,
+    ctx,
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
     'host',
@@ -153,15 +154,8 @@ describe('WelcomeNotice', () => {
     fireEvent.click(action)
     expect(action.disabled).toBe(true)
     resolveWrite({
-      rpcId: 'welcome-refused' as never,
-      result: {
-        ok: false,
-        error: {
-          code: 'settings-rejected',
-          message: 'read only',
-          details: { ns: WELCOME_NOTICE_SETTINGS_NAMESPACE },
-        },
-      },
+      ok: false,
+      error: new RemoteError('settings/rejected', 'read only', { ns: WELCOME_NOTICE_SETTINGS_NAMESPACE }),
     })
     expect((await screen.findByRole('alert')).textContent).toBe(zh.welcomeError)
     expect(h.complete).not.toHaveBeenCalled()

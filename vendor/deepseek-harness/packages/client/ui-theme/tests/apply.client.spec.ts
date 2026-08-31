@@ -51,8 +51,8 @@ async function bench(isLoopback = true) {
     section[op.path[0]!] = op.value
     return Promise.resolve({ ok: true as const, value: namespace() })
   })
-  ctx.provide('connection', { api: {}, isLoopback } as never)
   const events = new TestRemote(ctx, { settings: { describe, mutate } })
+  events.$host = { home: undefined, isLoopback }
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()
   return {
     ctx, slots: ctx.get('slots') as SlotRegistry, locale, describe, mutate, events,
@@ -94,7 +94,7 @@ function fontSizeFaceOf(slots: SlotRegistry) {
 
 describe('ui-theme apply', () => {
   it('declares the slot and locale services', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'settingsScope'])
   })
 
   it('provides the service, registers localized copy, and registers the section and font-size row', async () => {

@@ -1,15 +1,19 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createUserMessage, ToolCallId, HarnessError, type ContentBlock  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, ToolCallId, HarnessError, type ContentBlock  } from '@deepseek-ai/dsh-llm'
+import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import ApprovalService, { type ApprovalOutcome, type ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import ToolRuntime, {
   defineContentToolFixture, defineTool, JsonSchemaError, parameterSchemaSpecToJsonSchema, validateArgs, ToolArgsError, ToolNotFoundError,
-  TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER,
-  type InferArgs, type JsonValue, type ParameterSchemaSpec, type PreToolDecision, type PostToolDecision,
+  TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH,
+  type InferArgs, type ParameterSchemaSpec, type PreToolDecision, type PostToolDecision,
   type JsonSchemaNode, type ToolDefinition, type ToolDispatchExecution, type ToolExecutionResult, type ToolExecutionToken,
 } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 const testToolSignal = new AbortController().signal
 
@@ -49,18 +53,6 @@ describe('ToolRuntime', () => {
 
     const assembly = await ctx.systemPrompt.assemble()
     expect(assembly.tools.map(t => t.name)).toEqual(['echo'])
-  })
-
-  it('registers the scheduler key through the global symbol registry so duplicate module copies share identity', async () => {
-    const ctx = await setup()
-    // A second copy of this package (a duplicated install or a different build
-    // entry) evaluates its own module scope, so a plain Symbol() would produce
-    // a different key and break the consumer's lookup. The global registry
-    // keeps the identity stable across copies within one Node realm.
-    expect(TOOL_RUNTIME_SCHEDULER).toBe(Symbol.for('@deepseek-ai/dsh-tools.scheduler'))
-    const readBack = (ctx.tools as unknown as Record<symbol, unknown>)[TOOL_RUNTIME_SCHEDULER]
-    expect(typeof readBack).toBe('object')
-    expect(typeof (readBack as { prepare: unknown }).prepare).toBe('function')
   })
 
   it('schemas() drops host callbacks — they must never reach the model', async () => {
@@ -730,19 +722,21 @@ describe('ToolRuntime', () => {
   })
 
   describe('ask routing through ctx.approval', () => {
-    /**
-     * A minimal Agent stand-in — the approval seam reaches
-     * `agent.session.append` and folds `.events`; the seeded open turn
-     * satisfies request()'s enclosure precondition.
-     */
     function fakeAgent(): Agent {
-      return {
-        session: { events: [{ type: 'turn/start' }], append: () => ({}) },
-      } as unknown as Agent
+      const session = Session.create(SessionId('approval-fake-agent'))
+      session.append('turn/start', { turn: 1 })
+      return { session } as unknown as Agent
     }
 
     async function approvalSetup() {
-      const ctx = await setup()
+      const ctx = new Context()
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(SessionProjectionRegistry)
+      await ctx.plugin(SystemPrompt)
+      await ctx.plugin(ToolRuntime)
+      await ctx.plugin(AgentRegistry)
+      await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(ApprovalService)
       ctx.tools.register(echoTool)
       return ctx
@@ -1985,23 +1979,6 @@ describe('ToolRuntime', () => {
       .toThrow('timeoutMs must be a positive finite number')
     expect(() => ctx.tools.register({ ...echoTool, name: 'infinite-timeout', timeoutMs: Number.POSITIVE_INFINITY }))
       .toThrow('timeoutMs must be a positive finite number')
-  })
-
-  it.each(['', 'with space', 'dot.name', 'x'.repeat(65)])(
-    'rejects invalid tool registration name %j',
-    async (name) => {
-      const ctx = await setup()
-      expect(() => ctx.tools.register({ ...echoTool, name }))
-        .toThrow('tool name must match [A-Za-z0-9_-]{1,64}')
-      expect(ctx.tools.schemas()).toEqual([])
-    },
-  )
-
-  it('accepts the complete tool registration name grammar', async () => {
-    const ctx = await setup()
-    const name = `${'A'.repeat(60)}0_-x`
-    ctx.tools.register({ ...echoTool, name })
-    expect(ctx.tools.schemas()[0]?.name).toBe(name)
   })
 
   it('rejects duplicate names and unregisters on fiber dispose (HMR safety)', async () => {

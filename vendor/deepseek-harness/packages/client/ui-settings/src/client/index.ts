@@ -12,9 +12,9 @@
  * Export discipline: packages/client/AGENTS.md.
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
-// Type-only service merge for the connection lifecycle event.
-import type {} from '@deepseek-ai/dsh-client-connection/client'
+// Type-only: the ctx.remote merge, the fixed Host facts, and the carrier's
+// `connection/reset` lifecycle event, all through the assembly package.
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only pair supplying `$on` and its key face without dragging a build
 // artifact into the Host graph (rationale beside the same pair in
 // settings-scope.ts).
@@ -34,14 +34,14 @@ export type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './
 export type { SettingsSchemaService } from './schema.ts'
 export type { SchemaNode } from './schema.ts'
 export type {
-  SettingsDescribeFace, SettingsDescribeView, SettingsMirrorSnapshot, SettingsRemote, SettingsWireFace,
+  SettingsDescribeFace, SettingsDescribeView, SettingsMirrorSnapshot,
 } from './settings-mirror.ts'
 
 /**
- * Required services: the wire handle for the mirror's reads and the forwarded
- * settings invalidation the mirror refreshes on.
+ * Required services: the Remote namespace the mirror reads through and the
+ * forwarded settings invalidation it refreshes on.
  */
-export const inject = ['connection', 'remote', 'remote.settings']
+export const inject = ['remote', 'remote.settings']
 
 /**
  * Provide the settings-namespace scope service over one shared describe
@@ -54,11 +54,10 @@ export const inject = ['connection', 'remote', 'remote.settings']
  */
 export function apply(ctx: Context): void {
   const schema = new SettingsSchemaService(ctx)
-  const connection = ctx.get('connection') as ConnectionHandle
-  // Captured once here, where `remote.settings` is declared in this plugin's
-  // own `inject`; the binder hands the same face to every scope it binds.
-  const wire = { settings: ctx.remote.settings }
-  const mirror = new SettingsDescribeMirror(wire, connection.isLoopback ? 'host' : 'memory')
+  // Resolved once here, where `remote` is declared in this plugin's own
+  // `inject`; the binder hands the same answer to every scope it binds.
+  const persistence = ctx.remote.$host.isLoopback ? 'host' : 'memory'
+  const mirror = new SettingsDescribeMirror(ctx, persistence)
   ctx.effect(() => {
     const disposers = [
       ctx.remote.$on('settings/document-updated', () => { void mirror.load() }),
@@ -71,5 +70,5 @@ export function apply(ctx: Context): void {
     void mirror.ensure()
     return () => { for (const dispose of disposers) dispose() }
   }, 'ui-settings: describe mirror invalidations')
-  new SettingsScopeBinder(ctx, { mirror, schema, wire })
+  new SettingsScopeBinder(ctx, { mirror, schema, persistence })
 }

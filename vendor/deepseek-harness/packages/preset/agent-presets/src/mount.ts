@@ -19,7 +19,8 @@ import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { Include } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
-import { PresetMountError, type AgentPreset } from './preset.ts'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import type { AgentPreset } from './preset.ts'
 import { classifyRowSpecifier } from './specifier.ts'
 
 /** What one mounted subtree publishes about itself for the audit to read. */
@@ -57,6 +58,14 @@ const harnessBase = new WeakMap<object, string>()
 class PresetTree extends Include {
   constructor(ctx: Context, config: Include.Config) {
     super(ctx, config)
+    // EntryTree's constructor files every new tree under the nearest owning
+    // Loader entry's `subtree` slot — here the roster's own row, because the
+    // standing scope descends from the roster's fiber. Left in place, root
+    // `loader.entries()` would walk this composition as host entries (each
+    // preset overwriting the last), against the standing mount's contract of
+    // not being a Loader entry. Reclaim the slot.
+    const owner = this.ctx.fiber.entry
+    if (owner?.subtree === this) delete owner.subtree
     mounted.set(config, { tree: this, fiber: ctx.fiber })
   }
 
@@ -153,11 +162,18 @@ function pruneDisposedMounts(): void {
 /**
  * Every preset composition still installed, pruning fibers disposed since the
  * last read.
+ *
+ * The record set is module state and therefore spans every Cordis runtime in
+ * the process; a reader that serves one runtime passes that runtime's root
+ * fiber so another runtime mounting the same preset id (a second embedded
+ * app, a test's second harness) never answers for it.
+ * @param within - when present, only mounts inside this fiber's subtree.
  * @returns the live mounts.
  */
-export function livePresetMounts(): PresetMount[] {
+export function livePresetMounts(within?: Fiber): PresetMount[] {
   pruneDisposedMounts()
-  return [...mounts]
+  const all = [...mounts]
+  return within === undefined ? all : all.filter(mount => withinFiber(mount.fiber, within))
 }
 
 /**
@@ -406,6 +422,12 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
       // Swallows only this subtree's teardown failure. The mount error below is
       // the actionable one, and the discarded fiber is unreachable either way.
     }
-    throw new PresetMountError(preset.id, `${mountDetail(error)} (${preset.path})`, { cause: error })
+    const reason = `${mountDetail(error)} (${preset.path})`
+    throw new RemoteError(
+      'agent-preset/invalid',
+      `agent-presets: preset "${preset.id}" failed to mount: ${reason}`,
+      { agentPreset: preset.id, reason },
+      { cause: error },
+    )
   }
 }

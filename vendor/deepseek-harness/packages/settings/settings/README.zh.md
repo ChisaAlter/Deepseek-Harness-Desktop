@@ -48,16 +48,14 @@ kind: "package-reference"
 插件用 schemastery schema 注册自己的 namespace，并可选地把组合配置作为 `base` 层传入，让解析值从部署已配置的内容起步：
 
 ```text
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-
-const scope = ctx.settings.register(settingsNamespace('ui-theme'), ThemeSchema, {
+const scope = ctx.settings.register('ui-theme', ThemeSchema, {
   base: config,   // composition entry config; the user layer resolves above it
 })
 const theme = scope.get()              // deep-frozen resolved snapshot
 scope.update({ density: 'compact' })   // merges into the user section and persists
 ```
 
-`installSettingsSection` 为消费方插件封装了这套接线：只要设置服务存在，它就用插件的组合配置作为 `base` 注册 namespace；服务消失时插件回退到组合配置，行为与原先完全一致。
+TypeScript 会按小写字母、数字与连字符文法检查字面量 namespace 参数；运行时动态传入的字符串接受相同校验。`ctx.settings.installSection(owner, ns, schema, entry, hooks)` 为消费方插件封装可选服务接线：只要设置服务存在，它就用插件的组合配置作为 `base` 注册 namespace；服务消失时插件回退到组合配置，行为与原先完全一致。
 
 ### 读取与观察值
 
@@ -99,7 +97,7 @@ scope.update({ density: 'compact' })   // merges into the user section and persi
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Service Definition：namespace brand、注册、解析、写队列、describe/脱敏、事件、`installSettingsSection` |
+| [`src/index.ts`](src/index.ts) | Service Definition：namespace 校验、注册、解析、写队列、describe/脱敏、事件、`installSection` |
 | [`src/redact.ts`](src/redact.ts) | `redactSecrets` 遍历器：剥离 `role('secret')` 字段并枚举其 slot |
 | [`src/types.ts`](src/types.ts) | 客户端安全类型面：事件声明、`SettingsNamespace`、`SettingsUpdateSource` |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件：`settings/updated` 只对已注册 namespace、只在解析值变化时、且携带权威值触发 |

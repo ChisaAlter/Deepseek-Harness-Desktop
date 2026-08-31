@@ -80,7 +80,7 @@ const UI_FEATURES = [
   },
   {
     name: 'StatsLine running row state',
-    file: 'packages/client/ui-conversation/src/client/chat/StatsLine.tsx',
+    file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx',
     includes: ['data-stats-line'],
   },
   {

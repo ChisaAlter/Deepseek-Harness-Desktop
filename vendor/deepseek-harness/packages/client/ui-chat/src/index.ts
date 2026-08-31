@@ -1,7 +1,7 @@
 /** Host registration for browser Chat preferences. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import { CHAT_SETTINGS_NAMESPACE, ChatSettingsSchema } from './chat-settings.ts'
 
 export {
@@ -13,7 +13,7 @@ export {
 export function apply(ctx: Context): void {
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.register(
-      settingsNamespace(CHAT_SETTINGS_NAMESPACE),
+      CHAT_SETTINGS_NAMESPACE,
       ChatSettingsSchema,
     )
   })

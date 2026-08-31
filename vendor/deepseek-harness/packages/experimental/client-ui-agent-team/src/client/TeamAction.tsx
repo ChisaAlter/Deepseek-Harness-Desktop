@@ -8,7 +8,7 @@ import type {
   TeamTaskView as TeamTask,
   TeamView,
 } from '@deepseek-ai/dsh-experimental-agent-team/client'
-import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   IconCheckOutline14, IconCloseOutline16, IconEditOutline16, IconPlusOutline16,
   IconRefreshOutline14, IconTrashOutline16, IconUserOutline16, StateDot,
@@ -67,7 +67,11 @@ function taskIds(value: string): TeamTaskId[] {
   return items(value) as TeamTaskId[]
 }
 
-function failureText(error: Pick<RemoteFailure, 'code' | 'message'>): string {
+/**
+ * One failure line for either carrier: a Remote failure, or a Team business
+ * rejection whose codes stay local to this seam and never ride the wire.
+ */
+function failureText(error: { readonly code: string; readonly message: string }): string {
   return `${error.message} (${error.code})`
 }
 

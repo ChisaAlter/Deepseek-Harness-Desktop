@@ -10,6 +10,8 @@ import SessionStore, {
   SessionId,
   type Session,
 } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SqliteSessionQueryEngine from '@deepseek-ai/dsh-session-query-sqlite'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -30,6 +32,10 @@ function fakeAgent(session: Session): Agent {
   return { id: session.id, session } as unknown as Agent
 }
 
+function registerTurnBoundary(ctx: Context): void {
+  ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+}
+
 describe('tool-session-query with the real SQLite provider', () => {
   it('searches live prior-step history and a persisted same-workspace log', { timeout: 20_000 }, async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-tool-session-query-'))
@@ -37,6 +43,8 @@ describe('tool-session-query with the real SQLite provider', () => {
     const ctx = new Context()
     contexts.push(ctx)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    registerTurnBoundary(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })
@@ -106,6 +114,8 @@ describe('tool-session-query with the real SQLite provider', () => {
     const ctx = new Context()
     contexts.push(ctx)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    registerTurnBoundary(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'none' })

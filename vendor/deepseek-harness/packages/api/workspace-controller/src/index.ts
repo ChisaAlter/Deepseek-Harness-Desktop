@@ -110,6 +110,16 @@ export class WorkspaceController extends TypertRemoteService {
   }
 
   /**
+   * Restore one known Session to Workspace grouping surfaces.
+   * @param request - Session identity to unarchive.
+   * @returns the complete resulting archive set.
+   */
+  @Remote('unarchiveSession')
+  unarchiveSession(request: WorkspaceArchiveSessionRequest): Promise<WorkspaceArchiveValue> {
+    return this.commands.unarchiveSession(request)
+  }
+
+  /**
    * Stream a complete Workspace baseline followed by ordered increments.
    * @param signal - generation cancellation.
    * @returns baseline followed by ordered Workspace increments.

@@ -17,7 +17,6 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   ClientSessionContext, InputTriggerCrumb, InputTriggerServiceContract, InputTriggerSource,
@@ -30,7 +29,7 @@ import { en, NS, zh, type ReferenceKey } from './locales.ts'
 
 /** Required services: the trigger registry, the Remote namespaces, and the copy. */
 export const inject = [
-  'inputTriggers', 'locale', 'connection', 'sessions', 'remote', 'remote.fileReferences',
+  'inputTriggers', 'locale', 'sessions', 'remote', 'remote.fileReferences',
   'remote.sessionReferenceResolver',
 ]
 
@@ -41,30 +40,25 @@ export const inject = [
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-reference: dictionaries')
   const t = ctx.locale.bind(NS)
-  const connection = ctx.get('connection') as ConnectionHandle
   const sessions = ctx.get('sessions') as ISessions
   const source: InputTriggerSource = {
     trigger: '@',
     name: 'reference',
     showGroupTitle: false,
     async candidates(session: ClientSessionContext, { query, quoted, drilled, signal }) {
-      const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal).then(
-        result => result.ok ? result.value : [],
-        () => [],
-      )
+      const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal)
+        .then(result => result.ok ? result.value : [])
       const sessionLookup = quoted === true
         ? Promise.resolve([] as SessionReferenceMentionCandidate[])
-        : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal).then(
-          result => result.ok ? result.value : [],
-          () => [],
-        )
+        : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal)
+          .then(result => result.ok ? result.value : [])
       const [fileItems, sessionItems] = await Promise.all([fileLookup, sessionLookup])
       if (signal.aborted) return []
       // The header already names the directory being listed; rows repeat it only
       // when there is no header to carry it.
       const withLocation = crumbsFor(query, quoted === true, drilled, t) === undefined
       const now = Date.now()
-      const home = connection.generation.getSnapshot()?.host.home
+      const home = ctx.remote.$host.home
       const listed = sessions.list.getSnapshot().byId
       return [
         ...fileItems.flatMap(candidate => fileCandidate(candidate, quoted === true, withLocation, t)),

@@ -24,7 +24,7 @@ Status: implemented
 
 `website/AGENTS.md` 是网站子树中唯一维护的 Markdown 文件。投影器测试会枚举所有已跟踪文件和未被忽略的未跟踪文件，并拒绝网站中的任何其他 Markdown，因此网站专用的 locale、路由、API 或生成源文件副本无法绕过发布 manifest。
 
-Mermaid 渲染权威图表。网站工作区显式声明 `vitepress-plugin-mermaid` 要求 Vite 预打包的 5 个包，因为 pnpm 的严格依赖隔离会使本地开发服务器无法使用这些传递依赖；Knip 将这种仅运行时使用记录为有意的依赖例外。
+Mermaid 渲染权威图表。网站工作区显式声明 `vitepress-plugin-mermaid` 要求 Vite 预打包的 5 个包，因为 pnpm 的严格依赖隔离会使本地开发服务器无法使用这些传递依赖。
 
 配置后的 Markdown 渲染器会在单次构建期间缓存非 Mermaid、非 snippet 代码围栏，缓存键包含确切正文、info string、分隔符和 token 属性。双语投影中约半数代码围栏是重复内容，因此 Shiki 只渲染一次每种不同表示。Mermaid 围栏不会进入缓存，因为插件输出包含 token 位置 id；VitePress snippet 则在渲染期间解析源文件。缓存仅在生产构建中启用，每次构建后会随渲染器一同丢弃，并且不会改变生成的围栏 HTML。
 

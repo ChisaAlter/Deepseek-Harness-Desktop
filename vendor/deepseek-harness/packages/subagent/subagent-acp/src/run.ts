@@ -17,7 +17,8 @@ import {
   type ToolKind,
 } from '@agentclientprotocol/sdk'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
@@ -335,7 +336,7 @@ export async function startAcpRun(request: SubagentStartRequest, spec: AcpRunSpe
   // ACP session ids are unique only within the child server. The lifecycle id
   // is minted in the parent namespace so fresh processes cannot collide with
   // each other or with a local agent that happens to use the same session id.
-  const id = SessionId(randomUUID())
+  const id = brandString<SessionId>(randomUUID())
 
   // Keep diagnostics on parent stderr ('inherit'); only ACP output contributes
   // to the result. The seam's scrub drops ambient credentials and DSH_* names

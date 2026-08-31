@@ -12,6 +12,7 @@ import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
@@ -53,6 +54,7 @@ async function ptcModeHarness(cwd: string): Promise<Context> {
   const harness = new Context()
   await harness.plugin(LlmRuntime)
   await harness.plugin(SessionStore)
+  await harness.plugin(SessionProjectionRegistry)
   await harness.plugin(SystemPrompt, { persona: PERSONA })
   await harness.plugin(ToolRuntime, { mode: 'ptc' })
   await harness.plugin(AgentRegistry)
@@ -70,6 +72,7 @@ async function workspacePtcModeHarness(): Promise<Context> {
   const harness = new Context()
   await harness.plugin(LlmRuntime)
   await harness.plugin(SessionStore)
+  await harness.plugin(SessionProjectionRegistry)
   await harness.plugin(SystemPrompt, { persona: PERSONA })
   await harness.plugin(ToolRuntime, { mode: 'ptc' })
   await harness.plugin(AgentRegistry)

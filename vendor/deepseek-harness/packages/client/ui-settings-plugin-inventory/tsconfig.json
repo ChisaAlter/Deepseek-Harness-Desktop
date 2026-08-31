@@ -21,6 +21,12 @@
       "path": "../ui-settings"
     },
     {
+      "path": "../ui-agent-preset"
+    },
+    {
+      "path": "../../preset/agent-presets"
+    },
+    {
       "path": "../ui-primitives"
     },
     {

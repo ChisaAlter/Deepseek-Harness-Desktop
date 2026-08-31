@@ -16,6 +16,8 @@ import {
   type TypertRemoteEvent,
 } from '@deepseek-ai/dsh-typert-protocol'
 
+const REMOTE_METHOD_DESCRIPTOR_KEY = '@deepseek-ai/dsh-typert-protocol/remote-methods'
+
 interface MetaFixtureSubject {
   readonly subjectId: string
 }
@@ -66,6 +68,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 
   interface TypertContextMap {
     metaFixture: TypertContext<string>
+    otherFixture: TypertContext<string>
   }
 
   interface TypertRemoteEventSelection extends
@@ -127,7 +130,7 @@ describe('typert-protocol Remote declarations', () => {
     ])
   })
 
-  it('keeps decorator markers in private module state', () => {
+  it('stores a non-enumerable versioned marker descriptor on the prototype', () => {
     class Goals {
       readonly typertRemote = bindTypertRemote(this, 'goals')
 
@@ -159,7 +162,15 @@ describe('typert-protocol Remote declarations', () => {
       { method: 'scoped', invocation: { kind: 'context', context: 'metaFixture' } },
     ])
     expect(Reflect.ownKeys(Goals)).toEqual(['length', 'name', 'prototype'])
-    expect(Reflect.ownKeys(Goals.prototype)).toEqual(['constructor', 'create', 'scoped'])
+    expect(Reflect.ownKeys(Goals.prototype)).toEqual([
+      'constructor', 'create', 'scoped', REMOTE_METHOD_DESCRIPTOR_KEY,
+    ])
+    expect(Object.keys(Goals.prototype)).toEqual([])
+    expect(Object.getOwnPropertyDescriptor(Goals.prototype, REMOTE_METHOD_DESCRIPTOR_KEY)).toMatchObject({
+      configurable: true,
+      enumerable: false,
+      writable: false,
+    })
   })
 
   it('keeps markers idempotent across instances and returns detached snapshots', () => {
@@ -187,7 +198,17 @@ describe('typert-protocol Remote declarations', () => {
     expect(remoteMethods(first)).toEqual([{ method: 'run', invocation: { kind: 'direct' } }])
   })
 
-  it('supports explicit export names without exposing marker storage', () => {
+  it.each([
+    [null, 'Remote method descriptor must be an object'],
+    [{ version: 2, methods: [] }, 'unsupported Remote method descriptor version 2'],
+    [{ version: 1, methods: {} }, 'Remote method descriptor methods must be an array'],
+  ])('rejects malformed prototype descriptor %#', (value, message) => {
+    const prototype = {}
+    Object.defineProperty(prototype, REMOTE_METHOD_DESCRIPTOR_KEY, { value })
+    expect(() => remoteMethods(Object.create(prototype) as object)).toThrow(message)
+  })
+
+  it('supports explicit export names and prototype-less inputs', () => {
     class Service {
       run(value: string): string {
         return value
@@ -271,6 +292,40 @@ describe('typert-protocol Remote declarations', () => {
     const service = new Service()
     conflicting[0]!.call(service)
     expect(() => { conflicting[1]!.call(service) }).toThrow('conflicting invocation markers')
+
+    class ScopedService {
+      run(): void {}
+    }
+    const firstScope: Array<(this: ScopedService) => void> = []
+    const otherScope: Array<(this: ScopedService) => void> = []
+    RemoteScope('metaFixture')(
+      Reflect.get(ScopedService.prototype, 'run'),
+      methodContext('run', firstScope),
+    )
+    RemoteScope('otherFixture')(
+      Reflect.get(ScopedService.prototype, 'run'),
+      methodContext('run', otherScope),
+    )
+    const scopedService = new ScopedService()
+    firstScope[0]!.call(scopedService)
+    expect(() => { otherScope[0]!.call(scopedService) }).toThrow('conflicting invocation markers')
+
+    class ReverseService {
+      run(): void {}
+    }
+    const scopedFirst: Array<(this: ReverseService) => void> = []
+    const directSecond: Array<(this: ReverseService) => void> = []
+    RemoteScope('metaFixture')(
+      Reflect.get(ReverseService.prototype, 'run'),
+      methodContext('run', scopedFirst),
+    )
+    Remote(
+      Reflect.get(ReverseService.prototype, 'run'),
+      methodContext('run', directSecond),
+    )
+    const reverseService = new ReverseService()
+    scopedFirst[0]!.call(reverseService)
+    expect(() => { directSecond[0]!.call(reverseService) }).toThrow('conflicting invocation markers')
   })
 
   it('rejects ambiguous binding names', () => {

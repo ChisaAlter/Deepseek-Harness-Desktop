@@ -1,5 +1,5 @@
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
-
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 /**
  * Resolve the project cwd for a session-maybe occupant.
  * Prefer the slot's sessionId; otherwise use the current session list entry.

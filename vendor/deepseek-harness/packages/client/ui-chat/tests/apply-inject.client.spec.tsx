@@ -5,7 +5,7 @@ import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ISession } from '@deepseek-ai/dsh-api-session-controller/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import {
-  SlotTestRuntime, TestRemote, stubSettingsScope, usePinnedBrowserLanguages,
+  RemoteError, SlotTestRuntime, TestRemote, stubSettingsScope, usePinnedBrowserLanguages,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionBehaviorOverrides } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ClientRemote } from '@deepseek-ai/dsh-api-remotes/client'
@@ -127,7 +127,7 @@ describe('Chat inject API', () => {
 
     b.openWorkspacePath.mockResolvedValueOnce({
       ok: false,
-      error: { code: 'internal', message: 'xdg-open is not available', details: {} },
+      error: new RemoteError('gateway/internal', 'xdg-open is not available', {}),
     })
     await expect(injected.openFile('src/b.ts')).rejects.toThrow('path open failed: xdg-open is not available')
     await b.runtime.dispose()

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   RemoteStreamCarrierError,
@@ -106,9 +107,40 @@ describe('RemoteStream', () => {
       { terminal: repeated },
     ], carrierFailed)
 
-    await expect(stream[Symbol.asyncIterator]().next()).rejects.toBe(repeated)
+    await expect(stream[Symbol.asyncIterator]().next()).rejects.toMatchObject({
+      isDSHRemoteError: true,
+      code: 'gateway/internal',
+      message: 'isolated retry failed',
+      details: {},
+      cause: repeated,
+    })
     expect(carrierFailed).toHaveBeenNthCalledWith(1, first)
     expect(carrierFailed).toHaveBeenNthCalledWith(2, repeated)
+  })
+
+  it('folds a non-Error terminal escape into a marked gateway/internal failure', async () => {
+    const stream = new RemoteStream(hostSource(true).connection, {
+      name: 'fixture stream',
+      open: () => ({
+        [Symbol.asyncIterator]: (): AsyncIterator<string> => ({
+          next: vi.fn<() => Promise<IteratorResult<string>>>().mockRejectedValue('generation exploded'),
+        }),
+      }),
+      ended: () => new Error('fixture stream ended'),
+    })
+
+    await expect(stream[Symbol.asyncIterator]().next()).rejects.toMatchObject({
+      isDSHRemoteError: true,
+      code: 'gateway/internal',
+      message: 'generation exploded',
+    })
+  })
+
+  it('passes a marked Remote failure through the terminal boundary verbatim', async () => {
+    const failure = new RemoteError('gateway/internal', 'host stream failed', {})
+    const stream = supervisor(hostSource(true).connection, [{ terminal: failure }])
+
+    await expect(stream[Symbol.asyncIterator]().next()).rejects.toBe(failure)
   })
 
   it('waits for a replacement Host generation after observing unavailability', async () => {

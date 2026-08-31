@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionPendingInteractionBase } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { ScheduleId, ScheduleRecord } from '@deepseek-ai/dsh-schedule/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   deriveFlat, deriveGroups, deriveSearchResults, workspaceLabel,
@@ -32,6 +33,12 @@ const view = (expandedGroups: readonly string[] = [], ungroupedOrder?: readonly 
 const noArchive: readonly SessionId[] = []
 const noAttention: ReadonlyMap<SessionId, SessionPendingInteractionBase> = new Map()
 const archived = (...ids: string[]): readonly SessionId[] => ids.map(sid)
+const schedule = (id: string, scheduledAt: string): ScheduleRecord => ({
+  id: id as ScheduleId,
+  kind: 'at',
+  prompt: id,
+  scheduledAt,
+})
 
 describe('deriveGroups', () => {
   it('keeps Host Workspace and sessionIds order without Client recency sorting', () => {
@@ -138,6 +145,36 @@ describe('deriveGroups', () => {
       noAttention, { items: [], hasMore: false }, 10,
     )
     expect(search.items[0]?.completed).toBe(true)
+  })
+
+  it('derives one active-Schedule fact for grouped, flat, and search rows', () => {
+    const absent = summary('absent', 4)
+    const empty = { ...summary('empty', 3), projectionValues: { schedule: [] } }
+    const future = {
+      ...summary('future', 2),
+      projectionValues: { schedule: [schedule('future', '2099-01-01T00:00:00.000Z')] },
+    }
+    const overdue = {
+      ...summary('overdue', 1),
+      projectionValues: { schedule: [schedule('overdue', '2000-01-01T00:00:00.000Z')] },
+    }
+    const sessions = list(absent, empty, future, overdue)
+    const workspaces = [workspace('project', ['absent', 'empty', 'future', 'overdue'], 'Project')]
+    const expected = [
+      [sid('absent'), false],
+      [sid('empty'), false],
+      [sid('future'), true],
+      [sid('overdue'), true],
+    ]
+
+    expect(deriveGroups(
+      sessions, workspaces, noArchive, noAttention, view(['project']),
+    )[0]!.sessions.map(node => [node.id, node.hasActiveSchedule])).toEqual(expected)
+    expect(deriveFlat(sessions, noArchive, noAttention)
+      .map(node => [node.id, node.hasActiveSchedule])).toEqual(expected)
+    expect(deriveSearchResults(
+      sessions, workspaces, 'project', noArchive, noAttention, { items: [], hasMore: false }, 10,
+    ).items.map(node => [node.id, node.hasActiveSchedule])).toEqual(expected)
   })
 
   it('hides subagent-origin sessions without hiding ordinary forks', () => {
@@ -356,6 +393,7 @@ describe('deriveSearchResults', () => {
           runningSubagentCount: 0,
           pendingInteraction: 'plan-review',
           completed: false,
+          hasActiveSchedule: false,
           snippet: 'title session body excerpt',
         },
         {
@@ -365,6 +403,7 @@ describe('deriveSearchResults', () => {
           running: false,
           runningSubagentCount: 0,
           completed: false,
+          hasActiveSchedule: false,
         },
         {
           id: contentHit.id,
@@ -373,6 +412,7 @@ describe('deriveSearchResults', () => {
           running: false,
           runningSubagentCount: 0,
           completed: false,
+          hasActiveSchedule: false,
           snippet: 'body needle excerpt',
         },
       ],

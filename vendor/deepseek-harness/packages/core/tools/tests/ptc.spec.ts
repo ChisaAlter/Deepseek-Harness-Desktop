@@ -3,14 +3,15 @@ import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId  } from '@deepseek-ai/dsh-llm'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
-import SystemPrompt, { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
 import ToolRuntime, { CodeRunFailedError, RUN_CODE_NAME, TOOL_ABORTED_BEFORE_DISPATCH, defineContentToolFixture, defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config, JsonSchemaNode, PostToolDecision, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import type { JsonValue, SessionEventMap } from '@deepseek-ai/dsh-session'
+import type { SessionEventMap } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 const testToolSignal = new AbortController().signal
 
@@ -143,7 +144,7 @@ describe('mode-aware wire contribution', () => {
     // saying how it is reached.
     ctx.systemPrompt.section({
       name: 'tool:echo',
-      order: FIRST_PARTY_SECTION_ORDER.TOOL_READ,
+      order: ctx.systemPrompt.getSectionOrder('TOOL_READ'),
       text: 'Use the echo tool.',
     })
 
@@ -213,7 +214,7 @@ describe('mode-aware wire contribution', () => {
     const { scope, agent } = await mintAgentScope(ctx)
     scope.ctx.systemPrompt.section({
       name: 'tools:sdk',
-      order: FIRST_PARTY_SECTION_ORDER.TOOLS_SDK,
+      order: scope.ctx.systemPrompt.getSectionOrder('TOOLS_SDK'),
       text: 'SCOPED SDK',
     })
 
@@ -301,7 +302,7 @@ describe('mode-aware wire contribution', () => {
     expect(() => scope.ctx.tools.restrict({ deny: [RUN_CODE_NAME] })).toThrow(/cannot name reserved PTC mode presentation transport/)
     scope.ctx.systemPrompt.section({
       name: 'scoped-note',
-      order: FIRST_PARTY_SECTION_ORDER.TOOLS_SDK - 10,
+      order: scope.ctx.systemPrompt.getSectionOrder('TOOLS_SDK') - 10,
       text: 'safe note',
     })
     scope.ctx.tools.register(defineContentToolFixture({

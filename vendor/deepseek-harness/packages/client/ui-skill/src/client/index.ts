@@ -58,7 +58,7 @@ interface CatalogFetch {
 }
 
 /** Required services: reference source faces plus the tool-row and locale registries. */
-export const inject = ['inputTriggers', 'connection', 'sessions', 'slots', 'locale', 'remote', 'remote.skills']
+export const inject = ['inputTriggers', 'sessions', 'slots', 'locale', 'remote', 'remote.skills']
 
 /**
  * Client plugin body: register the '/' source, dictionaries, and keyed tool row.
@@ -139,9 +139,6 @@ export function apply(ctx: ClientContext): void {
     name: 'skill',
     order: 2,
     async candidates(session, { query, signal }) {
-      if (sessions.list.getSnapshot().byId[session.sessionId]?.agentPreset === 'dshbot-room') {
-        return []
-      }
       const skills = await fetchCatalog(session.sessionId)
       // Superseded keystroke: the shared fetch stays warm, this caller yields.
       if (signal.aborted) return []
@@ -160,7 +157,6 @@ export function apply(ctx: ClientContext): void {
       fetchCatalog(session.sessionId).catch(() => {})
     },
     lexicon(session) {
-      if (sessions.list.getSnapshot().byId[session.sessionId]?.agentPreset === 'dshbot-room') return []
       return fetches.get(session.sessionId)?.settled?.map(skill => skill.name)
     },
     subscribeLexicon(session, listener) {

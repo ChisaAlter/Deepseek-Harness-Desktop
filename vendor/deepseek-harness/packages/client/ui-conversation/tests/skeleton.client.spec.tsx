@@ -7,7 +7,7 @@ import type { SessionListState, SessionSnapshot } from '@deepseek-ai/dsh-api-ses
 import type { WorkspaceSnapshot, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
-  bindSnapshotSelector, makeTranslate, sessionSnapshot as sessionFixture,
+  bindSnapshotSelector, makeTranslate, RemoteError, sessionSnapshot as sessionFixture,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
@@ -113,8 +113,8 @@ function mount(
     summaryBlank?: boolean
     /** Drop the session's summary row entirely (a session the list has not caught up with). */
     omitSummaryRow?: boolean
-    /** Classify the selected child as a subagent or a desktop-plugin contact. */
-    summaryOrigin?: 'subagent' | 'dshbot'
+    /** Classify the selected child as a subagent. */
+    summaryOrigin?: 'subagent'
     /** Insert a first-level subagent between the root and selected child. */
     nestedSubagent?: boolean
     /** A composer block another plugin raised for this session. */
@@ -258,6 +258,11 @@ function mount(
           useNotices={bindSnapshotSelector(wiring.notices)}
           useLexicon={bindSnapshotSelector(wiring.lexicon)}
           useMenuLauncher={bindSnapshotSelector(createSnapshotStore<string | null>(null))}
+          useComposerBeam={sel => sel(false)}
+          useComposerResize={sel => sel(false)}
+          useComposerResizeHeight={sel => sel(null)}
+          useComposerResizeWidth={sel => sel(null)}
+          setComposerResizeSize={() => {}}
           stop={stop}
           command={() => Promise.resolve(true)}
           t={t}
@@ -473,7 +478,7 @@ describe('ConversationRoot resident composer', () => {
       awaitingFirstTurn: true,
       promptError: {
         op: 'send',
-        error: { code: 'agent-busy', message: 'busy', details: { reason: 'busy' } },
+        error: new RemoteError('session/agent-busy', 'busy', { reason: 'busy' }),
       },
     })
 
@@ -487,7 +492,7 @@ describe('ConversationRoot resident composer', () => {
     const b = mount(sessionSnapshotOf({ blank: true, openState: 'loading' }))
     const root = b.view.container.querySelector('[data-phase]')
     expect(root?.getAttribute('data-phase')).toBe('settling')
-    expect(b.view.queryByText('探索未至之境')).toBeNull()
+    expect(b.view.queryByTestId('hero-headline')).toBeNull()
   })
 
   it('settling phase: a session the list has no row for settles conservatively', () => {
@@ -530,7 +535,7 @@ describe('ConversationRoot resident composer', () => {
     expect(b.wiring.snapshot.draft).toBe('kept across flip')
     expect(b.store.store.getSnapshot().draft).toBe('kept across flip')
     expect(b.view.container.querySelector('[data-conversation-scroll]')?.contains(after)).toBe(true)
-    expect(b.view.queryByText('探索未至之境')).toBeNull()
+    expect(b.view.queryByTestId('hero-headline')).toBeNull()
     expect(b.view.getByTestId('view-chat')).toBeTruthy()
   })
 
@@ -585,27 +590,6 @@ describe('ConversationRoot resident composer', () => {
     // The agent-preset chip sits in the same row, for the same reason: both
     // choices are only open before the first message.
     expect(b.slotCalls).toContain('conversation.hero.agentPreset')
-  })
-
-  it('a blank dshbot session skips the new-session hero and docks the composer', () => {
-    const b = mount(
-      sessionSnapshotOf({ blank: true }),
-      undefined,
-      undefined,
-      { summaryOrigin: 'dshbot', summaryBlank: true },
-    )
-    const root = b.view.container.querySelector('[data-phase]')
-    const header = b.view.container.querySelector('header')
-    expect(root?.getAttribute('data-phase')).toBe('active')
-    expect(b.view.queryByText('探索未至之境')).toBeNull()
-    expect(b.view.queryByRole('button', { name: '选择工作区' })).toBeNull()
-    expect(b.slotCalls).not.toContain('conversation.hero.workspace')
-    expect(b.slotCalls).not.toContain('conversation.hero.agentPreset')
-    expect(header?.getAttribute('aria-hidden')).toBeNull()
-    expect(header?.querySelector('[data-dshd-caption="title"]')).not.toBeNull()
-    expect(b.view.getByTestId('view-chat')).toBeTruthy()
-    const box = b.view.getByRole('textbox')
-    expect(b.view.container.querySelector('[data-conversation-scroll]')?.contains(box)).toBe(true)
   })
 
   it('prompt failure renders the promptError strip (ordinary failure, no transaction UI)', () => {

@@ -3,7 +3,7 @@
  * @module @deepseek-ai/dsh-client-ui-message-edit/client/text
  */
 
-import type { UserActionContentBlock } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { UserActionContentBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 
 /**
  * Join a user message's text blocks in order.

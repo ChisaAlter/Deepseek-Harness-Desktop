@@ -2,7 +2,9 @@
  * Trigger candidate menu: renders the InputTriggerService menu store into the
  * conversation.input.overlay anchor. Closed state renders null (the overlay
  * slot stays mounted); groups render in roster order under localized title
- * rows, pending groups as two skeleton rows; pointer picks route back through
+ * rows. A pending group keeps showing the items it already had (the reducer
+ * retains them across a query refinement) and falls back to two skeleton
+ * rows only while it has none; pointer picks route back through
  * the service (combobox pattern — focus never leaves the textarea, so rows
  * are mousedown-handled and the highlight is exposed via
  * aria-activedescendant on the listbox). A source publishing crumbs gets a
@@ -114,7 +116,7 @@ export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t
               {group.showGroupTitle === false || group.items.some(item => item.section !== undefined)
                 ? null
                 : <div className={css.groupTitle} role="presentation" data-source={group.source}>{t(group.source as MenuKey)}</div>}
-              {group.status === 'pending'
+              {group.status === 'pending' && group.items.length === 0
                 ? (
                   <div role="status" aria-label={t('loading')} data-source={group.source}>
                     <div className={css.skeletonRow}><span className={css.skeletonBar} style={{ width: '32%' }} /></div>

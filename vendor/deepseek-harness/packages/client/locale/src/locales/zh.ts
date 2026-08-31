@@ -32,7 +32,6 @@ export const zh = {
   'unknown': '未知',
   'none': '无',
   'truncated': '已截断',
-  'connection.reconnecting': '连接已断开，正在重连…',
   'json.collapseNode': '收起 JSON 节点',
   'json.expandNode': '展开 JSON 节点',
   'json.label': 'JSON',

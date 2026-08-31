@@ -24,7 +24,7 @@ describe('invariant companion', () => {
   it('client apply provides ctx.theme over the slots/locale edges', async () => {
     // The feature registers its own Appearance settings row with localized
     // copy, hence the slots + locale edges.
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'locale', 'remote', 'settingsScope'])
     const ctx = new Context()
     new SlotRegistry(ctx)
     ctx.provide('connection', {

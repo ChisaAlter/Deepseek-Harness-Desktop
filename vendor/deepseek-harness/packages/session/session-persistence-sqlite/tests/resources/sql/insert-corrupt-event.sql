@@ -1,2 +1,2 @@
-INSERT INTO events (session_id, seq, type, time, data, is_packed)
+INSERT INTO events (session_id, seq, type, time, data, ignorable)
 VALUES ((SELECT id FROM sessions WHERE session_key = ?), ?, ?, ?, ?, ?);

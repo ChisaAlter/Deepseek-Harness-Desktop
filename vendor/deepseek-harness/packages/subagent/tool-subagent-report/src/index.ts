@@ -11,7 +11,6 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SubagentReportDelivery } from '@deepseek-ai/dsh-subagent'
-import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 export const name = 'tool-subagent-report'
@@ -21,7 +20,6 @@ export const name = 'tool-subagent-report'
 export const inject = ['subagents', 'tools', 'systemPrompt']
 
 /** Guidance order after every per-tool section a continuable child can carry. */
-const REPORT_SECTION_ORDER = FIRST_PARTY_SECTION_ORDER.TOOL_REPORT
 
 /** Config: how accepted reports are scheduled on the parent. */
 export interface Config {
@@ -53,7 +51,7 @@ export function installReportTool(
 ): () => void {
   const disposeSection = childCtx.systemPrompt.section({
     name: 'tool:report',
-    order: REPORT_SECTION_ORDER,
+    order: childCtx.systemPrompt.getSectionOrder('TOOL_REPORT'),
     text: 'Deliver your result with the report tool before you finish: call it once with a self-contained '
       + 'answer. The agent that started you shares your workspace but does not automatically receive your '
       + 'transcript, tool output, or reasoning, so a closing remark such as "done" leaves it nothing it can '

@@ -1,22 +1,13 @@
 /**
- * The `Branded<B>` nominal-typing primitive — a type-only utility (no runtime
- * code, no harness-package dependency) shared by every package that owns a
- * cross-boundary id.
+ * Duplicate-install-safe nominal string helpers.
  *
  * A brand makes structurally-identical strings non-interchangeable at the type
  * level: a `SessionId` cannot be passed where a `ToolCallId` is expected, even
- * though both are plain strings at runtime. Construction goes through a per-id
- * factory in the OWNING package (a plain cast inside — zero runtime cost);
- * comparison, logging, and serialization all behave as ordinary strings.
+ * though both are plain strings at runtime. Comparison, logging, and
+ * serialization all behave as ordinary strings.
  *
- * Policy: a package brands the ids it owns — `ToolCallId` in dsh-llm (tool-call
- * correlation), the shared agent/session `SessionId` in dsh-session, and
- * `JobId` in dsh-jobs. Branding is for ids that cross package boundaries and
- * could plausibly be confused; not every string needs a brand.
- * This package owns ONLY the primitive — no concrete id, no runtime code beyond
- * the (erased) type — so the brand vocabulary stays dependency-free and a
- * package can brand its ids without depending on an unrelated capability
- * package.
+ * This package owns no concrete id and keeps no runtime identity or mutable
+ * state, so independently installed copies produce interchangeable values.
  *
  * @module @deepseek-ai/dsh-brand
  */
@@ -25,3 +16,12 @@ declare const BRAND: unique symbol
 
 /** A string carrying a compile-time-only brand `B`. */
 export type Branded<B extends string> = string & { readonly [BRAND]: B }
+
+/**
+ * Apply a compile-time string brand without changing the value.
+ * @param value - string admitted by the domain that owns the target brand.
+ * @returns the same string with the requested compile-time brand.
+ */
+export function brandString<T extends Branded<string>>(value: string | T): T {
+  return value as T
+}

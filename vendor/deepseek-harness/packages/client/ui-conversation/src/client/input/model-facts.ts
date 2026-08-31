@@ -11,8 +11,8 @@
  * presentation data.
  */
 
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /** One session's current model-route fact. */
 export interface ComposerModelFact {

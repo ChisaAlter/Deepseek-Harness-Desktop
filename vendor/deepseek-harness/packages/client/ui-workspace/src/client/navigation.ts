@@ -1,8 +1,7 @@
 /** Workspace archive and directory UI capability. */
 
 import { Service, type Context } from '@deepseek-ai/cordis'
-import type { ClientRemote, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
-import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+import type { ClientRemote, DirectoryListing, RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   ISessions,
   SessionListState,
@@ -153,11 +152,12 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   async unarchiveSession(sessionId: SessionId): Promise<void> {
-    throw new Error(`uiWorkspace.unarchiveSession: ${sessionId} host remote is not on this pin yet`)
+    await this.workspaces.unarchiveSession(sessionId)
   }
 
   async deleteSession(sessionId: SessionId): Promise<void> {
-    throw new Error(`uiWorkspace.deleteSession: ${sessionId} host remote is not on this pin yet`)
+    const value = await this.sessions.delete(sessionId)
+    this.workspaces.applyArchivedEcho(value.archivedSessionIds)
   }
 
   async connectNoDirectory(): Promise<SessionId> {

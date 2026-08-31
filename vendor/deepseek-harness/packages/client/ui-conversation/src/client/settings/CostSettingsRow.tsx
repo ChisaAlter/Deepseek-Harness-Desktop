@@ -5,7 +5,7 @@
  * column). The cost figure itself also requires a detected DeepSeek API route
  * and never depends on the peak/valley switch. */
 import { useId, useState, type ChangeEvent } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Button, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationKey } from '../locales.ts'

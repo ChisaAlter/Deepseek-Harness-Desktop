@@ -12,6 +12,7 @@
     "src/client/remote-stream.ts",
     "src/client/snapshot-stream.ts",
     "src/client/stream-client.ts",
+    "src/remote-error-codes.ts",
     "src/stream-protocol.ts"
   ],
   "references": [
@@ -23,6 +24,9 @@
     },
     {
       "path": "../../typert/protocol"
+    },
+    {
+      "path": "../../util/deque"
     },
     {
       "path": "../../util/crypto"

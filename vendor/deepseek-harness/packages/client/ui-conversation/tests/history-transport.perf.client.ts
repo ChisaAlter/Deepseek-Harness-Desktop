@@ -85,6 +85,7 @@ const sessionWireEventSchema = z.object({
   seq: safeIntegerSchema,
   time: safeIntegerSchema,
   data: z.json(),
+  ignorable: z.literal(true).optional(),
   sourceEventSeqs: z.array(safeIntegerSchema).optional(),
   surfaceOp: z.json().optional(),
 }).strict()
@@ -266,7 +267,7 @@ function append<Type extends keyof SessionEventMap>(
   events: SessionEvent[],
   type: Type,
   data: SessionEventMap[Type],
-  options: { readonly surfaceOp?: 'append' } = {},
+  options: { readonly surfaceOp?: 'append'; readonly ignorable?: true } = {},
 ): void {
   const seq = events.length
   events.push({ type, seq, time: TIME_ZERO + seq, data, ...options } as SessionEvent<Type>)
@@ -279,6 +280,7 @@ function appendSeparator(events: SessionEvent[], run: number, separator: number)
     seq,
     time: TIME_ZERO + seq,
     data: { run, separator },
+    ignorable: true,
   } as SessionEvent)
 }
 

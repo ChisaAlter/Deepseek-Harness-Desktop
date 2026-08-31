@@ -28,6 +28,26 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 /** One of the two ordered pending-message lists owned by an agent. */
 export type InboxTarget = 'next-turn' | 'next-step'
 
+/**
+ * Turn and step boundaries folded from one agent session log.
+ *
+ * Reader contract: the key is registered by `dsh-agent-loop` and absent
+ * otherwise. Without agent-loop no turn events exist, so readers treat an
+ * absent key as "no open turn / no boundaries" — capability absence, not a
+ * corrupt state. A reader whose behavior has no safe fallback for that
+ * absence (the step-open decision, for example) may fail loud instead.
+ */
+export interface TurnBoundaryProjection {
+  /** Seq of the open turn's `turn/start`, or null between turns. */
+  readonly openTurnStartSeq: number | null
+  /** Seq of the latest `step/start` event, or null before the first step. */
+  readonly lastStepStartSeq: number | null
+  /** The latest step boundary (`step/start` or `step/end`) and its seq, or null before the first step boundary. */
+  readonly lastStepBoundary: { readonly kind: 'start' | 'end'; readonly seq: number } | null
+  /** Turn number of the latest `turn/start`; 0 before the first turn. */
+  readonly lastTurn: number
+}
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**

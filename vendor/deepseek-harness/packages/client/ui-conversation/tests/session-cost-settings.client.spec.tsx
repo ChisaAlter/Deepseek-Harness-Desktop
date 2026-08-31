@@ -5,7 +5,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { CostSettingsRow } from '../src/client/settings/CostSettingsRow.tsx'
 import type { CostSettingsRowProps } from '../src/client/settings/CostSettingsRow.tsx'
@@ -27,6 +27,7 @@ function mount(opts: {
   const setCostPrices = vi.fn()
   const props: CostSettingsRowProps = {
     useSessions: unused,
+    useSessionPendingInteraction: unused,
     useWorkspaces: unused,
     useSessionCost: bindSnapshotSelector(createSnapshotStore(opts.enabled ?? false)),
     useCostPrices: bindSnapshotSelector(createSnapshotStore((opts.prices ?? {}) as never)),

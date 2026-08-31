@@ -14,7 +14,7 @@ Status: implemented
 
 ## 决策
 
-`@deepseek-ai/dsh-system-prompt` 导出 `FIRST_PARTY_SECTION_ORDER`，作为仓库自带提示词段的唯一分配表。每个 first-party 贡献方都导入具名位置，不再声明数字字面量。所有值都是互不相同的整数，相邻已分配值之差至少为十。
+`@deepseek-ai/dsh-system-prompt` 持有仓库提示词段与 runtime context 的私有具名分配。每个仓库贡献方通过 `ctx.systemPrompt.getSectionOrder(name)` 或 `getContextOrder(name)` 向活跃服务查询经过类型约束的位置，而不再导入值或声明数字字面量。段的值是互不相同的整数，相邻已分配段值之差至少为十；context 值则在自己的独立序列中保持唯一整数。
 
 除两项有意调整外，该分配保留既有 first-party 顺序：Bash，或 Windows 组合中的 PowerShell，位于逐工具指导的首位；原先共享 order 的段获得明确顺序。分组如下：
 
@@ -28,13 +28,15 @@ Status: implemented
 | 生成协议 | `tools:sdk` 5000 |
 | 最终输出义务 | 可交付文件引用 9000、`tool:structured_output` 9900 |
 
+Runtime-context 分配为 `SANDBOX_POLICY` 110、`APPROVAL_POLICY` 115 与 `SUBAGENT_DELEGATION` 120。
+
 `SystemPrompt.assemble()` 比较 `order` 后，按提示词段名称的代码单元顺序排列同号项。这样无需使用受区域设置影响的比较，也能让第三方冲突产生确定结果。first-party 贡献方仍使用不同 rank，其预期顺序由分配表明确表达，而不依赖兜底规则。
 
-动态 `PromptContext` 顺序和工具 schema 的 `toolOrder` 是独立序列，保持不变。带作用域的 `deployment:persona` 仍会在段排序之前按名称遮蔽全局段，因此共享 `PERSONA_ORDER`，而不占用另一个位置。
+动态 `PromptContext` 顺序与工具 schema 的 `toolOrder` 是独立序列。Prompt context 使用服务持有的独立 context 分配，工具 schema 则继续由 `toolOrder` 管理。带作用域的 `deployment:persona` 仍会在段排序之前按名称遮蔽全局段，并通过服务解析同一个 `DEPLOYMENT_PERSONA` 位置。
 
 ## 验证
 
-系统提示词单元测试验证：导出的每个 first-party 值都是整数、所有值互不重复、相邻值之差至少为十，并且顺序相反的两种注册排列会对同号项产生相同的代码单元名称顺序。真实组合快照固定面向模型的顺序变化，包括 Bash 位于文件系统指导之前，以及 Cordis、workflow、Ralph、subagent 和 report 的明确序列。
+系统提示词单元测试通过服务解析每个已配置的 section 与 context 名称。它验证数值为整数且互不重复、相邻 section 值至少相差十，并验证顺序相反的两种同号注册排列得到相同的代码单元名称顺序。真实组合快照固定面向模型的顺序，包括 Bash 位于文件系统指导之前，以及 Cordis、workflow、Ralph、subagent 和 report 的明确序列。
 
 ## 考虑过的替代方案
 
@@ -46,12 +48,12 @@ Status: implemented
 
 **同 rank 时保留激活顺序。**未采用，因为激活顺序不是提示词顺序决策，并且会在有效组合之间变化。名称顺序为外部冲突提供确定结果；具名位置负责表达 first-party 意图。
 
-**在同一分配表中重新编号动态上下文和工具 schema。**未采用，因为运行时独立组装这些序列。合并分配会暗示运行时并不执行的跨序列顺序。
+**把动态 context 与工具 schema 放进 section 分配。**未采用，因为运行时独立组装这些序列。Context 使用自己的具名服务分配；把任一序列与 section 合并都会暗示运行时并不执行的跨序列顺序。
 
 ## 后果
 
 数字 rank 不会被渲染，因此单纯重新编号不会改变模型文本。Bash 或 PowerShell 会移到其他逐工具指导之前，原先同号的段会获得确定顺序；这些面向模型的变化会更新请求 header 快照，并可能从第一个移动的段落起使提供方前缀复用失效。
 
-如果外部插件专门选择一个原始数字以插入旧 first-party 数值之间，它相对仓库段的位置可能改变。本仓库处于预发布阶段，不为旧分配提供兼容层；扩展可以根据当前导出的分配表选择位置。外部段仍可使用相同 rank，并会按名称获得确定顺序。
+外部插件可以为自己的 section 或 context 选择任意有限数字 order。具名 order 查询属于仓库内部位置，而不是扩展 API。外部 section 仍可使用相同 rank，并会按名称获得确定顺序。
 
 系统提示词包现在了解仓库功能的名称和相对位置。这种集中耦合是有意的：注册表本就拥有排序语义，而分散的数字字面量只是让同一关系变得隐式且无法检查。

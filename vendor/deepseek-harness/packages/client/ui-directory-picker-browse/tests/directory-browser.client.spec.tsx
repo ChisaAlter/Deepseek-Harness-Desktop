@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { DirectoryBrowseError } from '../../ui-workspace/src/client/navigation.ts'
 import { DirectoryBrowser } from '../src/client/DirectoryBrowser.tsx'
 
 afterEach(cleanup)
@@ -1184,7 +1186,7 @@ describe('DirectoryBrowser', () => {
       if (path === COMPUTER) return computer
       if (path === C) return driveC
       if (path === 'C:\\Users\\u') return computer
-      throw new DirectoryBrowseError({ code: 'directory-unreadable', message: `cannot list ${path}`, details: { path: path ?? '' } })
+      throw new DirectoryBrowseError(new RemoteError('directory-picker/unreadable', `cannot list ${path}`, { path: path ?? '' }))
     })
     const b = mount({ listDirectory })
     await waitFor(() => { expect(itemNamed('C:')).toBeTruthy() })

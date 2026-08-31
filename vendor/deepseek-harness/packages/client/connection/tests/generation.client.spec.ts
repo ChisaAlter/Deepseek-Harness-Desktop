@@ -46,8 +46,8 @@ describe('Connection generation facts', () => {
     })
     const loop = connection.start({}, {
       backoffBaseMs: 1,
-      backoffFactor: 1,
-      backoffMaxMs: 1,
+      backoffFactor: 2,
+      backoffMaxMs: 8,
       generationReadyTimeoutMs: 100,
     })
 

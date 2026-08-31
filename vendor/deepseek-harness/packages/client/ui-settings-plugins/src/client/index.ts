@@ -54,7 +54,7 @@ const NS = 'settings.plugins'
 
 /** Required services (cordis fiber inject). */
 export const inject = [
-  'slots', 'locale', 'connection', 'remote', 'remote.credentials', 'remote.session', 'settingsScope',
+  'slots', 'locale', 'remote', 'remote.credentials', 'remote.session', 'settingsScope',
 ]
 
 /**
@@ -68,10 +68,10 @@ export function apply(ctx: ClientContext): void {
   const bash = new BashCardController(ctx.settingsScope.bind({ namespace: SHELL_NS }))
   const agentLoop = new AgentLoopCardController(ctx.settingsScope.bind({ namespace: AGENT_LOOP_NS }))
   const webSearch = new WebSearchCardController(
-    ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx.remote.credentials)
+    ctx.settingsScope.bind({ namespace: WEB_SEARCH_NS }), ctx)
   const subagentModelSelection = new SubagentModelSelectionCardController(
     ctx.settingsScope.bind({ namespace: SUBAGENT_MODEL_SELECTION_NS }),
-    ctx.remote.session,
+    ctx,
   )
 
   // The credential a card reports is not part of any settings section, so its

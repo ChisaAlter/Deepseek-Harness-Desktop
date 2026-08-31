@@ -8,17 +8,17 @@ The two halves live in one package — the Host half under `src/`, the browser h
 
 ## 1. Register the namespace (Host half)
 
-The namespace is the join key, so pick it once and spell it in both halves. A consumer that already has a `cordis.yml` entry should register through `installSettingsSection`, which layers the entry under the user document and keeps working when no settings provider is mounted:
+The namespace is the join key, so pick it once and spell it in both halves. A consumer that already has a `cordis.yml` entry should register through `ctx.settings.installSection()`, which layers the entry under the user document and keeps working when no settings provider is mounted:
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
 declare function assertReachable(endpoint: string | undefined): void
 declare function rebuildFromSettings(config: Config): void
 
-export const MY_PLUGIN_NS = settingsNamespace('my-plugin')
+export const MY_PLUGIN_NS = 'my-plugin'
 
 export interface Config {
   endpoint?: string
@@ -32,11 +32,13 @@ export const Config: z<Config> = z.object({
 
 export function apply(ctx: Context, config: Config) {
   let source = () => config
-  installSettingsSection(ctx, MY_PLUGIN_NS, Config, config, {
-    // Constraints the schema cannot express refuse the write, not the next use.
-    validate: value => void assertReachable(value.endpoint),
-    setSource: (current) => { source = current },
-    onChange: () => { rebuildFromSettings(source()) },
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, MY_PLUGIN_NS, Config, config, {
+      // Constraints the schema cannot express refuse the write, not the next use.
+      validate: value => void assertReachable(value.endpoint),
+      setSource: (current) => { source = current },
+      onChange: () => { rebuildFromSettings(source()) },
+    })
   })
 }
 ```

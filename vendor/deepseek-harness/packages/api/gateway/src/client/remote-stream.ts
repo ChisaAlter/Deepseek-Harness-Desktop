@@ -1,5 +1,6 @@
 /** Reconnecting lifecycle for one single-consumer Remote stream. */
 
+import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { RemoteStreamCarrierError } from './stream-client.ts'
 
@@ -30,10 +31,10 @@ export interface RemoteStreamOptions<Item> {
 /**
  * Reopens one logical Remote stream across carrier generations.
  *
- * The Gateway owns physical retry timing, cancellation, and replacement. The
- * domain consumer owns its opening item and every later item, and calls
- * {@link RemoteStreamItem.accept} only after validating the opening
- * baseline or cursor.
+ * Connection owns physical retry timing; Gateway performs each requested
+ * replacement. The domain consumer owns its opening item and every later
+ * item, and calls {@link RemoteStreamItem.accept} only after validating the
+ * opening baseline or cursor.
  */
 export class RemoteStream<Item> implements AsyncIterable<RemoteStreamItem<Item>> {
   private readonly lifetime = new AbortController()
@@ -128,7 +129,7 @@ export class RemoteStream<Item> implements AsyncIterable<RemoteStreamItem<Item>>
         } catch (error) {
           if (isAborted(this.lifetime.signal)) return
           if (revision !== this.revision) continue
-          if (!(error instanceof RemoteStreamCarrierError)) throw error
+          if (!(error instanceof RemoteStreamCarrierError)) throw terminalStreamFailure(error)
           this.options.carrierFailed?.(error)
           if (revision !== this.revision) continue
           attempt++
@@ -137,7 +138,7 @@ export class RemoteStream<Item> implements AsyncIterable<RemoteStreamItem<Item>>
           } catch (retryError) {
             if (isAborted(this.lifetime.signal)) return
             if (revision !== this.revision) continue
-            throw retryError
+            throw terminalStreamFailure(retryError)
           }
         } finally {
           this.generationAbort = undefined
@@ -193,6 +194,22 @@ async function waitForRemoteStreamRetry(
     if (signal.aborted) aborted()
     else inspect()
   })
+}
+
+/**
+ * Mark a terminal escape before it crosses the stream boundary: consumers
+ * discriminate failures by code, so an unmarked throw reads as a local bug.
+ * Marked failures pass through verbatim. The carrier class never escapes as a
+ * terminal outcome — it stays the retry-internal signal fed to `carrierFailed`
+ * and the `ended(true)` retry trigger.
+ */
+function terminalStreamFailure(error: unknown): Error {
+  return remoteErrorOf(error) ?? new RemoteError(
+    'gateway/internal',
+    error instanceof Error ? error.message : String(error),
+    {},
+    { cause: error },
+  )
 }
 
 function isAborted(signal: AbortSignal): boolean {

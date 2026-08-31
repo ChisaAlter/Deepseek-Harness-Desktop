@@ -25,7 +25,7 @@ export interface BoundRecord {
   readonly data: string | Uint8Array
   readonly sourceEventSeqs: Uint8Array | null
   readonly surfaceOp: string | null
-  readonly isPacked: 0 | 1
+  readonly ignorable: number | null
 }
 
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
@@ -34,8 +34,9 @@ const DELTA_TAG = 0
 const RUN_TAG = 1
 const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_ZIGZAG_INTEGER = MAX_SAFE_INTEGER * 2n
+const PACKED_ROW_SENTINEL = 0
 /**
- * Schema-19 raw-content zstd dictionary for independently decodable data rows.
+ * Schema-20 raw-content zstd dictionary for independently decodable data rows.
  * Its exact bytes are part of the physical format; changing the resource
  * requires a schema-version bump.
  */
@@ -59,7 +60,7 @@ function isChunkTag(value: string): value is ChunkTag {
  * @returns every logical event represented by the row.
  */
 export function decodeRow(row: EventRow): SessionEvent[] {
-  if (row.is_packed === 0) return [decodeScalarRow(row)]
+  if (row.ignorable !== PACKED_ROW_SENTINEL) return [decodeScalarRow(row)]
   if (!isChunkTag(row.type)) {
     throw new Error(`malformed ${row.type} storage row: packed discriminator requires a chunk tag`)
   }
@@ -88,7 +89,7 @@ export function bindRecord(record: StorageRecord): BoundRecord {
       data: encodeData(JSON.stringify(record.data)),
       sourceEventSeqs: null,
       surfaceOp: null,
-      isPacked: 1,
+      ignorable: PACKED_ROW_SENTINEL,
     }
   }
   const event = record
@@ -102,7 +103,7 @@ export function bindRecord(record: StorageRecord): BoundRecord {
       ? null
       : encodeSourceEventSeqs(surface.sourceEventSeqs),
     surfaceOp: surface.surfaceOp === undefined ? null : JSON.stringify(surface.surfaceOp),
-    isPacked: 0,
+    ignorable: event.ignorable === true ? 1 : null,
   }
 }
 
@@ -277,6 +278,7 @@ function decodeScalarRow(row: EventRow): SessionEvent {
     time: row.time,
     data: JSON.parse(decodeData(row.data)) as SessionEvent['data'],
     ...surfaceFields,
+    ...row.ignorable === 1 ? { ignorable: true as const } : {},
   } as SessionEvent
 }
 

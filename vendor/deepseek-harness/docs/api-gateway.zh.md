@@ -124,13 +124,13 @@ Connection 在 HTTP bridge 之前执行 `/api` 的统一信任检查，再在共
 
 Gateway 每次调用都从当前注册表解析描述符和实时服务，不缓存业务对象。它要求 `args` 的字段集合与描述符完全一致，先用 codec 校验 wire 值，再通过注册的 lookup 或 Context 提供方解析对象或接收者，最后调用 binding 指向的服务方法并校验返回值。缺少提供方、identity 未命中、binding 不一致、参数缺失或多余、schema 失败和方法不存在都会在进入业务代码前或离开业务代码后失败。
 
-lookup 提供方的 `register()` 同时提供稳定声明和默认 resolver；`configure()` 提供由 Host 组合拥有、可异步执行且受 effect 生命周期约束的 resolver。配置可以先于提供方挂载；没有提供方时调用仍以 `lookup-unavailable` 失败，配置卸载后则恢复提供方默认策略。Session Controller 负责 `agent` 与 `session` 的标准 `agentFor()` 语义：复用 live Agent，自动恢复普通冷会话，对并发恢复去重，并拒绝由 subagent routing 拥有的 identity；`session` lookup 返回该 Agent 的 Session。恢复失败和 ownership fence 通过既有 RPC error 原样返回，不折叠为 Gateway 的 `internal` 错误。
+lookup 提供方的 `register()` 同时提供稳定声明和默认 resolver；`configure()` 提供由 Host 组合拥有、可异步执行且受 effect 生命周期约束的 resolver。配置可以先于提供方挂载；没有提供方时调用仍以 `gateway/lookup-unavailable` 失败，配置卸载后则恢复提供方默认策略。Session Controller 负责 `agent` 与 `session` 的标准 resolver 语义：复用 live Agent，自动恢复普通冷会话，对并发恢复去重，并拒绝由 subagent routing 拥有的 identity；`session` lookup 返回该 Agent 的 Session。恢复失败与 ownership fence 抛出携带自有码的 `RemoteError`（`session/not-found` 或 `session/agent-busy`），Gateway 原样编码上 wire；只有未归类的 throw 才折成 `gateway/internal`。
 
 Client 卸载一个贡献时会一起移除描述符和具体方法，中止其进行中的调用，并使外部仍持有的陈旧方法句柄拒绝继续调用。Host 上已经注册过的严格 endpoint 被撤回后也不会降级到 SRC 推断，以免热卸载悄然降低校验强度。
 
 ## SRC 开发回退
 
-Host 通过 `node --import tsx/esm` 从源码启动时不会执行 Typert 编译插件。标准 decorator 初始化器仍会把方法名和调用模式记录到模块私有 `WeakMap`，`TypertRemoteService` 或 `bindTypertRemote()` 则提供显式服务 binding；Gateway 因而可以在不启动 `ts.Program` 的情况下构造一个较弱的临时描述符。
+Host 通过 `node --import tsx/esm` 从源码启动时不会执行 Typert 编译插件。标准 decorator 初始化器仍会把方法名和调用模式记录到 Service 原型上的带版本描述符中，`TypertRemoteService` 或 `bindTypertRemote()` 则提供显式服务 binding；Gateway 因而可以在不启动 `ts.Program` 的情况下构造一个较弱的临时描述符。描述符使用稳定的字符串属性名，因此 `remoteMethods()` 能读取协议包另一个已安装副本写入的标记。
 
 SRC 回退从运行中函数解析简单参数名。参数名与某个已注册 lookup 的 `parameter` 相同，例如 `agent` 或 `session`，就使用其 `agentId` 或 `sessionId` wire 字段并在 Host 解析对象；其他参数只检查值是否为无循环、无特殊 prototype 的 JSON-safe 数据。`@RemoteScope` 直接使用已注册 Host Context 提供方的 wire 字段。SRC 不读取 TypeScript 类型，不生成 Zod schema，不推断可选参数，也不支持解构、默认值、rest 或重复参数名。
 

@@ -13,8 +13,8 @@ interface ModalBaseProps {
   children?: ReactNode
   footer?: ReactNode
   headerActions?: ReactNode
-  className?: string
-  contentClassName?: string
+  className?: string | undefined
+  contentClassName?: string | undefined
 }
 
 type ModalProps = ModalBaseProps & (

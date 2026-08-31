@@ -13,6 +13,7 @@ import WorkerThreadWorkflowEngine, { type Config } from '../src/index.ts'
 import { workerSpawnEnv } from '../src/host.ts'
 import { HostToWorkerType, WorkerToHostType } from '../src/protocol.ts'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 
 /** A minimal parent stand-in: the engine only threads it through to the provider. */
 function fakeParent(): Agent {
@@ -151,6 +152,7 @@ interface SetupOptions {
 
 async function setup(options?: SetupOptions) {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   const provider = new StubProvider(
     'stub',
@@ -466,6 +468,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('a child result REJECTION crosses back as a fatal AGENT_RESULT error (a broken provider is not a failed child)', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       const provider: SubagentProvider = {
         name: 'rejecting',
@@ -525,6 +528,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('a child whose dispose() throws synchronously cannot wedge the script (the host acks anyway)', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       const provider: SubagentProvider = {
         name: 'bad-dispose',
@@ -547,6 +551,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('a child dispose() rejecting an UNRENDERABLE value still acks — the containment warn is total', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       const provider: SubagentProvider = {
         name: 'coercion-trap-dispose',
@@ -897,6 +902,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('the settle-reap fires the request signal too: a provider honoring ONLY the signal winds its stray down promptly', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       const aborted: string[] = []
       const provider: SubagentProvider = {
@@ -1192,6 +1198,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('refuses and disposes a provider run that becomes ready after its real worker dies', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       const requested = Promise.withResolvers<SubagentStartRequest>()
       const ready = Promise.withResolvers<SubagentRun>()
@@ -1254,6 +1261,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('a worker that exits before settling reports an error result and reaps its children', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       // The child's dispose() REJECTS on top of the worker death: the reap
       // must contain it (warn, not crash) while still emptying the registry.
@@ -1441,6 +1449,7 @@ describe('dsh-workflow-worker-thread', { timeout: 120_000 }, () => {
 
     it('unregisters ctx.workflowEngine when the engine fiber is disposed (HMR safety)', async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SubagentRuntime)
       const fiber = await ctx.plugin(WorkerThreadWorkflowEngine, {})
       expect(ctx.get('workflowEngine')).toBeDefined()

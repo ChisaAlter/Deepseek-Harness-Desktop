@@ -19,6 +19,9 @@
       "path": "../../../vendor/include"
     },
     {
+      "path": "../../../vendor/loader"
+    },
+    {
       "path": "../../core/agent"
     },
     {

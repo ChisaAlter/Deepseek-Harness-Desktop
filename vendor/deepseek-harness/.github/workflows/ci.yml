@@ -252,6 +252,13 @@ jobs:
             name: node 22.19
             runner: ubuntu-latest
             gate_concurrency: '1'
+          # Pinned inside 24.0-24.11.1: those releases carry the v1 internal
+          # loader while reporting major 24, and every other job tracks the
+          # latest 24, which is v2. A bare `24` here would retest that same v2.
+          - node: '24.9'
+            name: node 24.9
+            runner: ubuntu-latest
+            gate_concurrency: '1'
           - node: 26
             name: node 26
             runner: ubuntu-latest
@@ -275,6 +282,12 @@ jobs:
         env:
           DSH_BUILD_CLIENT_PROFILE: official
         run: pnpm run check:node-compat
+
+      # Kept out of the gate aggregate: the shape a Node release carries only
+      # changes with the Node version, so this belongs to the version matrix
+      # rather than to every commit's checks.
+      - name: Check Loader internal shape detection
+        run: pnpm exec vitest run packages/boot/app-boot/tests/loader-shape.compat.spec.ts
 
   python-sdk:
     if: github.event_name == 'pull_request'
@@ -452,6 +465,19 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      # Checkout removes the gitignored duration history, so restore it from
+      # the GitHub cache before coverage and save the updated one afterwards.
+      # The coordinator then weights partitions by measured durations on the
+      # second run instead of degrading to a file-count split. GitHub cache
+      # entries are immutable, so the save key is unique per run and the
+      # restore matches the newest entry through the stable prefix.
+      - name: Restore coverage duration history
+        uses: actions/cache/restore@v4
+        with:
+          path: .coverage-times.json
+          key: coverage-times-${{ github.run_id }}
+          restore-keys: |
+            coverage-times-
       - name: Enable Developer Mode (symlink support)
         shell: pwsh
         run: >-
@@ -472,6 +498,15 @@ jobs:
       - name: Run Windows coverage
         shell: pwsh
         run: pnpm run check:ci:coverage
+      - name: Save coverage duration history
+        # Coverage flakes must not prevent the cache from building; the
+        # measured durations remain useful even when a partition failed. The
+        # per-run key keeps every save a fresh immutable cache entry.
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .coverage-times.json
+          key: coverage-times-${{ github.run_id }}
 
   windows-native-tests:
     if: github.event_name == 'pull_request'

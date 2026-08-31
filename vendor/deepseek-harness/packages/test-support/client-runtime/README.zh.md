@@ -46,6 +46,22 @@ await runtime.dispose()
 
 注册的快照序列化器把 CSS-module 哈希类名折回语义名（`_frame_a1b2c3` → `frame`），使 `.snap` 文件只含结构，并把 `<svg>` 内部折叠为 `data-content` 指纹。需要自定义页面 frame 的套件改用 `root.declare(children, Frame)` 而非自动 frame；`dispose()` 沿单一轴拆除视图、feature fiber、已铸 scope 与持久化 store 状态，且幂等。
 
+### 脚本化 Remote 应答与失败
+
+`TestRemote` 是 `ctx.remote` 面的替身：它把自己连同每个被脚本化的命名空间各注册一个服务，使注入 `remote.<name>` 的插件得以解除挂起；`$on` 订阅由显式的测试事件驱动器推动；`$host` 是普通可变字段，套件直接赋值即可脚本化带 home 或非 loopback 的 Host。UI 套件也在本包取用 `RemoteError` 构造器这个值——`dsh-api-remotes` facade 承载不了它，因为从套件发起的值 import 会拉起该装配尚未构建的 `/remote` 产物链。
+
+按 Host 会答的码来脚本化失败，并以生产代码同样的方式断言——判 `code`，绝不判类：
+
+```text
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+
+remote.goals.create.mockResolvedValue({
+  ok: false,
+  error: new RemoteError('goal/not-found', 'goal "g1" does not exist', { goalId: 'g1' }),
+})
+expect(view.getByRole('alert')).toHaveTextContent('goal/not-found')
+```
+
 ### 何时使用
 
 当功能套件要在真实运行时下检验 slot、store、渲染与销毁时使用本测试台——生产 `SlotRegistry`、渲染器与 provide bundle 物化都会被挂载，绝不重实现。它是浏览器侧测试基础设施：永远不触及模型请求，feature 包仅以 `devDependencies` 依赖之。
@@ -78,7 +94,7 @@ await runtime.dispose()
 | [`src/sessions.ts`](src/sessions.ts) + [`src/workspaces.ts`](src/workspaces.ts) | `ISessions`/`IWorkspaces` 测试替身与 `FixtureSession` 行为桩 |
 | [`src/fixtures.ts`](src/fixtures.ts) | 普通 fixture 构造器：会话快照、workspace 列表状态 |
 | [`src/snapshot.ts`](src/snapshot.ts) | DOM 快照序列化器（类名哈希折叠、`<svg>` 指纹） |
-| [`src/remote.ts`](src/remote.ts) | 用于 host RPC 的 `TestRemote` 替身 |
+| [`src/remote.ts`](src/remote.ts) | 用于 host RPC 的 `TestRemote` 替身、`RemoteError` 值转出 |
 | [`src/translate.ts`](src/translate.ts) + [`src/locale-env.ts`](src/locale-env.ts) | 翻译与固定浏览器语言测试辅助 |
 | [`src/settings-scope.ts`](src/settings-scope.ts) | 带测试驱动发布与写入 spy 的 `stubSettingsScope` |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；所挂载的生产包拥有各自的不变式） |

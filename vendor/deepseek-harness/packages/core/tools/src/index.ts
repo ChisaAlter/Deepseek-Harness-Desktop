@@ -9,11 +9,11 @@ import z from '@deepseek-ai/schemastery'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
-import { assertNever, deepFreeze, HarnessError } from '@deepseek-ai/dsh-llm'
+import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { snapshotJsonValue } from '@deepseek-ai/dsh-session'
-import type { JsonValue, UserMessage } from '@deepseek-ai/dsh-session'
-import { FIRST_PARTY_SECTION_ORDER, type ToolProviderResult } from '@deepseek-ai/dsh-system-prompt'
+import type { UserMessage } from '@deepseek-ai/dsh-session'
+import { assertNever, deepFreeze, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
+import type { ToolProviderResult } from '@deepseek-ai/dsh-system-prompt'
 import type { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 // Type-only: makes `ctx.get('approval')` resolve to the ApprovalService
 // augmentation. The seam stays optional at runtime — see `serviceAsk`.
@@ -21,7 +21,7 @@ import type {} from '@deepseek-ai/dsh-user-approval'
 import type { ToolCallView, ToolResultView } from './presentation.ts'
 import { assertSupportedJsonSchema, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode } from './json-schema.ts'
-import { createRunCodeTool, RUN_CODE_NAME, SDK_SECTION_ORDER } from './ptc.ts'
+import { createRunCodeTool, RUN_CODE_NAME } from './ptc.ts'
 import type { CodeSdkLanguage } from './ptc.ts'
 import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
@@ -43,13 +43,6 @@ import { renderToolsSdkPy } from './py-types.ts'
  * with its zh pair, plus this package's own README pair and the
  * {@link Config.mode} JSDoc.
  */
-/**
- * Prompt order of the `ptc` collapse statement: after the persona and before
- * per-tool guidance, so the model reads which tools it may call before it
- * reads what each one is for.
- */
-const COLLAPSE_SECTION_ORDER = FIRST_PARTY_SECTION_ORDER.PTC_ONLY
-
 /**
  * The model-facing statement of the `ptc` collapse. Names the consequence
  * (the call fails) and the route (inside the program), because a rule the
@@ -98,7 +91,6 @@ export {
   type JsonSchemaScalar,
 } from './json-schema.ts'
 
-export type { JsonValue } from '@deepseek-ai/dsh-session'
 export type { PtcDispatchEventData, PtcDispatchStartEventData } from './types.ts'
 
 export { CodeRunFailedError, RUN_CODE_NAME } from './ptc.ts'
@@ -846,8 +838,8 @@ export class ToolRuntime extends Service {
    * Without this the model reads a catalog of tools it is told to use and no
    * statement that only `run_code` may be called, so it emits a native call,
    * receives `UNKNOWN_TOOL` for a tool the prompt just declared, and concludes
-   * the deployment is inconsistent. {@link COLLAPSE_SECTION_ORDER} places the rule
-   * before that guidance rather than after it.
+   * the deployment is inconsistent. Its order places the rule before that
+   * guidance rather than after it.
    *
    * `both` renders empty: native calls do execute there, so the rule is false.
    * @returns the section registration.
@@ -855,7 +847,7 @@ export class ToolRuntime extends Service {
   private collapseSection(): { name: string; order: number; text: (context: { scope?: ScopeKey }) => string } {
     return {
       name: 'tools:ptc-only',
-      order: COLLAPSE_SECTION_ORDER,
+      order: this.ctx.systemPrompt.getSectionOrder('PTC_ONLY'),
       // The SAME predicate the executor denies by, so the prompt cannot state
       // a rule the registry does not enforce (see `collapses`).
       text: context => this.modeFor(context.scope) === 'ptc' ? PTC_ONLY_INSTRUCTION : '',
@@ -875,7 +867,7 @@ export class ToolRuntime extends Service {
   private sdkSection(): { name: string; order: number; text: (context: { scope?: ScopeKey }) => string } {
     return {
       name: 'tools:sdk',
-      order: SDK_SECTION_ORDER,
+      order: this.ctx.systemPrompt.getSectionOrder('TOOLS_SDK'),
       // Regenerate from the calling scope's visible tools in stable order.
       text: (context) => {
         const mode = this.modeFor(context.scope)

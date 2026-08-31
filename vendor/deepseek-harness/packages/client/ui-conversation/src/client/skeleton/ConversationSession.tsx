@@ -62,35 +62,28 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
 /**
  * Renders Session header chrome above the resident conversation scrollport.
  * @param props - Strict Session store, view ledger, navigation, render, and locale shares.
- * @returns title and tabs for an active Session, or a non-interactive blank
- *   caption that still occupies titlebar row 1 so AppFrame's caption band stays tall.
- *   Desktop-plugin contacts keep the title even while the log is empty.
+ * @returns the hidden blank-session header or visible title and tabs.
  */
 export function ConversationSessionHeader({
   sessionId, useSession, useSessions, useConversation, useConversationViews, useStore, actions,
-  renderSlot, open, t, useViewTabs,
+  renderSlot, open, t,
 }: ConversationSessionHeaderProps) {
   const tabs = useConversationViews(value => value)
-  const showViewTabs = useViewTabs(value => value)
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
-  const origin = useSessions(s => s.byId[sessionId]?.origin)
   const hideChrome = session.blank && conversationPhase(session, conversation) === 'blank'
-    && origin !== 'dshbot'
 
   return (
     <header
-      className={clsx(css.header, hideChrome && css.headerBlank)}
+      className={clsx(css.header, hideChrome && css.headerHidden)}
       aria-hidden={hideChrome || undefined}
     >
-      {hideChrome ? (
-        <div className={css.blankCaption} data-dshd-caption="blank" />
-      ) : (
+      {!hideChrome && (
         <>
-          <div className={css.titleRow} data-dshd-caption="title">
+          <div className={css.titleRow}>
             <div className={css.titleCluster}>
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {
@@ -149,7 +142,7 @@ export function ConversationSessionHeader({
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
           </div>
-          {tabs.length > 1 && showViewTabs && (
+          {tabs.length > 1 && (
             <div className={css.tabs} role="tablist">
               {tabs.map(viewTab => (
                 <button
@@ -178,7 +171,7 @@ export function ConversationSessionHeader({
  * @returns the active view area, or null while the Session remains blank.
  */
 export function ConversationSession({
-  sessionId, useSession, useSessions, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
+  useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
   renderSlot, bindDraftMirror,
 }: ConversationSessionProps) {
   const tabs = useConversationViews(value => value)
@@ -186,7 +179,6 @@ export function ConversationSession({
   const active = resolveActiveView(tabs, selectedId)
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
-  const origin = useSessions(s => s.byId[sessionId]?.origin)
   const inputState = useInput(s => s)
   const storedDraft = useStore(s => s.draft)
   const viewRequest = useStore(s => s.viewRequest ?? null)
@@ -199,7 +191,7 @@ export function ConversationSession({
     // the machine mirror, not this seed effect.
   }, [inputActions])
 
-  if (session.blank && conversationPhase(session, conversation) === 'blank' && origin !== 'dshbot') return null
+  if (session.blank && conversationPhase(session, conversation) === 'blank') return null
   return (
     <div className={css.viewArea}>
       {active !== undefined && renderSlot('conversation.view', {

@@ -1,6 +1,6 @@
 /** Provider-neutral webhook deliveries, rules, and Session requests. */
 
-import type { JsonValue } from '@deepseek-ai/dsh-session'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { WebhookDeliveryId, WebhookRuleId, WebhookSourceId } from './brand.ts'
 
 /** Provider adapters add their normalized event type through declaration merging. */

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-schedule` 为你的会话提供持久的提醒：让模型稍后提醒你，提醒会作为同一会话中的普通 follow-up 消息返回。你可以安排延时后的一次性提醒、绝对时间的一次性提醒，或固定间隔的重复提醒，也可以列出仍待处理的提醒或取消提醒。提醒在重启后依然存在：已经 live 且空闲的 agent 可以立即交付到期工作，而已关闭或 cold 的会话会让提醒保持逾期，直到未来的 live 根 agent 恢复会话。交付只发生在会话内部，没有电子邮件、短信或推送通知。它是可选的 Web 能力；加载 Schedule overlay 即可启用提醒工具。
+`dsh-schedule` 为你的会话提供持久的提醒：让模型稍后提醒你，提醒会作为同一会话中的普通 follow-up 消息返回。你可以安排延时后的一次性提醒、绝对时间的一次性提醒，或固定间隔的重复提醒，也可以列出仍待处理的提醒或取消提醒。提醒在重启后依然存在：已经 live 且空闲的 agent 可以立即交付到期工作，而已关闭或 cold 的会话会让提醒保持逾期，直到未来的 live 根 agent 恢复会话。交付只发生在会话内部，没有电子邮件、短信或推送通知。它是可选的 Web 能力；加载 Schedule overlay 即可启用提醒工具与只读活动提醒目录。普通与搜索侧边栏行还会在尽力而为的列表 projection 明确非空时显示不可交互的闹钟；该闹钟不保证 live runtime 存在。
 
 ## 目录
 
@@ -53,7 +53,7 @@ dsh web --patch apps/cli/config/examples/schedule/cordis.yml
 
 ### 提醒何时触发
 
-到期提醒会在会话空闲后作为普通 follow-up 消息出现；agent 绝不会中断正在运行的轮次。已经 live 且空闲的 agent 可以认领 maintenance 并立即交付，无需再次恢复。一次性提醒先于任何重复批次触发；同时到期的多条重复提醒会按时间顺序合并为一条消息。如果会话在提醒到期时已关闭或 cold，提醒会保持逾期，直到未来的 live 根 agent 恢复会话——会话之外不会发送任何内容。错过若干间隔的重复提醒只展示最新一个到期发生时点，不展示积压。
+到期提醒会在会话空闲后作为普通 follow-up 消息出现；agent 绝不会中断正在运行的轮次。已经 live 且空闲的 agent 可以认领 maintenance 并立即交付，无需再次恢复。一次性提醒先于任何重复批次触发；同时到期的多条重复提醒会按时间顺序合并为一条消息。如果会话在提醒到期时已关闭或 cold，提醒会保持逾期，直到未来的 live 根 agent 恢复会话——会话之外不会发送任何内容。错过若干间隔的重复提醒只展示最新一个到期发生时点，不展示积压。可选 Web 目录只显示活动记录，并不充当交付回执；dispatch 表示 follow-up 已入队并被记录，不表示模型成功或用户已读取回答。
 
 -----
 
@@ -70,6 +70,8 @@ dsh web --patch apps/cli/config/examples/schedule/cordis.yml
 插件声明 `inject = ['agents', 'sessions', 'tools', 'sessionPersistence']`，因此缺少持久化服务会直接构成组合错误。它只观察加载后发布的 `agent/created` 事件，在这些根 agent 上安装，并通过完全相同的 `agent.ctx` 注册全部三个工具；加载时已经 live 的 agent 与运行时子 agent 永远不会获得 Schedule。
 
 Time-context 不是 Schedule 的依赖。官方 Web overlay 挂载 `@deepseek-ai/dsh-time-context`，让模型能够按浏览器请求本地时区解释自然语言；但模型仍必须向 `schedule_create` 传入显式偏移量或 `time_zone`；Schedule 绝不会从模型上下文导入或推断该值。
+
+Session projection 是可选能力。`ctx.sessionProjections` 存在时，插件会注册严格的 `schedule` 单元并公开完整的活动 `ScheduleRecord[]`；不带注册表的 headless 组合仍保留相同工具与 runtime。浏览器安全的记录词汇由纯类型出口 `@deepseek-ai/dsh-schedule/client` 提供。随附 Web bundle 通过 disabled row 解析 `ui-schedule`，显式 Schedule overlay 再与 Host Schedule 服务一起启用该 row。
 
 ### 设计理念
 
@@ -89,16 +91,24 @@ Time-context 不是 Schedule 的依赖。官方 Web overlay 挂载 `@deepseek-ai
 | [`src/domain.ts`](src/domain.ts) | 严格解码、折叠、时间校验、framing、occurrence 算术 |
 | [`src/runtime.ts`](src/runtime.ts) | live timer owner：maintenance 认领、follow-up、dispatch barrier |
 | [`src/persistence.ts`](src/persistence.ts) | Schedule 对共享会话持久化 barrier 的使用 |
+| [`src/projection.ts`](src/projection.ts) | 可选的 seed-aware Session projection 与严格检查点 schema |
+| [`src/client.ts`](src/client.ts) | 浏览器安全的纯类型 `ScheduleRecord` 出口 |
 | [`src/transaction.ts`](src/transaction.ts) | 读取与持久变更的 agent 范围串行化 |
 | [`src/invariant.ts`](src/invariant.ts) | `./invariant` 配套模块，对现有日志与候选事件应用回放策略 |
 
 ### 持久状态与回放
 
-普通会话折叠完整事件流。fork 只折叠 `session.events.slice(session.header.seedLength ?? 0)`，因此子会话永远不会继承父会话的提醒。每条 create 记录都携带稳定的会话本地 `ScheduleId`、已 trim 的提示词与四位年份 RFC 3339 UTC `scheduledAt`；`after` 记录还存储 `afterSeconds`，`at` 记录不保留所提交的偏移量或本地字段，`every` 记录存储 `everySeconds`，并把 `scheduledAt` 视为尚未 dispatch 的最早创建锚点对齐发生时点。delete 与一次性 dispatch 只携带 id；`every` dispatch 会附加 `acceptedAt`，回放直接推进到该决策时点之后的第一个锚点对齐目标。
+普通会话折叠完整事件流。fork 只折叠 `session.events.slice(session.header.seedLength ?? 0)`，因此子会话永远不会继承父会话的提醒。Schedule projection 从传给 `init(header)` 的不可变 `SessionHeader` 派生该边界，并对同一自有后缀应用同一个 transition 函数。每条 create 记录都携带稳定的会话本地 `ScheduleId`、已 trim 的提示词与四位年份 RFC 3339 UTC `scheduledAt`；`after` 记录还存储 `afterSeconds`，`at` 记录不保留所提交的偏移量或本地字段，`every` 记录存储 `everySeconds`，并把 `scheduledAt` 视为尚未 dispatch 的最早创建锚点对齐发生时点。delete 与一次性 dispatch 只携带 id；`every` dispatch 会附加 `acceptedAt`，回放直接推进到该决策时点之后的第一个锚点对齐目标。
+
+### 客户端 projection
+
+可选的 `schedule` projection 将 `{ seedLength, active, seenIds }` 作为严格的纯 JSON 检查点，并且只发布完整的 `active` 数组。其 schema 复用持久 Schedule decoder，拒绝重复或不一致的 id，并让损坏的持久事件通过既有 Session 读取失败传播，而不是发布部分目录。live 惰性构建、事件驱动构建、cold restore、history 读取与 detached Subagent 读取都使用不可变 Session header 与同一套自有后缀 transition。
+
+projection 只携带持久记录。它不持久化或传输 scheduled／overdue 状态、本地化文本、相对时间、浏览器本地时间、排序状态、popover 状态、runtime 存活或交付回执。[`dsh-client-ui-schedule`](../../client/ui-schedule/README.zh.md) 从完整数组与查看方浏览器时钟派生目录呈现。[`dsh-client-ui-workspace`](../../client/ui-workspace/README.zh.md) 只派生列表值是否为非空数组，因此持久 projection cache 缺失或陈旧时，普通行与搜索结果的闹钟可能短暂漏显或残留。
 
 ### 时间校验
 
-日历规范化是确定性的。夏令时缺口内的本地时间会被拒绝；重叠时选择第一次出现的较早时刻。Schedule 的任何路径都不会读取浏览器、会话标头、模型 time-context、连接或进程时区，因此回放永不依赖环境时区状态。
+日历规范化是确定性的。夏令时缺口内的本地时间会被拒绝；重叠时选择第一次出现的较早时刻。Schedule 的时间校验不会读取浏览器、Session header 中的时区字段、模型 time-context、连接或进程时区，因此回放永不依赖环境时区状态。
 
 ### 管理流水线
 
@@ -208,6 +218,7 @@ reminders_json: <JSON.stringify(reminders)>
 - **只追赶最新一次**——逾期 Every 记录只贡献其最新一个到期发生时点，因此 Schedule 绝不会回放因错过间隔而形成的积压。
 - **存在狭窄的崩溃重复窗口**——同步 follow-up 获得准入后、dispatch 检查点完成前发生崩溃，可能使提醒重复；本包不承诺模型完成、用户确认或副作用恰好执行一次。
 - **加载顺序边界**——插件不会扫描或接管加载时已经 live 的 agent。
+- **目录只是只读当前状态**——可选 Web 界面没有历史、mutation、Retry 或 acknowledgement 语义；终结记录会消失，交付仍然是普通对话输出。
 
 <a id="dev-note"></a>
 ### 开发备注

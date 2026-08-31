@@ -71,10 +71,6 @@ const LAYOUT_CHILDREN = {
 
 async function bench(nodes: ToolResultNode[]) {
   const runtime = await SlotTestRuntime.create()
-  runtime.ctx.provide('connection', {
-    isLoopback: false,
-    generation: { getSnapshot: () => undefined, subscribe: () => () => {} },
-  })
   new TestRemote(runtime.ctx, {
     session: {
       openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })),

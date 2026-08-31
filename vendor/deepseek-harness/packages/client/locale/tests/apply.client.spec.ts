@@ -38,7 +38,6 @@ async function bench() {
     revision += 1
     return { ok: true as const, value: namespace() }
   })
-  ctx.provide('connection', { api: {}, isLoopback: true } as never)
   const events = new TestRemote(ctx, { settings: { describe, mutate } })
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()
   return {
@@ -72,7 +71,7 @@ describe('locale apply', () => {
   // setLocale/Host preference instead of leaning on a dead browser pin.
 
   it('declares the slot service', () => {
-    expect(inject).toEqual(['slots', 'connection', 'remote', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'remote', 'settingsScope'])
   })
 
   it('provides the service with base + settings dictionaries and registers the row (declaration before or after apply)', async () => {

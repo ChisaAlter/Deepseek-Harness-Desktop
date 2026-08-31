@@ -2,7 +2,7 @@
 /** User-terminal plugin injects the drawer and the ui-surfaces-declared surfaces.terminal slot. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '../src/client/index.ts'
 import type { TerminalShellInjected } from '../src/client/shell.ts'

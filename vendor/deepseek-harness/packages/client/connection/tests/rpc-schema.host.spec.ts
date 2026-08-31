@@ -20,11 +20,11 @@ describe('Connection RPC schema', () => {
   it('folds transport exceptions into an internal failure', () => {
     expect(transportError(new Error('wire down'))).toEqual({
       ok: false,
-      error: { code: 'internal', message: 'wire down', details: {} },
+      error: { code: 'gateway/internal', message: 'wire down', details: {} },
     })
     expect(transportError('raw')).toMatchObject({
       ok: false,
-      error: { code: 'internal', message: 'raw' },
+      error: { code: 'gateway/internal', message: 'raw' },
     })
   })
 

@@ -7,12 +7,13 @@
  * re-renders from the next describe, pushed or refetched.
  */
 
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {
-  ClientRemote, CredentialInfo, LlmConfigurableProvider, LlmProviderInfo, SettingsNamespaceView,
+  CredentialInfo, LlmConfigurableProvider, LlmProviderInfo, SettingsNamespaceView,
 } from '@deepseek-ai/dsh-api-remotes/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsDescribeFace, SettingsRemote } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { SettingsDescribeFace } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 
 /**
@@ -20,15 +21,6 @@ import type { SettingsSchemaOperations } from './schema-operations.ts'
  * names one that cannot collide with a configured route.
  */
 const PROBE_ROUTE = '\u0000probe'
-
-/** The credentials Remote methods the Models page reads and writes through. */
-export type ModelsCredentials = Pick<ClientRemote['credentials'], 'describe' | 'set' | 'unset'>
-
-/** LLM Remote methods used by the Models page. */
-export type ModelsLlm = Pick<
-  ClientRemote['llm'],
-  'discoverModels' | 'listConfigurableProviders' | 'listProviders'
->
 
 /** One provider row after joining the configurable directory with live routes. */
 export interface ProviderDirectoryEntry {
@@ -73,18 +65,6 @@ export function joinProviderDirectory(
   return rows
 }
 
-/**
- * Every Remote wire face the Models page reaches.
- */
-export interface ModelsWire {
-  /** The settings Remote namespace: the redacted read and the profile writes. */
-  settings: SettingsRemote
-  /** Credential state and writes for the references provider profiles name. */
-  credentials: ModelsCredentials
-  /** Provider directory reads and draft endpoint discovery. */
-  llm: ModelsLlm
-}
-
 /** One provider row the page renders. */
 export interface ProviderRow {
   /** The directory entry (route id, display name, settings address, live state). */
@@ -119,17 +99,6 @@ export interface ModelsSettingsState {
   rows: readonly ProviderRow[]
   /** Namespace views by ns, for the editor's schema/layers/secrets. */
   namespaces: ReadonlyMap<string, SettingsNamespaceView>
-}
-
-/**
- * Human text for a rejected wire call. A transport failure rejects with an
- * Error; a host or a runtime can reject with anything, and the page still has
- * to say something.
- * @param error - the rejection value.
- * @returns the message to show.
- */
-export function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /**
@@ -187,11 +156,13 @@ export class ModelsSettingsStore {
   private generation = 0
 
   /**
-   * @param api - the page's credentials Remote and LLM wire faces.
+   * @param ctx - the page plugin's context, whose `remote.llm` and
+   * `remote.credentials` namespaces carry the directory and credential reads.
+   * @param schema - settings-owned schema and immutable path operations.
    * @param describeFace - the shared mirror's describe face (namespace views and writability).
    */
   constructor(
-    private readonly api: Pick<ModelsWire, 'credentials' | 'llm'>,
+    private readonly ctx: ClientContext,
     private readonly schema: SettingsSchemaOperations,
     private readonly describeFace: SettingsDescribeFace,
   ) {}
@@ -207,32 +178,21 @@ export class ModelsSettingsStore {
   async load(): Promise<void> {
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'loading'; s.error = null })
-    let providers: ProviderDirectoryEntry[]
-    let writable: boolean
-    let views: readonly SettingsNamespaceView[]
-    try {
-      const [registered, declared] = await Promise.all([
-        this.api.llm.listProviders(),
-        this.api.llm.listConfigurableProviders(),
-        this.describeFace.ensure(),
-      ])
-      if (!registered.ok) throw new Error(registered.error.message)
-      if (!declared.ok) throw new Error(declared.error.message)
-      const mirrored = this.describeFace.getSnapshot()
-      if (mirrored.view === undefined) {
-        throw new Error(mirrored.error ?? 'settings are unavailable in this browser')
-      }
-      providers = joinProviderDirectory(registered.value, declared.value)
-      writable = mirrored.view.writable
-      views = mirrored.view.namespaces
-    } catch (error) {
-      if (generation !== this.generation) return
-      this.store.update((s) => {
-        s.status = 'error'
-        s.error = error instanceof Error ? error.message : String(error)
-      })
+    const [registered, declared] = await Promise.all([
+      this.ctx.remote.llm.listProviders(),
+      this.ctx.remote.llm.listConfigurableProviders(),
+      this.describeFace.ensure(),
+    ])
+    if (!registered.ok) { this.failLoad(generation, registered.error.message); return }
+    if (!declared.ok) { this.failLoad(generation, declared.error.message); return }
+    const mirrored = this.describeFace.getSnapshot()
+    if (mirrored.view === undefined) {
+      this.failLoad(generation, mirrored.error ?? 'settings are unavailable in this browser')
       return
     }
+    const providers = joinProviderDirectory(registered.value, declared.value)
+    const writable = mirrored.view.writable
+    const views: readonly SettingsNamespaceView[] = mirrored.view.namespaces
     const namespaces = new Map(views.map(view => [view.ns, view]))
     const rows: ProviderRow[] = providers.map((entry) => {
       const namespace = namespaces.get(entry.settingsNs)
@@ -254,16 +214,12 @@ export class ModelsSettingsStore {
     let credentials: Record<string, CredentialInfo> = {}
     let credentialError: string | null = null
     if (refs.length > 0) {
-      try {
-        const response = await this.api.credentials.describe(refs)
-        // Credential state is an enrichment for the Models page: neither a
-        // business rejection nor a transport failure fails the load. The
-        // onboarding projection below retains the failure distinction.
-        if (response.ok) credentials = response.value
-        else credentialError = response.error.message
-      } catch (error) {
-        credentialError = messageOf(error)
-      }
+      const response = await this.ctx.remote.credentials.describe(refs)
+      // Credential state is an enrichment for the Models page: a failure
+      // degrades the badge instead of failing the load. The onboarding
+      // projection below retains the failure distinction.
+      if (response.ok) credentials = response.value
+      else credentialError = response.error.message
     }
     if (generation !== this.generation) return
     this.store.update((s) => {
@@ -281,6 +237,15 @@ export class ModelsSettingsStore {
         }
       })
       s.namespaces = namespaces
+    })
+  }
+
+  /** Publish one load's failure text, unless a newer load already took over. */
+  private failLoad(generation: number, message: string): void {
+    if (generation !== this.generation) return
+    this.store.update((s) => {
+      s.status = 'error'
+      s.error = message
     })
   }
 }

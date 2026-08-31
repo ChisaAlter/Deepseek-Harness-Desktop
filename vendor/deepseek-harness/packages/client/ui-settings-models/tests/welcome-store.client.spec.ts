@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { SettingsSchemaService } from '@deepseek-ai/dsh-client-ui-settings/src/client/schema.ts'
 import { SettingsDescribeMirror } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-mirror.ts'
 import { SettingsScopeController } from '@deepseek-ai/dsh-client-ui-settings/src/client/settings-scope.ts'
+import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { decodeWelcomeSection, WelcomeNoticeStore } from '../src/client/welcome-store.ts'
 import {
   WELCOME_NOTICE_ACK_FIELD, WELCOME_NOTICE_SETTINGS_NAMESPACE, WELCOME_NOTICE_VERSION,
@@ -13,6 +14,13 @@ const schemaService = new SettingsSchemaService(new Context())
 /** The settings namespace answers over the Remote carrier, which has no envelope. */
 function ok<T>(value: T) {
   return { ok: true as const, value }
+}
+
+function rejected(message: string) {
+  return {
+    ok: false as const,
+    error: new RemoteError('settings/rejected', message, { ns: WELCOME_NOTICE_SETTINGS_NAMESPACE }),
+  }
 }
 
 function namespace(value: unknown = {}, revision = 0) {
@@ -35,10 +43,10 @@ function buildWelcome(
   api: { describe?: ReturnType<typeof vi.fn>; mutate?: ReturnType<typeof vi.fn> },
   persistence: 'host' | 'memory' = 'host',
 ) {
-  const wire = { settings: api } as never
-  const mirror = new SettingsDescribeMirror(wire, persistence)
+  const ctx = { remote: { settings: api } } as never
+  const mirror = new SettingsDescribeMirror(ctx, persistence)
   const scope = new SettingsScopeController(
-    wire,
+    ctx,
     { namespace: WELCOME_NOTICE_SETTINGS_NAMESPACE, decode: decodeWelcomeSection },
     mirror,
     persistence,
@@ -109,11 +117,11 @@ describe('WelcomeNoticeStore', () => {
     expect(controller.store.getSnapshot()).toEqual({ status: 'loading', acknowledged: false, error: null })
   })
 
-  it('reports a failed or refused persistence attempt after its recovery read', async () => {
+  it('reports a refused persistence attempt after its recovery read', async () => {
     const describeCall = vi.fn(() => Promise.resolve(ok({
       writable: true, hasDocument: false, namespaces: [namespace()],
     })))
-    const mutate = vi.fn(() => Promise.reject(new Error('disk full')))
+    const mutate = vi.fn(() => Promise.resolve(rejected('the settings document is read-only')))
     const { mirror, controller } = buildWelcome({ describe: describeCall, mutate })
     await mirror.load()
     await controller.load()

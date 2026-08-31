@@ -5,7 +5,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
-import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-system-prompt'
 import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
 import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
 import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
@@ -13,6 +13,7 @@ import SubagentRuntime, {
   type ResolvedSubagentStartRequest,
   type SubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Config as ToolConfig, ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import { defineContentToolFixture, RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
@@ -68,6 +69,7 @@ async function setup(script: Script, options: SetupOptions = {}) {
   }
   await mountInvariants(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   const disposeProvider = ctx.subagents.registerProvider({
     name: 'spawn',
@@ -562,7 +564,7 @@ describe('in-process structured output', () => {
       }))
       ctx.systemPrompt.section({
         name: 'after-band',
-        order: FIRST_PARTY_SECTION_ORDER.STRUCTURED_OUTPUT + 10,
+        order: ctx.systemPrompt.getSectionOrder('STRUCTURED_OUTPUT') + 10,
         text: 'AFTER-BAND',
       })
       const run = await ctx.subagents.start('spawn', structuredRequest(parent))

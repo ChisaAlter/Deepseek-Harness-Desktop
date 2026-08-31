@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import {
   DeepSeekHarness,
   type DeepSeekHarnessOptions,
@@ -20,7 +21,7 @@ import {
   TransportClosedError,
 } from '@deepseek-ai/dsh-sdk-client'
 import type { ContentBlock, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import { SessionId, type SessionEvent, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId, TurnEndReason } from '@deepseek-ai/dsh-session'
 import type { SubagentResult, SubagentRun, SubagentStartRequest, SubagentStopReason } from '@deepseek-ai/dsh-subagent'
 import { AssistantOutputFold, settleRunResult, subprocessRunHandle } from '@deepseek-ai/dsh-subagent'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
@@ -233,7 +234,7 @@ export async function startSdkRun(request: SubagentStartRequest, spec: SdkRunSpe
   if (request.signal.aborted) throw new Error('subagent request was aborted before the SDK child started')
   // The run id lives in the parent namespace; the child runtime's session id
   // (minted below, private to the wire) exists only inside the child process.
-  const id = SessionId(randomUUID())
+  const id = brandString<SessionId>(randomUUID())
 
   const harness = internals.createHarness({
     ...spec.dshBin === undefined ? {} : { dshBin: spec.dshBin },

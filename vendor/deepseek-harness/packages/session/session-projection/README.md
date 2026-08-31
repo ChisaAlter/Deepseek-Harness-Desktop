@@ -29,7 +29,7 @@ Mount `dsh-session-projection` wherever client carriers need current values of l
 
 ### When to choose it
 
-Choose it when a domain keeps state that clients should see without re-deriving it — a todo list, a goal snapshot, conversation statistics. The registry drives units eagerly over committed events, so any registered unit's value is current by construction. Skip it for host-only bookkeeping that no client reads: a unit without a `wire` block stays host-only, and headless assemblies without the registry are unaffected.
+Choose it when a domain keeps state that clients should see without re-deriving it — a todo list, a goal snapshot, conversation statistics. The registry drives units eagerly over committed events, so any registered unit's value is current by construction. Skip it for host-only bookkeeping that no client reads: a unit without a `wire` block stays host-only. A host reader either declares `sessionProjections` in its plugin `inject` or fails explicitly when the registry or required key is absent. Contributors may preserve optional registration through `ctx.inject(['sessionProjections'], ...)`.
 
 ### Define a projection unit
 

@@ -18,6 +18,8 @@ Status: implemented
 
 录制会话仍是主要输入和预期输出。来自用户的消息驱动所选公开接口，录制的 assistant chunk 驱动确定性模型回放，规范化后的持久化结果必须等于 fixture。父会话和子会话共享同一类型化脱敏映射。提交的 fixture 使用保留关系的身份 token，并将请求 system prompt 和工具 schema 替换为 token；每个不同 header 类仍保留一个显式 sidecar 所有者。
 
+场景拥有的 HTTP fixture 将会话中录制的稳定 authority 与传输 listener 分离。每个 fixture 在回环地址上绑定端口 `0`，由操作系统以一次原子操作分配并绑定端口，再将录制的 URL 或 endpoint 通过真实 provider 映射到该 listener。任何进程全局传输拦截只匹配录制 endpoint，由 fixture fiber 拥有，并在关闭 listener 前恢复。
+
 每个现有 ACP 场景都获得一个保留行为的目标。普通单次行为使用 headless profile，需要持久机器控制的行为使用 SDK profile，只有 ACP 协议行为继续归 ACP 所有。由录制会话驱动的 Web 场景加入该语料，并保留其 ARIA 或几何预期输出作为辅助证据。没有录制会话来源的 Web 和包级测试保留归属方本地的预期输出，并停止使用快照路径或文件名。
 
 Workspace 输入继续归各场景本地所有。变更文件的场景比较完整的预期最终 workspace，record 与 refresh 绝不改写该预期，因此模型或工具的自报结果无法满足测试。现有的有意会话复用继续使用显式、无环的所有者引用；语料不增加 workspace 继承或通用 fixture 合并机制。
@@ -34,6 +36,10 @@ Workspace 输入继续归各场景本地所有。变更文件的场景比较完�
 
 **自动去重 workspace 和录制会话。** 当前 workspace 重复很少，有意保持本地性更易审查。只有现有的语义会话复用值得显式引用。
 
+**直接绑定录制 URL 的数值端口。** 稳定 listener 端口使传输值与 transcript 值一致，但同一主机上的并发快照 job 共享网络命名空间，会争用该端口。
+
+**在启动场景前探测未使用端口。** 子进程绑定前释放已探测端口会产生检查时间与使用时间竞态。在拥有该端口的进程内绑定端口 `0`，可使分配与所有权保持原子性。
+
 ## Invariants
 
 - 每个现有录制会话场景都在移除旧所有者之前拥有一个通过的替代场景。
@@ -43,11 +49,12 @@ Workspace 输入继续归各场景本地所有。变更文件的场景比较完�
 - 变更内容的场景从外部验证最终 workspace。
 - 所属位置的进程预期使用 `*.expected.e2e.ts`，并由单独的构建产物门禁运行。
 - 源码与构建适配器在隔离的 profile fallback 中安装仅回放包；不同的提示词 section 顺序值使两种模式的请求 header 保持字节一致。
+- 场景 HTTP fixture 绑定由操作系统分配的回环端口，同时保留录制的模型可见 authority。
 - 源码和构建启动模式、浏览器回放、SDK 投影、打包 Python 运行时场景、文档门禁和仓库卫生检查通过。
 
 ## Consequences
 
-该语料让控制器所有权可见：普通 Agent 行为不再继承 ACP 协议输出，SDK 和 Web 投影保留各自接口专有的证据，只有 ACP 取消与权限交换仍归 ACP 所有。贡献者审查一份规范化会话差异，以及提供独立证据的 sidecar 或 UI 预期。新增组合必须提供 manifest 类别 pin；新增易变身份必须添加保留关系的带类型脱敏规则，而不是扩大文本清洗范围。
+该语料让控制器所有权可见：普通 Agent 行为不再继承 ACP 协议输出，SDK 和 Web 投影保留各自接口专有的证据，只有 ACP 取消与权限交换仍归 ACP 所有。贡献者审查一份规范化会话差异，以及提供独立证据的 sidecar 或 UI 预期。新增组合必须提供 manifest 类别 pin；新增易变身份必须添加保留关系的带类型脱敏规则，而不是扩大文本清洗范围。并发 job 可以回放依赖网络的 fixture，而无需预留仓库级端口，代价是 fixture 内需要维护录制 authority 与传输 listener 的映射。
 
 ## Risks
 

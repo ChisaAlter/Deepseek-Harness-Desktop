@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-15-client-shells-and-dynamic-packages.md
-2026-08-15-client-shells-and-dynamic-packages.md: 016314d10f55e0b590e98944ca417bae658ab56a
-2026-08-15-client-shells-and-dynamic-packages.zh.md: 4e0277d1becab8467521dc21d0e5b7509d1ee993
+2026-08-15-client-shells-and-dynamic-packages.md: 1d67c778b6a06849324dd6095a98d57dc41b94f9
+2026-08-15-client-shells-and-dynamic-packages.zh.md: db1e4e7e7b319c283ae39a94535d88d4dc71d60a

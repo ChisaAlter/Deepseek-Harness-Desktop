@@ -177,10 +177,47 @@ export interface InputTarget {
   insertReference(ref: ReferenceInsert, span: TokenSpan): boolean
 }
 
+/** Published projection of one live edit session. */
+export interface InputEditState {
+  /** Caller-scoped identity (`<owner>:<discriminator>`), stable for the session's lifetime. */
+  readonly key: string
+  /** Caller-localized banner label the composer shows while the edit is live. */
+  readonly label: string
+}
+
+/**
+ * One edit session accepted by {@link SessionInput.beginEdit}: the composer
+ * keeps every capability while submission is redirected to `submit`.
+ */
+export interface InputEditSpec extends InputEditState {
+  /** Draft text replacing the composer draft while the pre-edit draft is stashed. */
+  readonly seed: string
+  /**
+   * Replacement submit sink while the edit is live.
+   * @param text - serialized draft.
+   * @param imageIds - ordered browser-owned draft image ids captured at submit.
+   * @param signal - the submit attempt's abort signal.
+   */
+  submit(text: string, imageIds: readonly DraftAttachmentId[], signal: AbortSignal): Promise<SubmitOutcome>
+}
+
 /** Per-session input facade owned by the conversation wiring layer. */
 export interface SessionInput extends InputTarget {
   /** Replace the whole draft (persisted-draft seed and programmatic writes). */
   setDraft(text: string): void
+  /**
+   * Begin one edit session: stash the current draft and images, seed the
+   * draft, and redirect submission to the spec's sink until the edit ends.
+   * Refused (false) while another edit is live or an admission transaction
+   * is in flight.
+   */
+  beginEdit(spec: InputEditSpec): boolean
+  /**
+   * End the live edit session and restore the stashed pre-edit draft and
+   * images. No-op without a live edit; refused while an admission
+   * transaction is in flight.
+   */
+  cancelEdit(): void
   /** Append ordered browser-owned image ids; busy admission phases refuse. */
   addImages(ids: readonly DraftAttachmentId[]): boolean
   /** Remove one browser-owned image id; busy admission phases refuse. */
@@ -274,6 +311,8 @@ export interface ComposerKeyboard {
   space(): boolean
   /** Dismiss the popupSelect shell (any interaction outside the box). */
   dismissPopup(): void
+  /** End the live edit session (banner button / Escape); no-op without one. */
+  cancelEdit(): void
 }
 
 /** One independently addressable row projected from the transient queue snapshot. */
@@ -332,6 +371,8 @@ export interface InputState {
   readonly occurrences: readonly Occurrence[]
   /** Read-only transient inbox projection from Session control, including pending steering. */
   readonly queue: readonly QueuedMessage[]
+  /** Present exactly while a composer edit session is live. */
+  readonly edit?: InputEditState
 }
 
 /**

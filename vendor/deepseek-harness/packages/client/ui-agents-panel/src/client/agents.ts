@@ -1,5 +1,5 @@
-import type { SessionId, SessionListState, SubagentCatalogSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState, SubagentCatalogSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
 /** One current-session subagent row derived from the existing snapshot. */
 export interface AgentRow {
   id: SessionId

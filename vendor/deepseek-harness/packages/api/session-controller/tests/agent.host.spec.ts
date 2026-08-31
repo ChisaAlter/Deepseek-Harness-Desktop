@@ -8,7 +8,6 @@ import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
-import { TypertLookupFailure } from '@deepseek-ai/dsh-typert-protocol'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -154,7 +153,7 @@ describe('ApiSession Agent lookup and recovery', () => {
       header: header('observed-without-cwd', null),
     } as SessionObservation
     await expect(agents.resolveObservedAgent(invalid)).resolves.toMatchObject({
-      error: { code: 'session-not-found' },
+      error: { code: 'session/not-found' },
     })
   })
 
@@ -170,7 +169,7 @@ describe('ApiSession Agent lookup and recovery', () => {
     if (host === undefined) throw new Error('Agent Context resolver was not registered')
 
     await expect(host.resolve(live.id)).resolves.toBe(live.ctx)
-    await expect(host.resolve(SessionId('missing'))).rejects.toBeInstanceOf(TypertLookupFailure)
+    await expect(host.resolve(SessionId('missing'))).rejects.toMatchObject({ code: 'session/not-found' })
   })
 
   it('returns raced ordinary Agents and ownership failures after resume throws', async () => {
@@ -200,7 +199,7 @@ describe('ApiSession Agent lookup and recovery', () => {
       throw new Error('raced child publication')
     })
     await expect(child.agents.resolveAgent(childMeta.id)).resolves.toMatchObject({
-      error: { code: 'agent-busy' },
+      error: { code: 'session/agent-busy' },
     })
   })
 
@@ -211,7 +210,7 @@ describe('ApiSession Agent lookup and recovery', () => {
       inspect: vi.fn(),
     })
     await expect(missing.agents.resolveAgent(SessionId('missing'))).resolves.toMatchObject({
-      error: { code: 'session-not-found' },
+      error: { code: 'session/not-found' },
     })
 
     const failed = await harness()
@@ -222,7 +221,7 @@ describe('ApiSession Agent lookup and recovery', () => {
     })
     vi.spyOn(failed.ctx.agents, 'resume').mockRejectedValue(new Error('factory unavailable'))
     await expect(failed.agents.resolveAgent(meta.id)).resolves.toMatchObject({
-      error: { code: 'internal', message: expect.stringContaining('factory unavailable') as string },
+      error: { code: 'gateway/internal', message: expect.stringContaining('factory unavailable') as string },
     })
   })
 
@@ -408,7 +407,7 @@ describe('ApiSession create or adoption', () => {
       mount: () => Promise.resolve(),
     } as never)
     await expect(child.agents.resolveAgent(childMeta.id)).resolves.toMatchObject({
-      error: { code: 'agent-busy' },
+      error: { code: 'session/agent-busy' },
     })
 
     const conflict = await harness()

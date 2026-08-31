@@ -40,7 +40,6 @@ async function bench(preference?: string) {
     revision += 1
     return { ok: true as const, value: namespace() }
   })
-  ctx.provide('connection', { api: {}, isLoopback: true } as never)
   // The settings transport and the forwarded-event port the plugin injects.
   new TestRemote(ctx, { settings: { describe: describeRpc, mutate } })
   await ctx.plugin({ inject: [...settingsInject], apply: settingsApply }).await()

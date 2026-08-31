@@ -25,7 +25,7 @@ import type { MessageFeedbackInjected } from './slots.ts'
 import { en, zh } from './locales.ts'
 
 export type {
-  MessageFeedbackActionResult, MessageFeedbackStatus, MessageFeedbackView, MessageFeedbackRemote,
+  MessageFeedbackActionResult, MessageFeedbackStatus, MessageFeedbackView,
 } from './controller.ts'
 export type { MessageFeedbackActionProps, MessageFeedbackInjected } from './slots.ts'
 export type { MessageFeedbackKey } from './locales.ts'
@@ -48,7 +48,7 @@ export function apply(ctx: ClientContext): void {
   const controllerFor = (sessionId: SessionId): MessageFeedbackController => {
     let controller = controllers.get(sessionId)
     if (controller === undefined) {
-      controller = new MessageFeedbackController(ctx.remote.messageFeedback, sessionId)
+      controller = new MessageFeedbackController(ctx, sessionId)
       controllers.set(sessionId, controller)
     }
     return controller

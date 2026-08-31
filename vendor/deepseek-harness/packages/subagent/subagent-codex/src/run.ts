@@ -11,8 +11,9 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import {
   settleRunResult,
   subprocessRunHandle,
@@ -433,7 +434,7 @@ export async function startCodexRun(
   })
 
   return subprocessRunHandle({
-    id: SessionId(randomUUID()),
+    id: brandString<SessionId>(randomUUID()),
     result,
     signal: request.signal,
     onAbort,

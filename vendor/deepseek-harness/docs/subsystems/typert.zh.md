@@ -139,7 +139,7 @@ interface TypertRemoteNamespaceMap {}
 
 ## Host Gateway
 
-Connection 会先解码 carrier envelope，再调用 `ctx.typertGateway`。请求将精确的具名 wire 字段与 carrier 的取消 signal 分开携带；基础设施与边界失败使用 Gateway 的进程内错误分类体系，普通异常由 RPC 适配器归并为传输层的 `internal` 错误码，lookup 策略通过 `TypertLookupFailure` 携带的既有 RPC error 则原样返回。
+Connection 会先解码 carrier envelope，再调用 `ctx.typertGateway`。请求将精确的具名 wire 字段与 carrier 的取消 signal 分开携带；基础设施与边界失败由 `TypertGatewayError` 承载，其 `gateway/*` 码就是普通的 `RemoteError` 码，因此 RPC 适配器会把每个经结构识别的 `RemoteError` 连同其 code 与 details 原样放行，只把无法识别的异常归并为 `gateway/internal`。
 
 ```ts type-equiv
 /** One Remote method request after a carrier has decoded its envelope. */
@@ -158,23 +158,23 @@ interface InvokeRemoteRequest {
 ```ts type-equiv
 /** Stable infrastructure and boundary failures emitted before or after business execution. */
 type TypertGatewayErrorCode =
-  | 'ambiguous-endpoint'
-  | 'arguments-invalid'
-  | 'binding-invalid'
-  | 'context-failed'
-  | 'context-not-found'
-  | 'context-unavailable'
-  | 'definition-unavailable'
-  | 'input-invalid'
-  | 'invocation-unavailable'
-  | 'lookup-failed'
-  | 'lookup-not-found'
-  | 'lookup-unavailable'
-  | 'method-unavailable'
-  | 'provider-mismatch'
-  | 'result-invalid'
-  | 'service-unavailable'
-  | 'signature-invalid'
+  | 'gateway/ambiguous-endpoint'
+  | 'gateway/arguments-invalid'
+  | 'gateway/binding-invalid'
+  | 'gateway/context-failed'
+  | 'gateway/context-not-found'
+  | 'gateway/context-unavailable'
+  | 'gateway/definition-unavailable'
+  | 'gateway/input-invalid'
+  | 'gateway/invocation-unavailable'
+  | 'gateway/lookup-failed'
+  | 'gateway/lookup-not-found'
+  | 'gateway/lookup-unavailable'
+  | 'gateway/method-unavailable'
+  | 'gateway/provider-mismatch'
+  | 'gateway/result-invalid'
+  | 'gateway/service-unavailable'
+  | 'gateway/signature-invalid'
 ```
 
 ```ts type-equiv

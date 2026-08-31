@@ -5,7 +5,7 @@
  * failures leave the candidate unchanged — never invent levels.
  */
 
-import type { DiscoveredModelView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-api-remotes/client'
 
 /** Canonical pi-ai effort keys the Models page can declare. */
 const EFFORTS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
@@ -24,7 +24,7 @@ interface ModelsDevModelRecord {
 }
 
 /** A discovered model plus optional fields filled from models.dev. */
-export interface EnrichedDiscoveredModel extends DiscoveredModelView {
+export interface EnrichedDiscoveredModel extends LlmDiscoveredModel {
   /**
    * Declared thinking levels, or `false` for a non-reasoning model. Absent when
    * metadata said nothing useful.
@@ -248,7 +248,7 @@ export function reasoningEffortsFromMetadata(
  * @returns the candidate, optionally enriched.
  */
 export function enrichDiscoveredModel(
-  candidate: DiscoveredModelView,
+  candidate: LlmDiscoveredModel,
   record: ModelsDevModelRecord | undefined,
 ): EnrichedDiscoveredModel {
   if (record === undefined) return { ...candidate }
@@ -278,7 +278,7 @@ export function enrichDiscoveredModel(
  * @returns enriched rows in the same order.
  */
 export function enrichDiscoveredModels(
-  candidates: readonly DiscoveredModelView[],
+  candidates: readonly LlmDiscoveredModel[],
   metadata: ModelsDevMetadata,
 ): EnrichedDiscoveredModel[] {
   return candidates.map(candidate => enrichDiscoveredModel(candidate, selectModelsDevRecord(metadata, candidate.id)))
@@ -291,7 +291,7 @@ export function enrichDiscoveredModels(
  * @returns enriched or original rows.
  */
 export async function enrichDiscoveredModelsBestEffort(
-  candidates: readonly DiscoveredModelView[],
+  candidates: readonly LlmDiscoveredModel[],
 ): Promise<EnrichedDiscoveredModel[]> {
   if (enrichmentDisabledForTests) {
     return candidates.map(candidate => ({ ...candidate }))

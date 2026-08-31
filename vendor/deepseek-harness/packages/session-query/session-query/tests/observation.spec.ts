@@ -89,6 +89,21 @@ describe('SessionObservationReader', () => {
     await ctx.fiber.dispose()
   })
 
+  it('returns a prepared observation without projections when no registry is mounted', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const meta = header('prepared-without-projections')
+    ctx.provide('sessionPersistence', {
+      borrowSession: () => Promise.resolve(preparedSource(meta)),
+    } as never)
+
+    using observed = await new SessionObservationReader(ctx).read(meta.id)
+
+    expect(observed.source).toBe('prepared')
+    expect(observed.projections).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
+
   it('reference-counts prepared leases and rejects retention after disposal', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

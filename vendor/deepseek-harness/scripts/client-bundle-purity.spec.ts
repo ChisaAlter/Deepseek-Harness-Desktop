@@ -91,9 +91,11 @@ describe('client bundle purity gate', () => {
     expect(() => resolveId('@deepseek-ai/dsh-client-web-react/store')).toThrow(/purity/)
   })
 
-  it('lets inline-safe wire layers inline', () => {
+  it('lets inline-safe libraries inline', () => {
     expect(resolveId('@deepseek-ai/dsh-session/surface')).toBeNull()
     expect(resolveId('@deepseek-ai/dsh-brand')).toBeNull()
+    expect(resolveId('@deepseek-ai/dsh-deque')).toBeNull()
+    expect(resolveId('@deepseek-ai/dsh-util-values')).toBeNull()
     expect(resolveId('@deepseek-ai/dsh-token-meter/client')).toBeNull()
     expect(() => resolveId('@deepseek-ai/dsh-token-meter')).toThrow(/purity/)
     expect(() => resolveId('@deepseek-ai/dsh-token-meter/client/internal')).toThrow(/purity/)

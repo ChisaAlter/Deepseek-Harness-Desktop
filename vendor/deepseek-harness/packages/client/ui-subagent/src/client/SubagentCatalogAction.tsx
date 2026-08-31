@@ -2,9 +2,12 @@ import {
   useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent,
 } from 'react'
 import {
-  indexSubagentDescendants, type SessionId, type SessionListState, type SessionProjectionMap,
-  type SessionSummary, type SubagentAddress, type SubagentCatalogSnapshot,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  type SessionListState, type SessionProjectionMap, type SessionSummary,
+  type SubagentCatalogSnapshot,
+} from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { indexSubagentDescendants } from './subagent-lineage.ts'
 import {
   IconChevronDownOutline14, IconChevronRightOutline14, IconRefreshOutline14, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'

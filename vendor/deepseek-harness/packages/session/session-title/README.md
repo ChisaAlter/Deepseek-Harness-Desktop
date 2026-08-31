@@ -58,7 +58,7 @@ One optional asynchronous provider may be registered through `ctx.sessionTitle.r
 
 ### Reading titles
 
-`get(session)` folds the latest accepted title from the live or replayed log, and `foldSessionTitle(events)` is the pure fold over a log. The service also registers a `title` projection unit — the plain title string — for client list rows when a projection registry is composed. An explicit `refresh(session)` materializes the fallback when needed, then explicitly runs the registered provider over the current eligible messages.
+`get(session)` reads the latest folded title from one live or replayed session, and `foldSessionTitle(events)` is the pure fold over a log. The service requires `ctx.sessionProjections` and registers two units: the client-visible `title` unit (the accepted title string for client list rows) and the host-only `titleInput` unit, which folds the first and latest eligible messages plus their count so scheduling and fallback reads are O(1) through `stateOf()`; the full eligible prefix for one provider generation is scanned from the session log at execution time. An explicit `refresh(session)` materializes the fallback when needed, then explicitly runs the registered provider over the current eligible messages.
 
 ### Failures and recovery
 

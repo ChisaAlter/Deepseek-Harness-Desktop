@@ -58,7 +58,7 @@ export type {
 } from './contract/slots.ts'
 export type {
   ArbitrateKey, ArbitrateOutcome, BeginCommandRequest, CommandClaim, ConsumeTokenRequest,
-  DraftAttachmentId, InputActions, InputState, InsertReferenceRequest, InsertTextRequest,
+  DraftAttachmentId, InputActions, InputEditSpec, InputEditState, InputState, InsertReferenceRequest, InsertTextRequest,
   PickOutcome, ReferenceInsert, SessionInput, SessionInputResolver, SubmitImageAttachment,
   SubmitOutcome, TokenSpan,
 } from './contract/input.ts'

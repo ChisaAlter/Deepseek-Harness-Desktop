@@ -216,7 +216,7 @@ describe('sessions.fork', () => {
 
     for (const atSeq of [-1, 0.5]) {
       await expect(proxy.fork(request({ sessionId: sid('missing'), atSeq })))
-        .resolves.toMatchObject({ ok: false, error: { code: 'bad-request' } })
+        .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
     }
     expect(ctx.sessions.list()).toEqual([])
     await ctx.fiber.dispose()
@@ -246,124 +246,9 @@ describe('sessions.fork', () => {
     const response = await remote(ctx).fork(request({ sessionId: source.id, atSeq: anchor }))
     expect(response).toMatchObject({
       ok: false,
-      error: { code: 'fork-unavailable', details: { sessionId: source.id } },
+      error: { code: 'session/fork-unavailable', details: { sessionId: source.id } },
     })
     if (!response.ok) expect(response.error.message).toMatch(/has not completed/)
-    await ctx.fiber.dispose()
-  })
-
-  it('cuts before the turn owning a beforeSeq anchor', async () => {
-    const ctx = await composed()
-    const source = liveAgent(ctx, 'session-before', 2)
-    // seq 4 is the second turn's user/message: the cut excludes that turn.
-    const response = await api(ctx).sessions.fork(request({ sessionId: source.id, beforeSeq: 4 }))
-    expect(response.result.ok).toBe(true)
-    if (!response.result.ok) return
-    expect(response.result.value.blank).toBe(false)
-    const child = ctx.sessions.get(response.result.value.sessionId)
-    expect(child?.events.map(event => event.type)).toEqual([
-      'turn/start', 'user/message', 'turn/end', 'session/end-seed',
-    ])
-    await ctx.fiber.dispose()
-  })
-
-  it('cuts before an open turn: the target turn may be running', async () => {
-    const ctx = await composed()
-    const source = liveAgent(ctx, 'session-open-before', 1, 'open')
-    // seq 4 is the open tail turn's user/message: the cut excludes that
-    // whole open turn, keeping the completed first one.
-    const anchor = source.events.at(-1)?.seq ?? 0
-    const response = await api(ctx).sessions.fork(request({ sessionId: source.id, beforeSeq: anchor }))
-    expect(response.result.ok).toBe(true)
-    if (!response.result.ok) return
-    const child = ctx.sessions.get(response.result.value.sessionId)
-    expect(child?.events.map(event => event.type)).toEqual([
-      'turn/start', 'user/message', 'turn/end', 'session/end-seed',
-    ])
-    expect(child?.events.some(event => event.type === 'turn/start')).toBe(true)
-    await ctx.fiber.dispose()
-  })
-
-  it('forks an empty blank child for a beforeSeq anchor before the first turn', async () => {
-    const ctx = await composed()
-    const source = liveAgent(ctx, 'session-pre', 2)
-    // An anchor on (or inside) the first turn cuts before its turn/start:
-    // the child is born empty and reported blank.
-    const response = await api(ctx).sessions.fork(request({ sessionId: source.id, beforeSeq: 1 }))
-    expect(response.result.ok).toBe(true)
-    if (!response.result.ok) return
-    expect(response.result.value.blank).toBe(true)
-    const child = ctx.sessions.get(response.result.value.sessionId)
-    expect(child?.events.some(event => event.type === 'turn/start')).toBe(false)
-    expect(child?.header.parentSession).toBe(source.id)
-    expect(child?.header.seedLength).toBe(0)
-    await ctx.fiber.dispose()
-  })
-
-  it('rejects a beforeSeq anchor that names no turn', async () => {
-    const ctx = await composed()
-    const source = liveAgent(ctx, 'session-between', 1)
-    // A between-turn out-of-band event (session/title) belongs to no turn.
-    source.append('session/title', {
-      title: 'retitled', messageSeqs: [], source: { kind: 'user' },
-    })
-    const betweenTurns = source.events.at(-1)?.seq ?? 0
-    const proxy = api(ctx)
-    const inTurn = await proxy.sessions.fork(request({ sessionId: source.id, beforeSeq: 1 }))
-    expect(inTurn.result.ok).toBe(true)
-    const response = await proxy.sessions.fork(request({ sessionId: source.id, beforeSeq: betweenTurns }))
-    expect(response.result).toMatchObject({
-      ok: false,
-      error: { code: 'fork-unavailable', details: { sessionId: source.id } },
-    })
-    if (!response.result.ok) expect(response.result.error.message).toMatch(/no turn containing/)
-    await ctx.fiber.dispose()
-  })
-
-  it('rejects a beforeSeq anchor outside the log', async () => {
-    const ctx = await composed()
-    const source = liveAgent(ctx, 'session-out', 1)
-    const response = await api(ctx).sessions.fork(request({ sessionId: source.id, beforeSeq: 999 }))
-    expect(response.result).toMatchObject({
-      ok: false,
-      error: { code: 'fork-unavailable', details: { sessionId: source.id } },
-    })
-    if (!response.result.ok) expect(response.result.error.message).toMatch(/no turn containing/)
-    await ctx.fiber.dispose()
-  })
-
-  it('rejects atSeq and beforeSeq together (impl guard for in-process callers)', async () => {
-    const ctx = await composed()
-    const source = liveAgent(ctx, 'session-both', 1)
-    const response = await api(ctx).sessions.fork(request({
-      sessionId: source.id, atSeq: 1, beforeSeq: 2,
-    }))
-    expect(response.result).toMatchObject({
-      ok: false,
-      error: { code: 'fork-unavailable', details: { sessionId: source.id } },
-    })
-    await ctx.fiber.dispose()
-  })
-
-  it('reports the published child blank bit on a failed workspace attach', async () => {
-    const accounted: SessionId[] = []
-    const attachSession = vi.fn(() => Promise.reject(new Error('ledger down')))
-    const workspace = {
-      id: 'w-attach',
-      sessionIds: accounted,
-      attachSession,
-    } as unknown as Workspace
-    const ctx = await composed([workspace])
-    const source = liveAgent(ctx, 'session-attach', 2)
-    accounted.push(source.id)
-    const response = await api(ctx).sessions.fork(request({ sessionId: source.id, beforeSeq: 1 }))
-    expect(response.result).toMatchObject({
-      ok: false,
-      error: {
-        code: 'workspace-attach-failed',
-        details: { workspaceId: 'w-attach', blank: true },
-      },
-    })
     await ctx.fiber.dispose()
   })
 
@@ -398,6 +283,53 @@ describe('sessions.fork', () => {
       model: 'inherited-model',
       reasoningEffort: 'high',
     })
+    await ctx.fiber.dispose()
+  })
+
+  it('seeds an empty child when beforeSeq is the first user message', async () => {
+    const ctx = await composed()
+    const source = liveAgent(ctx, 'session-before-first', 2)
+    expect(source.events.find(event => event.type === 'user/message')?.seq).toBe(1)
+    const response = await remote(ctx).fork(request({ sessionId: source.id, beforeSeq: 1 }))
+    expect(response.ok).toBe(true)
+    if (!response.ok) return
+    const child = ctx.sessions.get(response.value.sessionId)
+    expect(child?.header.parentSession).toBe(source.id)
+    expect(child?.events.map(event => event.type)).not.toContain('user/message')
+    expect(child?.events.map(event => event.type)).toEqual(['session/end-seed'])
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps the first completed turn when beforeSeq is the second user message', async () => {
+    const ctx = await composed()
+    const source = liveAgent(ctx, 'session-before-second', 2)
+    const secondUser = source.events.filter(event => event.type === 'user/message')[1]
+    expect(secondUser?.seq).toBe(4)
+    const response = await remote(ctx).fork(request({ sessionId: source.id, beforeSeq: 4 }))
+    expect(response.ok).toBe(true)
+    if (!response.ok) return
+    expect(ctx.sessions.get(response.value.sessionId)?.events.map(event => event.type)).toEqual([
+      'turn/start', 'user/message', 'turn/end', 'session/end-seed',
+    ])
+    expect(ctx.sessions.get(response.value.sessionId)?.header.parentSession).toBe(source.id)
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects atSeq and beforeSeq together', async () => {
+    const ctx = await composed()
+    const proxy = remote(ctx)
+    await expect(proxy.fork(request({ sessionId: sid('missing'), atSeq: 1, beforeSeq: 1 })))
+      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
+    expect(ctx.sessions.list()).toEqual([])
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects a negative beforeSeq', async () => {
+    const ctx = await composed()
+    const proxy = remote(ctx)
+    await expect(proxy.fork(request({ sessionId: sid('missing'), beforeSeq: -1 })))
+      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
+    expect(ctx.sessions.list()).toEqual([])
     await ctx.fiber.dispose()
   })
 })

@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import InvariantService, { InvariantError } from '@deepseek-ai/dsh-invariants'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import * as TeamInvariant from '../src/invariant.ts'
+import { teamProjectionDefinition } from '../src/projection.ts'
 import { TeamId, TeamTaskId } from '../src/types.ts'
 
 async function setup(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
+  ctx.sessionProjections.register(teamProjectionDefinition)
   await ctx.plugin(InvariantService, { enabled: true })
   await ctx.plugin(TeamInvariant)
   return ctx

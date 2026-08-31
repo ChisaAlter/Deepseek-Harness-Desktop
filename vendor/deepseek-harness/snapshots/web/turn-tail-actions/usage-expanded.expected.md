@@ -20,19 +20,6 @@
   - text: 1 tool call · 1 message
   - img
 - paragraph: DONE
-- button "Turn usage 15.8K tok · Cache hit 49.7%" [expanded]:
-  - img
-  - text: Turn usage 15.8K tok · Cache hit 49.7%
-- term: Provider / model
-- definition: deepseek-official/deepseek-v4-flash
-- term: Uncached input
-- definition: 7,891 tok
-- term: Cached input
-- definition: 7,808 tok
-- term: Output
-- definition: 112 tok (42 tok reasoning)
-- term: Total
-- definition: 15,811 tok
 - button "Copy":
   - img
 - button "Good response":
@@ -41,7 +28,13 @@
   - img
 - button "Branch into a new conversation":
   - img
-- text: {{clock}} Ran for {{duration}} TTFT {{duration}} {{throughput}} tok/s
+- button "Usage 15.8K tok" [expanded]:
+  - img
+  - text: Usage 15.8K tok
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
 - textbox "Message or run a task... / commands, @ files or sessions"
 - button "Commands":
   - img

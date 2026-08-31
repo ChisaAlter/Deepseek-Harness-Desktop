@@ -8,6 +8,8 @@
   "files": [
     "src/client/Dialog.tsx",
     "src/client/HeaderAction.tsx",
+    "src/client/SessionLogChromeRow.tsx",
+    "src/client/chrome-visibility.ts",
     "src/client/controller.ts",
     "src/client/index.ts",
     "src/client/locales.ts",
@@ -22,6 +24,7 @@
     { "path": "../../client/ui-primitives" },
     { "path": "../../client/ui-renderer" },
     { "path": "../../client/ui-session" },
+    { "path": "../../client/ui-settings" },
     { "path": "../../client/ui-slots" },
     { "path": "../../core/session" }
   ]

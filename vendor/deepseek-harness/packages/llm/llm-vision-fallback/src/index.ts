@@ -18,10 +18,11 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { BlockAssembler, contentHasImage, createUserMessage, deepFreeze, LlmError } from '@deepseek-ai/dsh-llm'
+import { BlockAssembler, contentHasImage, createUserMessage, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ImageBlock, Message } from '@deepseek-ai/dsh-llm'
 import type { Session } from '@deepseek-ai/dsh-session'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { finishError } from './finish-error.ts'
 
@@ -57,7 +58,7 @@ declare module '@deepseek-ai/dsh-session/types' {
 }
 
 /** Settings namespace carrying the designated vision-model route. */
-export const VISION_FALLBACK_SETTINGS_NAMESPACE = settingsNamespace('vision-fallback')
+export const VISION_FALLBACK_SETTINGS_NAMESPACE = 'vision-fallback'
 
 /** Stored designated vision-model route; both fields absent means disabled. */
 export interface VisionFallbackSettings {
@@ -121,11 +122,13 @@ export class VisionFallback extends Service {
     super(ctx, 'visionFallback')
     const entry: VisionFallbackSettings = {}
     this.source = () => entry
-    installSettingsSection(ctx, VISION_FALLBACK_SETTINGS_NAMESPACE, VISION_FALLBACK_SETTINGS_SCHEMA, entry, {
-      setSource: (current) => { this.source = current },
-      // Every consumer reads through selection(), so no registration-level
-      // fact needs rebuilding when the settings document changes.
-      onChange: () => {},
+    ctx.inject(['settings'], (settingsCtx) => {
+      settingsCtx.settings.installSection(ctx, VISION_FALLBACK_SETTINGS_NAMESPACE, VISION_FALLBACK_SETTINGS_SCHEMA, entry, {
+        setSource: (current: () => VisionFallbackSettings) => { this.source = current },
+        // Every consumer reads through selection(), so no registration-level
+        // fact needs rebuilding when the settings document changes.
+        onChange: () => {},
+      })
     })
   }
 
@@ -247,7 +250,6 @@ export class VisionFallback extends Service {
       system: DESCRIBE_SYSTEM,
       maxTokens: this.config.maxOutputTokens,
       sessionId: session.id,
-      purpose: 'vision-describe',
       signal: callDeadline.signal,
     })
     const assembler = new BlockAssembler()

@@ -1,4 +1,4 @@
-import type { Branded } from '@deepseek-ai/dsh-brand'
+import { brandString, type Branded } from '@deepseek-ai/dsh-brand'
 import type {
   AssistantMessage,
   ToolCallId,
@@ -11,12 +11,7 @@ import type {
   ToolSchema,
   UserMessage,
 } from '@deepseek-ai/dsh-llm'
-import type { JsonValue } from './json.ts'
-
-// The lossless-JSON payload type belongs to this client-safe face too: a wire
-// contract carrying JSON data must not import the root entry, which merges
-// `ctx.sessions` (a Host-only SessionStore) into every consumer's program.
-export type { JsonValue } from './json.ts'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 
 /** Identifies one session in the store (and its persistence artifacts). */
 export type SessionId = Branded<'SessionId'>
@@ -24,27 +19,10 @@ export type SessionId = Branded<'SessionId'>
 /**
  * Brand a string as a {@link SessionId}.
  * @param id - the raw session id string.
- * @returns the same string, branded (a compile-time cast — no runtime cost).
+ * @returns the same string with the session-id brand.
  */
 export function SessionId(id: string): SessionId {
-  return id as SessionId
-}
-
-/**
- * Coarse product classification on a session header. `subagent` marks a
- * delegated child; `dshbot` marks a desktop-plugin contact or room parent
- * that the workspace browser hides. Absence means an ordinary top-level
- * session.
- */
-export type SessionOrigin = 'subagent' | 'dshbot'
-
-/**
- * Whether a header origin value is one of the durable classifications.
- * @param value - candidate origin.
- * @returns true when the value may be stored on {@link SessionHeader.origin}.
- */
-export function isSessionOrigin(value: unknown): value is SessionOrigin {
-  return value === 'subagent' || value === 'dshbot'
+  return brandString<SessionId>(id)
 }
 
 /**
@@ -62,13 +40,13 @@ export function isSessionOrigin(value: unknown): value is SessionOrigin {
  * wrong read). Only structural changes reach that bar: the header shape, the
  * {@link SessionEvent} envelope, core event semantics, or the surface
  * mechanism (the {@link SurfaceEventType} set and {@link SurfaceOp} variants).
- * Adding an ordinary event type does not bump: the generated known-event guard
- * makes older runtimes refuse logs containing a type they do not understand.
- * When in doubt, bump: a near-identity upgrade step is almost free, a missed
- * bump makes older runtimes read new logs wrong silently. The full mechanism
+ * Adding an ordinary event type does not bump — the per-event
+ * {@link SessionEvent.ignorable} guard covers vocabulary growth instead. When
+ * in doubt, bump: a near-identity upgrade step is almost free, a missed bump
+ * makes older runtimes read new logs wrong silently. The full mechanism
  * (upgrade-step chain, in-memory view conversion, migrate-on-continue) is
- * recorded in the fail-closed-session-event-vocabulary Agent Note
- * (`.agents/notes/implemented/simplification/2026-08-25-fail-closed-session-event-vocabulary.md`).
+ * recorded in the session-log-version-mechanism Agent Note
+ * (`.agents/notes/implemented/architecture/2026-08-10-session-log-version-mechanism.md`).
  */
 export const SESSION_FORMAT_VERSION = 0
 
@@ -96,11 +74,10 @@ export interface SessionHeader {
    */
   readonly seedLength?: number
   /**
-   * Coarse product classification for a delegated child (`subagent`) or a
-   * desktop-plugin contact/room parent (`dshbot`). This is presentation
-   * metadata, not proof that a child is continuable.
+   * Coarse product classification for a session created as a subagent child.
+   * This is presentation metadata, not proof that the child is continuable.
    */
-  readonly origin?: SessionOrigin
+  readonly origin?: 'subagent'
   /**
    * Delegation depth: absent (zero) for a top-level session, parent depth + 1
    * for a subagent child. Persisted so a recursion budget survives restart and
@@ -133,7 +110,7 @@ export interface CreateSessionOptions {
     readonly parentSession?: SessionId
     readonly createdAt?: number
     readonly seedLength?: number
-    readonly origin?: SessionOrigin
+    readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
   }
@@ -419,6 +396,17 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
     /** Unix epoch milliseconds. */
     time: number
     data: SessionEventMap[K]
+    /**
+     * Marks an event a reader may safely skip when it does not recognize
+     * `type`. Absent means required: a reader meeting an unrecognized type
+     * without this marker MUST refuse to reconstruct the session instead of
+     * silently dropping the event, because an unrecognized required event may
+     * change how the rest of the log is interpreted. A writer sets `true` only
+     * on purely informational records whose loss cannot affect reconstruction;
+     * defaulting to required means a forgotten marker over-refuses (an
+     * inconvenience) rather than silently resuming a gutted session.
+     */
+    ignorable?: true
   } & (K extends SurfaceEventType ? {
     /**
      * Seq numbers of earlier events that this event cites as sources
@@ -433,3 +421,10 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
     surfaceOp?: SurfaceOp
   } : object)
 }[T]
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    /** The named Session does not exist; produced by every layer that resolves a SessionId. */
+    'session/not-found': { readonly sessionId: SessionId }
+  }
+}

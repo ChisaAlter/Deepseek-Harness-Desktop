@@ -13,7 +13,8 @@
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
-import { SlotRegistry, type SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { InputEditSpec } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MessageEditInjected } from '../src/client/slots.ts'
@@ -56,7 +57,16 @@ async function bench(options: {
     }),
     open: vi.fn((id: SessionId) => { calls.push({ method: 'open', args: [id] }) }),
     scope: vi.fn((id: SessionId) => ({ sessionId: id })),
-    binding: vi.fn((_id: SessionId) => ({ session: { getSnapshot: () => snapshot } })),
+    binding: vi.fn((_id: SessionId) => ({
+      session: { getSnapshot: () => snapshot },
+      eventSource: {
+        getSnapshot: () => ({
+          entries: snapshot.nodes
+            .filter((node) => node.kind === 'user')
+            .map((node) => ({ type: 'event' as const, event: { type: 'user/message' as const, seq: node.seq } })),
+        }),
+      },
+    })),
   }
   ctx.provide('sessions', sessions)
 

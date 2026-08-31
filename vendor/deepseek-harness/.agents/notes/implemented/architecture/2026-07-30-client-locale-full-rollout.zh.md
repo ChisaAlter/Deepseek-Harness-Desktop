@@ -16,7 +16,7 @@ typed locale 标准席位（`locale:` 注册声明 → 框架注入强类型 `t`
 
 **内置 locale 集合封闭，语言目录可扩展。** 本包只提供 `zh` 与 `en`，类型化命名空间注册仍要求这对双语字典。外部 client 插件通过 `ctx.effect(() => ctx.locale.addLanguage({ id, label, fallback }))` 增加语言，并通过既有的单 locale 字典注册贡献不完整翻译；语言定义与字典可以按任意顺序注册。外部语言 id 是经过校验的 BCP 47 标签，同时用于偏好存储、字典查找、浏览器匹配和 `<html lang>`；该标签承载可互操作的语言语义而非不透明身份，因此 `LocaleId` 保持 string。内置 `zh` 定义继续使用内部 `zh-CN` 文档标签。每个新增语言都声明一个已注册的 fallback，fallback 自身的定义给出下一层 fallback，整条链必须终止于 `en`；未知目标和循环在注册时失败。每个 key 先在请求的命名空间中沿链查找，再在 `common` 中重复同一条链，最后显示 key 本身。Host 存储开放字符串偏好；不可用的已保存 id 会保持待采用，直至对应语言注册；定义移除后，正在使用的选择会回落到可用的浏览器匹配或 `en`。目录变更推进 `LocaleFace` revision，使语言设置行跟随注册和 dispose。
 
-**zero-Cordis 原子组件（ui-primitives）通过必填 prop 接收文案。** `HoverCard`、结构化工具块、JSON/Markdown 渲染器、`ConnectionBanner` 和 modal chrome 均保持运行时独立；已本地化插件从自己的 `t` 席位传入完整的字典驱动 label 对象，对缓存敏感的对象按 `t` 身份 memo。移除带语言默认值以及完整 prop 清单由 [locale 归属文案决策](2026-08-23-locale-owned-client-ui-copy.zh.md)负责。
+**zero-Cordis 原子组件（ui-primitives）通过必填 prop 接收文案。** `HoverCard`、结构化工具块、JSON/Markdown 渲染器、`ConnectionIndicator` 和 modal chrome 均保持运行时独立；已本地化插件从自己的 `t` 席位传入完整的字典驱动 label 对象，对缓存敏感的对象按 `t` 身份 memo。移除带语言默认值以及完整 prop 清单由 [locale 归属文案决策](2026-08-23-locale-owned-client-ui-copy.zh.md)负责。
 
 **所有产品编写的 UI 短语都翻译。** client 兜底文案、设计 label、trajectory 检查面、无障碍名称和格式化单位均按 [locale 归属文案决策](2026-08-23-locale-owned-client-ui-copy.zh.md)进入字典。用户/模型/提供方/wire 文本以及协议或代码 token 仍作为数据原样呈现。不依赖框架的 boot 标记仍早于 locale 服务运行；本地化应用激活后会替换其中的产品文案。
 

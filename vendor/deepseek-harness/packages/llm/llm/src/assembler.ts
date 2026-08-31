@@ -6,8 +6,9 @@
  * @module @deepseek-ai/dsh-llm/assembler
  */
 
-import { ToolCallId } from './brand.ts'
-import { assertNever } from './never.ts'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
+import type { ToolCallId } from './brand.ts'
 import { createMessage } from './message.ts'
 import type { Message, MessageSource } from './message.ts'
 import type { ContentBlock, FinishReason, ReplayEnvelope, StreamChunk, TokenUsage } from './types.ts'
@@ -111,7 +112,7 @@ export class BlockAssembler {
       case 'reasoning': return { type: 'reasoning', text: partial.text }
       case 'tool-call': return {
         type: 'tool-call',
-        id: partial.toolCallId ?? ToolCallId(`call-${index}`),
+        id: partial.toolCallId ?? brandString<ToolCallId>(`call-${index}`),
         name: partial.toolCallName ?? '',
         arguments: partial.toolCallArguments,
       }

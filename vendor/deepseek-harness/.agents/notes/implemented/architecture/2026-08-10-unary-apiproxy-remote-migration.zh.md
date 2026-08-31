@@ -31,10 +31,10 @@ Host API Proxy 曾在业务 Service、API Proxy interface、Zod schema、路由�
 | `skill.list` | `skills/list` | `SessionSkillCatalog` 观察 Session 及其记录的 preset，仅在 live Agent 已存在时使用它，列表查询绝不激活 Agent。 |
 | `fileReferences/list` | `fileReferences/list` | `SessionFileReferences` 向 provider 提供 Session Controller 的既有 Agent lookup；冷 lookup 行为保持不变。 |
 | `host.openPath` | `session/openWorkspacePath` | Session-aware Client 先基于已知 workspace 解析相对路径，再由 `SessionController` 交给原生打开器。 |
-| `host.describe` | `$events` ready frame 与 capability 查询 | API Remotes 随 generation readiness 发送 Host home；Settings 与 Session controller 在对应页面显示时报告各自的原生打开能力。不发送无人使用的进程元数据。 |
+| `host.describe` | `$events` ready frame 与 capability 查询 | API Remotes 随 generation readiness 发送 Host home，消费方通过 `ctx.remote.$host.home` 与并列的 `$host.isLoopback` 以普通值读取；Settings 与 Session controller 在对应页面显示时报告各自的原生打开能力。不发送无人使用的进程元数据。 |
 | `session.export` | `GET`/`HEAD /api/session.export` | `session-log-export` 注册精确的 Connection Fetch 路由，并在没有 JSON Remote envelope 的情况下流式传输 ZIP。 |
 
-共享 Agent 与 Session resolver 仍是接收这些对象的 endpoint 的权威。它提供与旧 API Proxy 调用相同的 live 复用、冷恢复、并发去重、preset setup、持久化失败与 subagent ownership fence。`TypertLookupFailure` 保留 resolver 持有的 RPC error，而不把它们归并为 `internal`。
+共享 Agent 与 Session resolver 仍是接收这些对象的 endpoint 的权威。它提供与旧 API Proxy 调用相同的 live 复用、冷恢复、并发去重、preset setup、持久化失败与 subagent ownership fence。resolver 抛出携带自有码的 `RemoteError`——`session/not-found` 或 `session/agent-busy`——Gateway 把该码、message 与 details 原样编码上 wire，因此 lookup 拒绝与 `gateway/internal` 始终可区分（[失败词汇](2026-08-28-ctx-remote-failure-vocabulary.zh.md)）。
 
 原生路径实现在 `@deepseek-ai/dsh-native-command` 中。Settings controller 选择 Host 持有的目标，Session-aware Client 则在调用 `SessionController` 前解析 workspace 路径；该工具仅负责平台探测、WSL 转换、浏览器偏好、文本编辑器意图与无 shell 命令执行。
 

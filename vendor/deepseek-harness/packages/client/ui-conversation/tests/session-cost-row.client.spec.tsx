@@ -6,10 +6,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type {
-  ConversationSnapshot, SnapshotStore, UseProjection,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
@@ -27,22 +26,19 @@ const ZERO_USAGE: BilledUsageProjection = {
   offPeak: { missInputTokens: 0, cacheReadTokens: 0, outputTokens: 0 },
 }
 
-/** Minimal conversation-snapshot stub whose legacy nodes the row reads. */
-function snapshotWithNodes(nodes: ConversationSnapshot['chat']['legacy']['nodes']): ConversationSnapshot {
-  return { chat: { legacy: { nodes } } } as unknown as ConversationSnapshot
+type ChatSlice = { legacy: { nodes: readonly { kind: string; provenance?: { provider: string; model: string } }[] } }
+
+/** Minimal chat-snapshot stub whose legacy nodes the row reads. */
+function snapshotWithNodes(nodes: ChatSlice['legacy']['nodes']): ChatSlice {
+  return { legacy: { nodes } }
 }
 
 /** One settled assistant node carrying durable provenance. */
-function assistantNode(model: string | undefined): ConversationSnapshot['chat']['legacy']['nodes'][number] {
+function assistantNode(model: string | undefined): ChatSlice['legacy']['nodes'][number] {
   return {
     kind: 'assistant',
-    seq: 1,
-    time: 0,
-    turn: 1,
-    step: 1,
-    blocks: [],
     ...(model === undefined ? {} : { provenance: { provider: 'deepseek-official', model } }),
-  } as ConversationSnapshot['chat']['legacy']['nodes'][number]
+  }
 }
 
 function bindProjection(
@@ -84,7 +80,7 @@ function mount(opts: {
     usePeakValley={bindSnapshotSelector(peakStore)}
     useModelProvider={bindSnapshotSelector(factStore)}
     useModelCatalog={bindSnapshotSelector(catalogStore)}
-    useSession={bindSnapshotSelector(nodesStore)}
+    useChat={bindSnapshotSelector(nodesStore)}
     useSessionCost={bindSnapshotSelector(costStore)}
     useCostPrices={bindSnapshotSelector(pricesStore)}
     setCostPrices={setCostPrices}
@@ -380,7 +376,7 @@ describe('session cost figure and same-line layout', () => {
     render(<PeakValleyRow
       usePeakValley={bindSnapshotSelector(peakStore)}
       useModelProvider={bindSnapshotSelector(factStore)}
-      useSession={bindSnapshotSelector(store)}
+      useChat={bindSnapshotSelector(store)}
       useSessionCost={bindSnapshotSelector(createSnapshotStore(true))}
       useProjection={bindProjection(usageStore)}
       t={tEn}

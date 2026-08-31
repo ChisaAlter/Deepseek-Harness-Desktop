@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   MutableSessionEventSource, type SessionLiveEventEntry,
 } from '../src/client/contract/events.ts'
-import { transportResult } from '../src/client/contract/result.ts'
 
 function entry(seq: number): SessionLiveEventEntry {
   return {
@@ -76,14 +75,4 @@ describe('Client Session contracts', () => {
     expect(iterate).toHaveBeenCalledOnce()
   })
 
-  it('folds Error and non-Error carrier rejections into Client failures', () => {
-    expect(transportResult(new Error('transport unavailable'))).toEqual({
-      ok: false,
-      error: { code: 'internal', message: 'transport unavailable', details: {} },
-    })
-    expect(transportResult(404)).toEqual({
-      ok: false,
-      error: { code: 'internal', message: '404', details: {} },
-    })
-  })
 })

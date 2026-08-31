@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { createChatStore } from '../stores.ts'
 import type { ToolCallId, SelectionTarget } from './store.ts'
 import type { ChatNode, ChatNodeKind } from './chat-nodes.ts'
-import type { ChatSnapshot, CommandNode, CompactionSummaryNode, ToolCallBlock } from './snapshot.ts'
+import type { ChatSnapshot, CommandNode, CompactionSummaryNode, ToolCallBlock, UserMessageNode } from './snapshot.ts'
 import type { TurnProcessSpec } from './turn-process.ts'
 import type { TranscriptViewMode } from '../../chat-settings.ts'
 
@@ -30,6 +30,35 @@ export interface TurnTailOwnerProps {
 /** Owner currency of finalized-assistant actions. */
 export interface AssistantActionOwnerProps {
   messageId: MessageId
+}
+
+/** Content blocks on a finalized user message (the user-actions / user-editor payload). */
+export type UserActionContentBlock = UserMessageNode['content'][number]
+
+/**
+ * Owner currency of the user-message action strip: durable seq, frozen content,
+ * and the callback that replaces this bubble with the user-editor seat.
+ */
+export interface UserActionOwnerProps {
+  /** Durable `user/message` event seq the contributed actions address. */
+  seq: number
+  /** The user message's content blocks (frozen node payload). */
+  content: readonly UserActionContentBlock[]
+  /** Replace this bubble with the `conversation.chat.user-editor` occupant. */
+  startEdit: () => void
+}
+
+/**
+ * Owner currency of the inline user-message editor: same seq/content as the
+ * action strip, plus the callback that restores the static bubble.
+ */
+export interface UserEditorOwnerProps {
+  /** Durable `user/message` event seq the editor addresses. */
+  seq: number
+  /** The user message's content blocks (frozen node payload). */
+  content: readonly UserActionContentBlock[]
+  /** Restore the static bubble and IconActions row. */
+  cancelEdit: () => void
 }
 
 /** Optional prose file-mention provider consumed by Chat. */
@@ -200,6 +229,17 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * that entry. With no entries, the standard action row remains unchanged.
      */
     'conversation.chat.assistant-actions': { kind: 'list'; scope: 'session'; owner: AssistantActionOwnerProps }
+    /**
+     * Action strip on one finalized USER message, inside that message's
+     * IconActions row (after copy, before branch). Only the `user` node
+     * declares this seat — steering bubbles do not.
+     */
+    'conversation.chat.user-actions': { kind: 'list'; scope: 'session'; owner: UserActionOwnerProps }
+    /**
+     * Replacement body for one finalized user message while it is in
+     * inline-edit mode. Only the `user` node declares this seat.
+     */
+    'conversation.chat.user-editor': { kind: 'single'; scope: 'session'; owner: UserEditorOwnerProps }
     /**
      * Whole details-panel body for the selected Tool call. The component receives
      * the running or settled block and optional workspace root. A registration

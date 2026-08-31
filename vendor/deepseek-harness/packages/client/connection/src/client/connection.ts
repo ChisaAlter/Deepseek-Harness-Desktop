@@ -12,12 +12,11 @@ export interface ConnectionGeneration {
   readonly host: ConnectionHostInfo
 }
 
-/** Reconnect/backoff tunables (deployment-varying — no hardcoded tunables; these become the
- *  future `ctx.connection` plugin's Config). All fields optional; defaults below. */
+/** Reconnect/backoff tunables. All fields are optional; defaults are below. */
 export interface ConnectionConfig {
   /** First-retry backoff cap in ms (jittered: actual delay is cap/2..cap). */
   backoffBaseMs?: number
-  /** Exponential growth factor per consecutive failed attempt. */
+  /** Exponential growth factor per failed attempt; values at or below 1 make the base tier final. */
   backoffFactor?: number
   /** Upper bound for the backoff cap in ms. */
   backoffMaxMs?: number
@@ -32,6 +31,9 @@ const CONNECTION_DEFAULTS: Required<ConnectionConfig> = {
   generationReadyTimeoutMs: 3_000,
 }
 
+const MANUAL_RECONNECT = new Error('connection: manual reconnect requested')
+const NETWORK_STATE_CHANGED = new Error('connection: browser network state changed')
+
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     const t = setTimeout(done, ms)
@@ -44,17 +46,27 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-/** Coarse connection state for the UI: 'connected' after each generation's handshake,
- *  'reconnecting' the moment the generation fails (covers the whole backoff+retry span). */
-export type ConnectionState = 'connected' | 'reconnecting'
+function waitForAbort(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+  return new Promise((resolve) => {
+    signal.addEventListener('abort', () => { resolve() }, { once: true })
+  })
+}
+
+/** Connection lifecycle state published after the first attempt has an outcome. */
+export type ConnectionState =
+  | 'connected'
+  | 'disconnected'
+  | 'connecting'
 
 /** Connection-generation callbacks owned by API Gateway. */
 export interface ConnectionSinks {
   /** After the generation source reports ready, first connect included. */
   onConnected?: (host: ConnectionHostInfo) => void
-  /** Coarse state transitions (deduplicated: fires only on change). The initial pre-connect
-   *  span reports nothing — the UI treats "no state yet" as connecting, not as an outage. */
+  /** State transitions after the initial attempt has an outcome. Equivalent states are deduplicated. */
   onStateChange?: (state: ConnectionState) => void
+  /** Start one fresh physical-carrier attempt before each logical retry. */
+  onReconnectRequested?: () => void
 }
 
 /**
@@ -79,8 +91,11 @@ export class ConnectionController {
   private generation = 0
   private attempt = 0
   private current: AbortController | null = null
+  private retryDelay: AbortController | null = null
   private running = false
-  private lastState: ConnectionState | null = null
+  private immediateRetry = false
+  private networkAvailable = true
+  private lastState: ConnectionState | undefined
   private readonly config: Required<ConnectionConfig>
 
   constructor(
@@ -103,12 +118,51 @@ export class ConnectionController {
     this.running = false
     this.current?.abort()
     this.current = null
+    this.retryDelay?.abort()
+    this.retryDelay = null
+  }
+
+  /** Reset the retry sequence and replace the current generation or retry delay immediately. */
+  reconnect(): void {
+    if (!this.running) return
+    this.attempt = 0
+    this.immediateRetry = true
+    this.emitState('connecting')
+    if (!this.isRunning()) return
+    this.current?.abort(MANUAL_RECONNECT)
+    this.retryDelay?.abort(MANUAL_RECONNECT)
+  }
+
+  /**
+   * Suspend automatic retries while offline and restart backoff when the network returns.
+   * @param available - whether the browser reports network access.
+   */
+  setNetworkAvailable(available: boolean): void {
+    if (this.networkAvailable === available) return
+    this.networkAvailable = available
+    this.attempt = 0
+    this.immediateRetry = false
+    if (!this.running) return
+    this.emitState(available ? 'connecting' : 'disconnected')
+    if (!this.isRunning()) return
+    this.current?.abort(NETWORK_STATE_CHANGED)
+    this.retryDelay?.abort(NETWORK_STATE_CHANGED)
+  }
+
+  private backoffCap(attempt: number): number {
+    const { backoffBaseMs, backoffFactor, backoffMaxMs } = this.config
+    return Math.min(backoffMaxMs, backoffBaseMs * backoffFactor ** Math.max(0, attempt - 1))
   }
 
   private backoffDelay(attempt: number): number {
-    const { backoffBaseMs, backoffFactor, backoffMaxMs } = this.config
-    const cap = Math.min(backoffMaxMs, backoffBaseMs * backoffFactor ** Math.max(0, attempt - 1))
+    const cap = this.backoffCap(attempt)
     return cap / 2 + Math.random() * (cap / 2)
+  }
+
+  private isFinalBackoffTier(attempt: number): boolean {
+    const cap = this.backoffCap(attempt)
+    const nextCap = this.backoffCap(attempt + 1)
+    return cap >= this.config.backoffMaxMs || !Number.isFinite(nextCap) || nextCap <= cap
   }
 
   /** Read through a method: stop() flips the flag across awaits, so narrowing from the loop condition must not stick. */
@@ -122,7 +176,49 @@ export class ConnectionController {
   }
 
   private async loop(): Promise<void> {
+    let retry = false
     while (this.running) {
+      if (!this.networkAvailable && !this.immediateRetry) {
+        const retryDelay = new AbortController()
+        this.retryDelay = retryDelay
+        this.emitState('disconnected')
+        await waitForAbort(retryDelay.signal)
+        if (this.retryDelay === retryDelay) this.retryDelay = null
+        if (!this.isRunning()) return
+        retry = true
+        continue
+      }
+
+      let manualAttempt = false
+      if (retry) {
+        const immediate = this.immediateRetry
+        this.immediateRetry = false
+        if (immediate) this.attempt = 0
+        manualAttempt = immediate
+        if (!immediate && this.attempt > 0 && this.isFinalBackoffTier(this.attempt)) {
+          const retryDelay = new AbortController()
+          this.retryDelay = retryDelay
+          this.emitState('disconnected')
+          await waitForAbort(retryDelay.signal)
+          if (this.retryDelay === retryDelay) this.retryDelay = null
+          continue
+        }
+        const attempt = ++this.attempt
+        this.emitState('connecting')
+        if (!this.isRunning()) return
+        if (!immediate) {
+          const retryDelay = new AbortController()
+          this.retryDelay = retryDelay
+          await sleep(this.backoffDelay(attempt), retryDelay.signal)
+          if (this.retryDelay === retryDelay) this.retryDelay = null
+          if (!this.isRunning()) return
+          if (retryDelay.signal.aborted) continue
+        }
+        console.warn(`[connection] connection lost, retry #${String(attempt)}`)
+        this.callSink(() => { this.sinks.onReconnectRequested?.() })
+        if (!this.isRunning()) return
+      }
+
       const gen = ++this.generation
       const ac = new AbortController()
       this.current = ac
@@ -182,17 +278,14 @@ export class ConnectionController {
           this.callSink(() => { this.sinks.onConnected?.(host) })
         }
       } catch {
-        // Transport failure: treat as generation failure, fall through to the shared backoff.
+        // Transport failure: treat as generation failure, then enter the shared retry path.
         if (!ac.signal.aborted) ac.abort()
       }
 
       await failed
       if (!this.isRunning()) return
-      this.emitState('reconnecting')
-      this.attempt += 1
-      console.warn(`[connection] connection lost, retry #${this.attempt}`)
-      const idle = new AbortController()
-      await sleep(this.backoffDelay(this.attempt), idle.signal)
+      if (manualAttempt) this.attempt = 0
+      retry = true
     }
   }
 

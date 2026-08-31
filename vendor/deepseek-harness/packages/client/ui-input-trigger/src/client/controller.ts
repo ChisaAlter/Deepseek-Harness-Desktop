@@ -236,6 +236,11 @@ export class InputTriggerController {
       }
       case 'enter': {
         if (state.highlight === null) return 'pass'
+        // Refinement keeps the previous rows and highlight visible while the
+        // next fetch is pending; Enter then neither picks the stale row nor
+        // falls through to submit — an explicit no-op until the group is ready.
+        const group = state.groups.find(g => g.source === state.highlight?.source)
+        if (group === undefined || group.status !== 'ready') return 'consumed'
         this.pick(state.highlight.source, state.highlight.index)
         return 'pick-highlighted'
       }
@@ -485,13 +490,16 @@ export class InputTriggerController {
     })
     this.stopFetch()
     this.reduce({ type: 'close' })
-    const applied = this.execute(outcome, hit.span)
-    // Set after the close above, so the reducer's own teardown cannot clear
-    // it, and only when the descent text actually landed: a refused edit
-    // (stale draft revision, or no listener) leaves the draft where it was,
-    // and a header over that draft would name a directory nobody descended
-    // into while hiding the locations its rows still need.
-    this.drilled = action === 'drill' && applied
+    // Claimed before the edit, and after the close above so the reducer's own
+    // teardown cannot clear it: the input may apply the descent through a
+    // synchronous editor commit that re-enters track(), and the header and
+    // candidate requests raised there read this flag. A refused edit (stale
+    // draft revision, or an unmappable span) mutates nothing and so reaches
+    // no re-entry, which is why withdrawing the claim afterwards still keeps
+    // a header off a draft nobody descended into — one that would name a
+    // directory while hiding the locations its rows still need.
+    this.drilled = action === 'drill'
+    if (!this.execute(outcome, hit.span)) this.drilled = false
   }
 
   /** Re-poll every header-bearing source in the hit roster and publish their crumbs. */

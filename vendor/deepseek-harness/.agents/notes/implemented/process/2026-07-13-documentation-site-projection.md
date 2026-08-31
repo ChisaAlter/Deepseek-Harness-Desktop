@@ -24,7 +24,7 @@ The projector parses Markdown links without reserializing the document. A link t
 
 `website/AGENTS.md` is the only maintained Markdown file in the website subtree. The projector test enumerates tracked and unignored files and rejects any other website Markdown, so site-specific locale, route, API, or generated source copies cannot bypass the publication manifest.
 
-Mermaid renders the canonical diagrams. The website workspace explicitly declares the five packages that `vitepress-plugin-mermaid` asks Vite to prebundle because pnpm's strict dependency isolation otherwise makes those transitive packages unavailable to the local development server; Knip records this runtime-only use as an intentional dependency exception.
+Mermaid renders the canonical diagrams. The website workspace explicitly declares the five packages that `vitepress-plugin-mermaid` asks Vite to prebundle because pnpm's strict dependency isolation otherwise makes those transitive packages unavailable to the local development server.
 
 The configured Markdown renderer keeps a build-local cache for non-Mermaid, non-snippet code fences, keyed by the exact content, info string, delimiter, and token attributes. About half of the bilingual projection's code fences repeat, so Shiki renders each distinct representation once. Mermaid fences bypass the cache because the plugin output includes a token-position id, and VitePress snippets resolve their source files during rendering. The cache is enabled only for production builds, is discarded with the renderer after each build, and does not change the emitted fence HTML.
 

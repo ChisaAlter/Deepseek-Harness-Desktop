@@ -8,15 +8,15 @@ import { isAbsolute } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import type { DatabaseSync } from 'node:sqlite'
 import { setTimeout as delay } from 'node:timers/promises'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import {
-  SessionId,
-  isSessionOrigin,
   type SessionHeader,
+  type SessionId,
 } from '@deepseek-ai/dsh-session'
 import { sql } from './sql.ts'
 
 /** Current physical-record schema with packed and compressed event rows. */
-export const SCHEMA_VERSION = 19
+export const SCHEMA_VERSION = 20
 /** Application id reserved for DeepSeek Harness SQLite session databases. */
 export const SESSION_PERSISTENCE_SQLITE_APPLICATION_ID = 0x44534850
 
@@ -28,7 +28,7 @@ export interface SessionRow {
   readonly cwd: string | null
   readonly parent_session: string | null
   readonly seed_length: number | null
-  readonly origin: 'subagent' | 'dshbot' | null
+  readonly origin: 'subagent' | null
   readonly incarnation: string
   readonly revision: number
   readonly delegation_depth: number | null
@@ -43,7 +43,7 @@ export interface EventRow {
   readonly data: string | Uint8Array
   readonly source_event_seqs: Uint8Array | null
   readonly surface_op: string | null
-  readonly is_packed: 0 | 1
+  readonly ignorable: number | null
 }
 
 /** Durable journal modes accepted by the backend. */
@@ -208,7 +208,7 @@ function initializeDatabase(db: DatabaseSync): void {
   db.exec(sql('schema'))
   db.prepare(sql('insert-persistence-state')).run(randomUUID())
   db.exec(sql('set-application-id'))
-  db.exec(sql('set-user-version-19'))
+  db.exec(sql('set-user-version-20'))
 }
 
 let canonicalSchema: readonly SchemaObjectRow[] | undefined
@@ -290,7 +290,7 @@ export function decodeSessionRow(value: unknown): SessionRow {
   if (cwd !== null && !isAbsolute(cwd)) throw new Error('stored session cwd must be absolute')
   const parent = nullableStringField(row, 'parent_session')
   const origin = nullableStringField(row, 'origin')
-  if (origin !== null && !isSessionOrigin(origin)) throw new Error('stored session origin must be "subagent" or "dshbot"')
+  if (origin !== null && origin !== 'subagent') throw new Error('stored session origin must be subagent or null')
   const incarnation = nonemptyStringField(row, 'incarnation')
   if (!UUID.test(incarnation)) throw new Error('stored session incarnation must be a UUID')
   return {
@@ -315,9 +315,9 @@ export function decodeSessionRow(value: unknown): SessionRow {
  */
 export function decodeEventRow(value: unknown): EventRow {
   const row = record(value, 'stored event')
-  const isPacked = safeIntegerField(row, 'is_packed')
-  if (isPacked !== 0 && isPacked !== 1) {
-    throw new Error('stored event is_packed must be 0 or 1')
+  const ignorable = nullableSafeIntegerField(row, 'ignorable')
+  if (ignorable !== null && ignorable !== 0 && ignorable !== 1) {
+    throw new Error('stored event ignorable must be 0, 1, or null')
   }
   return {
     seq: nonnegativeSafeIntegerField(row, 'seq'),
@@ -326,7 +326,7 @@ export function decodeEventRow(value: unknown): EventRow {
     data: stringOrBlobField(row, 'data'),
     source_event_seqs: nullableBlobField(row, 'source_event_seqs'),
     surface_op: nullableStringField(row, 'surface_op'),
-    is_packed: isPacked,
+    ignorable,
   }
 }
 
@@ -349,10 +349,10 @@ export function decodeStoreIdentity(value: unknown): string {
 export function rowToMeta(row: SessionRow): SessionHeader {
   return {
     version: row.version,
-    id: SessionId(row.id),
+    id: brandString<SessionId>(row.id),
     createdAt: row.created_at,
     ...row.cwd === null ? {} : { cwd: row.cwd },
-    ...row.parent_session === null ? {} : { parentSession: SessionId(row.parent_session) },
+    ...row.parent_session === null ? {} : { parentSession: brandString<SessionId>(row.parent_session) },
     ...row.seed_length === null ? {} : { seedLength: row.seed_length },
     ...row.origin === null ? {} : { origin: row.origin },
     ...row.delegation_depth === null ? {} : { delegationDepth: row.delegation_depth },

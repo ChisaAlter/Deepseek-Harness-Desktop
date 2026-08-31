@@ -61,7 +61,7 @@ Use this row when a preset must change an agent's identity and not only its tool
 
 ### How the row registers
 
-`apply` registers one prompt section through `ctx.systemPrompt.section({ name: PERSONA_SECTION, order: PERSONA_ORDER, text, complete? })` inside the mounting context's scope, so the section lands at order 0 — immediately after the harness identity opener — and only for agents joined to the preset. `PERSONA_SECTION` and `PERSONA_ORDER` are imported from `dsh-system-prompt` rather than restated, so a preset persona always shadows the deployment's instead of landing beside it. `includeRuntimeContext: false` calls `ctx.systemPrompt.suppressRuntimeContext()`.
+`apply` registers one prompt section through `ctx.systemPrompt.section({ name: PERSONA_SECTION, order: ctx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA'), text, complete? })` inside the mounting context's scope, so the section lands at order 0 — immediately after the harness identity opener — and only for agents joined to the preset. The shared section name makes a preset persona shadow the deployment's instead of landing beside it, while the service-owned order lookup keeps repository contributors on the central allocation. `includeRuntimeContext: false` calls `ctx.systemPrompt.suppressRuntimeContext()`.
 
 ### Why the row is scope-only
 

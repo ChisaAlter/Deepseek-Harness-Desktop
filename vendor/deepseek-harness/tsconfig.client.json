@@ -35,7 +35,9 @@
   // belongs to the host aggregate, which excludes this program's `*.client.*`
   // in turn. `exclude` wins over `include`, so the test glob above stays broad.
   "exclude": [
-    "packages/client/*/tests/**/*.host.spec.ts"
+    "packages/client/*/tests/**/*.host.spec.ts",
+    "packages/client/ui-theme/tests/appearance-section.client.spec.tsx",
+    "packages/session-query/session-log-export/tests/**"
   ],
   "references": [
     // Shared leaf: web e2e boots the real host webserver (fixture + real-host
@@ -87,6 +89,7 @@
     { "path": "./packages/client/ui-subagent" },
     { "path": "./packages/experimental/client-ui-agent-team" },
     { "path": "./packages/client/ui-jobs" },
+    { "path": "./packages/client/ui-schedule" },
     { "path": "./packages/client/ui-directory-picker-browse" },
     { "path": "./packages/client/ui-directory-picker-native" },
     { "path": "./packages/client/ui-goal" },

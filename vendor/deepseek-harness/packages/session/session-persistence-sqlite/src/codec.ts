@@ -1,5 +1,5 @@
 /**
- * Schema-19 physical chunk-row codec. This package owns the durable tags,
+ * Schema-20 physical chunk-row codec. This package owns the durable tags,
  * validation, and row-size limits independently from other persistence formats.
  * @module @deepseek-ai/dsh-session-persistence-sqlite/codec
  */
@@ -7,7 +7,7 @@
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
-/* jscpd:ignore-start -- schema 19 deliberately owns a frozen physical codec;
+/* jscpd:ignore-start -- schema 20 deliberately owns a frozen physical codec;
  * importing or sharing the JSONL codec would let that format mutate this database interpreter. */
 type DeltaKind = 'text-delta' | 'reasoning-delta' | 'tool-call-delta'
 type DeltaEvent = SessionEvent<'assistant/chunk'>
@@ -24,19 +24,18 @@ interface TextRunData extends RunDataBase {
 }
 
 interface ToolCallRunData extends RunDataBase {
-  /** Always present: {@link classify} packs only chunks carrying a string id. */
-  readonly id: NonNullable<Extract<StreamChunk, { type: 'tool-call-delta' }>['id']>
+  readonly id: Extract<StreamChunk, { type: 'tool-call-delta' }>['id']
   readonly name?: string
   readonly args: string[]
 }
 
-/** One schema-19 packed physical record. */
+/** One schema-20 packed physical record. */
 export type ChunkRow =
   | { readonly type: 'text-chunks'; readonly seq0: number; readonly time0: number; readonly data: TextRunData }
   | { readonly type: 'reasoning-chunks'; readonly seq0: number; readonly time0: number; readonly data: TextRunData }
   | { readonly type: 'tool-call-chunks'; readonly seq0: number; readonly time0: number; readonly data: ToolCallRunData }
 
-/** One scalar event or schema-19 packed physical record. */
+/** One scalar event or schema-20 packed physical record. */
 export type StorageRecord = SessionEvent | ChunkRow
 
 /** Minimum eligible members in a packed physical record. */
@@ -118,7 +117,7 @@ function buildRow(kind: DeltaKind, run: readonly DeltaEvent[]): ChunkRow {
       ...envelope,
       data: {
         ...base,
-        id: call.id as ToolCallRunData['id'],
+        id: call.id as Extract<StreamChunk, { type: 'tool-call-delta' }>['id'],
         ...Object.hasOwn(call, 'name') ? { name: call.name as string } : {},
         args: run.map(event => (event.data.chunk as { readonly argumentsDelta: string }).argumentsDelta),
       },
@@ -175,7 +174,7 @@ function emitBoundedRun(out: StorageRecord[], kind: DeltaKind, completeRun: read
 }
 
 /**
- * Pack eligible logical chunk runs into bounded schema-19 records.
+ * Pack eligible logical chunk runs into bounded schema-20 records.
  * @param events - logical events in sequence order.
  * @returns scalar and packed physical records in equivalent order.
  */
@@ -293,7 +292,7 @@ function expandRow(row: ChunkRow): SessionEvent[] {
           type: 'tool-call-delta',
           index: row.data.index,
           id: row.data.id,
-          ...row.data.name === undefined ? {} : { name: row.data.name },
+          ...Object.hasOwn(row.data, 'name') ? { name: row.data.name as string } : {},
           argumentsDelta: members[index] as string,
         }
         break
@@ -309,7 +308,7 @@ function expandRow(row: ChunkRow): SessionEvent[] {
 }
 
 /**
- * Decode one scalar or packed schema-19 record.
+ * Decode one scalar or packed schema-20 record.
  * @param value - parsed physical-record value.
  * @returns the represented logical events.
  */

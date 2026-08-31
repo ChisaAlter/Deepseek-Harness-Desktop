@@ -46,7 +46,22 @@ Generation turns the method into a wire endpoint under the service's namespace; 
 
 ### Associating Host objects and Contexts with wire identities
 
-Complex Host objects cannot cross the wire directly. A business package declares the association through the merge-extensible `TypertLookupMap` and `TypertContextMap`. Host and Client Context adapters both map `Context` to a wire identity and that identity back to `Context`; the Host adapter also owns the stable wire declaration. Host composition may override its synchronous or asynchronous resolver. A policy rejection can throw `TypertLookupFailure` to carry an adapter-owned failure value to the caller.
+Complex Host objects cannot cross the wire directly. A business package declares the association through the merge-extensible `TypertLookupMap` and `TypertContextMap`. Host and Client Context adapters both map `Context` to a wire identity and that identity back to `Context`; the Host adapter also owns the stable wire declaration. Host composition may override its synchronous or asynchronous resolver. A resolver that refuses on policy grounds throws `RemoteError` with its own code, which reaches the caller unchanged.
+
+### Reporting and reading a Remote failure
+
+One class carries every Remote failure: `RemoteError`, holding a stable `<domain>/<reason>` code and the details typed for that code. This package declares the universal carrier codes (`gateway/bad-request`, `gateway/cancelled`, `gateway/internal`) and owns `RemoteErrorDetailsMap`, the merge-extensible table every other package extends beside its own throwing code:
+
+```text
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    'goal/not-found': { readonly goalId: string }
+  }
+}
+throw new RemoteError('goal/not-found', `goal "${id}" does not exist`, { goalId: id })
+```
+
+An owner throws at the failure point; no package writes an error-class family or an exit-mapping function. A caller discriminates by `code` — never by `instanceof` — and a `code` branch narrows `details` with no cast, because `RemoteFailure` is the code-discriminated union of `RemoteError` instances. Infrastructure that must recognize a failure carried across a module or realm copy of the class calls `remoteErrorOf(value)`, which reads a structural marker instead of the prototype chain.
 
 ### Receiving forwarded Host events on the Client
 
@@ -64,11 +79,11 @@ This section explains how the declarations stay compiler-independent and where e
 
 ### Design concept
 
-The package keeps reflection out of the compiler: decorator initializers retain markers in a module-private `WeakMap` keyed by the Service prototype, with no constructor symbols, prototype properties, parameter metadata, or runtime reflection fields. Full parameter, result, lookup, and schema reflection is the Typert build pipeline's job, delivered through `InvocationDescriptor`.
+The package keeps strict reflection in the compiler: decorator initializers retain minimal markers in a versioned descriptor on the Service prototype. The descriptor uses a stable string property name, so another installed copy of the protocol package can read the same markers. Full parameter, result, lookup, and schema reflection is the Typert build pipeline's job, delivered through `InvocationDescriptor`.
 
 ### Remote markers
 
-`@Remote` and `@RemoteScope` schedule an initializer that records the method name, an optional export name, and the invocation mode; `remoteMethods(service)` returns a detached declaration-order snapshot that the Gateway's source-mode fallback reads. Markers require public, non-static instance methods with string names, and conflicting markers on one method are rejected.
+`@Remote` and `@RemoteScope` schedule an initializer that appends the method name, an optional export name, and the invocation mode to the prototype descriptor; `remoteMethods(service)` validates its version and returns a detached declaration-order snapshot that the Gateway's source-mode fallback reads. Markers require public, non-static instance methods with string names, and conflicting markers on one method are rejected.
 
 ### Protocol maps and descriptors
 
@@ -82,8 +97,9 @@ Every namespace, method, lookup, and Context segment must satisfy `isTypertRemot
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Decorators, Gateway bindings, `remoteMethods`, segment validation, `TypertLookupFailure` |
-| [`src/types.ts`](src/types.ts) | Protocol maps, `InvocationDescriptor`, codecs, provider contracts, registry interfaces, `TypertClientRemote` |
+| [`src/index.ts`](src/index.ts) | Decorators, Gateway bindings, `remoteMethods`, segment validation |
+| [`src/remote-error.ts`](src/remote-error.ts) | `RemoteError` and the structural `remoteErrorOf` recognizer |
+| [`src/types.ts`](src/types.ts) | Protocol maps, `RemoteErrorDetailsMap`, `RemoteResult`, `InvocationDescriptor`, codecs, provider contracts, registry interfaces, `TypertClientRemote` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion |
 
 </details>

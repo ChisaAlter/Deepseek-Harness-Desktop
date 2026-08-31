@@ -402,6 +402,17 @@
 .scroll {
   max-height: var(--dsh-composer-text-max-height);
   overflow-y: auto;
+  /* Keeps the bar off the card's right border; .input's right pad gives the
+     4px back so the text column is unchanged. */
+  margin-right: 4px;
+}
+
+/* The card's 22px corner arc still overlaps the scrollport's top (10px top
+   pad reaches only y=10): start the thumb's travel below the arc so it never
+   pokes outside the capsule. WebKit-path only; Firefox's thin bar has no
+   track margin, an accepted remainder. */
+.scroll::-webkit-scrollbar-track {
+  margin-top: 8px;
 }
 
 .scroll[data-composer-resized] {
@@ -437,10 +448,11 @@
 }
 
 /* The contenteditable draft surface (grows with its content; .scroll caps
-   and scrolls it). figma .InputText 34:10434: pl 16 / pr 12 / pt 4. */
+   and scrolls it). figma .InputText 34:10434: pl 16 / pr 12 / pt 4 — the
+   right pad is 8 here plus .scroll's 4px bar inset. */
 .input {
   box-sizing: border-box;
-  padding: 4px 12px 0 16px;
+  padding: 4px 8px 0 16px;
   font-family: var(--dsw-font-family);
   font-size: inherit;
   line-height: inherit;
@@ -467,10 +479,11 @@
   color: var(--dsw-alias-label-caption);
 }
 
-/* figma 34:10434: #ADB2B8 light / #81858C dark — the caption pair exactly. */
+/* figma 34:10434: #ADB2B8 light / #81858C dark — the caption pair exactly.
+   Right inset mirrors .input's 8px pad (the other 4px sits on .scroll). */
 .placeholder {
   position: absolute;
-  inset: 4px 12px auto 16px;
+  inset: 4px 8px auto 16px;
   color: var(--dsw-alias-label-caption);
   pointer-events: none;
   user-select: none;

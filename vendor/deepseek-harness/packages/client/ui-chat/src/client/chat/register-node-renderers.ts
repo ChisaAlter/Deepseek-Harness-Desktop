@@ -3,8 +3,8 @@ import { NS } from '../locale.ts'
 import { AssistantNodeView } from './AssistantNodeView.tsx'
 import { CommandNodeView, ManualCompactionNodeView } from './CommandNodeView.tsx'
 import {
-  CompactionNodeView, ContextMessageNodeView, RetryNodeView, SteeringMessageNodeView,
-  TurnErrorNodeView, TurnMaxTokensNodeView, UnknownNodeView, UserMessageNodeView,
+  CompactionNodeView, ContextMessageNodeView, RetryNodeView, TurnErrorNodeView,
+  TurnMaxTokensNodeView, UnknownNodeView, UserMessageNodeView, SteeringMessageNodeView,
 } from './MessageItem.tsx'
 import { SystemPromptNodeView } from './SystemPromptRow.tsx'
 import { TurnProcessNodeView } from './TurnProcessNodeView.tsx'
@@ -19,10 +19,6 @@ export function registerChatNodeRenderers(ctx: Context): void {
     name: 'conversation.chat.node',
     key: 'user',
     locale: NS,
-    // Declaring is claiming: the user bubble is the render site of the
-    // per-message user action strip and the inline-editor replacement. Only
-    // the finalized user node declares those seats — steering and pending
-    // steering bubbles carry neither.
     children: {
       'conversation.chat.user-actions': { kind: 'list', scope: 'session' },
       'conversation.chat.user-editor': { kind: 'single', scope: 'session' },

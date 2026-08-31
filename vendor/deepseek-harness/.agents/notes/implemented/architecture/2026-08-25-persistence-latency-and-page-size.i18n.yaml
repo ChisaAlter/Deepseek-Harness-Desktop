@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-25-persistence-latency-and-page-size.md
-2026-08-25-persistence-latency-and-page-size.md: 27eb58cc551f01c48361a3af3224eb8b12592a00
-2026-08-25-persistence-latency-and-page-size.zh.md: 24ab1835cc313cd617d665a0c52a399d505069ea
+2026-08-25-persistence-latency-and-page-size.md: 3e350ae33655dab82f8c0d7e71b39887e1b6fd34
+2026-08-25-persistence-latency-and-page-size.zh.md: 4bff5ce5e11227594d5cfdce5aebff1b398e6607

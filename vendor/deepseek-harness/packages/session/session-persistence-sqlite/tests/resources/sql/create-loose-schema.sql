@@ -6,9 +6,9 @@ CREATE TABLE sessions (
 );
 CREATE TABLE events (
   session_id ANY, seq ANY, type ANY, time ANY, data ANY,
-  source_event_seqs ANY, surface_op ANY, is_packed ANY
+  source_event_seqs ANY, surface_op ANY, ignorable ANY
 );
 INSERT INTO persistence_state (singleton, store_id)
 VALUES (1, '00000000-0000-4000-8000-000000000000');
 PRAGMA application_id = 1146308688;
-PRAGMA user_version = 19;
+PRAGMA user_version = 20;

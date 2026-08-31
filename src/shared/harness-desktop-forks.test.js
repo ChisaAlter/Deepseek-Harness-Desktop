@@ -57,7 +57,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
     '',
   ].join('\n'));
   writeFile(root, 'packages/client/ui-renderer/src/client/scoped-slots.tsx', [
-    "  const store = host.storeOf(entry, scope === 'session-maybe' && scopeKey === undefined ? '' : scopeKey)",
+    "  const scopedStoreBinding = scope === 'session-maybe' && scopeBinding?.key === undefined ? { key: '' } : scopeBinding",
     '',
   ].join('\n'));
   for (const marker of FORK_FILE_MARKERS) {
@@ -80,8 +80,11 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-theme/src/styles/wallpaper.css': 'html[data-dsh-transparent] #dsh-wallpaper::after { background: transparent }\n',
       'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n',
       'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx': '<div data-composer-beam="" />\n',
-      'packages/client/ui-conversation/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
+      'packages/client/ui-chat/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
       'apps/cli/src/args.ts': "program.option('--skip-user-plugins', 'boot the shipped bundle template')\n",
+      'apps/cli/src/dump-config.ts': 'export function dumpConfigLayers(options: { skipUserPlugins?: boolean }) {}\n',
+      'tsconfig.host.json': '{"references":[{"path":"packages/host/mcp-servers"},{"path":"packages/host/skill-inventory"},{"path":"packages/llm/llm-vision-fallback"},{"path":"packages/mcp/mcp-servers-file"}]}\n',
+      'tsconfig.base.json': '{"paths":{"@deepseek-ai/dsh-host-mcp-servers":[],"@deepseek-ai/dsh-host-skill-inventory":[],"@deepseek-ai/dsh-llm-vision-fallback":[],"@deepseek-ai/dsh-mcp-servers-file":[]}}\n',
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
       'apps/web/tests/models-settings.e2e.ts': "await page.route('**/api/llm.discoverModels', async (route) => {\n",
@@ -131,7 +134,7 @@ test('assertDesktopForks throws when copy-ghostty-assets drops out of package.js
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /copy-ghostty-assets/);
 });
 
-test('assertDesktopForks accepts the current vendor tree at rc.1', () => {
+test('assertDesktopForks accepts the current vendor tree at alpha.2', () => {
   const vendor = path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');
-  assertDesktopForks(vendor, '0.1.1-rc.1');
+  assertDesktopForks(vendor, '0.1.2-alpha.2');
 });

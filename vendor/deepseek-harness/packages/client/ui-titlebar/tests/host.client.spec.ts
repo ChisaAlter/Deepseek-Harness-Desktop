@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
-import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { TITLEBAR_SETTINGS_NAMESPACE, apply } from '../src/index.ts'
 
 class MemorySettings extends SettingsProvider {
@@ -17,7 +17,7 @@ describe('ui-titlebar host', () => {
     await ctx.plugin(MemorySettings).await()
     const fiber = ctx.plugin({ apply })
     await fiber.await()
-    const ns = settingsNamespace(TITLEBAR_SETTINGS_NAMESPACE)
+    const ns = TITLEBAR_SETTINGS_NAMESPACE
     expect(ctx.settings.get(ns)).toEqual({ terminalToggle: true, surfacesToggle: true })
     await ctx.settings.update(ns, { terminalToggle: false, surfacesToggle: false })
     expect(ctx.settings.get(ns)).toEqual({ terminalToggle: false, surfacesToggle: false })

@@ -12,10 +12,13 @@
  * @module @deepseek-ai/dsh-client-ui-message-edit/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-// Type-only: pulls the ui-conversation SlotMap merge (user-actions / user-editor).
+import type { Context } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: pulls the ui-chat SlotMap merge (user-actions / user-editor).
 import type { SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { MessageEditAction } from './MessageEditAction.tsx'
@@ -40,7 +43,7 @@ export const inject = ['slots', 'sessions', 'conversation', 'locale']
  * edit session driving the fork-resend transaction.
  * @param ctx - client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-message-edit: dictionaries')
 
   const t = ctx.locale.bind(NS)
@@ -79,15 +82,27 @@ export function apply(ctx: ClientContext): void {
             // The entry preconditions must still hold at confirm: a cut
             // before an older seq silently drops the newer turns, and a
             // running source may still admit queued messages.
-            const snapshot = ctx.sessions.binding(sessionId)?.session.getSnapshot()
+            const binding = ctx.sessions.binding(sessionId)
+            const snapshot = binding?.session.getSnapshot()
             if (snapshot !== undefined) {
-              if (snapshot.nodes.findLast(node => node.kind === 'user')?.seq !== seq) {
+              if (snapshot.running) return { kind: 'error', text: t('editor.hint.running') }
+              const entries = binding?.eventSource.getSnapshot().entries ?? []
+              let lastUserSeq: number | undefined
+              for (let i = 0; i < entries.length; i += 1) {
+                const row = entries[i]
+                if (row?.type !== 'event') continue
+                if (row.event.type === 'user/message') lastUserSeq = row.event.seq
+              }
+              if (lastUserSeq !== seq) {
                 return { kind: 'error', text: t('editor.hint.stale') }
               }
-              if (snapshot.running) return { kind: 'error', text: t('editor.hint.running') }
             }
             try {
-              const childId = await ctx.sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })
+              const childId = await ctx.sessions.fork({
+                sessionId,
+                beforeSeq: seq,
+                increaseTitle: true,
+              })
               const childScope = ctx.sessions.scope(childId)
               if (childScope === undefined) throw new Error(`message edit child scope unavailable: ${childId}`)
               ctx.sessions.open(childId)

@@ -286,6 +286,15 @@ export abstract class ReleaseFamily {
   abstract tagPrefixFor(member: ReleaseMember): string
 
   /**
+   * The npm dist-tag assigned while publishing a version.
+   * @param version - package version from the packed manifest.
+   * @returns `next` for a prerelease, or undefined so npm uses `latest`.
+   */
+  distTagForVersion(version: string): string | undefined {
+    return version.includes('-') ? 'next' : undefined
+  }
+
+  /**
    * The tag a member publishes from.
    * @param member - the member being published.
    * @returns The full tag name, without `refs/tags/`.
@@ -337,6 +346,14 @@ class DshFamily extends ReleaseFamily {
    */
   tagPrefixFor(): string {
     return this.tagPrefix
+  }
+
+  override distTagForVersion(version: string): string | undefined {
+    const separator = version.indexOf('-')
+    if (separator === -1) return undefined
+    const [channel] = version.slice(separator + 1).split('.')
+    if (channel === 'alpha' || channel === 'canary') return channel
+    return 'next'
   }
 
   /**

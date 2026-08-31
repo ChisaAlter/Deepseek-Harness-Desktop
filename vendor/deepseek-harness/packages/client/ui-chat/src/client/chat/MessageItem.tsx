@@ -2,8 +2,8 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { JsonBlock, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import { JsonBlock, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
@@ -149,7 +149,7 @@ function TurnMaxTokensItem({ t }: {
 
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
-  content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], previewImages, t,
+  content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], previewImages, reveal = 'always', t,
 }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
@@ -163,6 +163,8 @@ function UserStyleBubble({
   referenceLabels?: readonly string[]
   /** Local submission-echo previews replacing the content-derived image group. */
   previewImages?: readonly MessageImageSource[]
+  /** Whole actions-row visibility: earlier rows reveal on hover, the latest stays shown (turn tails' gate). */
+  reveal?: 'always' | 'hover'
   t: ChatViewSlotProps['t']
 }): ReactNode {
   const { text, images: contentImages, rest } = contentParts(content)
@@ -174,7 +176,7 @@ function UserStyleBubble({
       className={css.userRow}
       data-pending-steering={pending || undefined}
       data-submission-echo={echo || undefined}
-      data-time-hover-root
+      data-actions-reveal={reveal}
     >
       <div className={css.userStack}>
         {renderMessageImages({ images, align: 'end' })}
@@ -270,14 +272,23 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
   )
 }
 
-/** User keyed Chat renderer — owns the message-edit / real-composer seats. */
+/** User keyed Chat renderer: action strip + optional inline-edit seat. */
 export const UserMessageNodeView = memo(function UserMessageNodeView({
-  node, renderMessageImages, renderSlot, t,
+  node, renderMessageImages, useChat, renderSlot, t,
 }: ChatNodeViewProps<'user'> & PropsRenderSlots<'conversation.chat.user-actions' | 'conversation.chat.user-editor'>) {
   const data = node.data
   const [editing, setEditing] = useState(false)
   const startEdit = useCallback(() => { setEditing(true) }, [])
   const cancelEdit = useCallback(() => { setEditing(false) }, [])
+  // The transcript's last user-authored row keeps its actions row shown, the
+  // same recency gate turn tails use; earlier rows reveal on hover.
+  const isLatestUserRow = useChat((snapshot) => {
+    for (let index = snapshot.order.length - 1; index >= 0; index -= 1) {
+      const candidate = snapshot.nodes.get(snapshot.order[index] ?? '')
+      if (candidate?.kind === 'user' || candidate?.kind === 'steering') return candidate.key === node.key
+    }
+    return true
+  })
   if (editing) {
     return renderSlot('conversation.chat.user-editor', {
       seq: data.seq,
@@ -295,6 +306,7 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
       content={data.content}
       renderMessageImages={renderMessageImages}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}
+      reveal={isLatestUserRow ? 'always' : 'hover'}
       t={t}
       actions={text => (
         <MessageIconActions
@@ -310,19 +322,24 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
   )
 })
 
-/**
- * Admitted-steering keyed Chat renderer: same bubble chrome without the
- * user-actions seat.
- */
+/** Admitted-steering keyed Chat renderer: same bubble chrome without the user-actions seat. */
 export const SteeringMessageNodeView = memo(function SteeringMessageNodeView({
-  node, renderMessageImages, t,
+  node, renderMessageImages, useChat, t,
 }: ChatNodeViewProps<'steering'>) {
   const data = node.data
+  const isLatestUserRow = useChat((snapshot) => {
+    for (let index = snapshot.order.length - 1; index >= 0; index -= 1) {
+      const candidate = snapshot.nodes.get(snapshot.order[index] ?? '')
+      if (candidate?.kind === 'user' || candidate?.kind === 'steering') return candidate.key === node.key
+    }
+    return true
+  })
   return (
     <UserStyleBubble
       content={data.content}
       renderMessageImages={renderMessageImages}
       {...data.referenceLabels === undefined ? {} : { referenceLabels: data.referenceLabels }}
+      reveal={isLatestUserRow ? 'always' : 'hover'}
       t={t}
       actions={text => (
         <MessageIconActions
@@ -338,11 +355,7 @@ export const SteeringMessageNodeView = memo(function SteeringMessageNodeView({
 })
 
 /** Injected-context keyed Chat renderer. */
-export const ContextMessageNodeView = memo(function ContextMessageNodeView({
-  node, t, useSessions, sessionId,
-}: ChatNodeViewProps<'context'>) {
-  const hide = useSessions(s => s.byId[sessionId]?.agentPreset === 'dshbot-room')
-  if (hide) return null
+export const ContextMessageNodeView = memo(function ContextMessageNodeView({ node, t }: ChatNodeViewProps<'context'>) {
   const data = node.data
   return (
     <ContextInjectionRow

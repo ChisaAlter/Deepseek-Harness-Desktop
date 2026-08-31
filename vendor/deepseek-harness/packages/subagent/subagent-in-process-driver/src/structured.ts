@@ -12,7 +12,6 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
-import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import type { ToolExecution, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { ToolArgsError, validateJsonSchemaValue, type ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 
@@ -99,7 +98,7 @@ export function attachStructuredRuntime(childCtx: Context, schema: ObjectJsonSch
 
   childCtx.systemPrompt.section({
     name: `tool:${STRUCTURED_OUTPUT_TOOL}`,
-    order: FIRST_PARTY_SECTION_ORDER.STRUCTURED_OUTPUT,
+    order: childCtx.systemPrompt.getSectionOrder('STRUCTURED_OUTPUT'),
     text: STRUCTURED_OUTPUT_INSTRUCTION,
   })
 

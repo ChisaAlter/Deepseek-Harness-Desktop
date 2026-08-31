@@ -1,5 +1,5 @@
 ---
-description: "面向侧栏与会话首屏的官方 DeepSeek Harness 品牌填充，仅在官方构建中生效；供选择或替换品牌呈现的用户与维护者阅读。"
+description: "面向侧栏的官方 DeepSeek Harness 品牌填充，仅在官方构建中生效；供选择或替换品牌呈现的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包向浏览器品牌槽位——`sidebar.brand.mark`、`sidebar.brand.name` 与 `conversation.hero.brand.mark`——填充官方 DeepSeek Harness 标志与名称。它只在客户端以 `official` profile 构建时注册这些填充；其余构建同样加载插件但不注册任何内容，因此外壳回退保持可见。当部署身份就是 DeepSeek 自身时选择它；自有品牌的部署改为在相同槽位中组合另一个包。它不保留任何运行时状态，也不向模型请求贡献任何内容。
+本包向侧栏品牌槽位——`sidebar.brand.mark` 与 `sidebar.brand.name`——填充官方 DeepSeek Harness 标志与名称。它只在客户端以 `official` profile 构建时注册这些填充；其余构建同样加载插件但不注册任何内容，因此外壳回退保持可见。会话首屏槽位（`conversation.hero.brand.mark`）在所有构建中都保持无填充：其声明包以动画首屏鱼（悬停游动形变）作为回退渲染，而官方品牌正是这条鱼。当部署身份就是 DeepSeek 自身时选择本包；自有品牌的部署改为在相同槽位中组合另一个包。它不保留任何运行时状态，也不向模型请求贡献任何内容。
 
 ## 目录
 
@@ -29,11 +29,11 @@ kind: "package-reference"
 
 ### 选择 profile
 
-`DSH_CLIENT_BUILD_PROFILE` 决定渲染哪个品牌。`official` 构建在侧栏显示官方标志与名称、在会话首屏显示标志；任何其他取值都让外壳回退——鱼形标志与本地构建标签——保持原样。两种情况下插件都会照常加载并通过校验；只有注册受 profile 门控。
+`DSH_CLIENT_BUILD_PROFILE` 决定渲染哪个品牌。`official` 构建在侧栏显示官方标志与名称；任何其他取值都让外壳回退——鱼形标志与本地构建标签——保持原样。会话首屏无论 profile 如何都显示来自 `dsh-client-ui-conversation` 的动画首屏鱼，因为这个回退本身就是官方标志。两种情况下插件都会照常加载并通过校验；只有注册受 profile 门控。
 
 ### 替换品牌
 
-自有身份的部署不组合本包，而是组合另一个占据相同三个槽位的包。占据槽位是唯一的组合路径；这里不存在任何品牌配置面。
+自有身份的部署不组合本包，而是组合另一个占据侧栏槽位——以及本包留给回退的首屏槽位——的包。占据槽位是唯一的组合路径；这里不存在任何品牌配置面。
 
 -----
 
@@ -43,7 +43,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-三个填充作为一组声明感知的注册安装：嵌套的 `ctx.slots.inject()` 调用等待侧栏与会话声明，因此无论本行在声明者之前还是之后激活，这组注册都能工作；任一声明消失时全部三个填充一并撤回，HMR 期间也不会留下残缺的品牌混合。浏览器半部是 [`src/client/index.ts`](src/client/index.ts)；node 半部是一个空 Loader 座位。浏览器标题是构建环境的事（`DSH_CLIENT_TITLE`），不在槽位系统之内。
+两个填充作为一组声明感知的注册安装：嵌套的 `ctx.slots.inject()` 调用等待侧栏声明，因此无论本行在声明者之前还是之后激活，这组注册都能工作；声明消失时两个填充一并撤回，HMR 期间也不会留下残缺的品牌混合。浏览器半部是 [`src/client/index.ts`](src/client/index.ts)；node 半部是一个空 Loader 座位。浏览器标题是构建环境的事（`DSH_CLIENT_TITLE`），不在槽位系统之内。
 
 </details>
 

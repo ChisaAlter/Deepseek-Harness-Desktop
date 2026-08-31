@@ -36,10 +36,10 @@ import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock, MessageId } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  canonicalClientTimeZone, catalogView, rejectCatalogRead, rejectControl, rejectPrompt,
-  validateControlRequest,
+  admitPromptContent, catalogView, rejectCatalogRead, rejectPrompt, validateControlRequest,
 } from './control.ts'
 import type {
   SubagentCatalog,
@@ -398,9 +398,9 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param parentSessionId - parent session whose direct children are listed.
    * @param signal - carrier cancellation forwarded to Session queries.
    * @returns the catalog view for that parent.
-   * @throws {TypertRemoteFailure} `bad-request` for an empty parent id,
-   *   `cancelled` for an aborted read, `subagent-projections-unavailable` when
-   *   the deployment has no projection registry, otherwise `internal`.
+   * @throws {RemoteError} `gateway/bad-request` for an empty parent id,
+   *   `gateway/cancelled` for an aborted read, `subagent/projections-unavailable` when
+   *   the deployment has no projection registry, otherwise `gateway/internal`.
    */
   @Remote('list')
   async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog> {
@@ -421,29 +421,30 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param request - durable address, minted identity, content, and optional browser zone.
    * @param signal - carrier cancellation, owning the call until inbox acceptance.
    * @returns the accepted message's inbox identity.
-   * @throws {TypertRemoteFailure} `bad-request`, `invalid-time-zone`,
-   *   `subagent-parent-unavailable`, `subagent-not-resumable`,
-   *   `subagent-unauthorized`, `subagent-delivery-unavailable`, `cancelled`, or
-   *   `internal`.
+   * @throws {RemoteError} `gateway/bad-request`, `subagent/attachment-unsupported`,
+   *   `subagent/invalid-time-zone`, `subagent/parent-unavailable`,
+   *   `subagent/not-resumable`, `subagent/unauthorized`,
+   *   `subagent/delivery-unavailable`, `gateway/cancelled`, or `gateway/internal`.
    */
   @Remote('prompt')
   async prompt(request: SubagentPromptRequest, signal: AbortSignal): Promise<SubagentPromptReceipt> {
     const { parentSessionId, childSessionId, clientTimeZone } = request
     validateControlRequest('subagent.prompt', request)
+    const content = admitPromptContent(childSessionId, request.content)
     const canonicalTimeZone = clientTimeZone === undefined
       ? undefined
       : canonicalClientTimeZone(clientTimeZone)
     if (clientTimeZone !== undefined && canonicalTimeZone === undefined) {
-      return rejectControl(
-        'invalid-time-zone',
+      throw new RemoteError(
+        'subagent/invalid-time-zone',
         'clientTimeZone must be UTC or a valid IANA Area/Location name',
         { value: clientTimeZone },
       )
     }
     const parent = this.ctx.get('agents')?.get(parentSessionId)
     if (parent === undefined) {
-      return rejectControl(
-        'subagent-parent-unavailable',
+      throw new RemoteError(
+        'subagent/parent-unavailable',
         `parent session "${parentSessionId}" is not live`,
         { parentSessionId },
       )
@@ -453,7 +454,6 @@ export class SubagentRuntime extends TypertRemoteService {
       rpcId: request.requestId,
       ...(canonicalTimeZone === undefined ? {} : { clientTimeZone: canonicalTimeZone }),
     }
-    const content: ContentBlock[] = [...request.content]
     try {
       return { messageId: await this.followup(parent, childSessionId, content, { source, signal }) }
     } catch (error: unknown) {
@@ -471,9 +471,9 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param parentSessionId - durable direct parent whose authority is claimed.
    * @param mode - required continuable-address discriminator.
    * @returns acknowledgement that the cancel signal was admitted, not that the target is quiescent.
-   * @throws {TypertRemoteFailure} `bad-request` for an empty id,
-   *   `subagent-unauthorized` when the address does not own the live target,
-   *   otherwise `internal`.
+   * @throws {RemoteError} `gateway/bad-request` for an empty id,
+   *   `subagent/unauthorized` when the address does not own the live target,
+   *   otherwise `gateway/internal`.
    */
   @Remote('interruptByParent')
   interruptByParent(
@@ -486,13 +486,14 @@ export class SubagentRuntime extends TypertRemoteService {
       this.interrupt(childSessionId, { kind: 'user', parentSessionId })
     } catch (error: unknown) {
       if (error instanceof SubagentError && error.code === 'UNAUTHORIZED') {
-        return rejectControl(
-          'subagent-unauthorized',
+        throw new RemoteError(
+          'subagent/unauthorized',
           'subagent does not belong to this parent',
           { childSessionId },
+          { cause: error },
         )
       }
-      return rejectControl('internal', 'subagent interrupt failed', {})
+      throw new RemoteError('gateway/internal', 'subagent interrupt failed', {}, { cause: error })
     }
     return { accepted: true }
   }

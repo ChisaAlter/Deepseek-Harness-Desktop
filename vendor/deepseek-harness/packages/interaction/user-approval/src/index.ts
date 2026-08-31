@@ -169,7 +169,7 @@ export class ApprovalService extends Service {
     ctx.inject(['systemPrompt'], (scope: Context) => {
       scope.systemPrompt.context({
         name: 'approval:policy',
-        order: 115,
+        order: scope.systemPrompt.getContextOrder('APPROVAL_POLICY'),
         text: (context) => {
           const agent = context.agent
           // A bare assemble() (tests, diagnostics) has no session to state.

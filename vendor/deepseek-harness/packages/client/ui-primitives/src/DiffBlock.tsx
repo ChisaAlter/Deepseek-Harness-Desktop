@@ -63,20 +63,36 @@ const ROW_CLASS: Record<DiffRow['kind'], string | undefined> = {
 }
 
 /**
+ * Total added/removed line counts across hunks — the same numbers the footer
+ * prints, exported so a summary row can show them without rebuilding the body.
+ * Every old-side line counts toward `removed` and every new-side line toward
+ * `added`, under {@link contentLines}'s terminator rule.
+ * @param diffs - the hunks to count.
+ * @returns the +/- totals.
+ */
+export function diffTotals(diffs: DiffHunk[]): { added: number; removed: number } {
+  let added = 0
+  let removed = 0
+  for (const diff of diffs) {
+    if (diff.oldText !== null) removed += contentLines(diff.oldText).length
+    added += contentLines(diff.newText).length
+  }
+  return { added, removed }
+}
+
+/**
  * Flatten the hunks into the body's rows plus the footer counts. A path header
  * opens each new file; a same-file second hunk (a scattered edit) opens with a
- * `⋯` gap instead of repeating the path. Every old-side line counts toward
- * `removed` and every new-side line toward `added`. The file count is of
- * DISTINCT paths, matching the TUI diff card's footer, so two hunks in one file
- * read as `1 file` on both front ends.
+ * `⋯` gap instead of repeating the path. The +/- totals are
+ * {@link diffTotals}'s. The file count is of DISTINCT paths, matching the TUI
+ * diff card's footer, so two hunks in one file read as `1 file` on both front
+ * ends.
  * @param diffs - the hunks to render.
  * @returns the body rows, the +/- totals, and the distinct-file count.
  */
 function buildRows(diffs: DiffHunk[]): { rows: DiffRow[]; added: number; removed: number; files: number } {
   const rows: DiffRow[] = []
   const paths = new Set<string>()
-  let added = 0
-  let removed = 0
   let prevPath: string | undefined
   for (const diff of diffs) {
     paths.add(diff.path)
@@ -86,15 +102,13 @@ function buildRows(diffs: DiffHunk[]): { rows: DiffRow[]; added: number; removed
     if (diff.oldText !== null) {
       for (const line of contentLines(diff.oldText)) {
         rows.push({ kind: 'del', text: line })
-        removed++
       }
     }
     for (const line of contentLines(diff.newText)) {
       rows.push({ kind: 'add', text: line })
-      added++
     }
   }
-  return { rows, added, removed, files: paths.size }
+  return { rows, ...diffTotals(diffs), files: paths.size }
 }
 
 /**

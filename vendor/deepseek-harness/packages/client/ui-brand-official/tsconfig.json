@@ -15,9 +15,6 @@
       "path": "../ui-renderer"
     },
     {
-      "path": "../ui-conversation"
-    },
-    {
       "path": "../ui-primitives"
     },
     {

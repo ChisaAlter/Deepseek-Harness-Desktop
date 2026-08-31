@@ -51,7 +51,7 @@ Resume is `load` plus session preparation: the stored log comes back with its he
 
 ### Failures and recovery
 
-A stored log the current build cannot faithfully interpret is refused with a direction-aware error, never misread. `SESSION_FORMAT_VERSION` remains v0 and this build provides no format-migration path; a newer version instructs the operator to upgrade the harness. The decoder accepts only the bounded same-version record variants named below. Every event type unknown to this build refuses reconstruction, while committed-prefix corruption rejects as `SessionPersistenceCorruptionError` ([rationale](../../../.agents/notes/implemented/simplification/2026-08-25-fail-closed-session-event-vocabulary.md)). A `load` on an id still bound to a live session first flushes its snapshot and rejects while its turn is open; a cold load applies recovery.
+A stored log the current build cannot faithfully interpret is refused with a direction-aware error, never misread. `SESSION_FORMAT_VERSION` remains v0 and this build provides no format-migration path; a newer version instructs the operator to upgrade the harness. The decoder accepts only the bounded same-version record variants named below. An event type unknown to this build refuses unless its envelope marks it `ignorable`, and committed-prefix corruption rejects as `SessionPersistenceCorruptionError`. A `load` on an id still bound to a live session first flushes its snapshot and rejects while its turn is open; a cold load applies recovery.
 
 -----
 

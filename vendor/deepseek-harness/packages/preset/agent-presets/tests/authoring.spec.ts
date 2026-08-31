@@ -14,9 +14,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { beforeEach, describe, expect, it } from 'vitest'
 import AgentPresets, {
-  COMPOSITION_FILE, copyComposition, METADATA_FILE,
+  COMPOSITION_FILE, copyComposition, METADATA_FILE, type Config,
 } from '@deepseek-ai/dsh-agent-presets'
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
@@ -24,6 +25,12 @@ const VALID = '- id: tool-alpha\n  name: ../../plugins/contribute.js\n  config:\
 
 let ctx: Context
 let userRoot: string
+
+/** Mount the required projection seam before the roster service. */
+async function mountAgentPresets(context: Context, config: Config): Promise<void> {
+  await context.plugin(SessionProjectionRegistry)
+  await context.plugin(AgentPresets, config)
+}
 
 /** Hand-craft a preset directory (tests cannot author text through the service). */
 async function seedPreset(
@@ -46,7 +53,7 @@ beforeEach(async () => {
   ctx.baseUrl = pathToFileURL(FIXTURES).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
-  await ctx.plugin(AgentPresets, {
+  await mountAgentPresets(ctx, {
     default: 'standard',
     roots: [
       { path: join(FIXTURES, 'system'), trust: 'system' as const },
@@ -199,7 +206,7 @@ describe('a deployment with more than one user root', () => {
     layered.baseUrl = pathToFileURL(FIXTURES).href + '/'
     await layered.plugin(Loader)
     layered.loader.builtins.include = Include
-    await layered.plugin(AgentPresets, {
+    await mountAgentPresets(layered, {
       default: 'standard',
       roots: [
         { path: userRoot, trust: 'user' as const },
@@ -224,7 +231,7 @@ describe('a deployment with no writable root', () => {
     readOnly.baseUrl = pathToFileURL(FIXTURES).href + '/'
     await readOnly.plugin(Loader)
     readOnly.loader.builtins.include = Include
-    await readOnly.plugin(AgentPresets, {
+    await mountAgentPresets(readOnly, {
       default: 'standard',
       roots: [{ path: join(FIXTURES, 'system'), trust: 'system' as const }],
       includeShippedRoot: false,
@@ -244,7 +251,7 @@ describe('a user root that does not exist yet', () => {
     fresh.baseUrl = pathToFileURL(FIXTURES).href + '/'
     await fresh.plugin(Loader)
     fresh.loader.builtins.include = Include
-    await fresh.plugin(AgentPresets, {
+    await mountAgentPresets(fresh, {
       default: 'standard',
       roots: [
         { path: join(FIXTURES, 'system'), trust: 'system' as const },

@@ -118,7 +118,7 @@ The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-
 | [`src/mailbox.ts`](src/mailbox.ts) | Durable queue, target-local dispatch, acknowledgement, and recovery |
 | [`src/task-board.ts`](src/task-board.ts) | Task CAS commands, DAG validation, and derived views |
 | [`src/journal.ts`](src/journal.ts) | Serialized Lead-log transactions and commit notification |
-| [`src/fold.ts`](src/fold.ts) | Strict replay fold that decodes and validates Team events |
+| [`src/projection.ts`](src/projection.ts) | Strict replay projection that decodes and validates Team events |
 | [`src/activity.ts`](src/activity.ts) | One-shot change waiters and disposal release |
 | [`src/lifecycle.ts`](src/lifecycle.ts) | Shared admission cutoff and bounded settlement |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion that replays candidate events before append |

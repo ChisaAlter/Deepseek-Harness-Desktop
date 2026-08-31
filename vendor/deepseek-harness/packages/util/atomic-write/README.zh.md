@@ -36,7 +36,7 @@ declare const text: string
 await writeFileAtomic('/home/u/.dsh/settings.yaml', text, { mode: 0o600 })
 ```
 
-父目录会按需创建，读取方只会观察到旧内容或完整的新内容。任何失败都会移除临时文件并重新抛出该失败，因此一次失败的替换不会改动目标文件。
+父目录会按需创建，读取方只会观察到旧内容或完整的新内容。在 Windows 上，报告为 `EACCES`、`EBUSY` 或 `EPERM` 的瞬时替换干扰会在有界时间内重试；任何剩余失败都会移除临时文件，并保持目标文件不变。
 
 ### 协调写入方
 
@@ -79,7 +79,7 @@ await withFileLock('/home/u/.dsh/settings.yaml', async () => {
 
 ### 写入路径
 
-`writeFileAtomic` 先以独占创建（`wx`）打开一个随机后缀的同级文件并写入内容，然后 rename 到目标上。独占打开拒绝跟随预先埋在可猜测临时路径上的符号链接；同目录兄弟文件保证 rename 落在同一文件系统上；rename 替换的是符号链接目标本身，绝不写穿到其指向的文件。
+`writeFileAtomic` 先以独占创建（`wx`）打开一个随机后缀的同级文件并写入内容，然后 rename 到目标上。独占打开拒绝跟随预先埋在可猜测临时路径上的符号链接；同目录兄弟文件保证 rename 落在同一文件系统上；rename 替换的是符号链接目标本身，绝不写穿到其指向的文件。Windows 重试会保留同一份完整的兄弟文件，并采用有界指数退避，因此协作式写锁之外的软件瞬时占用目标时，不会让安全替换立即失败；[重试决策](../../../.agents/notes/implemented/bug-fix/2026-08-29-windows-atomic-replace-retry.zh.md)记录了理由与被拒绝的替代方案。
 
 `withFileLock` 以 `wx` 创建 `<filename>.lock` 同级文件。`EEXIST` 直接表示竞争；只有一次新的 `lstat` 确认锁路径存在时，`EPERM` 才表示竞争，从而兼容 Windows 的独占创建行为，又不掩盖无关的权限故障。锁记录创建者的 PID，由持有者在 `finally` 中移除；竞争按指数退避，在每次调用声明的 `waitMs` 期限（默认两秒）过后失败。
 

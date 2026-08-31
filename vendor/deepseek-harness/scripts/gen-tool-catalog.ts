@@ -489,7 +489,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(LocalJobRegistry)
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(SessionStore)
-      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(ToolSubagentControl)
       await ctx.plugin(ToolSubagentListAgents)
     },
@@ -690,6 +689,7 @@ export async function collectToolCatalog(packages: ToolPackage[] = TOOL_PACKAGES
     // plugins mounted still tears the context down (no leaked executor/provider
     // fiber) — the repo's "dispose must reach quiescence" rule.
     try {
+      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(SystemPrompt)
       await ctx.plugin(ToolRuntime, entry.toolsConfig ?? {})
       await entry.mount(ctx)

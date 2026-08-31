@@ -105,6 +105,7 @@ agent-presets:
 |---|---|
 | [`src/index.ts`](src/index.ts) | 服务入口：`Config` schema、settings 命名空间、名单 API、常驻挂载协调 |
 | [`src/discovery.ts`](src/discovery.ts) | 文件系统发现：根目录扫描、健康检查、id 校验、排序 |
+| [`src/composition-inventory.ts`](src/composition-inventory.ts) | 面向插件清单表面的压平组合行：文件读取（求值 disabled 门）与挂载读取（携带 fiber 状态） |
 | [`src/preset.ts`](src/preset.ts) | 词汇体系：preset id 规则、`AgentPreset` 与 `PresetRoot`、错误类型 |
 | [`src/mount.ts`](src/mount.ts) | 子树挂载、宿主 base-URL 处理、挂载审计、`write()` 抑制 |
 | [`src/authoring.ts`](src/authoring.ts) | 本地创作 preset 的复制/删除/读取、权限收紧 |
@@ -116,6 +117,10 @@ agent-presets:
 ### 常驻挂载
 
 `ensureStanding` 为每个 preset id 保留一个进行中的 promise（single-flight），因此两个竞争首次使用同一 preset 的 agent 共享一份组装。已结算的失败会被移除，以便后续会话重试文件已被修复的 preset。挂载运行在 roster 服务自己的未追踪上下文中——从被追踪上下文派生的子树会经调用方的 shadow fiber 解析服务——因此它比任何 agent 都活得久，只随整棵树卸载。`serviceForAgent` 读取某 agent 对其 preset 挂在 `isolate` realm 之后（组外不可见）的某个服务实例。
+
+### 组合清单
+
+`compositionInventory()` 向插件清单表面提供每个预设的压平行及其名单身份（id、trust、显示名、默认标记）：已有存活 standing mount 的预设由其最新世代的 Loader 条目作答——匹配限定在本运行时自己的 root 内，同进程里的第二个 Cordis 运行时不会替它作答；即使文件事后损坏也照常作答，因为挂载才是会话实际运行的组合，broken 裁决只适用于无人组合的预设——开机以来从未被组合的预设由其组合文件作答，`!!js` disabled 门用 Loader 上下文求值，使两种答案反映同一台宿主。读取从不挂载预设——列出所有组合的设置页不会激活其中任何一个。求值器拒绝的门保持 `'conditional'`；在发现的健康裁决与行读取之间变得不可读的文件，会携带竞态原因报告为 broken，而不是被静默丢弃。`./display` 子路径导出 `presetDisplayText` 纯函数，把内置预设 id 映射到各自的字典文案键；它没有任何 import，浏览器包直接内联，也是「哪个内置 id 对应哪份文案」的唯一归属地。
 
 ### 挂载审计
 

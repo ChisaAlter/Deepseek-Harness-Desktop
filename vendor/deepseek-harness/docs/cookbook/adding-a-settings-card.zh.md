@@ -8,17 +8,17 @@
 
 ## 1. 注册命名空间（Host 半侧）
 
-命名空间就是配对用的键，所以只挑一次，并在两个半侧都写出它。已经有 `cordis.yml` entry 的消费方应通过 `installSettingsSection` 注册——它把 entry 层叠在用户文档之下，并在没有挂载 settings provider 时照常工作：
+命名空间就是配对用的键，所以只挑一次，并在两个半侧都写出它。已经有 `cordis.yml` entry 的消费方应通过 `ctx.settings.installSection()` 注册——它把 entry 层叠在用户文档之下，并在没有挂载 settings provider 时照常工作：
 
 ```ts
 import type { Context } from '@deepseek-ai/cordis'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 
 declare function assertReachable(endpoint: string | undefined): void
 declare function rebuildFromSettings(config: Config): void
 
-export const MY_PLUGIN_NS = settingsNamespace('my-plugin')
+export const MY_PLUGIN_NS = 'my-plugin'
 
 export interface Config {
   endpoint?: string
@@ -32,11 +32,13 @@ export const Config: z<Config> = z.object({
 
 export function apply(ctx: Context, config: Config) {
   let source = () => config
-  installSettingsSection(ctx, MY_PLUGIN_NS, Config, config, {
-    // Constraints the schema cannot express refuse the write, not the next use.
-    validate: value => void assertReachable(value.endpoint),
-    setSource: (current) => { source = current },
-    onChange: () => { rebuildFromSettings(source()) },
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, MY_PLUGIN_NS, Config, config, {
+      // Constraints the schema cannot express refuse the write, not the next use.
+      validate: value => void assertReachable(value.endpoint),
+      setSource: (current) => { source = current },
+      onChange: () => { rebuildFromSettings(source()) },
+    })
   })
 }
 ```

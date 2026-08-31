@@ -67,7 +67,7 @@ interface PositionedCandidate {
  * live-preferred merge of `ctx.sessions` and optional session persistence,
  * serving each identity from the `subagent` projection unit: the registry's
  * watermark snapshot for a live child; for a cold one, a durable
- * projection-cache row when it serves an own-suffix identity (the seq gate),
+ * projection-cache read when it serves an own-suffix identity (the seq gate),
  * else one bounded-concurrency shared Session observation.
  * @see SubagentRuntime.listChildren for the public cancellation and failure contract.
  * @param ctx - context carrying the session store, the projection registry,

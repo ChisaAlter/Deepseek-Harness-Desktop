@@ -4,7 +4,9 @@
     "rootDir": "src",
     "outDir": "lib/types"
   },
-  "include": ["src"],
+  "include": [
+    "src"
+  ],
   "references": [
     {
       "path": "../../../vendor/cosmokit"
@@ -32,6 +34,9 @@
     },
     {
       "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-projection"
     }
   ]
 }

@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CommandResult } from '@deepseek-ai/dsh-commands/types'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
+import { RemoteError, TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ClientSessionContext, ConsumeTokenRequest, InputTriggerPick, InputTriggerSource, SubmitImageAttachment } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { CommandContribution, CommandDecoration, CommandUiSpec, SelectOption } from '../src/client/contract.ts'
 import type { CommandDescriptor } from '../src/client/directory.ts'
@@ -45,8 +45,8 @@ interface BenchOptions {
 
 /**
  * Fold one programmed answer into the generated Remote face's outcome: a
- * resolved value is the ok branch, a rejection is the transport failure the
- * carrier reports in the error branch instead of throwing at the caller.
+ * resolved value is the ok branch, a rejection is the carrier failure the
+ * Remote face reports in the error branch instead of throwing at the caller.
  * @param produce - the scripted answer for one Remote method.
  * @returns the carried result the service reads.
  */
@@ -56,11 +56,7 @@ async function carried<T>(produce: () => Promise<T>) {
   } catch (error) {
     return {
       ok: false as const,
-      error: {
-        code: 'internal',
-        message: error instanceof Error ? error.message : String(error),
-        details: {},
-      },
+      error: new RemoteError('gateway/internal', error instanceof Error ? error.message : String(error), {}),
     }
   }
 }
@@ -676,7 +672,7 @@ describe('detached admission notices', () => {
     expect(notices).toEqual([{
       scope: sid('s1'),
       level: 'error',
-      text: 'command.execute failed: internal: network down',
+      text: 'command.execute failed: gateway/internal: network down',
     }])
   })
 

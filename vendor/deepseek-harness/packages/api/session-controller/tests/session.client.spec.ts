@@ -1,11 +1,12 @@
 /** Session object lifecycle, event-window transport, commands, and resync behavior. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RemoteStreamError } from '@deepseek-ai/dsh-api-gateway/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import { RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { Session, type SessionOptions } from '../src/client/sessions/session.ts'
-import { FakeApiClient, deferred, err, fakeRemote, ok, remoteErr } from './fake-api.client.ts'
+import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 import { entries, ev, historyValue, plainTurn } from './event-script.client.ts'
 
 const SID = 'fk-s1' as SessionId
@@ -76,21 +77,57 @@ describe('Session open', () => {
     expect(api.callsOf('session.history')).toEqual([])
   })
 
-  it('lands an error result in openState=error with the RpcError kept', async () => {
+  it('lands an error result in openState=error with the Remote failure kept', async () => {
     const { api, session } = makeSession()
-    api.onHistory = () => Promise.resolve(err({ code: 'session-not-found', message: 'gone', details: { sessionId: SID } }))
+    api.onHistory = () => Promise.resolve(err(new RemoteError('session/not-found', 'gone', { sessionId: SID })))
     await session.open()
     const snapshot = session.getSnapshot()
     expect(snapshot.openState).toBe('error')
-    expect(snapshot.openError?.code).toBe('session-not-found')
+    expect(snapshot.openError?.code).toBe('session/not-found')
   })
 
-  it('folds a transport throw into openState=error / internal', async () => {
+  it('lands exhausted carrier retries in openState=error as gateway/internal', async () => {
+    const { api, session } = makeSession()
+    // Two consecutive carrier losses before any opening is accepted exhaust the
+    // Gateway's retry budget; the escaping failure crosses the stream boundary marked.
+    api.onHistory = () => Promise.reject(new RemoteStreamCarrierError('history carrier down'))
+    await session.open()
+    expect(session.getSnapshot().openState).toBe('error')
+    expect(session.getSnapshot().openError).toMatchObject({
+      code: 'gateway/internal', message: 'history carrier down',
+    })
+    expect(api.followStarts).toHaveLength(2)
+  })
+
+  it('lands a packed live record in openState=error instead of crashing the stream loop', async () => {
+    const { api, session } = makeSession()
+    api.onHistory = () => histResponse(plainTurn(0, 0, 'a', 'b'))
+    await session.open()
+    expect(session.getSnapshot().openState).toBe('open')
+
+    // The live tail may carry only events; a packed record breaks that contract.
+    await api.pushFollow(SID, {
+      type: 'chunks',
+      event: {
+        type: 'chunkrow/text-chunks',
+        seq: 6,
+        time: 6,
+        data: { turn: 1, step: 1, index: 0, texts: ['a'], dt: [] },
+      },
+    } as never)
+
+    await vi.waitFor(() => { expect(session.getSnapshot().openState).toBe('error') })
+    expect(session.getSnapshot().openError).toMatchObject({
+      code: 'gateway/internal', message: 'session live stream emitted a packed history record',
+    })
+  })
+
+  it('lands a Gateway-marked stream failure in openState=error', async () => {
     const { api, session } = makeSession()
     api.onHistory = () => Promise.reject(new Error('socket died'))
     await session.open()
     expect(session.getSnapshot().openState).toBe('error')
-    expect(session.getSnapshot().openError).toMatchObject({ code: 'internal', message: 'socket died' })
+    expect(session.getSnapshot().openError).toMatchObject({ code: 'gateway/internal', message: 'socket died' })
   })
 
   it('stitches live frames arriving while history is pending, dropping the page overlap', async () => {
@@ -283,23 +320,24 @@ describe('prompt and cancel errors', () => {
 
   it('lands an interrupt business failure in promptError with op=stop', async () => {
     const api = new FakeApiClient()
-    api.onSubagentInterrupt = () => Promise.resolve(remoteErr({
-      code: 'subagent-unauthorized', message: 'nope', details: { childSessionId: SID },
-    }))
+    api.onSubagentInterrupt = () => Promise.resolve(err(new RemoteError('subagent/unauthorized', 'nope', { childSessionId: SID })))
     const session = new Session(SID, fakeRemote(api), {
       address: { parentSessionId: PARENT, childSessionId: SID, mode: 'continuable' },
       parentAvailable: true,
     })
     await session.open()
     const cancelled = await session.cancel()
-    expect(cancelled).toMatchObject({ ok: false, error: { code: 'subagent-unauthorized' } })
+    expect(cancelled).toMatchObject({ ok: false, error: { code: 'subagent/unauthorized' } })
     expect(session.getSnapshot().promptError).toMatchObject({
-      op: 'stop', error: { code: 'subagent-unauthorized' },
+      op: 'stop', error: { code: 'subagent/unauthorized' },
     })
   })
 
-  it('keeps one-shot history readable without exposing prompt or cancel transport', async () => {
+  it('sends a one-shot address to the Host under the continuable marker', async () => {
     const api = new FakeApiClient()
+    api.onSubagentPrompt = () => Promise.resolve(err(new RemoteError(
+      'subagent/not-resumable', 'subagent cannot be resumed', { childSessionId: SID },
+    )))
     const session = new Session(SID, fakeRemote(api), {
       address: { parentSessionId: PARENT, childSessionId: SID, mode: 'one-shot' },
     })
@@ -307,8 +345,15 @@ describe('prompt and cancel errors', () => {
     const prompted = await session.prompt([{ type: 'text', text: '继续' }], 'queue')
     const cancelled = await session.cancel()
 
-    expect(prompted).toMatchObject({ ok: false, error: { code: 'subagent-not-resumable' } })
-    expect(cancelled).toMatchObject({ ok: false, error: { code: 'subagent-delivery-unavailable' } })
+    // The Host reads the durable descriptor; the wire marker stays 'continuable'.
+    expect(prompted).toMatchObject({ ok: false, error: { code: 'subagent/not-resumable' } })
+    expect(cancelled).toEqual({ ok: true, value: { accepted: true } })
+    expect(api.callsOf('subagents.prompt')).toMatchObject([
+      { parentSessionId: PARENT, childSessionId: SID, mode: 'continuable' },
+    ])
+    expect(api.callsOf('subagents.interruptByParent')).toEqual([
+      { childSessionId: SID, parentSessionId: PARENT, mode: 'continuable' },
+    ])
     expect(api.callsOf('session.follow')).toEqual([
       {
         address: {
@@ -318,9 +363,33 @@ describe('prompt and cancel errors', () => {
       },
     ])
     expect(api.callsOf('subagent.history')).toEqual([])
-    expect(api.callsOf('subagents.prompt')).toEqual([])
-    expect(api.callsOf('subagents.interruptByParent')).toEqual([])
     expect(api.callsOf('session.cancel')).toEqual([])
+  })
+
+  it('delivers an image continuation to the Host, which refuses it', async () => {
+    const api = new FakeApiClient()
+    api.onSubagentPrompt = () => Promise.resolve(err(new RemoteError(
+      'subagent/attachment-unsupported',
+      'subagent continuation does not accept images',
+      { childSessionId: SID, reason: 'SUBAGENT_IMAGE_UNSUPPORTED' },
+    )))
+    const session = new Session(SID, fakeRemote(api), {
+      address: { parentSessionId: PARENT, childSessionId: SID, mode: 'continuable' },
+    })
+    await session.open()
+    const prompted = await session.prompt(
+      [{ type: 'text', text: '看图' }, { type: 'image', mediaType: 'image/png', data: 'AA==' }],
+      'queue',
+    )
+
+    expect(prompted).toMatchObject({
+      ok: false,
+      error: { code: 'subagent/attachment-unsupported', details: { reason: 'SUBAGENT_IMAGE_UNSUPPORTED' } },
+    })
+    // The image reaches the wire unfiltered: refusing it is the Host's call.
+    expect(api.callsOf('subagents.prompt')).toMatchObject([
+      { content: [{ type: 'text' }, { type: 'image', mediaType: 'image/png', data: 'AA==' }] },
+    ])
   })
 
   it('publishes the first-prompt lifecycle synchronously before the Remote settles', async () => {
@@ -351,21 +420,20 @@ describe('prompt and cancel errors', () => {
   it('keeps the attempted-first-prompt state when the Host rejects the prompt', async () => {
     const { api, session } = makeSession()
     session.handleBlank(true)
-    api.onPrompt = () => Promise.resolve(err({ code: 'agent-busy', message: 'busy', details: { reason: 'x' } }))
+    api.onPrompt = () => Promise.resolve(err(new RemoteError('session/agent-busy', 'busy', { reason: 'x' })))
     const result = await session.prompt([{ type: 'text', text: '失败的' }], 'queue')
     expect(result.ok).toBe(false)
-    expect(session.getSnapshot().promptError).toMatchObject({ op: 'send', error: { code: 'agent-busy' } })
+    expect(session.getSnapshot().promptError).toMatchObject({ op: 'send', error: { code: 'session/agent-busy' } })
     expect(session.getSnapshot()).toMatchObject({
       blank: true, promptAttempted: true, awaitingFirstTurn: true,
     })
   })
 
-  it('lands cancel failures in promptError with op=stop', async () => {
+  it('propagates a non-Remote throw raised while cancelling', async () => {
     const { api, session } = makeSession()
     api.onCancel = () => Promise.reject(new Error('cancel transport down'))
-    const result = await session.cancel()
-    expect(result.ok).toBe(false)
-    expect(session.getSnapshot().promptError).toMatchObject({ op: 'stop', error: { code: 'internal' } })
+    await expect(session.cancel()).rejects.toThrow('cancel transport down')
+    expect(session.getSnapshot().promptError).toBeNull()
   })
 
   it('reads session-authorized attachment bytes and keeps the opaque id on the wire', async () => {
@@ -400,32 +468,28 @@ describe('rename', () => {
 
   it('returns the business error untouched and folds a transport throw to internal', async () => {
     const { api, session } = makeSession()
-    api.onRename = () => Promise.resolve(err({
-      code: 'title-invalid', message: 'empty', details: { sessionId: SID },
-    } as never))
+    api.onRename = () => Promise.resolve(err(new RemoteError('session/title-invalid', 'empty', { sessionId: SID })))
     const rejected = await session.rename('   ')
-    expect(rejected).toMatchObject({ ok: false, error: { code: 'title-invalid' } })
+    expect(rejected).toMatchObject({ ok: false, error: { code: 'session/title-invalid' } })
     expect(session.projections.faceOf('title').getSnapshot()).toBeUndefined()
     api.onRename = () => Promise.reject(new Error('rename transport down'))
-    const folded = await session.rename('x')
-    expect(folded).toMatchObject({ ok: false, error: { code: 'internal' } })
+    await expect(session.rename('x')).rejects.toThrow('rename transport down')
   })
 })
 
 describe('remaining branches', () => {
-  it('prompt transport throw folds to internal promptError', async () => {
+  it('propagates a non-Remote throw raised while prompting', async () => {
     const { api, session } = makeSession()
     api.onPrompt = () => Promise.reject(new Error('prompt wire down'))
-    const result = await session.prompt([{ type: 'text', text: 'x' }], 'queue')
-    expect(result.ok).toBe(false)
-    expect(session.getSnapshot().promptError).toMatchObject({ op: 'send', error: { code: 'internal', message: 'prompt wire down' } })
+    await expect(session.prompt([{ type: 'text', text: 'x' }], 'queue')).rejects.toThrow('prompt wire down')
+    expect(session.getSnapshot().promptError).toBeNull()
   })
 
   it('cancel business error also lands op=stop promptError', async () => {
     const { api, session } = makeSession()
-    api.onCancel = () => Promise.resolve(err({ code: 'agent-busy', message: 'nope', details: { reason: 'r' } }))
+    api.onCancel = () => Promise.resolve(err(new RemoteError('session/agent-busy', 'nope', { reason: 'r' })))
     await session.cancel()
-    expect(session.getSnapshot().promptError).toMatchObject({ op: 'stop', error: { code: 'agent-busy' } })
+    expect(session.getSnapshot().promptError).toMatchObject({ op: 'stop', error: { code: 'session/agent-busy' } })
   })
 
   it('loadOlder guards: not-open/no-hasMore no-op, err result kept window, empty page updates hasMore, throw fail-soft', async () => {
@@ -435,7 +499,7 @@ describe('remaining branches', () => {
     api.onHistory = () => histResponse(plainTurn(6, 1, 'x', 'y'), true)
     await session.open()
     // err result: window unchanged
-    api.onHistory = () => Promise.resolve(err({ code: 'internal', message: 'x', details: {} }))
+    api.onHistory = () => Promise.resolve(err(new RemoteError('gateway/internal', 'x', {})))
     await session.loadOlder()
     expect(eventSeqs(session)).toHaveLength(6)
     expect(session.getSnapshot().hasMore).toBe(true)
@@ -490,7 +554,7 @@ describe('remaining branches', () => {
     const snapshot = session.getSnapshot()
     expect(snapshot.openState).toBe('error')
     expect(snapshot.openError).toMatchObject({
-      code: 'internal', message: 'session event stream page did not end at its requested cursor',
+      code: 'gateway/internal', message: 'session event stream page did not end at its requested cursor',
     })
     expect(eventSeqs(session)).toEqual([])
   })
@@ -508,7 +572,7 @@ describe('remaining branches', () => {
     const { api, session } = makeSession()
     await follow(api, ev.user(0, '冷态帧'))
     expect(eventSeqs(session)).toEqual([])
-    api.onHistory = () => Promise.resolve(err({ code: 'internal', message: 'x', details: {} }))
+    api.onHistory = () => Promise.resolve(err(new RemoteError('gateway/internal', 'x', {})))
     await session.open()
     await follow(api, ev.user(0, '错态帧'))
     expect(eventSeqs(session)).toEqual([])
@@ -518,16 +582,14 @@ describe('remaining branches', () => {
     const { api, session } = makeSession()
     api.onHistory = () => histResponse(plainTurn(0, 0, 'a', 'b'))
     await session.open()
-    const failure = {
-      code: 'session-not-found',
-      message: 'session disappeared',
-      details: { sessionId: SID },
-    }
+    const failure = new RemoteError('session/not-found', 'session disappeared', { sessionId: SID })
 
-    api.failStreams(new RemoteStreamError(failure.code, failure.message, failure.details))
+    api.failStreams(failure)
     await vi.waitFor(() => { expect(session.getSnapshot().openState).toBe('error') })
 
-    expect(session.getSnapshot().openError).toEqual(failure)
+    expect(session.getSnapshot().openError).toMatchObject({
+      code: failure.code, message: failure.message, details: failure.details,
+    })
   })
 
   it('coalesces queued gap frames behind one repair and exposes a failed repair', async () => {
@@ -545,10 +607,10 @@ describe('remaining branches', () => {
       follow(api, ev.user(10, '洞二')),
     ])
     await vi.waitFor(() => { expect(repairs).toBe(1) })
-    gate.reject(new Error('repair wire down'))
+    gate.reject(new RemoteError('gateway/internal', 'repair wire down', {}))
     await deliveries
     await vi.waitFor(() => { expect(session.getSnapshot().openState).toBe('error') })
-    expect(session.getSnapshot().openError).toMatchObject({ code: 'internal', message: 'repair wire down' })
+    expect(session.getSnapshot().openError).toMatchObject({ code: 'gateway/internal', message: 'repair wire down' })
     expect(eventSeqs(session)).toHaveLength(6)
   })
 

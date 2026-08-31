@@ -1,11 +1,17 @@
 /** Cursor, page, and live-tail coordination over a reconnecting Remote stream. */
 
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { RemoteStreamCarrierError } from './stream-client.ts'
 import type {
   RemoteStream,
   RemoteStreamItem,
   RemoteStreamOptions,
 } from './remote-stream.ts'
+
+/** Host-side stream protocol violation, marked so consumers surface it as an error state. */
+function protocolViolation(message: string): RemoteError<'gateway/internal'> {
+  return new RemoteError('gateway/internal', message, {})
+}
 
 /** Transport-neutral opening snapshot or journal entry. */
 export type RemoteJournalFrame<Entry, Cursor, Page> =
@@ -100,7 +106,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       open: signal => this.follow(this.initialRequest, signal),
       ended: accepted => accepted
         ? new RemoteStreamCarrierError(`${options.name} ended without a terminal result`)
-        : new Error(
+        : protocolViolation(
           `${this.hasResumeCursor ? 'resumed ' : ''}${options.name} ended before its opening cursor`,
         ),
       ...(options.carrierFailed === undefined
@@ -153,7 +159,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     const iterator = this.stream[Symbol.asyncIterator]()
     try {
       const first = await this.takeNext(iterator)
-      if (first.done) throw new Error(`${this.options.name} ended before its opening cursor`)
+      if (first.done) throw protocolViolation(`${this.options.name} ended before its opening cursor`)
       this.replaceGeneration(first.value, false)
       this.opened = true
       this.done = this.consume(iterator)
@@ -182,7 +188,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     if (tail !== undefined && before !== undefined
       && !this.options.follows(this.options.last(tail), before)) {
       this.options.publish({ type: 'prepend', page, entries: [], hasMore: false })
-      throw new Error(`${this.options.name} history page is discontinuous`)
+      throw protocolViolation(`${this.options.name} history page is discontinuous`)
     }
     const first = accepted[0]
     if (first !== undefined) this.firstCursor = this.options.first(first)
@@ -228,7 +234,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
           continue
         }
         if (item.value.type === 'opened') {
-          throw new Error(`${this.options.name} emitted more than one opening cursor`)
+          throw protocolViolation(`${this.options.name} emitted more than one opening cursor`)
         }
         await this.acceptEntry(item.value.entry, item, iterator)
       }
@@ -250,12 +256,12 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     resumed: boolean,
   ): { readonly cursor: Cursor; readonly page: Page } {
     if (item.value.type !== 'opened') {
-      throw new Error(`${resumed ? 'resumed ' : ''}${this.options.name} emitted an entry before its opening cursor`)
+      throw protocolViolation(`${resumed ? 'resumed ' : ''}${this.options.name} emitted an entry before its opening cursor`)
     }
     const cursor = item.value.cursor
     if (resumed && this.lastCursor !== undefined
       && this.options.compare(cursor, this.lastCursor) < 0) {
-      throw new Error(
+      throw protocolViolation(
         `${this.options.name} resumed at a cursor behind the last applied entry`,
       )
     }
@@ -290,7 +296,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     const last = this.lastCursor as Cursor
     if (this.options.compare(cursor, last) <= 0) return
     if (this.options.compare(first, last) <= 0) {
-      throw new Error(`${this.options.name} emitted a partially overlapping entry`)
+      throw protocolViolation(`${this.options.name} emitted a partially overlapping entry`)
     }
     if (!this.options.follows(last, first)) {
       const request = this.repairPageRequest()
@@ -350,7 +356,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       target = this.maxCursor(requiredCursor, queued)
     }
     if (entries === undefined || this.options.compare(this.tailCursor(entries), target) < 0) {
-      throw new Error(`${this.options.name} page did not reach its opening cursor`)
+      throw protocolViolation(`${this.options.name} page did not reach its opening cursor`)
     }
     const first = entries[0]
     /* v8 ignore next -- a successful positive-cursor replacement page cannot be empty. */
@@ -400,12 +406,12 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       if (result.type === 'next-error') throw result.error
       if (result.value.done) {
         signal.throwIfAborted()
-        throw new Error(`${this.options.name} ended while reading its replacement page`)
+        throw protocolViolation(`${this.options.name} ended while reading its replacement page`)
       }
       const item = result.value.value
       if (item.generation !== generation) return { type: 'superseded', item }
       if (item.value.type === 'opened') {
-        throw new Error(`${this.options.name} emitted more than one opening cursor`)
+        throw protocolViolation(`${this.options.name} emitted more than one opening cursor`)
       }
       queued.push(item.value.entry)
     }
@@ -426,12 +432,12 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       }
       if (next.done) {
         this.stream.signal.throwIfAborted()
-        throw new Error(`${this.options.name} ended while replacing an aborted page generation`)
+        throw protocolViolation(`${this.options.name} ended while replacing an aborted page generation`)
       }
       const item = next.value
       if (item.generation !== generation) return { type: 'superseded', item }
       if (item.value.type === 'opened') {
-        throw new Error(`${this.options.name} emitted more than one opening cursor`)
+        throw protocolViolation(`${this.options.name} emitted more than one opening cursor`)
       }
       pending = this.nextResult(iterator)
     }
@@ -450,7 +456,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
       const last = this.options.last(entry)
       if (this.options.compare(last, tail) <= 0) continue
       if (this.options.compare(first, tail) <= 0) {
-        throw new Error(`${this.options.name} replacement contains a partially overlapping entry`)
+        throw protocolViolation(`${this.options.name} replacement contains a partially overlapping entry`)
       }
       if (!this.options.follows(tail, first)) return undefined
       entries.push(entry)
@@ -516,7 +522,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     for (const entry of iterator) {
       const range = this.entryRange(entry)
       if (!this.options.follows(previousRange.last, range.first)) {
-        throw new Error(`${this.options.name} page contains discontinuous entries`)
+        throw protocolViolation(`${this.options.name} page contains discontinuous entries`)
       }
       previousRange = range
     }
@@ -526,7 +532,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
     const first = this.options.first(entry)
     const last = this.options.last(entry)
     if (this.options.compare(first, last) > 0) {
-      throw new Error(`${this.options.name} entry has an inverted cursor range`)
+      throw protocolViolation(`${this.options.name} entry has an inverted cursor range`)
     }
     return { first, last }
   }
@@ -534,7 +540,7 @@ export abstract class RemoteJournalStream<Page, Entry, Cursor, PageRequest = voi
   private assertPageThrough(page: Page, through: Cursor): void {
     const tail = this.tailCursor(this.options.entries(page))
     if (this.options.compare(tail, through) !== 0) {
-      throw new Error(`${this.options.name} page did not end at its requested cursor`)
+      throw protocolViolation(`${this.options.name} page did not end at its requested cursor`)
     }
   }
 }

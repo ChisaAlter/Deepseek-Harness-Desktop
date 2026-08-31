@@ -1,13 +1,17 @@
 /** Registers the right-panel surfaces shell into the layout-owned column. */
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { en, NS, zh, type SurfacesKey } from './locales.ts'
-import { wrapOpenPath } from './openpath-intercept.ts'
+import { wrapOpenPath, type OpenPathService } from './openpath-intercept.ts'
 import { relativeTo } from './paths.ts'
 import { createSurfacesStore } from './stores.ts'
 import type { SurfacesRootInjected } from './SurfacesRoot.tsx'
 import { SurfacesRoot } from './SurfacesRoot.tsx'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 
 export type { SurfacesRootInjected, SurfacesRootProps } from './SurfacesRoot.tsx'
 export type { SurfacesKey } from './locales.ts'
@@ -196,7 +200,7 @@ export const inject = ['slots', 'layout', 'locale', 'workspaces', 'sessions']
  * on desktop.
  * @param ctx - Client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-surfaces: dictionaries')
   ctx.effect(() => subscribeOpenPreviewUrl(), 'ui-surfaces: open-preview-url')
 
@@ -228,7 +232,7 @@ export function apply(ctx: ClientContext): void {
     },
   }, SurfacesRoot))
 
-  ctx.effect(() => wrapOpenPath(ctx.workspaces, {
+  ctx.effect(() => wrapOpenPath(ctx.workspaces as Partial<OpenPathService>, {
     takeoverEnabled: desktopListingAvailable,
     currentSessionId: () => ctx.sessions.list.getSnapshot().current,
     openInSurfaces: async (path, sessionId, options) => {

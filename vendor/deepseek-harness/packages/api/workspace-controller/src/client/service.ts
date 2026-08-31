@@ -11,7 +11,7 @@ import type { ClientWorkspaceModel, WorkspaceSnapshot } from './model.ts'
 export class WorkspaceCreateError extends Error {
   override readonly name = 'WorkspaceCreateError'
 
-  /** @param rpcError - Host business or folded transport failure. */
+  /** @param rpcError - Host business or folded carrier failure. */
   constructor(readonly rpcError: RemoteFailure) {
     super(`workspace create failed: ${rpcError.code}: ${rpcError.message}`)
   }
@@ -62,6 +62,16 @@ export interface IWorkspaces {
    * @param sessionId - Session to archive.
    */
   archiveSession(sessionId: SessionId): Promise<void>
+  /**
+   * Restore a Session to Workspace grouping surfaces.
+   * @param sessionId - Session to unarchive.
+   */
+  unarchiveSession(sessionId: SessionId): Promise<void>
+  /**
+   * Install a complete archive-set echo without a Workspace Remote round trip.
+   * @param archivedSessionIds - Host archive set after session.delete.
+   */
+  applyArchivedEcho(archivedSessionIds: readonly SessionId[]): void
   /**
    * Move a Session within one Workspace account.
    * @param workspaceId - owning Workspace.
@@ -114,6 +124,15 @@ export class WorkspaceController extends Service implements IWorkspaces {
   async archiveSession(sessionId: SessionId): Promise<void> {
     const result = await this.model.archiveSession(sessionId)
     if (!result.ok) throw commandError('session archive', result.error)
+  }
+
+  async unarchiveSession(sessionId: SessionId): Promise<void> {
+    const result = await this.model.unarchiveSession(sessionId)
+    if (!result.ok) throw commandError('session unarchive', result.error)
+  }
+
+  applyArchivedEcho(archivedSessionIds: readonly SessionId[]): void {
+    this.model.applyArchivedEcho(archivedSessionIds)
   }
 
   async insertSessionBefore(

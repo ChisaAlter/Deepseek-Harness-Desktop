@@ -13,6 +13,7 @@ import Timer from '@deepseek-ai/cordis-plugin-timer'
 import z from '@deepseek-ai/schemastery'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import SessionStore from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService, { type Config as SessionTitleConfig } from '@deepseek-ai/dsh-session-title'
 import SystemPrompt, { type Config as SystemPromptConfig } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type Config as ToolsConfig } from '@deepseek-ai/dsh-tools'
@@ -221,6 +222,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.plugin(Timer)
   ctx.plugin(LlmRuntime)
   ctx.plugin(SessionStore)
+  ctx.plugin(SessionProjectionRegistry)
   ctx.plugin(SessionTitleService, config.sessionTitle ?? EXAMPLE_SESSION_TITLE_CONFIG)
   // Owner schemas resolve defaults; forward toolOrder only when explicitly set.
   ctx.plugin(SystemPrompt, {

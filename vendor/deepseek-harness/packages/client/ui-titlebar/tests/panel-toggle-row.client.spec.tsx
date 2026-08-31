@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SurfacesToggleRow, TerminalToggleRow } from '../src/client/PanelToggleRow.tsx'
 import type { PanelToggleRowProps } from '../src/client/PanelToggleRow.tsx'
 import { en } from '../src/client/locales.ts'
@@ -20,6 +20,7 @@ function props(opts: { visible?: boolean; writable?: boolean } = {}): {
     setVisible,
     value: {
       useSessions: unused,
+      useSessionPendingInteraction: unused,
       useWorkspaces: unused,
       useVisible: bindSnapshotSelector(createSnapshotStore(opts.visible ?? true)),
       useWritable: bindSnapshotSelector(createSnapshotStore(opts.writable ?? true)),

@@ -87,15 +87,15 @@ kind: "package-reference"
 
 ### 读取侧与 `custom`
 
-`current(events)` 在组合默认值（`ctx.shell.sandboxMode` 与审批配置）之上折叠三个全量值旋钮事件。仍匹配的最近选择在共享捆绑时胜出；否则表中第一个匹配项胜出；否则返回推导出的 `CUSTOM_PRESET`。`permissions` 投影单元逐事件应用同一折叠，并向客户端提供选择器。
+`current(session)` 读取 `permissions` 投影；该单元在组合默认值（`ctx.shell.sandboxMode` 与审批配置）之上折叠三个全量值旋钮事件。host 状态还会保留 `session/end-seed` 是否已经出现，使会话固定无需重扫日志即可区分显式为空的恢复 seed 与真正的新会话。仍匹配的最近选择在共享捆绑时胜出；否则表中第一个匹配项胜出；否则返回推导出的 `CUSTOM_PRESET`。注册表或投影 key 缺失时会显式失败。
 
 ### 会话固定与空白复用
 
-挂载时会固定所有存活与未来的会话：真正全新的会话获得默认预设与两个旋钮事实，而 seed 会话或部分初始化的会话保留其有效旋钮值，只补充缺失的持久事实。
+挂载时会固定所有存活与未来的会话：真正全新的会话获得默认预设与两个旋钮事实，而 seed 会话或部分初始化的会话保留其有效旋钮值，只补充缺失的持久事实。投影自有的 seed 标记让该判断与旋钮值共用同一份增量状态。
 
 ### 可选子功能
 
-`permissions` 投影单元仅在组合了 `ctx.sessionProjections` 注册表时注册；`/permission` 命令仅在组合了 `ctx.commands` 注册表时注册。两者都未组合的无头装配不受影响。
+`permissions` 投影单元仅在组合了 `ctx.sessionProjections` 注册表时注册；`/permission` 命令仅在组合了 `ctx.commands` 注册表时注册。派生当前预设或固定初始选择的调用要求该投影存在，缺少注册表或 key 时会显式失败。
 
 </details>
 

@@ -21,7 +21,7 @@
       "path": "../../util/brand"
     },
     {
-      "path": "../../core/session"
+      "path": "../../util/values"
     },
     {
       "path": "../../runtime-diagnostics/invariants"

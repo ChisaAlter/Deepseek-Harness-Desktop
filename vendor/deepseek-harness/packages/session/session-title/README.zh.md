@@ -58,7 +58,7 @@ kind: "package-reference"
 
 ### 读取标题
 
-`get(session)` 从活跃或回放日志折叠最新已接受标题，`foldSessionTitle(events)` 是对日志的纯折叠。服务还会在组合了投影注册表时注册一个 `title` 投影单元——纯标题字符串——供客户端列表行使用。显式 `refresh(session)` 在需要时物化回退，然后对当前符合条件的消息显式运行已注册提供方。
+`get(session)` 从活跃或回放会话读取折叠出的最新标题，`foldSessionTitle(events)` 是对日志的纯折叠。服务要求 `ctx.sessionProjections` 并注册两个单元：客户端可见的 `title` 单元（供客户端列表行使用的已接受标题字符串）和仅供 host 使用的 `titleInput` 单元——后者折叠第一条与最新一条合格消息及其计数，使调度与回退读取通过 `stateOf()` 达到 O(1)；某次提供方生成所需的完整合格前缀，则会在执行时从会话日志中扫描取得。显式 `refresh(session)` 在需要时物化回退，然后对当前符合条件的消息显式运行已注册提供方。
 
 ### 失败与恢复
 

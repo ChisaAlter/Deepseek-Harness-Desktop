@@ -188,7 +188,9 @@
   position: sticky;
   bottom: 16px;
   /* Above the sticky composer (z-index 7) so the control stays clickable and
-     visible over the input card. */
+     visible over the input card. Exception: while an @/slash menu is open the
+     seat lifts to 9 (ui-conversation ConversationRoot) so the menu is never
+     covered by this control. */
   z-index: 8;
   height: 0;
   display: flex;

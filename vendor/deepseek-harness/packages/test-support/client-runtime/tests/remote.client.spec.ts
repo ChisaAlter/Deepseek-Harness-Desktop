@@ -74,7 +74,7 @@ describe('scriptedSettingsRemote', () => {
     await expect(remote.settings.update('first', {}, undefined)).resolves.toEqual({ ok: true, value: first })
     await expect(remote.settings.replace('missing', {}, undefined)).resolves.toMatchObject({
       ok: false,
-      error: { code: 'settings-rejected', details: { ns: 'missing' } },
+      error: { code: 'settings/rejected', details: { ns: 'missing' } },
     })
     await expect(remote.settings.mutate('first', [], undefined)).resolves.toEqual({ ok: true, value: first })
     expect(remote.update).toHaveBeenCalledWith('first', {}, undefined)

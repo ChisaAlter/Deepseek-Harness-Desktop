@@ -6,7 +6,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   TeamTaskId, TeamTaskView as TeamTask, TeamView,
 } from '@deepseek-ai/dsh-experimental-agent-team/client'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import {
   TeamAction, type TeamActionInjected, type TeamActionProps, type TeamActionResult,
@@ -64,8 +64,8 @@ function taskRejected(message: string): TeamTaskActionResult {
   }
 }
 
-function remoteFailure(message: string): { ok: false; error: { code: 'internal'; message: string; details: {} } } {
-  return { ok: false, error: { code: 'internal', message, details: {} } }
+function remoteFailure(message: string): TeamActionResult<never> {
+  return { ok: false, error: new RemoteError('gateway/internal', message, {}) }
 }
 
 function props(actions: TeamActionInjected, sessionId: SessionId = SESSION): TeamActionProps {
@@ -443,7 +443,7 @@ describe('TeamAction', () => {
     fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
     await screen.findByText('Implement runtime')
     fireEvent.click(screen.getByRole('button', { name: /完成/u }))
-    expect(await screen.findByText('task reload failed (internal)')).toBeTruthy()
+    expect(await screen.findByText('task reload failed (gateway/internal)')).toBeTruthy()
     expect(screen.queryByText(zh.conflict)).toBeNull()
     first.unmount()
 
@@ -461,7 +461,7 @@ describe('TeamAction', () => {
     fireEvent.change(screen.getByPlaceholderText('任务标题'), { target: { value: 'Edited' } })
     fireEvent.change(screen.getByPlaceholderText(zh.blockers), { target: { value: 'task-2' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    expect(await screen.findByText('dependency reload failed (internal)')).toBeTruthy()
+    expect(await screen.findByText('dependency reload failed (gateway/internal)')).toBeTruthy()
     expect(screen.queryByText(zh.conflict)).toBeNull()
   })
 
@@ -521,7 +521,7 @@ describe('TeamAction', () => {
     })
     const first = render(<TeamAction {...props(failedLoad)} />)
     fireEvent.click(screen.getByRole('button', { name: /Agent Team/u }))
-    expect(await screen.findByText('load failed (internal)')).toBeTruthy()
+    expect(await screen.findByText('load failed (gateway/internal)')).toBeTruthy()
     first.unmount()
 
     const createTask = vi.fn(() => Promise.resolve(remoteFailure('create failed')))
@@ -532,7 +532,7 @@ describe('TeamAction', () => {
     fireEvent.change(screen.getByPlaceholderText('任务标题'), { target: { value: 'Task' } })
     fireEvent.change(screen.getByPlaceholderText('任务描述'), { target: { value: 'Description' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    expect(await screen.findByText('create failed (internal)')).toBeTruthy()
+    expect(await screen.findByText('create failed (gateway/internal)')).toBeTruthy()
     second.unmount()
 
     const pending = Promise.withResolvers<TeamTaskActionResult>()
@@ -632,7 +632,7 @@ describe('TeamAction', () => {
     expect(screen.queryByRole('button', { name: '保存' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /编辑/u }))
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    expect(await screen.findByText('edit failed (internal)')).toBeTruthy()
+    expect(await screen.findByText('edit failed (gateway/internal)')).toBeTruthy()
 
     fireEvent.change(screen.getByPlaceholderText('任务标题'), { target: { value: 'Saved edit' } })
     fireEvent.change(screen.getByPlaceholderText(zh.blockers), { target: { value: 'task-2' } })
@@ -666,7 +666,7 @@ describe('TeamAction', () => {
     fireEvent.change(screen.getByPlaceholderText(zh.blockers), { target: { value: 'task-2' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
-    expect(await screen.findByText('dependency transport failed (internal)')).toBeTruthy()
+    expect(await screen.findByText('dependency transport failed (gateway/internal)')).toBeTruthy()
   })
 
   it('skips the dependency mutation when an edit keeps the same blockers', async () => {

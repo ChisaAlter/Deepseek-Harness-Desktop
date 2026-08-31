@@ -7,6 +7,7 @@ import CommandRuntime from '@deepseek-ai/dsh-commands'
 import GoalService from '@deepseek-ai/dsh-goal'
 import type { GoalRef } from '@deepseek-ai/dsh-goal'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import * as commandGoal from '@deepseek-ai/dsh-command-goal'
 
 interface Harness {
@@ -46,6 +47,7 @@ async function harness(): Promise<Harness> {
   await ctx.plugin(SessionStore)
   await ctx.plugin(CommandRuntime)
   await ctx.plugin(AgentRegistry)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(GoalService)
   const plugin = await ctx.plugin(commandGoal)
   const { agent, session } = stubAgent(ctx, `command-goal-${Math.random()}`)

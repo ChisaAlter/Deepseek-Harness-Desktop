@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package provides permission preset surfaces for two lifetimes in the Web GUI: a General-settings row chooses the default for later sessions without switching the current session. A picker on the host `/permission` command switches the current session through one flat preset list with the active value marked. Kebab-case names render as title-case labels, and `danger-full-access` is presented as `Full access`. Choosing full access requires an explicit risk acknowledgement before either surface writes it. Both surfaces read one host-computed projection and write through one path, so the pushed projection frame is the single confirmation both follow.
+This package provides permission preset surfaces for two lifetimes in the Web GUI: a General-settings row chooses the default for later sessions without switching the current session. A picker on the host `/permission` command switches the current session through one flat preset list with the active value marked. Canonical built-in names render as locale-owned product labels, explicit host labels remain unchanged, and unknown kebab-case names render in title case. Choosing full access requires an explicit risk acknowledgement before either surface writes it. Both surfaces read one host-computed projection and write through one path, so the pushed projection frame is the single confirmation both follow.
 
 ## Table of Contents
 
@@ -29,11 +29,11 @@ Mount this plugin alongside the settings and commands packages; the permission r
 
 ### The picker
 
-A pick submits the `/permission <preset>` command line. The argued path (`/permission <preset>` typed directly) still switches directly; the decoration replaces only the bare invocation. Unknown kebab-case preset names render in title case, and `custom` is display state, never a target.
+A pick submits the `/permission <preset>` command line. The argued path (`/permission <preset>` typed directly) still switches directly; the decoration replaces only the bare invocation. The built-in labels are `Read Only`, `Workspace Write`, and `Full access` in English and `仅可查看`, `可写入工作区`, and `完全权限` in Chinese; `custom` is display state, never a target.
 
 ### The Settings row
 
-The row derives its options from the host's dynamic `defaultPreset` enum and writes one settings mutation. The value applies only when a later session is created; changing it never switches or rewrites the current session.
+The row derives its options from the host's dynamic `defaultPreset` enum, uses the same localized labels as the current-session picker, and writes one settings mutation. The value applies only when a later session is created; changing it never switches or rewrites the current session.
 
 -----
 

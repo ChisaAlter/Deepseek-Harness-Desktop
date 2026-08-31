@@ -62,7 +62,7 @@ describe('web e2e: settings modal and General preferences', () => {
     expect(await trigger.getAttribute('aria-expanded')).toBe('true')
     // General is active by default; Permission, Language and Appearance are functional.
     expect(await dialog.getByRole('button', { name: '通用设置' }).getAttribute('aria-current')).toBe('true')
-    await dialog.getByRole('button', { name: 'Workspace Write' }).waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '可写入工作区' }).waitFor({ timeout: 10_000 })
     await expect.poll(() => dialog.getByText('语言', { exact: true }).count(), { timeout: 5_000 }).toBe(1)
     await expect.poll(() => dialog.getByText('外观', { exact: true }).count(), { timeout: 5_000 }).toBe(1)
     const openDocument = dialog.getByRole('button', { name: '打开配置文件' })
@@ -102,13 +102,23 @@ describe('web e2e: settings modal and General preferences', () => {
     await dialog.getByRole('button', { name: '插件', exact: true }).click()
     await dialog.getByRole('heading', { name: '插件', exact: true }).waitFor({ timeout: 10_000 })
     await dialog.getByRole('tab', { name: '插件列表', exact: true }).click()
+    // The preset group opens first with its display-only switcher; the global
+    // plane starts collapsed and expands on demand.
+    const presetSwitcher = dialog.getByRole('button', { name: '选择要查看的 Agent 预设' })
+    await presetSwitcher.waitFor({ timeout: 10_000 })
+    // The shipped default's zh display name comes from the zh dictionaries.
+    expect(await presetSwitcher.textContent()).toBe('标准模式（默认）')
+    await dialog.getByRole('button', { name: /^全局/ }).click()
     const pluginRow = dialog.locator(PLUGIN_ROW_SELECTOR)
     await pluginRow.waitFor({ timeout: 10_000 })
     const expectedPluginCount = [...scaffold.ctx.loader.entries()]
       .filter(entry => !entry.options.group)
       .length
     expect(await dialog.getByRole('searchbox', { name: '搜索插件' }).count()).toBe(1)
-    expect(await dialog.locator('[data-plugin-entry]').count()).toBe(expectedPluginCount)
+    // Every Loader entry appears exactly once in the global group — rows the
+    // presets took over included, preset compositions excluded.
+    expect(await dialog.locator('[data-plugin-scope="global"] [data-plugin-entry]').count())
+      .toBe(expectedPluginCount)
     expect(await dialog.locator('[data-plugin-count]').getAttribute('data-plugin-count'))
       .toBe(String(expectedPluginCount))
     expect(await dialog.getByRole('button', { name: '插件', exact: true }).getAttribute('aria-current')).toBe('true')
@@ -144,12 +154,12 @@ describe('web e2e: settings modal and General preferences', () => {
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '设置' })
     await dialog.waitFor({ timeout: 10_000 })
-    const selector = dialog.getByRole('button', { name: 'Workspace Write' })
+    const selector = dialog.getByRole('button', { name: '可写入工作区' })
     await selector.waitFor({ timeout: 10_000 })
     await expect.poll(() => selector.isEnabled(), { timeout: 5_000 }).toBe(true)
     await selector.click()
-    await page.getByRole('menuitem', { name: 'Read Only' }).click()
-    await dialog.getByRole('button', { name: 'Read Only' }).waitFor({ timeout: 10_000 })
+    await page.getByRole('menuitem', { name: '仅可查看' }).click()
+    await dialog.getByRole('button', { name: '仅可查看' }).waitFor({ timeout: 10_000 })
 
     const document = await readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8')
     expect(document).toContain('permission:')
@@ -164,14 +174,14 @@ describe('web e2e: settings modal and General preferences', () => {
       ['approval/policy', { policy: 'ask' }],
     ])
 
-    await dialog.getByRole('button', { name: 'Read Only' }).click()
-    await page.getByRole('menuitem', { name: 'Full access' }).click()
-    const confirmation = page.getByRole('dialog', { name: '确认启用 Full access？' })
-    const enable = confirmation.getByRole('button', { name: '启用 Full access' })
+    await dialog.getByRole('button', { name: '仅可查看' }).click()
+    await page.getByRole('menuitem', { name: '完全权限' }).click()
+    const confirmation = page.getByRole('dialog', { name: '确认启用完全权限？' })
+    const enable = confirmation.getByRole('button', { name: '启用完全权限' })
     expect(await enable.isDisabled()).toBe(true)
     await confirmation.getByRole('checkbox').click()
     await enable.click()
-    await dialog.getByRole('button', { name: 'Full access' }).waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: '完全权限' }).waitFor({ timeout: 10_000 })
     const confirmedDocument = await readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8')
     expect(confirmedDocument).toContain('defaultPreset: danger-full-access')
     const confirmed = scaffold.ctx.sessions.create(SessionId('settings-permission-confirmed'))
@@ -589,6 +599,13 @@ describe('web e2e: settings modal and General preferences', () => {
       const dialog = enPage.getByRole('dialog', { name: 'Settings' })
       await dialog.waitFor({ timeout: 10_000 })
       await dialog.getByRole('button', { name: 'English' }).waitFor({ timeout: 10_000 })
+      // The plugin list resolves shipped preset names through the en
+      // dictionaries instead of echoing the preset files' Chinese metadata.
+      await dialog.getByRole('button', { name: 'Plugins', exact: true }).click()
+      await dialog.getByRole('tab', { name: 'Plugin list', exact: true }).click()
+      const presetSwitcher = dialog.getByRole('button', { name: 'Choose the agent preset to inspect' })
+      await presetSwitcher.waitFor({ timeout: 10_000 })
+      expect(await presetSwitcher.textContent()).toBe('Standard mode (default)')
       // This page has no closing inventory spec to sweep its console, so the
       // scenario clears both tripwire channels itself.
       expect(enTripwire.pageErrors).toEqual([])
@@ -615,8 +632,8 @@ describe('web e2e: settings modal and General preferences', () => {
       const dialog = frPage.getByRole('dialog', { name: 'Settings' })
       await dialog.waitFor({ timeout: 10_000 })
       await dialog.getByRole('button', { name: 'English' }).waitFor({ timeout: 10_000 })
-      const preset = dialog.getByRole('button', { name: 'Standard mode' })
-      await expect.poll(() => preset.isEnabled(), { timeout: 10_000 }).toBe(true)
+      // A locale-owned nav label proves the dictionaries resolved to en.
+      await dialog.getByRole('button', { name: 'Agent presets' }).waitFor({ timeout: 10_000 })
       // The markup already ships `en`, so this alone cannot prove the sync ran
       // — the zh scenario above is the discriminating half. Asserted here too
       // so a future change that resolves en but writes the wrong tag is caught.
