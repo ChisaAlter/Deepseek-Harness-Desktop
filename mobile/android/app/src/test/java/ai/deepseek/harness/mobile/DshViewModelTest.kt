@@ -72,7 +72,7 @@ class DshViewModelTest {
             """{"v":2,"serverId":"server-away","daemonPublicKeyB64":"daemon-key","relay":{"endpoint":"125.124.85.212:8411","useTls":false}}"""
                 .toByteArray(),
         )
-        val url = "http://125.124.85.212/dshd/#offer=$raw"
+        val url = "http://125.124.85.212:3389/dshd/#offer=$raw"
 
         vm.pair(url)
 

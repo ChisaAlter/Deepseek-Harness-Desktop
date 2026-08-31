@@ -47,6 +47,10 @@ import {
   AgentOutboundMessageSchemas,
   AgentStatusPayloadSchemas,
 } from "./agent/messages.js";
+import {
+  DshdInboundMessageSchemas,
+  DshdOutboundMessageSchemas,
+} from "./dshd-desktop-rpc.js";
 export * from "./agent/attachments.js";
 export * from "./automation/messages.js";
 export * from "./agent/extensions.js";
@@ -184,6 +188,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   GenerativeUiActionRequestSchema,
   // COMPAT(generativeUiActionFlatRpc): added in v0.1.101; remove after 2027-01-11 once the client floor is >= v0.1.101.
   LegacyGenerativeUiActionRequestSchema,
+  ...DshdInboundMessageSchemas,
 ]);
 
 export type SessionInboundMessage = z.infer<typeof SessionInboundMessageSchema>;
@@ -449,6 +454,7 @@ type SessionOutboundMessageSchemaOptions = [
   ...typeof AutomationOutboundMessageSchemas,
   ...typeof CindyOutboundMessageSchemas,
   typeof GenerativeUiActionResponseSchema,
+  ...typeof DshdOutboundMessageSchemas,
 ];
 
 export const SessionOutboundMessageSchema: z.ZodDiscriminatedUnion<
@@ -477,6 +483,7 @@ export const SessionOutboundMessageSchema: z.ZodDiscriminatedUnion<
   ...AutomationOutboundMessageSchemas,
   ...CindyOutboundMessageSchemas,
   GenerativeUiActionResponseSchema,
+  ...DshdOutboundMessageSchemas,
 ]);
 
 export type SessionOutboundMessage = z.infer<typeof SessionOutboundMessageSchema>;

@@ -2,27 +2,36 @@
 
 ## 职责与非目标
 
-**职责：** LAN / 中继远程、配对、`mobile/web` SPA 与 Android Compose 客户端代理到本机 harness。  
-**非目标：** 不把启动页仪器风或官方 CSS Modules 整树嵌进手机 SPA / Android；不把 PTY、Browser、`writeFile` 暴露给手机。
+**职责：** LAN / 中继远程、ChisaCode 配对、已配对后把 `mobile/web` SPA（Web 与 Android WebView 同一份）接到正在跑的 `dsh web` 与桌面 Git 标题栏。  
+**非目标：** 不把启动页仪器风或官方 CSS Modules 整树嵌进手机 SPA；不把 PTY、Browser、`writeFile`、`host.pickDirectory` 暴露给手机；不为 Git / 会话列表 / composer 写 Android Compose 平行实现。
 
 ## 用户路径
 
-见 [../flows/remote-pair.md](../flows/remote-pair.md)。
+见 [../flows/remote-pair.md](../flows/remote-pair.md)。契约以 [手机远程 Feature 卡](../../features/mobile-remote.md) 的 MUST 矩阵为准。
 
 ## 架构要点
 
-- Main：`remote.js`、`remote-shell.js`、`mobile-web.js`、`relay-client.js`、`remote-tls.js`（LAN 自签证书生成/持久化，零依赖 DER 编码）；可选 `src/relay`。  
-- Web：`mobile/web` + 抄写的 `--dsw-alias-*` tokens。  
-- Android：`mobile/android`（`protocol` JVM 协议 + `app` Compose）。JSON 登录，Bearer 设备令牌；Git 走 `/__remote__/shell/*`。
+- 配对：vendored ChisaCode offer v2 / sticky / 中继 E2EE。QR 落地页局域网 `:3180`、外出 `:3389/dshd/`，传输中继 `:8411` 不当页面。
+- 已配对 host：daemon 白名单 unary 转发 loopback `dsh web`（剥 Origin / sec-fetch，Host 钉 loopback）。审批走 `/api/respond`。
+- 已配对 Git：daemon 回调 Electron `git.js`（`dshd-git-dispatch.js`），同一套 `workspace-authority.js`。不在 daemon 里再实现一套 git CLI。
+- Web：`mobile/web` + `--dsw-alias-*` tokens。Files / Diff / MCP 本轮冻结条。
+- Android：`mobile/android` 原生层只做扫码 / 粘贴 / WebView 装载 SPA。不保留 Bearer `/api/*` 原生 Chat。
 
 ## 实现入口
 
-- 上列路径；[mobile/README.md](../../../mobile/README.md)
+- `src/main/chisacode-remote.js`、`chisacode-daemon-runner.mjs`、`dshd-daemon-hooks.mjs`、`dshd-git-tunnel.js`、`mobile-web-server.js`
+- `src/shared/dshd-host-tunnel.js`、`src/main/dshd-git-dispatch.js`
+- `mobile/web/app.js`、`mobile/web/host/`、`mobile/web/git/`
+- 全量启动内容搜索 overlay：`src/main/session-search-overlay.js`（`--patch`，产品契约见 desktop-launcher）
+- [mobile/README.md](../../../mobile/README.md)
 
 ## 不变量
 
-- 手机页与 Android 是文档化例外：语义色一致，不挂官方插件树，不用 `--boot-*`。
-- 代理剥掉 `cookie` / `authorization`。Shell 白名单见 Feature 卡。
+- 手机页是文档化例外：语义色一致，不挂官方插件树，不用 `--boot-*`。
+- 配对后产品真相是桌面 `dsh web` 会话，不是 ACP `chisacode-home/agents`。
+- `workspace.create` 的 id 在嵌套 `workspace` 视图里；活列表仍隐藏 blank，但当前打开的 blank 必须能当 `currentRow`，否则顶栏和抽屉会丢行。
+- 不给 daemon 注入 `DSH_HOME`、不双写 `dsh-home`。
+- Host / Git 白名单见 Feature 卡；白名单外拒绝转发。
 
 ## 安全边界（LAN 模式）
 
@@ -37,7 +46,7 @@ Android 证书固定跟进清单（未落地，勿假装完成）：解析 offer
 
 ## 门槛
 
-- 以 [手机远程 Feature 卡](../../features/mobile-remote.md) 与当轮 QA 为准；改 UI 遵守 design-language 手机 / Android 例外段。
+- 以 [手机远程 Feature 卡](../../features/mobile-remote.md) 与 [实机全量用例](../../qa/mobile-remote-live-acceptance.md) 为准；改 UI 遵守 design-language 手机 / Android 例外段。
 
 ## 延伸阅读
 

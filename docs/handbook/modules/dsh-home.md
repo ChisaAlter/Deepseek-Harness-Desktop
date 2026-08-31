@@ -30,6 +30,7 @@ macOS：`~/Library/Application Support/Deepseek-Harness-Desktop/`
 | 市场 / 用户插件（profile `web`） | `dsh-home/profiles/web` |
 | 组合包解析回退 | `dsh-home/profiles/node_modules` |
 | 会话、`settings.yaml`、MCP、技能 | `dsh-home/` 下对应文件 |
+| 会话全文索引（全量启动 overlay） | `dsh-home/session-query.sqlite` |
 | 壳层工作区路径、关闭行为、远程配对 | `userData/config.json` |
 | 壳层默认 API key | `userData/credentials.json` |
 | 官方 CLI（桌面不读写） | `~/.dsh` |

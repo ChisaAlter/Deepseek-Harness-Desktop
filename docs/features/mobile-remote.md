@@ -4,89 +4,151 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-08-30 — 外出 QR 改公网 `/dshd/`；config 拒 `:8411` 作 SPA；落地页补 #offer= / 微信警告。 |
+| **last verified** | 2026-08-31 — T1 Rehearsal 公网 `/dshd` `app.js?v=20260830-asked`：S08 桌面决 Pass*；402 Pass*；705 Pass*；S01 连接页三档 Pass*；301 已产品化（全量启动 `--patch` overlay，耐久 `dsh-home/session-query.sqlite`，不再靠用户层 `cordis.patch.yml`）；605 已产品化（`gitPush` 补 `origin/HEAD`，非 main 首推仍走 Commit & push）。相机跳过。T3 Deferred。未宣称实机全量。 |
 
 ## User paths
 
-1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（包装纸按网关模式：**局域网** `http://<LAN>:3180/` 本机 `mobile/web` SPA；**外出** `DEFAULT_PUBLIC_APP_BASE_URL`（公网 nginx `/dshd/`），系统相机打开浏览器公网页，App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin）→ `DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
-2. 再次打开手机 SPA（无 hash）：自动用最近一台的已存 `deviceSecret` sticky 重连，无需再扫，直至桌面 **解除配对**。连接页列出「已保存的电脑」（完整 sticky 记录，最近保存优先，显示中继 endpoint 与保存日期）：点选任一台走 `reconnectSticky` 手动重连（自动重连未定盘前行禁用），「忘记」清除该台的本机 secret。
-3. Android：原生扫码或粘贴完整配对 URL → 提取 offer 后由应用内 WebView 打开 APK 内置的同一 SPA → 后续启动直接从安全 asset origin 触发 SPA sticky 重连，不必重新访问 LAN `:3180` 页面。
-4. 设置 → 远程 → 网关：局域网 | 外出（文案区分）；传输始终走中继主机。
-5. 手机「新会话」→ chooser sheet：`fetchWorkspaces` 列工作区（名称 · 项目 · 分支 · cwd）→ `getProvidersSnapshot(cwd)` 列 ready 提供方 → 可选权限模式（snapshot `modes`/`defaultModeId`）→ 把选中的 `workspaceId/cwd/provider(/modeId)` 显式传给 `DaemonClient.createAgent` → 打开新会话。
-6. 手机工作区 → daemon checkout/file RPC 提供 Git 状态、提交、拉取、推送、创建 PR、切换已有分支；普通分支创建与电脑窗口操作禁用并提示在电脑端完成。
-7. 会话权限模式：composer chip 与设置「权限」pane 显示 agent snapshot 的当前 mode；切换调用 `setAgentMode`，daemon 拒绝时回滚并显示错误原文；`mode_changed` 流事件写回 UI。
-8. 断线：chat 顶部连接条显示「连接已断开 / 正在重新连接」，发送被拒绝且草稿保留（按 serverId+sessionId 存 localStorage；附件仅内存跨会话切换，不跨刷新）；client 自动重连成功后自动重拉 agent 目录与当前会话 timeline 并提示「已重新连接并同步」。
-9. 会话抽屉：`fetchAgents` 游标分页（「加载更多会话」）；子智能体（snapshot `relation.parentAgentId/kind`）折叠在父会话下、父未加载时顶层标注「子智能体」，打开为只读（composer 换成只读说明）。行尾 ⋯ 菜单：重命名 / 重新生成标题（`updateAgent`）、归档（`archiveAgent`）、删除（`deleteAgent`），均确认对话框 + daemon 错误可见；「已归档会话」sheet 走 `fetchAgentHistory(includeArchived, updated_at desc)` 分页，「取消归档」调用 `refreshAgent` 并明示不会恢复运行中任务。
-10. 时间线：tail 200 起步，顶部「加载更早消息」向上分页（`direction:'before'` 游标，seq 去重，滚动锚点保持，`reset/staleCursor` 时整页重置）；打开会话先清空上一会话内容，timeline 拉取失败渲染错误占位（daemon 原文 + 重试）而不是残留旧日志；流事件仅在视口贴底时自动跟底，阅读历史时保持位置；助手消息经 `conversation/markdown.js` 结构化解析 + createElement 渲染（原始 HTML 保持字面文本，链接仅 http/https）；工具卡显示状态 + detail 摘要/可展开正文；reasoning/todo/压缩/turn_changes/generative_ui/未知类型都有可见 fallback 行。
-11. 审批：daemon `permission_requested` 的 `actions` 列表按 label/variant/顺序原样渲染，回传 `selectedActionId`；无 actions 才显示通用「允许一次/拒绝」；`permission_resolved`（含跨端解决）清除 pending 并恢复 composer。
-12. 模型：composer 模型 chip 显示 snapshot `model`（空 = 提供方默认）；设置「模型」pane 用 `listProviderModels` 列清单、`setAgentModel` 切换，失败回滚 + banner；新会话 chooser 模式步之后可选模型并透传 `createAgent`。输入框以 `/` 开头触发 `listCommands` 斜杠命令弹层（前缀优先过滤，点击插入 `/name `）。
-13. 文件（工作区「文件」tab 与「文件」pane 同一实现）：`listDirectory` 目录下钻，目录行点击 = 导航（不插入 mention），breadcrumb 回任意上层且每层滚动位置恢复；文件行点击 = 只读预览（`readFile`：text `<pre>`（>200KB 截断明示）/ image blob URL / binary 明确状态 / >2MB 不发 readFile 直接标「文件过大」/ error 显示 daemon 原文可重试）；「插入 @路径 到输入框」与行尾「@」是显式插入动作；搜索框走 `getDirectorySuggestions` 路径模糊匹配（UI 明示不是内容全文搜索），结果目录 → 定位进浏览器、文件 → 预览、「@」→ 插入。
-14. 更改（Diff）：`getCheckoutDiff` 只读视图，scope 切换「未提交 / 对比主干」（`mode:'uncommitted'|'base'`）；文件行显示 `+a −d` 与 新增/已删除/二进制/文件过大 badge，点击展开 hunk（`@@` header + add/remove/context 行级着色，纯文本不伪造语法高亮）；non-git（按 `error.code==='NOT_GIT_REPO'`）/ 空 diff / 加载失败（可重试）各有明确状态；提交、暂存等操作提示走顶部 Git 胶囊或电脑端。
-15. MCP / 技能 pane：chisacode 传输下渲染只读清单（hub desc 标注「只读清单 · 电脑端管理」）——MCP 显示 transport/来源（系统/用户）、全局启用状态、按提供方/会话覆盖计数、server 级错误；技能显示描述、来源 scope（项目 / AGENTS / Codex / Claude 主目录 / 内置）与状态；payload 级 errors 进提示条；管理动作一律指向电脑端。
+1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `http://125.124.85.212:3389/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
+2. 再次打开手机 SPA（无 hash）：用最近一台已存 `deviceSecret` sticky 重连。「已保存的电脑」点选 / 忘记。跨 origin（公网 `/dshd`、LAN `:3180`、APK asset）不互通 sticky。
+3. Android：原生扫码或粘贴完整配对 URL → 应用内 WebView 打开 **同一份** SPA。聊天 / 会话列表 / Git / composer **不得**再做一套 Compose。
+4. 配对之后 SPA 是正在跑的 `dsh web` 第二客户端（与桌面 BrowserView 同一进程）。LAN 与外出都走隧道（公网页碰不到 loopback）。Harness 未就绪：抽屉明示「桌面端未启动」，禁止画空的「新会话」假装已对齐。
+5. 抽屉对齐桌面侧栏：`session.list` + `workspace.list`；按工作区分组 / 一个列表；搜索 `session.search`（snippet）；行 ⋯ 重命名 / Fork / 上移下移 / 归档；活会话 **没有删除**；已归档取消归档或删除；子智能体只读。
+6. 新会话：已有工作区、无工作区文件夹、浏览本机目录（`host.listDirectory` / `host.createDirectory` / `workspace.create` / `session.create`）。禁止 `host.pickDirectory`、禁止 `createAgent`。
+7. Composer：模型 + 思考 `session.models` / `session.selectModel`；权限与 Plan / 斜杠走 Typert `commands/execute`（`/permission <id>`、`/plan off`）；发送 `session.prompt`、停止 `session.cancel`；附件进 host；审批 `POST /api/respond`（线协议 `respond`）。
+8. 顶栏 Git 对齐桌面 titlebar：Init、分支搜索/切换/跟踪远端/**创建并检出**、stacked Commit/Push/PR、Publish、View PR。执行走隧道 `shell:git-*`，不是 ACP checkout。
+9. 时间线：`session.history`（`beforeSeq` 向上分页）+ mux 或 1.5s 轮询（running / pending 时）。断线横幅 + 草稿；重连后 `session.list` + 当前 `history`。
+10. Files / Diff / MCP / 技能：**冻结条**（「下一轮接 host/gitDiff；请暂时用电脑端」），禁止空列表装做成功能。
+
+## MUST 矩阵（本轮交付物；缺一行不算完成）
+
+对照源：桌面 BrowserView / `ui-workspace` / `ModelSelect` / `PermissionSelect` / `git-titlebar` + `GitActionsControl`。不是旧 ACP。
+
+### A. 对话列表
+
+- 同一批活会话：`session.list`。隐藏 `origin:'dshbot'`。`blank: true` **不出现在列表**（桌面复用 blank 作 New Session）。
+- 按工作区分组 + 平铺：`workspace.list`。无用户自建「文件夹」。
+- 工作区行：展开；`+` = `session.create({ workspaceId })`；⋯ 重命名 / 删除工作区 = `workspace.rename` / `workspace.delete`（unlist，不删磁盘）。
+- 无目录：`session.create` 不带 workspaceId/cwd。
+- 搜索：`session.search`（最多 20，有 snippet）。不得把「仅过滤已加载标题」写成与桌面同等。全文索引由桌面全量启动 overlay 打开（`openAt: first-search`），skip 恢复不传该 overlay。
+- 行 ⋯：重命名 `session.rename`；Fork `session.fork`；归档 `workspace.archiveSession`。活会话 **没有删除**。
+- 已归档：默认折叠、点行不打开；⋯ 取消归档 `workspace.unarchiveSession` 或删除 `session.delete`（仅已归档）。
+- 子智能体：`parentSessionId` 折到父下；打开只读 composer。
+- 状态点：至少 `running`。审批/计划等待用 mux 或 history 轮询补。
+- 手动排序：`workspace.insertSessionBefore`（手机行菜单上移/下移）。
+- **禁止：** `fetchAgents` / `createAgent` 当目录或新会话。Host `session.list` v1 一次返回全部：SPA 无假分页。
+
+### B. 新工作目录
+
+- 已有工作区点选 → 该 workspace 新会话或复用 blank。
+- 无工作区文件夹。
+- 添加本机目录：禁止 `host.pickDirectory`。用 `host.listDirectory` 浏览 + 可选 `host.createDirectory` + `workspace.create({ path })` + `session.create`。
+- 浏览根：从已登记工作区路径的父级起步；创建后必须出现在 `workspace.list` 与桌面侧栏。
+- 空白会话 hero：发出第一条消息前可改工作区；发出后不再用 chip 改 cwd。
+- 可选：`agentPreset.list` + `session.create({ agentPreset })`；没有预设则隐藏，不得假控件。
+
+### C. Composer
+
+- 模型 + 思考：`session.models` + `session.selectModel({ provider, model, reasoningEffort })`。触发器文案 `模型 · effort`。无 reasoning 的模型隐藏思考档。
+- 权限：切换 = Typert `commands/execute` 行 `/permission <id>`。失败回滚 + 可见错误。禁止本地假 `accessMode`，禁止把斜杠当 `session.prompt` 聊天。
+- Plan：开启时显示 chip；点击 `commands/execute` `/plan off`。未开启则隐藏。
+- 斜杠：`/` 拉取 `commands/list`；以 `/` 开头由 `commands/execute` 执行。禁止再打 daemon `listCommands` 当真相。
+- 发送 / 停止：`session.prompt`（queue）+ `session.cancel`。
+- 附件：image parts 进 host。
+- Queue：history/projections 有队列才接 `session.updateQueue`；没有则不画假 dock。
+- 只读子智能体 / 审批接管：替换输入区，不得在只读会话仍显示 Send。
+
+### D. 顶栏 Git
+
+对照 `git-titlebar.md` 与 `resolveGitQuick`。SPA `git/quick.js` 标签表保留；执行层走隧道 `shell:git-*`。
+
+- 非仓库：**Initialize Git** → `gitInit`。
+- 分支 pill：当前 ref；菜单 `gitBranchList`（搜索本地/远端）。
+- 行点击切换；远端无本地跟踪 → `gitSwitchBranch` 的 track 语义；`switchable:false` 列出但禁用。
+- **创建并检出** → `gitCreateBranch`。禁止「创建新分支请在电脑端」。
+- 主按钮 stacked 一次做完：Commit；Commit & push；Commit, push & PR；Push；Push & create PR；Pull；View PR；Publish。禁止把 `commit_push` 做成只开 commit 对话框。
+- Commit 对话框：可选说明、路径包含/排除、**Commit on new branch**。
+- 无 origin：**Publish repository** → `gitPublishRepository`。禁止「请在电脑上发布仓库」。
+- 分叉：Sync branch 禁用 + rebase/merge hint。
+- 默认分支确认：Continue / Abort / Checkout feature branch & continue。
+- 进度与失败：错误可复制；不得永久 loading。
+- cwd 必须是已登记工作区（或子目录）；授权失败不得画成「没有分支」。
+
+本轮 Git 顶栏不做：stash / merge / rebase / 改名删分支 / Fetch 按钮。Stage / Unstage / Discard 属已签字 DEFER（右栏 Diff）。
+
+### E. 会话能用
+
+- 打开：`session.history` 折成 `conversation/fold.js`；向上分页 `beforeSeq`；失败清旧行 + 重试。
+- 直播：mux 经 E2EE（daemon 不转发 `assistant/chunk`；正文靠 `assistant/message` + history 轮询），或 history 短轮询（1.5s；仅 `running` 或有 pending 时）。禁止 `openEventSockets({ origin: location.origin })`。
+- 审批：pending 来自 mux 或轮询；回答 `respond` → `POST /api/respond`。跨端解决后清 pending。
+- 断线横幅 + 草稿 + 重连后 `session.list` + 当前 `history`。
+
+## 已签字 DEFER（允许冻结，不允许装做成功能）
+
+「请在电脑端操作」**只允许**出现在本段或 NEVER。
+
+- 工作区「文件」「更改」tab 与设置里 MCP/技能：冻结条「下一轮接 host/gitDiff；请暂时用电脑端」。禁止转圈后空列表、禁止残留 ACP 错误当「没有文件」。
+- 只读 Files/Diff 的旧契约（不写盘、不 Stage）下一轮仍有效；本轮不转发 `git-stage` / `unstage` / `discard`。
+- MCP/技能写操作仍 NEVER（privileged）。
+- 消息编辑/rewind、Trajectory、Context meter、Session log 下载、标题栏终端/表面开关、Generative UI：本轮不声称对齐。
+
+## NEVER
+
+- `host.pickDirectory`、`host.openPath`、全部 `PRIVILEGED_METHODS`（settings / credentials / `llm.discoverModels` / MCP 写 / skillInventory）
+- 任意 `shell:*`：`pty*`、`writeFile`、打开本机路径（Git 对话框「在资源管理器打开」远程不做，用禁用 + 电脑端）
+- 开放 `/api/*` 代理、恢复 HTTP offer v1、把 `:8411` 当 SPA、官方 `dsh web` 整页当手机 UI
+- 给 daemon 注入 `DSH_HOME`、双写 `dsh-home`
+- PTY 终端、Browser 预览、壁纸图库、市场安装、窗口外观、关闭窗口策略
+- Android 原生 Chat / Bearer `/api`；为 Git/模型/会话列表写 Compose 平行实现
+- 把 `fetchAgents` / `createAgent` 当产品目录或新会话
 
 ## Invariants
 
-- 手机 = **同协议客户端**（`mobile/web/chisacode/` + `@chisacode/client` bundle），不是旧 HTTP Host SPA。用户可见名称是 **dshd daemon / dshd offer / dshd 远程**；协议实现仍是 vendored ChisaCode offer v2，不改 wire、包名或 sticky localStorage 键。
-- SPA 不得从 `host/offer.js` / `host/login.js` 进入 v1 Cookie 登录；扫描结果保留完整 `#offer=` URL 后交给 `parseConnectionOfferFromUrl`。
-- QR **落地页**：局域网模式 = `preferredLanIp():3180`（本机 `mobile/web`）；外出模式 = `DEFAULT_PUBLIC_APP_BASE_URL`（公网 nginx `/dshd/`），**不是**中继 `:8411`。系统相机外出打开浏览器公网页；App 内扫同一张码走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。
-- **sticky 三 origin 不互通**：公网 `/dshd`、LAN `:3180`、`appassets.androidplatform.net` 各自 localStorage；跨 origin 不能 sticky 重连。
-- 配对链接为 **HTTP 明文**；路径上 MITM 可读 `#offer=` hash。
-- **一码两入口**（对齐上游，不出第二张码/第二套协议）：同一张 QR——Android App 内扫码＝链接设备（WebView SPA sticky）；相机 / 浏览器扫码＝打开落地页自动连入 **web 端**（不得改成「仅设备配对」或加二次确认门）。分流说明只在落地页（`#entry-split-hint`）与 Android 系统选择器；桌面弹窗不再复述。
-- 系统相机 handoff：manifest 认领 `http://<any host>:3180` 的 `VIEW`（宽 host 匹配是唯一解，**禁止** `android:autoVerify`——系统选择器「用 App 打开＝链接设备 / 用浏览器打开＝web 端」就是产品行为）；安全闸门在 App 内——`PairingIntent.fromViewIntent` 必须用与扫码/粘贴同一套 `parsePairingLink` 语法全量重校验，intent data 只解析**永不加载**；垃圾 `:3180` 链接只在 Connect 屏提示，不得把已连接的 Web 会话踢回 Connect；非 VIEW 启动零副作用；`singleTask` + `onNewIntent` 复用实例，不堆叠 Activity。不自造 scheme，上游若引入正式移动 deep link 则跟随。
-- Offer 内 `relay.endpoint` = 传输中继；WS 必须 `role=client`；`useTls` 读写一致（`=== true`）。
+- 手机 = **同协议客户端**（`mobile/web/chisacode/` + `@chisacode/client` bundle）。用户可见名称是 **dshd daemon / dshd offer / dshd 远程**；协议实现仍是 vendored ChisaCode offer v2，不改 pairing wire、包名或 sticky localStorage 键。配对之后两条已配对通道：host RPC（白名单 unary + `respond`）进 loopback `dsh web`；Git 进 Electron `git.js`（host **没有** Git API）。
+- 白名单 unary：`host.describe` / `host.listDirectory` / `host.createDirectory`；`session.list|search|create|history|models|selectModel|rename|fork|prompt|attachment|updateQueue|cancel|delete`；`subagent.list|history|prompt|interrupt`；`workspace.list|create|rename|delete|insertBefore|insertSessionBefore|archiveSession|unarchiveSession`；`skill.list`、`agentPreset.list`、`llm.models` / `llm.providers`；Typert `commands/list`、`commands/execute`。外加 `/api/respond`。
+- Git 白名单（进 main）：`git-status`、`git-fetch-status`、`git-pull-request`、`git-init`、`git-diff`、`git-commit`、`git-push`、`git-pull`、`git-create-change-request`、`git-publish`、`git-status-entries`、`git-branch-list`、`git-switch-branch`、`git-create-branch`。本轮不转发 stage/unstage/discard。
+- 转发剥 Origin / Referer / Cookie / sec-fetch-*；Host = `127.0.0.1:<port>`；JSON 不 gzip；URL 必须仍是该 harness loopback。未配对拒绝。`getHarnessOrigin()` 随端口热更新。
+- SPA 不得从 `host/offer.js` / `host/login.js` 进入 v1 Cookie 登录；扫描结果保留完整 `#offer=` URL。
+- QR **落地页**：局域网 = `preferredLanIp():3180`；外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**不是**中继 `:8411`。
+- **sticky 三 origin 不互通**。配对链接为 HTTP 明文；MITM 可读 `#offer=` hash。
+- **一码两入口**：同一张 QR——Android App 内扫＝链接设备；相机 / 浏览器扫＝打开落地页自动连入 web 端。
 - Offer v1 / `POST /__remote__/login` / RemoteGateway 配对 **退役**。
-- 桌面 `relayConnected` 反映真实 control socket；未连接时 UI 明示且**不**展示配对二维码 / 复制 / 刷新。`relay_control_disconnected` 不得覆盖更具体的 HTTP 失败（如 503）。内置中继 `125.124.85.212:8411` 回 503/`desktop relay is offline` 时文案为「默认中继暂时不可用」。
-- 侧栏弹窗：打开即 `getRemote`；`enabled && (!listening || !pairingUrl)` 至多一次 `saveRemote({remoteEnabled:true})` 自愈；弹窗 DOM **禁止** raw `relay_control_*` / 裸 `#offer=` 文本；**仅** `enabled && relayConnected && pairingUrl` 时提供二维码、复制链接与刷新配对码；启动中用 `startingHint`，持久失败用人话 error，On 可重试。QR 闸门只认 `[data-dsh-remote-qr]`，禁止文案/`svg` 兜底。`qa:remote` 含 `DSH_QA_REMOTE=cold` 第二 boot；`cold.openShowsQr` / `rem.qrVisible` 在中继未连时断言无 QR + 有 status。`prestart-ensure` 校验 `lib/client.js` 含 `copyLink`。
-- Android Compose 扫码框为正方形；会话走 APK 构建时纳入的同一 Web SPA（`WebViewAssetLoader` HTTPS origin），不另写一套 DaemonClient，也不依赖冷启动时仍能访问 LAN 落地页。
-- Android 升级后一次性清除旧 HTTP `deviceToken`/`origin`；不保留 `LoginClient`、Bearer `/api/*`、`/__remote__/shell/*` 原生 Chat 死路径。
-- Android 原生层只保存内置 SPA 已启用标记，不保存 offer；`deviceSecret` 由 SPA 保存在稳定 WebView asset origin 的 localStorage，直到桌面撤销或 SPA 断开设备。
-- ChisaCode 会话创建、Git 与文件不得回退到 `callUnary` / `callShell`；daemon 返回的结构化错误必须进入可见 banner/toast。
-- 权限模式唯一来源是 agent snapshot；UI 不得持有本地假 mode 状态，`setAgentMode` 失败必须回滚并显示 daemon 错误。
-- 新会话必须经 workspace/provider chooser 显式选择；不得复用“第一条 agent”的 `provider/cwd` 猜测目标。
-- 重连（`subscribeConnectionStatus` 回到 connected）后必须权威重同步（`fetchAgents` + 当前 timeline）；断线时发送必须被可见拒绝，不得假装在线；未发送草稿不得丢失。
-- 普通分支创建和打开电脑设置/图库没有 daemon RPC：控件必须禁用并写明电脑端操作，不得抛旧 Host RPC 错误或伪报成功。
-- 删除/归档不得乐观移除：只有 daemon 确认后行才离开列表，失败必须在确认对话框里可见。
-- 「取消归档」= `refreshAgent`（清 archivedAt + 重载会话），**不是** dsh unarchive 也不是 `resumeAgent(handle)`；UI 不得写成「恢复」或暗示恢复运行状态。
-- 审批 UI 不得改写 daemon `actions`（label/variant/顺序原样，回传 `selectedActionId`）；通用允许/拒绝仅在 actions 为空时出现。
-- 助手 Markdown 渲染禁止 `innerHTML` 注入路径：结构化 block/span → createElement/textContent，链接 href 仅 http/https；未知时间线类型必须有可见 fallback，不得静默丢行。
-- 时间线向上分页必须按 seq 去重并保持滚动锚点；`.phone` 保持固定 app-shell 高度（内部面板各自滚动），否则时间线锚定失效。
-- 打开会话的 timeline 拉取失败必须清掉上一会话的 rows 并显示错误占位（daemon 原文 + 重试）；不得把旧会话内容留在新会话标题下。流事件到达时只有视口已贴底（小阈值松弛）才允许滚到底部，用户在读历史时必须保持 scrollTop。
-- 「已保存的电脑」chooser 是纯本地状态（localStorage sticky 记录），不引入任何设备管理 RPC；「忘记」只清本机 secret，不得暗示桌面端撤销；无 hash 自动重连仍指向最近一台。
-- 文件与 Diff 是**只读工作环**：不得出现保存/写入/Stage/Unstage/Discard/暂存/放弃类控件，不得调用 `writeFile`/`saveFile` 或任何 stage RPC；目录行点击必须是导航，插入 @路径 只能是显式用户动作。
-- 文件搜索只做路径匹配（`getDirectorySuggestions`），UI 必须明示不是内容全文搜索；不得借 terminal/agent 模拟内容搜索。
-- 预览大小上限：目录条目 `size > 2MB` 不发起 `readFile`；文本渲染 >200KB 截断并明示；图片 blob URL 离开预览时 revoke；非 git 判别用 `CheckoutError.code`，不匹配 message 字符串。
-- MCP / Skills 本阶段纯只读：不得调用 upsert/patch/install/uninstall/delete 类扩展 RPC；空清单是合法状态不是错误；payload 级 errors 必须可见。
-- **非 secure context 兼容**：配对页真实运行在 `http://<LAN-IP>:3180`（非 secure context）——`mobile/web/` 与 vendored client 浏览器路径**禁止**裸用 secure-context-only API（`crypto.randomUUID`、`crypto.subtle` 等）；uuid 一律走 `getRandomValues` fallback（`session.js#randomIdHex` / vendor `safeRandomId()`），E2EE 保持 tweetnacl 纯 JS。`session.test.js` 锁无 `randomUUID` 环境配对；`tools/remote-web-qa/run-e2e.mjs` 在真浏览器（LAN-IP origin）全链路验证。
+- 侧栏弹窗 QR 闸门只认 `[data-dsh-remote-qr]`；仅 `enabled && relayConnected && pairingUrl` 时提供二维码、复制与刷新。
+- Android Compose 只负责扫码/粘贴；会话走 APK 内置同一 Web SPA。
+- 助手 Markdown 禁止 `innerHTML` 注入：结构化 block → createElement；链接仅 http/https。
+- 时间线向上分页按 seq 去重并保持滚动锚点。打开会话失败必须清掉上一会话 rows。
+- 「已保存的电脑」是纯本地 sticky；「忘记」只清本机 secret。
+- **非 secure context 兼容**：`http://<LAN-IP>:3180` 禁止裸用 `crypto.randomUUID` / `crypto.subtle`；uuid 走 `getRandomValues` fallback；E2EE 保持 tweetnacl。
 - 设计语言仍抄 `--dsw-alias-*`。
+- 全量启动才启用内容搜索：`--patch` `desktop-session-search.patch.yml` 覆写 `session-query-sqlite` 为 `openAt: first-search` 与 `dsh-home/session-query.sqlite`。禁止把这次 opt-in 写进用户 `cordis.patch.yml`。skip 启动保持发版 `openAt: never`。
 
 ## Allowed touch
 
-- `mobile/web/`（含 `chisacode/`、`conversation/`）、`scripts/bundle-chisacode-mobile-client.mjs`、`scripts/prepare-chisacode-remote.mjs`
-- `src/main/chisacode-remote.js`、`src/main/mobile-web-server.js`、`src/shared/lan.js`
-- `vendor/chisacode-remote/`、`ui-settings-remote`、本卡、QA 远程条
-- `tools/mobile-web-qa/`（fake-daemon 浏览器集成 harness，不打包）
-- `tools/remote-web-qa/`（真 daemon + 真浏览器全链路 E2E harness，不打包）
-- `mobile/android/`（扫码 handoff）
+- `mobile/web/`（含 `host/`、`chisacode/`、`conversation/`、`git/`）、`scripts/bundle-chisacode-mobile-client.mjs`、`scripts/prepare-chisacode-remote.mjs`
+- `src/main/chisacode-remote.js`、`src/main/chisacode-daemon-runner.mjs`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/main/dshd-git-tunnel.js`、`src/main/mobile-web-server.js`、`src/shared/dshd-host-tunnel.js`、`src/shared/dshd-mux-sse.js`、`src/shared/lan.js`
+- `vendor/chisacode-remote/`（线协议 `dshd.host.rpc.*` / `dshd.git.rpc.*` / `dshd.host.mux.*`）、`ui-settings-remote`、本卡、QA 远程条
+- `tools/mobile-web-qa/`、`tools/remote-web-qa/`
+- `mobile/android/`（扫码 handoff 仅）
 
 ## Do not touch
 
 - 恢复 HTTP Bearer Host SPA 为主路径
 - 指着 `app.chisacode.sh` / `relay.chisacode.sh` 冒充完成
 - 把中继 IP 当作 QR `appBaseUrl`
+- 把「创建分支 / Publish / 思考强度 / 新目录浏览」再写成电脑端（那是需求降级）
+- 给 daemon 注入 `DSH_HOME`
 
 ## Gates
 
 | Kind | What |
 | --- | --- |
-| Automated | `mobile/web/**/*.test.js`（含 `chisacode/{session,parity,controller,directory,timeline,approvals,commands,files,diff,extensions}.test.js`、`conversation/{fold,markdown}.test.js`、`pair/scan.test.js`、`landing.test.js` 入口分流 + Android manifest VIEW/:3180/无 autoVerify tripwire）；Android JVM tests（`:protocol:test` 含 `PairingIntentTest`；`:app:testDebugUnitTest` 含 VIEW handoff）；`src/shared/lan.test.js`；`chisacode-remote.test.js` |
-| Browser | `node tools/mobile-web-qa/run-qa.mjs`（fake DaemonClient + 真实 SPA 栈；需 `puppeteer-core` 与 Chrome；48 检查）；`node tools/remote-web-qa/run-e2e.mjs --relay <endpoint>`（真 daemon + 真 offer + **pairingUrl host 非 loopback** + 真浏览器 E2EE；含垃圾 offer / stopDaemon）；`npm run qa:remote`（含 `cold.openShowsQr` / `cold.noBareOfferText` / `cold.copyAndRotateControls`） |
-| Manual | 真机系统相机扫码 → 选择器（App＝链接设备 / 浏览器＝web 端），冷/热启动都能配对且不堆叠 Activity，垃圾 `:3180` 链接不踢 Web 会话（BLOCKED：无真机）→ 中继已连接 → 扫码配对 → chooser 新建会话（多 workspace，含模型步）→ 切换权限模式/模型 → 会话重命名/归档/历史/删除 → >100 会话分页 + >200 时间线向上分页（阅读中流事件不拉底）→ 审批 actions → Git → 文件下钻/预览/搜索/插入 → Diff 两 scope → MCP/技能清单 → 断网重连 resync + 草稿保留 → sticky 重连 → 多台已保存电脑点选/忘记 → 解除 |
+| Automated | `mobile/web/**/*.test.js`（含 `app-cutover.test.js` 零 `fetchAgents`/`createAgent`；`host/*.test.js`；`git/stack.test.js` 的 `commit_push` 顺序；`git/bridge.test.js` 的 `gitCreateBranch`）；`src/shared/dshd-host-tunnel.test.js`（白名单外 403、非 loopback 拒转发）；`src/main/dshd-git-dispatch.test.js`（不转发 stage/pty/writeFile）；`src/main/chisacode-remote.test.js`（`DSHD_HARNESS_ORIGIN`、不设 `DSH_HOME`）；Android JVM tests（`:protocol:test` PairingIntent；`:app:testDebugUnitTest` VIEW handoff） |
+| Browser | `node tools/mobile-web-qa/run-qa.mjs`（fake **host** 会话，不单靠 fake ACP agents）；`node tools/remote-web-qa/run-e2e.mjs --relay <endpoint>`；`npm run qa:remote` |
+| Manual | **本轮 Web UI 门：** [docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。布局、`D = P`、Ayase grok-4.6 五轮、切模型/思考/权限后再聊、审批窗、切会话、新目录五轮。Android App 本轮不签。 |
 
 ## Sources
 
 - Vendored ChisaCode client/app pairing runtime
+- Host RPC map：`vendor/deepseek-harness/packages/host/apiproxy/src/api/rpc-map.ts`；斜杠命令：Typert `POST /api/commands/list` · `POST /api/commands/execute`
+- Git 标题栏：[git-titlebar.md](git-titlebar.md)
+- 归档：[session-archive.md](session-archive.md)
 - Kill list：[_kill-http-remote](_kill-http-remote.md)
-- Gap analysis：[2026-08-27-mobile-web-desktop-gap-analysis](../superpowers/plans/2026-08-27-mobile-web-desktop-gap-analysis.md)
-- Phase 0 执行：[2026-08-27-mobile-web-phase0-execution](../superpowers/plans/2026-08-27-mobile-web-phase0-execution.md)
-- Phase 1 执行：[2026-08-27-mobile-web-phase1-execution](../superpowers/plans/2026-08-27-mobile-web-phase1-execution.md)
-- Phase 2 执行：[2026-08-27-mobile-web-phase2-execution](../superpowers/plans/2026-08-27-mobile-web-phase2-execution.md)

@@ -1825,6 +1825,83 @@ export class DaemonClient {
     this.connection.setReconnectEnabled(enabled);
   }
 
+  async hostRpc(
+    method: string,
+    payload?: unknown,
+    requestId?: string,
+  ): Promise<{ ok: boolean; value?: unknown; error?: unknown }> {
+    const resolved = this.createRequestId(requestId);
+    const message = SessionInboundMessageSchema.parse({
+      type: "dshd.host.rpc.request",
+      requestId: resolved,
+      method,
+      payload,
+    });
+    return this.requests.request({
+      requestId: resolved,
+      message,
+      timeout: 30_000,
+      select: (msg) => {
+        if (msg.type !== "dshd.host.rpc.response") return null;
+        if (msg.payload.requestId !== resolved) return null;
+        return msg.payload;
+      },
+    });
+  }
+
+  async gitRpc(
+    action: string,
+    cwd: string,
+    payload?: unknown,
+    requestId?: string,
+  ): Promise<{ ok: boolean; value?: unknown; error?: string }> {
+    const resolved = this.createRequestId(requestId);
+    const message = SessionInboundMessageSchema.parse({
+      type: "dshd.git.rpc.request",
+      requestId: resolved,
+      action,
+      cwd,
+      payload,
+    });
+    return this.requests.request({
+      requestId: resolved,
+      message,
+      timeout: 120_000,
+      select: (msg) => {
+        if (msg.type !== "dshd.git.rpc.response") return null;
+        if (msg.payload.requestId !== resolved) return null;
+        return msg.payload;
+      },
+    });
+  }
+
+  subscribeHostMux(
+    onFrame: (frame: { rpcId: string; envelope: unknown }) => void,
+  ): () => void {
+    const requestId = this.createRequestId();
+    this.sendSessionMessage(
+      SessionInboundMessageSchema.parse({
+        type: "dshd.host.mux.subscribe",
+        requestId,
+      }),
+    );
+    const stop = this.on("dshd.host.mux.frame", (message) => {
+      onFrame({
+        rpcId: message.payload.rpcId,
+        envelope: message.payload.envelope ?? null,
+      });
+    });
+    return () => {
+      stop();
+      this.sendSessionMessage(
+        SessionInboundMessageSchema.parse({
+          type: "dshd.host.mux.unsubscribe",
+          requestId: this.createRequestId(),
+        }),
+      );
+    };
+  }
+
   private handleConnectionReset(error: Error, terminal: boolean): void {
     this.requests.clear(error);
     this.terminalClient.clearStreamSlots();

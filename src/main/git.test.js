@@ -1786,6 +1786,75 @@ test('gitPublishRepository adds a pasted origin without pushing an empty repo', 
   }
 });
 
+test('gitPush sets origin/HEAD so a first-published non-main branch is the default ref', async () => {
+  const cwd = makeTempDir();
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-bare-'));
+  try {
+    resetFetchCooldowns();
+    git(bare, ['init', '--bare']);
+    git(cwd, ['init', '-b', 'dshd-qa-s09']);
+    git(cwd, ['config', 'user.email', 't@local']);
+    git(cwd, ['config', 'user.name', 'T']);
+    fs.writeFileSync(path.join(cwd, 'README.md'), 'hello\n');
+    git(cwd, ['add', 'README.md']);
+    git(cwd, ['commit', '-m', 'base']);
+    git(cwd, ['remote', 'add', 'origin', bare]);
+    const pushed = await gitPush(cwd);
+    assert.equal(pushed.ok, true, pushed.message);
+    assert.equal(pushed.status, 'pushed');
+    const head = spawnSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    assert.equal(head.status, 0, head.stderr || head.stdout);
+    assert.match(head.stdout.trim(), /refs\/remotes\/origin\/dshd-qa-s09$/);
+    const status = await gitStatus(cwd);
+    assert.equal(status.refName, 'dshd-qa-s09');
+    assert.equal(status.isDefaultRef, true);
+    assert.equal(status.hasPrimaryRemote, true);
+  } finally {
+    resetFetchCooldowns();
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(bare, { recursive: true, force: true });
+  }
+});
+
+test('gitPush skip still fills a missing origin/HEAD from the current branch', async () => {
+  const cwd = makeTempDir();
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-bare-'));
+  try {
+    resetFetchCooldowns();
+    git(bare, ['init', '--bare']);
+    git(cwd, ['init', '-b', 'topic']);
+    git(cwd, ['config', 'user.email', 't@local']);
+    git(cwd, ['config', 'user.name', 'T']);
+    fs.writeFileSync(path.join(cwd, 'README.md'), 'hello\n');
+    git(cwd, ['add', 'README.md']);
+    git(cwd, ['commit', '-m', 'base']);
+    git(cwd, ['remote', 'add', 'origin', bare]);
+    git(cwd, ['push', '-u', 'origin', 'HEAD']);
+    const missing = spawnSync('git', ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+    });
+    assert.notEqual(missing.status, 0);
+    const pushed = await gitPush(cwd);
+    assert.equal(pushed.ok, true, pushed.message);
+    assert.equal(pushed.status, 'skipped');
+    const status = await gitStatus(cwd);
+    assert.equal(status.refName, 'topic');
+    assert.equal(status.isDefaultRef, true);
+  } finally {
+    resetFetchCooldowns();
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(bare, { recursive: true, force: true });
+  }
+});
+
 test('gitPublishRepository pushes an existing history to a pasted origin', async () => {
   const cwd = makeTempDir();
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-bare-'));

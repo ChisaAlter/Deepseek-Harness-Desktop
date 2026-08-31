@@ -433,6 +433,36 @@ test('full start rides the usage overlay after the install overlay; skip start d
   assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay]);
 });
 
+test('full start rides the session-search overlay; skip start drops it', async () => {
+  const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
+  const searchOverlay = 'C:/profiles/web/desktop-plugins/session-search/desktop-session-search.patch.yml';
+  const f = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureSessionSearchOverlay: async () => ({ ok: true, overlayFile: searchOverlay }),
+  });
+  await f.controller.start();
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, searchOverlay]);
+
+  const skipped = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureSessionSearchOverlay: async () => ({ ok: true, overlayFile: searchOverlay }),
+  });
+  skipped.controller.writePluginSkip(new Error('recovery'));
+  await skipped.controller.start();
+  assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
+  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay]);
+});
+
+test('a failed session-search ensure never contributes a stale overlay path', async () => {
+  const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
+  const f = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureSessionSearchOverlay: async () => ({ ok: false, error: 'missing-home', overlayFile: 'C:/stale.yml' }),
+  });
+  await f.controller.start();
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay]);
+});
+
 test('dsh-im overlay rides --patch on both full and skip starts', async () => {
   const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
   const usageOverlay = 'C:/profiles/web/desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml';

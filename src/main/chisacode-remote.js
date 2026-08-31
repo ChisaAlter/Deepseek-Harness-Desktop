@@ -21,6 +21,7 @@ const {
   publicUrl,
 } = require('../shared/lan');
 const { createMobileWebServer, listenMobileWebServer, MOBILE_WEB_PORT } = require('./mobile-web-server');
+const { startGitTunnelServer } = require('./dshd-git-tunnel');
 
 function resolveVendorRoot() {
   // Packaged: extraResources → resources/vendor/chisacode-remote
@@ -325,7 +326,9 @@ function ensureDshAcpShim({ home, harnessRoot = defaultHarnessRoot(), execPath =
  * @param {{ apiKey?: string, baseUrl?: string }} options.config - desktop shell config
  * @returns {NodeJS.ProcessEnv}
  */
-function buildDaemonChildEnv({ baseEnv, home, vendorDir, shimDir, config }) {
+function buildDaemonChildEnv({
+  baseEnv, home, vendorDir, shimDir, config, harnessOrigin, gitTunnelUrl, gitTunnelToken,
+}) {
   const env = { ...baseEnv };
   env.ELECTRON_RUN_AS_NODE = '1';
   // Bridge: dsh provider managed homes land under userData, never ~/.chisacode.
@@ -338,6 +341,9 @@ function buildDaemonChildEnv({ baseEnv, home, vendorDir, shimDir, config }) {
     const current = env[pathKey] || '';
     env[pathKey] = current ? `${shimDir}${path.delimiter}${current}` : shimDir;
   }
+  if (harnessOrigin) env.DSHD_HARNESS_ORIGIN = harnessOrigin;
+  if (gitTunnelUrl) env.DSHD_GIT_TUNNEL_URL = gitTunnelUrl;
+  if (gitTunnelToken) env.DSHD_GIT_TUNNEL_TOKEN = gitTunnelToken;
   // Same credential law as `dsh web` children: official https host only.
   applyOfficialDeepSeekSpawnEnv(env, { apiKey: config.apiKey, baseUrl: config.baseUrl });
   return env;
@@ -372,6 +378,11 @@ class ChisaCodeRemote extends EventEmitter {
     this.log = typeof options.log === 'function' ? options.log : null;
     this.runnerPath = options.runnerPath || RUNNER_PATH;
     this.execPath = options.execPath || process.execPath;
+    this.getHarnessOrigin = typeof options.getHarnessOrigin === 'function'
+      ? options.getHarnessOrigin
+      : () => '';
+    this.git = options.git || null;
+    this.gitTunnel = null;
     this.readyTimeoutMs = options.readyTimeoutMs || DAEMON_READY_TIMEOUT_MS;
     this.stopTimeoutMs = options.stopTimeoutMs || DAEMON_STOP_TIMEOUT_MS;
     this.daemon = null;
@@ -632,6 +643,7 @@ class ChisaCodeRemote extends EventEmitter {
       this.daemon = await this.spawnDaemonProcess({ api, home, config, daemonConfig });
       this.runtimeKey = this.runtimeConfigKey(config);
       this.error = '';
+      this.pushHarnessOrigin();
       await this.refreshPairing();
       this.pairingEnsureBlocked = false;
       this.emit('listening', this.snapshot());
@@ -674,12 +686,19 @@ class ChisaCodeRemote extends EventEmitter {
       JSON.stringify({ serverExport: SERVER_EXPORT, daemonConfig }),
       { encoding: 'utf8', mode: 0o600 },
     );
+    const git = this.git;
+    if (git && !this.gitTunnel) {
+      this.gitTunnel = await startGitTunnelServer({ git });
+    }
     const env = buildDaemonChildEnv({
       baseEnv: process.env,
       home,
       vendorDir: dshVendorDirForChild(api),
       shimDir: ensureDshAcpShim({ home, execPath: this.execPath }),
       config,
+      harnessOrigin: this.getHarnessOrigin() || '',
+      gitTunnelUrl: this.gitTunnel?.url || '',
+      gitTunnelToken: this.gitTunnel?.token || '',
     });
 
     const child = spawn(this.execPath, [this.runnerPath, launchFile], {
@@ -824,6 +843,11 @@ class ChisaCodeRemote extends EventEmitter {
     if (handle) {
       await this.terminateDaemonProcess(handle);
     }
+    if (this.gitTunnel) {
+      const tunnel = this.gitTunnel;
+      this.gitTunnel = null;
+      try { await tunnel.close(); } catch { /* ignore */ }
+    }
     await this.stopMobileWebServer();
     this.emit('listening', this.snapshot());
   }
@@ -832,10 +856,22 @@ class ChisaCodeRemote extends EventEmitter {
     const config = this.getConfig() || {};
     if (config.remoteEnabled) {
       await this.startDaemon();
+      this.pushHarnessOrigin();
     } else {
       await this.stopDaemon();
     }
     return this.snapshot();
+  }
+
+  pushHarnessOrigin(origin) {
+    const next = origin == null ? this.getHarnessOrigin() : origin;
+    const child = this.daemon?.child;
+    if (!child?.stdin || child.killed) return;
+    try {
+      child.stdin.write(`harness-origin ${String(next || '').trim()}\n`);
+    } catch {
+      // Child already draining.
+    }
   }
 
   rotateToken() {

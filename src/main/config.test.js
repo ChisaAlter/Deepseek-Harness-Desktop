@@ -234,6 +234,7 @@ test('remoteAppBaseUrl override rejects relay port', () => {
   const { normalizeRemoteConfig } = require('./config');
   assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:8411' }).remoteAppBaseUrl, '');
   assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212/dshd' }).remoteAppBaseUrl, 'http://125.124.85.212/dshd');
+  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:3389/dshd' }).remoteAppBaseUrl, 'http://125.124.85.212:3389/dshd');
 });
 
 test('parkRemoteSnapshot forces unavailable shape for IPC park path', () => {

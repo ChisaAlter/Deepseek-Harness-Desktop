@@ -25,8 +25,9 @@ test('isVirtualOrLinkLocalIpv4 covers APIPA and CGNAT', () => {
 });
 
 test('DEFAULT_PUBLIC_APP_BASE_URL is nginx SPA path not the relay port', () => {
-  assert.equal(DEFAULT_PUBLIC_APP_BASE_URL, 'http://125.124.85.212/dshd');
+  assert.equal(DEFAULT_PUBLIC_APP_BASE_URL, 'http://125.124.85.212:3389/dshd');
   assert.doesNotMatch(DEFAULT_PUBLIC_APP_BASE_URL, /:8411/);
+  assert.match(DEFAULT_PUBLIC_APP_BASE_URL, /\/dshd$/);
 });
 
 test('normalizePublicAppBaseUrl keeps empty and rejects relay port / RFC1918', () => {
@@ -45,5 +46,9 @@ test('normalizePublicAppBaseUrl keeps empty and rejects relay port / RFC1918', (
   assert.equal(
     normalizePublicAppBaseUrl('http://125.124.85.212/dshd', { relayEndpoint: DEFAULT_RELAY_ENDPOINT }),
     'http://125.124.85.212/dshd',
+  );
+  assert.equal(
+    normalizePublicAppBaseUrl('http://125.124.85.212:3389/dshd/'),
+    'http://125.124.85.212:3389/dshd',
   );
 });

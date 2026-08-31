@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>手机远程</title>
   <link rel="stylesheet" href="./tokens.css" />
-  <link rel="stylesheet" href="./app.css" />
+  <link rel="stylesheet" href="./app.css?v=20260830-layout" />
 </head>
 <body>
   <div class="phone" id="phone">
@@ -59,7 +59,8 @@
       <div class="log" id="log"></div>
       <div class="blank" id="blank">
         <h2>新会话</h2>
-        <p class="lead">描述你想要构建的内容。工作区仍是电脑上的那一个。</p>
+        <p class="lead">描述你想要构建的内容。发出第一条消息前可以改工作区。</p>
+        <button class="chip hidden" type="button" id="blank-workspace-chip">工作区</button>
       </div>
       <div class="composer-root">
         <div class="slash-pop hidden" id="slash-pop"></div>
@@ -73,6 +74,7 @@
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
               </button>
               <button class="chip" type="button" id="access-chip">权限<svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="chip hidden" type="button" id="plan-chip">计划</button>
             </div>
             <div class="composer-side">
               <button class="chip" type="button" id="model-chip">模型<svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -131,6 +133,6 @@
     <input type="file" accept="image/*" capture="environment" id="file-camera" hidden />
     <input type="file" accept="image/*" multiple id="file-gallery" hidden />
   </div>
-  <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=20260830-asked"></script>
 </body>
 </html>

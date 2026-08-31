@@ -12,8 +12,8 @@ const DEFAULT_RELAY_ENDPOINT = `${DEFAULT_RELAY_HOST}:${DEFAULT_RELAY_PORT}`;
 const DEFAULT_RELAY_ORIGIN = `http://${DEFAULT_RELAY_ENDPOINT}`;
 /** Transport default origin only — not a product SPA landing host (QR uses LAN :3180). */
 const DEFAULT_APP_BASE_URL = DEFAULT_RELAY_ORIGIN;
-/** Public nginx SPA path for Away-mode QR — not the relay WebSocket port. */
-const DEFAULT_PUBLIC_APP_BASE_URL = `http://${DEFAULT_RELAY_HOST}/dshd`;
+/** Public nginx SPA for Away-mode QR. Port 3389 is the cloud-open HTTP port; :80 is also deployed but not in the security group. Never :8411. */
+const DEFAULT_PUBLIC_APP_BASE_URL = `http://${DEFAULT_RELAY_HOST}:3389/dshd`;
 const DEFAULT_RELAY_USE_TLS = false;
 
 function isIpv4(address, family) {

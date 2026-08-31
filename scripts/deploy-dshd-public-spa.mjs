@@ -7,7 +7,7 @@
  * Do not put DSHD_SSH_PASS in the repo, scripts, docs, or reports.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -111,19 +111,37 @@ def find_listen80_site(sftp):
     raise SystemExit("no listen 80 site found under /etc/nginx/sites-enabled")
 
 
-def insert_include(text: str) -> tuple[str, bool]:
-    if "dshd-app.conf" in text:
-        return text, False
-    listen = re.search(r"listen\s+80\b", text)
+def insert_include_after_listen(text: str, listen_pat: str, needles: tuple[str, ...]) -> tuple[str, bool]:
+    listen = re.search(listen_pat, text)
     if not listen:
-        raise SystemExit("listen 80 not found in site file")
-    loc = text.find("\n    location / {", listen.start())
+        return text, False
+    loc = -1
+    chosen = ""
+    for needle in needles:
+        found = text.find(needle, listen.start())
+        if found >= 0 and (loc < 0 or found < loc):
+            loc = found
+            chosen = needle
     if loc < 0:
-        loc = text.find("\n    location /", listen.start())
-    if loc < 0:
-        raise SystemExit("no location / in listen 80 server")
+        return text, False
+    chunk = text[listen.start():loc]
+    if "dshd-app.conf" in chunk:
+        return text, False
     insert = "\n    include /etc/nginx/snippets/dshd-app.conf;"
     return text[:loc] + insert + text[loc:], True
+
+
+def insert_include(text: str) -> tuple[str, bool]:
+    changed = False
+    text, c80 = insert_include_after_listen(
+        text, r"listen\s+80\b", ("\n    location / {", "\n    location /")
+    )
+    changed = changed or c80
+    text, c3389 = insert_include_after_listen(
+        text, r"listen\s+3389\b", ("\n    location /hub/", "\n    location / {", "\n    location /")
+    )
+    changed = changed or c3389
+    return text, changed
 
 
 transport = paramiko.Transport((host, port))
@@ -266,8 +284,17 @@ if (!files.some((f) => f.rel === 'index.html')) {
   console.error('mobile/web/index.html missing');
   process.exit(1);
 }
-if (!files.some((f) => f.rel === 'host/rpc.js')) {
-  console.error('mobile/web/host/rpc.js missing; host/ must be uploaded');
+if (!files.some((f) => f.rel === 'host/backend.js') || !files.some((f) => f.rel === 'host/catalog.js')) {
+  console.error('mobile/web/host/backend.js or catalog.js missing; host cutover must be uploaded');
+  process.exit(1);
+}
+const appJs = readFileSync(join(LOCAL_ROOT, 'app.js'), 'utf8');
+if (appJs.includes('fetchAgents')) {
+  console.error('refuse to publish app.js that still mentions fetchAgents');
+  process.exit(1);
+}
+if (!appJs.includes("hostCall(client, 'session.list'")) {
+  console.error('refuse to publish SPA without hostCall session.list');
   process.exit(1);
 }
 console.log(`local files ${files.length} (excluded **/*.test.js only)`);

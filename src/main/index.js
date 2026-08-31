@@ -7,6 +7,7 @@ const { HarnessController } = require('./harness-controller');
 const { stripDroppedPlugins, healDanglingBundles, ensureDesktopInstallPlugin, applyDisabledBundles } = require('./plugins');
 const { removeDshMarketPreset } = require('./dshmarket-preset');
 const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
+const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin, removeDshbotPreset } = require('./dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
@@ -38,6 +39,8 @@ const {
   getMainWindow,
   showBoot,
   showHarness,
+  onHarnessOriginChange,
+  getHarnessOrigin,
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
@@ -84,6 +87,8 @@ const remote = new ChisaCodeRemote({
   }),
   safeStorage,
   log: (line) => dsh.log(line, 'app'),
+  getHarnessOrigin,
+  git,
   // Kept for any residual shell helpers that still expect a loopback target.
   getTarget: () => {
     if (dsh.state !== 'ready') {
@@ -103,6 +108,12 @@ const remote = new ChisaCodeRemote({
       saveConfig: (patch) => publicConfig(saveConfig(normalizeRendererConfigPatch(patch || {}))),
     },
   }),
+});
+
+onHarnessOriginChange((origin) => {
+  if (remote && typeof remote.pushHarnessOrigin === 'function') {
+    remote.pushHarnessOrigin(origin);
+  }
 });
 
 async function probeRemoteSnapshot() {
@@ -301,6 +312,7 @@ const harness = new HarnessController({
   ensureDesktopInstallPlugin,
   removeDshMarketPreset,
   ensureUsagePanelPlugin,
+  ensureSessionSearchOverlay,
   ensureDshImPlugin,
   ensureDshbotPlugin,
   removeDshbotPreset,

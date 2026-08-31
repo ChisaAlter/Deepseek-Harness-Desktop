@@ -5,7 +5,7 @@ import { applyHostFrame, hostLabel } from './host/frames.js';
 import { textBlock, imageBlock, promptPayload, ALLOWED_IMAGE_TYPES } from './host/prompt.js';
 import { foldEvents } from './conversation/fold.js';
 import { sessionTitle } from './conversation/title.js';
-import { muxPatch } from './conversation/live.js';
+import { muxPatch, titleFromProjection } from './conversation/live.js';
 import { visibleScreen } from './ui/chrome.js';
 import {
   channelLabel,
@@ -17,9 +17,38 @@ import {
 import { callShell, UnauthorizedError } from './shell/remote-shell.js';
 import { parseVcsStatus, parseBranchList } from './git/vcs-parse.js';
 import { resolveGitQuick } from './git/quick.js';
+import { runStackedGit } from './git/stack.js';
+import { gitCommitPayload, gitTunnelAction } from './git/bridge.js';
+import { gitCall, hostCall } from './host/backend.js';
+import {
+  archivedSessionRows,
+  heldSessionRow,
+  liveSessionRows,
+  withHeldLiveRow,
+  workspaceChoices,
+  workspaceDrawerSections,
+  workspaceIdFromCreate,
+} from './host/catalog.js';
+import { freezePane } from './host/freeze.js';
+import { historyQuery, hostHistoryPage, mergeApprovalPending, mergeOlderHistory, pendingFromHistoryEvents, runningFromHistoryEvents } from './host/history.js';
+import { effortsFor, flattenModels, modelChipLabel } from './host/models.js';
+import { approvalFromMux, approvalResolvedId, muxEventShouldApply, muxPayload, runningFromMux } from './host/mux.js';
+import {
+  DEFAULT_PRESETS,
+  applyPermissionProjectionFrame,
+  applyPermissionSnapshot,
+  permissionCommand,
+  permissionLabel,
+} from './host/permission.js';
+import {
+  admitCommandResult,
+  commandExecutePayload,
+  commandListPayload,
+  isSlashSubmitLine,
+  mapHostSlashList,
+} from './host/commands.js';
 import { classifyScan, detectScanSupport, scanUnavailableHint } from './pair/scan.js';
 import {
-  agentRows,
   clearSecret,
   getMostRecentStickyServerId,
   hasOfferFragment,
@@ -30,59 +59,18 @@ import {
   savedComputerRows,
 } from './chisacode/session.js';
 import {
-  agentModelState,
-  agentModeState,
-  chisaBranchRows,
-  chisaCheckoutStatusToVcs,
-  createMobileAgent,
-  listAgentModels,
-  listReadyProviders,
-  listWorkspaceChoices,
-  runChisaGitAction,
-} from './chisacode/parity.js';
-import {
-  breadcrumbSegments,
-  fileSizeLabel,
-  listDirectoryView,
-  previewSizeGate,
-  readFilePreview,
-  searchWorkspacePaths,
-} from './chisacode/files.js';
-import {
-  DIFF_SCOPES,
-  diffFileBadge,
-  fetchMobileDiff,
-} from './chisacode/diff.js';
-import {
-  listMobileMcpServers,
-  listMobileSkills,
-} from './chisacode/extensions.js';
-import {
   createDraftStore,
   resyncAfterReconnect,
   watchConnection,
 } from './chisacode/controller.js';
 import {
-  agentPageInfo,
-  archiveMobileAgent,
-  deleteMobileAgent,
-  groupSessionRows,
   isReadOnlyRow,
-  listArchivedAgents,
-  mergeAgentRows,
-  regenerateMobileTitle,
-  renameMobileAgent,
-  unarchiveMobileAgent,
+  sessionRowForest,
 } from './chisacode/directory.js';
 import {
-  fetchOlderTimeline,
-  mergeOlderEntries,
   resolveLogAnchor,
-  timelinePageInfo,
 } from './chisacode/timeline.js';
 import {
-  approvalFromRequest,
-  approvalsFromAgent,
   genericResponse,
   removeApproval,
   responseForAction,
@@ -90,7 +78,6 @@ import {
 import {
   applySlashCommand,
   filterSlashCommands,
-  listAgentCommands,
   slashQuery,
 } from './chisacode/commands.js';
 import { parseMarkdown } from './conversation/markdown.js';
@@ -128,12 +115,14 @@ const connBanner = el('conn-banner');
 const bannerEl = el('banner');
 const logEl = el('log');
 const blankEl = el('blank');
+const blankWorkspaceChip = el('blank-workspace-chip');
 const composer = el('composer');
 const draft = el('draft');
 const attachRail = el('attach-rail');
 const sendBtn = el('send-btn');
 const stopBtn = el('stop-btn');
 const accessChip = el('access-chip');
+const planChip = el('plan-chip');
 const modelChip = el('model-chip');
 const approval = el('approval');
 const approvalTitle = el('approval-title');
@@ -182,30 +171,39 @@ function persistPhoneStore(key, value) {
 const store = readPhoneStore();
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
+const HISTORY_POLL_MS = 1500;
+
 const state = {
   route: 'connect',
   connected: false,
   settingsOpen: false,
   settingsPane: '',
   sessions: [],
+  catalogSessions: null,
+  heldSession: null,
+  sessionsError: '',
+  workspaces: { items: [], archivedSessionIds: [] },
+  archivedRows: [],
+  sessionView: 'grouped',
+  searchHits: null,
+  searchHasMore: false,
+  searchLoading: false,
   sessionId: '',
   events: [],
-  // Daemon permission queue for the open session; the first entry renders.
   pendingApprovals: [],
-  agentPage: { nextCursor: null, hasMore: false },
-  agentsLoadingMore: false,
-  timelinePage: { startCursor: null, hasOlder: false },
+  timelinePage: { hasOlder: false, beforeSeq: null },
   timelineLoadingOlder: false,
   timelineLoading: false,
-  // Daemon error from the open session's timeline fetch; renders an in-log
-  // placeholder with retry instead of leaving stale rows on screen.
   timelineError: '',
   sessionMenu: '',
   sessionConfirm: null,
   sessionRename: null,
+  workspaceMenu: '',
   history: null,
   modelPane: null,
   modelBusy: false,
+  modelCatalog: { current: null, rows: [], failures: [] },
+  permission: { current: '', planOn: false },
   slash: { open: false, loading: false, error: '', commands: [] },
   query: '',
   host: null,
@@ -222,6 +220,7 @@ const state = {
   newSession: null,
   gitStatus: parseVcsStatus(null),
   gitBusy: false,
+  gitAuthError: '',
   gitToast: '',
   gitDialog: '',
   gitConfirmAction: '',
@@ -229,6 +228,11 @@ const state = {
   branchQuery: '',
   newBranchName: '',
   commitMessage: '',
+  commitOnNewBranch: false,
+  pendingStacked: '',
+  publishName: '',
+  publishVisibility: 'private',
+  expandedWorkspaces: {},
   wsTab: 'changes',
   fileQuery: '',
   fileEntries: [],
@@ -248,6 +252,8 @@ let scanStream = null;
 let scanLoopId = 0;
 let torchOn = false;
 let toastTimer = 0;
+let historyPollTimer = 0;
+let muxUnsub = null;
 
 function applyAppearance() {
   const dark = schemeIsDark(store.scheme, darkQuery.matches);
@@ -380,7 +386,14 @@ function renderScreen() {
 }
 
 function currentRow() {
-  return state.sessions.find((row) => row.sessionId === state.sessionId);
+  const live = state.sessions.find((row) => row.sessionId === state.sessionId);
+  if (live) return live;
+  if (state.heldSession?.sessionId === state.sessionId) return state.heldSession;
+  return undefined;
+}
+
+function promoteHeldLive() {
+  state.sessions = withHeldLiveRow(state.sessions, state.heldSession);
 }
 
 function syncRunning() {
@@ -391,25 +404,27 @@ function syncRunning() {
 }
 
 function currentModeState() {
-  if (state.transport !== 'chisacode') {
-    return { modes: [], currentModeId: null, currentLabel: '' };
-  }
-  return agentModeState(currentRow()?.chisacodeAgent);
+  const current = state.permission.current;
+  return {
+    modes: DEFAULT_PRESETS,
+    currentModeId: current || null,
+    currentLabel: permissionLabel(current) || '权限',
+  };
 }
 
 function currentModelState() {
-  if (state.transport !== 'chisacode') {
-    return { modelId: null, label: '' };
-  }
-  return agentModelState(currentRow()?.chisacodeAgent);
+  const { current, rows } = state.modelCatalog;
+  return {
+    modelId: current?.model || null,
+    label: modelChipLabel(current, rows),
+  };
 }
 
 /** Subagent and archived sessions open read-only; the composer is hidden. */
 function currentReadOnlyReason() {
-  if (state.transport !== 'chisacode') return '';
   const row = currentRow();
   if (!row || !isReadOnlyRow(row)) return '';
-  if (row.chisacodeAgent?.archivedAt) {
+  if (row.archived === true) {
     return '已归档会话（只读）。可在「已归档会话」里取消归档。';
   }
   return '子智能体会话（只读）。由父会话驱动，不能直接发消息。';
@@ -419,7 +434,9 @@ function renderComposer() {
   const canSend = Boolean(draft.value.trim()) || state.attachments.length > 0;
   sendBtn.disabled = !canSend || composerOffline();
   accessChip.firstChild.textContent = currentModeState().currentLabel || '权限';
-  modelChip.firstChild.textContent = currentModelState().label || '模型';
+  const modelLabel = currentModelState().label || '模型';
+  modelChip.firstChild.textContent = modelLabel;
+  planChip.classList.toggle('hidden', !state.permission.planOn || Boolean(currentReadOnlyReason()));
   attachRail.classList.toggle('hidden', state.attachments.length === 0);
   attachRail.replaceChildren(...state.attachments.map((image, index) => {
     const wrap = document.createElement('div');
@@ -450,10 +467,21 @@ function renderComposer() {
   }));
 }
 
+function headerHostLabel() {
+  const row = currentRow();
+  if (row?.workspaceTitle) return row.workspaceTitle;
+  if (row?.cwd) return row.cwd;
+  const chip = blankWorkspaceChip?.textContent?.trim();
+  if (chip && chip !== '工作区') return chip;
+  const first = state.workspaces?.items?.find((item) => item?.title);
+  if (first?.title) return first.title;
+  return '已连接';
+}
+
 function renderHeader() {
   const row = currentRow();
   chatTitle.textContent = row ? sessionTitle(row) : '新会话';
-  hostLine.textContent = state.hostName;
+  hostLine.textContent = headerHostLabel();
   const showPill = store.gitTitle && state.gitStatus.refName != null;
   gitPill.classList.toggle('hidden', !showPill);
   if (showPill) {
@@ -474,9 +502,11 @@ function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
   meta.textContent = [
     child || subagentTag ? '子智能体' : '',
     row.running ? '运行中' : '',
+    row.searchSnippet || '',
   ].filter(Boolean).join(' · ');
   button.append(title, meta);
   button.addEventListener('click', () => {
+    if (row.archived) return;
     openSession(row.sessionId).catch((error) => showBanner(error.message));
   });
   wrap.append(button);
@@ -496,6 +526,44 @@ function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
   return wrap;
 }
 
+function workspaceHeadNode(workspace) {
+  const wrap = document.createElement('div');
+  wrap.className = 'session-row workspace-head';
+  const expand = document.createElement('button');
+  expand.type = 'button';
+  expand.className = 'session';
+  const title = document.createElement('b');
+  title.textContent = workspace.title || workspace.path || workspace.workspaceId;
+  expand.append(title);
+  const expanded = state.expandedWorkspaces[workspace.workspaceId] !== false;
+  expand.addEventListener('click', () => {
+    state.expandedWorkspaces[workspace.workspaceId] = !expanded;
+    renderSessions();
+  });
+  wrap.append(expand);
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'session-more';
+  add.setAttribute('aria-label', '在此工作区新建会话');
+  add.textContent = '+';
+  add.addEventListener('click', (event) => {
+    event.stopPropagation();
+    void createWorkspaceSession(workspace.workspaceId);
+  });
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'session-more';
+  more.setAttribute('aria-label', '工作区操作');
+  more.textContent = '⋯';
+  more.addEventListener('click', (event) => {
+    event.stopPropagation();
+    state.workspaceMenu = workspace.workspaceId;
+    renderSheet();
+  });
+  wrap.append(add, more);
+  return wrap;
+}
+
 function drawerFootButton(label, { disabled = false, onClick }) {
   const button = document.createElement('button');
   button.type = 'button';
@@ -506,56 +574,95 @@ function drawerFootButton(label, { disabled = false, onClick }) {
   return button;
 }
 
+function appendGroupedRows(nodes, rows) {
+  const walk = (node, { child = false } = {}) => {
+    nodes.push(sessionRowNode(node.row, { child, subagentTag: node.orphanSubagent }));
+    for (const kid of node.children || []) walk(kid, { child: true });
+  };
+  for (const node of sessionRowForest(rows)) walk(node);
+}
+
 function renderSessions() {
   const query = state.query.trim();
-  // Archived rows live in the「已归档会话」sheet, not the active drawer.
-  const rows = state.sessions.filter((row) => !row.chisacodeAgent?.archivedAt);
+  const rows = state.sessions.filter((row) => !row.archived);
   const nodes = [];
+  if (state.sessionsError) {
+    nodes.push(descNode(state.sessionsError));
+    sessionList.replaceChildren(...nodes);
+    return;
+  }
   if (query) {
-    // Search stays a flat title filter over loaded rows; subagents keep
-    // their tag so read-only rows are recognizable outside the grouped view.
-    for (const row of rows.filter((item) => sessionTitle(item).includes(query))) {
-      nodes.push(sessionRowNode(row, { subagentTag: isReadOnlyRow(row) }));
-    }
-  } else {
-    for (const group of groupSessionRows(rows)) {
-      nodes.push(sessionRowNode(group.row, { subagentTag: group.orphanSubagent }));
-      for (const child of group.children) {
-        nodes.push(sessionRowNode(child, { child: true }));
+    const hits = Array.isArray(state.searchHits) ? state.searchHits : [];
+    if (state.searchLoading) {
+      nodes.push(descNode('正在搜索…'));
+    } else if (!hits.length) {
+      nodes.push(descNode('没有匹配的会话'));
+    } else {
+      for (const hit of hits) {
+        nodes.push(sessionRowNode(hit, { subagentTag: isReadOnlyRow(hit) }));
+      }
+      if (state.searchHasMore) {
+        nodes.push(descNode('还有更多结果，请改用更精确的词'));
       }
     }
+  } else if (state.sessionView === 'grouped') {
+    const { sections, ungrouped } = workspaceDrawerSections(rows, state.workspaces);
+    for (const section of sections) {
+      nodes.push(workspaceHeadNode(section.workspace));
+      if (state.expandedWorkspaces[section.workspace.workspaceId] !== false) {
+        appendGroupedRows(nodes, section.rows);
+      }
+    }
+    if (ungrouped.length) {
+      appendGroupedRows(nodes, ungrouped);
+    }
+  } else {
+    appendGroupedRows(nodes, rows);
   }
-  if (state.transport === 'chisacode' && state.agentPage.hasMore && !query) {
+  if (state.transport === 'chisacode' && !query) {
     nodes.push(drawerFootButton(
-      state.agentsLoadingMore ? '正在加载…' : '加载更多会话',
-      { disabled: state.agentsLoadingMore, onClick: () => loadMoreSessions() },
+      state.sessionView === 'grouped' ? '一个列表' : '按工作区分组',
+      {
+        onClick: () => {
+          state.sessionView = state.sessionView === 'grouped' ? 'flat' : 'grouped';
+          renderSessions();
+        },
+      },
     ));
-  }
-  if (state.transport === 'chisacode') {
     nodes.push(drawerFootButton('已归档会话', { onClick: () => openHistorySheet() }));
   }
   sessionList.replaceChildren(...nodes);
 }
 
-async function loadMoreSessions() {
+async function runSessionSearch(query) {
   const paired = state.chisacode;
-  if (!paired || !state.agentPage.hasMore || state.agentsLoadingMore) return;
-  state.agentsLoadingMore = true;
+  if (!paired || !query) {
+    state.searchHits = null;
+    state.searchHasMore = false;
+    state.searchLoading = false;
+    renderSessions();
+    return;
+  }
+  state.searchLoading = true;
   renderSessions();
   try {
-    const payload = await paired.client.fetchAgents({
-      page: { limit: 100, cursor: state.agentPage.nextCursor },
-    });
-    if (state.chisacode !== paired) return;
-    state.sessions = mergeAgentRows(state.sessions, agentRows(payload));
-    state.agentPage = agentPageInfo(payload);
+    const result = await hostCall(paired.client, 'session.search', { query });
+    if (state.chisacode !== paired || state.query.trim() !== query) return;
+    const byId = new Map(state.sessions.map((row) => [row.sessionId, row]));
+    state.searchHits = (result.items || []).map((item) => ({
+      ...(byId.get(item.sessionId) || { sessionId: item.sessionId, projections: { values: {} } }),
+      searchSnippet: item.snippet || '',
+    }));
+    state.searchHasMore = result.hasMore === true;
+    state.searchLoading = false;
+    renderSessions();
   } catch (error) {
-    showBanner(`无法加载更多会话：${error?.message || '电脑没有响应'}`);
-  } finally {
-    if (state.chisacode === paired) {
-      state.agentsLoadingMore = false;
-      renderSessions();
-    }
+    if (state.chisacode !== paired) return;
+    state.searchLoading = false;
+    state.searchHits = [];
+    state.searchHasMore = false;
+    showBanner(`搜索失败：${error?.message || '电脑没有响应'}`);
+    renderSessions();
   }
 }
 
@@ -821,6 +928,7 @@ function renderLog({ anchor = 'auto' } = {}) {
     nodes.push(...rows.map(logRowNode));
   }
   logEl.replaceChildren(...nodes);
+  renderBlankHero();
   if (!rows.length) return;
   if (resolved === 'preserve') {
     logEl.scrollTop = prevTop + (logEl.scrollHeight - prevHeight);
@@ -839,16 +947,13 @@ async function loadOlderMessages() {
   state.timelineLoadingOlder = true;
   renderLog({ anchor: 'preserve' });
   try {
-    const payload = await fetchOlderTimeline(paired.client, sessionId, page.startCursor);
+    const payload = await hostCall(paired.client, 'session.history', historyQuery(sessionId, {
+      beforeSeq: page.beforeSeq,
+    }));
     if (state.chisacode !== paired || state.sessionId !== sessionId) return;
-    const entries = Array.isArray(payload?.entries) ? payload.entries : [];
-    if (payload?.reset === true || payload?.staleCursor === true) {
-      // The daemon's timeline epoch moved; the old window cannot be stitched.
-      state.events = entries;
-    } else {
-      state.events = mergeOlderEntries(entries, state.events);
-    }
-    state.timelinePage = timelinePageInfo(payload);
+    const older = hostHistoryPage(payload);
+    state.events = mergeOlderHistory(older.events, state.events);
+    state.timelinePage = { hasOlder: older.hasOlder, beforeSeq: older.beforeSeq };
     state.timelineLoadingOlder = false;
     renderLog({ anchor: 'preserve' });
   } catch (error) {
@@ -933,12 +1038,184 @@ function assertNotLegacyHostRpc() {
 }
 
 async function call(method, payload = {}) {
+  if (state.transport === 'chisacode' && state.chisacode?.client) {
+    const value = await hostCall(state.chisacode.client, method, payload);
+    return { ok: true, value };
+  }
   assertNotLegacyHostRpc();
   const result = await callUnary({ origin, method, payload });
   if (!result.ok) {
     throw new Error(result.error?.message || method);
   }
   return result;
+}
+
+function stopHistoryPoll() {
+  if (historyPollTimer) {
+    clearInterval(historyPollTimer);
+    historyPollTimer = 0;
+  }
+}
+
+function stopMux() {
+  try { muxUnsub?.(); } catch { /* ignore */ }
+  muxUnsub = null;
+}
+
+function applyHostCatalog({ sessions, workspaces }) {
+  state.catalogSessions = sessions;
+  state.workspaces = workspaces && typeof workspaces === 'object'
+    ? workspaces
+    : { items: [], archivedSessionIds: [] };
+  state.heldSession = heldSessionRow({
+    sessions,
+    workspaces: state.workspaces,
+    sessionId: state.sessionId,
+  });
+  state.archivedRows = archivedSessionRows({ sessions, workspaces: state.workspaces });
+  state.sessions = withHeldLiveRow(
+    liveSessionRows({ sessions, workspaces: state.workspaces }),
+    state.heldSession,
+  );
+  state.sessionsError = '';
+}
+
+async function refreshHostCatalog() {
+  const client = state.chisacode?.client;
+  if (!client) throw new Error('桌面端未启动');
+  const [sessions, workspaces] = await Promise.all([
+    hostCall(client, 'session.list', {}),
+    hostCall(client, 'workspace.list', {}),
+  ]);
+  applyHostCatalog({ sessions, workspaces });
+}
+
+function applyHistoryPayload(payload) {
+  const page = hostHistoryPage(payload);
+  state.events = page.events;
+  state.timelinePage = { hasOlder: page.hasOlder, beforeSeq: page.beforeSeq };
+  const row = currentRow();
+  if (row && page.projections) {
+    row.projections = page.projections;
+    if (page.projections.values?.title) {
+      row.blank = false;
+      if (state.heldSession?.sessionId === row.sessionId) state.heldSession = { ...row };
+      promoteHeldLive();
+    }
+  }
+  const running = runningFromHistoryEvents(page.events);
+  if (row && running !== null) {
+    row.running = running;
+  }
+  state.permission = applyPermissionSnapshot({
+    projections: page.projections,
+    events: page.events,
+    previous: state.permission,
+  });
+  state.pendingApprovals = mergeApprovalPending(
+    state.pendingApprovals,
+    pendingFromHistoryEvents(page.events, state.sessionId),
+  );
+}
+
+function handleMuxFrame(frame) {
+  const pending = approvalFromMux(frame);
+  if (pending && pending.sessionId === state.sessionId) {
+    if (!state.pendingApprovals.some((item) => item.rpcId === pending.rpcId)) {
+      state.pendingApprovals = [...state.pendingApprovals, pending];
+      renderApproval();
+    }
+  }
+  const resolved = approvalResolvedId(frame);
+  if (resolved) {
+    state.pendingApprovals = state.pendingApprovals.filter((item) => item.approvalId !== resolved);
+    renderApproval();
+  }
+  const { payload } = muxPayload(frame);
+  if (
+    payload?.type === 'host/session-status'
+    || payload?.type === 'host/session-added'
+    || payload?.type === 'host/session-removed'
+  ) {
+    state.sessions = applyHostFrame(state.sessions, payload);
+    renderHeader();
+    renderSessions();
+    renderComposer();
+  } else {
+    const running = runningFromMux(frame);
+    const sid = payload?.sessionId || state.sessionId;
+    if (running !== null && sid) {
+      if (state.heldSession?.sessionId === sid) {
+        state.heldSession = { ...state.heldSession, running };
+      }
+      state.sessions = withHeldLiveRow(
+        state.sessions.map((row) => (
+          row.sessionId === sid ? { ...row, running } : row
+        )),
+        state.heldSession,
+      );
+      renderHeader();
+      renderSessions();
+      renderComposer();
+    }
+  }
+  if (payload?.type === 'session/projection' && payload.sessionId === state.sessionId) {
+    state.permission = applyPermissionProjectionFrame(state.permission, payload);
+    const title = payload.key === 'title' ? titleFromProjection(payload.value) : '';
+    const row = currentRow();
+    if (row && title) {
+      row.projections = row.projections || { values: {} };
+      row.projections.values = { ...row.projections.values, title };
+      row.blank = false;
+      if (state.heldSession?.sessionId === row.sessionId) state.heldSession = { ...row };
+      promoteHeldLive();
+      renderHeader();
+      renderSessions();
+    }
+    renderComposer();
+    renderSettings();
+  }
+  if (muxEventShouldApply(payload) && payload.sessionId === state.sessionId && payload.event) {
+    const seq = payload.event.seq;
+    const duplicate = Number.isInteger(seq)
+      && state.events.some((entry) => (entry?.event?.seq ?? entry?.seq) === seq);
+    if (!duplicate) {
+      state.events = [...state.events, { event: payload.event }];
+      const running = runningFromHistoryEvents(state.events);
+      const row = currentRow();
+      if (row && running !== null) row.running = running;
+      renderLog();
+      renderHeader();
+      renderSessions();
+      renderComposer();
+    }
+  }
+}
+
+function startLiveFollow() {
+  stopHistoryPoll();
+  stopMux();
+  const client = state.chisacode?.client;
+  if (!client) return;
+  if (typeof client.subscribeHostMux === 'function') {
+    muxUnsub = client.subscribeHostMux((frame) => handleMuxFrame(frame));
+  }
+  historyPollTimer = setInterval(() => {
+    if (!state.sessionId || !state.chisacode?.client) return;
+    const row = currentRow();
+    if (row?.running !== true && !state.pendingApprovals.length) return;
+    hostCall(state.chisacode.client, 'session.history', historyQuery(state.sessionId))
+      .then((payload) => {
+        if (!state.sessionId) return;
+        applyHistoryPayload(payload);
+        renderLog();
+        renderHeader();
+        renderSessions();
+        renderComposer();
+        renderApproval();
+      })
+      .catch(() => {});
+  }, HISTORY_POLL_MS);
 }
 
 function forceLogout(message) {
@@ -965,9 +1242,7 @@ function forceLogout(message) {
   state.sessionId = '';
   state.events = [];
   state.pendingApprovals = [];
-  state.agentPage = { nextCursor: null, hasMore: false };
-  state.agentsLoadingMore = false;
-  state.timelinePage = { startCursor: null, hasOlder: false };
+  state.timelinePage = { hasOlder: false, beforeSeq: null };
   state.timelineLoadingOlder = false;
   state.timelineLoading = false;
   state.timelineError = '';
@@ -977,6 +1252,12 @@ function forceLogout(message) {
   state.history = null;
   state.modelPane = null;
   state.modelBusy = false;
+  state.workspaces = { items: [], archivedSessionIds: [] };
+  state.sessionsError = '';
+  state.searchHits = null;
+  state.searchHasMore = false;
+  stopHistoryPoll();
+  stopMux();
   state.slash = { open: false, loading: false, error: '', commands: [] };
   state.settingsOpen = false;
   state.settingsPane = '';
@@ -1032,6 +1313,8 @@ function applyMux(frame) {
       row.projections = row.projections || { values: {} };
       row.projections.values = { ...row.projections.values, title: patch.value };
       row.blank = false;
+      if (state.heldSession?.sessionId === row.sessionId) state.heldSession = { ...row };
+      promoteHeldLive();
     }
     renderHeader();
     renderSessions();
@@ -1050,22 +1333,24 @@ function sessionItems(value) {
   return [];
 }
 
-function updateChisaCodeAgent(agent) {
-  const next = agentRows({ entries: [{ agent }] })[0];
-  if (!next) return;
-  const index = state.sessions.findIndex(row => row.sessionId === next.sessionId);
-  if (index >= 0) {
-    state.sessions[index] = next;
-  } else {
-    state.sessions.unshift(next);
-  }
+function updateHostSession(session) {
+  if (!session?.sessionId) return;
+  const index = state.sessions.findIndex((row) => row.sessionId === session.sessionId);
+  const next = {
+    ...(index >= 0 ? state.sessions[index] : { projections: { values: {} } }),
+    sessionId: session.sessionId,
+    cwd: session.cwd || (index >= 0 ? state.sessions[index].cwd : ''),
+    running: session.running === true,
+    parentSessionId: session.parentSessionId || '',
+    origin: session.origin || '',
+    projections: session.projections || (index >= 0 ? state.sessions[index].projections : { values: {} }),
+  };
+  if (index >= 0) state.sessions[index] = next;
+  else state.sessions.unshift(next);
   if (state.sessionId === next.sessionId) {
     state.cwd = next.cwd;
     renderComposer();
     renderApproval();
-    if (state.settingsOpen && (state.settingsPane === '权限' || state.settingsPane === '模型')) {
-      renderSettings();
-    }
   }
   renderSessions();
   renderHeader();
@@ -1073,117 +1358,30 @@ function updateChisaCodeAgent(agent) {
 
 function clearApproval(requestId) {
   const before = state.pendingApprovals.length;
-  state.pendingApprovals = removeApproval(state.pendingApprovals, requestId);
+  state.pendingApprovals = removeApproval(state.pendingApprovals, requestId)
+    .filter((item) => item.rpcId !== requestId && item.approvalId !== requestId);
   if (state.pendingApprovals.length !== before) {
     renderApproval();
   }
 }
 
 function bindChisaCodeEvents(paired) {
-  const disposers = [];
-  if (typeof paired.client.on !== 'function') {
-    return () => {};
-  }
-  disposers.push(paired.client.on('agent_update', (message) => {
-    const update = message?.payload;
-    if (update?.kind === 'upsert') {
-      updateChisaCodeAgent(update.agent);
-    } else if (update?.kind === 'remove') {
-      state.sessions = state.sessions.filter(row => row.sessionId !== update.agentId);
-      if (update.agentId === state.sessionId) {
-        // The open session was deleted (possibly from another client).
-        state.sessionId = '';
-        state.events = [];
-        state.pendingApprovals = [];
-        state.timelinePage = { startCursor: null, hasOlder: false };
-        state.timelineError = '';
-        state.timelineLoading = false;
-        renderLog();
-        renderApproval();
-        renderComposer();
-      }
-      renderSessions();
-      renderHeader();
-    }
-  }));
-  // Cross-client resolution: another paired client (or the desktop) answered.
-  disposers.push(paired.client.on('agent_permission_resolved', (message) => {
-    const payload = message?.payload;
-    if (!payload || payload.agentId !== state.sessionId) return;
-    clearApproval(payload.requestId);
-  }));
-  disposers.push(paired.client.on('agent_stream', (message) => {
-    const payload = message?.payload;
-    if (!payload || payload.agentId !== state.sessionId) return;
-    const event = payload.event;
-    if (event?.type === 'timeline') {
-      const duplicate = Number.isInteger(payload.seq)
-        && state.events.some((entry) => entry.seqStart === payload.seq);
-      if (!duplicate) {
-        state.events.push({
-          item: event.item,
-          timestamp: payload.timestamp,
-          seqStart: payload.seq,
-          seqEnd: payload.seq,
-        });
-        renderLog();
-      }
-    }
-    const row = currentRow();
-    if (row && event?.type === 'turn_started') row.running = true;
-    if (row && ['turn_completed', 'turn_failed', 'turn_canceled'].includes(event?.type)) {
-      row.running = false;
-    }
-    if (event?.type === 'permission_requested') {
-      const pending = approvalFromRequest(event.request);
-      if (pending && !state.pendingApprovals.some((item) => item.requestId === pending.requestId)) {
-        state.pendingApprovals = [...state.pendingApprovals, pending];
-        renderApproval();
-      }
-    }
-    if (event?.type === 'permission_resolved') {
-      clearApproval(event.requestId);
-    }
-    if (event?.type === 'mode_changed') {
-      const row = currentRow();
-      if (row?.chisacodeAgent) {
-        row.chisacodeAgent = {
-          ...row.chisacodeAgent,
-          currentModeId: event.currentModeId ?? null,
-          availableModes: Array.isArray(event.availableModes)
-            ? event.availableModes
-            : row.chisacodeAgent.availableModes,
-        };
-      }
-      renderComposer();
-      if (state.settingsOpen && state.settingsPane === '权限') renderSettings();
-    }
-    renderHeader();
-  }));
-  return () => {
-    for (const dispose of disposers) {
-      if (typeof dispose === 'function') dispose();
-    }
-  };
+  return () => {};
 }
 
 async function runReconnectResync() {
   const paired = state.chisacode;
   if (state.transport !== 'chisacode' || !paired) return;
   try {
-    const { agents, timeline } = await resyncAfterReconnect(paired.client, {
+    const { sessions, workspaces, history } = await resyncAfterReconnect(paired.client, {
       sessionId: state.sessionId,
     });
     if (state.chisacode !== paired) return;
-    state.sessions = agentRows(agents);
-    state.agentPage = agentPageInfo(agents);
-    if (timeline) {
-      state.events = Array.isArray(timeline.entries) ? timeline.entries : [];
-      state.timelinePage = timelinePageInfo(timeline);
+    applyHostCatalog({ sessions, workspaces });
+    if (history && state.sessionId) {
+      applyHistoryPayload(history);
       state.timelineError = '';
       state.timelineLoading = false;
-      if (timeline.agent) updateChisaCodeAgent(timeline.agent);
-      state.pendingApprovals = approvalsFromAgent(timeline.agent);
       state.cwd = currentRow()?.cwd || state.cwd;
     }
     renderSessions();
@@ -1214,6 +1412,8 @@ async function finishChisaCodeConnect(paired, reconnected) {
   paired.dispose = () => {
     disposeEvents();
     disposeWatch();
+    stopHistoryPoll();
+    stopMux();
   };
   draftStore = createDraftStore(localStorage, paired.serverId);
   state.chisacode = paired;
@@ -1227,16 +1427,14 @@ async function finishChisaCodeConnect(paired, reconnected) {
   state.hostName = paired.serverId;
   let loadError = '';
   try {
-    const payload = await paired.client.fetchAgents({
-      page: { limit: 100 },
-      subscribe: {},
-    });
-    state.sessions = agentRows(payload);
-    state.agentPage = agentPageInfo(payload);
+    await refreshHostCatalog();
   } catch (error) {
     state.sessions = [];
-    state.agentPage = { nextCursor: null, hasMore: false };
-    loadError = `无法加载会话：${error?.message || '电脑没有响应'}`;
+    state.workspaces = { items: [], archivedSessionIds: [] };
+    loadError = error?.message?.includes('桌面端未启动')
+      ? '桌面端未启动'
+      : `无法加载会话：${error?.message || '电脑没有响应'}`;
+    state.sessionsError = loadError;
   }
   deviceLine.replaceChildren();
   deviceLine.append(document.createTextNode(`${reconnected ? '已重连' : '已配对'} ${paired.serverId}`));
@@ -1267,74 +1465,80 @@ async function connectSticky() {
 async function openSession(sessionId) {
   const previousSessionId = state.sessionId;
   if (state.transport === 'chisacode' && previousSessionId && previousSessionId !== sessionId) {
-    // Attachments survive a session switch in memory (not a reload).
     draftStore?.saveAttachments(previousSessionId, state.attachments);
   }
   state.sessionId = sessionId;
+  if (state.catalogSessions) {
+    applyHostCatalog({ sessions: state.catalogSessions, workspaces: state.workspaces });
+  }
   phone.removeAttribute('data-drawer');
   backdrop.classList.add('hidden');
-  if (state.transport === 'chisacode') {
-    draft.value = draftStore?.load(sessionId) || '';
-    state.attachments = draftStore?.loadAttachments(sessionId) || [];
-    state.timelinePage = { startCursor: null, hasOlder: false };
-    state.timelineLoadingOlder = false;
-    // Clear the previous session's rows before the fetch: if it fails, stale
-    // content must not sit under the new session's header.
-    state.events = [];
-    state.pendingApprovals = [];
-    state.timelineError = '';
-    state.timelineLoading = true;
-    renderComposer();
-    renderSlashPop();
-    renderLog({ anchor: 'bottom' });
-    renderApproval();
-    renderHeader();
-    let history;
-    try {
-      history = await state.chisacode.client.fetchAgentTimeline(sessionId, {
-        direction: 'tail',
-        limit: 200,
-        projection: 'projected',
-      });
-    } catch (error) {
-      if (state.sessionId !== sessionId) return;
-      state.timelineLoading = false;
-      state.timelineError = error?.message || '电脑没有响应';
-      renderLog({ anchor: 'bottom' });
-      throw error;
-    }
+  draft.value = draftStore?.load(sessionId) || '';
+  state.attachments = draftStore?.loadAttachments(sessionId) || [];
+  state.timelinePage = { hasOlder: false, beforeSeq: null };
+  state.timelineLoadingOlder = false;
+  state.events = [];
+  state.pendingApprovals = [];
+  state.timelineError = '';
+  state.timelineLoading = true;
+  renderComposer();
+  renderSlashPop();
+  renderLog({ anchor: 'bottom' });
+  renderApproval();
+  renderHeader();
+  let history;
+  try {
+    history = await call('session.history', historyQuery(sessionId));
+  } catch (error) {
     if (state.sessionId !== sessionId) return;
     state.timelineLoading = false;
-    state.events = Array.isArray(history?.entries) ? history.entries : [];
-    state.timelinePage = timelinePageInfo(history);
-    // Capture before updateChisaCodeAgent, which already writes the new cwd.
-    const previousCwd = state.cwd;
-    if (history?.agent) updateChisaCodeAgent(history.agent);
-    state.pendingApprovals = approvalsFromAgent(history?.agent);
-    state.cwd = currentRow()?.cwd || '';
-    // Files / diff panes are cwd-bound; a different workspace invalidates them.
-    if (state.cwd !== previousCwd) resetWorkPanes();
-    renderHeader();
-    renderSessions();
+    state.timelineError = error?.message || '电脑没有响应';
     renderLog({ anchor: 'bottom' });
-    renderApproval();
-    renderComposer();
-    return;
+    throw error;
   }
-  const history = await call('session.history', { sessionId });
-  state.events = history.value?.events || [];
-  state.pendingApprovals = [];
-  const row = currentRow();
-  if (row && history.value?.projections) {
-    row.projections = history.value.projections;
-  }
+  if (state.sessionId !== sessionId) return;
+  state.timelineLoading = false;
+  const previousCwd = state.cwd;
+  applyHistoryPayload(history.value || history);
+  state.cwd = currentRow()?.cwd || '';
+  if (state.cwd !== previousCwd) resetWorkPanes();
+  renderBlankHero();
+  startLiveFollow();
+  void loadSessionModels();
+  void refreshGit();
   renderHeader();
   renderSessions();
   renderLog({ anchor: 'bottom' });
   renderApproval();
+  renderComposer();
 }
 
-// —— 新会话 chooser（工作区 → 提供方 → 可选权限模式）—— //
+function renderBlankHero() {
+  const empty = foldEvents(state.events).length === 0 && !state.timelineError && !state.timelineLoading;
+  const row = currentRow();
+  const canChange = empty && row && !row.archived && !currentReadOnlyReason();
+  if (!blankWorkspaceChip) return;
+  blankWorkspaceChip.classList.toggle('hidden', !canChange);
+  if (canChange) {
+    blankWorkspaceChip.textContent = row.workspaceTitle || row.cwd || '无工作区文件夹';
+  }
+}
+
+async function loadSessionModels() {
+  if (!state.sessionId || !state.chisacode?.client) return;
+  try {
+    const catalog = await hostCall(state.chisacode.client, 'session.models', {
+      sessionId: state.sessionId,
+    });
+    state.modelCatalog = flattenModels(catalog);
+    renderComposer();
+    if (state.settingsOpen && state.settingsPane === '模型') renderSettings();
+  } catch (error) {
+    showBanner(`读取模型失败：${error?.message || '电脑没有响应'}`);
+  }
+}
+
+// —— 新会话：已有工作区 / 无目录 / 浏览本机目录 —— //
 
 function updateNewSession(patch) {
   if (!state.newSession) return;
@@ -1347,89 +1551,115 @@ function startNewSessionChooser() {
   state.gitDialog = '';
   phone.removeAttribute('data-drawer');
   backdrop.classList.add('hidden');
+  const { choices, noFolder } = workspaceChoices(state.workspaces);
   state.newSession = {
     step: 'workspace',
-    loading: true,
+    loading: false,
     error: '',
-    workspaces: [],
-    providers: [],
+    workspaces: [
+      noFolder,
+      ...choices,
+      { id: '__browse__', name: '浏览本机目录…', cwd: '', browse: true },
+    ],
+    browse: null,
+    presets: [],
     workspace: null,
-    provider: null,
   };
   renderSheet();
-  const session = state.newSession;
-  listWorkspaceChoices(state.chisacode.client)
-    .then((workspaces) => {
-      if (state.newSession !== session) return;
-      updateNewSession({ loading: false, workspaces });
-    })
-    .catch((error) => {
-      if (state.newSession !== session) return;
-      updateNewSession({ loading: false, error: error?.message || '电脑没有响应' });
-    });
 }
 
-function chooseNewSessionWorkspace(workspace) {
-  updateNewSession({
-    step: 'provider', workspace, loading: true, creating: false, error: '', providers: [],
-  });
-  const session = state.newSession;
-  listReadyProviders(state.chisacode.client, workspace.cwd)
-    .then((providers) => {
-      if (state.newSession !== session) return;
-      updateNewSession({ loading: false, providers });
-    })
-    .catch((error) => {
-      if (state.newSession !== session) return;
-      updateNewSession({ loading: false, error: error?.message || '电脑没有响应' });
+async function createWorkspaceSession(workspaceId, extra = {}) {
+  const client = state.chisacode?.client;
+  if (!client) return;
+  try {
+    const created = await hostCall(client, 'session.create', {
+      ...(workspaceId ? { workspaceId } : {}),
+      ...extra,
     });
+    const sessionId = created.sessionId;
+    await refreshHostCatalog();
+    renderSessions();
+    if (sessionId) await openSession(sessionId);
+  } catch (error) {
+    showBanner(`无法创建会话：${error?.message || '电脑没有响应'}`);
+  }
 }
 
-function chooseNewSessionProvider(provider) {
-  if (provider.modes.length) {
-    updateNewSession({ step: 'mode', provider, error: '' });
+async function chooseNewSessionWorkspace(workspace) {
+  if (workspace?.browse) {
+    await openDirectoryBrowse();
     return;
   }
-  chooseNewSessionMode(provider, '');
+  state.newSession = null;
+  renderSheet();
+  await createWorkspaceSession(workspace?.id || '');
 }
 
-function chooseNewSessionMode(provider, modeId) {
-  if (Array.isArray(provider.models) && provider.models.length) {
-    updateNewSession({ step: 'model', provider, modeId, error: '' });
-    return;
-  }
-  submitNewSession(provider, modeId, '');
-}
-
-function submitNewSession(provider, modeId, model) {
+async function openDirectoryBrowse() {
+  const client = state.chisacode?.client;
+  if (!client) return;
+  updateNewSession({ step: 'browse', loading: true, error: '', browse: null });
   const session = state.newSession;
-  const workspace = session?.workspace;
-  if (!session || !workspace) return;
+  try {
+    const listed = await hostCall(client, 'host.listDirectory', {});
+    if (state.newSession !== session) return;
+    updateNewSession({ loading: false, browse: listed });
+  } catch (error) {
+    if (state.newSession !== session) return;
+    updateNewSession({ loading: false, error: error?.message || '电脑没有响应' });
+  }
+}
+
+async function browseDirectory(path) {
+  const client = state.chisacode?.client;
+  if (!client || !state.newSession) return;
+  updateNewSession({ loading: true, error: '' });
+  const session = state.newSession;
+  try {
+    const listed = await hostCall(client, 'host.listDirectory', { path });
+    if (state.newSession !== session) return;
+    updateNewSession({ loading: false, browse: listed });
+  } catch (error) {
+    if (state.newSession !== session) return;
+    updateNewSession({ loading: false, error: error?.message || '电脑没有响应' });
+  }
+}
+
+async function createBrowsedWorkspace() {
+  const client = state.chisacode?.client;
+  const path = state.newSession?.browse?.path;
+  if (!client || !path) return;
   updateNewSession({ loading: true, creating: true, error: '' });
   const active = state.newSession;
-  createMobileAgent(state.chisacode.client, {
-    workspaceId: workspace.id,
-    cwd: workspace.cwd,
-    provider: provider.provider,
-    ...(modeId ? { modeId } : {}),
-    ...(model ? { model } : {}),
-  })
-    .then((agent) => {
-      if (state.newSession !== active) return;
-      state.newSession = null;
-      renderSheet();
-      updateChisaCodeAgent(agent);
-      showBanner('');
-      // The agent exists; a timeline load failure must be visible, not
-      // swallowed by the chooser's create error handler.
-      return openSession(agent.id).catch((error) => {
-        showBanner(`会话已创建，但载入失败：${error?.message || '电脑没有响应'}`);
-      });
-    })
-    .catch((error) => {
-      if (state.newSession !== active) return;
-      updateNewSession({ loading: false, creating: false, error: error?.message || '电脑没有响应' });
-    });
+  try {
+    const created = await hostCall(client, 'workspace.create', { path });
+    const workspaceId = workspaceIdFromCreate(created);
+    if (!workspaceId) throw new Error('工作区创建失败');
+    const session = await hostCall(client, 'session.create', { workspaceId });
+    if (state.newSession !== active) return;
+    state.newSession = null;
+    renderSheet();
+    await refreshHostCatalog();
+    renderSessions();
+    if (session.sessionId) await openSession(session.sessionId);
+  } catch (error) {
+    if (state.newSession !== active) return;
+    updateNewSession({ loading: false, creating: false, error: error?.message || '电脑没有响应' });
+  }
+}
+
+async function createDirectoryInBrowse() {
+  const name = window.prompt('新文件夹名称');
+  if (!name || !name.trim()) return;
+  const client = state.chisacode?.client;
+  const path = state.newSession?.browse?.path;
+  if (!client || !path) return;
+  try {
+    const created = await hostCall(client, 'host.createDirectory', { path, name: name.trim() });
+    await browseDirectory(created.path || path);
+  } catch (error) {
+    updateNewSession({ error: error?.message || '无法创建文件夹' });
+  }
 }
 
 // —— 会话操作（重命名 / 重新生成标题 / 归档 / 删除）与已归档历史 —— //
@@ -1472,7 +1702,10 @@ async function submitSessionRename() {
   rename.error = '';
   renderDialog();
   try {
-    await renameMobileAgent(paired.client, rename.sessionId, rename.value);
+    await hostCall(paired.client, 'session.rename', {
+      sessionId: rename.sessionId,
+      title: rename.value,
+    });
     if (state.sessionRename !== rename) return;
     // The daemon accepted; reflect the confirmed name locally right away
     // (the authoritative agent_update upsert follows).
@@ -1495,11 +1728,50 @@ async function submitSessionRename() {
   }
 }
 
+async function forkSession(row) {
+  state.sessionMenu = '';
+  renderSheet();
+  try {
+    const created = await hostCall(state.chisacode.client, 'session.fork', {
+      sessionId: row.sessionId,
+    });
+    await refreshHostCatalog();
+    renderSessions();
+    if (created.sessionId) await openSession(created.sessionId);
+  } catch (error) {
+    showBanner(`Fork 失败：${error?.message || '电脑没有响应'}`);
+  }
+}
+
+async function moveSession(row, direction) {
+  const client = state.chisacode?.client;
+  if (!client) return;
+  const ids = state.sessions.map((item) => item.sessionId);
+  const index = ids.indexOf(row.sessionId);
+  const swapWith = direction === 'up' ? ids[index - 1] : ids[index + 2] || ids[index + 1];
+  if (!swapWith || index < 0) return;
+  state.sessionMenu = '';
+  renderSheet();
+  try {
+    await hostCall(client, 'workspace.insertSessionBefore', {
+      sessionId: direction === 'up' ? row.sessionId : swapWith,
+      beforeSessionId: direction === 'up' ? swapWith : row.sessionId,
+    });
+    await refreshHostCatalog();
+    renderSessions();
+  } catch (error) {
+    showBanner(`排序失败：${error?.message || '电脑没有响应'}`);
+  }
+}
+
 async function regenerateSessionTitle(row) {
   state.sessionMenu = '';
   renderSheet();
   try {
-    await regenerateMobileTitle(state.chisacode.client, row.sessionId);
+    await hostCall(state.chisacode.client, 'session.prompt', {
+      sessionId: row.sessionId,
+      ...promptPayload([textBlock('/rename')]),
+    });
     setToast('已请求重新生成标题');
   } catch (error) {
     showBanner(`重新生成标题失败：${error?.message || '电脑没有响应'}`);
@@ -1528,18 +1800,19 @@ async function runSessionConfirm() {
   renderDialog();
   try {
     if (confirm.kind === 'archive') {
-      await archiveMobileAgent(paired.client, confirm.sessionId);
-    } else {
-      await deleteMobileAgent(paired.client, confirm.sessionId);
+      await hostCall(paired.client, 'workspace.archiveSession', { sessionId: confirm.sessionId });
+    } else if (confirm.kind === 'delete') {
+      await hostCall(paired.client, 'session.delete', { sessionId: confirm.sessionId });
+    } else if (confirm.kind === 'workspace-delete') {
+      await hostCall(paired.client, 'workspace.delete', { workspaceId: confirm.sessionId });
     }
     if (state.sessionConfirm !== confirm) return;
-    // Confirmed by the daemon — only now does the row leave the list.
-    state.sessions = state.sessions.filter((row) => row.sessionId !== confirm.sessionId);
+    await refreshHostCatalog();
     clearSessionView(confirm.sessionId);
     state.sessionConfirm = null;
     renderDialog();
     renderSessions();
-    setToast(confirm.kind === 'archive' ? '已归档' : '已删除');
+    setToast(confirm.kind === 'archive' ? '已归档' : confirm.kind === 'workspace-delete' ? '已删除工作区' : '已删除');
   } catch (error) {
     if (state.sessionConfirm !== confirm) return;
     confirm.busy = false;
@@ -1552,40 +1825,18 @@ function openHistorySheet() {
   phone.removeAttribute('data-drawer');
   backdrop.classList.add('hidden');
   state.history = {
-    rows: [],
+    rows: state.archivedRows.slice(),
     nextCursor: null,
     hasMore: false,
-    loading: true,
+    loading: false,
     error: '',
     busyId: '',
   };
   renderSheet();
-  loadHistoryPage(true);
 }
 
-async function loadHistoryPage(firstPage) {
-  const view = state.history;
-  const paired = state.chisacode;
-  if (!view || !paired) return;
-  view.loading = true;
-  view.error = '';
-  renderSheet();
-  try {
-    const result = await listArchivedAgents(paired.client, {
-      cursor: firstPage ? null : view.nextCursor,
-    });
-    if (state.history !== view) return;
-    view.rows = firstPage ? result.rows : mergeAgentRows(view.rows, result.rows);
-    view.nextCursor = result.nextCursor;
-    view.hasMore = result.hasMore;
-    view.loading = false;
-    renderSheet();
-  } catch (error) {
-    if (state.history !== view) return;
-    view.loading = false;
-    view.error = error?.message || '电脑没有响应';
-    renderSheet();
-  }
+async function loadHistoryPage() {
+  return;
 }
 
 async function unarchiveFromHistory(row) {
@@ -1595,11 +1846,13 @@ async function unarchiveFromHistory(row) {
   view.busyId = row.sessionId;
   renderSheet();
   try {
-    await unarchiveMobileAgent(paired.client, row.sessionId);
+    await hostCall(paired.client, 'workspace.unarchiveSession', { sessionId: row.sessionId });
+    await refreshHostCatalog();
     if (state.history !== view) return;
-    view.rows = view.rows.filter((item) => item.sessionId !== row.sessionId);
+    view.rows = state.archivedRows.slice();
     view.busyId = '';
     renderSheet();
+    renderSessions();
     setToast('已取消归档');
   } catch (error) {
     if (state.history !== view) return;
@@ -1625,35 +1878,38 @@ async function createSession() {
   await openSession(sessionId);
 }
 
+async function runHostCommand(line, images = []) {
+  const value = await hostCall(
+    state.chisacode.client,
+    'commands/execute',
+    commandExecutePayload(state.sessionId, line, images),
+  );
+  admitCommandResult(value, line);
+  const history = await hostCall(state.chisacode.client, 'session.history', historyQuery(state.sessionId));
+  applyHistoryPayload(history);
+  renderLog();
+  renderComposer();
+  renderSettings();
+}
+
 async function sendPrompt() {
   const text = draft.value.trim();
   const images = state.attachments.slice();
   if (!state.sessionId || (!text && !images.length)) return;
   if (state.pendingApprovals.length) return;
-  if (state.transport === 'chisacode') {
-    if (currentReadOnlyReason()) {
-      showBanner('只读会话不能发送消息');
-      return;
-    }
-    if (composerOffline()) {
-      showBanner('连接已断开，消息未发送；草稿已保留，恢复连接后再发');
-      return;
-    }
-    await state.chisacode.client.sendAgentMessage(
-      state.sessionId,
-      text || '请查看附件',
-      {
-        images: images.map(image => ({
-          data: image.data,
-          mimeType: image.mediaType,
-        })),
-      },
-    );
+  if (currentReadOnlyReason()) {
+    showBanner('只读会话不能发送消息');
+    return;
+  }
+  if (composerOffline()) {
+    showBanner('连接已断开，消息未发送；草稿已保留，恢复连接后再发');
+    return;
+  }
+  if (isSlashSubmitLine(text)) {
+    await runHostCommand(text, images);
     draft.value = '';
     draftStore?.clear(state.sessionId);
     state.attachments = [];
-    const row = currentRow();
-    if (row) row.running = true;
     renderComposer();
     renderSlashPop();
     renderHeader();
@@ -1666,36 +1922,44 @@ async function sendPrompt() {
   }
   await call('session.prompt', { sessionId: state.sessionId, ...promptPayload(blocks) });
   draft.value = '';
+  draftStore?.clear(state.sessionId);
   state.attachments = [];
+  const row = currentRow();
+  if (row) row.running = true;
   renderComposer();
+  renderSlashPop();
+  renderHeader();
 }
 
 async function cancelRun() {
   if (!state.sessionId) return;
   try {
-    if (state.transport === 'chisacode') {
-      await state.chisacode.client.cancelAgent(state.sessionId);
-      return;
-    }
     await call('session.cancel', { sessionId: state.sessionId });
   } catch (error) {
     showBanner(error.message || '无法停止');
   }
 }
 
-/**
- * Answer one daemon permission request with a full AgentPermissionResponse
- * (behavior + optional selectedActionId). The queue advances locally; the
- * daemon's permission_resolved event is idempotent on top.
- */
 async function respondToPendingApproval(pending, response) {
-  if (state.transport !== 'chisacode') return;
-  await state.chisacode.client.respondToPermission(
-    state.sessionId,
-    pending.requestId,
-    response,
-  );
-  clearApproval(pending.requestId);
+  const outcome = response?.selectedActionId === 'rejected'
+    || response?.behavior === 'deny'
+    ? 'rejected'
+    : (pending.actions?.find((action) => action.id === response?.selectedActionId)?.outcome || 'allowed-once');
+  // Dismiss first: host may settle before the E2EE respond ack arrives.
+  clearApproval(pending.rpcId);
+  clearApproval(pending.approvalId);
+  try {
+    await hostCall(state.chisacode.client, 'respond', {
+      rpcId: pending.rpcId,
+      value: {
+        sessionId: pending.sessionId || state.sessionId,
+        approvalId: pending.approvalId,
+        outcome,
+      },
+    });
+  } catch (error) {
+    showBanner(error.message || '审批未能送达电脑');
+  }
 }
 
 async function answerLegacyApproval(outcome) {
@@ -1711,7 +1975,7 @@ async function answerLegacyApproval(outcome) {
   renderApproval();
 }
 
-// —— Slash 命令 popup（`/` 触发，daemon listCommands，按 agent 缓存）—— //
+// —— Slash 命令 popup（`/` 触发，host commands/list，按会话缓存）—— //
 
 function renderSlashPop() {
   const slash = state.slash;
@@ -1777,32 +2041,43 @@ function updateSlashPopup() {
     return;
   }
   paired.slashCommandsCache ??= new Map();
+  paired.slashCommandsInflight ??= new Set();
   const cached = paired.slashCommandsCache.get(sessionId);
   if (cached) {
     state.slash = { open: true, loading: false, error: '', commands: cached };
     renderSlashPop();
     return;
   }
+  if (paired.slashCommandsInflight.has(sessionId)) {
+    if (!state.slash.open) {
+      state.slash = { open: true, loading: true, error: '', commands: [] };
+      renderSlashPop();
+    }
+    return;
+  }
+  paired.slashCommandsInflight.add(sessionId);
   state.slash = { open: true, loading: true, error: '', commands: [] };
   renderSlashPop();
-  listAgentCommands(paired.client, sessionId)
-    .then((commands) => {
-      if (state.chisacode !== paired || state.sessionId !== sessionId) return;
-      paired.slashCommandsCache.set(sessionId, commands);
-      if (slashQuery(draft.value) === null) return;
-      state.slash = { open: true, loading: false, error: '', commands };
+  hostCall(paired.client, 'commands/list', commandListPayload(sessionId))
+    .then((listed) => {
+      const mapped = mapHostSlashList(listed);
+      paired.slashCommandsCache.set(sessionId, mapped);
+      if (state.sessionId !== sessionId || slashQuery(draft.value) === null) return;
+      state.slash = { open: true, loading: false, error: '', commands: mapped };
       renderSlashPop();
     })
     .catch((error) => {
-      if (state.chisacode !== paired || state.sessionId !== sessionId) return;
-      if (slashQuery(draft.value) === null) return;
+      if (state.sessionId !== sessionId) return;
       state.slash = {
         open: true,
         loading: false,
-        error: `无法读取命令：${error?.message || '电脑没有响应'}`,
+        error: error.message || '无法读取命令',
         commands: [],
       };
       renderSlashPop();
+    })
+    .finally(() => {
+      paired.slashCommandsInflight.delete(sessionId);
     });
 }
 
@@ -1965,33 +2240,46 @@ async function addFiles(fileList) {
 // —— Git / 工作区（M5）—— //
 
 function currentQuick() {
+  if (state.gitAuthError) {
+    return { label: 'Git', disabled: true, kind: 'show_hint', action: null, hint: state.gitAuthError };
+  }
+  if (state.gitStatus.isRepo === false) {
+    return { label: 'Initialize Git', disabled: state.gitBusy, kind: 'run_init', action: null, hint: '' };
+  }
   return resolveGitQuick(state.gitStatus, state.gitBusy);
 }
 
 async function refreshGit() {
   if (!state.cwd) return;
+  state.gitAuthError = '';
   try {
-    if (state.transport === 'chisacode') {
-      const status = await state.chisacode.client.getCheckoutStatus(state.cwd);
-      let pr = null;
-      if (status?.isGit && typeof state.chisacode.client.checkoutPrStatus === 'function') {
-        try {
-          pr = await state.chisacode.client.checkoutPrStatus(state.cwd);
-          if (pr?.error) {
-            const message = typeof pr.error === 'string' ? pr.error : pr.error.message;
-            showBanner(`Git 状态已加载；拉取请求状态不可用：${message || '电脑没有响应'}`);
-          }
-        } catch (error) {
-          showBanner(`Git 状态已加载；拉取请求状态不可用：${error?.message || '电脑没有响应'}`);
-        }
-      }
-      state.gitStatus = chisaCheckoutStatusToVcs(status, pr);
+    const status = await gitCall(state.chisacode.client, 'git-status', state.cwd, {});
+    if (!status) {
+      state.gitAuthError = 'Git 未授权该目录';
+      state.gitStatus = parseVcsStatus({ isRepo: false, refName: null });
     } else {
-      const result = await shell('gitStatus', { cwd: state.cwd });
-      state.gitStatus = parseVcsStatus(result);
+      state.gitStatus = parseVcsStatus(status);
+      try {
+        const pr = await gitCall(state.chisacode.client, 'git-pull-request', state.cwd, {});
+        if (pr && typeof pr === 'object' && (pr.url || pr.state)) {
+          state.gitStatus.pr = {
+            state: pr.state || null,
+            number: pr.number ?? null,
+            url: pr.url || null,
+          };
+        }
+      } catch (error) {
+        showBanner(`Git 状态已加载；拉取请求状态不可用：${error?.message || '电脑没有响应'}`);
+      }
     }
   } catch (error) {
-    setToast(error.message || 'Git 状态不可用');
+    const message = error.message || 'Git 状态不可用';
+    if (/unavailable|授权|workspace/i.test(message)) {
+      state.gitAuthError = message;
+      state.gitStatus = parseVcsStatus({ isRepo: false, refName: null });
+    } else {
+      setToast(message);
+    }
   }
   renderHeader();
   if (state.settingsOpen) renderSettings();
@@ -2015,13 +2303,33 @@ async function gitAction(name, extra = {}) {
   renderToast();
   renderSettings();
   try {
-    if (state.transport === 'chisacode') {
-      await runChisaGitAction(state.chisacode.client, name, state.cwd, extra);
+    const action = gitTunnelAction(name);
+    const stacked = extra.stacked || state.pendingStacked || '';
+    const payload = action === 'git-commit'
+      ? gitCommitPayload({
+        message: extra.message || state.commitMessage,
+        filePaths: extra.filePaths,
+        featureBranch: extra.featureBranch === true || state.commitOnNewBranch,
+      })
+      : extra;
+    if (action === 'git-commit' && stacked && stacked !== 'commit') {
+      await runStackedGit(
+        (step, body) => gitCall(
+          state.chisacode.client,
+          step,
+          state.cwd,
+          step === 'git-commit' ? payload : body || {},
+        ),
+        stacked,
+        extra,
+      );
+      state.pendingStacked = '';
     } else {
-      await shell(name, { cwd: state.cwd, ...extra });
+      await gitCall(state.chisacode.client, action, state.cwd, payload);
     }
     state.gitDialog = '';
     state.gitConfirmAction = '';
+    state.commitOnNewBranch = false;
     renderSheet();
     renderDialog();
     state.gitBusy = false;
@@ -2052,11 +2360,16 @@ function runGitPrimary() {
     setToast(quick.hint);
     return;
   }
+  if (quick.kind === 'run_init') {
+    gitAction('gitInit');
+    return;
+  }
   if (quick.kind === 'run_pull') {
     gitAction('gitPull');
     return;
   }
   if (quick.action === 'commit' || quick.action === 'commit_push' || quick.action === 'commit_push_pr') {
+    state.pendingStacked = quick.action;
     state.gitDialog = 'commit';
     renderDialog();
     return;
@@ -2070,8 +2383,9 @@ function runGitPrimary() {
     return;
   }
   if (quick.kind === 'open_publish') {
-    showBanner('请在电脑上发布仓库');
-    setToast('发布仓库不可用');
+    state.gitDialog = 'publish';
+    renderSheet();
+    renderDialog();
     return;
   }
   if (quick.kind === 'open_pr') {
@@ -2084,16 +2398,8 @@ function runGitPrimary() {
 async function loadBranches() {
   if (!state.cwd) return;
   try {
-    if (state.transport === 'chisacode') {
-      const result = await state.chisacode.client.getBranchSuggestions({
-        cwd: state.cwd,
-        limit: 200,
-      });
-      state.branches = chisaBranchRows(result, state.gitStatus.refName);
-    } else {
-      const result = await shell('gitBranchList', { cwd: state.cwd });
-      state.branches = parseBranchList(result);
-    }
+    const result = await gitCall(state.chisacode.client, 'git-branch-list', state.cwd, {});
+    state.branches = parseBranchList(result);
     state.branchQuery = '';
     state.gitDialog = 'branch';
     renderSheet();
@@ -2183,8 +2489,12 @@ function closeFilePreview() {
   pane.pendingScroll = pane.scrollTops[pane.path] ?? 0;
 }
 
-/** Navigate the drill-down browser to a relative directory path. */
-async function loadFilesPath(path) {
+/** Navigate the drill-down browser to a relative directory path. Frozen this round. */
+async function loadFilesPath() {
+  return;
+}
+
+async function _unusedLoadFilesPath(path) {
   const pane = ensureFilesPane();
   if (!state.cwd || state.transport !== 'chisacode') return;
   if (pane.preview) {
@@ -2276,15 +2586,10 @@ async function runFileSearch(query) {
   refreshFilesBody();
 }
 
-/** Entry point used by every "open the files surface" affordance. */
+/** Signed DEFER: Files tab is a freeze bar; do not call ACP listDirectory. */
 function openFilesPane() {
   if (state.transport !== 'chisacode') {
     loadFiles();
-    return;
-  }
-  const pane = ensureFilesPane();
-  if (!pane.loaded && !pane.loading && state.cwd) {
-    void loadFilesPath(pane.path);
   }
 }
 
@@ -2308,8 +2613,12 @@ function refreshDiffBody() {
   }
 }
 
-/** Load the read-only diff for the current scope (one-shot getCheckoutDiff). */
+/** Load the read-only diff. Frozen this round — freeze bar only. */
 async function loadDiff() {
+  return;
+}
+
+async function _unusedLoadDiff() {
   const pane = ensureDiffPane();
   if (!state.cwd || state.transport !== 'chisacode') return;
   const seq = pane.loadSeq + 1;
@@ -2331,11 +2640,7 @@ async function loadDiff() {
 }
 
 function openChangesTab() {
-  if (state.transport !== 'chisacode') return;
-  const pane = ensureDiffPane();
-  if (!pane.view && !pane.loading && state.cwd) {
-    void loadDiff();
-  }
+  return;
 }
 
 function ensureExtPane(kind) {
@@ -2345,8 +2650,12 @@ function ensureExtPane(kind) {
   return state.extPane[kind];
 }
 
-/** Load the read-only MCP / skills inventory. Strictly list RPCs — no writes. */
-async function loadExtensions(kind, force = false) {
+/** MCP / skills inventory. Frozen this round — freeze bar only. */
+async function loadExtensions() {
+  return;
+}
+
+async function _unusedLoadExtensions(kind, force = false) {
   if (state.transport !== 'chisacode') return;
   const pane = ensureExtPane(kind);
   if (pane.loading || (pane.loaded && !force)) return;
@@ -2871,227 +3180,189 @@ function fileBrowserNodes(pane) {
   return nodes;
 }
 
-/** Files work loop: breadcrumb drill-down, daemon path search, read-only preview. */
+function renderFrozenPane(target, kind) {
+  const pane = freezePane(kind);
+  target.append(noticeNode(pane.body));
+}
+
+/** Files / Diff / MCP / Skills: signed DEFER freeze — never an empty list. */
 function renderFilesInto(target) {
-  if (state.transport !== 'chisacode') {
-    renderLegacyFilesInto(target);
-    return;
-  }
-  const pane = ensureFilesPane();
-  if (!state.cwd) {
-    target.append(descNode('先打开一个会话，文件浏览跟随该会话的工作区目录。'));
-    return;
-  }
-  const searchWrap = document.createElement('div');
-  const searchInput = fieldInput(pane.search.query, '按路径搜索（不是内容搜索）', (value) => {
-    pane.search.query = value;
-    clearTimeout(fileSearchTimer);
-    const trimmed = value.trim();
-    if (!trimmed) {
-      pane.search.results = [];
-      pane.search.ran = false;
-      pane.search.loading = false;
-      pane.search.error = '';
-      refreshFilesBody();
-      return;
-    }
-    pane.search.loading = true;
-    refreshFilesBody();
-    fileSearchTimer = setTimeout(() => { void runFileSearch(trimmed); }, 250);
-  });
-  searchWrap.append(searchInput);
-  const body = document.createElement('div');
-  body.className = 'files-body';
-  const render = () => {
-    searchWrap.classList.toggle('hidden', Boolean(pane.preview));
-    if (pane.preview) {
-      body.replaceChildren(...filePreviewNodes(pane));
-    } else if (pane.search.query.trim()) {
-      body.replaceChildren(...fileSearchNodes(pane));
-    } else {
-      body.replaceChildren(...fileBrowserNodes(pane));
-      if (pane.pendingScroll !== null) {
-        options.scrollTop = pane.pendingScroll;
-        pane.pendingScroll = null;
-      }
-    }
-  };
-  filesBodyHook = { node: body, render };
-  target.append(searchWrap, body);
-  render();
+  renderFrozenPane(target, 'files');
 }
 
 function renderDiffInto(target) {
-  const pane = ensureDiffPane();
-  if (!state.cwd) {
-    target.append(descNode('先打开一个会话，改动视图跟随该会话的工作区目录。'));
-    return;
-  }
-  const scopes = document.createElement('div');
-  scopes.className = 'ws-tabs diff-scopes';
-  for (const scope of DIFF_SCOPES) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'ws-tab';
-    button.setAttribute('aria-selected', String(pane.scope === scope.id));
-    button.textContent = scope.label;
-    button.addEventListener('click', () => {
-      if (pane.scope === scope.id) return;
-      pane.scope = scope.id;
-      pane.view = null;
-      pane.open = {};
-      void loadDiff();
-      renderSettings();
-    });
-    scopes.append(button);
-  }
-  target.append(scopes);
-  target.append(descNode('只读视图。提交、暂存等操作请用顶部 Git 胶囊或电脑端。'));
-  if (pane.loading) {
-    target.append(descNode('正在读取改动…'));
-    return;
-  }
-  if (pane.error) {
-    target.append(descNode(`读取改动失败：${pane.error}`));
-    target.append(ghostButton('重试', () => { void loadDiff(); }));
-    return;
-  }
-  const view = pane.view;
-  if (!view) {
-    target.append(ghostButton('加载改动', () => { void loadDiff(); }));
-    return;
-  }
-  if (view.kind === 'non-git') {
-    target.append(descNode('这个目录不是 Git 仓库，没有改动视图。'));
-    return;
-  }
-  if (view.kind === 'empty') {
-    target.append(descNode(pane.scope === 'uncommitted' ? '没有未提交的改动。' : '与主干没有差异。'));
-    target.append(ghostButton('刷新', () => { void loadDiff(); }));
-    return;
-  }
-  for (const file of view.files) {
-    const details = document.createElement('details');
-    details.className = 'diff-file';
-    if (pane.open[file.path]) details.open = true;
-    details.addEventListener('toggle', () => {
-      pane.open[file.path] = details.open;
-    });
-    const summary = document.createElement('summary');
-    summary.className = 'diff-file-head';
-    const path = document.createElement('span');
-    path.className = 'diff-path';
-    path.textContent = file.path;
-    summary.append(path);
-    const badge = diffFileBadge(file);
-    if (badge) {
-      const badgeNode = document.createElement('span');
-      badgeNode.className = 'diff-badge';
-      badgeNode.textContent = badge;
-      summary.append(badgeNode);
-    }
-    const stat = document.createElement('span');
-    stat.className = 'diff-stat';
-    stat.textContent = `+${file.additions} −${file.deletions}`;
-    summary.append(stat);
-    details.append(summary);
-    if (file.status === 'binary') {
-      details.append(descNode('二进制文件，不显示行级差异。'));
-    } else if (file.status === 'too_large') {
-      details.append(descNode('差异过大，电脑端可查看完整内容。'));
-    } else if (!file.hunks.length) {
-      details.append(descNode('没有行级差异。'));
-    } else {
-      for (const hunk of file.hunks) {
-        const block = document.createElement('div');
-        block.className = 'diff-hunk';
-        const header = document.createElement('div');
-        header.className = 'diff-line header';
-        header.textContent = hunk.header;
-        block.append(header);
-        for (const line of hunk.lines) {
-          const row = document.createElement('div');
-          row.className = `diff-line ${line.type}`;
-          const sign = line.type === 'add' ? '+' : line.type === 'remove' ? '−' : ' ';
-          row.textContent = `${sign} ${line.content}`;
-          block.append(row);
-        }
-        details.append(block);
-      }
-    }
-    target.append(details);
-  }
-  target.append(ghostButton('刷新', () => { void loadDiff(); }));
+  renderFrozenPane(target, 'diff');
 }
 
-/** MCP / Skills read-only inventory pane (kind: 'mcp' | 'skills'). */
 function renderExtensionsPane(kind) {
-  const pane = ensureExtPane(kind);
-  const noun = kind === 'mcp' ? 'MCP 服务器' : '技能';
-  options.append(noticeNode(`只读清单。启用、停用、安装、删除${noun}请在电脑端操作。`));
-  if (pane.loading) {
-    options.append(descNode('正在读取清单…'));
+  renderFrozenPane(options, kind);
+}
+
+async function changeAgentMode(modeId) {
+  if (!state.sessionId || state.modeBusy) return;
+  const before = state.permission.current;
+  if (before === modeId) return;
+  state.modeBusy = true;
+  state.permission = { ...state.permission, current: modeId, planOn: modeId === 'plan' };
+  renderComposer();
+  renderSettings();
+  try {
+    await runHostCommand(permissionCommand(modeId));
+    showBanner('');
+  } catch (error) {
+    state.permission = { ...state.permission, current: before, planOn: before === 'plan' };
+    showBanner(`切换权限模式失败：${error?.message || '电脑没有响应'}`);
+  } finally {
+    state.modeBusy = false;
+    renderComposer();
+    renderSettings();
+  }
+}
+
+function renderModePane() {
+  if (!state.sessionId) {
+    options.append(descNode('先打开一个会话。权限预设来自正在跑的 dsh web。'));
     return;
   }
-  if (pane.error) {
-    options.append(descNode(`读取失败：${pane.error}`));
-    options.append(ghostButton('重试', () => { void loadExtensions(kind, true); }));
+  options.append(descNode('切换会发送 /permission <id>，失败会回滚。'));
+  const group = document.createElement('div');
+  group.className = 'group';
+  for (const mode of DEFAULT_PRESETS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'sheet-item mode-row';
+    button.disabled = state.modeBusy;
+    button.setAttribute('aria-pressed', String(mode.id === state.permission.current));
+    const main = document.createElement('span');
+    main.className = 'sheet-item-main';
+    const title = document.createElement('span');
+    title.textContent = mode.label;
+    main.append(title);
+    button.append(main);
+    if (mode.id === state.permission.current) {
+      const mark = document.createElement('span');
+      mark.className = 'mode-current';
+      mark.textContent = '当前';
+      button.append(mark);
+    }
+    button.addEventListener('click', () => changeAgentMode(mode.id));
+    group.append(button);
+  }
+  options.append(group);
+}
+
+async function changeAgentModel(provider, model, reasoningEffort) {
+  if (!state.sessionId || state.modelBusy) return;
+  const before = state.modelCatalog.current;
+  state.modelBusy = true;
+  state.modelCatalog = {
+    ...state.modelCatalog,
+    current: { provider, model, ...(reasoningEffort ? { reasoningEffort } : {}) },
+  };
+  renderComposer();
+  renderSettings();
+  try {
+    const selected = await hostCall(state.chisacode.client, 'session.selectModel', {
+      sessionId: state.sessionId,
+      provider,
+      model,
+      ...(reasoningEffort ? { reasoningEffort } : {}),
+    });
+    state.modelCatalog = {
+      ...state.modelCatalog,
+      current: selected?.selected || { provider, model, reasoningEffort },
+    };
+    showBanner('');
+  } catch (error) {
+    state.modelCatalog = { ...state.modelCatalog, current: before };
+    showBanner(`切换模型失败：${error?.message || '电脑没有响应'}`);
+  } finally {
+    state.modelBusy = false;
+    renderComposer();
+    renderSettings();
+  }
+}
+
+function loadModelPane() {
+  if (!state.sessionId) return;
+  const pane = { loading: true, error: '', rows: [] };
+  state.modelPane = pane;
+  hostCall(state.chisacode.client, 'session.models', { sessionId: state.sessionId })
+    .then((catalog) => {
+      if (state.modelPane !== pane) return;
+      state.modelCatalog = flattenModels(catalog);
+      state.modelPane = { loading: false, error: '', rows: state.modelCatalog.rows };
+      renderSettings();
+    })
+    .catch((error) => {
+      if (state.modelPane !== pane) return;
+      state.modelPane = { loading: false, error: error?.message || '电脑没有响应', rows: [] };
+      renderSettings();
+    });
+}
+
+function renderModelPane() {
+  if (!state.sessionId) {
+    options.append(descNode('先打开一个会话。模型来自 session.models。'));
     return;
   }
-  for (const note of pane.notes) {
-    options.append(descNode(`电脑端提示：${note}`));
+  if (!state.modelPane) loadModelPane();
+  const pane = state.modelPane;
+  const { current, rows } = state.modelCatalog;
+  options.append(descNode('模型清单来自正在跑的 dsh web；切换会立即写回这个会话。'));
+  options.append(hairRow('当前模型', modelChipLabel(current, rows)));
+  if (pane?.loading) {
+    options.append(descNode('正在读取可选模型…'));
+    return;
   }
-  if (!pane.rows.length) {
-    options.append(descNode(kind === 'mcp' ? '电脑端没有配置 MCP 服务器。' : '电脑端没有可用技能。'));
-    options.append(ghostButton('刷新', () => { void loadExtensions(kind, true); }));
+  if (pane?.error) {
+    options.append(noticeNode(`读取模型失败：${pane.error}`));
+    options.append(ghostButton('重试', () => {
+      loadModelPane();
+      renderSettings();
+    }));
     return;
   }
   const group = document.createElement('div');
   group.className = 'group';
-  for (const row of pane.rows) {
-    const item = document.createElement('div');
-    item.className = 'ext-row';
-    const main = document.createElement('div');
-    main.className = 'ext-main';
+  for (const row of rows) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'sheet-item mode-row';
+    button.disabled = state.modelBusy;
+    button.setAttribute('aria-pressed', String(current?.provider === row.provider && current?.model === row.id));
+    const main = document.createElement('span');
+    main.className = 'sheet-item-main';
     const title = document.createElement('span');
-    title.className = 'ext-name';
-    title.textContent = kind === 'mcp' ? row.label : row.name;
+    title.textContent = row.name;
     main.append(title);
-    if (row.description) {
-      const desc = document.createElement('span');
-      desc.className = 'ext-desc';
-      desc.textContent = row.description;
-      main.append(desc);
-    }
-    const metaParts = [];
-    if (kind === 'mcp') {
-      if (row.transport) metaParts.push(row.transport);
-      metaParts.push(row.source === 'system' ? '系统' : '用户');
-    } else {
-      for (const source of row.sources) metaParts.push(source.typeLabel);
-    }
-    if (row.overrides.providers) metaParts.push(`${row.overrides.providers} 处按提供方覆盖`);
-    if (row.overrides.agents) metaParts.push(`${row.overrides.agents} 处按会话覆盖`);
-    if (metaParts.length) {
-      const meta = document.createElement('span');
-      meta.className = 'ext-meta';
-      meta.textContent = metaParts.join(' · ');
-      main.append(meta);
-    }
-    for (const errorText of row.errors) {
-      const errorNode = document.createElement('span');
-      errorNode.className = 'ext-error';
-      errorNode.textContent = errorText;
-      main.append(errorNode);
-    }
-    const status = document.createElement('span');
-    status.className = `ext-status${row.enabled ? ' on' : ''}`;
-    status.textContent = row.statusLabel || '未知状态';
-    item.append(main, status);
-    group.append(item);
+    const hint = document.createElement('span');
+    hint.className = 'sheet-hint';
+    hint.textContent = [row.providerName, row.reasoning ? '含思考档' : ''].filter(Boolean).join(' · ');
+    main.append(hint);
+    button.append(main);
+    button.addEventListener('click', () => changeAgentModel(row.provider, row.id));
+    group.append(button);
   }
   options.append(group);
-  options.append(ghostButton('刷新', () => { void loadExtensions(kind, true); }));
+  const efforts = effortsFor(current, rows);
+  if (efforts.length) {
+    options.append(descNode('思考强度'));
+    const effortGroup = document.createElement('div');
+    effortGroup.className = 'group';
+    for (const effort of efforts) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sheet-item mode-row';
+      button.setAttribute('aria-pressed', String(current?.reasoningEffort === effort.id));
+      button.textContent = effort.name || effort.id;
+      button.addEventListener('click', () => {
+        if (current) changeAgentModel(current.provider, current.model, effort.id);
+      });
+      effortGroup.append(button);
+    }
+    options.append(effortGroup);
+  }
 }
 
 function renderWorkspacePane() {
@@ -3143,215 +3414,6 @@ function renderHostRequestPane(pane) {
   options.append(ghostButton('在电脑上打开设置', () => requestHost('openSettings')));
 }
 
-async function changeAgentMode(modeId) {
-  const row = currentRow();
-  const agent = row?.chisacodeAgent;
-  if (!agent || state.modeBusy) return;
-  const before = agent.currentModeId ?? null;
-  if (before === modeId) return;
-  state.modeBusy = true;
-  row.chisacodeAgent = { ...agent, currentModeId: modeId };
-  renderComposer();
-  renderSettings();
-  try {
-    await state.chisacode.client.setAgentMode(agent.id, modeId);
-    showBanner('');
-  } catch (error) {
-    // Roll back only if the daemon has not sent a newer authoritative value.
-    const current = currentRow();
-    if (current?.chisacodeAgent?.id === agent.id
-      && current.chisacodeAgent.currentModeId === modeId) {
-      current.chisacodeAgent = { ...current.chisacodeAgent, currentModeId: before };
-    }
-    showBanner(`切换权限模式失败：${error?.message || '电脑没有响应'}`);
-  } finally {
-    state.modeBusy = false;
-    renderComposer();
-    renderSettings();
-  }
-}
-
-function renderModePane() {
-  if (state.transport !== 'chisacode') {
-    options.append(descNode('当前连接不支持权限模式管理；请在电脑端操作。'));
-    return;
-  }
-  const agent = currentRow()?.chisacodeAgent;
-  if (!agent) {
-    options.append(descNode('先打开一个会话。权限模式属于具体会话，来自电脑端 daemon。'));
-    return;
-  }
-  const modeState = currentModeState();
-  if (!modeState.modes.length) {
-    options.append(descNode('此会话的提供方没有可切换的权限模式。'));
-    return;
-  }
-  options.append(descNode('权限模式来自电脑端 daemon；切换会立即写回这个会话，失败会回滚。'));
-  const group = document.createElement('div');
-  group.className = 'group';
-  for (const mode of modeState.modes) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'sheet-item mode-row';
-    button.disabled = state.modeBusy;
-    button.setAttribute('aria-pressed', String(mode.id === modeState.currentModeId));
-    const main = document.createElement('span');
-    main.className = 'sheet-item-main';
-    const title = document.createElement('span');
-    title.textContent = mode.label;
-    main.append(title);
-    if (mode.description) {
-      const hint = document.createElement('span');
-      hint.className = 'sheet-hint';
-      hint.textContent = mode.description;
-      main.append(hint);
-    }
-    button.append(main);
-    if (mode.id === modeState.currentModeId) {
-      const mark = document.createElement('span');
-      mark.className = 'mode-current';
-      mark.textContent = '当前';
-      button.append(mark);
-    }
-    button.addEventListener('click', () => {
-      changeAgentMode(mode.id);
-    });
-    group.append(button);
-  }
-  options.append(group);
-}
-
-async function changeAgentModel(modelId) {
-  const row = currentRow();
-  const agent = row?.chisacodeAgent;
-  if (!agent || state.modelBusy) return;
-  const before = typeof agent.model === 'string' && agent.model ? agent.model : null;
-  if (before === modelId) return;
-  state.modelBusy = true;
-  row.chisacodeAgent = { ...agent, model: modelId };
-  renderComposer();
-  renderSettings();
-  try {
-    await state.chisacode.client.setAgentModel(agent.id, modelId);
-    showBanner('');
-  } catch (error) {
-    // Roll back only if the daemon has not sent a newer authoritative value.
-    const current = currentRow();
-    if (current?.chisacodeAgent?.id === agent.id
-      && (current.chisacodeAgent.model ?? null) === modelId) {
-      current.chisacodeAgent = { ...current.chisacodeAgent, model: before };
-    }
-    showBanner(`切换模型失败：${error?.message || '电脑没有响应'}`);
-  } finally {
-    state.modelBusy = false;
-    renderComposer();
-    renderSettings();
-  }
-}
-
-function loadModelPane() {
-  const agent = currentRow()?.chisacodeAgent;
-  if (!agent) return;
-  const pane = { loading: true, error: '', rows: [] };
-  state.modelPane = pane;
-  listAgentModels(state.chisacode.client, agent.provider, agent.cwd)
-    .then((rows) => {
-      if (state.modelPane !== pane) return;
-      state.modelPane = { loading: false, error: '', rows };
-      renderSettings();
-    })
-    .catch((error) => {
-      if (state.modelPane !== pane) return;
-      state.modelPane = { loading: false, error: error?.message || '电脑没有响应', rows: [] };
-      renderSettings();
-    });
-}
-
-function renderModelPane() {
-  if (state.transport !== 'chisacode') {
-    options.append(descNode('当前连接不支持模型管理；请在电脑端操作。'));
-    return;
-  }
-  const agent = currentRow()?.chisacodeAgent;
-  if (!agent) {
-    options.append(descNode('先打开一个会话。模型属于具体会话，来自电脑端 daemon。'));
-    return;
-  }
-  if (!state.modelPane) loadModelPane();
-  const pane = state.modelPane;
-  const modelState = currentModelState();
-  options.append(descNode('模型清单来自电脑端提供方；切换会立即写回这个会话，失败会回滚。'));
-  options.append(hairRow('当前模型', modelState.label || '提供方默认'));
-  if (pane?.loading) {
-    options.append(descNode('正在读取可选模型…'));
-    return;
-  }
-  if (pane?.error) {
-    options.append(noticeNode(`读取模型失败：${pane.error}`));
-    options.append(ghostButton('重试', () => {
-      loadModelPane();
-      renderSettings();
-    }));
-    return;
-  }
-  const group = document.createElement('div');
-  group.className = 'group';
-  const defaultRow = document.createElement('button');
-  defaultRow.type = 'button';
-  defaultRow.className = 'sheet-item mode-row';
-  defaultRow.disabled = state.modelBusy;
-  defaultRow.setAttribute('aria-pressed', String(!modelState.modelId));
-  const defaultMain = document.createElement('span');
-  defaultMain.className = 'sheet-item-main';
-  const defaultTitle = document.createElement('span');
-  defaultTitle.textContent = '提供方默认';
-  defaultMain.append(defaultTitle);
-  defaultRow.append(defaultMain);
-  if (!modelState.modelId) {
-    const mark = document.createElement('span');
-    mark.className = 'mode-current';
-    mark.textContent = '当前';
-    defaultRow.append(mark);
-  }
-  defaultRow.addEventListener('click', () => {
-    changeAgentModel(null);
-  });
-  group.append(defaultRow);
-  for (const model of pane?.rows || []) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'sheet-item mode-row';
-    button.disabled = state.modelBusy;
-    button.setAttribute('aria-pressed', String(model.id === modelState.modelId));
-    const main = document.createElement('span');
-    main.className = 'sheet-item-main';
-    const title = document.createElement('span');
-    title.textContent = model.label;
-    main.append(title);
-    const hints = [
-      model.label === model.id ? '' : model.id,
-      model.isDefault ? '提供方默认' : '',
-    ].filter(Boolean).join(' · ');
-    if (hints) {
-      const hint = document.createElement('span');
-      hint.className = 'sheet-hint';
-      hint.textContent = hints;
-      main.append(hint);
-    }
-    button.append(main);
-    if (model.id === modelState.modelId) {
-      const mark = document.createElement('span');
-      mark.className = 'mode-current';
-      mark.textContent = '当前';
-      button.append(mark);
-    }
-    button.addEventListener('click', () => {
-      changeAgentModel(model.id);
-    });
-    group.append(button);
-  }
-  options.append(group);
-}
 
 function renderSettings() {
   if (!state.settingsOpen) return;
@@ -3481,9 +3543,7 @@ function closeGitLayer() {
 }
 
 function newSessionStepTitle(step) {
-  if (step === 'provider') return '新会话 · 选择提供方';
-  if (step === 'mode') return '新会话 · 权限模式';
-  if (step === 'model') return '新会话 · 选择模型';
+  if (step === 'browse') return '新会话 · 浏览本机目录';
   return '新会话 · 选择工作区';
 }
 
@@ -3493,23 +3553,11 @@ function renderNewSessionSheet() {
     state.newSession = null;
     renderSheet();
   });
-  if (session.step !== 'workspace') {
+  if (session.step === 'browse') {
     sheet.append(sheetItem({
       label: '‹ 返回',
       enabled: !session.loading,
-      onClick: () => {
-        if (session.step === 'model') {
-          if (session.provider?.modes?.length) {
-            updateNewSession({ step: 'mode', modeId: '', error: '' });
-          } else {
-            updateNewSession({ step: 'provider', provider: null, modeId: '', error: '' });
-          }
-        } else if (session.step === 'mode') {
-          updateNewSession({ step: 'provider', provider: null, error: '' });
-        } else {
-          updateNewSession({ step: 'workspace', workspace: null, providers: [], error: '' });
-        }
-      },
+      onClick: () => startNewSessionChooser(),
     }));
   }
   if (session.error) {
@@ -3521,9 +3569,7 @@ function renderNewSessionSheet() {
   if (session.loading) {
     const note = document.createElement('p');
     note.className = 'sheet-note';
-    note.textContent = session.creating
-      ? '正在创建会话…'
-      : session.step === 'workspace' ? '正在读取电脑端工作区…' : '正在读取提供方…';
+    note.textContent = session.creating ? '正在创建会话…' : '正在读取目录…';
     sheet.append(note);
     sheetRoot.append(layer);
     return;
@@ -3532,50 +3578,38 @@ function renderNewSessionSheet() {
     for (const workspace of session.workspaces) {
       sheet.append(sheetItem({
         label: workspace.name,
-        hint: [workspace.project, workspace.branch, workspace.cwd].filter(Boolean).join(' · '),
+        hint: workspace.cwd || '',
         onClick: () => chooseNewSessionWorkspace(workspace),
       }));
     }
-  } else if (session.step === 'provider') {
-    for (const provider of session.providers) {
+  } else if (session.step === 'browse' && session.browse) {
+    const browse = session.browse;
+    sheet.append(descNode(browse.path || ''));
+    const crumbs = Array.isArray(browse.crumbs) ? browse.crumbs : [];
+    if (crumbs.length > 1) {
+      const parent = crumbs[crumbs.length - 2];
       sheet.append(sheetItem({
-        label: provider.label,
-        hint: provider.label === provider.provider ? '' : provider.provider,
-        onClick: () => chooseNewSessionProvider(provider),
+        label: '上层目录',
+        hint: parent.path,
+        onClick: () => browseDirectory(parent.path),
       }));
     }
-  } else if (session.step === 'mode' && session.provider) {
+    for (const entry of browse.entries || []) {
+      sheet.append(sheetItem({
+        label: entry.name,
+        hint: entry.path,
+        onClick: () => browseDirectory(entry.path),
+      }));
+    }
     sheet.append(sheetItem({
-      label: '使用提供方默认',
-      hint: '不指定模式，由电脑端提供方决定',
-      onClick: () => chooseNewSessionMode(session.provider, ''),
+      label: '新建文件夹',
+      onClick: () => createDirectoryInBrowse(),
     }));
-    for (const mode of session.provider.modes) {
-      sheet.append(sheetItem({
-        label: mode.label || mode.id,
-        hint: [
-          mode.description || '',
-          mode.id === session.provider.defaultModeId ? '默认' : '',
-        ].filter(Boolean).join(' · '),
-        onClick: () => chooseNewSessionMode(session.provider, mode.id),
-      }));
-    }
-  } else if (session.step === 'model' && session.provider) {
     sheet.append(sheetItem({
-      label: '使用提供方默认',
-      hint: '不指定模型，由电脑端提供方决定',
-      onClick: () => submitNewSession(session.provider, session.modeId || '', ''),
+      label: '使用此目录作为工作区',
+      hint: browse.path,
+      onClick: () => createBrowsedWorkspace(),
     }));
-    for (const model of session.provider.models || []) {
-      sheet.append(sheetItem({
-        label: model.label,
-        hint: [
-          model.label === model.id ? '' : model.id,
-          model.isDefault ? '提供方默认' : '',
-        ].filter(Boolean).join(' · '),
-        onClick: () => submitNewSession(session.provider, session.modeId || '', model.id),
-      }));
-    }
   }
   sheetRoot.append(layer);
 }
@@ -3592,20 +3626,13 @@ function renderSessionMenuSheet() {
   });
   sheet.append(
     sheetItem({ label: '重命名', onClick: () => startSessionRename(row) }),
-    sheetItem({
-      label: '重新生成标题',
-      hint: '由电脑端根据对话内容生成',
-      onClick: () => regenerateSessionTitle(row),
-    }),
+    sheetItem({ label: 'Fork', hint: '复制为新会话', onClick: () => forkSession(row) }),
+    sheetItem({ label: '上移', onClick: () => moveSession(row, 'up') }),
+    sheetItem({ label: '下移', onClick: () => moveSession(row, 'down') }),
     sheetItem({
       label: '归档',
       hint: '移入「已归档会话」，可取消归档',
       onClick: () => startSessionConfirm('archive', row),
-    }),
-    sheetItem({
-      label: '删除',
-      hint: '从电脑端永久删除，不可恢复',
-      onClick: () => startSessionConfirm('delete', row),
     }),
   );
   sheetRoot.append(layer);
@@ -3631,9 +3658,15 @@ function renderHistorySheet() {
     const busy = view.busyId === row.sessionId;
     sheet.append(sheetItem({
       label: sessionTitle(row),
-      hint: busy ? '正在取消归档…' : '点按取消归档',
+      hint: busy ? '正在处理…' : '点按取消归档',
       enabled: !view.busyId && !view.loading,
       onClick: () => unarchiveFromHistory(row),
+    }));
+    sheet.append(sheetItem({
+      label: `删除「${sessionTitle(row)}」`,
+      hint: '仅已归档会话可删除',
+      enabled: !view.busyId && !view.loading,
+      onClick: () => startSessionConfirm('delete', row),
     }));
   }
   if (view.loading) {
@@ -3670,6 +3703,47 @@ function renderSheet() {
   if (state.sessionMenu) {
     renderSessionMenuSheet();
     if (state.sessionMenu) return;
+  }
+  if (state.workspaceMenu) {
+    const workspace = (state.workspaces.items || []).find((item) => item.workspaceId === state.workspaceMenu);
+    if (!workspace) {
+      state.workspaceMenu = '';
+    } else {
+      const { layer, sheet } = sheetLayer(workspace.title || workspace.path, () => {
+        state.workspaceMenu = '';
+        renderSheet();
+      });
+      sheet.append(
+        sheetItem({
+          label: '重命名工作区',
+          onClick: () => {
+            const title = window.prompt('工作区名称', workspace.title || '');
+            state.workspaceMenu = '';
+            renderSheet();
+            if (!title || !title.trim()) return;
+            hostCall(state.chisacode.client, 'workspace.rename', {
+              workspaceId: workspace.workspaceId,
+              title: title.trim(),
+            }).then(() => refreshHostCatalog()).then(() => renderSessions()).catch((error) => {
+              showBanner(error.message || '重命名失败');
+            });
+          },
+        }),
+        sheetItem({
+          label: '从列表移除',
+          hint: '不删除磁盘上的文件夹',
+          onClick: () => {
+            state.workspaceMenu = '';
+            startSessionConfirm('workspace-delete', {
+              sessionId: workspace.workspaceId,
+              projections: { values: { title: workspace.title || workspace.path } },
+            });
+          },
+        }),
+      );
+      sheetRoot.append(layer);
+      return;
+    }
   }
   if (state.attachOpen) {
     const { layer, sheet } = sheetLayer('添加', () => {
@@ -3743,20 +3817,20 @@ function renderSheet() {
       }
       for (const branch of rows) {
         const current = branch.isCurrent && !branch.isRemote;
+        const switchable = branch.switchable !== false;
         nodes.push(sheetItem({
           label: branch.name,
-          enabled: !current,
-          hint: branch.isRemote ? '远程' : current ? '当前' : '',
+          enabled: !current && switchable,
+          hint: !switchable
+            ? '名称含桌面无法安全传给 git 的字符'
+            : (branch.isRemote ? '远程' : current ? '当前' : ''),
           onClick: () => switchBranch(branch.isRemote ? branch.name.replace(/^origin\//, '') : branch.name),
         }));
       }
       const canCreate = Boolean(query) && !state.branches.some((branch) => branch.name === query && !branch.isRemote);
       nodes.push(sheetItem({
-        label: state.transport === 'chisacode'
-          ? '创建新分支（请在电脑端操作）'
-          : canCreate ? `创建并检出分支「${query}」` : '创建并检出新分支…',
-        hint: state.transport === 'chisacode' ? '当前协议支持切换分支，但不支持创建普通分支。' : '',
-        enabled: state.transport !== 'chisacode',
+        label: canCreate ? `创建并检出分支「${query}」` : '创建并检出新分支…',
+        enabled: true,
         onClick: () => {
           if (canCreate) state.newBranchName = query;
           state.gitDialog = 'create-branch';
@@ -3844,12 +3918,15 @@ function renderSessionConfirmDialog() {
   };
   const { layer, dialog } = dialogLayer(true, close);
   const isDelete = confirm.kind === 'delete';
+  const isWorkspace = confirm.kind === 'workspace-delete';
   dialogHead(
     dialog,
-    isDelete ? `删除「${confirm.title}」？` : `归档「${confirm.title}」？`,
-    isDelete
-      ? '会从电脑端永久删除这个会话，不可恢复。'
-      : '会话会移入「已归档会话」，之后可以取消归档。',
+    isWorkspace ? `移除工作区「${confirm.title}」？` : isDelete ? `删除「${confirm.title}」？` : `归档「${confirm.title}」？`,
+    isWorkspace
+      ? '只从侧栏列表移除，不会删除磁盘上的文件夹。'
+      : isDelete
+        ? '会从电脑端永久删除这个已归档会话，不可恢复。'
+        : '会话会移入「已归档会话」，之后可以取消归档。',
   );
   if (confirm.error) {
     const error = document.createElement('p');
@@ -3882,7 +3959,7 @@ function renderDialog() {
     return;
   }
   const kind = state.gitDialog;
-  if (kind !== 'commit' && kind !== 'create-branch' && kind !== 'confirm') return;
+  if (kind !== 'commit' && kind !== 'create-branch' && kind !== 'confirm' && kind !== 'publish') return;
   if (kind === 'commit') {
     const { layer, dialog } = dialogLayer(false);
     dialogHead(dialog, '提交更改', '确认本次提交内容。提交信息留空将自动生成。');
@@ -3910,18 +3987,19 @@ function renderDialog() {
     body.append(fieldInput(state.commitMessage, '留空则自动生成', (value) => {
       state.commitMessage = value;
     }));
+    const onBranch = document.createElement('label');
+    onBranch.className = 'row-desc';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = state.commitOnNewBranch;
+    check.addEventListener('change', () => {
+      state.commitOnNewBranch = check.checked;
+    });
+    onBranch.append(check, document.createTextNode(' Commit on new branch'));
+    body.append(onBranch);
     dialog.append(body);
-    const branchCommit = ghostButton(
-      state.transport === 'chisacode' ? '新建分支请在电脑端操作' : '在新建分支上提交',
-      () => {
-        state.gitDialog = 'create-branch';
-        renderDialog();
-      },
-    );
-    branchCommit.disabled = state.transport === 'chisacode';
     dialogFoot(dialog, [
       ghostButton('取消', closeGitLayer),
-      branchCommit,
       primaryButton('提交', () => gitAction('gitCommit', { message: state.commitMessage })),
     ]);
     dialogRoot.append(layer);
@@ -3929,12 +4007,6 @@ function renderDialog() {
   }
   if (kind === 'create-branch') {
     const { layer, dialog } = dialogLayer(true);
-    if (state.transport === 'chisacode') {
-      dialogHead(dialog, '请在电脑端创建分支', '当前 dshd 远程支持切换已有分支，但不支持创建普通分支。');
-      dialogFoot(dialog, [primaryButton('知道了', closeGitLayer)]);
-      dialogRoot.append(layer);
-      return;
-    }
     dialogHead(dialog, '创建并检出新分支', '基于当前 HEAD 创建一个新的本地分支，并在创建成功后立即切换过去。');
     const body = document.createElement('div');
     body.className = 'dialog-body';
@@ -3948,6 +4020,28 @@ function renderDialog() {
     const createBtn = primaryButton('Create branch', () => createBranch());
     createBtn.disabled = !state.newBranchName.trim();
     dialogFoot(dialog, [ghostButton('取消', closeGitLayer), createBtn]);
+    dialogRoot.append(layer);
+    return;
+  }
+  if (kind === 'publish') {
+    const { layer, dialog } = dialogLayer(false);
+    dialogHead(dialog, 'Publish repository', '在没有 origin 时把仓库发布到 GitHub（gh）或添加已有远程 URL。');
+    const body = document.createElement('div');
+    body.className = 'dialog-body';
+    body.append(descNode('仓库名', 'field-label'));
+    body.append(fieldInput(state.publishName, '留空则用目录名', (value) => {
+      state.publishName = value;
+    }));
+    dialog.append(body);
+    dialogFoot(dialog, [
+      ghostButton('取消', closeGitLayer),
+      ghostButton('Private', () => {
+        gitAction('gitPublishRepository', { input: { name: state.publishName, visibility: 'private' } });
+      }),
+      primaryButton('Public', () => {
+        gitAction('gitPublishRepository', { input: { name: state.publishName, visibility: 'public' } });
+      }),
+    ]);
     dialogRoot.append(layer);
     return;
   }
@@ -4091,9 +4185,13 @@ settingsBack.addEventListener('click', () => {
   renderSettings();
 });
 el('close-settings').addEventListener('click', () => closeSettings());
+let searchTimer = 0;
 search.addEventListener('input', () => {
   state.query = search.value;
-  renderSessions();
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    void runSessionSearch(state.query.trim());
+  }, 200);
 });
 draft.addEventListener('input', () => {
   if (state.transport === 'chisacode' && state.sessionId) {
@@ -4113,7 +4211,14 @@ el('attach-toggle').addEventListener('click', () => {
   renderSheet();
 });
 accessChip.addEventListener('click', () => openSettings('权限'));
+planChip.addEventListener('click', () => {
+  if (!state.sessionId) return;
+  runHostCommand('/plan off').then(() => {
+    renderComposer();
+  }).catch((error) => showBanner(error.message || '无法关闭计划'));
+});
 el('model-chip').addEventListener('click', () => openSettings('模型'));
+blankWorkspaceChip?.addEventListener('click', () => startNewSessionChooser());
 fileCamera.addEventListener('change', () => {
   addFiles(fileCamera.files);
   fileCamera.value = '';

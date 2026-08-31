@@ -660,6 +660,20 @@ test('buildDaemonChildEnv bridges CHISACODE_* into the child only and applies th
   });
   assert.equal(win.Path, `C:\\home\\bin${path.delimiter}C:\\Windows`);
   assert.equal(win.PATH, undefined);
+  const bridged = buildDaemonChildEnv({
+    baseEnv: {},
+    home: '/data/chisacode-home',
+    vendorDir: null,
+    shimDir: null,
+    config: {},
+    harnessOrigin: 'http://127.0.0.1:3080',
+    gitTunnelUrl: 'http://127.0.0.1:9',
+    gitTunnelToken: 'tok',
+  });
+  assert.equal(bridged.DSHD_HARNESS_ORIGIN, 'http://127.0.0.1:3080');
+  assert.equal(bridged.DSHD_GIT_TUNNEL_URL, 'http://127.0.0.1:9');
+  assert.equal(bridged.DSHD_GIT_TUNNEL_TOKEN, 'tok');
+  assert.equal(bridged.DSH_HOME, undefined);
 });
 
 test('ensureDshAcpShim materializes PATH shims only when the bundled ACP entry is built', () => {

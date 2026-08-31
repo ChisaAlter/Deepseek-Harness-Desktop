@@ -10,6 +10,7 @@ import {
   mergeAgentRows,
   regenerateMobileTitle,
   renameMobileAgent,
+  sessionRowForest,
   unarchiveMobileAgent,
 } from './directory.js';
 
@@ -65,6 +66,33 @@ test('groupSessionRows leaves non-subagent relations top-level', () => {
   const groups = groupSessionRows([parent, handoff]);
   assert.deepEqual(groups.map((group) => group.row.sessionId), ['p1', 'h1']);
   assert.deepEqual(groups[0].children, []);
+});
+
+test('groupSessionRows folds host parentSessionId under the parent', () => {
+  const groups = groupSessionRows([
+    { sessionId: 'live-1' },
+    { sessionId: 'child-1', parentSessionId: 'live-1', origin: 'subagent' },
+  ]);
+  assert.equal(groups[0].row.sessionId, 'live-1');
+  assert.equal(groups[0].children[0].sessionId, 'child-1');
+});
+
+test('sessionRowForest keeps grandchild subagents instead of dropping them', () => {
+  const forest = sessionRowForest([
+    { sessionId: 'root', projections: { values: { title: '糖果最少取数保证匹配' } } },
+    { sessionId: 'mid', parentSessionId: 'root', projections: { values: { title: '不使用任何外部工具回答以下' } } },
+    { sessionId: 'leaf', parentSessionId: 'mid', projections: { values: { title: '最少取糖保证苹果桃子' } } },
+  ]);
+  assert.equal(forest.length, 1);
+  assert.equal(forest[0].row.sessionId, 'root');
+  assert.equal(forest[0].children.length, 1);
+  assert.equal(forest[0].children[0].row.sessionId, 'mid');
+  assert.deepEqual(forest[0].children[0].children.map((node) => node.row.sessionId), ['leaf']);
+});
+
+test('isReadOnlyRow marks host subagents and archived rows', () => {
+  assert.equal(isReadOnlyRow({ sessionId: 'a', origin: 'subagent', parentSessionId: 'p' }), true);
+  assert.equal(isReadOnlyRow({ sessionId: 'a', archived: true }), true);
 });
 
 test('isReadOnlyRow marks subagents and archived agents read-only', () => {

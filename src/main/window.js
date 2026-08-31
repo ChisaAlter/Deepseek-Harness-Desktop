@@ -35,6 +35,7 @@ let mainWindow = null;
 let harnessView = null;
 let harnessRevealed = false;
 let harnessOrigin = '';
+let harnessOriginListener = null;
 let pluginBootWatch = null;
 let pendingMarketplaceJump = false;
 let launcherWindow = null;
@@ -162,6 +163,20 @@ function getHarnessOrigin() {
   return getHarnessWebContents() ? harnessOrigin : '';
 }
 
+function onHarnessOriginChange(listener) {
+  harnessOriginListener = typeof listener === 'function' ? listener : null;
+}
+
+function notifyHarnessOrigin() {
+  if (typeof harnessOriginListener === 'function') {
+    try {
+      harnessOriginListener(getHarnessOrigin());
+    } catch {
+      // Origin fans-out must not break BrowserView load.
+    }
+  }
+}
+
 function isHarnessNavigationUrl(url) {
   return Boolean(harnessOrigin && isSameOriginLoopbackUrl(url, harnessOrigin));
 }
@@ -193,6 +208,7 @@ function setBootHarnessCovered(win, covered) {
 function hideHarnessView(win) {
   harnessRevealed = false;
   harnessOrigin = '';
+  notifyHarnessOrigin();
   setBootHarnessCovered(win, false);
   cancelPluginBootWatch();
   if (!harnessView) {
@@ -378,6 +394,7 @@ function showHarness(baseUrl, options = {}) {
   return bootReady.then(async () => {
     const view = ensureHarnessView(win);
     harnessOrigin = new URL(viewUrl).origin;
+    notifyHarnessOrigin();
     if (cookie) {
       await applyHarnessCookieToSession(view.webContents.session, harnessOrigin, cookie);
     }
@@ -583,6 +600,7 @@ module.exports = {
   getMainWindow,
   getHarnessWebContents,
   getHarnessOrigin,
+  onHarnessOriginChange,
   isHarnessNavigationUrl,
   hideHarnessView,
   dismissMainWindow,

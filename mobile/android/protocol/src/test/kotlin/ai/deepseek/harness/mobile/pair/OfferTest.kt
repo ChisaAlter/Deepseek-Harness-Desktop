@@ -68,7 +68,7 @@ class OfferTest {
         val raw = b64url(
             """{"v":2,"serverId":"server-away","daemonPublicKeyB64":"daemon-key","relay":{"endpoint":"125.124.85.212:8411","useTls":false}}""",
         )
-        val url = "http://125.124.85.212/dshd/#offer=$raw"
+        val url = "http://125.124.85.212:3389/dshd/#offer=$raw"
         val link = OfferCodec.parsePairingLink(url)
         assertEquals("server-away", link?.offer?.serverId)
     }
