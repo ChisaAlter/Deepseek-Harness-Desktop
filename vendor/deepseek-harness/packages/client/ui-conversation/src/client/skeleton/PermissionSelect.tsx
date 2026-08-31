@@ -5,6 +5,7 @@ import type { PermissionSelect as PermissionSelectValue } from '@deepseek-ai/dsh
 import { FlipText, IconChevronDownOutline14, Menu, RiskConfirmation } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from '../contract/slots.ts'
+import { en } from '../locales.ts'
 import css from './PermissionSelect.module.css'
 
 const FULL_ACCESS = 'danger-full-access'
@@ -55,12 +56,16 @@ function displayName(name: string): string {
 }
 
 const BUILT_IN_PERMISSION_NAMES = new Map<string, string>([
-  ['read-only', 'Read Only'],
-  ['workspace-write', 'Workspace Write'],
-  [FULL_ACCESS, 'Full access'],
+  ['read-only', en['access.preset.readOnly']],
+  ['workspace-write', en['access.preset.workspaceWrite']],
+  [FULL_ACCESS, en['access.preset.fullAccess']],
 ])
 
-function permissionLabel(value: string, name: string, t: ComposerBarProps['t']): string {
+function permissionLabel(
+  value: string,
+  name: string,
+  t: ComposerBarProps['t'],
+): string {
   const builtInName = BUILT_IN_PERMISSION_NAMES.get(value)
   if (builtInName !== undefined && (name === value || name === builtInName)) {
     if (value === 'read-only') return t('access.preset.readOnly')
@@ -179,6 +184,7 @@ export function PermissionSelect({ value, locked, command, t }: PermissionSelect
         description={t('access.confirm.description')}
         acknowledgeLabel={t('access.confirm.acknowledge')}
         cancelLabel={t('access.confirm.cancel')}
+        closeLabel={t('close')}
         confirmLabel={t('access.confirm.enable')}
         acknowledged={acknowledged}
         disabled={locked}

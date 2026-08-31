@@ -9,7 +9,7 @@ import type {
   SkillInventoryEntry,
   SkillInventorySnapshot,
 } from '@deepseek-ai/dsh-api-remotes/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   Button,
   IconChevronDownOutline14,
@@ -48,7 +48,7 @@ interface SkillCreateInput extends SkillInventoryClientScope {
   name: string
   description: string
   whenToUse?: string
-  group: string
+  groups: readonly string[]
   content: string
   root: SkillCreateRoot
   modelInvocable: boolean
@@ -59,7 +59,7 @@ interface EditorDraft {
   name: string
   description: string
   whenToUse?: string
-  group: string
+  groups: string[]
   content: string
   root: SkillCreateRoot
   modelInvocable: boolean
@@ -75,7 +75,7 @@ export interface SkillsSectionInjected {
     name: string
     description: string
     whenToUse?: string
-    group: string
+    groups: readonly string[]
     content: string
     modelInvocable: boolean
     userInvocable: boolean
@@ -145,6 +145,10 @@ export function SkillsSection(props: SkillsSectionProps) {
   const [deletePending, setDeletePending] = useState(false)
   const [deleteError, setDeleteError] = useState<string | undefined>()
   const [refreshFailure, setRefreshFailure] = useState(false)
+  // Set when the session-scoped catalog read failed and the load fell back to
+  // the global catalog (a live session whose boot failed cannot back the
+  // layered view, but the global catalog stays readable).
+  const [scopeFallback, setScopeFallback] = useState(false)
   const [expanded, setExpanded] = useState<Readonly<Record<string, boolean>>>(() => readTreeState())
   const [groupPending, setGroupPending] = useState<Readonly<Record<string, boolean>>>({})
 
@@ -152,9 +156,18 @@ export function SkillsSection(props: SkillsSectionProps) {
     const sequence = loadSequence.current + 1
     loadSequence.current = sequence
     if (replace) setView({ status: 'loading' })
-    void props.list(scope)
+    const scoped = scope.sessionId !== undefined || scope.cwd !== undefined
+    let usedFallback = false
+    const read = scoped
+      ? props.list(scope).catch(() => {
+        usedFallback = true
+        return props.list({})
+      })
+      : props.list(scope)
+    void read
       .then((snapshot) => {
         if (loadSequence.current !== sequence) return
+        setScopeFallback(usedFallback)
         setView({ status: 'ready', snapshot })
         setRefreshFailure(false)
       })
@@ -176,6 +189,7 @@ export function SkillsSection(props: SkillsSectionProps) {
     setDeletePending(false)
     setDeleteError(undefined)
     setRefreshFailure(false)
+    setScopeFallback(false)
     scopeGeneration.current += 1
     load(true)
     return () => {
@@ -186,7 +200,7 @@ export function SkillsSection(props: SkillsSectionProps) {
 
   const filtered = view.status !== 'ready' ? [] : view.snapshot.skills.filter((skill) => {
     const needle = query.trim().toLocaleLowerCase()
-    const matchesSearch = needle.length === 0 || [skill.name, skill.description, skill.group ?? '', skill.whenToUse ?? '']
+    const matchesSearch = needle.length === 0 || [skill.name, skill.description, ...(skill.groups ?? []), skill.whenToUse ?? '']
       .some(value => value.toLocaleLowerCase().includes(needle))
     return matchesSearch && matchesSource(skill, sourceFilter)
   })
@@ -303,21 +317,27 @@ export function SkillsSection(props: SkillsSectionProps) {
     if (writable.length === 0 || groupPending[groupKey] === true) return
     const generation = scopeGeneration.current
     setGroupPending(current => ({ ...current, [groupKey]: true }))
+    // Optimistic echo of the gesture: flip every writable row immediately so
+    // the switch responds without waiting for the frontmatter writes, then
+    // revert a row whose write failed.
     for (const skill of writable) {
       const key = skillKey(skill)
+      updateEntry(key, { modelInvocable })
       setRowPending(key, 'invocation')
       setRowError(key, undefined)
     }
-    const settled = writable.map(skill => props.setInvocation(skill.name, modelInvocable, skill.userInvocable, scope)
-      .then(() => {
-        if (scopeGeneration.current === generation) updateEntry(skillKey(skill), { modelInvocable })
-      })
-      .catch((error: unknown) => {
-        if (scopeGeneration.current === generation) setRowError(skillKey(skill), messageOf(error, t('invocationFailed')))
-      })
-      .finally(() => {
-        if (scopeGeneration.current === generation) setRowPending(skillKey(skill), undefined)
-      }))
+    const settled = writable.map(skill => {
+      const previous = skill.modelInvocable
+      return props.setInvocation(skill.name, modelInvocable, skill.userInvocable, scope)
+        .catch((error: unknown) => {
+          if (scopeGeneration.current !== generation) return
+          updateEntry(skillKey(skill), { modelInvocable: previous })
+          setRowError(skillKey(skill), messageOf(error, t('invocationFailed')))
+        })
+        .finally(() => {
+          if (scopeGeneration.current === generation) setRowPending(skillKey(skill), undefined)
+        })
+    })
     void Promise.all(settled).finally(() => {
       if (scopeGeneration.current === generation) setGroupPending(current => ({ ...current, [groupKey]: false }))
     })
@@ -424,7 +444,9 @@ export function SkillsSection(props: SkillsSectionProps) {
         </div>
       </div>
 
-      {cwd === undefined ? <p className={styles.scopeNotice}>{t('projectCatalogUnavailable')}</p> : null}
+      {scopeFallback
+        ? <p className={styles.scopeNotice}>{t('sessionCatalogUnavailable')}</p>
+        : cwd === undefined ? <p className={styles.scopeNotice}>{t('projectCatalogUnavailable')}</p> : null}
       {refreshFailure ? (
         <div className={styles.loadFailure}>
           <p role="alert">{t('refreshFailed')}</p>
@@ -507,9 +529,7 @@ export function SkillsSection(props: SkillsSectionProps) {
                         disabled={!hasWritable || pendingGroup}
                         aria-label={format(t('groupToggleFor'), { group: label })}
                         onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                          const next = event.target.checked
-                          setGroupInvocation(section, next)
-                          if (!next) setGroupExpanded(groupKey, false)
+                          setGroupInvocation(section, event.target.checked)
                         }}
                       />
                     </div>
@@ -541,13 +561,13 @@ export function SkillsSection(props: SkillsSectionProps) {
           setEditorPending(true)
           setEditorError(undefined)
           const whenToUse = optionalWhenToUse(draft.whenToUse)
-          const group = draft.group.trim()
+          const groups = normalizeGroups(draft.groups)
           const work = activeEditor.mode === 'create'
             ? props.create({
               name: draft.name,
               description: draft.description.trim(),
               ...whenToUse,
-              group,
+              groups,
               content: draft.content,
               root: draft.root,
               modelInvocable: draft.modelInvocable,
@@ -558,7 +578,7 @@ export function SkillsSection(props: SkillsSectionProps) {
               name: draft.name,
               description: draft.description.trim(),
               ...whenToUse,
-              group,
+              groups,
               content: draft.content,
               modelInvocable: draft.modelInvocable,
               userInvocable: draft.userInvocable,
@@ -571,7 +591,7 @@ export function SkillsSection(props: SkillsSectionProps) {
                 const key = skillKey(activeEditor.detail)
                 const entryChanges = {
                   description: draft.description.trim(),
-                  group,
+                  groups,
                   modelInvocable: draft.modelInvocable,
                   userInvocable: draft.userInvocable,
                 }
@@ -764,12 +784,12 @@ function SkillEditor({ open, creating, draft, cwd, groups, pending, submitError,
         </label>
         <label className={styles.field}>
           <span className={styles.label}>{t('group')}</span>
-          <GroupField
-            value={form.group}
+          <GroupTagPicker
+            selected={form.groups}
             disabled={pending}
             groups={groups}
             t={t}
-            onChange={(value) => { setField('group', value) }}
+            onChange={(groups) => { setField('groups', groups) }}
           />
         </label>
         <label className={styles.field}>
@@ -808,61 +828,104 @@ function SkillEditor({ open, creating, draft, cwd, groups, pending, submitError,
   )
 }
 
-/** Editable group combobox: pick an existing label from a Menu or type a new one. */
-function GroupField({ value, disabled, groups, t, onChange }: {
-  value: string
+/**
+ * Multi-select group tag picker: removable selected tags, a checkable dropdown
+ * of catalog groups, and free-text entry (Enter or comma adds the typed label).
+ * Toggling a dropdown row keeps the menu open; outside click, Escape, or the
+ * trigger closes it. The clear-all row empties the selection (ungrouped).
+ */
+function GroupTagPicker({ selected, disabled, groups, t, onChange }: {
+  selected: readonly string[]
   disabled: boolean
   groups: readonly string[]
   t: SkillsSectionInjected['t']
-  onChange: (value: string) => void
+  onChange: (groups: string[]) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
   const inputBoxRef = useRef<HTMLSpanElement>(null)
   const getInputRect = useCallback(() => inputBoxRef.current?.getBoundingClientRect() ?? null, [])
-  const trimmed = value.trim()
-  const items: MenuEntry[] = [
+  const known = new Set(groups)
+  const typed = text.trim()
+  const groupRows: MenuEntry[] = [
     ...groups.map(label => ({ id: label, label })),
-    ...(groups.length > 0 ? [{ type: 'separator' as const, id: 'group-clear-separator' }] : []),
-    { id: '', label: t('groupClearOption'), disabled: trimmed.length === 0 },
+    ...typed.length > 0 && !known.has(typed) ? [{ id: typed, label: typed }] : [],
+  ]
+  const items: MenuEntry[] = [
+    ...groupRows,
+    ...(groupRows.length > 0 ? [{ type: 'separator' as const, id: 'group-clear-separator' }] : []),
+    { id: '', label: t('groupClearOption'), disabled: selected.length === 0 },
   ]
   return (
-    <div>
+    // A flex wrapper blockifies the Menu's inline-flex root span, which
+    // otherwise shrink-wraps the anchored row to its intrinsic width.
+    <div className={styles.groupFieldShell}>
       <Menu
         open={open && !disabled}
         onClose={() => { setOpen(false) }}
         items={items}
-        selectedId={groups.includes(trimmed) ? trimmed : undefined}
+        selectedIds={selected}
         onSelect={(id) => {
-          onChange(id)
-          setOpen(false)
+          if (id === '') {
+            onChange([])
+            return
+          }
+          onChange(toggleGroupLabel(selected, id))
         }}
         align="start"
         portal
         matchAnchorWidth
         getAnchorRect={getInputRect}
         anchor={(
-          <div className={styles.groupFieldRow}>
-            <span ref={inputBoxRef} className={styles.groupInputBox}>
-              <Input
-                className={styles.groupInput}
-                value={value}
-                aria-label={t('group')}
-                placeholder={t('groupPlaceholder')}
+          <div className={styles.groupField}>
+            {selected.length > 0 && (
+              <div className={styles.tagRow}>
+                {selected.map(label => (
+                  <span key={label} className={styles.tag}>
+                    <Pill active>{label}</Pill>
+                    <button
+                      type="button"
+                      className={styles.tagRemove}
+                      aria-label={format(t('groupRemoveFor'), { group: label })}
+                      disabled={disabled}
+                      onClick={() => { onChange(selected.filter(item => item !== label)) }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className={styles.groupFieldRow}>
+              <span ref={inputBoxRef} className={styles.groupInputBox}>
+                <Input
+                  className={styles.groupInput}
+                  value={text}
+                  aria-label={t('group')}
+                  placeholder={t('groupPlaceholder')}
+                  disabled={disabled}
+                  onChange={(event) => { setText(event.target.value) }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter' && event.key !== ',') return
+                    event.preventDefault()
+                    const next = addGroupLabel(selected, text)
+                    if (next !== undefined) onChange(next)
+                    setText('')
+                  }}
+                />
+              </span>
+              <button
+                type="button"
+                className={styles.groupOptionsButton}
+                aria-label={t('groupOptionsLabel')}
+                aria-haspopup="menu"
+                aria-expanded={open && !disabled}
                 disabled={disabled}
-                onChange={(event) => { onChange(event.target.value) }}
-              />
-            </span>
-            <button
-              type="button"
-              className={styles.groupOptionsButton}
-              aria-label={t('groupOptionsLabel')}
-              aria-haspopup="menu"
-              aria-expanded={open && !disabled}
-              disabled={disabled}
-              onClick={() => { setOpen(current => !current) }}
-            >
-              <IconChevronDownOutline14 />
-            </button>
+                onClick={() => { setOpen(current => !current) }}
+              >
+                <IconChevronDownOutline14 />
+              </button>
+            </div>
           </div>
         )}
       />
@@ -874,7 +937,7 @@ function emptySkill(): EditorDraft {
   return {
     name: '',
     description: '',
-    group: '',
+    groups: [],
     root: 'user-dsh',
     modelInvocable: true,
     userInvocable: true,
@@ -887,7 +950,7 @@ function editorDraft(detail: SkillInventoryDetail): EditorDraft {
     name: detail.name,
     description: detail.description,
     ...detail.whenToUse === undefined ? {} : { whenToUse: detail.whenToUse },
-    group: detail.group ?? '',
+    groups: [...(detail.groups ?? [])],
     content: detail.content,
     root: detail.source === 'project-dsh' ? 'project-dsh' : 'user-dsh',
     modelInvocable: detail.modelInvocable,
@@ -901,16 +964,22 @@ interface GroupSection {
   readonly skills: readonly SkillInventoryEntry[]
 }
 
-/** Section rows by group label in first-appearance order; ungrouped rows last. */
+/**
+ * Section rows by group label in first-appearance order; a skill repeats in
+ * every one of its groups; ungrouped rows last.
+ */
 function groupSections(skills: readonly SkillInventoryEntry[]): readonly GroupSection[] {
   const byGroup = new Map<string, SkillInventoryEntry[]>()
   const ungrouped: SkillInventoryEntry[] = []
   for (const skill of skills) {
-    const group = skill.group?.trim() ?? ''
-    if (group.length === 0) ungrouped.push(skill)
-    else {
-      const existing = byGroup.get(group)
-      if (existing === undefined) byGroup.set(group, [skill])
+    const labels = skill.groups ?? []
+    if (labels.length === 0) {
+      ungrouped.push(skill)
+      continue
+    }
+    for (const label of labels) {
+      const existing = byGroup.get(label)
+      if (existing === undefined) byGroup.set(label, [skill])
       else existing.push(skill)
     }
   }
@@ -919,17 +988,45 @@ function groupSections(skills: readonly SkillInventoryEntry[]): readonly GroupSe
   return sections
 }
 
-/** Distinct non-empty group labels in first-appearance order. */
+/** Distinct non-empty group labels in first-appearance order across every skill. */
 function distinctGroups(skills: readonly SkillInventoryEntry[]): readonly string[] {
   const seen = new Set<string>()
   const groups: string[] = []
   for (const skill of skills) {
-    const group = skill.group?.trim() ?? ''
-    if (group.length === 0 || seen.has(group)) continue
-    seen.add(group)
-    groups.push(group)
+    for (const label of skill.groups ?? []) {
+      if (label.length === 0 || seen.has(label)) continue
+      seen.add(label)
+      groups.push(label)
+    }
   }
   return groups
+}
+
+/** Add one typed label to the selection; undefined when the label is empty or already present. */
+function addGroupLabel(selected: readonly string[], raw: string): string[] | undefined {
+  const label = raw.trim()
+  if (label.length === 0 || selected.includes(label)) return undefined
+  return [...selected, label]
+}
+
+/** Toggle one label in the selection, preserving order. */
+function toggleGroupLabel(selected: readonly string[], label: string): string[] {
+  return selected.includes(label)
+    ? selected.filter(item => item !== label)
+    : [...selected, label]
+}
+
+/** Trim, drop empties, and dedupe group labels while keeping first-appearance order. */
+function normalizeGroups(groups: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const raw of groups) {
+    const label = raw.trim()
+    if (label.length === 0 || seen.has(label)) continue
+    seen.add(label)
+    normalized.push(label)
+  }
+  return normalized
 }
 
 /** sessionStorage key for per-group expand state. */

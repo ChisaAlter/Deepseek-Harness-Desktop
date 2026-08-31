@@ -8,13 +8,14 @@ import { renderPrompt, TOOL_ORDER_REST } from '@deepseek-ai/dsh-system-prompt'
 import * as agentCore from '../src/index.ts'
 import { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import LocalBashExecutor from '@deepseek-ai/dsh-bash-local'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import {
   createUserMessage,
-  CallId,
+  ToolCallId,
   LlmAdapter,
   LlmError,
   resolveRetryPolicy,
@@ -77,6 +78,9 @@ async function mount(config: agentCore.Config, withBash = false): Promise<Contex
     })
   }
   try {
+    // AgentLoop declares the registry as a required injection; the bundle does
+    // not mount it (leaves do), so the harness provides it before the spine.
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(agentCore, config)
     // The bundle mounts its children inside apply() (not awaited there); let their
     // fibers settle so the spine services and any pre-created agent are ready.
@@ -326,6 +330,7 @@ describe('dsh-agent-spine-demo bundle', () => {
     // ctx.plugin validates + defaults the bundle config first; a direct apply
     // skips the schema, so the forwarding `?? []` / `?? ''` are what fire.
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     agentCore.apply(ctx, { workspaceContext: false })
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(ctx.get('agentLoop')).toBeDefined()
@@ -337,6 +342,7 @@ describe('dsh-agent-spine-demo bundle', () => {
 
   it('uses owner defaults for a schema-bypassing empty goal opt-in', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     agentCore.apply(ctx, {
       workspaceContext: false,
       agents: [{ id: SessionId('defaulted-goal'), provider: 'mock', model: 'mock' }],
@@ -605,8 +611,8 @@ describe('dsh-agent-spine-demo bundle', () => {
     const execution: ToolExecution = {
       signal: testToolSignal,
       token: Symbol('agent-core-dsh-home-test') as ToolExecution['token'],
-      callId: CallId('agent-core-dsh-home'),
-      rootCallId: CallId('agent-core-dsh-home'),
+      callId: ToolCallId('agent-core-dsh-home'),
+      rootCallId: ToolCallId('agent-core-dsh-home'),
       name: 'bash',
       arguments: { command: 'true' },
     }
@@ -685,7 +691,7 @@ describe('dsh-agent-spine-demo bundle', () => {
     const wait = vi.spyOn(ctx.jobs, 'wait')
     await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('task-config-forwarding'),
+      callId: ToolCallId('task-config-forwarding'),
       name: 'job_output',
       arguments: { job_id: id, wait: true },
     })
@@ -709,7 +715,7 @@ describe('dsh-agent-spine-demo bundle', () => {
     await ctx.fiber.dispose()
   })
 
-  it('can omit the bundled bash tool and Harness identity for a compatibility deployment', async () => {
+  it('can omit the bundled bash tool, Harness identity, and runtime context', async () => {
     const ctx = await mount({
       includeHarnessIdentity: false,
       includeRuntimeContext: false,
@@ -772,6 +778,7 @@ describe('dsh-agent-spine-demo bundle', () => {
   it('uses the default skill config when apply is called directly without skills', async () => {
     await withIsolatedSkillHomes(async () => {
       const ctx = new Context()
+      await ctx.plugin(SessionProjectionRegistry)
       agentCore.apply(ctx, { agents: [], workspaceContext: false })
       await new Promise(resolve => setTimeout(resolve, 50))
       expect(ctx.skills).toBeDefined()
@@ -800,6 +807,7 @@ describe('dsh-agent-spine-demo bundle', () => {
 
   it('supports direct apply with workspace instructions disabled and no forwarded agents', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     agentCore.apply(ctx, { workspaceContext: false })
     await new Promise(resolve => setTimeout(resolve, 50))
 

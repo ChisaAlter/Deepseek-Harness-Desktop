@@ -165,16 +165,24 @@ test('remote bind address and LAN TLS normalize with safe fallbacks', () => {
   saveConfig({ remoteBindAddress: '0.0.0.0', remoteLanTls: false });
 });
 
+test('remote feature is parked and cannot be enabled', () => {
+  assert.equal(REMOTE_FEATURE_ENABLED, false);
+  const saved = saveConfig({ remoteEnabled: true, remoteMode: 'relay' });
+  assert.equal(saved.remoteEnabled, false);
+  assert.equal(saved.remoteMode, 'lan');
+  const pub = publicConfig(saved);
+  assert.equal(pub.remoteAvailable, false);
+  assert.equal(pub.remoteEnabled, false);
+});
+
 test('remote relay endpoint normalizes to host:port for ChisaCode transport', () => {
-  assert.equal(REMOTE_FEATURE_ENABLED, true);
   const customRelay = saveConfig({
     remoteEnabled: true,
     remoteMode: 'relay',
     remoteRelayUrl: 'http://relay.example:8787/path',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(customRelay.remoteEnabled, true);
-  assert.equal(customRelay.remoteMode, 'relay');
+  assert.equal(customRelay.remoteEnabled, false);
   assert.equal(customRelay.remoteRelayUrl, 'relay.example:8787');
   assert.equal(customRelay.remoteRelayEndpoint, 'relay.example:8787');
   const defaultRelay = saveConfig({
@@ -183,7 +191,6 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
     remoteRelayUrl: 'http://125.124.85.212:8411/x',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(defaultRelay.remoteMode, 'relay');
   assert.equal(defaultRelay.remoteRelayUrl, '125.124.85.212:8411');
   const blockedRelay = saveConfig({
     remoteEnabled: true,
@@ -191,7 +198,6 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
     remoteRelayUrl: 'https://app.chisacode.sh/x',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(blockedRelay.remoteMode, 'relay');
   assert.equal(blockedRelay.remoteRelayUrl, '125.124.85.212:8411');
   const httpsRelay = saveConfig({
     remoteEnabled: true,
@@ -199,8 +205,6 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
     remoteRelayUrl: 'https://relay.example/path',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(httpsRelay.remoteEnabled, true);
-  assert.equal(httpsRelay.remoteMode, 'relay');
   assert.equal(httpsRelay.remoteRelayUrl, 'relay.example:443');
   const lanMode = saveConfig({
     remoteEnabled: true,
@@ -211,8 +215,8 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
   assert.equal(lanMode.remoteMode, 'lan');
   assert.equal(lanMode.remoteRelayUrl, '125.124.85.212:8411');
   const pub = publicConfig(httpsRelay);
-  assert.equal(pub.remoteAvailable, true);
-  assert.equal(pub.remoteEnabled, true);
+  assert.equal(pub.remoteAvailable, false);
+  assert.equal(pub.remoteEnabled, false);
 });
 
 test('remoteAppBaseUrl never backfills relay origin as SPA landing', () => {
@@ -228,6 +232,13 @@ test('remoteAppBaseUrl never backfills relay origin as SPA landing', () => {
   const saved = saveConfig({ remoteAppBaseUrl: '', remoteEnabled: true });
   assert.equal(saved.remoteAppBaseUrl, '');
   assert.notEqual(saved.remoteAppBaseUrl, DEFAULT_APP_BASE_URL);
+});
+
+test('remoteAppBaseUrl override rejects relay port', () => {
+  const { normalizeRemoteConfig } = require('./config');
+  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:8411' }).remoteAppBaseUrl, '');
+  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212/dshd' }).remoteAppBaseUrl, 'http://125.124.85.212/dshd');
+  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:3389/dshd' }).remoteAppBaseUrl, 'http://125.124.85.212:3389/dshd');
 });
 
 test('parkRemoteSnapshot forces unavailable shape for IPC park path', () => {

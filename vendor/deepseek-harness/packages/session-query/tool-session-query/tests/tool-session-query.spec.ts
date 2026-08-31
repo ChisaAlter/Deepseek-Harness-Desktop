@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, CallId, HarnessError , createMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId, HarnessError , createMessage } from '@deepseek-ai/dsh-llm'
 import { MAX_TIMER_DELAY_MS, TimeoutReason } from '@deepseek-ai/dsh-timeout'
 import * as TimeoutPolicy from '@deepseek-ai/dsh-tool-call-timeout-policy'
 import SessionStore, {
@@ -11,6 +11,8 @@ import SessionStore, {
   type SessionHeader,
   type SessionId as SessionIdValue,
 } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import SessionQueryEngine, {
   SessionQueryError,
   SessionSearchCursor,
@@ -195,6 +197,10 @@ interface Mounted {
   call(name: string, args: unknown, options?: { agent?: Agent; signal?: AbortSignal }): Promise<ToolExecutionResult>
 }
 
+function registerTurnBoundary(ctx: Context): void {
+  ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+}
+
 async function mount(
   config: ToolSessionQuery.Config = {},
   callerCwd: string | null = '/work',
@@ -203,6 +209,8 @@ async function mount(
   const ctx = new Context()
   activeContexts.push(ctx)
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
+  registerTurnBoundary(ctx)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   if (enforceTimeout) await ctx.plugin(TimeoutPolicy)
@@ -218,7 +226,7 @@ async function mount(
     call: (toolName, args, options = {}) => ctx.tools.execute({
       name: toolName,
       arguments: args,
-      callId: CallId(`call-${++calls}`),
+      callId: ToolCallId(`call-${++calls}`),
       signal: options.signal ?? new AbortController().signal,
       ...options.agent === undefined ? { agent: fakeAgent(caller) } : { agent: options.agent },
     }),
@@ -301,7 +309,7 @@ describe('registration and schemas', () => {
       expect(mounted.ctx.tools.executionMode({
         name,
         arguments: args,
-        callId: CallId(`mode-${name}`),
+        callId: ToolCallId(`mode-${name}`),
         signal: new AbortController().signal,
         agent: fakeAgent(mounted.caller),
       })).toEqual({ kind })
@@ -579,7 +587,7 @@ describe('workspace authority and lineage redaction', () => {
     const missing = await mounted.ctx.tools.execute({
       name: 'session_trace',
       arguments: {},
-      callId: CallId('missing-agent'),
+      callId: ToolCallId('missing-agent'),
       signal: new AbortController().signal,
     })
     expect(errorCode(missing)).toBe('SESSION_QUERY_TOOL_MISSING_AGENT')
@@ -1612,7 +1620,7 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
       { query: 'q' },
       { agent: fakeAgent(noStep) },
     )
-    expect(errorCode(missing)).toBe('SESSION_QUERY_TOOL_NO_CURRENT_STEP')
+    expect(errorCode(missing)).toBe('SESSION_QUERY_INVALID_FILTER')
 
     const other = createSession(mounted.ctx, 'paged-events', '/work')
     const cursor = SessionSearchCursor('events-next')
@@ -1632,6 +1640,26 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
     })
     expect(FakeQuery.eventRequests.map(request => request.cursor)).toEqual([undefined, cursor])
     expect(text(result)).toContain('Result cap reached')
+  })
+
+  it('rejects current-session search without the turnBoundary fold', async () => {
+    const ctx = new Context()
+    activeContexts.push(ctx)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(FakeQuery)
+    await ctx.plugin(ToolSessionQuery)
+    const session = createSession(ctx, 'no-boundary-caller', '/work')
+    const result = await ctx.tools.execute({
+      name: 'session_event_search',
+      arguments: { query: 'q' },
+      callId: ToolCallId('call-no-boundary'),
+      signal: new AbortController().signal,
+      agent: fakeAgent(session),
+    })
+    expect(errorCode(result)).toBe('SESSION_QUERY_TOOL_NO_CURRENT_STEP')
   })
 
   it('preserves base results when a title read fails, annotates the code, and logs the full error', async () => {

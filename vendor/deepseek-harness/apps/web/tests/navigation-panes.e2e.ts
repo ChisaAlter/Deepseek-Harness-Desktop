@@ -19,10 +19,10 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, recordFixture, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
-const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/navigation-panes', import.meta.url))
-const SEED = join(SNAPSHOT_DIR, 'seed.jsonl')
+const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/navigation-panes', import.meta.url))
+const SEED = join(SNAPSHOT_DIR, 'session.jsonl')
 const TRAJECTORY_EXPECTED = join(SNAPSHOT_DIR, 'trajectory.expected.md')
 const SEARCH_EXPECTED = join(SNAPSHOT_DIR, 'search-results.expected.md')
 const TERMINAL_EXPECTED = join(SNAPSHOT_DIR, 'terminal-card.expected.md')
@@ -37,11 +37,10 @@ const PROMPT_TURN2 = 'Reply in markdown with: a level-2 heading "Navigation Summ
 
 async function baselineResponse(
   page: Page,
-  method: 'session.list' | 'workspace.list',
 ): Promise<Response> {
   return page.waitForResponse(response => (
     response.request().method() === 'POST'
-    && new URL(response.url()).pathname === `/api/${method}`
+    && new URL(response.url()).pathname === '/api/session/list'
   ), { timeout: 30_000 })
 }
 
@@ -111,25 +110,20 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
         slotErrors.push(message.text())
       }
     })
-    // Initial navigation and list ownership settle only after both independent
-    // RPC baselines succeed; arm before navigation so neither response is missed.
-    const sessionBaseline = baselineResponse(page, 'session.list')
-    const workspaceBaseline = baselineResponse(page, 'workspace.list')
-    const [, sessionResponse, workspaceResponse] = await Promise.all([
-      page.goto(scaffold.baseUrl, { waitUntil: 'load' }),
+    // Arm before navigation so the Session response cannot be missed. The
+    // Workspace stream settles through the user-visible Ungrouped barrier.
+    const sessionBaseline = baselineResponse(page)
+    const [, sessionResponse] = await Promise.all([
+      page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' }),
       sessionBaseline,
-      workspaceBaseline,
     ])
-    await Promise.all([
-      assertBaselineSucceeded(sessionResponse, 'session.list'),
-      assertBaselineSucceeded(workspaceResponse, 'workspace.list'),
-    ])
+    await assertBaselineSucceeded(sessionResponse, 'session.list')
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     // The frame mounts before the asynchronous session-list baseline lands.
     // Search must target the settled seeded row, not the startup input that
     // the ready projection replaces (the compact layout dropped group session
-    // counts; the Tasks section row is the barrier).
-    await page.getByText('Tasks', { exact: true }).waitFor({ timeout: 30_000 })
+    // counts; the Ungrouped bucket row is the barrier).
+    await page.getByText('Ungrouped', { exact: true }).waitFor({ timeout: 30_000 })
   }, 120_000)
 
   afterEach(async () => {
@@ -162,7 +156,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
 
   it.skipIf(MODE !== 'record')('records the two-turn seed live through the composer', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-record'))
-    const input = page.locator('textarea').first()
+    const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     let sessionId: Awaited<ReturnType<WebScaffold['whenTurnSettled']>> | undefined
     for (const prompt of [PROMPT_TURN1, PROMPT_TURN2]) {
@@ -185,9 +179,9 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
   it.skipIf(MODE === 'record')('finds an unopened seeded session by message content and opens it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-search'))
     // The API baselines can settle before React commits their projection. The
-    // seeded Tasks section row is the final user-visible barrier before
+    // seeded Ungrouped bucket row is the final user-visible barrier before
     // editing search (the compact layout dropped group session counts).
-    await page.getByText('Tasks', { exact: true }).waitFor({ timeout: 30_000 })
+    await page.getByText('Ungrouped', { exact: true }).waitFor({ timeout: 30_000 })
     // Search is a collapsed header action; expand it so the input is actionable.
     const searchButton = page.getByRole('button', { name: 'Search sessions' })
     if (await searchButton.getAttribute('aria-expanded') !== 'true') await searchButton.click()
@@ -288,29 +282,19 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await details.getByRole('button', { name: 'Close details' }).click()
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('downloads through the titlebar capsule and /export with one dialog', async () => {
+  it.skipIf(MODE === 'record')('downloads through the Session Header and /export with one dialog', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-export'))
     await ensureSeedOpen(page)
-    // The Session log download lives in the titlebar trailing cluster (the
-    // conversation banner no longer carries it), so the flush geometry is
-    // measured against that cluster's right edge.
     const exportButton = page.getByRole('button', { name: 'Session log' })
     expect(await exportButton.isDisabled()).toBe(false)
-    // The capsule opens the trailing cluster (the panel toggles follow it), so
-    // the flush claim is the cluster's own: it hugs the window's right edge and
-    // owns the button.
-    const cluster = page.locator('[data-titlebar-trailing]')
-    expect(await cluster.getByRole('button', { name: 'Session log' }).count()).toBe(1)
-    const [buttonBox, clusterBox] = await Promise.all([
-      exportButton.boundingBox(), cluster.boundingBox(),
+    const header = exportButton.locator('xpath=ancestor::header[1]')
+    const [buttonBox, headerBox] = await Promise.all([
+      exportButton.boundingBox(), header.boundingBox(),
     ])
-    if (buttonBox === null || clusterBox === null) {
-      throw new Error('titlebar export geometry is unavailable')
+    if (buttonBox === null || headerBox === null) {
+      throw new Error('Session Header export geometry is unavailable')
     }
-    expect(buttonBox.x).toBeGreaterThanOrEqual(clusterBox.x)
-    expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(clusterBox.x + clusterBox.width)
-    const innerWidth = await page.evaluate(() => window.innerWidth)
-    expect(innerWidth - (clusterBox.x + clusterBox.width)).toBeLessThanOrEqual(32)
+    expect(headerBox.x + headerBox.width - (buttonBox.x + buttonBox.width)).toBeLessThanOrEqual(32)
     const responsePromise = page.waitForResponse(response =>
       response.request().method() === 'HEAD'
       && new URL(response.url()).pathname === '/api/session.export', { timeout: 30_000 })
@@ -341,22 +325,17 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
         observerSlotErrors.push(message.text())
       }
     })
-    const observerSessionBaseline = baselineResponse(observer, 'session.list')
-    const observerWorkspaceBaseline = baselineResponse(observer, 'workspace.list')
-    const [, observerSessionResponse, observerWorkspaceResponse] = await Promise.all([
-      observer.goto(scaffold.baseUrl, { waitUntil: 'load' }),
+    const observerSessionBaseline = baselineResponse(observer)
+    const [, observerSessionResponse] = await Promise.all([
+      observer.goto(scaffold.authenticatedUrl, { waitUntil: 'load' }),
       observerSessionBaseline,
-      observerWorkspaceBaseline,
     ])
-    await Promise.all([
-      assertBaselineSucceeded(observerSessionResponse, 'observer session.list'),
-      assertBaselineSucceeded(observerWorkspaceResponse, 'observer workspace.list'),
-    ])
-    await observer.getByText('Tasks', { exact: true }).waitFor({ timeout: 30_000 })
+    await assertBaselineSucceeded(observerSessionResponse, 'observer session.list')
+    await observer.getByText('Ungrouped', { exact: true }).waitFor({ timeout: 30_000 })
     await ensureSeedOpen(observer)
 
     try {
-      const input = page.locator('textarea').first()
+      const input = page.locator('[data-composer-input]').first()
       const slashDownloadPromise = page.waitForEvent('download', { timeout: 30_000 })
       await input.fill('/export')
       await page.getByRole('option', { name: /export/u }).waitFor({ timeout: 10_000 })
@@ -411,6 +390,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-details'))
     await ensureSeedOpen(page)
     const bashRow = page.locator('[data-sample="bash"]').first()
+    await expandOwningTurnProcess(page, bashRow)
     await bashRow.waitFor({ timeout: 15_000 })
     const frame = page.locator('[style*="grid-template-columns"]').first()
     expect(await frame.getAttribute('data-details-collapsed')).toBe('true')
@@ -420,22 +400,13 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await expect.poll(() => frame.getAttribute('data-details-collapsed'), { timeout: 5_000 }).toBe('true')
     // The card's own controls are outside the summary row and must not open
     // details either — the expanded terminal card is read in place.
-    // Desktop fork: win32 has no bash presenter, so a seeded bash call has no
-    // terminal copy button; the row click above still proves details stay closed.
-    if (process.platform !== 'win32') {
-      const copy = page.locator('[data-sample="bash"]').first().locator('xpath=..').locator('[data-terminal] [class*="_copyButton_"]').first()
-      await copy.waitFor({ timeout: 15_000 })
-      await copy.click()
-      await expect.poll(() => frame.getAttribute('data-details-collapsed'), { timeout: 5_000 }).toBe('true')
-    }
+    await page.locator('[data-sample="bash"] ~ div [data-terminal] [class*="_copyButton_"]').first().click()
+    await expect.poll(() => frame.getAttribute('data-details-collapsed'), { timeout: 5_000 }).toBe('true')
     // Read summaries are host-open file links; they also must not open details.
     const fileLink = page.locator('[data-variant="read"] button').first()
     await fileLink.waitFor({ timeout: 10_000 })
-    const openPath = vi.spyOn(scaffold.ctx.apiProxy.host, 'openPath')
-      .mockImplementation(async (request, _signal) => ({
-        rpcId: request.rpcId,
-        result: { ok: true, value: { opened: true as const } },
-      }))
+    const openPath = vi.spyOn(scaffold.ctx.sessionController, 'openWorkspacePath')
+      .mockResolvedValue({ opened: true })
     try {
       await fileLink.click()
       await expect.poll(() => frame.getAttribute('data-details-collapsed'), { timeout: 5_000 }).toBe('true')
@@ -452,14 +423,10 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     // Expanded, the recorded command's own output sits in the message flow,
     // derived from the logged call/result presentations alone.
     const bashRow = page.locator('[data-sample="bash"]').first()
+    await expandOwningTurnProcess(page, bashRow)
     await bashRow.waitFor({ timeout: 15_000 })
     if (await bashRow.getAttribute('aria-expanded') !== 'true') await bashRow.click()
-    const card = bashRow.locator('xpath=..').locator('[data-terminal]').first()
-    // Desktop fork: win32 mounts pwsh, so a seeded bash call has no terminal presenter.
-    if (process.platform === 'win32' && await card.count() === 0) {
-      expect(await bashRow.count()).toBe(1)
-      return
-    }
+    const card = page.locator('[data-sample="bash"] ~ div [data-terminal]').first()
     await card.waitFor({ timeout: 15_000 })
     // Real layout, not jsdom's stub (which computes no geometry at all):
     // squeeze the output pane below its content width and the line must keep
@@ -536,7 +503,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
 
   it.skipIf(MODE === 'record')('keeps the recorded fixture inventory exact', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
-      'seed.jsonl', 'search-results.expected.md', 'trajectory.expected.md',
+      'session.jsonl', 'search-results.expected.md', 'trajectory.expected.md',
       'terminal-card.expected.md',
     ])
   })

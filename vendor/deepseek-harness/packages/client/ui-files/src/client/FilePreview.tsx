@@ -17,7 +17,7 @@ import {
 import { installFileEditorDismissal } from './fileEditorDismissal.ts'
 import { fileBreadcrumbs } from './filePath.ts'
 import { clampFileLine, resolveCenteredFileLineScrollTop } from './fileLineReveal.ts'
-import { isMarkdownPreviewFile, setMarkdownTaskChecked } from './filePreviewMode.ts'
+import { isMarkdownPreviewFile } from './filePreviewMode.ts'
 import { FileSaveCoordinator, type FileSaveResult } from './fileSaveCoordinator.ts'
 import { NS } from './locales.ts'
 import type { FilesShellInjected } from './shell.ts'
@@ -502,12 +502,6 @@ export function FilePreview({
     coordinatorRef.current?.change(next)
   }
 
-  const onTaskChecked = (markerOffset: number, checked: boolean): void => {
-    const next = setMarkdownTaskChecked(draftRef.current, markerOffset, checked)
-    if (next === draftRef.current) return
-    applyDraft(next)
-  }
-
   const syncTextareaSelection = (textarea: HTMLTextAreaElement): void => {
     if (textarea.selectionStart === textarea.selectionEnd) {
       setSelectedLineRange(null)
@@ -642,7 +636,10 @@ export function FilePreview({
             {truncated ? <p className={css.message}>{t('preview.truncated')}</p> : null}
             {binary ? <p className={css.message}>{t('preview.binary')}</p> : null}
             {isMarkdown && showRenderedMarkdown ? (
-              <MarkdownText text={draft} codeLabels={codeLabels} onTaskChecked={onTaskChecked} />
+              <MarkdownText
+                text={draft}
+                labels={{ code: codeLabels, footnotes: t('preview.footnotes') }}
+              />
             ) : (
               <textarea
                 ref={textareaRef}
@@ -658,7 +655,10 @@ export function FilePreview({
           <>
             <p className={css.message}>{t('preview.truncated')}</p>
             {isMarkdown ? (
-              <MarkdownText text={text} codeLabels={codeLabels} />
+              <MarkdownText
+                text={text}
+                labels={{ code: codeLabels, footnotes: t('preview.footnotes') }}
+              />
             ) : (
               <pre className={css.code}>{text}</pre>
             )}

@@ -11,4 +11,4 @@ CREATE TABLE events (
 INSERT INTO persistence_state (singleton, store_id)
 VALUES (1, '00000000-0000-4000-8000-000000000000');
 PRAGMA application_id = 1146308688;
-PRAGMA user_version = 17;
+PRAGMA user_version = 20;

@@ -1,8 +1,8 @@
 /** Host loader entry for the browser-only titlebar plugin. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { TITLEBAR_SETTINGS_NAMESPACE, TitlebarSettingsSchema } from './titlebar-settings.ts'
+import type {} from '@deepseek-ai/dsh-settings'
 
 export {
   DEFAULT_PANEL_TOGGLE, SURFACES_TOGGLE_FIELD, TERMINAL_TOGGLE_FIELD, TITLEBAR_SETTINGS_NAMESPACE,
@@ -16,7 +16,7 @@ export {
 export function apply(ctx: Context): void {
   ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.register(
-      settingsNamespace(TITLEBAR_SETTINGS_NAMESPACE),
+      TITLEBAR_SETTINGS_NAMESPACE,
       TitlebarSettingsSchema,
     )
   })

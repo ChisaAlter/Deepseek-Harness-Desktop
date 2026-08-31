@@ -49,6 +49,8 @@ class HarnessController extends EventEmitter {
       || (async () => ({ ok: true, changed: false }));
     this.ensureUsagePanelPlugin = options.ensureUsagePanelPlugin
       || (async () => ({ ok: true, added: false }));
+    this.ensureSessionSearchOverlay = options.ensureSessionSearchOverlay
+      || (async () => ({ ok: true }));
     this.ensureDshImPlugin = options.ensureDshImPlugin
       || (async () => ({ ok: true, added: false }));
     this.ensureDshbotPlugin = options.ensureDshbotPlugin
@@ -167,7 +169,7 @@ class HarnessController extends EventEmitter {
     const task = (async () => {
       this.clearTimers();
       await Promise.allSettled([
-        this.remote?.sync?.(),
+        this.syncRemoteLogged(),
         this.ensureBootVisible(),
       ]);
       if (this.shuttingDown || generation !== this.recoveryGeneration) {
@@ -432,7 +434,8 @@ class HarnessController extends EventEmitter {
     // managed blocks). Never pass that file to --patch: overlays still apply
     // under --skip-user-plugins, so it would re-mount every user row the
     // skip exists to bypass. The install and dsh-im overlays are required on
-    // all starts; the usage overlay joins below on full starts only.
+    // all starts; usage and session-search overlays join below on full
+    // starts only.
     const patchFiles = [];
     if (desktopInstall?.overlayFile) {
       patchFiles.push(desktopInstall.overlayFile);
@@ -463,8 +466,20 @@ class HarnessController extends EventEmitter {
       } catch (error) {
         this.dsh.log(`预置用量统计失败：${errorMessage(error)}`, 'app');
       }
+      try {
+        const search = await this.ensureSessionSearchOverlay();
+        this.assertOperationCurrent(generation);
+        if (search && search.ok === false) {
+          this.dsh.log(`预置会话搜索失败：${search.error || 'unknown'}`, 'app');
+        } else if (search?.overlayFile) {
+          patchFiles.push(search.overlayFile);
+        }
+      } catch (error) {
+        this.dsh.log(`预置会话搜索失败：${errorMessage(error)}`, 'app');
+      }
     } else {
       this.dsh.log('跳过用户插件：不预置用量统计插件', 'app');
+      this.dsh.log('跳过用户插件：不预置会话搜索', 'app');
     }
     // dsh-im is desktop built-in Settings → Remote → Channels — not a user
     // plugin. Its overlay rides --patch on every start (including
@@ -565,11 +580,7 @@ class HarnessController extends EventEmitter {
       await this.dsh.stop();
       throw new Error(`Web UI 加载失败：${errorMessage(error)}`);
     }
-    try {
-      await this.remote?.sync?.();
-    } catch (error) {
-      this.dsh.log(`手机 Remote 同步失败：${errorMessage(error)}`, 'app');
-    }
+    await this.syncRemoteLogged();
     if (this.loadConfig().openDevTools) {
       const harnessWc = this.getHarnessWebContents(win);
       (harnessWc || win.webContents).openDevTools({ mode: 'detach' });
@@ -681,6 +692,18 @@ class HarnessController extends EventEmitter {
     return this.sendState();
   }
 
+  /**
+   * Remote startup failures must never be silent: the popup only shows
+   * `snapshot().error`, so the dsh log is the sole boot-time trace.
+   */
+  async syncRemoteLogged() {
+    try {
+      await this.remote?.sync?.();
+    } catch (error) {
+      this.dsh.log(`手机 Remote 同步失败：${errorMessage(error)}`, 'app');
+    }
+  }
+
   async shutdown() {
     if (this.shuttingDown) {
       return;
@@ -693,7 +716,9 @@ class HarnessController extends EventEmitter {
     const currentRestart = this.restartOperation;
     await Promise.allSettled([
       this.dsh.stop(),
-      this.remote?.stop?.(),
+      // ChisaCodeRemote's teardown face is stopDaemon() — a bare stop() call
+      // would optional-chain into a silent no-op and leak the daemon + :3180.
+      this.remote?.stopDaemon?.(),
       currentOperation,
       currentRestart,
     ].filter(Boolean));

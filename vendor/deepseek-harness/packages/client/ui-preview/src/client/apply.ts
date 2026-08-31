@@ -1,11 +1,13 @@
 /** Registers the Browser occupant into surfaces.browser. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
 import { en, NS, zh, type PreviewKey } from './locales.ts'
 import { PreviewPanel } from './PreviewPanel.tsx'
 import { appendToDraft } from './draft.ts'
 import { readPreviewShell, type PreviewShellInjected } from './shell.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 
 export type { PreviewPanelProps } from './PreviewPanel.tsx'
 export type { PreviewKey } from './locales.ts'
@@ -25,7 +27,7 @@ export const inject = ['slots', 'locale']
  * Register dictionaries and inject the Browser occupant.
  * @param ctx - Client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-preview: dictionaries')
 
   ctx.slots.inject('surfaces.browser', () => ctx.slots.register({

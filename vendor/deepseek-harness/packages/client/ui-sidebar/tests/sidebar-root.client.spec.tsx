@@ -3,17 +3,19 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type {
-  SidebarFooterActionOwnerProps, SidebarPageOwnerProps, SidebarRootComponentProps,
-  SidebarSectionOwnerProps, SidebarSettingsOwnerProps,
+  SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
+  SidebarSettingsOwnerProps,
 } from '../src/client/contract/slots.ts'
-import type { SidebarNavTabRow } from '../src/client/stores.ts'
-import { SESSIONS_TAB_ID } from '../src/client/stores.ts'
+import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { SidebarRoot } from '../src/client/SidebarRoot.tsx'
+import { createSidebarNavStore } from '../src/client/stores.ts'
 import { en } from '../src/client/locales.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 
 // English-dictionary translate stub: the shell renders the same copy the
 // assertions below query by accessible name.
-const t: SidebarRootComponentProps['t'] = key => (en as Record<string, string>)[key] ?? key
+const t: SidebarRootComponentProps['t'] = key =>
+  (en as Record<string, string>)[key] ?? (commonEn as Record<string, string>)[key] ?? key
 
 afterEach(() => {
   cleanup()
@@ -24,41 +26,37 @@ afterEach(() => {
 // The shell never reads the global hooks itself, but they ride the standard
 // props share; stub them as never-called functions.
 const neverHook = (() => { throw new Error('shell must not read global hooks') }) as never
+type AttentionSnapshot = Parameters<Parameters<SidebarRootComponentProps['useSessionPendingInteraction']>[0]>[0]
+const noAttention: AttentionSnapshot = new Map()
+const useSessionPendingInteraction: SidebarRootComponentProps['useSessionPendingInteraction'] = selector => selector(noAttention)
 
-function mountShell({
-  collapsed = false,
-  width = 300,
-  tabs = [],
-  selectedTab = SESSIONS_TAB_ID,
-}: {
-  collapsed?: boolean
-  width?: number
-  tabs?: readonly SidebarNavTabRow[]
-  selectedTab?: string
-} = {}) {
+function navShare() {
+  const nav = createSidebarNavStore().create()
+  return {
+    useStore: bindSnapshotSelector(nav.store),
+    actions: nav.actions,
+  }
+}
+
+function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; width?: number } = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
-  const selectTab = vi.fn()
+  const nav = createSidebarNavStore().create()
   let regionOwner: SidebarSectionOwnerProps | undefined
-  let pageOwner: SidebarPageOwnerProps | undefined
-  let pageKey: string | undefined
   let settingsOwner: SidebarSettingsOwnerProps | undefined
   let footerActionOwner: SidebarFooterActionOwnerProps | undefined
   const brandMark = <span data-testid="custom-brand-mark">M</span>
   const brandName = <span data-testid="custom-brand-name">Custom Brand</span>
-  let current = { collapsed, width, selectedTab }
+  let current = { collapsed, width }
   const root = () => (
     <SidebarRoot
       collapsed={current.collapsed} width={current.width}
-      useSessions={neverHook} useWorkspaces={neverHook}
-      useStore={selector => selector({ selectedTab: current.selectedTab })}
-      actions={{ selectTab }}
-      useNavTabs={selector => selector(tabs)}
+      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
+      useStore={bindSnapshotSelector(nav.store)} actions={nav.actions}
       startSession={startSession} toggleSidebar={toggleSidebar} t={t}
       renderSlot={((
         key: string,
-        owner: SidebarFooterActionOwnerProps | SidebarPageOwnerProps | SidebarSectionOwnerProps | SidebarSettingsOwnerProps,
-        opts?: { entryKey?: string; only?: string },
+        owner: SidebarFooterActionOwnerProps | SidebarSectionOwnerProps | SidebarSettingsOwnerProps,
       ) => {
         if (key === 'sidebar.brand.mark') return brandMark
         if (key === 'sidebar.brand.name') return brandName
@@ -70,11 +68,6 @@ function mountShell({
           footerActionOwner = owner
           return <div data-testid="footer-action-seat" data-wide={owner.wide} />
         }
-        if (key === 'sidebar.page') {
-          pageOwner = owner as SidebarPageOwnerProps
-          pageKey = opts?.entryKey
-          return <div data-testid="plugin-page" data-wide={owner.wide} data-key={pageKey} />
-        }
         regionOwner = owner as SidebarSectionOwnerProps
         return <div data-testid="region" data-wide={owner.wide} />
       }) as SidebarRootComponentProps['renderSlot']}
@@ -84,16 +77,10 @@ function mountShell({
   return {
     startSession,
     toggleSidebar,
-    selectTab,
     regionOwner: () => {
       if (regionOwner === undefined) throw new Error('region owner not rendered')
       return regionOwner
     },
-    pageOwner: () => {
-      if (pageOwner === undefined) throw new Error('page owner not rendered')
-      return pageOwner
-    },
-    pageKey: () => pageKey,
     settingsOwner: () => {
       if (settingsOwner === undefined) throw new Error('settings owner not rendered')
       return settingsOwner
@@ -125,20 +112,51 @@ describe('SidebarRoot shell', () => {
 
   it('renders generic brand fallbacks when no package fills the slots', () => {
     vi.stubEnv('DSH_CLIENT_COMMIT_HASH', '0123456')
+    vi.stubEnv('DSH_CLIENT_GIT_DIRTY', 'true')
+    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3-rc.4')
     const { container } = render(<SidebarRoot
       collapsed={false} width={300}
-      useSessions={neverHook} useWorkspaces={neverHook}
-      useStore={selector => selector({ selectedTab: SESSIONS_TAB_ID })}
-      actions={{ selectTab: vi.fn() }}
-      useNavTabs={selector => selector([])}
+      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
+      {...navShare()}
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
     expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('0123456')).toBeTruthy()
+    expect(screen.getByText('1.2.3-rc.4-0123456-dirty')).toBeTruthy()
     expect(container.querySelector('svg')).not.toBeNull()
+  })
+
+  it.each([
+    [{ DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3'],
+    [{ DSH_CLIENT_COMMIT_HASH: 'abcdef0', DSH_CLIENT_VERSION: '1.2.3' }, '1.2.3-abcdef0'],
+  ])('omits unavailable build-version suffixes from %j', (environment, expected) => {
+    for (const [name, value] of Object.entries(environment)) vi.stubEnv(name, value)
+    render(<SidebarRoot
+      collapsed={false} width={300}
+      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
+      {...navShare()}
+      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
+        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+    />)
+
+    expect(screen.getByText('DSH Local Build')).toBeTruthy()
+    expect(screen.getByText(expected)).toBeTruthy()
+  })
+
+  it('retains the local-build fallback without complete build metadata', () => {
+    render(<SidebarRoot
+      collapsed={false} width={300}
+      useSessions={neverHook} useSessionPendingInteraction={useSessionPendingInteraction} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
+      {...navShare()}
+      startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
+      renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
+        options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
+    />)
+
+    expect(screen.getByText('DSH Local Build')).toBeTruthy()
   })
 
   it('hands the region its wide flag and clamps expandSidebar to the collapsed state', () => {
@@ -171,27 +189,5 @@ describe('SidebarRoot shell', () => {
     const b = mountShell({ collapsed: true })
     expect(b.regionOwner().wide).toBe(false)
     expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
-  })
-
-  it('draws no tab strip when no plugin tabs are registered', () => {
-    mountShell()
-    expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByTestId('region')).toBeTruthy()
-    expect(screen.queryByTestId('plugin-page')).toBeNull()
-  })
-
-  it('hides New Session and the workspace region when a plugin tab is selected', () => {
-    const tabs = [{ id: 'bots', order: 0, label: 'Bots' }]
-    const b = mountShell({ tabs, selectedTab: 'bots' })
-    expect(screen.getByRole('tablist')).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Sessions' }).getAttribute('aria-selected')).toBe('false')
-    expect(screen.getByRole('tab', { name: 'Bots' }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.queryByRole('button', { name: 'New session' })).toBeNull()
-    expect(screen.queryByTestId('region')).toBeNull()
-    expect(screen.getByTestId('plugin-page')).toBeTruthy()
-    expect(b.pageKey()).toBe('bots')
-    expect(b.pageOwner().wide).toBe(true)
-    fireEvent.click(screen.getByRole('tab', { name: 'Sessions' }))
-    expect(b.selectTab).toHaveBeenCalledWith(SESSIONS_TAB_ID)
   })
 })

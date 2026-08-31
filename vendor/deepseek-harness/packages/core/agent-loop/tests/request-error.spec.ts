@@ -2,17 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import LlmRuntime, { CallId, createUserMessage, LlmError, MALFORMED_RESPONSE_CODE } from '@deepseek-ai/dsh-llm'
-import type { LlmFailure, ResolvedRetryPolicy, StreamChunk } from '@deepseek-ai/dsh-llm'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import LlmRuntime, { createUserMessage, LlmError  } from '@deepseek-ai/dsh-llm'
+import type { LlmFailure, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { MockAdapter, textResponse } from './mock-adapter.ts'
 
 async function harness(adapter: MockAdapter): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -96,57 +98,8 @@ describe('agent/request-error', () => {
       expect.objectContaining({ mode: 'normal' }),
     ])
     expect(statuses).toEqual(['running', 'idle'])
-  })
-
-  it('retries malformed tool calls without persisting or executing them, then accepts a later prompt', async () => {
-    const malformed: StreamChunk[] = [
-      { type: 'block-start', index: 0, blockType: 'tool-call' },
-      { type: 'tool-call-delta', index: 0, id: CallId('bad-call'), argumentsDelta: '{}' },
-      {
-        type: 'block-end',
-        index: 0,
-        block: { type: 'tool-call', id: CallId('bad-call'), name: '', arguments: '{}' },
-      },
-      { type: 'finish', reason: { kind: 'tool-calls' } },
-    ]
-    const adapter = new MockAdapter([malformed, textResponse('recovered'), textResponse('later')])
-    const ctx = await harness(adapter)
-    let executions = 0
-    ctx.tools.register(defineContentToolFixture({
-      name: 'echo',
-      description: 'must not run for the malformed call',
-      parameters: {},
-      async execute() {
-        executions++
-        return [{ type: 'text', text: 'unexpected' }]
-      },
-    }))
-    const agent = ctx.agentLoop.create(SessionId('malformed-tool-call'), { provider: 'mock', model: 'mock' })
-    const failures: LlmFailure[] = []
-    ctx.on('agent/request-error', async ({ failure }) => {
-      failures.push(failure)
-      return { kind: 'retry' }
-    })
-
-    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
-    await agent.whenIdle()
-
-    expect(failures).toEqual([expect.objectContaining({ code: MALFORMED_RESPONSE_CODE })])
-    expect(executions).toBe(0)
-    expect(agent.session.events.some(event => event.type === 'tool/call')).toBe(false)
-    const assistantMessages = agent.session.events.filter(event => event.type === 'assistant/message')
-    expect(assistantMessages).toHaveLength(1)
-    expect(assistantMessages[0]?.data.message.content).toEqual([{ type: 'text', text: 'recovered' }])
-    expect(agent.session.deriveMessages().some(message =>
-      message.content.some(block => block.type === 'tool-call'))).toBe(false)
-
-    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'again' }], source: { kind: 'user' } }))
-    await agent.whenIdle()
-
-    expect(adapter.requests).toHaveLength(3)
-    expect(agent.session.events.filter(event => event.type === 'assistant/message')).toHaveLength(2)
-    expect(agent.session.events.filter(event => event.type === 'turn/end').at(-1))
-      .toMatchObject({ data: { reason: { kind: 'completed' } } })
+    expect(agent.session.events.flatMap(event =>
+      event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial'])
   })
 
   it('lets cancellation win over a retry action', async () => {

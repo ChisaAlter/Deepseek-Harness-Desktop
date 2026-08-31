@@ -4,6 +4,8 @@ import {
   type SessionOutboundMessage,
 } from "@chisacode/protocol/messages";
 
+import { safeRandomId } from "./daemon-client-transport-utils.js";
+
 type CheckoutStatusPayload = Extract<
   SessionOutboundMessage,
   { type: "checkout_status_response" }
@@ -93,7 +95,7 @@ export class CheckoutSubscriptionClient {
     compare: CheckoutDiffCompare,
     requestId?: string,
   ): Promise<CheckoutDiffPayload> {
-    const subscriptionId = `oneshot-checkout-diff:${crypto.randomUUID()}`;
+    const subscriptionId = `oneshot-checkout-diff:${safeRandomId()}`;
     try {
       const payload = await this.subscribe(cwd, compare, { subscriptionId, requestId });
       return {
@@ -116,7 +118,7 @@ export class CheckoutSubscriptionClient {
     compare: CheckoutDiffCompare,
     options?: { subscriptionId?: string; requestId?: string },
   ): Promise<SubscribeCheckoutDiffPayload> {
-    const subscriptionId = options?.subscriptionId ?? crypto.randomUUID();
+    const subscriptionId = options?.subscriptionId ?? safeRandomId();
     const normalizedCompare = normalizeCheckoutDiffCompare(compare);
     const previousSubscription = this.diffSubscriptions.get(subscriptionId) ?? null;
     this.diffSubscriptions.set(subscriptionId, { cwd, compare: normalizedCompare });

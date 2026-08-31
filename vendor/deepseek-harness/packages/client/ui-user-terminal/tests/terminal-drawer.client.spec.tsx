@@ -117,7 +117,8 @@ vi.mock('../src/client/ghostty/surface.ts', () => {
   }
 })
 
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { TerminalDrawerProps } from '../src/client/TerminalDrawer.tsx'
 import { TerminalDrawer } from '../src/client/TerminalDrawer.tsx'
 import { TerminalPane } from '../src/client/TerminalPane.tsx'
@@ -215,6 +216,8 @@ function mount(opts: {
     useSessions: ((sel: (s: SessionListState) => unknown) => sel(sessionList(opts.cwd))) as TerminalDrawerProps['useSessions'],
     useWorkspaces: neverHook,
     useProjection: neverHook,
+    useConversation: neverHook,
+    useSessionPendingInteraction: neverHook,
     useInput: neverHook,
     inputActions: undefined,
     ...store,

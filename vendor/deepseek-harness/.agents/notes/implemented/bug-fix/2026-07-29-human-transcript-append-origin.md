@@ -30,7 +30,7 @@ The terminal's [archived live compaction progress decision](../../archived/featu
 
 ## Alternatives considered
 
-**Recognize a checkpoint by shape (a replacement `user/message`).** Rejected: it reads a coincidence of today's producers instead of a declared contract, and any future producer that replaces a range with a user message would silently inherit the compaction marker. The seam already publishes `COMPACT_CHECKPOINT_SOURCE` precisely so consumers can recognize a checkpoint independently of the backend.
+**Recognize a checkpoint by shape (a replacement `user/message`).** Rejected: it reads a coincidence of the shipped producer set instead of a declared contract, and any future producer that replaces a range with a user message would silently inherit the compaction marker. The seam already publishes `COMPACT_CHECKPOINT_SOURCE` precisely so consumers can recognize a checkpoint independently of the backend.
 
 **Keep rendering the checkpoint as an injected-context card.** Rejected: the framed checkpoint is an instruction envelope written for the model, not human conversation content. Showing it while hiding the history it replaced inverts what the reader needs.
 

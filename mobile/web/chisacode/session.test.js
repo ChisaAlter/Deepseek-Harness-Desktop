@@ -157,6 +157,54 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
   assert.equal(saved.srv_pair.deviceSecret, 's'.repeat(64));
 });
 
+test('pairing works without crypto.randomUUID (http://<lan-ip> is not a secure context)', async () => {
+  // Real phone browsers open the pairing page over plain http on a LAN IP —
+  // NOT a secure context, so `crypto.randomUUID` does not exist there. Only
+  // `getRandomValues` is universally available. This locks the fallback.
+  localStorage.removeItem('dsh-chisacode-client-id');
+  localStorage.removeItem('dsh-chisacode-device-secrets');
+  const realCrypto = globalThis.crypto;
+  Object.defineProperty(globalThis, 'crypto', {
+    configurable: true,
+    value: { getRandomValues: realCrypto.getRandomValues.bind(realCrypto) },
+  });
+  try {
+    let clientOptions;
+    class MockDaemonClient {
+      constructor(options) {
+        clientOptions = options;
+      }
+
+      async connect() {
+        clientOptions.onRelayDeviceAuthResult({
+          ok: true,
+          deviceId: clientOptions.relayDeviceAuth.deviceId,
+          deviceSecret: 's'.repeat(64),
+        });
+      }
+    }
+    const api = {
+      parseConnectionOfferFromUrl: () => ({
+        v: 2,
+        serverId: 'srv_insecure',
+        daemonPublicKeyB64: 'daemon-key',
+        authBootstrap: { pairingToken: 'one-time-token' },
+        relay: { endpoint: '125.124.85.212:8411', useTls: false },
+      }),
+      createRelayDeviceId: () => 'dev_insecure_1',
+      buildRelayWebSocketUrl: () => 'ws://125.124.85.212:8411/ws?role=client',
+      DaemonClient: MockDaemonClient,
+    };
+
+    const paired = await pairFromOfferUrl(api, 'http://192.168.1.8:3180/#offer=encoded');
+
+    assert.equal(paired.serverId, 'srv_insecure');
+    assert.match(clientOptions.clientId, /^mob_[0-9a-f]{16}$/);
+  } finally {
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: realCrypto });
+  }
+});
+
 test('normalizeOfferUrl accepts full and pasted offer fragments without decoding as v1', () => {
   const current = 'http://192.168.1.8:3180/';
   assert.equal(

@@ -18,13 +18,10 @@
       "path": "../../api/remotes/tsconfig.client.json"
     },
     {
-      "path": "../../client/connection/tsconfig.client.json"
-    },
-    {
       "path": "../../client/modules"
     },
     {
-      "path": "../../client/runtime"
+      "path": "../../client/ui-renderer"
     },
     {
       "path": "../../client/ui-slots"

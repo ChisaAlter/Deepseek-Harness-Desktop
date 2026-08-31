@@ -1,11 +1,12 @@
 /** Desktop-owned marketplace settings section (id `market`). */
 
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { desktopShell, hasMarketApi } from './desktop-shell.ts'
 import { MarketSection, type MarketSectionInjected } from './MarketSection.tsx'
 import { en, zh, type MarketLocaleKey } from './locales.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 
 export type { MarketSectionInjected, MarketSectionProps } from './MarketSection.tsx'
 export type { MarketLocaleKey } from './locales.ts'
@@ -38,7 +39,7 @@ export const inject = ['slots', 'locale']
  * @param ctx - client context with slots and locale.
  * @returns nothing; slot registration is an effect when the desktop API is present.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-market: dictionaries')
 
   const shell = desktopShell()

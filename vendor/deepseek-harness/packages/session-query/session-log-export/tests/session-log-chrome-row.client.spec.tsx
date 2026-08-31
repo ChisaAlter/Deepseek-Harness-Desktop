@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SessionLogChromeRow } from '../src/client/SessionLogChromeRow.tsx'
 import type { SessionLogChromeRowProps } from '../src/client/SessionLogChromeRow.tsx'
 import { en } from '../src/client/locales.ts'

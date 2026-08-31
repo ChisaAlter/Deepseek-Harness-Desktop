@@ -26,3 +26,4 @@
   - text: DeepSeek-V4-Flash
   - img
 - button "Stop generating"
+- text: {{peakPhase}} Switches in {{clock}}

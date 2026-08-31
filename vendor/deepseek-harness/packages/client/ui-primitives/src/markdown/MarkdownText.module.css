@@ -96,7 +96,7 @@
 }
 
 .markdown li::marker {
-  line-height: 28px;
+  line-height: 24px;
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -252,7 +252,7 @@
 }
 
 .tableScroll table code {
-  font-size: 13px;
+  font-size: 11px;
 }
 
 .markdown > *:first-child,

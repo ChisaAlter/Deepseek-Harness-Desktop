@@ -7,7 +7,7 @@ const { normalizeRelayHostToken } = require('../shared/relay-auth');
 const { normalizeRelayOrigin } = require('../shared/lan');
 const { normalizeRemotePatch } = require('./remote-patch');
 
-const REMOTE_FEATURE_ENABLED = true;
+const REMOTE_FEATURE_ENABLED = false;
 
 const DEFAULTS = {
   workspace: '',
@@ -128,7 +128,7 @@ function normalizeRemoteConfig(config) {
   const next = { ...config };
   next.remoteEnabled = REMOTE_FEATURE_ENABLED && next.remoteEnabled === true;
   // ChisaCode Away uses host:port endpoints. Empty → desktop built-in relay.
-  const { normalizeRelayEndpoint, DEFAULT_RELAY_ENDPOINT } = require('../shared/lan');
+  const { normalizeRelayEndpoint, DEFAULT_RELAY_ENDPOINT, normalizePublicAppBaseUrl } = require('../shared/lan');
   const relayCandidate = typeof next.remoteRelayUrl === 'string'
     ? next.remoteRelayUrl
     : (next.remoteRelayEndpoint || '');
@@ -137,9 +137,9 @@ function normalizeRemoteConfig(config) {
   next.remoteRelayUrl = endpoint;
   next.remoteRelayUseTls = next.remoteRelayUseTls === true;
   // Empty stays empty — never backfill the relay origin as an SPA landing host.
-  next.remoteAppBaseUrl = typeof next.remoteAppBaseUrl === 'string'
-    ? next.remoteAppBaseUrl.trim()
-    : '';
+  next.remoteAppBaseUrl = normalizePublicAppBaseUrl(next.remoteAppBaseUrl, {
+    relayEndpoint: endpoint,
+  });
   // Legacy host token is ignored for product pairing; keep field for migration clears.
   next.remoteRelayToken = normalizeRelayHostToken(next.remoteRelayToken);
   next.remoteMode = REMOTE_FEATURE_ENABLED

@@ -15,7 +15,7 @@ Status: implemented
 返回通道是 child 收到的一条指令，而不是它需要自行发现的能力。report 包会向每个可继续进程内 child 安装两项作用域局部注册，并由同一个 disposer 撤销两者：
 
 - `report` 工具，其描述现在说明 child 要在结束前调用一次并给出自足的最终结果，并在部分进展会改变 parent 下一步动作时提前调用；
-- 一个 order 为 117 的 `tool:report` 系统提示词 section，用 child 自己的语气承载同一条义务，使从不细读工具描述的 child 仍能收到它。
+- 一个 first-party order 为 2900 的 `tool:report` 系统提示词 section，用 child 自己的语气承载同一条义务，使从不细读工具描述的 child 仍能收到它。
 
 `reportDelivery` 的默认值为 `next-step`。一条被接受的报告会唤醒停驻的 parent driver，或加入运行中 parent 最近的 step 边界，与发现会改变 parent 下一步动作时上报的指令一致。对于宁可让报告无人阅读也要避免模型工作量放大的部署，`quiet` 依旧可用。[报告与结算顺序决策](../bug-fix/2026-08-17-subagent-report-settlement-ordering.zh.md)负责调度理由。
 

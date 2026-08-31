@@ -65,11 +65,11 @@ describe('skill inventory frontmatter', () => {
     })
   })
 
-  it('writes the group under metadata', () => {
+  it('writes the group list under metadata', () => {
     const text = renderSkillMarkdown({
       name: 'demo-skill',
       description: 'A demo',
-      group: ' review ',
+      groups: [' review '],
       modelInvocable: true,
       userInvocable: true,
       content: 'Body',
@@ -77,15 +77,29 @@ describe('skill inventory frontmatter', () => {
     expect(parseSkillMarkdown(text).data).toEqual({
       name: 'demo-skill',
       description: 'A demo',
-      metadata: { group: 'review' },
+      metadata: { group: ['review'] },
     })
   })
 
-  it('merges the group into existing metadata fields', () => {
+  it('trims, drops empties, and dedupes group labels in order', () => {
     const text = renderSkillMarkdown({
       name: 'demo-skill',
       description: 'A demo',
-      group: 'review',
+      groups: ['docs', ' review ', 'docs', '  ', 'review'],
+      modelInvocable: true,
+      userInvocable: true,
+      content: 'Body',
+    })
+    expect(parseSkillMarkdown(text).data).toMatchObject({
+      metadata: { group: ['docs', 'review'] },
+    })
+  })
+
+  it('merges the group list into existing metadata fields', () => {
+    const text = renderSkillMarkdown({
+      name: 'demo-skill',
+      description: 'A demo',
+      groups: ['review', 'docs'],
       modelInvocable: true,
       userInvocable: true,
       content: 'Body',
@@ -94,15 +108,15 @@ describe('skill inventory frontmatter', () => {
     expect(parseSkillMarkdown(text).data).toEqual({
       name: 'demo-skill',
       description: 'A demo',
-      metadata: { owner: 'custom-provider', group: 'review' },
+      metadata: { owner: 'custom-provider', group: ['review', 'docs'] },
     })
   })
 
-  it('clears the group while keeping sibling metadata fields', () => {
+  it('clears the group list while keeping sibling metadata fields', () => {
     const text = renderSkillMarkdown({
       name: 'demo-skill',
       description: 'A demo',
-      group: '  ',
+      groups: [],
       modelInvocable: true,
       userInvocable: true,
       content: 'Body',
@@ -119,11 +133,11 @@ describe('skill inventory frontmatter', () => {
     const text = renderSkillMarkdown({
       name: 'demo-skill',
       description: 'A demo',
-      group: '',
+      groups: [],
       modelInvocable: true,
       userInvocable: true,
       content: 'Body',
-      existingData: { metadata: { group: 'old' } },
+      existingData: { metadata: { group: ['old'] } },
     })
     const parsed = parseSkillMarkdown(text)
     expect(parsed.data).toEqual({
@@ -137,7 +151,7 @@ describe('skill inventory frontmatter', () => {
     const text = renderSkillMarkdown({
       name: 'demo-skill',
       description: 'A demo',
-      group: '',
+      groups: [],
       modelInvocable: true,
       userInvocable: true,
       content: 'Body',
@@ -164,12 +178,12 @@ describe('skill inventory frontmatter', () => {
     const text = renderSkillMarkdown({
       name: 'demo-skill',
       description: 'A demo',
-      group: 'review',
+      groups: ['review'],
       modelInvocable: true,
       userInvocable: true,
       content: 'Body',
       existingData: { metadata: 'not-an-object' },
     })
-    expect(parseSkillMarkdown(text).data).toMatchObject({ metadata: { group: 'review' } })
+    expect(parseSkillMarkdown(text).data).toMatchObject({ metadata: { group: ['review'] } })
   })
 })

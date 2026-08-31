@@ -6,15 +6,21 @@
  * It never touches the DOM — ui-layout's presenter consumes the resolved
  * snapshot. Durable fields live in the Host `ui-theme` settings section.
  */
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ClientContext, SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: the ctx.settingsScope Context merge. Cross-plugin collaboration
+// goes through the service, never a value import (client bundle purity gate).
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the SlotRegistry service merge (ctx.slots).
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { AppearanceSectionInjected } from './AppearanceSection.tsx'
 import { AppearanceSection } from './AppearanceSection.tsx'
+import type { FontSizeRowInjected } from './FontSizeRow.tsx'
+import { FontSizeRow } from './FontSizeRow.tsx'
 import { applyAppearanceDocumentExtras } from '../appearance-apply.ts'
-import { createAppearanceRowStore } from './settings-store.ts'
+import { createAppearanceRowStore, createFontSizeRowStore } from './settings-store.ts'
 import { installThemeStyles } from './styles.ts'
 import { en, zh, type ThemeKey } from './locales.ts'
 import { wallpaperShell } from './wallpaper-shell.ts'
@@ -28,7 +34,8 @@ import {
   mixWallpaperSurfaces,
 } from '../wallpaper.ts'
 import {
-  DEFAULT_PREFERENCE, DEFAULT_THEME_SETTINGS, isThemePreference,
+  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, DEFAULT_THEME_SETTINGS, FONT_SIZE_FIELD, FONT_SIZE_MAX,
+  FONT_SIZE_MIN, isThemePreference,
   THEME_CUSTOM_THEMES_FIELD, THEME_DARK_FAMILY_FIELD, THEME_GLASS_OPACITY_FIELD,
   THEME_LIGHT_FAMILY_FIELD, THEME_PREFERENCE_FIELD, THEME_SETTINGS_NAMESPACE, THEME_TRANSPARENT_FIELD,
   THEME_WALLPAPER_BLUR_FIELD, THEME_WALLPAPER_BING_FIELD, THEME_WALLPAPER_CATALOGS_FIELD,
@@ -42,7 +49,8 @@ import {
 } from '../theme-settings.ts'
 
 export type { AppearanceSectionComponentProps, AppearanceSectionInjected } from './AppearanceSection.tsx'
-export type { AppearanceRowState } from './settings-store.ts'
+export type { FontSizeRowComponentProps, FontSizeRowInjected } from './FontSizeRow.tsx'
+export type { AppearanceRowState, FontSizeRowState } from './settings-store.ts'
 export type { ThemeKey } from './locales.ts'
 export type { ThemePreference, ThemeSettings, WallpaperFavorite, WallpaperSource } from '../theme-settings.ts'
 export type { ThemeFamily, ThemeSeeds, ThemeTokens as FamilyThemeTokens } from '../theme-family.ts'
@@ -92,6 +100,8 @@ export interface ThemeDefinition {
 export interface ThemeSnapshot {
   /** The persisted color-scheme preference (may be `system`). */
   preference: ThemePreference
+  /** Conversation content font size in px (integer within FONT_SIZE_MIN..FONT_SIZE_MAX). */
+  fontSize: number
   /**
    * The resolved active theme (`system` resolved via prefers-color-scheme)
    * with family tokens and override layers folded in.
@@ -200,11 +210,12 @@ const BUILTIN_INSPECT_TOKENS: readonly ThemeTokenInspection[] = Object.freeze([
  * only through the `theme/change` event.
  */
 export class ThemeRuntime {
-  private readonly ctx: Context
+  private readonly ctx: ClientContext
   private readonly host: SettingsScope<ThemeSettings>
   private themes: ThemeDefinition[] = [...BUILTIN_THEMES]
   private settings: ThemeSettings = { ...DEFAULT_THEME_SETTINGS, customThemes: [] }
   private preference: ThemePreference
+  private fontSize: number = bootstrapFontSize()
   private revision = 0
   private snapshot: ThemeSnapshot
   private readonly media: MediaQueryList | undefined
@@ -220,7 +231,7 @@ export class ThemeRuntime {
    * media-query and scope listeners are released through ctx.effect on dispose).
    * @param host - durable preference scope owned by the same plugin.
    */
-  constructor(ctx: Context, host: SettingsScope<ThemeSettings>) {
+  constructor(ctx: ClientContext, host: SettingsScope<ThemeSettings>) {
     this.ctx = ctx
     this.host = host
     this.preference = DEFAULT_PREFERENCE
@@ -315,6 +326,23 @@ export class ThemeRuntime {
       this.settings = { ...this.settings, preference: id }
       this.queueWrite(THEME_PREFERENCE_FIELD, id)
     }
+    this.publish()
+  }
+
+  /**
+   * Change the conversation content font size — the only font-size write
+   * entry. Accepted values are written through the settings scope and emit
+   * `theme/change`.
+   * @param px - integer px within FONT_SIZE_MIN..FONT_SIZE_MAX; out-of-range or fractional values throw.
+   */
+  setFontSize(px: number): void {
+    if (!Number.isInteger(px) || px < FONT_SIZE_MIN || px > FONT_SIZE_MAX) {
+      throw new Error(`font size ${px} is outside ${FONT_SIZE_MIN}..${FONT_SIZE_MAX}`)
+    }
+    if (this.fontSize === px) return
+    this.fontSize = px
+    this.settings = { ...this.settings, fontSize: px }
+    void this.host.set(FONT_SIZE_FIELD, px)
     this.publish()
   }
 
@@ -508,9 +536,10 @@ export class ThemeRuntime {
     const section = this.host.getSnapshot().value
     if (section === undefined) return
     const next = resolveThemeSettings(section)
-    if (sameSettings(this.settings, next) && this.preference === next.preference) return
+    if (sameSettings(this.settings, next) && this.preference === next.preference && this.fontSize === next.fontSize) return
     this.settings = next
     this.preference = next.preference
+    this.fontSize = next.fontSize
     this.publish()
   }
 
@@ -578,6 +607,7 @@ export class ThemeRuntime {
     }
     return Object.freeze({
       preference: isThemePreference(this.preference) ? this.preference : this.settings.preference,
+      fontSize: this.fontSize,
       active: this.composeActive(base, mode),
       themes: Object.freeze([...this.themes]),
       families: Object.freeze(listThemeFamilies(this.settings.customThemes)),
@@ -637,6 +667,7 @@ export class ThemeRuntime {
 
 function sameSettings(left: ThemeSettings, right: ThemeSettings): boolean {
   return left.preference === right.preference
+    && left.fontSize === right.fontSize
     && left.activeLightThemeId === right.activeLightThemeId
     && left.activeDarkThemeId === right.activeDarkThemeId
     && left.glassOpacity === right.glassOpacity
@@ -655,6 +686,23 @@ function sameSettings(left: ThemeSettings, right: ThemeSettings): boolean {
     && left.fontFamilyComposer === right.fontFamilyComposer
     && left.fontFamilyTerminal === right.fontFamilyTerminal
     && JSON.stringify(left.customThemes) === JSON.stringify(right.customThemes)
+}
+
+/**
+ * Read the font size the Host boot script wrote on `body` before any plugin
+ * ran, so the initial snapshot matches first paint and ui-layout's presenter
+ * does not flash the schema default while the settings read is in flight.
+ * Non-browser runs and mounts without the boot script fall back to the
+ * schema default; the durable settings adoption still lands afterwards.
+ */
+function bootstrapFontSize(): number {
+  /* v8 ignore next -- needs a documentless run (node e2e booting the client tree), not constructible under jsdom */
+  if (typeof document === 'undefined') return DEFAULT_FONT_SIZE
+  const raw = document.body.style.getPropertyValue('--dsh-content-font-size')
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isInteger(parsed) && parsed >= FONT_SIZE_MIN && parsed <= FONT_SIZE_MAX
+    ? parsed
+    : DEFAULT_FONT_SIZE
 }
 
 function validateOverrides(source: string, tokens: ThemeTokenOverrides): ThemeTokenOverrides {
@@ -728,8 +776,11 @@ export function apply(ctx: ClientContext): void {
 
   const store = createAppearanceRowStore()
   let bound: BoundActions<typeof store> | undefined
+  const fontSizeStore = createFontSizeRowStore()
+  let fontSizeBound: BoundActions<typeof fontSizeStore> | undefined
   const sync = (snapshot: ThemeSnapshot): void => {
     bound?.sync(snapshot, snapshot.revision)
+    fontSizeBound?.sync(snapshot.fontSize, snapshot.revision)
   }
   ctx.on('theme/change', sync)
   const t = ctx.locale.bind(SETTINGS_NS)
@@ -765,4 +816,20 @@ export function apply(ctx: ClientContext): void {
     locale: SETTINGS_NS,
     inject: injected,
   }, AppearanceSection))
+
+  const fontSizeInjected = (actions: BoundActions<typeof fontSizeStore>): FontSizeRowInjected => {
+    fontSizeBound = actions
+    sync(theme.getTheme())
+    return {
+      setFontSize: (px) => { theme.setFontSize(px) },
+    }
+  }
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item',
+    id: 'font-size',
+    order: 11,
+    store: fontSizeStore,
+    locale: SETTINGS_NS,
+    inject: fontSizeInjected,
+  }, FontSizeRow))
 }

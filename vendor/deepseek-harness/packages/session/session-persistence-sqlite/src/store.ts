@@ -15,6 +15,7 @@ import {
   type SessionId,
 } from '@deepseek-ai/dsh-session'
 import {
+  SessionPersistenceNotFoundError,
   SessionPersistenceRevision,
   type PersistenceBackend,
   type SessionPersistenceRevision as PersistenceRevision,
@@ -136,7 +137,7 @@ export class SqliteStore implements PersistenceBackend<number> {
     const snapshot = this.readTransaction(() => {
       const row = this.rowFor(id)
       if (row === undefined) return undefined
-      const eventRows = this.db.prepare(sql('select-events')).all(id).map(decodeEventRow)
+      const eventRows = this.db.prepare(sql('select-events')).all(this.sessionKey(id)).map(decodeEventRow)
       return { row, eventRows }
     })
     signal?.throwIfAborted()
@@ -162,7 +163,7 @@ export class SqliteStore implements PersistenceBackend<number> {
     const snapshot = this.readTransaction(() => {
       const row = this.rowFor(id)
       if (row === undefined) return undefined
-      return { row, ...this.physicalSpanFrom(id, fromSeq) }
+      return { row, ...this.physicalSpanFrom(this.sessionKey(id), fromSeq) }
     })
     signal?.throwIfAborted()
     if (snapshot === undefined) return undefined
@@ -180,21 +181,51 @@ export class SqliteStore implements PersistenceBackend<number> {
     this.db.exec(sql('begin-immediate'))
     try {
       validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
-      const tailRows = this.tailRows(meta.id)
+      const sessionKey = isMaterialized ? this.sessionKey(meta.id) : this.writeRow(meta)
+      const tailRows = this.tailRows(sessionKey)
       const currentLast = this.logicalLastEvent(meta.id, tailRows)
       const expected = currentLast === undefined ? 0 : currentLast.seq + 1
       const first = events[0] as SessionEvent
       if (first.seq !== expected) {
         throw new Error(`session ${meta.id} append starts at seq ${first.seq}, stored next seq is ${expected}`)
       }
-      if (!isMaterialized) this.writeRow(meta)
 
       const insert = this.insertStatement()
-      for (const record of packChunkRuns(events)) this.insertRecord(insert, meta.id, bindRecord(record))
+      for (const record of packChunkRuns(events)) this.insertRecord(insert, sessionKey, bindRecord(record))
       this.incrementRevision(meta.id)
       this.db.exec(sql('commit'))
     } catch (error: unknown) {
       this.rollback(error, 'append')
+    }
+  }
+
+  async materializeHeader(meta: SessionHeader): Promise<void> {
+    await this.open()
+    this.db.exec(sql('begin-immediate'))
+    try {
+      validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
+      this.writeRow(meta)
+      this.db.exec(sql('commit'))
+    } catch (error: unknown) {
+      /* v8 ignore next -- validate/write failure uses the same transaction rollback path covered by append and repair. */
+      this.rollback(error, 'materialize empty session')
+    }
+  }
+
+  /**
+   * Remove one session row. Events cascade.
+   * @param id - materialized session to delete.
+   */
+  async deleteStored(id: SessionId): Promise<void> {
+    await this.open()
+    this.db.exec(sql('begin-immediate'))
+    try {
+      validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
+      const deleted = this.db.prepare(sql('delete-session')).run(id)
+      if (Number(deleted.changes) !== 1) throw new SessionPersistenceNotFoundError(id)
+      this.db.exec(sql('commit'))
+    } catch (error: unknown) {
+      this.rollback(error, 'delete')
     }
   }
 
@@ -210,14 +241,15 @@ export class SqliteStore implements PersistenceBackend<number> {
       validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
       const row = this.rowFor(meta.id)
       if (row === undefined) throw new Error(`session ${meta.id} metadata row is missing`)
-      const currentRows = this.db.prepare(sql('select-events')).all(meta.id).map(decodeEventRow)
+      const sessionKey = this.sessionKey(meta.id)
+      const currentRows = this.db.prepare(sql('select-events')).all(sessionKey).map(decodeEventRow)
       const current = scanRows(currentRows)
       if (tornMarker !== undefined) {
         if (current.tornFrom !== tornMarker) {
           throw new Error(`session ${meta.id} repair is stale: physical tail no longer starts at seq ${tornMarker}`)
         }
         this.db.prepare(sql('delete-events-from'))
-          .run(meta.id, tornMarker)
+          .run(sessionKey, tornMarker)
       } else if (current.tornFrom !== undefined) {
         throw new Error(`session ${meta.id} repair omitted current torn tail at seq ${current.tornFrom}`)
       }
@@ -229,30 +261,12 @@ export class SqliteStore implements PersistenceBackend<number> {
           throw new Error(`session ${meta.id} repair is stale: closer starts at seq ${closers[0]?.seq}, stored next seq is ${expected}`)
         }
         const insert = this.insertStatement()
-        for (const closer of closers) this.insertRecord(insert, meta.id, bindRecord(closer))
+        for (const closer of closers) this.insertRecord(insert, sessionKey, bindRecord(closer))
       }
       this.incrementRevision(meta.id)
       this.db.exec(sql('commit'))
     } catch (error: unknown) {
       this.rollback(error, 'repair')
-    }
-  }
-
-  /**
-   * Remove one session's events and metadata row in a single transaction.
-   * @param id - session whose stored rows are deleted.
-   * @returns resolution after commit.
-   */
-  async deleteStored(id: SessionId): Promise<void> {
-    await this.open()
-    this.db.exec(sql('begin-immediate'))
-    try {
-      validateSchemaForMutation(this.databaseConstructor, this.db, this.databasePath)
-      this.db.prepare(sql('delete-events')).run(id)
-      this.db.prepare(sql('delete-session')).run(id)
-      this.db.exec(sql('commit'))
-    } catch (error: unknown) {
-      this.rollback(error, 'delete')
     }
   }
 
@@ -294,6 +308,12 @@ export class SqliteStore implements PersistenceBackend<number> {
     return value === undefined ? undefined : decodeSessionRow(value)
   }
 
+  private sessionKey(id: SessionId): number {
+    const row = this.db.prepare(sql('select-session-key')).get(id) as { id: number } | undefined
+    if (row === undefined) throw new Error(`session ${id} metadata row is missing`)
+    return row.id
+  }
+
   private async observe(signal: AbortSignal | undefined): Promise<void> {
     signal?.throwIfAborted()
     await this.open()
@@ -332,20 +352,20 @@ export class SqliteStore implements PersistenceBackend<number> {
     if (Number(updated.changes) !== 1) throw new Error(`session ${id} metadata row is missing`)
   }
 
-  private tailRows(id: SessionId): EventRow[] {
-    const tail = this.db.prepare(sql('select-tail-events')).all(id, 2).map(decodeEventRow).reverse()
+  private tailRows(sessionKey: number): EventRow[] {
+    const tail = this.db.prepare(sql('select-tail-events')).all(sessionKey, 2).map(decodeEventRow).reverse()
     if (tail.length === 0) return []
-    return this.physicalSpanFrom(id, (tail[0] as EventRow).seq).eventRows
+    return this.physicalSpanFrom(sessionKey, (tail[0] as EventRow).seq).eventRows
   }
 
   /** Select the bounded physical span that may represent `fromSeq`. */
   private physicalSpanFrom(
-    id: SessionId,
+    sessionKey: number,
     fromSeq: number,
   ): { readonly base: number; readonly eventRows: EventRow[] } {
     const packedFloor = Math.max(0, fromSeq - MAX_PACKED_ROW_MEMBERS + 1)
     const packedPredecessors = this.db.prepare(sql('select-packed-predecessors'))
-      .all(id, packedFloor, fromSeq)
+      .all(sessionKey, packedFloor, fromSeq)
       .map(decodeEventRow)
     let base = fromSeq
     for (const predecessor of packedPredecessors) {
@@ -357,7 +377,7 @@ export class SqliteStore implements PersistenceBackend<number> {
         base = Math.min(base, predecessor.seq)
       }
     }
-    const eventRows = this.db.prepare(sql('select-events-from')).all(id, base).map(decodeEventRow)
+    const eventRows = this.db.prepare(sql('select-events-from')).all(sessionKey, base).map(decodeEventRow)
     return { base, eventRows }
   }
 
@@ -372,9 +392,9 @@ export class SqliteStore implements PersistenceBackend<number> {
     return this.db.prepare(sql('insert-event'))
   }
 
-  private insertRecord(insert: StatementSync, id: SessionId, record: BoundRecord): void {
+  private insertRecord(insert: StatementSync, sessionKey: number, record: BoundRecord): void {
     insert.run(
-      id,
+      sessionKey,
       record.seq,
       record.type,
       record.time,
@@ -385,8 +405,8 @@ export class SqliteStore implements PersistenceBackend<number> {
     )
   }
 
-  private writeRow(meta: SessionHeader): void {
-    this.db.prepare(sql('upsert-session')).run(
+  private writeRow(meta: SessionHeader): number {
+    const inserted = this.db.prepare(sql('upsert-session')).get(
       meta.id,
       meta.version,
       meta.createdAt,
@@ -397,7 +417,8 @@ export class SqliteStore implements PersistenceBackend<number> {
       meta.delegationDepth ?? null,
       meta.agentPreset ?? null,
       randomUUID(),
-    )
+    ) as { id: number }
+    return inserted.id
   }
 }
 

@@ -8,7 +8,7 @@ import {
 } from '@deepseek-ai/dsh-loader-smoke'
 
 const fixtureDir = fileURLToPath(new URL(
-  '../../../../examples/acp-agent/tests/fixtures/subagent/subagent-codex/',
+  './fixtures/loader/',
   import.meta.url,
 ))
 const driver = join(fixtureDir, 'driver.ts')
@@ -45,6 +45,7 @@ describe('Codex provider public Loader composition', () => {
         {
           name: 'codex',
           capabilities: {
+            agentOptions: false,
             outputSchema: false,
             depthLimit: false,
             toolFilter: false,
@@ -55,6 +56,7 @@ describe('Codex provider public Loader composition', () => {
         {
           name: 'codex-primary',
           capabilities: {
+            agentOptions: false,
             outputSchema: false,
             depthLimit: false,
             toolFilter: false,
@@ -65,6 +67,7 @@ describe('Codex provider public Loader composition', () => {
         {
           name: 'codex-secondary',
           capabilities: {
+            agentOptions: false,
             outputSchema: false,
             depthLimit: false,
             toolFilter: false,

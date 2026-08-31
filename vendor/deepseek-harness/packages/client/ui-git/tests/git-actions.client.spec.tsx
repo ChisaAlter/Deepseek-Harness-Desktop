@@ -2,8 +2,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within, act } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { GitActionsProps } from '../src/client/GitActionsControl.tsx'
 import { GitActionsControl } from '../src/client/GitActionsControl.tsx'
 import type { VcsStatus } from '../src/client/git-logic.ts'
@@ -124,6 +125,7 @@ function mount(opts: {
       terminalDrawer={0}
       {...(opts.density === undefined ? {} : { density: opts.density })}
       useSessions={useSessionsStub(sessionList(opts.cwd))}
+      useSessionPendingInteraction={sel => sel(new Map())}
       useWorkspaces={neverWorkspaces}
       gitStatus={gitStatus}
       gitFetchForStatus={gitFetchForStatus}
@@ -283,6 +285,7 @@ describe('GitActionsControl', () => {
       surfaces: 0,
       terminalDrawer: 0,
       useWorkspaces: neverWorkspaces,
+      useSessionPendingInteraction: sel => sel(new Map()),
       gitStatus,
       gitFetchForStatus: vi.fn(async () => status({ aheadCount: 2 })),
       gitReadPullRequest: vi.fn(async () => ({ ok: true, pr: null })),
@@ -414,6 +417,7 @@ describe('GitActionsControl', () => {
         surfaces={0}
         terminalDrawer={0}
         useSessions={useSessionsStub(sessionList(undefined))}
+        useSessionPendingInteraction={sel => sel(new Map())}
         useWorkspaces={neverWorkspaces}
         gitStatus={b.gitStatus}
         gitFetchForStatus={b.gitFetchForStatus}

@@ -13,6 +13,7 @@ import Timer from '@deepseek-ai/cordis-plugin-timer'
 import z from '@deepseek-ai/schemastery'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import SessionStore from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService, { type Config as SessionTitleConfig } from '@deepseek-ai/dsh-session-title'
 import SystemPrompt, { type Config as SystemPromptConfig } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type Config as ToolsConfig } from '@deepseek-ai/dsh-tools'
@@ -72,7 +73,8 @@ export interface GoalConfig {
  * bridge, simply omits it), `includeHarnessIdentity`, `includeRuntimeContext`,
  * `persona`, and `toolOrder` to the system-prompt plugin (the fixed opener,
  * dynamic-context policy, deployment persona, and explicit model-facing tool
- * order), the `tools` object to the tool registry (its presentation `mode`),
+ * order), the `tools` object to the tool
+ * registry (its presentation `mode`),
  * `dshHome` to bash environment and local skill discovery, `sessionTitle` to
  * the fallback title service, `skills` to the
  * skill registry/local provider/tool consumer, `workspaceContext` to the
@@ -202,7 +204,7 @@ export function pickSpineConfig(config: Omit<Config, 'agents'>): Omit<Config, 'a
 /**
  * Load the spine. Each `ctx.plugin(...)` mounts one child of the bundle fiber;
  * `agent-loop` receives the forwarded `agents` list and `system-prompt` the
- * forwarded `persona` and `toolOrder`. Workspace-context receives its own
+ * forwarded persona fields and `toolOrder`. Workspace-context receives its own
  * explicitly forwarded config. Load order is irrelevant (cordis
  * pends each fiber on its `inject` until the services it needs exist), but the
  * listing mirrors the dependency layering for readability: the LLM vocabulary
@@ -220,6 +222,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.plugin(Timer)
   ctx.plugin(LlmRuntime)
   ctx.plugin(SessionStore)
+  ctx.plugin(SessionProjectionRegistry)
   ctx.plugin(SessionTitleService, config.sessionTitle ?? EXAMPLE_SESSION_TITLE_CONFIG)
   // Owner schemas resolve defaults; forward toolOrder only when explicitly set.
   ctx.plugin(SystemPrompt, {

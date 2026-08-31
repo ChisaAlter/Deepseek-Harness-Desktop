@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
-import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import JsonlSessionPersistence from '../src/index.ts'
 import {
   encodeSegment, eventLines, logPath, projectDir, projectKey, scanLog, sessionDir, SessionLogScanner, toHeaderLine,
 } from '../src/format.ts'
@@ -16,11 +16,6 @@ import { runCoordinatorContract, type CoordinatorFixture } from '../../session-p
 const statRace = vi.hoisted(() => ({
   path: undefined as string | undefined,
   reads: 0,
-}))
-
-const rmdirProbe = vi.hoisted(() => ({
-  path: undefined as string | undefined,
-  code: undefined as string | undefined,
 }))
 
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -34,12 +29,6 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       if (statRace.reads !== 2) return identity
       return { ...identity, mtimeNs: identity.mtimeNs + 1n }
     }) as typeof actual.stat,
-    rmdir: (async (...args: Parameters<typeof actual.rmdir>) => {
-      if (rmdirProbe.path !== undefined && String(args[0]) === rmdirProbe.path) {
-        throw Object.assign(new Error('rmdir probe'), { code: rmdirProbe.code })
-      }
-      return actual.rmdir(...args)
-    }) as typeof actual.rmdir,
   }
 })
 
@@ -97,8 +86,6 @@ function rawLogPath(root: string, cwd: string | undefined, id: SessionId): strin
 afterEach(async () => {
   statRace.path = undefined
   statRace.reads = 0
-  rmdirProbe.path = undefined
-  rmdirProbe.code = undefined
   vi.restoreAllMocks()
   for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true })
 })
@@ -112,7 +99,6 @@ function appendClosedTurn(session: Session): void {
   session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
 }
 
-// Run the shared backend contract against the real JSONL backend.
 runPersistenceContract('jsonl-none', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-jsonl-'))
   const ctx = new Context()
@@ -205,7 +191,7 @@ describe('JsonlSessionPersistence: format helpers', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const fiber = await ctx.plugin(JsonlSessionPersistence, { root: absoluteRoot, compression: 'none' })
-    // A future format need not satisfy today's header shape at all (no
+    // A future format need not satisfy this build's header shape at all (no
     // createdAt, unknown fields): the version must be refused before shape
     // validation, so the user sees the upgrade direction.
     const id = SessionId('future-shape')
@@ -300,58 +286,36 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
     expect((await ctx.sessionPersistence.list()).map(h => h.id)).toContain(m.id)
   })
 
-  it('delete removes the session directory and a now-empty project directory', async () => {
-    const m = meta('to-delete', '/work')
+  it('delete removes the session-owned directory', async () => {
+    const m = meta('deleted', '/work')
     await ctx.sessionPersistence.create(m)
     await ctx.sessionPersistence.append(m.id, oneTurnLog())
     const dir = sessionDir(root, '/work', m.id)
-    const project = projectDir(root, '/work')
     expect((await stat(dir)).isDirectory()).toBe(true)
     await ctx.sessionPersistence.delete(m.id)
     await expect(stat(dir)).rejects.toThrow()
-    await expect(stat(project)).rejects.toThrow()
-  })
-
-  it('delete leaves a project directory that still holds another session', async () => {
-    const first = meta('keep-sibling', '/work')
-    const second = meta('remove-sibling', '/work')
-    await ctx.sessionPersistence.create(first)
-    await ctx.sessionPersistence.append(first.id, oneTurnLog())
-    await ctx.sessionPersistence.create(second)
-    await ctx.sessionPersistence.append(second.id, oneTurnLog())
-    await ctx.sessionPersistence.delete(second.id)
-    await expect(stat(sessionDir(root, '/work', second.id))).rejects.toThrow()
-    expect((await stat(sessionDir(root, '/work', first.id))).isDirectory()).toBe(true)
-    expect((await stat(projectDir(root, '/work'))).isDirectory()).toBe(true)
-  })
-
-  it('delete swallows ENOENT when the empty project directory is already gone', async () => {
-    const m = meta('rmdir-enoent', '/work')
-    await ctx.sessionPersistence.create(m)
-    await ctx.sessionPersistence.append(m.id, oneTurnLog())
-    rmdirProbe.path = projectDir(root, '/work')
-    rmdirProbe.code = 'ENOENT'
-    await ctx.sessionPersistence.delete(m.id)
-    await expect(stat(sessionDir(root, '/work', m.id))).rejects.toThrow()
-  })
-
-  it('delete succeeds when project-directory rmdir fails after the session directory is gone', async () => {
-    const m = meta('rmdir-eperm', '/work')
-    const seen: SessionId[] = []
-    ctx.on('session-persistence/deleted', (id) => { seen.push(id) })
-    await ctx.sessionPersistence.create(m)
-    await ctx.sessionPersistence.append(m.id, oneTurnLog())
-    rmdirProbe.path = projectDir(root, '/work')
-    rmdirProbe.code = 'EPERM'
-    await ctx.sessionPersistence.delete(m.id)
-    await expect(stat(sessionDir(root, '/work', m.id))).rejects.toThrow()
     expect((await ctx.sessionPersistence.list()).map(h => h.id)).not.toContain(m.id)
-    expect(seen).toEqual([m.id])
   })
 
-  it('deleteStored resolves when the session log is already absent', async () => {
-    const persistence = ctx.sessionPersistence as JsonlSessionPersistence
-    await expect(persistence.deleteStored(SessionId('ghost'))).resolves.toBeUndefined()
+  it('materializes an explicitly durable empty live session without an event row', async () => {
+    const id = SessionId('durable-empty')
+    const session = ctx.sessions.create(id, { meta: { cwd: '/work' } })
+
+    await ctx.sessionPersistence.ensureMaterialized(session)
+
+    expect(await readFile(rawLogPath(root, '/work', id), 'utf8')).toBe(`${JSON.stringify(toHeaderLine(session.header))}\n`)
+    await expect(ctx.sessionPersistence.load(id)).resolves.toEqual({ meta: session.header, events: [] })
+  })
+
+  it('delegates direct preparation through the JSONL provider', async () => {
+    const m = meta('direct-prepare', '/work')
+    await ctx.sessionPersistence.create(m)
+    await ctx.sessionPersistence.append(m.id, oneTurnLog())
+
+    const preparation = await ctx.sessionPersistence.prepare(m.id)
+
+    expect(preparation.session.header).toMatchObject(m)
+    preparation[Symbol.dispose]()
   })
 
   it('readRaw returns the stored artifact text verbatim with its original filename', async () => {
@@ -1009,22 +973,6 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     expect(scanLog(Buffer.from(log)).meta.agentPreset).toBe('minimal')
   })
 
-  it('round-trips dshbot origin', () => {
-    const line = toHeaderLine({
-      version: 0,
-      id: SessionId('bot'),
-      createdAt: 1,
-      origin: 'dshbot',
-      delegationDepth: 0,
-    })
-    expect(scanLog(Buffer.from(`${JSON.stringify(line)}\n`)).meta.origin).toBe('dshbot')
-  })
-
-  it('rejects a session header whose origin is not a known classification', () => {
-    const log = '{"type":"session","version":0,"id":"bad-origin","createdAt":1,"delegationDepth":0,"origin":"fork"}\n'
-    expect(() => scanLog(Buffer.from(log))).toThrow(/session header/)
-  })
-
   it('rejects a session header whose agentPreset is not a string', () => {
     const log = '{"type":"session","version":0,"id":"bad-preset","createdAt":1,"delegationDepth":0,"agentPreset":7}\n'
 
@@ -1055,13 +1003,20 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     expect(() => scanLog(Buffer.from(log))).toThrow(/seq gap in committed region/)
   })
 
-  it('rejects a corrupt line BEFORE a later committed turn/end (committed data damaged)', () => {
-    const log = [
-      JSON.stringify({ type: 'session', version: 0, id: 'c', createdAt: 1, delegationDepth: 0 }),
-      '{not json', // corrupt, sits in the committed region (a turn/end follows)
-      JSON.stringify({ type: 'turn/end', seq: 1, time: 2, data: { turn: 1, reason: { kind: 'completed' } } }),
-    ].join('\n') + '\n'
-    expect(() => scanLog(Buffer.from(log))).toThrow(/unparsable committed event/)
+  it('rejects malformed records before a later committed turn/end', () => {
+    const corruptRecords = [
+      '{not json',
+      'null',
+      JSON.stringify({ type: 'assistant/message', sourceEventSeqs: [0], data: {} }),
+    ]
+    for (const record of corruptRecords) {
+      const log = [
+        JSON.stringify({ type: 'session', version: 0, id: 'c', createdAt: 1, delegationDepth: 0 }),
+        record,
+        JSON.stringify({ type: 'turn/end', seq: 1, time: 2, data: { turn: 1, reason: { kind: 'completed' } } }),
+      ].join('\n') + '\n'
+      expect(() => scanLog(Buffer.from(log))).toThrow(/unparsable committed event/)
+    }
   })
 
   it('a header-only log (no event lines at all) preserves nothing — committedBytes is the header', () => {
@@ -1240,9 +1195,20 @@ describe('JsonlSessionPersistence: default packed chunk rows', () => {
     expect(scanned.committedBytes).toBe(Buffer.byteLength(headerAndTurn, 'utf8'))
   })
 
-  it('eventLines(packChunks: false) is byte-identical to the pre-packing layout', () => {
+  it('eventLines(packChunks: false) keeps one event per line and round-trips provenance', () => {
     const log = chunkRunLog()
-    expect(eventLines(log, false)).toBe(log.map(e => JSON.stringify(e)).join('\n'))
+    const text = eventLines(log, false)
+    const lines = text.split('\n')
+    expect(lines).toHaveLength(log.length)
+    for (const line of lines) {
+      expect((JSON.parse(line) as { type: string }).type).not.toMatch(/-chunks$/)
+    }
+    // the message's consecutive provenance is stored as an inclusive range
+    const messageLine = lines.map(l => JSON.parse(l) as { type: string; sourceEventSeqs?: unknown })
+      .find(r => r.type === 'assistant/message')
+    expect(messageLine?.sourceEventSeqs).toEqual([[2, 6]])
+    const header = JSON.stringify(toHeaderLine(meta('packed', '/work'))) + '\n'
+    expect(scanLog(Buffer.from(header + text + '\n')).events).toEqual(log)
   })
 })
 

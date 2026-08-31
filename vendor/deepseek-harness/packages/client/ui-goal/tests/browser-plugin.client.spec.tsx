@@ -14,11 +14,13 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach } from 'vitest'
-import { SlotRegistry, type SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import { ConversationEventRegistry } from '@deepseek-ai/dsh-client-runtime/src/client/conversation/event-registry.ts'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { GoalProjection } from '@deepseek-ai/dsh-goal/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { GoalBarActions } from '../src/client/slots.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -48,11 +50,22 @@ function makeProjection(revision = 3): GoalProjection {
 /** Boot the plugin over fake faces; Goal Remote methods record arguments and answer per the script. */
 async function bench(options: {
   projection?: GoalProjection | null | undefined
-  failWith?: { code: string; message: string; details: object }
+  failWith?: RemoteFailure
 } = {}) {
   const ctx = new Context()
   const calls: { method: string; args: unknown[] }[] = []
-  const conversationEvents = new ConversationEventRegistry(ctx)
+  const sessions = {
+    binding: (id: SessionId) => ({
+      sessionId: id,
+      session: { projections: { faceOf: (key: string) => ({
+        getSnapshot: () => (key === 'goal' ? options.projection : undefined),
+        subscribe: () => () => {},
+      }) } },
+      ctx,
+    }),
+  }
+  ctx.provide('sessions', sessions)
+  const conversationEvents = new UiConversation(ctx, sessions as never).events
   function answer<T>(method: string, value: T) {
     return (...args: unknown[]) => {
       calls.push({ method, args })
@@ -88,16 +101,6 @@ async function bench(options: {
     },
   } as never, (() => null) as never)
   ctx.provide('locale', new LocaleRuntime(ctx))
-  ctx.provide('sessions', {
-    binding: (id: SessionId) => ({
-      sessionId: id,
-      session: { projections: { faceOf: (key: string) => ({
-        getSnapshot: () => (key === 'goal' ? options.projection : undefined),
-        subscribe: () => () => {},
-      }) } },
-      ctx,
-    }),
-  })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   return {
     ctx,
@@ -181,17 +184,20 @@ describe('ui-goal browser plugin', () => {
       await b.fiber.await()
       const verbs = b.entry()!.inject!(sid('s1'))
       for (const result of [await verbs.onEdit('x'), await verbs.onPause(), await verbs.onResume(), await verbs.onClear()]) {
-        expect(result).toEqual({ ok: false, error: { code: 'no-current-goal', message: 'no current goal to mutate', details: {} } })
+        expect(result).toEqual({ ok: false, error: { code: 'no-current-goal', message: 'no current goal to mutate' } })
       }
       expect(b.calls).toHaveLength(0)
     }
   })
 
   it('forwards a Remote failure to the strip verbatim', async () => {
-    const b = await bench({ projection: makeProjection(), failWith: { code: 'internal', message: 'stale revision', details: {} } })
+    const b = await bench({
+      projection: makeProjection(),
+      failWith: new RemoteError('gateway/internal', 'stale revision', {}),
+    })
     await b.fiber.await()
     const verbs = b.entry()!.inject!(sid('s1'))
-    expect(await verbs.onEdit('x')).toEqual({ ok: false, error: { code: 'internal', message: 'stale revision', details: {} } })
+    expect(await verbs.onEdit('x')).toMatchObject({ ok: false, error: { code: 'gateway/internal', message: 'stale revision' } })
   })
 
   it('drops the dock entry when the plugin fiber unloads (HMR safety)', async () => {

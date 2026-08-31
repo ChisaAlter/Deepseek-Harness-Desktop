@@ -15,6 +15,7 @@ const path = require('node:path');
 const { DshManager, missingDesktopForkPackages, harnessSpawnPlan } = require('./dsh');
 const { DESKTOP_PACKAGES } = require('../shared/harness-desktop-forks');
 const { readPin } = require('../shared/harness-upstream');
+const { isUnpublishedHarnessNpm } = require('./harness-browser-auth');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
 
 const EXPECTED_URL = 'http://127.0.0.1:3080';
@@ -451,11 +452,37 @@ test('npx fallback pins @deepseek-ai/dsh to pin.npm', () => {
     resolveNodeBin: () => process.execPath,
     readPin: () => pin,
   });
+  if (isUnpublishedHarnessNpm(pin.npm)) {
+    assert.throws(
+      () => manager.buildLaunch({ host: '127.0.0.1', port: 3080 }),
+      /尚未发布|npx/,
+    );
+    return;
+  }
   const launch = manager.buildLaunch({ host: '127.0.0.1', port: 3080 });
   assert.equal(launch.kind, 'npx');
   assert.ok(launch.args.includes(`@deepseek-ai/dsh@${pin.npm}`));
   assert.equal(launch.args.includes('@deepseek-ai/dsh'), false);
   assert.equal(launch.args.some((arg) => String(arg).includes('@latest')), false);
+});
+
+test('npx fallback refuses an unpublished alpha pin', () => {
+  const manager = new DshManager({
+    sourceHarnessStatus: () => ({ present: false }),
+    resolveDshBin: () => null,
+    resolveNpx: () => 'npx',
+    resolveNodeBin: () => process.execPath,
+    readPin: () => ({
+      repo: 'https://github.com/deepseek-ai/deepseek-harness.git',
+      ref: 'dsh-v0.1.2-alpha.1',
+      sha: 'cd5ef8148158c3a752a658978873241fdf8e2bbc',
+      npm: '0.1.2-alpha.1',
+    }),
+  });
+  assert.throws(
+    () => manager.buildLaunch({ host: '127.0.0.1', port: 3080 }),
+    /尚未发布|npx/,
+  );
 });
 
 test('launcher recovery flags stay before host and port', () => {
@@ -625,9 +652,31 @@ test('every launch kind passes --no-open so dsh web does not open the OS browser
     resolveNodeBin: () => process.execPath,
     readPin: () => pin,
   });
-  const npxLaunch = npx.buildLaunch({ host: '127.0.0.1', port: 3080 });
-  assert.equal(npxLaunch.kind, 'npx');
-  assert.equal(npxLaunch.args.includes('--no-open'), true);
+  if (isUnpublishedHarnessNpm(pin.npm)) {
+    assert.throws(
+      () => npx.buildLaunch({ host: '127.0.0.1', port: 3080 }),
+      /尚未发布|npx/,
+    );
+  } else {
+    const npxLaunch = npx.buildLaunch({ host: '127.0.0.1', port: 3080 });
+    assert.equal(npxLaunch.kind, 'npx');
+    assert.equal(npxLaunch.args.includes('--no-open'), true);
+  }
+  const publishedNpx = new DshManager({
+    sourceHarnessStatus: () => ({ present: false }),
+    resolveDshBin: () => null,
+    resolveNpx: () => 'npx',
+    resolveNodeBin: () => process.execPath,
+    readPin: () => ({
+      repo: pin.repo,
+      ref: pin.ref,
+      sha: pin.sha,
+      npm: '0.1.1-rc.1',
+    }),
+  });
+  const publishedLaunch = publishedNpx.buildLaunch({ host: '127.0.0.1', port: 3080 });
+  assert.equal(publishedLaunch.kind, 'npx');
+  assert.equal(publishedLaunch.args.includes('--no-open'), true);
 });
 
 test('source launch copies Ghostty assets beside client.js', () => {
@@ -908,6 +957,7 @@ test('readyUrlPattern 接受配置 host、回环与 localhost，拒绝无关主�
   assert.ok(custom.test('dsh web: http://192.168.1.5:3080'));
   assert.ok(custom.test('dsh web: http://127.0.0.1:3080'));
   assert.ok(custom.test('dsh web: http://localhost:3080'));
+  assert.match('dsh web: http://127.0.0.1:3080/?token=launch'.match(custom)[1], /\?token=launch/);
   assert.equal(custom.test('dsh web: http://192.168.1.50:3080'), false, '正则须转义点号，禁止前缀误配');
   assert.equal(custom.test('dsh web: http://evil.example:3080'), false);
 
@@ -967,6 +1017,25 @@ test('L-2：通配 host 0.0.0.0 的就绪 URL 归一为可连接的 127.0.0.1', 
   assert.equal(result.ok, true);
   assert.equal(h.manager.baseUrl, 'http://127.0.0.1:3080', '就绪 URL 中的通配主机应重写为回环');
   assert.equal(h.manager.state, 'ready');
+});
+
+test('就绪行带 token 时 baseUrl 保留 query', async (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-token-ws-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const h = makeHarness({
+    announceReady: false,
+    deps: {
+      loadConfig: () => ({ workspace, host: '127.0.0.1', port: 3080 }),
+    },
+  });
+  t.after(h.cleanup);
+  const outcome = settle(h.manager.start());
+  await waitFor(() => h.spawned.length === 1);
+  h.setReachable(true, false);
+  h.lastChild().stdout.emit('data', Buffer.from('dsh web: http://127.0.0.1:3080/?token=launch\n'));
+  const result = await outcome;
+  assert.equal(result.ok, true);
+  assert.match(h.manager.baseUrl, /\?token=launch/);
 });
 
 test('probePort/findFreePort 对通配 host 归一探测地址', async () => {

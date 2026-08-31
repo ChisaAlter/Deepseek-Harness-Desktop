@@ -27,7 +27,7 @@ Three questions must be answered before implementation, and none of them is sett
 
 **How is the shared predicate owned?** A stored field encodes the rule at write time, where the writer sees one batch, while the attached summary folds a whole log. Both must use one exported event predicate or reducer so new message-source variants cannot make attached and cold ordering disagree.
 
-**How do pre-field logs behave?** Existing artifacts have no value. Falling back to mtime keeps them at today's accuracy; falling back to `createdAt` is honest but reorders every existing session in the picker and the tree.
+**How do pre-field logs behave?** Existing artifacts have no value. Falling back to mtime keeps them at the existing mtime-based accuracy; falling back to `createdAt` is honest but reorders every existing session in the picker and the tree.
 
 **Is a sidecar acceptable for JSONL?** It reintroduces a second file per session that can disagree with the log, which the single-artifact design avoided.
 

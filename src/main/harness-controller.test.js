@@ -151,7 +151,8 @@ function fixture(overrides = {}) {
       this.syncCalls += 1;
       events.push('remote:sync');
     },
-    async stop() {
+    // Real face is ChisaCodeRemote: teardown is stopDaemon(), not stop().
+    async stopDaemon() {
       this.stopCalls += 1;
       events.push('remote:stop');
     },
@@ -430,6 +431,36 @@ test('full start rides the usage overlay after the install overlay; skip start d
   await skipped.controller.start();
   assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
   assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay]);
+});
+
+test('full start rides the session-search overlay; skip start drops it', async () => {
+  const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
+  const searchOverlay = 'C:/profiles/web/desktop-plugins/session-search/desktop-session-search.patch.yml';
+  const f = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureSessionSearchOverlay: async () => ({ ok: true, overlayFile: searchOverlay }),
+  });
+  await f.controller.start();
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, searchOverlay]);
+
+  const skipped = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureSessionSearchOverlay: async () => ({ ok: true, overlayFile: searchOverlay }),
+  });
+  skipped.controller.writePluginSkip(new Error('recovery'));
+  await skipped.controller.start();
+  assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
+  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay]);
+});
+
+test('a failed session-search ensure never contributes a stale overlay path', async () => {
+  const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
+  const f = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureSessionSearchOverlay: async () => ({ ok: false, error: 'missing-home', overlayFile: 'C:/stale.yml' }),
+  });
+  await f.controller.start();
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay]);
 });
 
 test('dsh-im overlay rides --patch on both full and skip starts', async () => {
@@ -735,6 +766,13 @@ test('reload reopens the ready Web UI through showHarness', async () => {
   assert.deepEqual(f.events.filter((event) => event.startsWith('harness:') || event.startsWith('reload:')), [
     'harness:http://127.0.0.1:3080',
   ]);
+});
+
+test('remote sync failure during start is logged, not fatal', async () => {
+  const f = fixture();
+  f.remote.sync = async () => { throw new Error('EADDRINUSE :3180'); };
+  await f.controller.start();
+  assert.ok(f.dsh.logs.some((line) => /手机 Remote 同步失败/.test(line) && /EADDRINUSE/.test(line)));
 });
 
 test('shutdown cancels recovery and does not navigate or restart afterward', async () => {

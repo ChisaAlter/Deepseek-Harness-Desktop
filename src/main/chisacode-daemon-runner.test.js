@@ -1,0 +1,187 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { ChisaCodeRemote, RUNNER_PATH, VENDOR_ROOT } = require('./chisacode-remote');
+
+const VENDOR_RUNNABLE = fs.existsSync(path.join(VENDOR_ROOT, 'packages', 'server', 'dist', 'server', 'server', 'exports.js'))
+  && fs.existsSync(path.join(VENDOR_ROOT, 'node_modules'));
+const VENDOR_HINT = 'vendor/chisacode-remote dist/依赖缺失（scripts/prepare-chisacode-remote.mjs 会构建）';
+
+/**
+ * Stub server export implementing the two faces the runner consumes
+ * (createRootLogger + createChisaCodeDaemon), controllable via env.
+ */
+function writeStubServerExport() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-stub-api-'));
+  const file = path.join(dir, 'exports.mjs');
+  fs.writeFileSync(file, [
+    'export function createRootLogger() {',
+    '  const logger = { info() {}, warn() {}, error() {}, child() { return logger; } };',
+    '  return logger;',
+    '}',
+    'export async function createChisaCodeDaemon(config) {',
+    '  return {',
+    '    async start() {',
+    "      if (process.env.STUB_FAIL === '1') throw new Error('boom-start');",
+    '    },',
+    '    async stop() {',
+    "      process.stdout.write(JSON.stringify({ msg: 'stub_daemon_stop_called' }) + '\\n');",
+    '    },',
+    '  };',
+    '}',
+    '',
+  ].join('\n'));
+  return file;
+}
+
+function writeLaunchFile(overrides = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-runner-home-'));
+  const launchFile = path.join(home, 'daemon-launch.json');
+  fs.writeFileSync(launchFile, JSON.stringify({
+    serverExport: writeStubServerExport(),
+    daemonConfig: { listen: '127.0.0.1:16799', chisacodeHome: home },
+    ...overrides,
+  }));
+  return launchFile;
+}
+
+function spawnRunner(launchFile, env = {}) {
+  const child = spawn(process.execPath, [RUNNER_PATH, launchFile], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, ...env },
+  });
+  const lines = [];
+  let buffer = '';
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => {
+    buffer += chunk;
+    let idx = buffer.indexOf('\n');
+    while (idx !== -1) {
+      const line = buffer.slice(0, idx).trim();
+      buffer = buffer.slice(idx + 1);
+      if (line) {
+        try { lines.push(JSON.parse(line)); } catch { lines.push({ raw: line }); }
+      }
+      idx = buffer.indexOf('\n');
+    }
+  });
+  const exit = new Promise((resolve) => {
+    child.on('exit', (code, signal) => resolve({ code, signal }));
+  });
+  const waitFor = (msg, timeoutMs = 10_000) => new Promise((resolve, reject) => {
+    const started = Date.now();
+    const poll = () => {
+      const hit = lines.find((record) => record.msg === msg);
+      if (hit) { resolve(hit); return; }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`timed out waiting for ${msg}; got ${JSON.stringify(lines)}`));
+        return;
+      }
+      setTimeout(poll, 25);
+    };
+    poll();
+  });
+  return { child, lines, exit, waitFor };
+}
+
+test('runner boots the daemon, reports ready, and stops gracefully on stdin stop', async () => {
+  const r = spawnRunner(writeLaunchFile());
+  const ready = await r.waitFor('dshd_daemon_ready');
+  assert.equal(ready.listen, '127.0.0.1:16799');
+  r.child.stdin.write('stop\n');
+  await r.waitFor('stub_daemon_stop_called');
+  await r.waitFor('dshd_daemon_stopped');
+  const { code } = await r.exit;
+  assert.equal(code, 0);
+});
+
+test('runner self-stops when its stdin closes (dead parent leaves no orphan)', async () => {
+  const r = spawnRunner(writeLaunchFile());
+  await r.waitFor('dshd_daemon_ready');
+  r.child.stdin.end();
+  await r.waitFor('stub_daemon_stop_called');
+  const { code } = await r.exit;
+  assert.equal(code, 0);
+});
+
+test('runner reports startup failure on stdout and exits 1', async () => {
+  const r = spawnRunner(writeLaunchFile(), { STUB_FAIL: '1' });
+  const failed = await r.waitFor('dshd_daemon_start_failed');
+  assert.match(String(failed.error), /boom-start/);
+  const { code } = await r.exit;
+  assert.equal(code, 1);
+});
+
+test('runner fails loud on an unreadable launch file', async () => {
+  const r = spawnRunner(path.join(os.tmpdir(), 'nope', 'missing-launch.json'));
+  const failed = await r.waitFor('dshd_daemon_start_failed');
+  assert.match(String(failed.error), /launch file unreadable/);
+  const { code } = await r.exit;
+  assert.equal(code, 1);
+});
+
+test(
+  'runner stops gracefully on SIGTERM (posix)',
+  { skip: process.platform === 'win32' ? 'Windows 无 SIGTERM 语义（stdin 通道即优雅路径）' : false },
+  async () => {
+    const r = spawnRunner(writeLaunchFile());
+    await r.waitFor('dshd_daemon_ready');
+    r.child.kill('SIGTERM');
+    await r.waitFor('stub_daemon_stop_called');
+    const { code } = await r.exit;
+    assert.equal(code, 0);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Real vendored daemon through the full ChisaCodeRemote face (dist-gated)
+// ---------------------------------------------------------------------------
+
+test(
+  'ChisaCodeRemote runs the real vendored daemon in a child process end to end',
+  { skip: VENDOR_RUNNABLE ? false : VENDOR_HINT, timeout: 120_000 },
+  async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-real-'));
+    const port = 17000 + Math.floor(Math.random() * 20000);
+    const config = {
+      remoteEnabled: true,
+      // Closed loopback port: relay connect fails fast and stays local, but the
+      // daemon itself must still come up (relay errors are non-fatal).
+      remoteRelayEndpoint: '127.0.0.1:9',
+      remoteRelayUseTls: false,
+      remoteListen: `127.0.0.1:${port}`,
+    };
+    const remote = new ChisaCodeRemote({
+      getConfig: () => config,
+      getHomeDir: () => home,
+      readyTimeoutMs: 90_000,
+    });
+    remote.ensureMobileWebServer = async () => {};
+    remote.stopMobileWebServer = async () => {};
+
+    await remote.startDaemon();
+    try {
+      const snap = remote.snapshot();
+      assert.equal(snap.listening, true);
+      // Pairing offer is generated in the main process against the same
+      // file-backed home (upstream `daemon pair` shape).
+      assert.match(String(snap.urls[0] && snap.urls[0].pairingUrl), /#/);
+      // The daemon child actually serves HTTP on the configured port.
+      const res = await fetch(`http://127.0.0.1:${port}/`, { redirect: 'manual' });
+      assert.ok(res.status > 0);
+      const child = remote.daemon.child;
+      await remote.stopDaemon();
+      assert.ok(child.exitCode !== null || child.signalCode);
+      assert.equal(remote.snapshot().listening, false);
+    } finally {
+      if (remote.daemon) {
+        await remote.stopDaemon();
+      }
+    }
+  },
+);

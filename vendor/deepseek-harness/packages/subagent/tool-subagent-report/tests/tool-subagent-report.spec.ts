@@ -7,12 +7,13 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { CallId, LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as control from '@deepseek-ai/dsh-tool-subagent-control'
 import { textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
@@ -68,6 +69,7 @@ async function setup(options: { load?: boolean; config?: tool.Config } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'dsh-tool-subagent-report-'))
   await ctx.plugin(JsonlSessionPersistence, { root })
   await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
   const fiber = options.load === false
@@ -118,7 +120,7 @@ let calls = 0
 function callReport(ctx: Context, child: Agent, output: string, signal = testSignal) {
   return ctx.tools.execute({
     signal,
-    callId: CallId(`report-${++calls}`),
+    callId: ToolCallId(`report-${++calls}`),
     name: 'report',
     arguments: { output },
     agent: child,

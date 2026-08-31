@@ -2,7 +2,8 @@
  * Session-scoped right-panel surface descriptors. Layout width lives on
  * ctx.layout; this store only owns the ordered surfaces and the active id.
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore } from '@deepseek-ai/dsh-client-store'
+import type { EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import { loadPersistedState } from './persist.ts'
 
 /** Surface kinds the empty-state cards and later occupants can open. */

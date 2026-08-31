@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 import SkillRegistry, { type SkillDefinition, type SkillSummary } from '@deepseek-ai/dsh-skill'
-import { remoteMethods, TypertLookupFailure } from '@deepseek-ai/dsh-typert-protocol'
+import { remoteMethods, RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import SkillInventoryGateway, { parseSkillMarkdown } from '../src/index.ts'
 
 const contexts: Context[] = []
@@ -225,7 +225,7 @@ describe('SkillInventoryGateway', () => {
     else process.env.DSH_HOME = previous
   })
 
-  it('round-trips a group label and the skill directory through the catalog', async () => {
+  it('round-trips group labels and the skill directory through the catalog', async () => {
     const home = await mkdtemp(join(tmpdir(), 'dsh-skill-group-'))
     const previous = process.env.DSH_HOME
     process.env.DSH_HOME = home
@@ -243,7 +243,7 @@ describe('SkillInventoryGateway', () => {
     await gateway.create({
       name: 'grouped-skill',
       description: 'Grouped',
-      group: 'review',
+      groups: ['review'],
       content: 'Do it',
       root: 'user-dsh',
       modelInvocable: true,
@@ -251,8 +251,9 @@ describe('SkillInventoryGateway', () => {
     })
     const path = join(home, 'skills', 'grouped-skill', 'SKILL.md')
     expect(parseSkillMarkdown(await readFile(path, 'utf8')).data).toMatchObject({
-      metadata: { group: 'review' },
+      metadata: { group: ['review'] },
     })
+    // A scalar `metadata.group` (hand-edited or written by an older build) reads as one label.
     catalog.push({
       name: 'grouped-skill',
       description: 'Grouped',
@@ -265,32 +266,32 @@ describe('SkillInventoryGateway', () => {
     })
     expect((await gateway.list({})).skills[0]).toMatchObject({
       name: 'grouped-skill',
-      group: 'review',
+      groups: ['review'],
       directory: dirname(path),
     })
-    expect(await gateway.get({ name: 'grouped-skill' })).toMatchObject({ group: 'review' })
+    expect(await gateway.get({ name: 'grouped-skill' })).toMatchObject({ groups: ['review'] })
 
     await gateway.update({
       name: 'grouped-skill',
       description: 'Grouped',
-      group: 'workflows',
+      groups: ['workflows', 'docs', ' workflows '],
       content: 'Do it',
       modelInvocable: true,
       userInvocable: true,
     })
     expect(parseSkillMarkdown(await readFile(path, 'utf8')).data).toMatchObject({
-      metadata: { group: 'workflows' },
+      metadata: { group: ['workflows', 'docs'] },
     })
 
     await gateway.setInvocation({ name: 'grouped-skill', modelInvocable: false, userInvocable: true })
     expect(parseSkillMarkdown(await readFile(path, 'utf8')).data).toMatchObject({
-      metadata: { group: 'workflows' },
+      metadata: { group: ['workflows', 'docs'] },
     })
 
     await gateway.update({
       name: 'grouped-skill',
       description: 'Grouped',
-      group: '',
+      groups: [],
       content: 'Do it',
       modelInvocable: false,
       userInvocable: true,
@@ -308,7 +309,7 @@ describe('SkillInventoryGateway', () => {
       ...current.path === undefined ? {} : { path: current.path },
       content: current.content,
     }
-    expect((await gateway.list({})).skills[0]).not.toHaveProperty('group')
+    expect((await gateway.list({})).skills[0]).not.toHaveProperty('groups')
     if (previous === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = previous
   })
@@ -458,9 +459,9 @@ describe('SkillInventoryGateway', () => {
     const sessionId = 'missing-live-session'
 
     const failure = await gateway.list({ sessionId }).catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(TypertLookupFailure)
-    expect((failure as TypertLookupFailure).failure).toEqual({
-      code: 'session-not-found',
+    expect(failure).toBeInstanceOf(RemoteError)
+    expect(failure).toMatchObject({
+      code: 'session/not-found',
       message: `session "${sessionId}" not found (not attached)`,
       details: { sessionId },
     })

@@ -3,7 +3,7 @@
  * tabs occupy `sidebar.nav.tab`. Module level exports the factory only
  * (a module-level handle would pin identity across plugin reloads).
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 
 /** Built-in sessions region id; plugin tabs use their list-slot `id`. */
 export const SESSIONS_TAB_ID = 'sessions'

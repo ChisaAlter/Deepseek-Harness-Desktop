@@ -59,6 +59,31 @@ const UI_FEATURES = [
     includes: ["agentPreset === 'dshbot-room'", "origin === 'dshbot'"],
   },
   {
+    name: 'transparent theme attr',
+    file: 'packages/client/ui-theme/src/wallpaper.ts',
+    includes: ["export const TRANSPARENT_ATTR = 'data-dsh-transparent'"],
+  },
+  {
+    name: 'transparent wallpaper mask branch',
+    file: 'packages/client/ui-theme/src/styles/wallpaper.css',
+    includes: ['html[data-dsh-transparent] #dsh-wallpaper::after'],
+  },
+  {
+    name: 'transparent composer seat gate',
+    file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css',
+    includes: [':not([data-dsh-transparent])'],
+  },
+  {
+    name: 'composer beam layer',
+    file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
+    includes: ['data-composer-beam'],
+  },
+  {
+    name: 'StatsLine running row state',
+    file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx',
+    includes: ['data-stats-line'],
+  },
+  {
     name: 'Appearance wallpaper pick/browse row',
     file: 'packages/client/ui-theme/src/client/WallpaperRow.tsx',
     includes: ["t('wallpaper.choose')", "t('wallpaper.browse')"],

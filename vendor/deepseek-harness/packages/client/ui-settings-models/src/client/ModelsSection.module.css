@@ -1,9 +1,4 @@
-/* Models settings section, in the settings-panel design language: 14/22 body,
- * 12/18 caption, capsule controls (h36 r18; h28 r14 where a row is dense),
- * 32px fields, and `border-l2` hairlines — the vocabulary GeneralSection and
- * the Button/Input primitives already use.
- *
- * Every color resolves through a `--dsw-alias-*` token. Bare `--border` /
+/* Every color resolves through a `--dsw-alias-*` token. Bare `--border` /
  * `--surface` / `--text-*` names, which nothing in this app defines, would
  * render the light-mode literals written as their fallbacks and stay light
  * under the dark theme. */
@@ -708,7 +703,8 @@ select.input {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .customizedSummary::before {
+  .customizedSummary::before,
+  .switchThumb {
     transition: none;
   }
 }

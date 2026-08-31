@@ -29,10 +29,10 @@ const COMPOSER_OFFICIAL_CASES = Object.freeze([
   { id: 'case.at.noDesktopPathSource', title: 'Typing @ does not register a desktop path source' },
   { id: 'case.terminal.addToChat', title: 'Terminal selection Add to chat writes a terminal fence' },
   { id: 'case.terminal.noSessionsCrash', title: 'Terminal Add to chat does not trip sessions-without-inject' },
-  { id: 'case.remote.available', title: 'Remote snapshot is available after Harness is ready' },
-  { id: 'case.remote.listening', title: 'Remote sync opens a listener when remoteEnabled is on disk' },
-  { id: 'case.remote.spa', title: 'Pairing URL serves the phone SPA' },
-  { id: 'case.remote.pairingSpa', title: 'Phone SPA can list sessions and send a prompt' },
+  { id: 'case.remote.available', title: 'Remote snapshot is parked (unavailable) after Harness is ready' },
+  { id: 'case.remote.listening', title: 'Parked remote does not open a listener' },
+  { id: 'case.remote.spa', title: 'Parked remote has no pairing SPA' },
+  { id: 'case.remote.pairingSpa', title: 'Parked remote has no phone pairing session' },
 ]);
 
 function sleep(ms) {
@@ -599,13 +599,13 @@ async function runComposerOfficialQa(wc, helpers) {
   rec(
     'case.remote.available',
     remoteSnap
-      && remoteSnap.available === true
-      && !remoteHasError(remoteSnap),
+      && remoteSnap.available === false
+      && remoteSnap.enabled === false,
     summarizeRemoteQaDetail(remoteSnap),
   );
   rec(
     'case.remote.listening',
-    remoteSnap != null && remoteSnap.listening === true && !remoteHasError(remoteSnap),
+    remoteSnap != null && remoteSnap.listening !== true,
     remoteSnap ? `listening=${remoteSnap.listening}` : 'no snapshot',
   );
 
@@ -688,13 +688,13 @@ async function runComposerOfficialQa(wc, helpers) {
   }
   rec(
     'case.remote.spa',
-    pairingOk,
-    pairingDetail,
+    remoteSnap != null && remoteSnap.available === false,
+    'parked: no pairing SPA',
   );
   rec(
     'case.remote.pairingSpa',
-    pairingOk,
-    pairingDetail,
+    remoteSnap != null && remoteSnap.available === false,
+    'parked: no phone pairing session',
   );
 
   const failed = steps.filter((s) => !s.ok && !s.optional).map((s) => s.name);

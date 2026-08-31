@@ -396,13 +396,19 @@ function registerIpc({
     return openRemote();
   });
 
-  handle('shell:get-remote', HARNESS_ONLY, () => {
+  handle('shell:get-remote', HARNESS_ONLY, async () => {
+    if (!REMOTE_FEATURE_ENABLED) {
+      const parked = remote && typeof remote.snapshot === 'function'
+        ? remote.snapshot()
+        : { available: false, enabled: false, listening: false };
+      return parkRemoteSnapshot(parked);
+    }
+    if (remote && typeof remote.ensurePairing === 'function') {
+      await remote.ensurePairing();
+    }
     const snapshot = remote && typeof remote.snapshot === 'function'
       ? remote.snapshot()
       : { available: false, enabled: false, listening: false };
-    if (!REMOTE_FEATURE_ENABLED) {
-      return parkRemoteSnapshot(snapshot);
-    }
     if (snapshot.available === false) {
       return { ...snapshot, available: false, enabled: false };
     }

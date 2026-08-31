@@ -19,7 +19,7 @@
     "smoke:source": "node scripts/run-source-smoke.mjs",
     "qa:source": "node scripts/run-source-qa.mjs",
     "qa:composer": "node scripts/run-composer-official-qa.mjs",
-    "qa:remote": "node scripts/run-remote-gate-qa.mjs",
+    "qa:remote": "node scripts/prestart-ensure.mjs && node scripts/run-remote-gate-qa.mjs",
     "qa:appendix": "node scripts/run-in-app-appendix-a.mjs",
     "qa:shell": "node scripts/run-shell-p0-qa.mjs",
     "qa:packaged": "node scripts/run-packaged-p0.mjs",
@@ -61,6 +61,9 @@
       "!mobile/web/**/*.test.js",
       "assets/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "src/main/chisacode-daemon-runner.mjs"
     ],
     "extraResources": [
       {

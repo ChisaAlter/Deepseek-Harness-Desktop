@@ -3,7 +3,8 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  IconApiOutline14, IconArchiveOutline20, IconFolderClose16, IconGoalOutline16, IconSendOutline16,
+  IconAlarmClockOutline16, IconApiOutline14, IconArchiveOutline20, IconFolderClose16,
+  IconGoalOutline16, IconSendOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
 afterEach(cleanup)
@@ -14,16 +15,10 @@ const icons = Object.fromEntries(
   Object.entries(primitives).filter(([name]) => name.startsWith('Icon')),
 ) as Record<string, (p: primitives.IconProps) => React.JSX.Element>
 const iconNames = Object.keys(icons)
-const settingsNavIconNames = [
-  'IconServerOutline16',
-  'IconDeviceOutline16',
-  'IconInfoOutline16',
-  'IconChartOutline16',
-] as const
 
 describe('ic_ds_ icon set', () => {
-  it('exports the full icon set (46 deepsuite + 20 figma extracts + thirteen product glyphs outside those sets)', () => {
-    expect(iconNames.length).toBe(81)
+  it('exports the full icon set (46 deepsuite + 21 figma extracts + seven product glyphs outside those sets)', () => {
+    expect(iconNames.length).toBe(74)
   })
 
   it.each(iconNames)('%s renders an svg with currentColor fills and no hardcoded palette', (name) => {
@@ -34,17 +29,6 @@ describe('ic_ds_ icon set', () => {
     const markup = container.innerHTML
     expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}"/)
     expect(markup).toContain('currentColor')
-  })
-
-  it.each(settingsNavIconNames)('%s uses native 16px filled-path outline geometry', (name) => {
-    const Icon = icons[name]!
-    const { container } = render(<Icon />)
-    const svg = container.querySelector('svg')!
-    expect(svg.getAttribute('viewBox')).toBe('0 0 16 16')
-    expect(svg.getAttribute('fill')).toBe('none')
-    expect(svg.querySelector('[stroke]')).toBeNull()
-    expect(svg.querySelector('[transform]')).toBeNull()
-    expect([...svg.querySelectorAll('path')].every(path => path.getAttribute('fill') === 'currentColor')).toBe(true)
   })
 
   it('size and className props land on the root svg', () => {
@@ -62,6 +46,8 @@ describe('ic_ds_ icon set', () => {
     expect(folder.container.querySelector('svg')!.getAttribute('width')).toBe('16')
     const archive = render(<IconArchiveOutline20 />)
     expect(archive.container.querySelector('svg')!.getAttribute('width')).toBe('20')
+    const alarm = render(<IconAlarmClockOutline16 />)
+    expect(alarm.container.querySelector('svg')!.getAttribute('width')).toBe('16')
   })
 
   it('renders reusable goal glyphs without document-global ids', () => {

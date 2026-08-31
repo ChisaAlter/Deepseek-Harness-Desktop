@@ -18,13 +18,19 @@
       "path": "../locale"
     },
     {
-      "path": "../runtime"
-    },
-    {
       "path": "../ui-settings"
     },
     {
+      "path": "../ui-agent-preset"
+    },
+    {
+      "path": "../../preset/agent-presets"
+    },
+    {
       "path": "../ui-primitives"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../ui-slots"

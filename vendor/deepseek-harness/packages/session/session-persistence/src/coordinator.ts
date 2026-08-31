@@ -12,12 +12,13 @@ import {
   KNOWN_SESSION_EVENT_TYPES,
   SESSION_FORMAT_VERSION,
   SessionPreparation,
-  snapshotJsonValue,
   snapshotSessionEvent,
 } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionId, SessionHeader } from '@deepseek-ai/dsh-session'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import type { SessionInspection, SessionLocation } from './index.ts'
+import { snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
+import type { BorrowedSessionSource, SessionInspection, SessionLocation } from './index.ts'
+import { SessionPersistenceNotFoundError } from './errors.ts'
 import type { SessionPersistenceRevision } from './revision.ts'
 import { observeQueuedAbort, SessionPreparations } from './preparations.ts'
 import type { SessionPreparationReservation } from './preparations.ts'
@@ -68,7 +69,7 @@ export class SessionFormatUnsupportedError extends Error {
  * Direction-aware refusal text for a stored session whose format version this
  * build does not read. Shared by the coordinator's load-time check and by
  * backends that must refuse BEFORE decoding version-dependent structure (a
- * future format may not satisfy today's structural checks at all, and the
+ * future format may not satisfy this build's structural checks at all, and the
  * user must see "upgrade the harness", never "corrupt").
  * @param id - the stored session id, for message context.
  * @param version - the stored format version.
@@ -175,6 +176,9 @@ export interface PersistenceBackend<TornMarker = unknown> {
    */
   loadStoredFrom?(id: SessionId, fromSeq: number, signal?: AbortSignal): Promise<StoredSuffix | undefined>
 
+  /** Durably create an empty header-only session artifact. */
+  materializeHeader?(meta: SessionHeader): Promise<void>
+
   /**
    * Durably append a CONTIGUOUS batch, lazily materializing the session first
    * when `!isMaterialized`. The materialize-write and the first event batch MUST
@@ -199,9 +203,9 @@ export interface PersistenceBackend<TornMarker = unknown> {
   list(signal?: AbortSignal): Promise<SessionHeader[]>
 
   /**
-   * Remove one materialized session's durable bytes.
-   * @param id - session whose stored log is deleted.
-   * @returns resolution after durability.
+   * Remove one stored session artifact. Unknown id rejects.
+   * Coordinator callers never invoke this for a still-lazy create.
+   * @param id - materialized session to delete.
    */
   deleteStored(id: SessionId): Promise<void>
 
@@ -649,6 +653,26 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     return this.serialize(snapshot.id, () => this.createCore(snapshot))
   }
 
+  /**
+   * Materialize one exact live session without inventing a session event.
+   * @param session - live session already registered through the write path.
+   */
+  async ensureMaterialized(session: Session): Promise<void> {
+    await this.flush(session)
+    await this.serialize(session.id, async () => {
+      const state = this.states.get(session.id)
+      /* v8 ignore next -- successful live flush always initializes the exact session state. */
+      if (state === undefined) throw new Error(`session "${session.id}" is not registered for persistence`)
+      if (state.materialized) return
+      if (this.backend.materializeHeader === undefined) {
+        throw new Error('session persistence backend cannot materialize an empty session')
+      }
+      await this.backend.materializeHeader(state.meta)
+      state.materialized = true
+      this.preparations.invalidate(session.id)
+    })
+  }
+
   private async createCore(meta: SessionHeader): Promise<void> {
     // Do NOT clobber an existing session: the SessionId IS the identity.
     if (this.states.has(meta.id) || this.preparations.has(meta.id)) {
@@ -687,29 +711,23 @@ export class PersistenceCoordinator<TornMarker = unknown> {
   }
 
   /**
-   * Remove one session's durable log. Unknown id rejects.
-   * An un-materialized create cancels and resolves.
-   * After success the id is unknown to load/list.
+   * Remove one session's durable log after any in-flight write for that id.
+   * An un-materialized create cancels and resolves. Unknown id rejects.
    * @param id - session to delete.
-   * @returns resolution after durability.
    */
-  delete(id: SessionId): Promise<void> {
+  remove(id: SessionId): Promise<void> {
     return this.serialize(id, () => this.deleteCore(id))
   }
 
   private async deleteCore(id: SessionId): Promise<void> {
     const state = this.states.get(id)
-    const stored = await this.backend.loadStored(id)
-    if (stored === undefined) {
-      if (state !== undefined && !state.materialized) {
-        this.states.delete(id)
-        this.preparations.invalidate(id)
-        this.ctx.emit('session-persistence/deleted', id)
-        return
-      }
+    if (state !== undefined && !state.materialized) {
       this.states.delete(id)
       this.preparations.invalidate(id)
-      throw new Error(`session "${id}" not found`)
+      return
+    }
+    if (await this.backend.loadStored(id) === undefined) {
+      throw new SessionPersistenceNotFoundError(id)
     }
     await this.backend.deleteStored(id)
     this.states.delete(id)
@@ -857,6 +875,64 @@ export class PersistenceCoordinator<TornMarker = unknown> {
   }
 
   /**
+   * Borrow one exact logical view while pinning its reusable prepared Session.
+   * @param id - persisted session to observe.
+   * @param signal - optional cancellation for preparation work.
+   * @returns a disposable observation retaining the prepared source.
+   */
+  async borrowSession(id: SessionId, signal?: AbortSignal): Promise<BorrowedSessionSource> {
+    for (;;) {
+      signal?.throwIfAborted()
+      if (this.retirements.has(id)) await this.waitForRetirement(id, signal)
+      const live = this.ctx.sessions.get(id)
+      if (live !== undefined) {
+        return { source: 'live', inspection: this.inspectLive(live), [Symbol.dispose]: () => {} }
+      }
+      const observation = await this.preparations.borrow(
+        id,
+        () => this.serialize(id, () => this.prepareCore(id)),
+        signal,
+      )
+      const source = observation.source
+      try {
+        const attached = this.ctx.sessions.get(id)
+        if (attached !== undefined) {
+          observation[Symbol.dispose]()
+          return { source: 'live', inspection: this.inspectLive(attached), [Symbol.dispose]: () => {} }
+        }
+        const current = await this.serialize(
+          id,
+          () => this.isPreparedSourceCurrent(source, signal),
+          signal,
+        )
+        const published = this.ctx.sessions.get(id)
+        if (published !== undefined) {
+          observation[Symbol.dispose]()
+          return { source: 'live', inspection: this.inspectLive(published), [Symbol.dispose]: () => {} }
+        }
+        if (current || this.preparations.discardReady(id, source) === 'retained') {
+          return {
+            source: 'prepared',
+            inspection: source.inspection,
+            revision: source.revision,
+            preparedSession: source.session,
+            [Symbol.dispose]: () => { observation[Symbol.dispose]() },
+          }
+        }
+      } catch (error: unknown) {
+        observation[Symbol.dispose]()
+        signal?.throwIfAborted()
+        const attached = this.ctx.sessions.get(id)
+        if (attached !== undefined) {
+          return { source: 'live', inspection: this.inspectLive(attached), [Symbol.dispose]: () => {} }
+        }
+        throw error
+      }
+      observation[Symbol.dispose]()
+    }
+  }
+
+  /**
    * Read the stored events from `fromSeq` onward, detached and non-mutating
    * (the read-from-seq primitive behind the service's `readFrom`). Runs on
    * the same per-id chain as writes; a backend with the seek-capable
@@ -891,7 +967,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
         throw error
       }
       signal?.throwIfAborted()
-      if (suffix === undefined) throw new Error(`session "${id}" not found`)
+      if (suffix === undefined) throw new SessionPersistenceNotFoundError(id)
       this.assertStoredId(id, suffix.meta)
       this.assertVersion(suffix.meta)
       if (suffix.events.some(needsLegacyPrefix)) {
@@ -915,7 +991,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     signal?.throwIfAborted()
     const stored = await this.backend.loadStored(id, signal)
     signal?.throwIfAborted()
-    if (stored === undefined) throw new Error(`session "${id}" not found`)
+    if (stored === undefined) throw new SessionPersistenceNotFoundError(id)
     this.assertStoredId(id, stored.meta)
     this.assertVersion(stored.meta)
     const events = snapshotStoredEvents(stored.events, id)
@@ -929,7 +1005,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
   /** Read, repair in memory, validate, and freeze one cold source once. */
   private async prepareCore(id: SessionId): Promise<PreparedSessionSource<TornMarker>> {
     const stored = await this.backend.loadStored(id)
-    if (stored === undefined) throw new Error(`session "${id}" not found`)
+    if (stored === undefined) throw new SessionPersistenceNotFoundError(id)
     try {
       const { meta, events, revision, tornMarker } = stored
       this.assertStoredId(id, meta)
@@ -1015,7 +1091,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     const state = this.states.get(session.id)
     /* v8 ignore next -- successful flush always publishes this live session's durable state */
     if (state === undefined) throw new Error(`session "${session.id}" lost persistence state during load`)
-    if (events.length === 0) throw new Error(`session "${session.id}" not found`)
+    if (events.length === 0 && !state.materialized) throw new Error(`session "${session.id}" not found`)
     if (interruptedTurnClosers(events).length > 0) {
       throw new Error(`cannot load session "${session.id}" while its live turn is open; use the live Session or wait for the turn to close`)
     }
@@ -1169,8 +1245,7 @@ export class PersistenceCoordinator<TornMarker = unknown> {
     // Session disposal is observe-only, so retirement contains its own failure.
     ctx.on('session/disposed', (session) => { this.retire(session) })
 
-    // HMR: a hot reload does not replay session/created, so seed existing live
-    // sessions (mirrors dsh-invariants).
+    // HMR does not replay session/created, so seed existing live sessions.
     for (const session of ctx.sessions.list()) void this.initFor(session)
   }
 

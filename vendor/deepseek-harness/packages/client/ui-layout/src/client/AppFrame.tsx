@@ -17,8 +17,11 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type {
+  PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
+} from '@deepseek-ai/dsh-client-ui-slots'
 import { computeColumns, PHONE_DRAWER, PHONE_MAX, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_MIN } from './columns.ts'
+import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import { resolveTitlebarDensity, titlebarConversationReserve } from './titlebar-density.ts'
 import css from './AppFrame.module.css'
@@ -28,6 +31,7 @@ export type AppFrameProps =
   & PropsRuntime<'root'>
   & PropsRenderSlots<'sidebar' | 'conversation' | 'details' | 'surfaces' | 'shell.overlay' | 'shell.titlebar.trailing' | 'shell.terminalDrawer'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
+  & PropsLocale<'common'>
 
 /** Center column grid item (session-body building block). */
 function CenterColumn(props: { children?: ReactNode }) {
@@ -162,11 +166,17 @@ export function AppFrame({
   useSessions,
   actions,
   renderSlot,
+  SessionProvider,
+  t,
 }: AppFrameProps) {
   const panels = useStore(s => s)
   const detailsSession = useSessions((s) => {
     const current = s.current
     return current !== undefined && s.byId[current]?.blank === false ? current : undefined
+  })
+  const documentTitle = useSessions((s) => {
+    const current = s.current
+    return current === undefined ? undefined : s.byId[current]?.title
   })
   const frameRef = useRef<HTMLDivElement | null>(null)
   const trailingRef = useRef<HTMLDivElement | null>(null)
@@ -317,6 +327,7 @@ export function AppFrame({
   const onSurfacesDrag = useCallback((dx: number) => {
     actions.setSurfaces(surfacesBase.current - dx)
   }, [actions])
+  const productTitle = process.env.DSH_CLIENT_TITLE ?? t('brand.localBuild')
 
   return (
     <div
@@ -341,6 +352,10 @@ export function AppFrame({
       data-titlebar-over-conversation={clusterOverConversation || undefined}
       data-dragging={dragging || undefined}
     >
+      <DocumentTitle
+        productTitle={productTitle}
+        {...documentTitle === undefined ? {} : { title: documentTitle }}
+      />
       <div className={css.captionDrag} data-dshd-caption="band" aria-hidden="true" />
       {phone && sidebarCollapsed && (
         <button
@@ -378,11 +393,13 @@ export function AppFrame({
         {/* Both column occupants stay at fixed tree positions from first
             paint — no loading gate: a bare status line reads worse than
             the shell's own pending rendering. The conversation
-            is session-maybe; the strict details entry naturally renders
-            empty while no session is current. */}
+            is session-maybe; SessionProvider withholds the strict details
+            entry while no session is current. */}
         <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
         <TerminalDrawerTrack>{renderSlot('shell.terminalDrawer', {})}</TerminalDrawerTrack>
-        <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
+        <DetailsColumn>
+          <SessionProvider>{renderSlot('details', {})}</SessionProvider>
+        </DetailsColumn>
         <SurfacesColumn>{renderSlot('surfaces', {})}</SurfacesColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>

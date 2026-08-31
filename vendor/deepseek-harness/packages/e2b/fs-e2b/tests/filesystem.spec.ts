@@ -360,6 +360,7 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
     const outside = await fs.resolve('/outside.ts')
 
     expect(fs.processPath(nested)).toBe('/workspace/nested/multibyte # file.ts')
+    expect(fs.processPathFromHostPath('/Users/alice/.dsh/attachments/object')).toBeUndefined()
     expect(fs.fileUrl(nested)).toBe('file:///workspace/nested/multibyte%20%23%20file.ts')
     expect(fs.contains(workspace, workspace)).toBe(true)
     expect(fs.contains(workspace, nested)).toBe(true)

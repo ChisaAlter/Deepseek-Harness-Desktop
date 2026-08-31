@@ -1,18 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BlockAssembler, CallId, HarnessError, MALFORMED_RESPONSE_CODE, type StreamChunk } from '@deepseek-ai/dsh-llm'
-
-function expectMalformed(action: () => unknown, message: string): void {
-  try {
-    action()
-  } catch (error: unknown) {
-    expect(error).toBeInstanceOf(HarnessError)
-    if (!(error instanceof HarnessError)) throw error
-    expect(error.code).toBe(MALFORMED_RESPONSE_CODE)
-    expect(error.message).toContain(message)
-    return
-  }
-  expect.fail('expected malformed response error')
-}
+import { BlockAssembler, ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 
 describe('BlockAssembler', () => {
   it('assembles interleaved text, reasoning, and tool-call deltas', () => {
@@ -24,8 +11,8 @@ describe('BlockAssembler', () => {
       { type: 'text-delta', index: 1, text: 'Hello' },
       { type: 'text-delta', index: 1, text: ' world' },
       { type: 'block-start', index: 2, blockType: 'tool-call' },
-      { type: 'tool-call-delta', index: 2, id: CallId('call-1'), name: 'echo', argumentsDelta: '{"text":' },
-      { type: 'tool-call-delta', index: 2, id: CallId('call-1'), argumentsDelta: '"hi"}' },
+      { type: 'tool-call-delta', index: 2, id: ToolCallId('call-1'), name: 'echo', argumentsDelta: '{"text":' },
+      { type: 'tool-call-delta', index: 2, id: ToolCallId('call-1'), argumentsDelta: '"hi"}' },
       { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } },
       { type: 'finish', reason: { kind: 'tool-calls' } },
     ]
@@ -35,7 +22,7 @@ describe('BlockAssembler', () => {
     expect(assembler.blocks()).toEqual([
       { type: 'reasoning', text: 'thinking…' },
       { type: 'text', text: 'Hello world' },
-      { type: 'tool-call', id: CallId('call-1'), name: 'echo', arguments: '{"text":"hi"}' },
+      { type: 'tool-call', id: ToolCallId('call-1'), name: 'echo', arguments: '{"text":"hi"}' },
     ])
     expect(assembler.usage).toEqual({ inputTokens: 10, outputTokens: 5 })
     expect(assembler.finish).toEqual({ kind: 'tool-calls' })
@@ -106,40 +93,21 @@ describe('BlockAssembler', () => {
   it('ignores tool-call-delta stragglers after block-end', () => {
     const assembler = new BlockAssembler()
     assembler.push({ type: 'block-start', index: 0, blockType: 'tool-call' })
-    assembler.push({ type: 'tool-call-delta', index: 0, id: CallId('c1'), name: 'echo', argumentsDelta: '{}' })
-    assembler.push({ type: 'block-end', index: 0, block: { type: 'tool-call', id: CallId('c1'), name: 'echo', arguments: '{}' } })
+    assembler.push({ type: 'tool-call-delta', index: 0, id: ToolCallId('c1'), name: 'echo', argumentsDelta: '{}' })
+    assembler.push({ type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{}' } })
     // straggler after block-end — partial.block is set, so early return
-    assembler.push({ type: 'tool-call-delta', index: 0, id: CallId('c1'), name: 'evil', argumentsDelta: 'oops' })
-    expect(assembler.blocks()).toEqual([{ type: 'tool-call', id: CallId('c1'), name: 'echo', arguments: '{}' }])
+    assembler.push({ type: 'tool-call-delta', index: 0, id: ToolCallId('c1'), name: 'evil', argumentsDelta: 'oops' })
+    expect(assembler.blocks()).toEqual([{ type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{}' }])
   })
 
-  it('rejects a delta-only tool call instead of inventing an id or empty name', () => {
+  it('assembles tool-call with generated id fallback when no id provided', () => {
     const assembler = new BlockAssembler()
-    assembler.push({ type: 'tool-call-delta', index: 0, argumentsDelta: '{}' })
-    expectMalformed(() => assembler.blocks(), 'call id')
-  })
-
-  it.each(['', 'with space', 'dot.name', 'x'.repeat(65)])(
-    'rejects a completed tool call with invalid name %j',
-    (name) => {
-      const assembler = new BlockAssembler()
-      assembler.push({
-        type: 'block-end',
-        index: 0,
-        block: { type: 'tool-call', id: CallId('c1'), name, arguments: '{}' },
-      })
-      expectMalformed(() => assembler.blocks(), 'function name')
-    },
-  )
-
-  it('rejects a completed tool call with an empty id', () => {
-    const assembler = new BlockAssembler()
-    assembler.push({
-      type: 'block-end',
-      index: 0,
-      block: { type: 'tool-call', id: CallId(''), name: 'echo', arguments: '{}' },
-    })
-    expectMalformed(() => assembler.blocks(), 'call id')
+    assembler.push({ type: 'tool-call-delta', index: 0, argumentsDelta: '{}' } as StreamChunk)
+    // No id and no name provided — uses fallback id `call-{index}` and empty name
+    const blocks = assembler.blocks()
+    expect(blocks).toEqual([
+      { type: 'tool-call', id: ToolCallId('call-0'), name: '', arguments: '{}' },
+    ])
   })
 
   it('exposes usage via the getter when a usage chunk was received', () => {
@@ -159,7 +127,7 @@ describe('BlockAssembler replay metadata', () => {
     assembler.push({
       type: 'block-end',
       index: 1,
-      block: { type: 'tool-call', id: CallId('c1'), name: 'echo', arguments: '{"text":' },
+      block: { type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{"text":' },
     })
     assembler.push({ type: 'block-end', index: 2, block: { type: 'reasoning', text: 'tail' } })
     assembler.push({
@@ -196,7 +164,7 @@ describe('BlockAssembler replay metadata', () => {
     assembler.push({
       type: 'block-end',
       index: 1,
-      block: { type: 'tool-call', id: CallId('c1'), name: 'echo', arguments: '{}' },
+      block: { type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{}' },
     })
     assembler.push({ type: 'finish', reason: { kind: 'tool-calls' }, replayState })
 
@@ -210,7 +178,7 @@ describe('BlockAssembler replay metadata', () => {
     assembler.push({
       type: 'block-end',
       index: 1,
-      block: { type: 'tool-call', id: CallId('c1'), name: 'echo', arguments: '{"text":' },
+      block: { type: 'tool-call', id: ToolCallId('c1'), name: 'echo', arguments: '{"text":' },
     })
     assembler.push({ type: 'finish', reason: { kind: 'max-tokens' }, replayState })
 
@@ -231,7 +199,7 @@ describe('BlockAssembler replay metadata', () => {
 
 describe('assertNever', () => {
   it('throws with diagnostics when a value escapes a closed union at runtime', async () => {
-    const { assertNever } = await import('@deepseek-ai/dsh-llm')
+    const { assertNever } = await import('@deepseek-ai/dsh-util-values')
     expect(() => assertNever({ type: 'rogue' } as never, 'test-context'))
       .toThrow('unreachable variant in test-context: {"type":"rogue"}')
     expect(() => assertNever(undefined as never)).toThrow('unreachable variant: undefined')
@@ -277,10 +245,10 @@ describe('BlockAssembler.interruptedBlocks', () => {
     assembler.push({ type: 'text-delta', index: 0, text: 'calling' })
     assembler.push({ type: 'block-end', index: 0, block: { type: 'text', text: 'calling' } })
     assembler.push({ type: 'block-start', index: 1, blockType: 'tool-call' })
-    assembler.push({ type: 'tool-call-delta', index: 1, id: CallId('c1'), name: 'read', argumentsDelta: '{"a":1}' })
-    assembler.push({ type: 'block-end', index: 1, block: { type: 'tool-call', id: CallId('c1'), name: 'read', arguments: '{"a":1}' } })
+    assembler.push({ type: 'tool-call-delta', index: 1, id: ToolCallId('c1'), name: 'read', argumentsDelta: '{"a":1}' })
+    assembler.push({ type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'read', arguments: '{"a":1}' } })
     assembler.push({ type: 'block-start', index: 2, blockType: 'tool-call' })
-    assembler.push({ type: 'tool-call-delta', index: 2, id: CallId('c2'), name: 'read', argumentsDelta: '{"pa' })
+    assembler.push({ type: 'tool-call-delta', index: 2, id: ToolCallId('c2'), name: 'read', argumentsDelta: '{"pa' })
     expect(assembler.interruptedBlocks()).toEqual([{ type: 'text', text: 'calling' }])
   })
 

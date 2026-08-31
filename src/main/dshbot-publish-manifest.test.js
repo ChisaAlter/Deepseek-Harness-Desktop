@@ -11,6 +11,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const os = require('os');
+
 const repoRoot = path.join(__dirname, '..', '..');
 const pkgDir = path.join(repoRoot, 'vendor', 'dshbot');
 const pkg = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8'));
@@ -59,4 +61,38 @@ test('the publish preflight script passes and enforces the dshbot-v tag shape', 
   const badTag = spawnSync(process.execPath, [script, 'v0.0.0'], { encoding: 'utf8' });
   assert.equal(badTag.status, 1);
   assert.match(badTag.stderr, /does not match vendor\/dshbot version/);
+});
+
+test('the standalone-repo export passes its own preflight (repo split stays shippable)', () => {
+  // The ChisaAlter/dshbot repository is generated from vendor/dshbot by
+  // scripts/export-dshbot-standalone.mjs; this keeps the exported tree
+  // (root layout, ChisaAlter/dshbot repository metadata, v<semver> tags)
+  // publishable whenever vendor/dshbot changes.
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dshbot-standalone-'));
+  fs.rmdirSync(outDir); // the export script refuses an existing dir
+  try {
+    const exported = spawnSync(
+      process.execPath,
+      [path.join(repoRoot, 'scripts', 'export-dshbot-standalone.mjs'), outDir],
+      { encoding: 'utf8' },
+    );
+    assert.equal(exported.status, 0, exported.stderr || exported.stdout);
+
+    const standalonePkg = JSON.parse(
+      fs.readFileSync(path.join(outDir, 'package.json'), 'utf8'),
+    );
+    assert.equal(standalonePkg.version, pkg.version);
+    assert.equal(standalonePkg.repository.url, 'git+https://github.com/ChisaAlter/dshbot.git');
+    assert.equal(standalonePkg.repository.directory, undefined);
+    assert.equal(fs.existsSync(path.join(outDir, '.github', 'workflows', 'publish.yml')), true);
+
+    const preflight = spawnSync(
+      process.execPath,
+      [path.join(outDir, 'scripts', 'check-publish.mjs'), `v${pkg.version}`],
+      { encoding: 'utf8' },
+    );
+    assert.equal(preflight.status, 0, preflight.stderr || preflight.stdout);
+  } finally {
+    fs.rmSync(outDir, { recursive: true, force: true });
+  }
 });

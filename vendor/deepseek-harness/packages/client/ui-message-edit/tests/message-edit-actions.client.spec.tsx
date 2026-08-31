@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import type { ConversationNode } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ConversationNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { MessageEditAction } from '../src/client/MessageEditAction.tsx'
 import { createMessageEditStore } from '../src/client/stores.ts'
 import type { MessageEditActionProps } from '../src/client/slots.ts'
@@ -28,6 +28,22 @@ function snapshot(nodes: readonly ConversationNode[], running = false): Snapshot
   return { nodes, running }
 }
 
+/** Chat target shape MessageEditAction reads: keyed nodes plus render order. */
+function chatFromLegacy(nodes: readonly ConversationNode[]) {
+  const order = nodes.map((_, index) => `n${String(index)}`)
+  const byKey = new Map(order.map((key, index) => {
+    const node = nodes[index]!
+    return [key, { kind: node.kind, data: { seq: node.seq } }] as const
+  }))
+  return {
+    order,
+    nodes: {
+      get: (key: string) => byKey.get(key),
+      values: () => [...byKey.values()],
+    },
+  }
+}
+
 function mount(options: {
   seq: number
   content: readonly unknown[]
@@ -37,8 +53,10 @@ function mount(options: {
   const startEdit = vi.fn()
   const store = createMessageEditStore().create()
   if (options.returnFocusSeq !== undefined) store.actions.requestReturnFocus(options.returnFocusSeq)
-  const useSession = (<T,>(select: (s: SnapshotLike) => T): T =>
-    select(options.snapshot ?? snapshot([{ kind: 'user', seq: options.seq, time: 1, content: [], source: null }]))) as never
+  const session = options.snapshot ?? snapshot([{ kind: 'user', seq: options.seq, time: 1, content: [], source: null }])
+  const chat = chatFromLegacy(session.nodes)
+  const useSession = (<T,>(select: (s: SnapshotLike) => T): T => select(session)) as never
+  const useChat = (<T,>(select: (s: typeof chat) => T): T => select(chat)) as never
   const useStore = (<T,>(select: (s: ReturnType<typeof store.getSnapshot>) => T): T =>
     select(store.getSnapshot())) as never
   const props = {
@@ -46,6 +64,7 @@ function mount(options: {
     content: options.content as MessageEditActionProps['content'],
     startEdit,
     useSession,
+    useChat,
     useStore,
     actions: store.actions,
     t,

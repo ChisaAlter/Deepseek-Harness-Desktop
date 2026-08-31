@@ -64,6 +64,16 @@ class OfferTest {
     }
 
     @Test
+    fun parsePairingLinkReadsAwayPublicSpaQrWithDshdPath() {
+        val raw = b64url(
+            """{"v":2,"serverId":"server-away","daemonPublicKeyB64":"daemon-key","relay":{"endpoint":"125.124.85.212:8411","useTls":false}}""",
+        )
+        val url = "http://125.124.85.212:3389/dshd/#offer=$raw"
+        val link = OfferCodec.parsePairingLink(url)
+        assertEquals("server-away", link?.offer?.serverId)
+    }
+
+    @Test
     fun decodeRejectsMalformedV2SchemaFields() {
         assertNull(
             OfferCodec.decode(

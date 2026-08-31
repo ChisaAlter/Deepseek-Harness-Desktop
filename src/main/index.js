@@ -7,12 +7,13 @@ const { HarnessController } = require('./harness-controller');
 const { stripDroppedPlugins, healDanglingBundles, ensureDesktopInstallPlugin, applyDisabledBundles } = require('./plugins');
 const { removeDshMarketPreset } = require('./dshmarket-preset');
 const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
+const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin, removeDshbotPreset } = require('./dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
 const { registerIpc } = require('./ipc');
 const { safeStorage } = require('electron');
-const { ChisaCodeRemote } = require('./chisacode-remote');
+const { ChisaCodeRemote, resolveDesktopChisaCodeHome } = require('./chisacode-remote');
 const { invokeDesktopShell } = require('./remote-shell');
 const git = require('./git');
 const { listDir } = require('./workspace-fs');
@@ -38,6 +39,8 @@ const {
   getMainWindow,
   showBoot,
   showHarness,
+  onHarnessOriginChange,
+  getHarnessOrigin,
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
@@ -52,7 +55,7 @@ const {
 const { watchSystemTheme } = require('./chrome');
 const { showClosingOverlay } = require('./closing-overlay');
 const { hideOnClose } = require('./close-behavior');
-const { qaFlag } = require('./qa-gate');
+const { qaFlag, qaRemoteMode: readRemoteMode } = require('./qa-gate');
 const { devToolsShortcutAllowed, attachDevToolsShortcut } = require('./devtools-shortcut');
 
 /** Packaged-gated QA flag (see qa-gate.js). */
@@ -60,13 +63,32 @@ function qaEnv(name) {
   return qaFlag(name, { isPackaged: app.isPackaged });
 }
 
+function qaRemoteMode() {
+  return readRemoteMode({ isPackaged: app.isPackaged });
+}
+
 const dsh = new DshManager();
+// Broken-pipe hardening must precede anything that can write to stdio or run
+// the in-process ChisaCode daemon (see docs/superpowers/plans/
+// 2026-08-28-remote-epipe-hardening.md).
+const { installStdioGuard, installUncaughtBrokenPipeGuard } = require('./stdio-guard');
+installStdioGuard({ log: (message) => dsh.log(message, 'app') });
+installUncaughtBrokenPipeGuard({ log: (message) => dsh.log(message, 'app') });
 // Product remote = full ChisaCode daemon + offer v2 (not HTTP RemoteGateway).
 const remote = new ChisaCodeRemote({
   getConfig: loadConfig,
   saveConfig,
-  getHomeDir: () => require('path').join(app.getPath('userData'), 'chisacode-home'),
+  // Desktop-facing override is DSHD_CHISACODE_HOME (debug; packaged builds
+  // need DSHD_ALLOW_ENV_HOME=1). CHISACODE_HOME itself only ever exists
+  // inside the daemon child env bridge.
+  getHomeDir: () => resolveDesktopChisaCodeHome({
+    defaultDir: require('path').join(app.getPath('userData'), 'chisacode-home'),
+    isPackaged: app.isPackaged,
+  }),
   safeStorage,
+  log: (line) => dsh.log(line, 'app'),
+  getHarnessOrigin,
+  git,
   // Kept for any residual shell helpers that still expect a loopback target.
   getTarget: () => {
     if (dsh.state !== 'ready') {
@@ -86,6 +108,12 @@ const remote = new ChisaCodeRemote({
       saveConfig: (patch) => publicConfig(saveConfig(normalizeRendererConfigPatch(patch || {}))),
     },
   }),
+});
+
+onHarnessOriginChange((origin) => {
+  if (remote && typeof remote.pushHarnessOrigin === 'function') {
+    remote.pushHarnessOrigin(origin);
+  }
 });
 
 async function probeRemoteSnapshot() {
@@ -275,7 +303,7 @@ const harness = new HarnessController({
   createMainWindow: createMainWindowWithClose,
   getMainWindow,
   showBoot,
-  showHarness,
+  showHarness: (url, extra) => showHarness(url, { cookie: dsh.sessionCookie, ...extra }),
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
@@ -284,6 +312,7 @@ const harness = new HarnessController({
   ensureDesktopInstallPlugin,
   removeDshMarketPreset,
   ensureUsagePanelPlugin,
+  ensureSessionSearchOverlay,
   ensureDshImPlugin,
   ensureDshbotPlugin,
   removeDshbotPreset,
@@ -291,7 +320,9 @@ const harness = new HarnessController({
   healDanglingBundles,
   saveConfig,
   appVersion: app.getVersion(),
-  ensureWorkspace,
+  ensureWorkspace: (url, workspace, fetchImpl, options) => (
+    ensureWorkspace(url, workspace, fetchImpl, { cookie: dsh.sessionCookie, ...options })
+  ),
 });
 
 async function pickWorkspace() {
@@ -454,6 +485,7 @@ if (!gotLock) {
       const { createSmokeRunner } = require('./smoke');
       const smoke = createSmokeRunner({
         qaEnv,
+        qaRemoteMode,
         dsh,
         harness,
         loadConfig,

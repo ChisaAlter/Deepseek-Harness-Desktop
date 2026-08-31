@@ -14,13 +14,14 @@
  * @module @deepseek-ai/dsh-agent-presets/mount
  */
 
-import { isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { Include } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
-import { PresetMountError, type AgentPreset } from './preset.ts'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import type { AgentPreset } from './preset.ts'
+import { classifyRowSpecifier } from './specifier.ts'
 
 /** What one mounted subtree publishes about itself for the audit to read. */
 interface MountedTree {
@@ -57,6 +58,14 @@ const harnessBase = new WeakMap<object, string>()
 class PresetTree extends Include {
   constructor(ctx: Context, config: Include.Config) {
     super(ctx, config)
+    // EntryTree's constructor files every new tree under the nearest owning
+    // Loader entry's `subtree` slot — here the roster's own row, because the
+    // standing scope descends from the roster's fiber. Left in place, root
+    // `loader.entries()` would walk this composition as host entries (each
+    // preset overwriting the last), against the standing mount's contract of
+    // not being a Loader entry. Reclaim the slot.
+    const owner = this.ctx.fiber.entry
+    if (owner?.subtree === this) delete owner.subtree
     mounted.set(config, { tree: this, fiber: ctx.fiber })
   }
 
@@ -74,21 +83,24 @@ class PresetTree extends Include {
    * filesystem path names neither base and becomes a file URL before Node's
    * ESM loader receives it, which is required for drive-letter paths on
    * Windows.
+   *
+   * {@link classifyRowSpecifier} makes that split, so discovery's health check
+   * resolves every row from the same base this import uses.
    * @param name - the module specifier from the row.
    * @param getOuterStack - the loader's stack composer for import diagnostics.
    * @returns the imported module, or the `cordis:` builtin.
    */
   override import(name: string, getOuterStack?: () => string[]): unknown {
-    const specifier = isAbsolute(name) ? pathToFileURL(name).href : name
+    const row = classifyRowSpecifier(name)
     const base = harnessBase.get(this.config)
     /* v8 ignore next -- every PresetTree is constructed by `mountPreset`, which records the base first */
-    if (base === undefined) return super.import(specifier, getOuterStack)
-    if (name.startsWith('.') || name.startsWith('cordis:')) return super.import(name, getOuterStack)
+    if (base === undefined) return super.import(row.specifier, getOuterStack)
+    if (row.kind === 'builtin' || row.kind === 'preset') return super.import(row.specifier, getOuterStack)
     const internal = this.ctx.loader.internal
     /* v8 ignore next -- Node always supplies the internal module loader; the branch keeps a
        hypothetical embedder from losing the row's name in a resolution error. */
-    if (internal === undefined) return super.import(specifier, getOuterStack)
-    return internal.import(specifier, base, {})
+    if (internal === undefined) return super.import(row.specifier, getOuterStack)
+    return internal.import(row.specifier, base, {})
   }
 
   /**
@@ -103,7 +115,7 @@ class PresetTree extends Include {
    * backs every session that names it.
    *
    * Dropping the write drops the `loader/config-update` the inherited method
-   * emits with it. Nothing observes one for a preset subtree today, and a
+   * emits with it. No consumer observes one for a preset subtree, and a
    * future "edit your preset while it runs" flow needs a deliberate
    * persistence path rather than this method's return.
    */
@@ -117,6 +129,8 @@ export interface PresetMount {
   readonly presetId: string
   /** The mounted subtree's fiber. */
   readonly fiber: Fiber
+  /** Loader entry tree whose active rows form this standing composition. */
+  readonly tree: EntryTree
   /** The standing scope key agents are parented to (undefined only in torn-down records). */
   readonly key: ScopeKey | undefined
 }
@@ -148,11 +162,18 @@ function pruneDisposedMounts(): void {
 /**
  * Every preset composition still installed, pruning fibers disposed since the
  * last read.
+ *
+ * The record set is module state and therefore spans every Cordis runtime in
+ * the process; a reader that serves one runtime passes that runtime's root
+ * fiber so another runtime mounting the same preset id (a second embedded
+ * app, a test's second harness) never answers for it.
+ * @param within - when present, only mounts inside this fiber's subtree.
  * @returns the live mounts.
  */
-export function livePresetMounts(): PresetMount[] {
+export function livePresetMounts(within?: Fiber): PresetMount[] {
   pruneDisposedMounts()
-  return [...mounts]
+  const all = [...mounts]
+  return within === undefined ? all : all.filter(mount => withinFiber(mount.fiber, within))
 }
 
 /**
@@ -301,12 +322,33 @@ export function inactiveRows(tree: EntryTree): string[] {
 }
 
 /**
+ * The causes of `error` whose detail its own message does not already carry.
+ *
+ * `AggregateError` names none of its causes in its own message, so its
+ * `errors` are the branches. The Loader's per-row wrapper takes the opposite
+ * approach: it appends `cause.message` to the message it builds and keeps the
+ * cause only as `error.cause`, so following a plain chain would print every
+ * line twice. That leaves exactly one lossy shape — a wrapped row whose cause
+ * is an `AggregateError`. Its message ends with the aggregate's own line and
+ * drops the `errors` behind it, which is how a failed group reports as
+ * "loader entries failed to apply" and names none of the rows that failed.
+ * @param error - the failure to read branches from.
+ * @returns the branches to render beneath `error.message`, possibly empty.
+ */
+function detailBranches(error: Error): readonly unknown[] {
+  if (error instanceof AggregateError) return error.errors
+  return error.cause instanceof AggregateError ? error.cause.errors : []
+}
+
+/**
  * The reportable text of a mount failure.
  *
  * The loader reports several failed rows as one `AggregateError`, whose own
  * message names none of them; without flattening, a composition that fails on
  * two rows says only "loader entries failed to apply" and the operator has
- * nothing to act on.
+ * nothing to act on. Nested groups indent under the row that owns them, so a
+ * composition failing inside a group still names the rows rather than the
+ * group alone.
  * @param error - the value the mount rejected with.
  * @returns a single-line-per-cause description.
  */
@@ -315,8 +357,12 @@ function mountDetail(error: unknown): string {
      wraps a row's thrown value before it propagates, and this module's own
      rejections are Errors. The fallback keeps a hostile value readable. */
   if (!(error instanceof Error)) return String(error)
-  if (!(error instanceof AggregateError)) return error.message
-  return [error.message, ...error.errors.map(cause => `- ${mountDetail(cause)}`)].join('\n')
+  const branches = detailBranches(error)
+  if (branches.length === 0) return error.message
+  return [
+    error.message,
+    ...branches.map(branch => `- ${mountDetail(branch).replaceAll('\n', '\n  ')}`),
+  ].join('\n')
 }
 
 /**
@@ -365,7 +411,7 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
         + 'a preset service must sit behind an `isolate` realm or move to the host composition',
       )
     }
-    mounts.add({ presetId: preset.id, fiber, key: scopeOf(agentCtx) })
+    mounts.add({ presetId: preset.id, fiber, tree, key: scopeOf(agentCtx) })
   } catch (error) {
     try {
       await handle.dispose()
@@ -376,6 +422,12 @@ export async function mountPreset(agentCtx: Context, preset: AgentPreset): Promi
       // Swallows only this subtree's teardown failure. The mount error below is
       // the actionable one, and the discarded fiber is unreachable either way.
     }
-    throw new PresetMountError(preset.id, `${mountDetail(error)} (${preset.path})`, { cause: error })
+    const reason = `${mountDetail(error)} (${preset.path})`
+    throw new RemoteError(
+      'agent-preset/invalid',
+      `agent-presets: preset "${preset.id}" failed to mount: ${reason}`,
+      { agentPreset: preset.id, reason },
+      { cause: error },
+    )
   }
 }

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { StatsLineRow } from '../src/client/settings/StatsLineRow.tsx'
 import type { StatsLineRowProps } from '../src/client/settings/StatsLineRow.tsx'
 import { en } from '../src/client/locales.ts'
@@ -15,6 +15,7 @@ function mount(opts: { enabled?: boolean; writable?: boolean } = {}) {
   const setStatsLine = vi.fn()
   const props: StatsLineRowProps = {
     useSessions: unused,
+    useSessionPendingInteraction: unused,
     useWorkspaces: unused,
     useStatsLine: bindSnapshotSelector(createSnapshotStore(opts.enabled ?? true)),
     useWritable: bindSnapshotSelector(createSnapshotStore(opts.writable ?? true)),

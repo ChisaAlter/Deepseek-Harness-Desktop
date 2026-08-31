@@ -2,11 +2,11 @@
 
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { errorMessage, TeamError } from './error.ts'
 import type { TeamJournal } from './journal.ts'
 import type { TeamRuntimeLifecycle } from './lifecycle.ts'
@@ -68,7 +68,7 @@ export class TeamMailbox {
     if (this.lifecycle.disposed || event.type !== 'user/message' || event.data.source.kind !== 'team-message') return
     const source = event.data.source
     const acknowledgement = Promise.resolve().then(async () => {
-      const root = this.ctx.agents.get(SessionId(source.teamId))
+      const root = this.ctx.agents.get(brandString<SessionId>(source.teamId))
       if (root !== undefined) await this.checkpointDelivered(root, session, source.messageId)
     }).catch((error: unknown) => {
       this.ctx.logger.warn(`Team message "${source.messageId}" acknowledgement failed: ${errorMessage(error)}`)
@@ -86,8 +86,8 @@ export class TeamMailbox {
     const membership = this.roster.tryMembership(agent)
     if (membership === undefined) return
     const state = this.journal.state(membership.root)
-    const messages = [...state.messages.values()].filter(message =>
-      !state.delivered.has(message.id)
+    const messages = state.messages.filter(message =>
+      !state.delivered.includes(message.id)
       && (membership.role === 'lead' || message.targetId === agent.id))
     for (const message of messages) {
       signal.throwIfAborted()
@@ -119,8 +119,8 @@ export class TeamMailbox {
       const state = this.journal.state(root)
       const target = resolveActiveMember(root, state, request.target)
       if (target.id === caller.id) throw new TeamError('a Team member cannot message itself', 'TEAM_SELF_MESSAGE')
-      const pendingForTarget = [...state.messages.values()].filter(candidate =>
-        candidate.targetId === target.id && !state.delivered.has(candidate.id)).length
+      const pendingForTarget = state.messages.filter(candidate =>
+        candidate.targetId === target.id && !state.delivered.includes(candidate.id)).length
       if (pendingForTarget >= this.maxPendingMessagesPerMember) {
         throw new TeamError(
           `teammate "${target.name}" has ${pendingForTarget} pending messages`,
@@ -272,7 +272,7 @@ export class TeamMailbox {
 
   /** Whether `left` was durably queued before `right` in one Lead log. */
   private messagePrecedes(root: Agent, left: TeamMessageId, right: TeamMessageId): boolean {
-    const ids = [...this.journal.state(root).messages.keys()]
+    const ids = this.journal.state(root).messages.map(message => message.id)
     return ids.indexOf(left) < ids.indexOf(right)
   }
 
@@ -292,8 +292,8 @@ export class TeamMailbox {
   private async markDelivered(root: Agent, messageId: TeamMessageId, targetId: SessionId): Promise<void> {
     await this.journal.transact(root.id, async () => {
       const state = this.journal.state(root)
-      if (state.delivered.has(messageId)) return
-      const queued = state.messages.get(messageId)
+      if (state.delivered.includes(messageId)) return
+      const queued = state.messages.find(message => message.id === messageId)
       if (queued === undefined || queued.targetId !== targetId) return
       await this.journal.appendAndFlush(root, 'team/message/delivered', {
         version: 1,

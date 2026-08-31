@@ -5,7 +5,7 @@
 <h1 align="center">Deepseek-Harness-Desktop</h1>
 
 <p align="center">
-  DeepSeek Harness 官方 Web UI 的桌面客户端<br />
+  把官方 DeepSeek Harness Web UI 装进桌面的社区客户端<br />
   下载安装即可使用，不用自己起 <code>dsh web</code>
 </p>
 
@@ -40,6 +40,8 @@
 
 macOS 安装包未签名：下载后右键打开，或执行 `xattr -cr /Applications/Deepseek-Harness-Desktop.app`。校验见同页 `SHA512SUMS.txt`。
 
+装完打开即是启动器，一般会自动进桌面；若桌面还没有会话、本机已有官方 `~/.dsh` 数据，会先停在导入。进主界面后选工作区，在设置里填 API 密钥即可对话。
+
 ## 0.2.7 更新
 
 - **冷启动启动器** — 先开启动器再启桌面：查正式版、导入官方数据、版本页、插件 Recovery Board；可「关闭桌面端」而不退出应用。
@@ -73,6 +75,7 @@ macOS 把 `$HOME/.dsh/sessions` 拷到 `~/Library/Application Support/Deepseek-H
 - **官方界面** — 对话、工具调用、审批就是 `dsh web`，没有另做一套聊天页。
 - **启动器** — 冷启动先开启动器（更新询问、导入、版本、插件问诊）；托盘可随时再打开。
 - **Git** — 标题栏切分支、提交、推送、开变更请求。
+- **远程** — 侧栏底部打开远程，扫码用手机浏览器接同一会话（默认关）。
 - **文件与终端** — `Ctrl+\` 打开右栏（Files / Diff / Browser / Agents）；`` Ctrl+` `` 打开底栏终端，选区可送进对话。
 - **模型** — 第三方思考强度、识图兜底；最新一条用户消息可改完再发。
 - **外观** — 浅色 / 深色主题。壁纸在外观里选或点「浏览」打开图库（分类、搜索、收藏，确认后按窗口比例裁切）；毛玻璃和像素化也在外观里调。
@@ -80,6 +83,17 @@ macOS 把 `$HOME/.dsh/sessions` 拷到 `~/Library/Application Support/Deepseek-H
 - **桌面壳** — 关闭进托盘、自动更新；Harness 挂了会回到故障页并自动重启。用户插件把启动弄挂时，启动器可以按包禁用或先跳过用户插件。
 
 `Ctrl+,` 打开设置。
+
+<table>
+  <tr>
+    <td align="center" width="50%"><img src="assets/screenshot-surfaces.jpg" alt="对话与右栏" /></td>
+    <td align="center" width="50%"><img src="assets/screenshot-wallpaper.jpg" alt="背景图" /></td>
+  </tr>
+  <tr>
+    <td align="center" width="50%"><img src="assets/screenshot-themes.jpg" alt="外观主题" /></td>
+    <td align="center" width="50%"><img src="assets/screenshot-appearance.jpg" alt="外观设置" /></td>
+  </tr>
+</table>
 
 ## 数据目录
 
@@ -92,17 +106,6 @@ macOS 把 `$HOME/.dsh/sessions` 拷到 `~/Library/Application Support/Deepseek-H
 | 插件 | `dsh-home/profiles/web` |
 
 工作区路径和壳层 API key 在上一层目录的 `config.json` / `credentials.json`。底栏终端里自己跑的官方 `dsh` 仍用 `~/.dsh`。
-
-<table>
-  <tr>
-    <td align="center" width="50%"><img src="assets/screenshot-surfaces.jpg" alt="对话与右栏" /></td>
-    <td align="center" width="50%"><img src="assets/screenshot-wallpaper.jpg" alt="背景图" /></td>
-  </tr>
-  <tr>
-    <td align="center" width="50%"><img src="assets/screenshot-themes.jpg" alt="主题库" /></td>
-    <td align="center" width="50%"><img src="assets/screenshot-appearance.jpg" alt="外观设置" /></td>
-  </tr>
-</table>
 
 ## 从源码运行
 
@@ -122,11 +125,11 @@ npm start
 
 改界面请改 `vendor/deepseek-harness`，并遵守 [设计语言](docs/design-language.md) 和 [动效](docs/motion.md)。产品蓝图、流程与模块入口见 [产品手册](docs/handbook/README.md)；改行为契约见 [Feature Spine](docs/features/README.md)。改完客户端源码后，在该目录执行 `pnpm run build:lib:client` 再重启桌面端。
 
-当前官方基线写在 `vendor/harness-upstream.json`，现为 `0.1.1-rc.1`（`dsh-v0.1.1-rc.1` / `528c682e061696f5a160f363f236ecbf53cbd006`）。npx 兜底是官方 `@deepseek-ai/dsh@0.1.1-rc.1`，不含标题栏、Git、右栏 surfaces 和底栏终端；那些只在源码启动和安装包路径里。
+当前官方基线写在 `vendor/harness-upstream.json`，现为 `0.1.2-alpha.2`（`dsh-v0.1.2-alpha.2` / `0a53fb55bea101816fa226bb964ae2bed71c343b`）。npx 兜底是官方 `@deepseek-ai/dsh@0.1.2-alpha.2`，不含标题栏、Git、右栏 surfaces 和底栏终端；那些只在源码启动和安装包路径里。安装包 0.2.7 仍钉 `0.1.1-rc.1`，与源码钉不是同一条线。
 
 ```powershell
 npm test              # 桌面壳单测
-npm run sync:harness -- --ref dsh-v0.1.1-rc.1 --sha 528c682e061696f5a160f363f236ecbf53cbd006
+npm run sync:harness -- --ref dsh-v0.1.2-alpha.2 --sha 0a53fb55bea101816fa226bb964ae2bed71c343b
 npm run dist          # Windows 安装包
 npm run dist:mac      # macOS 安装包（须在 macOS 上）
 ```
@@ -136,10 +139,10 @@ npm run dist:mac      # macOS 安装包（须在 macOS 上）
 ## 交流
 
 <p align="center">
-  <img src="assets/wechat-group.png" alt="交流群" width="240" />
+  <img src="assets/wechat-group.png" alt="微信交流群二维码" width="240" />
 </p>
 
-扫码进群。Issue 和 PR 也欢迎。感谢 [Linux.do](https://linux.do)。
+微信扫码进群。邀请码大约每周过期一次；扫不进请开 [Issue](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues)。Issue 和 PR 也欢迎。感谢 [Linux.do](https://linux.do)。
 
 ## 许可证
 

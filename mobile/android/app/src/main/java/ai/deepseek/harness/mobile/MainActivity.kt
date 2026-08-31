@@ -64,6 +64,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Cold-start entry from the system camera / a browser link
+        // (VIEW http://*:3180). Runs before setContent so the first
+        // composition already lands on the pairing WebView.
+        vm.openPairingLink(intent?.action, intent?.dataString)
         setContent {
             val dark = when (vm.scheme) {
                 "dark" -> true
@@ -108,6 +112,14 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    // Warm entry: singleTask reroutes VIEW intents here instead of stacking
+    // a second activity.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        vm.openPairingLink(intent.action, intent.dataString)
     }
 
     private fun requestScan() {

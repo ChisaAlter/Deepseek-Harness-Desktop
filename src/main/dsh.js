@@ -12,6 +12,7 @@ const { ensurePackagedHarness, harnessArchivePath } = require('./harness-extract
 const { childSpawnEnv } = require('../shared/child-spawn-env');
 const { desktopInstallEnv } = require('./desktop-install-control');
 const { readPin } = require('../shared/harness-upstream');
+const { probeHarnessReady, isUnpublishedHarnessNpm } = require('./harness-browser-auth');
 
 const PORT_SCAN_RANGE = 50;
 
@@ -406,7 +407,7 @@ function readyUrlPattern(host) {
   }
   hosts.add(connectHost(host).toLowerCase());
   const alternatives = [...hosts].map(escapeRegExp).join('|');
-  return new RegExp(`dsh web:\\s*(https?:\\/\\/(?:${alternatives}):\\d+)`, 'i');
+  return new RegExp(`dsh web:\\s*(https?:\\/\\/(?:${alternatives}):\\d+(?:\\/[^\\s]*)?)`, 'i');
 }
 
 function isPortInUse(host, port) {
@@ -547,6 +548,7 @@ class DshManager extends EventEmitter {
     this.error = '';
     this.failure = null;
     this.baseUrl = '';
+    this.sessionCookie = '';
     this.webReady = false;
     this.attached = false;
     this.host = '127.0.0.1';
@@ -620,15 +622,11 @@ class DshManager extends EventEmitter {
   }
 
   async isReachable(baseUrl) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1500);
-      const response = await fetch(baseUrl, { signal: controller.signal });
-      clearTimeout(timer);
-      return response.ok;
-    } catch {
-      return false;
+    const probed = await probeHarnessReady(baseUrl, { fetchImpl: fetch, timeoutMs: 1500 });
+    if (probed.cookie) {
+      this.sessionCookie = probed.cookie;
     }
+    return probed.ok;
   }
 
   buildLaunch(config) {
@@ -705,9 +703,15 @@ class DshManager extends EventEmitter {
     }
 
     const pin = this._deps.readPin();
+    const npm = pin && pin.npm;
+    if (isUnpublishedHarnessNpm(npm)) {
+      throw new Error(
+        `官方 npm 尚未发布 @deepseek-ai/dsh@${npm}，不能用 npx 回落。请运行 npm run setup:harness 使用 vendor 源码。`,
+      );
+    }
     return {
       command: npxBin,
-      args: ['--yes', `@deepseek-ai/dsh@${pin.npm}`, ...args],
+      args: ['--yes', `@deepseek-ai/dsh@${npm}`, ...args],
       nodeBin,
       kind: 'npx',
       host,
@@ -830,6 +834,7 @@ class DshManager extends EventEmitter {
     this.error = '';
     this.attached = false;
     this.webReady = false;
+    this.sessionCookie = '';
     this.setState('starting', { baseUrl: expectedUrl, attached: false, failure: null });
     this.log(`工作区 ${config.workspace}`);
     this.log(`启动本机服务 ${expectedUrl}`);

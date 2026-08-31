@@ -12,8 +12,8 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
-import { CallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
-import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
 import type { Config as ToolConfig } from '@deepseek-ai/dsh-tools'
@@ -65,7 +65,7 @@ class CatalogAdapter extends LlmAdapter {
   }
 }
 
-/** In-process Code Mode seam fake that invokes the real registry bindings. */
+/** In-process PTC mode seam fake that invokes the real registry bindings. */
 class FakeRuntime extends CodeRuntime {
   readonly language = 'typescript'
   readonly isolation = 'fake'
@@ -101,7 +101,7 @@ async function setup(options: SetupOptions = {}) {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime, { mode: options.toolMode ?? 'native' })
-  if (options.toolMode === 'code' || options.toolMode === 'both') {
+  if (options.toolMode === 'ptc' || options.toolMode === 'both') {
     await ctx.plugin(FakeRuntime)
   }
   await ctx.plugin(LocalFileSystem, { cwd: dir })
@@ -122,12 +122,13 @@ async function setup(options: SetupOptions = {}) {
 }
 
 /** A fake calling agent pinned to one routed provider/model. */
-function agentOn(model: string | undefined, provider = 'visual'): object {
+function agentOn(model: string | undefined, provider = 'visual', messages: readonly Message[] = []): object {
   return {
     options: {},
     session: {
       header: { cwd: dir },
       requestHeader: () => (model === undefined ? undefined : { config: { provider, model } }),
+      deriveMessages: () => [...messages],
       append: () => undefined,
     },
   }
@@ -137,7 +138,7 @@ let callCounter = 0
 function call(ctx: Context, name: string, args: unknown, agent?: object) {
   return ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId(`img-call-${++callCounter}`),
+    callId: ToolCallId(`img-call-${++callCounter}`),
     name,
     arguments: args,
     ...agent ? { agent: agent as never } : {},
@@ -169,6 +170,8 @@ describe('imageRefFromValue', () => {
     const base = { attachmentId: 'sha256:00', mediaType: 'image/png' as const, bytes: 1, width: 1, height: 1 }
     expect(imageRefFromValue(base)).toEqual(base)
     expect(imageRefFromValue({ ...base, name: 'a.png' })).toEqual({ ...base, name: 'a.png' })
+    expect(imageRefFromValue({ ...base, originalDimensions: { width: 4, height: 2 } }))
+      .toEqual({ ...base, originalDimensions: { width: 4, height: 2 } })
   })
 })
 
@@ -223,9 +226,9 @@ describe('read_image happy path', () => {
     expect(result.isError).toBe(false)
   })
 
-  it('forwards a nested Code Mode image through the outer run_code context', async () => {
+  it('forwards a nested PTC mode image through the outer run_code context', async () => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
-    const ctx = await setup({ toolMode: 'code' })
+    const ctx = await setup({ toolMode: 'ptc' })
     const runtime = ctx.codeRuntime as FakeRuntime
     runtime.behavior = async (request) => {
       const value = await request.bindings[0]!.functions.read_image!({ file_path: 'red.png' })
@@ -234,7 +237,7 @@ describe('read_image happy path', () => {
 
     const result = await call(ctx, RUN_CODE_NAME, {
       code: 'return await tools.read_image({ file_path: "red.png" })',
-      description: 'Read the image through Code Mode',
+      description: 'Read the image through PTC mode',
     }, agentOn('vision-model'))
 
     expect(result.isError).toBe(false)
@@ -456,6 +459,20 @@ describe('image admission failures', () => {
     expect(storageFault.isError).toBe(true)
     expect(text(storageFault)).toContain('Unable to persist image attachment.')
 
+    FailingStore.failure = new AttachmentError(
+      'The 16-bit PNG could not be converted to the normalized 8-bit sRGB form.',
+      'ATTACHMENT_WRITE_FAILED',
+    )
+    const sixteenBit = await readImage(ctx, { file_path: 'red.png' }, agentOn('vision-model'))
+    expect(text(sixteenBit)).toContain(
+      `cannot read "${join(dir, 'red.png')}": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`,
+    )
+
+    FailingStore.failure = new AttachmentError('Image cannot be encoded within the configured normalized-image byte cap.', 'IMAGE_TOO_LARGE')
+    const overBudget = await readImage(ctx, { file_path: 'red.png' }, agentOn('vision-model'))
+    expect(overBudget.isError).toBe(true)
+    expect(text(overBudget)).toContain('cannot be stored within the deployment\'s byte limits; downscale the image and read the smaller copy')
+
     FailingStore.failure = new Error('unrelated infrastructure failure')
     const unrelated = await readImage(ctx, { file_path: 'red.png' }, agentOn('vision-model'))
     expect(unrelated.isError).toBe(true)
@@ -509,6 +526,53 @@ describe('image admission failures', () => {
     const image = result.content[1] as { attachment: ImageAttachmentRef }
     expect(image.attachment.name).toBeUndefined()
   })
+
+  it('names the on-disk dimensions and coordinate multiplier when storage downscales', async () => {
+    /** Store whose normalized image halves the input on both sides. */
+    class DownscalingStore extends AttachmentStore {
+      readonly imageLimits: ImageAttachmentLimits = Object.freeze({
+        maxImageBytes: 1024,
+        maxImagesPerMessage: 1,
+        maxMessageImageBytes: 1024,
+        maxImagePixels: 100,
+        maxImageDimension: 2000,
+        mediaTypes: Object.freeze(['image/png'] as const),
+      })
+
+      validateImage(_input: SaveImageAttachment): Promise<void> {
+        return Promise.resolve()
+      }
+
+      async saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef> {
+        return {
+          attachmentId: AttachmentId('sha256:feed'),
+          mediaType: input.mediaType,
+          bytes: 7,
+          width: 2,
+          height: 1,
+          originalDimensions: { width: 4, height: 2 },
+        }
+      }
+
+      readImage(_ref: ImageAttachmentRef): Promise<StoredImageAttachment> {
+        throw new Error('unreachable in this test')
+      }
+    }
+    await writeFile(join(dir, 'red.png'), PNG_1X1)
+    const ctx = await setup({ attachments: false })
+    await ctx.plugin(DownscalingStore)
+    const result = await readImage(ctx, { file_path: 'red.png' }, agentOn('vision-model'))
+    expect(result.isError).toBe(false)
+    expect(text(result)).toContain('image/png image, 2x1 px, 7 bytes (downscaled from 4x2 px; multiply coordinates by 2.00 to locate features in the original file)')
+  })
+
+  it('names per-axis multipliers when integer rounding makes the ratios differ', () => {
+    const envelope = formatImageReadOutput('/img/photo.jpg', {
+      attachmentId: 'sha256:feed', mediaType: 'image/jpeg', bytes: 9, width: 2, height: 1,
+      originalDimensions: { width: 5, height: 2 },
+    })
+    expect(envelope).toContain('downscaled from 5x2 px; multiply x coordinates by 2.50 and y coordinates by 2.00 to locate features in the original file')
+  })
 })
 
 describe('registration surface', () => {
@@ -541,7 +605,7 @@ describe('registration surface', () => {
   it('declares read_image parallel-safe and presents a read-family card', async () => {
     const ctx = await setup()
     expect(ctx.tools.executionMode({
-      signal: testToolSignal, callId: CallId('img-parallel'), name: 'read_image', arguments: { file_path: 'a.png' },
+      signal: testToolSignal, callId: ToolCallId('img-parallel'), name: 'read_image', arguments: { file_path: 'a.png' },
     })).toEqual({ kind: 'parallel' })
     expect(ctx.tools.get('read_image')?.presentCall?.({ file_path: 'shot.png' })).toEqual({
       card: 'generic',

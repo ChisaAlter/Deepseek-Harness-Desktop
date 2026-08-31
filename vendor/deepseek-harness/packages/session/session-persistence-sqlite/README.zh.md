@@ -1,63 +1,191 @@
+---
+description: "面向部署方与维护者的 SQLite 会话持久化说明，用于选择、配置或排查这个可选启用的分片行后端。"
+kind: "package-reference"
+---
+
 # @deepseek-ai/dsh-session-persistence-sqlite
 
 [English](README.md) | 中文
 
-一个可选启用的 SQLite `SessionPersistence` 提供方。它将符合条件的 `assistant/chunk` 连续段存入打包后的物理行，对大型 payload 选择性应用 Zstandard 压缩，并对来源序列进行 delta 编码，同时恢复完全一致的逻辑 `SessionEvent[]`。随产品交付的组合均不选择它；部署方需显式挂载本包并提供数据库路径。
+## 概述
 
-`locate(meta)` 返回 `undefined`，因为所有会话共享同一个数据库。该提供方不暴露逐会话原始产物。
+`dsh-session-persistence-sqlite` 是 `SessionPersistence` 服务的可选存储后端：它不按会话各留一个文件，而是把所有会话的持久事件日志统一保存在同一个 SQLite 数据库中。它与 JSONL 后端提供完全相同的逻辑 `SessionEvent` 流，因此选择它不会改变 agent loop、模型或回放的任何行为——打包、压缩与恢复都是存储内部细节。仅当单一可查询数据库适合你的部署时才选择它；任何已发布的组合都不会默认启用它。这是预发布提供方：它拒绝而非迁移不属于自己的数据库文件，而且其同步 Node SQLite 驱动会在读写时阻塞 JavaScript 线程。设置、容量评估与迁移指引在前；实现内部细节放在下方可折叠的开发者章节中。
 
-## 存储模型
+## 目录
 
-Schema 17 保留普通 ROWID 表以及复合主键索引 `events(session_id, seq)`。标量行存储一个逻辑事件。打包行把 `text-chunks`、`reasoning-chunks` 或 `tool-call-chunks` 用作物理 `type`；`seq` 与 `time` 标识所表示的第一个事件，`data` 保存共享的分片打包 payload。打包行把 `ignorable=0` 用作物理判别值，并让 `source_event_seqs` 与 `surface_op` 保持 `NULL`；标量行仅在逻辑事件可忽略时使用 `ignorable=1`，否则使用 `NULL`。因此，未来的可忽略逻辑事件即使复用了某个存储标签名称，也不会被解码为打包行。这些标签属于存储记录，而不是 `SessionEventMap` 成员。
+- [使用本包](#use-this-package)
+- [理解实现](#understand-the-implementation)
+- [进一步探索](#further-exploration)
+- [模型体验](#model-experience)
+- [已知限制与延期工作](#known-limitations-and-deferred-work)
+- [开发备注](#dev-note)
 
-Schema 17 在本包内拥有 codec，不导入其他持久化格式中可变的实现。只有字段完全匹配、连续且属于同一分片块的文本、推理或工具调用 delta 才会打包。未知字段、surface 元数据、序列缺口、不兼容的块／调用身份以及不安全时间戳仍以标量行存储。一个打包行最多表示 1,024 个事件，未压缩 UTF-8 `data` 最多 1 MiB；更长的连续段会在不改变逻辑事件的前提下分割。读取会在向持久化协调器返回数据前，重建每个原始序列号、时间戳、token 边界、参数片段和 payload。
+-----
 
-序列化后的 `data` 小于 4 KiB 时保持为 SQLite `TEXT`。达到或超过该阈值时，写入方会使用 Zstandard level 3，并且只在 frame 小于原文本的情况下存储 `BLOB`；读取方会先解压，再执行 UTF-8 校验和 JSON 解析。`source_event_seqs` 仍是完整且有序的来源数组。第一个序列使用无符号 varint，后续序列使用 ZigZag varint 编码的有符号差值，并存为 `BLOB`；不会省略任何来源，也不会把数组转换成范围。
+<a id="use-this-package"></a>
+## 使用本包
 
-每次追加持有 `BEGIN IMMEDIATE`，验证有界物理尾部，只打包新的持久批次，插入这些记录，并把会话 revision 递增一次。普通追加绝不删除或替换既有事件行。默认 200 毫秒写后缓冲窗口因此仍能压缩高频流，而物理写入量与新增持久批次成正比，不会反复改写不断增长的打包值。存储层逻辑尾部检查会在陈旧写入方执行变更前拒绝该写入。
+当组合需要由 SQLite 支撑的持久会话、且可以接受进程本地的同步数据库驱动时，挂载此提供方。常用路径是显式的：加载会话服务、挂载提供方，然后给出数据库路径。
 
-完整读取按首个逻辑序列号的顺序扫描物理行。反向扫描会定位最后一个有效 `turn/end`，但不会保留每个物理行的解码副本；正向扫描则逐行解码并校验，写入最终返回的逻辑事件数组。`readFrom(id, fromSeq)` 只检查最大行跨度内的打包前驱，并把后缀锚定在可能包含 `fromSeq` 的最早前驱；这样既可包含从打包行内部开始的事件范围，也能检测相互重叠的物理损坏，而不会解析无关的更早标量行。畸形打包行按全有或全无处理：已提交区域中的损坏会拒绝读取，最终撕裂行则在可变恢复期间从其物理起点删除。修复会在持有写锁时重新读取尾部，并在删除任何数据前拒绝陈旧 marker。打包 `data` 超出 schema 字节上限时，会在解析 JSON 前拒绝。
+### 何时选择
 
-## Schema 兼容性
+当本地部署受益于一个可查询数据库、而非每会话一个独立文件时，选择此后端。当消费方需要按会话产物时，请选择 JSONL 后端：本提供方的 `locate(meta)` 返回 `undefined`，不支持原始产物，也不暴露任何单会话文件。高并发服务在采用前还应考虑同步 SQLite 与压缩工作。
 
-全新数据库直接初始化为 schema 17。旧 schema、外部 application identity、非空未版本化数据库以及不兼容 schema 对象都会被拒绝；这个预发布提供方不提供迁移。每条语句和固定 pragma 都位于随包发布的 `.sql` 资源中；值使用 SQLite 参数，运行时代码不会拼装查询文本。
+### 磁盘占用与性能
 
-## 配置（schemastery）
+打包布局以部分 SQLite 本地延迟换取更小的可查询数据库。现有的 501 会话对比测量的是 schema 19，而不是 schema 20；该布局占用 233.18 MB，SQLite 对比基线占用 438.31 MB，压缩 JSONL 占用 148.15 MB。全量写入约比 JSONL 快 2.3 倍，后缀读取也仍快得多；完整读取与 fork 则略慢于 JSONL。方法、完整指标与取舍由[持久化延迟与 page size 决策](../../../.agents/notes/implemented/architecture/2026-08-25-persistence-latency-and-page-size.zh.md)记录。
 
-```ts
-interface Config {
-  path: string
-  journalMode?: 'wal' | 'delete' | 'truncate' | 'persist'
-  busyTimeoutMs?: number
-  preparedSessionCacheSize?: number
-  writeBatchMaxDelayMs?: number
-}
+磁盘成本换来的是结构化、可查询的会话历史视图：外部工具可以用 SQL 分析 `sessions` 与 `events`，按本提供方的方式解码物理行——这是内置全文搜索等功能的天然基础。
+
+### 最小配置
+
+先加载会话服务，再用数据库路径挂载提供方。除非位置允许依赖进程工作目录（相对路径从该目录解析），否则请使用绝对路径。`:memory:` 可用于进程内数据库，其内容随进程消失。
+
+```yaml
+- name: '@deepseek-ai/dsh-session'
+- name: '@deepseek-ai/dsh-session-persistence-sqlite'
+  config:
+    path: /absolute/path/to/sessions.db
 ```
 
-`journalMode` 默认为 `wal`，`busyTimeoutMs` 默认为 `5,000`，`preparedSessionCacheSize` 默认为 `5`，`writeBatchMaxDelayMs` 默认为 `200`。该超时限制每次同步 SQLite 锁等待的时长。SQLite 在切换 journal mode 时可能立即返回 `SQLITE_BUSY`，因此冷打开会在尝试之间让出执行，并在从打开时开始计算的重试截止点后不再发起新尝试。正在执行的同步 SQLite 调用可能在该截止点之后才完成。提供方会在每个连接上禁用可信 schema 与内存映射 I/O，然后读回这两项设置。提供方还会读回所选 journal mode 并要求它匹配；内存数据库显式接受 SQLite 返回的 `memory`。选择 journal 后，提供方会把 `synchronous` 固定为 `FULL` 并验证该设置，避免 SQLite 构建默认值削弱已提交追加的持久性。在 POSIX 上，数据库父目录和文件必须归当前用户所有，父目录不得允许组或其他用户写入，文件不得授予组或其他用户任何权限。符号链接和非普通文件会被拒绝。Windows 同样拒绝符号链接与非普通文件，但部署方仍负责把目录和文件 ACL 限制给 harness 用户。路径与所有权错误会拒绝插件初始化。Node SQLite 在第一次持久化操作时才加载；导入时只抑制 Node 22 精确的 SQLite `ExperimentalWarning`。存储身份与 schema 错误会在暴露或变更数据前拒绝该操作。
+| 字段 | 默认值 | 含义 |
+|---|---|---|
+| `path` | 必填 | SQLite 数据库路径，或 `:memory:` |
+| `journalMode` | `wal` | 持久 journal mode：`wal`、`delete`、`truncate` 或 `persist` |
+| `busyTimeoutMs` | `5,000` | 等待另一连接锁的最长同步时间 |
+| `preparedSessionCacheSize` | `5` | 为恢复复用而保留的冷会话准备结果数量 |
+| `writeBatchMaxDelayMs` | `200` | 实时事件的固定聚合窗口，单位为毫秒 |
 
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-session-persistence-sqlite)是每个受支持字段及其 JSDoc 的穷尽式真源。
+
+### 迁移现有 JSONL 会话
+
+没有内置迁移工具：JSONL 与 SQLite 是两个独立存储，没有任何机制在两者之间复制会话。由于两个后端实现相同的逻辑约定，你可以直接用持久化 API 迁移会话——在 JSONL 侧读取，在 SQLite 侧写入。每个组合只有一个后端服务于 `ctx.sessionPersistence`，因此两步请分两次运行或分两个进程执行：
+
+```text
+// Export — run against the JSONL composition, per session id:
+const { meta, events } = await ctx.sessionPersistence.load(id)
+
+// Import — run against the SQLite composition, per exported session:
+await ctx.sessionPersistence.create(meta)
+await ctx.sessionPersistence.append(id, events)
+```
+
+用 `list()` 枚举已物化的会话。导出的事件 `seq` 从 0 开始连续，因此 `append` 可以一次性按序写入新会话；`load` 会先在源端提交所需的冷修复，导出的日志因此是平衡的。请把迁移当作一次性切换：确认导入的会话可以加载后，再把组合切换到 SQLite 提供方；之后继续写旧 JSONL 根目录会让两个存储分叉。
+
+### 启动与安全运行
+
+全新数据库直接初始化为 schema 版本 20，并使用 64 KiB page。已有文件不会被重新调参：任何其他版本、外来应用标识、无版本的非全新 schema 或意外 schema 对象，都会在任何数据暴露或变更之前被拒绝。本预发布提供方不提供迁移。每条语句和固定 pragma 都来自 `resources/sql/` 下打包的 `.sql` 资源，运行时的值以 SQLite 参数绑定，包代码从不拼装查询文本。
+
+每个连接都会禁用 SQLite trusted schema 与内存映射 I/O、验证所请求的 journal mode，并固定 `synchronous=FULL`，保证成功返回的追加在操作系统崩溃或断电后依然持久。在 POSIX 上，数据库父目录和文件必须属于当前用户，父目录不得允许组或其他用户写入，文件也不得授予任何组或其他用户权限；Windows 还会拒绝符号链接和非普通文件，ACL 限制则由部署方负责。路径与所有权失败会拒绝插件初始化；Node 的 SQLite 驱动在首次持久化操作时才延迟加载。普通 `create` 会保持惰性直到首次 append，而 `ensureMaterialized` 会写入一条没有事件行的会话元数据记录。
+
+-----
+
+<a id="understand-the-implementation"></a>
+## 理解实现
+
+<details>
+<summary>实现细节——点击展开</summary>
+
+本节解释提供方背后的设计决策，并指出实现它们的代码位置；可观察行为已在[使用本包](#use-this-package)中完整说明。
+
+### 设计理念
+
+本提供方建立在一个分离与三项承诺之上：
+
+- **逻辑约定，物理格式。** 调用方始终读写普通的 `SessionEvent[]`；行如何打包、存储与压缩是本包私有的存储行为。
+- **schema 拥有格式。** Schema 20 是冻结的物理约定：任何其他版本、外来标识或意外 schema 对象的数据库都会被拒绝，绝不迁移。改变 schema、行 codec、page size 或字典字节都需要新的 schema 版本。
+- **持久性是默认值。** 追加在立即事务中以 `synchronous=FULL` 提交，成功返回的 `append()` 意味着该批次已持久。普通追加仅插入：更早的事件行永远不会被重写。
+- **在严格边界内追求效率。** 打包与压缩让数据库保持小巧，但每个上限都是硬性格式边界——每个打包行至多表示 1,024 个事件、1 MiB 载荷。
+
+打包行基础由 [SQLite 物理分片行决策](../../../.agents/notes/implemented/architecture/2026-08-18-sqlite-physical-chunk-row-compression.zh.md)记录；当前压缩、键和 page-size 选择由[持久化延迟与 page size 决策](../../../.agents/notes/implemented/architecture/2026-08-25-persistence-latency-and-page-size.zh.md)记录。
+
+### 源码地图
+
+| 文件 | 职责 |
+|---|---|
+| [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、服务注册、协调器接线 |
+| [`src/store.ts`](src/store.ts) | 存储原语：事务追加、读取、修复、路径与所有权验证 |
+| [`src/schema.ts`](src/schema.ts) | schema 归属：版本门禁、连接加固、行解码 |
+| [`src/codec.ts`](src/codec.ts) | 打包：哪些 `assistant/chunk` 连续段成为打包行、大小上限 |
+| [`src/compression.ts`](src/compression.ts) | 物理编码：字典压缩、序列列表、行扫描与解码 |
+| [`src/sql.ts`](src/sql.ts) + [`resources/sql/`](resources/sql/) | 所有 SQL 语句均为打包的闭名资源 |
+| [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；打包只能通过数据库往返观察） |
+
+### 数据库 schema
+
+全新数据库包含三张 STRICT 表，定义于 [`resources/sql/schema.sql`](resources/sql/schema.sql)：
+
+| 表 | 用途 |
+|---|---|
+| `persistence_state` | 单行存储标识 |
+| `sessions` | 每个会话一行：头部字段加单调递增的 revision |
+| `events` | 物理事件行：一个逻辑事件，或一个打包连续段 |
+
+确切的列定义见 [`resources/sql/schema.sql`](resources/sql/schema.sql)。`sessions.id` 是内部整数键，`sessions.session_key` 保留公开会话 id。`events.data` 存放文本或可独立解码的 Zstandard blob；仅在结果更小时才使用 schema 自有的共享字典压缩。`events.source_event_seqs` 使用带 tag 的 delta 或 run 编码。打包分片连续段的 `events.ignorable` 为 `0`，带 `ignorable: true` 的标量逻辑事件为 `1`，其余标量事件为 `NULL`，因此类型与物理分片标签同名的标量事件仍然明确。打包行沿用其首个逻辑事件的 `seq`，因此在复合主键 `(session_id, seq)` 下，物理顺序就是逻辑顺序。
+
+### 写入路径
+
+每次追加都会开启立即事务、重新验证 schema 归属、检查已存尾部以防止陈旧写入方扩展日志、只打包新批次、插入对应行、递增一次会话 revision，然后提交。协调器按配置窗口聚合实时事件，因此高频流会产生更大的打包行，而物理写入量始终与新持久批次成正比。
+
+### 读取与恢复
+
+完整读取先反向定位最后一个有效 `turn/end`，再按正向顺序把每个物理行解码为其逻辑事件，并拒绝已提交前缀中的缺口或格式错误行。格式错误的最后一行被视为撕裂尾部：执行恢复的加载可以在写锁下删除它，并用合成闭合事件关闭日志。后缀读取（`readFrom`）只检查可能包含目标序列的物理跨度，因此永远不会解析无关的更早行。
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## 进一步探索
+
+当包级约定不够用时阅读以下页面。它们从共享持久化模型逐步进入穷尽式配置，以及物理布局背后的决策证据。
+
+- [会话持久化子系统](../../../docs/subsystems/persistence.zh.md)——后端无关的服务语义与提供方关系。
+- [会话包映射](../README.zh.md)——相邻的持久化、投影、标题与遥测包。
+- [生成配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-session-persistence-sqlite)——每个受支持配置字段及其源声明。
+- [SQLite 物理分片行决策](../../../.agents/notes/implemented/architecture/2026-08-18-sqlite-physical-chunk-row-compression.zh.md)——打包布局背后的理由、备选方案与测量。
+- [持久化延迟与 page size 决策](../../../.agents/notes/implemented/architecture/2026-08-25-persistence-latency-and-page-size.zh.md)——501 会话基准与当前存储取舍。
+
+-----
+
+<a id="model-experience"></a>
 ## 模型体验
 
 ### 恢复的对话历史
 
 #### 模型看到什么
 
-没有 SQLite 特有内容。恢复得到与 JSONL 相同的逻辑事件和派生消息；物理打包标签绝不会进入 prompt、工具、回放或实时 `session/event` 投递。
+没有 SQLite 专有内容。恢复会还原与 JSONL 后端相同的逻辑事件和派生消息；物理打包标签永远不会进入提示词、工具、回放或实时 `session/event` 投递。
 
 #### Token 影响
 
-实时请求增加零 token。恢复只为保留的逻辑历史和当前请求 envelope 付出 token。
+实时请求 token 为零。恢复只为保留的逻辑历史和当前请求信封消耗 token。
 
 #### KV Cache 影响
 
-物理打包不会改变请求前缀。与其他持久化后端相同，提供方 cache 复用取决于重建历史、当前 envelope 和模型路由。
+物理打包不会改变请求前缀。提供方缓存复用取决于重建历史、当前信封与模型路由，与其他持久化后端完全相同。
 
 ## 已知限制与延期工作
 
-- **过渡性的 SQLite 专用设计**——这一以效率为重点的实现参考了 [morlay/session-persistence-rdb](https://github.com/morlay/session-persistence-rdb)。支持多种后端与可配置 schema 的统一关系数据库设计尚待后续完善；预发布开发阶段不保证 schema 稳定性或迁移支持。
-- **打包服从持久批次边界**——被写后缓冲窗口或显式 flush 分开的兼容连续段会保留为不同物理记录；这以打包率受时序影响为代价，避免改写既有行。
-- **同步压缩**——Node 的 SQLite 与 Zstandard 调用都会阻塞 JavaScript 线程；4 KiB 阈值限制了小型记录的逐 frame 工作。
-- **`DatabaseSync` 会阻塞事件循环**——减少物理行不会使 SQLite 操作变为异步。
-- **繁忙等待会阻塞事件循环**——SQLite 会在同步 `DatabaseSync` 调用内等待；只有繁忙的 journal-mode 切换会在两次尝试之间让出执行，而且从打开时计算的截止点只阻止新尝试，不会中断正在执行的调用。
-- **外部 SQL 读取方必须理解物理标签**——受支持的消费方通过本提供方读取，而不是把每个 `events.type` 都当作逻辑事件类型。
-- **没有后台历史压缩**——`delete` 在单事务中删除一个会话的事件和元数据；普通追加仍然只做插入。
+<a id="known-limitations-and-deferred-work"></a>
+
+
+这些限制说明本提供方何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是通用 SQLite 对比或任务积压。
+
+- **预发布设计，无迁移**——schema 20 是临时的 SQLite 专用设计；不保证 schema 稳定性或迁移支持。
+- **打包依赖批次边界**——被写后窗口或显式 flush 拆开的兼容连续段仍分属不同物理行；这避免了重写先前行，代价是打包比例依赖时序。
+- **同步 SQLite 与压缩**——Node 的 SQLite 驱动与 Zstandard 调用会阻塞 JavaScript 线程。
+- **忙等待阻塞事件循环**——SQLite 在同步调用内部等待；竞争写入方最长可让线程停顿配置的 `busyTimeoutMs`。
+- **外部 SQL 读取方必须解码物理行**——打包的 `events.type`（`text-chunks`、`reasoning-chunks`、`tool-call-chunks`）不是逻辑事件类型；受支持的消费方通过本提供方读取。
+- **没有删除或历史压缩**——普通追加仅插入，没有任何机制移除旧行。
+
+<a id="dev-note"></a>
+### 开发备注
+
+<details>
+<summary>维护者的工作上下文——点击展开</summary>
+
+501 会话语料包含私有会话数据，因此不提交到仓库。汇总方法、完整结果与未采用候选记录在[持久化延迟与 page size 决策](../../../.agents/notes/implemented/architecture/2026-08-25-persistence-latency-and-page-size.zh.md)中；带 hash 固定的打包字典资源是 schema 20 真源的一部分。
+
+</details>

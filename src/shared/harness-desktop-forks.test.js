@@ -57,7 +57,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
     '',
   ].join('\n'));
   writeFile(root, 'packages/client/ui-renderer/src/client/scoped-slots.tsx', [
-    "  const store = host.storeOf(entry, scope === 'session-maybe' && scopeKey === undefined ? '' : scopeKey)",
+    "  const scopedStoreBinding = scope === 'session-maybe' && scopeBinding?.key === undefined ? { key: '' } : scopeBinding",
     '',
   ].join('\n'));
   for (const marker of FORK_FILE_MARKERS) {
@@ -76,13 +76,21 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-settings-models/scripts/live-fetch-enrich-probe.ts': '// live probe\n',
       'packages/client/ui-theme/src/client/WallpaperGalleryModal.tsx': 'export const gallery = () => null\n',
       'packages/client/ui-theme/src/client/WallpaperRow.tsx': 'export const row = () => null\n',
-      'packages/client/ui-conversation/src/client/chat/StatsLine.module.css': '.root { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
-      'packages/client/ui-conversation/src/client/chat/ChatView.module.css': '.column { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
+      'packages/client/ui-chat/src/client/chat/StatsLine.module.css': '.root { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
+      'packages/client/ui-chat/src/client/chat/ChatView.module.css': '.column { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
       'packages/client/ui-conversation/src/client/skeleton/ComposerResizeHandles.tsx': 'export const host = () => el?.closest("[data-conversation-scroll]")\n',
       'packages/client/ui-conversation/src/client/queue/QueueDock.module.css': '.dock { max-width: calc(var(--dsh-composer-resized-width, 100%) - 16px); }\n',
       'packages/client/ui-conversation/src/client/skeleton/TodoPanel.module.css': '.root { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
       'packages/client/ui-goal/src/client/GoalBar.module.css': '.bar { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
+      'packages/client/ui-theme/src/wallpaper.ts': "export const TRANSPARENT_ATTR = 'data-dsh-transparent'\n",
+      'packages/client/ui-theme/src/styles/wallpaper.css': 'html[data-dsh-transparent] #dsh-wallpaper::after { background: transparent }\n',
+      'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n',
+      'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx': '<div data-composer-beam="" />\n',
+      'packages/client/ui-chat/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
       'apps/cli/src/args.ts': "program.option('--skip-user-plugins', 'boot the shipped bundle template')\n",
+      'apps/cli/src/dump-config.ts': 'export function dumpConfigLayers(options: { skipUserPlugins?: boolean }) {}\n',
+      'tsconfig.host.json': '{"references":[{"path":"packages/host/mcp-servers"},{"path":"packages/host/skill-inventory"},{"path":"packages/llm/llm-vision-fallback"},{"path":"packages/mcp/mcp-servers-file"}]}\n',
+      'tsconfig.base.json': '{"paths":{"@deepseek-ai/dsh-host-mcp-servers":[],"@deepseek-ai/dsh-host-skill-inventory":[],"@deepseek-ai/dsh-llm-vision-fallback":[],"@deepseek-ai/dsh-mcp-servers-file":[]}}\n',
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
       'apps/web/tests/models-settings.e2e.ts': "await page.route('**/api/llm.discoverModels', async (route) => {\n",
@@ -120,13 +128,20 @@ test('assertDesktopForks throws when the header golden regains Session log', (t)
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /Session log/);
 });
 
+test('assertDesktopForks throws when transparent theme markers drop', (t) => {
+  const root = makeFixture(t);
+  const wallpaperPath = path.join(root, ...'packages/client/ui-theme/src/wallpaper.ts'.split('/'));
+  fs.writeFileSync(wallpaperPath, 'export const WALLPAPER_ATTR = "data-dsh-wallpaper"\n');
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /TRANSPARENT_ATTR|data-dsh-transparent/);
+});
+
 test('assertDesktopForks throws when copy-ghostty-assets drops out of package.json', (t) => {
   const root = makeFixture(t);
   fs.writeFileSync(path.join(root, 'package.json'), '{}\n');
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /copy-ghostty-assets/);
 });
 
-test('assertDesktopForks accepts the current vendor tree at rc.1', () => {
+test('assertDesktopForks accepts the current vendor tree at alpha.2', () => {
   const vendor = path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');
-  assertDesktopForks(vendor, '0.1.1-rc.1');
+  assertDesktopForks(vendor, '0.1.2-alpha.2');
 });

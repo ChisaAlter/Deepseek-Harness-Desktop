@@ -9,19 +9,21 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { readdirSync } from 'node:fs'
-import { open, mkdir, readFile, readdir, realpath, link, rm, rmdir, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readFile, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
 import { randomBytes } from 'node:crypto'
 import {
   DEFAULT_PREPARED_SESSION_CACHE_SIZE, DEFAULT_WRITE_BATCH_MAX_DELAY_MS, MAX_WRITE_BATCH_DELAY_MS,
-  SessionPersistence, SessionPersistenceRevision, PersistenceCoordinator, SessionFormatUnsupportedError,
+  SessionPersistence, SessionPersistenceRevision, SessionPersistenceNotFoundError, PersistenceCoordinator, SessionFormatUnsupportedError,
+  type BorrowedSessionSource,
   type PersistenceBackend, type SessionLocation, type SessionPersistenceSnapshot,
-  type SessionInspection, type SessionPersistenceRevision as PersistenceRevision, type SessionRawArtifact,
+  type SessionInspection,
+  type SessionPersistenceRevision as PersistenceRevision, type SessionRawArtifact,
   type StoredPrefix,
 } from '@deepseek-ai/dsh-session-persistence'
-import type { SessionEvent, SessionId, SessionHeader, SessionPreparation } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionId, SessionHeader, SessionPreparation } from '@deepseek-ai/dsh-session'
 import {
   encodeSegment, eventLines, logPath, logSuffix, parseHeaderMeta, projectDir, scanLog, sessionDir,
   SessionLogScanner, toHeaderLine,
@@ -177,18 +179,16 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     return this.coordinator.create(meta)
   }
 
+  override ensureMaterialized(session: Session): Promise<void> {
+    return this.coordinator.ensureMaterialized(session)
+  }
+
   append(id: SessionId, events: readonly SessionEvent[]): Promise<void> {
     return this.coordinator.append(id, events)
   }
 
-  /**
-   * Remove one session's durable log. Unknown id rejects.
-   * An un-materialized create cancels and resolves.
-   * @param id - session to delete.
-   * @returns resolution after durability.
-   */
-  delete(id: SessionId): Promise<void> {
-    return this.coordinator.delete(id)
+  ['delete'](id: SessionId): Promise<void> {
+    return this.coordinator.remove(id)
   }
 
   override prepare(id: SessionId, signal?: AbortSignal): Promise<SessionPreparation> {
@@ -201,6 +201,10 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
 
   inspect(id: SessionId, signal?: AbortSignal): Promise<SessionInspection> {
     return this.coordinator.inspect(id, signal)
+  }
+
+  override borrowSession(id: SessionId, signal?: AbortSignal): Promise<BorrowedSessionSource> {
+    return this.coordinator.borrowSession(id, signal)
   }
 
   // JSONL is sequential media: no loadStoredFrom hook, so the coordinator
@@ -438,6 +442,11 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     }
   }
 
+  /** Materialize a header-only JSONL artifact for an explicitly durable empty session. */
+  async materializeHeader(meta: SessionHeader): Promise<void> {
+    await this.materialize(meta, [])
+  }
+
   /**
    * Make a crash repair durable: truncate a torn tail, restore complete events
    * decoded from it, then append synthetic closers. Two fsync'd steps — the seam
@@ -451,6 +460,7 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     if (tornMarker !== undefined) await this.repair(meta, tornMarker.truncateTo)
     const repairedEvents = [...(tornMarker?.recoveredEvents ?? []), ...closers]
     if (repairedEvents.length > 0) await this.appendLines(meta, repairedEvents)
+    if (tornMarker !== undefined) this.ctx.logger.warn(`${this.name}: session "${meta.id}" recovered from a torn tail; incomplete tail bytes were discarded`)
   }
 
   /** List valid unique stored sessions' metadata (header line only — no full-log parse). */
@@ -459,22 +469,19 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   }
 
   /**
-   * Remove the session-owned directory. An empty project directory is then
-   * removed best-effort; any project-directory rmdir failure is swallowed.
-   * @param id - session whose stored directory is deleted.
-   * @returns resolution after the session directory is gone, or when no log exists.
+   * Remove one stored session directory. Unknown id rejects.
+   * An empty project directory is removed best-effort.
+   * @param id - materialized session to delete.
    */
   async deleteStored(id: SessionId): Promise<void> {
     const path = await this.findLog(id)
-    if (path === undefined) return
-    const sessionDirectory = dirname(path)
-    const projectDirectory = dirname(sessionDirectory)
-    await rm(sessionDirectory, { recursive: true, force: true })
+    if (path === undefined) throw new SessionPersistenceNotFoundError(id)
+    const dir = dirname(path)
+    await rm(dir, { recursive: true, force: true })
     try {
-      await rmdir(projectDirectory)
+      await rm(dirname(dir))
     } catch {
-      // Best-effort empty-project cleanup only. The session directory is already
-      // gone; a leftover project directory must not fail delete.
+      // Other sessions still occupy the project directory.
     }
   }
 
@@ -589,7 +596,7 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     // parent directory's metadata is synced.
     await this.syncDirPosix(dir)
     // Best-effort temp cleanup: the log is already published and durable, so a
-    // failure to remove the (now-redundant) temp hard link must NOT reject the
+    // failure to remove the redundant temp hard link must NOT reject the
     // append. Swallow only the rm failure; nothing else of consequence runs here.
     try {
       await rm(tmp, { force: true })
@@ -648,6 +655,9 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
   /** Encode the header and first batch without combining their frame boundaries. */
   private async encodeMaterialization(meta: SessionHeader, events: readonly SessionEvent[]): Promise<Buffer | string> {
     const header = JSON.stringify(toHeaderLine(meta)) + '\n'
+    if (events.length === 0) {
+      return this.compression === 'none' ? header : compressZstdFrame(header)
+    }
     const body = eventLines(events, this.packChunks) + '\n'
     if (this.compression === 'none') return header + body
     const headerFrame = await compressZstdFrame(header)
@@ -964,11 +974,14 @@ export class JsonlSessionPersistence extends SessionPersistence implements Persi
     } catch (error) {
       // Only ENOENT means absent. A permission/I/O error must surface rather
       // than letting load or collision checks proceed under false absence.
-      // Windows reports ENOENT, not ENOTDIR, for `regular-file/child`; verify
-      // the immediate parent so a blocked session directory remains a storage fault.
       /* v8 ignore else -- Windows reports file-valued parents as ENOENT; POSIX covers direct ENOTDIR. */
       if (isENOENT(error)) {
-        await this.assertLogParentAllowsAbsence(path)
+        // Windows reports ENOENT, not ENOTDIR, for `regular-file/child`, so it
+        // alone verifies the immediate parent to keep a blocked session
+        // directory a storage fault. POSIX open already reported ENOTDIR before
+        // this point, where the extra stat would only cost a syscall per probe.
+        /* v8 ignore next -- native Windows coverage exercises this platform dispatch; POSIX reports ENOTDIR from open */
+        if (process.platform === 'win32') await this.assertLogParentAllowsAbsence(path)
         return false
       }
       /* v8 ignore next -- Windows repairs ENOTDIR from ENOENT above; POSIX covers direct ENOTDIR. */

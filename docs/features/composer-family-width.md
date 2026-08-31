@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `composer-family-width` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — 第二轮修复：`data-chat-flow` 对话信息框（ChatView 流转列）未跟随的根因是变量只发在 seat 上，而流转列是 seat 的兄弟节点（同属 `[data-conversation-scroll]`）读不到；改为 seat + 列宿主双发，`.column` 消费（卡宽 − 2×side-clearance）。重建 bundle + `--no-build` 镜像 + 按 3081 服务端返回字节验证（`applyWidth` 含 `scrollOf(seat)?.style.setProperty(WIDTH_VAR, value)`，`.p8Njxq_column{max-width:calc(var(--dsh-composer-resized-width,...`）。此前同日在 3081 上实测窄拖保持「卡宽 − 内凹」 |
+| **last verified** | 2026-09-01 — 同步 upstream/main（32feaf38）后验证：官方把 `chat/`（StatsLine/ChatView）从 `ui-conversation` 拆入新包 `ui-chat`，双发/消费标记与 `composer-family-width.test.js` 路径已迁移，`assertDesktopForks`（vendor 树）与 `node --test src/shared/composer-family-width.test.js` 通过。2026-08-31 — 第二轮修复：`data-chat-flow` 对话信息框（ChatView 流转列）未跟随的根因是变量只发在 seat 上，而流转列是 seat 的兄弟节点（同属 `[data-conversation-scroll]`）读不到；改为 seat + 列宿主双发，`.column` 消费（卡宽 − 2×side-clearance）。重建 bundle + `--no-build` 镜像 + 按 3081 服务端返回字节验证（`applyWidth` 含 `scrollOf(seat)?.style.setProperty(WIDTH_VAR, value)`，`.p8Njxq_column{max-width:calc(var(--dsh-composer-resized-width,...`）。此前同日在 3081 上实测窄拖保持「卡宽 − 内凹」 |
 
 ## User paths
 
@@ -21,7 +21,8 @@
 
 ## Allowed touch
 
-- `vendor/deepseek-harness/packages/client/ui-conversation/src/client/chat/StatsLine.module.css`、`chat/ChatView.module.css`、`queue/QueueDock.module.css`、`skeleton/TodoPanel.module.css`、`skeleton/ComposerResizeHandles.tsx`
+- `vendor/deepseek-harness/packages/client/ui-chat/src/client/chat/StatsLine.module.css`、`chat/ChatView.module.css`（官方 0.1.2 起 chat/ 位于 `ui-chat` 包）
+- `vendor/deepseek-harness/packages/client/ui-conversation/src/client/queue/QueueDock.module.css`、`skeleton/TodoPanel.module.css`、`skeleton/ComposerResizeHandles.tsx`
 - `vendor/deepseek-harness/packages/client/ui-goal/src/client/GoalBar.module.css`
 - `vendor/dsh-usage-panel/src/client/styles.ts`（费用条）及其 `lib/` 重建
 - `src/shared/harness-desktop-forks.js` / `harness-desktop-forks.test.js`、`src/shared/composer-family-width.test.js`
@@ -39,7 +40,7 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `node --test src/shared/composer-family-width.test.js`；`npm test`（桌面全集含 fork 标记 fixture）；`vendor/dsh-usage-panel` `npm test` + `npm run build`；vendor `pnpm vitest run packages/client/ui-conversation packages/client/ui-goal`；vendor `DSH_SNAPSHOT=replay vitest run --config vitest.web.config.ts apps/web/tests/composer-resize-dock.e2e.ts` |
+| Automated | `node --test src/shared/composer-family-width.test.js`；`npm test`（桌面全集含 fork 标记 fixture）；`vendor/dsh-usage-panel` `npm test` + `npm run build`；vendor `pnpm vitest run packages/client/ui-chat packages/client/ui-conversation packages/client/ui-goal`；vendor `DSH_SNAPSHOT=replay vitest run --config vitest.web.config.ts apps/web/tests/composer-resize-dock.e2e.ts` |
 | Manual / QA | 开 composerResize → 左右拖动输入卡 → 统计行/费用条/Dock 卡同宽联动；关闭开关 → 全部回退；切换会话 + 刷新后尺寸保持 |
 
 ## Sources

@@ -2,6 +2,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService, {
   SessionTitleProviderId,
   fallbackSessionTitle,
@@ -39,6 +40,7 @@ describe('SessionTitleService', () => {
   it('logs and folds an immediate fallback after the first eligible human text message', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const session = ctx.sessions.create(SessionId('fresh'))
     session.append('turn/start', {
@@ -75,6 +77,7 @@ describe('SessionTitleService', () => {
   it('derives a fallback title from the direct prompt instead of injected context', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const session = ctx.sessions.create(SessionId('prefixed-title'))
     session.append('user/message', createUserMessage({
@@ -102,6 +105,7 @@ describe('SessionTitleService', () => {
   it('waits through synthetic, empty, and non-text messages, then keeps the first fallback', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SessionTitleService, CONFIG)
     const session = ctx.sessions.create(SessionId('eligibility'))
     session.append('turn/start', {
@@ -167,5 +171,11 @@ describe('SessionTitleService', () => {
       eventSeq: 1,
       updatedAt: seed.events[1]?.time,
     })
+  })
+
+  it('folds an empty or title-less log to undefined', () => {
+    expect(foldSessionTitle([])).toBeUndefined()
+    const empty = Session.create(SessionId('no-title'))
+    expect(foldSessionTitle(empty.events)).toBeUndefined()
   })
 })

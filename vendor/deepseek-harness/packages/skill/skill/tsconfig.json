@@ -22,6 +22,9 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../util/values"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

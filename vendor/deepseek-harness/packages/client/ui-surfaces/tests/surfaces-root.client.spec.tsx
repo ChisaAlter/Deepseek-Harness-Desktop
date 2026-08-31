@@ -2,7 +2,8 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import { en } from '../src/client/locales.ts'
 import { createSurfacesStore } from '../src/client/stores.ts'
 import { loadPersistedDrafts, SURFACES_PERSIST_PREFIX } from '../src/client/persist.ts'
@@ -67,6 +68,8 @@ function mount(opts: {
       useSessions={sessions(opts.cwd)}
       useWorkspaces={neverHook}
       useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
       useInput={neverHook}
       inputActions={undefined}
       {...bindStore(instance)}
@@ -182,6 +185,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -300,6 +305,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -346,6 +353,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -402,6 +411,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -515,6 +526,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(current)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -536,6 +549,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(other)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -554,6 +569,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(current)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -581,6 +598,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions()}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -607,6 +626,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -648,6 +669,8 @@ describe('SurfacesRoot', () => {
         useSessions={sel => sel(emptyCwd)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(createSurfacesStore().create())}
@@ -678,6 +701,8 @@ describe('SurfacesRoot', () => {
         useSessions={sel => sel(state)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(createSurfacesStore().create())}
@@ -799,6 +824,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(current)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -819,6 +846,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(other)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -839,6 +868,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(current)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -857,6 +888,8 @@ describe('SurfacesRoot', () => {
         useSessions={listFor(other)}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -927,6 +960,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -991,6 +1026,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -1065,6 +1102,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}
@@ -1092,6 +1131,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(restored)}
@@ -1145,6 +1186,8 @@ describe('SurfacesRoot', () => {
         useSessions={sessions('/tmp/proj')}
         useWorkspaces={neverHook}
         useProjection={neverHook}
+      useConversation={neverHook}
+      useSessionPendingInteraction={neverHook}
         useInput={neverHook}
         inputActions={undefined}
         {...bindStore(instance)}

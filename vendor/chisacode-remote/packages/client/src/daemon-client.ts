@@ -87,6 +87,7 @@ import type {
 } from "@chisacode/protocol/agent-types";
 import type { MutableDaemonConfig, MutableDaemonConfigPatch } from "@chisacode/protocol/messages";
 
+import { safeRandomId } from "./daemon-client-transport-utils.js";
 import { CheckoutCommandClient } from "./daemon-client-checkout-commands.js";
 import { CheckoutSubscriptionClient } from "./daemon-client-checkout-subscriptions.js";
 import { ConfigCommandClient } from "./daemon-client-config-commands.js";
@@ -1811,7 +1812,9 @@ export class DaemonClient {
   // ============================================================================
 
   private createRequestId(requestId?: string): string {
-    return requestId ?? crypto.randomUUID();
+    // safeRandomId: `crypto.randomUUID` does not exist on insecure origins
+    // (http://<lan-ip> pairing pages) — only localhost/https get it.
+    return requestId ?? safeRandomId();
   }
 
   getLastServerInfoMessage(): ServerInfoStatusPayload | null {
@@ -1820,6 +1823,83 @@ export class DaemonClient {
 
   setReconnectEnabled(enabled: boolean): void {
     this.connection.setReconnectEnabled(enabled);
+  }
+
+  async hostRpc(
+    method: string,
+    payload?: unknown,
+    requestId?: string,
+  ): Promise<{ ok: boolean; value?: unknown; error?: unknown }> {
+    const resolved = this.createRequestId(requestId);
+    const message = SessionInboundMessageSchema.parse({
+      type: "dshd.host.rpc.request",
+      requestId: resolved,
+      method,
+      payload,
+    });
+    return this.requests.request({
+      requestId: resolved,
+      message,
+      timeout: 30_000,
+      select: (msg) => {
+        if (msg.type !== "dshd.host.rpc.response") return null;
+        if (msg.payload.requestId !== resolved) return null;
+        return msg.payload;
+      },
+    });
+  }
+
+  async gitRpc(
+    action: string,
+    cwd: string,
+    payload?: unknown,
+    requestId?: string,
+  ): Promise<{ ok: boolean; value?: unknown; error?: string }> {
+    const resolved = this.createRequestId(requestId);
+    const message = SessionInboundMessageSchema.parse({
+      type: "dshd.git.rpc.request",
+      requestId: resolved,
+      action,
+      cwd,
+      payload,
+    });
+    return this.requests.request({
+      requestId: resolved,
+      message,
+      timeout: 120_000,
+      select: (msg) => {
+        if (msg.type !== "dshd.git.rpc.response") return null;
+        if (msg.payload.requestId !== resolved) return null;
+        return msg.payload;
+      },
+    });
+  }
+
+  subscribeHostMux(
+    onFrame: (frame: { rpcId: string; envelope: unknown }) => void,
+  ): () => void {
+    const requestId = this.createRequestId();
+    this.sendSessionMessage(
+      SessionInboundMessageSchema.parse({
+        type: "dshd.host.mux.subscribe",
+        requestId,
+      }),
+    );
+    const stop = this.on("dshd.host.mux.frame", (message) => {
+      onFrame({
+        rpcId: message.payload.rpcId,
+        envelope: message.payload.envelope ?? null,
+      });
+    });
+    return () => {
+      stop();
+      this.sendSessionMessage(
+        SessionInboundMessageSchema.parse({
+          type: "dshd.host.mux.unsubscribe",
+          requestId: this.createRequestId(),
+        }),
+      );
+    };
   }
 
   private handleConnectionReset(error: Error, terminal: boolean): void {

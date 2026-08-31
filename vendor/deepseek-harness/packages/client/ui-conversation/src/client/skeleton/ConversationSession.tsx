@@ -1,11 +1,13 @@
 /** Strict per-session header/body content inserted into the resident conversation layout. */
 
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect } from 'react'
 import clsx from 'clsx'
-import type { SessionId, SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
 } from '../contract/slots.ts'
+import { conversationPhase } from '../contract/snapshot.ts'
 import type { ViewTab } from '../contract/views.ts'
 import css from './ConversationRoot.module.css'
 
@@ -23,11 +25,10 @@ interface Breadcrumb {
 
 const DEFAULT_VIEW_ID = 'chat'
 
-/** Resolve by id and keep stale persisted selections on the stable Chat fallback. */
+/** Resolve a persisted selection, then registered Chat, without choosing another View. */
 function resolveActiveView(tabs: readonly ViewTab[], selectedId: string | null): ViewTab | undefined {
-  const requestedId = selectedId ?? DEFAULT_VIEW_ID
-  return tabs.find(view => view.id === requestedId)
-    ?? tabs.find(view => view.id === DEFAULT_VIEW_ID)
+  const selected = selectedId === null ? undefined : tabs.find(view => view.id === selectedId)
+  return selected ?? tabs.find(view => view.id === DEFAULT_VIEW_ID)
 }
 
 function deriveAncestry(list: SessionListState, id: SessionId): readonly Breadcrumb[] {
@@ -61,35 +62,28 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
 /**
  * Renders Session header chrome above the resident conversation scrollport.
  * @param props - Strict Session store, view ledger, navigation, render, and locale shares.
- * @returns title and tabs for an active Session, or a non-interactive blank
- *   caption that still occupies titlebar row 1 so AppFrame's caption band stays tall.
- *   Desktop-plugin contacts keep the title even while the log is empty.
+ * @returns the hidden blank-session header or visible title and tabs.
  */
 export function ConversationSessionHeader({
-  sessionId, useSession, useSessions, useStore, actions,
-  renderSlot, views, useViewTabs, open, t,
+  sessionId, useSession, useSessions, useConversation, useConversationViews, useStore, actions,
+  renderSlot, open, t,
 }: ConversationSessionHeaderProps) {
-  useSyncExternalStore(views.subscribe, views.version)
-  const tabs = views.list()
-  const showViewTabs = useViewTabs(value => value)
+  const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
-  const origin = useSessions(s => s.byId[sessionId]?.origin)
-  const composerPhase = useSession(s => s.composerPhase)
-  const blank = useSession(s => s.blank)
-  const hideChrome = blank && composerPhase === 'blank' && origin !== 'dshbot'
+  const session = useSession(s => s)
+  const conversation = useConversation(s => s)
+  const hideChrome = session.blank && conversationPhase(session, conversation) === 'blank'
 
   return (
     <header
-      className={clsx(css.header, hideChrome && css.headerBlank)}
+      className={clsx(css.header, hideChrome && css.headerHidden)}
       aria-hidden={hideChrome || undefined}
     >
-      {hideChrome ? (
-        <div className={css.blankCaption} data-dshd-caption="blank" />
-      ) : (
+      {!hideChrome && (
         <>
-          <div className={css.titleRow} data-dshd-caption="title">
+          <div className={css.titleRow}>
             <div className={css.titleCluster}>
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {
@@ -148,7 +142,7 @@ export function ConversationSessionHeader({
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
           </div>
-          {tabs.length > 1 && showViewTabs && (
+          {tabs.length > 1 && (
             <div className={css.tabs} role="tablist">
               {tabs.map(viewTab => (
                 <button
@@ -174,23 +168,20 @@ export function ConversationSessionHeader({
  * Renders the active Session view inside the resident scrollport and keeps
  * the input draft mirrored while blank Hero chrome is visible.
  * @param props - Strict Session input/store, view ledger, and render shares.
- * @returns the active view area, or null while a coding Session remains blank.
+ * @returns the active view area, or null while the Session remains blank.
  */
 export function ConversationSession({
-  sessionId, useSession, useSessions, useInput, inputActions, useStore, actions,
-  renderSlot, views, bindDraftMirror, releaseSessionImages,
+  useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
+  renderSlot, bindDraftMirror,
 }: ConversationSessionProps) {
-  useSyncExternalStore(views.subscribe, views.version)
-  const tabs = views.list()
+  const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
-  const composerPhase = useSession(s => s.composerPhase)
-  const blank = useSession(s => s.blank)
-  const origin = useSessions(s => s.byId[sessionId]?.origin)
+  const session = useSession(s => s)
+  const conversation = useConversation(s => s)
   const inputState = useInput(s => s)
   const storedDraft = useStore(s => s.draft)
-  // `?? null`: persisted snapshots from before the inspect field rehydrate without it.
-  const inspect = useStore(s => s.inspect ?? null)
+  const viewRequest = useStore(s => s.viewRequest ?? null)
 
   useEffect(() => {
     if (inputState.draft === '' && storedDraft !== '') inputActions.setDraft(storedDraft)
@@ -200,16 +191,13 @@ export function ConversationSession({
     // the machine mirror, not this seed effect.
   }, [inputActions])
 
-  useEffect(() => () => {
-    releaseSessionImages(sessionId)
-  }, [releaseSessionImages, sessionId])
-
-  if (blank && composerPhase === 'blank' && origin !== 'dshbot') return null
+  if (session.blank && conversationPhase(session, conversation) === 'blank') return null
   return (
     <div className={css.viewArea}>
       {active !== undefined && renderSlot('conversation.view', {
-        inspect,
-        onInspectDone: () => { actions.setInspect(null) },
+        viewRequest,
+        openView: actions.openView,
+        completeViewRequest: actions.completeViewRequest,
       }, { only: active.id })}
     </div>
   )

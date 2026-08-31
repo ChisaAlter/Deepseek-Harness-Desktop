@@ -6,6 +6,7 @@ import {
 
 import type { DaemonCommandTransport } from "./daemon-client-command-transport.js";
 import { DaemonRpcError } from "./daemon-client-rpc-error.js";
+import { safeRandomId } from "./daemon-client-transport-utils.js";
 
 const DEFAULT_FETCH_AGENT_TIMELINE_TIMEOUT_MS = 60_000;
 
@@ -72,7 +73,7 @@ export class AgentInteractionClient {
     options?: SendMessageOptions,
   ): Promise<{ pendingRun?: boolean }> {
     const requestId = this.transport.createRequestId();
-    const messageId = options?.messageId ?? crypto.randomUUID();
+    const messageId = options?.messageId ?? safeRandomId();
     const message = SessionInboundMessageSchema.parse({
       type: "send_agent_message_request",
       requestId,

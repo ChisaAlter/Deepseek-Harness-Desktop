@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Button, IconChevronRightOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Button, FlipText, FLIP_TEXT_MS, IconChevronRightOutline14, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { RemotePatch, RemoteSnapshot } from './desktop-shell.ts'
+import { humanizeRelayError, humanizeRemoteError } from './relay-copy.ts'
 import { qrSvg } from './qr.ts'
 import css from './RemoteSection.module.css'
 
@@ -12,6 +13,8 @@ export interface RemoteSectionInjected {
   getRemote: () => Promise<RemoteSnapshot | null>
   /** Persist a remote config patch and return the new snapshot. */
   saveRemote: (patch: RemotePatch) => Promise<RemoteSnapshot | null>
+  /** Re-mint the short-lived pairing offer; sticky devices stay bound. */
+  rotateRemoteToken: () => Promise<RemoteSnapshot | null>
   /** Drop one bound device; its cookie stops authorizing. */
   unbindRemoteDevice: (id: string) => Promise<RemoteSnapshot | null>
 }
@@ -51,6 +54,7 @@ export function RemoteSection({
   t,
   getRemote,
   saveRemote,
+  rotateRemoteToken,
   unbindRemoteDevice,
 }: RemoteSectionProps): ReactNode {
   const [snap, setSnap] = useState<RemoteSnapshot | null>(null)
@@ -58,6 +62,9 @@ export function RemoteSection({
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [healFired, setHealFired] = useState(false)
+  const healAttemptedRef = useRef(false)
 
   const applySnap = useCallback((next: RemoteSnapshot | null) => {
     const value = next ?? EMPTY
@@ -91,8 +98,12 @@ export function RemoteSection({
   useEffect(() => {
     if (!open) {
       setDevicesOpen(false)
+      healAttemptedRef.current = false
+      setHealFired(false)
+      setCopied(false)
       return
     }
+    void refresh()
     const id = window.setInterval(() => { void refresh() }, REFRESH_MS)
     return () => { window.clearInterval(id) }
   }, [open, refresh])
@@ -119,6 +130,17 @@ export function RemoteSection({
     }
   }, [applySnap, saveRemote])
 
+  const rotate = useCallback(async () => {
+    setBusy(true)
+    try {
+      applySnap(await rotateRemoteToken())
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setBusy(false)
+    }
+  }, [applySnap, rotateRemoteToken])
+
   const unbind = useCallback(async (id: string) => {
     setBusy(true)
     try {
@@ -133,9 +155,39 @@ export function RemoteSection({
   const pairingUrl = snap?.urls?.[0]?.pairingUrl || ''
   const qr = useMemo(() => qrSvg(pairingUrl), [pairingUrl])
   const enabled = Boolean(snap?.enabled)
+  const listening = Boolean(snap?.listening)
   const devices = snap?.devices ?? []
   const relayConnected = Boolean(snap?.relayConnected)
   const relayError = typeof snap?.relayError === 'string' ? snap.relayError : ''
+
+  useEffect(() => {
+    if (!open || !snap || busy) return
+    if (!enabled) return
+    if (listening && pairingUrl) return
+    if (healAttemptedRef.current) return
+    healAttemptedRef.current = true
+    setHealFired(true)
+    void save({ remoteEnabled: true })
+  }, [open, snap, enabled, listening, pairingUrl, busy, save])
+
+  let statusText: string | null = null
+  if (error) {
+    statusText = humanizeRemoteError(error) === 'portInUse'
+      ? t('errorPortInUse')
+      : t('statusErrorGeneric')
+  } else if (enabled && !relayConnected) {
+    const relayKind = humanizeRelayError(relayError)
+    if (relayKind === 'disconnected') statusText = t('relayDownDisconnected')
+    else if (relayKind === 'unavailable') statusText = t('relayUnavailable')
+    else statusText = t('relayDown')
+  } else if (enabled && !listening) {
+    statusText = t('startingHint')
+  }
+
+  let qrHint: string | null = null
+  if (!enabled) qrHint = t('offHint')
+  else if (!qr && listening) qrHint = healFired ? t('noQr') : t('mintingHint')
+
 
   return (
     <div className={wide ? css.layer : `${css.layer} ${css.rail}`}>
@@ -155,7 +207,13 @@ export function RemoteSection({
       {open ? (
         <div className={css.overlay} role="presentation">
           <div className={css.mask} aria-hidden="true" onClick={() => { setOpen(false) }} />
-          <div className={css.panel} role="dialog" aria-modal="true" aria-label={t('heading')}>
+          <div
+            className={css.panel}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('heading')}
+            data-dsh-remote-panel=""
+          >
             <h2 className={css.heading}>{t('heading')}</h2>
             {!snap && error ? (
               <>
@@ -174,7 +232,9 @@ export function RemoteSection({
                     role="radio"
                     aria-checked={enabled}
                     disabled={busy}
-                    onClick={() => { if (!enabled) void save({ remoteEnabled: true }) }}
+                    onClick={() => {
+                      if (!enabled || !listening || !pairingUrl) void save({ remoteEnabled: true })
+                    }}
                   >
                     {t('enabledOn')}
                   </Button>
@@ -200,28 +260,51 @@ export function RemoteSection({
                     <IconChevronRightOutline14 />
                   </span>
                 </button>
-                {error ? <p className={css.status} role="status">{t('statusError', { message: error })}</p> : null}
-                {enabled && !relayConnected ? (
-                  <p className={css.status} role="status">
-                    {relayError
-                      ? t('relayDownWithError', { message: relayError })
-                      : t('relayDown')}
+                {statusText ? (
+                  <p className={css.status} role="status" data-dsh-remote-status="">
+                    {statusText}
                   </p>
                 ) : null}
-                {enabled && qr ? (
+                {enabled && relayConnected && qr ? (
                   <>
-                    <div className={css.qr} role="img" aria-label={t('qr')} dangerouslySetInnerHTML={{ __html: qr }} />
-                    {pairingUrl ? (
-                      <p className={css.hint} data-dsh-pairing-url="">
-                        <span className={css.pairingUrlLabel}>{t('pairingUrl')}</span>
-                        {' '}
-                        <code className={css.pairingUrl}>{pairingUrl}</code>
-                      </p>
-                    ) : null}
+                    <div
+                      className={css.qr}
+                      role="img"
+                      aria-label={t('qr')}
+                      data-dsh-remote-qr=""
+                      dangerouslySetInnerHTML={{ __html: qr }}
+                    />
+                    <div className={css.footer}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className={css.footerButton}
+                        data-dsh-remote-copy-link=""
+                        onClick={() => {
+                          void writeClipboard(pairingUrl).then((ok) => {
+                            if (!ok) return
+                            setCopied(true)
+                            window.setTimeout(() => { setCopied(false) }, FLIP_TEXT_MS)
+                          })
+                        }}
+                      >
+                        <FlipText text={copied ? t('copiedLink') : t('copyLink')} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className={css.footerButton}
+                        data-dsh-remote-rotate=""
+                        disabled={busy}
+                        onClick={() => { void rotate() }}
+                      >
+                        {t('rotateToken')}
+                      </Button>
+                    </div>
                   </>
-                ) : (
-                  <p className={css.hint}>{enabled ? t('noQr') : t('offHint')}</p>
-                )}
+                ) : qrHint ? (
+                  <p className={css.hint}>{qrHint}</p>
+                ) : null}
               </>
             )}
           </div>

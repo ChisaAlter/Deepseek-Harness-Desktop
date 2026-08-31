@@ -1,6 +1,6 @@
 /** Interface Settings row for the titlebar Git cluster visibility. */
 import { useId, type ChangeEvent } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import { NS } from './locales.ts'

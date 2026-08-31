@@ -14,6 +14,8 @@ const {
   shouldAllowPrivilegedRedirect,
 } = require('./local-url');
 
+const { applyHarnessCookieToSession, launchTokenFromUrl, loadUrlAfterRedeem } = require('./harness-browser-auth');
+
 const PLUGIN_BOOT_TIMEOUT_MS = 90_000;
 const PLUGIN_BOOT_PROBE = `(() => {
   const boot = document.querySelector('[data-dshd-boot-status]');
@@ -33,6 +35,7 @@ let mainWindow = null;
 let harnessView = null;
 let harnessRevealed = false;
 let harnessOrigin = '';
+let harnessOriginListener = null;
 let pluginBootWatch = null;
 let pendingMarketplaceJump = false;
 let launcherWindow = null;
@@ -160,6 +163,20 @@ function getHarnessOrigin() {
   return getHarnessWebContents() ? harnessOrigin : '';
 }
 
+function onHarnessOriginChange(listener) {
+  harnessOriginListener = typeof listener === 'function' ? listener : null;
+}
+
+function notifyHarnessOrigin() {
+  if (typeof harnessOriginListener === 'function') {
+    try {
+      harnessOriginListener(getHarnessOrigin());
+    } catch {
+      // Origin fans-out must not break BrowserView load.
+    }
+  }
+}
+
 function isHarnessNavigationUrl(url) {
   return Boolean(harnessOrigin && isSameOriginLoopbackUrl(url, harnessOrigin));
 }
@@ -191,6 +208,7 @@ function setBootHarnessCovered(win, covered) {
 function hideHarnessView(win) {
   harnessRevealed = false;
   harnessOrigin = '';
+  notifyHarnessOrigin();
   setBootHarnessCovered(win, false);
   cancelPluginBootWatch();
   if (!harnessView) {
@@ -361,19 +379,25 @@ function showBoot() {
   return win.loadFile(rendererFile('boot.html'));
 }
 
-function showHarness(baseUrl) {
+function showHarness(baseUrl, options = {}) {
   const loadUrl = rewriteLoopbackLoadUrl(baseUrl);
   if (!loadUrl) {
     return Promise.reject(new Error('Harness URL must be a loopback http(s) address'));
   }
+  const cookie = typeof options.cookie === 'string' ? options.cookie : '';
+  const viewUrl = cookie && launchTokenFromUrl(loadUrl) ? loadUrlAfterRedeem(loadUrl) : loadUrl;
   const win = createMainWindow();
   hideHarnessView(win);
   const bootReady = isBootLoaded(win)
     ? Promise.resolve()
     : win.loadFile(rendererFile('boot.html'));
-  return bootReady.then(() => {
+  return bootReady.then(async () => {
     const view = ensureHarnessView(win);
-    harnessOrigin = new URL(loadUrl).origin;
+    harnessOrigin = new URL(viewUrl).origin;
+    notifyHarnessOrigin();
+    if (cookie) {
+      await applyHarnessCookieToSession(view.webContents.session, harnessOrigin, cookie);
+    }
     sendPluginBoot({
       ready: 0,
       total: 0,
@@ -382,7 +406,7 @@ function showHarness(baseUrl) {
       settled: false,
       error: '',
     });
-    return view.webContents.loadURL(loadUrl).then(() => watchPluginBoot(view, win));
+    return view.webContents.loadURL(viewUrl).then(() => watchPluginBoot(view, win));
   });
 }
 
@@ -576,6 +600,7 @@ module.exports = {
   getMainWindow,
   getHarnessWebContents,
   getHarnessOrigin,
+  onHarnessOriginChange,
   isHarnessNavigationUrl,
   hideHarnessView,
   dismissMainWindow,

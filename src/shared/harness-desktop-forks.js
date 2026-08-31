@@ -73,14 +73,22 @@ const FORK_FILE_MARKERS = [
   // --dsh-composer-resized-width on the seat AND the conversation column (so
   // the transcript sees it); the session stats line, the chat flow column,
   // and the dock cards (queue / todo / goal) consume it so they follow.
-  { file: 'packages/client/ui-conversation/src/client/chat/StatsLine.module.css', includes: ['dsh-composer-resized-width'] },
-  { file: 'packages/client/ui-conversation/src/client/chat/ChatView.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-chat/src/client/chat/StatsLine.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-chat/src/client/chat/ChatView.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/ComposerResizeHandles.tsx', includes: ['data-conversation-scroll'] },
   { file: 'packages/client/ui-conversation/src/client/queue/QueueDock.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/TodoPanel.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-goal/src/client/GoalBar.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-theme/src/wallpaper.ts', includes: ['TRANSPARENT_ATTR', 'data-dsh-transparent'] },
+  { file: 'packages/client/ui-theme/src/styles/wallpaper.css', includes: ['html[data-dsh-transparent]'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx', includes: ['data-composer-beam'] },
+  { file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx', includes: ['data-stats-line'] },
   // Desktop launcher recovery flag on the upstream CLI args parser.
   { file: 'apps/cli/src/args.ts', includes: ['skip-user-plugins'] },
+  { file: 'apps/cli/src/dump-config.ts', includes: ['skipUserPlugins'] },
+  { file: 'tsconfig.host.json', includes: ['packages/host/mcp-servers', 'packages/host/skill-inventory', 'packages/llm/llm-vision-fallback', 'packages/mcp/mcp-servers-file'] },
+  { file: 'tsconfig.base.json', includes: ['dsh-host-mcp-servers', 'dsh-host-skill-inventory', 'dsh-llm-vision-fallback', 'dsh-mcp-servers-file'] },
   // Desktop composition carries the browse rows in the shipped base, so the
   // upstream preset e2e must re-insert only the host row.
   { file: 'apps/cli/tests/web-agent-presets.e2e.ts', includes: ["{ id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' }"] },
@@ -177,7 +185,7 @@ function assertDesktopForks(vendorRoot, npmVersion) {
       throw new Error(`ui-layout is missing ${marker}`);
     }
   }
-  if (!scoped.includes('session-maybe') || !scoped.includes("? ''")) {
+  if (!scoped.includes('session-maybe') || !scoped.includes("{ key: '' }")) {
     throw new Error('scoped-slots.tsx no longer binds session-maybe to an empty string');
   }
 

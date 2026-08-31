@@ -15,8 +15,7 @@ export const name = 'brand-invariant'
 export const inject = ['invariants']
 
 /**
- * No runtime invariant: this pure utility owns no event stream or mutable runtime data; its value
- * algebra is enforced by unit tests.
+ * No runtime invariant: this utility owns no event stream, shared identity, or mutable module state.
  */
 const install: InvariantInstaller = () => {}
 

@@ -169,6 +169,61 @@
   padding-left: 16px;
 }
 
+.groupFieldShell {
+  display: grid;
+  min-width: 0;
+}
+
+.groupField {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tagRemove {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 1;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tagRemove:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.tagRemove:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 2px;
+}
+
+.tagRemove:disabled {
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
 .groupFieldRow {
   display: flex;
   align-items: center;

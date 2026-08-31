@@ -30,7 +30,7 @@ const DSH_BINARY = "dsh-acp-demo";
 const DSH_DEFAULT_BASE_URL = "https://api.deepseek.com";
 
 /** Plugin packages only shipped vendored inside `@deepseek-ai/dsh`'s own node_modules. */
-const DSH_VENDOR_PACKAGES = [
+export const DSH_VENDOR_PACKAGES = [
   "dsh-llm-deepseek",
   "dsh-sandbox-local",
   "dsh-sandbox-policy",
@@ -309,10 +309,15 @@ export function resolveDshVendorDir(): string | null {
   }
   let npmRoot: string;
   try {
+    // Desktop fork: stdio must stay explicit. Without it Node forwards the
+    // child's stderr via process.stderr.write() after execSync returns; when
+    // the host process is a GUI app whose stderr pipe is already broken that
+    // write escapes this try/catch as an uncaught EPIPE and kills the app.
     npmRoot = execSync("npm root -g", {
       encoding: "utf8",
       timeout: 5_000,
       windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
     }).trim();
   } catch {
     return null;

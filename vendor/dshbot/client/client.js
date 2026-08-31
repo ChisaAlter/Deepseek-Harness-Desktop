@@ -241,6 +241,40 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
 .dshbot-bubble-text[data-pending="true"] { color: var(--dsw-alias-label-tertiary); }
 .dshbot-bubble-omit { display: none; }
 .dshbot-footer { display: flex; justify-content: flex-end; gap: 8px; }
+.dshbot-official-entry { position: relative; flex: none; display: flex; align-items: center; width: 100%; }
+.dshbot-official-entry.dshbot-official-rail { width: 36px; }
+.dshbot-official-trigger {
+  display: flex; align-items: center; gap: 8px;
+  width: calc(100% + 8px); height: 34px; margin: 4px -4px; padding: 6px 2px 6px 10px;
+  box-sizing: border-box; border: none; border-radius: 12px; background: transparent;
+  color: var(--dsw-alias-label-tertiary); font: inherit; font-size: 14px; line-height: 22px;
+  cursor: pointer; overflow: hidden;
+}
+.dshbot-official-trigger:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dshbot-official-trigger[aria-expanded="true"] { color: var(--dsw-alias-label-primary); }
+.dshbot-official-trigger-label { overflow: hidden; white-space: nowrap; }
+.dshbot-official-rail .dshbot-official-trigger {
+  width: 36px; height: 36px; margin: 8px 0; justify-content: center; padding: 0; border-radius: 50%;
+}
+.dshbot-official-overlay { position: fixed; inset: 0; z-index: 1000; }
+.dshbot-official-mask { position: absolute; inset: 0; background: var(--dsw-alias-bg-mask-1); }
+.dshbot-official-panel {
+  position: absolute; left: 12px; bottom: 96px; z-index: 1;
+  display: flex; flex-direction: column; gap: 8px;
+  width: min(360px, calc(100vw - 24px)); height: min(560px, calc(100vh - 140px));
+  padding: 16px; box-sizing: border-box;
+  border-radius: 16px; background: var(--dsw-alias-bg-layer-1);
+  box-shadow: var(--dsw-alias-shadow-m);
+  color: var(--dsw-alias-label-primary);
+}
+.dshbot-official-panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none;
+}
+.dshbot-official-panel-head h2 {
+  margin: 0; font-size: 16px; font-weight: 600; color: var(--dsw-alias-label-primary);
+}
+.dshbot-official-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dshbot-official-panel-body .dshbot-page { height: 100%; }
 `;
 
   function injectCss() {
@@ -674,6 +708,102 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
 
   function DummyTab() {
     return null;
+  }
+
+  /** Keep lockstep with `lib/sidebar-host.js` hostDeclaresRegionTabs. */
+  function hostDeclaresRegionTabs(slots) {
+    if (!slots || typeof slots.spec !== "function") return false;
+    try {
+      return Boolean(slots.spec("sidebar.nav.tab") && slots.spec("sidebar.page"));
+    } catch {
+      return false;
+    }
+  }
+
+  /** Keep lockstep with `lib/sidebar-host.js` hostDeclaresFooterAction. */
+  function hostDeclaresFooterAction(slots) {
+    if (!slots || typeof slots.spec !== "function") return false;
+    try {
+      return Boolean(slots.spec("sidebar.footer.action"));
+    } catch {
+      return false;
+    }
+  }
+
+  function OfficialBotsEntry(props) {
+    const {
+      wide, t, useSessions, useCatalog, useEditor,
+      addBot, createRoom, openItem, openEditor, duplicateItem, requestDelete,
+      togglePin, toggleHide, stampRoomPresets,
+    } = props;
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+      if (!open) return undefined;
+      const onKey = (event) => {
+        if (event.key === "Escape") setOpen(false);
+      };
+      document.addEventListener("keydown", onKey);
+      return () => document.removeEventListener("keydown", onKey);
+    }, [open]);
+    return h("div", {
+      className: wide ? "dshbot-official-entry" : "dshbot-official-entry dshbot-official-rail",
+    },
+      h("button", {
+        type: "button",
+        className: "dshbot-official-trigger",
+        "data-dshbot-official-trigger": "",
+        "aria-haspopup": "dialog",
+        "aria-expanded": open ? "true" : "false",
+        "aria-label": t("tab"),
+        onClick: () => setOpen((value) => !value),
+      },
+        h(IconAgentPresetOutline16, { size: wide ? 16 : 18 }),
+        wide ? h("span", { className: "dshbot-official-trigger-label" }, t("tab")) : null,
+      ),
+      open ? h("div", { className: "dshbot-official-overlay", role: "presentation" },
+        h("div", {
+          className: "dshbot-official-mask",
+          "aria-hidden": "true",
+          onClick: () => setOpen(false),
+        }),
+        h("div", {
+          className: "dshbot-official-panel",
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": t("tab"),
+          "data-dshbot-official-panel": "",
+        },
+          h("div", { className: "dshbot-official-panel-head" },
+            h("h2", null, t("tab")),
+            h(Button, {
+              variant: "ghost",
+              size: "sm",
+              "aria-label": t("cancel"),
+              onClick: () => setOpen(false),
+            }, t("cancel")),
+          ),
+          h("div", { className: "dshbot-official-panel-body" },
+            h(BotPage, {
+              wide: true,
+              expandSidebar: () => {},
+              t,
+              useSessions,
+              useCatalog,
+              useEditor,
+              addBot,
+              createRoom,
+              openItem,
+              openEditor,
+              duplicateItem,
+              requestDelete,
+              togglePin,
+              toggleHide,
+              stampRoomPresets,
+            }),
+          ),
+        ),
+      ) : null,
+    );
   }
 
   function EmptyRoster(props) {
@@ -1478,27 +1608,39 @@ window.__ModuleLoader__.load({ id: "dshbot", factory: (require) => {
       hooks: { catalog: catalogSource, editor: editorSource },
     });
 
-    ctx.slots.inject("sidebar.nav.tab", () => ctx.slots.register({
-      name: "sidebar.nav.tab",
-      id: TAB_ID,
-      order: 10,
-      label: () => t("tab"),
-      locale: NS,
-    }, DummyTab));
-
-    ctx.slots.inject("sidebar.page", () => ctx.slots.register({
-      name: "sidebar.page",
-      key: TAB_ID,
-      locale: NS,
-      inject: injectFace,
-    }, BotPage));
-
     ctx.slots.inject("shell.overlay", () => ctx.slots.register({
       name: "shell.overlay",
       id: "dshbot-editor",
       locale: NS,
       inject: injectFace,
     }, EditorOverlay));
+
+    // Region tabs are a desktop-fork seat. Official npm sidebar has
+    // footer.action only — inject into undeclared names waits forever (silent).
+    if (hostDeclaresRegionTabs(ctx.slots)) {
+      ctx.slots.inject("sidebar.nav.tab", () => ctx.slots.register({
+        name: "sidebar.nav.tab",
+        id: TAB_ID,
+        order: 10,
+        label: () => t("tab"),
+        locale: NS,
+      }, DummyTab));
+
+      ctx.slots.inject("sidebar.page", () => ctx.slots.register({
+        name: "sidebar.page",
+        key: TAB_ID,
+        locale: NS,
+        inject: injectFace,
+      }, BotPage));
+    } else if (hostDeclaresFooterAction(ctx.slots)) {
+      ctx.slots.inject("sidebar.footer.action", () => ctx.slots.register({
+        name: "sidebar.footer.action",
+        id: "dshbot-bots",
+        order: 10,
+        locale: NS,
+        inject: injectFace,
+      }, OfficialBotsEntry));
+    }
 
     ctx.slots.inject("tool.call.toolview", () => ctx.slots.register({
       name: "tool.call.toolview",

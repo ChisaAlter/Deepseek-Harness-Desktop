@@ -68,6 +68,7 @@ import { PushTokenStore } from "./push/token-store.js";
 import { WorkspaceReconciliationService } from "./workspace-reconciliation-service.js";
 import type { ScriptRouteStore } from "./script-proxy.js";
 import { CheckoutDiffManager } from "./checkout-diff-manager.js";
+import { dispatchDshdDesktopRpc } from "./session-handlers/dshd-desktop-rpc-handler.js";
 
 import { type Resolvable } from "./speech/provider-resolver.js";
 import type pino from "pino";
@@ -1185,6 +1186,7 @@ export class Session {
       this.dispatchTerminalMessage(msg) ??
       this.dispatchChatScheduleLoopMessage(msg) ??
       this.dispatchCindyMessage(msg) ??
+      this.dispatchDshdDesktopMessage(msg) ??
       this.dispatchMiscMessage(msg);
     if (promise) await promise;
   }
@@ -1376,6 +1378,10 @@ export class Session {
       return this.dispatchCindyWorkspaceBound(msg);
     }
     return undefined;
+  }
+
+  private dispatchDshdDesktopMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    return dispatchDshdDesktopRpc(msg, (message) => this.emit(message), this);
   }
 
   /**

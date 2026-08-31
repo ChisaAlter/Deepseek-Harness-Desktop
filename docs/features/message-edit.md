@@ -4,14 +4,14 @@
 | --- | --- |
 | **id** | `message-edit` |
 | **status** | `active` |
-| **last verified** | 2026-08-25（合并树 `ea659884`）— consolidation #39 落地后 `pnpm run test:gui` 全绿（5338，含 ui-message-edit / ui-conversation 编辑会话全部规格）。此前同日：`pnpm vitest run packages/client/ui-message-edit packages/client/ui-conversation` + `DSH_SNAPSHOT=replay` 下 `apps/web/tests/message-edit.e2e.ts`（7 通过） |
+| **last verified** | 2026-08-31 — pin `dsh-v0.1.2-alpha.2`；确认汇调用 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })`。首轮编辑打开空子会话（`beforeSeq` 前无更早 turn/end → cut 0）。官方 `atSeq` 仍给其他调用方，二者不得同传。 |
 
 ## User paths
 
 1. 会话空闲时，最新一条用户消息的操作条出现铅笔（历史消息没有）；点击**不 fork**，而是把**底部常驻 composer** 晋升为编辑会话：composer 收起当前草稿与图片、播种原文、聚焦且光标在末尾、卡片上出现「正在重新编辑此消息」横幅（带取消）；该气泡就地换成编辑态标记（原文变暗 +「正在下方输入框中重新编辑」+ 取消）。
 2. 编辑面就是真 composer：装饰／引用、图片附件、词表、Enter/Shift+Enter/IME 策略、提示通道、尺寸调整全部原生可用。编辑期间斜杠不触发命令裁决（修订就是普通消息），命令认领被拒绝，草稿持久化镜像被抑制。
 3. 取消有方向：composer 横幅取消或 IME 安全的 Escape 结束会话、焦点留在 composer；气泡侧取消结束会话并把焦点交还铅笔。两侧都恢复收起的草稿与图片。
-4. composer 发送即确认：确认时刻复查「仍是最新 + 源会话空闲」，通过后 `sessions.fork({ beforeSeq, increaseTitle: true })` → 打开子会话 → `addImages`／`setDraft` → `submit`；源会话日志不变，子会话切在被编辑消息之前。
+4. composer 发送即确认：确认时刻复查「仍是最新 + 源会话空闲」，通过后 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })` → 打开子会话 → `addImages`／`setDraft` → `submit`；源会话日志不变，子会话切在被编辑消息之前。
 5. fork 失败／子作用域缺失／守卫不再成立：composer 出本地化错误提示，编辑会话带草稿继续待命，可重试或取消。
 6. 会话运行中或消息含非文本块：铅笔可见但禁用，tooltip 说明原因。
 

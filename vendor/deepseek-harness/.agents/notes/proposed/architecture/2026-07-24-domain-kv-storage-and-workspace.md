@@ -6,7 +6,7 @@ English | [中文](2026-07-24-domain-kv-storage-and-workspace.zh.md)
 
 ## Problem
 
-The host's only persistence surface is the session event log (`packages/session/session-persistence`: append-only, one file per session). Anything that does not belong to a single session has nowhere to live, and two real needs exist today:
+The host's only persistence surface is the session event log (`packages/session/session-persistence`: append-only, one file per session). Anything that does not belong to a single session has nowhere to live, and two shipped needs exist:
 
 - **The workspace entity.** The GUI needs workspace as a real object: path, title, and the list of owned sessions. Ownership belongs to the workspace — "which sessions belong to this workspace" is not any single session's fact, so writing it into the session log is semantically wrong. Before this design, workspace was only a sidebar visual grouping derived from cwd, with no entity.
 - **Dynamic session metadata** (the foreseeable second consumer). Cold session listings read only the first log line (an immutable creation-time snapshot); title, terminal status, and anything that evolves with the session is unavailable. The fix direction is a sidecar metadata table — exactly a KV table with high-frequency per-key updates.
@@ -83,9 +83,9 @@ Config is `path` (required, `':memory:'` allowed) plus `journalMode` (enum, defa
 CREATE TABLE IF NOT EXISTS units (name TEXT PRIMARY KEY, version INTEGER NOT NULL) STRICT;
 CREATE TABLE IF NOT EXISTS unit_globals (
   unit TEXT PRIMARY KEY REFERENCES units(name), value TEXT NOT NULL) STRICT;
--- 每 unit 每表：
+-- One table per unit/table pair:
 CREATE TABLE IF NOT EXISTS "u_<unit>_<table>" (
-  key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;             -- value = 记录 JSON 文档
+  key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;             -- value = record JSON document
 ```
 
 - Unit versions live in `units` rows; a descriptor mismatch → `version-mismatch`. Row granularity is document-per-row, preserving precise per-key durable updates (the path left open for high-frequency point-update tables like the session sidecar); when query needs appear, JSON1 reads the value column directly.
@@ -97,8 +97,8 @@ A single implementation, not abstracted; consumers depend on this layer only and
 
 ```ts ignore-check
 export const Config = z.object({
-  backend: z.string().required(),                // 默认后端名，必填
-  routes: z.dict(z.string()).default({}),        // per-domain 覆盖：{ workspace: 'sqlite' }
+  backend: z.string().required(),                // required default backend name
+  routes: z.dict(z.string()).default({}),        // per-domain override: { workspace: 'sqlite' }
 })
 
 export function apply(ctx: Context, config: Config) {
@@ -135,21 +135,21 @@ export function domainTable<K extends string, V>(schema: ZodType<V>): DomainTabl
 6. Construct the `Domain` and register `ctx.effect()`: the disposer drains the write chain → `unit.close()`.
 
 ```ts ignore-check
-export interface Domain</* 由 spec 推导 */> {
+export interface Domain</* inferred from spec */> {
   readonly name: string
-  readonly global: { get(): G; set(value: G): Promise<void> }   // 仅当 spec.global 声明
+  readonly global: { get(): G; set(value: G): Promise<void> }   // only when spec.global exists
   table<N extends keyof S['tables']>(name: N): KvTable<KeyOf<N>, ValueOf<N>>
 }
 
 export interface KvTable<K extends string, V> {
-  get(key: K): V | undefined                     // 内存快照，同步
+  get(key: K): V | undefined                     // synchronous in-memory snapshot
   entries(): IterableIterator<[K, V]>
   keys(): IterableIterator<K>
   readonly size: number
   put(key: K, value: V): Promise<void>
-  delete(key: K): Promise<boolean>               // false = 本就不存在
+  delete(key: K): Promise<boolean>               // false when already absent
   /** Atomic read-modify-write on the domain's single write chain; fn is sync-pure. */
-  update(key: K, fn: (current: V) => V): Promise<V>   // 缺 key → DomainError('missing-key')
+  update(key: K, fn: (current: V) => V): Promise<V>   // missing key -> DomainError('missing-key')
 }
 ```
 

@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SqliteSessionPersistence from '@deepseek-ai/dsh-session-persistence-sqlite'
 import SessionTitleService, { foldSessionTitle } from '@deepseek-ai/dsh-session-title'
@@ -57,6 +58,7 @@ describe('session title persistence round trips', () => {
     const id = SessionId('title-jsonl')
     const writer = new Context()
     await writer.plugin(SessionStore)
+    await writer.plugin(SessionProjectionRegistry)
     await writer.plugin(JsonlSessionPersistence, { root, compression: 'none' })
     await writer.plugin(SessionTitleService, CONFIG)
     await appendPersistedTitle(writer, id)
@@ -64,6 +66,7 @@ describe('session title persistence round trips', () => {
 
     const reader = new Context()
     await reader.plugin(SessionStore)
+    await reader.plugin(SessionProjectionRegistry)
     await reader.plugin(JsonlSessionPersistence, { root, compression: 'none' })
     await expectPersistedTitle(reader, id)
     await reader.fiber.dispose()
@@ -76,6 +79,7 @@ describe('session title persistence round trips', () => {
     const id = SessionId('title-sqlite')
     const writer = new Context()
     await writer.plugin(SessionStore)
+    await writer.plugin(SessionProjectionRegistry)
     await writer.plugin(SqliteSessionPersistence, { path })
     await writer.plugin(SessionTitleService, CONFIG)
     await appendPersistedTitle(writer, id)
@@ -83,6 +87,7 @@ describe('session title persistence round trips', () => {
 
     const reader = new Context()
     await reader.plugin(SessionStore)
+    await reader.plugin(SessionProjectionRegistry)
     await reader.plugin(SqliteSessionPersistence, { path })
     await expectPersistedTitle(reader, id)
     await reader.fiber.dispose()

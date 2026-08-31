@@ -18,13 +18,22 @@
       "path": "../ui-primitives"
     },
     {
-      "path": "../runtime"
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-session"
+    },
+    {
+      "path": "../store"
     },
     {
       "path": "../ui-settings"
     },
     {
       "path": "../locale"
+    },
+    {
+      "path": "../connection/tsconfig.client.json"
     },
     {
       "path": "../../settings/settings"

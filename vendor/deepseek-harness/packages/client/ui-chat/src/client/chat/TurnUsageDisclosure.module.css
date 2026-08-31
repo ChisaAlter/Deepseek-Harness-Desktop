@@ -1,0 +1,88 @@
+.root {
+  min-width: 0;
+}
+
+.root[data-open] {
+  padding-bottom: 4px;
+}
+
+.root [data-disclosure-row]:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--dsw-alias-label-tertiary);
+  outline-offset: -2px;
+}
+
+.chevron {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.separator {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  margin: 0 8px;
+  border-radius: 1px;
+  background: var(--dsw-alias-label-caption);
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-variant-numeric: tabular-nums;
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
+  gap: 6px 16px;
+  box-sizing: border-box;
+  /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
+  width: calc(100% - 22px - var(--dsh-content-font-delta, 0px));
+  margin: 4px 0 0 calc(22px + var(--dsh-content-font-delta, 0px));
+  padding: 10px 16px 12px 12px;
+  border-radius: 8px;
+  background: var(--dsw-alias-markdown-code-block);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.details dt,
+.details dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.details dd {
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.details .route {
+  overflow-wrap: anywhere;
+}
+
+.reasoning {
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
+.totalLabel,
+.details .totalValue {
+  padding-top: 6px;
+  border-top: 1px solid var(--dsw-alias-separator-primary);
+  color: var(--dsw-alias-label-primary);
+}
+
+@media (max-width: 480px) {
+  .details {
+    grid-template-columns: minmax(72px, auto) minmax(0, 1fr);
+    gap-inline: 10px;
+  }
+}

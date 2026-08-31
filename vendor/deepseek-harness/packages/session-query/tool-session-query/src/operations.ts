@@ -57,7 +57,7 @@ async function executeSessionSearch(
   exec: ToolRunContext,
   maxResults: number,
 ): Promise<string> {
-  const caller = workspaceAccess.callerOf(exec)
+  const caller = workspaceAccess.callerOf(exec, ctx)
   const cwd = caller.header.cwd
   if (cwd === undefined) {
     throw new HarnessError(
@@ -119,20 +119,22 @@ async function executeEventSearch(
   exec: ToolRunContext,
   maxResults: number,
 ): Promise<string> {
-  const caller = workspaceAccess.callerOf(exec)
+  const caller = workspaceAccess.callerOf(exec, ctx)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const query = toolInput.normalizeQuery(args.query)
   const range = toolInput.sequenceRange(args.seq_from, args.seq_to)
   if (sessionId === caller.id) {
-    const stepStart = caller.events.findLast(event => event.type === 'step/start')
-    if (stepStart === undefined) {
+    const stepStartSeq = caller.boundary?.lastStepStartSeq
+    if (stepStartSeq === undefined) {
       throw new HarnessError(
         'current-session search requires an active step boundary',
         'SESSION_QUERY_TOOL_NO_CURRENT_STEP',
       )
     }
-    range.to = Math.min(range.to ?? Number.MAX_SAFE_INTEGER, stepStart.seq - 1)
+    // `null` (no step started yet) caps the range to a degenerate `to` the
+    // filter validation rejects — the loop never runs tools outside a step.
+    range.to = Math.min(range.to ?? Number.MAX_SAFE_INTEGER, (stepStartSeq ?? 0) - 1)
   }
   const title = await workspaceAccess.readTitle(ctx, caller, sessionId, exec.signal)
   if (range.from !== undefined && range.to !== undefined && range.from > range.to) {
@@ -170,7 +172,7 @@ async function executeSessionTrace(
   args: SessionTargetArgs,
   exec: ToolRunContext,
 ): Promise<string> {
-  const caller = workspaceAccess.callerOf(exec)
+  const caller = workspaceAccess.callerOf(exec, ctx)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const trace = await serviceBoundary.call(ctx, exec.signal, 'session lineage trace', () =>
@@ -203,7 +205,7 @@ async function executeEventTrace(
   exec: ToolRunContext,
 ): Promise<string> {
   toolInput.assertNonNegativeSafeInteger('seq', args.seq)
-  const caller = workspaceAccess.callerOf(exec)
+  const caller = workspaceAccess.callerOf(exec, ctx)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const trace = await serviceBoundary.call(ctx, exec.signal, 'event trace', () =>
@@ -221,7 +223,7 @@ async function executeEventRead(
   toolInput.assertNonNegativeSafeInteger('seq', args.seq)
   if (args.before !== undefined) toolInput.assertNonNegativeSafeInteger('before', args.before)
   if (args.after !== undefined) toolInput.assertNonNegativeSafeInteger('after', args.after)
-  const caller = workspaceAccess.callerOf(exec)
+  const caller = workspaceAccess.callerOf(exec, ctx)
   const sessionId = workspaceAccess.targetId(args, caller)
   await workspaceAccess.authorizeTarget(ctx, caller, sessionId, exec.signal)
   const window = await serviceBoundary.call(ctx, exec.signal, 'event read', () =>

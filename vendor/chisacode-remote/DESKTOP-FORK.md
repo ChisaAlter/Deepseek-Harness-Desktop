@@ -28,6 +28,15 @@ MIT shell chrome (settings copy, Electron IPC) stays MIT. AGPL covers this tree 
 - Packaged builds run `scripts/prepare-chisacode-remote.mjs --force --runtime`; `extraResources` include the built package tree plus a production-only `node_modules`, and `afterPack` imports the shipped server API as a release gate.
 - Corresponding source for AGPL network use: this directory in the public repo / release source archive.
 
+## Fork deltas (packages/server)
+
+- `agent/providers/dsh-agent.ts` — `resolveDshVendorDir` passes explicit `stdio: ["ignore","pipe","pipe"]` to `execSync("npm root -g")`. Node only forwards the child's stderr to `process.stderr` when `stdio` is omitted; in the desktop GUI that fd is often a broken pipe and the forwarded write escapes as an uncaught EPIPE (observed crash). `DSH_VENDOR_PACKAGES` is exported so the shell can decide when its bundled harness qualifies as `CHISACODE_DSH_VENDOR_DIR`.
+- `exports.ts` — re-exports `DSH_VENDOR_PACKAGES` for the shell (see `src/main/chisacode-remote.js`).
+
+## Fork deltas (packages/client)
+
+- `daemon-client.ts` / `daemon-client-checkout-subscriptions.ts` / `daemon-client-agent-interaction.ts` — bare `crypto.randomUUID()` call sites route through the existing `safeRandomId()` (`daemon-client-transport-utils.ts`). The desktop pairing page is `http://<lan-ip>:3180` — **not a secure context** — so browsers do not expose `crypto.randomUUID` there (localhost QA masks this; real phones hit it). The E2EE stack itself is tweetnacl and never needs `crypto.subtle`. Same rule for new client code: no secure-context-only crypto APIs.
+
 ## Do not
 
 - Point production at `relay.chisacode.sh` / `app.chisacode.sh` / ChisaCode Cloudflare `account_id`

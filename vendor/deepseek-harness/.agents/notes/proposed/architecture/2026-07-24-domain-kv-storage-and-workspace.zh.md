@@ -6,7 +6,7 @@ Status: proposed
 
 ## 问题
 
-host 侧唯一的持久化面是 session 事件日志（`packages/session/session-persistence`：仅追加、一 session 一文件）。凡是"不属于某个 session"的信息就没有落盘处，眼下有两个真实需求：
+host 侧唯一的持久化面是 session 事件日志（`packages/session/session-persistence`：仅追加、一 session 一文件）。凡是"不属于某个 session"的信息就没有落盘处，存在两个已交付需求：
 
 - **workspace 实体**。GUI 要把 workspace 做成真实对象：路径、标题、关联 session 清单。归属关系由 workspace 持有——"哪些 session 属于这个 workspace"不是任何单个 session 自己的事实，塞进 session log 语义不成立。在本设计之前，workspace 只是 sidebar 上按 cwd 分组的视觉概念，没有实体。
 - **session 动态元信息**（可预见的第二个消费方）。冷会话列表只读日志首行 header（创建时的不可变快照），title、结束状态这类随会话推进变化的信息拿不到；补齐方向是 sidecar 元数据表——正是一张按 key 高频点更新的 KV 表。
@@ -83,9 +83,9 @@ Config 为 `path`（必填，`':memory:'` 允许）+ `journalMode`（枚举，�
 CREATE TABLE IF NOT EXISTS units (name TEXT PRIMARY KEY, version INTEGER NOT NULL) STRICT;
 CREATE TABLE IF NOT EXISTS unit_globals (
   unit TEXT PRIMARY KEY REFERENCES units(name), value TEXT NOT NULL) STRICT;
--- 每 unit 每表：
+-- One table per unit/table pair:
 CREATE TABLE IF NOT EXISTS "u_<unit>_<table>" (
-  key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;             -- value = 记录 JSON 文档
+  key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;             -- value = record JSON document
 ```
 
 - unit 版本存 `units` 行，descriptor 不符 → `version-mismatch`。行粒度 document-per-row，保住按 key 精确落盘更新（为 session sidecar 这类高频点更新大表留路）；查询需求出现时 JSON1 直查 value 列。
@@ -97,8 +97,8 @@ CREATE TABLE IF NOT EXISTS "u_<unit>_<table>" (
 
 ```ts ignore-check
 export const Config = z.object({
-  backend: z.string().required(),                // 默认后端名，必填
-  routes: z.dict(z.string()).default({}),        // per-domain 覆盖：{ workspace: 'sqlite' }
+  backend: z.string().required(),                // required default backend name
+  routes: z.dict(z.string()).default({}),        // per-domain override: { workspace: 'sqlite' }
 })
 
 export function apply(ctx: Context, config: Config) {
@@ -135,21 +135,21 @@ export function domainTable<K extends string, V>(schema: ZodType<V>): DomainTabl
 6. 构造 `Domain` 并注册 `ctx.effect()`：disposer 排空写链 → `unit.close()`。
 
 ```ts ignore-check
-export interface Domain</* 由 spec 推导 */> {
+export interface Domain</* inferred from spec */> {
   readonly name: string
-  readonly global: { get(): G; set(value: G): Promise<void> }   // 仅当 spec.global 声明
+  readonly global: { get(): G; set(value: G): Promise<void> }   // only when spec.global exists
   table<N extends keyof S['tables']>(name: N): KvTable<KeyOf<N>, ValueOf<N>>
 }
 
 export interface KvTable<K extends string, V> {
-  get(key: K): V | undefined                     // 内存快照，同步
+  get(key: K): V | undefined                     // synchronous in-memory snapshot
   entries(): IterableIterator<[K, V]>
   keys(): IterableIterator<K>
   readonly size: number
   put(key: K, value: V): Promise<void>
-  delete(key: K): Promise<boolean>               // false = 本就不存在
+  delete(key: K): Promise<boolean>               // false when already absent
   /** Atomic read-modify-write on the domain's single write chain; fn is sync-pure. */
-  update(key: K, fn: (current: V) => V): Promise<V>   // 缺 key → DomainError('missing-key')
+  update(key: K, fn: (current: V) => V): Promise<V>   // missing key -> DomainError('missing-key')
 }
 ```
 

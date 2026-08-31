@@ -138,7 +138,7 @@ interface SessionEventSearchDocument extends SessionEventRecord {
 }
 ```
 
-`ctx.sessionQuery.filterSessions(filters)` applies `SessionResultFilter` to the complete logical corpus; `ctx.sessionQuery.filterEvents(sessionId, filters)` returns matching documents in ascending seq order. Messages, reasoning, tool calls/results, blocked prompts, todos, and failure/status detail contribute semantic text; structural events and stream chunks do not.
+`ctx.sessionQuery.filterSessions(filters)` applies `SessionResultFilter` to the complete logical corpus; `ctx.sessionQuery.filterEvents(sessionId, filters)` returns matching documents in ascending seq order. Messages, tool calls/results, todos, and failure/status detail contribute semantic text; reasoning blocks, blocked prompts, structural events, and stream chunks do not.
 
 ## Full-text search pages
 
@@ -373,6 +373,14 @@ Unified live-preferred session query service.
 Exact reads, filters, and traces are backend-independent concrete behavior. A backend implements full-text observation, reconciliation, ranking, cursor generations, and query execution on the same `ctx.sessionQuery` service.
 
 ```ts cordis-catalog
+/**
+ * Observe one exact live or prepared Session without a persistence listing preflight.
+ * @param sessionId - logical Session identity.
+ * @param options - cancellation and projection selection for this read.
+ * @returns a caller-owned observation lease.
+ */
+observeSession( sessionId: SessionId, options: SessionObservationOptions = {}, ): Promise<SessionObservation>
+
 /**
  * Search the live-preferred logical corpus and group by session.
  * @param request - query text, metadata filters, page size, and cursor.

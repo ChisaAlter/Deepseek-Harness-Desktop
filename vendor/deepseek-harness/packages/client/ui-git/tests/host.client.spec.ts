@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
-import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { GIT_SETTINGS_NAMESPACE, apply } from '../src/index.ts'
 
 class MemorySettings extends SettingsProvider {
@@ -17,7 +17,7 @@ describe('ui-git host', () => {
     await ctx.plugin(MemorySettings).await()
     const fiber = ctx.plugin({ apply })
     await fiber.await()
-    const ns = settingsNamespace(GIT_SETTINGS_NAMESPACE)
+    const ns = GIT_SETTINGS_NAMESPACE
     expect(ctx.settings.get(ns)).toEqual({ titlebarGit: true })
     await ctx.settings.update(ns, { titlebarGit: false })
     expect(ctx.settings.get(ns)).toEqual({ titlebarGit: false })

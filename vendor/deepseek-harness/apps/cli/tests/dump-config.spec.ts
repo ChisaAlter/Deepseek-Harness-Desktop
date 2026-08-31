@@ -33,7 +33,9 @@ describe('dumpConfigLayers', () => {
     const home = tmp()
     vi.stubEnv('DSH_HOME', home)
     const dir = join(home, PROFILES_DIR, 'web')
-    initProfile(dir, [...PROFILE_TEMPLATES.web ?? [], 'ghost-bundle'])
+    const web = PROFILE_TEMPLATES.web
+    if (web === undefined) throw new Error('expected shipped web profile template')
+    initProfile(dir, [...web.bundles, 'ghost-bundle'])
     writeFileSync(join(dir, PROFILE_PATCH_FILENAME), 'not: a list\n')
     writeFileSync(join(home, PROFILE_PATCH_FILENAME), '- id: missing\n  config: {}\n')
     const overlay = join(home, 'extra.yml')
@@ -44,7 +46,7 @@ describe('dumpConfigLayers', () => {
       patches: [overlay],
     })
     expect(layers.map(layer => layer.label)).toEqual([
-      ...PROFILE_TEMPLATES.web ?? [],
+      ...web.bundles,
       overlay,
     ])
   })

@@ -32,6 +32,8 @@ function parseBranchList(obj) {
       name: item.name,
       isRemote: item.isRemote === true,
       isCurrent: item.isCurrent === true,
+      switchable: item.switchable !== false,
+      hint: typeof item.hint === 'string' ? item.hint : '',
     });
   }
   return rows;

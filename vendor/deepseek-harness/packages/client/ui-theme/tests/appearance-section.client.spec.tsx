@@ -2,7 +2,9 @@
 /** Appearance section: color-scheme tiles, two-ball library, editor, glass, type. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { createSnapshotStore, type SessionListState, type WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { WorkspaceSnapshot as WorkspaceListState } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 
@@ -177,9 +179,9 @@ describe('AppearanceSection', () => {
 
   it('selects light and dark halves from the two-ball grid', () => {
     const b = mount('system')
-    fireEvent.click(screen.getByRole('button', { name: '青瓷 浅色半' }))
+    fireEvent.click(screen.getByRole('button', { name: '青瓷 浅色�? }))
     expect(b.setThemeHalf).toHaveBeenCalledWith('light', 'celadon')
-    fireEvent.click(screen.getByRole('button', { name: '青瓷 深色半' }))
+    fireEvent.click(screen.getByRole('button', { name: '青瓷 深色�? }))
     expect(b.setThemeHalf).toHaveBeenCalledWith('dark', 'celadon')
   })
 
@@ -201,7 +203,7 @@ describe('AppearanceSection', () => {
   it('keeps typography advanced closed when localStorage is unavailable', () => {
     vi.stubGlobal('localStorage', undefined)
     mount('system')
-    expect(screen.queryByText('输入框字体')).toBeNull()
+    expect(screen.queryByText('输入框字�?)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '高级' }))
     vi.unstubAllGlobals()
   })
@@ -212,7 +214,7 @@ describe('AppearanceSection', () => {
       setItem: () => { throw new Error('denied') },
     })
     mount('system')
-    expect(screen.queryByText('输入框字体')).toBeNull()
+    expect(screen.queryByText('输入框字�?)).toBeNull()
     vi.unstubAllGlobals()
   })
 
@@ -232,7 +234,7 @@ describe('AppearanceSection', () => {
   it('previews the draft live while the editor is open and clears on close', () => {
     const b = mount('dark')
     fireEvent.click(screen.getByRole('button', { name: '创建主题' }))
-    expect(screen.getByText(/正处于深色模式/)).toBeDefined()
+    expect(screen.getByText(/正处于深色模�?)).toBeDefined()
     expect(b.previewTheme).toHaveBeenCalledTimes(1)
     const opened = b.previewTheme.mock.calls[0]![0] as ThemeFamily
     expect(opened.origin).toBe('custom')
@@ -313,7 +315,7 @@ describe('AppearanceSection', () => {
 
   it('writes glass opacity and typography, including the advanced extras toggle', () => {
     const b = mount('system')
-    fireEvent.change(screen.getByRole('slider', { name: '玻璃透明度' }), { target: { value: '55' } })
+    fireEvent.change(screen.getByRole('slider', { name: '玻璃透明�? }), { target: { value: '55' } })
     expect(b.setGlassOpacity).toHaveBeenCalledWith(55)
     fireEvent.click(screen.getAllByRole('button', { name: '重置' })[0]!)
     expect(b.setGlassOpacity).toHaveBeenCalledWith(80)
@@ -407,7 +409,7 @@ describe('AppearanceSection', () => {
 
   it('hides wallpaper sliders until an image is set, then writes blur and pixelate', async () => {
     const b = mount('system')
-    expect(screen.queryByRole('slider', { name: '毛玻璃程度' })).toBeNull()
+    expect(screen.queryByRole('slider', { name: '毛玻璃程�? })).toBeNull()
     expect(screen.queryByRole('button', { name: '清除' })).toBeNull()
     const ignored = b.container.querySelector('input[accept="image/png,image/jpeg,image/webp,image/gif"]') as HTMLInputElement
     await act(async () => {
@@ -418,10 +420,10 @@ describe('AppearanceSection', () => {
     act(() => {
       b.store.actions.sync(snap({ wallpaperImage: PNG, wallpaperBlur: 20, wallpaperPixelate: 10 }), 1)
     })
-    expect(screen.getByRole('img', { name: '背景图' })).toBeDefined()
-    fireEvent.change(screen.getByRole('slider', { name: '毛玻璃程度' }), { target: { value: '40' } })
+    expect(screen.getByRole('img', { name: '背景�? })).toBeDefined()
+    fireEvent.change(screen.getByRole('slider', { name: '毛玻璃程�? }), { target: { value: '40' } })
     expect(b.setWallpaper).toHaveBeenCalledWith({ wallpaperBlur: 40 })
-    fireEvent.change(screen.getByRole('slider', { name: '像素化程度' }), { target: { value: '70' } })
+    fireEvent.change(screen.getByRole('slider', { name: '像素化程�? }), { target: { value: '70' } })
     expect(b.setWallpaper).toHaveBeenCalledWith({ wallpaperPixelate: 70 })
     fireEvent.click(screen.getByRole('button', { name: '清除' }))
     expect(b.setWallpaper).toHaveBeenCalledWith({ wallpaperImage: '' })
@@ -495,7 +497,7 @@ describe('AppearanceSection', () => {
     fireEvent.click(screen.getByRole('button', { name: '新增图源' }))
     const addDialog = screen.getByRole('dialog', { name: '新增图源' })
     fireEvent.change(within(addDialog).getByLabelText('类型'), { target: { value: 'catalog' } })
-    fireEvent.change(within(addDialog).getByLabelText('显示名'), { target: { value: '我的' } })
+    fireEvent.change(within(addDialog).getByLabelText('显示�?), { target: { value: '我的' } })
     fireEvent.change(within(addDialog).getByLabelText('HTTPS 目录地址'), {
       target: { value: 'https://example.com/pack.json' },
     })
@@ -509,16 +511,16 @@ describe('AppearanceSection', () => {
     act(() => { b.store.actions.sync(snap({ wallpaperSources: added.wallpaperSources }), 1) })
     fireEvent.click(within(screen.getByText('我的').parentElement!).getByRole('button', { name: '编辑' }))
     const editDialog = screen.getByRole('dialog', { name: '编辑图源' })
-    fireEvent.change(within(editDialog).getByLabelText('显示名'), { target: { value: '新目录' } })
+    fireEvent.change(within(editDialog).getByLabelText('显示�?), { target: { value: '新目�? } })
     fireEvent.click(within(editDialog).getByRole('button', { name: '保存' }))
     expect(b.setWallpaperSources).toHaveBeenLastCalledWith(expect.objectContaining({
       wallpaperSources: expect.arrayContaining([
-        expect.objectContaining({ kind: 'catalog', name: '新目录' }),
+        expect.objectContaining({ kind: 'catalog', name: '新目�? }),
       ]),
     }))
     const edited = b.setWallpaperSources.mock.calls.at(-1)![0] as { wallpaperSources: WallpaperSource[] }
     act(() => { b.store.actions.sync(snap({ wallpaperSources: edited.wallpaperSources }), 2) })
-    fireEvent.click(within(screen.getByText('新目录').parentElement!).getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByText('新目�?).parentElement!).getByRole('button', { name: '删除' }))
     expect(b.setWallpaperSources).toHaveBeenLastCalledWith(expect.objectContaining({
       wallpaperSources: expect.not.arrayContaining([
         expect.objectContaining({ kind: 'catalog' }),
@@ -596,7 +598,7 @@ describe('AppearanceSection', () => {
     mount('system', {}, { listWallpaperCatalog, downloadWallpaper: vi.fn() })
     fireEvent.click(screen.getByRole('button', { name: '浏览图库' }))
     await screen.findByRole('button', { name: /晨湖/ })
-    fireEvent.change(screen.getByLabelText('搜索'), { target: { value: '雪' } })
+    fireEvent.change(screen.getByLabelText('搜索'), { target: { value: '�? } })
     expect(screen.getByRole('button', { name: /雪山/ })).toBeDefined()
     expect(screen.queryByRole('button', { name: /晨湖/ })).toBeNull()
   })
@@ -647,11 +649,11 @@ describe('AppearanceSection', () => {
     fireEvent.click(screen.getByRole('button', { name: '浏览图库' }))
     await screen.findByRole('button', { name: /晨湖/ })
     fireEvent.click(screen.getByRole('button', { name: /晨湖/ }))
-    const confirm = await screen.findByRole('dialog', { name: '将这张图设为背景？' })
+    const confirm = await screen.findByRole('dialog', { name: '将这张图设为背景�? })
     fireEvent.click(within(confirm).getByRole('button', { name: '取消' }))
     expect(downloadWallpaper).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: /晨湖/ }))
-    const again = await screen.findByRole('dialog', { name: '将这张图设为背景？' })
+    const again = await screen.findByRole('dialog', { name: '将这张图设为背景�? })
     fireEvent.click(within(again).getByRole('button', { name: '设为壁纸' }))
     await vi.waitFor(() => { expect(downloadWallpaper).toHaveBeenCalledWith('https://example.com/f.jpg') })
     expect(await screen.findByRole('dialog', { name: COPY['wallpaper.crop'] })).toBeDefined()

@@ -30,6 +30,9 @@
       "path": "../../core/system-prompt"
     },
     {
+      "path": "../../util/atomic-write"
+    },
+    {
       "path": "../../util/launch-environment"
     },
     {

@@ -2,6 +2,7 @@ import { createUserMessage, createMessage } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { SessionEvent, SessionHeader, SessionId as SessionIdType } from '@deepseek-ai/dsh-session'
 import SessionPersistence, { SessionPersistenceCorruptionError, SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
 import SessionQueryEngine, {
@@ -9,8 +10,10 @@ import SessionQueryEngine, {
   type SessionEventSurface,
   type SessionQueryErrorCode,
 } from '@deepseek-ai/dsh-session-query'
-import { SessionTitleProviderId } from '@deepseek-ai/dsh-session-title'
+import { SessionTitleProviderId, SessionTitleService } from '@deepseek-ai/dsh-session-title'
 import { TestSessionQueryEngine } from './test-service.ts'
+
+const TITLE_SERVICE_CONFIG = { fallbackMaxWords: 8, fallbackMaxBytes: 64, maxTitleBytes: 256 }
 
 function header(id: string, createdAt = 1, extra: Partial<SessionHeader> = {}): SessionHeader {
   return { version: SESSION_FORMAT_VERSION, id: SessionId(id), createdAt, ...extra }
@@ -62,6 +65,10 @@ class TestPersistence extends SessionPersistence {
 
   locate(_meta: SessionHeader): undefined {
     return undefined
+  }
+
+  borrowSession(_id: SessionIdType, _signal?: AbortSignal): ReturnType<SessionPersistence['borrowSession']> {
+    return Promise.reject(new Error('not used'))
   }
 
   create(meta: SessionHeader): Promise<void> {
@@ -130,6 +137,7 @@ class TestPersistence extends SessionPersistence {
 async function liveContext(config: ConstructorParameters<typeof TestSessionQueryEngine>[1] = {}): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(TestSessionQueryEngine, config)
   return ctx
 }
@@ -492,6 +500,7 @@ describe('session-query exact reads', () => {
       },
     ])
     const ctx = await liveContext()
+    await ctx.plugin(SessionTitleService, TITLE_SERVICE_CONFIG)
     const shared = ctx.sessions.create(sharedHeader.id, { meta: { createdAt: 3 } })
     shared.append('session/title', {
       title: 'Live title',
@@ -530,6 +539,7 @@ describe('session-query exact reads', () => {
       { meta: second, events: [titleEvent('Second title', 20)] },
     ])
     const ctx = await liveContext()
+    await ctx.plugin(SessionTitleService, TITLE_SERVICE_CONFIG)
     await ctx.plugin(TestPersistence)
     const signal = new AbortController().signal
     const missing = SessionId('batch-title-missing')
@@ -753,6 +763,7 @@ describe('session-query exact reads', () => {
       { meta: malformed, events: [malformedTitle] },
     ])
     const ctx = await liveContext()
+    await ctx.plugin(SessionTitleService, TITLE_SERVICE_CONFIG)
     await ctx.plugin(TestPersistence)
     TestPersistence.inspectOverride = (id) => {
       if (id === failed.id) return Promise.reject(inspectFailure)
@@ -789,7 +800,7 @@ describe('session-query exact reads', () => {
     })
     expect(results[2]).toMatchObject({ sessionId: malformed.id, status: 'rejected' })
     if (results[2]?.status !== 'rejected') throw new Error('expected malformed title rejection')
-    expect(results[2].reason).toBeInstanceOf(TypeError)
+    expect(results[2].reason).toBeInstanceOf(Error)
   })
 
   it('preserves live batch results across missing persistence, listing failure, and late attachment', async () => {
@@ -1197,6 +1208,7 @@ describe('session-query exact reads', () => {
   it('leaves the optional persistence dependency optional', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     const fiber = await ctx.plugin(TestSessionQueryEngine)
     expect(ctx.sessionQuery).toBeInstanceOf(TestSessionQueryEngine)
     await fiber.dispose()
@@ -1207,6 +1219,7 @@ describe('session-query exact reads', () => {
     TestPersistence.reset()
     const ctx = new Context()
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     const query = await ctx.plugin(TestSessionQueryEngine)
     const persistence = await ctx.plugin(TestPersistence)
     const optional = (ctx.sessionQuery as unknown as {

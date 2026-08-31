@@ -32,6 +32,7 @@ function normalize(source) {
  *  with the resting card cap as its fallback. */
 const FOLLOW = /max-width:\s*calc\(\s*var\(--dsh-composer-resized-width,\s*var\(--dsh-composer-card-max-width\)\)/;
 
+const UI_CHAT = path.join(VENDOR, 'deepseek-harness', 'packages', 'client', 'ui-chat', 'src', 'client');
 const UI_CONVERSATION = path.join(VENDOR, 'deepseek-harness', 'packages', 'client', 'ui-conversation', 'src', 'client');
 const UI_GOAL = path.join(VENDOR, 'deepseek-harness', 'packages', 'client', 'ui-goal', 'src', 'client');
 
@@ -42,7 +43,7 @@ function ruleOf(css, selector) {
 }
 
 test('stats line follows the drag-resized composer card', () => {
-  const css = normalize(readRel(UI_CONVERSATION, 'chat/StatsLine.module.css'));
+  const css = normalize(readRel(UI_CHAT, 'chat/StatsLine.module.css'));
   const rule = ruleOf(css, '\\.root');
   assert.match(rule, FOLLOW);
   assert.match(rule, /var\(--dsh-composer-side-clearance\)/);
@@ -54,7 +55,7 @@ test('queue dock follows the drag-resized composer card', () => {
 });
 
 test('chat flow column follows the drag-resized composer card', () => {
-  const css = normalize(readRel(UI_CONVERSATION, 'chat/ChatView.module.css'));
+  const css = normalize(readRel(UI_CHAT, 'chat/ChatView.module.css'));
   const rule = ruleOf(css, '\\.column');
   assert.match(rule, FOLLOW);
   assert.match(rule, /var\(--dsh-composer-side-clearance\)/);

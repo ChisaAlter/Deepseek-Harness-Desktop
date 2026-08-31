@@ -18,9 +18,6 @@
       "path": "../ui-primitives"
     },
     {
-      "path": "../runtime"
-    },
-    {
       "path": "../ui-layout"
     },
     {
@@ -28,6 +25,21 @@
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../store"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../api/workspace-controller/tsconfig.client.json"
     }
   ]
 }

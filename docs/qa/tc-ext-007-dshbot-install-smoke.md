@@ -40,7 +40,7 @@ node scripts/run-packaged-smoke.mjs
 ## Phase B — 市场一键装 + 建群冒烟（半自动）
 
 1. 正常启动应用 → 设置 → 插件市场 → 第一方 `dshbot` 行 → 安装
-   （等价 CLI：`dsh plugin --profile web add github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot`，
+   （等价 CLI：`dsh plugin --profile web add github:ChisaAlter/dshbot`，
    发布 npm 后可用 `dsh plugin --profile web add dshbot@<semver>`）。
 2. 重启应用；再次跑 Phase A 的冒烟命令 —— 此时 profile manifest 判定已装，
    walk 断言翻转：`plugin.dshbot.page` 要求 Bots 页签**出现**、

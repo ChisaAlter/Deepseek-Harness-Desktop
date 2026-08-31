@@ -12,6 +12,9 @@
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { DirectoryListing } from './types.ts'
+
+export type { DirectoryEntry, DirectoryListing } from './types.ts'
 
 /** The native interaction: one OS directory chooser on the host display. */
 export interface DirectoryPickerNativeCapability {
@@ -24,45 +27,6 @@ export interface DirectoryPickerNativeCapability {
   pick(signal: AbortSignal): Promise<string | null>
 }
 
-/** One directory row: a listing child or a breadcrumb ancestor. */
-export interface DirectoryEntry {
-  /** Base name shown in a browser row (a root crumb carries its full path). */
-  name: string
-  /** Absolute host path — clients never join path segments themselves. */
-  path: string
-  /** Hidden by the host platform's convention (dot-prefixed on POSIX); the client owns whether to show it. */
-  hidden: boolean
-}
-
-/**
- * Win32 `list` path for the volume picker. Entries are accessible drive roots
- * (`C:\`, `D:\`, …). Not a real filesystem directory; `createDirectory` against
- * it fails. POSIX `list` of this path is not fully qualified.
- */
-export const WINDOWS_VOLUME_ROOT = '\\\\.\\dsh-computer'
-
-/** One directory level plus its ancestry, as a browse backend reports it. */
-export interface DirectoryListing {
-  /** Absolute path of the listed directory (`WINDOWS_VOLUME_ROOT` on the Win32 volume picker). */
-  path: string
-  /** The host account's home directory (a jump target, not a crumb ceiling). */
-  home: string
-  /**
-   * Ancestor chain from the volume picker (Win32) or filesystem root (POSIX)
-   * to the listed directory inclusive; every crumb is a jump target
-   * (crumb `hidden` is always false).
-   */
-  crumbs: DirectoryEntry[]
-  /** Direct child directories, name-sorted; symlinks to directories included. */
-  entries: DirectoryEntry[]
-  /**
-   * True when the backend cut `entries` at its complete-result bound: the
-   * level has more child directories than reported, and the missing rows are
-   * the name-sorted tail (hidden rows count toward the bound).
-   */
-  truncated: boolean
-}
-
 /**
  * The browse interaction: listing/creation primitives an in-app browser
  * drives one level at a time. Works for remote clients — nothing renders on
@@ -73,7 +37,6 @@ export interface DirectoryPickerBrowseCapability {
   /**
    * List one directory level.
    * @param path - absolute directory to list; absent lists the home directory.
-   * On Win32, {@link WINDOWS_VOLUME_ROOT} lists accessible drive roots.
    * @param signal - caller lifetime; abort stops the scan (a stalled network
    * directory must not outlive a disconnected caller) and rejects with the
    * abort reason.
@@ -86,7 +49,7 @@ export interface DirectoryPickerBrowseCapability {
   list(path?: string, signal?: AbortSignal): Promise<DirectoryListing>
   /**
    * Create one child directory under an existing parent.
-   * @param path - absolute existing parent directory; not {@link WINDOWS_VOLUME_ROOT}.
+   * @param path - absolute existing parent directory.
    * @param name - single non-blank path segment (no separators, not `.`/`..`).
    * @returns the created directory's absolute path.
    * @throws {DirectoryPickerError} `directory-exists` for an existing child,

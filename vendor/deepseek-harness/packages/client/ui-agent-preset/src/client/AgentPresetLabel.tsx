@@ -9,11 +9,12 @@
  */
 
 import { useEffect } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconAgentPresetOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the header actions).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import type { AgentPresetSettingsState } from './settings-store.ts'
 import { presetDisplayText } from './locales.ts'
 import css from './AgentPresetLabel.module.css'
@@ -37,24 +38,24 @@ export type AgentPresetLabelProps =
 /**
  * Render this session's agent-preset name beside its title.
  * @param props - composed slot props.
- * @returns the label, or null when the session records no preset or is a
- *   desktop-plugin contact.
+ * @returns the label, or null when the session records no preset.
  */
 export function AgentPresetLabel({
   sessionId, useSessions, useAgentPresets, load, t,
 }: AgentPresetLabelProps) {
-  const preset = useSessions(state => state.byId[sessionId]?.agentPreset)
-  const origin = useSessions(state => state.byId[sessionId]?.origin)
+  const preset = useSessions((state) => {
+    const value = state.byId[sessionId]?.projectionValues?.agentPreset
+    return typeof value === 'string' ? value : undefined
+  })
   const options = useAgentPresets(state => state.options)
 
   useEffect(() => {
     // Deployments that compose no presets never label anything, so the roster
-    // is only worth a request once a session reports one. Desktop-plugin
-    // contacts hide the composition name: it is an implementation detail.
-    if (preset !== undefined && origin !== 'dshbot') void load()
-  }, [preset, origin, load])
+    // is only worth a request once a session reports one.
+    if (preset !== undefined) void load()
+  }, [preset, load])
 
-  if (preset === undefined || origin === 'dshbot') return null
+  if (preset === undefined) return null
 
   const option = options.find(entry => entry.id === preset)
   const text = option === undefined ? undefined : presetDisplayText(option, t)

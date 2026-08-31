@@ -17,12 +17,15 @@ const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
 const { tryGetDesktopDshHome } = require('../../shared/dsh-home');
+const { titlebarMenuLooksOpen } = require('./titlebar-menu');
 
 const SMOKE_SURFACES = 'right panel|surfaces|\u53f3\u4fa7\u680f';
 const SMOKE_BRANCH = 'switch branch|\u5207\u6362\u5206\u652f';
 const SMOKE_GIT = 'git actions|git \u64cd\u4f5c';
 const SMOKE_TERMINAL = 'terminal|\u7ec8\u7aef';
 const SMOKE_ONBOARDING = '^\u7ee7\u7eed$|^Continue$|^\u7a0d\u540e\u914d\u7f6e$|^Configure later$';
+// 0.1.2-alpha.2 concession: sidebar 280 + surfaces min 360 + center min 640.
+const SMOKE_SURFACES_MIN_VIEWPORT = 1280;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -65,15 +68,51 @@ async function titlebarButtonRect(wc, pattern) {
   })()`);
 }
 
-async function titlebarMenuOpen(wc, pattern) {
+async function titlebarMenuSnapshot(wc, pattern) {
   return wc.executeJavaScript(`(() => {
     const match = new RegExp(${JSON.stringify(pattern)}, 'i');
     const titlebar = document.querySelector('#dshd-shell-titlebar-trailing');
     const button = titlebar && Array.from(titlebar.querySelectorAll('button')).find((el) =>
       match.test((el.getAttribute('aria-label') || el.textContent || '').trim()));
-    return Boolean(button && button.getAttribute('aria-expanded') === 'true')
-      || Boolean(document.querySelector('[role="menu"]'));
+    const menus = Array.from(document.querySelectorAll('[role="menu"], [data-dsh-motion="popover"][data-state="open"]'));
+    return {
+      found: Boolean(button),
+      disabled: Boolean(button && button.disabled),
+      expanded: button ? button.getAttribute('aria-expanded') : null,
+      menuCount: menus.length,
+      hasOpenPopover: Boolean(document.querySelector('[data-dsh-motion="popover"][data-state="open"]')),
+    };
   })()`);
+}
+
+async function titlebarMenuOpen(wc, pattern) {
+  return titlebarMenuLooksOpen(await titlebarMenuSnapshot(wc, pattern));
+}
+
+/**
+ * Open a titlebar Menu with a single JS click.
+ * CDP mousePressed is document pointerdown: if the first click already opened
+ * the menu, a second click toggles it closed (CI: "branch menu did not open").
+ */
+async function openTitlebarMenu(wc, pattern, timeoutMs = 20_000) {
+  const ready = await waitUntil(async () => {
+    const snap = await titlebarMenuSnapshot(wc, pattern);
+    return Boolean(snap && snap.found && !snap.disabled);
+  }, timeoutMs);
+  if (!ready) {
+    return { ok: false, snapshot: await titlebarMenuSnapshot(wc, pattern).catch(() => null) };
+  }
+  if (await titlebarMenuOpen(wc, pattern)) {
+    return { ok: true, snapshot: await titlebarMenuSnapshot(wc, pattern) };
+  }
+  if (!await clickTitlebarButton(wc, pattern)) {
+    return { ok: false, snapshot: await titlebarMenuSnapshot(wc, pattern).catch(() => null) };
+  }
+  const opened = await waitUntil(() => titlebarMenuOpen(wc, pattern), 5_000);
+  return {
+    ok: Boolean(opened),
+    snapshot: await titlebarMenuSnapshot(wc, pattern).catch(() => null),
+  };
 }
 
 async function clickTitlebarButton(wc, pattern) {
@@ -97,6 +136,59 @@ async function pressEscape(wc) {
   const key = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', ...key });
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+}
+
+function layoutSmokeHarnessViews(win) {
+  if (!win || win.isDestroyed()) {
+    return { width: 0, height: 0 };
+  }
+  win.setSize(1680, 1000);
+  win.center();
+  const bounds = win.getContentBounds();
+  const width = Math.max(bounds.width || 0, 1680);
+  const height = Math.max(bounds.height || 0, 1000);
+  for (const view of win.getBrowserViews()) {
+    try {
+      view.setBounds({ x: 0, y: 0, width, height });
+      view.setAutoResize({ width: true, height: true });
+    } catch {
+      // View may already be gone.
+    }
+  }
+  return { width, height };
+}
+
+const SMOKE_FRAME_WIDTH_JS = `(() => {
+  const caption = document.querySelector('[data-dshd-caption="band"]');
+  const frame = caption && caption.parentElement;
+  const frameW = frame ? Math.round(frame.getBoundingClientRect().width) : 0;
+  return { inner: window.innerWidth, frameW, collapsed: frame ? frame.hasAttribute('data-surfaces-collapsed') : null };
+})()`;
+
+/** Packaged smoke often lands at ~1024px, where the pin auto-closes surfaces. */
+async function ensureSurfacesViewport(win, wc) {
+  layoutSmokeHarnessViews(win);
+  let wide = await waitUntil(async () => {
+    const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS);
+    return sample && sample.inner >= SMOKE_SURFACES_MIN_VIEWPORT && sample.frameW >= SMOKE_SURFACES_MIN_VIEWPORT;
+  }, 3_000);
+  if (!wide && win && !win.isDestroyed()) {
+    win.maximize();
+    layoutSmokeHarnessViews(win);
+    wide = await waitUntil(async () => {
+      const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS);
+      return sample && sample.inner >= SMOKE_SURFACES_MIN_VIEWPORT && sample.frameW >= SMOKE_SURFACES_MIN_VIEWPORT;
+    }, 3_000);
+  }
+  if (wide) {
+    await wc.executeJavaScript('window.dispatchEvent(new Event(\'resize\'))').catch(() => {});
+    await sleep(400);
+    return;
+  }
+  const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS).catch(() => ({}));
+  throw new Error(
+    `surfaces viewport inner=${sample.inner} frame=${sample.frameW} < ${SMOKE_SURFACES_MIN_VIEWPORT} (sidebar+surfaces+center min)`,
+  );
 }
 
 /** Dismiss rc.7 first-run onboarding so titlebar hit-testing can reach the chrome. */
@@ -148,56 +240,47 @@ async function probeTitlebarHits(wc) {
       return { hits, error: 'surfaces toggle missing' };
     }
     hits.surfaces += 1;
-    let opened = await waitUntil(() => wc.executeJavaScript(`(() => {
-      const frame = document.querySelector('[class*="frame"]');
+    const surfacesOpenJs = `(() => {
+      const caption = document.querySelector('[data-dshd-caption="band"]');
+      const frame = caption && caption.parentElement;
       if (!frame) return false;
-      return frame.getAttribute('data-surfaces-collapsed') !== 'true';
-    })()`), 10_000);
+      return !frame.hasAttribute('data-surfaces-collapsed');
+    })()`;
+    let opened = await waitUntil(() => wc.executeJavaScript(surfacesOpenJs), 10_000);
     if (!opened && surfaces && await clickTitlebarButton(wc, SMOKE_SURFACES)) {
-      opened = await waitUntil(() => wc.executeJavaScript(`(() => {
-        const frame = document.querySelector('[class*="frame"]');
-        if (!frame) return false;
-        return frame.getAttribute('data-surfaces-collapsed') !== 'true';
-      })()`), 10_000);
+      opened = await waitUntil(() => wc.executeJavaScript(surfacesOpenJs), 10_000);
     }
     if (!opened) {
+      const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS).catch(() => ({}));
       return {
         hits,
-        error: 'surfaces did not open',
+        error: `surfaces did not open inner=${sample.inner} frame=${sample.frameW} collapsed=${sample.collapsed}`,
       };
     }
 
-    const branch = await waitUntil(() => titlebarButtonRect(wc, SMOKE_BRANCH), 20_000);
-    if (branch) {
-      await clickClientCenter(wc, branch.x, branch.y);
-    } else if (!await clickTitlebarButton(wc, SMOKE_BRANCH)) {
-      return { hits, error: 'branch trigger missing' };
+    const branchOpen = await openTitlebarMenu(wc, SMOKE_BRANCH);
+    if (branchOpen.ok || branchOpen.snapshot?.found) {
+      hits.branch += 1;
     }
-    hits.branch += 1;
-    let branchMenuOpen = await waitUntil(() => titlebarMenuOpen(wc, SMOKE_BRANCH), 5_000);
-    if (!branchMenuOpen && branch && await clickTitlebarButton(wc, SMOKE_BRANCH)) {
-      branchMenuOpen = await waitUntil(() => titlebarMenuOpen(wc, SMOKE_BRANCH), 5_000);
-    }
-    if (!branchMenuOpen) {
-      return { hits, error: 'branch menu did not open' };
+    if (!branchOpen.ok) {
+      return {
+        hits,
+        error: `branch menu did not open ${JSON.stringify(branchOpen.snapshot)}`,
+      };
     }
     await pressEscape(wc);
     await waitUntil(async () => !(await titlebarMenuOpen(wc, SMOKE_BRANCH)), 3_000);
     await sleep(200);
 
-    const git = await waitUntil(() => titlebarButtonRect(wc, SMOKE_GIT), 10_000);
-    if (git) {
-      await clickClientCenter(wc, git.x, git.y);
-    } else if (!await clickTitlebarButton(wc, SMOKE_GIT)) {
-      return { hits, error: 'git actions missing' };
+    const gitOpen = await openTitlebarMenu(wc, SMOKE_GIT, 10_000);
+    if (gitOpen.ok || gitOpen.snapshot?.found) {
+      hits.git += 1;
     }
-    hits.git += 1;
-    let gitMenuOpen = await waitUntil(() => titlebarMenuOpen(wc, SMOKE_GIT), 5_000);
-    if (!gitMenuOpen && git && await clickTitlebarButton(wc, SMOKE_GIT)) {
-      gitMenuOpen = await waitUntil(() => titlebarMenuOpen(wc, SMOKE_GIT), 5_000);
-    }
-    if (!gitMenuOpen) {
-      return { hits, error: 'git menu did not open' };
+    if (!gitOpen.ok) {
+      return {
+        hits,
+        error: `git menu did not open ${JSON.stringify(gitOpen.snapshot)}`,
+      };
     }
     return { hits, error: null };
   } finally {
@@ -365,6 +448,7 @@ async function probeThemeBackgrounds(wc) {
 function createSmokeRunner(deps) {
   const {
     qaEnv,
+    qaRemoteMode,
     dsh,
     harness,
     loadConfig,
@@ -381,6 +465,12 @@ function createSmokeRunner(deps) {
 
   /** Keep the desktop up with LAN remote on and print a pairing URL for phone QA. */
   async function keepRemotePhoneHost() {
+    const { REMOTE_FEATURE_ENABLED } = require('../config');
+    if (!REMOTE_FEATURE_ENABLED) {
+      console.log('[DSH_REMOTE_PHONE_HOST]', JSON.stringify({ ok: false, reason: 'REMOTE_FEATURE_ENABLED=false' }));
+      await app.exit(1);
+      return;
+    }
     const { pairingUrl, listLanAddresses } = require('../../shared/lan');
     const deadline = Date.now() + 120_000;
     let snap = null;
@@ -593,7 +683,8 @@ function createSmokeRunner(deps) {
       }
       let qaAttached = false;
       const needsComposerQa = qaEnv('DSH_QA_COMPOSER');
-      const needsRemoteGateQa = qaEnv('DSH_QA_REMOTE');
+      const remoteGateMode = typeof qaRemoteMode === 'function' ? qaRemoteMode() : (qaEnv('DSH_QA_REMOTE') ? 'full' : null);
+      const needsRemoteGateQa = remoteGateMode != null;
       const needsReleaseQa = qaEnv('DSH_QA');
       const needsAppendixQa = qaEnv('DSH_QA_APPENDIX');
       const needsShellQa = qaEnv('DSH_QA_SHELL');
@@ -626,6 +717,7 @@ function createSmokeRunner(deps) {
       }
       let titlebarHits = { hits: { surfaces: 0, branch: 0, git: 0 }, error: 'not-run' };
       try {
+        await ensureSurfacesViewport(win, wc);
         titlebarHits = await probeTitlebarHits(wc);
       } catch (error) {
         titlebarHits = { hits: { surfaces: 0, branch: 0, git: 0 }, error: String(error) };
@@ -667,7 +759,7 @@ function createSmokeRunner(deps) {
             pressEscape,
             probeRemote: probeRemoteSnapshot,
             setRemote: setRemoteFromQa,
-          });
+          }, { mode: remoteGateMode });
         } catch (error) {
           result.remoteGateQa = {
             ok: false,
@@ -825,6 +917,20 @@ function createSmokeRunner(deps) {
         console.log('[DSH_THEME_SMOKE]', JSON.stringify(result.themeSmoke));
       }
       const hitCount = titlebarHits.hits.surfaces + titlebarHits.hits.branch + titlebarHits.hits.git;
+      const requireFullTitlebar = needsReleaseQa
+        || needsComposerQa
+        || needsAppendixQa
+        || needsShellQa
+        || needsPersistQa
+        || needsRecoveryQa
+        || !needsRemoteGateQa;
+      const titlebarOk = !requireFullTitlebar || (
+        hitCount > 0
+        && titlebarHits.hits.surfaces > 0
+        && titlebarHits.hits.branch > 0
+        && titlebarHits.hits.git > 0
+        && titlebarHits.error == null
+      );
       const ok = result.hasFrame
         && result.hasTitlebar
         && result.hasTerminalToggle
@@ -837,11 +943,7 @@ function createSmokeRunner(deps) {
         && result.bootShellApiIsScoped
         && result.hasHarnessShellApi
         && result.harnessShellApiIsScoped
-        && hitCount > 0
-        && titlebarHits.hits.surfaces > 0
-        && titlebarHits.hits.branch > 0
-        && titlebarHits.hits.git > 0
-        && titlebarHits.error == null
+        && titlebarOk
         && ptyStatus === 'echoed:ok'
         && (!needsThemeSmoke || result.themeSmoke?.ok === true)
         && (!needsReleaseQa || result.qa?.ok === true)

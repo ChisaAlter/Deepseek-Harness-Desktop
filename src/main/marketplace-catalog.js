@@ -32,7 +32,7 @@ const FIRST_PARTY_PLUGINS = [
   {
     name: 'dshbot',
     owner: 'ChisaAlter',
-    url: 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop/tree/main/vendor/dshbot',
+    url: 'https://github.com/ChisaAlter/dshbot',
     category: 'workflow',
     description: {
       en: 'Sidebar bot contacts and group rooms (official desktop standalone plugin).',
@@ -40,7 +40,7 @@ const FIRST_PARTY_PLUGINS = [
     },
     npm: null,
     stars: 0,
-    install: 'dsh plugin --profile web add github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot',
+    install: 'dsh plugin --profile web add github:ChisaAlter/dshbot',
     added: '2026-08-25',
   },
 ];

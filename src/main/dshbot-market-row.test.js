@@ -3,9 +3,10 @@
 /**
  * dshbot in-product install path: the desktop merges a first-party catalog
  * row for dshbot into every marketplace payload, so Settings → 插件市场 can
- * one-click install `github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot`
- * through the curated `installMarketplacePlugin(id)` channel. The Host
- * `installPlugin` channel stays github-only and keeps rejecting `#path:`.
+ * one-click install `github:ChisaAlter/dshbot` (the standalone repo) through
+ * the curated `installMarketplacePlugin(id)` channel. The Host `installPlugin`
+ * channel stays github-only and keeps rejecting `#path:` specs such as the
+ * retired `github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot`.
  */
 
 const test = require('node:test');
@@ -39,8 +40,9 @@ const { isAllowedMarketplaceSpec } = require('./marketplace-spec');
 const { installPlugin, installMarketplacePlugin } = require('./marketplace-install');
 
 const DSHBOT_ID = 'ChisaAlter/dshbot';
-const DSHBOT_SPEC = 'github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot';
-const DSHBOT_HOMEPAGE = 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop/tree/main/vendor/dshbot';
+const DSHBOT_SPEC = 'github:ChisaAlter/dshbot';
+const DSHBOT_HOMEPAGE = 'https://github.com/ChisaAlter/dshbot';
+const LEGACY_PATH_SPEC = 'github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot';
 const FIXTURE_URL = 'http://127.0.0.1/plugins.json';
 const catalogPath = require.resolve('./marketplace-catalog');
 
@@ -175,25 +177,36 @@ test('getMarketplacePlugin resolves dshbot cold with no fetch and no cache', () 
   assert.equal(row.installSpec, DSHBOT_SPEC);
 });
 
-test('the dshbot #path: spec passes the marketplace allow list but not Host installPlugin', async () => {
+test('the dshbot github spec passes the allow list and Host; legacy #path: stays Host-rejected', async () => {
   const { getMarketplacePlugin } = loadFreshCatalog();
   const row = getMarketplacePlugin(DSHBOT_ID);
   assert.equal(isAllowedMarketplaceSpec(row.installSpec, row), true);
+  const hostCalls = [];
   const hostResult = await installPlugin(DSHBOT_SPEC, {
+    runPlugin: async (args) => {
+      hostCalls.push(args.slice());
+      writeProfileDep('dshbot', 'git+https://github.com/ChisaAlter/dshbot.git');
+      writeBundlePlugin('dshbot');
+      return { ok: true, code: 0, log: '', needsAllowBuilds: false, allowBuilds: [] };
+    },
+  });
+  assert.equal(hostResult.ok, true, 'plain github spec is valid on the Host channel');
+  assert.deepEqual(hostCalls, [['add', DSHBOT_SPEC]]);
+  const legacyResult = await installPlugin(LEGACY_PATH_SPEC, {
     runPlugin: async () => {
       throw new Error('Host installPlugin must reject #path: before the CLI');
     },
   });
-  assert.equal(hostResult.ok, false);
-  assert.match(hostResult.error, /github:owner\/repo/);
+  assert.equal(legacyResult.ok, false);
+  assert.match(legacyResult.error, /github:owner\/repo/);
 });
 
-test('installMarketplacePlugin(ChisaAlter/dshbot) hands the #path: spec to the plugin CLI', async () => {
+test('installMarketplacePlugin(ChisaAlter/dshbot) hands the standalone github spec to the plugin CLI', async () => {
   const calls = [];
   const runPlugin = async (args) => {
     calls.push(args.slice());
     if (args[0] === 'add') {
-      writeProfileDep('dshbot', 'git+https://github.com/ChisaAlter/Deepseek-Harness-Desktop.git#path:/vendor/dshbot');
+      writeProfileDep('dshbot', 'git+https://github.com/ChisaAlter/dshbot.git');
       writeBundlePlugin('dshbot');
     }
     return { ok: true, code: 0, log: '', needsAllowBuilds: false, allowBuilds: [] };

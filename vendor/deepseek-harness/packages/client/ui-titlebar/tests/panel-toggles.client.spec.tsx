@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { WorkspaceListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { WorkspaceSnapshot as WorkspaceListState } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { PanelTogglesProps } from '../src/client/PanelToggles.tsx'
 import { PanelToggles } from '../src/client/PanelToggles.tsx'
 import { en } from '../src/client/locales.ts'
@@ -36,6 +36,7 @@ function mount(opts: {
       surfaces={opts.surfaces ?? 0}
       terminalDrawer={opts.terminalDrawer ?? 0}
       useSessions={neverHook}
+      useSessionPendingInteraction={sel => sel(new Map())}
       useWorkspaces={workspaces(opts.workspaceCount ?? 1)}
       useTerminalToggle={sel => sel(opts.terminalToggle !== false)}
       useSurfacesToggle={sel => sel(opts.surfacesToggle !== false)}

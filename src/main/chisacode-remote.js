@@ -6,17 +6,22 @@
  */
 
 const { EventEmitter } = require('events');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { applyOfficialDeepSeekSpawnEnv } = require('../shared/official-deepseek-env');
 const {
+  DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_ENDPOINT,
   DEFAULT_RELAY_USE_TLS,
   listLanAddresses,
+  normalizePublicAppBaseUrl,
   preferredLanIp,
   publicUrl,
 } = require('../shared/lan');
 const { createMobileWebServer, listenMobileWebServer, MOBILE_WEB_PORT } = require('./mobile-web-server');
+const { startGitTunnelServer } = require('./dshd-git-tunnel');
 
 function resolveVendorRoot() {
   // Packaged: extraResources → resources/vendor/chisacode-remote
@@ -44,6 +49,53 @@ const SERVER_EXPORT = path.join(
 );
 
 /**
+ * Plain-node children cannot read app.asar; the runner ships via asarUnpack.
+ * @param {string} file
+ * @returns {string}
+ */
+function unpackedPath(file) {
+  return file.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
+}
+
+const RUNNER_PATH = unpackedPath(path.join(__dirname, 'chisacode-daemon-runner.mjs'));
+
+/** Ready wait for the daemon child (cold dist import + port bind). */
+const DAEMON_READY_TIMEOUT_MS = 30_000;
+/** Graceful-stop wait before the child is force-killed. */
+const DAEMON_STOP_TIMEOUT_MS = 5_000;
+/** Startup stderr kept for the failure message. */
+const DAEMON_STDERR_TAIL_LIMIT = 8_192;
+
+function defaultHarnessRoot() {
+  try {
+    // Packaged: extracted harness runtime; dev: repo vendor tree.
+    return require('./paths').harnessRoot();
+  } catch {
+    // Plain-node tests: same fallback shape as resolveVendorRoot above.
+    return path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');
+  }
+}
+
+/**
+ * Bundled-harness plugin tree that can serve as `CHISACODE_DSH_VENDOR_DIR`.
+ * Complete only when every dsh vendor package is present AND built
+ * (`lib/index.js` — the managed cordis.yml points plugin URLs there, so a
+ * source-only checkout must not qualify).
+ * @param {{ root?: string, packages?: readonly string[] }} [options]
+ * @returns {string | null}
+ */
+function desktopDshVendorDir(options = {}) {
+  const packages = options.packages;
+  if (!Array.isArray(packages) || packages.length === 0) {
+    return null;
+  }
+  const root = options.root || defaultHarnessRoot();
+  const candidate = path.join(root, 'node_modules', '@deepseek-ai');
+  const complete = packages.every((pkg) => fs.existsSync(path.join(candidate, pkg, 'lib', 'index.js')));
+  return complete ? candidate : null;
+}
+
+/**
  * Product Away defaults — always from hardcoded `lan.js` constants so Setup.exe
  * works with zero user config (no reliance on defaults.json surviving the pack).
  */
@@ -65,7 +117,7 @@ function readDefaults() {
 async function loadServerApi() {
   if (!fs.existsSync(SERVER_EXPORT)) {
     throw new Error(
-      `ChisaCode server export missing at ${SERVER_EXPORT}. Run vendor sync / build packages/server.`,
+      `dshd remote runtime missing at ${SERVER_EXPORT}. Run vendor sync / build packages/server.`,
     );
   }
   return import(pathToFileURL(SERVER_EXPORT).href);
@@ -73,6 +125,16 @@ async function loadServerApi() {
 
 function modeIsAway(config) {
   return config.remoteMode === 'relay' || config.remoteMode === 'away';
+}
+
+function resolvedAppBaseUrl(config) {
+  if (modeIsAway(config)) {
+    return normalizePublicAppBaseUrl(config.remoteAppBaseUrl, {
+      relayEndpoint: (config.remoteRelayEndpoint || DEFAULT_RELAY_ENDPOINT).trim(),
+    }) || DEFAULT_PUBLIC_APP_BASE_URL;
+  }
+  const ip = preferredLanIp() || '127.0.0.1';
+  return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
 }
 
 function relayUseTls(config, endpoint) {
@@ -98,75 +160,201 @@ function publicDevicesFromStore(store) {
     }));
 }
 
-function logMessageFromArgs(args) {
-  if (typeof args[0] === 'string') {
-    return args[0];
-  }
-  if (typeof args[1] === 'string') {
-    return args[1];
-  }
-  return '';
-}
-
-function logObjectFromArgs(args) {
-  return args[0] && typeof args[0] === 'object' ? args[0] : {};
-}
-
 /**
- * Probe relay control state from pino msgs emitted by relay-transport.
- * Zero-fork: startRelayTransport only returns { stop }.
- * @param {import('pino').Logger} logger
- * @param {(state: { connected: boolean, lastError: string }) => void} onStatus
- * @returns {import('pino').Logger}
+ * Relay control state from one parsed daemon log record. Replaces the old
+ * in-process logger-wrapping probe (`attachRelayStatusProbe`): the daemon now
+ * runs in a child process whose pino JSON lines are the same stable upstream
+ * identifiers, read at the process boundary instead of by monkey-patching the
+ * logger.
+ * @param {{ msg?: unknown, err?: { message?: unknown } | null, reason?: unknown }} record
+ * @param {{ connected?: boolean, lastError?: string } | null} [previous]
+ * @returns {{ connected: boolean, lastError: string } | null}
  */
-function attachRelayStatusProbe(logger, onStatus) {
-  const probeMessage = (...args) => {
-    const msg = logMessageFromArgs(args);
-    if (msg === 'relay_control_connected') {
-      onStatus({ connected: true, lastError: '' });
-      return;
-    }
-    if (msg === 'relay_error' || msg === 'relay_control_disconnected') {
-      const obj = logObjectFromArgs(args);
-      const err = obj.err;
-      const detail = (err && err.message) || obj.reason || msg;
-      onStatus({ connected: false, lastError: String(detail || msg) });
-    }
-  };
-
-  const wrapLevel = (target, level) => {
-    if (target[`__dshRelay${level}`]) {
-      return;
-    }
-    const original = target[level].bind(target);
-    const wrapped = (...args) => {
-      probeMessage(...args);
-      return original(...args);
-    };
-    wrapped.__dshRelayWrapped = true;
-    target[level] = wrapped;
-    target[`__dshRelay${level}`] = true;
-  };
-
-  const wrapLogger = (target) => {
-    for (const level of ['info', 'warn', 'error']) {
-      if (typeof target[level] === 'function') {
-        wrapLevel(target, level);
-      }
-    }
-    if (typeof target.child === 'function' && !target.__dshRelayChild) {
-      const originalChild = target.child.bind(target);
-      target.child = (bindings, ...rest) => wrapLogger(originalChild(bindings, ...rest));
-      target.__dshRelayChild = true;
-    }
-    return target;
-  };
-
-  return wrapLogger(logger);
+function relayStatusFromLogRecord(record, previous) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const msg = typeof record.msg === 'string' ? record.msg : '';
+  if (msg === 'relay_control_connected') {
+    return { connected: true, lastError: '' };
+  }
+  if (msg === 'relay_error' || msg === 'relay_control_disconnected') {
+    const err = record.err;
+    const detail = (err && typeof err === 'object' && err.message) || record.reason || '';
+    const lastError = String(detail || msg);
+    const prior = previous && previous.lastError ? String(previous.lastError) : '';
+    const keepPrior = lastError === 'relay_control_disconnected'
+      && prior
+      && prior !== 'relay_control_disconnected';
+    return { connected: false, lastError: keepPrior ? prior : lastError };
+  }
+  return null;
 }
 
 /**
- * Product remote controller backed by createChisaCodeDaemon.
+ * Line-buffered reader over a child stdio pipe.
+ * @param {import('stream').Readable | null} stream
+ * @param {(line: string) => void} onLine
+ */
+function wireLineReader(stream, onLine) {
+  if (!stream) {
+    return;
+  }
+  let buffer = '';
+  stream.setEncoding('utf8');
+  stream.on('data', (chunk) => {
+    buffer += chunk;
+    let newline = buffer.indexOf('\n');
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline).replace(/\r$/, '');
+      buffer = buffer.slice(newline + 1);
+      if (line) {
+        onLine(line);
+      }
+      newline = buffer.indexOf('\n');
+    }
+  });
+  stream.on('error', () => {});
+}
+
+/**
+ * @param {import('child_process').ChildProcess} child
+ * @param {number} timeoutMs
+ * @returns {Promise<boolean>} true when the child exited within the window
+ */
+function waitForExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      child.removeListener('exit', onExit);
+      resolve(false);
+    }, timeoutMs);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    child.once('exit', onExit);
+  });
+}
+
+/**
+ * Desktop-facing home override (naming: `DSHD_*`, the desktop env family —
+ * `CHISACODE_HOME` never appears in the shell's own environment). Mirrors the
+ * dsh-home law: packaged builds ignore an inherited `DSHD_CHISACODE_HOME`
+ * unless `DSHD_ALLOW_ENV_HOME=1` explicitly opts in.
+ * @param {{ defaultDir: string, env?: NodeJS.ProcessEnv, isPackaged?: boolean }} options
+ * @returns {string}
+ */
+function resolveDesktopChisaCodeHome({ defaultDir, env = process.env, isPackaged = false }) {
+  const value = typeof env.DSHD_CHISACODE_HOME === 'string' ? env.DSHD_CHISACODE_HOME.trim() : '';
+  if (!value) {
+    return defaultDir;
+  }
+  if (isPackaged && env.DSHD_ALLOW_ENV_HOME !== '1') {
+    return defaultDir;
+  }
+  return value;
+}
+
+/**
+ * dsh provider plugin tree for the daemon child. Precedence: desktop-facing
+ * `DSHD_DSH_VENDOR_DIR` > inherited upstream `CHISACODE_DSH_VENDOR_DIR`
+ * (compat) > bundled harness when complete > null (the child falls back to
+ * the stdio-hardened npm-global probe).
+ * @param {{ DSH_VENDOR_PACKAGES?: readonly string[] } | null} api
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {{ root?: string }} [options]
+ * @returns {string | null}
+ */
+function dshVendorDirForChild(api, env = process.env, options = {}) {
+  const desktop = typeof env.DSHD_DSH_VENDOR_DIR === 'string' ? env.DSHD_DSH_VENDOR_DIR.trim() : '';
+  if (desktop) {
+    return desktop;
+  }
+  const upstream = typeof env.CHISACODE_DSH_VENDOR_DIR === 'string' ? env.CHISACODE_DSH_VENDOR_DIR.trim() : '';
+  if (upstream) {
+    return upstream;
+  }
+  return desktopDshVendorDir({ packages: api && api.DSH_VENDOR_PACKAGES, root: options.root });
+}
+
+/**
+ * Materialize a `dsh-acp-demo` PATH shim so the daemon's dsh provider can
+ * launch the bundled harness ACP server (there is no npm-global install on a
+ * desktop machine). Upstream resolves the binary via PATH lookup and its
+ * spawn util handles Windows `.cmd` shims, so no vendor changes are needed.
+ * Returns null (and materializes nothing) when the bundled harness has no
+ * built ACP entry — the provider then reports unavailable instead of lying.
+ * @param {{ home: string, harnessRoot?: string, execPath?: string }} options
+ * @returns {string | null} shim bin dir for PATH prepend
+ */
+function ensureDshAcpShim({ home, harnessRoot = defaultHarnessRoot(), execPath = process.execPath }) {
+  const entry = path.join(harnessRoot, 'packages', 'examples', 'acp-demo', 'lib', 'bin.js');
+  if (!fs.existsSync(entry)) {
+    return null;
+  }
+  const binDir = path.join(home, 'bin');
+  fs.mkdirSync(binDir, { recursive: true });
+  const sh = [
+    '#!/bin/sh',
+    'export ELECTRON_RUN_AS_NODE=1',
+    `exec "${execPath}" "${entry}" "$@"`,
+    '',
+  ].join('\n');
+  fs.writeFileSync(path.join(binDir, 'dsh-acp-demo'), sh, { encoding: 'utf8', mode: 0o755 });
+  const cmd = [
+    '@echo off',
+    'set ELECTRON_RUN_AS_NODE=1',
+    `"${execPath}" "${entry}" %*`,
+    '',
+  ].join('\r\n');
+  fs.writeFileSync(path.join(binDir, 'dsh-acp-demo.cmd'), cmd, { encoding: 'utf8' });
+  return binDir;
+}
+
+/**
+ * Environment for the daemon child. This is the ONLY place `CHISACODE_*`
+ * names exist on the desktop — a controlled bridge at the process boundary;
+ * the shell's own env and every other child (PTY, `dsh web`) stay clean.
+ * @param {object} options
+ * @param {NodeJS.ProcessEnv} options.baseEnv
+ * @param {string} options.home - resolved chisacode runtime home (userData)
+ * @param {string | null} options.vendorDir - dsh plugin tree (see dshVendorDirForChild)
+ * @param {string | null} options.shimDir - dsh-acp-demo bin dir for PATH prepend
+ * @param {{ apiKey?: string, baseUrl?: string }} options.config - desktop shell config
+ * @returns {NodeJS.ProcessEnv}
+ */
+function buildDaemonChildEnv({
+  baseEnv, home, vendorDir, shimDir, config, harnessOrigin, gitTunnelUrl, gitTunnelToken,
+}) {
+  const env = { ...baseEnv };
+  env.ELECTRON_RUN_AS_NODE = '1';
+  // Bridge: dsh provider managed homes land under userData, never ~/.chisacode.
+  env.CHISACODE_HOME = home;
+  if (vendorDir) {
+    env.CHISACODE_DSH_VENDOR_DIR = vendorDir;
+  }
+  if (shimDir) {
+    const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') || 'PATH';
+    const current = env[pathKey] || '';
+    env[pathKey] = current ? `${shimDir}${path.delimiter}${current}` : shimDir;
+  }
+  if (harnessOrigin) env.DSHD_HARNESS_ORIGIN = harnessOrigin;
+  if (gitTunnelUrl) env.DSHD_GIT_TUNNEL_URL = gitTunnelUrl;
+  if (gitTunnelToken) env.DSHD_GIT_TUNNEL_TOKEN = gitTunnelToken;
+  // Same credential law as `dsh web` children: official https host only.
+  applyOfficialDeepSeekSpawnEnv(env, { apiKey: config.apiKey, baseUrl: config.baseUrl });
+  return env;
+}
+
+/**
+ * Product remote controller — process manager for the ChisaCode daemon child
+ * (createChisaCodeDaemon runs in `chisacode-daemon-runner.mjs`, never in the
+ * Electron main process). Pairing offers and device snapshots stay in-process:
+ * they are file-backed against the same chisacode home, exactly like the
+ * upstream CLI `daemon pair` running beside the daemon.
  */
 class ChisaCodeRemote extends EventEmitter {
   /**
@@ -175,6 +363,11 @@ class ChisaCodeRemote extends EventEmitter {
    * @param {(patch: object) => object} options.saveConfig
    * @param {() => string} options.getHomeDir - chisacode home under userData
    * @param {import('electron').SafeStorage | null} [options.safeStorage]
+   * @param {(line: string) => void} [options.log] - dsh log sink for daemon child output
+   * @param {string} [options.runnerPath] - daemon runner override (tests)
+   * @param {string} [options.execPath] - node/electron executable override (tests)
+   * @param {number} [options.readyTimeoutMs]
+   * @param {number} [options.stopTimeoutMs]
    */
   constructor(options = {}) {
     super();
@@ -182,6 +375,16 @@ class ChisaCodeRemote extends EventEmitter {
     this.saveConfig = options.saveConfig || (() => ({}));
     this.getHomeDir = options.getHomeDir || (() => path.join(process.cwd(), '.chisacode-home'));
     this.safeStorage = options.safeStorage || null;
+    this.log = typeof options.log === 'function' ? options.log : null;
+    this.runnerPath = options.runnerPath || RUNNER_PATH;
+    this.execPath = options.execPath || process.execPath;
+    this.getHarnessOrigin = typeof options.getHarnessOrigin === 'function'
+      ? options.getHarnessOrigin
+      : () => '';
+    this.git = options.git || null;
+    this.gitTunnel = null;
+    this.readyTimeoutMs = options.readyTimeoutMs || DAEMON_READY_TIMEOUT_MS;
+    this.stopTimeoutMs = options.stopTimeoutMs || DAEMON_STOP_TIMEOUT_MS;
     this.daemon = null;
     this.mobileWebServer = null;
     this.serverApi = null;
@@ -190,6 +393,8 @@ class ChisaCodeRemote extends EventEmitter {
     this.error = '';
     this.starting = null;
     this.runtimeKey = '';
+    // After ensurePairing fails, get-remote polling must not hammer refreshPairing.
+    this.pairingEnsureBlocked = false;
   }
 
   async ensureApi() {
@@ -249,12 +454,12 @@ class ChisaCodeRemote extends EventEmitter {
   }
 
   /**
-   * QR / SPA landing is always the local mobile/web server — never the relay origin.
+   * QR / SPA landing: LAN mobile/web :3180 in LAN mode; public nginx SPA in Away mode.
    * @returns {string}
    */
   pairingAppBaseUrl() {
-    const ip = preferredLanIp() || '127.0.0.1';
-    return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
+    const config = this.getConfig() || {};
+    return resolvedAppBaseUrl(config);
   }
 
   async ensureMobileWebServer(config = this.getConfig() || {}) {
@@ -301,6 +506,14 @@ class ChisaCodeRemote extends EventEmitter {
     const relayEndpoint = (config.remoteRelayEndpoint || config.remoteRelayUrl || defaults.relayEndpoint || '').trim();
     const relayReady = Boolean(relayEndpoint);
     const addresses = listLanAddresses();
+    let snapshotAddress = preferredLanIp(addresses) || 'pair';
+    if (away && pairingUrl) {
+      try {
+        snapshotAddress = new URL(resolvedAppBaseUrl(config)).hostname;
+      } catch {
+        snapshotAddress = 'pair';
+      }
+    }
 
     return {
       available: true,
@@ -325,7 +538,7 @@ class ChisaCodeRemote extends EventEmitter {
       devices,
       pairingQr: '',
       urls: pairingUrl
-        ? [{ address: preferredLanIp(addresses) || 'pair', url: pairingUrl, pairingUrl }]
+        ? [{ address: snapshotAddress, url: pairingUrl, pairingUrl }]
         : [],
     };
   }
@@ -348,7 +561,27 @@ class ChisaCodeRemote extends EventEmitter {
       appBaseUrl,
       includeQr: false,
     });
+    this.pairingEnsureBlocked = false;
     return this.pairing;
+  }
+
+  /**
+   * Lazily mint a pairing URL when the daemon is up but snapshot urls are empty.
+   * Does not start/stop the daemon — that stays on sync().
+   * @returns {object} current snapshot
+   */
+  async ensurePairing() {
+    if (!this.daemon || (this.pairing && this.pairing.url) || this.pairingEnsureBlocked) {
+      return this.snapshot();
+    }
+    try {
+      await this.refreshPairing();
+    } catch (err) {
+      this.pairingEnsureBlocked = true;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!this.error) this.error = msg;
+    }
+    return this.snapshot();
   }
 
   async startDaemon() {
@@ -359,6 +592,7 @@ class ChisaCodeRemote extends EventEmitter {
         return this.startDaemon();
       }
       await this.refreshPairing();
+      this.pairingEnsureBlocked = false;
       return;
     }
     if (this.starting) {
@@ -378,16 +612,12 @@ class ChisaCodeRemote extends EventEmitter {
       const agentStoragePath = path.join(home, 'agents');
       fs.mkdirSync(agentStoragePath, { recursive: true });
 
-      await this.ensureMobileWebServer(config);
+      if (modeIsAway(config)) {
+        await this.stopMobileWebServer();
+      } else {
+        await this.ensureMobileWebServer(config);
+      }
       this.relayState = { connected: false, lastError: '' };
-
-      const rootLogger = api.createRootLogger(
-        { log: { level: 'info', format: 'pretty' } },
-        { chisacodeHome: home, file: false },
-      );
-      const logger = attachRelayStatusProbe(rootLogger, (state) => {
-        this.setRelayState(state);
-      });
 
       const daemonConfig = {
         listen,
@@ -408,13 +638,14 @@ class ChisaCodeRemote extends EventEmitter {
         auth: {},
       };
 
-      // Full daemon — createChisaCodeDaemon, not a hello-only stub.
-      const daemon = await api.createChisaCodeDaemon(daemonConfig, logger);
-      await daemon.start();
-      this.daemon = daemon;
+      // Full daemon in an isolated child — a daemon-side crash cannot take
+      // down the Electron main process.
+      this.daemon = await this.spawnDaemonProcess({ api, home, config, daemonConfig });
       this.runtimeKey = this.runtimeConfigKey(config);
       this.error = '';
+      this.pushHarnessOrigin();
       await this.refreshPairing();
+      this.pairingEnsureBlocked = false;
       this.emit('listening', this.snapshot());
     })();
 
@@ -422,16 +653,14 @@ class ChisaCodeRemote extends EventEmitter {
       await this.starting;
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
-      const failedDaemon = this.daemon;
+      // A late failure (e.g. refreshPairing) can land after the child was
+      // assigned; it must not leak past this cleanup.
+      const failed = this.daemon;
       this.daemon = null;
       this.runtimeKey = '';
       this.relayState = { connected: false, lastError: this.error };
-      if (failedDaemon && typeof failedDaemon.stop === 'function') {
-        try {
-          await failedDaemon.stop();
-        } catch {
-          // Preserve the startup error; cleanup failure is secondary.
-        }
+      if (failed) {
+        await this.terminateDaemonProcess(failed);
       }
       await this.stopMobileWebServer();
       throw err;
@@ -440,22 +669,185 @@ class ChisaCodeRemote extends EventEmitter {
     }
   }
 
-  async stopDaemon() {
-    this.relayState = { connected: false, lastError: '' };
-    if (!this.daemon) {
-      this.pairing = { relayEnabled: false, url: null, qr: null };
-      await this.stopMobileWebServer();
+  /**
+   * Spawn the daemon runner child and wait for its ready line.
+   * @param {object} options
+   * @param {{ DSH_VENDOR_PACKAGES?: readonly string[] }} options.api
+   * @param {string} options.home
+   * @param {object} options.config - desktop shell config
+   * @param {object} options.daemonConfig
+   * @returns {Promise<{ child: import('child_process').ChildProcess, stopping: boolean }>}
+   */
+  async spawnDaemonProcess({ api, home, config, daemonConfig }) {
+    const launchFile = path.join(home, 'daemon-launch.json');
+    // No credentials in the launch file — DEEPSEEK_* rides the child env only.
+    fs.writeFileSync(
+      launchFile,
+      JSON.stringify({ serverExport: SERVER_EXPORT, daemonConfig }),
+      { encoding: 'utf8', mode: 0o600 },
+    );
+    const git = this.git;
+    if (git && !this.gitTunnel) {
+      this.gitTunnel = await startGitTunnelServer({ git });
+    }
+    const env = buildDaemonChildEnv({
+      baseEnv: process.env,
+      home,
+      vendorDir: dshVendorDirForChild(api),
+      shimDir: ensureDshAcpShim({ home, execPath: this.execPath }),
+      config,
+      harnessOrigin: this.getHarnessOrigin() || '',
+      gitTunnelUrl: this.gitTunnel?.url || '',
+      gitTunnelToken: this.gitTunnel?.token || '',
+    });
+
+    const child = spawn(this.execPath, [this.runnerPath, launchFile], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env,
+      windowsHide: true,
+    });
+    const handle = { child, stopping: false, stderrTail: '' };
+
+    let readyResolve = null;
+    let readyReject = null;
+    const ready = new Promise((resolve, reject) => {
+      readyResolve = resolve;
+      readyReject = reject;
+    });
+    handle.readyResolve = () => { if (readyResolve) { readyResolve(); readyResolve = null; readyReject = null; } };
+    handle.readyReject = (err) => { if (readyReject) { readyReject(err); readyResolve = null; readyReject = null; } };
+
+    wireLineReader(child.stdout, (line) => { this.handleDaemonLogLine(handle, line); });
+    wireLineReader(child.stderr, (line) => {
+      handle.stderrTail = `${handle.stderrTail}${line}\n`.slice(-DAEMON_STDERR_TAIL_LIMIT);
+      this.log?.(`[dshd-daemon] ${line}`);
+    });
+    child.stdin?.on?.('error', () => {});
+    child.on('error', (err) => {
+      handle.readyReject(new Error(`远程守护进程无法启动：${err && err.message ? err.message : err}`));
+    });
+    child.on('exit', (code, signal) => {
+      this.handleDaemonExit(handle, code, signal);
+    });
+
+    const timer = setTimeout(() => {
+      handle.readyReject(new Error(`远程守护进程 ${this.readyTimeoutMs / 1000}s 内未就绪`));
+    }, this.readyTimeoutMs);
+    try {
+      await ready;
+    } catch (err) {
+      await this.terminateDaemonProcess(handle);
+      const tail = handle.stderrTail.trim();
+      throw tail ? new Error(`${err.message}\nstderr:\n${tail}`) : err;
+    } finally {
+      clearTimeout(timer);
+    }
+    return handle;
+  }
+
+  /**
+   * One parsed stdout line from the daemon child: lifecycle control lines,
+   * relay status transitions, and warn+ log forwarding into the dsh log.
+   * @param {{ readyResolve: () => void, readyReject: (err: Error) => void }} handle
+   * @param {string} line
+   */
+  handleDaemonLogLine(handle, line) {
+    let record = null;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      // Non-JSON output (native module noise); keep it visible.
+      this.log?.(`[dshd-daemon] ${line}`);
       return;
     }
-    const current = this.daemon;
+    if (!record || typeof record !== 'object') {
+      return;
+    }
+    const status = relayStatusFromLogRecord(record, this.relayState);
+    if (status) {
+      this.setRelayState(status);
+    }
+    const msg = typeof record.msg === 'string' ? record.msg : '';
+    if (msg === 'dshd_daemon_ready') {
+      handle.readyResolve();
+    } else if (msg === 'dshd_daemon_start_failed') {
+      handle.readyReject(new Error(`远程守护进程启动失败：${record.error || 'unknown'}`));
+    }
+    // Info-level daemon chatter stays out of the dsh log; lifecycle lines and
+    // warn+ records are the operator-relevant slice.
+    if (msg.startsWith('dshd_daemon_') || (typeof record.level === 'number' && record.level >= 40)) {
+      this.log?.(`[dshd-daemon] ${line}`);
+    }
+  }
+
+  /**
+   * Child exit: expected during stopDaemon; anything else is a crash that must
+   * stay visible (snapshot.error + popup retry) without touching the GUI.
+   * @param {{ child: import('child_process').ChildProcess, stopping: boolean, readyReject: (err: Error) => void }} handle
+   * @param {number | null} code
+   * @param {string | null} signal
+   */
+  handleDaemonExit(handle, code, signal) {
+    handle.readyReject(new Error(`远程守护进程提前退出（${signal || `code ${code}`}）`));
+    if (this.daemon !== handle) {
+      return;
+    }
     this.daemon = null;
     this.runtimeKey = '';
-    try {
-      await current.stop();
-    } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+    if (!handle.stopping) {
+      this.error = `远程守护进程异常退出（${signal || `code ${code}`}），点「开启」重试`;
+      this.relayState = { connected: false, lastError: this.error };
+      this.pairing = { relayEnabled: false, url: null, qr: null };
+      this.log?.(`[dshd-daemon] ${this.error}`);
+      this.emit('listening', this.snapshot());
     }
+  }
+
+  /**
+   * Graceful stop: `stop` over stdin (cross-platform; Windows has no
+   * trappable SIGTERM), hard kill after the timeout.
+   * @param {{ child: import('child_process').ChildProcess, stopping: boolean }} handle
+   */
+  async terminateDaemonProcess(handle) {
+    handle.stopping = true;
+    const child = handle.child;
+    // pid undefined = the spawn itself failed ('error' fires, 'exit' never
+    // does) — there is no process to wait on.
+    if (!child.pid || child.exitCode !== null || child.signalCode) {
+      return;
+    }
+    try {
+      child.stdin.write('stop\n');
+    } catch {
+      // stdin already gone; fall through to the kill timeout.
+    }
+    const exited = await waitForExit(child, this.stopTimeoutMs);
+    if (!exited) {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // Already dead.
+      }
+      await waitForExit(child, 2_000);
+    }
+  }
+
+  async stopDaemon() {
+    this.relayState = { connected: false, lastError: '' };
+    // A deliberate stop clears any stale crash/start error.
+    this.error = '';
+    const handle = this.daemon;
+    this.daemon = null;
+    this.runtimeKey = '';
     this.pairing = { relayEnabled: false, url: null, qr: null };
+    if (handle) {
+      await this.terminateDaemonProcess(handle);
+    }
+    if (this.gitTunnel) {
+      const tunnel = this.gitTunnel;
+      this.gitTunnel = null;
+      try { await tunnel.close(); } catch { /* ignore */ }
+    }
     await this.stopMobileWebServer();
     this.emit('listening', this.snapshot());
   }
@@ -464,15 +856,30 @@ class ChisaCodeRemote extends EventEmitter {
     const config = this.getConfig() || {};
     if (config.remoteEnabled) {
       await this.startDaemon();
+      this.pushHarnessOrigin();
     } else {
       await this.stopDaemon();
     }
     return this.snapshot();
   }
 
+  pushHarnessOrigin(origin) {
+    const next = origin == null ? this.getHarnessOrigin() : origin;
+    const child = this.daemon?.child;
+    if (!child?.stdin || child.killed) return;
+    try {
+      child.stdin.write(`harness-origin ${String(next || '').trim()}\n`);
+    } catch {
+      // Child already draining.
+    }
+  }
+
   rotateToken() {
     // Offer TTL is re-issued; sticky device secrets stay until unbind.
-    return this.refreshPairing().then(() => this.snapshot());
+    return this.refreshPairing().then((pairing) => {
+      this.pairingEnsureBlocked = false;
+      return this.snapshot();
+    });
   }
 
   unbindDevice(id) {
@@ -497,6 +904,8 @@ class ChisaCodeRemote extends EventEmitter {
       mobileBind: config.remoteBindAddress === '127.0.0.1'
         ? '0.0.0.0'
         : (config.remoteBindAddress || '0.0.0.0'),
+      mode: modeIsAway(config) ? 'relay' : 'lan',
+      appBaseUrl: resolvedAppBaseUrl(config),
     });
   }
 }
@@ -505,8 +914,14 @@ module.exports = {
   ChisaCodeRemote,
   loadServerApi,
   VENDOR_ROOT,
+  RUNNER_PATH,
+  desktopDshVendorDir,
+  dshVendorDirForChild,
   readDefaults,
-  attachRelayStatusProbe,
+  relayStatusFromLogRecord,
+  resolveDesktopChisaCodeHome,
+  ensureDshAcpShim,
+  buildDaemonChildEnv,
   publicDevicesFromStore,
   relayUseTls,
   preferredLanIp,

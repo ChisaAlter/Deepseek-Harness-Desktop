@@ -7,7 +7,7 @@
 
 ## 用户路径
 
-- 默认无 Bots 页签。设置 → 插件市场第一方行一键安装，或 `dsh plugin add`（`github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot`）；装后建 Bot、建群（名称 + description + 2–6 成员）、打开 1:1 或群；卸载后页签消失，桌面启动清无主 preset。
+- 默认无 Bots 页签。设置 → 插件市场第一方行一键安装，或 `dsh plugin add`（独立仓 `github:ChisaAlter/dshbot`；旧 `#path:/vendor/dshbot` 已退位）；桌面 fork 装后侧栏 Bots **页签**；官方原版 dsh 装后侧栏脚 Bots **入口**（footer 面板）。建 Bot、建群、打开 1:1 或群；卸载后入口消失，桌面启动清无主 preset。
 - 契约见 Feature 卡 `dshbot` 与 `TC-EXT-007`。
 
 ## 架构要点
@@ -19,7 +19,7 @@
 - A2A：`send_to_agent` 可发同伴或 post 进**自己所在的**群（非成员拒绝）；群无离线 inbox，闲置房间返回 `ok: false` 明说未投递；priority 仅队列序；1:1 系统提示带 `dshbot:teammates` 目录段（Grok agent-directory 适配）。
 - inbox drain 独立在无依赖的 `lib/inbox-drain.js`（仅 1:1）：assemble 只 PEEK、ack 在消费 turn 之后，at-least-once（崩溃重投、ack 幂等、重复注入不双删）。
 - 编辑器不提供通知开关或记忆文本框：通知没有 Harness 投递钩子，持久记忆只由 1:1 Bot 的 `remember` 工具写入。已建立群锁定工作区选择器；只有建群时可选工作区。思考态直接使用现有 session/tool 状态，不维护平行 group-member activity tracker。
-- 插件源在 `vendor/dshbot`，可 `npm publish` / `dsh plugin add`；不再进 electron-builder extraResources；市场入口是 `marketplace-catalog.js` 的 `FIRST_PARTY_PLUGINS` 第一方行（registry 同 id 覆盖）。
+- 插件开发源在 `vendor/dshbot`（`dshbotPreset` 开发流与导出源），对外安装源是独立仓 `ChisaAlter/dshbot`（由 `scripts/export-dshbot-standalone.mjs` 导出、不手改）；不再进 electron-builder extraResources；市场入口是 `marketplace-catalog.js` 的 `FIRST_PARTY_PLUGINS` 第一方行（规格 `github:ChisaAlter/dshbot`，registry 同 id 覆盖）。
 
 ## 实现入口
 
@@ -40,7 +40,7 @@
 
 ## 未完成（文档落地）
 
-详见 feature 卡 **Open follow-ups**：安装包实机冒烟（手册就绪、实机阻塞）、npm 独立发布（链路就绪、缺 `NPM_TOKEN`）、成员全工具另卡、Grok exclusive/interrupt/Shared Room 另史诗。
+详见 feature 卡 **Open follow-ups**：安装包实机冒烟（手册就绪、实机阻塞）、独立仓迁移 + npm 发布（`ChisaAlter/dshbot` 已建仓，迁移合并提交在 monorepo 分支 `cursor/dshbot-migrated-main-8045` 待仓主一条命令推为独立仓 main；缺 `NPM_TOKEN`）、成员全工具另卡、Grok exclusive/interrupt/Shared Room 另史诗。
 
 ## 延伸阅读
 

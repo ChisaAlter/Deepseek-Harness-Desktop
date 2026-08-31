@@ -4,7 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { apply as nodeApply } from '@deepseek-ai/dsh-client-locale'
 import { apply as clientApply, COMMON_NS, LocaleRuntime, inject } from '@deepseek-ai/dsh-client-locale/client'
 import * as LocaleInvariant from '@deepseek-ai/dsh-client-locale/invariant'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 
@@ -21,10 +21,9 @@ describe('invariant companion', () => {
 
   it('client apply provides ctx.locale seeded with the zh/en common namespace', async () => {
     // The feature registers its own Language settings row, hence the slots edge.
-    expect(inject).toEqual(['slots', 'connection', 'remote', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'remote', 'settingsScope'])
     const ctx = new Context()
     new SlotRegistry(ctx)
-    ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
     // The settings row's transport and the forwarded-event port.
     ctx.provide('remote', { $on: () => () => {} } as never)
     ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)

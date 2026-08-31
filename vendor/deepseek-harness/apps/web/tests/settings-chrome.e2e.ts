@@ -21,7 +21,7 @@ import {
 } from './scaffold.ts'
 import { ZH_BROWSER_LOCALE, saveFailureShot } from './support.ts'
 
-const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/settings-chrome', import.meta.url))
+const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/settings-chrome', import.meta.url))
 const DIALOG_EXPECTED = join(SNAPSHOT_DIR, 'dialog.expected.md')
 const PLUGINS_EXPECTED = join(SNAPSHOT_DIR, 'plugins.expected.md')
 // The English fallback surface: a browser naming no shipped language.
@@ -42,7 +42,7 @@ describe('web e2e: settings modal and General preferences', () => {
     // the client derives from it (the English default has its own spec below).
     page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
   }, 120_000)
 
@@ -68,12 +68,12 @@ describe('web e2e: settings modal and General preferences', () => {
     const openDocument = dialog.getByRole('button', { name: '打开配置文件' })
     await openDocument.waitFor({ timeout: 10_000 })
     let openRequests = 0
-    await page.route('**/api/settings.openDocument', async (route) => {
+    await page.route('**/api/settings/openSettingsDocument', async (route) => {
       const envelope = route.request().postDataJSON() as {
         rpcId: string
-        payload: Record<string, never>
+        payload: { args: Record<string, never> }
       }
-      expect(envelope.payload).toEqual({})
+      expect(envelope.payload).toEqual({ args: {} })
       openRequests += 1
       await route.fulfill({
         status: 200,
@@ -88,7 +88,7 @@ describe('web e2e: settings modal and General preferences', () => {
     await openDocument.click()
     await expect.poll(() => openRequests, { timeout: 5_000 }).toBe(1)
     await expect.poll(() => openDocument.isEnabled(), { timeout: 5_000 }).toBe(true)
-    await page.unroute('**/api/settings.openDocument')
+    await page.unroute('**/api/settings/openSettingsDocument')
     // Golden of the freshly opened dialog (default zh, General active).
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(DIALOG_EXPECTED, snapshot, MODE)
@@ -102,13 +102,23 @@ describe('web e2e: settings modal and General preferences', () => {
     await dialog.getByRole('button', { name: '插件', exact: true }).click()
     await dialog.getByRole('heading', { name: '插件', exact: true }).waitFor({ timeout: 10_000 })
     await dialog.getByRole('tab', { name: '插件列表', exact: true }).click()
+    // The preset group opens first with its display-only switcher; the global
+    // plane starts collapsed and expands on demand.
+    const presetSwitcher = dialog.getByRole('button', { name: '选择要查看的 Agent 预设' })
+    await presetSwitcher.waitFor({ timeout: 10_000 })
+    // The shipped default's zh display name comes from the zh dictionaries.
+    expect(await presetSwitcher.textContent()).toBe('标准模式（默认）')
+    await dialog.getByRole('button', { name: /^全局/ }).click()
     const pluginRow = dialog.locator(PLUGIN_ROW_SELECTOR)
     await pluginRow.waitFor({ timeout: 10_000 })
     const expectedPluginCount = [...scaffold.ctx.loader.entries()]
       .filter(entry => !entry.options.group)
       .length
     expect(await dialog.getByRole('searchbox', { name: '搜索插件' }).count()).toBe(1)
-    expect(await dialog.locator('[data-plugin-entry]').count()).toBe(expectedPluginCount)
+    // Every Loader entry appears exactly once in the global group — rows the
+    // presets took over included, preset compositions excluded.
+    expect(await dialog.locator('[data-plugin-scope="global"] [data-plugin-entry]').count())
+      .toBe(expectedPluginCount)
     expect(await dialog.locator('[data-plugin-count]').getAttribute('data-plugin-count'))
       .toBe(String(expectedPluginCount))
     expect(await dialog.getByRole('button', { name: '插件', exact: true }).getAttribute('aria-current')).toBe('true')
@@ -139,7 +149,7 @@ describe('web e2e: settings modal and General preferences', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-permission'))
     const existing = scaffold.ctx.sessions.create(SessionId('settings-permission-before'))
     expect(existing.events.find(event => event.type === 'permission/preset')?.data)
-      .toEqual({ preset: 'workspace-write', origin: 'default' })
+      .toEqual({ preset: 'workspace-write' })
 
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '设置' })
@@ -155,11 +165,11 @@ describe('web e2e: settings modal and General preferences', () => {
     expect(document).toContain('permission:')
     expect(document).toContain('defaultPreset: read-only')
     expect(existing.events.find(event => event.type === 'permission/preset')?.data)
-      .toEqual({ preset: 'workspace-write', origin: 'default' })
+      .toEqual({ preset: 'workspace-write' })
 
     const created = scaffold.ctx.sessions.create(SessionId('settings-permission-after'))
     expect(created.events.map(event => [event.type, event.data])).toEqual([
-      ['permission/preset', { preset: 'read-only', origin: 'default' }],
+      ['permission/preset', { preset: 'read-only' }],
       ['sandbox/mode', { mode: 'read-only' }],
       ['approval/policy', { policy: 'ask' }],
     ])
@@ -176,7 +186,7 @@ describe('web e2e: settings modal and General preferences', () => {
     expect(confirmedDocument).toContain('defaultPreset: danger-full-access')
     const confirmed = scaffold.ctx.sessions.create(SessionId('settings-permission-confirmed'))
     expect(confirmed.events.map(event => [event.type, event.data])).toEqual([
-      ['permission/preset', { preset: 'danger-full-access', origin: 'default' }],
+      ['permission/preset', { preset: 'danger-full-access' }],
       ['sandbox/mode', { mode: 'danger-full-access' }],
       ['approval/policy', { policy: 'never' }],
     ])
@@ -199,8 +209,8 @@ describe('web e2e: settings modal and General preferences', () => {
       .toMatch(/ui-theme:\n\s+preference: dark/)
     await page.keyboard.press('Escape')
 
-    // Hold real plugin bundles so the shell-owned loading page remains observable.
-    const pluginPattern = /\/plugins\/@deepseek-ai\/dsh-client-ui-theme\/client\.js(?:\?.*)?$/
+    // Hold the real application batch so the shell-owned loading page remains observable.
+    const pluginPattern = /\/plugins\/\?\?.+\/client\.js,.+\/client\.js&rev=[a-f\d]{12}$/
     let releaseBundles = (): void => {}
     const bundlesReleased = new Promise<void>((resolve) => { releaseBundles = resolve })
     await page.route(pluginPattern, async (route) => {
@@ -326,7 +336,7 @@ describe('web e2e: settings modal and General preferences', () => {
     try {
       expect(second.baseUrl).not.toBe(scaffold.baseUrl)
       await secondPage.emulateMedia({ colorScheme: 'light' })
-      await secondPage.goto(second.baseUrl, { waitUntil: 'load' })
+      await secondPage.goto(second.authenticatedUrl, { waitUntil: 'load' })
       await secondPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
       await expect.poll(async () => (await readState(secondPage)).attr, { timeout: 5_000 }).toBe(true)
       const secondState = await readState(secondPage)
@@ -360,6 +370,98 @@ describe('web e2e: settings modal and General preferences', () => {
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
 
+  it('steps the content font size, applies it to body, and persists across reload', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-font-size'))
+    const readFontSize = async (target: Page = page): Promise<string> => await target.evaluate(
+      () => document.body.style.getPropertyValue('--dsh-content-font-size'),
+    )
+    // The secondary tier resolved by the real engine: a probe element's
+    // font-size forces min/max/calc evaluation, which the CSS-text specs
+    // cannot exercise. Setting −1 at ≤14, setting −2 above.
+    const readSecondaryFontSize = async (): Promise<string> => await page.evaluate(() => {
+      const probe = document.createElement('div')
+      probe.style.fontSize = 'var(--dsh-content-font-size-secondary, 13px)'
+      document.body.appendChild(probe)
+      const size = getComputedStyle(probe).fontSize
+      probe.remove()
+      return size
+    })
+    expect(await readFontSize()).toBe('14px')
+    expect(await readSecondaryFontSize()).toBe('13px')
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '设置' })
+    await dialog.waitFor({ timeout: 10_000 })
+    // The stepper reveals its arrows on hover; the up arrow steps 14 → 15 → 16.
+    await dialog.getByText('14', { exact: true }).hover()
+    const increase = dialog.getByRole('button', { name: '增大字号' })
+    await increase.click()
+    await dialog.getByText('15', { exact: true }).waitFor({ timeout: 5_000 })
+    // 15 is the piecewise boundary: the secondary tier holds at 13px (−2)
+    // where the ≤14 branch would have given 14px (−1).
+    await expect.poll(readSecondaryFontSize, { timeout: 5_000 }).toBe('13px')
+    await increase.click()
+    await dialog.getByText('16', { exact: true }).waitFor({ timeout: 5_000 })
+    await expect.poll(readFontSize, { timeout: 5_000 }).toBe('16px')
+    await expect.poll(readSecondaryFontSize, { timeout: 5_000 }).toBe('14px')
+    await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 5_000 })
+      .toMatch(/ui-theme:\n(?:\s+\w+: .*\n)*?\s+fontSize: 16/)
+    await page.keyboard.press('Escape')
+
+    // Reload: the boot script embeds the durable size and ThemeRuntime seeds
+    // its initial snapshot from the boot-written body variable, so activation
+    // never flashes the default while the settings read is in flight.
+    const warningStart = tripwire.warnings.length
+    await page.reload({ waitUntil: 'load' })
+    acknowledgeReloadConnectionLoss(tripwire, warningStart)
+    await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    await expect.poll(readFontSize, { timeout: 5_000 }).toBe('16px')
+    expect(await readSecondaryFontSize()).toBe('14px')
+
+    // Restore the default for the specs that follow (and the dialog golden).
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const restored = page.getByRole('dialog', { name: '设置' })
+    await restored.waitFor({ timeout: 10_000 })
+    await restored.getByText('16', { exact: true }).hover()
+    const decrease = restored.getByRole('button', { name: '减小字号' })
+    await decrease.click()
+    await restored.getByText('15', { exact: true }).waitFor({ timeout: 5_000 })
+    await decrease.click()
+    await restored.getByText('14', { exact: true }).waitFor({ timeout: 5_000 })
+    await expect.poll(readFontSize, { timeout: 5_000 }).toBe('14px')
+    await page.keyboard.press('Escape')
+    expect(tripwire.pageErrors).toEqual([])
+  }, 90_000)
+
+  it('persists the completed-Turn transcript mode across reload', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-transcript-view'))
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: '设置' })
+    await dialog.waitFor({ timeout: 10_000 })
+    await dialog.getByText('对话显示', { exact: true }).waitFor({ timeout: 10_000 })
+    await dialog.getByRole('button', { name: 'Compact', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Normal', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Normal', exact: true }).waitFor({ timeout: 10_000 })
+    await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 5_000 })
+      .toMatch(/ui-chat:\n\s+transcriptView: normal/)
+    await page.keyboard.press('Escape')
+
+    const warningStart = tripwire.warnings.length
+    await page.reload({ waitUntil: 'load' })
+    await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+    acknowledgeReloadConnectionLoss(tripwire, warningStart)
+    await page.getByRole('button', { name: '设置', exact: true }).click()
+    const reloaded = page.getByRole('dialog', { name: '设置' })
+    await reloaded.getByRole('button', { name: 'Normal', exact: true }).waitFor({ timeout: 10_000 })
+
+    await reloaded.getByRole('button', { name: 'Normal', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Compact', exact: true }).click()
+    await reloaded.getByRole('button', { name: 'Compact', exact: true }).waitFor({ timeout: 10_000 })
+    await expect.poll(async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 5_000 })
+      .toMatch(/ui-chat:\n\s+transcriptView: compact/)
+    await page.keyboard.press('Escape')
+    expect(tripwire.pageErrors).toEqual([])
+  }, 90_000)
+
   it('persists the busy-state Enter behavior across reload and a distinct port', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-enter-behavior'))
     await page.getByRole('button', { name: '设置', exact: true }).click()
@@ -388,7 +490,7 @@ describe('web e2e: settings modal and General preferences', () => {
     const secondTripwire = watchConsole(secondPage)
     try {
       expect(second.baseUrl).not.toBe(scaffold.baseUrl)
-      await secondPage.goto(second.baseUrl, { waitUntil: 'load' })
+      await secondPage.goto(second.authenticatedUrl, { waitUntil: 'load' })
       await secondPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
       await secondPage.getByRole('button', { name: '设置', exact: true }).click()
       await secondPage.getByRole('dialog', { name: '设置' })
@@ -456,7 +558,7 @@ describe('web e2e: settings modal and General preferences', () => {
     const secondTripwire = watchConsole(secondPage)
     try {
       expect(second.baseUrl).not.toBe(scaffold.baseUrl)
-      await secondPage.goto(second.baseUrl, { waitUntil: 'load' })
+      await secondPage.goto(second.authenticatedUrl, { waitUntil: 'load' })
       await secondPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
       await secondPage.getByRole('button', { name: 'Settings', exact: true }).click()
       await secondPage.getByRole('dialog', { name: 'Settings' })
@@ -490,13 +592,20 @@ describe('web e2e: settings modal and General preferences', () => {
     const enTripwire = watchConsole(enPage)
     onTestFailed(() => saveFailureShot(enPage, 'web-e2e-settings-browser-language'))
     try {
-      await enPage.goto(fresh.baseUrl, { waitUntil: 'load' })
+      await enPage.goto(fresh.authenticatedUrl, { waitUntil: 'load' })
       await enPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
       expect(await enPage.evaluate(() => localStorage.getItem('dsh.locale'))).toBeNull()
       await enPage.getByRole('button', { name: 'Settings', exact: true }).click()
       const dialog = enPage.getByRole('dialog', { name: 'Settings' })
       await dialog.waitFor({ timeout: 10_000 })
       await dialog.getByRole('button', { name: 'English' }).waitFor({ timeout: 10_000 })
+      // The plugin list resolves shipped preset names through the en
+      // dictionaries instead of echoing the preset files' Chinese metadata.
+      await dialog.getByRole('button', { name: 'Plugins', exact: true }).click()
+      await dialog.getByRole('tab', { name: 'Plugin list', exact: true }).click()
+      const presetSwitcher = dialog.getByRole('button', { name: 'Choose the agent preset to inspect' })
+      await presetSwitcher.waitFor({ timeout: 10_000 })
+      expect(await presetSwitcher.textContent()).toBe('Standard mode (default)')
       // This page has no closing inventory spec to sweep its console, so the
       // scenario clears both tripwire channels itself.
       expect(enTripwire.pageErrors).toEqual([])
@@ -516,13 +625,15 @@ describe('web e2e: settings modal and General preferences', () => {
     const frTripwire = watchConsole(frPage)
     onTestFailed(() => saveFailureShot(frPage, 'web-e2e-settings-unshipped-language'))
     try {
-      await frPage.goto(fresh.baseUrl, { waitUntil: 'load' })
+      await frPage.goto(fresh.authenticatedUrl, { waitUntil: 'load' })
       await frPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
       expect(await frPage.evaluate(() => localStorage.getItem('dsh.locale'))).toBeNull()
       await frPage.getByRole('button', { name: 'Settings', exact: true }).click()
       const dialog = frPage.getByRole('dialog', { name: 'Settings' })
       await dialog.waitFor({ timeout: 10_000 })
       await dialog.getByRole('button', { name: 'English' }).waitFor({ timeout: 10_000 })
+      // A locale-owned nav label proves the dictionaries resolved to en.
+      await dialog.getByRole('button', { name: 'Agent presets' }).waitFor({ timeout: 10_000 })
       // The markup already ships `en`, so this alone cannot prove the sync ran
       // — the zh scenario above is the discriminating half. Asserted here too
       // so a future change that resolves en but writes the wrong tag is caught.

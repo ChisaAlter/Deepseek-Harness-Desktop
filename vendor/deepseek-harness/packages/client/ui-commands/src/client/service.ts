@@ -13,7 +13,9 @@ import type { Context } from '@deepseek-ai/cordis'
 // (`commands/change` rides the allowlist) into this program.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { CommandResult } from '@deepseek-ai/dsh-commands/types'
-import type { ClientContext, ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import type {
   CandidateRequest, ClientSessionContext, CommandClaim, PickOutcome, InputTriggerCandidate, InputTriggerPick,
@@ -154,10 +156,9 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     }), 'command: slash source')
     ctx.remote.$on('commands/change', () => { this.directory.invalidateAll() })
     // A preset switch changes which commands one session's agent resolves and
-    // registers nothing globally, so the registry-wide signal above never
-    // fires for it: repull that key alone, soft, so the old snapshot serves
-    // the menu until the new one lands.
-    ctx.remote.$on('agent-preset/selected', (sessionId) => { void this.directory.refresh(sessionId) })
+    // registers nothing globally. Drop that key's old composition before
+    // prewarming so a newly opened menu waits for the replacement catalog.
+    ctx.remote.$on('agent-preset/selected', (sessionId) => { this.directory.resetSession(sessionId) })
     ctx.on('connection/reset', () => { this.directory.resetConnected() })
   }
 
@@ -247,7 +248,6 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
 
   /** Menu candidates: host catalog + contribution availability, then position filtering and fuzzy name ranking. */
   private async candidates(session: ClientSessionContext, req: CandidateRequest): Promise<readonly InputTriggerCandidate[]> {
-    if (this.isDshbotRoom(session)) return []
     const list = await this.directory.ensureReady(session.sessionId, req.signal)
     const rows: InputTriggerCandidate[] = []
     const seen = new Set<string>()
@@ -296,7 +296,6 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
 
   /** Decision table, space column: hot-key sync check; only host leadingInput claims. */
   private matchSpace(session: ClientSessionContext, token: string): PickOutcome {
-    if (this.isDshbotRoom(session)) return undefined
     if (!token.startsWith('/')) return undefined
     const name = token.slice(1)
     if (this.live.contributions.has(name)) return undefined // popup kinds never claim on space
@@ -323,7 +322,6 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     signal: AbortSignal,
     envelope: SubmitEnvelope,
   ): Promise<PickOutcome> {
-    if (this.isDshbotRoom(session)) return undefined
     const trimmed = line.trim()
     if (!trimmed.startsWith('/')) return undefined
     const ws = trimmed.search(/\s/)
@@ -397,7 +395,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
    * the outcome renders as a persistent flow node — the composer never
    * echoes it. A handler error result reports an error outcome so the
    * composer keeps the submission (draft and images) for correction.
-   * Transport failures throw.
+   * A refused call throws.
    */
   private async execute(
     session: ClientSessionContext,
@@ -443,9 +441,9 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
    * Fire-and-forget execute for the internal ('handled') paths. Outcomes are
    * NOT surfaced here: the host executor durably logs the command lifecycle
    * (`command/run`/`command/done`), and the mux-broadcast events render as a
-   * persistent flow node on every tab. Only a transport/admission failure —
-   * which never entered a handler and therefore never logged — falls back to
-   * the composer notice as immediate feedback.
+   * persistent flow node on every tab. Only an admission failure — which never
+   * entered a handler and therefore never logged — falls back to the composer
+   * notice as immediate feedback.
    */
   private runDetached(desc: CommandDescriptor, session: ClientSessionContext, line: string): void {
     void this.execute(session, line).then(
@@ -470,7 +468,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     })
   }
 
-  /** Route an admission/transport failure to the session's composer notice channel (scope gone = attempt died with it). */
+  /** Route an admission failure to the session's composer notice channel (scope gone = attempt died with it). */
   private noticeFor(id: SessionId, level: 'info' | 'error', text: string): void {
     const actx = this.scopeFor(id)
     if (actx === undefined) return
@@ -488,9 +486,5 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     const sessions = this.ctx.get('sessions')
     if (sessions === undefined) throw new Error('ui-commands: sessions service unavailable')
     return sessions
-  }
-
-  private isDshbotRoom(session: ClientSessionContext): boolean {
-    return this.sessions().list.getSnapshot().byId[session.sessionId]?.agentPreset === 'dshbot-room'
   }
 }

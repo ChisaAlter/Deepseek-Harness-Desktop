@@ -94,12 +94,62 @@
   color: var(--dsw-alias-bg-layer-3);
 }
 
-/* The discovery-reported reason, verbatim: it names the file and the fix. */
-.cardBrokenReason {
-  font-size: 12px;
+/* The discovery-reported reason, verbatim: it names the rows and the fix.
+   A real element rather than the icon row's `data-tip` pseudo-element, for two
+   reasons: generated content joins the card's accessible text, where this would
+   repeat what the alert already carries, and that tooltip is one `nowrap` line
+   for an icon label while this names package specifiers one per line. */
+.brokenTip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1;
+  width: max-content;
+  max-width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-bg-layer-3);
+  font-size: 11px;
+  font-weight: 400;
   line-height: 1.5;
-  color: var(--dsw-alias-state-error-primary);
+  text-align: left;
+  white-space: pre-line;
   overflow-wrap: anywhere;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+}
+
+/* Focusing the card reveals it too: a broken card keeps its place in the tab
+   order (`aria-disabled`, not `disabled`), so this is the keyboard path to a
+   reason the card face no longer shows. */
+.brokenBadge:hover .brokenTip,
+.cardMain:focus-visible .brokenTip {
+  opacity: 1;
+}
+
+.cardMain[aria-disabled='true'] {
+  cursor: default;
+}
+
+.cardMain:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary);
+  outline-offset: -2px;
+}
+
+/* The same reason, for a screen reader. A pointer reveals the badge's tooltip
+   and a keyboard reveals it by focusing the card, but neither announces it;
+   this node is what does. Keeping it out of the card face is what lets a
+   picker card show the preset's own description rather than a package
+   specifier. */
+.cardBrokenReason {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* The card body is the control that picks the preset. */
@@ -132,6 +182,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* Anchors the broken badge's tooltip: the badge itself stays unpositioned so
+     its `::after` resolves against the card's own width instead of against a
+     badge that sits partway across it. A tooltip grown from the badge would
+     run past the card, and past the section for a card in the last column. */
+  position: relative;
 }
 
 .cardName {

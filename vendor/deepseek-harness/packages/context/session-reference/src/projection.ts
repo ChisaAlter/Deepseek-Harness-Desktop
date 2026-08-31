@@ -2,8 +2,8 @@
 
 import { isCompactCheckpointSource } from '@deepseek-ai/dsh-compaction'
 import type { SessionSurfaceSnapshot } from '@deepseek-ai/dsh-session-query'
-import { assertNever } from '@deepseek-ai/dsh-llm'
 import { TextRetainer } from '@deepseek-ai/dsh-output-retention'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { stringifyTagSafeJson } from './serialization.ts'
 import type { ReferencedConversationItem } from './types.ts'
 

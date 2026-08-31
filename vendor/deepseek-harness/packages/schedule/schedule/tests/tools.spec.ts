@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentCancelCause, InboxTarget } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -73,7 +73,7 @@ async function execute(
 ): Promise<ToolExecutionResult> {
   return test.ctx.agents.withInitiator(agent, () => test.ctx.tools.execute({
     signal: executionSignal,
-    callId: CallId(`call-${Math.random()}`),
+    callId: ToolCallId(`call-${Math.random()}`),
     name,
     arguments: args,
     agent,
@@ -111,7 +111,7 @@ describe('Schedule tool protocol', () => {
       schema.properties?.code?.const === 'persistence_uncertain')
     expect(persistenceError?.properties?.operation?.enum).toEqual(['create', 'list', 'delete'])
     for (const name of ['schedule_create', 'schedule_list', 'schedule_delete']) {
-      expect(test.ctx.tools.executionMode({ signal, callId: CallId(name), name, arguments: {}, agent: test.agent }))
+      expect(test.ctx.tools.executionMode({ signal, callId: ToolCallId(name), name, arguments: {}, agent: test.agent }))
         .toEqual({ kind: 'exclusive' })
     }
     expect(test.ctx.tools.get('schedule_create')?.presentCall?.({ prompt: 'x', after_seconds: 1 }))

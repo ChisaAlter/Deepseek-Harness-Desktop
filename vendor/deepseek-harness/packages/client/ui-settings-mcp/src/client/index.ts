@@ -2,13 +2,14 @@
  * MCP settings section plugin, browser half.
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { McpSection } from './McpSection.tsx'
 import type { McpSectionInjected } from './McpSection.tsx'
 import { en, zh, type McpSettingsKey } from './locales.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 
 export type { McpSectionInjected, McpSectionProps } from './McpSection.tsx'
 export type { McpSettingsKey } from './locales.ts'
@@ -30,7 +31,7 @@ export const inject = ['slots', 'locale', 'remote', 'remote.mcpServers']
  * Register the MCP settings section.
  * @param ctx - client root.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-mcp: dictionaries')
   const t = ctx.locale.bind(NS) as McpSectionInjected['t']
   const injected = (): McpSectionInjected => ({

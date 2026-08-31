@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { zstdCompressSync } from 'node:zlib'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { CallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import {
   decodeStorageRecord,
   MAX_PACKED_DATA_BYTES,
@@ -13,7 +15,6 @@ import {
   bindRecord,
   decodeRow,
   scanRows,
-  ZSTD_DATA_THRESHOLD_BYTES,
 } from '../src/compression.ts'
 import type { EventRow } from '../src/schema.ts'
 
@@ -48,6 +49,12 @@ function row(record: StorageRecord): EventRow {
 }
 
 describe('SQLite compression', () => {
+  it('pins the schema-20 dictionary bytes', () => {
+    const dictionary = readFileSync(new URL('../resources/zstd-dictionary.bin', import.meta.url))
+    expect(createHash('sha256').update(dictionary).digest('hex'))
+      .toBe('dad18fa0247a8fdd886a62d8552eabd36cbd50c25af172873080d2f0ae770d17')
+  })
+
   it('stores a 100-member run in one row and restores every logical event', () => {
     const events = Array.from({ length: 100 }, (_, index) => chunk(index))
     const records = packChunkRuns(events)
@@ -85,10 +92,10 @@ describe('SQLite compression', () => {
     const events = [
       ...[0, 1, 2].map(seq => event(seq, seq, { type: 'reasoning-delta', index: 1, text: `${seq}` })),
       ...[3, 4, 5].map(seq => event(seq, seq, {
-        type: 'tool-call-delta', index: 2, id: CallId('named'), name: 'write', argumentsDelta: `${seq}`,
+        type: 'tool-call-delta', index: 2, id: ToolCallId('named'), name: 'write', argumentsDelta: `${seq}`,
       })),
       ...[6, 7, 8].map(seq => event(seq, seq, {
-        type: 'tool-call-delta', index: 3, id: CallId('unnamed'), argumentsDelta: `${seq}`,
+        type: 'tool-call-delta', index: 3, id: ToolCallId('unnamed'), argumentsDelta: `${seq}`,
       })),
     ]
     const records = packChunkRuns(events)
@@ -128,7 +135,7 @@ describe('SQLite compression', () => {
       event(2, Number.MAX_SAFE_INTEGER, { type: 'text-delta', index: 0, text: 'c' }),
     ]
     const toolName = [0, 1, 2].map(seq => event(seq, seq, {
-      type: 'tool-call-delta', index: 0, id: CallId('id'),
+      type: 'tool-call-delta', index: 0, id: ToolCallId('id'),
       ...seq === 2 ? {} : { name: 'write' }, argumentsDelta: 'x',
     }))
     for (const events of [gap, step, block, unsafeTime, toolName]) {
@@ -160,7 +167,7 @@ describe('SQLite compression', () => {
     expect(() => decodeStorageRecord(record)).toThrow(/malformed .* storage row/)
   })
 
-  it('decodes the schema-17 row vocabulary without another package codec', () => {
+  it('decodes the schema-20 row vocabulary without another package codec', () => {
     const fixture: EventRow = {
       seq: 7,
       type: 'text-chunks',
@@ -212,19 +219,34 @@ describe('SQLite compression', () => {
     },
   )
 
-  it('compresses large data and delta-encodes complete provenance arrays', () => {
+  it('compresses small repetitive data with the shared dictionary', () => {
+    const event = {
+      type: 'tool/result',
+      seq: 1,
+      time: 2,
+      data: { turn: 1, step: 1, message: { content: [{ type: 'text', text: 'hello world '.repeat(40) }] } },
+      sourceEventSeqs: [0],
+      surfaceOp: 'append',
+    } as unknown as SessionEvent
+    const bound = bindRecord(event)
+    expect(bound.data).toBeInstanceOf(Uint8Array)
+    expect(decodeRow(row(event))).toEqual([event])
+  })
+
+  it('compresses large data and run-encodes consecutive provenance arrays', () => {
     const sources = Array.from({ length: 2_000 }, (_, index) => index + 10)
     const event = {
       type: 'assistant/message',
       seq: sources.at(-1)! + 1,
       time: 1,
-      data: { text: 'x'.repeat(ZSTD_DATA_THRESHOLD_BYTES * 2) },
+      data: { text: 'x'.repeat(8_192) },
       sourceEventSeqs: sources,
       surfaceOp: 'append',
     } as unknown as SessionEvent
     const bound = bindRecord(event)
     expect(bound.data).toBeInstanceOf(Uint8Array)
     expect(bound.sourceEventSeqs).toBeInstanceOf(Uint8Array)
+    expect(bound.sourceEventSeqs?.[0]).toBe(1)
     expect(bound.sourceEventSeqs?.byteLength).toBeLessThan(Buffer.byteLength(JSON.stringify(sources)))
     expect(decodeRow(row(event))).toEqual([event])
 
@@ -235,6 +257,7 @@ describe('SQLite compression', () => {
   it('round-trips empty, descending, and maximum-safe provenance deltas', () => {
     for (const sources of [
       [],
+      [1, 3, 4, 5, 10],
       [Number.MAX_SAFE_INTEGER - 1, 0, Number.MAX_SAFE_INTEGER - 2],
     ]) {
       const event = {
@@ -247,6 +270,19 @@ describe('SQLite compression', () => {
       } as unknown as SessionEvent
       expect(decodeRow(row(event))).toEqual([event])
     }
+  })
+
+  it('does not impose a persistence-only provenance length limit', () => {
+    const sources = Array.from({ length: 1_000_001 }, (_, index) => index)
+    const event = {
+      type: 'assistant/message',
+      seq: sources.length,
+      time: 1,
+      data: {},
+      sourceEventSeqs: sources,
+      surfaceOp: 'append',
+    } as unknown as SessionEvent
+    expect(bindRecord(event).sourceEventSeqs?.[0]).toBe(1)
   })
 
   it.each([-1, 0.5])('rejects invalid provenance sequence %s before encoding', (sourceSeq) => {
@@ -264,20 +300,36 @@ describe('SQLite compression', () => {
   it('rejects malformed compressed and delta-encoded values', () => {
     const scalar = row({ type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } })
     expect(() => decodeRow({ ...scalar, data: Buffer.from('not zstd') })).toThrow()
-    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x80]) }))
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x00]) }))
+      .toThrow(/truncated tagged payload/)
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x01]) }))
+      .toThrow(/truncated tagged payload/)
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x02, 0x00]) }))
+      .toThrow(/unknown encoding tag/)
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x00, 0x80]) }))
       .toThrow(/truncated varint/)
-    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x80, 0x00]) }))
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x00, 0x80, 0x00]) }))
       .toThrow(/non-canonical varint/)
-    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x00, 0x01]) }))
+    // tag 0, first value 0, then a negative delta (zigzag 0x01) from 0
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x00, 0x00, 0x01]) }))
       .toThrow(/decoded seq is out of range/)
+    // tag 0, first value MAX_SAFE_INTEGER, then a positive delta overflowing it
     expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([
-      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x02,
+      0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x02,
     ]) })).toThrow(/decoded seq is out of range/)
     expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([
-      0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x10,
+      0x00, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x10,
     ]) })).toThrow(/varint is out of range/)
-    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.alloc(9, 0x80) }))
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.concat([
+      Buffer.from([0x00]), Buffer.alloc(9, 0x80),
+    ]) }))
       .toThrow(/varint is out of range/)
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x01, 0x00, 0x01]) }))
+      .toThrow(/run exceeds its event sequence/)
+    expect(() => decodeRow({ ...scalar, source_event_seqs: Buffer.from([0x01, 0x00, 0x00]) }))
+      .toThrow(/run count must be positive/)
+    expect(() => decodeRow({ ...scalar, seq: 2, source_event_seqs: Buffer.from([0x01, 0x00, 0x01, 0x00, 0x01]) }))
+      .toThrow(/runs must ascend/)
   })
 
   it('rejects an oversized packed data column before JSON decoding', () => {

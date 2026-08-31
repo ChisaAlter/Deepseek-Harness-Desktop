@@ -8,10 +8,10 @@
  * observes the edit text.
  */
 import { describe, expect, it, vi } from 'vitest'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type { InputTriggerController, SubmitOutcome } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { SessionInputShell } from '../src/client/input/facade.ts'
-import type { DraftAttachmentId, InputEditSpec } from '../src/client/input/contract.ts'
+import type { DraftAttachmentId, InputEditSpec } from '../src/client/contract/input.ts'
 
 const commandImages = {
   serialize: () => Promise.resolve([]),
@@ -31,7 +31,7 @@ function bench(options: { editSink?: EditSink; inputTriggers?: () => InputTrigge
     signal: AbortSignal,
   ) => Promise<SubmitOutcome>>(() => Promise.resolve({ kind: 'success' }))
   const shell = new SessionInputShell({
-    actx: {} as ClientContext,
+    actx: {} as Context,
     defaultSink,
     commandImages,
     ...(options.inputTriggers !== undefined ? { inputTriggers: options.inputTriggers } : {}),
@@ -46,6 +46,20 @@ function bench(options: { editSink?: EditSink; inputTriggers?: () => InputTrigge
   return { shell, defaultSink, editSink, spec }
 }
 
+function hungTriggers(overrides: Partial<InputTriggerController> = {}): () => InputTriggerController {
+  const lexicon = {
+    getSnapshot: () => new Map(),
+    subscribe: () => () => {},
+  }
+  return () => ({
+    lexicon,
+    track: vi.fn(),
+    adjudicate: vi.fn(),
+    serializeReference: vi.fn(),
+    ...overrides,
+  } as unknown as InputTriggerController)
+}
+
 describe('composer edit session', () => {
   it('stashes draft and images, seeds the message text, and publishes the edit state', () => {
     const { shell, spec } = bench()
@@ -58,26 +72,25 @@ describe('composer edit session', () => {
     expect(shell.snapshot.edit).toEqual({ key: 'message-edit:7', label: '正在重新编辑此消息' })
   })
 
-  it('refuses a second edit and refuses while an admission transaction is in flight', async () => {
+  it('refuses a second edit and refuses while slash adjudication is in flight', () => {
     const { shell, spec } = bench()
     expect(shell.beginEdit(spec)).toBe(true)
     expect(shell.beginEdit({ ...spec, key: 'message-edit:9' })).toBe(false)
     shell.cancelEdit()
 
-    // Hold the default sink open: submitting phase refuses a new edit.
-    let release!: (outcome: SubmitOutcome) => void
-    const gate = new Promise<SubmitOutcome>((resolve) => { release = resolve })
+    let release!: (outcome: unknown) => void
+    const gate = new Promise((resolve) => { release = resolve })
     const busy = new SessionInputShell({
-      actx: {} as ClientContext,
-      defaultSink: () => gate,
+      actx: {} as Context,
+      defaultSink: () => Promise.resolve({ kind: 'success' }),
       commandImages,
+      inputTriggers: hungTriggers({ adjudicate: () => gate as Promise<never> }),
     })
-    busy.setDraft('plain message')
+    busy.setDraft('/maybe-command')
     busy.submit()
-    expect(busy.snapshot.phase).toBe('submitting')
+    expect(busy.snapshot.phase).toBe('adjudicating')
     expect(busy.beginEdit(spec)).toBe(false)
-    release({ kind: 'success' })
-    await vi.waitFor(() => { expect(busy.snapshot.phase).toBe('plain') })
+    release(undefined)
   })
 
   it('refuses after disposal', () => {
@@ -139,7 +152,7 @@ describe('composer edit session', () => {
     shell.beginEdit(spec)
     shell.setDraft('revised prompt')
     shell.submit('queue')
-    expect(shell.snapshot.phase).toBe('submitting')
+    expect(shell.snapshot.edit).toBeDefined()
 
     shell.cancelEdit()
     expect(shell.snapshot.edit).toBeDefined()
@@ -150,8 +163,7 @@ describe('composer edit session', () => {
 
   it('skips slash adjudication while editing: a "/" revision reaches the edit sink verbatim', async () => {
     const adjudicate = vi.fn()
-    const inputTriggers = { adjudicate, track: vi.fn() } as unknown as InputTriggerController
-    const { shell, editSink, spec } = bench({ inputTriggers: () => inputTriggers })
+    const { shell, editSink, spec } = bench({ inputTriggers: hungTriggers({ adjudicate }) })
     shell.beginEdit(spec)
     shell.setDraft('/looks-like-a-command but is a revision')
 
@@ -175,8 +187,9 @@ describe('composer edit session', () => {
 
   it('serializes reference occurrences before the edit sink, like a real send', async () => {
     const serializeReference = vi.fn(() => Promise.resolve('@[Research](dsh-session:x)'))
-    const inputTriggers = { serializeReference, track: vi.fn() } as unknown as InputTriggerController
-    const { shell, editSink, spec } = bench({ inputTriggers: () => inputTriggers })
+    const { shell, editSink, spec } = bench({
+      inputTriggers: hungTriggers({ serializeReference }),
+    })
     shell.beginEdit(spec)
     shell.setDraft('@res')
     expect(shell.insertReference({

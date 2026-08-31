@@ -12,14 +12,14 @@ one click installs it through the curated catalog channel (spec below).
 Through the official plugin CLI channels:
 
 ```sh
-# from this repository (the marketplace row uses exactly this spec)
-dsh plugin --profile web add github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot
+# from the standalone repository (the marketplace row uses exactly this spec)
+dsh plugin --profile web add github:ChisaAlter/dshbot
 
 # once published to a registry
 dsh plugin --profile web add dshbot@0.2.0
 
-# or straight from a GitHub mirror repo
-dsh plugin --profile web add github:<owner>/<repo>
+# legacy monorepo path spec (curated-catalog-only channel; superseded)
+dsh plugin --profile web add github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot
 ```
 
 On first load the plugin provisions its `dshbot-room` agent preset into
@@ -51,11 +51,32 @@ requires the `NPM_TOKEN` repository secret (an npm automation token with
 publish rights on the `dshbot` name); without it the job fails with a clear
 message instead of half-publishing.
 
+## Standalone repository split
+
+The standalone distribution repo [ChisaAlter/dshbot](https://github.com/ChisaAlter/dshbot)
+(package at the root) is the public install source; this directory stays the
+development copy inside the desktop monorepo (used by the `dshbotPreset` dev
+flow and as the export source). The standalone tree is generated from this
+directory — never hand-edited — with:
+
+```sh
+node scripts/export-dshbot-standalone.mjs <output-dir>
+```
+
+The export rewrites `repository`/`homepage` to the standalone repo, ships a
+root-layout preflight (`scripts/check-publish.mjs`, `v<semver>` tags) and its
+own publish workflow. `src/main/dshbot-publish-manifest.test.js` keeps the
+exported tree publishable.
+
 ## What it does
 
-- Sidebar "Bots" tab (`sidebar.nav.tab` slot): 1:1 bot contacts and group
-  rooms, sessions created with `origin: 'dshbot'` (hidden from workspace
-  session lists).
+- **Desktop fork** — Sidebar "Bots" region tab (`sidebar.nav.tab` /
+  `sidebar.page`): 1:1 bot contacts and group rooms, sessions created with
+  `origin: 'dshbot'` (hidden from workspace session lists).
+- **Official `@deepseek-ai/dsh`** — When the host does not declare region-tab
+  seats, the client falls back to a visible `sidebar.footer.action` control
+  that opens the same Bot list in a panel (`data-dshbot-official-trigger`).
+  Requires **Node ≥ 22.15** (`engines.node`).
 - Group rooms follow the Grok talking-circle contract: the room parent never
   calls a chat model; scheduling is peer-equal rounds over
   `ask_participant`, members deliver visible text only through
@@ -71,4 +92,5 @@ message instead of half-publishing.
   `$DSH_HOME/dshbot-memory/`; the profile editor has no memory field.
 
 Protocol symbols live in `lib/group-chat.js`; catalog/scheduling helpers in
-`lib/catalog.js`; host glue in `lib/index.js`.
+`lib/catalog.js`; host glue in `lib/index.js`; host slot probe in
+`lib/sidebar-host.js`.

@@ -6,7 +6,6 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
@@ -227,7 +226,7 @@ describe('hand-declared providers', () => {
     // a written section, the plugin's own registration, and `ctx.llm`.
     const dir = await home()
     const ctx = await bootWithSettings(dir, {})
-    await ctx.settings.update(settingsNamespace('llm-pi-ai'), {
+    await ctx.settings.update('llm-pi-ai', {
       providers: {
         'acme-gateway': {
           api: 'openai-completions',
@@ -637,7 +636,7 @@ describe('per-model reasoning efforts', () => {
   it('narrows a catalog model’s levels in place', () => {
     const [catalogModel] = getBuiltinModels('deepseek')
     if (catalogModel === undefined) throw new Error('the installed catalog ships no deepseek model')
-    expect(getSupportedThinkingLevels(catalogModel as Model<Api>)).toEqual(['off', 'high', 'max'])
+    expect(getSupportedThinkingLevels(catalogModel as Model<Api>)).toEqual(['off', 'low', 'high', 'max'])
 
     const model = modelOf({
       deepseek: { models: [{ id: catalogModel.id, reasoningEfforts: { off: null, high: 'high' } }] },
@@ -920,6 +919,31 @@ describe('compat switches', () => {
     })
   })
 
+  it('carries private-endpoint stream and reasoning controls', () => {
+    const models = modelsOf({
+      'acme-baseten': {
+        api: 'openai-completions',
+        baseURL: 'https://acme.test',
+        models: [{
+          id: 'reasoning-local',
+          compat: {
+            supportsFinishReason: false,
+            thinkingFormat: 'baseten',
+            chatTemplateArgs: { enable_thinking: { $var: 'thinking.enabled' } },
+            supportsThinkingTokenBudget: true,
+          },
+        }],
+      },
+    }, 'acme-baseten')
+
+    expect(models.get('reasoning-local')?.compat).toEqual({
+      supportsFinishReason: false,
+      thinkingFormat: 'baseten',
+      chatTemplateArgs: { enable_thinking: { $var: 'thinking.enabled' } },
+      supportsThinkingTokenBudget: true,
+    })
+  })
+
   it('rejects a model switch on an unrecognized protocol as having no configurable compat', () => {
     expect(() => resolveProfiles({
       'acme-gateway': {
@@ -937,7 +961,7 @@ describe('compat switches', () => {
     // and `Model.compat`.
     const dir = await home()
     const ctx = await bootWithSettings(dir, {})
-    await expect(ctx.settings.update(settingsNamespace('llm-pi-ai'), {
+    await expect(ctx.settings.update('llm-pi-ai', {
       providers: {
         'acme-gateway': {
           api: 'openai-completions',
@@ -956,7 +980,7 @@ describe('compat switches', () => {
     const server = await mockServer([{ events: textEvents }])
     const dir = await home()
     const ctx = await bootWithSettings(dir, {})
-    await ctx.settings.update(settingsNamespace('llm-pi-ai'), {
+    await ctx.settings.update('llm-pi-ai', {
       providers: {
         'acme-gateway': {
           apiKeyEnv: KEY_ENV,
@@ -1032,8 +1056,8 @@ describe('compat switches', () => {
   })
 
   it('refuses a compat key no wire protocol declares instead of dropping it', () => {
-    // The silent drop is what let an unreadable switch look applied: schemastery
-    // passes unknown keys through, and resolution used to read only two fields.
+    // Schemastery passes unknown keys through, so silently dropping one would
+    // make an unreadable switch look applied; the resolver must refuse it.
     expect(() => resolveProfiles({
       'acme-gateway': {
         api: 'openai-completions',
@@ -1044,14 +1068,16 @@ describe('compat switches', () => {
     })).toThrow(/compat "supportsDevelperRole", which no wire protocol declares; the configurable switches are .*\bsupportsDeveloperRole\b/)
   })
 
-  it('refuses a compat key pi-ai’s catalog owns, pointing at the catalog route', () => {
-    expect(() => resolveProfiles({
-      'acme-gateway': {
-        api: 'openai-completions',
-        baseURL: 'https://acme.test',
-        models: [{ id: 'acme-a', compat: { openRouterRouting: {} } as never }],
-      },
-    })).toThrow(/compat "openRouterRouting", which is not configurable here/)
+  it('refuses compat keys pi-ai’s catalog owns, pointing at the catalog route', () => {
+    for (const compat of [{ openRouterRouting: {} }, { supportsAdditionalTools: true }]) {
+      expect(() => resolveProfiles({
+        'acme-gateway': {
+          api: 'openai-completions',
+          baseURL: 'https://acme.test',
+          models: [{ id: 'acme-a', compat: compat as never }],
+        },
+      })).toThrow(/which is not configurable here/)
+    }
   })
 })
 
@@ -1119,14 +1145,13 @@ describe('configurable-provider directory', () => {
   it('keeps the previous directory when a route collides with another adapter family', async () => {
     const dir = await home()
     const ctx = await bootWithSettings(dir, {})
-    // Another adapter family owns this route id, exactly as llm-deepseek does.
     ctx.llm.registerConfigurableProviders([
       { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [] },
     ])
     const before = ctx.llm.listConfigurableProviders().length
     expect(before).toBeGreaterThan(30)
 
-    await ctx.settings.update(settingsNamespace('llm-pi-ai'), {
+    await ctx.settings.update('llm-pi-ai', {
       providers: {
         'deepseek-official': {
           api: 'openai-completions',
@@ -1148,7 +1173,7 @@ describe('configurable-provider directory', () => {
     const ctx = await bootWithSettings(dir, {})
     const catalogOnly = ctx.llm.listConfigurableProviders().length
 
-    await ctx.settings.update(settingsNamespace('llm-pi-ai'), {
+    await ctx.settings.update('llm-pi-ai', {
       providers: {
         'acme-gateway': {
           displayName: 'Acme Gateway',
@@ -1162,7 +1187,7 @@ describe('configurable-provider directory', () => {
     expect(ctx.llm.listConfigurableProviders().find(entry => entry.provider === 'acme-gateway')?.displayName)
       .toBe('Acme Gateway')
 
-    await ctx.settings.replace(settingsNamespace('llm-pi-ai'), {})
+    await ctx.settings.replace('llm-pi-ai', {})
     expect(ctx.llm.listConfigurableProviders()).toHaveLength(catalogOnly)
   })
 

@@ -16,6 +16,9 @@ export {
 } from "./persisted-config.js";
 export { hashDaemonPassword, isBearerTokenValid } from "./auth.js";
 export { generateLocalPairingOffer, type LocalPairingOffer } from "./pairing-offer.js";
+// Desktop fork: the shell mirrors this list to decide whether its bundled
+// harness can serve as CHISACODE_DSH_VENDOR_DIR (short-circuits npm probing).
+export { DSH_VENDOR_PACKAGES } from "./agent/providers/dsh-agent.js";
 export {
   RelayDeviceCredentialStore,
   type RelayDeviceRecord,

@@ -14,9 +14,9 @@ import {
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
-const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/goal-command-presentation', import.meta.url))
+const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/goal-command-presentation', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL(
-  './snapshots/goal-command-presentation/ui.expected.md', import.meta.url,
+  './expected/goal-command-presentation/ui.expected.md', import.meta.url,
 ))
 const MODE = webSnapshotMode()
 
@@ -33,7 +33,7 @@ describe('web e2e: /goal human transcript presentation', () => {
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
   }, 120_000)
@@ -48,10 +48,10 @@ describe('web e2e: /goal human transcript presentation', () => {
     await expect.poll(() => page.getByText('Into the Unknown', { exact: false }).count(), {
       timeout: 15_000,
     }).toBe(1)
-    const input = page.locator('textarea').first()
+    const input = page.locator('[data-composer-input]').first()
     await input.fill('/goal')
     await input.press('Enter')
-    await expect.poll(() => input.inputValue()).toBe('/goal ')
+    await expect.poll(() => input.textContent()).toBe('/goal ')
     await input.press('Enter')
 
     const commandInput = page.locator('[data-command-input]')

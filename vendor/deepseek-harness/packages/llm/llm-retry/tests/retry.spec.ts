@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
-import LlmRuntime, { createUserMessage, CallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, resolveRetryPolicy  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, ToolCallId, EMPTY_RESPONSE_CODE, LlmAdapter, LlmError, resolveRetryPolicy  } from '@deepseek-ai/dsh-llm'
 import type {
   AlwaysRetryPolicyConfig,
   BackoffConfig,
@@ -12,6 +12,7 @@ import type {
   StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session'
 import type { LlmRetryEventData } from '@deepseek-ai/dsh-llm-retry/types'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -60,7 +61,7 @@ class ScriptedAdapter extends LlmAdapter {
 }
 
 async function* partialToolFailure(error: Error): AsyncGenerator<StreamChunk> {
-  const id = CallId('discarded-call')
+  const id = ToolCallId('discarded-call')
   yield { type: 'block-start', index: 0, blockType: 'text' }
   yield { type: 'text-delta', index: 0, text: 'discarded partial output' }
   yield { type: 'block-end', index: 0, block: { type: 'text', text: 'discarded partial output' } }
@@ -107,6 +108,7 @@ async function harness(
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -1025,14 +1027,20 @@ describe('provider-routed retry policy', () => {
   it('rejects retry policy configured on the executor instead of a provider', () => {
     expectTypeOf<{}>().toExtend<retry.Config>()
     expectTypeOf<{ retryPolicy: { mode: 'always' } }>().not.toExtend<retry.Config>()
+    const ctx = new Context()
+    // `apply` registers its projection unit first; the registry is a required
+    // injection, so the direct-apply path must carry it too.
+    new SessionProjectionRegistry(ctx)
     expect(() => {
-      retry.apply(new Context(), { retryPolicy: { mode: 'always' } } as unknown as retry.Config)
+      retry.apply(ctx, { retryPolicy: { mode: 'always' } } as unknown as retry.Config)
     }).toThrow(/retryPolicy belongs under each provider/)
   })
 
   it('rejects unknown executor config', () => {
+    const ctx = new Context()
+    new SessionProjectionRegistry(ctx)
     expect(() => {
-      retry.apply(new Context(), { retryPolciy: {} } as unknown as retry.Config)
+      retry.apply(ctx, { retryPolciy: {} } as unknown as retry.Config)
     }).toThrow(/unknown key "retryPolciy"/)
   })
 })

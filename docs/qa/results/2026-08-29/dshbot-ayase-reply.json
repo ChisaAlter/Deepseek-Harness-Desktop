@@ -1,0 +1,7 @@
+{
+  "diving": false,
+  "okLines": 1,
+  "hasExact": true,
+  "count": 3,
+  "tail": "New Session\nWorkspaces\nContent search is temporarily unavailable. Showing name matches.\nNo matching sessions\nBots\nSettings\nReply with exactly: BOT_LIVE_OK\nStandard mode\nSession log\nChat\nTrajectory\nReply with exactly: BOT_LIVE_OK\n01:54\nContext injection\n@deepseek-ai/dsh-system-prompt\n\nBOT_LIVE_OK\n\n01:54 · Ran for 11s · TTFT 12s · 14179 tok/s\nWorkspace Write\nGrok 4.6\n1 turns · 1 steps| LLM 11.6s| TTFT avg 11.5s · 14179 tok/s| Cache hit 2%| Input 7.8K tok · Output 553 tok\nDetails\nClick a tool row in the message flow to view its details"
+}

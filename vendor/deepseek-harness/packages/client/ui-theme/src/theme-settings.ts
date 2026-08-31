@@ -28,6 +28,9 @@ export const THEME_SETTINGS_NAMESPACE = 'ui-theme'
 /** Field carrying the selected built-in theme preference. */
 export const THEME_PREFERENCE_FIELD = 'preference'
 
+/** Field carrying the conversation content font size. */
+export const FONT_SIZE_FIELD = 'fontSize'
+
 /** Field carrying the light-half family id. */
 export const THEME_LIGHT_FAMILY_FIELD = 'activeLightThemeId'
 
@@ -118,10 +121,21 @@ export type ThemePreference = typeof THEME_PREFERENCES[number]
 /** Default preference when the user-settings document has no override. */
 export const DEFAULT_PREFERENCE: ThemePreference = 'system'
 
+/** Smallest accepted content font size (px). */
+export const FONT_SIZE_MIN = 12
+
+/** Largest accepted content font size (px). */
+export const FONT_SIZE_MAX = 17
+
+/** Content font size when the user-settings document has no override (px). */
+export const DEFAULT_FONT_SIZE = 14
+
 /** Durable theme section shared by the Host schema and the browser scope. */
 export interface ThemeSettings {
   /** Selected built-in color-scheme preference. */
   preference: ThemePreference
+  /** Conversation content font size in px (integer within {@link FONT_SIZE_MIN}..{@link FONT_SIZE_MAX}). */
+  fontSize: number
   /** Family that paints the light half. */
   activeLightThemeId: string
   /** Family that paints the dark half. */
@@ -167,6 +181,7 @@ export interface ThemeSettings {
 /** Default durable section used when Host has no override. */
 export const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   preference: DEFAULT_PREFERENCE,
+  fontSize: DEFAULT_FONT_SIZE,
   activeLightThemeId: DEFAULT_FAMILY_ID,
   activeDarkThemeId: DEFAULT_FAMILY_ID,
   customThemes: [],
@@ -212,6 +227,7 @@ function arrayWithoutDefault(inner: z): z {
 /** Durable theme schema; also the wire envelope the browser scope validates against. */
 export const ThemeSettingsSchema: z<ThemeSettings> = z.object({
   [THEME_PREFERENCE_FIELD]: z.union([...THEME_PREFERENCES]).default(DEFAULT_PREFERENCE),
+  [FONT_SIZE_FIELD]: z.number().step(1).min(FONT_SIZE_MIN).max(FONT_SIZE_MAX).default(DEFAULT_FONT_SIZE),
   [THEME_LIGHT_FAMILY_FIELD]: z.string().default(DEFAULT_FAMILY_ID),
   [THEME_DARK_FAMILY_FIELD]: z.string().default(DEFAULT_FAMILY_ID),
   [THEME_CUSTOM_THEMES_FIELD]: z.array(ThemeFamilySchema).default([]),

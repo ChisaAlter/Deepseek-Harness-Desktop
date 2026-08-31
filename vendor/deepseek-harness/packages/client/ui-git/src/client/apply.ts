@@ -1,5 +1,5 @@
 /** Registers the titlebar Git split button into the layout-owned trailing cluster. */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -12,6 +12,8 @@ import type { BranchRef } from './branches.ts'
 import type { GitProgressEvent, GitResult, VcsStatus } from './git-logic.ts'
 import { GIT_SETTINGS_NAMESPACE, TITLEBAR_GIT_FIELD, type GitSettings } from '../git-settings.ts'
 import { en, NS, zh, type GitKey } from './locales.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 
 export type { GitActionsInjected, GitActionsProps } from './GitActionsControl.tsx'
 export type { GitKey } from './locales.ts'
@@ -91,7 +93,7 @@ export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope
  * contribute the Interface Settings row.
  * @param ctx - Client root context.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-git: dictionaries')
 
   const gitChrome = new ChromeVisibility<GitSettings>(

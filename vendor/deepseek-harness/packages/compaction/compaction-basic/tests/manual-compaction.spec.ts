@@ -25,6 +25,7 @@ import type {
   TokenUsage,
 } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -105,6 +106,7 @@ async function loopHarness(): Promise<LoopHarness> {
   await ctx.plugin(AgentLoopInvariant)
   await ctx.plugin(CompactionInvariant)
   await ctx.plugin(CompactionBasicInvariant)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   const adapter = new TextAdapter()
@@ -221,6 +223,7 @@ function detachedService(): { ctx: Context; compact: GatedCompactionEngine; flus
   const ctx = new Context()
   void new LlmRuntime(ctx)
   void new SessionStore(ctx)
+  new SessionProjectionRegistry(ctx)
   void new TokenMeter(ctx)
   ctx.llm.registerAdapter([MODEL], new TextAdapter())
   let flushes = 0

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SessionId, SessionListState } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SkillInventoryDetail, SkillInventoryEntry } from '@deepseek-ai/dsh-api-remotes/client'
 import { SkillsSection } from '../src/client/SkillsSection.tsx'
 import type { SkillsSectionInjected, SkillsSectionProps } from '../src/client/SkillsSection.tsx'
@@ -45,7 +46,7 @@ function detail(skill: SkillInventoryEntry = writableSkill): SkillInventoryDetai
     name: skill.name,
     description: skill.description,
     ...skill.whenToUse === undefined ? {} : { whenToUse: skill.whenToUse },
-    ...skill.group === undefined ? {} : { group: skill.group },
+    ...skill.groups === undefined ? {} : { groups: [...skill.groups] },
     source: skill.source,
     ...skill.path === undefined ? {} : { path: skill.path },
     writable: skill.writable,
@@ -152,9 +153,9 @@ describe('SkillsSection', () => {
   })
 
   it('sections rows by group, ungrouped last, and keeps sections under search', async () => {
-    const groupedA = { ...writableSkill, name: 'group-a', group: 'review' }
-    const groupedB = { ...writableSkill, name: 'group-b', group: 'review' }
-    const groupedC = { ...writableSkill, name: 'group-c', group: 'docs' }
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
+    const groupedB = { ...writableSkill, name: 'group-b', groups: ['review'] }
+    const groupedC = { ...writableSkill, name: 'group-c', groups: ['docs'] }
     const plain: SkillInventoryEntry = {
       name: 'plain-skill',
       description: 'No group label',
@@ -195,7 +196,7 @@ describe('SkillsSection', () => {
   })
 
   it('shows a tree node for a single group without ungrouped rows', async () => {
-    const grouped = { ...writableSkill, name: 'lone-grouped', group: 'tooling' }
+    const grouped = { ...writableSkill, name: 'lone-grouped', groups: ['tooling'] }
     render(<SkillsSection {...props({
       list: async () => ({ skills: [grouped] }),
       get: async () => detail(grouped),
@@ -208,7 +209,7 @@ describe('SkillsSection', () => {
   })
 
   it('collapses and expands a group, remembering the state across remounts', async () => {
-    const groupedA = { ...writableSkill, name: 'tree-a', group: 'review' }
+    const groupedA = { ...writableSkill, name: 'tree-a', groups: ['review'] }
     const plain: SkillInventoryEntry = {
       name: 'tree-plain',
       description: 'No group label',
@@ -244,7 +245,7 @@ describe('SkillsSection', () => {
   })
 
   it('tolerates a corrupt or non-object remembered tree state', async () => {
-    const grouped = { ...writableSkill, name: 'corrupt-tree', group: 'review' }
+    const grouped = { ...writableSkill, name: 'corrupt-tree', groups: ['review'] }
     const base = {
       list: async () => ({ skills: [grouped] }),
       get: async () => detail(grouped),
@@ -263,9 +264,9 @@ describe('SkillsSection', () => {
     expect(disclosureOf().getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('toggles the whole group through the group switch and collapses it on disable', async () => {
-    const groupedA = { ...writableSkill, name: 'group-a', group: 'review' }
-    const groupedB = { ...writableSkill, name: 'group-b', group: 'review' }
+  it('toggles the whole group through the group switch and keeps the section open on disable', async () => {
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
+    const groupedB = { ...writableSkill, name: 'group-b', groups: ['review'] }
     const setInvocation = vi.fn(async () => {})
     render(<SkillsSection {...props({
       list: async () => ({ skills: [groupedA, groupedB] }),
@@ -281,23 +282,46 @@ describe('SkillsSection', () => {
     expect(setInvocation).toHaveBeenCalledTimes(2)
     expect(setInvocation).toHaveBeenCalledWith(groupedA.name, false, true, {})
     expect(setInvocation).toHaveBeenCalledWith(groupedB.name, false, true, {})
-    // Disabling collapses the group.
+    // Disabling keeps the section expanded.
     await waitFor(() => {
-      expect(disclosure().getAttribute('aria-expanded')).toBe('false')
-      expect(screen.queryByText(groupedA.name)).toBeNull()
+      expect(disclosure().getAttribute('aria-expanded')).toBe('true')
+      expect(screen.getByText(groupedA.name)).toBeTruthy()
     })
-    // Expanding again shows the row switches now off.
-    fireEvent.click(disclosure())
-    await waitFor(() => {
-      const rows = screen.getAllByRole('switch', { name: /Model invocation for/ })
-      expect(rows.every(item => (item as HTMLInputElement).checked)).toBe(false)
-    })
+    const rows = screen.getAllByRole('switch', { name: /Model invocation for/ })
+    expect(rows.every(item => (item as HTMLInputElement).checked)).toBe(false)
     expect(screen.getByRole<HTMLInputElement>('switch', { name: en.groupToggleFor.replace('{group}', 'review') }).checked).toBe(false)
   })
 
+  it('flips the group rows optimistically while the frontmatter writes are in flight', async () => {
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
+    const groupedB = { ...writableSkill, name: 'group-b', groups: ['review'] }
+    const pending = deferred<undefined>()
+    const setInvocation = vi.fn(() => pending.promise)
+    render(<SkillsSection {...props({
+      list: async () => ({ skills: [groupedA, groupedB] }),
+      get: async () => detail(groupedA),
+      setInvocation,
+    })} />)
+    await screen.findByText(groupedA.name)
+
+    const groupSwitch = screen.getByRole<HTMLInputElement>('switch', { name: en.groupToggleFor.replace('{group}', 'review') })
+    fireEvent.click(groupSwitch)
+    // The echo lands without waiting for the writes to settle.
+    expect(setInvocation).toHaveBeenCalledTimes(2)
+    const rows = screen.getAllByRole('switch', { name: /Model invocation for/ })
+    expect(rows.every(item => !(item as HTMLInputElement).checked)).toBe(true)
+    expect(groupSwitch.checked).toBe(false)
+    expect(groupSwitch.disabled).toBe(true)
+
+    pending.resolve(undefined)
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLInputElement>('switch', { name: en.groupToggleFor.replace('{group}', 'review') }).disabled).toBe(false)
+    })
+  })
+
   it('keeps read-only skills out of a group toggle and disables all-readonly groups', async () => {
-    const writable = { ...writableSkill, name: 'mixed-writable', group: 'review' }
-    const readonly = { ...readOnlySkill, name: 'mixed-readonly', group: 'review' }
+    const writable = { ...writableSkill, name: 'mixed-writable', groups: ['review'] }
+    const readonly = { ...readOnlySkill, name: 'mixed-readonly', groups: ['review'] }
     const setInvocation = vi.fn(async () => {})
     render(<SkillsSection {...props({
       list: async () => ({ skills: [writable, readonly] }),
@@ -310,11 +334,6 @@ describe('SkillsSection', () => {
     fireEvent.click(groupSwitch)
     expect(setInvocation).toHaveBeenCalledTimes(1)
     expect(setInvocation).toHaveBeenCalledWith(writable.name, false, true, {})
-    const disclosure = screen.getAllByRole('button', { name: /skills/ }).find(button => button.getAttribute('aria-expanded') !== null)!
-    await waitFor(() => {
-      expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    })
-    fireEvent.click(disclosure)
     await waitFor(() => {
       expect(screen.getByRole<HTMLInputElement>('switch', { name: `Model invocation for ${writable.name}` }).checked).toBe(false)
     })
@@ -330,8 +349,8 @@ describe('SkillsSection', () => {
   })
 
   it('reports per-row failures from a group toggle and re-enables the switch', async () => {
-    const groupedA = { ...writableSkill, name: 'group-a', group: 'review' }
-    const groupedB = { ...writableSkill, name: 'group-b', group: 'review' }
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
+    const groupedB = { ...writableSkill, name: 'group-b', groups: ['review'] }
     const first = deferred<undefined>()
     const second = deferred<undefined>()
     const setInvocation = vi.fn((name: string) => name === groupedA.name ? first.promise : second.promise)
@@ -351,13 +370,12 @@ describe('SkillsSection', () => {
     await waitFor(() => {
       expect(screen.getByRole<HTMLInputElement>('switch', { name: groupSwitchName }).disabled).toBe(false)
     })
-    const disclosure = screen.getAllByRole('button', { name: /skills/ }).find(button => button.getAttribute('aria-expanded') !== null)!
-    fireEvent.click(disclosure)
+    // The section stays open after the toggle, so the failed row reports inline.
     expect((await screen.findByRole('alert')).textContent).toContain('frontmatter is locked')
   })
 
   it('toggles ungrouped writable skills through the ungrouped node switch', async () => {
-    const groupedA = { ...writableSkill, name: 'group-a', group: 'review' }
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
     const plainA: SkillInventoryEntry = {
       name: 'plain-a',
       description: 'Ungrouped one',
@@ -715,7 +733,7 @@ describe('SkillsSection', () => {
     }
     const get = vi.fn(async () => ({
       ...detail(projectSkill),
-      ...projectSkill.group === undefined ? {} : { group: projectSkill.group },
+      ...projectSkill.groups === undefined ? {} : { groups: [...projectSkill.groups] },
     }))
     render(<SkillsSection {...props({
       list: async () => ({ skills: [projectSkill] }),
@@ -728,9 +746,9 @@ describe('SkillsSection', () => {
     expect(within(dialog).getByLabelText<HTMLInputElement>(en.name).disabled).toBe(true)
   })
 
-  it('offers existing groups in an editable dropdown and still accepts free text', async () => {
-    const groupedA = { ...writableSkill, name: 'group-a', group: 'review' }
-    const groupedB = { ...writableSkill, name: 'group-b', group: 'docs' }
+  it('picks groups from the dropdown, adds a new label by typing, and clears them', async () => {
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
+    const groupedB = { ...writableSkill, name: 'group-b', groups: ['docs'] }
     const create = vi.fn(async () => {})
     render(<SkillsSection {...props({
       list: async () => ({ skills: [groupedA, groupedB] }),
@@ -741,36 +759,89 @@ describe('SkillsSection', () => {
     fireEvent.click(screen.getByRole('button', { name: en.add }))
     const dialog = screen.getByRole('dialog', { name: en.editorTitleAdd })
 
-    // Pick an existing group from the dropdown.
+    // Selecting a group toggles a removable tag and keeps the menu open for more picks.
     fireEvent.click(within(dialog).getByRole('button', { name: en.groupOptionsLabel }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'review' }))
-    expect(within(dialog).getByLabelText<HTMLInputElement>(en.group).value).toBe('review')
+    expect(within(dialog).getByRole('button', { name: en.groupRemoveFor.replace('{group}', 'review') })).toBeTruthy()
+    expect(within(dialog).getByLabelText<HTMLInputElement>(en.group).value).toBe('')
+    fireEvent.click(screen.getByRole('menuitem', { name: 'docs' }))
+    expect(within(dialog).getByRole('button', { name: en.groupRemoveFor.replace('{group}', 'docs') })).toBeTruthy()
 
-    // The clear row empties the field.
-    fireEvent.click(within(dialog).getByRole('button', { name: en.groupOptionsLabel }))
+    // The clear-all row empties the selection.
     fireEvent.click(screen.getByRole('menuitem', { name: en.groupClearOption }))
+    expect(within(dialog).queryByRole('button', { name: en.groupRemoveFor.replace('{group}', 'review') })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: en.groupRemoveFor.replace('{group}', 'docs') })).toBeNull()
+
+    // A typed label commits on Enter without touching the input text.
+    fireEvent.change(within(dialog).getByLabelText(en.group), { target: { value: 'brand-new' } })
+    fireEvent.keyDown(within(dialog).getByLabelText(en.group), { key: 'Enter' })
+    expect(within(dialog).getByRole('button', { name: en.groupRemoveFor.replace('{group}', 'brand-new') })).toBeTruthy()
     expect(within(dialog).getByLabelText<HTMLInputElement>(en.group).value).toBe('')
 
-    // Free text still works and reaches create.
-    fireEvent.change(within(dialog).getByLabelText(en.group), { target: { value: 'brand-new' } })
     fireEvent.change(within(dialog).getByLabelText(en.name), { target: { value: 'new-skill' } })
     fireEvent.change(within(dialog).getByLabelText(en.description), { target: { value: 'Does work' } })
     fireEvent.change(within(dialog).getByLabelText(en.content), { target: { value: 'Instructions' } })
     fireEvent.click(within(dialog).getByRole('button', { name: en.save }))
 
     await waitFor(() => {
-      expect(create).toHaveBeenCalledWith(expect.objectContaining({ group: 'brand-new' }))
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ groups: ['brand-new'] }))
     })
   })
 
-  it('shows only the clear row in the group dropdown when no groups exist', async () => {
+  it('shows only the disabled clear row in the group dropdown when no groups exist', async () => {
     render(<SkillsSection {...props()} />)
     await screen.findByRole('button', { name: en.add })
     fireEvent.click(screen.getByRole('button', { name: en.add }))
     const dialog = screen.getByRole('dialog', { name: en.editorTitleAdd })
     fireEvent.click(within(dialog).getByRole('button', { name: en.groupOptionsLabel }))
-    expect(screen.getByRole('menuitem', { name: en.groupClearOption })).toBeTruthy()
+    expect(screen.getByRole<HTMLButtonElement>('menuitem', { name: en.groupClearOption }).disabled).toBe(true)
     expect(screen.queryByRole('menuitem', { name: 'review' })).toBeNull()
+  })
+
+  it('renders a multi-group skill in every one of its group sections', async () => {
+    const multi = { ...writableSkill, name: 'multi-skill', groups: ['review', 'docs'] }
+    const other = { ...writableSkill, name: 'other-skill', groups: ['review'] }
+    render(<SkillsSection {...props({
+      list: async () => ({ skills: [multi, other] }),
+      get: async () => detail(multi),
+    })} />)
+    // The multi-group skill renders once per section.
+    await screen.findAllByText(multi.name)
+
+    const disclosures = screen.getAllByRole('button', { name: /skills/ }).filter(button => button.getAttribute('aria-expanded') !== null)
+    expect(disclosures.map(button => button.textContent?.replace(/\d+ skills$/, '').trim())).toEqual(['review', 'docs'])
+
+    const reviewSection = disclosures[0]!.closest('section')
+    const docsSection = disclosures[1]!.closest('section')
+    expect(within(reviewSection!).getByText(multi.name)).toBeTruthy()
+    expect(within(reviewSection!).getByText(other.name)).toBeTruthy()
+    expect(within(docsSection!).getByText(multi.name)).toBeTruthy()
+    expect(within(docsSection!).queryByText(other.name)).toBeNull()
+
+    // The result count still counts each skill once.
+    expect(screen.getByText(en.resultCount.replace('{count}', '2'))).toBeTruthy()
+  })
+
+  it('removes a selected tag and saves the remaining group labels', async () => {
+    const update = vi.fn(async () => {})
+    const grouped = { ...writableSkill, groups: ['review', 'docs'] }
+    render(<SkillsSection {...props({
+      list: async () => ({ skills: [grouped] }),
+      get: async () => detail(grouped),
+      update,
+    })} />)
+    // The skill renders in both of its group sections; open the editor from either row.
+    await screen.findAllByText(grouped.name)
+    fireEvent.click(screen.getAllByText(grouped.name)[0]!.closest('button')!)
+    const dialog = await screen.findByRole('dialog', { name: en.editorTitleEdit })
+    fireEvent.click(within(dialog).getByRole('button', { name: en.groupRemoveFor.replace('{group}', 'review') }))
+    expect(within(dialog).queryByRole('button', { name: en.groupRemoveFor.replace('{group}', 'review') })).toBeNull()
+    expect(within(dialog).getByRole('button', { name: en.groupRemoveFor.replace('{group}', 'docs') })).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: en.save }))
+
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledWith(expect.objectContaining({ groups: ['docs'] }))
+    })
   })
 
   it('creates a project skill with invocation flags and disables project scope without cwd', async () => {
@@ -797,6 +868,7 @@ describe('SkillsSection', () => {
     fireEvent.change(within(projectDialog).getByLabelText(en.description), { target: { value: 'Does work' } })
     fireEvent.change(within(projectDialog).getByLabelText(en.whenToUse), { target: { value: 'Use for releases' } })
     fireEvent.change(within(projectDialog).getByLabelText(en.group), { target: { value: 'releases' } })
+    fireEvent.keyDown(within(projectDialog).getByLabelText(en.group), { key: 'Enter' })
     fireEvent.change(within(projectDialog).getByLabelText(en.content), { target: { value: 'Instructions' } })
     const switches = within(projectDialog).getAllByRole('switch')
     fireEvent.click(switches[0]!)
@@ -807,7 +879,7 @@ describe('SkillsSection', () => {
         name: 'new-skill',
         description: 'Does work',
         whenToUse: 'Use for releases',
-        group: 'releases',
+        groups: ['releases'],
         content: 'Instructions',
         root: 'project-dsh',
         modelInvocable: false,
@@ -870,6 +942,7 @@ describe('SkillsSection', () => {
     expect(get).toHaveBeenCalledWith(writableSkill.name, {})
     expect(within(dialog).getByLabelText<HTMLInputElement>(en.name).disabled).toBe(true)
     fireEvent.change(within(dialog).getByLabelText(en.group), { target: { value: 'workflows' } })
+    fireEvent.keyDown(within(dialog).getByLabelText(en.group), { key: 'Enter' })
     fireEvent.change(within(dialog).getByLabelText(en.content), { target: { value: 'Revised instructions' } })
     fireEvent.click(within(dialog).getAllByRole('switch')[1]!)
     fireEvent.click(within(dialog).getByRole('button', { name: en.save }))
@@ -879,7 +952,7 @@ describe('SkillsSection', () => {
         name: writableSkill.name,
         description: writableSkill.description,
         whenToUse: writableSkill.whenToUse,
-        group: 'workflows',
+        groups: ['workflows'],
         content: 'Revised instructions',
         modelInvocable: true,
         userInvocable: false,
@@ -948,7 +1021,7 @@ describe('SkillsSection', () => {
     await waitFor(() => {
       expect(update).toHaveBeenCalledWith(expect.objectContaining({
         name: writableSkill.name,
-        group: '',
+        groups: [],
       }))
     })
     const saved = (update.mock.calls as unknown[][])[0]![0] as Record<string, unknown>
@@ -1105,8 +1178,8 @@ describe('SkillsSection', () => {
     const first = deferred<undefined>()
     const second = deferred<undefined>()
     const setInvocation = vi.fn((name: string) => name === 'group-a' ? first.promise : second.promise)
-    const groupedA = { ...writableSkill, name: 'group-a', group: 'review' }
-    const groupedB = { ...writableSkill, name: 'group-b', group: 'review' }
+    const groupedA = { ...writableSkill, name: 'group-a', groups: ['review'] }
+    const groupedB = { ...writableSkill, name: 'group-b', groups: ['review'] }
     const projectSkill = { ...writableSkill, name: 'project-skill', source: 'project-dsh' as const }
     const list = vi.fn((scope: { cwd?: string }) => Promise.resolve({
       skills: scope.cwd === '/work/one' ? [groupedA, groupedB] : [projectSkill],

@@ -5,6 +5,7 @@
  * @module @deepseek-ai/dsh-session-persistence-sqlite/compression
  */
 
+import { readFileSync } from 'node:fs'
 import { TextDecoder } from 'node:util'
 import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib'
 import type { SessionEvent, SurfaceEventType } from '@deepseek-ai/dsh-session'
@@ -27,15 +28,25 @@ export interface BoundRecord {
   readonly ignorable: number | null
 }
 
-/** Small values stay as SQLite text to avoid per-frame CPU and byte overhead. */
-export const ZSTD_DATA_THRESHOLD_BYTES = 4_096
-
-const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER)
-const MAX_ZIGZAG_INTEGER = MAX_SAFE_INTEGER * 2n
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 const ZSTD_COMPRESSION_LEVEL = 3
+const DELTA_TAG = 0
+const RUN_TAG = 1
+const MAX_SAFE_INTEGER = BigInt(Number.MAX_SAFE_INTEGER)
+const MAX_ZIGZAG_INTEGER = MAX_SAFE_INTEGER * 2n
 const PACKED_ROW_SENTINEL = 0
+/**
+ * Schema-20 raw-content zstd dictionary for independently decodable data rows.
+ * Its exact bytes are part of the physical format; changing the resource
+ * requires a schema-version bump.
+ */
+const ZSTD_DICTIONARY = readFileSync(new URL('../resources/zstd-dictionary.bin', import.meta.url))
 
+/** Compress options shared by every data-column frame. */
+const DATA_ZSTD_OPTIONS = {
+  dictionary: ZSTD_DICTIONARY,
+  params: { [constants.ZSTD_c_compressionLevel]: ZSTD_COMPRESSION_LEVEL },
+} as const
 const CHUNK_TAGS = ['text-chunks', 'reasoning-chunks', 'tool-call-chunks'] as const
 type ChunkTag = typeof CHUNK_TAGS[number]
 
@@ -98,39 +109,59 @@ export function bindRecord(record: StorageRecord): BoundRecord {
 
 function encodeData(serialized: string): string | Uint8Array {
   const bytes = Buffer.from(serialized)
-  if (bytes.length < ZSTD_DATA_THRESHOLD_BYTES) return serialized
-  const compressed = zstdCompressSync(bytes, {
-    params: { [constants.ZSTD_c_compressionLevel]: ZSTD_COMPRESSION_LEVEL },
-  })
+  const compressed = zstdCompressSync(bytes, DATA_ZSTD_OPTIONS)
   return compressed.length < bytes.length ? compressed : serialized
 }
 
 function decodeData(value: string | Uint8Array, maxOutputLength?: number): string {
   if (typeof value === 'string') return value
   const decoded = maxOutputLength === undefined
-    ? zstdDecompressSync(value)
-    : zstdDecompressSync(value, { maxOutputLength })
+    ? zstdDecompressSync(value, { dictionary: ZSTD_DICTIONARY })
+    : zstdDecompressSync(value, { dictionary: ZSTD_DICTIONARY, maxOutputLength })
   return UTF8_DECODER.decode(decoded)
 }
 
 function encodeSourceEventSeqs(values: readonly number[]): Uint8Array {
-  const bytes: number[] = []
+  if (values.length === 0) return new Uint8Array()
+  const deltas = [DELTA_TAG]
   let previous = 0n
   for (let index = 0; index < values.length; index += 1) {
-    const sourceSeq = values[index] as number
-    if (!Number.isSafeInteger(sourceSeq) || sourceSeq < 0) {
+    const value = values[index] as number
+    if (!Number.isSafeInteger(value) || value < 0) {
       throw new TypeError('sourceEventSeqs must contain non-negative safe integers')
     }
-    const value = BigInt(sourceSeq)
+    const current = BigInt(value)
     const encoded = index === 0
-      ? value
-      : value >= previous
-        ? (value - previous) * 2n
-        : ((previous - value) * 2n) - 1n
-    appendVarint(bytes, encoded)
-    previous = value
+      ? current
+      : current >= previous
+        ? (current - previous) * 2n
+        : ((previous - current) * 2n) - 1n
+    appendVarint(deltas, encoded)
+    previous = current
   }
-  return Buffer.from(bytes)
+  if (!isStrictlyIncreasing(values)) return Uint8Array.from(deltas)
+
+  const runs = [RUN_TAG]
+  let start = values[0] as number
+  let end = start
+  for (let index = 1; index < values.length; index += 1) {
+    const value = values[index] as number
+    if (value === end + 1) {
+      end = value
+      continue
+    }
+    appendVarint(runs, BigInt(start))
+    appendVarint(runs, BigInt(end - start + 1))
+    start = value
+    end = start
+  }
+  appendVarint(runs, BigInt(start))
+  appendVarint(runs, BigInt(end - start + 1))
+  return Uint8Array.from(runs.length < deltas.length ? runs : deltas)
+}
+
+function isStrictlyIncreasing(values: readonly number[]): boolean {
+  return values.every((value, index) => index === 0 || value > (values[index - 1] as number))
 }
 
 function appendVarint(bytes: number[], value: bigint): void {
@@ -142,10 +173,21 @@ function appendVarint(bytes: number[], value: bigint): void {
   bytes.push(Number(remaining))
 }
 
-function decodeSourceEventSeqs(bytes: Uint8Array): number[] {
+function decodeSourceEventSeqs(bytes: Uint8Array, maxEntries: number): number[] {
+  if (bytes.length === 0) return []
+  if (bytes.length === 1) {
+    throw new Error('malformed source_event_seqs storage value: truncated tagged payload')
+  }
+  switch (bytes[0]) {
+    case DELTA_TAG: return decodeDeltaVarints(bytes, 1)
+    case RUN_TAG: return decodeRunVarints(bytes, 1, maxEntries)
+    default: throw new Error('malformed source_event_seqs storage value: unknown encoding tag')
+  }
+}
+
+function decodeDeltaVarints(bytes: Uint8Array, offset: number): number[] {
   const values: number[] = []
   let previous = 0n
-  let offset = 0
   while (offset < bytes.length) {
     const first = values.length === 0
     const decoded = readVarint(bytes, offset, first ? MAX_SAFE_INTEGER : MAX_ZIGZAG_INTEGER)
@@ -161,6 +203,30 @@ function decodeSourceEventSeqs(bytes: Uint8Array): number[] {
     }
     values.push(Number(value))
     previous = value
+  }
+  return values
+}
+
+function decodeRunVarints(bytes: Uint8Array, offset: number, maxEntries: number): number[] {
+  const values: number[] = []
+  let previousEnd = -1
+  while (offset < bytes.length) {
+    const start = readVarint(bytes, offset, MAX_SAFE_INTEGER)
+    const count = readVarint(bytes, start.offset, MAX_SAFE_INTEGER)
+    offset = count.offset
+    const first = Number(start.value)
+    const length = Number(count.value)
+    if (length < 1) {
+      throw new Error('malformed source_event_seqs storage value: run count must be positive')
+    }
+    if (first <= previousEnd || !Number.isSafeInteger(first + length - 1)) {
+      throw new Error('malformed source_event_seqs storage value: runs must ascend within safe integers')
+    }
+    if (length > maxEntries - values.length) {
+      throw new Error('malformed source_event_seqs storage value: run exceeds its event sequence')
+    }
+    for (let index = 0; index < length; index += 1) values.push(first + index)
+    previousEnd = first + length - 1
   }
   return values
 }
@@ -201,7 +267,7 @@ function decodeScalarRow(row: EventRow): SessionEvent {
   const surfaceFields = {
     ...row.source_event_seqs === null
       ? {}
-      : { sourceEventSeqs: decodeSourceEventSeqs(row.source_event_seqs) },
+      : { sourceEventSeqs: decodeSourceEventSeqs(row.source_event_seqs, row.seq) },
     ...row.surface_op === null
       ? {}
       : { surfaceOp: JSON.parse(row.surface_op) as SessionEvent<SurfaceEventType>['surfaceOp'] },

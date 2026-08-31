@@ -12,7 +12,7 @@ A subagent script is derived from a recorded session log by [`deriveReplayScript
 
 A **fork** child is different. The fork backend seeds the child session with a *balanced completed-turn prefix of the parent's log* ([`dsh-subagent-in-process-driver`](../../../../packages/subagent/subagent-in-process-driver)), and that seed becomes the child session's persisted `log` (`Session`'s constructor copies the seed into `this.log`). So a fork child's `.jsonl` begins with the **parent's** events — including the parent's `assistant/chunk` events — and only then carries the child's own turn.
 
-Deriving the child script from the whole fork-child log therefore replays the **parent's** recorded responses as the **child's** model calls: the live fork child's first `stream()` would receive the parent's first recorded chunk sequence instead of its own. The recorded scenarios are all spawn today, so this never fired — but a fork snapshot would have mis-routed silently, exactly the class of bug the snapshot tier exists to catch.
+Deriving the child script from the whole fork-child log therefore replays the **parent's** recorded responses as the **child's** model calls: the live fork child's first `stream()` would receive the parent's first recorded chunk sequence instead of its own. All recorded scenarios use spawn, so this never fired — but a fork snapshot would have mis-routed silently, exactly the class of bug the snapshot tier exists to catch.
 
 ## Decision
 

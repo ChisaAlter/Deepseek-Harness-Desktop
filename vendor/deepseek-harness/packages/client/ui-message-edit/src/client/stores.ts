@@ -8,8 +8,8 @@
  * reloads).
  * @module @deepseek-ai/dsh-client-ui-message-edit/client/stores
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
-
+import { defineStore } from '@deepseek-ai/dsh-client-store'
+import type { EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 /** Focus-return handshake between the editor and the pencil. */
 type MessageEditState = {
   /** Seq whose pencil takes focus on its next render, null when none is owed. */

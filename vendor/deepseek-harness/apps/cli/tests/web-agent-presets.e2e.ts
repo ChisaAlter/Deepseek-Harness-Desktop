@@ -10,10 +10,10 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import { resolveSessionPreset, SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-agent-presets'
+import { SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE } from '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
+import { SETTINGS_NAMESPACE, SHIPPED_PRESET_ROOT } from '@deepseek-ai/dsh-agent-presets'
 import { applyChildComposition, childSessionMeta } from '@deepseek-ai/dsh-subagent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-compaction-basic'
 import type {} from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -21,7 +21,6 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-token-meter'
 
-const CONFIG_DIR = fileURLToPath(new URL('../config/', import.meta.url))
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 /** The shipped Web surface: the dsh-base and dsh-web-app bundle patches over an empty preset root. */
 const BASE_PATCH = join(REPO_ROOT, 'packages/bundle/base/cordis.patch.yml')
@@ -67,8 +66,8 @@ async function bootWeb(
     // The settings row defaults to `$DSH_HOME/settings.yaml`. Left alone it
     // reads the developer's own document — and since the default preset is a
     // setting, a stored `agent-presets.default` would decide this file's
-    // outcome. Point it at a temp file for the same reason the roster below
-    // names only the shipped root.
+    // outcome. Point it at a temp file for the same reason the roster row
+    // below pins `includeUserRoot` off.
     { id: 'settings', config: { path: settingsFile, watch: false } },
     // storage-json's root is anchored to the real $DSH_HOME. Unpinned, this
     // file writes the developer's own `~/.dsh/storages/` — and then reads it
@@ -99,6 +98,9 @@ async function bootWeb(
     { id: 'skill-badge', disabled: false },
     { id: 'modules', disabled: true },
     { id: 'connection', disabled: true },
+    // Export owns a Connection Fetch route, so this Host-only composition
+    // disables it with the transport service above.
+    { id: 'session-log-download', disabled: true },
     // The always-on reload chain waits for the browser roster and bound port
     // disabled above.
     { id: 'client-hmr', disabled: true },
@@ -112,18 +114,12 @@ async function bootWeb(
     { insert: [
       { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },
     ] },
-    // The roster AppCLIEntry would patch in; only the shipped root, so a
-    // developer's own `~/.dsh/.preset` cannot change this test's outcome.
+    // Pin the roster away from the developer's machine: `includeUserRoot`
+    // false keeps `~/.dsh/.agent-presets` from changing a test's outcome.
     // `default` here is the COMPOSITION default — the base layer the settings
-    // document overrides.
-    {
-      id: 'agent-presets',
-      config: {
-        default: 'standard',
-        roots: [{ path: join(CONFIG_DIR, 'agent-presets'), trust: 'system' }],
-        includeUserRoot: false,
-      },
-    },
+    // document overrides. No `roots` entry: the plugin bundles the shipped
+    // presets itself and prepends their root.
+    { id: 'agent-presets', config: { default: 'standard', includeUserRoot: false } },
     ...extra,
   ]
   // The surface is patch layers over an empty preset root, so the root sits
@@ -131,7 +127,7 @@ async function bootWeb(
   // upward walk. The flat fallback the preset boot maintains is what makes
   // them resolvable — the same mechanism, not a test-only shim.
   const home = dirname(settingsFile)
-  healProfilesModuleFallback(INSTALL_ANCHOR, home)
+  await healProfilesModuleFallback({ installAnchor: INSTALL_ANCHOR, home })
   const profileDir = join(home, 'profiles', 'spec')
   await mkdir(profileDir, { recursive: true })
   // Product Bundles are installed into the Profile, not the dsh app. Model
@@ -236,7 +232,7 @@ describe('the shipped Web composition', () => {
   it('supplies both shipped presets, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['cordis', 'minimal', 'ptc', 'standard'])
     expect(listed.every(preset => preset.trust === 'system')).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
   })
@@ -255,11 +251,46 @@ describe('the shipped Web composition', () => {
       expect(toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')).toEqual([
         'ask_user_question', SHELL_TOOL, 'create_goal', 'edit', 'exit_plan_mode',
         'get_goal', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'ralph', 'read', 'read_image', 'send_message', 'skill',
-        'subagent', 'subagent_fork', 'todo_write', 'update_goal', 'web_search',
+        'subagent', 'subagent_fork', 'todo_write', 'update_goal', 'web_fetch', 'web_search',
         'workflow', 'write',
       ].sort())
+      expect(ctx.commands.find(handle.agent, 'goal')).toBeDefined()
     } finally {
       await handle.dispose()
+    }
+  })
+
+  it('applies the default-off subagent model allowlist only to new sessions', async () => {
+    await ctx.settings.update(SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE, {
+      enabled: false,
+      allowedModels: [],
+    })
+    const disabled = await ctx.agents.create({
+      sessionId: SessionId('preset-model-selection-disabled'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'standard').then(() => undefined),
+    })
+    await ctx.settings.update(SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE, {
+      enabled: true,
+      allowedModels: [{ provider: 'deepseek-official', model: 'deepseek-v4-flash' }],
+    })
+    const enabled = await ctx.agents.create({
+      sessionId: SessionId('preset-model-selection-enabled'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'standard').then(() => undefined),
+    })
+    try {
+      expect(toolNames(ctx, disabled.agent)).not.toContain('list_subagent_models')
+      expect(toolParameterNames(ctx, disabled.agent, 'subagent')).not.toEqual(expect.arrayContaining([
+        'model', 'provider', 'reasoning_effort',
+      ]))
+      expect(toolNames(ctx, enabled.agent)).toContain('list_subagent_models')
+      expect(toolParameterNames(ctx, enabled.agent, 'subagent')).toEqual(expect.arrayContaining([
+        'model', 'provider', 'reasoning_effort',
+      ]))
+      expect(toolNames(ctx, disabled.agent)).not.toContain('list_subagent_models')
+    } finally {
+      await ctx.settings.update(SUBAGENT_MODEL_SELECTION_SETTINGS_NAMESPACE, { enabled: false })
+      await enabled.dispose()
+      await disabled.dispose()
     }
   })
 
@@ -277,6 +308,7 @@ describe('the shipped Web composition', () => {
       expect(assembly.tools.find(tool => tool.name === SHELL_TOOL)?.description).toBe(MINIMAL_SHELL_DESCRIPTION)
       expect(JSON.stringify(assembly.tools.find(tool => tool.name === 'str_replace_editor')?.parameters))
         .toContain('Absolute path')
+      expect(ctx.commands.find(handle.agent, 'goal')).toBeUndefined()
       expect(ctx.agentPresets.serviceFor(handle.agent, 'compaction')).toBeUndefined()
       expect(handle.agent.ctx.get('compaction')).toBeUndefined()
     } finally {
@@ -322,6 +354,7 @@ describe('the shipped Web composition', () => {
       // And it keeps the standard agent's own tools rather than replacing them.
       expect(tools).toEqual(expect.arrayContaining([SHELL_TOOL, 'read', 'edit', 'skill']))
       expect(tools).not.toContain('str_replace_editor')
+      expect(ctx.commands.find(handle.agent, 'goal')).toBeDefined()
 
       // The preset's own authoring skill registers into ITS layer of the host
       // registry: the cordis agent's view carries it, the global view does not.
@@ -333,22 +366,23 @@ describe('the shipped Web composition', () => {
     }
   })
 
-  it('presents `code` as Code Mode without disturbing a native session beside it', async () => {
+  it('presents `ptc` as PTC mode without disturbing a native session beside it', async () => {
     const coded = await ctx.agents.create({
-      sessionId: SessionId('preset-code'),
-      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'code').then(() => undefined),
+      sessionId: SessionId('preset-ptc'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'ptc').then(() => undefined),
     })
     const native = await ctx.agents.create({
-      sessionId: SessionId('preset-code-native'),
+      sessionId: SessionId('preset-ptc-native'),
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'standard').then(() => undefined),
     })
     try {
       // One tool reaches the MODEL: the transport. The registry's catalog for
-      // this agent is unchanged — a code mode collapses the presentation, not
+      // this agent is unchanged — PTC mode collapses the presentation, not
       // the capabilities — so the assembly is what carries the claim.
       const assembly = await ctx.systemPrompt.assemble({ scope: coded.agent })
       expect(assembly.tools.map(tool => tool.name)).toEqual(['run_code'])
       expect(toolNames(ctx, coded.agent)).not.toContain('str_replace_editor')
+      expect(ctx.commands.find(coded.agent, 'goal')).toBeDefined()
       const sdk = assembly.sections.find(section => section.name === 'tools:sdk')?.text ?? ''
       expect(sdk).not.toContain('str_replace_editor')
       expect(sdk).toContain('web_search')
@@ -382,7 +416,7 @@ describe('the shipped Web composition', () => {
     // The preset's skill root is derived from its own `baseUrl`, so the skill
     // travels with the directory wherever the preset is installed.
     const skill = join(
-      CONFIG_DIR, 'agent-presets', 'cordis', 'skills', 'editing-cordis-compositions', 'SKILL.md',
+      SHIPPED_PRESET_ROOT, 'cordis', 'skills', 'editing-cordis-compositions', 'SKILL.md',
     )
 
     expect((await readFile(skill, 'utf8')).startsWith('---\nname: editing-cordis-compositions')).toBe(true)
@@ -420,7 +454,7 @@ describe('the shipped Web composition', () => {
 
       // The preset's own loader tool resolves the global-layer skill.
       const loaded = await ctx.tools.execute({
-        callId: CallId('preset-skills-load'),
+        callId: ToolCallId('preset-skills-load'),
         name: 'skill',
         arguments: { name: 'dsh-badge' },
         signal: new AbortController().signal,
@@ -454,7 +488,7 @@ describe('the shipped Web composition', () => {
     // agent down disposes its whole subtree. Inherited, that rewrote the
     // shipped composition — truncating it to `[]` the first time a session
     // ended — so `PresetTree` refuses to write at all.
-    const path = join(CONFIG_DIR, 'agent-presets', 'standard', 'agent.cordis.yml')
+    const path = join(SHIPPED_PRESET_ROOT, 'standard', 'agent.cordis.yml')
     const before = await readFile(path, 'utf8')
 
     const handle = await ctx.agents.create({
@@ -482,7 +516,7 @@ describe('product Bundle and user-preset intersection', () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-product-presets-'))
     const userRoot = join(root, 'presets')
     const settingsFile = join(root, 'settings.yaml')
-    const standard = await readFile(join(CONFIG_DIR, 'agent-presets', 'standard', 'agent.cordis.yml'), 'utf8')
+    const standard = await readFile(join(SHIPPED_PRESET_ROOT, 'standard', 'agent.cordis.yml'), 'utf8')
     await writeFile(settingsFile, '{}\n')
     for (const id of presetIds) {
       let composition = standard
@@ -509,10 +543,8 @@ describe('product Bundle and user-preset intersection', () => {
         id: 'agent-presets',
         config: {
           default: 'standard',
-          roots: [
-            { path: join(CONFIG_DIR, 'agent-presets'), trust: 'system' },
-            { path: userRoot, trust: 'user' },
-          ],
+          // The shipped root is the plugin's own, prepended before this.
+          roots: [{ path: userRoot, trust: 'user' }],
           includeUserRoot: false,
         },
       },
@@ -615,32 +647,19 @@ describe('a switch survives the session', () => {
     })
     try {
       // The api-proxy's select does exactly this pair while the session is blank.
+      expect(ctx.commands.find(handle.agent, 'goal')).toBeDefined()
       await ctx.agentPresets.recompose(handle.agent.ctx, 'minimal')
       handle.agent.session.append('agent-preset/selected', { agentPreset: 'minimal' })
+      expect(ctx.commands.find(handle.agent, 'goal')).toBeUndefined()
 
       // The header keeps the creation fact; the log carries what it runs.
       expect(handle.agent.session.header.agentPreset).toBe('standard')
-      expect(resolveSessionPreset(handle.agent.session)).toBe('minimal')
+      expect(ctx.sessionProjections.stateOf(handle.agent.session, 'agentPreset')).toBe('minimal')
     } finally {
       await handle.dispose()
     }
   })
 
-  it('rebuilds a switched session from the log, not the creation header', () => {
-    // The exact shape a resume reads back from disk: the header says standard,
-    // the log records the switch the user made while the session was blank.
-    const rebuilt = resolveSessionPreset({
-      header: { version: 0, id: SessionId('x'), createdAt: 0, agentPreset: 'standard' },
-      events: [
-        { type: 'agent-preset/selected', seq: 1, time: 0, data: { agentPreset: 'minimal' } },
-        { type: 'turn/start', seq: 2, time: 0, data: { turn: 0, trigger: { kind: 'message', source: { kind: 'user' } } } },
-      ] as never,
-    })
-
-    // Reading the header alone would compose the creation-time preset over a
-    // history another one produced — the replay the blank-only lock prevents.
-    expect(rebuilt).toBe('minimal')
-  })
 })
 
 describe('a forked session', () => {
@@ -650,7 +669,7 @@ describe('a forked session', () => {
       meta: { agentPreset: 'minimal' },
       setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'minimal').then(() => undefined),
     })
-    const inherited = resolveSessionPreset(parent.agent.session)
+    const inherited = ctx.sessionProjections.stateOf(parent.agent.session, 'agentPreset') ?? undefined
     const child = await ctx.agents.create({
       sessionId: SessionId('preset-fork-child'),
       meta: {
@@ -747,15 +766,11 @@ describe('a launcher that configures no writable root', () => {
     )
     const settingsFile = join(await mkdtemp(join(tmpdir(), 'dsh-preset-derived-settings-')), 'settings.yaml')
     await writeFile(settingsFile, '{}\n')
-    // Only the shipped root, exactly what `composeProfile` supplies; the
+    // No configured roots: the shipped one is the plugin's own, and the
     // writable one is the roster's own default rather than this patch's job.
     derivedCtx = await bootWeb(settingsFile, [{
       id: 'agent-presets',
-      config: {
-        default: 'standard',
-        roots: [{ path: join(CONFIG_DIR, 'agent-presets'), trust: 'system' }],
-        includeUserRoot: true,
-      },
+      config: { default: 'standard', includeUserRoot: true },
     }])
   }, 120_000)
 
@@ -798,12 +813,10 @@ describe('authoring a preset on the shipped composition', () => {
       id: 'agent-presets',
       config: {
         default: 'standard',
-        roots: [
-          { path: join(CONFIG_DIR, 'agent-presets'), trust: 'system' },
-          // The root does not exist yet: a deployment whose user has authored
-          // nothing is the normal first-run state.
-          { path: userRoot, trust: 'user' },
-        ],
+        // The root does not exist yet: a deployment whose user has authored
+        // nothing is the normal first-run state. The shipped root is the
+        // plugin's own, prepended before this.
+        roots: [{ path: userRoot, trust: 'user' }],
         includeUserRoot: false,
       },
     }])
@@ -870,7 +883,7 @@ describe('the default preset as a user setting', () => {
   it('composes an unnamed session from the stored default, not the composed one', async () => {
     expect(ctx.agentPresets.defaultId).toBe('standard')
 
-    await ctx.settings.update(settingsNamespace(SETTINGS_NAMESPACE), { default: 'minimal' })
+    await ctx.settings.update(SETTINGS_NAMESPACE, { default: 'minimal' })
     try {
       expect(ctx.agentPresets.defaultId).toBe('minimal')
 
@@ -889,7 +902,7 @@ describe('the default preset as a user setting', () => {
       // The context is shared with the rest of the file. `replace({})` drops
       // the user section wholesale so the field re-inherits the composition
       // base; `update` merges, and would leave the override standing.
-      await ctx.settings.replace(settingsNamespace(SETTINGS_NAMESPACE), {})
+      await ctx.settings.replace(SETTINGS_NAMESPACE, {})
     }
 
     expect(ctx.agentPresets.defaultId).toBe('standard')
@@ -908,6 +921,67 @@ describe('a session keeps the preset it was created with', () => {
       // session runs, so naming anything else is a caller error rather than a
       // switch. Its history was produced under `minimal`'s two tools.
       expect(handle.agent.session.header.agentPreset).toBe('minimal')
+    } finally {
+      await handle.dispose()
+    }
+  })
+})
+
+describe('a composition that configures its own preset roots', () => {
+  let rootsCtx: Context
+  let teamRoot: string
+
+  beforeAll(async () => {
+    const home = await mkdtemp(join(tmpdir(), 'dsh-preset-roots-'))
+    const settingsFile = join(home, 'settings.yaml')
+    await writeFile(settingsFile, '{}\n')
+    // A workspace-shared root beside the deployment: one preset of its own,
+    // plus a directory that claims a shipped id.
+    teamRoot = join(home, 'team-presets')
+    const minimalComposition = await readFile(join(SHIPPED_PRESET_ROOT, 'minimal', 'agent.cordis.yml'), 'utf8')
+    for (const id of ['team-spec', 'minimal']) {
+      await mkdir(join(teamRoot, id), { recursive: true })
+      await writeFile(join(teamRoot, id, 'agent.cordis.yml'), minimalComposition)
+    }
+    // The user layer of the reported regression: a profile's cordis.patch.yml
+    // configuring a shared preset root. The plugin must EXTEND it with its
+    // own shipped root, never lose it.
+    rootsCtx = await bootWeb(settingsFile, [{
+      id: 'agent-presets',
+      config: {
+        default: 'standard',
+        roots: [{ path: teamRoot, trust: 'user' }],
+        includeUserRoot: false,
+      },
+    }])
+  }, 120_000)
+
+  afterAll(async () => {
+    await rootsCtx.fiber.dispose()
+  })
+
+  it('keeps configured roots alongside the always-prepended shipped root', async () => {
+    expect(rootsCtx.agentPresets.roots.map(root => root.path)).toEqual([
+      SHIPPED_PRESET_ROOT,
+      teamRoot,
+    ])
+
+    const listed = await rootsCtx.agentPresets.list()
+    expect(listed.map(preset => preset.id).sort()).toEqual(['cordis', 'minimal', 'ptc', 'standard', 'team-spec'])
+    expect(listed.every(preset => preset.broken === undefined)).toBe(true)
+    // The shipped root comes first: a configured directory claiming a shipped
+    // id is shadowed, never the other way around.
+    expect(listed.find(preset => preset.id === 'minimal')?.trust).toBe('system')
+    expect(listed.find(preset => preset.id === 'team-spec')?.trust).toBe('user')
+  })
+
+  it('composes an agent from a configured-root preset', async () => {
+    const handle = await rootsCtx.agents.create({
+      sessionId: SessionId('preset-team-spec'),
+      setup: agentCtx => rootsCtx.agentPresets.mount(agentCtx, 'team-spec').then(() => undefined),
+    })
+    try {
+      expect(toolNames(rootsCtx, handle.agent)).toEqual(['bash', 'str_replace_editor'])
     } finally {
       await handle.dispose()
     }

@@ -7,9 +7,10 @@ import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
+import type { SessionId } from '@deepseek-ai/dsh-session'
 import { isSkillName, type SkillDefinition, type SkillRegistry, type SkillSummary, type SkillViewOptions } from '@deepseek-ai/dsh-skill'
 import type {} from '@deepseek-ai/dsh-skill'
-import { TypertLookupFailure, TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from 'zod'
 import { parseSkillMarkdown, renderSkillInvocationMarkdown, renderSkillMarkdown } from './frontmatter.ts'
 import type {
@@ -72,12 +73,12 @@ export class SkillInventoryGateway extends TypertRemoteService {
   async get(request: SkillInventoryGetRequest): Promise<SkillInventoryDetail> {
     const view = this.resolveView(request)
     const definition = await this.requireSkill(request.name, view)
-    const group = metadataGroup(definition)
+    const groups = metadataGroups(definition)
     return {
       name: definition.name,
       description: definition.description,
       ...definition.whenToUse === undefined ? {} : { whenToUse: definition.whenToUse },
-      ...group === undefined ? {} : { group },
+      ...groups === undefined ? {} : { groups },
       source: definition.source,
       ...definition.path === undefined ? {} : { path: definition.path },
       writable: isWritable(definition.source, view.options.cwd, definition.path),
@@ -107,7 +108,7 @@ export class SkillInventoryGateway extends TypertRemoteService {
       name: request.name,
       description: request.description,
       ...optionalWhenToUse(request.whenToUse),
-      group: request.group ?? '',
+      groups: request.groups ?? [],
       modelInvocable: request.modelInvocable,
       userInvocable: request.userInvocable,
       content: request.content,
@@ -128,7 +129,7 @@ export class SkillInventoryGateway extends TypertRemoteService {
       name: definition.name,
       description: request.description,
       ...optionalWhenToUse(request.whenToUse),
-      ...request.group === undefined ? {} : { group: request.group },
+      ...request.groups === undefined ? {} : { groups: request.groups },
       modelInvocable: request.modelInvocable,
       userInvocable: request.userInvocable,
       content: request.content,
@@ -187,11 +188,11 @@ export class SkillInventoryGateway extends TypertRemoteService {
     const agents = this.ctx.get('agents') as { get(id: string): object | undefined } | undefined
     const agent = agents?.get(sessionId)
     if (agent === undefined) {
-      throw new TypertLookupFailure({
-        code: 'session-not-found',
-        message: `session "${sessionId}" not found (not attached)`,
-        details: { sessionId },
-      })
+      throw new RemoteError(
+        'session/not-found',
+        `session "${sessionId}" not found (not attached)`,
+        { sessionId: sessionId as SessionId },
+      )
     }
     return agent
   }
@@ -216,12 +217,12 @@ export default SkillInventoryGateway
 
 function toEntry(summary: SkillSummary, detail: SkillDefinition | undefined, cwd: string | undefined): SkillInventoryEntry {
   const path = detail?.path
-  const group = metadataGroup(detail)
+  const groups = metadataGroups(detail)
   return {
     name: summary.name,
     description: summary.description,
     ...summary.whenToUse === undefined ? {} : { whenToUse: summary.whenToUse },
-    ...group === undefined ? {} : { group },
+    ...groups === undefined ? {} : { groups },
     source: summary.source,
     provider: summary.provider,
     ...path === undefined ? {} : { path, directory: dirname(path) },
@@ -231,12 +232,30 @@ function toEntry(summary: SkillSummary, detail: SkillDefinition | undefined, cwd
   }
 }
 
-/** Read the Settings-owned grouping label from provider metadata. */
-function metadataGroup(definition: SkillDefinition | undefined): string | undefined {
+/** Read the Settings-owned grouping labels from provider metadata. */
+function metadataGroups(definition: SkillDefinition | undefined): readonly string[] | undefined {
   const metadata = definition?.metadata
   if (metadata === undefined) return undefined
-  const value = metadata.group
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined
+  return normalizeMetadataGroups(metadata.group)
+}
+
+/**
+ * Normalize the stored `metadata.group` value at the durable-file boundary:
+ * a scalar label or a list of labels, trimmed, deduped, order-preserving;
+ * no labels yields undefined so the wire field stays omitted.
+ */
+function normalizeMetadataGroups(value: unknown): readonly string[] | undefined {
+  const raw = typeof value === 'string' ? [value] : Array.isArray(value) ? value : []
+  const seen = new Set<string>()
+  const groups: string[] = []
+  for (const item of raw) {
+    if (typeof item !== 'string') continue
+    const label = item.trim()
+    if (label.length === 0 || seen.has(label)) continue
+    seen.add(label)
+    groups.push(label)
+  }
+  return groups.length === 0 ? undefined : groups
 }
 
 function isWritable(source: string, cwd: string | undefined, path: string | undefined): boolean {

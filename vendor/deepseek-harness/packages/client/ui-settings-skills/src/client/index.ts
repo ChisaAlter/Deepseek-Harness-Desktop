@@ -2,13 +2,17 @@
  * Skills settings section plugin, browser half.
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { SkillsSection } from './SkillsSection.tsx'
 import type { SkillsSectionInjected } from './SkillsSection.tsx'
 import { en, zh, type SkillsSettingsKey } from './locales.ts'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 
 export type { SkillsSectionInjected, SkillsSectionProps } from './SkillsSection.tsx'
 export type { SkillsSettingsKey } from './locales.ts'
@@ -30,7 +34,7 @@ export const inject = ['slots', 'locale', 'remote', 'remote.skillInventory', 'se
  * Register the Skills settings section.
  * @param ctx - client root.
  */
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-skills: dictionaries')
   const t = ctx.locale.bind(NS) as SkillsSectionInjected['t']
   const injected = (): SkillsSectionInjected => ({
@@ -45,7 +49,13 @@ export function apply(ctx: ClientContext): void {
     setInvocation: async (name, modelInvocable, userInvocable, scope) => {
       unwrap(await ctx.remote.skillInventory.setInvocation({ name, modelInvocable, userInvocable, ...scope }), 'skillInventory.setInvocation')
     },
-    openDirectory: directory => ctx.workspaces.openPath(directory),
+    openDirectory: directory => {
+      const openPath = (ctx.workspaces as { openPath?: (path: string) => Promise<void> }).openPath
+      if (openPath === undefined) {
+        return Promise.reject(new Error('workspaces.openPath is not available on this pin'))
+      }
+      return openPath(directory)
+    },
   })
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

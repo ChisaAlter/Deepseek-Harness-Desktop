@@ -58,3 +58,26 @@ test('QA 驱动仅在 smoke 模块内按需 require', () => {
     assert.ok(smokeSource.includes(`require('.${driver}')`), `smoke 模块应惰性 require ..${driver.slice(1)}`);
   }
 });
+
+test('packaged smoke widens the window before titlebar hits', () => {
+  const helper = smokeSource.indexOf('async function ensureSurfacesViewport');
+  const probeCall = smokeSource.indexOf('titlebarHits = await probeTitlebarHits');
+  const helperCall = smokeSource.indexOf('await ensureSurfacesViewport(win, wc)');
+  assert.ok(helper >= 0, '应定义 ensureSurfacesViewport');
+  assert.ok(helperCall >= 0 && helperCall < probeCall, 'widen 必须在 probeTitlebarHits 之前');
+  assert.ok(smokeSource.includes('SMOKE_SURFACES_MIN_VIEWPORT = 1280'));
+  assert.ok(smokeSource.includes('data-dshd-caption="band"'));
+  assert.ok(smokeSource.includes('view.setBounds'));
+});
+
+test('titlebar menus open with a single JS click, not CDP-then-toggle', () => {
+  const start = smokeSource.indexOf('async function openTitlebarMenu');
+  const probe = smokeSource.indexOf('async function probeTitlebarHits');
+  assert.ok(start >= 0 && start < probe, 'openTitlebarMenu must exist before probeTitlebarHits');
+  assert.ok(smokeSource.includes('await openTitlebarMenu(wc, SMOKE_BRANCH)'));
+  assert.ok(smokeSource.includes('await openTitlebarMenu(wc, SMOKE_GIT'));
+  const branchCall = smokeSource.indexOf('openTitlebarMenu(wc, SMOKE_BRANCH)');
+  const branchCdp = smokeSource.indexOf('clickClientCenter(wc, branch.');
+  assert.ok(branchCdp < 0 || branchCdp > smokeSource.indexOf('async function probeThemeBackgrounds'),
+    'branch menu must not CDP-click then JS-toggle');
+});

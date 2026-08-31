@@ -50,6 +50,17 @@ function relationOf(row) {
   return relation && typeof relation === 'object' ? relation : null;
 }
 
+function parentSessionIdOf(row) {
+  const relation = relationOf(row);
+  if (relation?.kind === 'subagent' && typeof relation.parentAgentId === 'string') {
+    return relation.parentAgentId;
+  }
+  if (typeof row?.parentSessionId === 'string' && row.parentSessionId) {
+    return row.parentSessionId;
+  }
+  return '';
+}
+
 /**
  * Group directory rows for the drawer: subagents fold under their direct
  * parent when the parent is loaded; subagents whose parent is not in the
@@ -64,10 +75,7 @@ function groupSessionRows(rows) {
   const childrenByParent = new Map();
   const top = [];
   for (const row of list) {
-    const relation = relationOf(row);
-    const parentId = relation?.kind === 'subagent' && typeof relation.parentAgentId === 'string'
-      ? relation.parentAgentId
-      : '';
+    const parentId = parentSessionIdOf(row);
     if (parentId && byId.has(parentId) && parentId !== row.sessionId) {
       const bucket = childrenByParent.get(parentId) || [];
       bucket.push(row);
@@ -83,8 +91,33 @@ function groupSessionRows(rows) {
   }));
 }
 
+function sessionRowForest(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const groups = groupSessionRows(list);
+  function descendants(parentId) {
+    return list.filter((row) => (
+      parentSessionIdOf(row) === parentId && row.sessionId !== parentId
+    ));
+  }
+  function expand(row, orphanSubagent, seen) {
+    if (seen.has(row.sessionId)) {
+      return { row, children: [], orphanSubagent };
+    }
+    const next = new Set(seen);
+    next.add(row.sessionId);
+    return {
+      row,
+      orphanSubagent,
+      children: descendants(row.sessionId).map((child) => expand(child, false, next)),
+    };
+  }
+  return groups.map((group) => expand(group.row, group.orphanSubagent, new Set()));
+}
+
 /** True when this row must open read-only (subagent track or archived). */
 function isReadOnlyRow(row) {
+  if (row?.archived === true) return true;
+  if (row?.origin === 'subagent' || parentSessionIdOf(row)) return true;
   const agent = row?.chisacodeAgent;
   if (!agent) return false;
   if (relationOf(row)?.kind === 'subagent') return true;
@@ -163,5 +196,6 @@ export {
   mergeAgentRows,
   regenerateMobileTitle,
   renameMobileAgent,
+  sessionRowForest,
   unarchiveMobileAgent,
 };

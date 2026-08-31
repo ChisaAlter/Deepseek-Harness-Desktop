@@ -10,11 +10,39 @@
 
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { IApiClient, ModelProviderGroup, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import { SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
-import { messageOf } from './store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Catalog group as the leftover picker still reads it. */
+interface ModelProviderGroup {
+  id: string
+  name: string
+  models: readonly {
+    id: string
+    name: string
+    inputModalities?: readonly string[]
+  }[]
+}
+
+/** Wire faces the leftover picker still takes (RpcResult envelope). */
+interface VisionPickerApi {
+  llm: {
+    models(request: Record<string, never>): Promise<{
+      result: { ok: true; value: { groups: readonly ModelProviderGroup[] } } | { ok: false; error: { message: string } }
+    }>
+  }
+  settings: {
+    mutate(input: unknown): Promise<{
+      result: { ok: true; value: unknown } | { ok: false; error: { message: string } }
+    }>
+  }
+}
 
 /** The settings namespace the host-side vision-fallback plugin registers. */
 export const VISION_FALLBACK_NS = 'vision-fallback'
@@ -30,7 +58,7 @@ interface RouteOption {
 /** Dependencies of {@link VisionModelPicker}. */
 export interface VisionModelPickerProps {
   /** Wire faces: the catalog read and the settings write. */
-  api: Pick<IApiClient, 'settings' | 'llm'>
+  api: VisionPickerApi
   /** Section copy. */
   t: (key: keyof typeof en) => string
   /** The vision-fallback namespace view, or undefined while the plugin is absent. */

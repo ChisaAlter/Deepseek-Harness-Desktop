@@ -567,23 +567,22 @@ function dispatchedRecord(record: ScheduleRecord, change: DecodedDispatch): Sche
 }
 
 /**
- * Fold the package-owned stream after the durable fork seed boundary.
- * @param events - Complete ordered session log or candidate-extended log.
- * @param seedLength - Inherited prefix length excluded from child ownership.
- * @returns Active records and all previously used ids.
+ * Apply already-decoded Schedule changes to one complete fold value.
+ *
+ * This is the single transition authority shared by full-log replay and the
+ * incremental Session projection. One mutable Map/Set pair spans the whole
+ * batch; the returned arrays are materialized and frozen once.
+ * @param folded - complete active records and used-id history before the changes.
+ * @param changes - strictly decoded durable mutations in log order.
+ * @returns the complete fold value after every mutation.
  */
-export function foldScheduleEvents(
-  events: readonly SessionEvent[],
-  seedLength = 0,
+export function applyScheduleChanges(
+  folded: FoldedSchedules,
+  changes: Iterable<ScheduleChange>,
 ): FoldedSchedules {
-  if (!Number.isSafeInteger(seedLength) || seedLength < 0 || seedLength > events.length) {
-    throw new ScheduleLogError('schedule seedLength must be within the supplied event log')
-  }
-  const active = new Map<ScheduleIdType, ScheduleRecord>()
-  const seen = new Set<ScheduleIdType>()
-  for (const event of events.slice(seedLength)) {
-    if (event.type !== 'schedule/change') continue
-    const change = decodeScheduleChange(event.data)
+  const active = new Map(folded.active.map(record => [record.id, record]))
+  const seen = new Set(folded.seenIds)
+  for (const change of changes) {
     switch (change.operation) {
       case 'create':
         if (seen.has(change.schedule.id)) {
@@ -618,6 +617,31 @@ export function foldScheduleEvents(
     active: Object.freeze([...active.values()]),
     seenIds: Object.freeze([...seen]),
   })
+}
+
+/**
+ * Fold the package-owned stream after the durable fork seed boundary.
+ * @param events - Complete ordered session log or candidate-extended log.
+ * @param seedLength - Inherited prefix length excluded from child ownership.
+ * @returns Active records and all previously used ids.
+ */
+export function foldScheduleEvents(
+  events: readonly SessionEvent[],
+  seedLength = 0,
+): FoldedSchedules {
+  if (!Number.isSafeInteger(seedLength) || seedLength < 0 || seedLength > events.length) {
+    throw new ScheduleLogError('schedule seedLength must be within the supplied event log')
+  }
+  const initial: FoldedSchedules = Object.freeze({
+    active: Object.freeze([]),
+    seenIds: Object.freeze([]),
+  })
+  const changes = function* (): Generator<ScheduleChange> {
+    for (const event of events.slice(seedLength)) {
+      if (event.type === 'schedule/change') yield decodeScheduleChange(event.data)
+    }
+  }
+  return applyScheduleChanges(initial, changes())
 }
 
 /**

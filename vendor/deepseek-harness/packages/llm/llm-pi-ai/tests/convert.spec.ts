@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AttachmentId } from '@deepseek-ai/dsh-attachment'
-import type { AttachmentStore } from '@deepseek-ai/dsh-attachment'
-import { createUserMessage, CallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, MALFORMED_RESPONSE_CODE, createMessage } from '@deepseek-ai/dsh-llm'
+import { AttachmentId, ImageVariantId } from '@deepseek-ai/dsh-attachment'
+import type { AttachmentStore, ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
+import { createUserMessage, ToolCallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, createMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { AssistantMessage, AssistantMessageEvent, Usage } from '@earendil-works/pi-ai'
 import { toPiContext } from '../src/context.ts'
@@ -43,6 +43,33 @@ async function collect(stream: AsyncIterable<StreamChunk>): Promise<StreamChunk[
   return out
 }
 
+function requestVersion(ref: ImageAttachmentRef): RequestImageAttachment {
+  return {
+    variantId: ImageVariantId(`sha256:${'e'.repeat(64)}`),
+    attachment: ref,
+    data: Uint8Array.of(1, 2, 3),
+    mediaType: ref.mediaType,
+    bytes: 3,
+    width: ref.width,
+    height: ref.height,
+    depth: 'uchar',
+    space: 'srgb',
+    hasAlpha: true,
+  }
+}
+
+function attachmentStore(readImageRequest: (
+  ref: ImageAttachmentRef,
+  policy: ImageRequestPolicy,
+  signal?: AbortSignal,
+) => Promise<RequestImageAttachment>): AttachmentStore {
+  return { readImageRequest, imageHostPath: () => undefined } as unknown as AttachmentStore
+}
+
+function imageContext(attachments: AttachmentStore) {
+  return { attachments, resolveImageAccess: () => undefined }
+}
+
 describe('toPiContext', () => {
   it('maps system prompt, user text, and tools', () => {
     const context = toPiContext({
@@ -76,7 +103,9 @@ describe('toPiContext', () => {
       width: 1,
       height: 1,
     }
-    const readImage = vi.fn().mockResolvedValue({ ref: attachment, data: Uint8Array.of(1, 2, 3) })
+    const readImageRequest = vi.fn((value: ImageAttachmentRef, _policy: ImageRequestPolicy) => (
+      Promise.resolve(requestVersion(value))
+    ))
     const context = await toPiContext({
       provider: 'openai',
       model: 'gpt-4.1',
@@ -84,13 +113,18 @@ describe('toPiContext', () => {
         content: [{ type: 'text', text: 'describe' }, { type: 'image', attachment }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
-    }, { readImage } as unknown as AttachmentStore)
+    }, imageContext(attachmentStore(readImageRequest)))
 
-    expect(readImage).toHaveBeenCalledWith(attachment)
+    expect(readImageRequest).toHaveBeenCalledWith(
+      attachment,
+      { maxPixels: 2048 * 2048, maxBytes: 1024 * 1024 },
+      undefined,
+    )
     expect(context.messages[0]).toEqual({
       role: 'user',
       content: [
         { type: 'text', text: 'describe' },
+        { type: 'text', text: expect.stringContaining(`Image ${attachment.attachmentId}`) as string },
         { type: 'image', data: 'AQID', mimeType: 'image/png' },
       ],
       timestamp: 0,
@@ -105,21 +139,23 @@ describe('toPiContext', () => {
       width: 1,
       height: 1,
     }
-    const readImage = vi.fn().mockResolvedValue({ ref: attachment, data: Uint8Array.of(1, 2, 3) })
+    const readImageRequest = vi.fn((value: ImageAttachmentRef, _policy: ImageRequestPolicy) => (
+      Promise.resolve(requestVersion(value))
+    ))
     const context = await toPiContext({
       provider: 'openai',
       model: 'gpt-4.1',
       messages: [createUserMessage({
         content: [{
           type: 'tool-result',
-          toolCallId: CallId('outer'),
+          toolCallId: ToolCallId('outer'),
           content: [
-            { type: 'tool-result', toolCallId: CallId('empty'), content: [] },
+            { type: 'tool-result', toolCallId: ToolCallId('empty'), content: [] },
             { type: 'text', text: 'before' },
-            { type: 'tool-result', toolCallId: CallId('text'), content: [{ type: 'text', text: 'middle' }] },
+            { type: 'tool-result', toolCallId: ToolCallId('text'), content: [{ type: 'text', text: 'middle' }] },
             {
               type: 'tool-result',
-              toolCallId: CallId('inner'),
+              toolCallId: ToolCallId('inner'),
               content: [
                 { type: 'image', attachment },
                 { type: 'text', text: 'after' },
@@ -129,7 +165,7 @@ describe('toPiContext', () => {
         }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
-    }, { readImage } as unknown as AttachmentStore)
+    }, imageContext(attachmentStore(readImageRequest)))
 
     expect(context.messages).toEqual([{
       role: 'toolResult',
@@ -138,6 +174,7 @@ describe('toPiContext', () => {
       content: [
         { type: 'text', text: 'before' },
         { type: 'text', text: 'middle' },
+        { type: 'text', text: expect.stringContaining(`Image ${attachment.attachmentId}`) as string },
         { type: 'image', data: 'AQID', mimeType: 'image/png' },
         { type: 'text', text: 'after' },
       ],
@@ -171,7 +208,7 @@ describe('toPiContext', () => {
         content: [
           { type: 'reasoning', text: 'hmm' },
           { type: 'text', text: 'calling' },
-          { type: 'tool-call', id: CallId('c1'), name: 'f', arguments: '{"a":1}' },
+          { type: 'tool-call', id: ToolCallId('c1'), name: 'f', arguments: '{"a":1}' },
         ],
         source: { kind: 'plugin', plugin: 'test' },
       })],
@@ -222,7 +259,7 @@ describe('toPiContext', () => {
       model: 'm',
       messages: [createMessage({
         role: 'assistant',
-        content: [{ type: 'tool-call', id: CallId('c1'), name: 'f', arguments: '{broken' }],
+        content: [{ type: 'tool-call', id: ToolCallId('c1'), name: 'f', arguments: '{broken' }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
     })
@@ -236,7 +273,7 @@ describe('toPiContext', () => {
       model: 'm',
       messages: [createMessage({
         role: 'assistant',
-        content: [{ type: 'tool-call', id: CallId('c1'), name: 'f', arguments: '[1,2]' }],
+        content: [{ type: 'tool-call', id: ToolCallId('c1'), name: 'f', arguments: '[1,2]' }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
     })
@@ -250,16 +287,16 @@ describe('toPiContext', () => {
       messages: [
         createMessage({
           role: 'assistant',
-          content: [{ type: 'tool-call', id: CallId('c1'), name: 'get_weather', arguments: '{}' }],
+          content: [{ type: 'tool-call', id: ToolCallId('c1'), name: 'get_weather', arguments: '{}' }],
           source: { kind: 'plugin', plugin: 'test' },
         }),
         createUserMessage({
           content: [{
             type: 'tool-result',
-            toolCallId: CallId('c1'),
+            toolCallId: ToolCallId('c1'),
             content: [
               { type: 'text', text: 'Sunny' },
-              { type: 'tool-result', toolCallId: CallId('nested'), content: [{ type: 'text', text: '!' }] },
+              { type: 'tool-result', toolCallId: ToolCallId('nested'), content: [{ type: 'text', text: '!' }] },
               { type: 'chart', data: 'ignored' } as unknown as ContentBlock,
             ],
           }],
@@ -282,7 +319,7 @@ describe('toPiContext', () => {
       provider: 'deepseek',
       model: 'm',
       messages: [createUserMessage({
-        content: [{ type: 'tool-result', toolCallId: CallId('zz'), content: [], isError: true }],
+        content: [{ type: 'tool-result', toolCallId: ToolCallId('zz'), content: [], isError: true }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
     })
@@ -306,7 +343,7 @@ describe('toPiContext', () => {
         createUserMessage({
           content: [
             { type: 'text', text: 'note' },
-            { type: 'tool-result', toolCallId: CallId('c1'), content: [{ type: 'text', text: 'ok' }] },
+            { type: 'tool-result', toolCallId: ToolCallId('c1'), content: [{ type: 'text', text: 'ok' }] },
           ],
           source: { kind: 'plugin', plugin: 'test' },
         }),
@@ -353,7 +390,7 @@ describe('toPiContext', () => {
         content: [
           { type: 'reasoning', text: 'private reasoning' },
           { type: 'text', text: 'calling' },
-          { type: 'tool-call', id: CallId('c1'), name: 'f', arguments: '{"a":1}' },
+          { type: 'tool-call', id: ToolCallId('c1'), name: 'f', arguments: '{"a":1}' },
         ],
         source: {
           kind: 'model',
@@ -394,7 +431,7 @@ describe('toPiContext', () => {
         content: [
           { type: 'reasoning', text: 'private reasoning' },
           { type: 'text', text: 'calling' },
-          { type: 'tool-call', id: CallId('c1'), name: 'f', arguments: '{"a":1}' },
+          { type: 'tool-call', id: ToolCallId('c1'), name: 'f', arguments: '{"a":1}' },
         ],
         source: {
           kind: 'model',
@@ -606,7 +643,7 @@ describe('toStreamChunks', () => {
       { type: 'block-start', index: 0, blockType: 'text' },
       { type: 'text-delta', index: 0, text: 'hi' },
       { type: 'block-end', index: 0, block: { type: 'text', text: 'hi' } },
-      { type: 'usage', usage: { inputTokens: 3, outputTokens: 2 } },
+      { type: 'usage', usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 } },
       {
         type: 'finish',
         reason: { kind: 'stop' },
@@ -657,7 +694,7 @@ describe('toStreamChunks', () => {
       { type: 'tool-call-delta', index: 0, id: 'call-1', name: 'f', argumentsDelta: '{"a"' },
       { type: 'tool-call-delta', index: 0, id: 'call-1', name: 'f', argumentsDelta: ':1}' },
       { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'call-1', name: 'f', arguments: '{"a":1}' } },
-      { type: 'usage', usage: { inputTokens: 0, outputTokens: 0 } },
+      { type: 'usage', usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 } },
       {
         type: 'finish',
         reason: { kind: 'tool-calls' },
@@ -676,12 +713,13 @@ describe('toStreamChunks', () => {
     ])
   })
 
-  it('rejects toolcall_start with a missing partial entry', async () => {
-    await expect(collect(toStreamChunks(feed(
+  it('tolerates toolcall_start with a missing partial entry', async () => {
+    const chunks = await collect(toStreamChunks(feed(
       { type: 'toolcall_start', contentIndex: 0, partial: assistant() },
       { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial: assistant() },
       { type: 'done', reason: 'stop', message: assistant() },
-    )))).rejects.toMatchObject({ code: MALFORMED_RESPONSE_CODE })
+    )))
+    expect(chunks[1]).toEqual({ type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' })
   })
 
   it('maps error events to error finish chunks (in-stream error style)', async () => {
@@ -690,7 +728,7 @@ describe('toStreamChunks', () => {
       { type: 'error', reason: 'error', error },
     )))
     expect(chunks).toEqual([
-      { type: 'usage', usage: { inputTokens: 1, outputTokens: 0 } },
+      { type: 'usage', usage: { inputTokens: 1, outputTokens: 0, totalTokens: 1 } },
       { type: 'finish', reason: { kind: 'error', failure: { message: 'boom', code: 'PI_AI_ERROR' } } },
     ])
   })
@@ -724,6 +762,14 @@ describe('mapStopReason / mapUsage', () => {
     ['stop', { kind: 'stop' }],
     ['length', { kind: 'max-tokens' }],
     ['toolUse', { kind: 'tool-calls' }],
+    ['pending', {
+      kind: 'error',
+      failure: { message: 'pi-ai stream for model "deepseek-v4-flash" ended pending', code: 'PI_AI_ERROR' },
+    }],
+    ['deferred', {
+      kind: 'error',
+      failure: { message: 'pi-ai deferred response for model "deepseek-v4-flash" is not supported', code: 'PI_AI_ERROR' },
+    }],
     ['aborted', { kind: 'aborted', failure: { message: 'pi-ai stream aborted', code: 'ABORTED' } }],
   ] as const)('maps %s', (stopReason, expected) => {
     expect(mapStopReason(assistant({ stopReason, content: [{ type: 'text', text: 'ok' }] }))).toEqual(expected)
@@ -844,29 +890,32 @@ describe('mapStopReason / mapUsage', () => {
     expect(mapUsage(usage(10, 5, 8, 2))).toEqual({
       inputTokens: 10,
       outputTokens: 5,
+      totalTokens: 25,
       cacheReadTokens: 8,
       cacheWriteTokens: 2,
     })
-    expect(mapUsage(usage(10, 5))).toEqual({ inputTokens: 10, outputTokens: 5 })
+    expect(mapUsage(usage(10, 5))).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
   })
 })
 
 describe('toStreamChunks edge branches', () => {
-  it('rejects tool calls whose partial carries an empty name', async () => {
+  it('omits the name field for tool calls whose partial carried an empty name', async () => {
     const blank = assistant({ content: [{ type: 'toolCall', id: 'x', name: '', arguments: {} }] })
-    await expect(collect(toStreamChunks(feed(
+    const chunks = await collect(toStreamChunks(feed(
       { type: 'toolcall_start', contentIndex: 0, partial: blank },
       { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial: blank },
       { type: 'done', reason: 'stop', message: assistant() },
-    )))).rejects.toMatchObject({ code: MALFORMED_RESPONSE_CODE })
+    )))
+    expect(chunks[1]).toEqual({ type: 'tool-call-delta', index: 0, id: 'x', argumentsDelta: '{}' })
   })
 })
 
 describe('toStreamChunks defensive branches', () => {
-  it('rejects a toolcall_delta with no preceding toolcall_start', async () => {
-    await expect(collect(toStreamChunks(feed(
+  it('tolerates a toolcall_delta with no preceding toolcall_start', async () => {
+    const chunks = await collect(toStreamChunks(feed(
       { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial: assistant() },
       { type: 'done', reason: 'stop', message: assistant() },
-    )))).rejects.toMatchObject({ code: MALFORMED_RESPONSE_CODE })
+    )))
+    expect(chunks[0]).toEqual({ type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' })
   })
 })

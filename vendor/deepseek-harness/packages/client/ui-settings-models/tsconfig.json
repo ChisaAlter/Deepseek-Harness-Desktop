@@ -15,10 +15,13 @@
       "path": "../ui-slots"
     },
     {
-      "path": "../runtime"
+      "path": "../store"
     },
     {
       "path": "../ui-primitives"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../ui-settings"

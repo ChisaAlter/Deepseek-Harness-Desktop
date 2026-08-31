@@ -12,7 +12,7 @@ export const inject = ['invariants']
 
 /**
  * No runtime invariant: this stateless Service Definition owns the capability
- * vocabulary, while backends and the RPC consumer own observations.
+ * vocabulary, while backends and the Remote controller own observations.
  */
 const install: InvariantInstaller = () => {}
 

@@ -86,11 +86,19 @@ function getMostRecentStickyServerId() {
   return bestId;
 }
 
+// `crypto.randomUUID` only exists on secure origins (https / localhost). The
+// pairing page is `http://<lan-ip>:3180`, so fall back to getRandomValues —
+// available everywhere — like `host/rpc.js#mintRpcId`.
+function randomIdHex(bytes = 8) {
+  const buf = globalThis.crypto.getRandomValues(new Uint8Array(bytes));
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 function clientId() {
   const key = 'dsh-chisacode-client-id';
   let id = localStorage.getItem(key);
   if (!id) {
-    id = `mob_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    id = `mob_${randomIdHex(8)}`;
     localStorage.setItem(key, id);
   }
   return id;
@@ -168,10 +176,10 @@ export async function pairFromOfferUrl(api, offerUrl) {
   try {
     offer = api.parseConnectionOfferFromUrl(offerUrl);
   } catch {
-    throw new Error('无效的配对链接（需要 ChisaCode offer v2）');
+    throw new Error('无效的配对链接（需要 dshd offer）');
   }
   if (!offer || !offer.serverId) {
-    throw new Error('无效的配对链接（需要 ChisaCode offer v2）');
+    throw new Error('无效的配对链接（需要 dshd offer）');
   }
 
   const stored = loadSecrets()[offer.serverId];

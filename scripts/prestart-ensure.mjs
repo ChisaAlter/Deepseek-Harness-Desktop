@@ -1,14 +1,13 @@
-'use strict';
-
 /**
  * Ensure runtime artifacts match latest source before Electron starts.
- * Stops shipping stale ui-settings-remote/lib or missing ChisaCode links.
+ * Stops shipping stale ui-settings-remote/lib or missing dshd remote links.
  */
-const fs = require('fs');
-const path = require('path');
-const { spawnSync } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const root = path.join(__dirname, '..');
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function newestMtime(dir, filter) {
   let newest = 0;
@@ -29,14 +28,15 @@ function newestMtime(dir, filter) {
   return newest;
 }
 
-function run(command, args, cwd = root) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell: true });
+function run(command, args, cwd = root, { shell = process.platform === 'win32' } = {}) {
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell });
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }
 }
 
-run(process.execPath, ['scripts/prepare-chisacode-remote.mjs']);
+// Absolute node paths with spaces break under shell:true on Windows.
+run(process.execPath, ['scripts/prepare-chisacode-remote.mjs'], root, { shell: false });
 
 const remotePkg = path.join(root, 'vendor', 'deepseek-harness', 'packages', 'client', 'ui-settings-remote');
 const remoteSrc = path.join(remotePkg, 'src');
@@ -50,13 +50,18 @@ if (srcNewest > libMtime + 500) {
   console.log('[prestart] ui-settings-remote lib is current');
 }
 
-// Fail closed if gateway lib still has the retired host-token wall copy.
-if (fs.existsSync(remoteLib)) {
-  const text = fs.readFileSync(remoteLib, 'utf8');
-  if (text.includes('保存宿主令牌') && !text.includes('125.124.85.212:8411')) {
-    console.error('[prestart] ui-settings-remote/lib is stale (host-token wall). Run: npm run bundle --prefix vendor/deepseek-harness/packages/client/ui-settings-remote');
-    process.exit(1);
-  }
+if (!fs.existsSync(remoteLib)) {
+  console.error('[prestart] ui-settings-remote/lib/client.js missing. Run: pnpm --filter @deepseek-ai/dsh-client-ui-settings-remote run bundle');
+  process.exit(1);
+}
+const text = fs.readFileSync(remoteLib, 'utf8');
+if (!text.includes('copyLink') || !text.includes('data-dsh-remote-copy-link')) {
+  console.error('[prestart] ui-settings-remote/lib is stale (missing copyLink / data-dsh-remote-copy-link). Run: pnpm --filter @deepseek-ai/dsh-client-ui-settings-remote run bundle');
+  process.exit(1);
+}
+if (text.includes('保存宿主令牌') && !text.includes('125.124.85.212:8411')) {
+  console.error('[prestart] ui-settings-remote/lib is stale (host-token wall). Run: npm run bundle --prefix vendor/deepseek-harness/packages/client/ui-settings-remote');
+  process.exit(1);
 }
 
 console.log('[prestart] ready');

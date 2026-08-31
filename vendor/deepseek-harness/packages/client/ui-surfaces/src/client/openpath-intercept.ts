@@ -37,9 +37,10 @@ export interface OpenPathInterceptDeps {
  * @param deps - takeover predicates and the surfaces writer.
  * @returns a disposer that restores `openPath` when this wrapper is still current.
  */
-export function wrapOpenPath(workspaces: OpenPathService, deps: OpenPathInterceptDeps): () => void {
+export function wrapOpenPath(workspaces: Partial<OpenPathService>, deps: OpenPathInterceptDeps): () => void {
   // oxlint-disable-next-line typescript/unbound-method -- identity-preserving reference required by the wrap/restore contract
   const previous = workspaces.openPath
+  if (typeof previous !== 'function') return () => {}
   const wrapped = async function openPathIntercept(
     path: string,
     options?: OpenPathOptions,

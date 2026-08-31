@@ -38,8 +38,8 @@ export function renderSkillMarkdown(fields: {
   readonly name: string
   readonly description: string
   readonly whenToUse?: string
-  /** User-assigned grouping label, stored under `metadata.group`; empty clears it. */
-  readonly group?: string
+  /** User-assigned grouping labels, stored under `metadata.group` as a YAML list; an empty list clears them. */
+  readonly groups?: readonly string[]
   readonly modelInvocable: boolean
   readonly userInvocable: boolean
   readonly content: string
@@ -52,7 +52,7 @@ export function renderSkillMarkdown(fields: {
   if (fields.whenToUse !== undefined && fields.whenToUse.trim().length > 0) {
     data.whenToUse = fields.whenToUse
   }
-  replaceGroup(data, fields.group)
+  replaceGroups(data, fields.groups)
   replaceInvocation(data, fields.modelInvocable, fields.userInvocable)
   return renderMarkdownData(data, fields.content)
 }
@@ -80,20 +80,33 @@ function replaceInvocation(data: Record<string, unknown>, modelInvocable: boolea
   if (!userInvocable) data['user-invocable'] = false
 }
 
-/** Set or clear `metadata.group` while leaving other metadata fields untouched. */
-function replaceGroup(data: Record<string, unknown>, group: string | undefined): void {
-  // An omitted group means "not part of this write"; only an explicit empty string clears.
-  if (group === undefined) return
+/** Set or clear the `metadata.group` label list while leaving other metadata fields untouched. */
+function replaceGroups(data: Record<string, unknown>, groups: readonly string[] | undefined): void {
+  // An omitted field means "not part of this write"; only an explicit list write changes the labels.
+  if (groups === undefined) return
+  const normalized = normalizeGroups(groups)
   const existing = data.metadata
   const isObject = typeof existing === 'object' && existing !== null && !Array.isArray(existing)
   const base = isObject ? { ...(existing as Record<string, unknown>) } : {}
-  const trimmed = group.trim()
-  if (trimmed.length === 0) delete base.group
-  else base.group = trimmed
+  if (normalized.length === 0) delete base.group
+  else base.group = normalized
   // A non-object metadata value is not Settings-owned; leave it alone unless writing a group.
-  if (!isObject && trimmed.length === 0) return
+  if (!isObject && normalized.length === 0) return
   if (Object.keys(base).length === 0) delete data.metadata
   else data.metadata = base
+}
+
+/** Trim, drop empties, and dedupe group labels while keeping first-appearance order. */
+function normalizeGroups(groups: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const raw of groups) {
+    const label = raw.trim()
+    if (label.length === 0 || seen.has(label)) continue
+    seen.add(label)
+    normalized.push(label)
+  }
+  return normalized
 }
 
 function renderMarkdownData(data: Record<string, unknown>, content: string): string {

@@ -12,7 +12,7 @@ Web 会话树会隐藏空白 Session，并把当前选中的空白项复用为 N
 
 ## Decision
 
-`dsh-host-apiproxy` 注册 `sessionListMetadata` 投影，其中包含 `blank` 与 `lastPromptAt`。已附加摘要直接用同一组函数折叠实时日志。`blank` 只在 `turn/start` 时从 true 单调变为 false；`lastPromptAt` 只在来源 kind 为 `user` 的 `user/message` 上更新。
+`dsh-api-session-controller` 注册 `sessionListMetadata` 投影，其中包含 `blank` 与 `lastPromptAt`。已附加摘要直接用同一组函数折叠实时日志。`blank` 只在 `turn/start` 时从 true 单调变为 false；`lastPromptAt` 只在来源 kind 为 `user` 的 `user/message` 上更新。
 
 冷摘要信任缓存的 `blank: false`，因为已包含 `turn/start` 的 checkpoint 前缀会始终保持非空。缓存的 `blank: true` 和 cache miss 都无法证明当前日志为空。当 persistence 通过 `locate()` 暴露物理工件，且其观测大小不超过 `coldBlankProbeMaxBytes` 资格阈值（默认每个 Session 1 KiB）时，网关调用 `readFrom(id, 0)`，从已存前缀折叠精确列表元数据。超过阈值的文件、不提供位置的后端、已消失的工件和读取失败都产生 `blank: false`，让 Session 保持可见。
 

@@ -8,32 +8,27 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
-import { deepFreeze } from '@deepseek-ai/dsh-llm'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
-import type { CallId, Message } from '@deepseek-ai/dsh-llm'
-import { isSessionOrigin, SESSION_FORMAT_VERSION, SessionId } from './types.ts'
+import type { Message } from '@deepseek-ai/dsh-llm'
+import { SESSION_FORMAT_VERSION } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
-import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SurfaceIntent, SurfaceEventType } from './types.ts'
-import { snapshotJsonValue } from './json.ts'
+import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SurfaceIntent, SurfaceEventType } from './types.ts'
 import { deriveEventMessage, SurfaceManager } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
-import { normalizeToolTranscript } from './tool-transcript.ts'
 
 export * from './types.ts'
 export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'
 export type { AssistantMessage, ToolResultMessage, UserMessage } from '@deepseek-ai/dsh-llm'
-export { isJsonValue, snapshotJsonValue } from './json.ts'
-export type { JsonValue } from './json.ts'
-export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN, TOOL_NOT_STARTED_TEXT, TOOL_OUTCOME_UNKNOWN_TEXT } from './repair.ts'
+export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from './repair.ts'
 export { decodeStorageRecord, packChunkRuns } from './chunk-rows.ts'
 export type { ChunkRow, StorageRecord } from './chunk-rows.ts'
 export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult } from './surface.ts'
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
-export { normalizeToolTranscript, assertToolTranscriptValid } from './tool-transcript.ts'
-export type { ToolTranscriptNormalization } from './tool-transcript.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
 export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
 
@@ -125,8 +120,8 @@ function validateSessionHeader(id: SessionId, input: unknown): SessionHeader {
     && (typeof record.seedLength !== 'number' || !Number.isSafeInteger(record.seedLength) || record.seedLength < 0)) {
     throw new Error('session header seedLength must be a non-negative safe integer')
   }
-  if (record.origin !== undefined && !isSessionOrigin(record.origin)) {
-    throw new Error('session header origin must be "subagent" or "dshbot"')
+  if (record.origin !== undefined && record.origin !== 'subagent') {
+    throw new Error('session header origin must be "subagent"')
   }
   if (record.delegationDepth !== undefined
     && (typeof record.delegationDepth !== 'number' || !Number.isSafeInteger(record.delegationDepth) || record.delegationDepth < 0)) {
@@ -596,7 +591,7 @@ export class Session {
    *   Map/Set/Date/class instance), or when the candidate violates the
    *   canonical surface contract (marker shape and eligibility, unique
    *   earlier source-event references, positional replacement validity, and complete
-   *   shadowed-node coverage). One recursive pass reads, validates, and
+   *   shadowed-node coverage). One iterative pass reads, validates, and
    *   copies each nested value once, so a stateful getter cannot supply one value
    *   to validation and another to storage. The event log is the durable source
    *   of truth, so a bad event fails at the append site rather than later during
@@ -707,10 +702,6 @@ export class Session {
   private derivedNodes = 0
   /** {@link SurfaceManager.replaceGeneration} the cache was built under. */
   private derivedGeneration = 0
-  /** Call ids with a durably recorded `tool/call` start, extended per unseen event. */
-  private startedCalls: Set<CallId> = new Set()
-  /** Log position the started-calls set has reached. */
-  private startedCallsSeq = 0
 
   /**
    * Derive the LLM message history by walking the ordered sequences of
@@ -728,11 +719,6 @@ export class Session {
    * already holds); the `Message` objects in it are SHARED and **deep-frozen**.
    * Their content reuses the already frozen durable event data, so the cache
    * needs no second deep clone and consumers still cannot mutate the log.
-   *
-   * The projected transcript is canonicalized (see {@link normalizeToolTranscript}):
-   * legacy or corrupted logs whose tool results were lost, duplicated, or
-   * misplaced yield a provider-valid transcript with deterministic synthetic
-   * error results; valid transcripts pass through unchanged.
    * @returns a fresh array of the shared, frozen derived history.
    */
   deriveMessages(): Message[] {
@@ -755,21 +741,7 @@ export class Session {
       if (msg) this.derived.push(msg)
     }
     this.derivedNodes = nodes.length
-    const normalized = normalizeToolTranscript(this.derived, this.startedToolCallIds())
-    // The common case is a valid transcript: return the cached projections
-    // themselves instead of allocating the normalized wrapper.
-    return normalized.synthesized === 0 && normalized.suppressed === 0 && normalized.repaired === 0
-      ? [...this.derived]
-      : normalized.messages
-  }
-
-  /** Call ids with a durably recorded `tool/call` start, for result synthesis. */
-  private startedToolCallIds(): Set<CallId> {
-    for (const event of this.log.slice(this.startedCallsSeq)) {
-      if (event.type === 'tool/call') this.startedCalls.add(event.data.callId)
-    }
-    this.startedCallsSeq = this.log.length
-    return this.startedCalls
+    return [...this.derived]
   }
 
   /**
@@ -889,10 +861,10 @@ export class SessionStore extends Service {
   prepare(id?: SessionId, options?: PrepareSessionOptions): Session {
     let sessionId: SessionId
     if (id === undefined) {
-      do sessionId = SessionId(`session-${++this.counter}`)
+      do sessionId = brandString<SessionId>(`session-${++this.counter}`)
       while (this.store.has(sessionId))
     } else {
-      sessionId = SessionId(id)
+      sessionId = brandString<SessionId>(id)
     }
     if (this.store.has(sessionId)) throw new Error(`session "${sessionId}" already exists`)
     if (options?.seedSource === 'persistence') {
@@ -1180,4 +1152,5 @@ export class SessionStore extends Service {
 
 }
 
+export { decodeSeqRanges, encodeSeqRanges } from './seq-ranges.ts'
 export default SessionStore

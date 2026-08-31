@@ -1,7 +1,7 @@
 /**
  * The edit entry's injected face. The target
  * 'conversation.chat.user-actions' and 'conversation.chat.user-editor' slots
- * are declared and typed by ui-conversation; this package only contributes
+ * are declared and typed by ui-chat; this package only contributes
  * the entries, so no SlotMap merge lives here. The edit surface is the
  * session's own resident composer: `beginEdit` starts a composer edit
  * session (stash + seed + redirected submit) whose sink is the
@@ -14,7 +14,7 @@
 import type {
   InjectFace, PropsLocale, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 // Type-only: pulls this package's LocaleNamespaceMap merge (the 'messageEdit' seat).
 import type {} from './locales.ts'
 import type { createMessageEditStore } from './stores.ts'

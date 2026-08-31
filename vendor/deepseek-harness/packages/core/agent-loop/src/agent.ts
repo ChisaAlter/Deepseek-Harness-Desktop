@@ -16,24 +16,22 @@ import type {
   RequestErrorAction,
 } from '@deepseek-ai/dsh-agent'
 import { Inbox, agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
-import type { ContentBlock, GenerateOptions, LlmCallConfig, LlmFailure, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
 import {
   BlockAssembler,
-  HarnessError,
   LlmError,
-  MALFORMED_RESPONSE_CODE,
   createAssistantMessage,
-  deepFreeze,
   errorChain,
   markAgentLoopRequest,
-  requireValidToolCallIdentity,
 } from '@deepseek-ai/dsh-llm'
+import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@deepseek-ai/dsh-session'
-import { assertToolTranscriptValid, canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
 import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-session-projection'
 import type { Context } from '@deepseek-ai/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
 import { executeToolCalls } from './tool-calls.ts'
@@ -52,22 +50,12 @@ type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }
 
 type PreparedStep =
   | { kind: 'reject' }
-  | { kind: 'enter'; messages: UserMessage[]; assembly: PromptAssembly }
-
-/**
- * Structural face of the optional `visionFallback` service
- * (`@deepseek-ai/dsh-llm-vision-fallback`): rewrites derived messages for a
- * text-only route by substituting image blocks with logged description text.
- * Declared structurally so the loop takes no dependency on the plugin package.
- */
-interface VisionMessageRewriter {
-  rewriteMessages(
-    session: Session,
-    route: { provider: string; model: string },
-    messages: Message[],
-    signal: AbortSignal,
-  ): Promise<Message[]>
-}
+  | {
+    kind: 'enter'
+    messages: UserMessage[]
+    startsRequestSeries?: true
+    assembly: PromptAssembly
+  }
 
 /** Remove adapter-derived values before plugins propose the next request config. */
 function requestProposal(header: EpochHeader): LlmCallConfig {
@@ -93,6 +81,8 @@ export class ReactLoopAgent implements Agent {
 
   /** Whether this loop instance has appended its initial/resume request anchor. */
   private requestHeaderLogged = false
+  /** Surface generation of the preceding built request. */
+  private requestSurfaceGeneration: number | undefined
   private readonly runtimeContext: RuntimeContextProjection
 
   constructor(
@@ -107,7 +97,8 @@ export class ReactLoopAgent implements Agent {
       discarded: (message) => { this.dispatch.emit('agent/inbox/discarded', { message }) },
       claimed: (message, turn) => { this.dispatch.emit('agent/inbox/claimed', { message, turn }) },
     })
-    const lastTurn = session.events.findLast(event => event.type === 'turn/start')?.data.turn ?? 0
+    /* v8 ignore next -- the loop registers its own turnBoundary unit, so the key is always present */
+    const lastTurn = this.loopCtx.sessionProjections.stateOf(session, 'turnBoundary')?.lastTurn ?? 0
     this.phase = { kind: 'idle', lastTurn }
     this.scope = createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
@@ -302,7 +293,7 @@ export class ReactLoopAgent implements Agent {
           }
           // max-tokens is sticky: once any step hits the ceiling, later steps
           // that complete normally must not downgrade the turn outcome.
-          const stepEnd = await this.step(decision.assembly)
+          const stepEnd = await this.step(decision.assembly, decision.startsRequestSeries === true)
           // max-tokens stays sticky: a later completed step must not
           // downgrade the turn outcome.
           if (turnEnds === null || turnEnds.kind !== 'max-tokens') turnEnds = stepEnd
@@ -347,7 +338,7 @@ export class ReactLoopAgent implements Agent {
     return true
   }
 
-  private async step(assembly: PromptAssembly): Promise<StepEndReason | null> {
+  private async step(assembly: PromptAssembly, startsRequestSeries: boolean): Promise<StepEndReason | null> {
     /* v8 ignore next -- private callers establish the running phase before executing a step */
     if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": step outside running phase`)
     const { turn, step, abort: { signal } } = this.phase
@@ -355,9 +346,18 @@ export class ReactLoopAgent implements Agent {
     const system = renderPrompt(assembly)
 
     while (true) {
+      const surfaceGeneration = this.session.surface.replaceGeneration
       const { request, preparedCall } = await this.buildRequest(
-        turn, step, assembly.tools, system, this.session.deriveMessages(), signal,
+        turn,
+        step,
+        assembly.tools,
+        system,
+        this.session.deriveMessages(),
+        startsRequestSeries,
+        surfaceGeneration,
+        signal,
       )
+      startsRequestSeries = false
       const assembler = new BlockAssembler()
       const chunkSeqs: number[] = []
       try {
@@ -389,32 +389,26 @@ export class ReactLoopAgent implements Agent {
       }
       const finish = assembler.finish
       if (finish.kind === 'error' || finish.kind === 'aborted') {
-        if (await this.shouldRetryRequest(
-          turn, step, request.provider, finish.failure, preparedCall?.retryPolicy, signal,
-        )) continue
-        throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
+        const action = await this.dispatch.waterfall(
+          'agent/request-error', {
+            turn,
+            step,
+            provider: request.provider,
+            failure: finish.failure,
+            retryPolicy: preparedCall?.retryPolicy,
+            signal,
+          },
+          () => Promise.resolve<RequestErrorAction>(undefined),
+        )
+        signal.throwIfAborted()
+        if (action?.kind !== 'retry') {
+          throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
+        }
+        continue
       }
 
-      let content: ContentBlock[]
-      try {
-        content = assembler.blocks()
-        // Defense in depth at the persistence boundary: even if assembly is
-        // replaced later, no malformed model call may enter durable history.
-        for (const block of content) {
-          if (block.type === 'tool-call') {
-            requireValidToolCallIdentity(block.id, block.name, 'assistant response tool call')
-          }
-        }
-      } catch (error: unknown) {
-        if (!(error instanceof HarnessError) || error.code !== MALFORMED_RESPONSE_CODE) throw error
-        const failure: LlmFailure = { message: error.message, code: error.code }
-        if (await this.shouldRetryRequest(
-          turn, step, request.provider, failure, preparedCall?.retryPolicy, signal,
-        )) continue
-        throw new LlmError(failure.message, failure.code)
-      }
       const message = createAssistantMessage({
-        content,
+        content: assembler.blocks(),
         source: {
           provider: request.provider,
           model: request.model,
@@ -443,24 +437,6 @@ export class ReactLoopAgent implements Agent {
     }
   }
 
-  /** Offer one proven model-response failure to the request recovery boundary. */
-  private async shouldRetryRequest(
-    turn: number,
-    step: number,
-    provider: string,
-    failure: LlmFailure,
-    retryPolicy: PreparedLlmCall['retryPolicy'] | undefined,
-    signal: AbortSignal,
-  ): Promise<boolean> {
-    const action = await this.dispatch.waterfall(
-      'agent/request-error',
-      { turn, step, provider, failure, retryPolicy, signal },
-      (): Promise<RequestErrorAction> => Promise.resolve(undefined),
-    )
-    signal.throwIfAborted()
-    return action?.kind === 'retry'
-  }
-
   /**
    * Compose one frozen request and bind it to the adapter registration that
    * resolved its exact-model defaults.
@@ -471,6 +447,8 @@ export class ReactLoopAgent implements Agent {
     tools: GenerateOptions['tools'] & object,
     system: string,
     boundaryMessages: Message[],
+    startsRequestSeries: boolean,
+    surfaceGeneration: number,
     signal: AbortSignal,
   ): Promise<{ request: GenerateOptions; preparedCall?: PreparedLlmCall }> {
     const { session } = this
@@ -480,11 +458,12 @@ export class ReactLoopAgent implements Agent {
     const persistedHeader = session.requestHeader()
     const persistedConfig = persistedHeader?.config
     const route = { provider: this.options.provider ?? '', model: this.options.model ?? '' }
-    const reasoningEffort = persistedConfig?.provider === route.provider
+    const persistedReasoningEffort = persistedConfig?.provider === route.provider
       && persistedConfig.model === route.model
       && persistedHeader?.adapterDefaults?.reasoningEffort !== true
       ? persistedConfig.reasoningEffort
       : undefined
+    const reasoningEffort = this.options.reasoningEffort ?? persistedReasoningEffort
     const maxTokens = this.options.maxTokens
     const seedConfig = deepFreeze(structuredClone(
       this.requestHeaderLogged
@@ -523,12 +502,21 @@ export class ReactLoopAgent implements Agent {
       ...tools.length > 0 ? { tools } : {},
     })
     const baseline = this.session.requestHeader()
+    const startsSeries = startsRequestSeries
+      || this.requestSurfaceGeneration !== surfaceGeneration
     if (!this.requestHeaderLogged) {
       this.session.append('request/header', { header, reason: baseline === undefined ? 'initial' : 'resume' })
       this.requestHeaderLogged = true
     } else if (baseline === undefined || !headerEquals(baseline, header)) {
-      this.session.append('request/header', { header, reason: 'change' })
+      this.session.append('request/header', {
+        header,
+        reason: 'change',
+        ...startsSeries ? { startsSeries: true } : {},
+      })
+    } else if (startsSeries) {
+      this.session.append('request/header', { header, reason: 'series' })
     }
+    this.requestSurfaceGeneration = surfaceGeneration
 
     const contextWindow = preparedCall?.context?.contextWindow
     const requestContext: RequestContext = {
@@ -544,28 +532,9 @@ export class ReactLoopAgent implements Agent {
     }
     signal.throwIfAborted()
 
-    // The vision fallback substitutes image blocks with logged description
-    // text for a route that declares no image support; the rewrite appends
-    // any newly generated description to the log before returning, so the
-    // dispatched messages stay a pure function of the session log.
-    const visionFallback = this.loopCtx.get('visionFallback') as VisionMessageRewriter | undefined
-    const requestMessages = visionFallback === undefined
-      ? boundaryMessages
-      : await visionFallback.rewriteMessages(
-        this.session,
-        { provider: config.provider, model: config.model },
-        boundaryMessages,
-        signal,
-      )
-    signal.throwIfAborted()
-    // Provider-validity gate: `deriveMessages` canonicalizes the history, so a
-    // known-invalid tool-call pairing here is a bug worth failing loud over
-    // instead of delivering a payload the provider must reject.
-    assertToolTranscriptValid(requestMessages)
-
     const request = markAgentLoopRequest(deepFreeze({
       ...header.config,
-      messages: requestMessages,
+      messages: boundaryMessages,
       ...header.system !== undefined ? { system: header.system } : {},
       ...header.tools !== undefined ? { tools: header.tools } : {},
       sessionId: this.session.id,

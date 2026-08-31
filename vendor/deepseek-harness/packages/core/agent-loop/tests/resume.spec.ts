@@ -13,6 +13,7 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MockAdapter, textResponse } from './mock-adapter.ts'
 
 const dirs: string[] = []
@@ -28,6 +29,7 @@ async function mountPersistentHarness(root: string, adapter: MockAdapter): Promi
   const ctx = new Context()
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -244,6 +246,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx2 = new Context()
     await ctx2.plugin(LlmRuntime)
     await ctx2.plugin(SessionStore)
+    await ctx2.plugin(SessionProjectionRegistry)
     await ctx2.plugin(SystemPrompt)
     await ctx2.plugin(ToolRuntime)
     await ctx2.plugin(AgentRegistry)
@@ -272,6 +275,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx2 = new Context()
     await ctx2.plugin(LlmRuntime)
     await ctx2.plugin(SessionStore)
+    await ctx2.plugin(SessionProjectionRegistry)
     await ctx2.plugin(SystemPrompt)
     await ctx2.plugin(ToolRuntime)
     await ctx2.plugin(AgentRegistry)
@@ -522,6 +526,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
@@ -585,6 +590,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx2 = new Context()
     await ctx2.plugin(LlmRuntime)
     await ctx2.plugin(SessionStore)
+    await ctx2.plugin(SessionProjectionRegistry)
     await ctx2.plugin(SystemPrompt)
     await ctx2.plugin(ToolRuntime)
     await ctx2.plugin(AgentRegistry)
@@ -617,6 +623,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx2 = new Context()
     await ctx2.plugin(LlmRuntime)
     await ctx2.plugin(SessionStore)
+    await ctx2.plugin(SessionProjectionRegistry)
     await ctx2.plugin(SystemPrompt)
     await ctx2.plugin(ToolRuntime)
     await ctx2.plugin(AgentRegistry)
@@ -653,6 +660,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx2 = new Context()
     await ctx2.plugin(LlmRuntime)
     await ctx2.plugin(SessionStore)
+    await ctx2.plugin(SessionProjectionRegistry)
     await ctx2.plugin(SystemPrompt)
     await ctx2.plugin(ToolRuntime)
     await ctx2.plugin(AgentRegistry)
@@ -686,6 +694,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
@@ -875,6 +884,7 @@ describe('configured-start failure edges', () => {
     const configured = new Context()
     await configured.plugin(LlmRuntime)
     await configured.plugin(SessionStore)
+    await configured.plugin(SessionProjectionRegistry)
     await configured.plugin(SystemPrompt)
     await configured.plugin(ToolRuntime)
     await configured.plugin(AgentRegistry)
@@ -920,6 +930,7 @@ describe('configured-start failure edges', () => {
     const configured = new Context()
     await configured.plugin(LlmRuntime)
     await configured.plugin(SessionStore)
+    await configured.plugin(SessionProjectionRegistry)
     await configured.plugin(SystemPrompt)
     await configured.plugin(ToolRuntime)
     await configured.plugin(AgentRegistry)

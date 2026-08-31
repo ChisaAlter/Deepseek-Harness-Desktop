@@ -1,0 +1,43 @@
+/* Session stats row: 13/20 tertiary text (the secondary content tier) under
+   the flow, aligned to the shared message column axis
+   (--dsh-chat-content-width). When the composer card is drag-resized, the
+   seat publishes --dsh-composer-resized-width and this row follows it (same
+   card-minus-clearance relation) so the stats band stays one family with the
+   input card; the fallback keeps the rest axis. */
+
+.root {
+  /* Block, not flex: text-overflow only elides a block's inline content, so
+     an overlong line ends in … instead of a mid-glyph clip. */
+  display: block;
+  text-align: center;
+  max-width: calc(
+    var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)) -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance)
+  );
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 4px calc(var(--dsh-composer-side-clearance) + 16px) 0px;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.root[data-stats-line="hidden"] {
+  visibility: hidden;
+}
+
+.root[data-stats-line="pending"],
+.root[data-stats-line="hidden"]:empty {
+  /* padding-top 4px + line-height 20px; an empty box otherwise collapses. */
+  min-height: 24px;
+}
+
+.sep {
+  color: var(--dsw-alias-separator-primary);
+  margin: 0 10px; /* carries the former flex gap */
+}
