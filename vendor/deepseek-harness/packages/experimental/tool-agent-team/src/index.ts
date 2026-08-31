@@ -5,6 +5,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TeamTaskId } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { TeamMemberView } from '@deepseek-ai/dsh-experimental-agent-team'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { InferValue, ValueSchemaSpec } from '@deepseek-ai/dsh-tools'
 
@@ -163,7 +164,7 @@ function install(agent: Agent, ctx: Context, config: Required<Config>): () => vo
   try {
     register(scoped.systemPrompt.section({
       name: 'team:policy',
-      order: 60,
+      order: FIRST_PARTY_SECTION_ORDER.TEAM_POLICY,
       text: () => {
         const membership = ctx.agentTeams.membership(agent)
         return `${POLICY}\n\nYour Team role is ${membership.role}; your Team name is ${membership.name}; Team id is ${membership.id}.`

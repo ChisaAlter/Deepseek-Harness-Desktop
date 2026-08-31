@@ -34,9 +34,8 @@ interface Config {
    */
   presets?: Record<string, PresetSpec>
   /**
-   * Default for fresh sessions and eligible confirmed blank reuse. When
-   * omitted, the preset matching the composed sandbox and approval defaults
-   * is used.
+   * Default for new sessions. When omitted, the preset matching the composed
+   * sandbox and approval defaults is used.
    */
   defaultPreset?: string
 }
@@ -91,17 +90,6 @@ Owns the deployment's permission presets and their write path. Requires a confin
  * @returns the effective preset name, or `custom` when nothing matches.
  */
 current(events: readonly SessionEvent[]): string
-
-/**
- * Advance one blank session after the host has confirmed it as the exact
- * Web New Session reuse target. Only a still-effective
- * default-origin selection advances; a started session, an explicit pick,
- * legacy origin-less data, or independently changed knobs remain pinned.
- * This is the permission-side half of the Web candidate selection and the
- * host's blankness, membership, cwd, and archive verification.
- * @param session - the live session selected for Workspace blank reuse.
- */
-refreshDefaultForReuse(session: Session): void
 
 /**
  * Build the whole select value for one folded knob state: every table

@@ -154,10 +154,10 @@ descriptor 只存在于两端本地 registry。wire 上只有 `/api` channel、e
 ## Typert 运行时 registry
 
 ```text
-ctx.typert.local     当前进程自己的 Host 或 Client reflection
-ctx.typert.remotes   消费端显式 mount 的对端 Remote contribution
-ctx.typert.lookups   wire ID 到 Host 对象的 provider 与组合策略
-ctx.typert.contexts  Host Context resolver 与 Client Context binder
+ctx.typert.local     Host or Client reflection for this process
+ctx.typert.remotes   peer Remote contributions explicitly mounted by a consumer
+ctx.typert.lookups   providers and composition policy from wire IDs to Host objects
+ctx.typert.contexts  Host Context resolvers and Client Context binders
 ```
 
 每次注册都返回由调用方 Cordis fiber 持有的 disposer。挂载 Client contribution 时，descriptor 集与具体方法会作为一项有明确所有者的操作统一注册。Host Gateway 只缓存 SRC 所认领的 endpoint 名称集合，并在 Cordis Service 集合发生变化时整体丢弃该集合；它不保留 descriptor、Service 或提供方。调用时会从当前状态解析所有活对象，因此移除 strict definition、Service 或提供方会使相应调用不可用，且不会留下陈旧的活对象。

@@ -344,25 +344,25 @@ describe('MessageFeedbackController', () => {
     expect(controller.getSnapshot().status).not.toBe('error')
   })
 
-  it('describes a non-Error list rejection with a stable message', async () => {
+  it('preserves a non-Error list rejection as a diagnostic string', async () => {
     // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario under test.
     const { remote } = fakeRemote({ list: () => Promise.reject('socket string') })
     const controller = new MessageFeedbackController(remote, SESSION)
 
     expect(await controller.ensure()).toEqual({
       ok: false,
-      error: { code: 'transport', message: 'message feedback list failed' },
+      error: { code: 'transport', message: 'socket string' },
     })
   })
 
-  it('describes a non-Error mutation rejection with a stable message', async () => {
+  it('preserves a non-Error mutation rejection as a diagnostic string', async () => {
     // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection is the scenario under test.
     const { remote } = fakeRemote({ put: () => Promise.reject('nope') })
     const controller = new MessageFeedbackController(remote, SESSION)
 
     expect(await controller.rate(MSG, 'positive')).toEqual({
       ok: false,
-      error: { code: 'transport', message: 'message feedback mutation failed' },
+      error: { code: 'transport', message: 'nope' },
     })
   })
 

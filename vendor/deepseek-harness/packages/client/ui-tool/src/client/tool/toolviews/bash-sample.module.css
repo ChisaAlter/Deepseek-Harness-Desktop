@@ -89,7 +89,7 @@
   overflow: hidden;
   display: flex;
   align-items: center;
-  height: 24px;
+  height: calc(24px + var(--dsh-content-font-delta, 0px));
   min-width: 0;
 }
 
@@ -119,13 +119,25 @@
 .leading {
   position: relative; /* .chevronHover overlay anchor */
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: calc(16px + var(--dsh-content-font-delta, 0px));
+  height: calc(16px + var(--dsh-content-font-delta, 0px));
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-right: 6px;
   color: var(--dsw-alias-label-tertiary);
+}
+
+/* Same glyph-scaling rule as DisclosureRow's leading: the CSS edge overrides
+   the svg attributes so the 14px glyph follows the font-size delta; StateDot
+   (data-state) keeps its fixed figma size.
+   TODO: this bash header duplicates the DisclosureRow structure (and this is
+   the fourth copy of the glyph rule, with DisclosureRow, MessageItem
+   .compactionLeading, and MessageIconActions); migrating the bash row onto
+   the shared DisclosureRow would collapse them to one. */
+.leading svg:not([data-state]) {
+  width: calc(14px + var(--dsh-content-font-delta, 0px));
+  height: calc(14px + var(--dsh-content-font-delta, 0px));
 }
 
 .chevron {
@@ -158,8 +170,8 @@
 
 .title {
   flex: none;
-  font-size: 14px;
-  line-height: 24px;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -178,8 +190,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 24px;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
 }
 

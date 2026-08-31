@@ -1,8 +1,3 @@
-// DeepSeek fish logo (figma I39:24057;88:8943 fillGeometry, exact extract;
-// the full-canvas rectangle path from the raw dump is a background plate and
-// is intentionally dropped). Native 23.16x17.04, rendered 24x18 by default;
-// hero usage scales to 34x25. Color rides currentColor (wordmark ink).
-
 import type { IconProps } from './icons/props.ts'
 
 /**

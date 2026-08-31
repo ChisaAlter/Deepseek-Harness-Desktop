@@ -1545,35 +1545,6 @@
   white-space: pre-wrap;
 }
 
-.panelImageLink {
-  display: block;
-  width: auto;
-  max-width: 100%;
-  overflow: hidden;
-  border-radius: 4px;
-  cursor: zoom-in;
-}
-
-.panelImageLinkPreview {
-  max-height: 140px;
-}
-
-.panelImage {
-  display: block;
-  width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: 320px;
-  margin: 0;
-  border-radius: inherit;
-  background: var(--dsw-alias-bg-base);
-  object-fit: contain;
-}
-
-.panelImageLinkPreview .panelImage {
-  max-height: 140px;
-}
-
 .messageImages {
   display: flex;
   flex-direction: column;

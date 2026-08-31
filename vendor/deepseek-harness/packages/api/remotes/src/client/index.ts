@@ -1,33 +1,37 @@
 /** Platform-neutral assembly of generated Host Remote contributions. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import agentPresetsRemote from '@deepseek-ai/dsh-agent-presets/remote'
 import commandsRemote from '@deepseek-ai/dsh-commands/remote'
+import settingsControllerRemote from '@deepseek-ai/dsh-api-settings-controller/remote'
 import goalsRemote from '@deepseek-ai/dsh-goal/remote'
+import llmRemote from '@deepseek-ai/dsh-llm/remote'
 import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
-import fileReferencesRemote from '@deepseek-ai/dsh-file-reference/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
-import mcpServersRemote from '@deepseek-ai/dsh-host-mcp-servers/remote'
-import skillInventoryRemote from '@deepseek-ai/dsh-host-skill-inventory/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import sessionReferencesRemote from '@deepseek-ai/dsh-session-reference/remote'
-import type { TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
+import subagentsRemote from '@deepseek-ai/dsh-subagent/remote'
+import sessionRemote from '@deepseek-ai/dsh-api-session-controller/remote'
+import workspaceRemote from '@deepseek-ai/dsh-api-workspace-controller/remote'
+import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 
-export type { TypertClientRemote as ClientRemote } from '@deepseek-ai/dsh-typert-protocol'
+export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
-export type {
-  McpServerEntry, McpServerOrigin, McpServerRecord, McpServerSnapshot,
-} from '@deepseek-ai/dsh-host-mcp-servers/types'
-export type {
-  SkillInventoryDetail, SkillInventoryEntry, SkillInventorySnapshot,
-} from '@deepseek-ai/dsh-host-skill-inventory/types'
+export type {} from '@deepseek-ai/dsh-agent-presets/remote'
 export type {} from '@deepseek-ai/dsh-commands/remote'
-export type {} from '@deepseek-ai/dsh-file-reference/remote'
+export type {} from '@deepseek-ai/dsh-api-settings-controller/remote'
 export type {} from '@deepseek-ai/dsh-goal/remote'
+export type {} from '@deepseek-ai/dsh-llm/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
-export type {} from '@deepseek-ai/dsh-host-mcp-servers/remote'
-export type {} from '@deepseek-ai/dsh-host-skill-inventory/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
 export type {} from '@deepseek-ai/dsh-session-reference/remote'
+export type {} from '@deepseek-ai/dsh-subagent/remote'
+export type * from '@deepseek-ai/dsh-subagent/client'
+export type {} from '@deepseek-ai/dsh-api-session-controller/remote'
+export type * from '@deepseek-ai/dsh-api-session-controller/types'
+export type {} from '@deepseek-ai/dsh-api-workspace-controller/remote'
+export type * from '@deepseek-ai/dsh-api-workspace-controller/types'
+export type { SessionJob as JobView } from '@deepseek-ai/dsh-api-session-controller/types'
 // The forwarded-event allowlist's selection seat: without it in the consumer's
 // compilation face `TypertRemoteEvent` is `never` and every `$on` call fails.
 export type { ApiRemoteForwardedEvent } from '../types.ts'
@@ -40,6 +44,9 @@ export type {} from '@deepseek-ai/dsh-credentials/types'
 export type {} from '@deepseek-ai/dsh-llm/types'
 export type {} from '@deepseek-ai/dsh-agent-presets/types'
 export type {} from '@deepseek-ai/dsh-settings/types'
+export type {} from '@deepseek-ai/dsh-user-approval/types'
+export type {} from '@deepseek-ai/dsh-user-questions/types'
+export type {} from '@deepseek-ai/dsh-api-session-controller/types'
 
 /**
  * The carrier's Client-facing types, re-exported so a business package names one
@@ -47,14 +54,10 @@ export type {} from '@deepseek-ai/dsh-settings/types'
  * the carrier's runtime values stay behind their own module edge.
  */
 export type {
-  ClientResponse, ConfigurableProviderView, ConnectionHandle, ConnectionSinks, ContentBlock,
-  CredentialView, DirectoryListing, DiscoveredModelView, HistoryEntry, HostFrame, IApiClient,
-  MessageId, ModelCatalogFailure, ModelProviderGroup, ModelReasoningEffort, ModelSelection,
-  MuxFrame, PromptContentPart, QuestionResponsePayload, QueueAction, RpcError, RpcId, RpcReceipt,
-  RpcRequest, RpcResponse, RpcResult, SessionId, SessionModels, SessionSearchItem,
-  SessionSummary, SettingsNamespaceView, SettingsPathOpView, SkillEntry, StreamChunk,
-  SubagentAddress, SubagentCatalog, JobView, ToolCallView, ToolEventView, ToolResultView,
-  WorkspaceId, WorkspaceView,
+  ConnectionHandle, ConnectionSinks, ContentBlock,
+  MessageId,
+  RpcError, RpcId, RpcRequest, RpcResponse, RpcResult, SessionId,
+  StreamChunk,
 } from '@deepseek-ai/dsh-client-connection/client'
 export type {} from '@deepseek-ai/dsh-api-gateway/client'
 export type {} from '@deepseek-ai/dsh-cordis-host-runner/remote'
@@ -100,15 +103,43 @@ export type {
 // reason: a Client contribution names what it sends without importing a Host
 // package, and this assembly is where both planes legitimately meet.
 export type { JsonValue } from '@deepseek-ai/dsh-session/types'
+// Credential state vocabulary for the credentials namespace (values never ride it).
+export type { CredentialInfo } from '@deepseek-ai/dsh-credentials/types'
+// Redacted namespace vocabulary for the settings namespace (secrets never ride
+// it). It travels with its seam, whose `./types` the Client face already reads.
+export type {
+  SettingsDescribeValue, SettingsNamespaceView, SettingsPathOpView, SettingsSecretView,
+} from '@deepseek-ai/dsh-settings/types'
+// Provider registry and discovery vocabulary for the llm namespace.
+export type {
+  LlmConfigurableProvider, LlmDiscoveredModel, LlmModelDiscoveryError,
+  LlmModelDiscoveryRequest, LlmProviderInfo,
+} from '@deepseek-ai/dsh-llm/types'
 // Reference-discovery result vocabulary for the fileReferences and
 // sessionReferenceResolver namespaces.
 export type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
 export type { SessionReferenceMentionCandidate } from '@deepseek-ai/dsh-session-reference/types'
 
+/** Failure vocabulary exposed by the assembled Client data layer. */
+export type ClientFailure =
+  | import('@deepseek-ai/dsh-client-connection/client').RpcError
+  | import('@deepseek-ai/dsh-agent-presets/types').AgentPresetError
+  | import('@deepseek-ai/dsh-api-session-controller/types').SessionError
+  | import('@deepseek-ai/dsh-api-settings-controller/types').CredentialError
+  | import('@deepseek-ai/dsh-api-settings-controller/types').SettingsError
+  | import('@deepseek-ai/dsh-llm/types').LlmModelDiscoveryError
+  | import('@deepseek-ai/dsh-subagent/client').SubagentControlError
+  | import('@deepseek-ai/dsh-api-workspace-controller/types').WorkspaceError
+
+/** Success or failure returned by Client operations spanning both API families. */
+export type ClientResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: ClientFailure }
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Generated Remote namespaces selected by this Client assembly. */
-    remote: TypertClientRemote
+    remote: ClientRemote
   }
 }
 
@@ -124,8 +155,9 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
   const disposers: Array<() => Promise<void>> = []
   try {
     for (const contribution of [
-      commandsRemote, goalsRemote, dynamicRemote, fileReferencesRemote,
-      pluginInventoryRemote, mcpServersRemote, skillInventoryRemote, messageFeedbackRemote, sessionReferencesRemote,
+      agentPresetsRemote, commandsRemote, settingsControllerRemote, goalsRemote, llmRemote, dynamicRemote,
+      pluginInventoryRemote, messageFeedbackRemote, sessionReferencesRemote,
+      subagentsRemote, sessionRemote, workspaceRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

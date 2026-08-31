@@ -234,7 +234,7 @@ export function apply(ctx: Context, config: Config): void {
     if (previous !== undefined && previous.state === state) return decision
     const text = renderReading(location, turn)
     return {
-      kind: 'enter',
+      ...decision,
       messages: [
         createUserMessage({
           content: [{ type: 'text', text }],

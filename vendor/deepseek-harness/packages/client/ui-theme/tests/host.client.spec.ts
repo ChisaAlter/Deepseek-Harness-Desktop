@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
 import { SettingsProvider, settingsNamespace, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import {
-  DEFAULT_THEME_SETTINGS, THEME_SETTINGS_NAMESPACE, apply,
+  DEFAULT_PREFERENCE, DEFAULT_THEME_SETTINGS, THEME_SETTINGS_NAMESPACE, apply,
 } from '@deepseek-ai/dsh-client-ui-theme'
 import { resolveThemeSettings, type ThemeSettings } from '../src/theme-settings.ts'
 
@@ -36,9 +36,15 @@ describe('ui-theme host', () => {
     await fiber.await()
     const ns = settingsNamespace(THEME_SETTINGS_NAMESPACE)
     expect(resolveThemeSettings(ctx.settings.get(ns) as ThemeSettings | undefined)).toEqual(DEFAULT_THEME_SETTINGS)
-    await ctx.settings.update(ns, { preference: 'dark' })
-    expect(resolveThemeSettings(ctx.settings.get(ns) as ThemeSettings | undefined)).toEqual({ ...DEFAULT_THEME_SETTINGS, preference: 'dark' })
+    expect((ctx.settings.get(ns) as ThemeSettings).fontSize).toBe(14)
+    expect((ctx.settings.get(ns) as ThemeSettings).preference).toBe(DEFAULT_PREFERENCE)
+    await ctx.settings.update(ns, { preference: 'dark', fontSize: 16 })
+    expect(resolveThemeSettings(ctx.settings.get(ns) as ThemeSettings | undefined)).toEqual({
+      ...DEFAULT_THEME_SETTINGS, preference: 'dark', fontSize: 16,
+    })
     await expect(ctx.settings.update(ns, { preference: 'sepia' })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, { fontSize: 11 })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, { fontSize: 18 })).rejects.toThrow()
     await fiber.dispose()
     expect(ctx.settings.describe().map(row => row.ns)).not.toContain(ns)
   })
@@ -54,8 +60,10 @@ describe('ui-theme host', () => {
     expect(rows[0]).toMatchObject({ kind: 'script', placement: 'body' })
     expect(scriptText(rows[0])).toContain('const preference = "system"')
     expect(scriptText(rows[0])).toContain('const lightTokens = {}')
-    await ctx.settings.update(settingsNamespace(THEME_SETTINGS_NAMESPACE), { preference: 'dark' })
+    expect(scriptText(rows[0])).toContain('"14px"')
+    await ctx.settings.update(settingsNamespace(THEME_SETTINGS_NAMESPACE), { preference: 'dark', fontSize: 17 })
     expect(scriptText(collect(ctx)[0])).toContain('const preference = "dark"')
+    expect(scriptText(collect(ctx)[0])).toContain('"17px"')
     await fiber.dispose()
     expect(collect(ctx)).toEqual([])
   })

@@ -15,13 +15,16 @@
       "path": "../ui-slots"
     },
     {
-      "path": "../runtime"
+      "path": "../store"
     },
     {
       "path": "../../../vendor/schemastery"
     },
     {
       "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../connection/tsconfig.client.json"
     },
     {
       "path": "../../settings/settings"

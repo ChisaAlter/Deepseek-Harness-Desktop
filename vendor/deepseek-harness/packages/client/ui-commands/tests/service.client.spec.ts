@@ -10,8 +10,9 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import type { CommandResult } from '@deepseek-ai/dsh-commands/types'
-import { createScope, scopeOf } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ClientSessionContext, ConsumeTokenRequest, InputTriggerPick, InputTriggerSource, SubmitImageAttachment } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { CommandContribution, CommandDecoration, CommandUiSpec, SelectOption } from '../src/client/contract.ts'
 import type { CommandDescriptor } from '../src/client/directory.ts'
@@ -120,19 +121,7 @@ async function bench(opts: BenchOptions = {}) {
       }),
     },
   })
-  const forwarded = new Map<string, Array<(...args: never[]) => void>>()
-  ctx.provide('remote', {
-    commands: commandsRemote,
-    $on: (event: string, listener: (...args: never[]) => void) => {
-      const listeners = forwarded.get(event) ?? []
-      listeners.push(listener)
-      forwarded.set(event, listeners)
-      return () => { forwarded.set(event, listeners.filter(entry => entry !== listener)) }
-    },
-    $dispatch: (event: string, args: readonly unknown[]) => {
-      for (const listener of forwarded.get(event) ?? []) listener(...args as never[])
-    },
-  })
+  const remote = Object.assign(new TestRemote(ctx), { commands: commandsRemote })
   ctx.provide('remote.commands', commandsRemote)
   const executions: Array<{ sessionId: SessionId; name: string; result: CommandResult }> = []
   ctx.on('command/executed', (sessionId, name, result) => {
@@ -161,9 +150,9 @@ async function bench(opts: BenchOptions = {}) {
   }
   /** Warm one session's catalog through the source's own candidate pull. */
   const warm = async (session: ClientSessionContext) => {
-    await source.candidates(session, { query: '', position: 'leading', signal: new AbortController().signal })
+    await source.candidates(session, { query: '', position: 'leading', drilled: false, signal: new AbortController().signal })
   }
-  return { ctx, fiber, command, source, mint, warm, listCalls, executeCalls, executions, registered, notices }
+  return { ctx, fiber, command, source, mint, warm, listCalls, executeCalls, executions, registered, notices, remote }
 }
 
 function menuPick(source: InputTriggerSource, name: string, session: ClientSessionContext, end?: number) {
@@ -172,6 +161,7 @@ function menuPick(source: InputTriggerSource, name: string, session: ClientSessi
     session,
     position: 'leading',
     via: 'menu',
+    action: 'pick',
     span: { start: 0, end: end ?? name.length + 1, draftRev: 3 },
   }
   return source.onPick(pick)
@@ -193,7 +183,7 @@ const themeContribution = (over: Partial<CommandContribution> = {}): CommandCont
 })
 
 const req = (query: string, position: 'leading' | 'inline' = 'leading') =>
-  ({ query, position, signal: new AbortController().signal })
+  ({ query, position, drilled: false, signal: new AbortController().signal })
 
 describe('registration', () => {
   it('registers the "/" source with matchSpace/matchEnter/warm hooks and removes it on fiber disposal', async () => {
@@ -776,7 +766,7 @@ describe('popupFor', () => {
 describe('directory invalidation events', () => {
   it('commands/change repulls in the background while the old snapshot serves', async () => {
     let round = 0
-    const { ctx, source, warm } = await bench({
+    const { source, warm, remote } = await bench({
       commands: () => {
         round += 1
         return Promise.resolve({
@@ -787,15 +777,15 @@ describe('directory invalidation events', () => {
       },
     })
     await warm(proj('s1'))
-    ctx.remote.$dispatch('commands/change', [])
+    remote.emit('commands/change', [])
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(source.matchSpace!(proj('s1'), '/fresh')).not.toBeUndefined()
     expect(source.matchSpace!(proj('s1'), '/goal')).toBeUndefined()
   })
 
-  it('agent-preset/selected repulls the recomposed session and leaves the others served', async () => {
+  it('agent-preset/selected drops and repulls the recomposed session while leaving others served', async () => {
     const rounds = new Map<SessionId, number>()
-    const { ctx, source, warm } = await bench({
+    const { source, warm, remote } = await bench({
       commands: (payload) => {
         const round = (rounds.get(payload.sessionId) ?? 0) + 1
         rounds.set(payload.sessionId, round)
@@ -810,7 +800,9 @@ describe('directory invalidation events', () => {
     await warm(proj('s2'))
     // A preset switch changes which commands one session's agent resolves;
     // every other session keeps the catalog its own composition serves.
-    ctx.remote.$dispatch('agent-preset/selected', [sid('s1'), 'minimal'])
+    remote.emit('agent-preset/selected', [sid('s1'), 'minimal'])
+    expect(source.matchSpace!(proj('s1'), '/goal')).toBeUndefined()
+    expect(source.matchSpace!(proj('s2'), '/goal')).not.toBeUndefined()
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(source.matchSpace!(proj('s1'), '/fresh')).not.toBeUndefined()
     expect(source.matchSpace!(proj('s1'), '/goal')).toBeUndefined()

@@ -159,8 +159,8 @@ export class SessionTelemetryCoordinator {
    * at or below the start still feed the projection state (first-chunk
    * tracking) without being re-handed, so a resumed fiber drops mid-step
    * chunk continuations exactly like the fiber that saw the step begin. The
-   * cost, accepted with the capture contract's at-most-once stance: a resume no longer
-   * backfills records a previous process failed to deliver.
+   * cost, accepted with the capture contract's at-most-once stance: a resume
+   * does not backfill records a previous process failed to deliver.
    * @param session - the live session to adopt; a second adoption is a no-op.
    */
   private adopt(session: Session): void {

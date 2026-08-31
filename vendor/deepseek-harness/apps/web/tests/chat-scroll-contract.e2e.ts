@@ -5,11 +5,11 @@
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Browser, Locator, Page } from 'playwright'
+import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ReplayEntry, ReplayOverrideDoc } from '@deepseek-ai/dsh-llm-replay'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { createChatScrollFixture, type ChatScrollFixture } from './chat-scroll-fixture.ts'
@@ -20,7 +20,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot, SHELL_TOOL } from './support.ts'
+import { expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
 const MODE = webSnapshotMode()
 const HISTORY_SESSION_ID = 'chat-scroll-history-e2e'
@@ -30,11 +30,12 @@ const RESTORE_SESSION_B_ID = 'chat-scroll-restore-b-e2e'
 const REPLAY_CONTEXT_WINDOW = 10_000_000
 const STREAM_PACE_MS = 24
 const GEOMETRY_TOLERANCE = 2
+const RESPONSIVE_REFLOW_TOLERANCE = 32
 const LIVE_TEXT_PROMPT = 'CHAT_SCROLL_LIVE_USER Continue this long conversation while I inspect older history.'
 const LIVE_TEXT_FIRST = 'CHAT_SCROLL_LIVE_FIRST'
 const LIVE_TEXT_DONE = 'CHAT_SCROLL_LIVE_DONE'
 const LIVE_TOOL_PROMPT = 'CHAT_SCROLL_TOOL_USER Run the requested diagnostic and then summarize it.'
-const LIVE_TOOL_CALL_ID = CallId('chat-scroll-live-tool-call')
+const LIVE_TOOL_CALL_ID = ToolCallId('chat-scroll-live-tool-call')
 const LIVE_TOOL_RESULT = 'CHAT_SCROLL_LIVE_TOOL_RESULT'
 const LIVE_TOOL_FIRST = 'CHAT_SCROLL_TOOL_STREAM_FIRST'
 const LIVE_TOOL_DONE = 'CHAT_SCROLL_TOOL_STREAM_DONE'
@@ -112,18 +113,12 @@ function textStream(first: string, done: string, deltaCount: number): StreamChun
 }
 
 function toolStream(): StreamChunk[] {
-  const command = process.platform === 'win32'
-    ? [
-      `New-Item -ItemType File -Force -Path ${JSON.stringify(TOOL_READY_FILE)} | Out-Null`,
-      `while (-not (Test-Path -LiteralPath ${JSON.stringify(TOOL_RELEASE_FILE)})) { Start-Sleep -Milliseconds 20 }`,
-      `1..64 | ForEach-Object { Write-Output ('${LIVE_TOOL_RESULT} line {0:D2}' -f $_) }`,
-    ].join('; ')
-    : [
-      `: > ${TOOL_READY_FILE}`,
-      `while [ ! -f ${TOOL_RELEASE_FILE} ]; do sleep 0.02; done`,
-      'line=1',
-      `while [ "$line" -le 64 ]; do printf '${LIVE_TOOL_RESULT} line %02d\\n' "$line"; line=$((line + 1)); done`,
-    ].join('; ')
+  const command = [
+    `: > ${TOOL_READY_FILE}`,
+    `while [ ! -f ${TOOL_RELEASE_FILE} ]; do sleep 0.02; done`,
+    'line=1',
+    `while [ "$line" -le 64 ]; do printf '${LIVE_TOOL_RESULT} line %02d\\n' "$line"; line=$((line + 1)); done`,
+  ].join('; ')
   const args = JSON.stringify({ command, description: LIVE_TOOL_RESULT })
   return [
     { type: 'block-start', index: 0, blockType: 'tool-call' },
@@ -131,13 +126,13 @@ function toolStream(): StreamChunk[] {
       type: 'tool-call-delta',
       index: 0,
       id: LIVE_TOOL_CALL_ID,
-      name: SHELL_TOOL,
+      name: 'bash',
       argumentsDelta: args,
     },
     {
       type: 'block-end',
       index: 0,
-      block: { type: 'tool-call', id: LIVE_TOOL_CALL_ID, name: SHELL_TOOL, arguments: args },
+      block: { type: 'tool-call', id: LIVE_TOOL_CALL_ID, name: 'bash', arguments: args },
     },
     { type: 'usage', usage: { inputTokens: 256, outputTokens: 48 } },
     { type: 'finish', reason: { kind: 'tool-calls' } },
@@ -171,13 +166,13 @@ async function launchScrollWorld(options: ScrollWorldOptions): Promise<ScrollWor
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { events.push(event) })
     page = await newEnglishPage(browser, 900)
     const tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     // Session-list bootstrap can replace the controlled search state. Wait
     // for the seeded baseline before openSeed starts the lazy content query
-    // (the compact layout dropped group session counts; the Tasks section
+    // (the compact layout dropped group session counts; the Ungrouped bucket
     // row is the barrier).
-    await page.getByText('Tasks', { exact: true }).waitFor({ timeout: 30_000 })
+    await page.getByText('Ungrouped', { exact: true }).waitFor({ timeout: 30_000 })
     return {
       events,
       page,
@@ -269,14 +264,6 @@ async function loadedFlowRows(page: Page): Promise<number> {
 }
 
 async function openSeed(page: Page, fixture: ChatScrollFixture, tailMarker?: string): Promise<void> {
-  // Phone overlay auto-closes when the current session changes. Re-open it
-  // before searching; the rail search control only expands the drawer.
-  const openSidebar = page.getByRole('button', { name: 'Open sidebar', exact: true })
-  if (await openSidebar.count() > 0 && await openSidebar.first().isVisible()) {
-    await openSidebar.first().click()
-    await page.getByRole('button', { name: 'Close sidebar', exact: true }).waitFor({ timeout: 10_000 })
-  }
-  await page.getByRole('button', { name: 'Search sessions' }).first().waitFor({ timeout: 10_000 })
   // Search collapsed into a header action; expand it before filling.
   const searchButton = page.getByRole('button', { name: 'Search sessions' })
   if (await searchButton.getAttribute('aria-expanded') !== 'true') await searchButton.click()
@@ -368,7 +355,7 @@ async function wheelUntilVisible(page: Page, selector: string, deltaY: number): 
 
 function visibleFlowAnchor(page: Page): Promise<FlowAnchor> {
   return page.locator('[data-conversation-scroll]').evaluate((host) => {
-    const rows = [...host.querySelectorAll<HTMLElement>('[data-chat-anchor-key]')]
+    const rows = [...host.querySelectorAll<HTMLElement>('[data-chat-anchor-key]:not([hidden])')]
     const viewport = host.getBoundingClientRect()
     const composer = host.querySelector<HTMLElement>('[data-composer-seat]')
     const visibleBottom = composer?.getBoundingClientRect().top ?? viewport.bottom
@@ -409,11 +396,15 @@ function flowTop(page: Page, key: string): Promise<number> {
   }, key)
 }
 
-async function expectSameFlowTop(page: Page, anchor: FlowAnchor): Promise<void> {
+async function expectSameFlowTop(
+  page: Page,
+  anchor: FlowAnchor,
+  tolerance = GEOMETRY_TOLERANCE,
+): Promise<void> {
   await expect.poll(async () => Math.abs((await flowTop(page, anchor.key)) - anchor.top), {
     timeout: 10_000,
     message: `flow row ${anchor.key} moved relative to the transcript viewport`,
-  }).toBeLessThanOrEqual(GEOMETRY_TOLERANCE)
+  }).toBeLessThanOrEqual(tolerance)
 }
 
 async function expectBottom(page: Page): Promise<void> {
@@ -440,12 +431,19 @@ async function expectMarkerAboveComposer(page: Page, marker: string): Promise<vo
 async function loadEarlierWithAnchor(page: Page): Promise<void> {
   await wheelToHistoryStart(page)
   const older = page.getByRole('button', { name: 'Load earlier', exact: true })
+  const loading = page.getByRole('button', { name: 'Loading…', exact: true })
   await older.waitFor({ timeout: 10_000 })
   const anchor = await visibleFlowAnchor(page)
   const before = await loadedFlowRows(page)
   await older.click()
-  await expect.poll(() => loadedFlowRows(page), { timeout: 30_000 }).toBeGreaterThan(before)
+  await expect.poll(async () => (
+    await loadedFlowRows(page) > before && await loading.count() === 0
+  ), { timeout: 30_000 }).toBe(true)
   await nextPaint(page)
+  if (await page.getByRole('button', { name: 'Load earlier', exact: true }).count() === 0) {
+    expect(await page.locator('[data-turn-process][aria-expanded="false"]').count()).toBeGreaterThan(0)
+    return
+  }
   await expectSameFlowTop(page, anchor)
 }
 
@@ -456,19 +454,6 @@ async function fileExists(path: string): Promise<boolean> {
   } catch {
     return false
   }
-}
-
-/** Live shell row: bash sample on POSIX, generic pwsh ToolRow on win32. */
-function liveShellRow(page: Page): Locator {
-  return page.locator(`[data-chat-call-id="${LIVE_TOOL_CALL_ID}"]`).locator('[data-sample="bash"], [data-tool="pwsh"]')
-}
-
-const LIVE_SHELL_ROW_SELECTOR = `[data-chat-call-id="${LIVE_TOOL_CALL_ID}"] [data-sample="bash"], [data-chat-call-id="${LIVE_TOOL_CALL_ID}"] [data-tool="pwsh"]`
-
-async function shellRowExpanded(row: Locator): Promise<string | null> {
-  const own = await row.getAttribute('aria-expanded')
-  if (own !== null) return own
-  return row.locator('[data-disclosure-row]').getAttribute('aria-expanded')
 }
 
 function eventCarries(event: SessionEvent, marker: string): boolean {
@@ -509,12 +494,13 @@ describe('web e2e: long Chat scroll contract', () => {
       let releaseGate: (() => void) | undefined
       const gate = new Promise<void>((resolve) => { releaseGate = resolve })
       releaseHistory = () => { releaseGate?.() }
-      await world.page.route('**/api/session.history', async (route) => {
+      await world.page.route('**/api/session/page', async (route) => {
         const request = route.request().postDataJSON() as {
           method?: string
-          payload?: { beforeSeq?: number }
+          payload?: { args?: { request?: { beforeSeq?: number } } }
         }
-        if (!held && request.method === 'session.history' && request.payload?.beforeSeq !== undefined) {
+        if (!held && request.method === 'session/page'
+          && request.payload?.args?.request?.beforeSeq !== undefined) {
           held = true
           await gate
         }
@@ -523,7 +509,7 @@ describe('web e2e: long Chat scroll contract', () => {
 
       const settled = world.scaffold.whenTurnSettled(60_000)
       try {
-        const composer = world.page.locator('textarea:enabled').last()
+        const composer = world.page.locator('[data-composer-input][contenteditable="true"]').last()
         await composer.fill(LIVE_TEXT_PROMPT)
         await world.page.getByRole('button', { name: 'Send message', exact: true }).click()
         await world.page.getByText(LIVE_TEXT_FIRST, { exact: false }).last().waitFor({ timeout: 15_000 })
@@ -551,7 +537,7 @@ describe('web e2e: long Chat scroll contract', () => {
       await settled
       await expect.poll(() => world.page.locator('[data-streaming="true"]').count(), { timeout: 15_000 }).toBe(0)
       await world.page.getByText(LIVE_TEXT_DONE, { exact: false }).last().waitFor({ timeout: 15_000 })
-      await world.page.unroute('**/api/session.history')
+      await world.page.unroute('**/api/session/page')
 
       let additionalPages = 0
       while (additionalPages < 8) {
@@ -586,11 +572,11 @@ describe('web e2e: long Chat scroll contract', () => {
       const settled = world.scaffold.whenTurnSettled(60_000)
       let released = false
       try {
-        const composer = world.page.locator('textarea:enabled').last()
+        const composer = world.page.locator('[data-composer-input][contenteditable="true"]').last()
         await composer.fill(LIVE_TOOL_PROMPT)
         await world.page.getByRole('button', { name: 'Send message', exact: true }).click()
         await expect.poll(() => fileExists(readyPath), { timeout: 15_000 }).toBe(true)
-        const liveRow = liveShellRow(world.page)
+        const liveRow = world.page.locator(`[data-chat-call-id="${LIVE_TOOL_CALL_ID}"] [data-sample="bash"]`)
         await liveRow.waitFor({ timeout: 15_000 })
         expect(await liveRow.getAttribute('data-state')).toBe('running')
         await expectBottom(world.page)
@@ -633,8 +619,9 @@ describe('web e2e: long Chat scroll contract', () => {
       await expectBottom(world.page)
       await expectMarkerAboveComposer(world.page, LIVE_TOOL_DONE)
 
-      const liveRowSelector = LIVE_SHELL_ROW_SELECTOR
-      const liveRow = liveShellRow(world.page)
+      const liveRowSelector = `[data-chat-call-id="${LIVE_TOOL_CALL_ID}"] [data-sample="bash"]`
+      const liveRow = world.page.locator(liveRowSelector)
+      await expandOwningTurnProcess(world.page, liveRow)
       await wheelUntilVisible(world.page, liveRowSelector, -300)
       const toolAnchor = await liveRow.evaluate((row) => {
         const flow = row.closest<HTMLElement>('[data-chat-anchor-key]')
@@ -648,15 +635,15 @@ describe('web e2e: long Chat scroll contract', () => {
         }
       })
       await liveRow.click()
-      await expect.poll(() => shellRowExpanded(liveRow), { timeout: 10_000 }).toBe('true')
+      await expect.poll(() => liveRow.getAttribute('aria-expanded'), { timeout: 10_000 }).toBe('true')
       await expectSameFlowTop(world.page, toolAnchor)
       await wheelToHistoryStart(world.page)
       await world.page.getByRole('button', { name: 'Back to bottom', exact: true }).click()
       await expectBottom(world.page)
       await wheelUntilMounted(world.page, liveRowSelector, -1_100)
-      const restoredRow = liveShellRow(world.page)
+      const restoredRow = world.page.locator(liveRowSelector)
       await restoredRow.waitFor({ timeout: 10_000 })
-      expect(await shellRowExpanded(restoredRow)).toBe('true')
+      expect(await restoredRow.getAttribute('aria-expanded')).toBe('true')
       expect(await world.page.getByText(LIVE_TOOL_RESULT, { exact: false }).count()).toBeGreaterThan(0)
       assertClean(world)
     })
@@ -686,15 +673,11 @@ describe('web e2e: long Chat scroll contract', () => {
       await world.page.setViewportSize({ width: 700, height: 900 })
       // The narrow breakpoint auto-collapses the sidebar. Re-open it because
       // this scenario switches sessions while pinning the narrow Chat scroll owner.
-      // The phone drawer overlays the center column, so the Chat tab is
-      // reachable only after the drawer folds back; the search-based session
-      // switch below reopens it.
-      await world.page.getByRole('button', { name: 'Open sidebar', exact: true }).first().click()
-      await world.page.getByRole('button', { name: 'Close sidebar', exact: true }).click()
+      await world.page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
       await world.page.getByRole('tab', { name: 'Chat', exact: true }).click()
-      await world.page.getByRole('button', { name: 'Open sidebar', exact: true }).first().click()
       await nextPaint(world.page)
-      await expectSameFlowTop(world.page, sessionAnchor)
+      await expectSameFlowTop(world.page, sessionAnchor, RESPONSIVE_REFLOW_TOLERANCE)
+      const narrowSessionAnchor = await visibleFlowAnchor(world.page)
 
       await openSeed(
         world.page,
@@ -705,7 +688,7 @@ describe('web e2e: long Chat scroll contract', () => {
         world.page,
         RESTORE_FIXTURE_A,
       )
-      await expectSameFlowTop(world.page, sessionAnchor)
+      await expectSameFlowTop(world.page, narrowSessionAnchor)
 
       const backToBottom = world.page.getByRole('button', { name: 'Back to bottom', exact: true })
       await backToBottom.evaluate((button) => {
@@ -732,7 +715,7 @@ describe('web e2e: long Chat scroll contract', () => {
         RESTORE_FIXTURE_A.markers.assistant(RESTORE_FIXTURE_A.turns),
       )
       await expectBottom(world.page)
-      const composer = world.page.locator('textarea:enabled').last()
+      const composer = world.page.locator('[data-composer-input][contenteditable="true"]').last()
       const longDraft = Array.from(
         { length: 18 },
         (_, index) => `composer resize line ${String(index + 1).padStart(2, '0')}`,
@@ -781,22 +764,14 @@ describe('web e2e: long Chat scroll contract', () => {
       await expectBottom(world.page)
       const backToBottom = world.page.getByRole('button', { name: 'Back to bottom', exact: true })
 
-      // Seeded bash rows are not tabbable on win32 (no terminal presenter).
-      // Keyboard paging then targets the conversation scrollport. POSIX still
-      // focuses the last seeded bash disclosure — the product tab stop.
-      if (process.platform === 'win32') {
-        const scroll = world.page.locator('[data-conversation-scroll]')
-        await scroll.evaluate((host) => {
-          if (!(host instanceof HTMLElement)) throw new Error('conversation scrollport is missing')
-          host.tabIndex = 0
-        })
-        await scroll.focus()
-      } else {
-        const lastToolRow = world.page.locator(
-          `[data-chat-call-id="chat-scroll-${String(INPUTS_FIXTURE.turns).padStart(3, '0')}-1"] [data-sample="bash"]`,
-        )
-        await lastToolRow.focus()
-      }
+      // Focus rides the last seeded tool row (a tabbable button whose keydown
+      // handler passes scrolling keys through). End first normalizes the
+      // focus-driven scrollIntoView back to the floor.
+      const lastToolRow = world.page.locator(
+        `[data-chat-call-id="chat-scroll-${String(INPUTS_FIXTURE.turns).padStart(3, '0')}-1"] [data-sample="bash"]`,
+      )
+      await expandOwningTurnProcess(world.page, lastToolRow)
+      await lastToolRow.focus()
       await world.page.keyboard.press('End')
       await expectBottom(world.page)
       await expect.poll(() => backToBottom.count(), { timeout: 10_000 }).toBe(0)
@@ -830,7 +805,7 @@ describe('web e2e: long Chat scroll contract', () => {
       const settled = world.scaffold.whenTurnSettled(60_000)
       let released = false
       try {
-        const composer = world.page.locator('textarea:enabled').last()
+        const composer = world.page.locator('[data-composer-input][contenteditable="true"]').last()
         await composer.fill(LIVE_FLING_PROMPT)
         await world.page.getByRole('button', { name: 'Send message', exact: true }).click()
         await expect.poll(() => fileExists(readyPath), { timeout: 15_000 }).toBe(true)

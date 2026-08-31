@@ -45,7 +45,7 @@ The threat model is stated in the package README: a policy fence in trusted code
 
 The shared pieces live in `dsh-sandbox`, which owns the mode types: `WIDER_MODES`, the escalation-target enum, the argument-pairing validation, the denial/hint marker builders, and `approveEscalation` — the ordered fail-closed choreography. `approveEscalation` takes a minimal STRUCTURAL approver (`EscalationApprover`, generic over the agent and call-id types), not the approval service type, so `dsh-sandbox` gains no dependency on the approval or agent packages: each tool passes its own `ctx.approval`, agent, call id, and tool name as ingredients. `dsh-tool-bash` and `dsh-tool-fs` both use these; the cross-file duplication gate holds the single-sourcing honest.
 
-The [`examples/acp-agent`](../../../../examples/acp-agent/cordis.yml) composition loads `dsh-sandbox-policy` and `dsh-fs-sandbox`, moves the `mode`/`workspaceRoot` config to the policy entry, and drops the old gating that disabled the fs stack under confined modes; `fs-observation-policy` (read-before-edit) composes orthogonally on top. The system prompt still states no sandbox mode — the marker teaches the boundary at the moment it matters, per the sandbox Agent Note's live evidence.
+The [base profile composition](../../../../packages/bundle/base/cordis.patch.yml) loads `dsh-sandbox-policy` and `dsh-fs-sandbox`, keeps the `mode`/`workspaceRoot` config on the policy entry, and leaves `fs-observation-policy` (read-before-edit) orthogonally composed on top. The system prompt still states no sandbox mode — the marker teaches the boundary at the moment it matters, per the sandbox Agent Note's live evidence.
 
 ### The enforcement point: provider, not intent gate
 
@@ -69,7 +69,7 @@ The sandbox Agent Note's original cross-family sketch put fs enforcement on the 
 - **Keep the override event in `dsh-shell` as `shell/sandbox-mode`** — rejected: the event is policy state consumed by two families; leaving it bash-named forces `dsh-fs-sandbox` to depend on bash vocabulary. Pre-release, the rename is a same-change move with snapshot re-records, no shims.
 - **Escalation choreography imported from the approval/agent packages into `dsh-sandbox`** — rejected: it would invert the layering (a base vocabulary package depending on UI/agent packages). The structural approver keeps the logic single-sourced in `dsh-sandbox` while the dependencies stay in the tool layer that already holds them.
 - **A consolidated mutation-options object on the fs seam** (the shape first sketched for the per-call carrier) — rejected on friction: it splits `signal` across an options bag for mutations while reads keep it positional. A trailing optional `SandboxExecutionPolicy` matches bash's carry-and-ignore pattern and keeps `signal` symmetric across the seam.
-- **Extra writable-root grants on `SandboxPolicy` now** — deferred unchanged: `writableRoots()` derives from the mode meaning today; ad-hoc grants are an escalation-scope question the sandbox RFC left open.
+- **Extra writable-root grants on `SandboxPolicy`** — deferred unchanged: `writableRoots()` derives from the defined mode meaning; ad-hoc grants are an escalation-scope question the sandbox RFC left open.
 
 ## Consequences
 

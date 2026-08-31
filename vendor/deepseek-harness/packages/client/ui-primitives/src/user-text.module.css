@@ -1,0 +1,28 @@
+/* Inline projection of sent user text: plain runs and reference chips flow in
+   the consumer's own line box (bubble or queue row); nothing here is block.
+   White-space policy stays with the consumer: the bubble wraps with pre-wrap,
+   the queue preview keeps its single nowrap/ellipsis line. */
+
+.plainRun {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.refChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  color: var(--dsw-alias-state-business-primary);
+  font-weight: 500;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+/* Inline reference glyphs (always ReferenceIcon svgs) ride the consumer's text
+   size: the 16px svg edge moves by the same px delta as the surrounding font. */
+.refIcon {
+  flex: none;
+  width: calc(16px + var(--dsh-content-font-delta, 0px));
+  height: calc(16px + var(--dsh-content-font-delta, 0px));
+}

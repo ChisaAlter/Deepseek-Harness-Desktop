@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 import fc from 'fast-check'
-import { createUserMessage, CallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEventMap, SessionEventType, SurfaceIntent } from '@deepseek-ai/dsh-session'
 
@@ -61,7 +61,7 @@ const messageEventArb: fc.Arbitrary<Appendable> = fc.oneof(
     .map((r): Appendable => ({ type: 'tool/result', data: {
       turn: 1, step: 1,
       message: createToolResultMessage({
-        callId: CallId(r.id),
+        callId: ToolCallId(r.id),
         content: r.content,
         isError: r.isError,
       }),

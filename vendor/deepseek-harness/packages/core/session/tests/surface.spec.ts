@@ -15,7 +15,7 @@ import {
   createToolResultMessage,
   createUserMessage,
   freezeMessage,
-  CallId,
+  ToolCallId,
   MessageId,
 } from '@deepseek-ai/dsh-llm'
 
@@ -68,7 +68,7 @@ function toolResultEvent(
       turn: 1,
       step: 1,
       message: createToolResultMessage({
-        callId: CallId(callId),
+        callId: ToolCallId(callId),
         content: [{ type: 'text', text: `result ${seq}` }],
         isError: false,
       }),
@@ -175,7 +175,7 @@ describe('foldSurface tool-result rewrites', () => {
   })
 
   it.each([
-    ['toolCallId', { toolCallId: CallId('changed') }],
+    ['toolCallId', { toolCallId: ToolCallId('changed') }],
     ['isError', { isError: true }],
   ] as const)('rejects a replacement that changes the result block %s', (_field, patch) => {
     const original = toolResultEvent(0, 'original')
@@ -460,7 +460,7 @@ describe('SurfaceManager', () => {
     s.append('tool/result', {
       turn: 1, step: 1,
       message: createToolResultMessage({
-        callId: CallId('c1'),
+        callId: ToolCallId('c1'),
         content: [{ type: 'text', text: 'ok' }],
         isError: false,
       }),
@@ -474,7 +474,7 @@ describe('SurfaceManager', () => {
     original.append('tool/result', {
       turn: 1, step: 1,
       message: createToolResultMessage({
-        callId: CallId('c1'),
+        callId: ToolCallId('c1'),
         content: [{ type: 'text', text: 'ok' }],
         isError: false,
       }),

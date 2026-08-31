@@ -12,7 +12,7 @@ The same cold list used the JSONL artifact mtime for `updatedAt`. Opening a Sess
 
 ## Decision
 
-`dsh-host-apiproxy` registers `sessionListMetadata`, a projection containing `blank` and `lastPromptAt`. The attached summary folds the same functions directly over the live log. `blank` changes only from true to false on `turn/start`; `lastPromptAt` changes only on a `user/message` whose source kind is `user`.
+`dsh-api-session-controller` registers `sessionListMetadata`, a projection containing `blank` and `lastPromptAt`. The attached summary folds the same functions directly over the live log. `blank` changes only from true to false on `turn/start`; `lastPromptAt` changes only on a `user/message` whose source kind is `user`.
 
 A cold summary trusts cached `blank: false`, because a checkpoint prefix containing `turn/start` remains non-blank. Cached `blank: true` and a cache miss do not prove the current log is blank. When persistence exposes a physical artifact through `locate()` and its observed size is at most the `coldBlankProbeMaxBytes` eligibility threshold (default 1 KiB per Session), the gateway calls `readFrom(id, 0)` and folds exact list metadata from the stored prefix. Files above the threshold, backends without a location, vanished artifacts, and failed reads all produce `blank: false`, keeping the Session visible.
 

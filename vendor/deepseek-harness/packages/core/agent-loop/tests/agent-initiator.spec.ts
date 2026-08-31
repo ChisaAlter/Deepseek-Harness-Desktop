@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import LlmRuntime, { createUserMessage, CallId, LlmAdapter  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, ToolCallId, LlmAdapter  } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -310,7 +310,7 @@ describe('AgentLoop initiator scope', () => {
 
     const direct = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('direct'),
+      callId: ToolCallId('direct'),
       name: 'agentless-probe',
       arguments: {},
     })

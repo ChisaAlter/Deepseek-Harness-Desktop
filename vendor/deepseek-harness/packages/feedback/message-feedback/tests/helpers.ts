@@ -143,6 +143,10 @@ class TestPersistence extends SessionPersistence {
       : Promise.resolve(stored)
   }
 
+  borrowSession(_id: SessionId, _signal?: AbortSignal): ReturnType<SessionPersistence['borrowSession']> {
+    return Promise.reject(new Error('not used'))
+  }
+
   async readFrom(
     id: SessionId,
     fromSeq: number,

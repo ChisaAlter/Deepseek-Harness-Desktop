@@ -123,13 +123,13 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)(
       })
       await ctx.plugin(claudeCode, { env, disposeGraceMs: 3_000 })
 
-      expect(sdkPackage.version).toBe('0.3.220')
-      expect(sdkPackage.claudeCodeVersion).toBe('2.1.220')
-      expect(sdkPackage.optionalDependencies[platformPackage]).toBe('0.3.220')
+      expect(sdkPackage.version).toBe('0.3.241')
+      expect(sdkPackage.claudeCodeVersion).toBe('2.1.241')
+      expect(sdkPackage.optionalDependencies[platformPackage]).toBe('0.3.241')
       const version = await execFileAsync(claudeBin, ['--version'], {
         env: { ...process.env, ...env },
       })
-      expect(version.stdout.trim()).toBe('2.1.220 (Claude Code)')
+      expect(version.stdout.trim()).toBe('2.1.241 (Claude Code)')
 
       const nonce = `DSH_CLAUDE_DEEPSEEK_${randomUUID()}`
       const parent = {

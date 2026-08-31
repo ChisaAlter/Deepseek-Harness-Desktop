@@ -1,6 +1,6 @@
 // Web e2e contract for a conversation grown through the real composer rather
 // than pre-seeded history. Twelve deterministic replay turns exercise repeated
-// send/settle/render cycles, including two real shell executions and one long,
+// send/settle/render cycles, including two real bash executions and one long,
 // multi-chunk final turn. Assertions stay semantic: no host timing, heap, or
 // mounted-row cardinality is treated as a correctness contract.
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
-import { CallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { ReplayEntry, ReplayOverrideDoc } from '@deepseek-ai/dsh-llm-replay'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import {
@@ -18,7 +18,9 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, conversationContextKey, newEnglishPage, saveFailureShot, SHELL_TOOL } from './support.ts'
+import {
+  connectFreshWorkspace, conversationContextKey, expandOwningTurnProcess, newEnglishPage, saveFailureShot,
+} from './support.ts'
 
 const MODE = webSnapshotMode()
 const TURN_COUNT = 12
@@ -32,7 +34,7 @@ interface TurnSpec {
   readonly firstMarker: string
   readonly doneMarker: string
   readonly deltas: readonly string[]
-  readonly callId?: ReturnType<typeof CallId>
+  readonly callId?: ReturnType<typeof ToolCallId>
   readonly toolResultMarker?: string
 }
 
@@ -81,7 +83,7 @@ function turnSpec(index: number): TurnSpec {
     firstMarker,
     doneMarker,
     deltas,
-    callId: CallId(`continuous-chat-tool-${id}`),
+    callId: ToolCallId(`continuous-chat-tool-${id}`),
     toolResultMarker: `CONTINUOUS_CHAT_TOOL_RESULT_${id}`,
   }
 }
@@ -107,11 +109,8 @@ function toolStream(spec: TurnSpec): StreamChunk[] {
   if (spec.callId === undefined || spec.toolResultMarker === undefined) {
     throw new Error(`turn ${String(spec.index)} has no tool identity`)
   }
-  const command = process.platform === 'win32'
-    ? `Write-Output ${JSON.stringify(spec.toolResultMarker)}`
-    : `printf '${spec.toolResultMarker}\\n'`
   const args = JSON.stringify({
-    command,
+    command: `printf '${spec.toolResultMarker}\\n'`,
     description: spec.toolResultMarker,
   })
   return [
@@ -120,13 +119,13 @@ function toolStream(spec: TurnSpec): StreamChunk[] {
       type: 'tool-call-delta',
       index: 0,
       id: spec.callId,
-      name: SHELL_TOOL,
+      name: 'bash',
       argumentsDelta: args,
     },
     {
       type: 'block-end',
       index: 0,
-      block: { type: 'tool-call', id: spec.callId, name: SHELL_TOOL, arguments: args },
+      block: { type: 'tool-call', id: spec.callId, name: 'bash', arguments: args },
     },
     { type: 'usage', usage: { inputTokens: 256, outputTokens: 24 } },
     { type: 'finish', reason: { kind: 'tool-calls' } },
@@ -200,7 +199,7 @@ describe('web e2e: continuous conversation grown through the composer', () => {
     page.on('console', (message) => {
       if (message.type() === 'warning') consoleWarnings.push(message.text())
     })
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     await connectFreshWorkspace(page, scaffold.workspaceCwd, 'continuous-chat-e2e')
   }, 120_000)
@@ -219,16 +218,16 @@ describe('web e2e: continuous conversation grown through the composer', () => {
 
   it.skipIf(MODE === 'record')('keeps twelve generated turns and tool rows bound to one live session', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-chat-continuous-conversation'))
-    const composer = page.locator('textarea:enabled').last()
+    const composer = page.locator('[data-composer-input][contenteditable="true"]').last()
     await composer.waitFor({ timeout: 15_000 })
     let sessionId: SessionId | undefined
 
     for (const spec of specs) {
       const eventStart = sessionEvents.length
-      expect(await composer.inputValue()).toBe('')
+      expect(await composer.textContent()).toBe('')
       expect(await composer.isEnabled()).toBe(true)
       await composer.fill(spec.prompt)
-      expect(await composer.inputValue()).toBe(spec.prompt)
+      expect(await composer.textContent()).toBe(spec.prompt)
 
       const settled = scaffold.whenTurnSettled(60_000)
       await page.getByRole('button', { name: 'Send message', exact: true }).click()
@@ -260,7 +259,7 @@ describe('web e2e: continuous conversation grown through the composer', () => {
 
       await expect.poll(() => page.locator('[data-streaming="true"]').count(), { timeout: 15_000 }).toBe(0)
       await page.getByText(spec.doneMarker, { exact: false }).last().waitFor({ timeout: 15_000 })
-      await expect.poll(() => composer.inputValue(), { timeout: 10_000 }).toBe('')
+      await expect.poll(() => composer.textContent(), { timeout: 10_000 }).toBe('')
       await expect.poll(() => composer.isEnabled(), { timeout: 10_000 }).toBe(true)
 
       const turnEvents = sessionEvents.slice(eventStart)
@@ -308,17 +307,18 @@ describe('web e2e: continuous conversation grown through the composer', () => {
       expect(calls[0]?.data).toMatchObject({
         turn: spec.index,
         callId: spec.callId,
-        name: SHELL_TOOL,
+        name: 'bash',
       })
       expect(results[0]?.data.turn).toBe(spec.index)
       expect(results[0]?.data.message.source.callId).toBe(spec.callId)
       expect(results[0]?.data.message.content[0].isError).toBe(false)
-      expect(toolResultText(results[0]!).replaceAll('\r\n', '\n')).toBe(`${spec.toolResultMarker}\n`)
+      expect(toolResultText(results[0]!)).toBe(`${spec.toolResultMarker}\n`)
 
       const toolRow = page.locator(`[data-chat-call-id="${spec.callId}"]`)
       await expect.poll(() => toolRow.count(), { timeout: 10_000 }).toBe(1)
       expect(await toolRow.textContent()).toContain(spec.toolResultMarker)
-      const disclosure = toolRow.locator('[data-sample="bash"], [data-disclosure-row]')
+      await expandOwningTurnProcess(page, toolRow)
+      const disclosure = toolRow.locator('[data-sample="bash"]')
       expect(await disclosure.getAttribute('aria-expanded')).toBe('false')
       await disclosure.click()
       await expect.poll(() => disclosure.getAttribute('aria-expanded'), { timeout: 10_000 }).toBe('true')
@@ -333,6 +333,12 @@ describe('web e2e: continuous conversation grown through the composer', () => {
     expect(scaffold.ctx.agents.get(sessionId)?.session.events.filter(event => (
       event.type === 'turn/end' && event.data.reason.kind === 'completed'
     ))).toHaveLength(TURN_COUNT)
+    expect(sessionEvents.flatMap(event =>
+      event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial'])
+    expect(await page.getByRole('button', { name: 'System prompt' }).count()).toBe(1)
+    expect(await page.locator(
+      '[data-chat-flow-kind="system-prompt"][hidden="until-found"]',
+    ).count()).toBe(0)
     expect(specs.at(-1)?.prompt.length).toBeGreaterThan(4_000)
     expect(sessionEvents.filter(event => (
       event.type === 'assistant/chunk' && event.data.turn === TURN_COUNT

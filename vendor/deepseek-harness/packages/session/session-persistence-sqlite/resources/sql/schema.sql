@@ -4,7 +4,8 @@ CREATE TABLE persistence_state (
 ) STRICT;
 
 CREATE TABLE sessions (
-  id               TEXT PRIMARY KEY,
+  id               INTEGER PRIMARY KEY,
+  session_key      TEXT NOT NULL UNIQUE,
   version          INTEGER NOT NULL,
   created_at       INTEGER NOT NULL,
   cwd              TEXT,
@@ -18,13 +19,13 @@ CREATE TABLE sessions (
 ) STRICT;
 
 CREATE TABLE events (
-  session_id        TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  session_id        INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   seq               INTEGER NOT NULL,
   type              TEXT NOT NULL,
   time              INTEGER NOT NULL,
   data              ANY NOT NULL,
   source_event_seqs ANY,
   surface_op        TEXT,
-  ignorable         INTEGER CHECK (ignorable IS NULL OR ignorable IN (0, 1)),
+  is_packed         INTEGER NOT NULL CHECK (is_packed IN (0, 1)),
   PRIMARY KEY (session_id, seq)
 ) STRICT;

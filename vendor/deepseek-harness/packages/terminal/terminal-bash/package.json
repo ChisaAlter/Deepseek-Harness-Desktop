@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-terminal-bash",
   "description": "Persistent shell PTY backend over the DeepSeek Harness subprocess terminal primitive",
-  "version": "0.1.1-rc.1",
+  "version": "0.1.2-alpha.1",
   "publishConfig": {
     "access": "public"
   },
@@ -43,7 +43,8 @@
   },
   "dependencies": {
     "@deepseek-ai/dsh-pwsh-local": "workspace:^",
-    "@deepseek-ai/schemastery": "workspace:^"
+    "@deepseek-ai/schemastery": "workspace:^",
+    "@xterm/headless": "^6.0.0"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",

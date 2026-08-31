@@ -21,6 +21,9 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../llm/deepseek-llm-api-extensions"
+    },
+    {
       "path": "../../core/session"
     },
     {

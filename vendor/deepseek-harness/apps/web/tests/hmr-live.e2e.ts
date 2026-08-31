@@ -135,7 +135,9 @@ it('hot-reloads a real client-plugin source edit without refreshing the page', {
     // scenario actually asserts, so the first paint gets the wide budget.
     await page.getByText(oldText, { exact: true }).waitFor({ timeout: 60_000 })
     const pageIdentity = await page.evaluate(() => {
-      const identity = crypto.randomUUID()
+      // In-page code: an import would not survive serialization, and the page
+      // entropy source available in every context is getRandomValues.
+      const identity = Array.from(crypto.getRandomValues(new Uint8Array(8)), byte => byte.toString(16).padStart(2, '0')).join('')
       Object.defineProperty(window, '__dshHmrPageIdentity', { value: identity })
       return identity
     })

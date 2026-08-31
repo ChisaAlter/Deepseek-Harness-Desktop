@@ -16,7 +16,7 @@ import {
 import { sql } from './sql.ts'
 
 /** Current physical-record schema with packed and compressed event rows. */
-export const SCHEMA_VERSION = 17
+export const SCHEMA_VERSION = 19
 /** Application id reserved for DeepSeek Harness SQLite session databases. */
 export const SESSION_PERSISTENCE_SQLITE_APPLICATION_ID = 0x44534850
 
@@ -43,7 +43,7 @@ export interface EventRow {
   readonly data: string | Uint8Array
   readonly source_event_seqs: Uint8Array | null
   readonly surface_op: string | null
-  readonly ignorable: number | null
+  readonly is_packed: 0 | 1
 }
 
 /** Durable journal modes accepted by the backend. */
@@ -110,6 +110,7 @@ function configureDatabase(
   db: DatabaseSync,
   path: string,
 ): void {
+  db.exec(sql('page-size'))
   db.exec(sql('foreign-keys-on'))
   let began = false
   try {
@@ -207,7 +208,7 @@ function initializeDatabase(db: DatabaseSync): void {
   db.exec(sql('schema'))
   db.prepare(sql('insert-persistence-state')).run(randomUUID())
   db.exec(sql('set-application-id'))
-  db.exec(sql('set-user-version-17'))
+  db.exec(sql('set-user-version-19'))
 }
 
 let canonicalSchema: readonly SchemaObjectRow[] | undefined
@@ -314,9 +315,9 @@ export function decodeSessionRow(value: unknown): SessionRow {
  */
 export function decodeEventRow(value: unknown): EventRow {
   const row = record(value, 'stored event')
-  const ignorable = nullableSafeIntegerField(row, 'ignorable')
-  if (ignorable !== null && ignorable !== 0 && ignorable !== 1) {
-    throw new Error('stored event ignorable must be 0, 1, or null')
+  const isPacked = safeIntegerField(row, 'is_packed')
+  if (isPacked !== 0 && isPacked !== 1) {
+    throw new Error('stored event is_packed must be 0 or 1')
   }
   return {
     seq: nonnegativeSafeIntegerField(row, 'seq'),
@@ -325,7 +326,7 @@ export function decodeEventRow(value: unknown): EventRow {
     data: stringOrBlobField(row, 'data'),
     source_event_seqs: nullableBlobField(row, 'source_event_seqs'),
     surface_op: nullableStringField(row, 'surface_op'),
-    ignorable,
+    is_packed: isPacked,
   }
 }
 

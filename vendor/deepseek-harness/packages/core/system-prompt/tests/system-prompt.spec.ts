@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import SystemPrompt, { AssembleContext, PromptAssembly, renderContextSnapshot, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, {
+  AssembleContext, FIRST_PARTY_SECTION_ORDER, PromptAssembly, renderContextSnapshot, renderPrompt,
+} from '@deepseek-ai/dsh-system-prompt'
 
 /**
  * Every assembly carries the plugin's own built-ins — `harness:identity`
- * (order −100) and `deployment:persona` (order 0, from config). Tests about
+ * and `deployment:persona` (from config). Tests about
  * registry MECHANICS strip them with {@link contributed} to stay focused on
  * their own sections; the built-ins' behavior is pinned by its own describe.
  */
@@ -15,6 +17,14 @@ function contributed(assembly: PromptAssembly): PromptAssembly['sections'] {
 }
 
 describe('SystemPrompt', () => {
+  it('keeps first-party section placements unique, integral, and at least ten apart', () => {
+    const orders = Object.values(FIRST_PARTY_SECTION_ORDER)
+    expect(orders.every(Number.isInteger)).toBe(true)
+    expect(new Set(orders).size).toBe(orders.length)
+    const sorted = [...orders].sort((a, b) => a - b)
+    expect(sorted.slice(1).every((order, index) => order - sorted[index]! >= 10)).toBe(true)
+  })
+
   describe('built-in sections', () => {
     it('registers the harness identity and the configured deployment persona', async () => {
       const ctx = new Context()
@@ -98,6 +108,15 @@ describe('SystemPrompt', () => {
     expect(assembly.variables).toEqual({})
     expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.\n\nBe precise.\n\ncwd: /tmp`)
     expect(renderContextSnapshot(assembly)).toBe('Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\ncontext 1\n\ncontext 2')
+  })
+
+  it('breaks equal section orders by code-unit name regardless of registration order', async () => {
+    for (const names of [['äther', 'zeta'], ['zeta', 'äther']] as const) {
+      const ctx = new Context()
+      await ctx.plugin(SystemPrompt)
+      for (const name of names) ctx.systemPrompt.section({ name, order: 10, text: name })
+      expect(contributed(await ctx.systemPrompt.assemble()).map(section => section.name)).toEqual(['zeta', 'äther'])
+    }
   })
 
   it('resolves section text providers against the assemble context, at each assemble call', async () => {
@@ -247,7 +266,7 @@ describe('SystemPrompt', () => {
   it('composes multiple system-prompt/assemble waterfall listeners in order, with the context', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
-    ctx.systemPrompt.section({ name: 'base', order: 0, text: 'base' })
+    ctx.systemPrompt.section({ name: 'base', order: 10, text: 'base' })
 
     // Listener A appends a section, then delegates.
     const contexts: AssembleContext[] = []
@@ -314,7 +333,7 @@ describe('SystemPrompt', () => {
   it('assembles snapshots so one-step mutations do not leak into future assemblies', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
-    ctx.systemPrompt.section({ name: 'base', order: 0, text: 'base' })
+    ctx.systemPrompt.section({ name: 'base', order: 10, text: 'base' })
     ctx.systemPrompt.tools(() => ({ schemas: [{ name: 't', description: 'tool', parameters: { type: 'object', properties: {} } }] }))
 
     const first = await ctx.systemPrompt.assemble()

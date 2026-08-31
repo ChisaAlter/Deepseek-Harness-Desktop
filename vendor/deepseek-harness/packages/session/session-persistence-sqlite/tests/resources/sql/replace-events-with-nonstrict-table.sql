@@ -8,7 +8,7 @@ CREATE TABLE events (
   data TEXT NOT NULL,
   source_event_seqs TEXT,
   surface_op TEXT,
-  ignorable INTEGER,
+  is_packed INTEGER,
   PRIMARY KEY (session_id, seq)
 );
 DROP TABLE strict_events;

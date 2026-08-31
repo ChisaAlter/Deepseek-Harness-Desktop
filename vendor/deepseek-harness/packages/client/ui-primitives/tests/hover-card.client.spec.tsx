@@ -3,7 +3,6 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HoverCard } from '@deepseek-ai/dsh-client-ui-primitives'
 import { POINTER_GRACE_MS } from '../src/pointer-grace.ts'
-import { PRESENCE_EXIT_MS } from '../src/usePresence.ts'
 
 afterEach(cleanup)
 beforeEach(() => { vi.useFakeTimers() })
@@ -18,21 +17,6 @@ function stubAnchorRect(anchor: HTMLElement, rect: { top: number; right: number 
   })
 }
 
-/** Presence keeps the card mounted through exit; text queries still find it. */
-function expectCardClosed(): void {
-  const node = screen.queryByText('card body')
-  if (node === null) return
-  expect(node.closest('[data-dsh-motion]')?.getAttribute('aria-hidden')).toBe('true')
-}
-
-/** Flush the two enter frames so pending rAF timers do not inflate getTimerCount. */
-function settlePresenceEnter(): void {
-  act(() => {
-    vi.advanceTimersToNextFrame()
-    vi.advanceTimersToNextFrame()
-  })
-}
-
 function mount(props: {
   openDelayMs?: number
   disabled?: boolean
@@ -41,7 +25,13 @@ function mount(props: {
   copiedLabel?: string
 } = {}) {
   const view = render(
-    <HoverCard anchor={<span>row</span>} content={<div>card body</div>} {...props} />,
+    <HoverCard
+      anchor={<span>row</span>}
+      content={<div>card body</div>}
+      copyLabel={props.copyLabel ?? 'Copy'}
+      copiedLabel={props.copiedLabel ?? 'Copied'}
+      {...props}
+    />,
   )
   const anchor = screen.getByText('row')
   stubAnchorRect(anchor, { top: 40, right: 200 })
@@ -99,7 +89,7 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS - 1) })
     expect(screen.getByText('card body')).toBeTruthy()
     act(() => { vi.advanceTimersByTime(1) })
-    expectCardClosed()
+    expect(screen.queryByText('card body')).toBeNull()
     fireEvent.pointerEnter(wrapper)
     act(() => { vi.advanceTimersByTime(500) })
     expect(screen.getByText('card body')).toBeTruthy()
@@ -126,7 +116,6 @@ describe('HoverCard', () => {
     fireEvent.pointerEnter(wrapper)
     fireEvent.pointerLeave(wrapper)
     act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
-    expectCardClosed()
     // A dwell restarted by the redundant enter would reopen the card here.
     act(() => { vi.advanceTimersByTime(500) })
     expect(screen.queryByText('card body')).toBeNull()
@@ -138,7 +127,7 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(500) })
     expect(screen.getByText('card body')).toBeTruthy()
     fireEvent.pointerDown(screen.getByText('row'))
-    expectCardClosed()
+    expect(screen.queryByText('card body')).toBeNull()
     // The pending timer is also cleared: no reopen after the dwell.
     act(() => { vi.advanceTimersByTime(1000) })
     expect(screen.queryByText('card body')).toBeNull()
@@ -288,7 +277,6 @@ describe('HoverCard', () => {
       const { view, wrapper } = mount({ copyText: 'value' })
       fireEvent.pointerEnter(wrapper)
       act(() => { vi.advanceTimersByTime(500) })
-      settlePresenceEnter()
       await act(async () => { fireEvent.click(screen.getByRole('button')) })
       expect(vi.getTimerCount()).toBe(1)
       view.unmount()
@@ -349,7 +337,6 @@ describe('HoverCard', () => {
       act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
       fireEvent.pointerEnter(wrapper)
       act(() => { vi.advanceTimersByTime(500) })
-      settlePresenceEnter()
       await act(async () => { acceptWrite?.() })
       expect(vi.getTimerCount()).toBe(0)
       expect(screen.getByText('card body')).toBeTruthy()
@@ -389,9 +376,15 @@ describe('HoverCard', () => {
     fireEvent.pointerEnter(wrapper)
     act(() => { vi.advanceTimersByTime(500) })
     expect(screen.getByText('card body')).toBeTruthy()
-    view.rerender(<HoverCard anchor={<span>row</span>} content={<div>card body</div>} disabled />)
-    expectCardClosed()
-    act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
+    view.rerender(
+      <HoverCard
+        anchor={<span>row</span>}
+        content={<div>card body</div>}
+        copyLabel="Copy"
+        copiedLabel="Copied"
+        disabled
+      />,
+    )
     expect(screen.queryByText('card body')).toBeNull()
   })
 
@@ -437,8 +430,6 @@ describe('HoverCard', () => {
     expect(card.style.top).toBe('90px')
     fireEvent.pointerLeave(wrapper)
     act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
-    expectCardClosed()
-    act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
     expect(screen.queryByText('card body')).toBeNull()
   })
 

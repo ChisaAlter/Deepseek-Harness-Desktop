@@ -1,3 +1,3 @@
 SELECT COUNT(*) AS count
 FROM events
-WHERE type = 'text-chunks' AND ignorable = 0;
+WHERE type = 'text-chunks' AND is_packed = 1;

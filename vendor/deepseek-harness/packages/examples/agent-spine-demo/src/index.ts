@@ -72,7 +72,8 @@ export interface GoalConfig {
  * bridge, simply omits it), `includeHarnessIdentity`, `includeRuntimeContext`,
  * `persona`, and `toolOrder` to the system-prompt plugin (the fixed opener,
  * dynamic-context policy, deployment persona, and explicit model-facing tool
- * order), the `tools` object to the tool registry (its presentation `mode`),
+ * order), the `tools` object to the tool
+ * registry (its presentation `mode`),
  * `dshHome` to bash environment and local skill discovery, `sessionTitle` to
  * the fallback title service, `skills` to the
  * skill registry/local provider/tool consumer, `workspaceContext` to the
@@ -202,7 +203,7 @@ export function pickSpineConfig(config: Omit<Config, 'agents'>): Omit<Config, 'a
 /**
  * Load the spine. Each `ctx.plugin(...)` mounts one child of the bundle fiber;
  * `agent-loop` receives the forwarded `agents` list and `system-prompt` the
- * forwarded `persona` and `toolOrder`. Workspace-context receives its own
+ * forwarded persona fields and `toolOrder`. Workspace-context receives its own
  * explicitly forwarded config. Load order is irrelevant (cordis
  * pends each fiber on its `inject` until the services it needs exist), but the
  * listing mirrors the dependency layering for readability: the LLM vocabulary

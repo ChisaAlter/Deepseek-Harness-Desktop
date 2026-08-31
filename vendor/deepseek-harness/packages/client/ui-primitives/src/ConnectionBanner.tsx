@@ -1,8 +1,3 @@
-// ConnectionBanner: top strip surfacing connection loss. The atom is pure:
-// the owner subscribes to connection state and passes `reconnecting` down.
-// A null/connecting state upstream should stay quiet too — only an actual
-// outage (reconnect backoff in progress) shows the strip.
-
 import css from './ConnectionBanner.module.css'
 
 /**
@@ -12,9 +7,9 @@ import css from './ConnectionBanner.module.css'
  * package is cordis-free, so copy arrives via props).
  * @returns the banner, or null when connected.
  */
-export function ConnectionBanner({ reconnecting, label = '连接已断开，正在重连…' }: {
+export function ConnectionBanner({ reconnecting, label }: {
   reconnecting: boolean
-  label?: string | undefined
+  label: string
 }) {
   if (!reconnecting) return null
   return <div className={css.banner}>{label}</div>

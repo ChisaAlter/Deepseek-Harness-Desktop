@@ -438,7 +438,7 @@ describe('Modal', () => {
   it('is absent while closed; Escape and mask click call onClose', () => {
     const onClose = vi.fn()
     const { rerender } = render(
-      <Modal open={false} onClose={onClose} title="Create new workspace">body</Modal>)
+      <Modal open={false} onClose={onClose} title="Create new workspace" closeLabel="Close">body</Modal>)
     expect(screen.queryByRole('dialog')).toBeNull()
     rerender(
       <Modal
@@ -471,13 +471,24 @@ describe('Modal', () => {
     fireEvent.click(mask)
     expect(onClose).toHaveBeenCalledTimes(2)
   })
+
+  it('renders headless content without the default close chrome', () => {
+    render(
+      <Modal open onClose={() => {}} title="Custom surface" headless>
+        <span>Custom body</span>
+      </Modal>,
+    )
+    expect(screen.getByRole('dialog', { name: 'Custom surface' })).toBeDefined()
+    expect(screen.getByText('Custom body')).toBeDefined()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
 })
 
 describe('ConnectionBanner', () => {
   it('renders only while reconnecting', () => {
-    const { container, rerender } = render(<ConnectionBanner reconnecting={false} />)
+    const { container, rerender } = render(<ConnectionBanner reconnecting={false} label="Reconnecting" />)
     expect(container.firstChild).toBeNull()
-    rerender(<ConnectionBanner reconnecting />)
-    expect(container.textContent).toContain('重连')
+    rerender(<ConnectionBanner reconnecting label="Reconnecting" />)
+    expect(container.textContent).toContain('Reconnecting')
   })
 })

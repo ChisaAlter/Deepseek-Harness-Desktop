@@ -6,17 +6,16 @@
  * @module @deepseek-ai/dsh-llm/assembler
  */
 
+import { ToolCallId } from './brand.ts'
 import { assertNever } from './never.ts'
-import type { CallId } from './brand.ts'
 import { createMessage } from './message.ts'
 import type { Message, MessageSource } from './message.ts'
-import { requireValidToolCallIdentity } from './content.ts'
 import type { ContentBlock, FinishReason, ReplayEnvelope, StreamChunk, TokenUsage } from './types.ts'
 
 interface PartialBlock {
   blockType: string
   text: string
-  toolCallId?: CallId
+  toolCallId?: ToolCallId
   toolCallName?: string
   toolCallArguments: string
   /** Set by `block-end` — authoritative, and freezes the partial. */
@@ -69,8 +68,8 @@ export class BlockAssembler {
       case 'tool-call-delta': {
         const partial = this.ensure(chunk.index, 'tool-call')
         if (partial.block) return // closed by block-end; ignore stragglers
-        if (chunk.id !== undefined) partial.toolCallId = chunk.id
-        if (chunk.name !== undefined) partial.toolCallName = chunk.name
+        partial.toolCallId = chunk.id
+        if (chunk.name) partial.toolCallName = chunk.name
         partial.toolCallArguments += chunk.argumentsDelta
         return
       }
@@ -106,30 +105,15 @@ export class BlockAssembler {
   }
 
   private assemble(partial: PartialBlock, index: number): ContentBlock {
-    if (partial.block) {
-      if (partial.block.type === 'tool-call') {
-        requireValidToolCallIdentity(
-          partial.block.id,
-          partial.block.name,
-          `model tool call at block index ${index}`,
-        )
-      }
-      return partial.block
-    }
+    if (partial.block) return partial.block
     switch (partial.blockType) {
       case 'text': return { type: 'text', text: partial.text }
       case 'reasoning': return { type: 'reasoning', text: partial.text }
-      case 'tool-call': {
-        const identity = requireValidToolCallIdentity(
-          partial.toolCallId,
-          partial.toolCallName,
-          `model tool call at block index ${index}`,
-        )
-        return {
-          type: 'tool-call',
-          ...identity,
-          arguments: partial.toolCallArguments,
-        }
+      case 'tool-call': return {
+        type: 'tool-call',
+        id: partial.toolCallId ?? ToolCallId(`call-${index}`),
+        name: partial.toolCallName ?? '',
+        arguments: partial.toolCallArguments,
       }
       default: throw new Error(`cannot assemble incomplete block of type "${partial.blockType}"`)
     }

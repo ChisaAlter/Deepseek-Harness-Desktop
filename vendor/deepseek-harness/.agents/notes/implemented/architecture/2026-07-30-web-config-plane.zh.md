@@ -12,11 +12,11 @@ Status: implemented
 
 ## 决策
 
-**wire 领域挂上编译期 RPC 映射，拒绝落为错误码，owner 事件原样转发。**`settings.describe/openDocument/update/replace/mutate`、`credentials.describe/set/unset`、`llm.providers` 与 `llm.models` 一同加入 `RpcMethodMap`，由编译器锁定的接线位点让 schema、处理器与客户端保持步调一致。seam 侧拒绝折叠为业务错误，客户端则订阅转发的 settings、credentials 与 LLM owner 事件，无需轮询即可收敛（见[转发的 Remote 事件](2026-08-10-remote-event-delivery.zh.md)）。settings 读取、原生操作与写入和 `pickDirectory`/`openPath` 一起进入连接守卫的特权集合：回环 + 同源，否则 403，因为暴露在局域网上的 dsh web 绝不能接受来自其他源的配置访问。
+**配置调用使用其所属的 wire 实现，拒绝落为错误码，owner 事件原样转发。**`@deepseek-ai/dsh-api-settings-controller` 持有 `settings/describe`、`settings/update`、`settings/replace`、`settings/mutate`、`settings/openSettingsDocument`、`settings/openAgentPresetDirectory` 与 `credentials/describe|set|unset` 的生成 Remote 方法；`@deepseek-ai/dsh-llm` 持有 `llm/listProviders`、`llm/listConfigurableProviders` 与 `llm/discoverModels`。provider 缺失时保留配置 API 可操作的 `internal` 诊断，seam 拒绝则保留 `settings-rejected {ns}`／`settings-conflict {ns, expected, actual}`／`credential-rejected {ref}`。Client 订阅转发的 settings、credentials 与 LLM owner 事件，无需轮询即可收敛（见[转发的 Remote 事件](2026-08-10-remote-event-delivery.zh.md)）。Connection 使用同一个浏览器会话认证生成的 Remote 方法与 API Proxy 回退；Host/Origin 失败仍会在身份校验前返回 403。
 
 **`describe()` 增加分层与结构化 secret 脱敏。**`SettingsDescriptor` 在生效值之外携带 `base`/`user`，表单据此按「字段是否出现在用户层」来标记「已覆盖」，而非按值是否不等（与 base *相等*的覆盖仍然是覆盖）。`describe({ redactSecrets: true })`——在每个 wire 面都强制启用——经由对 schema 的纯结构遍历（object/dict/array 容器；secret 角色子树整体是一个不透明叶节点）从全部三层剥除 `role('secret')` 子树，并把剥除的槽位枚举为 `{path, set}`，页面因此不必收到任何值就能渲染只写输入框。
 
-**Host 识别并打开本地设置文档。** settings seam 暴露可选的 `documentPath` 提供方元数据和 `prepareDocument()` 操作；`settings-file` 返回已完全解析的自定义文件名或 `$DSH_HOME/settings.yaml` 文件名，并在文档缺失时以仅属主可访问的权限独占创建空文档，非文件提供方则保留基类的 `undefined`。仅限回环访问的 `settings.describe` 响应会在脱敏 namespace 视图旁只携带布尔型 `hasDocument` 能力。`ui-settings-general` 只在回环页面注册一条 `settings.action` 条目，只有元数据确认可准备好一份由提供方持有的本地文档后才显示，并调用无路径参数的 `settings.openDocument`；Host 会在文本文档交接前再次解析提供方路径（macOS 上使用 `open -t`，使任意 YAML 文件关联无法重定向这次操作；桌面 Linux 上使用 `xdg-open`；Windows 上使用 `Invoke-Item`；WSL 上先执行 `wslpath -w`，再使用同一 Windows 交接）。通用 Workspace 路径仍保留默认意图，包括针对浏览器可渲染文档的浏览器偏好。浏览器既不推导 `$DSH_HOME`，也不会收到文件系统目标；远程页面不会为这项操作发起特权 settings 读取。
+**Host 识别并打开本地设置文档。** settings seam 暴露可选的 `documentPath` 提供方元数据和 `prepareDocument()` 操作；`settings-file` 返回已完全解析的自定义文件名或 `$DSH_HOME/settings.yaml` 文件名，并在文档缺失时以仅属主可访问的权限独占创建空文档，非文件提供方则保留基类的 `undefined`。经浏览器认证的 `settings/describe` 响应会在脱敏 namespace 视图旁只携带布尔型 `hasDocument` 能力。`ui-settings-general` 只在回环页面注册一条 `settings.action` 条目，只有元数据确认可准备好一份由 provider 持有的本地文档后才显示，并调用无路径参数的 `settings/openSettingsDocument`；Host 会在文本文档交接前再次解析 provider 路径（macOS 上使用 `open -t`，使任意 YAML 文件关联无法重定向这次操作；桌面 Linux 上使用 `xdg-open`；Windows 上使用 `Invoke-Item`；WSL 上先执行 `wslpath -w`，再使用同一 Windows 交接）。通用 Workspace 路径仍保留默认意图，包括针对浏览器可渲染文档的浏览器偏好。浏览器既不推导 `$DSH_HOME`，也不会收到文件系统目标；非 loopback 页面保留 Client 策略，不为这项操作发起 Host settings 读取。
 
 **llm seam 声明可配置性并公布拓扑。**`registerConfigurableProviders()` 是一个全有或全无、以 fiber 为作用域的目录，条目为 `{provider, displayName, settingsNs, settingsPath}`——这正是配置页要为一条可能尚不存在的路由打开正确设置子树时所需要的寻址；`listConfigurableProviders()` 在 wire 处理器里与存活路由合并，未声明的存活路由因此仍报告为激活。零负载的 `'llm/adapters-updated'` 事件从全部四个注册／注销提交点触发，listener 派发带异常隔离（INVARIANT 重抛），沿用 settings/commands 的先例。`llm-deepseek` 的路由重命名为 `deepseek-official`，因为 pi-ai catalog 名正言顺地拥有 `deepseek` 这个聚合器条目；依预发布立场，不设别名。
 
@@ -27,12 +27,12 @@ Status: implemented
 ## 曾考虑的替代方案
 
 - **在 wire 上改发 JSON Schema**——schemastery 的 `toJSON()` 信封能往返保留 `role()`/meta，并还原成客户端为草稿校验本就自带的那个校验器；转换成 JSON Schema 丢掉的恰恰是凭据控件与 secret 脱敏所依赖的角色注解。
-- **通用的 schema 驱动表单渲染器**——先实现、后被替换：如实呈现字段却缺失视觉层级，产出的卡片丑陋且不可用；要把它做好，就意味着构建一套提示词汇（主要／进阶分组、逐字段描述、数组项卡片），成本堪比手写编辑器，却仍无法与任何设计稿完全吻合。今天存在两份 schema（deepseek 的 `Config` 与共享的 pi-ai profile），手写因此就是两套以 namespace 为键的薄布局；漂移风险由保存时的 schema 校验以及未知字段在文档中的原样保留共同约束。
+- **通用的 schema 驱动表单渲染器**——先实现、后被替换：如实呈现字段却缺失视觉层级，产出的卡片丑陋且不可用；要把它做好，就意味着构建一套提示词汇（主要／进阶分组、逐字段描述、数组项卡片），成本堪比手写编辑器，却仍无法与任何设计稿完全吻合。相关的两份 schema 是 DeepSeek 的 `Config` 与共享的 pi-ai profile，手写因此就是两套以 namespace 为键的薄布局；漂移风险由保存时的 schema 校验以及未知字段在文档中的原样保留共同约束。
 - **逐字段脱敏机密并在 `replace` 时回填哨兵值**——请求级 seam 的决策（机密是引用）已经为产品默认形态删掉了「存储字面量」这种情况；结构化脱敏加上只写的凭据通道足以处理残余情形，无需让每个写入方都学会一套哨兵协议。
-- **把键入的密钥存成字面 `apiKey` 设置**——v1「单个 API 密钥输入框」的需求本可以把字面量直接写进 profile，但 UI 的每条删除路径都会从*脱敏后的*各层重建用户分节，任何重置或整行删除都会静默丢掉已存储的兄弟密钥；派生引用让输入保持单字段，同时让 `settings.yaml` 不含机密、每一次 replace 都安全。
+- **把键入的密钥存成字面 `apiKey` 设置**——单个 API 密钥输入框的需求本可以把字面量直接写进 profile，但 UI 的每条删除路径都会从*脱敏后的*各层重建用户分节，任何重置或整行删除都会静默丢掉已存储的兄弟密钥；派生引用让输入保持单字段，同时让 `settings.yaml` 不含机密、每一次 replace 都安全。
 - **由 `models` 桥接插件持有提供方配置**——与请求级 seam note 相同的否决理由：按插件划分的 namespace 加上四字段的目录声明已经给了 UI 需要的一切；桥接层的统一字典会把适配器映射那层间接重新引进来。
 - **页面侧轮询而非推送帧**——mux 已经承载 `host/commands-changed`；再加三个帧，每个只需增加一种形状，就能让第二个标签页、外部的 `settings.yaml` 编辑和由设置催生的路由都以事件速度收敛。
-- **在浏览器中硬编码 `$DSH_HOME/settings.yaml`，或经 `host.openPath` 回传 `documentPath`**——否决，因为 `settings-file.path` 可能选择另一份 YAML/JSON 文档、非文件提供方没有 Host 路径，而且通用路径请求会让浏览器成为本地文件系统目标的权威。提供方的准备操作才是权威来源，由 Host 持有的操作会把结果交给现有打开器。
+- **在浏览器中硬编码 `$DSH_HOME/settings.yaml`，或经 `session/openWorkspacePath` 回传 `documentPath`**——否决，因为 `settings-file.path` 可能选择另一份 YAML/JSON 文档、非文件提供方没有 Host 路径，而且通用路径请求会让浏览器成为本地文件系统目标的权威。提供方的准备操作才是权威来源，由 Host 持有的操作会把结果交给现有打开器。
 
 ## 后果
 

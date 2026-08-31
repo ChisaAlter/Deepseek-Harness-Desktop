@@ -51,7 +51,7 @@ interface SettingsRegisterOptions<T> {
 
 `validate` 在 schema 接纳该值之后运行，因此它看到的默认值和组合 base 与 owner 实际看到的完全一致。`dsh-llm-pi-ai` 用它在写入处拒绝自己无法服务的提供方 profile，而不是先存下来、再让该 namespace 下每条路由失效。
 
-`applies` 是 UI 提示而非机制：`restart` 的 owner 只是从不 watch，其值在构造期读取一次，配置界面可为待生效变更加标。
+`applies` 是 UI 提示而非机制：`restart` 的 owner 从不 watch，其值在构造期读取一次，配置界面可为待生效变更加标。
 
 ```ts type-equiv
 /** When a namespace's changes take effect for its owner. */
@@ -161,6 +161,10 @@ interface SettingsDescribeOptions {
 type SettingsUpdateSource = 'update' | 'provider'
 ```
 
+## 原生文档操作
+
+`SettingsDocumentOpenValue` 确认 `settings/openSettingsDocument` 已准备好 provider 持有的文档，并将其交给原生文本编辑器。`AgentPresetDirectoryOpenValue` 报告已完成的原生交接，或在桌面打开不可用时返回解析后的用户 preset 目录。两项操作都不接受由浏览器选择的 Host 路径。
+
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
 <a id="cordis-surface"></a>
@@ -253,6 +257,79 @@ async mutate(ns: SettingsNamespace, ops: readonly SettingsPathOp[], expectedRevi
 ```
 
 Source: [`packages/settings/settings/src/index.ts`](../../packages/settings/settings/src/index.ts)
+
+<a id="ctxsettingscontroller--settingscontroller"></a>
+
+### `ctx.settingsController` — `SettingsController`
+
+Host service backing the generated `ctx.remote.settings` namespace. Every remote read uses `redactSecrets: true`, so a `role('secret')` field cannot ride a response. Writes expose the settings service's merge, replacement, and path-addressed operations, and classify every provider refusal as `settings-conflict` or `settings-rejected` with the service's message.
+
+```ts cordis-catalog
+/**
+ * Describe every registered namespace for a configuration page: redacted
+ * layered values plus the serialized schema the page renders its form from.
+ * @returns provider writability, local-document presence, and one view per namespace.
+ * @throws TypertRemoteFailure when no settings provider is mounted.
+ */
+@Remote describe(): SettingsDescribeValue
+
+/**
+ * Report whether this deployment can open an authored Agent preset directory natively.
+ * @returns true when the matching open operation is available.
+ */
+@Remote canOpenAgentPresetDirectory(): boolean
+
+/**
+ * Merge a patch into one namespace's stored user section.
+ * @param ns - namespace key to write.
+ * @param patch - fields to merge into the user section.
+ * @param expectedRevision - revision the caller read; `undefined` writes unconditionally.
+ * @returns the namespace's redacted view after the write.
+ * @throws TypertRemoteFailure when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote update( ns: string, patch: Record<string, JsonValue>, expectedRevision: number | undefined, ): Promise<SettingsNamespaceView>
+
+/**
+ * Replace one namespace's stored user section wholesale.
+ * @param ns - namespace key to write.
+ * @param section - complete replacement user section.
+ * @param expectedRevision - revision the caller read; `undefined` writes unconditionally.
+ * @returns the namespace's redacted view after the write.
+ * @throws TypertRemoteFailure when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote replace( ns: string, section: Record<string, JsonValue>, expectedRevision: number | undefined, ): Promise<SettingsNamespaceView>
+
+/**
+ * Apply path-addressed edits to one namespace's user section, resolved against
+ * the section as stored rather than against whatever the caller last read,
+ * then answer with that namespace's new redacted view.
+ * @param ns - namespace key to write.
+ * @param ops - the edits to apply, in order.
+ * @param expectedRevision - revision the caller read; `undefined` writes unconditionally.
+ * @returns the namespace's redacted view after the write.
+ * @throws TypertRemoteFailure when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote async mutate( ns: string, ops: SettingsPathOpView[], expectedRevision: number | undefined, ): Promise<SettingsNamespaceView>
+
+/**
+ * Materialize the provider-owned settings document and open it in a native text editor.
+ * @param signal - caller lifetime; abort terminates preparation or the native command.
+ * @returns confirmation after the native opener accepts the document.
+ * @throws TypertRemoteFailure when no document exists, preparation fails, or opening fails.
+ */
+@Remote async openSettingsDocument(signal: AbortSignal): Promise<SettingsDocumentOpenValue>
+
+/**
+ * Open one user-authored Agent preset directory or return its path when no native opener exists.
+ * @param agentPreset - preset id resolved against Host-owned roots.
+ * @param signal - caller lifetime; abort terminates the native command.
+ * @returns an opened confirmation or the resolved directory for text display.
+ * @throws TypertRemoteFailure when the preset is missing, read-only, invalid, or cannot be opened.
+ */
+@Remote async openAgentPresetDirectory( agentPreset: string, signal: AbortSignal, ): Promise<AgentPresetDirectoryOpenValue>
+```
+
+Source: [`packages/api/settings-controller/src/index.ts`](../../packages/api/settings-controller/src/index.ts)
 
 <a id="settings-events"></a>
 

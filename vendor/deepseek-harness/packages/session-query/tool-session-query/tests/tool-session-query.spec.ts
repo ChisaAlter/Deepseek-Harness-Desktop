@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, CallId, HarnessError , createMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId, HarnessError , createMessage } from '@deepseek-ai/dsh-llm'
 import { MAX_TIMER_DELAY_MS, TimeoutReason } from '@deepseek-ai/dsh-timeout'
 import * as TimeoutPolicy from '@deepseek-ai/dsh-tool-call-timeout-policy'
 import SessionStore, {
@@ -218,7 +218,7 @@ async function mount(
     call: (toolName, args, options = {}) => ctx.tools.execute({
       name: toolName,
       arguments: args,
-      callId: CallId(`call-${++calls}`),
+      callId: ToolCallId(`call-${++calls}`),
       signal: options.signal ?? new AbortController().signal,
       ...options.agent === undefined ? { agent: fakeAgent(caller) } : { agent: options.agent },
     }),
@@ -301,7 +301,7 @@ describe('registration and schemas', () => {
       expect(mounted.ctx.tools.executionMode({
         name,
         arguments: args,
-        callId: CallId(`mode-${name}`),
+        callId: ToolCallId(`mode-${name}`),
         signal: new AbortController().signal,
         agent: fakeAgent(mounted.caller),
       })).toEqual({ kind })
@@ -579,7 +579,7 @@ describe('workspace authority and lineage redaction', () => {
     const missing = await mounted.ctx.tools.execute({
       name: 'session_trace',
       arguments: {},
-      callId: CallId('missing-agent'),
+      callId: ToolCallId('missing-agent'),
       signal: new AbortController().signal,
     })
     expect(errorCode(missing)).toBe('SESSION_QUERY_TOOL_MISSING_AGENT')

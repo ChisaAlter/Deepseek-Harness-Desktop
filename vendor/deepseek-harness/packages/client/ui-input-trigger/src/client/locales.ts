@@ -1,17 +1,21 @@
 /**
  * `slash.menu` namespace dictionaries: group titles keyed by source name
  * (the lookup chain returns the key itself, so an unknown source shows its
- * raw name), the pending row, and the listbox aria label.
+ * raw name), the pending row, and the listbox and header aria labels.
  */
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'command': '命令',
+  'command': '指令',
   'skill': '技能',
   'subagent': '子智能体',
   'path': '文件',
   'dshbot': '成员',
   'loading': '正在加载…',
+  'drill.aria': '进入目录',
+  'drill.hint': '进入目录',
+  'drill.key': 'Tab',
+  'crumbs.aria': '目录导航',
   'suggestions.aria': '触发候选建议',
 } satisfies Record<string, string>
 
@@ -26,5 +30,9 @@ export const en = {
   'path': 'Files',
   'dshbot': 'Members',
   'loading': 'Loading…',
+  'drill.aria': 'Browse folder',
+  'drill.hint': 'Browse folder',
+  'drill.key': 'Tab',
+  'crumbs.aria': 'Folder navigation',
   'suggestions.aria': 'Trigger suggestions',
 } satisfies Record<MenuKey, string>

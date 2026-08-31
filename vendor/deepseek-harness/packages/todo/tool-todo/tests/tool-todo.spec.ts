@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import type { TodoItem } from '@deepseek-ai/dsh-session'
+import type { TodoItem } from '@deepseek-ai/dsh-tool-todo'
 import { type Agent } from '@deepseek-ai/dsh-agent'
 
 import * as tool from '../src/index.ts'
@@ -39,7 +39,7 @@ function callTodo(ctx: Context, args: unknown, over: { agent?: Agent | undefined
   const agent = 'agent' in over ? over.agent : agentWithSession()
   return ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId(`call-${++callCounter}`),
+    callId: ToolCallId(`call-${++callCounter}`),
     name: 'todo_write',
     arguments: args,
     ...agent ? { agent } : {},
@@ -231,5 +231,70 @@ describe('dsh-tool-todo', () => {
     expect(unwrapped.name).toBe('tool-todo')
     expect(unwrapped.inject).toEqual(['tools'])
     expect(typeof unwrapped.apply).toBe('function')
+  })
+})
+
+describe('todo/write event', () => {
+  it('appends the whole-list snapshot and isolates the log from later mutation', () => {
+    const session = Session.create(SessionId('t1'))
+    session.append('turn/start', { turn: 1 })
+    const todos: TodoItem[] = [
+      { content: 'plan the work', status: 'in_progress' },
+      { content: 'write the code', status: 'pending' },
+    ]
+    session.append('todo/write', { todos })
+
+    const event = session.events.findLast(e => e.type === 'todo/write')!
+    expect(event.type).toBe('todo/write')
+    expect(event.data.todos).toEqual(todos)
+
+    todos.push({ content: 'sneak in', status: 'pending' })
+    todos[0]!.status = 'completed'
+    expect(event.data.todos).toEqual([
+      { content: 'plan the work', status: 'in_progress' },
+      { content: 'write the code', status: 'pending' },
+    ])
+  })
+
+  it('is last-write-wins: the current list is the most recent todo/write', () => {
+    const session = Session.create(SessionId('t2'))
+    session.append('turn/start', { turn: 1 })
+    session.append('todo/write', { todos: [{ content: 'first', status: 'pending' }] })
+    session.append('todo/write', { todos: [
+      { content: 'first', status: 'completed' },
+      { content: 'second', status: 'in_progress' },
+    ] })
+
+    const current = session.events.findLast(e => e.type === 'todo/write')!.data.todos
+    expect(current).toEqual([
+      { content: 'first', status: 'completed' },
+      { content: 'second', status: 'in_progress' },
+    ])
+  })
+
+  it('does not add a derived message or surface node', () => {
+    const session = Session.create(SessionId('t3'))
+    session.append('turn/start', { turn: 1 })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'q' }], source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    const before = session.deriveMessages().length
+    session.append('todo/write', { todos: [{ content: 'a task', status: 'pending' }] })
+
+    expect(session.deriveMessages()).toHaveLength(before)
+    expect(session.surface.nodes).not.toContain(session.seq - 1)
+  })
+
+  it('round-trips through a seeded replay identically without surface metadata', () => {
+    const original = Session.create(SessionId('t4'))
+    original.append('turn/start', { turn: 1 })
+    original.append('todo/write', { todos: [{ content: 'only', status: 'completed' }] })
+    original.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const replayed = Session.create(SessionId('t4-replay'), [...original.events])
+
+    expect(replayed.events.findLast(e => e.type === 'todo/write')!.data.todos)
+      .toEqual([{ content: 'only', status: 'completed' }])
+    expect(replayed.events.slice(0, original.seq)).toEqual(original.events)
+    expect(replayed.firstLiveSeq).toBe(original.seq)
   })
 })

@@ -1,6 +1,6 @@
-/** Appearance page store: snapshot-mirror action and the revision guard. */
+/** Appearance page and font-size row stores: snapshot-mirror actions and revision guards. */
 import { describe, expect, it } from 'vitest'
-import { createAppearanceRowStore } from '../src/client/settings-store.ts'
+import { createAppearanceRowStore, createFontSizeRowStore } from '../src/client/settings-store.ts'
 import type { AppearanceSyncSnapshot } from '../src/client/settings-store.ts'
 import { DEFAULT_THEME_SETTINGS } from '../src/theme-settings.ts'
 
@@ -72,5 +72,22 @@ describe('createAppearanceRowStore', () => {
     store.actions.sync(snap({ wallpaperSources: [], wallpaperFavorites: [favorite] }), 0)
     expect(store.getSnapshot().wallpaperSources).toEqual([])
     expect(store.getSnapshot().wallpaperFavorites).toEqual([favorite])
+  })
+})
+
+describe('createFontSizeRowStore', () => {
+  it('init shape: default size with revision at -1', () => {
+    const store = createFontSizeRowStore().create()
+    expect(store.getSnapshot()).toEqual({ fontSize: 14, revision: -1 })
+  })
+
+  it('sync mirrors the size; the revision guard drops stale and duplicate writes', () => {
+    const store = createFontSizeRowStore().create()
+    store.actions.sync(16, 3)
+    expect(store.getSnapshot()).toEqual({ fontSize: 16, revision: 3 })
+    store.actions.sync(12, 2)
+    store.actions.sync(12, 3)
+    expect(store.getSnapshot().fontSize).toBe(16)
+    expect(store.getSnapshot().revision).toBe(3)
   })
 })

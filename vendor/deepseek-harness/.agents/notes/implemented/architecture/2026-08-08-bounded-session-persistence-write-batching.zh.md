@@ -12,7 +12,7 @@ Status: implemented
 
 ### 量化基线
 
-仓库 fixture（测试前置数据）让逻辑数据量有了具体依据。对当前 [`goal-multi-turn-actions`](../../../../apps/web/tests/snapshots/goal-multi-turn-actions/session.jsonl) 中的打包行进行解码，可得到 2,098 个事件，其中 2,017 个是分片（96.1%）。这些分片解包后的 JSONL 行共 332,647 字节，占全部事件 379,225 字节的 87.7%；分片打包则把仓库中的已提交文件缩小到 89,176 字节和 182 个存储行，其中包括 23 个打包分片行。[`permission-policy-context`](../../../../apps/web/tests/snapshots/permission-policy-context/session.jsonl) 可得到 813 个事件，其中 746 个是分片（91.8%）；这些分片解包后的 JSONL 行共 118,935 字节，占全部事件 184,821 字节的 64.4%。其打包文件为 84,917 字节，共 123 个存储行，其中包括 14 个打包行。这些是纳入版本控制的确定性 fixture，不代表生产工作负载分布；但它们说明了删除分片为何会降低逻辑数据量，也说明现有打包行布局已经消除了大量 JSON 包装开销。
+仓库 fixture（测试前置数据）让逻辑数据量有了具体依据。对当前 [`goal-multi-turn-actions`](../../../../snapshots/web/goal-multi-turn-actions/session.jsonl) 中的打包行进行解码，可得到 2,098 个事件，其中 2,017 个是分片（96.1%）。这些分片解包后的 JSONL 行共 332,647 字节，占全部事件 379,225 字节的 87.7%；分片打包则把仓库中的已提交文件缩小到 89,176 字节和 182 个存储行，其中包括 23 个打包分片行。[`permission-policy-context`](../../../../snapshots/web/permission-policy-context/session.jsonl) 可得到 813 个事件，其中 746 个是分片（91.8%）；这些分片解包后的 JSONL 行共 118,935 字节，占全部事件 184,821 字节的 64.4%。其打包文件为 84,917 字节，共 123 个存储行，其中包括 14 个打包行。这些是纳入版本控制的确定性 fixture，不代表生产工作负载分布；但它们说明了删除分片为何会降低逻辑数据量，也说明现有打包行布局已经消除了大量 JSON 包装开销。
 
 SQLite 每个逻辑事件存储一行，因此同样的逻辑日志会分别保留 2,098 和 813 个事件行；批处理不会改变这些数量。JSONL 每个持久化追加批次会写入一个 Zstandard 帧并执行一次 fsync，SQLite 每个批次会执行一次事务并递增一次会话修订版本。运行时文件不记录原有追加边界，因此不能把 fixture 的存储行数当作 fsync 或事务次数。
 

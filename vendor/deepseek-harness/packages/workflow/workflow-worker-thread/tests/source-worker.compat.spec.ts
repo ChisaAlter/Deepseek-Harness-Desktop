@@ -21,7 +21,7 @@ it('runs the default config through the source worker', async () => {
   const subagents = await ctx.plugin(SubagentRuntime)
   const provider: SubagentProvider = {
     name: 'spawn',
-    capabilities: { outputSchema: true, depthLimit: true, toolFilter: true, persona: true },
+    capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: true },
     inheritsParentContext: false,
     start: () => Promise.reject(new Error('source-worker compat script must not start a child')),
   }

@@ -24,11 +24,12 @@ The coordinator retires a session from `session/disposed`: it waits for the cont
 
 ### The hook interface (`PersistenceBackend<TornMarker>`)
 
-Five required members plus an optional lifecycle hook form the only boundary between the coordinator and storage:
+Five required members plus optional empty-materialization and lifecycle hooks form the only boundary between the coordinator and storage:
 
 - `name` — backend label for the dispose-failure `AggregateError`.
 - `loadStored(id)` — read one stored prefix by id across every storage scope (every JSONL project directory; SQLite's id is globally unique). Preparation, logical load/inspection, physical suffix reads, live adoption, and the create-collision probe share this lookup. The coordinator asserts the returned id and rejects a stored/live cwd mismatch before repair or state publication.
-- `appendBatch(meta, events, isMaterialized)` — durably append a contiguous batch, lazily materializing the session ATOMICALLY when not yet materialized (the materialize-write and the first event batch must commit together — a crash between them must not leave a materialized-but-empty session; this is why there is no separate `materialize` hook).
+- `appendBatch(meta, events, isMaterialized)` — durably append a contiguous batch, lazily materializing the session ATOMICALLY when not yet materialized. Ordinary creation therefore cannot leave an abandoned materialized-but-empty session.
+- `materializeHeader?(meta)` — explicitly persist a header-only session for `SessionPersistence.ensureMaterialized(session)`. This is reserved for a lifecycle frontend that treats an empty session itself as a resumable durable resource; [standard ACP automation controls](../feature/2026-08-22-standard-acp-automation-controls.md) are the first consumer. Backends that support that lifecycle implement the hook; lazy creation remains the default.
 - `commitRepair(meta, tornMarker, closers)` — make a crash repair durable: truncate the torn tail (iff `tornMarker !== undefined`) and append `closers`. **NOT required to be atomic** — JSONL legitimately truncates-then-appends in two fsync'd steps, SQLite does DELETE+INSERT in one transaction. Used by `prepare`/`load` (truncate + synthetic closers) and live-adoption (truncate only, `closers = []`).
 - `list()` — list all stored metadata.
 - `close?()` — optional lifecycle teardown (SQLite closes its db handle; JSONL omits it), awaited in the dispose effect AFTER the quiescence drain so a close failure never masks a drain error.

@@ -1,0 +1,115 @@
+- dialog "设置":
+  - navigation:
+    - text: 设置
+    - button "通用设置":
+      - img
+      - text: 通用设置
+    - button "外观":
+      - img
+      - text: 外观
+    - button "界面设置":
+      - img
+      - text: 界面设置
+    - button "模型":
+      - img
+      - text: 模型
+    - button "插件":
+      - img
+      - text: 插件
+    - button "技能":
+      - img
+      - text: 技能
+    - button "MCP":
+      - img
+      - text: MCP
+    - button "Agent 预设":
+      - img
+      - text: Agent 预设
+    - button "关于":
+      - img
+      - text: 关于
+  - button "打开配置文件"
+  - button "关闭":
+    - img
+    - text: 关闭
+  - heading "模型" [level=2]
+  - paragraph: 填入各提供方的 API 密钥即可使用其模型。
+  - text: 识图模型
+  - button "识图模型":
+    - text: 不启用
+    - img
+  - paragraph: 主模型不支持图片时，先由该模型识别图片内容，再把描述交给主模型处理。请选择一个支持图片输入的模型。
+  - list:
+    - listitem:
+      - text: minimax-cn
+      - img "API 密钥已配置"
+      - button "编辑 minimax-cn": 编辑
+      - button "删除 minimax-cn": 删除
+    - listitem:
+      - text: Acme Gateway 自定义
+      - button "编辑 Acme Gateway (acme-gateway)": 编辑
+      - button "删除 Acme Gateway (acme-gateway)": 删除
+      - text: Acme Gateway acme-gateway API 密钥
+      - textbox "API 密钥":
+        - /placeholder: 输入 API 密钥，或留空使用环境认证
+      - group:
+        - text: 自定义设置 显示名称
+        - textbox "显示名称":
+          - /placeholder: acme-gateway
+          - text: Acme Gateway
+        - text: API 地址
+        - textbox "API 地址":
+          - /placeholder: https://gateway.acme.example/v1
+          - text: https://gateway.acme.example/v1
+        - text: API 协议
+        - button "API 协议":
+          - text: openai-completions
+          - img
+        - region "模型目录":
+          - text: 模型目录 已自定义模型目录
+          - button "恢复默认模型"
+          - button "获取可用模型"
+          - textbox "模型 ID 1":
+            - /placeholder: 模型 ID
+            - text: acme-large
+          - textbox "显示名称 1":
+            - /placeholder: 显示名称
+          - button "删除模型 1"
+          - group "Supported thinking intensity":
+            - text: Supported thinking intensity
+            - checkbox "Off 1"
+            - text: "Off"
+            - checkbox "Minimal 1"
+            - text: Minimal
+            - checkbox "Low 1"
+            - text: Low
+            - checkbox "Medium 1"
+            - text: Medium
+            - checkbox "High 1"
+            - text: High
+            - checkbox "Extra High 1"
+            - text: Extra High
+            - checkbox "Max 1"
+            - text: Max
+          - group "输入类型":
+            - text: 输入类型
+            - checkbox "文本 1"
+            - text: 文本
+            - checkbox "图像 1"
+            - text: 图像
+            - paragraph: 未设置——继承提供方默认值。
+          - text: 上下文窗口
+          - textbox "上下文窗口 1":
+            - /placeholder: 256K
+          - text: 最大输出 token
+          - textbox "最大输出 token 1":
+            - /placeholder: 32K
+          - button "添加模型"
+      - button "取消"
+      - button "保存"
+  - button "添加提供方":
+    - img
+    - text: 添加提供方
+  - button "添加自定义提供方":
+    - img
+    - text: 添加自定义提供方

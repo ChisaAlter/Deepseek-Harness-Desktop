@@ -24,7 +24,7 @@ import { newEnglishPage, saveFailureShot } from './support.ts'
 
 const MODE = webSnapshotMode()
 const LOAD_MORE_EXPECTED = fileURLToPath(new URL(
-  './snapshots/trajectory-virtualization/load-more.expected.md',
+  './expected/trajectory-virtualization/load-more.expected.md',
   import.meta.url,
 ))
 const SESSION_ID = 'trajectory-virtualization-e2e'
@@ -196,7 +196,7 @@ describe('web e2e: Trajectory virtualization over tail-paged history', () => {
     browser = await chromium.launch()
     page = await newEnglishPage(browser, 900)
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     // The compact layout dropped group session counts; the seeded baseline is
     // the Tasks section once cold summaries load.
@@ -218,12 +218,13 @@ describe('web e2e: Trajectory virtualization over tail-paged history', () => {
     let finishHeldRequest: () => void = () => {}
     const gate = new Promise<void>((resolve) => { releaseHistory = resolve })
     const heldRequestFinished = new Promise<void>((resolve) => { finishHeldRequest = resolve })
-    await page.route('**/api/session.history', async (route) => {
+    await page.route('**/api/session/page', async (route) => {
       const request = route.request().postDataJSON() as {
         method?: string
-        payload?: { beforeSeq?: number }
+        payload?: { args?: { request?: { beforeSeq?: number } } }
       }
-      if (!held && request.method === 'session.history' && request.payload?.beforeSeq !== undefined) {
+      if (!held && request.method === 'session/page'
+        && request.payload?.args?.request?.beforeSeq !== undefined) {
         held = true
         await gate
         try {
@@ -321,7 +322,7 @@ describe('web e2e: Trajectory virtualization over tail-paged history', () => {
         host.scrollTo = trackedScrollTo as typeof host.scrollTo
       })
       const settled = scaffold.whenTurnSettled()
-      const input = page.locator('textarea').first()
+      const input = page.locator('[data-composer-input]').first()
       await input.fill('Stream one deterministic response while Trajectory remains visible.')
       await input.press('Enter')
       await settled
@@ -341,7 +342,7 @@ describe('web e2e: Trajectory virtualization over tail-paged history', () => {
     } finally {
       releaseHistory()
       if (held) await heldRequestFinished
-      await page.unroute('**/api/session.history')
+      await page.unroute('**/api/session/page')
     }
   }, 180_000)
 })

@@ -7,7 +7,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '../src/client/index.ts'
@@ -93,7 +93,9 @@ describe('ui-job invariant companion', () => {
     expect(JobInvariant.name).toBe('client-ui-jobs-invariant')
     expect(JobInvariant.inject).toEqual(['invariants'])
     // Emitting an unrelated event proves the companion installed no audit.
-    expect(() => { (ctx.emit as (event: string) => void)('slots/changed') }).not.toThrow()
+    expect(() => {
+      Reflect.apply(ctx.emit.bind(ctx), undefined, ['unrelated/event'])
+    }).not.toThrow()
     await fiber.dispose()
   })
 })

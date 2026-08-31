@@ -344,7 +344,7 @@ export function apply(ctx: Context, config: Config): void {
     // precedes it and the driver-appended runtime context follows it.
     const lastClaimedIndex = decision.messages.findLastIndex(message => messages.includes(message))
     const entered = decision.messages.toSpliced(lastClaimedIndex + 1, 0, desired)
-    return { kind: 'enter', messages: entered }
+    return { ...decision, messages: entered }
   })
 
   ctx.on('tools/result', (exec: ToolExecution, result: ToolExecutionResult) => {

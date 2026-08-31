@@ -14,16 +14,10 @@ const icons = Object.fromEntries(
   Object.entries(primitives).filter(([name]) => name.startsWith('Icon')),
 ) as Record<string, (p: primitives.IconProps) => React.JSX.Element>
 const iconNames = Object.keys(icons)
-const settingsNavIconNames = [
-  'IconServerOutline16',
-  'IconDeviceOutline16',
-  'IconInfoOutline16',
-  'IconChartOutline16',
-] as const
 
 describe('ic_ds_ icon set', () => {
-  it('exports the full icon set (46 deepsuite + 20 figma extracts + thirteen product glyphs outside those sets)', () => {
-    expect(iconNames.length).toBe(81)
+  it('exports the full icon set (46 deepsuite + 21 figma extracts + four product glyphs outside those sets)', () => {
+    expect(iconNames.length).toBe(71)
   })
 
   it.each(iconNames)('%s renders an svg with currentColor fills and no hardcoded palette', (name) => {
@@ -34,17 +28,6 @@ describe('ic_ds_ icon set', () => {
     const markup = container.innerHTML
     expect(markup).not.toMatch(/#[0-9a-fA-F]{3,8}"/)
     expect(markup).toContain('currentColor')
-  })
-
-  it.each(settingsNavIconNames)('%s uses native 16px filled-path outline geometry', (name) => {
-    const Icon = icons[name]!
-    const { container } = render(<Icon />)
-    const svg = container.querySelector('svg')!
-    expect(svg.getAttribute('viewBox')).toBe('0 0 16 16')
-    expect(svg.getAttribute('fill')).toBe('none')
-    expect(svg.querySelector('[stroke]')).toBeNull()
-    expect(svg.querySelector('[transform]')).toBeNull()
-    expect([...svg.querySelectorAll('path')].every(path => path.getAttribute('fill') === 'currentColor')).toBe(true)
   })
 
   it('size and className props land on the root svg', () => {

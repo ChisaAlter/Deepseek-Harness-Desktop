@@ -295,9 +295,8 @@ describe('hooks-claude-code bridge — SubagentStart / SubagentStop (observe)', 
 
     const adapter = new MockAdapter([])
     const { ctx, hooks } = await harnessWithFiber(dir, adapter)
-    // Drive the observe-only lifecycle events directly (no real child needed — the
-    // bridge just listens). No child agent is registered, so SubagentStart's
-    // child lookup yields undefined and it simply runs the hook.
+    // Drive the observe-only lifecycle events directly. SubagentStart must run
+    // the hook even when no registered child resolves from the notification.
     ctx.emit(subagentCarrier(ctx), 'subagent/start', { runId: SubagentRunId('run-1'), provider: 'inproc', id: SessionId('child-1'), local: false })
     ctx.emit(subagentCarrier(ctx), 'subagent/end', { runId: SubagentRunId('run-1'), provider: 'inproc', id: SessionId('child-1'), local: false, stopReason: 'completed', lastAssistantMessage: [{ type: 'text', text: 'done' }] })
 

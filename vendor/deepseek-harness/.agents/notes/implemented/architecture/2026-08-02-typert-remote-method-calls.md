@@ -154,10 +154,10 @@ Descriptors exist only in the local registry on each side. The wire carries only
 ## Typert runtime registry
 
 ```text
-ctx.typert.local     当前进程自己的 Host 或 Client reflection
-ctx.typert.remotes   消费端显式 mount 的对端 Remote contribution
-ctx.typert.lookups   wire ID 到 Host 对象的 provider 与组合策略
-ctx.typert.contexts  Host Context resolver 与 Client Context binder
+ctx.typert.local     Host or Client reflection for this process
+ctx.typert.remotes   peer Remote contributions explicitly mounted by a consumer
+ctx.typert.lookups   providers and composition policy from wire IDs to Host objects
+ctx.typert.contexts  Host Context resolvers and Client Context binders
 ```
 
 Every registration returns a disposer owned by the caller's Cordis fiber. Client contribution mounting registers the descriptor set and concrete methods as one owned operation. The Host Gateway caches only the set of SRC-owned endpoint names and discards it whenever the Cordis Service set changes; it retains no descriptor, Service, or provider. Invocation resolves all live objects from current state, so removing a strict definition, Service, or provider makes the corresponding call unavailable without leaving a stale live object.

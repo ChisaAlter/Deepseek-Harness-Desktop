@@ -11,7 +11,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SubagentReportDelivery } from '@deepseek-ai/dsh-subagent'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
 export const name = 'tool-subagent-report'
@@ -21,7 +21,7 @@ export const name = 'tool-subagent-report'
 export const inject = ['subagents', 'tools', 'systemPrompt']
 
 /** Guidance order after every per-tool section a continuable child can carry. */
-const REPORT_SECTION_ORDER = 117
+const REPORT_SECTION_ORDER = FIRST_PARTY_SECTION_ORDER.TOOL_REPORT
 
 /** Config: how accepted reports are scheduled on the parent. */
 export interface Config {

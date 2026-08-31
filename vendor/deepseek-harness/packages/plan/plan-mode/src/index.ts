@@ -30,7 +30,7 @@ import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, UserMessage } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { UserQuestionError } from '@deepseek-ai/dsh-user-questions'
 // Type-only edge: resolves `ctx.commands` for the optional command child.
 import type { CommandId } from '@deepseek-ai/dsh-commands'
@@ -242,7 +242,7 @@ export class PlanModeController extends Service {
 
     ctx.systemPrompt.section({
       name: 'plan:policy',
-      order: 50,
+      order: FIRST_PARTY_SECTION_ORDER.PLAN_POLICY,
       text: (context) => {
         if (context.agent === undefined) return ''
         const pending = this.pendingIntents.get(context.agent.session)

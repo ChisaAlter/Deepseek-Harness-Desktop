@@ -1,5 +1,5 @@
 /**
- * Enforced JSON Schema subset shared by tool outputs, generated Code Mode
+ * Enforced JSON Schema subset shared by tool outputs, generated PTC mode
  * types, subagents, and workflows. The subset accepts any JSON root, an
  * annotation-only schema for unconstrained JSON, one scalar `type`, object
  * `properties`/`required`/boolean `additionalProperties`, array `items`,

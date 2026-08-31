@@ -149,6 +149,7 @@ describe('AgentRegistry', () => {
     await agentFiber
     await ctx.plugin(TypertRegistry)
     const agent = stubAgent('remote-agent')
+    Object.defineProperty(agent, 'ctx', { value: agent.ctx.extend({ agent }) })
     const disposeAgent = ctx.agents.register(agent)
 
     const lookup = ctx.typert.lookups.get('agent')
@@ -159,7 +160,10 @@ describe('AgentRegistry', () => {
       wireTypeSymbol: '@deepseek-ai/dsh-session/types#SessionId',
     })
     expect(lookup?.resolve(agent.id)).toBe(agent)
-    expect(ctx.typert.contexts.getHost('agent')?.resolve(agent.id)).toBe(agent.ctx)
+    const context = ctx.typert.contexts.getHost('agent')
+    expect(context?.identity(agent.ctx)).toBe(agent.id)
+    expect(context?.identity(ctx)).toBeUndefined()
+    expect(context?.resolve(agent.id)).toBe(agent.ctx)
 
     disposeAgent()
     expect(lookup?.resolve(agent.id)).toBeUndefined()

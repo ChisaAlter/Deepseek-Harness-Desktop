@@ -679,7 +679,9 @@ describe('Schedule runtime failure and teardown boundaries', () => {
 
     const runFailure = await harness()
     appendAfter(runFailure, 'schedule-1', 1, Date.now() - 1_000)
-    const uuidSpy = vi.spyOn(globalThis.crypto, 'randomUUID').mockImplementation(() => { throw 'message failed' })
+    // The reminder message mints its id through dsh-util-crypto, whose
+    // entropy source is getRandomValues — the failure injection follows it.
+    const uuidSpy = vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(() => { throw 'message failed' })
     const failingRuntime = runtimeFor(runFailure)
     failingRuntime.start()
     for (let index = 0; index < 12; index += 1) await Promise.resolve()
@@ -690,7 +692,7 @@ describe('Schedule runtime failure and teardown boundaries', () => {
 
     const departedRun = await harness()
     appendAfter(departedRun, 'schedule-1', 1, Date.now() - 1_000)
-    const departedUuidSpy = vi.spyOn(globalThis.crypto, 'randomUUID').mockImplementation(() => {
+    const departedUuidSpy = vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(() => {
       departedRun.disposeAgent()
       throw 'message failed after detach'
     })

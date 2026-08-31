@@ -1,10 +1,13 @@
 /** Cordis dynamic-plugin cards, inventory panel, business-view host, and `@pluginId` source. */
 
-import type { ClientContext, ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { InputTriggerService, InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type {} from './events.ts'
 import { CordisActionRow } from './CordisActionRow.tsx'
@@ -33,7 +36,7 @@ export type { CordisKey } from './locales.ts'
 
 /** Required services for the two Tool cards, panel, Remote lifecycle, and Slash source. */
 export const inject = [
-  'slots', 'locale', 'inputTriggers', 'remote', 'remote.dynamicCordisRunner', 'dynamicCordisRunner', 'sessions',
+  'slots', 'locale', 'inputTriggers', 'remote', 'remote.dynamicCordisRunner', 'dynamicCordisRunner',
 ]
 
 /** Mount every Cordis browser surface over the shared Host inventory. */
@@ -142,12 +145,8 @@ export function apply(ctx: ClientContext): void {
     }, CordisActionRow)
   })
 
-  const rowsOf = (sessionId: SessionId, query: string) => {
-    const sessions = ctx.get('sessions') as ISessions | undefined
-    if (sessions?.list.getSnapshot().byId[sessionId]?.agentPreset === 'dshbot-room') return []
-    return inventory.getSnapshot().rows
-      .filter(row => row.agentId === sessionId && String(row.pluginId).includes(query))
-  }
+  const rowsOf = (sessionId: SessionId, query: string) => inventory.getSnapshot().rows
+    .filter(row => row.agentId === sessionId && String(row.pluginId).includes(query))
   const source: InputTriggerSource = {
     trigger: '@',
     name: 'cordis',

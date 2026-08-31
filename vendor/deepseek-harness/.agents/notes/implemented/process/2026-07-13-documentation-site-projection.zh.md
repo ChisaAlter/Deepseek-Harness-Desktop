@@ -16,7 +16,7 @@ Status: implemented
 
 在 VitePress 启动或构建之前，`scripts/project-doc-site.ts` 会把 manifest 投影到被忽略的 `website/.generated/` 目录。生成目录树遵循公开路由，使 VitePress 导航、locale 检测和本地搜索使用同一套路由命名。每个页面都会获得一个指向其权威仓库文件的 `editSource` frontmatter 字段；编辑链接回调只读取该页面的数据，因此公开 URL 与源文件布局彼此独立。
 
-各 locale 的首页投影只保留权威 YAML frontmatter。面向仓库的正文保留其 H1 和双语源文件链接；frontmatter 实现[保持 locale 不变的快速开始重定向](../simplification/2026-08-11-quickstart-documentation-home.zh.md)，网站导航负责切换 locale。
+各 locale 的首页投影只保留权威 YAML frontmatter。面向仓库的正文保留其 H1 和双语源文件链接；frontmatter 实现[保持 locale 不变的快速开始重定向](../../../../docs/user/index.zh.md)，网站导航负责切换 locale。
 
 投影器解析 Markdown 链接，但不会重新序列化文档。指向另一个已发布源文件的链接会变成站内相对路由；指向未发布仓库文件的链接会变成 `deepseek-ai/deepseek-harness` 仓库主页下的源文件链接；仓库图片会被拷贝进生成树并从那里引用（[原因](2026-08-06-doc-site-carries-its-images.zh.md)）。相对目标不存在时，投影会失败。单元测试会锁定这些转换行为，`docs:check` 则运行投影器测试和 VitePress 生产构建，并将二者纳入 `doc-sync` 和并行文档门禁。
 

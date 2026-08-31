@@ -1,9 +1,7 @@
 /**
- * Host transport for the settings-namespace scope contract. The contract types
- * live in `dsh-client-runtime` (the common dependency of every feature that
- * owns a preference); this file owns the per-namespace derivation over the
- * shared {@link SettingsDescribeMirror} and the serialized write path, both of
- * which are Settings-surface concerns. Reads never touch the wire here: the
+ * Host transport for the settings-namespace scope contract. This file owns the
+ * per-namespace derivation over the shared {@link SettingsDescribeMirror} and
+ * the serialized write path. Reads never touch the wire here: the
  * mirror is the one `settings.describe` reader, and every scope is a selector
  * over its snapshot.
  */
@@ -11,12 +9,9 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type {
-  ConnectionHandle, IApiClient, SettingsNamespaceView, SettingsPathOpView,
+  ConnectionHandle, JsonValue, SettingsNamespaceView, SettingsPathOpView,
 } from '@deepseek-ai/dsh-api-remotes/client'
-import {
-  createSnapshotStore, type SettingsScope, type SettingsScopeSnapshot,
-  type SettingsScopeSpec, type SnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 // Type-only, and deliberately NOT `@deepseek-ai/dsh-api-remotes/client`: this
 // package is reachable from the Host build graph through its feature-package
 // callers, and api-remotes' Client face imports a Host-tsdown-generated
@@ -34,9 +29,10 @@ import type {} from '@deepseek-ai/dsh-api-remotes/types'
 // cordis `Events` entry (and with it the branded `SettingsNamespace`).
 import type {} from '@deepseek-ai/dsh-settings/types'
 import type { SettingsSchemaService } from './schema.ts'
-import { SettingsDescribeMirror, type SettingsDescribeFace } from './settings-mirror.ts'
+import type { SettingsScope, SettingsScopeSnapshot, SettingsScopeSpec } from './settings-contract.ts'
+import { SettingsDescribeMirror, type SettingsDescribeFace, type SettingsWireFace } from './settings-mirror.ts'
 
-type SettingsFace = Pick<IApiClient, 'settings'>
+type SettingsFace = SettingsWireFace
 
 /**
  * One namespace's derived view over the shared describe mirror, plus that
@@ -61,7 +57,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @param api - settings wire face (writes only; reads ride the mirror).
    * @param spec - namespace identity and optional narrowing decoder.
    * @param mirror - the shared describe mirror this scope derives from.
-   * @param persistence - remote browsers remain process-local because settings RPCs are loopback-only.
+   * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    * @param schema - settings-owned schema operations.
    */
   constructor(
@@ -108,7 +104,7 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @returns settlement after the write and any latest-write recovery read.
    */
   set(field: string, value: unknown): Promise<void> {
-    return this.write({ op: 'set', path: [field], value })
+    return this.mutate([{ op: 'set', path: [field], value: value as JsonValue }])
   }
 
   /**
@@ -118,34 +114,37 @@ export class SettingsScopeController<T> implements SettingsScope<T> {
    * @returns settlement after the clear and any latest-write recovery read.
    */
   unset(field: string): Promise<void> {
-    return this.write({ op: 'unset', path: [field] })
+    return this.mutate([{ op: 'unset', path: [field] }])
   }
 
-  private write(op: SettingsPathOpView): Promise<void> {
+  /**
+   * Queue one atomic namespace mutation; see {@link SettingsScope.mutate}.
+   * @param ops - ordered field operations copied when queued.
+   * @param expectedRevision - optional fixed revision read by the domain editor.
+   * @returns settlement after the mutation and any latest-write recovery read.
+   */
+  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<void> {
+    const ownedOps = structuredClone(ops) as SettingsPathOpView[]
     const generation = ++this.writeGeneration
     return this.enqueue(async () => {
-      const revision = this.pendingRevision ?? this.getSnapshot().revision
+      const revision = expectedRevision ?? this.pendingRevision ?? this.getSnapshot().revision
       let response: Awaited<ReturnType<SettingsFace['settings']['mutate']>>
       try {
-        response = await this.api.settings.mutate({
-          ns: this.spec.namespace,
-          ops: [op],
-          ...(revision === undefined ? {} : { expectedRevision: revision }),
-        })
+        response = await this.api.settings.mutate(this.spec.namespace, ownedOps, revision)
       } catch (_settingsWriteFailure) {
         await this.recover(generation)
         return
       }
-      if (!response.result.ok) {
+      if (!response.ok) {
         await this.recover(generation)
         return
       }
       if (this.disposed) return
       if (generation === this.writeGeneration) {
         this.pendingRevision = undefined
-        this.mirror.acceptView(response.result.value)
+        this.mirror.acceptView(response.value)
       } else {
-        this.pendingRevision = response.result.value.revision
+        this.pendingRevision = response.value.revision
       }
     })
   }
@@ -239,16 +238,26 @@ declare module '@deepseek-ai/cordis' {
 export class SettingsScopeBinder extends Service {
   private readonly mirror: SettingsDescribeMirror
   private readonly schema: SettingsSchemaService
+  private readonly wire: SettingsWireFace
 
   /**
    * @param ctx - the providing plugin's context.
    * @param config - the shared describe mirror every bound scope derives from,
-   * plus the settings-owned schema operations.
+   * the settings-owned schema operations, and the settings Remote namespace the
+   * bound scopes write through. The namespace is captured here rather than read
+   * inside {@link bind}, because a Service reads `ctx` as its *consumer's*
+   * fiber: reading it there would make every caller declare `remote.settings`
+   * in its own `inject`.
    */
-  constructor(ctx: Context, config: { mirror: SettingsDescribeMirror; schema: SettingsSchemaService }) {
+  constructor(ctx: Context, config: {
+    mirror: SettingsDescribeMirror
+    schema: SettingsSchemaService
+    wire: SettingsWireFace
+  }) {
     super(ctx, 'settingsScope')
     this.mirror = config.mirror
     this.schema = config.schema
+    this.wire = config.wire
   }
 
   /**
@@ -276,7 +285,7 @@ export class SettingsScopeBinder extends Service {
     const ctx = this.ctx
     const connection = ctx.get('connection') as ConnectionHandle
     const controller = new SettingsScopeController<T>(
-      connection.api,
+      this.wire,
       spec,
       this.mirror,
       connection.isLoopback ? 'host' : 'memory',

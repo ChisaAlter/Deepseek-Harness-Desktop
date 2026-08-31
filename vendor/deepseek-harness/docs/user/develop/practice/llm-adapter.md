@@ -54,7 +54,7 @@ export function apply(ctx: Context, config: Config) {
 `stream()` yields chunks using this protocol:
 
 ```ts
-import { CallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
 
 async function* exampleChunks(): AsyncIterable<StreamChunk> {
   // 1. Start each content block with block-start.
@@ -76,7 +76,7 @@ async function* exampleChunks(): AsyncIterable<StreamChunk> {
   yield {
     type: 'tool-call-delta',
     index: 1,
-    id: CallId('call-123'),
+    id: ToolCallId('call-123'),
     name: 'bash',
     argumentsDelta: '{"command":"ls"}',
   }
@@ -85,7 +85,7 @@ async function* exampleChunks(): AsyncIterable<StreamChunk> {
     index: 1,
     block: {
       type: 'tool-call',
-      id: CallId('call-123'),
+      id: ToolCallId('call-123'),
       name: 'bash',
       arguments: '{"command":"ls"}',
     },

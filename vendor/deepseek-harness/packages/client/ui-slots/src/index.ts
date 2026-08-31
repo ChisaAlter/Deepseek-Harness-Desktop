@@ -14,8 +14,10 @@
  * consumer merges keys in and the intersection is what keeps them string-typed.
  * The rule fires on the empty-map view, not on real redundancy. */
 import type { ReactNode } from 'react'
+import type {
+  BoundActions, HandleOf, PropsStore, SnapshotSelectorHook, StoreDecl,
+} from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from './renderer.ts'
-import type { BoundActions, HandleOf, PropsStore, SnapshotSelectorHook, StoreDecl } from './store.ts'
 
 export * from './store.ts'
 export * from './renderer.ts'
@@ -177,28 +179,29 @@ export type ScopeOf<K extends keyof SlotMap & string> = SlotMap[K]['scope']
 
 /**
  * Framework standard kit delivered to every session-scope slot component.
- * Declared EMPTY here (zero-dependency layer): the runtime package merges the
- * real members (`useSession` bound to the conversation snapshot and the
- * framework-supplied `sessionId`) exactly as consumers merge SlotMap keys.
+ * Declared empty here (zero-dependency layer): `ui-session` merges the
+ * Session lifecycle hook, projection hook, and Session identity; domain UI
+ * adapters merge their own standard hooks exactly as consumers merge SlotMap keys.
  */
 export interface SessionStandardProps {}
 
 /**
  * Framework standard kit delivered to current-session-optional slots. Its
  * hooks stay callable while no session is selected and return `undefined`
- * until one becomes current; concrete members merge in at runtime packages.
+ * until one becomes current; `ui-session` and domain UI adapters merge the
+ * concrete members.
  */
 export interface SessionMaybeStandardProps {}
 
 /**
  * Framework standard kit delivered to EVERY slot component (the global seat).
- * Declared empty here; the runtime package merges the global object-layer
- * selector hooks that shared page composition consumes.
+ * Declared empty here; each owning UI adapter merges the global selector hooks
+ * that shared page composition consumes.
  */
 export interface GlobalStandardProps {}
 
 /**
- * The session id type as the runtime's SessionStandardProps merge declares it
+ * The session id type as `ui-session`'s SessionStandardProps merge declares it
  * (branded); falls back to `string` in programs without the merge (this
  * package's own tests).
  */
@@ -233,12 +236,14 @@ export interface RenderOpts<EntryKey extends string = string> {
 export interface ChainRenderOpts {
   /** The owner's fallback body, rendered when every entry's selector declines. */
   fallback?: ReactNode
+  /** Render only the owner fallback without resolving or dispatching the chain's scope. */
+  fallbackOnly?: boolean
   /**
    * Keep the fallback permanently mounted: an election hides it (wrapped,
    * display:none) instead of unmounting it, and the all-decline case shows it
    * as-is — fallback-held state (composer drafts, DOM state) survives a
-   * takeover. Chain kind only. Sole consumer today: the
-   * 'conversation.composer' chain.
+   * takeover. Chain kind only; the sole consumer is the
+   * `conversation.composer` chain.
    */
   overlay?: boolean
 }
@@ -302,25 +307,18 @@ type RenderSlotFn<S extends keyof SlotMap & string> =
 export type MatchedShare<E extends SlotEntryDef, M> =
   E['kind'] extends 'chain' ? { matched: M } : object
 
-/**
- * Conversation-session selector hook alias for props contracts. Wide by
- * default at this dependency-inverted layer; the runtime narrows at its
- * export outlet (`UseSession<ConversationSnapshot>`).
- */
-export type UseSession<Snap extends object = object> = SnapshotSelectorHook<Snap>
-
-/** Props of the standard-kit SessionProvider seat (render-prop form). */
+/** Props of the standard-kit SessionProvider seat. */
 export interface SessionAreaProps {
   /** No-session body (also covers a current id whose session cannot be resolved). */
   empty?: (() => ReactNode) | undefined
-  /** Session body; the framework remounts it per session (key=sessionId). */
-  children: (sessionId: SessionIdOf) => ReactNode
+  /** Session body; the framework remounts it per session identity. */
+  children: ReactNode
 }
 
 /**
- * Framework-wired session area component. It subscribes to runtime-owned
- * session selection and is injected into entries that declare session-scoped
- * children; business code does not import it directly.
+ * Framework-wired session area component. `ui-session` supplies the current
+ * Controller binding through the renderer scope adapter; entries that declare
+ * session-scoped children receive this component without importing it.
  */
 export type SessionProviderComponent = (props: SessionAreaProps) => ReactNode
 

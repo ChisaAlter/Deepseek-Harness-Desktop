@@ -19,8 +19,8 @@ export const inject = ['invariants']
  * the registry fold at its `seq` watermark) is only checkable by re-running the
  * fold over the persisted log — duplicating the implementation rather than
  * detecting drift — and its staleness is by design (fail-soft writes). The
- * durable boundary is already schema-validated by the storage-domain layer
- * on every reopen, and the read ladder's version/watermark guards are proven
+ * durable boundary is schema-validated by the cache's own zod parse on every
+ * read, and the read ladder's version/watermark guards are proven
  * by the package spec.
  */
 const install: InvariantInstaller = () => {}

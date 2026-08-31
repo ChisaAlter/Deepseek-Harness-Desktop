@@ -12,7 +12,7 @@ Status: implemented
 
 选择器行除标题外不折叠任何内容，行内其余信息全部来自元数据：
 
-- 标题来自投影系统：`session-title` 已注册 `title` 投影单元，因此实时行读取注册表快照，持久化行读取持久 checkpoint 行（`sessionProjectionCache.cachedSnapshot`，零 I/O），只有没有可用 checkpoint 的行才付出一次 `coldSnapshot`——checkpoint 加 `readFrom` 尾部折叠，并写回使下次扫描零 I/O。冷读取受 TUI `resumeScanConcurrency` 配置约束。未挂载缓存的组合回退到一次对日志的有界 `readTitleSnapshots` 批量读取；两条路径都把单行失败隔离为禁用的「Unreadable session」回退。
+- 标题来自投影系统：`session-title` 已注册 `title` 投影单元，因此实时行读取注册表快照，持久化行读取持久 checkpoint 行（`sessionProjectionCache.cachedSnapshot`，每会话一次文件读取），只有没有可用 checkpoint 的行才付出一次 `coldSnapshot`——checkpoint 加 `readFrom` 尾部折叠，并写回使下次扫描每会话一次文件读取。冷读取受 TUI `resumeScanConcurrency` 配置约束。未挂载缓存的组合回退到一次对日志的有界 `readTitleSnapshots` 批量读取；两条路径都把单行失败隔离为禁用的「Unreadable session」回退。
 - 活动时间戳从不读取日志：实时会话取内存中最后一个事件的时间；持久化会话对可选 `sessionPersistence.locate()` 命名的产物做 stat（mtime），当后端定位不到按会话的产物（SQLite）或 stat 失败时回退到 header 的创建时间。任何追加都会移动 mtime，因此仅仅一次 pickup 边界也会让浏览过的会话上浮——这是元数据时间戳的代价，予以接受。
 - 行内不再有最后轮次标签、提供方/模型路由和目标阶段列。路由可用性改由 Enter 时的预检强制：预检通过 `readSession` 完整读取并回放验证选中的那一份日志后才移交。
 

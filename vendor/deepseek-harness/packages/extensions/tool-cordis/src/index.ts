@@ -14,7 +14,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FIRST_PARTY_SECTION_ORDER } from '@deepseek-ai/dsh-system-prompt'
 import { missingServices, providedServices } from './inspect.ts'
 import {
   presentDefineCall, presentInspectListCall, presentInspectQueryCall, presentInspectSelfCall, presentRunCall,
@@ -33,7 +33,11 @@ function requireAgent(exec: ToolExecution): Agent {
 
 /** Register the Cordis tools and explicit `@pluginId` context injection. */
 export function apply(ctx: Context): void {
-  ctx.systemPrompt.section({ name: 'tool:cordis', order: 115, text: CORDIS_SYSTEM_PROMPT })
+  ctx.systemPrompt.section({
+    name: 'tool:cordis',
+    order: FIRST_PARTY_SECTION_ORDER.TOOL_CORDIS,
+    text: CORDIS_SYSTEM_PROMPT,
+  })
   for (const provider of hostInspectProviders(ctx)) {
     ctx.effect(() => ctx.cordisInspect.register(provider), `tool-cordis: inspect ${provider.manifest.id}`)
   }
@@ -394,7 +398,7 @@ export function apply(ctx: Context): void {
         source: { kind: 'plugin', plugin: name, form: 'instructions' },
       })
     })
-    return { kind: 'enter', messages: [...decision.messages, ...contexts] }
+    return { ...decision, messages: [...decision.messages, ...contexts] }
   })
 }
 
