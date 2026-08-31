@@ -23,6 +23,8 @@ const SMOKE_BRANCH = 'switch branch|\u5207\u6362\u5206\u652f';
 const SMOKE_GIT = 'git actions|git \u64cd\u4f5c';
 const SMOKE_TERMINAL = 'terminal|\u7ec8\u7aef';
 const SMOKE_ONBOARDING = '^\u7ee7\u7eed$|^Continue$|^\u7a0d\u540e\u914d\u7f6e$|^Configure later$';
+// 0.1.2-alpha.2 concession: sidebar 280 + surfaces min 360 + center min 640.
+const SMOKE_SURFACES_MIN_VIEWPORT = 1280;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,6 +99,32 @@ async function pressEscape(wc) {
   const key = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', ...key });
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+}
+
+/** Packaged smoke often lands at ~1024px, where the pin auto-closes surfaces. */
+async function ensureSurfacesViewport(win, wc) {
+  if (win && !win.isDestroyed()) {
+    win.setSize(1680, 1000);
+    win.center();
+  }
+  let wide = await waitUntil(
+    () => wc.executeJavaScript(`window.innerWidth >= ${SMOKE_SURFACES_MIN_VIEWPORT}`),
+    3_000,
+  );
+  if (!wide && win && !win.isDestroyed()) {
+    win.maximize();
+    wide = await waitUntil(
+      () => wc.executeJavaScript(`window.innerWidth >= ${SMOKE_SURFACES_MIN_VIEWPORT}`),
+      3_000,
+    );
+  }
+  if (wide) {
+    return;
+  }
+  const inner = await wc.executeJavaScript('window.innerWidth').catch(() => 0);
+  throw new Error(
+    `surfaces viewport ${inner}px < ${SMOKE_SURFACES_MIN_VIEWPORT} (sidebar+surfaces+center min)`,
+  );
 }
 
 /** Dismiss rc.7 first-run onboarding so titlebar hit-testing can reach the chrome. */
@@ -634,6 +662,7 @@ function createSmokeRunner(deps) {
       }
       let titlebarHits = { hits: { surfaces: 0, branch: 0, git: 0 }, error: 'not-run' };
       try {
+        await ensureSurfacesViewport(win, wc);
         titlebarHits = await probeTitlebarHits(wc);
       } catch (error) {
         titlebarHits = { hits: { surfaces: 0, branch: 0, git: 0 }, error: String(error) };

@@ -58,3 +58,12 @@ test('QA 驱动仅在 smoke 模块内按需 require', () => {
     assert.ok(smokeSource.includes(`require('.${driver}')`), `smoke 模块应惰性 require ..${driver.slice(1)}`);
   }
 });
+
+test('packaged smoke widens the window before titlebar hits', () => {
+  const helper = smokeSource.indexOf('async function ensureSurfacesViewport');
+  const probeCall = smokeSource.indexOf('titlebarHits = await probeTitlebarHits');
+  const helperCall = smokeSource.indexOf('await ensureSurfacesViewport(win, wc)');
+  assert.ok(helper >= 0, '应定义 ensureSurfacesViewport');
+  assert.ok(helperCall >= 0 && helperCall < probeCall, 'widen 必须在 probeTitlebarHits 之前');
+  assert.ok(smokeSource.includes('SMOKE_SURFACES_MIN_VIEWPORT = 1280'));
+});
