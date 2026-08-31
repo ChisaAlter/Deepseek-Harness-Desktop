@@ -12,6 +12,7 @@ interface ModalBaseProps {
   description?: string
   children?: ReactNode
   footer?: ReactNode
+  headerActions?: ReactNode
   className?: string
   contentClassName?: string
 }
@@ -36,7 +37,7 @@ type ModalProps = ModalBaseProps & (
  * @returns null when closed; otherwise the overlay tree.
  */
 export function Modal({
-  open, onClose, title, closeLabel, description, children, footer, className, contentClassName, headless = false,
+  open, onClose, title, closeLabel, description, children, footer, headerActions, className, contentClassName, headless = false,
 }: ModalProps) {
   useEffect(() => {
     if (!open) return
@@ -65,9 +66,12 @@ export function Modal({
               <div className={clsx(css.content, contentClassName)}>
                 <div className={css.header}>
                   <h2 className={css.title}>{title}</h2>
-                  <button type="button" className={css.close} aria-label={closeLabel} onClick={onClose}>
-                    <IconCloseOutline16 size={14} />
-                  </button>
+                  <div className={css.headerEnd}>
+                    {headerActions}
+                    <button type="button" className={css.close} aria-label={closeLabel} onClick={onClose}>
+                      <IconCloseOutline16 size={14} />
+                    </button>
+                  </div>
                 </div>
                 {description !== undefined && description !== '' && (
                   <p className={css.description}>{description}</p>

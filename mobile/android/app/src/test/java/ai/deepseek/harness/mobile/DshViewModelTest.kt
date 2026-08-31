@@ -65,6 +65,24 @@ class DshViewModelTest {
     }
 
     @Test
+    fun awayPublicSpaQrOpensBundledWebAppNotPublicOrigin() {
+        val store = FakeStore()
+        val vm = DshViewModel(store)
+        val raw = Base64.getUrlEncoder().withoutPadding().encodeToString(
+            """{"v":2,"serverId":"server-away","daemonPublicKeyB64":"daemon-key","relay":{"endpoint":"125.124.85.212:8411","useTls":false}}"""
+                .toByteArray(),
+        )
+        val url = "http://125.124.85.212:3389/dshd/#offer=$raw"
+
+        vm.pair(url)
+
+        assertEquals(Route.Web, vm.route)
+        assertEquals("${DshViewModel.WEB_APP_URL}#offer=$raw", vm.webUrl)
+        assertTrue(!vm.webUrl.contains("125.124.85.212"))
+        assertEquals(DshViewModel.WEB_APP_URL, store.webAppUrl)
+    }
+
+    @Test
     fun viewIntentWithoutOfferShowsAHintAndNeverLeavesAConnectedWebSession() {
         val store = FakeStore()
         val vm = DshViewModel(store)

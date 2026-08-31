@@ -9,12 +9,17 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  assertDesktopHarnessHome, assertSmokeResult, createSmokeDirs, electronSpawnEnv,
+  assertDesktopHarnessHome, createSmokeDirs, electronSpawnEnv,
   initGitWorkspace, reservePort,
 } from './smoke-workspace.mjs'
 
 const require = createRequire(import.meta.url)
-const { assertRemoteGateQaResult } = require('../src/main/remote-gate-qa.js')
+const {
+  assertRemoteGateQaResult,
+  REMOTE_GATE_CASES,
+  REMOTE_GATE_NEG_REM_CASES,
+  REMOTE_GATE_COLD_CASES,
+} = require('../src/main/remote-gate-qa.js')
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const timeoutMs = Number(process.env.DSH_SMOKE_TIMEOUT_MS) || 420_000
@@ -89,8 +94,7 @@ function printStepTable(qa) {
   }
 }
 
-function writeRemoteGateConfig(userData, workspace, port) {
-  // Default off — TC-NEG-001. The walk turns remote on then off for TC-REM-001.
+function writeRemoteGateConfig(userData, workspace, port, { remoteEnabled = false } = {}) {
   writeFileSync(path.join(userData, 'config.json'), JSON.stringify({
     workspace,
     host: '127.0.0.1',
@@ -98,7 +102,7 @@ function writeRemoteGateConfig(userData, workspace, port) {
     closeToTray: false,
     openAtLogin: false,
     openDevTools: false,
-    remoteEnabled: false,
+    remoteEnabled,
     remoteMode: 'lan',
     remoteRelayUrl: '',
     quitAfterStart: true,
@@ -106,50 +110,95 @@ function writeRemoteGateConfig(userData, workspace, port) {
   }, null, 2))
 }
 
-const dirs = createSmokeDirs('dsh-remote-gate-')
+const dirsFull = createSmokeDirs('dsh-remote-gate-')
+const dirsCold = createSmokeDirs('dsh-remote-gate-cold-')
 const keepRequested = process.env.DSH_SMOKE_KEEP === '1'
 let keepArtifacts = keepRequested
 
 try {
   const executable = electronExecutable()
-  initGitWorkspace(dirs.workspace)
-  writeFileSync(path.join(dirs.workspace, 'note.md'), 'remote gate qa\n')
-  const port = await reservePort()
-  writeRemoteGateConfig(dirs.userData, dirs.workspace, port)
+  initGitWorkspace(dirsFull.workspace)
+  writeFileSync(path.join(dirsFull.workspace, 'note.md'), 'remote gate qa\n')
+  initGitWorkspace(dirsCold.workspace)
+  writeFileSync(path.join(dirsCold.workspace, 'note.md'), 'remote gate cold qa\n')
+  const portFull = await reservePort()
+  const portCold = await reservePort()
+  writeRemoteGateConfig(dirsFull.userData, dirsFull.workspace, portFull, { remoteEnabled: false })
+  writeRemoteGateConfig(dirsCold.userData, dirsCold.workspace, portCold, { remoteEnabled: true })
 
   console.log(`Remote gate QA: ${executable}`)
-  console.log(`Config seeds remoteEnabled=false; walk enables LAN then disables. Pairing URL is not opened.`)
-  const outcome = await run(executable, ['.', `--user-data-dir=${dirs.userData}`, '--no-first-run'], electronSpawnEnv({
+  console.log('Boot 1: remoteEnabled=false + DSH_QA_REMOTE=1 (NEG+REM).')
+  const outcomeFull = await run(executable, ['.', `--user-data-dir=${dirsFull.userData}`, '--no-first-run'], electronSpawnEnv({
     DSH_SMOKE: '1',
     DSH_QA_REMOTE: '1',
   }))
-
-  if (!existsSync(dirs.resultPath)) {
+  if (!existsSync(dirsFull.resultPath)) {
     keepArtifacts = true
-    throw new Error(`Remote gate QA wrote no result file (exit ${outcome.code}${outcome.signal ? ` / ${outcome.signal}` : ''}).`)
+    throw new Error(`Remote gate QA wrote no result file (exit ${outcomeFull.code}${outcomeFull.signal ? ` / ${outcomeFull.signal}` : ''}).`)
   }
-  const result = JSON.parse(readFileSync(dirs.resultPath, 'utf8'))
-  assertDesktopHarnessHome(dirs.userData, result)
-  assertSmokeResult(outcome, result)
-  assertRemoteGateQaResult(result.result?.remoteGateQa)
-  printStepTable(result.result?.remoteGateQa)
-  console.log(`Remote gate QA passed. Artifacts: ${dirs.userData}`)
+  const resultFull = JSON.parse(readFileSync(dirsFull.resultPath, 'utf8'))
+  assertDesktopHarnessHome(dirsFull.userData, resultFull)
+  if (outcomeFull.code !== 0 || resultFull.ok !== true) {
+    throw new Error(`Remote gate boot 1 failed: ${JSON.stringify({
+      code: outcomeFull.code,
+      ok: resultFull.ok,
+      remote: resultFull.result?.remoteGateQa,
+      titlebar: resultFull.result?.titlebarHits,
+    })}`)
+  }
+  assertRemoteGateQaResult(resultFull.result?.remoteGateQa, { required: REMOTE_GATE_NEG_REM_CASES })
+
+  console.log('Boot 2: remoteEnabled=true + DSH_QA_REMOTE=cold (no setRemote before open).')
+  const outcomeCold = await run(executable, ['.', `--user-data-dir=${dirsCold.userData}`, '--no-first-run'], electronSpawnEnv({
+    DSH_SMOKE: '1',
+    DSH_QA_REMOTE: 'cold',
+  }))
+  if (!existsSync(dirsCold.resultPath)) {
+    keepArtifacts = true
+    throw new Error(`Remote gate cold QA wrote no result file (exit ${outcomeCold.code}${outcomeCold.signal ? ` / ${outcomeCold.signal}` : ''}).`)
+  }
+  const resultCold = JSON.parse(readFileSync(dirsCold.resultPath, 'utf8'))
+  assertDesktopHarnessHome(dirsCold.userData, resultCold)
+  if (outcomeCold.code !== 0 || resultCold.ok !== true) {
+    throw new Error(`Remote gate boot 2 failed: ${JSON.stringify({
+      code: outcomeCold.code,
+      ok: resultCold.ok,
+      remote: resultCold.result?.remoteGateQa,
+      titlebar: resultCold.result?.titlebarHits,
+    })}`)
+  }
+  assertRemoteGateQaResult(resultCold.result?.remoteGateQa, { required: REMOTE_GATE_COLD_CASES })
+
+  const merged = {
+    ok: true,
+    steps: [
+      ...(resultFull.result?.remoteGateQa?.steps || []),
+      ...(resultCold.result?.remoteGateQa?.steps || []),
+    ],
+  }
+  assertRemoteGateQaResult(merged, { required: REMOTE_GATE_CASES })
+  printStepTable(merged)
+  console.log(`Remote gate QA passed. Artifacts: ${dirsFull.userData} + ${dirsCold.userData}`)
 } catch (error) {
   keepArtifacts = true
   console.error(error instanceof Error ? error.stack || error.message : String(error))
-  if (existsSync(dirs.resultPath)) {
-    try {
-      const result = JSON.parse(readFileSync(dirs.resultPath, 'utf8'))
-      printStepTable(result.result?.remoteGateQa)
-    } catch {
-      // ignore parse errors while reporting the primary failure
+  for (const dirs of [dirsFull, dirsCold]) {
+    if (existsSync(dirs.resultPath)) {
+      try {
+        const result = JSON.parse(readFileSync(dirs.resultPath, 'utf8'))
+        printStepTable(result.result?.remoteGateQa)
+      } catch {
+        // ignore parse errors while reporting the primary failure
+      }
     }
   }
   process.exitCode = 1
 } finally {
-  if (!keepArtifacts) {
-    rmSync(dirs.smokeRoot, { recursive: true, force: true })
-  } else {
-    console.error(`Kept smoke dirs: ${dirs.smokeRoot}`)
+  for (const dirs of [dirsFull, dirsCold]) {
+    if (!keepArtifacts) {
+      rmSync(dirs.smokeRoot, { recursive: true, force: true })
+    } else {
+      console.error(`Kept smoke dirs: ${dirs.smokeRoot}`)
+    }
   }
 }

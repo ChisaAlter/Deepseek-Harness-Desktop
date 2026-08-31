@@ -179,31 +179,185 @@ function buildExtensionsWorld() {
   };
 }
 
-function buildWorld() {
-  const agents = [];
-  for (let index = 1; index <= TOTAL_AGENTS; index += 1) {
-    agents.push(makeAgent(index));
-  }
-  // Subagent under agent-1 (read-only track).
-  agents.splice(1, 0, {
-    ...makeAgent(900),
-    id: 'agent-sub-1',
-    title: '子任务：跑测试',
-    status: 'idle',
-    relation: { kind: 'subagent', parentAgentId: 'agent-1' },
-  });
-  // One archived agent — hidden from the drawer, visible in history.
-  agents.push({
-    ...makeAgent(901),
-    id: 'agent-archived-1',
-    title: '归档的旧会话',
-    archivedAt: '2026-08-20T08:00:00Z',
-  });
+function makeSession(id, title, extra = {}) {
   return {
-    agents,
-    fileTree: buildFileTree(),
-    diff: buildDiffWorld(),
-    extensions: buildExtensionsWorld(),
+    sessionId: id,
+    blank: extra.blank === true,
+    running: extra.running === true,
+    cwd: extra.cwd || '/repo/mobile',
+    origin: extra.origin || '',
+    parentSessionId: extra.parentSessionId || '',
+    projections: { values: { title, permissionPreset: extra.permission || 'workspace-write' } },
+  };
+}
+
+function hostHistoryEvents(beforeSeq) {
+  const max = TIMELINE_SEQ_MAX;
+  const end = Number.isInteger(beforeSeq) ? Math.min(beforeSeq - 1, max) : max;
+  const start = Math.max(1, end - 80);
+  const events = [];
+  for (let seq = start; seq <= end; seq += 1) {
+    if (seq === max - 9) {
+      events.push({ event: { type: 'plan/mode', seq, data: { enabled: true } } });
+      continue;
+    }
+    if (seq === max - 8) {
+      events.push({ event: { type: 'permission/preset', seq, data: { preset: 'workspace-write' } } });
+      continue;
+    }
+    if (seq === max - 7) {
+      events.push({
+        item: {
+          type: 'assistant_message',
+          messageId: `m${seq}`,
+          text: [
+            '# 结果',
+            '看 `app.js` 和 **重点**：',
+            '```js',
+            'const x = 1;',
+            '```',
+            '[文档](https://example.com/doc)',
+            '<img src=x onerror=alert(1)>',
+          ].join('\n'),
+        },
+        seq,
+        seqStart: seq,
+        seqEnd: seq,
+      });
+      continue;
+    }
+    if (seq === max - 6) {
+      events.push({
+        item: {
+          type: 'tool_call',
+          callId: `call-${seq}`,
+          name: 'shell',
+          status: 'completed',
+          detail: { type: 'shell', command: 'npm test', output: 'ok 121 tests' },
+        },
+        seq,
+        seqStart: seq,
+        seqEnd: seq,
+      });
+      continue;
+    }
+    if (seq === max - 5) {
+      events.push({ item: { type: 'reasoning', text: '先看目录结构再动手。' }, seq, seqStart: seq, seqEnd: seq });
+      continue;
+    }
+    if (seq === max - 4) {
+      events.push({
+        item: {
+          type: 'todo',
+          items: [
+            { text: '写测试', completed: true },
+            { text: '跑测试', completed: false },
+          ],
+        },
+        seq,
+        seqStart: seq,
+        seqEnd: seq,
+      });
+      continue;
+    }
+    if (seq === max - 3) {
+      events.push({ item: { type: 'compaction', status: 'completed' }, seq, seqStart: seq, seqEnd: seq });
+      continue;
+    }
+    if (seq === max - 2) {
+      events.push({
+        item: {
+          type: 'turn_changes',
+          changeSummary: '本轮改了 1 个文件',
+          changedFiles: [{ path: 'mobile/web/app.js', additions: 12, deletions: 3 }],
+        },
+        seq,
+        seqStart: seq,
+        seqEnd: seq,
+      });
+      continue;
+    }
+    if (seq === max - 1) {
+      events.push({ item: { type: 'qa_future_kind', payload: {} }, seq, seqStart: seq, seqEnd: seq });
+      continue;
+    }
+    if (seq === max) {
+      events.push({ item: { type: 'error', message: '演示错误行' }, seq, seqStart: seq, seqEnd: seq });
+      continue;
+    }
+    events.push({
+      event: seq % 2 === 0
+        ? {
+          type: 'assistant/message',
+          seq,
+          data: { message: { content: [{ type: 'text', text: `助手第 ${seq} 条` }] } },
+        }
+        : {
+          type: 'user/message',
+          seq,
+          data: {
+            source: { kind: 'user' },
+            content: [{ type: 'text', text: seq === 40 ? 'unique-snippet-needle 工作区路径' : `用户第 ${seq} 条` }],
+          },
+        },
+    });
+  }
+  return { events, hasMore: start > 1, projections: { asOfSeq: end, values: { title: '会话 1' } } };
+}
+
+function buildWorld() {
+  const items = [
+    makeSession('s-1', '会话 1', { running: true }),
+    makeSession('s-sub', '子任务：跑测试', { parentSessionId: 's-1', origin: 'subagent' }),
+    makeSession('s-2', '会话 2'),
+    makeSession('s-3', '会话 3'),
+    { sessionId: 'blank-1', blank: true, running: false, cwd: '/repo/mobile' },
+    makeSession('bot-1', 'bot', { origin: 'dshbot' }),
+    makeSession('s-arch', '归档的旧会话'),
+  ];
+  return {
+    sessions: { items },
+    workspaces: {
+      items: [{
+        workspaceId: 'ws-mobile',
+        title: 'mobile',
+        path: '/repo/mobile',
+        sessionIds: items.map((item) => item.sessionId),
+      }],
+      archivedSessionIds: ['s-arch'],
+    },
+    directories: {
+      '/repo': { path: '/repo', home: '/repo', crumbs: [{ name: 'repo', path: '/repo' }], entries: [{ name: 'mobile', path: '/repo/mobile', hidden: false }, { name: 'new-app', path: '/repo/new-app', hidden: false }], truncated: false },
+      '/repo/mobile': { path: '/repo/mobile', home: '/repo', crumbs: [{ name: 'repo', path: '/repo' }, { name: 'mobile', path: '/repo/mobile' }], entries: [], truncated: false },
+      '/repo/new-app': { path: '/repo/new-app', home: '/repo', crumbs: [{ name: 'repo', path: '/repo' }, { name: 'new-app', path: '/repo/new-app' }], entries: [], truncated: false },
+    },
+    git: {
+      isRepo: true,
+      refName: 'main',
+      hasWorkingTreeChanges: true,
+      hasUpstream: true,
+      aheadCount: 1,
+      behindCount: 0,
+      isDefaultRef: true,
+      hasPrimaryRemote: true,
+      pr: null,
+      branches: [
+        { name: 'main', isCurrent: true, isRemote: false },
+        { name: 'feat', isCurrent: false, isRemote: false },
+      ],
+    },
+    models: {
+      current: { provider: 'dsh', model: 'r3', reasoningEffort: 'high' },
+      groups: [{
+        id: 'dsh',
+        name: 'DeepSeek',
+        models: [
+          { id: 'r3', name: 'DeepSeek R3', reasoning: { efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }] } },
+          { id: 'lite', name: 'Lite' },
+        ],
+      }],
+      failures: [],
+    },
   };
 }
 
@@ -303,6 +457,11 @@ const qa = {
       client._emitStatus({ status, reason });
     }
   },
+  emitMux(frame) {
+    for (const client of this.clients) {
+      for (const listener of client.muxListeners || []) listener(frame);
+    }
+  },
 };
 
 if (typeof window !== 'undefined') {
@@ -319,8 +478,219 @@ function record(method, args) {
   return null;
 }
 
-function findAgent(agentId) {
-  return qa.world.agents.find((agent) => agent.id === agentId) || null;
+function findSession(sessionId) {
+  return qa.world.sessions.items.find((session) => session.sessionId === sessionId) || null;
+}
+
+function findAgent() {
+  return null;
+}
+
+function ok(value) {
+  return { ok: true, value };
+}
+
+function handleHostRpc(method, payload = {}) {
+  const sessions = qa.world.sessions;
+  const workspaces = qa.world.workspaces;
+  if (method === 'host.describe') {
+    return ok({ home: '/repo', scratchCwd: '/tmp' });
+  }
+  if (method === 'host.listDirectory') {
+    const path = payload.path || '/repo';
+    const listed = qa.world.directories[path];
+    if (!listed) throw new Error(`ENOENT: ${path}`);
+    return ok(listed);
+  }
+  if (method === 'host.createDirectory') {
+    const created = `${payload.path}/${payload.name}`;
+    const parent = qa.world.directories[payload.path];
+    qa.world.directories[created] = {
+      path: created,
+      home: '/repo',
+      crumbs: [...(parent?.crumbs || []), { name: payload.name, path: created }],
+      entries: [],
+      truncated: false,
+    };
+    if (parent) parent.entries.push({ name: payload.name, path: created, hidden: false });
+    return ok({ path: created });
+  }
+  if (method === 'session.list') return ok(sessions);
+  if (method === 'workspace.list') return ok(workspaces);
+  if (method === 'session.search') {
+    const query = String(payload.query || '').toLowerCase();
+    const hits = [];
+    if (query.includes('unique-snippet') || query.includes('needle')) {
+      hits.push({ sessionId: 's-1', snippet: 'unique-snippet-needle 工作区路径' });
+    } else {
+      for (const session of sessions.items) {
+        const title = session.projections?.values?.title || '';
+        if (title.toLowerCase().includes(query)) {
+          hits.push({ sessionId: session.sessionId, snippet: title });
+        }
+      }
+    }
+    return ok({ items: hits.slice(0, 20) });
+  }
+  if (method === 'session.history') {
+    if (payload.sessionId === 's-1') return ok(hostHistoryEvents(payload.beforeSeq));
+    return ok({
+      events: [
+        {
+          event: {
+            type: 'user/message',
+            seq: 1,
+            data: { source: { kind: 'user' }, content: [{ type: 'text', text: '你好' }] },
+          },
+        },
+        {
+          event: {
+            type: 'assistant/message',
+            seq: 2,
+            data: { message: { content: [{ type: 'text', text: '助手回复' }] } },
+          },
+        },
+      ],
+      hasMore: false,
+      projections: { values: { title: findSession(payload.sessionId)?.projections?.values?.title || '' } },
+    });
+  }
+  if (method === 'session.create') {
+    const id = `s-new-${qa.calls.length}`;
+    const workspace = workspaces.items.find((item) => item.workspaceId === payload.workspaceId);
+    const session = makeSession(id, '新会话', { cwd: workspace?.path || '' });
+    sessions.items.unshift(session);
+    if (workspace) workspace.sessionIds.unshift(id);
+    return ok({ sessionId: id });
+  }
+  if (method === 'session.rename') {
+    const session = findSession(payload.sessionId);
+    if (!session) throw new Error('session not found');
+    session.projections = session.projections || { values: {} };
+    session.projections.values = { ...session.projections.values, title: payload.title };
+    return ok({ sessionId: payload.sessionId });
+  }
+  if (method === 'session.fork') {
+    const source = findSession(payload.sessionId);
+    const id = `s-fork-${qa.calls.length}`;
+    const copy = makeSession(id, `${source?.projections?.values?.title || '会话'}（fork）`, {
+      cwd: source?.cwd,
+    });
+    sessions.items.unshift(copy);
+    return ok({ sessionId: id });
+  }
+  if (method === 'session.delete') {
+    sessions.items = sessions.items.filter((session) => session.sessionId !== payload.sessionId);
+    workspaces.archivedSessionIds = workspaces.archivedSessionIds.filter((id) => id !== payload.sessionId);
+    return ok({});
+  }
+  if (method === 'session.models') return ok(qa.world.models);
+  if (method === 'session.selectModel') {
+    qa.world.models.current = {
+      provider: payload.provider,
+      model: payload.model,
+      ...(payload.reasoningEffort ? { reasoningEffort: payload.reasoningEffort } : {}),
+    };
+    return ok({ selected: qa.world.models.current });
+  }
+  if (method === 'session.prompt') {
+    const session = findSession(payload.sessionId);
+    if (session) session.running = true;
+    const text = payload.content?.[0]?.text || '';
+    if (text.startsWith('/permission ') && session) {
+      session.projections.values.permissionPreset = text.slice('/permission '.length).trim();
+    }
+    return ok({});
+  }
+  if (method === 'session.cancel') {
+    const session = findSession(payload.sessionId);
+    if (session) session.running = false;
+    return ok({});
+  }
+  if (method === 'session.attachment') return ok({ items: [] });
+  if (method === 'session.updateQueue') return ok({});
+  if (method === 'workspace.create') {
+    const id = `ws-${qa.calls.length}`;
+    workspaces.items.push({
+      workspaceId: id,
+      title: payload.path.split('/').pop() || payload.path,
+      path: payload.path,
+      sessionIds: [],
+    });
+    return ok({ workspaceId: id });
+  }
+  if (method === 'workspace.rename') {
+    const workspace = workspaces.items.find((item) => item.workspaceId === payload.workspaceId);
+    if (workspace) workspace.title = payload.title;
+    return ok({});
+  }
+  if (method === 'workspace.delete') {
+    workspaces.items = workspaces.items.filter((item) => item.workspaceId !== payload.workspaceId);
+    return ok({});
+  }
+  if (method === 'workspace.archiveSession') {
+    if (!workspaces.archivedSessionIds.includes(payload.sessionId)) {
+      workspaces.archivedSessionIds.push(payload.sessionId);
+    }
+    return ok({});
+  }
+  if (method === 'workspace.unarchiveSession') {
+    workspaces.archivedSessionIds = workspaces.archivedSessionIds.filter((id) => id !== payload.sessionId);
+    return ok({});
+  }
+  if (method === 'workspace.insertSessionBefore' || method === 'workspace.insertBefore') {
+    return ok({});
+  }
+  if (method === 'respond') return ok({});
+  if (method === 'agentPreset.list' || method === 'skill.list' || method === 'llm.models' || method === 'llm.providers') {
+    return ok({ items: [] });
+  }
+  if (method === 'subagent.list') return ok({ items: [] });
+  throw new Error(`unsupported host method ${method}`);
+}
+
+function handleGitRpc(action, cwd, payload = {}) {
+  const git = qa.world.git;
+  if (action === 'git-status' || action === 'git-fetch-status') {
+    return ok({ ...git, cwd });
+  }
+  if (action === 'git-branch-list') {
+    return ok({ ok: true, branches: git.branches });
+  }
+  if (action === 'git-init') {
+    git.isRepo = true;
+    git.refName = 'main';
+    return ok({ ok: true });
+  }
+  if (action === 'git-create-branch') {
+    for (const branch of git.branches) branch.isCurrent = false;
+    git.branches.push({ name: payload.name, isCurrent: true, isRemote: false });
+    git.refName = payload.name;
+    return ok({ ok: true });
+  }
+  if (action === 'git-switch-branch') {
+    git.refName = payload.ref;
+    return ok({ ok: true });
+  }
+  if (action === 'git-commit') {
+    git.hasWorkingTreeChanges = false;
+    git.aheadCount += 1;
+    return ok({ ok: true });
+  }
+  if (action === 'git-push') return ok({ ok: true });
+  if (action === 'git-pull') {
+    git.behindCount = 0;
+    return ok({ ok: true });
+  }
+  if (action === 'git-create-change-request') return ok({ ok: true, url: 'https://example.com/pr/1' });
+  if (action === 'git-publish') {
+    git.hasPrimaryRemote = true;
+    git.hasUpstream = true;
+    return ok({ ok: true });
+  }
+  if (action === 'git-pull-request') return ok(git.pr);
+  if (action === 'git-status-entries') return ok({ entries: [] });
+  throw new Error(`unsupported git action ${action}`);
 }
 
 function pagedAgents(list, page) {
@@ -383,11 +753,32 @@ class DaemonClient {
     return () => this.statusListeners.delete(listener);
   }
 
-  async fetchAgents(options) {
-    const failed = record('fetchAgents', [options]);
+  async hostRpc(method, payload) {
+    const failed = record('hostRpc', [method, payload]);
     if (failed) return failed;
-    const active = qa.world.agents.filter((agent) => !agent.archivedAt);
-    return pagedAgents(active, options?.page);
+    const named = record(method, [payload]);
+    if (named) return named;
+    return handleHostRpc(method, payload || {});
+  }
+
+  async gitRpc(action, cwd, payload) {
+    const failed = record('gitRpc', [action, cwd, payload]);
+    if (failed) return failed;
+    const named = record(action, [cwd, payload]);
+    if (named) return named;
+    return handleGitRpc(action, cwd, payload || {});
+  }
+
+  subscribeHostMux(onFrame) {
+    record('subscribeHostMux', []);
+    this.muxListeners = this.muxListeners || new Set();
+    this.muxListeners.add(onFrame);
+    return () => this.muxListeners.delete(onFrame);
+  }
+
+  async fetchAgents(options) {
+    record('fetchAgents', [options]);
+    throw new Error('fetchAgents is not the paired host path');
   }
 
   async fetchAgentHistory(options) {
@@ -518,19 +909,8 @@ class DaemonClient {
   }
 
   async createAgent(options) {
-    const failed = record('createAgent', [options]);
-    if (failed) return failed;
-    const agent = {
-      ...makeAgent(950),
-      id: `agent-new-${qa.calls.length}`,
-      title: '新会话',
-      status: 'idle',
-      cwd: options?.cwd || '',
-      currentModeId: options?.modeId || 'plan',
-      model: options?.model || null,
-    };
-    qa.world.agents.unshift(agent);
-    return agent;
+    record('createAgent', [options]);
+    throw new Error('createAgent is not the paired host path');
   }
 
   async sendAgentMessage(agentId, text, options) {

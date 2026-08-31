@@ -4,6 +4,8 @@
  * so app.js stays a thin UI binder and this file stays unit-testable.
  */
 
+import { historyQuery } from '../host/history.js';
+
 const DRAFT_KEY_PREFIX = 'dsh-chisacode-drafts:';
 
 /**
@@ -53,28 +55,36 @@ function watchConnection(client, handlers = {}) {
 }
 
 /**
- * Authoritative resync after a reconnect: re-fetch the agent directory (with
- * a fresh subscription) and, when a session is open, its timeline tail.
+ * Authoritative resync after a reconnect: re-fetch host session.list +
+ * workspace.list and, when a session is open, session.history.
  * Errors propagate to the caller — a failed resync must be visible, never a
  * silently stale page.
  * @param {object} client DaemonClient
- * @param {{ sessionId?: string, agentLimit?: number, timelineLimit?: number }} options
- * @returns {Promise<{ agents: object, timeline: object | null }>}
+ * @param {{ sessionId?: string }} options
+ * @returns {Promise<{ sessions: object, workspaces: object, history: object | null }>}
  */
-async function resyncAfterReconnect(client, { sessionId = '', agentLimit = 100, timelineLimit = 200 } = {}) {
-  const agents = await client.fetchAgents({
-    page: { limit: agentLimit },
-    subscribe: {},
-  });
-  let timeline = null;
-  if (sessionId) {
-    timeline = await client.fetchAgentTimeline(sessionId, {
-      direction: 'tail',
-      limit: timelineLimit,
-      projection: 'projected',
-    });
+async function resyncAfterReconnect(client, { sessionId = '' } = {}) {
+  if (typeof client?.hostRpc !== 'function') {
+    throw new Error('桌面端未启动');
   }
-  return { agents, timeline };
+  const unwrap = async (method, payload) => {
+    const result = await client.hostRpc(method, payload);
+    if (result && result.ok === false) {
+      const error = result.error;
+      const message = typeof error === 'string' ? error : error?.message;
+      throw new Error(message || method);
+    }
+    return result?.value !== undefined ? result.value : result;
+  };
+  const [sessions, workspaces] = await Promise.all([
+    unwrap('session.list', {}),
+    unwrap('workspace.list', {}),
+  ]);
+  let history = null;
+  if (sessionId) {
+    history = await unwrap('session.history', historyQuery(sessionId));
+  }
+  return { sessions, workspaces, history };
 }
 
 /**

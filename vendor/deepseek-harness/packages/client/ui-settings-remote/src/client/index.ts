@@ -57,6 +57,7 @@ export function apply(ctx: ClientContext): void {
   const popupInjected = (): RemoteSectionInjected => ({
     getRemote: () => shell.getRemote(),
     saveRemote: patch => shell.saveRemote(patch),
+    rotateRemoteToken: () => shell.rotateRemoteToken(),
     unbindRemoteDevice: id => shell.unbindRemoteDevice(id),
   })
 

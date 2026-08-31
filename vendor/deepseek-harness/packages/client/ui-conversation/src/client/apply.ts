@@ -21,6 +21,7 @@ import { ConversationController, UnsupportedImageMediaTypeError } from './servic
 import type { IConversation } from './service.ts'
 import { ComposerBlockRegistry } from './input/blocks.ts'
 import type { ComposerBlock } from './contract/composer-blocks.ts'
+import { ComposerModelCatalogRegistry, ComposerModelFactRegistry } from './input/model-facts.ts'
 import { InputHub } from './input/hub.ts'
 import { ComposerSubmissionPolicy } from './input/submission-policy.ts'
 import { queueDockEntry } from './queue/QueueDock.tsx'
@@ -32,8 +33,13 @@ import { ResizeRow } from './settings/ResizeRow.tsx'
 import type { ResizeRowInjected } from './settings/ResizeRow.tsx'
 import { StatsLineRow } from './settings/StatsLineRow.tsx'
 import type { StatsLineRowInjected } from './settings/StatsLineRow.tsx'
+import { PeakValleySettingsRow } from './settings/PeakValleyRow.tsx'
+import type { PeakValleySettingsRowInjected } from './settings/PeakValleyRow.tsx'
+import { CostSettingsRow } from './settings/CostSettingsRow.tsx'
+import type { CostSettingsRowInjected } from './settings/CostSettingsRow.tsx'
 import { ViewTabsRow } from './settings/ViewTabsRow.tsx'
 import type { ViewTabsRowInjected } from './settings/ViewTabsRow.tsx'
+import { PeakValleyRow, type PeakValleyRowInjected } from './chat/PeakValleyRow.tsx'
 import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
 import { ConversationSession, ConversationSessionHeader } from './skeleton/ConversationSession.tsx'
 import { InputBar } from './skeleton/InputBar.tsx'
@@ -165,6 +171,38 @@ export function apply(ctx: Context): void {
 
   ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
     name: 'settings.interface.item',
+    id: 'official-peak-valley',
+    order: 75, // directly below the session-stats row (70), above view-tabs (80)
+    locale: NS,
+    inject: (): PeakValleySettingsRowInjected => ({
+      hooks: { peakValley: submissionPolicy.officialPeakValley, writable: submissionPolicy.writable },
+      setPeakValley: (value) => { submissionPolicy.setOfficialPeakValley(value) },
+    }),
+  }, PeakValleySettingsRow))
+
+  // The session-cost Interface row: the independent switch sits directly
+  // below the session-stats row; the figure itself also requires a detected
+  // DeepSeek API route, and its price panel lives beside it on the composer
+  // dock.
+  ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
+    name: 'settings.interface.item',
+    id: 'session-cost',
+    order: 72, // directly below the session-stats row (70), above peak/valley (75)
+    locale: NS,
+    inject: (): CostSettingsRowInjected => ({
+      hooks: {
+        sessionCost: submissionPolicy.sessionCost,
+        costPrices: submissionPolicy.sessionCostPrices,
+        writable: submissionPolicy.writable,
+      },
+      setSessionCost: (value) => { submissionPolicy.setSessionCost(value) },
+      setCostPrices: (prices) => { submissionPolicy.setSessionCostPrices(prices) },
+      catalogModels,
+    }),
+  }, CostSettingsRow))
+
+  ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
+    name: 'settings.interface.item',
     id: 'view-tabs',
     order: 80,
     locale: NS,
@@ -208,6 +246,20 @@ export function apply(ctx: Context): void {
 
   const inputHub = new InputHub(ctx, t)
   const composerBlocks = new ComposerBlockRegistry()
+
+  // The model-fact registry: the same push direction publishes the session's
+  // current provider route for composer-dock entries (see model-facts.ts).
+  const composerModelFacts = new ComposerModelFactRegistry()
+  const composerModelCatalog = new ComposerModelCatalogRegistry()
+  // The settings row has no session scope, so its panel merges the models
+  // every resident session directory advertises (duck-typed: the plugin may
+  // be absent). The dock reads its own session's pushed catalog instead.
+  const catalogModels = (): readonly { provider: string; id: string }[] => {
+    const directories = ctx.get('modelDirectories') as unknown as
+      | { catalogModelIds(): readonly { provider: string; id: string }[] }
+      | undefined
+    return directories?.catalogModelIds() ?? []
+  }
 
   // Conversation assembly and input share the Session binding lifecycle. The
   // source roster is installed before any consuming Slot entry.
@@ -397,7 +449,34 @@ export function apply(ctx: Context): void {
     yield registerComposerBar()
   })
 
-  ctx.plugin(ConversationController, { input: inputHub, blocks: composerBlocks })
+  // The official peak/valley status row rides directly below the stats entry
+  // in the same width column. Its DeepSeek trigger reads the per-session
+  // model-fact store; the registry is filled by push from the plugin that
+  // owns the model directory (ui-model-selection), so a route change made in
+  // the composer seat or the /model popup repaints the row immediately.
+  slots.register({
+    name: 'conversation.composer.dock',
+    id: 'peak-valley',
+    order: 1,
+    locale: NS,
+    inject: (sessionId: SessionId): PeakValleyRowInjected => ({
+      hooks: {
+        peakValley: submissionPolicy.officialPeakValley,
+        modelProvider: composerModelFacts.storeFor(sessionId),
+        modelCatalog: composerModelCatalog.storeFor(sessionId),
+        sessionCost: submissionPolicy.sessionCost,
+        costPrices: submissionPolicy.sessionCostPrices,
+      },
+      setCostPrices: (prices) => { submissionPolicy.setSessionCostPrices(prices) },
+    }),
+  }, PeakValleyRow)
+
+  ctx.plugin(ConversationController, {
+    input: inputHub,
+    blocks: composerBlocks,
+    modelFacts: composerModelFacts,
+    modelCatalog: composerModelCatalog,
+  })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)
 }

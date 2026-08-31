@@ -56,6 +56,6 @@ test('parseBranchList drops malformed rows and missing list', () => {
   assert.deepEqual(parseBranchList({}), []);
   assert.deepEqual(
     parseBranchList({ branches: [{ noName: true }, 'x', { name: 'origin/dev', isRemote: true }] }),
-    [{ name: 'origin/dev', isRemote: true, isCurrent: false }],
+    [{ name: 'origin/dev', isRemote: true, isCurrent: false, switchable: true, hint: '' }],
   );
 });

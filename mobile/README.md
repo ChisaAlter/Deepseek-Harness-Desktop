@@ -1,10 +1,10 @@
 # 手机远程
 
-中文 · 扫桌面 **远程** 弹窗里的二维码。浏览器与 Android 都运行 `mobile/web` 的 ChisaCode v2 SPA；Android 原生层只负责扫码、粘贴和安全承载 APK 内置资产。它们都不是官方四栏 `dsh web`。
+中文 · 扫桌面 **远程** 弹窗里的二维码。浏览器与 Android 都运行 `mobile/web` 的 dshd 远程 SPA；Android 原生层只负责扫码、粘贴和安全承载 APK 内置资产。它们都不是官方四栏 `dsh web`。
 
 ## Web
 
-1. 桌面打开远程，选择局域网或外出。桌面总是在本机 `:3180` 提供 SPA；offer 内的中继端点只承载 ChisaCode WebSocket。
+1. 桌面打开远程，选择局域网或外出。桌面总是在本机 `:3180` 提供 SPA；offer 内的中继端点只承载 dshd WebSocket。
 2. 用系统相机扫码，或在 SPA 内用 `BarcodeDetector` + `getUserMedia` 扫码/粘贴完整 `#offer=` URL。
 3. SPA 解析 offer v2 后创建浏览器版 `DaemonClient`，通过中继与桌面 daemon 端到端加密通信。首次配对取得的 `deviceSecret` 保存在该 SPA origin 的 localStorage；没有 hash 的后续启动会 sticky 重连。
 4. 会话列表/时间线/发送/停止/审批，以及手机“新会话”，都直接走 daemon RPC。新会话复用已有 agent 的 `provider`/`cwd`；空目录时从最近工作区与 ready provider 发现默认值。

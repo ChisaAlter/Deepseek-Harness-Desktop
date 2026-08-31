@@ -149,6 +149,9 @@ function finalNode(
   const final = state.final
   if (final?.event.type === 'assistant/message') {
     const event = final.event
+    // The durable model source is the price column's anchor: the cost row
+    // resolves its rate table from the session's last-used model.
+    const source = event.data.message.source
     return {
       kind: 'assistant',
       seq: event.seq,
@@ -163,6 +166,9 @@ function finalNode(
         firstTokenTime: state.firstTokenTime ?? null,
         completedTime: event.time,
       },
+      ...source !== undefined && source.kind === 'model'
+        ? { provenance: { provider: source.provider, model: source.model } }
+        : {},
       ...event.data.interrupted === true ? { interrupted: true } : {},
     }
   }

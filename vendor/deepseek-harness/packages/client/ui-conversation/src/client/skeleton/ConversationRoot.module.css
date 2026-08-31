@@ -49,6 +49,26 @@
   border-bottom: 1px solid transparent;
 }
 
+/* Desktop caption controls: when the surfaces column is closed the trailing
+   cluster's margin clears the caption window controls (--dshd-wco-controls,
+   set by the desktop chrome inject, absent in a plain browser), so its left
+   edge reaches that much deeper into the row than the measured reserve. The
+   published reserve alone left header utilities (header.actions / plugins'
+   header.utilities buttons) painting under Session log and Git. Widen the
+   same reserve by the controls inset — `max(8px, …)` keeps the plain-browser
+   math identical to the pinned baseline above — and only while surfaces is
+   closed, because an open surfaces column pins the cluster's right edge back
+   to a fixed 8px inset over the details column. */
+:global([data-surfaces-collapsed]) .header {
+  padding-right: max(
+    28px,
+    calc(
+      var(--dshd-titlebar-conversation-reserve, 0px)
+      + max(8px, var(--dshd-wco-controls, 8px))
+    )
+  );
+}
+
 @media (max-width: 767px) {
   .header {
     padding-top: max(12px, env(safe-area-inset-top, 0px));

@@ -11814,6 +11814,65 @@ var AgentOutboundMessageSchemas = [
   ListCommandsResponseSchema
 ];
 
+// vendor/chisacode-remote/packages/protocol/dist/dshd-desktop-rpc.js
+var DshdHostRpcRequestSchema = external_exports.object({
+  type: external_exports.literal("dshd.host.rpc.request"),
+  requestId: external_exports.string().min(1),
+  method: external_exports.string().min(1),
+  payload: external_exports.unknown().optional()
+});
+var DshdHostRpcResponseSchema = external_exports.object({
+  type: external_exports.literal("dshd.host.rpc.response"),
+  payload: external_exports.object({
+    requestId: external_exports.string(),
+    ok: external_exports.boolean(),
+    value: external_exports.unknown().optional(),
+    error: external_exports.unknown().optional()
+  })
+});
+var DshdGitRpcRequestSchema = external_exports.object({
+  type: external_exports.literal("dshd.git.rpc.request"),
+  requestId: external_exports.string().min(1),
+  action: external_exports.string().min(1),
+  cwd: external_exports.string(),
+  payload: external_exports.unknown().optional()
+});
+var DshdGitRpcResponseSchema = external_exports.object({
+  type: external_exports.literal("dshd.git.rpc.response"),
+  payload: external_exports.object({
+    requestId: external_exports.string(),
+    ok: external_exports.boolean(),
+    value: external_exports.unknown().optional(),
+    error: external_exports.string().optional()
+  })
+});
+var DshdHostMuxSubscribeSchema = external_exports.object({
+  type: external_exports.literal("dshd.host.mux.subscribe"),
+  requestId: external_exports.string().min(1)
+});
+var DshdHostMuxUnsubscribeSchema = external_exports.object({
+  type: external_exports.literal("dshd.host.mux.unsubscribe"),
+  requestId: external_exports.string().min(1)
+});
+var DshdHostMuxFrameSchema = external_exports.object({
+  type: external_exports.literal("dshd.host.mux.frame"),
+  payload: external_exports.object({
+    rpcId: external_exports.string(),
+    envelope: external_exports.unknown()
+  })
+});
+var DshdInboundMessageSchemas = [
+  DshdHostRpcRequestSchema,
+  DshdGitRpcRequestSchema,
+  DshdHostMuxSubscribeSchema,
+  DshdHostMuxUnsubscribeSchema
+];
+var DshdOutboundMessageSchemas = [
+  DshdHostRpcResponseSchema,
+  DshdGitRpcResponseSchema,
+  DshdHostMuxFrameSchema
+];
+
 // vendor/chisacode-remote/packages/protocol/dist/messages.js
 var AbortRequestMessageSchema = external_exports.object({
   type: external_exports.literal("abort_request")
@@ -11896,7 +11955,8 @@ var SessionInboundMessageSchema = external_exports.discriminatedUnion("type", [
   ...CindyInboundMessageSchemas,
   GenerativeUiActionRequestSchema,
   // COMPAT(generativeUiActionFlatRpc): added in v0.1.101; remove after 2027-01-11 once the client floor is >= v0.1.101.
-  LegacyGenerativeUiActionRequestSchema
+  LegacyGenerativeUiActionRequestSchema,
+  ...DshdInboundMessageSchemas
 ]);
 var ActivityLogPayloadSchema = external_exports.object({
   id: external_exports.string(),
@@ -12117,7 +12177,8 @@ var SessionOutboundMessageSchema = external_exports.discriminatedUnion("type", [
   ...TerminalOutboundMessageSchemas,
   ...AutomationOutboundMessageSchemas,
   ...CindyOutboundMessageSchemas,
-  GenerativeUiActionResponseSchema
+  GenerativeUiActionResponseSchema,
+  ...DshdOutboundMessageSchemas
 ]);
 var WSPingMessageSchema = external_exports.object({
   type: external_exports.literal("ping")
@@ -18204,6 +18265,69 @@ var DaemonClient = class {
   }
   setReconnectEnabled(enabled) {
     this.connection.setReconnectEnabled(enabled);
+  }
+  async hostRpc(method, payload, requestId) {
+    const resolved = this.createRequestId(requestId);
+    const message = SessionInboundMessageSchema.parse({
+      type: "dshd.host.rpc.request",
+      requestId: resolved,
+      method,
+      payload
+    });
+    return this.requests.request({
+      requestId: resolved,
+      message,
+      timeout: 3e4,
+      select: (msg) => {
+        if (msg.type !== "dshd.host.rpc.response")
+          return null;
+        if (msg.payload.requestId !== resolved)
+          return null;
+        return msg.payload;
+      }
+    });
+  }
+  async gitRpc(action, cwd, payload, requestId) {
+    const resolved = this.createRequestId(requestId);
+    const message = SessionInboundMessageSchema.parse({
+      type: "dshd.git.rpc.request",
+      requestId: resolved,
+      action,
+      cwd,
+      payload
+    });
+    return this.requests.request({
+      requestId: resolved,
+      message,
+      timeout: 12e4,
+      select: (msg) => {
+        if (msg.type !== "dshd.git.rpc.response")
+          return null;
+        if (msg.payload.requestId !== resolved)
+          return null;
+        return msg.payload;
+      }
+    });
+  }
+  subscribeHostMux(onFrame) {
+    const requestId = this.createRequestId();
+    this.sendSessionMessage(SessionInboundMessageSchema.parse({
+      type: "dshd.host.mux.subscribe",
+      requestId
+    }));
+    const stop = this.on("dshd.host.mux.frame", (message) => {
+      onFrame({
+        rpcId: message.payload.rpcId,
+        envelope: message.payload.envelope ?? null
+      });
+    });
+    return () => {
+      stop();
+      this.sendSessionMessage(SessionInboundMessageSchema.parse({
+        type: "dshd.host.mux.unsubscribe",
+        requestId: this.createRequestId()
+      }));
+    };
   }
   handleConnectionReset(error, terminal) {
     this.requests.clear(error);

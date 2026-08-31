@@ -1,12 +1,16 @@
 /**
  * Real end-to-end web pairing QA: real daemon child (ChisaCodeRemote), real
- * `:3180` mobile web server, real `generateLocalPairingOffer`, real browser.
+ * `generateLocalPairingOffer`, real browser.
+ *
+ * Away (`remoteMode: 'relay'`): pairing URL is the public nginx SPA
+ * (`DEFAULT_PUBLIC_APP_BASE_URL`, not LAN `:3180`, not relay `:8411`). The
+ * desktop must not bind `:3180` in this mode.
  *
  * Walks the browser-scan product path from the mobile-remote card: open the
  * pairing URL in Chrome → landing shows the entry-split copy → SPA
  * auto-connects through the relay (E2EE) → paired web client. Then the
- * failure face (garbage offer) and teardown (stopDaemon closes `:3180`, the
- * daemon child exits, no port leaks).
+ * failure face (garbage offer on the public SPA) and teardown (daemon child
+ * exits, `:3180` stays down, no port leaks).
  *
  * Usage:
  *   node tools/remote-web-qa/run-e2e.mjs [--screenshots <dir>] [--relay <host:port>]
@@ -22,9 +26,13 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { ChisaCodeRemote } = require('../../src/main/chisacode-remote.js');
+const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../../src/shared/lan.js');
 const puppeteer = require('puppeteer-core');
 
-const CHROME = process.env.CHROME_PATH || '/usr/local/bin/google-chrome';
+const CHROME = process.env.CHROME_PATH
+  || (process.platform === 'win32'
+    ? path.join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe')
+    : '/usr/local/bin/google-chrome');
 const shotArg = process.argv.indexOf('--screenshots');
 const SHOT_DIR = shotArg > -1 ? process.argv[shotArg + 1] : '/tmp/remote-web-e2e';
 const relayArg = process.argv.indexOf('--relay');
@@ -83,13 +91,29 @@ async function main() {
   let browser = null;
   try {
     // -- Desktop side up ----------------------------------------------------
-    await check('daemon 子进程 + :3180 mobile web 启动（真实 startDaemon）', async () => {
+    await check('daemon 子进程启动；外出 pairingUrl 走公网 SPA，不启 :3180', async () => {
       await remote.startDaemon();
       const snap = remote.snapshot();
       assert(snap.listening === true, `listening=${snap.listening}`);
-      assert(snap.urls.length > 0 && /#offer=/.test(snap.urls[0].pairingUrl), 'no pairing url');
-      const res = await fetch('http://127.0.0.1:3180/', { redirect: 'manual' });
-      assert(res.ok, `:3180 status ${res.status}`);
+      const pairingUrl = snap.urls[0]?.pairingUrl || '';
+      assert(/#offer=/.test(pairingUrl), 'no pairing url');
+      const u = new URL(pairingUrl);
+      assert(u.port !== '8411', `QR must not land on relay :8411: ${u.origin}`);
+      assert(u.port !== '3180', `Away QR must not land on LAN :3180: ${u.origin}`);
+      const expected = new URL(DEFAULT_PUBLIC_APP_BASE_URL);
+      assert(u.origin === expected.origin, `SPA origin ${u.origin} !== ${expected.origin}`);
+      assert(u.pathname.replace(/\/$/, '') === expected.pathname.replace(/\/$/, ''), `SPA path ${u.pathname}`);
+      const landing = `${u.origin}${u.pathname.endsWith('/') ? u.pathname : `${u.pathname}/`}`;
+      const res = await fetch(landing, { redirect: 'manual' });
+      assert(res.ok, `public SPA status ${res.status} at ${landing}`);
+      let lanUp = false;
+      try {
+        const lan = await fetch('http://127.0.0.1:3180/', { signal: AbortSignal.timeout(2000) });
+        lanUp = lan.ok;
+      } catch {
+        lanUp = false;
+      }
+      assert(!lanUp, 'Away must keep :3180 closed');
     });
 
     await check('daemon 与中继 control socket 已连接（relayConnected）', async () => {
@@ -102,6 +126,14 @@ async function main() {
 
     const pairingUrl = remote.snapshot().urls[0]?.pairingUrl || '';
     console.log(`[e2e] pairing url: ${pairingUrl.slice(0, 80)}…`);
+
+    await check('pairingUrl 非 loopback（公网 SPA origin，非 secure context）', async () => {
+      const u = new URL(pairingUrl);
+      assert(
+        !['127.0.0.1', 'localhost', '::1'].includes(u.hostname),
+        `loopback origin masks non-secure context bugs: ${u.hostname}`,
+      );
+    });
 
     // -- Browser side -------------------------------------------------------
     browser = await puppeteer.launch({
@@ -163,7 +195,9 @@ async function main() {
     await check('垃圾 offer：可见错误态，不假装配对', async () => {
       const bad = await browser.newPage();
       await bad.setViewport({ width: 414, height: 896 });
-      await bad.goto('http://127.0.0.1:3180/#offer=not-a-real-offer', { waitUntil: 'domcontentloaded' });
+      const spaOrigin = new URL(pairingUrl);
+      const garbageUrl = `${spaOrigin.origin}${spaOrigin.pathname}#offer=not-a-real-offer`;
+      await bad.goto(garbageUrl, { waitUntil: 'domcontentloaded' });
       await waitFor(
         () => bad.evaluate(() => {
           const error = document.getElementById('connect-error');
@@ -182,8 +216,29 @@ async function main() {
       await bad.close();
     });
 
+    await check('无 hash 且无 sticky：停留连接页（微信丢 hash）', async () => {
+      const context = await browser.createBrowserContext();
+      const fresh = await context.newPage();
+      await fresh.setViewport({ width: 414, height: 896 });
+      const spa = new URL(pairingUrl);
+      const landing = `${spa.origin}${spa.pathname.endsWith('/') ? spa.pathname : `${spa.pathname}/`}`;
+      await fresh.goto(landing, { waitUntil: 'domcontentloaded' });
+      await sleep(3_000);
+      const state = await fresh.evaluate(() => ({
+        line: document.getElementById('device-line')?.textContent || '',
+        wechat: (document.body.textContent || '').includes('微信'),
+        connectHidden: document.getElementById('screen-connect')?.classList.contains('hidden') ?? null,
+      }));
+      assert(!/已配对|已重连/.test(state.line), `must not pair without offer or sticky: ${state.line}`);
+      assert(state.wechat, 'WeChat strip warning missing');
+      assert(state.connectHidden === false, 'connect screen should stay visible');
+      await shot(fresh, '04b-wechat-no-hash');
+      await fresh.close();
+      await context.close();
+    });
+
     // -- Teardown / no leaks --------------------------------------------------
-    await check('stopDaemon：子进程退出、:3180 关闭、snapshot 回落', async () => {
+    await check('stopDaemon：子进程退出、:3180 仍关闭、snapshot 回落', async () => {
       const child = remote.daemon.child;
       await remote.stopDaemon();
       assert(child.exitCode !== null || child.signalCode, 'daemon child still running');

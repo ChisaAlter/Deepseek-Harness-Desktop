@@ -1,0 +1,89 @@
+/* Session-cost price settings panel: model pick, three peak-price inputs with
+   per-period idle figures, the official-price switch, and the add-model row. */
+
+/* The default modal card caps at 380px, which clips the three-column rows;
+   the price panel widens and lets the content region scroll as a fallback. */
+.dialogWide {
+  width: min(560px, 100%);
+}
+
+.contentScroll {
+  max-height: min(68vh, 560px);
+  overflow-y: auto;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.label {
+  flex: none;
+  width: 128px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Peak / idle group caption in peak/valley pricing mode. */
+.groupLabel {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.modelSelect {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+}
+
+.priceInput {
+  flex: none;
+  width: 120px;
+}
+
+.hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
+}

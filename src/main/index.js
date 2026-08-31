@@ -7,6 +7,7 @@ const { HarnessController } = require('./harness-controller');
 const { stripDroppedPlugins, healDanglingBundles, ensureDesktopInstallPlugin, applyDisabledBundles } = require('./plugins');
 const { removeDshMarketPreset } = require('./dshmarket-preset');
 const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
+const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin, removeDshbotPreset } = require('./dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
@@ -38,6 +39,8 @@ const {
   getMainWindow,
   showBoot,
   showHarness,
+  onHarnessOriginChange,
+  getHarnessOrigin,
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
@@ -52,12 +55,16 @@ const {
 const { watchSystemTheme } = require('./chrome');
 const { showClosingOverlay } = require('./closing-overlay');
 const { hideOnClose } = require('./close-behavior');
-const { qaFlag } = require('./qa-gate');
+const { qaFlag, qaRemoteMode: readRemoteMode } = require('./qa-gate');
 const { devToolsShortcutAllowed, attachDevToolsShortcut } = require('./devtools-shortcut');
 
 /** Packaged-gated QA flag (see qa-gate.js). */
 function qaEnv(name) {
   return qaFlag(name, { isPackaged: app.isPackaged });
+}
+
+function qaRemoteMode() {
+  return readRemoteMode({ isPackaged: app.isPackaged });
 }
 
 const dsh = new DshManager();
@@ -80,6 +87,8 @@ const remote = new ChisaCodeRemote({
   }),
   safeStorage,
   log: (line) => dsh.log(line, 'app'),
+  getHarnessOrigin,
+  git,
   // Kept for any residual shell helpers that still expect a loopback target.
   getTarget: () => {
     if (dsh.state !== 'ready') {
@@ -99,6 +108,12 @@ const remote = new ChisaCodeRemote({
       saveConfig: (patch) => publicConfig(saveConfig(normalizeRendererConfigPatch(patch || {}))),
     },
   }),
+});
+
+onHarnessOriginChange((origin) => {
+  if (remote && typeof remote.pushHarnessOrigin === 'function') {
+    remote.pushHarnessOrigin(origin);
+  }
 });
 
 async function probeRemoteSnapshot() {
@@ -297,6 +312,7 @@ const harness = new HarnessController({
   ensureDesktopInstallPlugin,
   removeDshMarketPreset,
   ensureUsagePanelPlugin,
+  ensureSessionSearchOverlay,
   ensureDshImPlugin,
   ensureDshbotPlugin,
   removeDshbotPreset,
@@ -469,6 +485,7 @@ if (!gotLock) {
       const { createSmokeRunner } = require('./smoke');
       const smoke = createSmokeRunner({
         qaEnv,
+        qaRemoteMode,
         dsh,
         harness,
         loadConfig,

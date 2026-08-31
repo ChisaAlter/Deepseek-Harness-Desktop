@@ -380,7 +380,7 @@ export function ConversationRoot({
   )
 
   return (
-    <div ref={rootResizeRef} className={css.root} data-phase={phase}>
+    <div ref={rootResizeRef} className={css.root} data-phase={phase} data-conversation-root="">
       {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
       <div className={css.scrollBody} data-conversation-scroll="">
         {sessionId === undefined ? null : renderSlot('conversation.session', {})}

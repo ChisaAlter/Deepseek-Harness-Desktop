@@ -83,45 +83,43 @@ test('watchConnection rejects clients without a status subscription', () => {
   assert.throws(() => watchConnection({}, {}), /不支持连接状态订阅/);
 });
 
-test('resyncAfterReconnect refetches the agent directory and current timeline', async () => {
+test('resyncAfterReconnect refetches host session.list and current history', async () => {
   const calls = [];
   const client = {
-    async fetchAgents(options) {
-      calls.push(['agents', options]);
-      return { entries: [{ agent: { id: 'agent-1' } }] };
-    },
-    async fetchAgentTimeline(agentId, options) {
-      calls.push(['timeline', agentId, options]);
-      return { entries: [{ item: {} }], agent: { id: agentId } };
+    async hostRpc(method, payload) {
+      calls.push([method, payload]);
+      if (method === 'session.list') return { ok: true, value: { items: [{ sessionId: 's1' }] } };
+      if (method === 'workspace.list') return { ok: true, value: { items: [] } };
+      if (method === 'session.history') return { ok: true, value: { events: [], hasMore: false } };
+      return { ok: false, error: method };
     },
   };
 
-  const result = await resyncAfterReconnect(client, { sessionId: 'agent-1' });
-  assert.equal(result.agents.entries.length, 1);
-  assert.equal(result.timeline.agent.id, 'agent-1');
+  const result = await resyncAfterReconnect(client, { sessionId: 's1' });
+  assert.equal(result.sessions.items[0].sessionId, 's1');
+  assert.equal(result.history.hasMore, false);
   assert.deepEqual(calls, [
-    ['agents', { page: { limit: 100 }, subscribe: {} }],
-    ['timeline', 'agent-1', { direction: 'tail', limit: 200, projection: 'projected' }],
+    ['session.list', {}],
+    ['workspace.list', {}],
+    ['session.history', { sessionId: 's1', maxMessages: 50 }],
   ]);
 });
 
-test('resyncAfterReconnect skips the timeline without an open session and propagates errors', async () => {
+test('resyncAfterReconnect skips history without an open session and propagates errors', async () => {
   const result = await resyncAfterReconnect({
-    async fetchAgents() {
-      return { entries: [] };
-    },
-    async fetchAgentTimeline() {
-      throw new Error('must not fetch timeline');
+    async hostRpc(method) {
+      if (method === 'session.history') throw new Error('must not fetch history');
+      return { ok: true, value: { items: [] } };
     },
   });
-  assert.equal(result.timeline, null);
+  assert.equal(result.history, null);
 
   await assert.rejects(
     () => resyncAfterReconnect({
-      async fetchAgents() {
+      async hostRpc() {
         throw new Error('daemon offline');
       },
-    }, { sessionId: 'agent-1' }),
+    }, { sessionId: 's1' }),
     /daemon offline/,
   );
 });

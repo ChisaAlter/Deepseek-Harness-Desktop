@@ -42,7 +42,7 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
         error = ""
         val link = OfferCodec.parsePairingLink(text)
         if (link == null) {
-            error = "无效的配对链接（需要完整的 ChisaCode offer v2 URL）"
+            error = "无效的配对链接（需要完整的 dshd offer URL）"
             route = Route.Connect
             return
         }

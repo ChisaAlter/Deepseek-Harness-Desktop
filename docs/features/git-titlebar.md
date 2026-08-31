@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `git-titlebar` |
 | **status** | `active` |
-| **last verified** | 2026-08-25 — 审查批次 3：首载登记竞态根因修复（主进程 watch `workspace.json` → 推 `shell:git-workspaces-changed` → 标题栏即刻重读状态；含武装间隙补发）；win32 `taskkill` 非零退出回退 `child.kill()`；登记兄弟仓 `gitBranchList` 全链路自动化（TC-WS-006/TC-GIT-001 关键断言的 rehearsal）；禁用行 hint Tooltip 与 `shell:git-branch-list` 抛错接线补测。实机 Electron（Linux/xvfb + CDP）验证：未登记兄弟仓 → 写入登记 → renderer 收到信号 → gitStatus/gitBranchList 即刻授权；`smoke:source` 通过。合并树 `ea659884`（consolidation #39 落地后）：desktop `npm test` 997/0/3 绿（git 链单测在内）+ `qa:source` titlebar/branchMenu/gitMenu/commit 步骤 PASS。实机 Windows 仍未覆盖（验证手册见 [合并收口计划 Phase 5](../superpowers/plans/2026-08-25-post-consolidation-closeout.md)） |
+| **last verified** | 2026-08-31 — `gitPush` 成功或 skip 后补齐 `refs/remotes/<primary>/HEAD`（先 `set-head --auto`，否则刚推的分支），非 main 首发仓 `isDefaultRef` 为真，胶囊走 Commit & push。此前 2026-08-25 — 审查批次 3：首载登记竞态根因修复（主进程 watch `workspace.json` → 推 `shell:git-workspaces-changed` → 标题栏即刻重读状态；含武装间隙补发）；win32 `taskkill` 非零退出回退 `child.kill()`；登记兄弟仓 `gitBranchList` 全链路自动化（TC-WS-006/TC-GIT-001 关键断言的 rehearsal）；禁用行 hint Tooltip 与 `shell:git-branch-list` 抛错接线补测。实机 Electron（Linux/xvfb + CDP）验证：未登记兄弟仓 → 写入登记 → renderer 收到信号 → gitStatus/gitBranchList 即刻授权；`smoke:source` 通过。合并树 `ea659884`（consolidation #39 落地后）：desktop `npm test` 997/0/3 绿（git 链单测在内）+ `qa:source` titlebar/branchMenu/gitMenu/commit 步骤 PASS。实机 Windows 仍未覆盖（验证手册见 [合并收口计划 Phase 5](../superpowers/plans/2026-08-25-post-consolidation-closeout.md)） |
 
 ## User paths
 
@@ -26,6 +26,7 @@
 - Windows 上 git 子进程超时/输出超量必须 `taskkill /PID /T /F` 杀整棵进程树（hooks/ssh 不残留），POSIX 保持 `child.kill()`；taskkill 缺失、spawn 失败或**非零退出**（如拒绝访问）时回退 `child.kill()`，git 直接子进程不得存活持锁；实机 Windows 验证仍缺。
 - 首载不留空窗：harness 异步写 `workspace.json` 完成后，主进程 watcher（`git-workspace-watch.js`，watch `storages/` 目录、防抖、目录缺失重试；武装成功时若注册文件已存在则补发一次信号，覆盖「目录创建 + 首次登记都落在重试间隙」的漏窗）推送 `shell:git-workspaces-changed`，标题栏订阅后立即重读状态，不依赖窗口重新聚焦兜底。
 - 已知权衡（信任粒度）：通过过滤的登记根对 Git/FS/PTY 全量生效，不做逐操作确认；边界是「登记只来自用户主动打开的工作区」加上盘符根与高危祖先过滤。
+- `gitPush`（含 skip）在 `refs/remotes/<primary>/HEAD` 缺失或悬空时补上：先 `git remote set-head <primary> --auto`，失败则指向刚推的分支。这样首发非 `main`/`master` 的仓 `isDefaultRef` 为真，Commit & push 而不是误走 Commit, push & PR。不把 push 失败画成 set-head 失败。
 - 官方 `dsh web` 标题栏 Git 视觉；不另做皮肤。
 
 ## Allowed touch

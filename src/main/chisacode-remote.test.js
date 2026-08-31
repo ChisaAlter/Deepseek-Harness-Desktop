@@ -73,15 +73,33 @@ test('defaults bake in desktop Away relay from lan.js constants (packaged path)'
   assert.equal(defaults.relayUseTls, DEFAULT_RELAY_USE_TLS);
 });
 
-test('pairingAppBaseUrl is LAN :3180 never the relay host', () => {
+test('pairingAppBaseUrl in LAN mode is :3180 never the relay host', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   const remote = new ChisaCodeRemote({
-    getConfig: () => ({ remoteEnabled: false, remoteBindAddress: '127.0.0.1' }),
+    getConfig: () => ({ remoteEnabled: false, remoteMode: 'lan', remoteBindAddress: '127.0.0.1' }),
     getHomeDir: () => home,
   });
   const base = remote.pairingAppBaseUrl();
   assert.match(base, /^http:\/\/.+:3180$/);
   assert.doesNotMatch(base, /125\.124\.85\.212/);
+});
+
+test('pairingAppBaseUrl in away mode is the public SPA path not LAN or :8411', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true, remoteMode: 'relay' }),
+    getHomeDir: () => home,
+  });
+  const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../shared/lan');
+  assert.equal(remote.pairingAppBaseUrl(), DEFAULT_PUBLIC_APP_BASE_URL);
+  assert.doesNotMatch(remote.pairingAppBaseUrl(), /:3180|:8411|192\.168\.|10\./);
+});
+
+test('runtimeConfigKey changes when remoteMode or public app base changes', () => {
+  const remote = new ChisaCodeRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
+  const lan = remote.runtimeConfigKey({ remoteMode: 'lan', remoteRelayEndpoint: '125.124.85.212:8411' });
+  const away = remote.runtimeConfigKey({ remoteMode: 'relay', remoteRelayEndpoint: '125.124.85.212:8411' });
+  assert.notEqual(lan, away);
 });
 
 test('relayStatusFromLogRecord flips on relay_control_connected / relay_error', () => {
@@ -97,6 +115,16 @@ test('relayStatusFromLogRecord flips on relay_control_connected / relay_error', 
   assert.deepEqual(
     relayStatusFromLogRecord({ level: 30, msg: 'relay_control_disconnected' }),
     { connected: false, lastError: 'relay_control_disconnected' },
+  );
+  const http503 = relayStatusFromLogRecord({
+    level: 40,
+    msg: 'relay_error',
+    err: { message: 'Unexpected server response: 503' },
+  });
+  assert.deepEqual(http503, { connected: false, lastError: 'Unexpected server response: 503' });
+  assert.deepEqual(
+    relayStatusFromLogRecord({ level: 40, msg: 'relay_control_disconnected', reason: '' }, http503),
+    { connected: false, lastError: 'Unexpected server response: 503' },
   );
   assert.equal(relayStatusFromLogRecord({ msg: 'request_completed' }), null);
   assert.equal(relayStatusFromLogRecord(null), null);
@@ -163,6 +191,119 @@ test('refreshPairing passes LAN appBaseUrl and includeQr false', async () => {
   assert.match(calls[0].appBaseUrl, /:3180$/);
   assert.doesNotMatch(calls[0].appBaseUrl, /125\.124\.85\.212/);
   assert.equal(calls[0].relayUseTls, false);
+});
+
+test('refreshPairing in away mode passes public SPA appBaseUrl', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  const calls = [];
+  const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../shared/lan');
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({
+      remoteEnabled: true,
+      remoteMode: 'relay',
+      remoteRelayEndpoint: '125.124.85.212:8411',
+    }),
+    getHomeDir: () => home,
+  });
+  remote.serverApi = {
+    async generateLocalPairingOffer(args) {
+      calls.push(args);
+      return { relayEnabled: true, url: `${args.appBaseUrl}/#offer=x`, qr: null };
+    },
+  };
+  await remote.refreshPairing();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].appBaseUrl, DEFAULT_PUBLIC_APP_BASE_URL);
+  assert.doesNotMatch(calls[0].appBaseUrl, /:3180|:8411/);
+});
+
+test('ensurePairing mints when daemon up and url empty', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.pairing = { relayEnabled: false, url: null, qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=x', qr: null };
+    remote.pairingEnsureBlocked = false;
+    return remote.pairing;
+  };
+  const snap = await remote.ensurePairing();
+  assert.equal(refreshCalls, 1);
+  assert.equal(snap.urls[0].pairingUrl, 'http://10.0.0.4:3180/#offer=x');
+});
+
+test('ensurePairing no-ops when url present', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=y', qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    return remote.pairing;
+  };
+  await remote.ensurePairing();
+  assert.equal(refreshCalls, 0);
+});
+
+test('ensurePairing suppresses after failure until rotateToken clears it', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.pairing = { relayEnabled: false, url: null, qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    if (refreshCalls === 1) throw new Error('mint failed');
+    remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=z', qr: null };
+    remote.pairingEnsureBlocked = false;
+    return remote.pairing;
+  };
+  await remote.ensurePairing();
+  assert.equal(refreshCalls, 1);
+  assert.equal(remote.pairingEnsureBlocked, true);
+  await remote.ensurePairing();
+  assert.equal(refreshCalls, 1);
+  await remote.rotateToken();
+  assert.equal(refreshCalls, 2);
+  assert.equal(remote.pairingEnsureBlocked, false);
+  assert.ok(remote.snapshot().urls[0].pairingUrl.includes('#offer=z'));
+});
+
+test('ensurePairing unblocks after sync succeeds', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
+  let refreshCalls = 0;
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => home,
+  });
+  remote.daemon = { child: { pid: 1 } };
+  remote.runtimeKey = remote.runtimeConfigKey(remote.getConfig() || {});
+  remote.pairing = { relayEnabled: false, url: null, qr: null };
+  remote.refreshPairing = async () => {
+    refreshCalls += 1;
+    if (refreshCalls === 1) throw new Error('mint failed');
+    remote.pairing = { relayEnabled: true, url: 'http://10.0.0.4:3180/#offer=sync', qr: null };
+    remote.pairingEnsureBlocked = false;
+    return remote.pairing;
+  };
+  await remote.ensurePairing();
+  assert.equal(remote.pairingEnsureBlocked, true);
+  await remote.sync();
+  assert.equal(refreshCalls, 2);
+  assert.equal(remote.pairingEnsureBlocked, false);
+  assert.ok(remote.snapshot().urls[0].pairingUrl.includes('#offer=sync'));
 });
 
 // ---------------------------------------------------------------------------
@@ -279,6 +420,7 @@ test('daemon child relay log lines drive snapshot relay state across the process
     'emit({ msg: "dshd_daemon_ready", listen: launch.daemonConfig.listen });',
     'setTimeout(() => emit({ level: 30, msg: "relay_control_connected" }), 30);',
     'setTimeout(() => emit({ level: 40, msg: "relay_error", err: { message: "Unexpected server response: 401" } }), 60);',
+    'setTimeout(() => emit({ level: 40, msg: "relay_control_disconnected" }), 90);',
   ].join('\n');
   const f = fakeRemote({ home, runnerBody: relayBody });
   const states = [];
@@ -290,6 +432,7 @@ test('daemon child relay log lines drive snapshot relay state across the process
   const last = states[states.length - 1];
   assert.equal(last.connected, false);
   assert.match(last.err, /401/);
+  assert.doesNotMatch(last.err, /relay_control_disconnected/);
   await f.remote.stopDaemon();
 });
 
@@ -406,7 +549,7 @@ test('loadServerApi exposes createChisaCodeDaemon + generateLocalPairingOffer', 
 });
 
 test('loadServerApi fails loud with the vendor-build hint when dist is absent', { skip: VENDOR_BUILT ? 'dist 已构建，缺失路径不可达' : false }, async () => {
-  await assert.rejects(loadServerApi(), /ChisaCode server export missing/);
+  await assert.rejects(loadServerApi(), /dshd remote runtime missing/);
 });
 
 function fakeHarnessRoot(builtPackages, unbuiltPackages = []) {
@@ -517,6 +660,20 @@ test('buildDaemonChildEnv bridges CHISACODE_* into the child only and applies th
   });
   assert.equal(win.Path, `C:\\home\\bin${path.delimiter}C:\\Windows`);
   assert.equal(win.PATH, undefined);
+  const bridged = buildDaemonChildEnv({
+    baseEnv: {},
+    home: '/data/chisacode-home',
+    vendorDir: null,
+    shimDir: null,
+    config: {},
+    harnessOrigin: 'http://127.0.0.1:3080',
+    gitTunnelUrl: 'http://127.0.0.1:9',
+    gitTunnelToken: 'tok',
+  });
+  assert.equal(bridged.DSHD_HARNESS_ORIGIN, 'http://127.0.0.1:3080');
+  assert.equal(bridged.DSHD_GIT_TUNNEL_URL, 'http://127.0.0.1:9');
+  assert.equal(bridged.DSHD_GIT_TUNNEL_TOKEN, 'tok');
+  assert.equal(bridged.DSH_HOME, undefined);
 });
 
 test('ensureDshAcpShim materializes PATH shims only when the bundled ACP entry is built', () => {

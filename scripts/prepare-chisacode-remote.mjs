@@ -11,11 +11,12 @@ const serverExport = path.join(vendor, 'packages', 'server', 'dist', 'server', '
 const mobileBundle = path.join(root, 'mobile', 'web', 'chisacode', 'daemon-client.bundle.js');
 const runtimeRoot = path.join(vendor, '.tmp', 'desktop-runtime');
 
-function run(command, args, cwd) {
+function run(command, args, cwd, { shell = process.platform === 'win32' } = {}) {
+  // Absolute node paths with spaces break under shell:true on Windows.
   const result = spawnSync(command, args, {
     cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    shell,
   });
   if (result.status !== 0) {
     process.exit(result.status || 1);
@@ -61,7 +62,7 @@ const mobileSourceMtime = Math.max(
 const mobileBuildMtime = fs.existsSync(mobileBundle) ? fs.statSync(mobileBundle).mtimeMs : 0;
 if (force || mobileSourceMtime > mobileBuildMtime) {
   console.log('[chisacode] bundling browser DaemonClient');
-  run(process.execPath, ['scripts/bundle-chisacode-mobile-client.mjs'], root);
+  run(process.execPath, ['scripts/bundle-chisacode-mobile-client.mjs'], root, { shell: false });
 }
 
 if (buildRuntime) {

@@ -77,12 +77,17 @@ const pressureSchema: z.ZodType<ContextPressureProjection> = z.object({
 const pressureFrom = (usage: TokenUsage): number =>
   usage.inputTokens + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
 
-/** The usage a chunk or finalized message reports for its step, if any. */
-const usageOf = (event: SessionEvent): TokenUsage | undefined =>
+/**
+ * The usage a chunk or finalized message reports for its step, if any, with
+ * the step identity. Shared by the billed-usage fold.
+ */
+export const usageSampleOf = (
+  event: SessionEvent,
+): { turn: number; step: number; usage: TokenUsage } | undefined =>
   event.type === 'assistant/chunk' && event.data.chunk.type === 'usage'
-    ? event.data.chunk.usage
-    : event.type === 'assistant/message'
-      ? event.data.usage
+    ? { turn: event.data.turn, step: event.data.step, usage: event.data.chunk.usage }
+    : event.type === 'assistant/message' && event.data.usage !== undefined
+      ? { turn: event.data.turn, step: event.data.step, usage: event.data.usage }
       : undefined
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
@@ -128,17 +133,9 @@ export const tokenUsageProjectionDefinition = {
         ? { ...state, last: null }
         : state
     }
-    let turn: number
-    let step: number
-    let usage: TokenUsage
-    if (event.type === 'assistant/chunk' && event.data.chunk.type === 'usage') {
-      ;({ turn, step } = event.data)
-      usage = event.data.chunk.usage
-    } else if (event.type === 'assistant/message' && event.data.usage !== undefined) {
-      ;({ turn, step, usage } = event.data)
-    } else {
-      return state
-    }
+    const sample = usageSampleOf(event)
+    if (sample === undefined) return state
+    const { turn, step, usage } = sample
 
     const buckets = bucketsFrom(usage)
     const previous = state.last !== null
@@ -196,7 +193,7 @@ export const contextPressureProjectionDefinition = {
         }
       }
     }
-    const usage = usageOf(event)
+    const usage = usageSampleOf(event)?.usage
     if (usage !== undefined) {
       const pressureTokens = pressureFrom(usage)
       if (pressureTokens !== next.pressureTokens || next.sampledSurfaceTokens !== next.surfaceTokens) {

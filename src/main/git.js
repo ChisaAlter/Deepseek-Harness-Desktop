@@ -561,6 +561,38 @@ async function gitReadPullRequest(cwd) {
   return ok({ pr: looked.pr });
 }
 
+async function ensurePrimaryRemoteHead(root, fallbackBranch) {
+  try {
+    const primary = await resolvePrimaryRemoteName(root);
+    if (!primary) return;
+    const headRef = `refs/remotes/${primary}/HEAD`;
+    const existing = await runGit(root, ['symbolic-ref', '--quiet', headRef]);
+    if (existing.code === 0) {
+      const target = existing.stdout.trim();
+      if (target) {
+        const hasTarget = await runGit(root, ['show-ref', '--verify', '--quiet', target]);
+        if (hasTarget.code === 0) return;
+      }
+    }
+    const auto = await runGit(root, ['remote', 'set-head', primary, '--auto']);
+    if (auto.code === 0) {
+      const after = await runGit(root, ['symbolic-ref', '--quiet', headRef]);
+      if (after.code === 0) {
+        const target = after.stdout.trim();
+        if (target) {
+          const hasTarget = await runGit(root, ['show-ref', '--verify', '--quiet', target]);
+          if (hasTarget.code === 0) return;
+        }
+      }
+    }
+    const name = typeof fallbackBranch === 'string' ? fallbackBranch.trim() : '';
+    if (!name) return;
+    await runGit(root, ['remote', 'set-head', primary, name]);
+  } catch {
+    // Best-effort: missing origin/HEAD only affects default-ref CTA, not the push.
+  }
+}
+
 async function gitPush(cwd, onProgress) {
   const emit = typeof onProgress === 'function' ? onProgress : () => {};
   emit({ kind: 'phase', title: 'Pushing...' });
@@ -569,17 +601,21 @@ async function gitPush(cwd, onProgress) {
   await fetchForStatus(root);
   const status = await gitStatus(cwd);
   if (!status?.refName) return fail('Cannot push from detached HEAD.');
+  const done = async (result) => {
+    if (result.ok) await ensurePrimaryRemoteHead(root, status.refName);
+    return result;
+  };
   const hasNoLocalDelta = status.aheadCount === 0 && status.behindCount === 0;
   if (hasNoLocalDelta && !status.aheadUnreliable) {
     if (status.hasUpstream) {
-      return ok({ skipped: true, status: 'skipped', branch: status.refName });
+      return done(ok({ skipped: true, status: 'skipped', branch: status.refName }));
     }
     // No-upstream skip uses resolveBaseBranchForNoUpstream (gh-merge-base included).
     const comparableBase = await resolveBaseBranchForNoUpstream(root, status.refName);
     if (comparableBase) {
       const remote = await resolvePushRemoteName(root, status.refName);
       if (!remote) {
-        return ok({ skipped: true, status: 'skipped', branch: status.refName });
+        return done(ok({ skipped: true, status: 'skipped', branch: status.refName }));
       }
       const remoteRef = await runGit(root, [
         'show-ref',
@@ -588,7 +624,7 @@ async function gitPush(cwd, onProgress) {
         `refs/remotes/${remote}/${status.refName}`,
       ]);
       if (remoteRef.code === 0) {
-        return ok({ skipped: true, status: 'skipped', branch: status.refName });
+        return done(ok({ skipped: true, status: 'skipped', branch: status.refName }));
       }
     }
   }
@@ -611,12 +647,12 @@ async function gitPush(cwd, onProgress) {
   if (pushed.missing) return fail('Git is unavailable.');
   if (pushed.timedOut) return fail('Git command timed out.');
   if (pushed.code !== 0) return fail(gitFailureMessage(pushed, 'git push failed.'));
-  return ok({
+  return done(ok({
     status: 'pushed',
     branch: status.refName,
     upstreamBranch,
     commitSha: await readHeadSha(root),
-  });
+  }));
 }
 
 async function gitPull(cwd, onProgress) {

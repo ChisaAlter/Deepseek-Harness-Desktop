@@ -69,10 +69,10 @@ button { cursor: pointer; }
   color: var(--dsw-alias-label-tertiary);
 }
 .saved-row {
-  display: flex; align-items: stretch; gap: 6px;
+  display: flex; align-items: stretch; gap: 8px;
 }
 .saved-open {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;
   padding: 8px 12px; text-align: left;
   border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
   background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary);
@@ -197,9 +197,9 @@ button { cursor: pointer; }
 .composer textarea::placeholder { color: var(--dsw-alias-label-caption); }
 .composer-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 2px 8px 6px; gap: 8px;
+  padding: 4px 8px 8px; gap: 8px;
 }
-.composer-side { display: flex; align-items: center; gap: 2px; }
+.composer-side { display: flex; align-items: center; gap: 8px; }
 .send {
   display: grid; place-items: center;
   width: 34px; height: 34px; border: 0; border-radius: 999px;
@@ -214,7 +214,7 @@ button { cursor: pointer; }
 }
 .send.stop:hover { background: var(--dsw-alias-button-primary-hover); }
 .chip {
-  display: inline-flex; align-items: center; gap: 2px;
+  display: inline-flex; align-items: center; gap: 4px;
   height: 28px; padding: 0 8px; border: 0; border-radius: 8px;
   background: transparent; color: var(--dsw-alias-label-secondary);
   font-size: 13px; line-height: 20px; font-weight: 500;
@@ -569,7 +569,7 @@ button { cursor: pointer; }
 .section-gap { display: flex; flex-direction: column; gap: 12px; }
 
 /* —— Phase 1：会话行操作 / 分页 / 时间线富渲染 / 斜杠命令 —— */
-.session-row { display: flex; align-items: center; gap: 2px; }
+.session-row { display: flex; align-items: center; gap: 4px; }
 .session-row .session { flex: 1; min-width: 0; }
 .session-row.session-child { padding-left: 18px; }
 .session-more {

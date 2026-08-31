@@ -4,13 +4,24 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { qaDriversAllowed, qaFlag } = require('./qa-gate');
+const { qaDriversAllowed, qaFlag, qaRemoteMode } = require('./qa-gate');
 
 test('source runs honor QA flags without an extra switch', () => {
   assert.equal(qaDriversAllowed({ isPackaged: false, env: {} }), true);
   assert.equal(qaFlag('DSH_QA', { isPackaged: false, env: { DSH_QA: '1' } }), true);
   assert.equal(qaFlag('DSH_QA', { isPackaged: false, env: {} }), false);
   assert.equal(qaFlag('DSH_QA', { isPackaged: false, env: { DSH_QA: 'yes' } }), false);
+});
+
+test('qaRemoteMode accepts 1 and cold, never a raw truthy string', () => {
+  assert.equal(qaRemoteMode({ isPackaged: false, env: { DSH_QA_REMOTE: '1' } }), 'full');
+  assert.equal(qaRemoteMode({ isPackaged: false, env: { DSH_QA_REMOTE: 'cold' } }), 'cold');
+  assert.equal(qaRemoteMode({ isPackaged: false, env: { DSH_QA_REMOTE: 'yes' } }), null);
+  assert.equal(qaRemoteMode({ isPackaged: true, env: { DSH_QA_REMOTE: 'cold' } }), null);
+  assert.equal(
+    qaRemoteMode({ isPackaged: true, env: { DSH_QA_REMOTE: 'cold', DSHD_ALLOW_PACKAGED_QA: '1' } }),
+    'cold',
+  );
 });
 
 test('packaged runs ignore ambient QA flags unless DSHD_ALLOW_PACKAGED_QA=1', () => {

@@ -35,7 +35,25 @@ function qaFlag(name, { isPackaged = false, env = process.env } = {}) {
   return qaDriversAllowed({ isPackaged, env });
 }
 
+/**
+ * Remote gate mode. `1` = NEG+REM walk; `cold` = preset-on open only.
+ * Packaged builds still need `DSHD_ALLOW_PACKAGED_QA=1`.
+ * @param {{ isPackaged?: boolean, env?: NodeJS.ProcessEnv }} [options]
+ * @returns {'full'|'cold'|null}
+ */
+function qaRemoteMode({ isPackaged = false, env = process.env } = {}) {
+  const raw = env.DSH_QA_REMOTE;
+  if (raw !== '1' && raw !== 'cold') {
+    return null;
+  }
+  if (!qaDriversAllowed({ isPackaged, env })) {
+    return null;
+  }
+  return raw === 'cold' ? 'cold' : 'full';
+}
+
 module.exports = {
   qaDriversAllowed,
   qaFlag,
+  qaRemoteMode,
 };

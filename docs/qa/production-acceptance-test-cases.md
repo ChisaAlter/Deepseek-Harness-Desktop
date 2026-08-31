@@ -906,27 +906,31 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-REM-001 · 打开局域网远程并出现二维码 · P0
 
-**步骤：** 默认连接方式为局域网时：侧栏底部手机图标 → 远程弹窗 → 开。（若需中继：先在设置 → 远程 → 网关填写凭据并选「服务器中继」。）
+**步骤：** 远程模式为 **局域网** 时：侧栏底部手机图标 → 远程弹窗 → 开。
 
-**期望：** 3180 监听；弹窗显示配对二维码（URL 含 `#offer=`）；关闭远程后停止监听。
+**期望：** `:3180` 监听；弹窗显示配对二维码（URL 为 `http://<LAN>:3180/#offer=`）。关闭远程后停止监听。
 
-### TC-REM-002 · 手机浏览器打开 SPA · P0
+外出 / relay 模式 **不** 走本条（不听 3180）；落地页见 [mobile-remote-live-acceptance.md](mobile-remote-live-acceptance.md) TC-MREM-101。
 
-**步骤：**（2026-08-25 Web ≈ Android 对齐后的完整面）
+### TC-REM-002 · 第二客户端实机全量（本轮：手机 Web UI）· P0
 
-1. 系统相机扫码 `#offer=` 直开自动登录进对话；刷新后无 `#offer=` 时 Cookie 试探握手自动回到对话，401 静默落回连接页。
-2. HTTPS 中继 origin：连接页出现「扫描二维码」→ 应用内扫码（取景框/取消/条件手电筒）→ 扫桌面码自动登录；扫异 origin 码整页跳转后自动登录；拒绝相机权限出权限说明屏并可改用粘贴。LAN `http://` 明文页：扫码按钮不渲染，出「用系统相机或粘贴」降级文案。
-3. 对话：发文本；加号附件 sheet（拍照/相册/从工作区选文件）→ 缩略图 rail/删除/lightbox → 发送含图消息且气泡回显图片；运行中发送键变停止（`session.cancel`）。
-4. 设置 Hub 钻取：连接详情（主机/通道）+ 断开这台设备回连接页；手机外观浅/深/跟随系统 + 玻璃 + 字体刷新后保持；电脑外观/界面设置/MCP/技能/插件/市场 =「在电脑上打开」请求，无假清单，无 `settings.describe` 只读行。
-5. 工作区：抽屉「工作区」入口 + 顶栏 Git 胶囊（开关控制）→ 32px 分段胶囊主操作标签与 Android 同状态一致（英文）→ Commit 对话框（默认分支警告/在新建分支上提交）→ 菜单 sheet 禁用项与 hint 一致 → 文件 tab 搜索并 `@path` 插入 composer。
+**本条细则：** [mobile-remote-live-acceptance.md](mobile-remote-live-acceptance.md)。旧步骤（Cookie 握手、工作区选文件、Files `@path`）已作废，不得再按旧文打 Pass。
 
-**期望：** 打开的是 `mobile/web` 连接/对话壳，不是官方四栏；上述路径可用。Android 安装包扫同一条码走等价路径。
+**本轮范围：** 只签 **T1 外出 Web**（桌面为局域网时加 T2）。**T3 Android Deferred**，不进本条 Pass。
+
+**步骤：** 按该表 **§S** 与 **§0.10 模块序**（M0→M11）在 T1 走完所有 P0。测出问题立即改、复测该模块后再往下。原子项在场景失败时拆查，不能代替 §S。
+
+**期望：** 布局阈值过、活会话 `D = P`、Ayase `grok-4.6` 五轮、切模型/思考/权限后再聊、审批窗两边弹出并可决、切会话不串台、新工作目录上再跑五轮。不得用「抽屉非空」「发过一句」或 APK 截图过关。
+
+**非法证据：** fake-daemon `run-qa.mjs`、外出模式下 `:3180` rehearsal、bounce 替换 daemon、未部署的公网旧 `app.js`、用 T3 顶 T1。见该表 §0.4。
 
 ### TC-REM-003 · 审批允许一次 / 拒绝 · P1
 
+**细则：** [mobile-remote-live-acceptance.md](mobile-remote-live-acceptance.md) TC-MREM-704（P0 在该表；本发版表保留 P1 编号兼容）。
+
 **步骤：** 从手机发一条会触发审批的请求；在输入区接管条点允许一次或拒绝。
 
-**期望：** 审批不另开整页模态；结果回到对话。中继 HTTPS 可选测；HTTP 中继 origin 不得生效。
+**期望：** 审批不另开整页模态；桌面 pending 同步消失。
 
 ### TC-NEG-002 · Harness 崩溃恢复 · P0（造障）
 
@@ -1100,7 +1104,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | TC-DESK-009 | P1 |  |  |  | Trent |  |
 | TC-NEG-001 | P0 | Pass | 源码实机 `run-remote-gate-qa` | 侧栏 trigger；默认不监听；3180 未开 | Auto | 2026-08-25 |
 | TC-REM-001 | P0 | Pass | 源码实机 `run-remote-gate-qa` | 开 LAN → 听 3180 + `#offer=` + QR SVG；关停听 | Auto | 2026-08-25 |
-| TC-REM-002 | P0 | 待测 |  | 手机 SPA / Android 扫码对话（本轮未开配对 URL） |  |  |
+| TC-REM-002 | P0 | Fail | T1 Rehearsal（Cursor 390） | 细则 [2026-08-30/mobile-remote-web-t1.md](results/2026-08-30/mobile-remote-web-t1.md)。301/605 已补。不得写实机全量：执行人跳过系统相机；T3 Deferred。 | Auto | 2026-08-31 |
 | TC-REM-003 | P1 | 待测 |  | 审批允许一次 / 拒绝 |  |  |
 | TC-NEG-002 | P0 造障 | Pass | CI SHA + 已装 exe | 杀 dsh 后自动重启回主界面 | Trent | 2026-08-23 |
 | TC-NEG-003 | P1 |  |  |  | Trent | 2026-08-23 |

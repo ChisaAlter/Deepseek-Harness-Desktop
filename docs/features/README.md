@@ -45,7 +45,7 @@ Gate: <卡上 gates>
 | [boot-page](boot-page.md) | 仪器启动画布 + 插件进度/恢复 | `boot.*` / harness-controller | TC-INST-003…007、012、013 |
 | [terminal-drawer](terminal-drawer.md) | 底栏 PTY 工作环 | `pty.js` / ui-user-terminal | TC-TERM-001…004（TC-WS-006 仓） |
 | [settings-select](settings-select.md) | 设置内值选择统一为官方胶囊 + Menu | `SettingsSelect` | vendor client spec |
-| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；默认关、开才监听 | `RemoteGateway` / `ui-settings-remote` | TC-NEG-001、TC-REM-001…003 |
+| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；默认关、开才监听 | `RemoteGateway` / `ui-settings-remote` | TC-NEG-001、TC-REM-001；本轮实机门 = Web T1（T3 Android Deferred）：[mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) |
 | [remote-settings](remote-settings.md) | 设置→远程双标签：网关 + 内置 dsh-im 消息渠道 | `ui-settings-remote` / `dsh-im-desktop` | remote client specs；设置 walk |
 | [dshbot](dshbot.md) | 独立 dsh 插件：桌面不预置、可选安装 | `vendor/dshbot` / `removeDshbotPreset` | TC-EXT-007 |
 | [dsh-home](dsh-home.md) | 桌面 `userData/dsh-home`；Harness 不读官方 `~/.dsh` | `dsh-home.js` / spawnEnv | TC-INST-009、011；TC-WS-006 |
@@ -54,6 +54,7 @@ Gate: <卡上 gates>
 | [session-archive](session-archive.md) | 归档隐藏；已归档里恢复/删除 | ui-workspace / workspace RPC | TC-CHAT-010、013 |
 | [git-titlebar](git-titlebar.md) | 标题栏分支/提交/推拉；登记工作区即授权 | `git.js` / workspace-authority | TC-WS-006、TC-GIT-001…007 |
 | [usage-stats](usage-stats.md) | 设置内跨会话 Token 用量；预置改版 dsh-usage-panel | `usage-panel-preset` / vendor 插件 | TC-EXT-008 |
+| [composer-stats-peak-valley](composer-stats-peak-valley.md) | 会话统计/峰谷行与输入卡宽度对齐；官方峰谷时状态条与开关 | vendor `ui-conversation` / `ui-model-selection` | vendor client specs（peak-valley / chat-apply / host） |
 | [message-edit](message-edit.md) | 最新用户消息就地编辑并重发；fork-beforeSeq 子会话 | vendor `ui-message-edit` | vendor client spec + test:gui |
 | [windows-installer](windows-installer.md) | NSIS 品牌化安装器；`/S` 静默与 artifact 名不变 | `build.nsis` / `build/installer.nsh` | installer-branding 单测；TC-INST-001、009、010 |
 | [dsh-tools](dsh-tools.md) | 工具调用名/ID 校验、失败重试与旧会话投影修复 | vendor llm / agent-loop / session / tools | focused Harness specs |

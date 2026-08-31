@@ -66,7 +66,7 @@ private fun ConnectScreen(vm: DshViewModel, onRequestScan: () -> Unit) {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "扫描桌面侧栏远程弹窗里的二维码。应用会在内部打开桌面提供的手机页，配对、重连与消息都走 ChisaCode v2。",
+            "扫描桌面侧栏远程弹窗里的二维码。应用会在内部打开桌面提供的手机页，配对、重连与消息都走 dshd 远程。",
             color = palette.labelSecondary,
             fontSize = 14.sp,
             lineHeight = 22.sp,

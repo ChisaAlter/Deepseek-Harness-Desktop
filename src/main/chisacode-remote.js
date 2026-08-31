@@ -12,13 +12,16 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { applyOfficialDeepSeekSpawnEnv } = require('../shared/official-deepseek-env');
 const {
+  DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_ENDPOINT,
   DEFAULT_RELAY_USE_TLS,
   listLanAddresses,
+  normalizePublicAppBaseUrl,
   preferredLanIp,
   publicUrl,
 } = require('../shared/lan');
 const { createMobileWebServer, listenMobileWebServer, MOBILE_WEB_PORT } = require('./mobile-web-server');
+const { startGitTunnelServer } = require('./dshd-git-tunnel');
 
 function resolveVendorRoot() {
   // Packaged: extraResources → resources/vendor/chisacode-remote
@@ -114,7 +117,7 @@ function readDefaults() {
 async function loadServerApi() {
   if (!fs.existsSync(SERVER_EXPORT)) {
     throw new Error(
-      `ChisaCode server export missing at ${SERVER_EXPORT}. Run vendor sync / build packages/server.`,
+      `dshd remote runtime missing at ${SERVER_EXPORT}. Run vendor sync / build packages/server.`,
     );
   }
   return import(pathToFileURL(SERVER_EXPORT).href);
@@ -122,6 +125,16 @@ async function loadServerApi() {
 
 function modeIsAway(config) {
   return config.remoteMode === 'relay' || config.remoteMode === 'away';
+}
+
+function resolvedAppBaseUrl(config) {
+  if (modeIsAway(config)) {
+    return normalizePublicAppBaseUrl(config.remoteAppBaseUrl, {
+      relayEndpoint: (config.remoteRelayEndpoint || DEFAULT_RELAY_ENDPOINT).trim(),
+    }) || DEFAULT_PUBLIC_APP_BASE_URL;
+  }
+  const ip = preferredLanIp() || '127.0.0.1';
+  return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
 }
 
 function relayUseTls(config, endpoint) {
@@ -154,9 +167,10 @@ function publicDevicesFromStore(store) {
  * identifiers, read at the process boundary instead of by monkey-patching the
  * logger.
  * @param {{ msg?: unknown, err?: { message?: unknown } | null, reason?: unknown }} record
+ * @param {{ connected?: boolean, lastError?: string } | null} [previous]
  * @returns {{ connected: boolean, lastError: string } | null}
  */
-function relayStatusFromLogRecord(record) {
+function relayStatusFromLogRecord(record, previous) {
   if (!record || typeof record !== 'object') {
     return null;
   }
@@ -166,8 +180,13 @@ function relayStatusFromLogRecord(record) {
   }
   if (msg === 'relay_error' || msg === 'relay_control_disconnected') {
     const err = record.err;
-    const detail = (err && typeof err === 'object' && err.message) || record.reason || msg;
-    return { connected: false, lastError: String(detail || msg) };
+    const detail = (err && typeof err === 'object' && err.message) || record.reason || '';
+    const lastError = String(detail || msg);
+    const prior = previous && previous.lastError ? String(previous.lastError) : '';
+    const keepPrior = lastError === 'relay_control_disconnected'
+      && prior
+      && prior !== 'relay_control_disconnected';
+    return { connected: false, lastError: keepPrior ? prior : lastError };
   }
   return null;
 }
@@ -307,7 +326,9 @@ function ensureDshAcpShim({ home, harnessRoot = defaultHarnessRoot(), execPath =
  * @param {{ apiKey?: string, baseUrl?: string }} options.config - desktop shell config
  * @returns {NodeJS.ProcessEnv}
  */
-function buildDaemonChildEnv({ baseEnv, home, vendorDir, shimDir, config }) {
+function buildDaemonChildEnv({
+  baseEnv, home, vendorDir, shimDir, config, harnessOrigin, gitTunnelUrl, gitTunnelToken,
+}) {
   const env = { ...baseEnv };
   env.ELECTRON_RUN_AS_NODE = '1';
   // Bridge: dsh provider managed homes land under userData, never ~/.chisacode.
@@ -320,6 +341,9 @@ function buildDaemonChildEnv({ baseEnv, home, vendorDir, shimDir, config }) {
     const current = env[pathKey] || '';
     env[pathKey] = current ? `${shimDir}${path.delimiter}${current}` : shimDir;
   }
+  if (harnessOrigin) env.DSHD_HARNESS_ORIGIN = harnessOrigin;
+  if (gitTunnelUrl) env.DSHD_GIT_TUNNEL_URL = gitTunnelUrl;
+  if (gitTunnelToken) env.DSHD_GIT_TUNNEL_TOKEN = gitTunnelToken;
   // Same credential law as `dsh web` children: official https host only.
   applyOfficialDeepSeekSpawnEnv(env, { apiKey: config.apiKey, baseUrl: config.baseUrl });
   return env;
@@ -354,6 +378,11 @@ class ChisaCodeRemote extends EventEmitter {
     this.log = typeof options.log === 'function' ? options.log : null;
     this.runnerPath = options.runnerPath || RUNNER_PATH;
     this.execPath = options.execPath || process.execPath;
+    this.getHarnessOrigin = typeof options.getHarnessOrigin === 'function'
+      ? options.getHarnessOrigin
+      : () => '';
+    this.git = options.git || null;
+    this.gitTunnel = null;
     this.readyTimeoutMs = options.readyTimeoutMs || DAEMON_READY_TIMEOUT_MS;
     this.stopTimeoutMs = options.stopTimeoutMs || DAEMON_STOP_TIMEOUT_MS;
     this.daemon = null;
@@ -364,6 +393,8 @@ class ChisaCodeRemote extends EventEmitter {
     this.error = '';
     this.starting = null;
     this.runtimeKey = '';
+    // After ensurePairing fails, get-remote polling must not hammer refreshPairing.
+    this.pairingEnsureBlocked = false;
   }
 
   async ensureApi() {
@@ -423,12 +454,12 @@ class ChisaCodeRemote extends EventEmitter {
   }
 
   /**
-   * QR / SPA landing is always the local mobile/web server — never the relay origin.
+   * QR / SPA landing: LAN mobile/web :3180 in LAN mode; public nginx SPA in Away mode.
    * @returns {string}
    */
   pairingAppBaseUrl() {
-    const ip = preferredLanIp() || '127.0.0.1';
-    return publicUrl(ip, MOBILE_WEB_PORT).replace(/\/$/, '');
+    const config = this.getConfig() || {};
+    return resolvedAppBaseUrl(config);
   }
 
   async ensureMobileWebServer(config = this.getConfig() || {}) {
@@ -475,6 +506,14 @@ class ChisaCodeRemote extends EventEmitter {
     const relayEndpoint = (config.remoteRelayEndpoint || config.remoteRelayUrl || defaults.relayEndpoint || '').trim();
     const relayReady = Boolean(relayEndpoint);
     const addresses = listLanAddresses();
+    let snapshotAddress = preferredLanIp(addresses) || 'pair';
+    if (away && pairingUrl) {
+      try {
+        snapshotAddress = new URL(resolvedAppBaseUrl(config)).hostname;
+      } catch {
+        snapshotAddress = 'pair';
+      }
+    }
 
     return {
       available: true,
@@ -499,7 +538,7 @@ class ChisaCodeRemote extends EventEmitter {
       devices,
       pairingQr: '',
       urls: pairingUrl
-        ? [{ address: preferredLanIp(addresses) || 'pair', url: pairingUrl, pairingUrl }]
+        ? [{ address: snapshotAddress, url: pairingUrl, pairingUrl }]
         : [],
     };
   }
@@ -522,7 +561,27 @@ class ChisaCodeRemote extends EventEmitter {
       appBaseUrl,
       includeQr: false,
     });
+    this.pairingEnsureBlocked = false;
     return this.pairing;
+  }
+
+  /**
+   * Lazily mint a pairing URL when the daemon is up but snapshot urls are empty.
+   * Does not start/stop the daemon — that stays on sync().
+   * @returns {object} current snapshot
+   */
+  async ensurePairing() {
+    if (!this.daemon || (this.pairing && this.pairing.url) || this.pairingEnsureBlocked) {
+      return this.snapshot();
+    }
+    try {
+      await this.refreshPairing();
+    } catch (err) {
+      this.pairingEnsureBlocked = true;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!this.error) this.error = msg;
+    }
+    return this.snapshot();
   }
 
   async startDaemon() {
@@ -533,6 +592,7 @@ class ChisaCodeRemote extends EventEmitter {
         return this.startDaemon();
       }
       await this.refreshPairing();
+      this.pairingEnsureBlocked = false;
       return;
     }
     if (this.starting) {
@@ -552,7 +612,11 @@ class ChisaCodeRemote extends EventEmitter {
       const agentStoragePath = path.join(home, 'agents');
       fs.mkdirSync(agentStoragePath, { recursive: true });
 
-      await this.ensureMobileWebServer(config);
+      if (modeIsAway(config)) {
+        await this.stopMobileWebServer();
+      } else {
+        await this.ensureMobileWebServer(config);
+      }
       this.relayState = { connected: false, lastError: '' };
 
       const daemonConfig = {
@@ -579,7 +643,9 @@ class ChisaCodeRemote extends EventEmitter {
       this.daemon = await this.spawnDaemonProcess({ api, home, config, daemonConfig });
       this.runtimeKey = this.runtimeConfigKey(config);
       this.error = '';
+      this.pushHarnessOrigin();
       await this.refreshPairing();
+      this.pairingEnsureBlocked = false;
       this.emit('listening', this.snapshot());
     })();
 
@@ -620,12 +686,19 @@ class ChisaCodeRemote extends EventEmitter {
       JSON.stringify({ serverExport: SERVER_EXPORT, daemonConfig }),
       { encoding: 'utf8', mode: 0o600 },
     );
+    const git = this.git;
+    if (git && !this.gitTunnel) {
+      this.gitTunnel = await startGitTunnelServer({ git });
+    }
     const env = buildDaemonChildEnv({
       baseEnv: process.env,
       home,
       vendorDir: dshVendorDirForChild(api),
       shimDir: ensureDshAcpShim({ home, execPath: this.execPath }),
       config,
+      harnessOrigin: this.getHarnessOrigin() || '',
+      gitTunnelUrl: this.gitTunnel?.url || '',
+      gitTunnelToken: this.gitTunnel?.token || '',
     });
 
     const child = spawn(this.execPath, [this.runnerPath, launchFile], {
@@ -647,7 +720,7 @@ class ChisaCodeRemote extends EventEmitter {
     wireLineReader(child.stdout, (line) => { this.handleDaemonLogLine(handle, line); });
     wireLineReader(child.stderr, (line) => {
       handle.stderrTail = `${handle.stderrTail}${line}\n`.slice(-DAEMON_STDERR_TAIL_LIMIT);
-      this.log?.(`[chisacode-daemon] ${line}`);
+      this.log?.(`[dshd-daemon] ${line}`);
     });
     child.stdin?.on?.('error', () => {});
     child.on('error', (err) => {
@@ -684,13 +757,13 @@ class ChisaCodeRemote extends EventEmitter {
       record = JSON.parse(line);
     } catch {
       // Non-JSON output (native module noise); keep it visible.
-      this.log?.(`[chisacode-daemon] ${line}`);
+      this.log?.(`[dshd-daemon] ${line}`);
       return;
     }
     if (!record || typeof record !== 'object') {
       return;
     }
-    const status = relayStatusFromLogRecord(record);
+    const status = relayStatusFromLogRecord(record, this.relayState);
     if (status) {
       this.setRelayState(status);
     }
@@ -703,7 +776,7 @@ class ChisaCodeRemote extends EventEmitter {
     // Info-level daemon chatter stays out of the dsh log; lifecycle lines and
     // warn+ records are the operator-relevant slice.
     if (msg.startsWith('dshd_daemon_') || (typeof record.level === 'number' && record.level >= 40)) {
-      this.log?.(`[chisacode-daemon] ${line}`);
+      this.log?.(`[dshd-daemon] ${line}`);
     }
   }
 
@@ -725,7 +798,7 @@ class ChisaCodeRemote extends EventEmitter {
       this.error = `远程守护进程异常退出（${signal || `code ${code}`}），点「开启」重试`;
       this.relayState = { connected: false, lastError: this.error };
       this.pairing = { relayEnabled: false, url: null, qr: null };
-      this.log?.(`[chisacode-daemon] ${this.error}`);
+      this.log?.(`[dshd-daemon] ${this.error}`);
       this.emit('listening', this.snapshot());
     }
   }
@@ -770,6 +843,11 @@ class ChisaCodeRemote extends EventEmitter {
     if (handle) {
       await this.terminateDaemonProcess(handle);
     }
+    if (this.gitTunnel) {
+      const tunnel = this.gitTunnel;
+      this.gitTunnel = null;
+      try { await tunnel.close(); } catch { /* ignore */ }
+    }
     await this.stopMobileWebServer();
     this.emit('listening', this.snapshot());
   }
@@ -778,15 +856,30 @@ class ChisaCodeRemote extends EventEmitter {
     const config = this.getConfig() || {};
     if (config.remoteEnabled) {
       await this.startDaemon();
+      this.pushHarnessOrigin();
     } else {
       await this.stopDaemon();
     }
     return this.snapshot();
   }
 
+  pushHarnessOrigin(origin) {
+    const next = origin == null ? this.getHarnessOrigin() : origin;
+    const child = this.daemon?.child;
+    if (!child?.stdin || child.killed) return;
+    try {
+      child.stdin.write(`harness-origin ${String(next || '').trim()}\n`);
+    } catch {
+      // Child already draining.
+    }
+  }
+
   rotateToken() {
     // Offer TTL is re-issued; sticky device secrets stay until unbind.
-    return this.refreshPairing().then(() => this.snapshot());
+    return this.refreshPairing().then((pairing) => {
+      this.pairingEnsureBlocked = false;
+      return this.snapshot();
+    });
   }
 
   unbindDevice(id) {
@@ -811,6 +904,8 @@ class ChisaCodeRemote extends EventEmitter {
       mobileBind: config.remoteBindAddress === '127.0.0.1'
         ? '0.0.0.0'
         : (config.remoteBindAddress || '0.0.0.0'),
+      mode: modeIsAway(config) ? 'relay' : 'lan',
+      appBaseUrl: resolvedAppBaseUrl(config),
     });
   }
 }

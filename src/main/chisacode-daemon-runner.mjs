@@ -28,6 +28,9 @@
 
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { installDesktopRpcHooks, applyDaemonStdinLine } from './dshd-daemon-hooks.mjs';
+
+installDesktopRpcHooks();
 
 // A broken parent pipe must never crash the daemon host (same law as the
 // desktop's stdio-guard). stdin errors are handled below as a stop signal.
@@ -109,7 +112,8 @@ process.stdin.on('data', (chunk) => {
   while (newline !== -1) {
     const line = stdinBuffer.slice(0, newline).trim();
     stdinBuffer = stdinBuffer.slice(newline + 1);
-    if (line === 'stop') {
+    const kind = applyDaemonStdinLine(line);
+    if (kind === 'stop') {
       void shutdown('stop');
     }
     newline = stdinBuffer.indexOf('\n');
