@@ -10,15 +10,15 @@
   /* AppFrame already paints `--dsw-alias-bg-base`. A second fill stacks with
      that mix and hides a wallpaper. */
 
-  /* Shared width axis for the whole column: the transcript column and the
-     dock rows all resolve --dsh-composer-resized-width (published on this
-     root while a width drag is committed) with --dsh-composer-card-max-width
-     as the fallback, so every box stays edge-flush with the input card; the
-     dock cards (todo/goal/queue: card minus four insets, 4 x 8 = 32) and the
-     takeover cards (question/approval/plan review) derive from the same W
-     (--dsh-chat-content-width) with the input card at W + 32px. Declared on
-     the root because the transcript and the composer seat are sibling
-     subtrees. */
+  /* Shared width axis for the whole column: one content width W
+     (--dsh-chat-content-width) for the transcript, the dock cards
+     (todo/goal/queue: card minus four insets, 4 x 8 = 32), and the takeover
+     cards (question/approval/plan review); the input card alone is W + 32px.
+     The relation also holds when a narrow viewport shrinks everything: the
+     chat scroller and the takeover frames pad clearance + 16px per side while
+     the input card clears the bare clearance, so the input card stays exactly
+     content + 32px at every width. Declared on the root because the
+     transcript and the composer seat are sibling subtrees. */
   --dsh-chat-content-width: 748px;
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;
@@ -35,26 +35,6 @@
      details is closed; AppFrame writes the overlap as --dshd-titlebar-conversation-reserve. */
   padding-right: max(28px, calc(var(--dshd-titlebar-conversation-reserve, 0px) + 8px));
   border-bottom: 1px solid transparent;
-}
-
-/* Desktop caption controls: when the surfaces column is closed the trailing
-   cluster's margin clears the caption window controls (--dshd-wco-controls,
-   set by the desktop chrome inject, absent in a plain browser), so its left
-   edge reaches that much deeper into the row than the measured reserve. The
-   published reserve alone left header utilities (header.actions / plugins'
-   header.utilities buttons) painting under Session log and Git. Widen the
-   same reserve by the controls inset — `max(8px, …)` keeps the plain-browser
-   math identical to the pinned baseline above — and only while surfaces is
-   closed, because an open surfaces column pins the cluster's right edge back
-   to a fixed 8px inset over the details column. */
-:global([data-surfaces-collapsed]) .header {
-  padding-right: max(
-    28px,
-    calc(
-      var(--dshd-titlebar-conversation-reserve, 0px)
-      + max(8px, var(--dshd-wco-controls, 8px))
-    )
-  );
 }
 
 @media (max-width: 767px) {

@@ -353,4 +353,4 @@
   - text: DeepSeek-V4-Flash
   - img
 - button "Send message" [disabled]
-- text: 28 turns · 28 steps LLM {{duration}} {{peakPhase}} Switches in {{clock}}
+- text: 28 turns · 28 steps LLM {{duration}}

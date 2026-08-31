@@ -210,7 +210,7 @@ export function ConversationRoot({
   )
 
   return (
-    <div className={css.root} data-phase={phase} data-conversation-root="">
+    <div className={css.root} data-phase={phase}>
       {renderSlot('conversation.session.header', {})}
       <div className={css.scrollBody} data-conversation-scroll="">
         {renderSlot('conversation.session', {})}

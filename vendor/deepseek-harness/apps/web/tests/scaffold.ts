@@ -930,11 +930,6 @@ function normalizeAria(snapshot: string, workspaceCwd: string): string {
       duration => duration.startsWith('约') ? duration : '{{duration}}',
     )
     .replace(/\d+(?:\.\d+)?(?= tok\/s(?!\w))/g, '{{throughput}}')
-    // The composer's peak/valley row names whichever Beijing-time window the
-    // run lands in; collapse the label so goldens stay stable across the day.
-    // The countdown digits normalize through the clock rules below.
-    .replace(/(Off-peak|Peak) hours/g, '{{peakPhase}}')
-    .replace(/(空闲|高峰)时段/g, '{{peakPhase}}')
     // Seeded compaction prices realized file paths, whose length differs
     // between local worktrees and CI scratch directories.
     .replace(/(Compacted \d+ history items \(~)\d+( tokens\))/g, '$1{{tokens}}$2')

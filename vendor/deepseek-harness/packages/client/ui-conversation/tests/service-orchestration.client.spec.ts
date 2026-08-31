@@ -9,7 +9,6 @@ import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import { makeTranslate, SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import type { QueuedMessage, SessionFace } from '@deepseek-ai/dsh-client-runtime/client'
 import { ComposerBlockRegistry } from '../src/client/input/blocks.ts'
-import { ComposerModelCatalogRegistry, ComposerModelFactRegistry } from '../src/client/input/model-facts.ts'
 import { InputHub } from '../src/client/input/hub.ts'
 import { ConversationController, UnsupportedImageMediaTypeError } from '../src/client/service.ts'
 import { zh } from '../src/client/locales.ts'
@@ -30,8 +29,6 @@ async function bench(readAttachment?: SessionFace['readAttachment']) {
   const fiber = runtime.ctx.plugin(ConversationController, {
     input: hub,
     blocks: new ComposerBlockRegistry(),
-    modelFacts: new ComposerModelFactRegistry(),
-    modelCatalog: new ComposerModelCatalogRegistry(),
   })
   await fiber.await()
   const root = runtime.ctx.get('conversation') as ConversationController
@@ -143,8 +140,6 @@ describe('ConversationController', () => {
     await bare.plugin(ConversationController, {
       input: new InputHub(bare, makeTranslate(zh, {})),
       blocks: new ComposerBlockRegistry(),
-      modelFacts: new ComposerModelFactRegistry(),
-      modelCatalog: new ComposerModelCatalogRegistry(),
     }).await()
     const orphan = bare.get('conversation') as ConversationController
     await expect(orphan.send('x')).rejects.toThrow(/sessions service unavailable/)

@@ -18,7 +18,6 @@ import type { ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attach
 import type { ComposerAttachment } from './contract/slots.ts'
 import type { QueueAction, QueueItemId } from './contract/queue.ts'
 import type { ComposerBlocks } from './input/blocks.ts'
-import type { ComposerModelCatalog, ComposerModelFacts } from './input/model-facts.ts'
 import type { DraftAttachmentId, SessionInputResolver } from './input/contract.ts'
 import type { InputSubmitMode } from './contract/composer-submission.ts'
 
@@ -35,18 +34,6 @@ export interface IConversation {
    * cannot import makes a session's input inert with its own reason.
    */
   readonly blocks: ComposerBlocks
-  /**
-   * The per-session model-fact registry: how the plugin owning the model
-   * directory publishes the session's current provider route to the
-   * composer-dock entries (the peak/valley status row).
-   */
-  readonly modelFacts: ComposerModelFacts
-  /**
-   * The per-session model-catalog registry: how the plugin owning the model
-   * directory publishes the session's advertised model ids to the price
-   * panel's dropdown.
-   */
-  readonly modelCatalog: ComposerModelCatalog
   /**
    * Send a prompt into the caller scope's session (queued turn).
    * @param text - prompt text, sent verbatim as one text block.
@@ -107,10 +94,6 @@ export class ConversationController extends Service implements IConversation {
   readonly input: SessionInputResolver
   /** The per-session composer-block registry. */
   readonly blocks: ComposerBlocks
-  /** The per-session model-fact registry. */
-  readonly modelFacts: ComposerModelFacts
-  /** The per-session model-catalog registry. */
-  readonly modelCatalog: ComposerModelCatalog
   private readonly draftAttachments = new Map<DraftAttachmentId, ComposerAttachment>()
   private readonly imageUrls = new Map<string, ImageUrlEntry>()
   private readonly imageGenerations = new Map<SessionId, number>()
@@ -120,24 +103,14 @@ export class ConversationController extends Service implements IConversation {
   /**
    * @param ctx - owning root context (the plugin apply context; the service
    * registers itself and follows that fiber's lifetime).
-   * @param config - carries the SessionInputResolver, composer-block registry,
-   * model-fact registry, and model-catalog registry constructed by the plugin
-   * apply (the same instances the slot inject factories close over).
+   * @param config - carries the SessionInputResolver and composer-block registry
+   * constructed by the plugin apply (the same instances the slot inject
+   * factories close over).
    */
-  constructor(
-    ctx: Context,
-    config: {
-      input: SessionInputResolver
-      blocks: ComposerBlocks
-      modelFacts: ComposerModelFacts
-      modelCatalog: ComposerModelCatalog
-    },
-  ) {
+  constructor(ctx: Context, config: { input: SessionInputResolver; blocks: ComposerBlocks }) {
     super(ctx, 'conversation')
     this.input = config.input
     this.blocks = config.blocks
-    this.modelFacts = config.modelFacts
-    this.modelCatalog = config.modelCatalog
     ctx.effect(() => () => {
       this.disposed = true
       for (const url of this.createdImageUrls) revokePreview(url)
