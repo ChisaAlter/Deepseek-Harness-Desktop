@@ -66,4 +66,6 @@ test('packaged smoke widens the window before titlebar hits', () => {
   assert.ok(helper >= 0, '应定义 ensureSurfacesViewport');
   assert.ok(helperCall >= 0 && helperCall < probeCall, 'widen 必须在 probeTitlebarHits 之前');
   assert.ok(smokeSource.includes('SMOKE_SURFACES_MIN_VIEWPORT = 1280'));
+  assert.ok(smokeSource.includes('data-dshd-caption="band"'));
+  assert.ok(smokeSource.includes('view.setBounds'));
 });

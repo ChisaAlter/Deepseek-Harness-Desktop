@@ -101,29 +101,56 @@ async function pressEscape(wc) {
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
 }
 
+function layoutSmokeHarnessViews(win) {
+  if (!win || win.isDestroyed()) {
+    return { width: 0, height: 0 };
+  }
+  win.setSize(1680, 1000);
+  win.center();
+  const bounds = win.getContentBounds();
+  const width = Math.max(bounds.width || 0, 1680);
+  const height = Math.max(bounds.height || 0, 1000);
+  for (const view of win.getBrowserViews()) {
+    try {
+      view.setBounds({ x: 0, y: 0, width, height });
+      view.setAutoResize({ width: true, height: true });
+    } catch {
+      // View may already be gone.
+    }
+  }
+  return { width, height };
+}
+
+const SMOKE_FRAME_WIDTH_JS = `(() => {
+  const caption = document.querySelector('[data-dshd-caption="band"]');
+  const frame = caption && caption.parentElement;
+  const frameW = frame ? Math.round(frame.getBoundingClientRect().width) : 0;
+  return { inner: window.innerWidth, frameW, collapsed: frame ? frame.hasAttribute('data-surfaces-collapsed') : null };
+})()`;
+
 /** Packaged smoke often lands at ~1024px, where the pin auto-closes surfaces. */
 async function ensureSurfacesViewport(win, wc) {
-  if (win && !win.isDestroyed()) {
-    win.setSize(1680, 1000);
-    win.center();
-  }
-  let wide = await waitUntil(
-    () => wc.executeJavaScript(`window.innerWidth >= ${SMOKE_SURFACES_MIN_VIEWPORT}`),
-    3_000,
-  );
+  layoutSmokeHarnessViews(win);
+  let wide = await waitUntil(async () => {
+    const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS);
+    return sample && sample.inner >= SMOKE_SURFACES_MIN_VIEWPORT && sample.frameW >= SMOKE_SURFACES_MIN_VIEWPORT;
+  }, 3_000);
   if (!wide && win && !win.isDestroyed()) {
     win.maximize();
-    wide = await waitUntil(
-      () => wc.executeJavaScript(`window.innerWidth >= ${SMOKE_SURFACES_MIN_VIEWPORT}`),
-      3_000,
-    );
+    layoutSmokeHarnessViews(win);
+    wide = await waitUntil(async () => {
+      const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS);
+      return sample && sample.inner >= SMOKE_SURFACES_MIN_VIEWPORT && sample.frameW >= SMOKE_SURFACES_MIN_VIEWPORT;
+    }, 3_000);
   }
   if (wide) {
+    await wc.executeJavaScript('window.dispatchEvent(new Event(\'resize\'))').catch(() => {});
+    await sleep(400);
     return;
   }
-  const inner = await wc.executeJavaScript('window.innerWidth').catch(() => 0);
+  const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS).catch(() => ({}));
   throw new Error(
-    `surfaces viewport ${inner}px < ${SMOKE_SURFACES_MIN_VIEWPORT} (sidebar+surfaces+center min)`,
+    `surfaces viewport inner=${sample.inner} frame=${sample.frameW} < ${SMOKE_SURFACES_MIN_VIEWPORT} (sidebar+surfaces+center min)`,
   );
 }
 
@@ -176,22 +203,21 @@ async function probeTitlebarHits(wc) {
       return { hits, error: 'surfaces toggle missing' };
     }
     hits.surfaces += 1;
-    let opened = await waitUntil(() => wc.executeJavaScript(`(() => {
-      const frame = document.querySelector('[class*="frame"]');
+    const surfacesOpenJs = `(() => {
+      const caption = document.querySelector('[data-dshd-caption="band"]');
+      const frame = caption && caption.parentElement;
       if (!frame) return false;
-      return frame.getAttribute('data-surfaces-collapsed') !== 'true';
-    })()`), 10_000);
+      return !frame.hasAttribute('data-surfaces-collapsed');
+    })()`;
+    let opened = await waitUntil(() => wc.executeJavaScript(surfacesOpenJs), 10_000);
     if (!opened && surfaces && await clickTitlebarButton(wc, SMOKE_SURFACES)) {
-      opened = await waitUntil(() => wc.executeJavaScript(`(() => {
-        const frame = document.querySelector('[class*="frame"]');
-        if (!frame) return false;
-        return frame.getAttribute('data-surfaces-collapsed') !== 'true';
-      })()`), 10_000);
+      opened = await waitUntil(() => wc.executeJavaScript(surfacesOpenJs), 10_000);
     }
     if (!opened) {
+      const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS).catch(() => ({}));
       return {
         hits,
-        error: 'surfaces did not open',
+        error: `surfaces did not open inner=${sample.inner} frame=${sample.frameW} collapsed=${sample.collapsed}`,
       };
     }
 
