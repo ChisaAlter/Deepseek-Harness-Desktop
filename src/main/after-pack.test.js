@@ -13,6 +13,7 @@ const {
   collectPnpmFlattenFiles,
   deployCliEntries,
   nodePtyPrebuildRelative,
+  repairFlattenedCommanderEsm,
   repairFlattenedVersionIsolation,
   resolveDeployDir,
   resolveResourcesDir,
@@ -640,5 +641,68 @@ test('assertHarnessRuntime rejects MCP SDK resolving ajv major 6', (t) => {
   assert.throws(
     () => assertHarnessRuntime(root, RC7_PIN),
     /拍平丢掉了 SDK 嵌套 ajv@8/,
+  );
+});
+
+function writeCommanderCjs(dir, version) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), `${JSON.stringify({
+    name: 'commander',
+    version,
+    main: 'index.js',
+  })}\n`);
+  fs.writeFileSync(path.join(dir, 'index.js'), 'module.exports = { Command: class Command {} };\n');
+}
+
+function writeCommanderEsm(dir, version) {
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), `${JSON.stringify({
+    name: 'commander',
+    version,
+    type: 'module',
+    exports: { '.': { import: './index.js', require: './index.js' } },
+  })}\n`);
+  fs.writeFileSync(path.join(dir, 'index.js'), 'export class Command {}\n');
+}
+
+test('repairFlattenedCommanderEsm replaces CJS top-level commander with store ESM', async (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-commander-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const harnessSrc = path.join(workspace, 'src');
+  const harnessDest = path.join(workspace, 'dest');
+  const storeDir = path.join(harnessSrc, 'node_modules', '.pnpm');
+  writeCommanderCjs(path.join(storeDir, 'commander@2.20.3', 'node_modules', 'commander'), '2.20.3');
+  writeCommanderEsm(path.join(storeDir, 'commander@15.0.1', 'node_modules', 'commander'), '15.0.1');
+  writeCommanderCjs(path.join(harnessDest, 'node_modules', 'commander'), '2.20.3');
+
+  const copied = await repairFlattenedCommanderEsm(harnessSrc, harnessDest);
+  assert.ok(copied > 0);
+  const dest = JSON.parse(fs.readFileSync(
+    path.join(harnessDest, 'node_modules', 'commander', 'package.json'),
+    'utf8',
+  ));
+  assert.equal(dest.version, '15.0.1');
+  assert.equal(dest.type, 'module');
+});
+
+test('repairFlattenedCommanderEsm leaves an already-ESM commander in place', async (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-commander-ok-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const harnessSrc = path.join(workspace, 'src');
+  const harnessDest = path.join(workspace, 'dest');
+  writeCommanderEsm(path.join(harnessSrc, 'node_modules', '.pnpm', 'commander@14.0.0', 'node_modules', 'commander'), '14.0.0');
+  writeCommanderEsm(path.join(harnessDest, 'node_modules', 'commander'), '15.0.1');
+  fs.writeFileSync(path.join(harnessDest, 'node_modules', 'commander', 'marker.txt'), 'keep\n');
+
+  const copied = await repairFlattenedCommanderEsm(harnessSrc, harnessDest);
+  assert.equal(copied, 0);
+  const dest = JSON.parse(fs.readFileSync(
+    path.join(harnessDest, 'node_modules', 'commander', 'package.json'),
+    'utf8',
+  ));
+  assert.equal(dest.version, '15.0.1');
+  assert.equal(
+    fs.readFileSync(path.join(harnessDest, 'node_modules', 'commander', 'marker.txt'), 'utf8'),
+    'keep\n',
   );
 });

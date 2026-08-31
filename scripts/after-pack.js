@@ -528,6 +528,87 @@ function isNestedIsolationDest(nmDest, dest) {
   return nmIdx > 0;
 }
 
+function compareDotVersions(a, b) {
+  const pa = String(a || '0').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const pb = String(b || '0').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  for (let i = 0; i < 3; i += 1) {
+    const delta = (pa[i] || 0) - (pb[i] || 0);
+    if (delta !== 0) {
+      return delta;
+    }
+  }
+  return 0;
+}
+
+function commanderSupportsNamedEsm(pkgDir) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(pkgDir, 'package.json'), 'utf8'));
+    const major = Number.parseInt(String(pkg.version || '').split('.')[0], 10);
+    if (Number.isInteger(major) && major >= 12) {
+      return true;
+    }
+    if (pkg.type === 'module') {
+      return true;
+    }
+    const exported = pkg.exports && (pkg.exports['.'] || pkg.exports);
+    return Boolean(exported && typeof exported === 'object' && exported.import);
+  } catch {
+    return false;
+  }
+}
+
+function findPnpmStoreCommanders(storeDir) {
+  const found = [];
+  const seen = new Set();
+  if (!fs.existsSync(storeDir)) {
+    return found;
+  }
+  let entries;
+  try {
+    entries = fs.readdirSync(storeDir, { withFileTypes: true });
+  } catch {
+    return found;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const pkgDir = path.join(storeDir, entry.name, 'node_modules', 'commander');
+    const key = path.resolve(pkgDir);
+    if (seen.has(key) || !fs.existsSync(path.join(pkgDir, 'package.json'))) {
+      continue;
+    }
+    seen.add(key);
+    found.push({ pkgDir, version: packageJsonVersion(pkgDir) });
+  }
+  return found;
+}
+
+/**
+ * apps/cli/lib/bin.js is ESM (`import { Command } from "commander"`).
+ * Flatten first-wins can hoist a CJS commander (major < 12) to top-level
+ * node_modules, which Node then refuses as a named export. Prefer the
+ * highest ESM-capable commander still in the source .pnpm store.
+ */
+async function repairFlattenedCommanderEsm(harnessSrc, harnessDest) {
+  const destDir = path.join(harnessDest, 'node_modules', 'commander');
+  if (commanderSupportsNamedEsm(destDir)) {
+    return 0;
+  }
+  const storeDir = path.join(harnessSrc, 'node_modules', '.pnpm');
+  const candidates = findPnpmStoreCommanders(storeDir)
+    .filter((row) => commanderSupportsNamedEsm(row.pkgDir))
+    .sort((a, b) => compareDotVersions(b.version, a.version));
+  if (candidates.length === 0) {
+    throw new Error(
+      '安装包的 commander 不支持 CLI 的 ESM named import（拍平后顶层是 CJS，且 .pnpm store 没有 commander@12+）',
+    );
+  }
+  fs.rmSync(longPath(destDir), { recursive: true, force: true });
+  const files = collectFiles(candidates[0].pkgDir, destDir, false, false);
+  return copyFiles(files, 32);
+}
+
 async function repairFlattenedVersionIsolation(harnessSrc, harnessDest) {
   const storeDir = path.join(harnessSrc, 'node_modules', '.pnpm');
   const nmDest = path.join(harnessDest, 'node_modules');
@@ -617,6 +698,7 @@ async function assembleFromDeploy(projectDir, deployDir, harnessDest) {
     console.log(`拍平 .pnpm store: ${flattened.length} 个文件`);
     total += await copyFiles(flattened, 32);
   }
+  total += await repairFlattenedCommanderEsm(deployDir, harnessDest);
   const jobs = [
     [path.join(deployDir, 'vendor'), path.join(harnessDest, 'vendor')],
     [path.join(vendorSrc, 'apps', 'web', 'dist'), path.join(harnessDest, 'apps', 'web', 'dist')],
@@ -834,6 +916,7 @@ module.exports = async function afterPack(context) {
     console.log(`待复制 ${files.length} 个文件，收集耗时 ${((Date.now() - started) / 1000).toFixed(1)}s（并发复制中）`);
     copied = await copyFiles(files, 32);
     copied += await repairFlattenedVersionIsolation(harnessSrc, harnessDest);
+    copied += await repairFlattenedCommanderEsm(harnessSrc, harnessDest);
   }
 
   const nodeDest = copyBundledNode(resources);
@@ -872,6 +955,7 @@ module.exports = async function afterPack(context) {
 module.exports.collectFiles = collectFiles;
 module.exports.collectPnpmFlattenFiles = collectPnpmFlattenFiles;
 module.exports.repairFlattenedVersionIsolation = repairFlattenedVersionIsolation;
+module.exports.repairFlattenedCommanderEsm = repairFlattenedCommanderEsm;
 module.exports.copyFiles = copyFiles;
 module.exports.deployCliEntries = deployCliEntries;
 module.exports.resolveDeployDir = resolveDeployDir;
