@@ -85,13 +85,43 @@ function removeOverlayFile(overlayFile) {
 }
 
 /**
+ * Whether the profile owns the plugin outside the desktop preset: a REAL
+ * directory install or a junction to somewhere OTHER than our
+ * desktop-plugins copy (a `dsh plugin add` / `link:` user install). The
+ * desktop then backs off — no fresh copy, no managed junction, no overlay —
+ * so a user-managed install (e.g. built from a custom checkout) survives
+ * full starts.
+ * @param {string} profileDir
+ * @param {string} destDir desktop-managed copy path
+ * @returns {boolean}
+ */
+function isUserOwned(profileDir, destDir) {
+  const linked = path.join(profileDir, 'node_modules', USAGE_PANEL_PACKAGE);
+  if (!pathExists(linked)) {
+    return false;
+  }
+  if (!fs.existsSync(path.join(destDir, 'package.json'))) {
+    // No desktop copy yet: anything in node_modules is user-owned.
+    return true;
+  }
+  try {
+    return fs.realpathSync.native(linked) !== fs.realpathSync.native(destDir);
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Copy the bundled usage-panel package into the web profile and register it
  * through a desktop-owned overlay (`--patch`, full starts only). Does not
  * call `dsh plugin add`. The profile's `cordis.patch.yml` is user-owned:
  * this function only strips the managed block earlier desktop versions wrote
- * there and never writes one back. A non-junction marketplace install is
- * replaced with a junction to the desktop restyle so the projection key and
- * settings section stay unique. Missing `package.json` or zod returns
+ * there and never writes one back. A user-owned install (real directory or a
+ * non-managed link in profile node_modules) makes the desktop back off
+ * (`{ userOwned: true }`): no copy, no junction, overlay removed so a user
+ * patch insert cannot double-mount. A non-junction marketplace install is
+ * otherwise replaced with a junction to the desktop restyle so the projection
+ * key and settings section stay unique. Missing `package.json` or zod returns
  * `{ ok: false }` and removes the overlay so the controller never passes a
  * stale one.
  * @param {{ sourceDir?: string, profileDir?: string, disabledPlugins?: string[] }} [options]
@@ -110,6 +140,10 @@ function ensureUsagePanelPlugin(options = {}) {
   if (disabled.includes(USAGE_PANEL_PACKAGE)) {
     removeOverlayFile(overlayFile);
     return { ok: true, added: false, destDir: null, disabled: true };
+  }
+  if (isUserOwned(profileDir, destDir)) {
+    removeOverlayFile(overlayFile);
+    return { ok: true, added: false, destDir: null, userOwned: true };
   }
   const missing = missingRuntimeDependencies(sourceDir);
   if (missing.length) {

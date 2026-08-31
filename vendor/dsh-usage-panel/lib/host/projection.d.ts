@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { SessionEvent } from '@deepseek-ai/dsh-session';
+import type { PhaseBuckets } from '../shared/cost.ts';
 declare const bucketSchema: z.ZodObject<{
     input: z.ZodNumber;
     output: z.ZodNumber;
@@ -13,6 +14,7 @@ declare const stepSchema: z.ZodObject<{
         cacheRead: z.ZodNumber;
         cacheWrite: z.ZodNumber;
     }, z.core.$strip>;
+    peak: z.ZodBoolean;
     lastTime: z.ZodNumber;
     model: z.ZodString;
     provider: z.ZodString;
@@ -46,6 +48,63 @@ export declare const usagePanelSchema: z.ZodObject<{
         cacheRead: z.ZodNumber;
         cacheWrite: z.ZodNumber;
     }, z.core.$strip>>;
+    costTotals: z.ZodObject<{
+        peak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+        offPeak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+    }, z.core.$strip>;
+    costByModel: z.ZodRecord<z.ZodString, z.ZodObject<{
+        peak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+        offPeak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    costByDay: z.ZodRecord<z.ZodString, z.ZodRecord<z.ZodString, z.ZodObject<{
+        peak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+        offPeak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+    }, z.core.$strip>>>;
+    costByProvider: z.ZodRecord<z.ZodString, z.ZodObject<{
+        peak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+        offPeak: z.ZodObject<{
+            input: z.ZodNumber;
+            output: z.ZodNumber;
+            cacheRead: z.ZodNumber;
+            cacheWrite: z.ZodNumber;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    modelProviders: z.ZodRecord<z.ZodString, z.ZodString>;
     retries: z.ZodNumber;
     compactionTokens: z.ZodNumber;
     firstTime: z.ZodNullable<z.ZodNumber>;
@@ -53,6 +112,11 @@ export declare const usagePanelSchema: z.ZodObject<{
     seedEnd: z.ZodNullable<z.ZodNumber>;
     currentModel: z.ZodString;
     currentProvider: z.ZodString;
+    stepStart: z.ZodNullable<z.ZodObject<{
+        turn: z.ZodNumber;
+        step: z.ZodNumber;
+        ms: z.ZodNumber;
+    }, z.core.$strip>>;
     openStep: z.ZodNullable<z.ZodString>;
     steps: z.ZodRecord<z.ZodString, z.ZodObject<{
         buckets: z.ZodObject<{
@@ -61,6 +125,7 @@ export declare const usagePanelSchema: z.ZodObject<{
             cacheRead: z.ZodNumber;
             cacheWrite: z.ZodNumber;
         }, z.core.$strip>;
+        peak: z.ZodBoolean;
         lastTime: z.ZodNumber;
         model: z.ZodString;
         provider: z.ZodString;
@@ -102,5 +167,6 @@ export declare function foldEvents(events: readonly SessionEvent[]): UsagePanelS
 export declare function recentOf(value: UsagePanelState, cutoffKey: string): {
     totals: Buckets;
     byModel: Record<string, Buckets>;
+    costByModel: Record<string, PhaseBuckets>;
 };
 export {};

@@ -1,10 +1,10 @@
 ---
-description: Settings usage stats is the preset dsh-usage-panel restyle; tokens only, no billing
+description: Settings usage stats is the preset dsh-usage-panel restyle; tokens plus estimated billing (peak/valley, no balance API)
 alwaysApply: true
 ---
 
 # Usage stats
 
-Settings section `usage-stats` is the desktop restyle of `dsh-usage-panel`. Tokens / `ui-primitives` only; no billing, CNY, or `/user/balance`. UTC day buckets in v1. Desktop `desktop-plugins` copy wins over a marketplace install of the same package. Empty state is no billed usage (blank-only sessions included) with no scan failures; light heatmap empty cells must stay visible. Mounting rides the desktop overlay `desktop-usage-panel.patch.yml` (`--patch`, full starts only) — never a managed block in the user-owned `cordis.patch.yml`; the overlay is deleted when disabled, ensure fails, or a marketplace bundle already mounts the package.
+Settings section `usage-stats` is the desktop restyle of `dsh-usage-panel`. Tokens / `ui-primitives` only; billing = ESTIMATE (peak/valley buckets × user prices, official price table asOf 2026-08-17 with source link); no `/user/balance`, no balance APIs. Unpriced models show "set a price"/em dash, never a guessed figure (competitor red line stands). Peak/valley windows: Beijing UTC+8 Monday–Friday 09:00–12:00 & 14:00–18:00; a step bills at its step/start instant; compaction never enters cost buckets. UTC day buckets in v1. Desktop `desktop-plugins` copy wins over a marketplace install of the same package. Empty state is no billed usage (blank-only sessions included) with no scan failures; light heatmap empty cells must stay visible. Mounting rides the desktop overlay `desktop-usage-panel.patch.yml` (`--patch`, full starts only) — never a managed block in the user-owned `cordis.patch.yml`; the overlay is deleted when disabled, ensure fails, or a marketplace bundle already mounts the package.
 
 Full card: [docs/features/usage-stats.md](../../docs/features/usage-stats.md)

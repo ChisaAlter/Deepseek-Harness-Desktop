@@ -17,8 +17,11 @@
     var(--dsh-composer-dock-inset) -
     var(--dsh-composer-dock-inset)
   );
+  /* Follows the drag-resized input card (seat publishes
+     --dsh-composer-resized-width) so the plan strip keeps the card-minus-
+     four-insets relation; the fallback keeps the rest width. */
   max-width: calc(
-    var(--dsh-composer-card-max-width) -
+    var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)) -
     var(--dsh-composer-dock-inset) -
     var(--dsh-composer-dock-inset) -
     var(--dsh-composer-dock-inset) -

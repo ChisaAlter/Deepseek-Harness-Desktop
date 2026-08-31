@@ -24,6 +24,11 @@ export interface LlmProviderInfoLike {
     id: string;
     name: string;
 }
+export interface LlmModelInfoLike {
+    id: string;
+}
 export interface HostLlm {
     listProviders(): Promise<LlmProviderInfoLike[]> | LlmProviderInfoLike[];
+    /** Adapter-known models for one provider (may be unavailable on some adapters). */
+    listModels?(provider: string): Promise<LlmModelInfoLike[]>;
 }

@@ -24,6 +24,8 @@
 //  - Day keys are UTC.
 import { z } from 'zod'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { isPeakBillingTime } from '../shared/billing.ts'
+import type { PhaseBuckets } from '../shared/cost.ts'
 import { dayKeyUTC } from '../shared/usage.ts'
 
 const bucketSchema = z.object({
@@ -33,12 +35,26 @@ const bucketSchema = z.object({
   cacheWrite: z.number(),
 })
 
+/** Period-classified buckets: peak vs off-peak (billing windows, Beijing). */
+const phaseBucketsSchema = z.object({
+  peak: bucketSchema,
+  offPeak: bucketSchema,
+})
+
 const stepSchema = z.object({
   buckets: bucketSchema,
+  /** Billing phase of the step's start instant (classification snapshot). */
+  peak: z.boolean(),
   lastTime: z.number(),
   model: z.string(),
   provider: z.string(),
   mode: z.enum(['provisional', 'authoritative']),
+})
+
+const stepStartSchema = z.object({
+  turn: z.number().int().nonnegative(),
+  step: z.number().int().nonnegative(),
+  ms: z.number().int().nonnegative(),
 })
 
 export const usagePanelSchema = z.object({
@@ -46,6 +62,11 @@ export const usagePanelSchema = z.object({
   byModel: z.record(z.string(), bucketSchema),
   byDay: z.record(z.string(), z.record(z.string(), bucketSchema)),
   byProvider: z.record(z.string(), bucketSchema),
+  costTotals: phaseBucketsSchema,
+  costByModel: z.record(z.string(), phaseBucketsSchema),
+  costByDay: z.record(z.string(), z.record(z.string(), phaseBucketsSchema)),
+  costByProvider: z.record(z.string(), phaseBucketsSchema),
+  modelProviders: z.record(z.string(), z.string()),
   retries: z.number(),
   compactionTokens: z.number(),
   firstTime: z.number().nullable(),
@@ -53,6 +74,7 @@ export const usagePanelSchema = z.object({
   seedEnd: z.number().nullable(),
   currentModel: z.string(),
   currentProvider: z.string(),
+  stepStart: stepStartSchema.nullable(),
   openStep: z.string().nullable(),
   steps: z.record(z.string(), stepSchema),
 })
@@ -80,6 +102,11 @@ export function initState(): UsagePanelState {
     byModel: {},
     byDay: {},
     byProvider: {},
+    costTotals: { peak: { ...EMPTY }, offPeak: { ...EMPTY } },
+    costByModel: {},
+    costByDay: {},
+    costByProvider: {},
+    modelProviders: {},
     retries: 0,
     compactionTokens: 0,
     firstTime: null,
@@ -87,6 +114,7 @@ export function initState(): UsagePanelState {
     seedEnd: null,
     currentModel: 'unknown',
     currentProvider: 'unknown',
+    stepStart: null,
     openStep: null,
     steps: {},
   }
@@ -118,6 +146,41 @@ function addIntoDay(
 ): Record<string, Record<string, Buckets>> {
   const dayMap = byDay[day]
   return { ...byDay, [day]: dayMap ? addInto(dayMap, model, b) : { [model]: { ...b } } }
+}
+
+function addPhase(a: PhaseBuckets, b: Buckets, peak: boolean): PhaseBuckets {
+  return { ...a, [peak ? 'peak' : 'offPeak']: add(a[peak ? 'peak' : 'offPeak'], b) }
+}
+
+function addIntoPhase(
+  map: Record<string, PhaseBuckets>,
+  key: string,
+  b: Buckets,
+  peak: boolean,
+): Record<string, PhaseBuckets> {
+  const cur = map[key]
+  return {
+    ...map,
+    [key]: cur
+      ? addPhase(cur, b, peak)
+      : addPhase({ peak: { ...EMPTY }, offPeak: { ...EMPTY } }, b, peak),
+  }
+}
+
+function addIntoDayPhase(
+  byDay: Record<string, Record<string, PhaseBuckets>>,
+  day: string,
+  model: string,
+  b: Buckets,
+  peak: boolean,
+): Record<string, Record<string, PhaseBuckets>> {
+  const dayMap = byDay[day]
+  return {
+    ...byDay,
+    [day]: dayMap
+      ? addIntoPhase(dayMap, model, b, peak)
+      : { [model]: addPhase({ peak: { ...EMPTY }, offPeak: { ...EMPTY } }, b, peak) },
+  }
 }
 
 /**
@@ -161,6 +224,11 @@ function commitStep(state: UsagePanelState, key: string): UsagePanelState {
     byModel: addInto(state.byModel, step.model, b),
     byDay: addIntoDay(state.byDay, day, step.model, b),
     byProvider: addInto(state.byProvider, step.provider, b),
+    costTotals: addPhase(state.costTotals, b, step.peak),
+    costByModel: addIntoPhase(state.costByModel, step.model, b, step.peak),
+    costByDay: addIntoDayPhase(state.costByDay, day, step.model, b, step.peak),
+    costByProvider: addIntoPhase(state.costByProvider, step.provider, b, step.peak),
+    modelProviders: { ...state.modelProviders, [step.model]: step.provider },
     firstTime: state.firstTime === null ? step.lastTime : Math.min(state.firstTime, step.lastTime),
     lastTime: state.lastTime === null ? step.lastTime : Math.max(state.lastTime, step.lastTime),
     steps: { ...state.steps },
@@ -178,6 +246,18 @@ function commitOpenStep(state: UsagePanelState, incomingKey: string): UsagePanel
 }
 
 /**
+ * Billing phase of one whole step, classified at its `step/start` instant
+ * (a step straddling a phase boundary bills entirely at its start phase).
+ * Falls back to the event instant only when no counted `step/start` event
+ * established the step's start.
+ */
+function samplePeak(state: UsagePanelState, turn: number, step: number, eventTime: number): boolean {
+  const start = state.stepStart
+  if (start !== null && start.turn === turn && start.step === step) return isPeakBillingTime(start.ms)
+  return isPeakBillingTime(eventTime)
+}
+
+/**
  * Pure transition: previous state + one committed session event → next state.
  * Returns the SAME reference for unrelated events (zero downstream work, per
  * the registry contract). State is plain JSON (persisted-cache precondition).
@@ -189,6 +269,18 @@ export function applyEvent(state: UsagePanelState, event: SessionEvent): UsagePa
       // overwritten by an older one.
       if (state.seedEnd !== null && event.seq <= state.seedEnd) return state
       return { ...state, seedEnd: event.seq }
+    }
+    case 'step/start': {
+      // Counted history only: seed-history step/starts must never arm a step's
+      // phase (a forked session restarts turn/step, so matching a live step
+      // against a seed start would misclassify its billing window).
+      if (!isCounted(state, event)) return state
+      const stepStart = { turn: event.data.turn, step: event.data.step, ms: event.time }
+      const current = state.stepStart
+      if (current !== null && current.turn === stepStart.turn && current.step === stepStart.step && current.ms === stepStart.ms) {
+        return state
+      }
+      return { ...state, stepStart }
     }
     case 'request/context': {
       const { model, provider } = event.data
@@ -226,6 +318,7 @@ export function applyEvent(state: UsagePanelState, event: SessionEvent): UsagePa
         ? { ...existing, buckets: add(existing.buckets, b), lastTime: event.time }
         : {
             buckets: b,
+            peak: samplePeak(next, event.data.turn, event.data.step, event.time),
             lastTime: event.time,
             model: next.currentModel,
             provider: next.currentProvider,
@@ -249,8 +342,13 @@ export function applyEvent(state: UsagePanelState, event: SessionEvent): UsagePa
         cacheWrite: Number(usage.cacheWriteTokens) || 0,
       }
       let next = commitOpenStep(state, key)
+      const existing = next.steps[key]
       const step: StepState = {
         buckets: b,
+        // The step's phase is a snapshot: a provisional accumulation already
+        // classified it, and a late message (after the next step's start) must
+        // not reclassify it by its own (possibly post-boundary) arrival time.
+        peak: existing ? existing.peak : samplePeak(next, event.data.turn, event.data.step, event.time),
         lastTime: event.time,
         model: next.currentModel,
         provider: next.currentProvider,
@@ -293,6 +391,7 @@ export function applyEvent(state: UsagePanelState, event: SessionEvent): UsagePa
         byModel: addInto(state.byModel, model, b),
         byDay: addIntoDay(state.byDay, day, model, b),
         byProvider: addInto(state.byProvider, provider, b),
+        modelProviders: { ...state.modelProviders, [model]: provider },
         compactionTokens: state.compactionTokens + b.input + b.output + b.cacheRead + b.cacheWrite,
         firstTime: state.firstTime === null ? event.time : Math.min(state.firstTime, event.time),
         lastTime: state.lastTime === null ? event.time : Math.max(state.lastTime, event.time),
@@ -322,9 +421,13 @@ export function foldEvents(events: readonly SessionEvent[]): UsagePanelState {
 }
 
 /** Sum a session's day buckets whose key >= cutoffKey (recent-30d window). */
-export function recentOf(value: UsagePanelState, cutoffKey: string): { totals: Buckets; byModel: Record<string, Buckets> } {
+export function recentOf(
+  value: UsagePanelState,
+  cutoffKey: string,
+): { totals: Buckets; byModel: Record<string, Buckets>; costByModel: Record<string, PhaseBuckets> } {
   const totals: Buckets = { ...EMPTY }
   const byModel: Record<string, Buckets> = {}
+  const costByModel: Record<string, PhaseBuckets> = {}
   for (const day of Object.keys(value.byDay)) {
     if (day < cutoffKey) continue
     for (const model of Object.keys(value.byDay[day]!)) {
@@ -344,5 +447,19 @@ export function recentOf(value: UsagePanelState, cutoffKey: string): { totals: B
         : { ...b }
     }
   }
-  return { totals, byModel }
+  const dayCost = value.costByDay
+  for (const day of Object.keys(dayCost)) {
+    if (day < cutoffKey) continue
+    for (const model of Object.keys(dayCost[day]!)) {
+      const phase = dayCost[day]![model]!
+      const cur = costByModel[model]
+      costByModel[model] = cur
+        ? {
+            peak: add(cur.peak, phase.peak),
+            offPeak: add(cur.offPeak, phase.offPeak),
+          }
+        : { peak: { ...phase.peak }, offPeak: { ...phase.offPeak } }
+    }
+  }
+  return { totals, byModel, costByModel }
 }

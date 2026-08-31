@@ -1,4 +1,4 @@
-import type { Buckets, DayRecord, ModelItem, Overview, UsageTotals } from './contract.ts';
+import type { Buckets, DayRecord, ModelItem, Overview, PhaseBuckets, UsageTotals } from './contract.ts';
 export declare const HEAT_DAYS = 182;
 export declare const RECENT_DAYS = 30;
 export declare function emptyBuckets(): Buckets;
@@ -8,8 +8,8 @@ export declare function addBuckets(target: Buckets, usage: Partial<Buckets> | nu
 /** Merge one bucket set into another (values already normalized). */
 export declare function mergeInto(target: Buckets, src: Buckets): void;
 export declare function totalsFrom(b: Buckets): UsageTotals;
-/** Sorted model ranking, most usage first (v0.1.0 semantic). */
-export declare function sortedModels(map: Record<string, Buckets>): ModelItem[];
+/** Sorted model ranking, most usage first (v0.1.0 semantic; cost/provider added). */
+export declare function sortedModels(map: Record<string, Buckets>, costs?: Record<string, PhaseBuckets>, providers?: Record<string, string>): ModelItem[];
 export declare function totalsFromModels(models: ModelItem[]): UsageTotals;
 /** UTC day key for a timestamp: YYYY-MM-DD (explicit timezone declaration). */
 export declare function dayKeyUTC(ts: number): string;
@@ -30,8 +30,11 @@ export declare function listMonthKeys(days: ReadonlyArray<{
 /**
  * Build the 182-day heatmap window ending today (UTC). Days with no usage get
  * zero-filled records, preserving the v0.1.0 grid shape (fixed-length array).
+ * @param byDay - per-day per-model token buckets.
+ * @param now - the window's end instant.
+ * @param costByDay - per-day per-model period buckets, optional (zero-filled when absent).
  */
-export declare function buildDayWindow(byDay: Record<string, Record<string, Buckets>>, now: number): DayRecord[];
+export declare function buildDayWindow(byDay: Record<string, Record<string, Buckets>>, now: number, costByDay?: Record<string, Record<string, PhaseBuckets>>): DayRecord[];
 /** Cache hit rate over the four disjoint buckets: read / (uncached + read + write). */
 export declare function hitRate(b: Buckets): number | null;
 /** Billed input (uncached + cache read + cache write) — the v0.1.0 "输入" number. */

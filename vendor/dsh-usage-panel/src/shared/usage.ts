@@ -1,7 +1,7 @@
 // dsh-usage-panel · pure aggregation helpers (shared by host paths and tests).
 // Semantics preserved from v0.1.0 unless the strategy explicitly changed them
 // (the one intended change: day keys are UTC, not local time).
-import type { Buckets, DayRecord, ModelItem, Overview, UsageTotals } from './contract.ts'
+import type { Buckets, DayRecord, ModelItem, Overview, PhaseBuckets, UsageTotals } from './contract.ts'
 
 export const HEAT_DAYS = 182 // ~26 weeks for the contribution heatmap (recent half-year)
 export const RECENT_DAYS = 30 // recent window for totals / model split / bars
@@ -35,12 +35,25 @@ export function totalsFrom(b: Buckets): UsageTotals {
   return { ...b, total: b.input + b.output + b.cacheRead + b.cacheWrite }
 }
 
-/** Sorted model ranking, most usage first (v0.1.0 semantic). */
-export function sortedModels(map: Record<string, Buckets>): ModelItem[] {
+/** Sorted model ranking, most usage first (v0.1.0 semantic; cost/provider added). */
+export function sortedModels(
+  map: Record<string, Buckets>,
+  costs?: Record<string, PhaseBuckets>,
+  providers?: Record<string, string>,
+): ModelItem[] {
   return Object.keys(map)
     .map((model) => {
       const b = map[model]!
-      return { model, ...b, total: b.input + b.output + b.cacheRead + b.cacheWrite }
+      return {
+        model,
+        ...b,
+        total: b.input + b.output + b.cacheRead + b.cacheWrite,
+        provider: providers && providers[model] ? providers[model]! : 'unknown',
+        cost:
+          costs && costs[model]
+            ? { peak: { ...costs[model]!.peak }, offPeak: { ...costs[model]!.offPeak } }
+            : { peak: { ...emptyBuckets() }, offPeak: { ...emptyBuckets() } },
+      }
     })
     .sort((a, b) => b.total - a.total)
 }
@@ -115,8 +128,15 @@ export function listMonthKeys(days: ReadonlyArray<{ date: string }>): string[] {
 /**
  * Build the 182-day heatmap window ending today (UTC). Days with no usage get
  * zero-filled records, preserving the v0.1.0 grid shape (fixed-length array).
+ * @param byDay - per-day per-model token buckets.
+ * @param now - the window's end instant.
+ * @param costByDay - per-day per-model period buckets, optional (zero-filled when absent).
  */
-export function buildDayWindow(byDay: Record<string, Record<string, Buckets>>, now: number): DayRecord[] {
+export function buildDayWindow(
+  byDay: Record<string, Record<string, Buckets>>,
+  now: number,
+  costByDay?: Record<string, Record<string, PhaseBuckets>>,
+): DayRecord[] {
   const days: DayRecord[] = []
   const today = todayKeyUTC(now)
   const todayDate = parseDayKeyUTC(today)
@@ -125,6 +145,7 @@ export function buildDayWindow(byDay: Record<string, Record<string, Buckets>>, n
     const key = keyOfDateUTC(d)
     const record = byDay[key]
     const models: Record<string, UsageTotals> = {}
+    const cost = emptyPhase()
     let total = 0
     if (record) {
       for (const model of Object.keys(record)) {
@@ -133,9 +154,27 @@ export function buildDayWindow(byDay: Record<string, Record<string, Buckets>>, n
         total += models[model]!.total
       }
     }
-    days.push({ date: key, total, models })
+    const dayCost = costByDay?.[key]
+    if (dayCost) {
+      for (const model of Object.keys(dayCost)) {
+        const phase = dayCost[model]!
+        cost.peak.input += phase.peak.input
+        cost.peak.output += phase.peak.output
+        cost.peak.cacheRead += phase.peak.cacheRead
+        cost.peak.cacheWrite += phase.peak.cacheWrite
+        cost.offPeak.input += phase.offPeak.input
+        cost.offPeak.output += phase.offPeak.output
+        cost.offPeak.cacheRead += phase.offPeak.cacheRead
+        cost.offPeak.cacheWrite += phase.offPeak.cacheWrite
+      }
+    }
+    days.push({ date: key, total, models, cost, modelCosts: dayCost ?? {} })
   }
   return days
+}
+
+function emptyPhase(): PhaseBuckets {
+  return { peak: emptyBuckets(), offPeak: emptyBuckets() }
 }
 
 /** Cache hit rate over the four disjoint buckets: read / (uncached + read + write). */

@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 
 export interface SlotsLike {
   inject(slot: string, register: () => () => void): void
-  register(options: SlotRegisterOptions, render: () => ReactNode): () => void
+  register(options: SlotRegisterOptions, render: (props?: unknown) => ReactNode): () => void
 }
 
 export interface SlotRegisterOptions {
@@ -13,6 +13,8 @@ export interface SlotRegisterOptions {
   id: string
   order: number
   label?: string | (() => string)
+  /** Locale namespace bound to the entry's `t` (list-slot entries). */
+  locale?: string
 }
 
 export interface RpcResultLike<T> {

@@ -61,6 +61,53 @@ test('ensureUsagePanelPlugin copies the bundled package and writes a desktop ove
   }
 });
 
+test('ensureUsagePanelPlugin backs off a user-owned real-directory install', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const userDir = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
+    fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(path.join(userDir, 'manager.json'), '{"user":true}', 'utf8');
+    // A stale overlay from an earlier desktop run must be removed.
+    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
+    fs.mkdirSync(dest, { recursive: true });
+    fs.writeFileSync(path.join(dest, 'desktop-usage-panel.patch.yml'), '- insert:\n    - id: usage-stats\n', 'utf8');
+
+    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    assert.equal(result.ok, true);
+    assert.equal(result.userOwned, true);
+    // No desktop copy refresh, no junction replacement.
+    assert.equal(fs.existsSync(path.join(dest, 'lib')), false);
+    assert.equal(fs.existsSync(path.join(dest, 'package.json')), false);
+    assert.equal(fs.existsSync(path.join(dest, 'desktop-usage-panel.patch.yml')), false, 'overlay removed (no double mount)');
+    assert.equal(fs.readFileSync(path.join(userDir, 'manager.json'), 'utf8'), '{"user":true}', 'user dir untouched');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+});
+
+test('ensureUsagePanelPlugin treats a junction to a foreign target as user-owned', { skip: process.platform === 'linux' && !process.getuid ? false : false }, () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  const foreign = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-user-'));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
+    fs.mkdirSync(path.dirname(linked), { recursive: true });
+    fs.symlinkSync(foreign, linked, process.platform === 'win32' ? 'junction' : 'dir');
+    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    assert.equal(result.userOwned, true);
+    // The foreign link survives; its content is untouched.
+    assert.equal(fs.readlinkSync(linked), foreign);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+    fs.rmSync(foreign, { recursive: true, force: true });
+  }
+});
+
 test('ensureUsagePanelPlugin migrates the legacy managed block out of the user patch', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));

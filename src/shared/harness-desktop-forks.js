@@ -69,6 +69,16 @@ const FORK_FILE_MARKERS = [
   // Standing wallpaper fork on the upstream ui-theme package.
   { file: 'packages/client/ui-theme/src/client/WallpaperGalleryModal.tsx', includes: [] },
   { file: 'packages/client/ui-theme/src/client/WallpaperRow.tsx', includes: [] },
+  // Composer family width linkage: the drag-resized input card publishes
+  // --dsh-composer-resized-width on the seat AND the conversation column (so
+  // the transcript sees it); the session stats line, the chat flow column,
+  // and the dock cards (queue / todo / goal) consume it so they follow.
+  { file: 'packages/client/ui-conversation/src/client/chat/StatsLine.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-conversation/src/client/chat/ChatView.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/ComposerResizeHandles.tsx', includes: ['data-conversation-scroll'] },
+  { file: 'packages/client/ui-conversation/src/client/queue/QueueDock.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/TodoPanel.module.css', includes: ['dsh-composer-resized-width'] },
+  { file: 'packages/client/ui-goal/src/client/GoalBar.module.css', includes: ['dsh-composer-resized-width'] },
   // Desktop launcher recovery flag on the upstream CLI args parser.
   { file: 'apps/cli/src/args.ts', includes: ['skip-user-plugins'] },
   // Desktop composition carries the browse rows in the shipped base, so the
@@ -78,6 +88,8 @@ const FORK_FILE_MARKERS = [
   // navigation, zh boot copy, RPC interception).
   { file: 'apps/web/tests/settings-chrome.e2e.ts', includes: ['正在加载插件'] },
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
+  // Desktop fork: input.dock panels follow the drag-resized composer card.
+  { file: 'apps/web/tests/composer-resize-dock.e2e.ts', includes: ['input.dock panels follow the composer drag width'] },
   // Session log download lives in the desktop titlebar capsule, never in the conversation header.
   { file: 'apps/web/tests/snapshots/agent-preset-selection/header.expected.md', excludes: ['button "Session log"'] },
   { file: 'package.json', includes: ['copy-ghostty-assets.mjs'] },

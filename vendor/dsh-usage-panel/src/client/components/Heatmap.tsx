@@ -1,9 +1,13 @@
 // dsh-usage-panel · activity heatmap (UTC calendar month within the half-year window).
 // GitHub-contribution layout for one month: weeks as columns, weekdays as rows,
 // quartile levels over that month's non-zero days; ‹ › switches months in-window.
+// Hover shows the day's tokens AND estimated cost (per-model priced).
 import { useState } from 'react'
 import type { DayRecord } from '../../shared/contract.ts'
+import type { SessionCostPrices } from '../../shared/pricing.ts'
 import { fmtTokens, heatLevel, monthLabel, quartileThresholds, weekdayIndexUTC, dateCN } from '../../shared/format.ts'
+import { totalCostCents } from '../../shared/cost.ts'
+import { formatCost } from '../../shared/pricing.ts'
 import { keyOfDateUTC, listMonthKeys, monthKeyUTC } from '../../shared/usage.ts'
 import type { I18n } from '../locales.ts'
 import type { Tip } from '../hooks.ts'
@@ -13,9 +17,13 @@ interface HeatmapProps {
   days: DayRecord[]
   i18n: I18n
   onTip: (tip: Tip | null) => void
+  /** Billing context for the per-day cost line (prices applied here). */
+  prices?: SessionCostPrices
+  peakValley?: boolean
+  modelProviders?: Record<string, string>
 }
 
-export function Heatmap({ days, i18n, onTip }: HeatmapProps): JSX.Element {
+export function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelProviders = {} }: HeatmapProps): JSX.Element {
   const t = i18n.t
   const locale = i18n.locale
   const months = listMonthKeys(days)
@@ -72,11 +80,25 @@ export function Heatmap({ days, i18n, onTip }: HeatmapProps): JSX.Element {
             style={{ animationDelay: (w * 0.018).toFixed(4) + 's' }}
             onMouseEnter={(e) => {
               const rect = e.currentTarget.getBoundingClientRect()
+              const lines: Tip['lines'] = []
+              if (prices !== undefined) {
+                const rows = Object.keys(rec.modelCosts).map((model) => ({
+                  model,
+                  provider: modelProviders[model] ?? 'unknown',
+                  cost: rec.modelCosts[model]!,
+                }))
+                const cents = totalCostCents(rows, prices, peakValley)
+                lines.push({
+                  label: t('heat.cost'),
+                  value: cents === null ? t('heat.costNone') : formatCost(cents),
+                  color: cents === null ? 'var(--dsw-alias-label-tertiary)' : 'var(--dsw-alias-state-success-primary)',
+                })
+              }
               onTip({
                 left: rect.left + rect.width / 2,
                 top: rect.top - 6,
                 title: t('heat.day', { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) }),
-                lines: [],
+                lines,
               })
             }}
             onMouseLeave={() => onTip(null)}

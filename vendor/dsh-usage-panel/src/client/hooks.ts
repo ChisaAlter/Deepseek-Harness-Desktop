@@ -1,7 +1,10 @@
 // dsh-usage-panel · shared client hooks and helpers.
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import type { Buckets } from '../shared/contract.ts'
+import type { Buckets, BillingSettings } from '../shared/contract.ts'
 import type { I18n } from './locales.ts'
+import type { RpcLike } from './ctx.ts'
+import { callBillingGet } from './api.ts'
+import { currentBilling, publishBilling, subscribeBilling } from './billing-bus.ts'
 
 export const PALETTE = [
   'var(--dsw-static-deepseek-500)',
@@ -89,6 +92,34 @@ export function useI18n(i18n: I18n): I18n {
   const subscribe = useCallback((cb: () => void) => i18n.subscribe(cb), [i18n])
   const active = useSyncExternalStore(subscribe, i18n.getSnapshot, i18n.getSnapshot)
   return active === i18n.locale ? i18n : { ...i18n, locale: active }
+}
+
+/**
+ * Subscribe a component to the billing preferences (loaded once from the
+ * host, then republished through the in-bundle bus by the settings modal).
+ */
+export function useBillingSettings(rpc: RpcLike): BillingSettings | null {
+  const [settings, setSettings] = useState<BillingSettings | null>(() => currentBilling())
+  useEffect(() => {
+    let disposed = false
+    const off = subscribeBilling((next) => setSettings(next))
+    if (currentBilling() === null) {
+      callBillingGet(rpc)
+        .then((value) => {
+          if (disposed) return
+          publishBilling(value)
+          setSettings(value)
+        })
+        .catch(() => {
+          /* unhealthy host: keep defaults, stats still render without prices */
+        })
+    }
+    return () => {
+      disposed = true
+      off()
+    }
+  }, [rpc])
+  return settings
 }
 
 /** Keep a ref of the latest value without re-rendering (for effect deps). */
