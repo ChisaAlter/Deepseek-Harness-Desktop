@@ -20,6 +20,7 @@ import { resolveGitQuick } from './git/quick.js';
 import { runStackedGit } from './git/stack.js';
 import { gitCommitPayload, gitTunnelAction } from './git/bridge.js';
 import { gitCall, hostCall } from './host/backend.js';
+import { deliverApprovalRespond } from './host/approval-respond.js';
 import {
   archivedSessionRows,
   heldSessionRow,
@@ -1945,21 +1946,26 @@ async function respondToPendingApproval(pending, response) {
     || response?.behavior === 'deny'
     ? 'rejected'
     : (pending.actions?.find((action) => action.id === response?.selectedActionId)?.outcome || 'allowed-once');
+  const client = state.chisacode.client;
   // Dismiss first: host may settle before the E2EE respond ack arrives.
   clearApproval(pending.rpcId);
   clearApproval(pending.approvalId);
-  try {
-    await hostCall(state.chisacode.client, 'respond', {
-      rpcId: pending.rpcId,
-      value: {
-        sessionId: pending.sessionId || state.sessionId,
-        approvalId: pending.approvalId,
-        outcome,
-      },
-    });
-  } catch (error) {
-    showBanner(error.message || '审批未能送达电脑');
+  const result = await deliverApprovalRespond({
+    hostCall,
+    client,
+    pending: {
+      ...pending,
+      sessionId: pending.sessionId || state.sessionId,
+    },
+    outcome,
+    loadHistory: (sessionId) => hostCall(client, 'session.history', historyQuery(sessionId)),
+  });
+  if (result.ok) return;
+  if (!state.pendingApprovals.some((item) => item.rpcId === pending.rpcId || item.approvalId === pending.approvalId)) {
+    state.pendingApprovals = [...state.pendingApprovals, pending];
+    renderApproval();
   }
+  showBanner(result.error?.message || '审批未能送达电脑');
 }
 
 async function answerLegacyApproval(outcome) {

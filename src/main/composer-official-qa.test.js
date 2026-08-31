@@ -26,7 +26,7 @@ test('composer official cases cover the plan claims', () => {
   assert.ok(ids.includes('case.remote.pairingSpa'));
   assert.match(
     require('node:fs').readFileSync(require('node:path').join(__dirname, 'composer-official-qa.js'), 'utf8'),
-    /dshd-rem-002/,
+    /parked: no pairing SPA/,
   );
   assert.equal(new Set(ids).size, ids.length);
 });

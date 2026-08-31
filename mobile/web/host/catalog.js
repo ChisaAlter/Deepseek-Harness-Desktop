@@ -1,3 +1,5 @@
+import { isUntitledBlank } from '../conversation/title.js';
+
 function sessionItems(sessions) {
   if (Array.isArray(sessions?.items)) return sessions.items;
   if (Array.isArray(sessions)) return sessions;
@@ -7,6 +9,10 @@ function sessionItems(sessions) {
 function archivedSet(workspaces) {
   const ids = workspaces?.archivedSessionIds;
   return new Set(Array.isArray(ids) ? ids : []);
+}
+
+function archivedIdList(workspaces) {
+  return Array.isArray(workspaces?.archivedSessionIds) ? workspaces.archivedSessionIds : [];
 }
 
 function workspaceIndex(workspaces) {
@@ -36,7 +42,23 @@ function toRow(session, workspace, archived) {
       ? session.projections
       : { values: {} },
     archived: archived === true,
-    blank: session.blank === true,
+    blank: isUntitledBlank(session),
+  };
+}
+
+function missingArchivedRow(sessionId) {
+  return {
+    sessionId,
+    cwd: '',
+    running: false,
+    parentSessionId: '',
+    origin: '',
+    workspaceId: '',
+    workspaceTitle: '',
+    workspacePath: '',
+    projections: { values: { title: '缺失会话' } },
+    archived: true,
+    blank: false,
   };
 }
 
@@ -46,7 +68,7 @@ function liveSessionRows({ sessions, workspaces }) {
   return sessionItems(sessions).flatMap((session) => {
     const sessionId = session?.sessionId;
     if (!sessionId) return [];
-    if (session.blank === true) return [];
+    if (isUntitledBlank(session)) return [];
     if (session.origin === 'dshbot') return [];
     if (archived.has(sessionId)) return [];
     return [toRow(session, bySession.get(sessionId), false)];
@@ -54,12 +76,16 @@ function liveSessionRows({ sessions, workspaces }) {
 }
 
 function archivedSessionRows({ sessions, workspaces }) {
-  const archived = archivedSet(workspaces);
   const { bySession } = workspaceIndex(workspaces);
-  return sessionItems(sessions).flatMap((session) => {
-    const sessionId = session?.sessionId;
-    if (!sessionId || !archived.has(sessionId)) return [];
-    if (session.origin === 'dshbot') return [];
+  const byId = new Map();
+  for (const session of sessionItems(sessions)) {
+    if (session?.sessionId) byId.set(session.sessionId, session);
+  }
+  return archivedIdList(workspaces).flatMap((sessionId) => {
+    if (!sessionId) return [];
+    const session = byId.get(sessionId);
+    if (session?.origin === 'dshbot') return [];
+    if (!session) return [missingArchivedRow(sessionId)];
     return [toRow(session, bySession.get(sessionId), true)];
   });
 }
@@ -118,8 +144,7 @@ function workspaceIdFromCreate(value) {
     : value;
   if (!nested || typeof nested !== 'object') return '';
   if (typeof nested.workspaceId === 'string' && nested.workspaceId) return nested.workspaceId;
-  if (typeof nested.id === 'string' && nested.id) return nested.id;
-  return '';
+  return typeof nested.id === 'string' && nested.id ? nested.id : '';
 }
 
 export {

@@ -19,6 +19,7 @@ const {
   REMOTE_GATE_CASES,
   REMOTE_GATE_NEG_REM_CASES,
   REMOTE_GATE_COLD_CASES,
+  REMOTE_GATE_PARKED_CASES,
 } = require('../src/main/remote-gate-qa.js')
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -146,6 +147,11 @@ try {
       titlebar: resultFull.result?.titlebarHits,
     })}`)
   }
+  if (resultFull.result?.remoteGateQa?.parked === true) {
+    assertRemoteGateQaResult(resultFull.result.remoteGateQa, { required: REMOTE_GATE_PARKED_CASES })
+    printStepTable(resultFull.result.remoteGateQa)
+    console.log(`Remote feature parked; skipped cold boot. Artifacts: ${dirsFull.userData}`)
+  } else {
   assertRemoteGateQaResult(resultFull.result?.remoteGateQa, { required: REMOTE_GATE_NEG_REM_CASES })
 
   console.log('Boot 2: remoteEnabled=true + DSH_QA_REMOTE=cold (no setRemote before open).')
@@ -179,6 +185,7 @@ try {
   assertRemoteGateQaResult(merged, { required: REMOTE_GATE_CASES })
   printStepTable(merged)
   console.log(`Remote gate QA passed. Artifacts: ${dirsFull.userData} + ${dirsCold.userData}`)
+  }
 } catch (error) {
   keepArtifacts = true
   console.error(error instanceof Error ? error.stack || error.message : String(error))

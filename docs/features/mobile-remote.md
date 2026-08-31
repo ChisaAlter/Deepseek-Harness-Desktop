@@ -3,10 +3,12 @@
 | Field | Value |
 | --- | --- |
 | **id** | `mobile-remote` |
-| **status** | `active` |
-| **last verified** | 2026-08-31 — T1 Rehearsal 公网 `/dshd` `app.js?v=20260830-asked`：S08 桌面决 Pass*；402 Pass*；705 Pass*；S01 连接页三档 Pass*；301 已产品化（全量启动 `--patch` overlay，耐久 `dsh-home/session-query.sqlite`，不再靠用户层 `cordis.patch.yml`）；605 已产品化（`gitPush` 补 `origin/HEAD`，非 main 首推仍走 Commit & push）。相机跳过。T3 Deferred。未宣称实机全量。 |
+| **status** | `parked` |
+| **last verified** | 2026-08-31 — 产品停放：`REMOTE_FEATURE_ENABLED = false`（preload 不挂远程 IPC，侧栏/设置入口不出现）。SPA 标题 leftover `blank`、归档「缺失会话」、审批超时确认仍在 `mobile/web`。解禁前不宣称实机全量。 |
 
 ## User paths
+
+**当前停放：** 桌面不露出配对入口，不听 `:3180`。下列是解禁后的路径。
 
 1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `http://125.124.85.212:3389/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
 2. 再次打开手机 SPA（无 hash）：用最近一台已存 `deviceSecret` sticky 重连。「已保存的电脑」点选 / 忘记。跨 origin（公网 `/dshd`、LAN `:3180`、APK asset）不互通 sticky。

@@ -7,6 +7,7 @@ const path = require('node:path');
 const {
   REMOTE_GATE_CASES,
   REMOTE_GATE_COLD_CASES,
+  REMOTE_GATE_PARKED_CASES,
   assertRemoteGateQaResult,
   pairingOffer,
   pairingChromeMatchesRelay,
@@ -32,6 +33,8 @@ test('remote gate cases cover NEG-001 and REM-001 without pairing fetch', () => 
   assert.match(src, /data-dsh-remote-qr/);
   assert.doesNotMatch(src, /\/二维码\|QR\|配对\//);
   assert.match(src, /mode === 'cold'/);
+  assert.match(src, /REMOTE_FEATURE_ENABLED/);
+  assert.match(src, /parked\.noFooter/);
 });
 
 test('cold cases are a required subset', () => {
@@ -57,6 +60,14 @@ test('pairing chrome follows the live relay control socket', () => {
   assert.equal(pairingControlsMatchRelay({ copy: true, rotate: false }, false, false), false);
 });
 
+test('assertRemoteGateQaResult accepts a parked result', () => {
+  assert.doesNotThrow(() => assertRemoteGateQaResult({
+    ok: true,
+    parked: true,
+    steps: REMOTE_GATE_PARKED_CASES.map((c) => ({ name: c.id, ok: true })),
+  }));
+});
+
 test('assertRemoteGateQaResult rejects missing cases', () => {
   assert.throws(
     () => assertRemoteGateQaResult({ ok: true, steps: [{ name: 'neg.available', ok: true }] }),
@@ -75,6 +86,7 @@ test('remote gate QA is wired into the main smoke path', () => {
   assert.match(smoke, /remoteGateMode/);
   const runner = fs.readFileSync(path.join(__dirname, '..', '..', 'scripts', 'run-remote-gate-qa.mjs'), 'utf8');
   assert.match(runner, /DSH_QA_REMOTE: 'cold'/);
+  assert.match(runner, /skipped cold boot/);
   const pkg = fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8');
   assert.match(pkg, /prestart-ensure\.mjs && node scripts\/run-remote-gate-qa/);
 });

@@ -809,9 +809,11 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 **2026-08-23 源码实机（不填本表 Pass）：** 隔离 `dsh web` 60821 空态「暂无统计数据」/ English「No statistics yet」；60822 有用量 KPI 输入整数、浅/深热力图空格可见且蓝阶。`boot: mode=projection`，`session_projcache` 含 `usagePanel`。截图 `docs/qa/results/2026-08-23/usage-stats-empty-zh.png`、`usage-stats-zh-light.png`、`usage-stats-zh-dark.png`。未动已装实例 `:3080`。
 
 
-### TC-EXT-009 · 设置内远程双标签 · P1
+### TC-EXT-009 · 设置内远程双标签 · P1 · **N/A（停放）**
 
-**步骤：**
+**当前停放：** `REMOTE_FEATURE_ENABLED=false`。设置无「远程」分区，侧栏无手机图标；本条不测双标签。解禁后再测下列路径。
+
+**步骤（解禁后）：**
 
 1. 设置 → 「远程」（`remote`）→ **网关**：可见中继 URL·令牌（在上）、连接方式（局域网／服务器中继，横排分段）、端口、绑定、TLS、轮换 pairing token；未配中继凭据时「服务器中继」禁用；渠道页无 DSH-IM／GitHub 商店头。
 2. 切到 **消息渠道**：可见 dsh-im 渠道 UI（QQ／飞书／微信等）；设置侧栏**无**独立「IM机器人」项；无 DSH-IM 大标题／口号／GitHub。
@@ -900,11 +902,15 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ### TC-NEG-001 · 远程默认关闭且不监听 · P0
 
-**步骤：** 全新配置（不要打开侧栏远程）；用资源监视器/netstat 确认 3180。
+**步骤：** 全新配置。确认设置无「远程」、侧栏无手机图标；用资源监视器/netstat 确认 3180。
 
-**期望：** 侧栏有手机 **远程** 入口；快照 `available`；`enabled` 为关；**不**开 HTTP 监听。磁盘若已 `remoteEnabled: true` 则走 TC-REM-001，不走本条。
+**期望（停放 `REMOTE_FEATURE_ENABLED=false`）：** 无侧栏远程入口；`getRemote` 不在 `window.shell`；快照 `available=false`；**不**开 3180。磁盘即使写过 `remoteEnabled: true` 也被钉死为关。
+
+解禁后本条改回：侧栏有入口、默认关、不听；磁盘已开则改走 TC-REM-001。
 
 ### TC-REM-001 · 打开局域网远程并出现二维码 · P0
+
+**停放期：N/A**（入口不露出）。解禁后再测。
 
 **步骤：** 远程模式为 **局域网** 时：侧栏底部手机图标 → 远程弹窗 → 开。
 
@@ -1093,6 +1099,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | TC-EXT-006 | P1 | Pass | CI SHA + 已装 exe | 设置有 MCP/技能 | Trent | 2026-08-23 |
 | TC-EXT-007 | P1 | 待测 | 待绑 CI SHA + 已装 exe | 独立插件：默认无页签；可选市场一键装/卸（不得用 2026-08-23 停放 Pass）。执行手册就绪：[tc-ext-007-dshbot-install-smoke.md](tc-ext-007-dshbot-install-smoke.md)；阻塞：云端 Linux 无法跑 Windows 安装包。2026-08-26 Linux 源码级三相轮换 PASS（不填本表 Pass）：[results/2026-08-26/tc-ext-007-dshbot.md](results/2026-08-26/tc-ext-007-dshbot.md) |  |  |
 | TC-EXT-008 | P0 |  | 源码实机 53709（非 CI 包） | 设置有「用量统计」；零用量 KPI；安装包未测 | Trent | 2026-08-23 |
+| TC-EXT-009 | P1 | N/A |  | 产品停放：设置无「远程」、无双标签 | Auto | 2026-08-31 |
 | TC-DESK-001 | P0 | Pass | CI SHA + 已装 exe | 关窗无标题；进程与 3080 仍在 | Trent | 2026-08-23 |
 | TC-DESK-002 | P0 | Pass | CI SHA `47ad187` + 已装 exe | `run-installed-shell-p0.mjs` invokeTrayAction 五项 | Trent | 2026-08-24 |
 | TC-DESK-003 | P0 | Pass | CI SHA + 已装 exe | 直接退出后进程 0、3080 关 | Trent | 2026-08-23 |
@@ -1102,10 +1109,10 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | TC-DESK-007 | P2 | N/A | CI SHA + 已装 exe | 未测开机启动 | Trent | 2026-08-23 |
 | TC-DESK-008 | P1 | Pass | CI SHA + 已装 exe | 通用设置自动恢复开；实机 1/3 重启 | Trent | 2026-08-23 |
 | TC-DESK-009 | P1 |  |  |  | Trent |  |
-| TC-NEG-001 | P0 | Pass | 源码实机 `run-remote-gate-qa` | 侧栏 trigger；默认不监听；3180 未开 | Auto | 2026-08-25 |
-| TC-REM-001 | P0 | Pass | 源码实机 `run-remote-gate-qa` | 开 LAN → 听 3180 + `#offer=` + QR SVG；关停听 | Auto | 2026-08-25 |
-| TC-REM-002 | P0 | Fail | T1 Rehearsal（Cursor 390） | 细则 [2026-08-30/mobile-remote-web-t1.md](results/2026-08-30/mobile-remote-web-t1.md)。301/605 已补。不得写实机全量：执行人跳过系统相机；T3 Deferred。 | Auto | 2026-08-31 |
-| TC-REM-003 | P1 | 待测 |  | 审批允许一次 / 拒绝 |  |  |
+| TC-NEG-001 | P0 | Pass | 停放开关 | `REMOTE_FEATURE_ENABLED=false`：无入口、不听 3180 | Auto | 2026-08-31 |
+| TC-REM-001 | P0 | N/A |  | 产品停放，入口不露出 | Auto | 2026-08-31 |
+| TC-REM-002 | P0 | N/A |  | 产品停放。此前 T1 Rehearsal Fail 不再挡发版 | Auto | 2026-08-31 |
+| TC-REM-003 | P1 | N/A |  | 产品停放 | Auto | 2026-08-31 |
 | TC-NEG-002 | P0 造障 | Pass | CI SHA + 已装 exe | 杀 dsh 后自动重启回主界面 | Trent | 2026-08-23 |
 | TC-NEG-003 | P1 |  |  |  | Trent | 2026-08-23 |
 | TC-NEG-004 | P2 |  |  |  | Trent | 2026-08-23 |

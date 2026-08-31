@@ -39,6 +39,11 @@ test('new-session browse unwraps workspace.create nested id and keeps open blank
   assert.match(app, /withHeldLiveRow\(/);
 });
 
+test('approval respond confirms host history after an E2EE ack timeout', () => {
+  assert.match(app, /deliverApprovalRespond\(/);
+  assert.match(app, /session\.history/);
+});
+
 test('history poll hydrates unanswered approval/asked into the strip', () => {
   assert.match(app, /pendingFromHistoryEvents\(/);
   assert.match(app, /mergeApprovalPending\(/);

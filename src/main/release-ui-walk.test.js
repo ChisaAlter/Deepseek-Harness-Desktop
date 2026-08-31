@@ -84,7 +84,9 @@ test('release walk source clicks Mention and asserts the composer markdown link'
   assert.match(walk, /data-source="path"/);
   assert.match(walk, /probeRemote/);
   assert.match(walk, /remote\.available/);
+  assert.match(walk, /remoteSnap\.available === false/);
   assert.match(walk, /remote\.footerPresent/);
+  assert.match(walk, /parked hidden/);
   assert.match(walk, /titlebar\.windowControls/);
   assert.match(walk, /files\.tabCloseRight/);
   assert.match(walk, /git\.commitDialog/);

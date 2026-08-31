@@ -20,6 +20,12 @@ const sessions = {
       projections: { values: { title: '正在做的事' } },
     },
     { sessionId: 'blank-1', blank: true, running: false },
+    {
+      sessionId: 'titled-blank',
+      blank: true,
+      running: false,
+      projections: { values: { title: '验证连接并生成验证码' } },
+    },
     { sessionId: 'bot-1', blank: false, origin: 'dshbot', projections: { values: { title: 'bot' } } },
     {
       sessionId: 'arch-1',
@@ -42,7 +48,7 @@ const workspaces = {
       workspaceId: 'ws-1',
       title: 'proj',
       path: 'C:\\proj',
-      sessionIds: ['live-1', 'blank-1', 'arch-1', 'child-1'],
+      sessionIds: ['live-1', 'blank-1', 'arch-1', 'child-1', 'titled-blank'],
     },
   ],
   archivedSessionIds: ['arch-1'],
@@ -50,11 +56,14 @@ const workspaces = {
 
 test('liveSessionRows hides blank, dshbot, and archived sessions', () => {
   const rows = liveSessionRows({ sessions, workspaces });
-  assert.deepEqual(rows.map((row) => row.sessionId).sort(), ['child-1', 'live-1']);
+  assert.deepEqual(rows.map((row) => row.sessionId).sort(), ['child-1', 'live-1', 'titled-blank']);
   const live = rows.find((row) => row.sessionId === 'live-1');
   assert.equal(live.workspaceId, 'ws-1');
   assert.equal(live.cwd, 'C:\\proj');
   assert.equal(live.running, true);
+  const titled = rows.find((row) => row.sessionId === 'titled-blank');
+  assert.equal(titled.blank, false);
+  assert.equal(titled.projections.values.title, '验证连接并生成验证码');
 });
 
 test('archivedSessionRows only returns archived ids', () => {
@@ -64,11 +73,22 @@ test('archivedSessionRows only returns archived ids', () => {
   assert.equal(rows[0].archived, true);
 });
 
+test('archivedSessionRows keeps summary-less archived ids as 缺失会话', () => {
+  const rows = archivedSessionRows({
+    sessions,
+    workspaces: { ...workspaces, archivedSessionIds: ['arch-1', 'ghost-1'] },
+  });
+  assert.deepEqual(rows.map((row) => row.sessionId), ['arch-1', 'ghost-1']);
+  assert.equal(rows[1].projections.values.title, '缺失会话');
+  assert.equal(rows[1].archived, true);
+  assert.equal(rows[1].blank, false);
+});
+
 test('workspaceDrawerSections groups live rows under workspace.list order', () => {
   const live = liveSessionRows({ sessions, workspaces });
   const { sections, ungrouped } = workspaceDrawerSections(live, workspaces);
   assert.equal(sections[0].workspace.workspaceId, 'ws-1');
-  assert.deepEqual(sections[0].rows.map((row) => row.sessionId).sort(), ['child-1', 'live-1']);
+  assert.deepEqual(sections[0].rows.map((row) => row.sessionId).sort(), ['child-1', 'live-1', 'titled-blank']);
   assert.deepEqual(ungrouped, []);
 });
 

@@ -565,7 +565,7 @@ async function runReleaseUiWalk(wc, helpers) {
     : null;
   rec(
     'remote.available',
-    remoteSnap != null && remoteSnap.available === true && remoteSnap.enabled === false,
+    remoteSnap != null && remoteSnap.available === false && remoteSnap.enabled === false,
     remoteSnap ? summarizeRemoteQaDetail(remoteSnap) : 'helpers.probeRemote missing',
   );
   rec(
@@ -578,7 +578,7 @@ async function runReleaseUiWalk(wc, helpers) {
     if (trigger && dshShown(trigger)) return 'trigger';
     return dshFind('^remote$|^远程$') ? 'label' : null;
   });
-  rec('remote.footerPresent', remoteFooter != null, remoteFooter || 'no remote footer', true);
+  rec('remote.footerPresent', remoteFooter == null, remoteFooter || 'parked hidden');
 
   const commandsClicked = await clickNamed(wc, '^commands$|^命令$');
   if (commandsClicked) {

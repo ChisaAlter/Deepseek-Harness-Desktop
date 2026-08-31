@@ -3,10 +3,12 @@
 | Field | Value |
 | --- | --- |
 | **id** | `remote-settings` |
-| **status** | `active` |
-| **last verified** | 2026-08-30 — 外出 QR 走公网 `:3389/dshd/`（安全组未放行 80）；modeHint 区分 LAN/外出；config 拒 `:8411` 作 SPA。 |
+| **status** | `parked` |
+| **last verified** | 2026-08-31 — `REMOTE_FEATURE_ENABLED = false`：设置「远程」与侧栏二维码不注册；磁盘 `remoteEnabled` 无法打开；不听 3180。解禁再翻回 true。 |
 
 ## User paths
+
+**当前停放：** 设置无「远程」分区，侧栏无手机图标。下列路径是解禁后的产品面，本轮不露出。
 
 1. 设置 → 「远程」（`remote`）→ **网关**：选 **局域网 / 外出**（文案区分；扫码传输都经中继）；中继主机默认内置 `125.124.85.212:8411`。**无宿主令牌墙**。
 2. 设置 → 「远程」→ **消息渠道**：桌面内置 `@xmanrui/dsh-im` 完整 IM UI（九渠 + AI Office）；无商店品牌头。
@@ -14,7 +16,7 @@
 
 ## Invariants
 
-- 设置 section id `remote`；子 slot `settings.remote.tab`：`gateway`（order 0）、`channels`（order 10）。
+- **停放开关：** `src/main/config.js` `REMOTE_FEATURE_ENABLED`。false 时 preload 不暴露 `getRemote`/`saveRemote`/`rotateRemoteToken`/`unbindRemoteDevice`，`ui-settings-remote` 不注册侧栏与设置入口；`normalizeRemoteConfig` 把 `remoteEnabled` 钉死为 false；IPC `shell:save-remote` 无法打开。解禁只翻这一处（window argv `--dshd-remote-feature` 跟它走）。
 - **配对协议 = dshd offer**（实现为 vendored ChisaCode offer v2）：全量 `createChisaCodeDaemon` 跑在 `chisacode-daemon-runner.mjs` 子进程（**禁止**回迁主进程）；主进程 `ChisaCodeRemote` 只是进程管理面 + file-backed 配对/快照；QR `appBaseUrl`：局域网 = `preferredLanIp():3180`，外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**禁止**把中继 `:8411` 当 SPA。用户可见文案称 dshd daemon / dshd 配对，不出现 ChisaCode 品牌名。
 - **daemon 子进程契约**：runner 在 `asarUnpack`；stdout 只有 JSON 行（控制行 + pino json）；stdin `stop` 与 stdin 关闭都必须优雅停（孤儿零容忍）；意外退出必须落 `snapshot.error` 并保留弹窗重试；不做自动退避重启循环（对齐上游）。
 - **DSHD_* 命名桥**：桌面对外只有 `DSHD_CHISACODE_HOME`（打包需 `DSHD_ALLOW_ENV_HOME=1`，同 dsh-home 守卫）与 `DSHD_DSH_VENDOR_DIR`；`CHISACODE_*` 只允许出现在 daemon 子进程 env 注入处，主进程自身 env 与 PTY / `dsh web` 子进程永不携带；字面量 `DSHD_HOME` 属 dsh-home 卡，不可占用。DEEPSEEK 凭据只经 `official-deepseek-env` 白名单入子进程 env，launch JSON 永不含密钥。

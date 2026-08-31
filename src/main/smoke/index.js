@@ -382,6 +382,12 @@ function createSmokeRunner(deps) {
 
   /** Keep the desktop up with LAN remote on and print a pairing URL for phone QA. */
   async function keepRemotePhoneHost() {
+    const { REMOTE_FEATURE_ENABLED } = require('../config');
+    if (!REMOTE_FEATURE_ENABLED) {
+      console.log('[DSH_REMOTE_PHONE_HOST]', JSON.stringify({ ok: false, reason: 'REMOTE_FEATURE_ENABLED=false' }));
+      await app.exit(1);
+      return;
+    }
     const { pairingUrl, listLanAddresses } = require('../../shared/lan');
     const deadline = Date.now() + 120_000;
     let snap = null;

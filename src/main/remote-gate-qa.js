@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Real-machine gate for unparked Remote: TC-NEG-001 + TC-REM-001.
+ * Real-machine gate for Remote: parked TC-NEG-001, or unparked TC-NEG-001 + TC-REM-001.
  * Does not open the pairing URL / phone SPA (that is the scan-link path).
  */
 
@@ -23,6 +23,12 @@ const REMOTE_GATE_COLD_CASES = Object.freeze([
   { id: 'cold.openShowsQr', title: 'Preset-on: open popup without toggling shows QR' },
   { id: 'cold.noBareOfferText', title: 'Popup text has no raw #offer= dump' },
   { id: 'cold.copyAndRotateControls', title: 'Popup exposes copy-link and rotate controls' },
+]);
+
+const REMOTE_GATE_PARKED_CASES = Object.freeze([
+  { id: 'parked.unavailable', title: 'Parked remote snapshot is unavailable' },
+  { id: 'parked.notListening', title: 'Parked remote does not listen' },
+  { id: 'parked.noFooter', title: 'Parked remote has no sidebar trigger' },
 ]);
 
 const REMOTE_GATE_CASES = Object.freeze([
@@ -113,7 +119,8 @@ function portOpen(port) {
   });
 }
 
-function assertRemoteGateQaResult(qa, { required = REMOTE_GATE_CASES } = {}) {
+function assertRemoteGateQaResult(qa, { required } = {}) {
+  const expected = required || (qa && qa.parked === true ? REMOTE_GATE_PARKED_CASES : REMOTE_GATE_CASES);
   if (!qa || qa.ok !== true) {
     const failed = (qa?.failed && qa.failed.length > 0)
       ? qa.failed
@@ -121,7 +128,7 @@ function assertRemoteGateQaResult(qa, { required = REMOTE_GATE_CASES } = {}) {
     throw new Error(`Remote gate QA failed:\n${failed.join('\n')}\n${JSON.stringify(qa)}`);
   }
   const names = new Set((qa.steps || []).map((s) => s.name));
-  const missing = required.map((c) => c.id).filter((id) => !names.has(id));
+  const missing = expected.map((c) => c.id).filter((id) => !names.has(id));
   if (missing.length > 0) {
     throw new Error(`Remote gate QA omitted required cases: ${missing.join(', ')}`);
   }
@@ -147,6 +154,7 @@ async function runRemoteGateQa(wc, helpers, { mode = 'full' } = {}) {
   const steps = [];
   const rec = makeRecorder(steps);
   const coldOnly = mode === 'cold';
+  const { REMOTE_FEATURE_ENABLED } = require('./config');
 
   await helpers.pressEscape(wc);
 
@@ -162,6 +170,28 @@ async function runRemoteGateQa(wc, helpers, { mode = 'full' } = {}) {
     if (trigger && dshShown(trigger)) return 'trigger';
     return dshFind('^remote$|^远程$') ? 'label' : null;
   });
+
+  if (!REMOTE_FEATURE_ENABLED) {
+    rec(
+      'parked.unavailable',
+      snap && snap.available === false && snap.enabled === false,
+      summarizeRemoteQaDetail(snap),
+    );
+    rec(
+      'parked.notListening',
+      snap != null && snap.listening !== true,
+      snap ? `listening=${snap.listening}` : 'no snapshot',
+    );
+    rec('parked.noFooter', footer == null, footer || 'no remote trigger');
+    const failed = steps.filter((s) => !s.ok && !s.optional).map((s) => s.name);
+    return {
+      ok: failed.length === 0,
+      parked: true,
+      failed,
+      steps,
+      cases: REMOTE_GATE_PARKED_CASES.map((c) => c.id),
+    };
+  }
 
   if (!coldOnly) {
     rec(
@@ -366,6 +396,7 @@ module.exports = {
   REMOTE_GATE_CASES,
   REMOTE_GATE_NEG_REM_CASES,
   REMOTE_GATE_COLD_CASES,
+  REMOTE_GATE_PARKED_CASES,
   runRemoteGateQa,
   assertRemoteGateQaResult,
   remoteHasError,
