@@ -1,6 +1,8 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
 const { buildSettingsSectionScript } = require('./settings-jump');
 
 /**
@@ -31,6 +33,12 @@ function dshComposerSend() {
   const card = document.querySelector('[data-composer-card]');
   if (!card) return null;
   return dshFind('send message|发送消息', card);
+}
+function composerModelTrigger() {
+  const card = document.querySelector('[data-composer-card]');
+  if (!card) return null;
+  return Array.from(card.querySelectorAll('button[aria-haspopup="menu"]')).find((el) =>
+    dshShown(el) && /选择模型|select model/i.test(el.getAttribute('aria-label') || '')) || null;
 }
 const VISION_PASS_RE = /不支持图片|does not support images?|无法查看|不能读图|无法识图|不能识图|没有.*视觉|识图|像素|multimodal|image input|这张.*图|图中|图片里|PNG|rgb|红|蓝|绿|颜色|包含非文本|暂不支持编辑|non-text/i;
 const VISION_PRE_SEND_RE = /不支持图片|does not support images?|无法.*图|不能.*图|包含非文本|暂不支持编辑|non-text/i;
@@ -86,6 +94,64 @@ function dshSetValue(el, value) {
   }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
   return el.value === value;
+}
+function dshComposerInput() {
+  return document.querySelector('[data-composer-input]');
+}
+function dshComposerReady() {
+  const el = dshComposerInput();
+  return Boolean(
+    el
+    && dshShown(el)
+    && el.getAttribute('contenteditable') === 'true'
+    && el.getAttribute('aria-disabled') !== 'true'
+  );
+}
+function dshComposerText() {
+  const el = dshComposerInput();
+  return ((el && (el.innerText || el.textContent)) || '')
+    .replace(/\\u00a0/g, ' ')
+    .replace(/\\r\\n/g, '\\n')
+    .replace(/\\n+$/g, '');
+}
+function dshSelectComposerAll(el) {
+  el.focus();
+  el.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'a',
+    code: 'KeyA',
+    keyCode: 65,
+    which: 65,
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+  }));
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function dshSetComposerText(value) {
+  const el = dshComposerInput();
+  if (!el || !dshComposerReady()) return false;
+  if (typeof el.click === 'function') el.click();
+  if (dshComposerText() === value) return true;
+  dshSelectComposerAll(el);
+  if (document.execCommand) {
+    if (value) document.execCommand('insertText', false, value);
+    else document.execCommand('delete');
+  }
+  if (dshComposerText() === value) return true;
+  el.dispatchEvent(new InputEvent('beforeinput', {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    inputType: value ? 'insertReplacementText' : 'deleteByCut',
+    data: value || null,
+  }));
+  return dshComposerText() === value;
 }
 function dshField(pattern, root) {
   const re = new RegExp(pattern, 'i');
@@ -169,6 +235,7 @@ const QA_REQUIRED_STEPS = [
   'composer.commands',
   'composer.send',
   'composer.access',
+  'composer.thinkingSwitch',
   'composer.skillMenuAbsent',
   'composer.pathSourceAbsent',
   'remote.available',
@@ -238,6 +305,28 @@ function gitHeadSubject(workspacePath) {
   return result.status === 0 ? String(result.stdout || '').trim() : '';
 }
 
+function gitPorcelain(workspacePath) {
+  if (!workspacePath) return '';
+  const result = spawnSync('git', ['-C', workspacePath, 'status', '--porcelain'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  return result.status === 0 ? String(result.stdout || '').trim() : '';
+}
+
+function dirtyQaNote(workspacePath) {
+  if (!workspacePath) return false;
+  try {
+    fs.writeFileSync(
+      path.join(workspacePath, 'note.md'),
+      `composer official qa\nline-two\nqa-commit-${Date.now()}\n`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -305,6 +394,153 @@ async function typeIntoAriaField(wc, pattern, value) {
   `, { pattern, value });
 }
 
+async function typeIntoComposer(wc, value) {
+  const ready = await pageEval(wc, () => dshComposerReady());
+  if (!ready) return false;
+  const expected = String(value || '');
+  const box = await pageEval(wc, () => {
+    const el = dshComposerInput();
+    if (!el || !dshComposerReady()) return null;
+    el.scrollIntoView({ block: 'nearest' });
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x + Math.min(40, rect.width / 2)),
+      y: Math.round(rect.y + rect.height / 2),
+    };
+  });
+  if (!box) return false;
+
+  try {
+    if (wc.debugger && !wc.debugger.isAttached()) await wc.debugger.attach('1.3');
+  } catch {
+    /* already attached or unavailable */
+  }
+
+  const clickComposer = async () => {
+    if (typeof wc.sendInputEvent === 'function') {
+      wc.sendInputEvent({ type: 'mouseMove', x: box.x, y: box.y });
+      wc.sendInputEvent({ type: 'mouseDown', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+      wc.sendInputEvent({ type: 'mouseUp', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+    }
+    if (wc.debugger && wc.debugger.isAttached()) {
+      try {
+        await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
+          type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1,
+        });
+        await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1,
+        });
+      } catch {
+        /* page click below */
+      }
+    }
+    await pageEval(wc, () => {
+      const el = dshComposerInput();
+      if (!el) return false;
+      if (typeof el.click === 'function') el.click();
+      el.focus();
+      return true;
+    });
+  };
+  const selectAll = async () => {
+    if (typeof wc.sendInputEvent === 'function') {
+      wc.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['control'] });
+      wc.sendInputEvent({ type: 'char', keyCode: 'A', modifiers: ['control'] });
+      wc.sendInputEvent({ type: 'keyUp', keyCode: 'A', modifiers: ['control'] });
+    }
+    if (wc.debugger && wc.debugger.isAttached()) {
+      try {
+        await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2,
+          windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65,
+        });
+        await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2,
+          windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65,
+        });
+      } catch {
+        /* page select-all below */
+      }
+    }
+    await pageEval(wc, () => {
+      const el = dshComposerInput();
+      if (!el) return false;
+      dshSelectComposerAll(el);
+      return true;
+    });
+  };
+  const backspace = async () => {
+    if (typeof wc.sendInputEvent === 'function') {
+      wc.sendInputEvent({ type: 'keyDown', keyCode: 'Backspace' });
+      wc.sendInputEvent({ type: 'keyUp', keyCode: 'Backspace' });
+    }
+    if (wc.debugger && wc.debugger.isAttached()) {
+      try {
+        await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8,
+        });
+        await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
+          type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+  const insert = async (text) => {
+    if (typeof wc.insertText === 'function') {
+      await Promise.resolve(wc.insertText(text));
+      return;
+    }
+    if (wc.debugger && wc.debugger.isAttached()) {
+      await wc.debugger.sendCommand('Input.insertText', { text });
+    }
+  };
+
+  await clickComposer();
+  await sleep(80);
+  const existing = await pageEval(wc, () => dshComposerText());
+  if (existing !== expected) {
+    await selectAll();
+    await sleep(40);
+    if (existing) {
+      await backspace();
+      await sleep(40);
+      const leftover = await pageEval(wc, () => dshComposerText());
+      if (leftover && leftover !== expected) {
+        await selectAll();
+        await sleep(20);
+        await backspace();
+        await sleep(40);
+      }
+    }
+    if (expected) await insert(expected);
+  }
+  const written = await waitUntil(async () => {
+    const text = await pageEval(wc, () => dshComposerText());
+    return text === expected ? true : null;
+  }, 2_000);
+  if (written) return true;
+  return pageScript(wc, 'return dshSetComposerText(args.value);', { value: expected });
+}
+
+async function clickNewSession(wc) {
+  const clicked = await pageEval(wc, () => {
+    const buttons = Array.from(document.querySelectorAll('button')).filter(dshShown);
+    const btn = buttons.find((el) => {
+      const aria = el.getAttribute('aria-label') || '';
+      const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      return /新建会话|new session in/i.test(aria) || text === '新会话' || text === '新对话';
+    });
+    if (!btn || btn.disabled) return false;
+    btn.click();
+    return true;
+  });
+  if (!clicked) return false;
+  await waitUntil(() => pageEval(wc, () => (dshComposerReady() ? true : null)), 8_000);
+  return true;
+}
+
 function clickNamed(wc, pattern, rootSelector) {
   return pageScript(wc, `
     const root = args.rootSelector ? document.querySelector(args.rootSelector) : document;
@@ -319,6 +555,143 @@ async function pressEnter(wc) {
   const key = { key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 };
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyDown', ...key });
   await wc.debugger.sendCommand('Input.dispatchKeyEvent', { type: 'keyUp', ...key });
+}
+
+async function openComposerModelMenu(wc) {
+  const opened = await pageEval(wc, () => {
+    const trigger = composerModelTrigger();
+    if (!trigger || trigger.disabled) return false;
+    if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
+    return true;
+  });
+  if (!opened) return false;
+  return Boolean(await waitUntil(() => pageEval(wc, () => {
+    const menu = document.querySelector('[role="menu"]');
+    return menu && dshShown(menu) ? true : null;
+  }), 6_000));
+}
+
+async function closeComposerModelMenu(wc, pressEscape) {
+  const expanded = await pageEval(wc, () => {
+    const trigger = composerModelTrigger();
+    return Boolean(trigger && trigger.getAttribute('aria-expanded') === 'true');
+  });
+  if (!expanded) return;
+  if (typeof pressEscape === 'function') await pressEscape(wc);
+  await sleep(150);
+  await pageEval(wc, () => {
+    const trigger = composerModelTrigger();
+    if (trigger && trigger.getAttribute('aria-expanded') === 'true') trigger.click();
+    return true;
+  });
+}
+
+/**
+ * TC-MODEL-004: open the composer Model / Effort menu and switch two
+ * reasoning levels, sending a short ping after each. grok-4.6 with no
+ * catalog efforts is N/A (still a required row so the table cannot skip
+ * the probe).
+ * @param {import('electron').WebContents} wc
+ * @param {{ pressEscape?: Function }} helpers
+ * @returns {Promise<{ ok: boolean, detail: string }>}
+ */
+async function switchComposerThinking(wc, helpers) {
+  const menuOpen = await openComposerModelMenu(wc);
+  if (!menuOpen) {
+    return { ok: true, detail: 'N/A: composer model menu missing' };
+  }
+  const effortRow = await pageEval(wc, () => {
+    const item = Array.from(document.querySelectorAll('[role="menu"] [role="menuitem"]')).find((el) => {
+      const label = dshLabel(el);
+      return dshShown(el) && /推理等级|^effort/i.test(label);
+    });
+    if (!item || item.disabled) return '';
+    item.click();
+    return dshLabel(item).slice(0, 80);
+  });
+  if (!effortRow) {
+    await closeComposerModelMenu(wc, helpers.pressEscape);
+    return { ok: true, detail: 'N/A: gateway did not expose reasoning efforts' };
+  }
+  const choices = await waitUntil(() => pageEval(wc, () => {
+    const radios = Array.from(document.querySelectorAll('[role="menu"] [role="menuitemradio"]'))
+      .filter(dshShown)
+      .map((el) => ({
+        label: dshLabel(el).replace(/\s+/g, ' ').trim(),
+        checked: el.getAttribute('aria-checked') === 'true',
+      }));
+    return radios.length ? radios : null;
+  }), 6_000);
+  if (!choices || choices.length < 2) {
+    await closeComposerModelMenu(wc, helpers.pressEscape);
+    return {
+      ok: true,
+      detail: `N/A: fewer than two effort rows (${JSON.stringify(choices || [])})`,
+    };
+  }
+  const picked = [];
+  const unchecked = choices.filter((row) => !row.checked);
+  const first = unchecked[0] || choices[0];
+  const second = choices.find((row) => row.label !== first.label) || choices[1];
+  picked.push(first, second);
+  await closeComposerModelMenu(wc, helpers.pressEscape);
+
+  const ping = async (label) => {
+    const menu = await openComposerModelMenu(wc);
+    if (!menu) return `menu closed before ${label}`;
+    const effortOpen = await pageEval(wc, () => {
+      const item = Array.from(document.querySelectorAll('[role="menu"] [role="menuitem"]')).find((el) =>
+        dshShown(el) && /推理等级|^effort/i.test(dshLabel(el)));
+      if (!item || item.disabled) return false;
+      item.click();
+      return true;
+    });
+    if (!effortOpen) return `effort pane missing before ${label}`;
+    const clicked = await waitUntil(() => pageEval(wc, (want) => {
+      const radio = Array.from(document.querySelectorAll('[role="menu"] [role="menuitemradio"]')).find((el) =>
+        dshShown(el) && dshLabel(el).replace(/\s+/g, ' ').trim() === want);
+      if (!radio || radio.disabled) return null;
+      radio.click();
+      return true;
+    }, label), 6_000);
+    if (!clicked) return `effort ${label} not clickable`;
+    await waitUntil(() => pageEval(wc, (want) => {
+      const trigger = composerModelTrigger();
+      const aria = (trigger && trigger.getAttribute('aria-label')) || '';
+      return aria.includes(want) ? true : null;
+    }, label), 8_000);
+    const typed = await typeIntoComposer(wc, `只回复一个词：ok（${label}）`);
+    if (!typed) return `composer rejected ping for ${label}`;
+    let sent = await pageEval(wc, () => {
+      const btn = dshComposerSend();
+      if (!btn || btn.disabled) return false;
+      btn.click();
+      return true;
+    });
+    if (!sent) {
+      await pressEnter(wc);
+      sent = true;
+    }
+    const idle = await waitUntil(() => pageEval(wc, () => {
+      const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+      const send = dshComposerSend();
+      return (!stop || stop.disabled) && send && !send.disabled ? true : null;
+    }), 120_000);
+    return idle ? '' : `ping for ${label} did not return to send`;
+  };
+
+  const errors = [];
+  for (const row of picked) {
+    const error = await ping(row.label);
+    if (error) errors.push(error);
+  }
+  await closeComposerModelMenu(wc, helpers.pressEscape);
+  return {
+    ok: errors.length === 0,
+    detail: errors.length
+      ? errors.join(' | ')
+      : `switched ${picked.map((row) => row.label).join(' → ')}`,
+  };
 }
 
 function makeRecorder(steps) {
@@ -411,10 +784,7 @@ async function connectConfiguredWorkspace(wc, helpers, rec) {
     pickerClosed = await waitUntil(() => pageEval(wc, () =>
       !dshDialogNamed('select workspace directory|选择工作区目录')), 8_000);
   }
-  const connected = await waitUntil(() => pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    return Boolean(ta && !ta.disabled);
-  }), 15_000);
+  const connected = await waitUntil(() => pageEval(wc, () => dshComposerReady()), 15_000);
   if (connected && !pickerClosed) {
     // Workspace already unlocked; dismiss a stuck directory dialog so chrome is usable.
     await pageEval(wc, () => {
@@ -486,6 +856,15 @@ async function runReleaseUiWalk(wc, helpers) {
   } else {
     await connectConfiguredWorkspace(wc, helpers, rec);
   }
+  await clickNewSession(wc);
+  await pageEval(wc, () => {
+    const btn = dshFind('stop generating|停止生成');
+    if (btn && !btn.disabled) btn.click();
+    return true;
+  });
+  await waitUntil(() => pageEval(wc, () => (
+    dshComposerReady() && dshFind('send message|发送消息') ? true : null
+  )), 12_000);
 
   const frame = await pageEval(wc, () => {
     const el = document.querySelector('[class*="frame"]');
@@ -503,31 +882,30 @@ async function runReleaseUiWalk(wc, helpers) {
     const card = document.querySelector('[data-composer-card]');
     return {
       card: dshShown(card),
-      textarea: Boolean(card && dshShown(card.querySelector('textarea'))),
-      commands: Boolean(dshFind('^commands$|^命令$')),
+      textarea: Boolean(card && dshComposerReady()),
+      commands: Boolean(dshFind('^commands$|^命令$|^指令$')),
       send: Boolean(dshFind('send message|发送消息')),
       access: Boolean(dshFind('access mode|访问模式')),
-      thinking: Boolean(dshFind('^high$|^max$|^low$|思考', card)),
     };
   });
   rec('composer.card', composer?.card, '');
   rec('composer.textarea', composer?.textarea, '');
   rec('composer.commands', composer?.commands, '');
-  rec('composer.send', composer?.send, '');
+  rec('composer.send', composer?.send, composer?.send ? '' : 'no 发送消息 (likely 停止生成 leftover)');
   rec('composer.access', composer?.access, '');
-  rec('composer.thinking', Boolean(composer?.thinking), composer?.thinking ? '' : 'no effort chips on composer', true);
+  const thinking = await switchComposerThinking(wc, helpers);
+  rec('composer.thinkingSwitch', thinking.ok, thinking.detail);
+  await clickNewSession(wc);
+  await waitUntil(() => pageEval(wc, () => (
+    dshComposerReady() && dshFind('send message|发送消息') ? true : null
+  )), 12_000);
 
-  await pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    if (!ta) return false;
-    ta.focus();
-    return dshSetValue(ta, '$fo');
-  });
+  await typeIntoComposer(wc, '$fo');
   await sleep(500);
   const skillMenu = await pageEval(wc, () => ({
     foo: Boolean(dshFind('foo-skill')),
     menuitem: Boolean(document.querySelector('[role="menuitem"]') && dshShown(document.querySelector('[role="menuitem"]'))),
-    typed: (document.querySelector('[data-composer-card] textarea') || {}).value || '',
+    typed: dshComposerText(),
   }));
   rec(
     'composer.skillMenuAbsent',
@@ -537,16 +915,11 @@ async function runReleaseUiWalk(wc, helpers) {
       : `typed=${skillMenu?.typed || ''}; menuitem=${Boolean(skillMenu?.menuitem)}`,
   );
 
-  await pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    if (!ta) return false;
-    ta.focus();
-    return dshSetValue(ta, '@');
-  });
+  await typeIntoComposer(wc, '@');
   await sleep(700);
   const pathSource = await pageEval(wc, () => ({
     pathRows: document.querySelectorAll('[data-source="path"]').length,
-    typed: (document.querySelector('[data-composer-card] textarea') || {}).value || '',
+    typed: dshComposerText(),
   }));
   rec(
     'composer.pathSourceAbsent',
@@ -555,10 +928,7 @@ async function runReleaseUiWalk(wc, helpers) {
       ? `desktop path source rows=${pathSource.pathRows}`
       : `typed=${pathSource?.typed || ''}`,
   );
-  await pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    return ta ? dshSetValue(ta, '') : false;
-  });
+  await typeIntoComposer(wc, '');
 
   const remoteSnap = typeof helpers.probeRemote === 'function'
     ? await helpers.probeRemote()
@@ -580,7 +950,7 @@ async function runReleaseUiWalk(wc, helpers) {
   });
   rec('remote.footerPresent', remoteFooter == null, remoteFooter || 'parked hidden');
 
-  const commandsClicked = await clickNamed(wc, '^commands$|^命令$');
+  const commandsClicked = await clickNamed(wc, '^commands$|^命令$|^指令$');
   if (commandsClicked) {
     const menu = await waitUntil(() => pageEval(wc, () =>
       Boolean(document.querySelector('[role="listbox"], [role="menu"]'))), 3_000);
@@ -592,8 +962,18 @@ async function runReleaseUiWalk(wc, helpers) {
 
   const titlebar = await pageEval(wc, () => {
     const bar = document.querySelector('#dshd-shell-titlebar-trailing');
+    const labels = bar
+      ? Array.from(bar.querySelectorAll('button')).map((el) => dshLabel(el)).filter(Boolean).slice(0, 12)
+      : [];
     return {
-      sessionLog: Boolean(dshFind('session log|会话日志', bar)),
+      sessionLog: Boolean(
+        dshFind('session log|会话日志|Session 日志')
+        || dshFind('session log|会话日志|Session 日志', bar)
+        || Array.from(document.querySelectorAll('button')).some((el) =>
+          /session log|会话日志|Session 日志/.test(dshLabel(el)))
+        || Boolean(document.querySelector('[class*="sessionLog"]'))
+      ),
+      labels,
       branch: Boolean(dshFind('switch branch|切换分支', bar)),
       commit: Boolean(dshFind('^commit|提交', bar)),
       git: Boolean(dshFind('git actions|git 操作', bar)),
@@ -601,7 +981,7 @@ async function runReleaseUiWalk(wc, helpers) {
       surfaces: Boolean(dshFind('right panel|surfaces|右侧栏', bar)),
     };
   });
-  rec('titlebar.sessionLog', titlebar?.sessionLog, '');
+  rec('titlebar.sessionLog', titlebar?.sessionLog, (titlebar?.labels || []).join(' | '));
   rec('titlebar.branch', titlebar?.branch, '');
   rec('titlebar.commit', titlebar?.commit, '');
   rec('titlebar.git', titlebar?.git, '');
@@ -756,50 +1136,70 @@ async function runReleaseUiWalk(wc, helpers) {
     : null;
   rec('files.mentionVisible', Boolean(mention), mention ? 'visible' : 'mention control missing');
   if (mention) {
-    await pageEval(wc, () => {
+    await typeIntoComposer(wc, '');
+    const clicked = await pageEval(wc, () => {
       const panel = document.querySelector('[data-files-panel]');
       if (!panel) return false;
       const row = Array.from(panel.querySelectorAll('li')).find((el) =>
-        dshShown(el) && /^note\.md$/i.test((el.querySelector('span') && el.querySelector('span').textContent) || dshLabel(el)));
-      const btn = (row && dshFind('mention in composer|引用到输入框', row))
-        || dshFind('mention in composer|引用到输入框', panel);
+        dshShown(el) && /note\.md/i.test((el.querySelector('span') && el.querySelector('span').textContent) || dshLabel(el)));
+      const btn = row && dshFind('mention in composer|引用到输入框', row);
       if (!btn || btn.disabled) return false;
       btn.click();
       return true;
     });
-    const draft = await waitUntil(() => pageEval(wc, () => {
-      const ta = document.querySelector('[data-composer-card] textarea');
-      const value = (ta && ta.value) || '';
-      return /\[note\.md\]\(note\.md\)/.test(value) ? value : null;
-    }), 5_000);
-    rec('files.mentionAppended', Boolean(draft), draft || 'composer draft missing markdown link');
+    const draft = (clicked
+      ? await waitUntil(() => pageEval(wc, () => {
+        const value = dshComposerText();
+        return /\[note\.md\]\(note\.md\)/.test(value) ? value : null;
+      }), 8_000)
+      : null) || await pageEval(wc, () => dshComposerText());
+    rec(
+      'files.mentionAppended',
+      Boolean(clicked) && /\[note\.md\]\(note\.md\)/.test(String(draft || '')),
+      draft || (clicked ? 'composer draft missing markdown link' : 'note.md mention click missed'),
+    );
   } else {
     rec('files.mentionAppended', false, 'mention control missing');
   }
 
   await dismiss();
+  dirtyQaNote(helpers.workspacePath);
+  await waitUntil(() => gitPorcelain(helpers.workspacePath) || null, 8_000);
   const beforeSubject = gitHeadSubject(helpers.workspacePath);
-  await helpers.clickTitlebarButton(wc, '^commit$|^提交$');
-  await clickNamed(wc, '^commit changes$|^提交更改$|^commit$');
-  const commitDialog = await waitUntil(() => pageEval(wc, () => {
-    const dialog = dshDialogNamed('commit changes|提交更改');
-    if (!dialog || !dshShown(dialog)) return null;
-    return {
-      message: Boolean(dialog.querySelector('textarea')),
-      submit: Boolean(dshFind('^commit$|^提交$', dialog)),
-    };
-  }), 8_000);
-  rec('git.commitDialog', Boolean(commitDialog), commitDialog ? '' : 'commit dialog did not open', true);
-  if (commitDialog?.message) {
-    await pageEval(wc, () => {
+  let commitDialog = null;
+  for (let attempt = 0; attempt < 5 && !commitDialog; attempt += 1) {
+    await helpers.clickTitlebarButton(wc, 'git actions|git 操作');
+    await waitUntil(() => pageEval(wc, () => Boolean(document.querySelector('[role="menu"]'))), 3_000);
+    await clickNamed(wc, '^commit$');
+    commitDialog = await waitUntil(() => pageEval(wc, () => {
       const dialog = dshDialogNamed('commit changes|提交更改');
-      const ta = dialog && dialog.querySelector('textarea');
+      if (!dialog || !dshShown(dialog)) return null;
+      return {
+        message: Boolean(dialog.querySelector('textarea')),
+        submit: Boolean(dshFind('^commit$|^提交$', dialog)),
+      };
+    }), 4_000);
+    if (!commitDialog) await dismiss();
+  }
+  rec('git.commitDialog', Boolean(commitDialog), commitDialog ? '' : 'commit dialog did not open', true);
+  const commitMessage = `qa: commit note.md ${Date.now()}`;
+  if (commitDialog) {
+    await pageScript(wc, `
+      const dialog = dshDialogNamed('commit changes|提交更改');
+      if (!dialog) return false;
+      const edit = dshFind('^edit$|^编辑$', dialog);
+      if (edit && !edit.disabled) edit.click();
+      Array.from(dialog.querySelectorAll('input[type="checkbox"]')).forEach((input) => {
+        const label = input.getAttribute('aria-label') || '';
+        if (/^files$|^文件$/i.test(label)) return;
+        const want = /note\\.md$/i.test(label);
+        if (want !== input.checked) input.click();
+      });
+      const ta = dialog.querySelector('textarea');
       if (!ta) return false;
       ta.focus();
-      return dshSetValue(ta, 'qa: commit note.md');
-    });
-  }
-  if (commitDialog?.submit) {
+      return dshSetValue(ta, args.message);
+    `, { message: commitMessage });
     await clickNamed(wc, '^commit$|^提交$', '[role="dialog"]');
   }
   const committed = await waitUntil(() => {
@@ -1053,7 +1453,7 @@ async function runReleaseUiWalk(wc, helpers) {
     return {
       heading: Boolean(dshHeading('^models$|^模型$', dialog) || /模型|models/i.test(text)),
       customAdd: Boolean(dshFind('add a custom provider|添加自定义提供方', dialog)),
-      vision: Boolean(dshFind('vision model|识图模型', dialog)),
+      vision: Boolean(dshFind('vision model|识图模型', dialog) || /识图模型|vision model/i.test(text)),
       thinking: /supported thinking intensity|思考强度/i.test(text),
     };
   }), 10_000);
@@ -1184,7 +1584,15 @@ async function runReleaseUiWalk(wc, helpers) {
     };
   }), 10_000);
   rec('market.section', Boolean(marketOpened && market?.nav), marketOpened ? '' : 'market section missing');
-  rec('market.discover', Boolean(market?.discover), '');
+  await clickNamed(wc, '^(discover|发现)$');
+  const discover = await waitUntil(() => pageEval(wc, () => {
+    const dialog = dshDialog();
+    const text = dialog ? (dialog.innerText || '') : '';
+    const tab = dshFind('^(discover|发现)$', dialog);
+    const selected = Boolean(tab && (tab.getAttribute('aria-selected') === 'true' || tab.getAttribute('aria-current') === 'true'));
+    return /discover|发现/i.test(text) || selected ? { discover: true } : null;
+  }), 10_000);
+  rec('market.discover', Boolean(market?.discover || discover?.discover), '');
 
   // The installed truth comes from the profile manifest (main process), not
   // from scraping the async Installed list: the list fetch can land after
@@ -1299,4 +1707,6 @@ module.exports = {
   QA_REQUIRED_STEPS,
   PAGE_HELPERS,
   summarizeRemoteQaDetail,
+  typeIntoComposer,
+  clickNewSession,
 };

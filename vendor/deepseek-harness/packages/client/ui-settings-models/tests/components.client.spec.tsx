@@ -317,6 +317,46 @@ describe('ModelsSection', () => {
     expect(document.body.textContent).toBe('')
   })
 
+  it('renders the vision-model picker when vision-fallback is in the snapshot', async () => {
+    const visionNs: SettingsNamespaceView = {
+      ns: 'vision-fallback',
+      schema: {},
+      value: {},
+      applies: 'live',
+      secrets: [],
+      revision: 0,
+    }
+    const scripted = scriptedFace()
+    scripted.face.settings.describe.mockImplementation(() => Promise.resolve(remoteOk({
+      writable: true,
+      hasDocument: false,
+      namespaces: [...wireNamespaces(), visionNs],
+    })))
+    const ctx = ctxWith(scripted.face)
+    const controller = new ModelsSettingsStore(ctx, settingsSchema, new SettingsDescribeMirror(ctx))
+    await controller.load()
+    const visionApi = {
+      llm: {
+        models: vi.fn(() => Promise.resolve({
+          result: { ok: true as const, value: { groups: [] } },
+        })),
+      },
+      settings: {
+        mutate: vi.fn(() => Promise.resolve({ result: { ok: true as const, value: {} } })),
+      },
+    }
+    render(<ModelsSection
+      controller={controller}
+      useSnapshot={bindSnapshotSelector(controller.store)}
+      operations={operationsWith(scripted.face)}
+      schema={settingsSchema}
+      t={t}
+      visionApi={visionApi}
+      renderSlot={() => null}
+    />)
+    expect(await screen.findByLabelText(en.visionModel)).toBeTruthy()
+  })
+
   it('dispatches the provider-card seat per rendered row, keyed by the owning namespace', async () => {
     const { renderSlot } = await mountSection()
     const cards = cardSeatCalls(renderSlot)

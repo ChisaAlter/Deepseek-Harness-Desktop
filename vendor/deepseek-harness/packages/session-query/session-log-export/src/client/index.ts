@@ -4,12 +4,21 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { SessionLogDownloadController } from './controller.ts'
 import type { SessionLogDownloadDialogInjected } from './Dialog.tsx'
 import { SessionLogDownloadHeaderAction } from './HeaderAction.tsx'
+import type { SessionLogChromeRowInjected } from './SessionLogChromeRow.tsx'
+import { SessionLogChromeRow } from './SessionLogChromeRow.tsx'
+import { ChromeVisibility } from './chrome-visibility.ts'
+import {
+  SESSION_LOG_EXPORT_SETTINGS_NAMESPACE,
+  TITLEBAR_ACTION_FIELD,
+  type SessionLogExportSettings,
+} from '../export-settings.ts'
 import { en, NS, zh, type SessionLogDownloadKey } from './locales.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -26,11 +35,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 export type { SessionLogDownloadEntry, SessionLogDownloadState } from './controller.ts'
 
-export const inject = ['slots', 'locale']
+/** Services required by the titlebar Session-log capsule and Interface row. */
+export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
 
 /**
- * Provide the download controller and mount its modal into the Session Header.
- * @param ctx - browser context carrying slots and locale services.
+ * Provide the download controller, mount the titlebar capsule, and contribute
+ * the Interface Settings visibility row.
+ * @param ctx - browser context carrying slots, locale, and settings services.
  */
 export function apply(ctx: ClientContext): void {
   const controller = new SessionLogDownloadController()
@@ -40,16 +51,34 @@ export function apply(ctx: ClientContext): void {
   ctx.on('command/executed', (sessionId, commandName, result) => {
     if (commandName === 'export' && result.kind === 'success') void controller.download(sessionId)
   })
-  ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
-    name: 'conversation.session.header.utilities',
+
+  const chrome = new ChromeVisibility<SessionLogExportSettings>(
+    ctx.settingsScope.bind<SessionLogExportSettings>({ namespace: SESSION_LOG_EXPORT_SETTINGS_NAMESPACE }),
+    TITLEBAR_ACTION_FIELD,
+  )
+
+  ctx.slots.inject('shell.titlebar.trailing', () => ctx.slots.register({
+    name: 'shell.titlebar.trailing',
     id: 'session-log-download',
+    order: 10,
     locale: NS,
     inject: (): SessionLogDownloadDialogInjected => ({
-      hooks: { sessionLogDownload: controller.store },
+      hooks: { sessionLogDownload: controller.store, titlebarAction: chrome.visible },
       request: (sessionId: SessionId) => controller.download(sessionId),
       dismiss: (sessionId: SessionId) => { controller.dismiss(sessionId) },
     }),
   }, SessionLogDownloadHeaderAction))
+
+  ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
+    name: 'settings.interface.item',
+    id: 'session-log-export',
+    order: 10,
+    locale: NS,
+    inject: (): SessionLogChromeRowInjected => ({
+      hooks: { titlebarAction: chrome.visible, writable: chrome.writable },
+      setTitlebarAction: (value) => { chrome.setVisible(value) },
+    }),
+  }, SessionLogChromeRow))
 }
 
 export type { SessionLogDownloadDialogInjected, SessionLogDownloadDialogProps } from './Dialog.tsx'

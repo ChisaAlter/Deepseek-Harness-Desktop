@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `terminal-drawer` |
 | **status** | `active` |
-| **last verified** | 2026-08-25（合并树 `ea659884`）— consolidation #39 落地（含旧 drawer-chord `preventDefault` 断言清理，以 Phase-1 冒泡测试为准）：desktop `npm test` 997/0/3 绿 + harness `test:gui` 5338 绿 + `qa:source` terminal.drawer/new/surface 步骤 PASS。此前同日硬化：`` Ctrl+` `` 在 Ghostty 焦点内切抽屉（`[data-terminal-pane]` 取代 `.xterm`）；reload/`render-process-gone` 收割 sender 名下 PTY；keep-alive 语义写入本卡与 handbook。（前次 2026-08-23：B1 pin `copy-ghostty-assets.mjs`；0.2.7 安装包 ghostty wasm + Nerd Font 三 URL 200） |
+| **last verified** | 2026-08-31 — 已装 Setup SHA `49BD62B56D47FE0AD312B9E4C684D3070AFF81D6086595F55C80FB28C403FECA`：`packaged.ghostty.wasm` HTTP **200**；`terminal.drawer` / `terminal.new` / `terminal.surface` PASS（`install-full-report.json`）。 |
 
 ## User paths
 

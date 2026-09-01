@@ -13,6 +13,9 @@ describe('/export Web download command', () => {
         return () => { descriptor = undefined }
       },
     } as never)
+    ctx.provide('connection', {
+      fetch: { register() { return async () => {} } },
+    } as never)
     const fiber = await ctx.plugin(SessionLogDownload)
 
     expect(descriptor).toMatchObject({

@@ -23,6 +23,14 @@ test('appendix A turns match the production five-prompt script', () => {
   assert.ok(APPENDIX_TURNS[2].expectTool);
   assert.ok(APPENDIX_TURNS[3].expectTool);
   assert.match(APPENDIX_TURNS[0].prompt, /三位数验证码/);
+  assert.equal(
+    APPENDIX_TURNS[2].expect('工作区根目录中不存在 README 或 README.md 文件。'),
+    false,
+  );
+  assert.equal(
+    APPENDIX_TURNS[2].expect('ChisaTerminal 是现代化 Electron 终端模拟器，内嵌 xterm.js。'),
+    true,
+  );
   assert.deepEqual(APPENDIX_EXTRA_STEPS, [
     'appendix.editUser',
     'appendix.reject',
@@ -67,9 +75,17 @@ test('appendix send looks up the official 发送消息 control', () => {
   assert.match(src, /\^拒绝\$/);
   assert.match(src, /仅可查看\|read only/);
   assert.match(src, /dshd-reject-probe\.txt/);
-  assert.match(src, /bash 命令/);
+  assert.match(src, /bash 或 pwsh/);
+  assert.match(src, /sandbox_permissions=workspace-write/);
+  assert.match(src, /requires a justification/);
+  assert.match(src, /missingJustification/);
+  assert.match(src, /waitForApprovalPanel/);
+  assert.match(src, /idleWithoutApproval/);
+  assert.match(src, /waitForIdle\(wc, 20_000, false\)/);
+  assert.doesNotMatch(src, /await clickSend\(wc\);\s*await waitForIdle\(wc, 300_000, true\)/);
   assert.match(src, /setWorkspaceWriteAccess/);
-  assert.match(src, /VISION_PASS_RE/);
+  assert.match(src, /VISION_PASS_RE\.test\(visionText\)/);
+  assert.doesNotMatch(src, /assistantCount > beforeVision\.assistantCount && VISION_PASS_RE/);
   assert.match(walkSrc, /VISION_PASS_RE/);
   assert.match(src, /openFreshSession/);
   assert.doesNotMatch(src, /申请写入工作区权限/);
@@ -81,6 +97,12 @@ test('appendix send looks up the official 发送消息 control', () => {
   assert.match(src, /getAttribute\('aria-label'\)/);
   assert.match(src, /当前\[:：\]\\s\*仅可查看/);
   assert.doesNotMatch(src, /echo dshd-reject-probe/);
+  assert.match(src, /typeIntoComposer/);
+  assert.match(src, /dshComposerInput/);
+  assert.match(src, /openFreshSession\(wc\)/);
+  assert.match(src, /setWorkspaceWriteAccess\(wc\)/);
+  assert.match(src, /snap\.question/);
+  assert.match(src, /dshFind\('模型'/);
 });
 
 test('assertAppendixAQaResult requires every turn', () => {

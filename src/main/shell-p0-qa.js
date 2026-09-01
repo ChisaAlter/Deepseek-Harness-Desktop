@@ -341,7 +341,40 @@ const PERSIST_STEPS = Object.freeze([
   'persist.closeToTray',
   'persist.theme',
   'persist.workspace',
+  'persist.sessions',
+  'persist.model',
+  'persist.wallpaper',
 ]);
+
+function sameFsPath(left, right) {
+  const a = String(left || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  const b = String(right || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return Boolean(a) && a === b;
+}
+
+function countSessionJsonl(root) {
+  if (!root) return 0;
+  const fs = require('fs');
+  const path = require('path');
+  let n = 0;
+  const stack = [root];
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const ent of entries) {
+      if (ent.name === 'node_modules' || ent.name === '.git') continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) stack.push(full);
+      else if (ent.name === 'session.jsonl') n += 1;
+    }
+  }
+  return n;
+}
 
 async function runPersistQa(wc, helpers) {
   const steps = [];
@@ -349,11 +382,61 @@ async function runPersistQa(wc, helpers) {
   const config = helpers.loadConfig();
   rec('persist.closeToTray', config.closeToTray === true, `closeToTray=${config.closeToTray}`);
   rec('persist.theme', config.theme === 'midnight', `theme=${config.theme}`);
-  const connected = await waitUntil(() => pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    return ta && !ta.disabled && dshShown(ta) ? true : null;
-  }), 25_000);
-  rec('persist.workspace', Boolean(connected), connected ? helpers.workspacePath || 'composer unlocked' : 'composer locked after relaunch');
+  const connected = await waitUntil(() => pageEval(wc, () => dshComposerReady() ? true : null), 25_000);
+  const wantWorkspace = helpers.workspacePath || config.workspace;
+  rec(
+    'persist.workspace',
+    Boolean(connected) && sameFsPath(config.workspace, wantWorkspace),
+    connected
+      ? `config=${config.workspace}; want=${wantWorkspace}`
+      : 'composer locked after relaunch',
+  );
+
+  const { app } = require('electron');
+  const { desktopDshHomeFromUserData } = require('../shared/dsh-home');
+  let jsonl = 0;
+  let jsonlError = '';
+  try {
+    jsonl = countSessionJsonl(desktopDshHomeFromUserData(app.getPath('userData')));
+  } catch (error) {
+    jsonlError = String(error).slice(0, 200);
+  }
+  const sessionUi = await pageEval(wc, () => {
+    const menus = Array.from(document.querySelectorAll('button')).filter((el) => {
+      const aria = el.getAttribute('aria-label') || '';
+      return dshShown(el) && /会话[“"]|session actions for/i.test(aria);
+    });
+    return {
+      menus: menus.length,
+      labels: menus.map((el) => el.getAttribute('aria-label') || '').slice(0, 4),
+    };
+  });
+  rec(
+    'persist.sessions',
+    jsonl >= 1 && sessionUi.menus >= 1,
+    jsonlError || `jsonl=${jsonl}; sidebarMenus=${sessionUi.menus}; ${sessionUi.labels.join(' | ')}`,
+  );
+
+  const model = await pageEval(wc, () => {
+    const trigger = composerModelTrigger();
+    return trigger
+      ? (trigger.getAttribute('aria-label') || dshLabel(trigger)).slice(0, 120)
+      : '';
+  });
+  rec('persist.model', /grok-4\.6/i.test(model), model || 'model trigger missing');
+
+  const wallpaper = await pageEval(wc, () => ({
+    attr: document.documentElement.hasAttribute('data-dsh-wallpaper'),
+    node: Boolean(document.getElementById('dsh-wallpaper')),
+  }));
+  rec(
+    'persist.wallpaper',
+    Boolean(wallpaper?.attr || wallpaper?.node),
+    wallpaper?.attr
+      ? 'data-dsh-wallpaper'
+      : (wallpaper?.node ? '#dsh-wallpaper' : 'no wallpaper after relaunch'),
+  );
+
   const failed = steps.filter((s) => !s.ok && !s.optional).map((s) => s.name);
   return { ok: failed.length === 0, failed, steps };
 }

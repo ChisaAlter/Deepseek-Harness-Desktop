@@ -17,6 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import { ModelsSection } from './ModelsSection.tsx'
 import type { ModelsSectionInjected } from './ModelsSection.tsx'
+import type { VisionPickerApi } from './VisionModelPicker.tsx'
 import { DeepSeekOnboardingDialog } from './DeepSeekOnboardingDialog.tsx'
 import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from './WelcomeNotice.tsx'
@@ -57,12 +58,48 @@ export function refreshIfLoaded(controller: ModelsSettingsStore): void {
 }
 
 /**
+ * Wrap live remotes into the leftover vision picker's RpcResult envelope.
+ * `session.modelCatalog` now carries `inputModalities`; `settings.mutate` is
+ * three arguments on the wire.
+ * @param ctx - client root whose `remote.session` and `remote.settings` are injected.
+ * @returns the picker wire face.
+ */
+function visionPickerApi(ctx: ClientContext): VisionPickerApi {
+  return {
+    llm: {
+      models: async () => {
+        const response = await ctx.remote.session.modelCatalog()
+        if (!response.ok) {
+          return { result: { ok: false, error: { message: response.error.message } } }
+        }
+        return { result: { ok: true, value: { groups: response.value.groups } } }
+      },
+    },
+    settings: {
+      mutate: async (input) => {
+        const body = input as {
+          ns: string
+          ops: Parameters<ClientContext['remote']['settings']['mutate']>[1]
+          expectedRevision: number
+        }
+        const response = await ctx.remote.settings.mutate(body.ns, body.ops, body.expectedRevision)
+        if (response.ok) {
+          return { result: { ok: true, value: response.value } }
+        }
+        return { result: { ok: false, error: { message: response.error.message } } }
+      },
+    },
+  }
+}
+
+/**
  * Required services (cordis fiber inject). The target slot is declared by
  * ui-settings' apply, whose activation order relative to this one is NOT
  * constrained; registration depends on each slot through `slots.inject()`.
  */
 export const inject = [
   'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings',
+  'remote.session',
   'settingsScope', 'settingsSchema',
 ]
 
@@ -89,6 +126,7 @@ export function apply(ctx: ClientContext): void {
     operations,
     schema,
     t,
+    visionApi: visionPickerApi(ctx),
   })
   const deepSeekOnboardingInjected = (): DeepSeekOnboardingInjected => ({
     controller,

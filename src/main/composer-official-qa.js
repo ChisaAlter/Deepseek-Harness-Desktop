@@ -10,7 +10,7 @@
  * console tripwire.
  */
 
-const { PAGE_HELPERS, summarizeRemoteQaDetail } = require('./release-ui-walk');
+const { PAGE_HELPERS, clickNewSession, summarizeRemoteQaDetail, typeIntoComposer } = require('./release-ui-walk');
 
 /** Console substrings that prove the old draft crash path. */
 const SESSIONS_INJECT_TRIPWIRE = /cannot get property ["']sessions["'] without inject/i;
@@ -80,68 +80,15 @@ function tripwireHits(pageErrors) {
 }
 
 async function clearComposer(wc) {
-  const marker = `__dshd_clear_${Date.now()}__`;
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    await pageScript(wc, `
-      const ta = document.querySelector('[data-composer-card] textarea');
-      if (!ta) return false;
-      ta.focus();
-      return dshSetValue(ta, args.marker);
-    `, { marker });
-    const marked = await waitUntil(async () => {
-      const value = await readComposer(wc);
-      return value === marker ? true : null;
-    }, 2_000);
-    if (!marked || !wc.debugger.isAttached()) continue;
-
-    const box = await pageEval(wc, () => {
-      const ta = document.querySelector('[data-composer-card] textarea');
-      if (!ta) return null;
-      const rect = ta.getBoundingClientRect();
-      return { x: rect.left + Math.min(12, rect.width / 2), y: rect.top + Math.min(12, rect.height / 2) };
-    });
-    if (!box) continue;
-    await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1,
-    });
-    await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1,
-    });
-    await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
-      type: 'keyDown', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17, modifiers: 2,
-    });
-    await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
-      type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2,
-    });
-    await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
-      type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2,
-    });
-    await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
-      type: 'keyUp', key: 'Control', code: 'ControlLeft', windowsVirtualKeyCode: 17,
-    });
-    await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
-      type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8,
-    });
-    await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
-      type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8,
-    });
-    const cleared = await waitUntil(async () => {
-      const value = await readComposer(wc);
-      return value === '' ? true : null;
-    }, 2_000);
-    if (cleared) {
-      await sleep(150);
-      if ((await readComposer(wc)) === '') return true;
-    }
+    if (await typeIntoComposer(wc, '')) return true;
+    await sleep(200);
   }
   return (await readComposer(wc)) === '';
 }
 
 async function readComposer(wc) {
-  return pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    return (ta && ta.value) || '';
-  });
+  return pageEval(wc, () => dshComposerText());
 }
 
 async function ensureSurfacesOpen(wc, helpers) {
@@ -261,10 +208,10 @@ async function runComposerOfficialQa(wc, helpers) {
   };
 
   await dismiss();
+  await clickNewSession(wc);
 
   const composerReady = await waitUntil(() => pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    return ta && !ta.disabled && dshShown(ta) ? true : null;
+    return dshComposerReady() ? true : null;
   }), 20_000);
   const workspaceOk = helpers.workspaceConnected !== false && Boolean(composerReady);
   rec(
@@ -307,7 +254,7 @@ async function runComposerOfficialQa(wc, helpers) {
     });
     mentionDraft = clicked
       ? (await waitUntil(() => pageEval(wc, () => {
-        const value = (document.querySelector('[data-composer-card] textarea') || {}).value || '';
+        const value = dshComposerText();
         return /^\[note\.md\]\(note\.md\)$/.test(value.trim()) ? value : null;
       }), 5_000)) || (await readComposer(wc))
       : '';
@@ -394,14 +341,14 @@ async function runComposerOfficialQa(wc, helpers) {
         return true;
       });
       previewDraft = (await waitUntil(() => pageEval(wc, () => {
-        const value = (document.querySelector('[data-composer-card] textarea') || {}).value || '';
+        const value = dshComposerText();
         return /```text[\s\S]*```/.test(value) || /note\.md:L\d+/i.test(value) ? value : null;
       }), 5_000)) || (await readComposer(wc));
     }
     rec(
       'case.preview.addToChat',
       Boolean(clearedBeforePreview)
-        && /L1 to L2 `note\.md`/.test(previewDraft)
+        && /L1 to L\d+ `note\.md`/.test(previewDraft)
         && /```text[\s\S]*composer official qa[\s\S]*```/.test(previewDraft)
         && !/__dshd_clear_/.test(previewDraft),
       previewDraft
@@ -433,15 +380,10 @@ async function runComposerOfficialQa(wc, helpers) {
   // --- Local $ skill menu must stay gone ---
   await dismiss();
   const clearedBeforeDollar = await clearComposer(wc);
-  await pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    if (!ta) return false;
-    ta.focus();
-    return dshSetValue(ta, '$fo');
-  });
+  await typeIntoComposer(wc, '$fo');
   await sleep(600);
   const dollar = await pageEval(wc, () => ({
-    typed: (document.querySelector('[data-composer-card] textarea') || {}).value || '',
+    typed: dshComposerText(),
     foo: Boolean(dshFind('foo-skill')),
     // Any leftover chrome menu is irrelevant; only a local $ skill hit fails this case.
     skillHits: Array.from(document.querySelectorAll('[role="menuitem"]'))
@@ -458,15 +400,10 @@ async function runComposerOfficialQa(wc, helpers) {
 
   // --- Desktop @ path source must stay gone ---
   const clearedBeforeAt = await clearComposer(wc);
-  await pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    if (!ta) return false;
-    ta.focus();
-    return dshSetValue(ta, '@');
-  });
+  await typeIntoComposer(wc, '@');
   await sleep(800);
   const at = await pageEval(wc, () => ({
-    typed: (document.querySelector('[data-composer-card] textarea') || {}).value || '',
+    typed: dshComposerText(),
     pathRows: document.querySelectorAll('[data-source="path"]').length,
   }));
   rec(
@@ -548,7 +485,7 @@ async function runComposerOfficialQa(wc, helpers) {
           return true;
         });
         terminalDraft = (await waitUntil(() => pageEval(wc, () => {
-          const value = (document.querySelector('[data-composer-card] textarea') || {}).value || '';
+          const value = dshComposerText();
           return /```terminal[\s\S]*```/.test(value) ? value : null;
         }), 5_000)) || (await readComposer(wc));
       }

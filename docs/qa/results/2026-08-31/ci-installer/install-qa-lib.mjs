@@ -1,26 +1,33 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+function installCandidates() {
+  if (process.env.DSHD_INSTALL_DIR) return [process.env.DSHD_INSTALL_DIR]
+  return [
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Deepseek-Harness-Desktop'),
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Deepseek-Harness-Desktop'),
+  ].filter(Boolean)
+}
 
 function resolveInstallDir() {
-  if (process.env.DSHD_INSTALL_DIR) return process.env.DSHD_INSTALL_DIR
-  const candidates = [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Deepseek-Harness-Desktop'),
-    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Deepseek-Harness-Desktop'),
-  ]
+  const candidates = installCandidates()
   for (const dir of candidates) {
     if (existsSync(path.join(dir, 'Deepseek-Harness-Desktop.exe'))) return dir
   }
   return candidates[0]
 }
 
+export { installCandidates, resolveInstallDir }
 export const installDir = resolveInstallDir()
 export const productExe = path.join(installDir, 'Deepseek-Harness-Desktop.exe')
 export const userData = path.join(process.env.APPDATA || '', 'Deepseek-Harness-Desktop')
 export const CI_RUN = process.env.DSHD_CI_RUN
-  || 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33388661602'
-export const SETUP_SHA256 = process.env.DSHD_SETUP_SHA256 || ''
+  || 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33398643700'
+export const SETUP_SHA256 = process.env.DSHD_SETUP_SHA256
+  || '49BD62B56D47FE0AD312B9E4C684D3070AFF81D6086595F55C80FB28C403FECA'
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -95,7 +102,33 @@ export class Cdp {
 }
 
 export function killProduct() {
-  spawnSync('taskkill', ['/IM', 'Deepseek-Harness-Desktop.exe', '/F'], { stdio: 'ignore', windowsHide: true })
+  spawnSync('taskkill', ['/IM', 'Deepseek-Harness-Desktop.exe', '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+  // Source `electron .` shares appId + live %APPDATA% with the installed exe.
+  // Never taskkill electron.exe by image name (that would hit Cursor).
+  const sourceElectron = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../../../../node_modules/electron/dist/electron.exe',
+  )
+  const escaped = sourceElectron.replace(/'/g, "''")
+  spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-Command',
+    [
+      existsSync(sourceElectron)
+        ? `$target = '${escaped}'; Get-Process -Name electron -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $target } | ForEach-Object { cmd /c "taskkill /PID $($_.Id) /T /F" }`
+        : '',
+      // Orphaned `dsh web` from a killed Electron still holds the live profile.
+      `Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -like '*bin.js web*' -and $_.CommandLine -like '*desktop-install.patch.yml*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+    ].filter(Boolean).join('; '),
+  ], { windowsHide: true, timeout: 30_000 })
+  for (const name of ['lockfile', 'DevToolsActivePort', 'dshd-web.pid']) {
+    const file = path.join(userData, name)
+    try {
+      if (existsSync(file)) unlinkSync(file)
+    } catch {
+      // still held
+    }
+  }
 }
 
 export function loadConfig() {

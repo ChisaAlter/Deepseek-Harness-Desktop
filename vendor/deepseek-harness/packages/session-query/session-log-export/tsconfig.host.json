@@ -7,6 +7,7 @@
   },
   "files": [
     "src/archive.ts",
+    "src/export-settings.ts",
     "src/index.ts",
     "src/invariant.ts"
   ],
@@ -19,6 +20,7 @@
     { "path": "../../interaction/commands" },
     { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../../session/session-persistence" },
+    { "path": "../../settings/settings" },
     { "path": "../session-query" }
   ]
 }

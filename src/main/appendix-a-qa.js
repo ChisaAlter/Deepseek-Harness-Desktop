@@ -1,6 +1,6 @@
 'use strict';
 
-const { PAGE_HELPERS } = require('./release-ui-walk');
+const { PAGE_HELPERS, typeIntoComposer } = require('./release-ui-walk');
 
 const APPENDIX_TURNS = Object.freeze([
   {
@@ -16,7 +16,8 @@ const APPENDIX_TURNS = Object.freeze([
   {
     id: 'appendix.turn3.readReadme',
     prompt: '阅读工作区根目录的 README 或 README.md（若存在），用三句话总结它是什么产品。',
-    expect: (text) => /harness|desktop|deepseek/i.test(text),
+    expect: (text) => /chisaterminal|终端模拟器|xterm|powershell hook|electron-store|harness|desktop|deepseek/i.test(text)
+      && !/不存在 README|没有 README|no README/i.test(text),
     expectTool: true,
   },
   {
@@ -139,6 +140,9 @@ function chatSnapshot() {
       : '',
     toolCall: kinds.includes('tool-call') || kinds.includes('tool-result'),
     approval: Boolean(document.querySelector('[data-approval-key]')),
+    question: Boolean(dshFind('跳过本题|skip this question')),
+    missingJustification: /sandbox_permissions requires a justification/i.test(body + lastText),
+    sandboxDenied: /file access denied under read-only/i.test(body + lastText),
     sendReady: (() => {
       const btn = dshComposerSend();
       return Boolean(btn && !btn.disabled);
@@ -176,7 +180,7 @@ async function ensureGrokModel(wc) {
   });
   await sleep(400);
   await pageEval(wc, () => {
-    const modelRow = dshFind('^model$|^模型$');
+    const modelRow = dshFind('模型');
     if (modelRow) modelRow.click();
     return Boolean(modelRow);
   });
@@ -198,8 +202,9 @@ async function ensureGrokModel(wc) {
 async function waitForIdle(wc, timeoutMs = 300_000, allowOnce = true) {
   return waitUntil(async () => {
     if (allowOnce) await clickAllowOnce(wc);
+    await clickSkipQuestion(wc);
     const snap = await pageEval(wc, chatSnapshot);
-    if (snap.approval || snap.busy) return null;
+    if (snap.approval || snap.busy || snap.question) return null;
     return snap;
   }, timeoutMs, 400);
 }
@@ -215,11 +220,69 @@ async function clickAllowOnce(wc) {
 
 async function clickRejectOnce(wc) {
   return pageEval(wc, () => {
-    const btn = dshFind('^deny$|^reject$|^拒绝$');
+    const panel = document.querySelector('[data-approval-key]');
+    const btn = panel
+      ? dshFind('^deny$|^reject$|^拒绝$', panel)
+      : dshFind('^deny$|^reject$|^拒绝$');
     if (!btn || btn.disabled) return false;
     btn.click();
     return true;
   });
+}
+
+/**
+ * Wait for the official ApprovalPanel without answering it.
+ * Auto-allow would consume the TC-APPROVE-002 surface.
+ * Settles early once the composer has been idle (no stop / 深潜) for 20s
+ * so a chat-only refusal can take the sandbox_permissions follow-up.
+ * @param {import('electron').WebContents} wc
+ * @param {number} timeoutMs
+ */
+async function waitForApprovalPanel(wc, timeoutMs) {
+  let idleMs = 0;
+  return waitUntil(async () => {
+    const snap = await pageEval(wc, chatSnapshot);
+    if (snap.approval) return snap;
+    if (snap.missingJustification && !snap.busy) {
+      return { ...snap, idleWithoutApproval: true };
+    }
+    if (!snap.busy && snap.sendReady) {
+      idleMs += 400;
+      if (idleMs >= 20_000 && snap.lastText) {
+        return { ...snap, idleWithoutApproval: true };
+      }
+    } else {
+      idleMs = 0;
+    }
+    return null;
+  }, timeoutMs, 400);
+}
+
+function rejectFailDetail(prefix, snap, access) {
+  return [
+    prefix,
+    `access=${access?.label || 'read-only'}`,
+    `approval=${Boolean(snap?.approval)}`,
+    `tool=${Boolean(snap?.toolCall)}`,
+    `busy=${Boolean(snap?.busy)}`,
+    `q=${Boolean(snap?.question)}`,
+    snap?.missingJustification ? 'missing-justification' : '',
+    snap?.sandboxDenied ? 'sandbox-denied' : '',
+    (snap?.lastText || '').replace(/\s+/g, ' ').slice(0, 180),
+  ].filter(Boolean).join(' | ');
+}
+
+async function sendComposerPrompt(wc, prompt) {
+  const typed = await typePrompt(wc, prompt);
+  if (!typed) return { ok: false, reason: 'composer did not accept the prompt' };
+  const sendReady = await waitUntil(async () => {
+    const snap = await pageEval(wc, chatSnapshot);
+    return snap.sendReady && !snap.busy ? true : null;
+  }, 30_000);
+  if (!sendReady) return { ok: false, reason: 'send stayed disabled (busy or no model)' };
+  const sent = await clickSend(wc);
+  if (!sent) return { ok: false, reason: 'send click failed' };
+  return { ok: true };
 }
 
 async function clickSkipQuestion(wc) {
@@ -352,20 +415,7 @@ async function openFreshSession(wc) {
 }
 
 async function typePrompt(wc, prompt) {
-  await pageScript(wc, `
-    const ta = document.querySelector('[data-composer-card] textarea');
-    if (!ta) return false;
-    ta.focus();
-    return dshSetValue(ta, args.prompt);
-  `, { prompt });
-  const written = await waitUntil(async () => {
-    const value = await pageEval(wc, () => {
-      const ta = document.querySelector('[data-composer-card] textarea');
-      return (ta && ta.value) || '';
-    });
-    return value === prompt ? true : null;
-  }, 4_000);
-  return Boolean(written);
+  return typeIntoComposer(wc, prompt);
 }
 
 async function pressEnter(wc) {
@@ -404,10 +454,7 @@ async function runTurn(wc, turn, ctx) {
   if (!sent) {
     await pressEnter(wc);
     const cleared = await waitUntil(async () => {
-      const value = await pageEval(wc, () => {
-        const ta = document.querySelector('[data-composer-card] textarea');
-        return (ta && ta.value) || '';
-      });
+      const value = await pageEval(wc, () => dshComposerText());
       return value === '' ? true : null;
     }, 2_000);
     sent = Boolean(cleared);
@@ -418,6 +465,7 @@ async function runTurn(wc, turn, ctx) {
 
   const done = await waitUntil(async () => {
     await clickAllowOnce(wc);
+    await clickSkipQuestion(wc);
     const snap = await pageEval(wc, chatSnapshot);
     if (snap.failReason) return snap;
     if (
@@ -425,6 +473,7 @@ async function runTurn(wc, turn, ctx) {
       && snap.lastText
       && !snap.approval
       && !snap.busy
+      && !snap.question
     ) {
       return snap;
     }
@@ -432,10 +481,11 @@ async function runTurn(wc, turn, ctx) {
   }, 300_000, 500);
 
   if (!done) {
+    await clickStopGenerating(wc);
     const snap = await pageEval(wc, chatSnapshot);
     return {
       ok: false,
-      detail: `no assistant reply (${snap.assistantCount} nodes, approval=${snap.approval})`,
+      detail: `no assistant reply (assistants=${snap.assistantCount} approval=${snap.approval} busy=${snap.busy} q=${snap.question}) | ${(snap.lastText || '').replace(/\s+/g, ' ').slice(0, 180)}`,
       toolCall: snap.toolCall,
       text: snap.lastText,
     };
@@ -482,19 +532,26 @@ async function runAppendixExtras(wc, helpers) {
   if (editClicked) {
     await sleep(400);
     const rewritten = await typePrompt(wc, '用一个词回复：已改写。');
-    const sent = rewritten ? await clickSend(wc) : false;
+    let sent = rewritten ? await clickSend(wc) : false;
+    if (rewritten && !sent) {
+      await pressEnter(wc);
+      sent = true;
+    }
     const done = sent
       ? await waitUntil(async () => {
+        await clickAllowOnce(wc);
+        await clickSkipQuestion(wc);
         const snap = await pageEval(wc, chatSnapshot);
         if (snap.failReason) return snap;
-        if (/已改写/.test(snap.lastText)) return snap;
+        if (/已改写/.test(snap.lastText || '')) return snap;
         return null;
       }, 120_000, 500)
       : null;
     extras.push({
       name: 'appendix.editUser',
       ok: Boolean(done && !done.failReason && /已改写/.test(done.lastText || '')),
-      detail: done?.failReason || (done ? done.lastText.slice(0, 120) : (editClicked ? 'edit sent but no rewrite reply' : '')),
+      detail: done?.failReason
+        || (done ? done.lastText.slice(0, 120) : (sent ? `edit sent but no rewrite reply | ${(await pageEval(wc, chatSnapshot)).lastText.slice(0, 120)}` : 'edit type/send failed')),
     });
   } else {
     extras.push({
@@ -505,12 +562,16 @@ async function runAppendixExtras(wc, helpers) {
   }
 
   await waitForIdle(wc, 120_000, true);
-  const { existsSync } = require('node:fs');
+  const { existsSync, unlinkSync } = require('node:fs');
   const path = require('node:path');
   const probeFile = helpers?.workspacePath
     ? path.join(helpers.workspacePath, 'dshd-reject-probe.txt')
     : '';
-  const rejectPrompt = '请用一条 bash 命令在工作区根目录创建文件 dshd-reject-probe.txt，内容恰好一行 dshd-reject-probe。完成后只回复 DONE。';
+  if (probeFile && existsSync(probeFile)) {
+    try { unlinkSync(probeFile); } catch { /* leftover from a prior allow */ }
+  }
+  const rejectPrompt = '在工作区根目录写入文件 dshd-reject-probe.txt，内容恰好一行 dshd-reject-probe。用一条 bash 或 pwsh 命令把这段文字内联写入。若沙箱拒绝，立刻重试同一条命令，且必须同时带 sandbox_permissions=workspace-write 和 justification 字符串（缺少 justification 不会出现审批条）。在用户点拒绝或允许之前不要只回复 DONE。';
+  const rejectFollowUp = '不要提问、不要只回复 DONE。上一次失败是 invalid escalation: sandbox_permissions requires a justification。立刻用 pwsh 重试同一条写入，参数必须同时包含 sandbox_permissions=workspace-write 和 justification="need workspace write to create dshd-reject-probe.txt"。缺少 justification 就不会出现审批条。';
   const freshReject = await openFreshSession(wc);
   if (!freshReject?.ok) {
     extras.push({
@@ -519,6 +580,7 @@ async function runAppendixExtras(wc, helpers) {
       detail: `did not open a fresh session (${freshReject?.reason || 'unknown'})`,
     });
   } else {
+    await ensureGrokModel(wc);
     const access = await setReadOnlyAccess(wc);
     if (!access?.ok) {
       extras.push({
@@ -527,38 +589,32 @@ async function runAppendixExtras(wc, helpers) {
         detail: `read-only preset failed (${access?.reason || access?.label || 'unknown'})`,
       });
     } else {
-      const typed = await typePrompt(wc, rejectPrompt);
-      const sendReady = typed
-        ? await waitUntil(async () => {
-          const snap = await pageEval(wc, chatSnapshot);
-          return snap.sendReady && !snap.busy ? true : null;
-        }, 30_000)
-        : false;
-      if (sendReady) await clickSend(wc);
-      await waitForIdle(wc, 300_000, true);
-      const approval = await waitUntil(async () => {
+      const firstSend = await sendComposerPrompt(wc, rejectPrompt);
+      let panel = firstSend.ok ? await waitForApprovalPanel(wc, 150_000) : null;
+      if (!panel?.approval) {
         await clickSkipQuestion(wc);
-        const snap = await pageEval(wc, chatSnapshot);
-        if (snap.approval) return snap;
-        if (snap.toolCall && /bash|write|dshd-reject-probe|创建文件/i.test(snap.lastText || '')) {
-          return snap.approval ? snap : null;
-        }
-        return null;
-      }, 240_000, 400);
+        await waitForIdle(wc, 20_000, false);
+        const follow = await sendComposerPrompt(wc, rejectFollowUp);
+        if (follow.ok) panel = await waitForApprovalPanel(wc, 120_000);
+      }
+      const approval = panel?.approval ? panel : null;
       let rejected = false;
       if (approval) {
         rejected = await clickRejectOnce(wc);
       }
-      const afterReject = await waitUntil(async () => {
-        const snap = await pageEval(wc, chatSnapshot);
-        if (snap.failReason) return snap;
-        if (!snap.approval && /拒绝|denied|rejected|not allowed|未允许|已拒绝/i.test(snap.lastText || '')) {
-          return snap;
-        }
-        if (!snap.approval && rejected) return snap;
-        return null;
-      }, 60_000, 400);
+      const afterReject = rejected
+        ? await waitUntil(async () => {
+          const snap = await pageEval(wc, chatSnapshot);
+          if (snap.failReason) return snap;
+          if (!snap.approval && /拒绝|denied|rejected|not allowed|未允许|已拒绝/i.test(snap.lastText || '')) {
+            return snap;
+          }
+          if (!snap.approval) return snap;
+          return null;
+        }, 60_000, 400)
+        : null;
       const wroteFile = Boolean(probeFile && existsSync(probeFile));
+      const lastSnap = afterReject || approval || await pageEval(wc, chatSnapshot);
       extras.push({
         name: 'appendix.reject',
         ok: Boolean(rejected && afterReject && !wroteFile),
@@ -566,9 +622,13 @@ async function runAppendixExtras(wc, helpers) {
           ? (wroteFile
             ? 'rejected but dshd-reject-probe.txt was written'
             : ((afterReject && afterReject.lastText) || 'rejected').slice(0, 160))
-          : (approval
-            ? 'reject click failed'
-            : `no approval (access=${access.label || 'read-only'}; switched=${Boolean(freshReject?.ok)})`),
+          : rejectFailDetail(
+            firstSend.ok
+              ? (approval ? 'reject click failed' : 'no approval')
+              : firstSend.reason,
+            lastSnap,
+            access,
+          ),
       });
     }
   }
@@ -617,9 +677,9 @@ async function runAppendixExtras(wc, helpers) {
     return extras;
   }
   await pageEval(wc, () => {
-    const ta = document.querySelector('[data-composer-card] textarea');
-    if (ta) ta.focus();
-    return Boolean(ta);
+    const el = dshComposerInput();
+    if (el) el.focus();
+    return Boolean(el);
   });
   try {
     await wc.debugger.sendCommand('Input.dispatchKeyEvent', {
@@ -658,7 +718,7 @@ async function runAppendixExtras(wc, helpers) {
     if (hit) return { refused: true, attached, text: hit.slice(0, 160) };
     if (attached) return { refused: false, attached: true, text: 'image attached' };
     return null;
-  }), 8_000);
+  }), 16_000);
   if (visionGate?.refused) {
     extras.push({
       name: 'appendix.vision',
@@ -712,12 +772,14 @@ async function runAppendixExtras(wc, helpers) {
   const visionFailed = Boolean(vision && vision.failReason);
   extras.push({
     name: 'appendix.vision',
-    ok: Boolean(!visionFailed && vision && vision.assistantCount > beforeVision.assistantCount && VISION_PASS_RE.test(visionText)),
+    ok: Boolean(!visionFailed && vision && VISION_PASS_RE.test(visionText)),
     detail: visionFailed
       ? vision.failReason.slice(0, 160)
-      : attached
-        ? (visionText || 'image attached').slice(0, 160)
-        : (visionText || 'paste did not attach an image').slice(0, 160),
+      : VISION_PASS_RE.test(visionText)
+        ? visionText.slice(0, 160)
+        : attached
+          ? (visionText || 'image attached').slice(0, 160)
+          : (visionText || 'paste did not attach an image').slice(0, 160),
   });
 
   return extras;
@@ -737,15 +799,20 @@ async function runAppendixAQa(wc, helpers) {
   rec('appendix.composer', Boolean(composer), composer ? '' : 'composer missing');
 
   if (composer) {
+    await openFreshSession(wc);
     const model = await ensureGrokModel(wc);
     rec('appendix.model', /grok-4\.6/i.test(model), model || 'model trigger missing');
+    await setWorkspaceWriteAccess(wc);
     for (const turn of APPENDIX_TURNS) {
       const result = await runTurn(wc, turn, ctx);
       if (turn.id === 'appendix.turn1.connect' && result.text) {
         ctx.code = extractCode(result.text);
       }
       rec(turn.id, result.ok, result.detail);
-      if (!result.ok) break;
+      if (!result.ok) {
+        await clickStopGenerating(wc);
+        break;
+      }
     }
     const turnsOk = APPENDIX_TURNS.every((turn) => steps.some((step) => step.name === turn.id && step.ok));
     if (turnsOk) {

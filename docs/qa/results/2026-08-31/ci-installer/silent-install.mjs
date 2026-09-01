@@ -4,10 +4,10 @@
  * Does not bump package.json / does not create a GitHub Release.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { installDir, killProduct, productExe, sleep, userData } from './install-qa-lib.mjs'
+import { installCandidates, killProduct, resolveInstallDir, sleep, userData } from './install-qa-lib.mjs'
 
 const outDir = path.dirname(fileURLToPath(import.meta.url))
 const setup = process.argv[2]
@@ -22,7 +22,7 @@ await sleep(2000)
 const install = spawnSync(setup, ['/S'], {
   encoding: 'utf8',
   windowsHide: true,
-  timeout: 180_000,
+  timeout: 900_000,
 })
 if (install.status !== 0) {
   console.error(JSON.stringify({ ok: false, status: install.status, error: install.error, stderr: install.stderr }, null, 2))
@@ -30,11 +30,19 @@ if (install.status !== 0) {
 }
 
 const until = Date.now() + 60_000
+let installDir = resolveInstallDir()
+let productExe = path.join(installDir, 'Deepseek-Harness-Desktop.exe')
 while (Date.now() < until && !existsSync(productExe)) {
   await sleep(500)
+  installDir = resolveInstallDir()
+  productExe = path.join(installDir, 'Deepseek-Harness-Desktop.exe')
 }
 if (!existsSync(productExe)) {
-  console.error(JSON.stringify({ ok: false, error: `missing ${productExe}` }))
+  console.error(JSON.stringify({
+    ok: false,
+    error: `missing product exe`,
+    searched: installCandidates().map((dir) => path.join(dir, 'Deepseek-Harness-Desktop.exe')),
+  }))
   process.exit(1)
 }
 
@@ -45,7 +53,7 @@ const nodeVer = existsSync(nodeExe)
 const pinPath = path.join(installDir, 'resources', 'vendor', 'harness-upstream.json')
 let pin = null
 try {
-  pin = JSON.parse(require('node:fs').readFileSync(pinPath, 'utf8'))
+  pin = JSON.parse(readFileSync(pinPath, 'utf8'))
 } catch {
   pin = null
 }

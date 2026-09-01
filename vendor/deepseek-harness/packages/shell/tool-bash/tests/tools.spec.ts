@@ -613,6 +613,25 @@ describe('sandbox escalation through the generic task producer', () => {
     }
   })
 
+  it('uses the required description as the approval reason when justification is omitted', async () => {
+    const { ctx, bash } = await setupSandboxed(true)
+    const reasons: string[] = []
+    ctx.on('approval/request', (req) => {
+      reasons.push(req.reason ?? '')
+      return Promise.resolve<ApprovalOutcome>('allowed-once')
+    })
+    const agent = sandboxAgent()
+    ctx.agents.register(agent)
+    const result = await call(ctx, 'bash', {
+      command: 'true',
+      description: 'write the QA probe file',
+      sandbox_permissions: 'workspace-write',
+    }, agent)
+    expect(result.isError).toBe(false)
+    expect(reasons.join('\n')).toContain('write the QA probe file')
+    expect(bash.modes).toEqual(['workspace-write'])
+  })
+
   it('rejects injected escalation without a sandbox and non-widening escalation without prompting', async () => {
     const plain = await setup()
     expect(text(await call(plain, 'bash', escalate))).toContain('not available in this composition')

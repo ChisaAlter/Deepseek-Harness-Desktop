@@ -24,6 +24,7 @@ import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
+import { VisionModelPicker, type VisionPickerApi } from './VisionModelPicker.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -41,6 +42,8 @@ export interface ModelsSectionInjected {
   schema: SettingsSchemaOperations
   /** Section copy. */
   t: (key: keyof typeof en) => string
+  /** Leftover vision-fallback picker wire; omit to hide the row. */
+  visionApi?: VisionPickerApi
 }
 
 /** The child slots this section declares and dispatches (see ./slot-contract.ts). */
@@ -193,16 +196,28 @@ export function providerCopy(template: string, target: ProviderIdentity): string
  * @returns the section, or null while the shell has not injected yet.
  */
 export function ModelsSection(props: ModelsSectionProps): ReactNode {
-  const { controller, useSnapshot, operations, schema, t, renderSlot } = props
+  const { controller, useSnapshot, operations, schema, t, visionApi, renderSlot } = props
   if (
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return (
+    <Loaded
+      injected={{
+        controller,
+        useSnapshot,
+        operations,
+        schema,
+        t,
+        ...visionApi === undefined ? {} : { visionApi },
+      }}
+      renderSlot={renderSlot}
+    />
+  )
 }
 
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
-  const { controller, operations, schema, t } = injected
+  const { controller, operations, schema, t, visionApi } = injected
   const state = injected.useSnapshot(snapshot => snapshot)
   const [editing, setEditing] = useState<EditorTarget | undefined>(undefined)
   const [adding, setAdding] = useState(false)
@@ -538,6 +553,17 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
               </div>
             )}
       </div>
+      {visionApi === undefined
+        ? null
+        : (
+          <VisionModelPicker
+            api={visionApi}
+            t={t}
+            namespace={state.namespaces.get('vision-fallback')}
+            writable={state.writable}
+            onSaved={() => { void controller.load() }}
+          />
+        )}
       {renderSlot('settings.models.footer', {})}
       <Modal
         open={deleteTarget !== undefined}

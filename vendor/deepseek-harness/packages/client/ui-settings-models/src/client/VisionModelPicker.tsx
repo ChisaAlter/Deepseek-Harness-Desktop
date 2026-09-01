@@ -31,7 +31,7 @@ interface ModelProviderGroup {
 }
 
 /** Wire faces the leftover picker still takes (RpcResult envelope). */
-interface VisionPickerApi {
+export interface VisionPickerApi {
   llm: {
     models(request: Record<string, never>): Promise<{
       result: { ok: true; value: { groups: readonly ModelProviderGroup[] } } | { ok: false; error: { message: string } }

@@ -83,6 +83,18 @@ interface PwshForegroundResult {
 }
 
 /* jscpd:ignore-start -- minimal mirror of dsh-tool-bash's validation and execute plumbing (Agent Note). */
+function escalationJustification(args: {
+  sandbox_permissions?: string
+  justification?: string
+  description: string
+}): string | undefined {
+  if (args.justification !== undefined) return args.justification
+  // Models (notably grok-4.6) omit the optional schema field; description is
+  // already required and is the sentence the approval panel should show.
+  if (args.sandbox_permissions !== undefined) return args.description
+  return undefined
+}
+
 function validatePwshArgs(args: PwshToolArgs): void {
   if (args.command.trim().length === 0) {
     throw new Error('invalid command: expected a non-empty string')
@@ -93,9 +105,9 @@ function validatePwshArgs(args: PwshToolArgs): void {
   if (args.timeoutMs !== undefined && (!Number.isFinite(args.timeoutMs) || args.timeoutMs <= 0)) {
     throw new Error(`invalid timeoutMs: expected a positive number, got ${JSON.stringify(args.timeoutMs)}`)
   }
-  // The escalation pairing (sandbox_permissions ⇔ justification, non-empty) is
-  // the shared rule both enforcing families validate identically.
-  validateEscalationArgs(args.sandbox_permissions, args.justification)
+  // Pair sandbox_permissions with justification; an omitted justification
+  // falls back to the required description so the approval panel still has a reason.
+  validateEscalationArgs(args.sandbox_permissions, escalationJustification(args))
 }
 /* jscpd:ignore-end */
 
@@ -347,8 +359,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       validatePwshArgs(args)
       // Description is display metadata; workdir defaults to the caller's session.
       const standingPolicy = resolveSandboxPolicy(exec)
-      const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
-        ? await approvePwshEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
+      const justification = escalationJustification(args)
+      const approvedMode = args.sandbox_permissions !== undefined && justification !== undefined
+        ? await approvePwshEscalation(args.sandbox_permissions, justification, exec, standingPolicy)
         : undefined
       const policy = approvedMode === undefined
         ? standingPolicy

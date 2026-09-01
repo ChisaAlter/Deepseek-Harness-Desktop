@@ -1,0 +1,16 @@
+{
+  "at": "2026-08-31T20:01:16.895Z",
+  "setup": ".\\dist\\Deepseek-Harness-Desktop-Setup-0.2.7.exe",
+  "installDir": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop",
+  "productExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "nodeExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\resources\\node.exe",
+  "nodeVer": "v24.15.0",
+  "pin": {
+    "repo": "https://github.com/deepseek-ai/deepseek-harness.git",
+    "ref": "dsh-v0.1.2-alpha.2",
+    "sha": "0a53fb55bea101816fa226bb964ae2bed71c343b",
+    "npm": "0.1.2-alpha.2"
+  },
+  "runtimeRootExists": true,
+  "ok": false
+}

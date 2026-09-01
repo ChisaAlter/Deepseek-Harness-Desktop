@@ -20,6 +20,9 @@ test('shell P0 steps cover shortcuts, tray, close, and persist write', () => {
   assert.ok(SHELL_P0_STEPS.includes('shell.desk.trayMarketplace'));
   assert.ok(SHELL_P0_STEPS.includes('shell.desk.closeWouldQuit'));
   assert.ok(PERSIST_STEPS.includes('persist.theme'));
+  assert.ok(PERSIST_STEPS.includes('persist.sessions'));
+  assert.ok(PERSIST_STEPS.includes('persist.model'));
+  assert.ok(PERSIST_STEPS.includes('persist.wallpaper'));
   assert.ok(RECOVERY_STEPS.includes('recovery.crashShowsBoot'));
 });
 
@@ -58,6 +61,18 @@ test('shell P0 QA is wired into the main-process smoke path', () => {
   assert.match(smoke, /DSH_QA_SHELL/);
   assert.match(smoke, /DSH_QA_PERSIST/);
   assert.match(smoke, /DSH_QA_RECOVERY/);
+  const installedFull = fs.readFileSync(
+    path.join(__dirname, '../../docs/qa/results/2026-08-31/ci-installer/run-installed-full.mjs'),
+    'utf8',
+  );
+  assert.match(installedFull, /DSH_QA_PERSIST/);
+  assert.match(installedFull, /assertPersistQaResult/);
+  const shell = fs.readFileSync(path.join(__dirname, 'shell-p0-qa.js'), 'utf8');
+  assert.match(shell, /persist\.sessions/);
+  assert.match(shell, /persist\.model/);
+  assert.match(shell, /persist\.wallpaper/);
+  assert.match(shell, /session\.jsonl/);
+  assert.match(shell, /data-dsh-wallpaper/);
   // The quit interception itself stays in the production entry (quitApp).
   const index = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
   assert.match(index, /DSH_QA_SHELL/);

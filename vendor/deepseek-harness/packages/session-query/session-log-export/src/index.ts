@@ -3,6 +3,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import type {} from '@deepseek-ai/dsh-settings'
+import {
+  SESSION_LOG_EXPORT_SETTINGS_NAMESPACE,
+  SessionLogExportSettingsSchema,
+} from './export-settings.ts'
 import type {} from '@deepseek-ai/dsh-attachment'
 import type { CommandResult } from '@deepseek-ai/dsh-commands'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -34,6 +39,11 @@ export type {
 
 export const name = 'session-log-download'
 export const inject = ['commands', 'connection']
+
+export {
+  DEFAULT_TITLEBAR_ACTION, SESSION_LOG_EXPORT_SETTINGS_NAMESPACE, TITLEBAR_ACTION_FIELD,
+  type SessionLogExportSettings,
+} from './export-settings.ts'
 
 /** Stable browser download path retained across the transport migration. */
 export const SESSION_LOG_EXPORT_PATH = '/api/session.export'
@@ -71,6 +81,12 @@ const REQUESTED: CommandResult = {
  * @param config - resolved compression policy.
  */
 export function apply(ctx: Context, config: Config = {}): void {
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.register(
+      SESSION_LOG_EXPORT_SETTINGS_NAMESPACE,
+      SessionLogExportSettingsSchema,
+    )
+  })
   ctx.effect(() => ctx.commands.register({
     name: 'export',
     description: 'Download this Session log as a ZIP archive',

@@ -27,7 +27,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
-import { dirname, isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
@@ -999,6 +999,69 @@ export class ClientModuleRegistry extends Service {
     this.notifyGraphChanged()
   }
 
+  /**
+   * Serve a same-directory asset next to a registered client bundle
+   * (`dirname(client.js)/assets/<file>`). Combo scripts stay in the composed
+   * map; these bytes are read from disk per request so a copied wasm/font
+   * does not need a graph rebuild.
+   */
+  private servePluginAsset(pathname: string, method: string, res: ServerResponse): boolean {
+    let decoded = pathname
+    try {
+      decoded = decodeURIComponent(pathname)
+    } catch {
+      return false
+    }
+    const match = /^\/plugins\/(.+)\/assets\/([^/]+)$/.exec(decoded)
+    if (match === null) return false
+    const id = match[1]
+    const name = match[2]
+    if (
+      id === undefined
+      || name === undefined
+      || name === ''
+      || name === '.'
+      || name === '..'
+      || name.includes('\\')
+      || name.includes('\0')
+    ) {
+      res.writeHead(404)
+      res.end()
+      return true
+    }
+    const clientPath = this.clientPath(id)
+    if (clientPath === undefined) {
+      res.writeHead(404)
+      res.end()
+      return true
+    }
+    const assetsRoot = resolve(dirname(clientPath), 'assets')
+    const file = resolve(assetsRoot, name)
+    const rel = relative(assetsRoot, file)
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+      res.writeHead(404)
+      res.end()
+      return true
+    }
+    try {
+      const body = readFileSync(file)
+      const contentType = name.endsWith('.wasm')
+        ? 'application/wasm'
+        : name.endsWith('.woff2')
+          ? 'font/woff2'
+          : 'application/octet-stream'
+      res.writeHead(200, {
+        'content-type': contentType,
+        'cache-control': 'no-cache',
+      })
+      res.end(method === 'HEAD' ? undefined : body)
+    } catch {
+      res.writeHead(404)
+      res.end()
+    }
+    return true
+  }
+
   private readonly serveBundle = (req: IncomingMessage, res: ServerResponse): void => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405)
@@ -1017,6 +1080,7 @@ export class ClientModuleRegistry extends Service {
       res.end(req.method === 'HEAD' ? undefined : response.body)
       return
     }
+    if (this.servePluginAsset(requestUrl.pathname, req.method, res)) return
     // Anything else under /plugins (including unadvertised combinations and
     // /plugins/events when the HMR row is absent) is an unknown resource.
     res.writeHead(404)

@@ -19,20 +19,21 @@ function bindSessionExport(controller: SessionLogDownloadController) {
   }
 }
 
-function bench() {
+function bench(sessionId: SessionId | undefined = SID) {
   const controller = new SessionLogDownloadController(async () => new Response('zip'), vi.fn())
-  const request = vi.fn((sessionId: SessionId) => controller.download(sessionId))
-  const dismiss = vi.fn((sessionId: SessionId) => { controller.dismiss(sessionId) })
+  const request = vi.fn((next: SessionId) => controller.download(next))
+  const dismiss = vi.fn((next: SessionId) => { controller.dismiss(next) })
   const useSessionLogDownload = bindSessionExport(controller)
   const props = {
-    sessionId: SID,
+    sessionId,
+    useSessions: (selector: (state: { current: SessionId | undefined }) => unknown) => selector({ current: sessionId }),
     useSessionLogDownload,
     request,
     dismiss,
     t: (key: keyof typeof en): string => en[key],
   } as unknown as SessionLogDownloadDialogProps
   const view = render(<SessionLogDownloadHeaderAction {...props} />)
-  return { controller, request, view }
+  return { controller, request, view, props }
 }
 
 afterEach(cleanup)
@@ -55,6 +56,7 @@ describe('Session export Header action', () => {
     const useSessionLogDownload = bindSessionExport(controller)
     b.view.rerender(<SessionLogDownloadHeaderAction {...({
       sessionId: SID,
+      useSessions: (selector: (state: { current: SessionId | undefined }) => unknown) => selector({ current: SID }),
       useSessionLogDownload,
       request: (sessionId: SessionId) => controller.download(sessionId),
       dismiss: (sessionId: SessionId) => { controller.dismiss(sessionId) },
@@ -68,5 +70,18 @@ describe('Session export Header action', () => {
     release(new Response('zip'))
     await download
     await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('false') })
+  })
+
+  it('keeps the capsule mounted when the current session is empty, then enables after a session arrives', async () => {
+    const b = bench(undefined)
+    expect(b.view.getByRole('button', { name: 'Session log' })).toBeTruthy()
+    b.view.rerender(<SessionLogDownloadHeaderAction {...({
+      ...b.props,
+      sessionId: SID,
+      useSessions: (selector: (state: { current: SessionId | undefined }) => unknown) => selector({ current: SID }),
+    } as unknown as SessionLogDownloadDialogProps)} />)
+    const button = b.view.getByRole('button', { name: 'Session log' })
+    fireEvent.click(button)
+    await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
   })
 })

@@ -120,6 +120,8 @@ export interface ModelCatalogModel {
   readonly name: string
   readonly description?: string
   readonly reasoning?: ModelReasoning
+  /** Declared request modalities; the vision picker filters on `'image'`. */
+  readonly inputModalities?: readonly string[]
 }
 
 /** One provider and its successfully loaded model catalog. */

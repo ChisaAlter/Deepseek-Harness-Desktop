@@ -344,6 +344,14 @@ describe('Web session model selection', () => {
     ], {
       efforts: [{ id: ReasoningEffortId('high'), name: 'High', description: 'More thinking' }],
     }))
+    ctx.llm.registerAdapter(['vision'], new CatalogAdapter('Vision', [
+      {
+        provider: 'vision',
+        id: 'vision-model',
+        name: 'Vision Model',
+        inputModalities: ['text', 'image'],
+      },
+    ]))
     ctx.llm.registerAdapter(['string-failure'], new class extends CatalogAdapter {
       override listModels(): Promise<readonly LlmModelInfo[]> {
         // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- non-Error provider normalization is the scenario.
@@ -367,6 +375,15 @@ describe('Web session model selection', () => {
           reasoning: {
             efforts: [{ id: 'high', name: 'High', description: 'More thinking' }],
           },
+        }],
+      },
+      {
+        id: 'vision',
+        name: 'Vision',
+        models: [{
+          id: 'vision-model',
+          name: 'Vision Model',
+          inputModalities: ['text', 'image'],
         }],
       },
     ]))

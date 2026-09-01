@@ -21,6 +21,9 @@ describe('session-log-export host', () => {
         return () => {}
       },
     } as never)
+    ctx.provide('connection', {
+      fetch: { register() { return async () => {} } },
+    } as never)
     await ctx.plugin(MemorySettings).await()
     const fiber = await ctx.plugin(SessionLogDownload)
     const ns = SESSION_LOG_EXPORT_SETTINGS_NAMESPACE

@@ -89,6 +89,15 @@ test('summarizeRemoteQaDetail keeps status and strips pairing secrets', () => {
   assert.doesNotMatch(detail, /#offer=/);
 });
 
+test('composer official QA types into the Lexical composer input', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'composer-official-qa.js'), 'utf8');
+  assert.match(source, /dshComposerReady/);
+  assert.match(source, /typeIntoComposer/);
+  assert.match(source, /clickNewSession/);
+  assert.match(source, /dshComposerText/);
+  assert.match(source, /L1 to L\\d\+ `note\\.md`/);
+});
+
 test('composer official QA module is wired into the main process smoke path', () => {
   const smoke = fs.readFileSync(path.join(__dirname, 'smoke', 'index.js'), 'utf8');
   assert.match(smoke, /runComposerOfficialQa/);
