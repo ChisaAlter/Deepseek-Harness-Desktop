@@ -251,9 +251,13 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
       getMainWindow().webContents.ownerOptions.webPreferences.additionalArguments,
       ['--dshd-shell-role=boot'],
     );
+    const { REMOTE_FEATURE_ENABLED } = require('./config');
     assert.deepEqual(
       harnessContents.ownerOptions.webPreferences.additionalArguments,
-      ['--dshd-shell-role=harness', '--dshd-remote-feature=1'],
+      [
+        '--dshd-shell-role=harness',
+        `--dshd-remote-feature=${REMOTE_FEATURE_ENABLED ? '1' : '0'}`,
+      ],
     );
 
     const sameOrigin = { prevented: false, preventDefault() { this.prevented = true; } };

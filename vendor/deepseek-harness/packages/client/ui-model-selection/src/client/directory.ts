@@ -46,6 +46,8 @@ export class ModelDirectory {
   private generation = 0
   private disposed = false
   private resolved = false
+  /** Catalog facts stay unknown until this session asks; an eager Host catalog must not guess a route. */
+  private started = false
   private readonly unsubscribeCatalog: () => void
   private readonly unsubscribeSelection: () => void
 
@@ -74,6 +76,11 @@ export class ModelDirectory {
    */
   async load(): Promise<ModelDirectoryState> {
     this.assertAvailable()
+    this.started = true
+    // Publish from an already-ready catalog before awaiting a refresh so a
+    // synchronous `load()` caller sees `current` immediately. Do not guess a
+    // route in the constructor — `started` stays false until this call.
+    this.syncInputs()
     await this.catalog.load()
     this.syncInputs()
     return this.store.getSnapshot()
@@ -87,6 +94,7 @@ export class ModelDirectory {
  */
   async select(selection: ModelSelection): Promise<void> {
     this.assertAvailable()
+    this.started = true
     const generation = ++this.generation
     this.store.update((s) => { s.status = 'selecting'; s.error = null })
     const result = await this.sessions.selectModel({
@@ -136,7 +144,7 @@ export class ModelDirectory {
   }
 
   private syncInputs(): void {
-    if (this.disposed) return
+    if (this.disposed || !this.started) return
     const catalog = this.catalog.store.getSnapshot()
     const projected = modelSelectionProjection(this.projected.getSnapshot())
     if (catalog.status !== 'ready' || catalog.value === null || projected === undefined) {

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `composer-stats-peak-valley` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — pin `dsh-v0.1.2-alpha.2`；StatsLine 在 `ui-chat`，PeakValley dock 仍在 `ui-conversation`（order 1）。 |
+| **last verified** | 2026-09-01 — 峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册（conversation 未声明时不再裸 `register`）；`test:gui` 含 conversation 规格全绿。此前 2026-08-31 — pin `dsh-v0.1.2-alpha.2`；StatsLine 在 `ui-chat`，PeakValley dock 仍在 `ui-conversation`（order 1）。 |
 
 ## User paths
 

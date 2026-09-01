@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `wallpaper-gallery` |
 | **status** | `active` |
-| **last verified** | 2026-08-25 — `qa:source` 首次云端全绿（出网 Linux + xvfb，英文局点）：`appearance.localCrop`/`gallery.confirmSet`/`appearance.frost` 三步 PASS（crop confirmed / Bing confirmed and cropped / frost+pixelate）。此前「3 项环境失败」根因 = walk 裁剪匹配器缺英文标题「Adjust wallpaper」（QA 基础设施缺口，已补；产品零改动）+ 旧无网环境缩略图不加载。此前 2026-08-24：SSRF 加固（封 CGNAT/benchmark 网段并在 DNS 解析后复检 IP） |
+| **last verified** | 2026-09-01 — pin 提交误截 UTF-8 后已从 `6e91ea69` 恢复 `appearance-section.client.spec.tsx`（保留 0.1.2 store/session 导入）；定向 vitest 31/31。此前 2026-08-25 — `qa:source` 首次云端全绿（出网 Linux + xvfb，英文局点）：`appearance.localCrop`/`gallery.confirmSet`/`appearance.frost` 三步 PASS（crop confirmed / Bing confirmed and cropped / frost+pixelate）。此前「3 项环境失败」根因 = walk 裁剪匹配器缺英文标题「Adjust wallpaper」（QA 基础设施缺口，已补；产品零改动）+ 旧无网环境缩略图不加载。此前 2026-08-24：SSRF 加固（封 CGNAT/benchmark 网段并在 DNS 解析后复检 IP） |
 
 ## User paths
 

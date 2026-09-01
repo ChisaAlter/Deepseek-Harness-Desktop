@@ -59,6 +59,7 @@
    Modal primitive (--dsw-alias-bg-mask-1 + --dsw-mask-blur). */
 .overlay {
   position: fixed;
+  -webkit-app-region: no-drag;
   inset: 0;
   z-index: 1000;
   display: flex;

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `remote-settings` |
 | **status** | `parked` |
-| **last verified** | 2026-08-31 — `REMOTE_FEATURE_ENABLED = false`：设置「远程」与侧栏二维码不注册；磁盘 `remoteEnabled` 无法打开；不听 3180。解禁再翻回 true。 |
+| **last verified** | 2026-09-01 — `window-harness-cover` 跟 `REMOTE_FEATURE_ENABLED` 断言 argv（现为 `0`）。此前 2026-08-31 — `REMOTE_FEATURE_ENABLED = false`：设置「远程」与侧栏二维码不注册；磁盘 `remoteEnabled` 无法打开；不听 3180。解禁再翻回 true。 |
 
 ## User paths
 

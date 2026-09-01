@@ -1538,15 +1538,15 @@ describe('input types', () => {
     fireEvent.click(screen.getByLabelText(`${en.inputImage} 1`))
     fireEvent.click(screen.getByText(en.apply))
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
-    expect(mutate.mock.calls[0]?.[0]).toEqual({
-      ns: 'llm-pi-ai',
-      ops: [{
+    expect(mutate.mock.calls[0]).toEqual([
+      'llm-pi-ai',
+      [{
         op: 'set',
         path: ['providers', 'openai', 'models'],
         value: [{ id: 'vision-model', input: ['image'] }],
       }],
-      expectedRevision: 0,
-    })
+      0,
+    ])
   })
 
   it('declares and clears input types on a directly rendered row', () => {

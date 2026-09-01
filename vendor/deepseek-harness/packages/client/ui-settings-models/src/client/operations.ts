@@ -30,6 +30,24 @@ export type ModelDiscoveryOutcome =
   /** The interrogation was refused, with the Host's own diagnostic. */
   | { readonly kind: 'refused'; readonly message: string }
 
+/**
+ * Normalize a discoverModels wire/stub payload to the candidate array the
+ * picker maps over. The Host Remote returns `LlmDiscoveredModel[]`; some
+ * carriers and desktop e2e stubs wrap that as `{ models: [...] }`, and a
+ * models.dev catalog object is neither. A non-array must not reach `.map` /
+ * `.filter`.
+ * @param value - `response.value` from `remote.llm.discoverModels`.
+ * @returns discovered model rows, or empty when the payload is not a list.
+ */
+export function discoveredModelsOf(value: unknown): readonly LlmDiscoveredModel[] {
+  if (Array.isArray(value)) return value as readonly LlmDiscoveredModel[]
+  if (value !== null && typeof value === 'object') {
+    const models = (value as { models?: unknown }).models
+    if (Array.isArray(models)) return models as readonly LlmDiscoveredModel[]
+  }
+  return []
+}
+
 /** The Host operations the Models page and its cards invoke. */
 export interface ModelsOperations {
   /**
@@ -102,7 +120,7 @@ export function createModelsOperations(ctx: ClientContext): ModelsOperations {
     discoverModels: async (settingsNs, request) => {
       const response = await ctx.remote.llm.discoverModels(settingsNs, request)
       return response.ok
-        ? { kind: 'found', models: response.value }
+        ? { kind: 'found', models: discoveredModelsOf(response.value) }
         : { kind: 'refused', message: response.error.message }
     },
   }

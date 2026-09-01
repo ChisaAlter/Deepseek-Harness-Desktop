@@ -447,29 +447,26 @@ export function apply(ctx: Context): void {
     yield registerConversationSession()
     yield registerConversationHeader()
     yield registerComposerBar()
+    // Peak/valley dock must wait for the conversation children table; a
+    // bare register here throws when apply runs before layout declares
+    // the conversation slot (apply-wiring).
+    yield slots.register({
+      name: 'conversation.composer.dock',
+      id: 'peak-valley',
+      order: 1,
+      locale: NS,
+      inject: (sessionId: SessionId): PeakValleyRowInjected => ({
+        hooks: {
+          peakValley: submissionPolicy.officialPeakValley,
+          modelProvider: composerModelFacts.storeFor(sessionId),
+          modelCatalog: composerModelCatalog.storeFor(sessionId),
+          sessionCost: submissionPolicy.sessionCost,
+          costPrices: submissionPolicy.sessionCostPrices,
+        },
+        setCostPrices: (prices) => { submissionPolicy.setSessionCostPrices(prices) },
+      }),
+    }, PeakValleyRow)
   })
-
-  // The official peak/valley status row rides directly below the stats entry
-  // in the same width column. Its DeepSeek trigger reads the per-session
-  // model-fact store; the registry is filled by push from the plugin that
-  // owns the model directory (ui-model-selection), so a route change made in
-  // the composer seat or the /model popup repaints the row immediately.
-  slots.register({
-    name: 'conversation.composer.dock',
-    id: 'peak-valley',
-    order: 1,
-    locale: NS,
-    inject: (sessionId: SessionId): PeakValleyRowInjected => ({
-      hooks: {
-        peakValley: submissionPolicy.officialPeakValley,
-        modelProvider: composerModelFacts.storeFor(sessionId),
-        modelCatalog: composerModelCatalog.storeFor(sessionId),
-        sessionCost: submissionPolicy.sessionCost,
-        costPrices: submissionPolicy.sessionCostPrices,
-      },
-      setCostPrices: (prices) => { submissionPolicy.setSessionCostPrices(prices) },
-    }),
-  }, PeakValleyRow)
 
   ctx.plugin(ConversationController, {
     input: inputHub,

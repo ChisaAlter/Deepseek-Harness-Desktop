@@ -25,7 +25,7 @@ describe('TurnUsageDisclosure', () => {
     }
     const view = render(<TurnUsageDisclosure usage={usage} t={t} />)
 
-    expect(view.getByText('15.8K tok · Cache hit 49.4%')).toBeTruthy()
+    expect(view.getByText('15.8K tok · 49.4')).toBeTruthy()
     expect(view.queryByRole('definition')).toBeNull()
 
     fireEvent.click(view.getByRole('button'))
@@ -64,7 +64,7 @@ describe('TurnUsageDisclosure', () => {
       totalTokens: 1_100,
     }
     const view = render(<TurnUsageDisclosure usage={usage} t={t} />)
-    expect(view.getByText('1.1K tok · Cache hit 99.9%')).toBeTruthy()
+    expect(view.getByText('1.1K tok · 99.9')).toBeTruthy()
 
     const disclosure = view.getByRole('button')
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')

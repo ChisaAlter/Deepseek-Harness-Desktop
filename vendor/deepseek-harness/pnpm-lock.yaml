@@ -1860,6 +1860,10 @@ importers:
         version: 18.3.1
 
   packages/client/modules:
+    dependencies:
+      '@deepseek-ai/dsh-app-boot':
+        specifier: workspace:^
+        version: link:../../boot/app-boot
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^

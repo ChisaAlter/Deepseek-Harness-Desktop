@@ -33,6 +33,7 @@ import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
+import { missingHostFeatures, parseCompatibilityFeatures } from '@deepseek-ai/dsh-app-boot/features'
 import { optionalStringArray, stripClientSuffix } from './client/manifest.ts'
 import type { WebBootBatch, WebBootBatchPhase, WebBootEntry, WebBootGraph } from './client/manifest.ts'
 
@@ -119,6 +120,21 @@ class MissingClientBundleError extends Error {
         `  path: ${clientPath}`,
       ].join('\n'),
       { cause },
+    )
+  }
+}
+
+/** Host-feature gate failure: the package requires features this host does not support. */
+class ClientCompatibilityError extends Error {
+  constructor(
+    readonly packageName: string,
+    readonly missing: readonly string[],
+  ) {
+    super(
+      [
+        `client-modules: ${packageName} requires host features this dsh host does not support: ${missing.join(', ')}`,
+        '  the package is not part of the boot graph — update dsh to a host that provides them, or remove the plugin',
+      ].join('\n'),
     )
   }
 }
@@ -756,6 +772,19 @@ export class ClientModuleRegistry extends Service {
     if (decl === undefined || decl.platform !== 'web') {
       this.pkgMeta.set(sourceKey, null)
       return null
+    }
+    // Host-feature gate before the package enters the boot graph: a
+    // malformed dsh.compatibility declaration (parseCompatibilityFeatures
+    // names the package) or unsupported required features reject the package
+    // before any bundle is read or served. The activation pass aggregates
+    // these throws into ClientPackageCompositionError.
+    const dshCompatibility = dsh !== null && typeof dsh === 'object'
+      ? (dsh as Record<string, unknown>).compatibility
+      : undefined
+    const required = parseCompatibilityFeatures(packageName, dshCompatibility)
+    if (required !== undefined) {
+      const missing = missingHostFeatures(required)
+      if (missing.length > 0) throw new ClientCompatibilityError(packageName, missing)
     }
     const clientRel = clientExportOf(packageName, pkg.exports)
     if (clientRel === undefined) {

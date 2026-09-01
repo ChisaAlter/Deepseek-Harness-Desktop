@@ -33,6 +33,13 @@ async function bench(isLoopback = true) {
   const locale = new LocaleRuntime(ctx)
   locale.setLocale('zh')
   ctx.provide('locale', locale)
+  ctx.provide('connection', {
+    api: { settings: { describe: () => Promise.resolve({
+      rpcId: 'theme-apply' as never,
+      result: { ok: true, value: { writable: true, hasDocument: false, namespaces: [] } },
+    }) } },
+    isLoopback: true,
+  } as never)
   const section: Record<string, unknown> = { preference: 'system', fontSize: 14 }
   const namespace = () => ({
     ns: THEME_SETTINGS_NAMESPACE,
@@ -94,7 +101,7 @@ function fontSizeFaceOf(slots: SlotRegistry) {
 
 describe('ui-theme apply', () => {
   it('declares the slot and locale services', () => {
-    expect(inject).toEqual(['slots', 'locale', 'remote', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'settingsScope'])
   })
 
   it('provides the service, registers localized copy, and registers the section and font-size row', async () => {

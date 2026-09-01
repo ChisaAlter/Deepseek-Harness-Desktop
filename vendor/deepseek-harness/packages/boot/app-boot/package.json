@@ -18,6 +18,10 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./features": {
+      "types": "./lib/types/features.d.ts",
+      "default": "./lib/features.js"
+    },
     "./invariant": {
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
@@ -28,6 +32,7 @@
   "files": [
     "lib/index.js",
     "lib/invariant.js",
+    "lib/features.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

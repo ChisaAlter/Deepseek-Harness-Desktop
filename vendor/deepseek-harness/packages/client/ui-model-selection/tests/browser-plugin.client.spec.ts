@@ -399,6 +399,7 @@ describe('ui-model-selection dual entry', () => {
     // The relay route is selected but its group is absent from the snapshot
     // (catalog lookup failed, or the group simply did not load).
     b.setHostCurrent({ provider: 'other-relay', model: 'm1' })
+    b.remote.emit('settings/document-updated', ['llm-pi-ai', 1])
     b.mint('s1')
     const face = b.seat().inject!(sid('s1'))
     face.load()
@@ -417,6 +418,7 @@ describe('ui-model-selection dual entry', () => {
     // The custom route is current but its catalog group does not advertise the
     // model (a failed lookup) — the same id the official route advertises.
     b.setHostCurrent({ provider: 'my-gateway', model: 'deepseek-v4-flash' })
+    b.remote.emit('settings/document-updated', ['llm-pi-ai', 1])
     b.mint('s1')
     const face = b.seat().inject!(sid('s1'))
     face.load()

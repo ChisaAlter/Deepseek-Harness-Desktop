@@ -81,6 +81,7 @@
    layer above modal overlays (z 1000). */
 .panel {
   position: fixed;
+  -webkit-app-region: no-drag;
   z-index: 1100;
   box-sizing: border-box;
   /* Size to the widest row so provider/model stays on one line, within a cap.

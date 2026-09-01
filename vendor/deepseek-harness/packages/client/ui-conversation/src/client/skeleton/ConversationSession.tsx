@@ -65,10 +65,11 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
  * @returns the blank caption in the titlebar row, or the visible title and tabs.
  */
 export function ConversationSessionHeader({
-  sessionId, useSession, useSessions, useConversation, useConversationViews, useStore, actions,
-  renderSlot, open, t,
+  sessionId, useSession, useSessions, useConversation, useConversationViews, useViewTabs,
+  useStore, actions, renderSlot, open, t,
 }: ConversationSessionHeaderProps) {
   const tabs = useConversationViews(value => value)
+  const showTabs = useViewTabs(value => value)
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
@@ -144,7 +145,7 @@ export function ConversationSessionHeader({
               {renderSlot('conversation.session.header.utilities', {})}
             </div>
           </div>
-          {tabs.length > 1 && (
+          {showTabs && tabs.length > 1 && (
             <div className={css.tabs} role="tablist">
               {tabs.map(viewTab => (
                 <button

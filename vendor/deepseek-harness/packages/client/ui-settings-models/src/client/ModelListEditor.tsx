@@ -16,13 +16,20 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import type { LlmDiscoveredModel } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
-import type { ModelsOperations } from './operations.ts'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
+import {
+  enrichDiscoveredModelsBestEffort,
+  type EnrichedDiscoveredModel,
+} from './models-dev-metadata.ts'
+import { discoveredModelsOf, type ModelsOperations } from './operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 /**
  * One configured model row. Fields this card does not edit must survive an
@@ -87,18 +94,6 @@ export interface ModelListEditorProps {
   disabled: boolean
 }
 
-/** Disclosure chevron; rotates to point down while its row is open. */
-function IconChevron({ open }: { open: boolean }): ReactNode {
-  return (
-    <svg
-      width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden
-      style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform 120ms ease' }}
-    >
-      <path d="M6 3.5L10.5 8L6 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 /** Removal glyph for one model row. */
 function IconTrash(): ReactNode {
   return (
@@ -113,6 +108,59 @@ function IconTrash(): ReactNode {
 
 /** The two token counts edited as K/M-suffixed text behind a row's disclosure. */
 type CapacityField = 'contextWindow' | 'maxTokens'
+
+/**
+ * Thinking levels this form can declare, in pi-ai's escalation order. Ids are
+ * canonical keys. A checked level other than `off` writes that same string as
+ * the wire spelling (`high: high`). `off` is the one valueless key: checking
+ * it writes `off: null` (offer Off, send nothing). A custom wire rename stays
+ * YAML-only.
+ */
+const EFFORT_CHOICES = [
+  { id: 'off', key: 'effort.off' },
+  { id: 'minimal', key: 'effort.minimal' },
+  { id: 'low', key: 'effort.low' },
+  { id: 'medium', key: 'effort.medium' },
+  { id: 'high', key: 'effort.high' },
+  { id: 'xhigh', key: 'effort.xhigh' },
+  { id: 'max', key: 'effort.max' },
+] as const satisfies readonly { id: string; key: keyof typeof en }[]
+
+type EffortId = (typeof EFFORT_CHOICES)[number]['id']
+
+/** One model's `reasoningEfforts` dict, or empty when the field is absent / false. */
+function effortsOf(model: ModelDraft): Record<string, string | null> {
+  const value = model['reasoningEfforts']
+  if (value === false || value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return { ...(value as Record<string, string | null>) }
+}
+
+/**
+ * Input types this form can declare, in the canonical pi-ai order (text
+ * first). The wire spelling is the same string (`text: text`); audio and
+ * other modalities wait for pi-ai upstream support.
+ */
+const INPUT_CHOICES = [
+  { id: 'text', key: 'inputText' },
+  { id: 'image', key: 'inputImage' },
+] as const satisfies readonly { id: string; key: keyof typeof en }[]
+
+type InputId = (typeof INPUT_CHOICES)[number]['id']
+
+/** One model's declared input types, or `undefined` when it declares none. */
+function inputOf(model: ModelDraft): readonly InputId[] | undefined {
+  const value = model['input']
+  if (!Array.isArray(value)) return undefined
+  const declared = value.filter((id): id is InputId => id === 'text' || id === 'image')
+  return declared.length === 0 ? undefined : declared
+}
+
+/** Reorder a declared set into the canonical choice order. */
+function orderedInput(selected: readonly InputId[]): InputId[] {
+  return INPUT_CHOICES.filter(choice => selected.includes(choice.id)).map(choice => choice.id)
+}
 
 /**
  * What an empty capacity field is worth, shown as its placeholder so a row left
@@ -141,13 +189,17 @@ function capacitySpelling(value: number | undefined): string {
   return value === undefined ? '' : formatCapacity(value)
 }
 
-/** Adopt a candidate, keeping whatever capacities the provider disclosed. */
-function adopt(candidate: LlmDiscoveredModel): ModelDraft {
+/**
+ * Adopt a candidate, keeping disclosed capacities plus any models.dev fills
+ * (missing context/maxTokens and declared reasoning efforts).
+ */
+function adopt(candidate: EnrichedDiscoveredModel): ModelDraft {
   return {
     id: candidate.id,
     ...candidate.name === undefined ? {} : { name: candidate.name },
     ...candidate.contextWindow === undefined ? {} : { contextWindow: candidate.contextWindow },
     ...candidate.maxTokens === undefined ? {} : { maxTokens: candidate.maxTokens },
+    ...candidate.reasoningEfforts === undefined ? {} : { reasoningEfforts: candidate.reasoningEfforts },
   }
 }
 
@@ -160,11 +212,8 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const { models, onChange, probe, operations, t, disabled } = props
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
-  const [candidates, setCandidates] = useState<readonly LlmDiscoveredModel[] | undefined>(undefined)
+  const [candidates, setCandidates] = useState<readonly EnrichedDiscoveredModel[] | undefined>(undefined)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
-  // Rows carry an id and a name; capacities are the exception, so they stay
-  // folded until asked for rather than crowding every row with four inputs.
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
   // Capacities are edited as text, so a field's keystrokes are held here rather
   // than re-derived from the parsed count on every change — that would rewrite
   // `1000` to `1K` mid-word. Unreadable text is kept past blur so the refusal
@@ -200,15 +249,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     return next
   }
 
-  const toggleExpanded = (index: number): void => {
-    setExpanded((current) => {
-      const next = new Set(current)
-      if (!next.delete(index)) next.add(index)
-      return next
-    })
-  }
-
-  const patch = (index: number, next: Record<string, string | number | undefined>): void => {
+  const patch = (index: number, next: Record<string, unknown>): void => {
     onChange(models.map((model, at) => {
       if (at !== index) return model
       // Rebuilt rather than spread over: an emptied optional field has to leave
@@ -225,6 +266,21 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     }))
   }
 
+  const toggleEffort = (index: number, model: ModelDraft, id: EffortId): void => {
+    const dict = effortsOf(model)
+    if (Object.prototype.hasOwnProperty.call(dict, id)) delete dict[id]
+    else dict[id] = id === 'off' ? null : id
+    const stillOffers = EFFORT_CHOICES.some(choice => Object.prototype.hasOwnProperty.call(dict, choice.id))
+    patch(index, { reasoningEfforts: stillOffers ? dict : undefined })
+  }
+
+  /** Toggle one declared input type; an empty set removes the field (inherit). */
+  const toggleInput = (index: number, model: ModelDraft, id: InputId): void => {
+    const current = inputOf(model) ?? []
+    const next = current.includes(id) ? current.filter(existing => existing !== id) : [...current, id]
+    patch(index, { input: next.length === 0 ? undefined : orderedInput(next) })
+  }
+
   const fetchModels = async (): Promise<void> => {
     setBusy(true)
     setFailure(undefined)
@@ -239,16 +295,23 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
         setFailure(answer.message)
         return
       }
-      const found = answer.models
+      const found = discoveredModelsOf(answer.models)
       if (found.length === 0) {
         setFailure(t('fetchEmpty'))
         return
       }
+      // Fill missing capacities and thinking levels from models.dev when a
+      // record matches; a failed or unmatched catalog leaves rows as discovered.
+      const enriched = await enrichDiscoveredModelsBestEffort(found)
       // Everything already configured starts unchecked, so adopting a
       // selection never silently rewrites a capacity the user corrected.
       const known = new Set(models.map(model => textOf(model, 'id')))
-      setCandidates(found)
-      setPicked(new Set(found.filter(model => !known.has(model.id)).map(model => model.id)))
+      setCandidates(enriched)
+      setPicked(new Set(enriched.filter(model => !known.has(model.id)).map(model => model.id)))
+    } catch (error) {
+      // The transport rejected rather than answering; without this the button
+      // would stay busy with nothing shown.
+      setFailure(messageOf(error))
     } finally {
       setBusy(false)
     }
@@ -283,7 +346,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const activeCandidates = candidates ?? []
+  const activeCandidates = Array.isArray(candidates) ? candidates : []
   const allCandidatesPicked = activeCandidates.length > 0
     && activeCandidates.every(candidate => picked.has(candidate.id))
 
@@ -359,72 +422,94 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             />
             <button
               type="button"
-              className={styles['iconButton']}
-              aria-label={`${t('modelAdvanced')} ${index + 1}`}
-              aria-expanded={expanded.has(index)}
-              title={t('modelAdvanced')}
-              onClick={() => { toggleExpanded(index) }}
-            >
-              <IconChevron open={expanded.has(index)} />
-            </button>
-            <button
-              type="button"
               className={`${styles['iconButton']} ${styles['iconButtonDanger']}`}
               aria-label={`${t('removeModel')} ${index + 1}`}
               title={t('removeModel')}
               disabled={disabled}
               onClick={() => {
                 onChange(models.filter((_model, at) => at !== index))
-                // Both stores are keyed by position, so every row after this
-                // one shifts down and would otherwise inherit its neighbour's
-                // state — a different row's capacities popping open, or its
-                // half-typed text appearing in another row's field.
-                setExpanded((current) => {
-                  const next = new Set<number>()
-                  for (const at of current) {
-                    if (at < index) next.add(at)
-                    else if (at > index) next.add(at - 1)
-                  }
-                  return next
-                })
+                // Capacity edit buffers are keyed by position, so every row
+                // after this one shifts down and would otherwise inherit its
+                // neighbour's half-typed text.
                 setEditing(current => reindexOnRemove(current, index))
               }}
             >
               <IconTrash />
             </button>
           </div>
-          {expanded.has(index)
-            ? (
-              <div className={styles['modelAdvanced']}>
-                <label className={styles['modelField']}>
-                  <span className={styles['modelFieldLabel']}>{t('modelContextWindow')}</span>
-                  <input
-                    className={styles['input']}
-                    type="text"
-                    inputMode="numeric"
-                    value={capacityText(model, index, 'contextWindow')}
-                    placeholder={CAPACITY_HINT.contextWindow}
-                    aria-label={`${t('modelContextWindow')} ${index + 1}`}
-                    disabled={disabled}
-                    onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
-                  />
-                </label>
-                <label className={styles['modelField']}>
-                  <span className={styles['modelFieldLabel']}>{t('modelMaxTokens')}</span>
-                  <input
-                    className={styles['input']}
-                    type="text"
-                    inputMode="numeric"
-                    value={capacityText(model, index, 'maxTokens')}
-                    placeholder={CAPACITY_HINT.maxTokens}
-                    aria-label={`${t('modelMaxTokens')} ${index + 1}`}
-                    disabled={disabled}
-                    onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
-                  />
-                </label>
+          <fieldset className={styles['effortGroup']}>
+            <legend className={styles['modelFieldLabel']}>{t('effortTitle')}</legend>
+            <div className={styles['effortOptions']}>
+              {EFFORT_CHOICES.map((choice) => {
+                const checked = Object.prototype.hasOwnProperty.call(effortsOf(model), choice.id)
+                return (
+                  <label className={styles['effortOption']} key={choice.id}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={disabled}
+                      aria-label={`${t(choice.key)} ${index + 1}`}
+                      onChange={() => { toggleEffort(index, model, choice.id) }}
+                    />
+                    <span>{t(choice.key)}</span>
+                  </label>
+                )
+              })}
+            </div>
+          </fieldset>
+          <fieldset className={`${styles['effortGroup']} ${styles['inputGroup']}`}>
+            <legend className={styles['modelFieldLabel']}>{t('inputTitle')}</legend>
+            <div className={styles['inputGroupBody']}>
+              <div className={styles['inputOptions']}>
+                {INPUT_CHOICES.map((choice) => {
+                  const checked = (inputOf(model) ?? []).includes(choice.id)
+                  return (
+                    <label className={styles['effortOption']} key={choice.id}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        aria-label={`${t(choice.key)} ${index + 1}`}
+                        onChange={() => { toggleInput(index, model, choice.id) }}
+                      />
+                      <span>{t(choice.key)}</span>
+                    </label>
+                  )
+                })}
               </div>
-            )
-            : null}
+              {inputOf(model) === undefined
+                ? <p className={styles['inputHint']}>{t('inputInherited')}</p>
+                : null}
+            </div>
+          </fieldset>
+          <div className={styles['modelAdvanced']}>
+            <label className={styles['modelField']}>
+              <span className={styles['modelFieldLabel']}>{t('modelContextWindow')}</span>
+              <input
+                className={styles['input']}
+                type="text"
+                inputMode="numeric"
+                value={capacityText(model, index, 'contextWindow')}
+                placeholder={CAPACITY_HINT.contextWindow}
+                aria-label={`${t('modelContextWindow')} ${index + 1}`}
+                disabled={disabled}
+                onChange={(event) => { editCapacity(index, 'contextWindow', event.target.value) }}
+              />
+            </label>
+            <label className={styles['modelField']}>
+              <span className={styles['modelFieldLabel']}>{t('modelMaxTokens')}</span>
+              <input
+                className={styles['input']}
+                type="text"
+                inputMode="numeric"
+                value={capacityText(model, index, 'maxTokens')}
+                placeholder={CAPACITY_HINT.maxTokens}
+                aria-label={`${t('modelMaxTokens')} ${index + 1}`}
+                disabled={disabled}
+                onChange={(event) => { editCapacity(index, 'maxTokens', event.target.value) }}
+              />
+            </label>
+          </div>
         </div>
       ))}
       <button
@@ -456,7 +541,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           </Button>
         </div>
         <ul className={styles['candidateList']}>
-          {(candidates ?? []).map(candidate => (
+          {activeCandidates.map(candidate => (
             <li key={candidate.id} className={styles['candidate']}>
               <label className={styles['candidateLabel']}>
                 <input

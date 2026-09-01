@@ -39,6 +39,10 @@ describe('SystemPromptNodeView', () => {
 
     fireEvent.click(disclosure)
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
+    expect(
+      container.querySelector('[data-system-prompt-body]')
+        ?.closest('[data-dsh-motion]')
+        ?.getAttribute('aria-hidden'),
+    ).toBe('true')
   })
 })

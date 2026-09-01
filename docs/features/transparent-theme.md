@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `transparent-theme` |
 | **status** | `active` |
-| **last verified** | 2026-08-28 — 透明主题下 composer seat 不再铺实心 `bluish-950` 底板（`ConversationRoot.module.css` 壁纸渐变加 `:not([data-dsh-transparent])`）；契约测试 `composer-seat-wallpaper.client.spec.ts` 绿。此前 2026-08-27 合并后收口复核：vendor `test:gui` 在合并树复跑全绿（412 文件 / 5409 pass / 1 skip）；QA 记录见 [docs/qa/results/2026-08-27/transparent-theme.md](../qa/results/2026-08-27/transparent-theme.md) |
+| **last verified** | 2026-09-01 — Appearance 规格 UTF-8 恢复后定向 31/31；vendor `test:gui` 431 文件 / 5274 pass / 1 skip。此前 2026-08-28 — 透明主题下 composer seat 不再铺实心 `bluish-950` 底板（`ConversationRoot.module.css` 壁纸渐变加 `:not([data-dsh-transparent])`）；契约测试 `composer-seat-wallpaper.client.spec.ts` 绿。此前 2026-08-27 合并后收口复核：vendor `test:gui` 在合并树复跑全绿（412 文件 / 5409 pass / 1 skip）；QA 记录见 [docs/qa/results/2026-08-27/transparent-theme.md](../qa/results/2026-08-27/transparent-theme.md) |
 
 ## User paths
 

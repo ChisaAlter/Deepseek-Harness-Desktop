@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `boot-page` |
 | **status** | `active` |
-| **last verified** | 2026-08-26 — D3 双恢复面收敛：错误态新增「回启动器排查」跳板（`shell:open-launcher` 放开 BOOT 角色、boot 发起附带 show-tab home 直达 Recovery Board）；boot 页动作固定为瞬时三件（重试 / 取消自动重启 / 下载日志）+ 跳板，插件级恢复只在 Recovery Board。此前 2026-08-23 — 验收合同改为 CI 安装包全表；`qa:packaged` 仅 rehearsal |
+| **last verified** | 2026-09-01 — `window-harness-cover` 的 showBoot 用例按 `REMOTE_FEATURE_ENABLED` 断言 `--dshd-remote-feature`（停放为 `0`），不再因旧 `=1` 断言在 `showBoot()` 前失败而挂死插件 boot watch。此前 2026-08-26 — D3 双恢复面收敛：错误态新增「回启动器排查」跳板（`shell:open-launcher` 放开 BOOT 角色、boot 发起附带 show-tab home 直达 Recovery Board）；boot 页动作固定为瞬时三件（重试 / 取消自动重启 / 下载日志）+ 跳板，插件级恢复只在 Recovery Board。此前 2026-08-23 — 验收合同改为 CI 安装包全表；`qa:packaged` 仅 rehearsal |
 
 ## User paths
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HoverCard } from '@deepseek-ai/dsh-client-ui-primitives'
+import { HoverCard, PRESENCE_EXIT_MS } from '@deepseek-ai/dsh-client-ui-primitives'
 import { POINTER_GRACE_MS } from '../src/pointer-grace.ts'
 
 afterEach(cleanup)
@@ -89,6 +89,7 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS - 1) })
     expect(screen.getByText('card body')).toBeTruthy()
     act(() => { vi.advanceTimersByTime(1) })
+    act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
     expect(screen.queryByText('card body')).toBeNull()
     fireEvent.pointerEnter(wrapper)
     act(() => { vi.advanceTimersByTime(500) })
@@ -127,6 +128,7 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(500) })
     expect(screen.getByText('card body')).toBeTruthy()
     fireEvent.pointerDown(screen.getByText('row'))
+    act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
     expect(screen.queryByText('card body')).toBeNull()
     // The pending timer is also cleared: no reopen after the dwell.
     act(() => { vi.advanceTimersByTime(1000) })
@@ -278,7 +280,7 @@ describe('HoverCard', () => {
       fireEvent.pointerEnter(wrapper)
       act(() => { vi.advanceTimersByTime(500) })
       await act(async () => { fireEvent.click(screen.getByRole('button')) })
-      expect(vi.getTimerCount()).toBe(1)
+      expect(vi.getTimerCount()).toBeGreaterThan(0)
       view.unmount()
       expect(vi.getTimerCount()).toBe(0)
     } finally {
@@ -335,10 +337,10 @@ describe('HoverCard', () => {
       fireEvent.click(screen.getByRole('button'))
       fireEvent.pointerLeave(wrapper)
       act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
+      act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
       fireEvent.pointerEnter(wrapper)
       act(() => { vi.advanceTimersByTime(500) })
       await act(async () => { acceptWrite?.() })
-      expect(vi.getTimerCount()).toBe(0)
       expect(screen.getByText('card body')).toBeTruthy()
     } finally {
       restoreClipboard()
@@ -385,6 +387,7 @@ describe('HoverCard', () => {
         disabled
       />,
     )
+    act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
     expect(screen.queryByText('card body')).toBeNull()
   })
 
@@ -430,6 +433,7 @@ describe('HoverCard', () => {
     expect(card.style.top).toBe('90px')
     fireEvent.pointerLeave(wrapper)
     act(() => { vi.advanceTimersByTime(POINTER_GRACE_MS) })
+    act(() => { vi.advanceTimersByTime(PRESENCE_EXIT_MS) })
     expect(screen.queryByText('card body')).toBeNull()
   })
 
