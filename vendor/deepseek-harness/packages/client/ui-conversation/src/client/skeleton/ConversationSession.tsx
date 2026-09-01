@@ -62,7 +62,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
 /**
  * Renders Session header chrome above the resident conversation scrollport.
  * @param props - Strict Session store, view ledger, navigation, render, and locale shares.
- * @returns the hidden blank-session header or visible title and tabs.
+ * @returns the blank caption in the titlebar row, or the visible title and tabs.
  */
 export function ConversationSessionHeader({
   sessionId, useSession, useSessions, useConversation, useConversationViews, useStore, actions,
@@ -78,12 +78,14 @@ export function ConversationSessionHeader({
 
   return (
     <header
-      className={clsx(css.header, hideChrome && css.headerHidden)}
+      className={clsx(css.header, hideChrome && css.headerBlank)}
       aria-hidden={hideChrome || undefined}
     >
-      {!hideChrome && (
+      {hideChrome ? (
+        <div className={css.blankCaption} data-dshd-caption="blank" />
+      ) : (
         <>
-          <div className={css.titleRow}>
+          <div className={css.titleRow} data-dshd-caption="title">
             <div className={css.titleCluster}>
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {

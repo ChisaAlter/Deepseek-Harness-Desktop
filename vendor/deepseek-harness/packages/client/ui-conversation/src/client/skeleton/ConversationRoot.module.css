@@ -1,9 +1,15 @@
 .root {
   position: relative; /* positioning context for slot-owned absolute chrome */
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  /* Nested subgrid of centerCol (titlebar auto + 1fr). display:contents would
+     drop the box ResizeObserver needs for --dsh-conversation-column-width;
+     a flex item spanning both rows inflates the auto titlebar track, so the
+     hero and trailing cluster pack against the window top. */
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-row: 1 / -1;
   min-width: 0;
+  min-height: 0;
   /* AppFrame already paints `--dsw-alias-bg-base`. A second fill stacks with
      that mix and hides a wallpaper. */
 
@@ -37,6 +43,7 @@
 
 .header {
   position: relative;
+  grid-row: 1;
   flex: none;
   min-width: 0;
   padding: 12px 28px 0 20px;
@@ -385,14 +392,13 @@
 .body {
   position: relative;
   display: flex;
-  flex: 1;
+  grid-row: 2;
   flex-direction: column;
   min-height: 0;
 }
 
 .scrollBody {
   display: flex;
-  grid-row: 2;
   flex: 1;
   flex-direction: column;
   min-width: 0;

@@ -235,6 +235,7 @@ const QA_REQUIRED_STEPS = [
   'composer.commands',
   'composer.send',
   'composer.access',
+  'composer.heroCentered',
   'composer.thinkingSwitch',
   'composer.skillMenuAbsent',
   'composer.pathSourceAbsent',
@@ -893,6 +894,33 @@ async function runReleaseUiWalk(wc, helpers) {
   rec('composer.commands', composer?.commands, '');
   rec('composer.send', composer?.send, composer?.send ? '' : 'no 发送消息 (likely 停止生成 leftover)');
   rec('composer.access', composer?.access, '');
+  const heroLayout = await pageEval(wc, () => {
+    const root = document.querySelector('[data-phase="hero"]');
+    const seat = document.querySelector('[data-composer-seat]');
+    if (!root) {
+      return { phase: document.querySelector('[data-phase]')?.getAttribute('data-phase') || 'none' };
+    }
+    if (!seat) return { phase: 'hero', ok: false, detail: 'missing composer seat' };
+    const column = root.getBoundingClientRect();
+    const box = seat.getBoundingClientRect();
+    const slack = Math.max(80, column.height * 0.22);
+    const delta = Math.abs((box.top + box.bottom) / 2 - (column.top + column.bottom) / 2);
+    return {
+      phase: 'hero',
+      ok: column.height > 240 && delta <= slack,
+      colH: Math.round(column.height),
+      seatTop: Math.round(box.top),
+      delta: Math.round(delta),
+      slack: Math.round(slack),
+    };
+  });
+  rec(
+    'composer.heroCentered',
+    heroLayout.phase !== 'hero' || heroLayout.ok === true,
+    heroLayout.phase === 'hero'
+      ? `colH=${heroLayout.colH}; seatTop=${heroLayout.seatTop}; delta=${heroLayout.delta}; slack=${heroLayout.slack}`
+      : `phase=${heroLayout.phase}`,
+  );
   const thinking = await switchComposerThinking(wc, helpers);
   rec('composer.thinkingSwitch', thinking.ok, thinking.detail);
   await clickNewSession(wc);

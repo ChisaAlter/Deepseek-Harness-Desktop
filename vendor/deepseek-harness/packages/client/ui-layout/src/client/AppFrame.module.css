@@ -41,6 +41,7 @@
   grid-template-rows: subgrid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   /* Contain conversation z-index (sticky composer 7, ContextMeter 100) so
      those layers cannot paint over the phone overlay drawer. */

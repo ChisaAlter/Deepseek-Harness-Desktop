@@ -30,6 +30,11 @@
   min-width: 32px;
   width: 32px;
   padding: 0;
+  overflow: hidden;
+}
+
+.iconOnly span {
+  display: none;
 }
 
 .sessionLogButton span,

@@ -51,4 +51,12 @@ describe('ConversationRoot.module.css titlebar crowding', () => {
   it('keeps phone left padding so the caption does not cover the menu', () => {
     expect(css).toMatch(/@media \(max-width: 767px\)[\s\S]*?padding-left:\s*56px/)
   })
+
+  it('nests in the centerCol subgrid so the header sits in the titlebar row and the body in the 1fr row', () => {
+    expect(declarations('.root')?.get('display')).toBe('grid')
+    expect(declarations('.root')?.get('grid-template-rows')).toBe('subgrid')
+    expect(declarations('.root')?.get('grid-row')).toBe('1 / -1')
+    expect(declarations('.header')?.get('grid-row')).toBe('1')
+    expect(declarations('.body')?.get('grid-row')).toBe('2')
+  })
 })

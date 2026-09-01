@@ -84,4 +84,15 @@ describe('Session export Header action', () => {
     fireEvent.click(button)
     await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
   })
+
+  it('drops the visible Session log label at cozy density and keeps the accessible name', () => {
+    const b = bench()
+    b.view.rerender(<SessionLogDownloadHeaderAction {...({
+      ...b.props,
+      density: 'cozy',
+    } as unknown as SessionLogDownloadDialogProps)} />)
+    const button = b.view.getByRole('button', { name: 'Session log' })
+    expect(b.view.queryByText('Session log')).toBeNull()
+    expect(button.querySelector('svg')).not.toBeNull()
+  })
 })

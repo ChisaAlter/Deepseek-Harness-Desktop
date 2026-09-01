@@ -150,4 +150,23 @@ test('release walk types into Lexical composer and matches 0.1.2 chrome copy', (
   assert.match(PAGE_HELPERS, /function composerModelTrigger/);
   assert.match(PAGE_HELPERS, /选择模型\|select model/);
   assert.match(PAGE_HELPERS, /selectNodeContents/);
+  assert.ok(QA_REQUIRED_STEPS.includes('composer.heroCentered'));
+  assert.match(walk, /composer\.heroCentered/);
+  assert.match(walk, /data-phase/);
+});
+
+test('hero conversation root nests in the AppFrame center subgrid', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const css = fs.readFileSync(
+    path.join(__dirname, '../../vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css'),
+    'utf8',
+  );
+  const rootBlock = css.slice(css.indexOf('.root {'), css.indexOf('\n.header {'));
+  assert.match(rootBlock, /display:\s*grid/);
+  assert.match(rootBlock, /grid-template-rows:\s*subgrid/);
+  assert.match(rootBlock, /grid-row:\s*1\s*\/\s*-1/);
+  assert.match(rootBlock, /min-height:\s*0/);
+  assert.match(css, /\.header \{[\s\S]*?grid-row:\s*1/);
+  assert.match(css, /\.body \{[\s\S]*?grid-row:\s*2/);
 });
