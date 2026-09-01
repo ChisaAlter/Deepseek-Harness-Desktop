@@ -25,9 +25,9 @@ export const installDir = resolveInstallDir()
 export const productExe = path.join(installDir, 'Deepseek-Harness-Desktop.exe')
 export const userData = path.join(process.env.APPDATA || '', 'Deepseek-Harness-Desktop')
 export const CI_RUN = process.env.DSHD_CI_RUN
-  || 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33398643700'
+  || 'https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33455954068'
 export const SETUP_SHA256 = process.env.DSHD_SETUP_SHA256
-  || '49BD62B56D47FE0AD312B9E4C684D3070AFF81D6086595F55C80FB28C403FECA'
+  || 'F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856'
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))

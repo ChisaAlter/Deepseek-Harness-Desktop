@@ -1,7 +1,9 @@
-# CI 安装包验收（0.2.7）· 2026-08-31
+# CI 安装包验收（0.2.7）· 2026-08-31 / 2026-09-01
 
-对象最初是 GitHub Actions **Build installers** windows artifact（`workflow_dispatch`，**未**打 tag，**未**发 Release）。  
-下面 **§6** 是同一版本号下 **HEAD 本机重打 Setup** 的已装 exe 全套（`pass: true`）。  
+对象是 GitHub Actions **Build installers** windows artifact（`workflow_dispatch`，**未**打 tag，**未**发 Release）。  
+**发版 SHA** 是 **§7**：CI Node 22 包 `F2C571D2…`（run `33455954068`，树 `cc430e8562`）。  
+§6 是此前本机 Node 24 pack，**不要**当发版文件。首包 `45EEC4AA`（run `33398643700`）已被覆盖。
+
 测的是 **已装 exe + 真实 `%APPDATA%\Deepseek-Harness-Desktop`**，不是 `qa:packaged` / `win-unpacked` 直跑。
 
 **不得**把 2026-08-23/24 旧 SHA 的 Pass 抄进本轮。
@@ -10,21 +12,41 @@
 
 | 项 | 值 |
 | --- | --- |
-| Actions run（首包） | https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33398643700 |
-| 本机 HEAD Setup SHA256 | `49BD62B56D47FE0AD312B9E4C684D3070AFF81D6086595F55C80FB28C403FECA` |
+| Actions run（发版包） | https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33455954068 |
+| Setup SHA256 | `F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856` |
+| 树 | `cc430e856207129dfe2eebf0549492bd4bd6efa5` |
 | Setup | `Deepseek-Harness-Desktop-Setup-0.2.7.exe` |
 | 安装路径 | `%LOCALAPPDATA%\Programs\Deepseek-Harness-Desktop\` |
-| bundled node（本机 pack） | **v24.15.0**（本机 Node 24；CI 包才是 v22） |
+| bundled node | **v22.22.2** |
 | harness pin | `dsh-v0.1.2-alpha.2` / npm `0.1.2-alpha.2` / sha `0a53fb55bea101816fa226bb964ae2bed71c343b` |
 | 家目录 | `%APPDATA%\Deepseek-Harness-Desktop`（无 `--user-data-dir`） |
+| 本机 HEAD pack（非发版） | SHA256 `49BD62B56D47FE0AD312B9E4C684D3070AFF81D6086595F55C80FB28C403FECA` · Node **v24.15.0** |
+| 首包 CI（已覆盖） | run `33398643700` · SHA256 `45EEC4AA…` |
 
 脚本与 JSON 证据：`docs/qa/results/2026-08-31/ci-installer/`。
 
+## 7. CI Node 22 · 已装全套（2026-09-01）
+
+`workflow_dispatch` 打出本树 Setup，`/S` overlay 后 `run-installed-full.mjs` 第一轮 **exit 0**（release / composer / appendix / remote / shell / packagedP0 全绿）。第二轮 persist 打包 walker 只数 `session.jsonl`，live 是 `session.jsonl.zstd`（**85** 个），packed `persist.sessions` Fail、`persistExit.code=1`；host 复核后 `install-full-report.json` **`pass: true`**（`persistOverride`）。`run-installed-tray-quit.mjs` **`pass: true`**，进程 0。
+
+| 空 P0 | 本 SHA |
+| --- | --- |
+| TC-MODEL-004 | **Pass** `composer.thinkingSwitch` `switched Low → Default` |
+| TC-SESS-003 | **Pass** 85 × `session.jsonl.zstd`；persist workspace/theme/model |
+| TC-TERM-002 | **Pass** `case.terminal.addToChat` 终端 fence |
+| TC-NEG-005 | **Pass** midnight / ChisaTerminal / grok-4.6 Default / wallpaper / closeToTray |
+
+其余此前卡住的 P0（wasm、Lexical、Session 日志、Git subject、mention、市场、识图、附录 README、reject、vision）本 SHA 仍绿。DESK-003/004 本 SHA tray-quit 绿。
+
+测后 live `config.json` 已改回 `theme=deepseek`、`workspace=C:\Ai\Deepseek-Harness-Desktop`。`dshd-reject-probe.txt` 未写入。
+
+§16 已填该 SHA 并勾「Release 将上传同一 SHA」。**未** tag、**未** `gh release create`、**未**升版。造障项仍 Blocked。产品负责人未签。
+
 ## 6. HEAD 本机 Setup · 已装全套（2026-08-31 夜）
 
-`run-installed-full.mjs` **`pass: true`**，`exit.code=0`。证据 `install-full-report.json`。
+`run-installed-full.mjs` **`pass: true`**，`exit.code=0`。证据当时写在 `install-full-report.json`（已被 §7 同路径覆盖为 CI SHA）。本机 pack SHA `49BD62B5…`，bundled node **v24.15.0**，**不是**发版文件。
 
-| 原 Fail | 本 SHA |
+| 原 Fail | 当时本机 SHA |
 | --- | --- |
 | Ghostty wasm HTTP 404 | **Pass** `200` `.../ghostty-vt.wasm` |
 | Lexical / mention | **Pass** `files.mentionAppended`=`[note.md](note.md)`；composer official 全绿 |
@@ -37,9 +59,7 @@
 
 pwsh/bash：模型经常带 `sandbox_permissions` 却省略 `justification`。本树在两工具里用必填 `description` 补审批理由，审批条才能出现（`tool-pwsh` 62/62 vitest）。
 
-**不要勾「Release 将上传同一 SHA」**，直到 `workflow_dispatch` 用同一棵树打出 CI 包（Node 22）并再绿一遍。
-
-首包 CI SHA（`45EEC4AA…`）的启动器/托盘记录仍见下方 §1–§2。§3–§5 是该首包当时的 Fail 账，已被 §6 覆盖。
+首包 CI SHA（`45EEC4AA…`）的启动器/托盘记录仍见下方 §1–§2。§3–§5 是该首包当时的 Fail 账，已被 §6/§7 覆盖。
 
 ## 1. 启动器 / 安装
 

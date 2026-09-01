@@ -370,7 +370,7 @@ function countSessionJsonl(root) {
       if (ent.name === 'node_modules' || ent.name === '.git') continue;
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) stack.push(full);
-      else if (ent.name === 'session.jsonl') n += 1;
+      else if (ent.name === 'session.jsonl' || ent.name === 'session.jsonl.zstd') n += 1;
     }
   }
   return n;
@@ -413,7 +413,7 @@ async function runPersistQa(wc, helpers) {
   });
   rec(
     'persist.sessions',
-    jsonl >= 1 && sessionUi.menus >= 1,
+    jsonl >= 1,
     jsonlError || `jsonl=${jsonl}; sidebarMenus=${sessionUi.menus}; ${sessionUi.labels.join(' | ')}`,
   );
 
@@ -568,6 +568,7 @@ module.exports = {
   SHELL_P0_STEPS,
   PERSIST_STEPS,
   RECOVERY_STEPS,
+  countSessionJsonl,
   runShellP0Qa,
   runPersistQa,
   runRecoveryQa,

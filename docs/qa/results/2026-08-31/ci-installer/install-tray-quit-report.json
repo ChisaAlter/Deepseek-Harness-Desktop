@@ -1,8 +1,8 @@
 {
-  "at": "2026-08-31T15:29:53.104Z",
+  "at": "2026-09-01T02:02:58.387Z",
   "productExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
-  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33398643700",
-  "setupSha256": "45EEC4AAD050E6BA506685F1A06336750406D732D03AA833A674A5C08EB49AA3",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33455954068",
+  "setupSha256": "F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856",
   "exit": {
     "code": 0,
     "signal": null
@@ -11,13 +11,14 @@
   "pass": true,
   "logTail": [
     "",
-    "[DSH_SMOKE] {\"hasFrame\":true,\"gridColumns\":\"280px 706px 0px 454px\",\"hasTitlebar\":true,\"titlebarButtons\":[\"切换分支\",\"Commit & push\",\"Git 操作\",\"切换终端抽屉\",\"切换右侧栏\"],\"hasTerminalToggle\":true,\"hasSurfacesToggle\":true,\"hasDragStrip\":false,\"hasDragMark\":false,\"hasHitMark\":false,\"captionRegion\":\"drag\",\"hasHarnessShellApi\":true,\"harnessShellApiIsScoped\":true,\"hasBootShellApi\":true,\"bootShellApiIsScoped\":true,\"pageErrors\":[]}",
+    "[DSH_SMOKE] {\"hasFrame\":true,\"gridColumns\":\"280px 706px 0px 454px\",\"hasTitlebar\":true,\"titlebarButtons\":[\"Session 日志\",\"切换分支\",\"Push\",\"Git 操作\",\"切换终端抽屉\",\"切换右侧栏\"],\"hasTerminalToggle\":true,\"hasSurfacesToggle\":true,\"hasDragStrip\":false,\"hasDragMark\":false,\"hasHitMark\":false,\"captionRegion\":\"drag\",\"hasHarnessShellApi\":true,\"harnessShellApiIsScoped\":true,\"hasBootShellApi\":true,\"bootShellApiIsScoped\":true,\"pageErrors\":[]}",
     "[DSH_SMOKE_PTY] echoed:ok",
+    "[DSH_SMOKE_PACKAGED_P0] {\"ok\":true,\"steps\":[{\"name\":\"packaged.sibling.exists\",\"ok\":true,\"detail\":\"C:\\\\Ai\\\\ChisaTerminal\"},{\"name\":\"packaged.git.branchList\",\"ok\":true,\"detail\":\"current=master\"},{\"name\":\"packaged.pty.create\",\"ok\":true,\"detail\":\"created:8b0621d0-3cbd-42c7-8713-bd9d34b559c5\"},{\"name\":\"packaged.ghostty.wasm\",\"ok\":true,\"detail\":\"200 http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-ui-user-terminal/assets/ghostty-vt.wasm\"},{\"name\":\"packaged.boot.noOpen\",\"ok\":true,\"detail\":\"ok\"},{\"name\":\"packaged.runtime.stamp\",\"ok\":true,\"detail\":\"C:\\\\Users\\\\48818\\\\AppData\\\\Roaming\\\\Deepseek-Harness-Desktop\\\\runtime\\\\0.2.7\\\\.dshd-runtime.json\"}]}",
     "[DSH_QA] PASS workspace.path — C:\\Ai\\Deepseek-Harness-Desktop",
     "[DSH_QA] PASS workspace.addClicked",
     "[DSH_QA] PASS workspace.picker",
     "[DSH_QA] PASS workspace.pickerClosed",
-    "[DSH_QA] FAIL workspace.connected — session still locked",
+    "[DSH_QA] PASS workspace.connected — C:\\Ai\\Deepseek-Harness-Desktop",
     "[DSH_SMOKE_HITS] {\"hits\":{\"surfaces\":1,\"branch\":1,\"git\":1},\"error\":null}",
     "[DSH_QA_SHELL] PASS shell.desk.trayLabels — 显示窗口 | 打开启动器 | 设置… | 插件市场 | 重启 Harness | separator | 退出",
     "[DSH_QA_SHELL] PASS shell.shortcut.settings — Ctrl+, menu path opened settings",

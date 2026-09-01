@@ -6,6 +6,7 @@ const {
   SHELL_P0_STEPS,
   PERSIST_STEPS,
   RECOVERY_STEPS,
+  countSessionJsonl,
   assertShellP0QaResult,
   assertPersistQaResult,
   assertRecoveryQaResult,
@@ -36,6 +37,25 @@ test('assertShellP0QaResult rejects omitted steps', () => {
     failed: [],
     steps: SHELL_P0_STEPS.map((name) => ({ name, ok: true, detail: '' })),
   }));
+});
+
+test('countSessionJsonl counts session.jsonl and session.jsonl.zstd', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-sess-'));
+  try {
+    const dir = path.join(root, 'sessions', 'ws', 'session-1');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'other.jsonl'), 'no');
+    assert.equal(countSessionJsonl(root), 0);
+    fs.writeFileSync(path.join(dir, 'session.jsonl.zstd'), 'z');
+    assert.equal(countSessionJsonl(root), 1);
+    fs.writeFileSync(path.join(dir, 'session.jsonl'), 'j');
+    assert.equal(countSessionJsonl(root), 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('assertPersistQaResult and assertRecoveryQaResult require their rows', () => {
@@ -72,7 +92,10 @@ test('shell P0 QA is wired into the main-process smoke path', () => {
   assert.match(shell, /persist\.model/);
   assert.match(shell, /persist\.wallpaper/);
   assert.match(shell, /session\.jsonl/);
+  assert.match(shell, /session\.jsonl\.zstd/);
   assert.match(shell, /data-dsh-wallpaper/);
+  assert.match(installedFull, /countSessionJsonl/);
+  assert.match(installedFull, /packedWalkerMissedZstd/);
   // The quit interception itself stays in the production entry (quitApp).
   const index = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
   assert.match(index, /DSH_QA_SHELL/);

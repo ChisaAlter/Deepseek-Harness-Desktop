@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `terminal-drawer` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — 已装 Setup SHA `49BD62B56D47FE0AD312B9E4C684D3070AFF81D6086595F55C80FB28C403FECA`：`packaged.ghostty.wasm` HTTP **200**；`terminal.drawer` / `terminal.new` / `terminal.surface` PASS（`install-full-report.json`）。 |
+| **last verified** | 2026-09-01 — 已装 CI Setup SHA `F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856`：`packaged.ghostty.wasm` HTTP **200**；`terminal.drawer` / `terminal.new` / `terminal.surface` PASS；`case.terminal.addToChat` 终端 fence（`install-full-report.json`）。 |
 
 ## User paths
 

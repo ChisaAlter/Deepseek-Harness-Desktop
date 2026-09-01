@@ -1,10 +1,12 @@
 {
-  "at": "2026-08-31T20:01:16.895Z",
-  "setup": ".\\dist\\Deepseek-Harness-Desktop-Setup-0.2.7.exe",
+  "at": "2026-09-01T01:50:54.029Z",
+  "setup": "C:\\\\Ai\\\\dshd-ci-artifact\\\\Deepseek-Harness-Desktop-Setup-0.2.7.exe",
+  "setupSha256": "F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33455954068",
   "installDir": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop",
   "productExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
   "nodeExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\resources\\node.exe",
-  "nodeVer": "v24.15.0",
+  "nodeVer": "v22.22.2",
   "pin": {
     "repo": "https://github.com/deepseek-ai/deepseek-harness.git",
     "ref": "dsh-v0.1.2-alpha.2",
@@ -12,5 +14,5 @@
     "npm": "0.1.2-alpha.2"
   },
   "runtimeRootExists": true,
-  "ok": false
+  "ok": true
 }
