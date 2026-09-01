@@ -102,6 +102,25 @@ function mount(opts: {
 const rowOf = (view: ReturnType<typeof mount>): HTMLElement | null =>
   view.view.container.querySelector('[data-phase]')
 
+function openModelMenu() {
+  if (screen.queryByRole('menu') === null) {
+    fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+  }
+}
+
+function modelLabels() {
+  openModelMenu()
+  return screen.getAllByRole('menuitem').map(item => item.textContent ?? '')
+}
+
+function pickModel(id: string) {
+  openModelMenu()
+  const item = screen.getAllByRole('menuitem').find(el =>
+    el.textContent === id || (el.textContent?.startsWith(`${id} ·`) ?? false))
+  if (item === undefined) throw new Error(`missing model ${id}`)
+  fireEvent.click(item)
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
   // Beijing Monday 2026-03-02 10:00 — peak, so the phase half is stable.
@@ -206,8 +225,7 @@ describe('session cost trigger matrix', () => {
       ],
     })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const select = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement
-    const options = [...select.options].map(option => option.value)
+    const options = modelLabels()
     expect(options).toEqual([
       'deepseek-v4-flash',
       'deepseek-v4-pro',
@@ -218,11 +236,10 @@ describe('session cost trigger matrix', () => {
     ])
     // Every advertised model that is not an official column shows its provider
     // id as a prefix; the official columns stay un-prefixed.
-    const labels = [...select.options].map(option => option.textContent)
-    expect(labels).toContain('deepseek/deepseek-chat')
-    expect(labels).toContain('deepseek/deepseek-v4-chat')
-    expect(labels).toContain('my-relay/gpt-x')
-    expect(labels).toContain('deepseek-v4-flash')
+    expect(options).toContain('deepseek/deepseek-chat')
+    expect(options).toContain('deepseek/deepseek-v4-chat')
+    expect(options).toContain('my-relay/gpt-x')
+    expect(options).toContain('deepseek-v4-flash')
   })
 
   it('opens the custom entry for a session model that shares an official column id', () => {
@@ -236,15 +253,14 @@ describe('session cost trigger matrix', () => {
       ],
     })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const select = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement
-    const options = [...select.options].map(option => option.value)
+    const options = modelLabels()
     // The official read-only column stays listed next to the custom entry.
     expect(options).toContain('deepseek-v4-flash')
     const customValue = 'my-gateway/deepseek-v4-flash'
     expect(options).toContain(customValue)
     // The session's model is served by the custom route, so its entry opens
     // ready to price instead of the locked official column.
-    expect(select.value).toBe(customValue)
+    expect(screen.getByRole('button', { name: 'Model' }).textContent).toContain(customValue)
     const inputs = screen.getAllByRole('spinbutton')
     expect(inputs.every(input => !input.hasAttribute('disabled'))).toBe(true)
   })
@@ -256,8 +272,7 @@ describe('session cost trigger matrix', () => {
       catalog: [{ provider: 'deepseek', id: 'deepseek-v4-chat' }],
     })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'deepseek/deepseek-v4-chat' } })
+    pickModel('deepseek/deepseek-v4-chat')
     // No idle inputs until the switch turns on.
     expect(screen.getAllByRole('spinbutton')).toHaveLength(3)
     fireEvent.click(screen.getByRole('switch', { name: 'Peak/valley prices' }))
@@ -284,8 +299,7 @@ describe('session cost trigger matrix', () => {
       prices: { 'deepseek-v4-chat': { inputCacheHit: 1, inputCacheMiss: 2, output: 3 } },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'deepseek/deepseek-v4-chat' } })
+    pickModel('deepseek/deepseek-v4-chat')
     // The clear button sits beside the model dropdown for a priced model.
     fireEvent.click(screen.getByRole('button', { name: 'Clear price' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -438,8 +452,7 @@ describe('price-settings entry', () => {
     expect(dialog).toBeTruthy()
     // The current session model is selected; its peak prices display in the
     // disabled inputs and the idle figure sits beside them.
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement
-    expect(modelSelect.value).toBe('deepseek-v4-pro')
+    expect(screen.getByRole('button', { name: 'Model' }).textContent).toContain('deepseek-v4-pro')
     const inputs = screen.queryAllByRole('spinbutton')
     expect(inputs).toHaveLength(3)
     expect(inputs.every(input => input.hasAttribute('disabled'))).toBe(true)
@@ -457,8 +470,7 @@ describe('price-settings entry', () => {
       catalog: [{ provider: 'my-relay', id: 'my-relay' }],
     })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'my-relay/my-relay' } })
+    pickModel('my-relay/my-relay')
     const inputs = screen.queryAllByRole('spinbutton')
     expect(inputs.every(input => input.hasAttribute('disabled'))).toBe(false)
     // No idle hint exists for a model without an official column.
@@ -475,8 +487,7 @@ describe('price-settings entry', () => {
   it('blocks saving a non-positive draft and reports the reason', () => {
     const view = mount({ provider: 'deepseek-official', sessionCost: true, catalog: [{ provider: 'my-relay', id: 'my-relay' }] })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement
-    fireEvent.change(modelSelect, { target: { value: 'my-relay/my-relay' } })
+    pickModel('my-relay/my-relay')
     const inputs = screen.queryAllByRole('spinbutton')
     fireEvent.change(inputs[1]!, { target: { value: '0' } })
     expect(screen.getByRole('alert').textContent).toBe('Prices must be positive numbers')
@@ -496,11 +507,10 @@ describe('price-settings entry', () => {
       prices: { 'deepseek-v4-pro': { inputCacheHit: 2, inputCacheMiss: 9, output: 27 } },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Prices' }))
-    const modelSelect = screen.getByLabelText('Model') as HTMLSelectElement
     // The legacy override still lists as a custom-marked row...
-    expect([...modelSelect.options].some(option => option.value === 'deepseek-v4-pro')).toBe(true)
+    expect(modelLabels().some(label => label.startsWith('deepseek-v4-pro'))).toBe(true)
     // ...but editing the directory model and saving persists only that model.
-    fireEvent.change(modelSelect, { target: { value: 'my-relay/my-relay' } })
+    pickModel('my-relay/my-relay')
     const inputs = screen.queryAllByRole('spinbutton')
     fireEvent.change(inputs[0]!, { target: { value: '2' } })
     fireEvent.change(inputs[1]!, { target: { value: '5' } })

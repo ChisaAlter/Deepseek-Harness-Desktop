@@ -650,13 +650,6 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Enum pickers hold a handful of short options; a field-width dropdown reads
-   as a text field the user is expected to fill. */
-select.input {
-  max-width: 240px;
-  cursor: pointer;
-}
-
 .input:focus {
   outline: none;
   border-color: var(--dsw-alias-brand-primary);

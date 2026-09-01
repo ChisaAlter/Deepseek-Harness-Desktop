@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { Button, Input, Modal, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Input, Modal, SettingsSelect, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ComposerBarProps } from './contract/slots.ts'
 import type { ComposerCatalogModel } from './input/model-facts.ts'
 import type { SessionCostModelPrice, SessionCostPrices } from '../submission-settings.ts'
@@ -322,16 +322,14 @@ export function PriceSettingsPanel({ open, model, modelProvider = null, prices, 
       <div className={css.body}>
         <div className={css.row}>
           <span className={css.label}>{t('sessionCost.panel.model')}</span>
-          <select
+          <SettingsSelect
             className={css.modelSelect}
+            variant="block"
             aria-label={t('sessionCost.panel.model')}
             value={selected}
-            onChange={(event) => { setSelected(event.target.value) }}
-          >
-            {entries.map(entry => (
-              <option key={entry.key} value={entry.key}>{entry.label}</option>
-            ))}
-          </select>
+            options={entries.map(entry => ({ id: entry.key, label: entry.label }))}
+            onChange={setSelected}
+          />
           {official === undefined && entry !== undefined && (
             <Button variant="outline" onClick={clearSelected}>{t('sessionCost.panel.clear')}</Button>
           )}

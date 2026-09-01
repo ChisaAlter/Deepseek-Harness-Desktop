@@ -7,8 +7,9 @@
  * after registration.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
+import { SettingsSelect, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   desktopShell,
@@ -22,8 +23,8 @@ import css from './HarnessRestartRow.module.css'
 /** Full component props: the empty item owner share plus the settings locale seat. */
 export type HarnessRestartRowProps = PropsRuntime<'settings.general.item'> & PropsLocale<'settings'>
 
-/** Row lifecycle: reading the persisted policy, settled, writing, or failed. */
-type RowPhase = 'loading' | 'ready' | 'saving' | 'error'
+/** Row lifecycle: reading the persisted policy, settled, or failed. */
+type RowPhase = 'loading' | 'ready' | 'error'
 
 /**
  * Render the Harness auto-restart preference row.
@@ -35,6 +36,7 @@ export function HarnessRestartRow({ t }: HarnessRestartRowProps) {
   const [config, setConfig] = useState<HarnessRestartConfig | null>(null)
   const [phase, setPhase] = useState<RowPhase>('loading')
   const [error, setError] = useState('')
+  const saveGen = useRef(0)
   const current = config ?? normalizeHarnessRestart(undefined)
 
   useEffect(() => {
@@ -55,19 +57,25 @@ export function HarnessRestartRow({ t }: HarnessRestartRowProps) {
 
   const save = useCallback(async (patch: Partial<HarnessRestartConfig>) => {
     if (!shell?.saveConfig) return
-    setPhase('saving')
+    const previous = config ?? normalizeHarnessRestart(undefined)
+    const next = normalizeHarnessRestart({ ...previous, ...patch })
+    const gen = ++saveGen.current
+    setConfig(next)
     setError('')
+    setPhase('ready')
     try {
       const saved = await shell.saveConfig(patch)
-      setConfig(normalizeHarnessRestart({ ...current, ...patch, ...saved }))
-      setPhase('ready')
+      if (gen !== saveGen.current) return
+      setConfig(normalizeHarnessRestart({ ...next, ...saved }))
     } catch (caught) {
+      if (gen !== saveGen.current) return
+      setConfig(previous)
       setError(caught instanceof Error ? caught.message : String(caught))
       setPhase('error')
     }
-  }, [current, shell])
+  }, [config, shell])
 
-  const busy = phase === 'loading' || phase === 'saving'
+  const loading = phase === 'loading'
 
   return (
     <div className={css.row}>
@@ -76,30 +84,26 @@ export function HarnessRestartRow({ t }: HarnessRestartRowProps) {
         <div className={css.desc}>{t('harnessRestart.description')}</div>
         {phase === 'loading'
           ? <p className={css.status} role="status">{t('harnessRestart.loading')}</p>
-          : phase === 'saving'
-            ? <p className={css.status} role="status">{t('harnessRestart.saving')}</p>
-            : phase === 'error'
-              ? <p className={css.status} role="alert">{t('harnessRestart.error', { message: error })}</p>
-              : null}
+          : phase === 'error'
+            ? <p className={css.status} role="alert">{t('harnessRestart.error', { message: error })}</p>
+            : null}
       </div>
       <div className={css.controls}>
-        <label className={css.switch}>
-          <input
-            type="checkbox"
-            role="switch"
-            checked={current.harnessAutoRestart}
-            disabled={busy}
-            aria-label={t('harnessRestart.enable')}
-            onChange={(event) => { void save({ harnessAutoRestart: event.target.checked }) }}
-          />
-        </label>
+        <Switch
+          checked={current.harnessAutoRestart}
+          disabled={loading}
+          aria-label={t('harnessRestart.enable')}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            void save({ harnessAutoRestart: event.target.checked })
+          }}
+        />
         <div className={css.pickers}>
           <div className={css.picker}>
             <span className={css.pickerLabel}>{t('harnessRestart.maxAttempts')}</span>
             <SettingsSelect
               align="end"
               aria-label={t('harnessRestart.maxAttempts')}
-              disabled={busy}
+              disabled={loading}
               value={String(current.harnessRestartMaxAttempts)}
               options={HARNESS_RESTART_MAX_ATTEMPTS.map(attempts => ({
                 id: String(attempts),
@@ -115,7 +119,7 @@ export function HarnessRestartRow({ t }: HarnessRestartRowProps) {
             <SettingsSelect
               align="end"
               aria-label={t('harnessRestart.baseDelay')}
-              disabled={busy}
+              disabled={loading}
               value={String(current.harnessRestartBaseDelayMs)}
               options={HARNESS_RESTART_BASE_DELAYS_MS.map(ms => ({
                 id: String(ms),

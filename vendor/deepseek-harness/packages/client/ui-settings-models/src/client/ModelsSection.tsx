@@ -14,7 +14,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutline16, Modal, SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
@@ -457,21 +457,21 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             <div className={styles['addCard']}>
               <div className={styles['field']}>
                 <span className={styles['fieldLabel']}>{t('provider')}</span>
-                <select
-                  className={`${styles['input']} ${styles['selectInput']}`}
-                  value={addTarget.provider}
+                <SettingsSelect
+                  variant="block"
                   aria-label={t('provider')}
-                  onChange={(event) => {
-                    const row = addable.find(candidate => candidate.entry.provider === event.target.value)
-                    /* v8 ignore next -- the select only lists addable rows */
+                  value={addTarget.provider}
+                  options={addable.map(row => ({
+                    id: row.entry.provider,
+                    label: row.entry.displayName,
+                  }))}
+                  onChange={(id) => {
+                    const row = addable.find(candidate => candidate.entry.provider === id)
+                    /* v8 ignore next -- the menu only lists addable rows */
                     if (row === undefined) return
                     setEditing(targetOf(row))
                   }}
-                >
-                  {addable.map(row => (
-                    <option key={row.entry.provider} value={row.entry.provider}>{row.entry.displayName}</option>
-                  ))}
-                </select>
+                />
               </div>
               <ProviderEditor
                 key={addTarget.provider}

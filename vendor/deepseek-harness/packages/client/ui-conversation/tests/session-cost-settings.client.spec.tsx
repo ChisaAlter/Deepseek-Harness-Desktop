@@ -41,6 +41,27 @@ function mount(opts: {
   return { setSessionCost, setCostPrices }
 }
 
+const MODEL = 'sessionCost.panel.model'
+
+function openModelMenu() {
+  if (screen.queryByRole('menu') === null) {
+    fireEvent.click(screen.getByRole('button', { name: MODEL }))
+  }
+}
+
+function modelLabels() {
+  openModelMenu()
+  return screen.getAllByRole('menuitem').map(item => item.textContent ?? '')
+}
+
+function pickModel(id: string) {
+  openModelMenu()
+  const item = screen.getAllByRole('menuitem').find(el =>
+    el.textContent === id || (el.textContent?.startsWith(`${id} ·`) ?? false))
+  if (item === undefined) throw new Error(`missing model ${id}`)
+  fireEvent.click(item)
+}
+
 describe('CostSettingsRow', () => {
   it('writes the Switch immediately and disables it when the Host is not writable', () => {
     const written = mount()
@@ -54,6 +75,17 @@ describe('CostSettingsRow', () => {
     expect(screen.getByRole('switch', { name: 'settings.sessionCost.title' })).toHaveProperty('disabled', true)
   })
 
+  it('picks a model through SettingsSelect instead of a native select', () => {
+    mount({ catalog: [{ provider: 'my-relay', id: 'my-relay' }] })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.getByRole('dialog').querySelector('select')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'sessionCost.panel.model' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'my-relay/my-relay' }))
+    const inputs = screen.queryAllByRole('spinbutton')
+    expect(inputs.every(input => !input.hasAttribute('disabled'))).toBe(true)
+  })
+
   it('opens the price panel from the row button and saves through setCostPrices', () => {
     const written = mount({ catalog: [{ provider: 'my-relay', id: 'my-relay' }] })
     expect(screen.queryByText('sessionCost.panel.title')).toBeNull()
@@ -61,13 +93,12 @@ describe('CostSettingsRow', () => {
     // The modal is up, seeded from the empty record: the first official model,
     // displayed read-only.
     expect(screen.getByText('sessionCost.panel.title')).toBeTruthy()
-    const modelSelect = screen.getByRole('combobox', { name: 'sessionCost.panel.model' }) as HTMLSelectElement
-    expect(modelSelect.value).toBe('deepseek-v4-flash')
+    expect(screen.getByRole('button', { name: MODEL }).textContent).toContain('deepseek-v4-flash')
     const officialInputs = screen.queryAllByRole('spinbutton')
     expect(officialInputs.every(input => input.hasAttribute('disabled'))).toBe(true)
     // Switch to the directory model, type prices, save — the record lands in
     // setCostPrices under the provider-scoped key.
-    fireEvent.change(modelSelect, { target: { value: 'my-relay/my-relay' } })
+    pickModel('my-relay/my-relay')
     const inputs = screen.queryAllByRole('spinbutton')
     fireEvent.change(inputs[0]!, { target: { value: '1' } })
     fireEvent.change(inputs[1]!, { target: { value: '5' } })
@@ -81,9 +112,7 @@ describe('CostSettingsRow', () => {
   it('merges the aggregated directory models into the panel dropdown', () => {
     mount({ catalog: [{ provider: 'deepseek', id: 'deepseek-chat' }, { provider: 'my-relay', id: 'my-relay' }] })
     fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const modelSelect = screen.getByRole('combobox', { name: 'sessionCost.panel.model' }) as HTMLSelectElement
-    const options = [...modelSelect.options].map(option => option.value)
-    expect(options).toEqual([
+    expect(modelLabels()).toEqual([
       'deepseek-v4-flash',
       'deepseek-v4-pro',
       'deepseek-v4-flash-vision-exp',
@@ -95,18 +124,13 @@ describe('CostSettingsRow', () => {
   it('lists a directory model sharing an official column id beside the official column and prices it', () => {
     const written = mount({ catalog: [{ provider: 'my-gateway', id: 'deepseek-v4-flash' }] })
     fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const modelSelect = screen.getByRole('combobox', { name: 'sessionCost.panel.model' }) as HTMLSelectElement
-    const options = [...modelSelect.options].map(option => option.value)
+    const options = modelLabels()
     // The official read-only column stays listed and the custom provider's
     // same-id model is its own editable entry beside it.
     expect(options).toContain('deepseek-v4-flash')
     const customValue = 'my-gateway/deepseek-v4-flash'
     expect(options).toContain(customValue)
-    const officialOption = [...modelSelect.options].find(option => option.value === 'deepseek-v4-flash')
-    expect(officialOption?.textContent).toBe('deepseek-v4-flash')
-    const customOption = [...modelSelect.options].find(option => option.value === customValue)
-    expect(customOption?.textContent).toBe('my-gateway/deepseek-v4-flash')
-    fireEvent.change(modelSelect, { target: { value: customValue } })
+    pickModel(customValue)
     const inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
     expect(inputs.every(input => !input.hasAttribute('disabled'))).toBe(true)
     fireEvent.change(inputs[0]!, { target: { value: '1' } })
@@ -124,21 +148,16 @@ describe('CostSettingsRow', () => {
       { provider: 'zai', id: 'glm-5.3-flash' },
     ] })
     fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const modelSelect = screen.getByRole('combobox', { name: 'sessionCost.panel.model' }) as HTMLSelectElement
-    const options = [...modelSelect.options].map(option => option.value)
+    const options = modelLabels()
     expect(options).toContain('hohai/glm-5.3-flash')
     expect(options).toContain('zai/glm-5.3-flash')
-    const hohai = [...modelSelect.options].find(option => option.value === 'hohai/glm-5.3-flash')
-    const zai = [...modelSelect.options].find(option => option.value === 'zai/glm-5.3-flash')
-    expect(hohai?.textContent).toBe('hohai/glm-5.3-flash')
-    expect(zai?.textContent).toBe('zai/glm-5.3-flash')
     // Price each provider's model separately.
-    fireEvent.change(modelSelect, { target: { value: 'hohai/glm-5.3-flash' } })
+    pickModel('hohai/glm-5.3-flash')
     let inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
     fireEvent.change(inputs[0]!, { target: { value: '1' } })
     fireEvent.change(inputs[1]!, { target: { value: '1' } })
     fireEvent.change(inputs[2]!, { target: { value: '1' } })
-    fireEvent.change(modelSelect, { target: { value: 'zai/glm-5.3-flash' } })
+    pickModel('zai/glm-5.3-flash')
     inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
     fireEvent.change(inputs[0]!, { target: { value: '2' } })
     fireEvent.change(inputs[1]!, { target: { value: '2' } })
@@ -159,14 +178,13 @@ describe('CostSettingsRow', () => {
       prices: { 'glm-5.3-flash': { inputCacheHit: 0.15, inputCacheMiss: 0.15, output: 3 } },
     })
     fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const modelSelect = screen.getByRole('combobox', { name: 'sessionCost.panel.model' }) as HTMLSelectElement
-    const options = [...modelSelect.options].map(option => option.value)
-    expect(options).toContain('hohai/glm-5.3-flash')
-    expect(options).toContain('zai/glm-5.3-flash')
-    fireEvent.change(modelSelect, { target: { value: 'hohai/glm-5.3-flash' } })
+    const options = modelLabels()
+    expect(options.some(label => label.startsWith('hohai/glm-5.3-flash'))).toBe(true)
+    expect(options.some(label => label.startsWith('zai/glm-5.3-flash'))).toBe(true)
+    pickModel('hohai/glm-5.3-flash')
     const hohaiInputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
     expect(hohaiInputs[0]!.value).toBe('0.15')
-    fireEvent.change(modelSelect, { target: { value: 'zai/glm-5.3-flash' } })
+    pickModel('zai/glm-5.3-flash')
     const zaiInputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
     expect(zaiInputs[0]!.value).toBe('0.15')
   })

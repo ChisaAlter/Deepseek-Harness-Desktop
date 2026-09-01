@@ -46,24 +46,6 @@
   gap: 12px;
 }
 
-.switch {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.switch input {
-  width: 36px;
-  height: 20px;
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--dsw-alias-button-primary-fill);
-}
-
-.switch input:disabled {
-  cursor: default;
-}
-
 .pickers {
   display: flex;
   gap: 8px;

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `session-cost-display` |
 | **status** | `active` |
-| **last verified** | 2026-08-29 — `vendor/deepseek-harness` 定向 vitest（token-meter billed-usage 13 例、price-calculator 16 例、session-cost 行 16 例、session-cost 设置 6 例、ui-conversation 全包 608 例、ui-model-selection 全绿）+ `pnpm run test:gui` 全量 5478 例全绿；价格数学与触发矩阵均以固定 UTC 时刻钉死。修复「自定义提供方 DeepSeek 模型不能显示」「添加提供方的模型未进入价格设置模型表」「同模型 id 未按提供方分别显示/定价」后复跑：ui-conversation 全包 621 例、ui-model-selection 22 例全绿（新增「同 id 不同提供方分别显示并按 provider/model 保存」「遗留裸键迁移到各提供方」「composite 键优先于遗留裸键」等用例）。 |
+| **last verified** | 2026-09-01 — 价格面板模型选择改为 `SettingsSelect`（官方胶囊 + Menu）；vendor 定向 vitest：session-cost 设置 / 行、HarnessRestartRow、ModelsSection styles 无原生 `<select>` |
 
 ## User paths
 
@@ -21,6 +21,7 @@
 - 模型列解析：用户改价（按 `provider/model` 精确匹配，描述其高峰列；裸模型 id 的遗留记录按模型 id 对任何服务该模型的提供方生效）→ 官方列（大小写不敏感）→ 官方表首列（默认，费用文案以 title 提示）。模型与提供方来自最新定稿 assistant 节点的持久 `provenance`（消息 source），无节点时模型为 null、提供方取当前路线事实。
 - 持久字段：`ui-conversation.sessionCost`（boolean，缺省读作 false，不物化默认）、`ui-conversation.sessionCostPrices`（宽松可选对象，采纳端清洗为纯记录；记录中存在即自定义，缺席即官方/默认）。
 - 开关行经 `settings.interface.item`（id `session-cost`，order 72，「会话统计」下方、「官方峰谷时」上方）挂载。
+- 价格面板模型选择是 `SettingsSelect`（官方胶囊 + Menu），不是原生 `<select>`。
 - 峰谷行既有 props 契约不破坏：费用座位（useSession/useSessionCost/useCostPrices/setCostPrices/useProjection）全部为可选 props，生产注入面始终绑定。
 
 ## Allowed touch

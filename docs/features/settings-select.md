@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `settings-select` |
 | **status** | `active` |
-| **last verified** | 2026-08-22 — `block` 打开列表跟触发器同宽；vendor `settings-select` / Menu client spec |
+| **last verified** | 2026-09-01 — vendor `settings-select` / Menu client spec; HarnessRestartRow optimistic Switch (no saving flash); PriceSettingsPanel + ModelsSection add-provider `SettingsSelect` |
 
 ## User paths
 
@@ -13,6 +13,7 @@
 3. 设置 → Skills：来源筛选。
 4. 设置 → 通用 / 界面：语言、关闭窗口、Harness 恢复次数/延迟、忙碌时 Enter、新会话权限默认。
 5. 外观图库：图源类型（浏览窗内）。
+6. 价格设置面板：模型下拉。
 
 打开列表是官方 `Menu`，不是系统原生 `<select>`。
 
@@ -28,7 +29,7 @@
 
 - `vendor/deepseek-harness/packages/client/ui-primitives/src/SettingsSelect.tsx` / `.module.css` / `index.ts` 与 `tests/settings-select.client.spec.tsx`
 - `vendor/deepseek-harness/packages/client/ui-primitives/src/Menu.tsx` / `Menu.module.css`（仅 `matchAnchorWidth`）与 `tests/atoms.client.spec.tsx` 对应用例
-- 各设置分区里的值选择：`ui-settings-mcp`、`ui-settings-skills`、`ui-settings-models`、`ui-settings-general`（关闭窗口 / Harness 恢复）、`locale` 语言行、`ui-conversation` Enter 行、`ui-permission-presets`、`ui-theme` `WallpaperSources`
+- 各设置分区里的值选择：`ui-settings-mcp`、`ui-settings-skills`、`ui-settings-models`、`ui-settings-general`（关闭窗口 / Harness 恢复）、`locale` 语言行、`ui-conversation` Enter 行与 `PriceSettingsPanel`、`ui-permission-presets`、`ui-theme` `WallpaperSources`
 
 ## Do not touch
 

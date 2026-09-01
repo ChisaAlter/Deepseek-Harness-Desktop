@@ -46,13 +46,6 @@
 .modelSelect {
   flex: 1;
   min-width: 0;
-  height: 30px;
-  padding: 0 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-1);
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
 }
 
 .priceInput {
