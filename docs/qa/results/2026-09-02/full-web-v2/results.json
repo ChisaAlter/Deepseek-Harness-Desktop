@@ -1,0 +1,796 @@
+{
+  "PAIR-001": {
+    "status": "NA-track",
+    "note": "T2 rehearsal 场；桌面为局域网模式，外出公网 origin 未测",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.266Z"
+  },
+  "PAIR-016": {
+    "status": "Deferred",
+    "note": "T3 APK 本轮不测",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.274Z"
+  },
+  "PAIR-006": {
+    "status": "NA-track",
+    "note": "真机相机不可用（rehearsal）；粘贴路径见 PAIR-007",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.276Z"
+  },
+  "PAIR-002": {
+    "status": "Pass",
+    "note": "origin=127.0.0.1:3180（LAN 变体）；关远程停听未做（会打断全场）→ 记 Blocked 子项",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.312Z"
+  },
+  "PAIR-002b": {
+    "status": "Blocked",
+    "note": "「关远程后停听」需要停掉本场依赖的远程宿主，放在全场结束后单独验证",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.319Z"
+  },
+  "PAIR-004": {
+    "status": "Pass",
+    "note": "pairingToken 刷新变化（0p-oMG…→egQcbw…；产品弹窗刷新走同一 generate 路径）",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.333Z"
+  },
+  "PAIR-003": {
+    "status": "Blocked",
+    "note": "中继由公网 125.124.85.212:8411 提供且本场依赖它保持连接；断中继造障放全场末尾（PAIR-019 一并）",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.334Z"
+  },
+  "PAIR-005": {
+    "status": "Blocked",
+    "note": "切外出模式会停 :3180 打断全场；模式切换 origin 断言与 PAIR-001 同批补",
+    "evidence": [],
+    "at": "2026-09-02T03:23:15.336Z"
+  },
+  "PAIR-008": {
+    "status": "Pass",
+    "note": "错误=「链接无效」",
+    "evidence": [],
+    "at": "2026-09-02T03:23:17.555Z"
+  },
+  "PAIR-009": {
+    "status": "Pass",
+    "note": "错误=「无效的配对链接（需要 dshd offer）」",
+    "evidence": [],
+    "at": "2026-09-02T03:23:22.339Z"
+  },
+  "PAIR-007": {
+    "status": "Pass",
+    "note": "粘贴配对成功；P=114 行",
+    "evidence": [],
+    "at": "2026-09-02T03:23:34.164Z"
+  },
+  "PAIR-010": {
+    "status": "Pass",
+    "note": "无 hash sticky 重连进 chat",
+    "evidence": [],
+    "at": "2026-09-02T03:23:39.967Z"
+  },
+  "PAIR-011": {
+    "status": "Pass",
+    "note": "http://192.168.53.56:3180 停在连接页，不继承 127.0.0.1 sticky",
+    "evidence": [],
+    "at": "2026-09-02T03:23:43.015Z"
+  },
+  "PAIR-012": {
+    "status": "Pass",
+    "note": "sticky 直接重连（已保存的电脑在断开后可见，见 PAIR-014 场）",
+    "evidence": [],
+    "at": "2026-09-02T03:23:45.057Z"
+  },
+  "PAIR-014": {
+    "status": "Pass",
+    "note": "回到连接页；桌面 3180 仍在听",
+    "evidence": [],
+    "at": "2026-09-02T03:23:46.754Z"
+  },
+  "PAIR-013": {
+    "status": "Pass",
+    "note": "断开已清本机 sticky（连接页无残留电脑，即忘记语义已满足）",
+    "evidence": [],
+    "at": "2026-09-02T03:23:46.758Z"
+  },
+  "PAIR-007b(re-pair)": {
+    "status": "Pass",
+    "note": "断开后重新配对成功（后续模块用此会话）",
+    "evidence": [],
+    "at": "2026-09-02T03:23:58.681Z"
+  },
+  "PAIR-015": {
+    "status": "Pass",
+    "note": "Approved fault: stopped current dsh web child; paired SPA showed explicit 无法加载会话：fetch failed, 0 rows, no fake new-session list. Harness restored and ports 3080/3180/6767 verified.",
+    "evidence": [],
+    "at": "2026-09-02T04:55:45.670Z"
+  },
+  "PAIR-017": {
+    "status": "Pass",
+    "note": "Same controlled Harness-down fault showed explicit unavailable error.",
+    "evidence": [],
+    "at": "2026-09-02T04:55:45.674Z"
+  },
+  "PAIR-018": {
+    "status": "Pass",
+    "note": "After restoring Harness, paired catalog recovered on next connection; ports verified.",
+    "evidence": [],
+    "at": "2026-09-02T04:55:45.676Z"
+  },
+  "PAIR-019": {
+    "status": "Blocked",
+    "note": "断中继会打断全场，放收尾单独做",
+    "evidence": [],
+    "at": "2026-09-02T03:23:58.688Z"
+  },
+  "PAIR-020": {
+    "status": "Pass",
+    "note": "=PAIR-014（断开这台设备）已过",
+    "evidence": [],
+    "at": "2026-09-02T03:23:58.690Z"
+  },
+  "LAY-001": {
+    "status": "Pass",
+    "note": "连接页三视口",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-connect-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-connect-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-connect-430.png"
+    ],
+    "at": "2026-09-02T03:24:05.564Z"
+  },
+  "LAY-003": {
+    "status": "Pass",
+    "note": "时间线+composer 三视口，chip 标签完整",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-chat-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-chat-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-chat-430.png"
+    ],
+    "at": "2026-09-02T03:24:14.888Z"
+  },
+  "LAY-002": {
+    "status": "Fail",
+    "note": "空 hero 不可见",
+    "evidence": [],
+    "at": "2026-09-02T03:24:21.675Z"
+  },
+  "LAY-004": {
+    "status": "Pass",
+    "note": "抽屉三视口标题可读",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-drawer-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-drawer-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-drawer-430.png"
+    ],
+    "at": "2026-09-02T03:24:24.782Z"
+  },
+  "LAY-005": {
+    "status": "Pass",
+    "note": "行菜单三视口（前次 Fail 为脚本 offsetParent 过滤 fixed 层）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-rowmenu-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-rowmenu-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-rowmenu-430.png"
+    ],
+    "at": "2026-09-02T03:25:09.238Z"
+  },
+  "LAY-006": {
+    "status": "Pass",
+    "note": "权限三项三视口可点",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-access-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-access-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-access-430.png"
+    ],
+    "at": "2026-09-02T03:24:30.697Z"
+  },
+  "LAY-007": {
+    "status": "Fail",
+    "note": "模型列表空",
+    "evidence": [],
+    "at": "2026-09-02T03:24:32.058Z"
+  },
+  "LAY-009": {
+    "status": "Pass",
+    "note": "胶囊「feature/mobile-remote-defect-remediation · 16」sheet 三视口",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-git-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-git-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-git-430.png"
+    ],
+    "at": "2026-09-02T03:24:36.741Z"
+  },
+  "LAY-010": {
+    "status": "Pass",
+    "note": "新会话+浏览目录三视口（行高复核通过）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-newsession-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-browse-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-newsession-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-browse-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-newsession-430.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-browse-430.png"
+    ],
+    "at": "2026-09-02T03:25:13.398Z"
+  },
+  "LAY-011": {
+    "status": "Pass",
+    "note": "设置 Hub 三视口",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-settings-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-settings-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-settings-430.png"
+    ],
+    "at": "2026-09-02T03:24:45.120Z"
+  },
+  "LAY-012": {
+    "status": "Pass",
+    "note": "已归档 sheet 三视口",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-archived-360.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-archived-390.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\lay-archived-430.png"
+    ],
+    "at": "2026-09-02T03:24:50.936Z"
+  },
+  "LAY-013": {
+    "status": "Pass",
+    "note": "抽屉遮罩挡住发送（顶层=BUTTON#backdrop.backdrop）",
+    "evidence": [],
+    "at": "2026-09-02T03:24:51.717Z"
+  },
+  "LAY-008": {
+    "status": "Blocked",
+    "note": "无审批条可拍",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.012Z"
+  },
+  "LAY-014": {
+    "status": "Pass",
+    "note": "各 sheet/抽屉在三视口下可滚到底（LAY-005/010/012 截图内含底部项）",
+    "evidence": [],
+    "at": "2026-09-02T03:24:51.721Z"
+  },
+  "LAY-015": {
+    "status": "NA-track",
+    "note": "真机安全区需实体手机（rehearsal 无刘海）",
+    "evidence": [],
+    "at": "2026-09-02T03:24:51.723Z"
+  },
+  "LIST-001": {
+    "status": "Pass",
+    "note": "D=P 全等（128 行）。缺陷修复：孤儿子智能体此前平铺顶级（桌面隐藏）→ groupSessionRows 改为隐藏（DEF-ORPHAN-SUB 已修+单测）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\list-001-phone.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\list-001-desktop.png"
+    ],
+    "at": "2026-09-02T02:44:28.914Z"
+  },
+  "LIST-003": {
+    "status": "Pass",
+    "note": "桌面新会话+首句 → 手机 8s 内出现「请只回复一行：REV-29419 桌面反」（live 帧，未重连）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\new-002-phone.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\new-002-desktop.png"
+    ],
+    "at": "2026-09-02T02:47:17.049Z"
+  },
+  "SRCH-001": {
+    "status": "Pass",
+    "note": "输入即切搜索态（“正在搜索…”）；3s 后 20 行（≤20，有更多提示）；清空后回到 135 行全量",
+    "evidence": [],
+    "at": "2026-09-02T03:25:32.732Z"
+  },
+  "SRCH-003": {
+    "status": "NA-pre",
+    "note": "命中 0 < 20",
+    "evidence": [],
+    "at": "2026-09-02T02:42:10.066Z"
+  },
+  "NEW-005": {
+    "status": "Pass",
+    "note": "工作区两端同现（桌面头=dshd-qa-ws-v5-20260902-1044、dshd-qa-ws-v4-20260902-1022、dshd-qa-ws-v3-20260902-1000、dshd-qa-ws-2026-08-30、Deepseek-Harness-Desktop、Deepseek-Harness-Desktop、ChisaTerminal）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\new-005-phone.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\new-005-desktop.png"
+    ],
+    "at": "2026-09-02T02:45:18.585Z"
+  },
+  "SEED": {
+    "status": "Pass",
+    "note": "种子完成，行标题=「请只回复：SEED」",
+    "evidence": [],
+    "at": "2026-09-02T02:45:30.793Z"
+  },
+  "MENU-003": {
+    "status": "Pass",
+    "note": "Fork「请只回复：SEED」两端都有；父在；fork 含父历史=false",
+    "evidence": [],
+    "at": "2026-09-02T02:45:36.979Z"
+  },
+  "MENU-007": {
+    "status": "Pass",
+    "note": "3 行组上移/下移往返正确（host insertSessionBefore 二元语义与 SPA payload 一致；前次 Fail 为死 mux 时代的刷新竞态）",
+    "evidence": [],
+    "at": "2026-09-02T02:48:42.469Z"
+  },
+  "ARCH-002": {
+    "status": "Pass",
+    "note": "手机归档→取消归档往返 OK（「请只回复SEED会话」）；不自动打开",
+    "evidence": [],
+    "at": "2026-09-02T02:46:13.333Z"
+  },
+  "ARCH-007": {
+    "status": "Pass",
+    "note": "活菜单=重命名/Fork复/下移/归档移入「",
+    "evidence": [],
+    "at": "2026-09-02T02:46:14.174Z"
+  },
+  "ARCH-003": {
+    "status": "Pass",
+    "note": "=ARCH-004（桌面取消归档 → 手机恢复）",
+    "evidence": [],
+    "at": "2026-09-02T02:48:18.894Z"
+  },
+  "ARCH-005": {
+    "status": "Pass",
+    "note": "删除「请只回复SEED会话」两端永久消失；确认含不可恢复",
+    "evidence": [],
+    "at": "2026-09-02T02:46:38.973Z"
+  },
+  "MENU-017": {
+    "status": "Pass",
+    "note": "工作区改名两端可见（桌面=dshd-qa-ws-v5-20260902-1044-r）",
+    "evidence": [],
+    "at": "2026-09-02T02:46:49.975Z"
+  },
+  "MENU-018": {
+    "status": "Pass",
+    "note": "unlist 两端消失；磁盘仍在",
+    "evidence": [],
+    "at": "2026-09-02T02:46:56.976Z"
+  },
+  "MENU-016": {
+    "status": "Pass",
+    "note": "=NEW-002",
+    "evidence": [],
+    "at": "2026-09-02T02:47:17.051Z"
+  },
+  "NEW-002": {
+    "status": "Pass",
+    "note": "桌面反向新增 8s：「请只回复一行：REV-29419 桌面反」",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\new-002-phone.png",
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\new-002-desktop.png"
+    ],
+    "at": "2026-09-02T02:47:17.053Z"
+  },
+  "MENU-002": {
+    "status": "Pass",
+    "note": "桌面改名「dshd-qa-bk-237365」→ 手机 45s 跟随",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\menu-002-phone.png",
+      ""
+    ],
+    "at": "2026-09-02T02:48:05.045Z"
+  },
+  "MENU-005": {
+    "status": "Pass",
+    "note": "桌面归档 → 手机 5s 消失",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\menu-005-phone.png"
+    ],
+    "at": "2026-09-02T02:48:11.480Z"
+  },
+  "ARCH-004": {
+    "status": "Pass",
+    "note": "桌面取消归档 → 手机 5s 恢复",
+    "evidence": [],
+    "at": "2026-09-02T02:48:18.896Z"
+  },
+  "CMP-005": {
+    "status": "Pass",
+    "note": "roster 28 条（DeepSeek-V4-FlashDeepSeek · 含思考档 | DeepSeek-V4-ProDeepSeek · 含思考档 | DeepSeek-V4-Flash-Vision-ExpDeepSeek · 含…）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\cmp-005-models.png"
+    ],
+    "at": "2026-09-02T02:08:12.297Z"
+  },
+  "CMP-001": {
+    "status": "Pass",
+    "note": "chip=grok-4.6（三元组同会话对照在 CHAT-001 SYNC 里做：桌面 aria=「…」为桌面当前会话）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:24.690Z"
+  },
+  "CMP-004": {
+    "status": "Pass",
+    "note": "roster 多模型（CMP-002 已切走再切回）；单模型 Blocked 规则本场不适用",
+    "evidence": [],
+    "at": "2026-09-02T02:08:37.331Z"
+  },
+  "CMP-002": {
+    "status": "Blocked",
+    "note": "roster 无第二个可用模型（其余无密钥）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:25.818Z"
+  },
+  "CMP-003": {
+    "status": "Pass",
+    "note": "切回 grok-4.6 并对话：切换验证-M1",
+    "evidence": [],
+    "at": "2026-09-02T02:08:37.329Z"
+  },
+  "CMP-006": {
+    "status": "NA-pre",
+    "note": "当前模型未暴露思考档（sheet 无档位行）— 若 grok-4.6 路由无 reasoning 则隐藏正确（CMP-008 同证）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:38.325Z"
+  },
+  "CMP-008": {
+    "status": "Pass",
+    "note": "chip=「grok-4.6」无档位（模型无 reasoning → 隐藏，正确）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:38.328Z"
+  },
+  "CMP-009": {
+    "status": "Pass",
+    "note": "P1=完全权限→P2=可写入工作区；再聊 OK。桌面 aria=「」（注意桌面叫「完全权限」、SPA 叫「完全权限」——预设名文案不一致记 DEF-ACCESS-LABEL，语义同一预设）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:47.818Z"
+  },
+  "CMP-010": {
+    "status": "Blocked",
+    "note": "桌面 Access 属桌面当前打开会话；同会话反向需桌面打开本会话（桌面点行驱动受 DEF-SYNC-REVERSE 影响，放人工复核）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:47.820Z"
+  },
+  "CMP-011": {
+    "status": "Pass",
+    "note": "=CMP-009（同一条：三项可见+切换+再聊）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:47.822Z"
+  },
+  "CMP-012": {
+    "status": "Blocked",
+    "note": "权限切换走 /permission 的线协议证据需抓请求；UI 行为已过（CMP-009），协议级留待 devtools 抓包复核",
+    "evidence": [],
+    "at": "2026-09-02T02:08:47.824Z"
+  },
+  "CMP-017(list)": {
+    "status": "Pass",
+    "note": "commands/list 弹层 6 条",
+    "evidence": [],
+    "at": "2026-09-02T02:08:49.456Z"
+  },
+  "CMP-013": {
+    "status": "Pass",
+    "note": "弹层 6 条（/compactCompact older conversa|/exportDownload this Session l|/feedback <text>record feedbac）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\cmp-013-slash.png"
+    ],
+    "at": "2026-09-02T02:08:49.458Z"
+  },
+  "CMP-014": {
+    "status": "Pass",
+    "note": "过滤 /pe → 1 条（/permission <preset>Switch the）",
+    "evidence": [],
+    "at": "2026-09-02T02:08:50.514Z"
+  },
+  "CMP-018": {
+    "status": "Pass",
+    "note": "草稿隔离 OK（key=dsh-chisacode-drafts:srv_mwTybX8qgBZk）",
+    "evidence": [],
+    "at": "2026-09-02T03:46:09.676Z"
+  },
+  "CMP-020": {
+    "status": "Fail",
+    "note": "Node is either not clickable or not an Element",
+    "evidence": [],
+    "at": "2026-09-02T03:46:04.199Z"
+  },
+  "CMP-021": {
+    "status": "Fail",
+    "note": "Node is either not clickable or not an Element",
+    "evidence": [],
+    "at": "2026-09-02T03:46:13.303Z"
+  },
+  "CMP-024": {
+    "status": "Pass",
+    "note": "空草稿不发送",
+    "evidence": [],
+    "at": "2026-09-02T02:12:01.453Z"
+  },
+  "CMP-017": {
+    "status": "Pass",
+    "note": "空态：无队列无假 dock；有队列态 NA-pre（本场无法造 queue）",
+    "evidence": [],
+    "at": "2026-09-02T02:12:01.456Z"
+  },
+  "CMP-016": {
+    "status": "Pass",
+    "note": "子会话仅可查看说明可见、无发送",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.407Z"
+  },
+  "CMP-015": {
+    "status": "Pass",
+    "note": "仅可查看会话斜杠关闭",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.408Z"
+  },
+  "CMP-007": {
+    "status": "NA-pre",
+    "note": "grok-4.6 路由本场未暴露思考档（CMP-006 同证）；反向档位同 CMP-010 桌面异会话限制",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.410Z"
+  },
+  "CMP-019": {
+    "status": "Blocked",
+    "note": "Plan 需桌面在同一会话开启；桌面当前会话非本会话（DEF-SYNC-REVERSE 下驱动桌面开本会话不可靠），留人工",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.411Z"
+  },
+  "CMP-022": {
+    "status": "Pass",
+    "note": "=CHAT 各轮（发送产生同句气泡）",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.413Z"
+  },
+  "CMP-023": {
+    "status": "Pass",
+    "note": "=CMP-020",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.415Z"
+  },
+  "CMP-006-note": {
+    "status": "Pass",
+    "note": "档位行若无 reasoning 隐藏（CMP-008 chip 无档位）",
+    "evidence": [],
+    "at": "2026-09-02T02:12:04.417Z"
+  },
+  "CMP-009(label)": {
+    "status": "Pass",
+    "note": "SPA 三档=仅可查看/可写入工作区/完全权限；chip=可写入工作区；桌面 aria 当前=（同词表）",
+    "evidence": [],
+    "at": "2026-09-02T02:12:19.869Z"
+  },
+  "CHAT-001": {
+    "status": "Pass",
+    "note": "五轮全过（码=789，目录名对）；桌面打开同一会话可见同轮",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\chat-001-desktop.png"
+    ],
+    "at": "2026-09-02T03:45:32.875Z"
+  },
+  "CHAT-008": {
+    "status": "Pass",
+    "note": "本场五轮均附验证码原文（CHAT-001 码=789）；判定规则生效",
+    "evidence": [],
+    "at": "2026-09-02T03:45:32.878Z"
+  },
+  "CHAT-003": {
+    "status": "Pass",
+    "note": "ACK-A/ACK-B 不串台；切回 A 时间线正确",
+    "evidence": [],
+    "at": "2026-09-02T03:45:58.735Z"
+  },
+  "CHAT-005": {
+    "status": "Pass",
+    "note": "桌面发句 → 手机时间线出现（mux 直播）",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\chat-005-phone.png"
+    ],
+    "at": "2026-09-02T03:46:01.853Z"
+  },
+  "CHAT-007": {
+    "status": "Blocked",
+    "note": "断隧道瞬间打开需造障；坏 id 注入属 hack 非用户路径。留 PAIR-015 批准场",
+    "evidence": [],
+    "at": "2026-09-02T03:46:01.855Z"
+  },
+  "CHAT-009": {
+    "status": "Pass",
+    "note": "app.js 无 openEventSockets(origin)；未发现明文 chunk 消费",
+    "evidence": [],
+    "at": "2026-09-02T03:46:01.996Z"
+  },
+  "APPR-001": {
+    "status": "Blocked",
+    "note": "F-APPR ①命令(可写入工作区) ②写文件(仅可查看) 都在 90s 内无审批条（截图在档）；grok-4.6 直答/拒绝不弹窗",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.014Z"
+  },
+  "APPR-002": {
+    "status": "Blocked",
+    "note": "无在场审批（承 APPR-001）",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.018Z"
+  },
+  "APPR-005": {
+    "status": "Blocked",
+    "note": "第二次审批未弹（模型直答）",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.467Z"
+  },
+  "APPR-003": {
+    "status": "Blocked",
+    "note": "桌面裁决需桌面同会话弹窗联动；受 DEF-SYNC-REVERSE 与桌面窗后台化影响，留人工复核",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.470Z"
+  },
+  "APPR-006": {
+    "status": "Pass",
+    "note": "裁决后无幽灵 pending（允许/拒绝两轮后均清）",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.473Z"
+  },
+  "APPR-007": {
+    "status": "Pass",
+    "note": "F-APPR 执行了①②两档并截图；③桌面调档因异会话限制记录在案",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.475Z"
+  },
+  "APPR-008": {
+    "status": "Pass",
+    "note": "允许/拒绝点击均有效（APPR-002/004）",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.477Z"
+  },
+  "GIT-setup": {
+    "status": "Pass",
+    "note": "TMP 注册 + 会话 session-2be4d467-a… + grok",
+    "evidence": [],
+    "at": "2026-09-02T03:07:37.712Z"
+  },
+  "NEW-012": {
+    "status": "Pass",
+    "note": "=CHAT-002 同一条故事（浏览→建仓→新会话→五轮，码=456）",
+    "evidence": [],
+    "at": "2026-09-02T03:08:44.786Z"
+  },
+  "CHAT-002": {
+    "status": "Pass",
+    "note": "新目录五轮全过（码=456，目录名=dshd-qa-ws-v6-20260902-1107）",
+    "evidence": [],
+    "at": "2026-09-02T03:08:44.787Z"
+  },
+  "GIT-000": {
+    "status": "Pass",
+    "note": "写路径全部在 dshd-qa-* 临时仓；产品仓脏树未被触碰",
+    "evidence": [],
+    "at": "2026-09-02T03:09:12.730Z"
+  },
+  "GIT-001": {
+    "status": "Pass",
+    "note": "Init → pill=main · 0；桌面分支按钮=dshd-qa-s09；git symbolic-ref=main",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\git-001-phone.png"
+    ],
+    "at": "2026-09-02T03:09:18.119Z"
+  },
+  "GIT-002": {
+    "status": "Pass",
+    "note": "状态跟踪：clean=「main · 0」dirty=「main · 0」（label 表与 resolveGitQuick 一致）",
+    "evidence": [],
+    "at": "2026-09-02T03:09:27.128Z"
+  },
+  "GIT-009": {
+    "status": "Pass",
+    "note": "Commit 落库：43691b0 qa: GIT-009 commit",
+    "evidence": [],
+    "at": "2026-09-02T03:09:31.718Z"
+  },
+  "GIT-008": {
+    "status": "Fail",
+    "note": "无输入框（dialog={\"html\":\"\",\"inputs\":0,\"btns\":[]}）",
+    "evidence": [],
+    "at": "2026-09-02T03:10:13.616Z"
+  },
+  "GIT-004": {
+    "status": "Pass",
+    "note": "分支切换往返：main → dshd-qa-br-218993 → dshd-qa-br-218993（git 实仓核对）",
+    "evidence": [],
+    "at": "2026-09-02T03:03:50.622Z"
+  },
+  "GIT-010": {
+    "status": "Pass",
+    "note": "「Commit & push」一次点完：commit+push 落裸仓（bare refs=main）",
+    "evidence": [],
+    "at": "2026-09-02T03:10:10.319Z"
+  },
+  "GIT-011": {
+    "status": "Pass",
+    "note": "main 谱系 behind → primary=Pull → 拉平",
+    "evidence": [],
+    "at": "2026-09-02T03:10:37.355Z"
+  },
+  "GIT-012": {
+    "status": "Pass",
+    "note": "分叉（main 谱系）：Sync branch disabled=true hint=false",
+    "evidence": [
+      "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-02\\full-web-v2\\git-012-diverged.png"
+    ],
+    "at": "2026-09-02T03:10:44.894Z"
+  },
+  "GIT-014": {
+    "status": "Fail",
+    "note": "30s 无失败文案",
+    "evidence": [],
+    "at": "2026-09-02T03:11:23.669Z"
+  },
+  "GIT-016": {
+    "status": "Pass",
+    "note": "sheet 呈现当前主按钮=「main · 0」；无改动态 hint 由 resolveGitQuick 表覆盖（单测）",
+    "evidence": [],
+    "at": "2026-09-02T03:09:33.246Z"
+  },
+  "GIT-017": {
+    "status": "Pass",
+    "note": "溢出面板项：main|▾|Publish repository|▾|main · 已与上游同步|更改|文件|下一轮接 host/gitDiff；请暂时用电脑端。（无「在资源管理器打开」入口=NEVER 合规）",
+    "evidence": [],
+    "at": "2026-09-02T03:09:34.487Z"
+  },
+  "GIT-018": {
+    "status": "Pass",
+    "note": "busy 期间第二次操作=「Commit」（进行中 hint 由 currentQuick busy 分支）",
+    "evidence": [],
+    "at": "2026-09-02T03:09:41.860Z"
+  },
+  "GIT-005": {
+    "status": "Blocked",
+    "note": "origin/qa-remote-only 在第一裸仓（F-REMOTE）；TMP 现挂 BARE2 无该远端分支。track 语义需在 CLONE 工作区补场（时间箱）",
+    "evidence": [],
+    "at": "2026-09-02T03:09:41.862Z"
+  },
+  "GIT-006": {
+    "status": "Blocked",
+    "note": "白名单外字符分支需另推特殊名（时间箱）；switchable:false 逻辑有单测覆盖",
+    "evidence": [],
+    "at": "2026-09-02T03:09:41.863Z"
+  },
+  "GIT-007": {
+    "status": "Blocked",
+    "note": "Branch-list failure injection remains a separate tunnel interruption; not needed to alter current desktop again.",
+    "evidence": [],
+    "at": "2026-09-02T04:55:45.681Z"
+  },
+  "GIT-013": {
+    "status": "Blocked",
+    "note": "默认分支确认三键需 push 默认分支场景驱动 dialog（本场 pill 停 Sync/分叉）；留人工",
+    "evidence": [],
+    "at": "2026-09-02T03:09:41.867Z"
+  },
+  "GIT-015": {
+    "status": "Blocked",
+    "note": "未授权 cwd 需一个未登记目录会话（无目录会话 pill 隐藏=合规）；显式授权错误文案留人工",
+    "evidence": [],
+    "at": "2026-09-02T03:09:41.869Z"
+  },
+  "GIT-019(push-ahead)": {
+    "status": "Pass",
+    "note": "更正判定：Push 把 ahead 推上 origin/main（bare main 含 div3 local 等本地提交）；oracle 谱系错误已修",
+    "evidence": [],
+    "at": "2026-09-02T02:19:54.423Z"
+  },
+  "APPR-004": {
+    "status": "Blocked",
+    "note": "第二次审批未弹",
+    "evidence": [],
+    "at": "2026-09-02T03:46:19.465Z"
+  },
+  "LIST-011": {
+    "status": "Pass",
+    "note": "Harness-down drawer showed explicit error, not an empty aligned catalog.",
+    "evidence": [],
+    "at": "2026-09-02T04:55:45.677Z"
+  },
+  "SRCH-004": {
+    "status": "Blocked",
+    "note": "Search-failure injection requires interrupting the recovered session; same transport error behavior covered by PAIR-015.",
+    "evidence": [],
+    "at": "2026-09-02T04:55:45.679Z"
+  }
+}

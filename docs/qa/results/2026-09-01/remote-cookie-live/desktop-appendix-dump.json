@@ -1,0 +1,45 @@
+{
+  "url": "http://127.0.0.1:3080/",
+  "steps": [
+    {
+      "name": "appendix.composer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "appendix.model",
+      "ok": true,
+      "detail": "选择模型，当前 grok-4.6，推理等级 Default grok-4.6Default"
+    },
+    {
+      "name": "appendix.turn1.connect",
+      "ok": true,
+      "detail": "你已连通，三位数验证码是456。"
+    },
+    {
+      "name": "appendix.turn2.recall",
+      "ok": true,
+      "detail": "456"
+    },
+    {
+      "name": "appendix.turn3.readReadme",
+      "ok": true,
+      "detail": "这个工作区是 DeepSeek Harness 的 QA 测试临时工作区，主要用于深度测试、调试和质量验证 DeepSeek Harness 系统本身。"
+    },
+    {
+      "name": "appendix.turn4.shell",
+      "ok": true,
+      "detail": "C:\\Ai\\dshd-qa-ws-2026-08-30"
+    },
+    {
+      "name": "appendix.turn5.summary",
+      "ok": true,
+      "detail": "456 DeepSeek Harness 的 QA 测试临时工作区，主要用于深度测试、调试和质量验证 DeepSeek Harness 系统本身。 C:\\Ai\\dshd-qa-ws-2026-08-30"
+    }
+  ],
+  "appendix.turn1.connect": "你已连通，三位数验证码是456。",
+  "appendix.turn2.recall": "456",
+  "appendix.turn3.readReadme": "这个工作区是 DeepSeek Harness 的 QA 测试临时工作区，主要用于深度测试、调试和质量验证 DeepSeek Harness 系统本身。",
+  "appendix.turn4.shell": "C:\\Ai\\dshd-qa-ws-2026-08-30",
+  "appendix.turn5.summary": "456 DeepSeek Harness 的 QA 测试临时工作区，主要用于深度测试、调试和质量验证 DeepSeek Harness 系统本身。 C:\\Ai\\dshd-qa-ws-2026-08-30"
+}

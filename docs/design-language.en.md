@@ -37,6 +37,7 @@ Terminal, diff, and code blocks keep official monospace / no-wrap rules. That is
 13. **Glass stops at the official recipe.** Mask `blur(2px)` + `--dsw-alias-bg-mask-*`; raised surfaces `color-mix(..., var(--dsw-alias-glass-opacity), transparent)`. No heavier blur, no shadow on every layer.
 14. **Scrollbars are the shared sheet.** No component-local `::-webkit-scrollbar`.
 15. **Product copy is Chinese; code comments are English.** Do not import VS Code / Material / iOS density or decoration over the official page.
+16. **Sidebar brand matches the official DSH release.** `setup:harness` runs official `pnpm run build:official` (`DSH_CLIENT_BUILD_PROFILE=official`). The sidebar shows the official whale mark and DeepSeek Harness wordmark, not the local-build fallback “DSH Local Build”. Rebuild client changes with that same command; a lone `build:lib:client` bakes the local-build brand back in.
 
 ## Visual anchors
 

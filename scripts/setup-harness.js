@@ -57,7 +57,7 @@ if (!fs.existsSync(path.join(vendor, 'package.json'))) {
 }
 
 runNode([pnpm, 'install', '--frozen-lockfile'], vendor);
-runNode([pnpm, 'run', 'build'], vendor);
+runNode([pnpm, 'run', 'build:official'], vendor);
 
 // Root build:lib:client copies Ghostty wasm/font; still ensure lib/assets beside client.js.
 const { ensureGhosttyAssetsInHarness, harnessHasGhosttyAssets, missingGhosttyAssetPaths } = require(

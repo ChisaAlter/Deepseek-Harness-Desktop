@@ -55,6 +55,7 @@ docs/qa/results/**/*.orig
 docs/qa/results/**/ci-installer/*.exe
 docs/qa/results/**/ci-installer/*.exe.blockmap
 docs/qa/results/**/ci-installer/*.dmg
+docs/qa/results/**/ci-installer/artifact/
 .zcode/
 plugins/
 .final-gates/

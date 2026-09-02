@@ -1,0 +1,15 @@
+ok - 设置 Hub 列出全部入口
+ok - WebUI 连接详情
+ok - WebUI 通用设置
+ok - WebUI 权限
+ok - WebUI 模型
+ok - WebUI 工作区
+ok - WebUI 文件
+ok - WebUI 外观
+ok - WebUI 电脑外观
+ok - WebUI 界面设置
+ok - WebUI MCP
+ok - WebUI 技能
+ok - WebUI 插件
+ok - WebUI 市场
+ok - WebUI 关于

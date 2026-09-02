@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// Session-cost half of the PeakValleyRow: trigger matrix (independent switch
-// x DeepSeek route), same-line layout, the phase tooltip, the price-settings
-// entry, and live repricing when the projection or the price record moves.
+// Session-cost half of the PeakValleyRow: the cost switch gates the whole
+// row (phase + figure), same-line layout, the phase tooltip, the
+// price-settings entry, and live repricing when the projection or the price
+// record moves.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -134,10 +135,11 @@ afterEach(() => {
 })
 
 describe('session cost trigger matrix', () => {
-  it('paints no cost while the session-cost switch is off, even on a DeepSeek route', () => {
+  it('hides the whole row while the session-cost switch is off, even on a DeepSeek route', () => {
     const view = mount({ provider: 'deepseek-official' })
-    expect(rowOf(view)).not.toBeNull()
+    expect(rowOf(view)).toBeNull()
     expect(screen.queryByText('Session cost: ¥0.00')).toBeNull()
+    expect(screen.queryByText('Peak hours')).toBeNull()
   })
 
   it('shows the set-price reminder for an unnamed model on a non-DeepSeek route', () => {
@@ -327,19 +329,16 @@ describe('session cost trigger matrix', () => {
     expect(rowOf(view)?.hasAttribute('data-phase-color')).toBe(true)
   })
 
-  it('keeps the phase half alive when only the cost switch turns off, and drops the row when both triggers disappear', () => {
+  it('drops the phase half with the cost switch, even when the peak/valley preference is on', () => {
     const view = mount({ provider: 'deepseek-official', model: 'deepseek-v4-flash', sessionCost: true })
     view.setSessionCost(false)
-    // The DeepSeek route alone still carries the phase half.
-    expect(rowOf(view)).not.toBeNull()
-    expect(screen.queryByText(/Session cost:/)).toBeNull()
-    view.setProvider(null)
-    // No route and the cost switch is off: nothing paints.
+    expect(rowOf(view)).toBeNull()
+    view.setPeakValley(true)
     expect(rowOf(view)).toBeNull()
     view.setSessionCost(true)
-    // The named model alone revives the row with its figure.
     expect(rowOf(view)).not.toBeNull()
     expect(screen.getByText('Session cost: ¥0.00')).toBeTruthy()
+    expect(screen.getByText('Peak hours')).toBeTruthy()
   })
 
   it('paints no cost without the projection seat even when the switch is on', () => {

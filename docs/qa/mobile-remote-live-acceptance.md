@@ -2,7 +2,7 @@
 
 对照源：[docs/features/mobile-remote.md](../features/mobile-remote.md) MUST 矩阵。桌面真相是正在跑的 `dsh web` 项目侧栏 + 同一进程 `session.list` / `workspace.list`，不是 ACP `fetchAgents`，不是本机另起的 SPA。
 
-本表是 **即将生产交付** 的第二客户端门禁。发版表 [production-acceptance-test-cases.md](production-acceptance-test-cases.md) 的 `TC-REM-002` / `TC-REM-003` **以本表为细则**；本表任一条 **P0 Fail** ⇒ 发版表对应格不得 Pass，卡片 `last verified` 不得写「实机全量通过」。
+本表是 **即将生产交付** 的第二客户端门禁（公约与步骤细则）。**执行关门清单**见 [mobile-remote-full-web-cases.md](mobile-remote-full-web-cases.md)（每功能多条：主路径 / 反向桌面先操作 / 空态 / 失败 / 边界；每条必须答与桌面是否一样）。缺一行 P0 未填就不算测过全功能；附录 A 五轮只覆盖 CHAT-S04 / CHAT-S09。发版表 [production-acceptance-test-cases.md](production-acceptance-test-cases.md) 的 `TC-REM-002` / `TC-REM-003` **以本表为细则**；本表任一条 **P0 Fail** ⇒ 发版表对应格不得 Pass，卡片 `last verified` 不得写「实机全量通过」。
 
 ## 本轮范围（先稳定 Web UI）
 

@@ -180,10 +180,9 @@ export function apply(ctx: Context): void {
     }),
   }, PeakValleySettingsRow))
 
-  // The session-cost Interface row: the independent switch sits directly
-  // below the session-stats row; the figure itself also requires a detected
-  // DeepSeek API route, and its price panel lives beside it on the composer
-  // dock.
+  // The session-cost Interface row: the switch sits directly below the
+  // session-stats row and gates the whole peak/valley dock row; its price
+  // panel lives beside the figure on the composer dock.
   ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
     name: 'settings.interface.item',
     id: 'session-cost',

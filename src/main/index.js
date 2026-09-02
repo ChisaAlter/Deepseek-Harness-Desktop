@@ -88,6 +88,7 @@ const remote = new ChisaCodeRemote({
   safeStorage,
   log: (line) => dsh.log(line, 'app'),
   getHarnessOrigin,
+  getSessionCookie: () => dsh.sessionCookie || '',
   git,
   // Kept for any residual shell helpers that still expect a loopback target.
   getTarget: () => {

@@ -1,0 +1,13 @@
+Pass - M0-pair :3180 SPA
+Pass - TC-MREM-S01 layout 360/390/430
+Fail - TC-MREM-S09 throwaway + grok-4.6 five rounds: round 2 != 123
+Pass - TC-MREM-S06 thinking effort then chat
+Blocked - TC-MREM-S05 switch model then back to grok-4.6: no second model besides grok-4.6
+Pass - TC-MREM-S07 permission then chat
+Blocked - TC-MREM-S08 approval allow-once: no approval bar in 90s; banner=
+Pass - TC-MREM-S03 switch sessions no mix
+Pass - TC-MREM-504 slash host list
+Pass - TC-MREM-505 send then stop
+Pass - TC-MREM-506 attach sheet
+Pass - TC-MREM-601 git on throwaway
+Pass - TC-MREM-801 Files/MCP freeze

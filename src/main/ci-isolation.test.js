@@ -157,6 +157,12 @@ test('setup-harness uses the lockfile-installed pnpm executable', () => {
   assert.match(source, /node_modules['"], ['"]pnpm['"], ['"]bin['"], ['"]pnpm\.cjs/);
 });
 
+test('setup-harness builds the official DSH client profile', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'setup-harness.js'), 'utf8');
+  assert.match(source, /'run', 'build:official'/);
+  assert.doesNotMatch(source, /'run', 'build'\]/);
+});
+
 test('electron-builder app-builder-lib resolves @electron/get with ElectronDownloadCacheMode', () => {
   const builderPkg = path.dirname(require.resolve('electron-builder/package.json'));
   const libEntry = require.resolve('app-builder-lib', { paths: [builderPkg] });

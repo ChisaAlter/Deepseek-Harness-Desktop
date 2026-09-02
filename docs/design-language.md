@@ -37,6 +37,7 @@
 13. **毛玻璃止于官方配方。** 遮罩 `blur(2px)` + `--dsw-alias-bg-mask-*`；抬起面用 `color-mix(..., var(--dsw-alias-glass-opacity), transparent)`。不要加更重的 blur，也不要每层都铺投影。
 14. **滚动条用共享样式。** 禁止组件内 `::-webkit-scrollbar`。
 15. **产品文案中文，代码注释英文。** 不要把 VS Code / Material / iOS 的密度和装饰搬进来压过官方页。
+16. **侧栏品牌跟官方发版。** `setup:harness` 走官方 `pnpm run build:official`（`DSH_CLIENT_BUILD_PROFILE=official`）。侧栏是官方鲸标 + DeepSeek Harness 字标，不是本地构建回退「DSH 本地构建」。改 client 后也用同一条命令重建，不要单独 `build:lib:client` 把品牌打回本地包。
 
 ## 视觉锚点
 

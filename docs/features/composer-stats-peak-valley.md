@@ -4,13 +4,13 @@
 | --- | --- |
 | **id** | `composer-stats-peak-valley` |
 | **status** | `active` |
-| **last verified** | 2026-09-01 — 峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册（conversation 未声明时不再裸 `register`）；`test:gui` 含 conversation 规格全绿。此前 2026-08-31 — pin `dsh-v0.1.2-alpha.2`；StatsLine 在 `ui-chat`，PeakValley dock 仍在 `ui-conversation`（order 1）。 |
+| **last verified** | 2026-09-01 — 「会话累计费用」关闭时整条峰谷行（含空闲/高峰时段）隐藏；官方峰谷时只在费用开启后决定始终显示 vs DeepSeek 检测。此前同日：峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册。 |
 
 ## User paths
 
 1. 会话统计条与官方峰谷时状态行的盒宽与输入卡同步（`--dsh-composer-resized-width` 拖拽期间 / `--dsh-composer-card-max-width` 回退），左右边缘任何状态下都与卡片齐平；内容在盒内居中（统计 `text-align: center`，峰谷行 `justify-content: center`），纯 CSS、无测量代码。
-2. 设置 → 「官方峰谷时」开关：开启后，停靠态输入框下方（会话统计行之下）始终显示峰谷状态条。
-3. 未开开关时，只要当前会话的模型路线是 DeepSeek API（`deepseek-official` / `deepseek`），状态条自动出现；两类触发条件都消失时整条隐藏。
+2. 设置 → 「官方峰谷时」开关：仅在「会话累计费用」开启时生效。开启后，停靠态输入框下方（会话统计行之下）始终显示峰谷状态条。
+3. 费用开启且未开「官方峰谷时」时，只要当前会话的模型路线是 DeepSeek API（`deepseek-official` / `deepseek`），状态条自动出现。费用关闭时整条隐藏（含空闲/高峰时段），官方峰谷时与 DeepSeek 检测都不能单独把它留住。
 4. 状态条显示圆点 + 时段文案 + 「距离切换剩余时间：HH:MM:SS」每秒倒计时；跨过北京时间边界时自动切换文案与下一目标时段。圆点与时段文案仅在「官方峰谷时」开关开启时着时段色（空闲=绿 / 高峰=红）；仅检测路线时为中性色，时段色只是视觉提示。悬停时段文案出现内容相同的 tooltip。
 
 ## Invariants
@@ -22,7 +22,7 @@
 - DeepSeek 路线事实经 `ctx.conversation.modelFacts`（blocks 推送模式）由 ui-model-selection 在目录每次变化时推送，scope 释放时清空为 `{ provider: null }`；provider 为 null 视为「未知」，不触发显示。该事实的形状恰好为 `{provider}`，模型 id 不在其中（费用功能的模型来源是助手节点 provenance）。
 - 状态条只挂在 `conversation.composer.dock`（stats=0 / peak-valley=1）；hero（空状态）无 dock，因此不渲染，与统计条一致。
 - 颜色只用 `--dsw-alias-state-success-primary` / `--dsw-alias-state-error-primary` 别名令牌，且经 `data-phase-color` 门控；文案经 `conversation` locale 命名空间（zh/en 双语键齐全）。
-- 同一行可叠加会话累计费用与「设置价格」入口——由 [`session-cost-display`](session-cost-display.md) 卡拥有，独立于本卡开关。
+- 同一行可叠加会话累计费用与「设置价格」入口——由 [`session-cost-display`](session-cost-display.md) 卡拥有。`ui-conversation.sessionCost` 是整行门控：关闭则时段与费用一起消失。
 
 ## Allowed touch
 
@@ -43,7 +43,7 @@
 | Kind | What |
 | --- | --- |
 | Automated | `vendor/deepseek-harness`：`pnpm exec vitest run`（peak-valley.math / row / settings-row / chat-apply / submission-policy / host / ui-model-selection）；`pnpm run test:gui` 触及包；`pnpm run typecheck` |
-| Manual / QA | 拖拽输入框宽度时两行盒宽逐帧贴合、内容保持居中；跨 12:00（北京时间）观察颜色/文案/倒计时自动翻转；切换模型到非 DeepSeek 且开关关闭时状态条消失 |
+| Manual / QA | 拖拽输入框宽度时两行盒宽逐帧贴合、内容保持居中；跨 12:00（北京时间）观察颜色/文案/倒计时自动翻转；关闭「会话累计费用」后峰谷行整条消失 |
 
 ## Sources
 

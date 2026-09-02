@@ -1,0 +1,3 @@
+ok - 用 LAN :3180/#offer= 配对进 chat
+ok - 会话目录没有 host HTTP 401
+ok - 会话目录不是桌面端未启动

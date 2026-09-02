@@ -1,8 +1,9 @@
 /** Composer-dock official peak/valley status row: colored phase indicator,
  * phase name, and a per-second countdown to the next Beijing-time switch, plus
  * the opt-in session cost figure on the same line with its price-settings
- * entry. Mounted on 'conversation.composer.dock' (after the stats entry) so it
- * sticks with the composer in the active conversation scrollport. */
+ * entry. The session-cost switch gates the whole row. Mounted on
+ * 'conversation.composer.dock' (after the stats entry) so it sticks with the
+ * composer in the active conversation scrollport. */
 
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -41,11 +42,11 @@ export interface PeakValleyRowInjected {
 /**
  * Full component props: the bound hooks, the projection seat, and the owning
  * dock's locale seat. The session-cost seats are optional so a mount without
- * the inject face (tests, hand assembly) simply renders with the cost half
- * off; the production registration always binds them.
+ * the inject face (tests, hand assembly) keeps both halves off (session cost
+ * gates the row); the production registration always binds them.
  */
 export interface PeakValleyRowProps {
-  /** Persisted official-peak-valley preference (true force-paints the row). */
+  /** Persisted official-peak-valley preference (true force-paints the phase half while session cost is on). */
   usePeakValley: SnapshotSelectorHook<boolean>
   /** The session's current model-route fact (null provider = unknown route). */
   useModelProvider: SnapshotSelectorHook<ComposerModelFact>
@@ -55,7 +56,7 @@ export interface PeakValleyRowProps {
   useChat?: SnapshotSelectorHook<{
     legacy: { nodes: readonly { kind: string; provenance?: { provider: string; model: string } }[] }
   }>
-  /** Persisted session-cost preference (cost paints only while a DeepSeek route is known). */
+  /** Persisted session-cost preference (off hides the whole row). */
   useSessionCost?: SnapshotSelectorHook<boolean>
   /** Persisted per-model custom prices backing the cost math and the price panel. */
   useCostPrices?: SnapshotSelectorHook<SessionCostPrices>
@@ -100,15 +101,17 @@ export const PeakValleyRow = memo(function PeakValleyRow({
   const costEnabled = useSessionCost?.(value => value) ?? false
   const customPrices = useCostPrices?.(value => value) ?? NO_CUSTOM_PRICES
   const catalogModels = useModelCatalog?.(value => value) ?? NO_CATALOG_MODELS
-  // Trigger matrix. The phase half paints when the Interface Settings switch
-  // is on OR a DeepSeek API route is detected. The cost half requires its own
-  // independent switch and a live billed-usage projection (absent key = the
-  // host unit is not composed, and a made-up ¥0.00 would lie); it paints on
-  // every route and even with an unnamed model — a priced or official model
-  // shows the figure, and anything else shows the set-price reminder, so the
-  // row never fabricates a figure but always names the missing price.
+  // Trigger matrix. Session cost is the row gate: off hides the phase
+  // countdown and the figure together. While cost is on, the phase half
+  // paints when the Interface Settings switch is on OR a DeepSeek API route
+  // is detected. The cost half also needs a live billed-usage projection
+  // (absent key = the host unit is not composed, and a made-up ¥0.00 would
+  // lie); it paints on every route and even with an unnamed model — a priced
+  // or official model shows the figure, and anything else shows the
+  // set-price reminder, so the row never fabricates a figure but always
+  // names the missing price.
   const deepseek = isDeepSeekProvider(fact.provider)
-  const phaseVisible = forceEnabled || deepseek
+  const phaseVisible = costEnabled && (forceEnabled || deepseek)
   const usage = useProjection?.('billedUsage')
   const sessionSelection = lastUsedModel(settledNodes)
   const sessionModel = sessionSelection?.model ?? null

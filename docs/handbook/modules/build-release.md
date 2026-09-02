@@ -2,7 +2,7 @@
 
 ## 职责与非目标
 
-**职责：** vendor harness 钉版、本地构建客户端、electron-builder 出包、CI 发版。  
+**职责：** vendor harness 钉版、官方 `build:official` 客户端、electron-builder 出包、CI 发版。  
 **非目标：** 不在手册复述完整 CI YAML；不把源码钉伪称为已发包装钉。
 
 ## 用户路径（开发者）
@@ -22,7 +22,7 @@ npm run dist:mac      # macOS 真机
 
 - 钉：`vendor/harness-upstream.json`（当前文档化基线见根 README）。  
 - Windows 安装器品牌化（欢迎/完成侧栏、header、许可页、zh_CN+en_US、`build/installer.nsh`）契约见 [windows-installer 卡](../../features/windows-installer.md)；位图用 `npm run installer:assets` 再生成，GUI 定制不得影响静默 `/S` 与 artifact 命名。  
-- 改 client 后：`vendor/deepseek-harness` 内 `pnpm run build:lib:client` 再重启桌面。  
+- 改 client 后：`vendor/deepseek-harness` 内 `pnpm run build:official` 再重启桌面（与官方发版同一 profile；不要只跑 `build:lib:client`）。  
 - 安装包经 GitHub Actions `release.yml` **windows job** 产出。验收对象是该 artifact，不是本地 `npm run dist`。`afterPack` 会把打包时的 `node.exe` 打进包内，本机 Node 24 ≠ CI Node。
 - Node 钉版单一来源是根 `.nvmrc`（当前 22.22.2；engines 要求 `^22.19.0 || >=24`）：CI 全部 `setup-node` 用 `node-version-file`，云端环境 `.cursor/environment.json` → `.cursor/install.sh` 在旧 Node 上自动装 `.nvmrc` 版本并跑 `npm ci` + vendor `pnpm install`。
 

@@ -6,16 +6,22 @@
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { forwardHostRpc, forwardHostRespond } = require('../shared/dshd-host-tunnel.js');
+const { forwardHostRpc, forwardHostRespond, sanitizeHarnessCookie } = require('../shared/dshd-host-tunnel.js');
 const { openMuxSse, shouldForwardMuxEnvelope } = require('../shared/dshd-mux-sse.js');
 
 const muxListeners = new Set();
 let muxAbort = null;
 let muxOrigin = '';
+let muxCookie = '';
 let muxRunning = false;
+let harnessCookie = sanitizeHarnessCookie(process.env.DSHD_HARNESS_COOKIE || '');
 
 function currentOrigin() {
   return String(process.env.DSHD_HARNESS_ORIGIN || '').trim();
+}
+
+function currentCookie() {
+  return harnessCookie;
 }
 
 function closeMux() {
@@ -36,18 +42,21 @@ function dispatchMux(envelope) {
 
 function ensureMux() {
   const origin = currentOrigin();
+  const cookie = currentCookie();
   if (!origin) {
     closeMux();
     return;
   }
-  if (muxRunning && muxOrigin === origin) return;
+  if (muxRunning && muxOrigin === origin && muxCookie === cookie) return;
   closeMux();
   muxOrigin = origin;
+  muxCookie = cookie;
   muxAbort = new AbortController();
   muxRunning = true;
   const signal = muxAbort.signal;
   void openMuxSse({
     origin,
+    cookie,
     onEnvelope: dispatchMux,
     signal,
   }).catch(() => {
@@ -87,10 +96,10 @@ async function gitRpc({ action, cwd, payload }) {
 export function installDesktopRpcHooks() {
   globalThis.__dshdDesktopRpc = {
     async hostRpc({ method, payload }) {
-      return forwardHostRpc({ origin: currentOrigin(), method, payload });
+      return forwardHostRpc({ origin: currentOrigin(), cookie: currentCookie(), method, payload });
     },
     async respond({ rpcId, value }) {
-      return forwardHostRespond({ origin: currentOrigin(), rpcId, value });
+      return forwardHostRespond({ origin: currentOrigin(), cookie: currentCookie(), rpcId, value });
     },
     gitRpc,
     subscribeMux(onFrame) {
@@ -110,6 +119,11 @@ export function applyDaemonStdinLine(line) {
     process.env.DSHD_HARNESS_ORIGIN = line.slice('harness-origin '.length).trim();
     ensureMux();
     return 'origin';
+  }
+  if (line.startsWith('harness-cookie ')) {
+    harnessCookie = sanitizeHarnessCookie(line.slice('harness-cookie '.length));
+    ensureMux();
+    return 'cookie';
   }
   return '';
 }

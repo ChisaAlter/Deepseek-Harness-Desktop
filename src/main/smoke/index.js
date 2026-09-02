@@ -478,7 +478,8 @@ function createSmokeRunner(deps) {
       try {
         saveConfig({ remoteEnabled: true, remoteMode: 'lan' });
         snap = await probeRemoteSnapshot();
-        if (snap && snap.listening === true && snap.token) {
+        const pairing = snap?.urls?.[0]?.url || snap?.urls?.[0]?.pairingUrl || '';
+        if (snap && snap.listening === true && (/#offer=/.test(pairing) || snap.token)) {
           break;
         }
       } catch (error) {
@@ -486,8 +487,13 @@ function createSmokeRunner(deps) {
       }
       await new Promise((r) => setTimeout(r, 1000));
     }
-    if (!snap || snap.listening !== true || !snap.token) {
-      console.log('[DSH_REMOTE_PHONE_HOST]', JSON.stringify({ ok: false, snap }));
+    const productPairing = snap?.urls?.[0]?.url || snap?.urls?.[0]?.pairingUrl || '';
+    if (!snap || snap.listening !== true || (!/#offer=/.test(productPairing) && !snap.token)) {
+      console.log('[DSH_REMOTE_PHONE_HOST]', JSON.stringify({
+        ok: false,
+        listening: snap?.listening,
+        hasOffer: /#offer=/.test(productPairing),
+      }));
       await app.exit(1);
       return;
     }
@@ -497,7 +503,9 @@ function createSmokeRunner(deps) {
       || listLanAddresses()[0]
       || '127.0.0.1';
     const port = Number(snap.port) || 3180;
-    const url = pairingUrl(lan, port, snap.token, { mode: 'lan' });
+    const url = /#offer=/.test(productPairing)
+      ? productPairing
+      : pairingUrl(lan, port, snap.token, { mode: 'lan' });
     const out = path.join(app.getPath('userData'), 'pairing-url.txt');
     fs.writeFileSync(out, `${url}\n`, 'utf8');
     fs.writeFileSync(path.join(app.getPath('userData'), 'pairing-meta.json'), JSON.stringify({

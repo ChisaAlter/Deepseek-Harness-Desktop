@@ -1,0 +1,7 @@
+PASS  appendix.composer
+PASS  appendix.model — 选择模型，当前 grok-4.6，推理等级 Default grok-4.6Default
+PASS  appendix.turn1.connect — 你已连通，三位数验证码是456。
+PASS  appendix.turn2.recall — 456
+PASS  appendix.turn3.readReadme — 这个工作区是 DeepSeek Harness 的 QA 测试临时工作区，主要用于深度测试、调试和质量验证 DeepSeek Harness 系统本身。
+PASS  appendix.turn4.shell — C:\Ai\dshd-qa-ws-2026-08-30
+PASS  appendix.turn5.summary — 456 DeepSeek Harness 的 QA 测试临时工作区，主要用于深度测试、调试和质量验证 DeepSeek Harness 系统本身。 C:\Ai\dshd-qa-ws-2026-08-30

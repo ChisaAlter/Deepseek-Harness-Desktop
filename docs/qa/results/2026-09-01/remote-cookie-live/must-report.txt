@@ -1,0 +1,8 @@
+ok - A 配对进 chat
+ok - A 会话列表能加载
+NOT OK - A 工作区头（分组）: heads=0; sessions are flat
+ok - E 打开已有会话并载入时间线
+ok - C 模型芯片来自 session.models
+ok - C 发送一条短消息
+NOT OK - A 搜索会话: no pong hit: 
+ok - D Git 顶栏在已打开会话上可见或给出授权错误

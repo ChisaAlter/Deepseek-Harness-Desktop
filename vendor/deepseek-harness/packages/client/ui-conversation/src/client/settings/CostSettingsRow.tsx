@@ -1,9 +1,8 @@
-/** Interface Settings row for the composer-dock session cost figure: the
- * independent switch sits directly below the session-stats switch, with the
- * 设置模型价格 button beside it opening the shared price panel (any model's
- * peak inputs are editable; re-checking 使用官方价格 restores the official
- * column). The cost figure itself also requires a detected DeepSeek API route
- * and never depends on the peak/valley switch. */
+/** Interface Settings row for the composer-dock session-cost switch: it sits
+ * directly below the session-stats switch and gates the whole peak/valley
+ * dock row (phase + figure). The 设置模型价格 button beside it opens the
+ * shared price panel (any model's peak inputs are editable; re-checking
+ * 使用官方价格 restores the official column). */
 import { useId, useState, type ChangeEvent } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'

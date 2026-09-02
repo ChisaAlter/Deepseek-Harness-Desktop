@@ -99,7 +99,7 @@ The first `setup:harness` builds the vendored `vendor/deepseek-harness` — slow
 
 ## Development
 
-Edit the UI in `vendor/deepseek-harness`. Follow the [design language](docs/design-language.en.md) and [motion](docs/motion.en.md). Product handbook: [docs/handbook](docs/handbook/README.md); behavior contracts: [Feature Spine](docs/features/README.md). After changing client sources, run `pnpm run build:lib:client` there and restart the desktop app.
+Edit the UI in `vendor/deepseek-harness`. Follow the [design language](docs/design-language.en.md) and [motion](docs/motion.en.md). Product handbook: [docs/handbook](docs/handbook/README.md); behavior contracts: [Feature Spine](docs/features/README.md). After changing client sources, run `pnpm run build:official` there and restart the desktop app (same command as an official `dsh web` release; do not run `build:lib:client` alone or the sidebar falls back to “DSH Local Build”).
 
 The current official baseline is `vendor/harness-upstream.json`: `0.1.2-alpha.2` (`dsh-v0.1.2-alpha.2` / `0a53fb55bea101816fa226bb964ae2bed71c343b`). The npx fallback is official `@deepseek-ai/dsh@0.1.2-alpha.2` and does not include the titlebar, Git, surfaces column, or terminal drawer; those ship only on the source and packaged paths. Packaged 0.2.7 is still pinned to `0.1.1-rc.1`, which is not the source pin.
 

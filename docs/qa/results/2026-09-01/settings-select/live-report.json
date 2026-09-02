@@ -1,0 +1,50 @@
+{
+  "steps": {
+    "openGeneral": true,
+    "probeGeneral": {
+      "switchRole": null,
+      "switchType": null,
+      "switchTag": null,
+      "switchChecked": null,
+      "savingText": false,
+      "nativeSelectCount": 0,
+      "maxIsMenuButton": true,
+      "delayIsMenuButton": true,
+      "titleVisible": false
+    },
+    "shotGeneral": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\01-general-harness-restart.png",
+    "clickSwitch": {
+      "ok": false
+    },
+    "shotSwitchImmediate": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\02-general-switch-clicked.png",
+    "probeAfterClick": {
+      "role": null,
+      "checked": null,
+      "savingText": false,
+      "nativeSelectCount": 0
+    },
+    "shotSwitchSettled": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\03-general-switch-settled.png",
+    "maxMenu": {
+      "ok": true,
+      "menuCount": 0,
+      "menuitems": [],
+      "nativeSelectCount": 0
+    },
+    "shotMaxMenu": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\04-general-max-attempts-menu.png",
+    "openInterface": false,
+    "shotInterface": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\05-interface-session-cost.png",
+    "openPrices": {
+      "ok": false
+    },
+    "probePrices": {
+      "modelTag": null,
+      "modelHasPopup": null,
+      "nativeSelectCount": 0
+    },
+    "shotPrices": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\06-price-panel.png",
+    "modelMenu": {
+      "ok": false
+    },
+    "shotModelMenu": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\07-price-model-menu.png"
+  }
+}

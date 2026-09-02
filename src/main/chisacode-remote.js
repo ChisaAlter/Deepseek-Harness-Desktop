@@ -381,6 +381,9 @@ class ChisaCodeRemote extends EventEmitter {
     this.getHarnessOrigin = typeof options.getHarnessOrigin === 'function'
       ? options.getHarnessOrigin
       : () => '';
+    this.getSessionCookie = typeof options.getSessionCookie === 'function'
+      ? options.getSessionCookie
+      : () => '';
     this.git = options.git || null;
     this.gitTunnel = null;
     this.readyTimeoutMs = options.readyTimeoutMs || DAEMON_READY_TIMEOUT_MS;
@@ -869,6 +872,8 @@ class ChisaCodeRemote extends EventEmitter {
     if (!child?.stdin || child.killed) return;
     try {
       child.stdin.write(`harness-origin ${String(next || '').trim()}\n`);
+      const cookie = String(this.getSessionCookie() || '').split(/\r|\n/)[0].trim();
+      child.stdin.write(`harness-cookie ${cookie}\n`);
     } catch {
       // Child already draining.
     }

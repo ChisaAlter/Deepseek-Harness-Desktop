@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `parked` |
-| **last verified** | 2026-08-31 — 产品停放：`REMOTE_FEATURE_ENABLED = false`（preload 不挂远程 IPC，侧栏/设置入口不出现）。SPA 标题 leftover `blank`、归档「缺失会话」、审批超时确认仍在 `mobile/web`。解禁前不宣称实机全量。 |
+| **last verified** | 2026-09-02 凌晨 — 产品仍停放。**T2 rehearsal 全功能 v2 首轮跑完**（[执行表](../qa/mobile-remote-full-web-cases.md)，报告 `docs/qa/results/2026-09-01/full-web-v2/REPORT.md`）：**不是 T1/T3**。Pass 亮点：LIST-001 **D=P 91 行全等**（双端 CDP 对照）、五轮×2（旧仓码 789 / 新目录码 123 同一条故事）、GIT 15 条（Init/分支/创建并检出/Commit/**Commit&push 落裸仓 main**/Pull/分叉 Sync disabled）、LAY 12 表面×3 视口、FRZ 冻结原文+NEVER 抽检、PAIR 12 条。**真缺陷：** DEF-ORPHAN-SUB（孤儿子智能体平铺，**已修** `directory.js`+单测+`orphan-fix` cache-bust）；DEF-SYNC-REVERSE（桌面→手机新建/改名不活推，**未修**，LIST-003/NEW-002/MENU-002 Fail）；DEF-DRAFT-SWITCH（草稿切回丢，未修）；DEF-ATTACH-TEXTMODEL（文本模型附图无拦截无回复，未修）；DEF-MOVE-NOOP 候选（两行组上移无效）；DEF-ACCESS-LABEL（完全访问 vs 完全权限文案）。Blocked：造障类未批、F-APPR 两档无审批弹窗、GIT-013/014 留人工一次点击。**Fail=7 → 不可交付**；解禁/T1 前不得写「实机全量通过」。 |
 
 ## User paths
 
@@ -108,7 +108,7 @@
 - 手机 = **同协议客户端**（`mobile/web/chisacode/` + `@chisacode/client` bundle）。用户可见名称是 **dshd daemon / dshd offer / dshd 远程**；协议实现仍是 vendored ChisaCode offer v2，不改 pairing wire、包名或 sticky localStorage 键。配对之后两条已配对通道：host RPC（白名单 unary + `respond`）进 loopback `dsh web`；Git 进 Electron `git.js`（host **没有** Git API）。
 - 白名单 unary：`host.describe` / `host.listDirectory` / `host.createDirectory`；`session.list|search|create|history|models|selectModel|rename|fork|prompt|attachment|updateQueue|cancel|delete`；`subagent.list|history|prompt|interrupt`；`workspace.list|create|rename|delete|insertBefore|insertSessionBefore|archiveSession|unarchiveSession`；`skill.list`、`agentPreset.list`、`llm.models` / `llm.providers`；Typert `commands/list`、`commands/execute`。外加 `/api/respond`。
 - Git 白名单（进 main）：`git-status`、`git-fetch-status`、`git-pull-request`、`git-init`、`git-diff`、`git-commit`、`git-push`、`git-pull`、`git-create-change-request`、`git-publish`、`git-status-entries`、`git-branch-list`、`git-switch-branch`、`git-create-branch`。本轮不转发 stage/unstage/discard。
-- 转发剥 Origin / Referer / Cookie / sec-fetch-*；Host = `127.0.0.1:<port>`；JSON 不 gzip；URL 必须仍是该 harness loopback。未配对拒绝。`getHarnessOrigin()` 随端口热更新。
+- 转发剥 Origin / Referer / 手机 Cookie / sec-fetch-*；Host = `127.0.0.1:<port>`；JSON 不 gzip；URL 必须仍是该 harness loopback。0.1.2 Host API：daemon 带桌面兑到的 `dsh.sessionCookie`（stdin `harness-cookie`），不得把手机 Cookie 转给 loopback；SPA 点名 `session.list` 落到 `/api/session/list`，payload 为 `{ args: { _request } }`。`workspace.list` 在 unary 404 时从 `/api/remote.mux` 的 `workspace/follow` 首帧 baseline 合成 `{ items, archivedSessionIds }`，禁止空目录冒充「没有工作区」。未配对拒绝。`getHarnessOrigin()` 随端口热更新。
 - SPA 不得从 `host/offer.js` / `host/login.js` 进入 v1 Cookie 登录；扫描结果保留完整 `#offer=` URL。
 - QR **落地页**：局域网 = `preferredLanIp():3180`；外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**不是**中继 `:8411`。
 - **sticky 三 origin 不互通**。配对链接为 HTTP 明文；MITM 可读 `#offer=` hash。
@@ -145,7 +145,7 @@
 | --- | --- |
 | Automated | `mobile/web/**/*.test.js`（含 `app-cutover.test.js` 零 `fetchAgents`/`createAgent`；`host/*.test.js`；`git/stack.test.js` 的 `commit_push` 顺序；`git/bridge.test.js` 的 `gitCreateBranch`）；`src/shared/dshd-host-tunnel.test.js`（白名单外 403、非 loopback 拒转发）；`src/main/dshd-git-dispatch.test.js`（不转发 stage/pty/writeFile）；`src/main/chisacode-remote.test.js`（`DSHD_HARNESS_ORIGIN`、不设 `DSH_HOME`）；Android JVM tests（`:protocol:test` PairingIntent；`:app:testDebugUnitTest` VIEW handoff） |
 | Browser | `node tools/mobile-web-qa/run-qa.mjs`（fake **host** 会话，不单靠 fake ACP agents）；`node tools/remote-web-qa/run-e2e.mjs --relay <endpoint>`；`npm run qa:remote` |
-| Manual | **本轮 Web UI 门：** [docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。布局、`D = P`、Ayase grok-4.6 五轮、切模型/思考/权限后再聊、审批窗、切会话、新目录五轮。Android App 本轮不签。 |
+| Manual | **全功能执行表：** [docs/qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)（P0 缺一行未填 = 未测完）。细则：[docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。Android App 本轮不签。 |
 
 ## Sources
 
@@ -154,3 +154,5 @@
 - Git 标题栏：[git-titlebar.md](git-titlebar.md)
 - 归档：[session-archive.md](session-archive.md)
 - Kill list：[_kill-http-remote](_kill-http-remote.md)
+- Web 全功能执行表：[../qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)
+- 缺陷修复计划：[2026-09-02-mobile-remote-defect-remediation.md](../superpowers/plans/2026-09-02-mobile-remote-defect-remediation.md)

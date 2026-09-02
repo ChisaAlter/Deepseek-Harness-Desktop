@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-// PeakValleyRow (composer.dock entry): trigger disjunction, Beijing-time
+// PeakValleyRow (composer.dock entry): session-cost gate × peak/route
+// disjunction, Beijing-time
 // phase/countdown rendering, and the per-second tick across a boundary.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,19 +33,23 @@ afterEach(() => {
 function mount(opts: {
   peakValley?: boolean
   provider?: string | null
+  sessionCost?: boolean
   t?: PeakValleyRowProps['t']
 } = {}) {
   const peakStore = createSnapshotStore(opts.peakValley ?? false)
   const factStore = createSnapshotStore<ComposerModelFact>({ provider: opts.provider ?? null })
+  const costStore = createSnapshotStore(opts.sessionCost ?? false)
   const view = render(<PeakValleyRow
     usePeakValley={bindSnapshotSelector(peakStore)}
     useModelProvider={bindSnapshotSelector(factStore)}
+    useSessionCost={bindSnapshotSelector(costStore)}
     t={opts.t ?? t}
   />)
   return {
     view,
     setPeakValley: (value: boolean) => act(() => { peakStore.set(value) }),
     setProvider: (provider: string | null) => act(() => { factStore.set({ provider }) }),
+    setSessionCost: (value: boolean) => act(() => { costStore.set(value) }),
   }
 }
 
@@ -59,31 +64,41 @@ describe('PeakValleyRow visibility', () => {
     expect(textOf(mount({ provider: 'anthropic-relay' }))).toBe('')
   })
 
-  it('renders for a detected DeepSeek route while the switch is off', () => {
-    const view = mount({ provider: 'deepseek-official' })
+  it('renders nothing for a detected DeepSeek route while session cost is off', () => {
+    expect(textOf(mount({ provider: 'deepseek-official' }))).toBe('')
+  })
+
+  it('renders nothing while the peak/valley switch is on and session cost is off', () => {
+    expect(textOf(mount({ peakValley: true, provider: 'deepseek-official' }))).toBe('')
+  })
+
+  it('renders for a detected DeepSeek route while session cost is on and the peak/valley switch is off', () => {
+    const view = mount({ provider: 'deepseek-official', sessionCost: true })
     expect(view.view.container.querySelector('[data-phase="peak"]')).not.toBeNull()
   })
 
-  it('renders while the switch is on regardless of the route', () => {
-    expect(textOf(mount({ peakValley: true }))).not.toBe('')
-    expect(textOf(mount({ peakValley: true, provider: 'anthropic-relay' }))).not.toBe('')
+  it('renders while both switches are on regardless of the route', () => {
+    expect(textOf(mount({ peakValley: true, sessionCost: true }))).not.toBe('')
+    expect(textOf(mount({ peakValley: true, sessionCost: true, provider: 'anthropic-relay' }))).not.toBe('')
   })
 
-  it('appears and disappears live with the trigger, with no cached row left behind', () => {
-    const view = mount()
+  it('appears and disappears live with the cost gate, with no cached row left behind', () => {
+    const view = mount({ provider: 'deepseek' })
     expect(textOf(view)).toBe('')
-    view.setProvider('deepseek')
+    view.setSessionCost(true)
     expect(view.view.container.querySelector('[data-phase]')).not.toBeNull()
-    view.setProvider(null)
+    view.setSessionCost(false)
     expect(textOf(view)).toBe('')
     view.setPeakValley(true)
+    expect(textOf(view)).toBe('')
+    view.setSessionCost(true)
     expect(view.view.container.querySelector('[data-phase]')).not.toBeNull()
   })
 })
 
 describe('PeakValleyRow phase and countdown', () => {
   it('paints the Beijing-time phase, its name, and the countdown to the next switch', () => {
-    const view = mount({ peakValley: true })
+    const view = mount({ peakValley: true, sessionCost: true })
     const row = view.view.container.querySelector('[data-phase="peak"]')
     expect(row).not.toBeNull()
     expect(textOf(view)).toContain('高峰时段')
@@ -93,7 +108,7 @@ describe('PeakValleyRow phase and countdown', () => {
   })
 
   it('ticks every second and flips color, text, and countdown at the boundary', () => {
-    const view = mount({ peakValley: true })
+    const view = mount({ peakValley: true, sessionCost: true })
     // First aligned tick lands at 11:59:01.005 Beijing → 58 whole seconds left.
     act(() => { vi.advanceTimersByTime(1_005) })
     expect(textOf(view)).toContain('距离切换剩余时间：00:00:58')
@@ -108,7 +123,7 @@ describe('PeakValleyRow phase and countdown', () => {
   })
 
   it('takes the labels from the active locale', () => {
-    const view = mount({ peakValley: true, t: tEn })
+    const view = mount({ peakValley: true, sessionCost: true, t: tEn })
     expect(textOf(view)).toContain('Peak hours')
     expect(textOf(view)).toContain('Switches in 00:01:00')
   })
