@@ -360,31 +360,6 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
     <div className="dsw-ust-bill-loading">{t('billing.loading')}</div>
   ) : (
     <div className="dsw-ust-bill">
-      <div className="dsw-ust-bill-switches">
-        <label className="dsw-ust-bill-switch">
-          <div className="dsw-ust-bill-switch-main">
-            <span className="dsw-ust-bill-switch-label">{t('billing.stripLabel')}</span>
-            <Switch
-              checked={settings.stripVisible}
-              onChange={(e) => setSettings({ ...settings, stripVisible: e.target.checked })}
-            />
-          </div>
-          <span className="dsw-ust-bill-switch-note">{t('billing.stripNote')}</span>
-        </label>
-        <label className="dsw-ust-bill-switch">
-          <div className="dsw-ust-bill-switch-main">
-            <span className="dsw-ust-bill-switch-label">{t('billing.peakHintLabel')}</span>
-            <Switch
-              checked={settings.peakHintVisible}
-              onChange={(e) => setSettings({ ...settings, peakHintVisible: e.target.checked })}
-            />
-          </div>
-          <span className="dsw-ust-bill-switch-note">{t('billing.peakHintNote')}</span>
-        </label>
-      </div>
-
-      <div className="dsw-ust-bill-divider" />
-
       <section className="dsw-ust-bill-section">
         <div className="dsw-ust-bill-section-head">
           <h4>{t('billing.modelsTitle')}</h4>

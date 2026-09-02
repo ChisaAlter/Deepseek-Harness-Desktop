@@ -155,7 +155,6 @@ function Heading({ totals, onAdd, onCredential, credentialOpen, adding, busy, ad
       h("div", { className: "dim-bindActions" },
         h(Button, {
           kind: "primary",
-          size: "small",
           className: "bxf-bindButton dim-scanButton",
           onClick: onAdd,
           disabled: adding || busy,
@@ -166,7 +165,6 @@ function Heading({ totals, onAdd, onCredential, credentialOpen, adding, busy, ad
         }, adding ? "正在接入" : "扫码接入机器人"),
         h(Button, {
           kind: "credential",
-          size: "small",
           className: "dim-credentialButton",
           onClick: onCredential,
           disabled: adding || busy,

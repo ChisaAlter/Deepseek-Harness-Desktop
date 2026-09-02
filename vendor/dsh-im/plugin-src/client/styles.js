@@ -114,21 +114,31 @@ const CSS = String.raw`
 .dim-panel .bxf-headingTools, .dim-panel .dxw-tools, .dim-panel .ddt-tools { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: center; justify-content: stretch; gap: 8px; }
 .dim-panel .dim-bindActions { min-width: 0; display: flex; align-items: center; flex-wrap: nowrap; gap: 8px; }
 .dim-panel .dim-bindActions > button { min-width: 0; }
+/*
+ * Header actions (扫码接入 / 手动接入) share one sizing contract across every channel.
+ * Each channel renders these through its own base button class (.bxf-button / .dxw-button /
+ * .ddt-button) which carries its own height, min-height, gap and font-size; the selectors below
+ * are deliberately more specific than any of those (including .bxf-button[data-size="small"])
+ * and set every box-affecting property so the base class cannot leak through.
+ */
 .dim-panel .bxf-headingTools .dim-scanButton,
 .dim-panel .dxw-tools .dim-scanButton,
-.dim-panel .ddt-tools .dim-scanButton {
+.dim-panel .ddt-tools .dim-scanButton,
+.dim-panel .bxf-headingTools .dim-credentialButton,
+.dim-panel .dxw-tools .dim-credentialButton,
+.dim-panel .ddt-tools .dim-credentialButton {
   flex: none;
   height: 36px;
+  min-height: 36px;
+  max-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   justify-self: start;
-  gap: 4px;
+  gap: 6px;
+  margin: 0;
   padding: 0 14px;
-  border: none;
   border-radius: 18px;
-  color: var(--dsw-alias-label-primary-foreground);
-  background: var(--dsw-alias-button-primary-fill);
   box-shadow: none;
   font: inherit;
   font-size: 14px;
@@ -136,44 +146,52 @@ const CSS = String.raw`
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
+  transform: none;
+}
+.dim-panel .bxf-headingTools .dim-scanButton,
+.dim-panel .dxw-tools .dim-scanButton,
+.dim-panel .ddt-tools .dim-scanButton {
+  border: none;
+  color: var(--dsw-alias-label-primary-foreground);
+  background: var(--dsw-alias-button-primary-fill);
 }
 .dim-panel .bxf-headingTools .dim-scanButton:hover:not(:disabled),
 .dim-panel .dxw-tools .dim-scanButton:hover:not(:disabled),
 .dim-panel .ddt-tools .dim-scanButton:hover:not(:disabled) {
   background: var(--dsw-alias-button-primary-hover);
 }
+.dim-panel .bxf-headingTools .dim-credentialButton,
+.dim-panel .dxw-tools .dim-credentialButton,
+.dim-panel .ddt-tools .dim-credentialButton {
+  border: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-primary);
+  background: transparent;
+}
+.dim-panel .bxf-headingTools .dim-credentialButton:hover:not(:disabled),
+.dim-panel .dxw-tools .dim-credentialButton:hover:not(:disabled),
+.dim-panel .ddt-tools .dim-credentialButton:hover:not(:disabled) {
+  border-color: var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.dim-panel .bxf-headingTools .dim-credentialButton[aria-pressed="true"],
+.dim-panel .dxw-tools .dim-credentialButton[aria-pressed="true"],
+.dim-panel .ddt-tools .dim-credentialButton[aria-pressed="true"] {
+  background: var(--dsw-alias-interactive-bg-active);
+}
 .dim-panel .bxf-headingTools .dim-scanButton:disabled,
 .dim-panel .dxw-tools .dim-scanButton:disabled,
-.dim-panel .ddt-tools .dim-scanButton:disabled {
+.dim-panel .ddt-tools .dim-scanButton:disabled,
+.dim-panel .bxf-headingTools .dim-credentialButton:disabled,
+.dim-panel .dxw-tools .dim-credentialButton:disabled,
+.dim-panel .ddt-tools .dim-credentialButton:disabled {
   cursor: not-allowed;
   opacity: 0.4;
 }
-.dim-panel .dim-credentialButton {
-  flex: none;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 14px;
-  color: var(--dsw-alias-label-primary);
-  background: transparent;
-  box-shadow: none;
-  font: inherit;
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: pointer;
-}
 .dim-panel .dim-actionIcon { width: 16px; height: 16px; flex: 0 0 16px; }
-.dim-panel .dim-credentialButton:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
-.dim-panel .dim-credentialButton[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-active); }
 .dim-panel .bxf-headingTools .dim-onlineBadge,
 .dim-panel .dxw-tools .dim-onlineBadge,
 .dim-panel .ddt-tools .dim-onlineBadge {
+  height: 28px;
   min-height: 28px;
   display: inline-flex;
   align-items: center;
@@ -869,14 +887,19 @@ const CSS = String.raw`
   .dim-panel .dim-bindActions { gap: 6px; }
   .dim-panel .bxf-headingTools .dim-scanButton,
   .dim-panel .dxw-tools .dim-scanButton,
-  .dim-panel .ddt-tools .dim-scanButton {
+  .dim-panel .ddt-tools .dim-scanButton,
+  .dim-panel .bxf-headingTools .dim-credentialButton,
+  .dim-panel .dxw-tools .dim-credentialButton,
+  .dim-panel .ddt-tools .dim-credentialButton {
     height: 28px;
+    min-height: 28px;
+    max-height: 28px;
+    gap: 4px;
     padding: 0 10px;
     border-radius: 14px;
     font-size: 12px;
     line-height: 18px;
   }
-  .dim-panel .dim-credentialButton { gap: 4px; }
   .dim-panel .dim-actionIcon { width: 14px; height: 14px; flex-basis: 14px; }
   .dim-panel .bxf-headingTools .dim-onlineBadge,
   .dim-panel .dxw-tools .dim-onlineBadge,

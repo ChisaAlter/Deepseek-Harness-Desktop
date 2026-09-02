@@ -10,8 +10,6 @@ var RPC_PROJECTS_MORE = "projects.more";
 var RPC_REPAIR_SESSION = "repair.session";
 var DEFAULT_BILLING_SETTINGS = {
   prices: {},
-  stripVisible: true,
-  peakHintVisible: true,
   peakValleyEnabled: true
 };
 var OVERVIEW_VERSION = 4;
@@ -1095,16 +1093,15 @@ var priceValueSchema = z2.object({
 var emptyPrices = {};
 var billingGlobalSchema = z2.object({
   prices: z2.record(z2.string(), priceValueSchema),
-  stripVisible: z2.boolean(),
-  // A record written before this field existed lacks it: missing reads as ON.
+  // Legacy v0.3 fields of the retired composer cost strip: a record written
+  // by that version still carries them; they parse and are ignored.
+  stripVisible: z2.boolean().optional(),
   peakHintVisible: z2.boolean().optional(),
   peakValleyEnabled: z2.boolean()
 });
 function initialRecord() {
   return {
     prices: {},
-    stripVisible: DEFAULT_BILLING_SETTINGS.stripVisible,
-    peakHintVisible: DEFAULT_BILLING_SETTINGS.peakHintVisible,
     peakValleyEnabled: DEFAULT_BILLING_SETTINGS.peakValleyEnabled
   };
 }
@@ -1145,15 +1142,11 @@ var BillingStore = class {
       this.warn("stored prices failed validation, using defaults: " + parsed.issues.join(" | "));
       return {
         prices: {},
-        stripVisible: record.stripVisible === false ? false : true,
-        peakHintVisible: record.peakHintVisible === false ? false : true,
         peakValleyEnabled: record.peakValleyEnabled === false ? false : true
       };
     }
     return {
       prices: parsed.prices,
-      stripVisible: record.stripVisible === false ? false : true,
-      peakHintVisible: record.peakHintVisible === false ? false : true,
       peakValleyEnabled: record.peakValleyEnabled === false ? false : true
     };
   }
@@ -1163,8 +1156,8 @@ var BillingStore = class {
     }
     const parsed = parseSessionCostPrices(settings.prices);
     if (!parsed.ok) throw new Error("invalid prices: " + parsed.issues.join(" | "));
-    if (typeof settings.stripVisible !== "boolean" || typeof settings.peakHintVisible !== "boolean" || typeof settings.peakValleyEnabled !== "boolean") {
-      throw new Error("invalid billing settings: stripVisible/peakHintVisible/peakValleyEnabled must be booleans");
+    if (typeof settings.peakValleyEnabled !== "boolean") {
+      throw new Error("invalid billing settings: peakValleyEnabled must be a boolean");
     }
   }
 };

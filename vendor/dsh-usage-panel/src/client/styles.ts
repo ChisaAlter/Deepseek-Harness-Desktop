@@ -127,27 +127,6 @@ export const CSS = [
   '.dsw-ust-pbar i{display:block;height:100%;border-radius:4px;background:var(--dsw-static-deepseek-500)}',
   '.dsw-ust-pname{width:140px;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}',
   '.dsw-ust-ptokens{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}',
-  // Composer cost strip (conversation.composer.dock): one ambient centered
-  // line under the input card; phase indicator (red/green light), countdown,
-  // session cost, hover price pop. Follows the drag-resized composer card
-  // (seat publishes --dsh-composer-resized-width) with the resting card cap
-  // as fallback: strip width = card width minus both side clearances.
-  '.dsw-ust-strip{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);width:100%;max-width:calc(var(--dsh-composer-resized-width,var(--dsh-composer-card-max-width)) - var(--dsh-composer-side-clearance) - var(--dsh-composer-side-clearance));padding:2px 0 4px}',
-  '.dsw-ust-strip-phase{display:inline-flex;align-items:center;gap:8px}',
-  '.dsw-ust-strip-light{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block}',
-  '.dsw-ust-strip-light.is-peak{background:var(--dsw-alias-state-error-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent);animation:dsw-ust-strip-glow 2s ease-in-out infinite}',
-  '.dsw-ust-strip-light.is-idle{background:var(--dsw-alias-state-success-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 18%, transparent);animation:dsw-ust-strip-glow 2s ease-in-out infinite}',
-  '.dsw-ust-strip-phase-text{font-weight:600;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}',
-  '.dsw-ust-strip-phase-text.is-peak{color:var(--dsw-alias-state-error-primary)}',
-  '.dsw-ust-strip-phase-text.is-idle{color:var(--dsw-alias-state-success-primary)}',
-  '.dsw-ust-strip-count{font-variant-numeric:tabular-nums}',
-  '.dsw-ust-strip-sep{opacity:0.6}',
-  '.dsw-ust-strip-cost{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;font-weight:600}',
-  '.dsw-ust-strip-cost.is-unpriced{color:var(--dsw-alias-state-warning-primary)}',
-  '.dsw-ust-strip-cost.is-clickable{cursor:pointer;border-bottom:1px dashed var(--dsw-alias-border-l2)}',
-  '.dsw-ust-strip-cost.is-clickable:hover{color:var(--dsw-alias-state-link-primary);border-bottom-color:var(--dsw-alias-state-link-primary)}',
-  '@keyframes dsw-ust-strip-glow{0%,100%{opacity:1}50%{opacity:0.55}}',
-  '@media (prefers-reduced-motion:reduce){.dsw-ust-strip-light{animation:none}}',
   // Billing settings modal content.
   // The official Modal card is 380px wide with overflow:hidden and no content
   // scroll — widen the card and make the content column scroll so the form is
@@ -157,12 +136,7 @@ export const CSS = [
   '.dsw-ust-bill-loading{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;padding:8px 0}',
   '.dsw-ust-bill{display:flex;flex-direction:column;gap:14px;width:100%;min-width:0}',
   '.dsw-ust-bill-divider{height:1px;background:var(--dsw-alias-border-l1);margin:2px 0}',
-  '.dsw-ust-bill-switches{display:flex;flex-direction:column;gap:10px;width:100%}',
-  '.dsw-ust-bill-switch{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);cursor:pointer}',
-  '.dsw-ust-bill-switch-main{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}',
-  '.dsw-ust-bill-switch-label{flex:1;text-align:left}',
-  '.dsw-ust-bill-switch-note{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);padding-left:2px}',
-  '.dsw-ust-bill-switch input,.dsw-ust-bill-flat input,.dsw-ust-bill-idle input{accent-color:var(--dsw-static-deepseek-500)}',
+  '.dsw-ust-bill-switch-inline input{accent-color:var(--dsw-static-deepseek-500)}',
   // Model-level 峰谷计价 toggle: inline in the pick row, right-aligned, no note.
   '.dsw-ust-bill-switch-inline{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex-shrink:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);cursor:pointer}',
   // The model-area 峰谷计价 toggle: right-aligned inside the pick row, text first.

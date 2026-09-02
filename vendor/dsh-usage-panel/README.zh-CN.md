@@ -21,8 +21,9 @@
 - **服务商用量** —— 多 Provider 时以横向条形按路由展示各自 Token 消耗。
 - **模型环形图** —— 各模型全历史占比，旁边列出前 5 名；每行带**缓存命中率**列，颜色与对应分段一致。
 - **导出** —— 完整 JSON、每日 CSV、模型 CSV（防公式注入、RFC 4180、UTF-8 BOM；费用列以整数分计）。
-- **输入框下方费用条** —— 当前高峰/谷段、距下次切换倒计时、当前会话估算费用（悬停显示当前模型价目行）；宽度随输入卡拖动联动（`composerResize`，回退静止卡宽）；可在用量统计页「设置」中开关。
-- **计费设置** —— 导出旁的「设置」弹层：条显隐、峰谷计价总开关、逐模型自定义价（模型列表与 DSH 提供商目录同步 + 用量中见过的模型）。
+- **计费设置** —— 导出旁的「设置」弹层：峰谷计价总开关、逐模型自定义价（模型列表与 DSH 提供商目录同步 + 用量中见过的模型）。
+
+输入框下方的峰谷状态 / 当前会话费用行**不属于本插件**：由桌面 harness 的 `ui-conversation` `PeakValleyRow` 独占（界面设置 → 「会话累计费用」）。本插件不向 `conversation.composer.dock` 注册任何条目，避免同一行信息重复出现两次。
 
 悬停柱子、热力图格子或环形图分段可以看到具体明细：
 
@@ -98,7 +99,7 @@ Host 半聚合持久化会话日志：
 | `src/host/projection.ts` | 纯函数会话投影 reducer（四桶 + 峰谷桶、fork 去重、重试/压缩语义、UTC 日桶、step/start 时段判定） |
 | `src/host/aggregate.ts` | 跨会话合并 → overview 载荷（含费用映射） |
 | `src/host/billing-store.ts` | 计费偏好持久化（storageDomain 插件自有 JSON；fail-soft 内存） |
-| `src/client/*` → `lib/client.js` | Client 半（`./client` 导出，`__ModuleLoader__` bundle）：TSX 设置页 UI、设置弹层、输入框费用条，`--dsw-*` 变量，中英双语 |
+| `src/client/*` → `lib/client.js` | Client 半（`./client` 导出，`__ModuleLoader__` bundle）：TSX 设置页 UI、设置弹层，`--dsw-*` 变量，中英双语 |
 | `src/shared/contract.ts` | Host↔client wire 契约（单一来源） |
 | `src/shared/pricing.ts` | 官方价目表（asOf + 来源）、解析器、价格校验 |
 | `src/shared/billing.ts` | 峰谷窗口数学 + 倒计时 |

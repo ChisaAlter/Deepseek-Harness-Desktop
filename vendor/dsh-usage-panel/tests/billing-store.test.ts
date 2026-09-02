@@ -1,8 +1,9 @@
 // Locks the billing-preferences store: durable-medium roundtrip, semantic
-// rejection, memory fail-soft, and the late medium attach upgrade.
+// rejection, memory fail-soft, the late medium attach upgrade, and the
+// tolerance for legacy v0.3 strip fields (retired composer cost strip).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { BillingStore, type BillingMedium } from '../src/host/billing-store.ts'
+import { BillingStore, billingGlobalSchema, type BillingMedium } from '../src/host/billing-store.ts'
 import type { BillingSettings } from '../src/shared/contract.ts'
 
 function fakeMedium(initial: unknown): BillingMedium & { stored: unknown; writes: number } {
@@ -24,12 +25,10 @@ const SETTINGS: BillingSettings = {
   prices: {
     'deepseek-official/deepseek-v4-flash': { inputCacheHit: 0.1, inputCacheMiss: 3, output: 9 },
   },
-  stripVisible: true,
-  peakHintVisible: false,
   peakValleyEnabled: false,
 }
 
-test('load returns the stored record; absent switches default to on', async () => {
+test('load returns the stored record; absent switch defaults to on', async () => {
   const medium = fakeMedium({
     prices: { 'a/b': { inputCacheHit: 0.1, inputCacheMiss: 3, output: 9 } },
   })
@@ -37,9 +36,25 @@ test('load returns the stored record; absent switches default to on', async () =
   assert.equal(store.mode, 'durable')
   const loaded = await store.load()
   assert.deepEqual(loaded.prices, { 'a/b': { inputCacheHit: 0.1, inputCacheMiss: 3, output: 9 } })
-  assert.equal(loaded.stripVisible, true)
-  assert.equal(loaded.peakHintVisible, true)
   assert.equal(loaded.peakValleyEnabled, true)
+})
+
+test('legacy v0.3 records with strip fields load and drop them', async () => {
+  const legacy = {
+    prices: { 'a/b': { inputCacheHit: 0.1, inputCacheMiss: 3, output: 9 } },
+    stripVisible: false,
+    peakHintVisible: false,
+    peakValleyEnabled: false,
+  }
+  assert.equal(billingGlobalSchema.safeParse(legacy).success, true)
+  const store = new BillingStore(fakeMedium(legacy), () => {})
+  const loaded = await store.load()
+  assert.deepEqual(loaded, {
+    prices: { 'a/b': { inputCacheHit: 0.1, inputCacheMiss: 3, output: 9 } },
+    peakValleyEnabled: false,
+  })
+  assert.equal('stripVisible' in loaded, false)
+  assert.equal('peakHintVisible' in loaded, false)
 })
 
 test('save writes through to the medium and is reflected on a fresh load', async () => {
@@ -61,12 +76,8 @@ test('invalid prices are refused on save and never reach the medium', async () =
     /invalid prices/,
   )
   await assert.rejects(
-    () => store.save({ ...SETTINGS, stripVisible: 'yes' as never }),
-    /stripVisible\/peakHintVisible\/peakValleyEnabled/,
-  )
-  await assert.rejects(
-    () => store.save({ ...SETTINGS, peakHintVisible: 'yes' as never }),
-    /stripVisible\/peakHintVisible\/peakValleyEnabled/,
+    () => store.save({ ...SETTINGS, peakValleyEnabled: 'yes' as never }),
+    /peakValleyEnabled must be a boolean/,
   )
   assert.equal(medium.writes, 0)
 })
@@ -76,7 +87,7 @@ test('a corrupted medium degrades to defaults (warned) instead of throwing', asy
   const store = new BillingStore(fakeMedium({ prices: { 'a/b': { inputCacheHit: 'x', inputCacheMiss: 1, output: 1 } } }), (m) => warns.push(m))
   const loaded = await store.load()
   assert.deepEqual(loaded.prices, {})
-  assert.equal(loaded.stripVisible, true)
+  assert.equal(loaded.peakValleyEnabled, true)
   assert.equal(warns.length, 1)
   assert.match(warns[0]!, /failed validation/)
 })
@@ -90,7 +101,7 @@ test('memory mode persists nothing but keeps working, then upgrades on attach', 
   store.attachMedium(medium)
   assert.equal(store.mode, 'durable')
   assert.deepEqual(await store.load(), SETTINGS) // cache survives the attach
-  const next: BillingSettings = { ...SETTINGS, stripVisible: false }
+  const next: BillingSettings = { ...SETTINGS, peakValleyEnabled: true }
   await store.save(next)
   assert.deepEqual(medium.stored, next)
 })

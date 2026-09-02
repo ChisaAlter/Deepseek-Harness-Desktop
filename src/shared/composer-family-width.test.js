@@ -3,9 +3,11 @@
 // Composer family width linkage. The composer seat publishes
 // --dsh-composer-resized-width while the Interface Settings composerResize
 // drag is live; the rows that share the input card's width axis — the session
-// stats line, the queue/todo/goal dock cards above the card, and the desktop
-// usage-panel cost strip under it — must read that variable so they follow the
-// drag instead of keeping the resting card cap. The follow is a CSS variable
+// stats line and the queue/todo/goal dock cards above the card — must read
+// that variable so they follow the drag instead of keeping the resting card
+// cap. (The dsh-usage-panel cost strip that used to sit under the card was
+// retired in favour of ui-conversation's PeakValleyRow, which lives inside the
+// dock and needs no cap of its own.) The follow is a CSS variable
 // reference with the resting cap as fallback (rest state never changes), so
 // the contract is pinned as source markers: a sync:harness merge or a manual
 // "restore to upstream" must not silently drop the references (the fork
@@ -78,10 +80,8 @@ test('goal bar follows the drag-resized composer card', () => {
   assert.match(ruleOf(css, '\\.bar'), FOLLOW);
 });
 
-test('usage-panel cost strip follows the drag-resized composer card', () => {
-  const styles = readRel(path.join(VENDOR, 'dsh-usage-panel', 'src', 'client'), 'styles.ts');
-  assert.match(
-    styles,
-    /\.dsw-ust-strip\{[^}]*max-width:calc\(\s*var\(--dsh-composer-resized-width,\s*var\(--dsh-composer-card-max-width\)\)/,
-  );
+test('usage-panel registers no composer.dock entry (PeakValleyRow owns the cost row)', () => {
+  const client = readRel(path.join(VENDOR, 'dsh-usage-panel', 'src', 'client'), 'index.tsx');
+  assert.doesNotMatch(client, /slots\.inject\(\s*'conversation\.composer\.dock'/);
+  assert.doesNotMatch(client, /CostStrip/);
 });

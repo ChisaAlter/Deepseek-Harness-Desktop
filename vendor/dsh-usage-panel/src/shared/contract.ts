@@ -64,23 +64,18 @@ export interface BillingModelOptions {
 
 /**
  * Durable plugin billing preferences (one JSON record, plugin-owned):
- * user-edited prices plus the input-strip visibility and the global
- * peak/valley pricing switch.
+ * user-edited prices plus the global peak/valley pricing switch. Records
+ * written by v0.3 also carry `stripVisible`/`peakHintVisible` for the
+ * retired composer cost strip; the store tolerates and drops them.
  */
 export interface BillingSettings {
   prices: import('./pricing.ts').SessionCostPrices
-  /** Show the cost strip under the composer input. */
-  stripVisible: boolean
-  /** Show the peak/off-peak phase hint (text + light + countdown) in the strip. */
-  peakHintVisible: boolean
   /** Global peak/valley pricing ON; off bills both periods at the peak column. */
   peakValleyEnabled: boolean
 }
 
 export const DEFAULT_BILLING_SETTINGS: BillingSettings = {
   prices: {},
-  stripVisible: true,
-  peakHintVisible: true,
   peakValleyEnabled: true,
 }
 

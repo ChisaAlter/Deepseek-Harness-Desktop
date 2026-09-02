@@ -9,7 +9,6 @@ import type { ClientCtx } from './ctx.ts'
 import { createI18n } from './locales.ts'
 import { CSS, STYLE_ID } from './styles.ts'
 import { StatsSection } from './StatsSection.tsx'
-import { CostStrip } from './CostStrip.tsx'
 import { Boundary } from './boundary.tsx'
 import { missingPrimitives } from './primitives.ts'
 import { callBillingGet } from './api.ts'
@@ -26,13 +25,13 @@ export function apply(ctx: ClientCtx): void {
     return
   }
 
-  // Warm the billing prefs at apply time: the settings modal and the strip
-  // then render from the in-bundle snapshot the moment they open, even during
-  // a cold start (a host busy with the boot fold serves them later).
+  // Warm the billing prefs at apply time: the settings modal and the cost
+  // columns then render from the in-bundle snapshot the moment they open, even
+  // during a cold start (a host busy with the boot fold serves them later).
   callBillingGet(ctx.connection.rpc)
     .then((settings) => publishBilling(settings))
     .catch(() => {
-      /* the modal/strip retry lazily; a failed warm-up is not fatal */
+      /* the modal retries lazily; a failed warm-up is not fatal */
     })
 
   let tag: HTMLStyleElement | null = null
@@ -60,21 +59,10 @@ export function apply(ctx: ClientCtx): void {
     ),
   )
 
-  // Composer cost strip: session-scope entry of the official
-  // conversation.composer.dock slot (same seat family as the stats line).
-  slots.inject('conversation.composer.dock', () =>
-    slots.register(
-      {
-        name: 'conversation.composer.dock',
-        id: 'usage-cost',
-        order: 4,
-      },
-      (props?: unknown) => {
-        const sessionId = ((props ?? {}) as { sessionId?: string | null }).sessionId ?? null
-        return createElement(CostStrip, { rpc: ctx.connection.rpc, i18n, sessionId })
-      },
-    ),
-  )
+  // No conversation.composer.dock entry: the per-session peak/valley status and
+  // cost row is owned by the harness's ui-conversation PeakValleyRow
+  // (docs/features/session-cost-display.md). A second dock entry here would
+  // paint the same phase/countdown/cost line twice under the composer.
 
   ctx.effect(() => () => {
     if (tag !== null && tag.isConnected) tag.remove()

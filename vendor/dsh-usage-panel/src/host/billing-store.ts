@@ -1,7 +1,7 @@
 // dsh-usage-panel · durable billing preferences (plugin-owned JSON).
 //
-// One record: user-edited prices, the input-strip visibility, and the global
-// peak/valley pricing switch. Backed by the harness storage-domain facility
+// One record: user-edited prices and the global peak/valley pricing switch.
+// Backed by the harness storage-domain facility
 // (`ctx.storageDomain`, the same mechanism the projection cache uses): one
 // global slot of our own domain, JSON backend beside workspace.json, atomic
 // by the medium, zod schema at the durable boundary. When the facility is
@@ -36,8 +36,9 @@ const emptyPrices: SessionCostPrices = {}
 /** Structural record schema at the durable boundary (semantic checks re-run on load). */
 export const billingGlobalSchema = z.object({
   prices: z.record(z.string(), priceValueSchema),
-  stripVisible: z.boolean(),
-  // A record written before this field existed lacks it: missing reads as ON.
+  // Legacy v0.3 fields of the retired composer cost strip: a record written
+  // by that version still carries them; they parse and are ignored.
+  stripVisible: z.boolean().optional(),
   peakHintVisible: z.boolean().optional(),
   peakValleyEnabled: z.boolean(),
 })
@@ -53,8 +54,6 @@ export type BillingStoreMode = 'durable' | 'memory'
 function initialRecord(): BillingSettings {
   return {
     prices: {},
-    stripVisible: DEFAULT_BILLING_SETTINGS.stripVisible,
-    peakHintVisible: DEFAULT_BILLING_SETTINGS.peakHintVisible,
     peakValleyEnabled: DEFAULT_BILLING_SETTINGS.peakValleyEnabled,
   }
 }
@@ -108,19 +107,16 @@ export class BillingStore {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return initialRecord()
     const record = raw as Record<string, unknown>
     const parsed = parseSessionCostPrices(record.prices)
+    // Legacy strip fields (stripVisible/peakHintVisible) are not carried over.
     if (!parsed.ok) {
       this.warn('stored prices failed validation, using defaults: ' + parsed.issues.join(' | '))
       return {
         prices: {},
-        stripVisible: record.stripVisible === false ? false : true,
-        peakHintVisible: record.peakHintVisible === false ? false : true,
         peakValleyEnabled: record.peakValleyEnabled === false ? false : true,
       }
     }
     return {
       prices: parsed.prices,
-      stripVisible: record.stripVisible === false ? false : true,
-      peakHintVisible: record.peakHintVisible === false ? false : true,
       peakValleyEnabled: record.peakValleyEnabled === false ? false : true,
     }
   }
@@ -131,12 +127,8 @@ export class BillingStore {
     }
     const parsed = parseSessionCostPrices(settings.prices)
     if (!parsed.ok) throw new Error('invalid prices: ' + parsed.issues.join(' | '))
-    if (
-      typeof settings.stripVisible !== 'boolean'
-      || typeof settings.peakHintVisible !== 'boolean'
-      || typeof settings.peakValleyEnabled !== 'boolean'
-    ) {
-      throw new Error('invalid billing settings: stripVisible/peakHintVisible/peakValleyEnabled must be booleans')
+    if (typeof settings.peakValleyEnabled !== 'boolean') {
+      throw new Error('invalid billing settings: peakValleyEnabled must be a boolean')
     }
   }
 }

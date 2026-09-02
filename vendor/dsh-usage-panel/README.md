@@ -21,8 +21,9 @@ Token usage statistics for [DeepSeek Harness](https://github.com/deepseek-ai/dee
 - **Providers** — per-provider token totals as horizontal bars (shown when more than one provider route is in use).
 - **Model donut** — all-time share per model, with the top 5 listed beside it; each row carries a per-model **cache hit rate** column, color-coded to its segment.
 - **Export** — full JSON, daily CSV and per-model CSV (formula-injection guarded, RFC 4180, UTF-8 BOM; cost columns in integer cents).
-- **Composer cost strip** — under the chat input box: the current peak/off-peak phase, the countdown to the next switch, and the current session's estimated cost (hover shows the current model's price row). Width follows the composer card's drag-resize (`composerResize`, falling back to the resting card cap). Toggleable from the usage panel's **Settings** button.
-- **Billing settings** — a modal next to Export: strip visibility, the global peak/valley switch, and per-model custom prices (model list synced from the host provider directory + usage).
+- **Billing settings** — a modal next to Export: the global peak/valley switch and per-model custom prices (model list synced from the host provider directory + usage).
+
+The per-session peak/valley status and cost row under the chat input box is **not** part of this plugin: the desktop harness's `ui-conversation` `PeakValleyRow` owns it (Interface Settings → "Session cost"). This plugin registers no `conversation.composer.dock` entry, so the same line is never painted twice.
 
 Hovering a bar, heatmap cell, or donut segment shows the exact breakdown:
 
@@ -98,7 +99,7 @@ Source is TypeScript (strict) in `src/`, built with esbuild; the `lib/` outputs 
 | `src/host/projection.ts` | Pure per-session projection reducer (four buckets + period buckets, fork dedup, retry/compaction semantics, UTC days, step/start phase) |
 | `src/host/aggregate.ts` | Cross-session merge → overview payload (cost maps included) |
 | `src/host/billing-store.ts` | Durable billing preferences (plugin-owned JSON via storageDomain; fail-soft memory) |
-| `src/client/*` → `lib/client.js` | Client half (`./client` export, `__ModuleLoader__` bundle): settings-page UI, settings modal, composer cost strip in TSX, `--dsw-*` tokens, zh/en i18n |
+| `src/client/*` → `lib/client.js` | Client half (`./client` export, `__ModuleLoader__` bundle): settings-page UI and settings modal in TSX, `--dsw-*` tokens, zh/en i18n |
 | `src/shared/contract.ts` | Host↔client wire contract (single source of truth) |
 | `src/shared/pricing.ts` | Official price table (asOf + source), resolver, price parsing |
 | `src/shared/billing.ts` | Peak/valley window math + countdown |

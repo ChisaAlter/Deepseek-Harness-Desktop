@@ -141,39 +141,13 @@ window.__ModuleLoader__.load({
       "error.detail": "\u9519\u8BEF\u4FE1\u606F\uFF1A{msg}",
       "unit.tokens": "{n} Tokens",
       "date.today": "\u4ECA\u5929",
-      "strip.peak": "\u9AD8\u5CF0",
-      "strip.offPeak": "\u8C37\u6BB5",
-      "strip.peakLabel": "\u9AD8\u5CF0\u65F6\u6BB5",
-      "strip.offPeakLabel": "\u7A7A\u95F2\u65F6\u6BB5",
-      "strip.costLabel": "\u672C\u4F1A\u8BDD\u8D39\u7528\uFF1A",
-      "strip.hoverPeak": "\u9AD8\u5CF0\u4EF7\u683C",
-      "strip.hoverIdle": "\u7A7A\u95F2\u4EF7\u683C",
-      "strip.switchIn": "\u8DDD\u79BB\u5207\u6362\u5269\u4F59\u65F6\u95F4\uFF1A{time}",
-      "strip.setPrice": "\u8BBE\u7F6E\u4EF7\u683C",
-      "strip.openSettings": "\u70B9\u51FB\u6253\u5F00\u8BA1\u8D39\u8BBE\u7F6E",
-      "strip.noUsage": "\u6682\u65E0\u8BA1\u8D39\u7528\u91CF",
       "strip.estimate": "\u4F30\u7B97\u8D39\u7528\uFF0C\u975E\u8D26\u5355",
-      "strip.notPriced": "\u8BE5\u6A21\u578B\u672A\u5B9A\u4EF7\uFF0C\u8BF7\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E\u4EF7\u683C",
-      "strip.sourceOfficial": "\u5B98\u65B9\u4EF7\u76EE",
-      "strip.sourceCustom": "\u81EA\u5B9A\u4E49\u4EF7",
-      "strip.colPeak": "\u9AD8\u5CF0",
-      "strip.colOffPeak": "\u8C37\u6BB5",
-      "strip.colHit": "\u8F93\u5165\xB7\u7F13\u5B58\u547D\u4E2D",
-      "strip.colMiss": "\u8F93\u5165\xB7\u672A\u547D\u4E2D",
-      "strip.colOutput": "\u8F93\u51FA",
-      "strip.compHit": "\u8F93\u5165\u547D\u4E2D",
-      "strip.compMiss": "\u8F93\u5165\u672A\u547D\u4E2D",
-      "strip.compOutput": "\u8F93\u51FA",
       "billing.button": "\u8BBE\u7F6E",
       "billing.title": "\u8BA1\u8D39\u8BBE\u7F6E",
       "billing.loading": "\u6B63\u5728\u52A0\u8F7D\u8BA1\u8D39\u8BBE\u7F6E\u2026",
       "billing.close": "\u5173\u95ED",
       "billing.save": "\u4FDD\u5B58",
       "billing.saving": "\u4FDD\u5B58\u4E2D\u2026",
-      "billing.stripLabel": "\u4F1A\u8BDD\u8D39\u7528\u7EDF\u8BA1",
-      "billing.peakHintLabel": "\u5CF0\u8C37\u63D0\u793A",
-      "billing.stripNote": "\u8D39\u7528\u63D0\u793A\u6761\u663E\u793A\u5728\u4F1A\u8BDD\u8F93\u5165\u6846\u4E0B\u65B9,\u5305\u542B\u5F53\u524D\u65F6\u6BB5\u3001\u5012\u8BA1\u65F6\u4E0E\u672C\u4F1A\u8BDD\u8D39\u7528",
-      "billing.peakHintNote": "\u663E\u793A\u5F53\u524D\u9AD8\u5CF0/\u7A7A\u95F2\u65F6\u6BB5\u4E0E\u8DDD\u4E0B\u6B21\u5207\u6362\u7684\u5012\u8BA1\u65F6",
       "billing.idleToggleNote": "\u5F00\u542F\u540E\u540C\u65F6\u663E\u793A\u9AD8\u5CF0\u4EF7\u683C;\u5173\u95ED\u65F6\u6309\u6240\u586B\u7A7A\u95F2\u4EF7\u683C\u8BA1\u8D39",
       "billing.peakValleyLabel": "\u5CF0\u8C37\u8BA1\u4EF7\uFF08\u6309\u9AD8\u5CF0/\u8C37\u6BB5\u5206\u522B\u8BA1\u8D39\uFF09",
       "billing.peakHint": "\u5355\u4F4D\uFF1A\xA5 / \u767E\u4E07 tokens\uFF1B\u7A7A\u95F2\u4EF7\u9ED8\u8BA4 = \u9AD8\u5CF0\u4EF7\u7684\u4E00\u534A",
@@ -315,39 +289,13 @@ window.__ModuleLoader__.load({
       "error.detail": "Error: {msg}",
       "unit.tokens": "{n} tokens",
       "date.today": "Today",
-      "strip.peak": "Peak",
-      "strip.offPeak": "Off-peak",
-      "strip.peakLabel": "Peak hours",
-      "strip.offPeakLabel": "Off-peak hours",
-      "strip.costLabel": "This session: ",
-      "strip.hoverPeak": "peak prices",
-      "strip.hoverIdle": "off-peak prices",
-      "strip.switchIn": "Time until switch: {time}",
-      "strip.setPrice": "Set a price",
-      "strip.openSettings": "Click to open billing settings",
-      "strip.noUsage": "No billed usage yet",
       "strip.estimate": "Estimate, not a bill",
-      "strip.notPriced": "This model is not priced \u2014 set it in Settings",
-      "strip.sourceOfficial": "Official prices",
-      "strip.sourceCustom": "Custom price",
-      "strip.colPeak": "Peak",
-      "strip.colOffPeak": "Off-peak",
-      "strip.colHit": "Input \xB7 cache hit",
-      "strip.colMiss": "Input \xB7 cache miss",
-      "strip.colOutput": "Output",
-      "strip.compHit": "Input hit",
-      "strip.compMiss": "Input miss",
-      "strip.compOutput": "Output",
       "billing.button": "Settings",
       "billing.title": "Billing settings",
       "billing.loading": "Loading billing settings\u2026",
       "billing.close": "Close",
       "billing.save": "Save",
       "billing.saving": "Saving\u2026",
-      "billing.stripLabel": "Session cost stats",
-      "billing.peakHintLabel": "Peak/valley hint",
-      "billing.stripNote": "The cost strip under the composer: current phase, countdown and this session cost",
-      "billing.peakHintNote": "Shows the current peak/off-peak phase and the countdown to the next switch",
       "billing.idleToggleNote": "On: shows both period prices; off: bills the entered off-peak price",
       "billing.peakValleyLabel": "Peak/valley pricing (period-based billing)",
       "billing.peakHint": "Unit: CNY / million tokens; off-peak defaults to half of the peak price",
@@ -600,27 +548,6 @@ window.__ModuleLoader__.load({
       ".dsw-ust-pbar i{display:block;height:100%;border-radius:4px;background:var(--dsw-static-deepseek-500)}",
       ".dsw-ust-pname{width:140px;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}",
       ".dsw-ust-ptokens{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;white-space:nowrap;flex-shrink:0}",
-      // Composer cost strip (conversation.composer.dock): one ambient centered
-      // line under the input card; phase indicator (red/green light), countdown,
-      // session cost, hover price pop. Follows the drag-resized composer card
-      // (seat publishes --dsh-composer-resized-width) with the resting card cap
-      // as fallback: strip width = card width minus both side clearances.
-      ".dsw-ust-strip{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);width:100%;max-width:calc(var(--dsh-composer-resized-width,var(--dsh-composer-card-max-width)) - var(--dsh-composer-side-clearance) - var(--dsh-composer-side-clearance));padding:2px 0 4px}",
-      ".dsw-ust-strip-phase{display:inline-flex;align-items:center;gap:8px}",
-      ".dsw-ust-strip-light{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block}",
-      ".dsw-ust-strip-light.is-peak{background:var(--dsw-alias-state-error-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-error-primary) 18%, transparent);animation:dsw-ust-strip-glow 2s ease-in-out infinite}",
-      ".dsw-ust-strip-light.is-idle{background:var(--dsw-alias-state-success-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 18%, transparent);animation:dsw-ust-strip-glow 2s ease-in-out infinite}",
-      ".dsw-ust-strip-phase-text{font-weight:600;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}",
-      ".dsw-ust-strip-phase-text.is-peak{color:var(--dsw-alias-state-error-primary)}",
-      ".dsw-ust-strip-phase-text.is-idle{color:var(--dsw-alias-state-success-primary)}",
-      ".dsw-ust-strip-count{font-variant-numeric:tabular-nums}",
-      ".dsw-ust-strip-sep{opacity:0.6}",
-      ".dsw-ust-strip-cost{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;font-weight:600}",
-      ".dsw-ust-strip-cost.is-unpriced{color:var(--dsw-alias-state-warning-primary)}",
-      ".dsw-ust-strip-cost.is-clickable{cursor:pointer;border-bottom:1px dashed var(--dsw-alias-border-l2)}",
-      ".dsw-ust-strip-cost.is-clickable:hover{color:var(--dsw-alias-state-link-primary);border-bottom-color:var(--dsw-alias-state-link-primary)}",
-      "@keyframes dsw-ust-strip-glow{0%,100%{opacity:1}50%{opacity:0.55}}",
-      "@media (prefers-reduced-motion:reduce){.dsw-ust-strip-light{animation:none}}",
       // Billing settings modal content.
       // The official Modal card is 380px wide with overflow:hidden and no content
       // scroll — widen the card and make the content column scroll so the form is
@@ -630,12 +557,7 @@ window.__ModuleLoader__.load({
       ".dsw-ust-bill-loading{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;padding:8px 0}",
       ".dsw-ust-bill{display:flex;flex-direction:column;gap:14px;width:100%;min-width:0}",
       ".dsw-ust-bill-divider{height:1px;background:var(--dsw-alias-border-l1);margin:2px 0}",
-      ".dsw-ust-bill-switches{display:flex;flex-direction:column;gap:10px;width:100%}",
-      ".dsw-ust-bill-switch{display:flex;flex-direction:column;align-items:stretch;gap:2px;width:100%;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);cursor:pointer}",
-      ".dsw-ust-bill-switch-main{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}",
-      ".dsw-ust-bill-switch-label{flex:1;text-align:left}",
-      ".dsw-ust-bill-switch-note{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);padding-left:2px}",
-      ".dsw-ust-bill-switch input,.dsw-ust-bill-flat input,.dsw-ust-bill-idle input{accent-color:var(--dsw-static-deepseek-500)}",
+      ".dsw-ust-bill-switch-inline input{accent-color:var(--dsw-static-deepseek-500)}",
       // Model-level 峰谷计价 toggle: inline in the pick row, right-aligned, no note.
       ".dsw-ust-bill-switch-inline{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex-shrink:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);cursor:pointer}",
       // The model-area 峰谷计价 toggle: right-aligned inside the pick row, text first.
@@ -807,7 +729,6 @@ window.__ModuleLoader__.load({
 
     // src/shared/contract.ts
     var RPC_CHANNEL = "/usage-stats";
-    var RPC_SESSION_COST = "session.cost";
     var RPC_BILLING_GET = "billing.get";
     var RPC_BILLING_SET = "billing.set";
     var RPC_BILLING_MODELS = "billing.models";
@@ -927,17 +848,6 @@ window.__ModuleLoader__.load({
         rpc.call(RPC_CHANNEL, RPC_BILLING_MODELS, {}),
         TIMEOUTS.models,
         "model directory"
-      );
-      if (res && res.ok) return res.value;
-      const err = new Error(res && res.error ? res.error.message : "unknown error");
-      if (res && res.error) err.code = res.error.code;
-      throw err;
-    }
-    async function callSessionCost(rpc, sessionId) {
-      const res = await withTimeout(
-        rpc.call(RPC_CHANNEL, RPC_SESSION_COST, { sessionId }),
-        TIMEOUTS.sessionCost,
-        "session cost"
       );
       if (res && res.ok) return res.value;
       const err = new Error(res && res.error ? res.error.message : "unknown error");
@@ -1234,28 +1144,6 @@ window.__ModuleLoader__.load({
     }
     function totalCostCents(rows, prices, peakValley) {
       return sumCostCents(rows.map((row) => costCentsFor(row.cost, row.provider, row.model, prices, peakValley)));
-    }
-    var ZERO_BILLED = { missInputTokens: 0, cacheReadTokens: 0, outputTokens: 0 };
-    function bucketCents(b, price, which, phase) {
-      const filled = which === "hit" ? { missInputTokens: 0, cacheReadTokens: b.cacheRead, outputTokens: 0 } : which === "miss" ? { missInputTokens: b.input + b.cacheWrite, cacheReadTokens: 0, outputTokens: 0 } : { missInputTokens: 0, cacheReadTokens: 0, outputTokens: b.output };
-      const usage = phase === "peak" ? { peak: filled, offPeak: ZERO_BILLED } : { peak: ZERO_BILLED, offPeak: filled };
-      return computeBilledCost(usage, price);
-    }
-    function costCompositionCents(rows, prices, peakValley) {
-      let hit = 0;
-      let miss = 0;
-      let output = 0;
-      let any = false;
-      for (const row of rows) {
-        const price = resolveModelPrice(row.provider, row.model, prices);
-        if (price === null) continue;
-        any = true;
-        const effective = peakValley ? price : { ...price, idle: price.peak };
-        hit += bucketCents(row.cost.peak, effective, "hit", "peak") + bucketCents(row.cost.offPeak, effective, "hit", "offPeak");
-        miss += bucketCents(row.cost.peak, effective, "miss", "peak") + bucketCents(row.cost.offPeak, effective, "miss", "offPeak");
-        output += bucketCents(row.cost.peak, effective, "output", "peak") + bucketCents(row.cost.offPeak, effective, "output", "offPeak");
-      }
-      return any ? { hit, miss, output } : null;
     }
 
     // src/client/components/KpiCards.tsx
@@ -2129,19 +2017,7 @@ window.__ModuleLoader__.load({
       const peakValley = settings?.peakValleyEnabled !== false;
       const def = modelName !== "" ? defaultPrice(providerId, modelName) : null;
       const defaultValue = def !== null;
-      const body = loadError !== null ? /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-loading" }, /* @__PURE__ */ React11.createElement("div", null, t("billing.loadError", { msg: loadError })), /* @__PURE__ */ React11.createElement("button", { type: "button", onClick: bumpLoad, className: "dsw-ust-bill-cancel" }, t("billing.retry"))) : loading || settings === null ? /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-loading" }, t("billing.loading")) : /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill" }, /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-switches" }, /* @__PURE__ */ React11.createElement("label", { className: "dsw-ust-bill-switch" }, /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-switch-main" }, /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-switch-label" }, t("billing.stripLabel")), /* @__PURE__ */ React11.createElement(
-        import_dsh_client_ui_primitives3.Switch,
-        {
-          checked: settings.stripVisible,
-          onChange: (e) => setSettings({ ...settings, stripVisible: e.target.checked })
-        }
-      )), /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-switch-note" }, t("billing.stripNote"))), /* @__PURE__ */ React11.createElement("label", { className: "dsw-ust-bill-switch" }, /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-switch-main" }, /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-switch-label" }, t("billing.peakHintLabel")), /* @__PURE__ */ React11.createElement(
-        import_dsh_client_ui_primitives3.Switch,
-        {
-          checked: settings.peakHintVisible,
-          onChange: (e) => setSettings({ ...settings, peakHintVisible: e.target.checked })
-        }
-      )), /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-switch-note" }, t("billing.peakHintNote")))), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-divider" }), /* @__PURE__ */ React11.createElement("section", { className: "dsw-ust-bill-section" }, /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-section-head" }, /* @__PURE__ */ React11.createElement("h4", null, t("billing.modelsTitle"))), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-pick" }, /* @__PURE__ */ React11.createElement("label", { className: "dsw-ust-bill-select" }, /* @__PURE__ */ React11.createElement("span", null, t("billing.providerLabel")), /* @__PURE__ */ React11.createElement(
+      const body = loadError !== null ? /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-loading" }, /* @__PURE__ */ React11.createElement("div", null, t("billing.loadError", { msg: loadError })), /* @__PURE__ */ React11.createElement("button", { type: "button", onClick: bumpLoad, className: "dsw-ust-bill-cancel" }, t("billing.retry"))) : loading || settings === null ? /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-loading" }, t("billing.loading")) : /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill" }, /* @__PURE__ */ React11.createElement("section", { className: "dsw-ust-bill-section" }, /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-section-head" }, /* @__PURE__ */ React11.createElement("h4", null, t("billing.modelsTitle"))), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-pick" }, /* @__PURE__ */ React11.createElement("label", { className: "dsw-ust-bill-select" }, /* @__PURE__ */ React11.createElement("span", null, t("billing.providerLabel")), /* @__PURE__ */ React11.createElement(
         "select",
         {
           value: providerId,
@@ -2313,225 +2189,9 @@ window.__ModuleLoader__.load({
       ))), body, /* @__PURE__ */ React12.createElement(BillingSettingsModal, { rpc, i18n, open: billingOpen, onClose: () => setBillingOpen(false) }));
     }
 
-    // src/client/CostStrip.tsx
-    var React13 = __toESM(require("react"), 1);
-
-    // src/shared/billing.ts
-    var BEIJING_UTC_OFFSET_MS = 8 * 60 * 60 * 1e3;
-    var DAY_MS = 24 * 60 * 60 * 1e3;
-    var PEAK_WINDOWS = [
-      { open: 9 * 60, close: 12 * 60 },
-      { open: 14 * 60, close: 18 * 60 }
-    ];
-    var WEEKDAY_MAX = 5;
-    function isPeakBillingTime(epochMs) {
-      const wall = new Date(epochMs + BEIJING_UTC_OFFSET_MS);
-      const day = wall.getUTCDay();
-      if (day < 1 || day > WEEKDAY_MAX) return false;
-      const minuteOfDay = wall.getUTCHours() * 60 + wall.getUTCMinutes();
-      return PEAK_WINDOWS.some((w) => minuteOfDay >= w.open && minuteOfDay < w.close);
-    }
-    function nextPeakSwitchMs(epochMs) {
-      const wall = new Date(epochMs + BEIJING_UTC_OFFSET_MS);
-      const dayStartUtc = Date.UTC(wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate());
-      for (let dayOffset = 0; dayOffset < 8; dayOffset += 1) {
-        const candidateWeekday = (wall.getUTCDay() + dayOffset) % 7;
-        if (candidateWeekday < 1 || candidateWeekday > WEEKDAY_MAX) continue;
-        const candidateDay = dayStartUtc + dayOffset * DAY_MS;
-        for (const window of PEAK_WINDOWS) {
-          const candidates = [window.open, window.close];
-          for (const minute of candidates) {
-            const candidate = candidateDay + minute * 6e4 - BEIJING_UTC_OFFSET_MS;
-            if (candidate > epochMs) return candidate;
-          }
-        }
-      }
-      return -1;
-    }
-    function peakValleyState(now) {
-      const ms = now.getTime();
-      const next = nextPeakSwitchMs(ms);
-      return {
-        phase: isPeakBillingTime(ms) ? "peak" : "off-peak",
-        nextSwitchMs: next,
-        msRemaining: Math.max(0, next - ms)
-      };
-    }
-    function formatPeakValleyCountdown(ms) {
-      const total = Math.max(0, Math.floor(ms / 1e3));
-      const hours = Math.floor(total / 3600);
-      const minutes = Math.floor(total % 3600 / 60);
-      const seconds = total % 60;
-      const pad = (n) => String(n).padStart(2, "0");
-      return pad(hours) + ":" + pad(minutes) + ":" + pad(seconds);
-    }
-
-    // src/client/CostStrip.tsx
-    var POLL_MS = 2e3;
-    var BACKOFF_MS = 6e4;
-    var TICK_MS = 1e3;
-    function CostStrip({ rpc, i18n, sessionId }) {
-      const [settings, setSettings] = React13.useState(() => currentBilling());
-      const [cost, setCost] = React13.useState(null);
-      const [now, setNow] = React13.useState(() => Date.now());
-      const [tipPos, setTipPos] = React13.useState(null);
-      const [hoverKind, setHoverKind] = React13.useState(null);
-      const [billingOpen, setBillingOpen] = React13.useState(false);
-      React13.useEffect(() => {
-        let disposed = false;
-        const off = subscribeBilling((next) => {
-          setSettings(next);
-        });
-        if (currentBilling() === null) {
-          callBillingGet(rpc).then((value) => {
-            if (disposed) return;
-            publishBilling(value);
-            setSettings(value);
-          }).catch(() => {
-          });
-        }
-        return () => {
-          disposed = true;
-          off();
-        };
-      }, [rpc]);
-      React13.useEffect(() => {
-        if (sessionId === null) return;
-        let disposed = false;
-        let timer;
-        let failures = 0;
-        const poll = () => {
-          if (document.visibilityState !== "visible") {
-            timer = setTimeout(poll, POLL_MS);
-            return;
-          }
-          callSessionCost(rpc, sessionId).then((value) => {
-            failures = 0;
-            if (!disposed) setCost(value);
-          }).catch(() => {
-            failures += 1;
-          }).finally(() => {
-            if (disposed) return;
-            timer = setTimeout(poll, failures >= 2 ? BACKOFF_MS : POLL_MS);
-          });
-        };
-        poll();
-        return () => {
-          disposed = true;
-          if (timer !== void 0) clearTimeout(timer);
-        };
-      }, [rpc, sessionId]);
-      React13.useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), TICK_MS);
-        return () => clearInterval(timer);
-      }, []);
-      if (settings === null || !settings.stripVisible) return null;
-      const phase = isPeakBillingTime(now) ? "peak" : "off-peak";
-      const switchState = peakValleyState(new Date(now));
-      const rows = (cost?.models ?? []).map((m) => ({
-        entry: m,
-        cents: costCentsFor(m.cost, m.provider, m.model, settings.prices, settings.peakValleyEnabled)
-      }));
-      const total = sumCostCents(rows.map((r) => r.cents));
-      const unpriced = rows.filter((r) => r.cents === null).length;
-      const hasUsage = total !== null || rows.length > 0;
-      let costText;
-      if (total !== null) costText = formatCost(total);
-      else if (hasUsage) costText = i18n.t("strip.setPrice");
-      else costText = i18n.t("strip.noUsage");
-      const model = cost?.currentModel ?? "";
-      const provider = cost?.currentProvider ?? "";
-      const price = model !== "" ? resolveModelPrice(provider, model, settings.prices) : null;
-      const comp = costCompositionCents(cost?.models ?? [], settings.prices, settings.peakValleyEnabled);
-      const costTitle = i18n.t("strip.costLabel") + costText;
-      const tip = hoverKind === "price" ? buildPeriodPriceTip(i18n, model, provider, price, phase, settings.peakValleyEnabled, costTitle) : hoverKind === "comp" ? buildCompositionTip(i18n, costTitle, comp) : null;
-      const hintOn = settings.peakHintVisible;
-      return /* @__PURE__ */ React13.createElement(
-        "div",
-        {
-          className: "dsw-ust-strip",
-          "data-usage-strip": ""
-        },
-        hintOn && /* @__PURE__ */ React13.createElement(
-          "span",
-          {
-            className: "dsw-ust-strip-phase",
-            onMouseMove: (e) => {
-              setTipPos({ left: e.clientX, top: e.clientY });
-              setHoverKind("price");
-            },
-            onMouseLeave: () => {
-              setTipPos(null);
-              setHoverKind(null);
-            }
-          },
-          /* @__PURE__ */ React13.createElement("span", { className: "dsw-ust-strip-light " + (phase === "peak" ? "is-peak" : "is-idle"), "aria-hidden": true }),
-          /* @__PURE__ */ React13.createElement("span", { className: "dsw-ust-strip-phase-text " + (phase === "peak" ? "is-peak" : "is-idle") }, i18n.t(phase === "peak" ? "strip.peakLabel" : "strip.offPeakLabel")),
-          /* @__PURE__ */ React13.createElement("span", { className: "dsw-ust-strip-count" }, i18n.t("strip.switchIn", { time: formatPeakValleyCountdown(switchState.msRemaining) }))
-        ),
-        /* @__PURE__ */ React13.createElement("span", { className: "dsw-ust-strip-sep", "aria-hidden": true }, "\xB7"),
-        /* @__PURE__ */ React13.createElement(
-          "span",
-          {
-            className: "dsw-ust-strip-cost" + (total === null && hasUsage ? " is-unpriced" : "") + (total === null ? " is-clickable" : ""),
-            onMouseMove: (e) => {
-              setTipPos({ left: e.clientX, top: e.clientY });
-              setHoverKind("comp");
-            },
-            onMouseLeave: () => {
-              setTipPos(null);
-              setHoverKind(null);
-            },
-            onClick: () => {
-              if (total === null) setBillingOpen(true);
-            },
-            title: total === null ? i18n.t("strip.openSettings") : i18n.t("strip.estimate")
-          },
-          i18n.t("strip.costLabel"),
-          costText
-        ),
-        /* @__PURE__ */ React13.createElement(BillingSettingsModal, { rpc, i18n, open: billingOpen, onClose: () => setBillingOpen(false) }),
-        tipPos !== null && tip !== null && /* @__PURE__ */ React13.createElement("div", { className: "dsw-ust-tooltip show", role: "tooltip", style: { left: tipPos.left, top: tipPos.top } }, /* @__PURE__ */ React13.createElement("div", { className: "dsw-ust-tooltip-title" }, tip.title), tip.lines.map((line, idx) => /* @__PURE__ */ React13.createElement("div", { key: idx, className: "dsw-ust-tooltip-row" }, /* @__PURE__ */ React13.createElement("i", { style: { background: line.color || "var(--dsw-alias-label-secondary)" } }), /* @__PURE__ */ React13.createElement("span", { className: "dsw-ust-tooltip-label" }, line.label), /* @__PURE__ */ React13.createElement("span", { className: "dsw-ust-tooltip-value" }, line.value))))
-      );
-    }
-    function buildPeriodPriceTip(i18n, model, provider, price, phase, peakValleyEnabled, costTitle) {
-      const title = model === "" ? costTitle : costTitle + " \xB7 " + (phase === "peak" ? i18n.t("strip.hoverPeak") : i18n.t("strip.hoverIdle"));
-      if (price === null) {
-        return { left: 0, top: 0, title, lines: [{ label: i18n.t("strip.notPriced"), value: "" }] };
-      }
-      const column = !peakValleyEnabled || phase === "peak" ? price.peak : price.idle;
-      return {
-        left: 0,
-        top: 0,
-        title,
-        lines: [
-          { label: i18n.t("strip.compHit"), value: priceText(column.inputCacheHit), color: "var(--dsw-alias-state-error-primary)" },
-          { label: i18n.t("strip.compMiss"), value: priceText(column.inputCacheMiss), color: "var(--dsw-alias-state-warn-primary)" },
-          { label: i18n.t("strip.compOutput"), value: priceText(column.output), color: "var(--dsw-alias-state-success-primary)" },
-          { label: i18n.t("strip.estimate") + " \xB7 " + (price.source === "official" ? i18n.t("strip.sourceOfficial") : i18n.t("strip.sourceCustom")), value: "", color: "var(--dsw-alias-label-tertiary)" }
-        ]
-      };
-    }
-    function buildCompositionTip(i18n, title, comp) {
-      if (comp === null) {
-        return { left: 0, top: 0, title, lines: [{ label: i18n.t("strip.notPriced"), value: "" }] };
-      }
-      return {
-        left: 0,
-        top: 0,
-        title,
-        lines: [
-          { label: i18n.t("strip.compHit"), value: formatCost(comp.hit), color: "var(--dsw-alias-state-error-primary)" },
-          { label: i18n.t("strip.compMiss"), value: formatCost(comp.miss), color: "var(--dsw-alias-state-warn-primary)" },
-          { label: i18n.t("strip.compOutput"), value: formatCost(comp.output), color: "var(--dsw-alias-state-success-primary)" },
-          { label: i18n.t("strip.estimate"), value: "", color: "var(--dsw-alias-label-tertiary)" }
-        ]
-      };
-    }
-
     // src/client/boundary.tsx
     var import_react10 = require("react");
-    var React14 = __toESM(require("react"), 1);
+    var React13 = __toESM(require("react"), 1);
     var Boundary = class extends import_react10.Component {
       state = { error: null };
       static getDerivedStateFromError(err) {
@@ -2547,7 +2207,7 @@ window.__ModuleLoader__.load({
       render() {
         const t = this.props.i18n.t;
         if (this.state.error !== null) {
-          return /* @__PURE__ */ React14.createElement("div", { className: "dsw-ust-empty" }, /* @__PURE__ */ React14.createElement("div", { className: "dsw-ust-empty-title" }, t("error.title")), /* @__PURE__ */ React14.createElement("div", { style: { margin: "6px 0 12px" } }, t("error.detail", { msg: this.state.error })), /* @__PURE__ */ React14.createElement("button", { className: "dsw-ust-refresh", onClick: this.reset }, t("error.reset")));
+          return /* @__PURE__ */ React13.createElement("div", { className: "dsw-ust-empty" }, /* @__PURE__ */ React13.createElement("div", { className: "dsw-ust-empty-title" }, t("error.title")), /* @__PURE__ */ React13.createElement("div", { style: { margin: "6px 0 12px" } }, t("error.detail", { msg: this.state.error })), /* @__PURE__ */ React13.createElement("button", { className: "dsw-ust-refresh", onClick: this.reset }, t("error.reset")));
         }
         return this.props.children;
       }
@@ -2593,20 +2253,6 @@ window.__ModuleLoader__.load({
             label: () => i18n.t("nav.label")
           },
           () => (0, import_react11.createElement)(Boundary, { i18n }, (0, import_react11.createElement)(StatsSection, { rpc: ctx.connection.rpc, i18n }))
-        )
-      );
-      slots.inject(
-        "conversation.composer.dock",
-        () => slots.register(
-          {
-            name: "conversation.composer.dock",
-            id: "usage-cost",
-            order: 4
-          },
-          (props) => {
-            const sessionId = (props ?? {}).sessionId ?? null;
-            return (0, import_react11.createElement)(CostStrip, { rpc: ctx.connection.rpc, i18n, sessionId });
-          }
         )
       );
       ctx.effect(() => () => {

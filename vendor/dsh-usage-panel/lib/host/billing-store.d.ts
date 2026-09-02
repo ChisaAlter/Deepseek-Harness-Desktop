@@ -16,7 +16,7 @@ export declare const billingGlobalSchema: z.ZodObject<{
         }, z.core.$strip>>;
         flat: z.ZodOptional<z.ZodBoolean>;
     }, z.core.$strip>>;
-    stripVisible: z.ZodBoolean;
+    stripVisible: z.ZodOptional<z.ZodBoolean>;
     peakHintVisible: z.ZodOptional<z.ZodBoolean>;
     peakValleyEnabled: z.ZodBoolean;
 }, z.core.$strip>;
