@@ -37,6 +37,7 @@ import {
 import { freezePane } from './host/freeze.js';
 import { historyQuery, hostHistoryPage, mergeApprovalPending, mergeOlderHistory, pendingFromHistoryEvents, runningFromHistoryEvents } from './host/history.js';
 import { effortsFor, flattenModels, modelChipLabel } from './host/models.js';
+import { attachmentGuard } from './host/attach-guard.js';
 import { approvalFromMux, approvalResolvedId, muxEventShouldApply, muxPayload, runningFromMux } from './host/mux.js';
 import { catalogRefreshReason, createCatalogRefreshScheduler } from './host/catalog-refresh.js';
 import {
@@ -422,9 +423,15 @@ function currentModeState() {
 
 function currentModelState() {
   const { current, rows } = state.modelCatalog;
+  // `current` may be replaced by selectModel echoes that omit capability
+  // fields; resolve supportsImages from the matching catalog row each time.
+  const row = current
+    ? (Array.isArray(rows) ? rows : []).find((item) => item.provider === current.provider && item.id === current.model)
+    : null;
   return {
     modelId: current?.model || null,
     label: modelChipLabel(current, rows),
+    current: current ? { ...current, supportsImages: row ? row.supportsImages : current.supportsImages } : null,
   };
 }
 
@@ -2081,6 +2088,11 @@ async function sendPrompt() {
     renderComposer();
     renderSlashPop();
     renderHeader();
+    return;
+  }
+  const guard = attachmentGuard({ current: currentModelState().current, attachments: images });
+  if (!guard.ok) {
+    showBanner(guard.message);
     return;
   }
   const blocks = [];

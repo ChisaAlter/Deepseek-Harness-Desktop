@@ -1,7 +1,10 @@
+function supportsImagesOf(model) {
+  const modalities = model && Array.isArray(model.inputModalities) ? model.inputModalities : null;
+  if (!modalities) return undefined;
+  return modalities.includes('image');
+}
+
 function flattenModels(catalog) {
-  const current = catalog?.current && typeof catalog.current === 'object'
-    ? catalog.current
-    : null;
   const rows = [];
   for (const group of Array.isArray(catalog?.groups) ? catalog.groups : []) {
     for (const model of group.models || []) {
@@ -13,8 +16,16 @@ function flattenModels(catalog) {
         reasoning: model.reasoning && Array.isArray(model.reasoning.efforts)
           ? model.reasoning
           : null,
+        supportsImages: supportsImagesOf(model),
       });
     }
+  }
+  let current = catalog?.current && typeof catalog.current === 'object'
+    ? catalog.current
+    : null;
+  if (current) {
+    const row = rows.find((item) => item.provider === current.provider && item.id === current.model);
+    current = { ...current, supportsImages: row ? row.supportsImages : undefined };
   }
   return {
     current,

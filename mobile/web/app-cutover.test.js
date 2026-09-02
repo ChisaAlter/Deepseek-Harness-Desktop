@@ -96,6 +96,12 @@ test('running→idle status frame triggers one final history pull for the open s
   assert.match(app, /function pullCurrentHistory\(\)/);
 });
 
+test('sendPrompt refuses images on a model that declares no image input before session.prompt', () => {
+  const send = app.slice(app.indexOf('async function sendPrompt()'), app.indexOf("await call('session.prompt'"));
+  assert.match(send, /attachmentGuard\(\{ current: currentModelState\(\)\.current, attachments: images \}\)/);
+  assert.match(send, /showBanner\(guard\.message\)/);
+});
+
 test('sending the first prompt promotes the blank session into the live drawer', () => {
   const send = app.slice(app.indexOf('async function sendPrompt()'), app.indexOf('async function cancelRun()'));
   assert.match(send, /row\.blank = false/);
