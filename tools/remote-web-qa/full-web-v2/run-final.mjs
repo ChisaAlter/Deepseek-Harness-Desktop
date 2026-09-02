@@ -11,8 +11,8 @@ import {
 } from './lib.mjs';
 
 const TMP = process.env.DSH_QA_TMP || 'C:\\Ai\\dshd-qa-ws-v2-20260901-2345';
-const BARE = process.env.DSH_QA_BARE || 'C:\\Ai\\dshd-qa-remote-tmp-426420.git';
 const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
+const BARE = process.env.DSH_QA_BARE || git(TMP, 'remote', 'get-url', 'origin');
 const PRIMARY_RE = /^(Commit & push|Commit, push & PR|Push & create PR|Publish repository|View PR|Commit|Push|Pull|Sync branch)$/;
 
 const url = await pairingUrl();
