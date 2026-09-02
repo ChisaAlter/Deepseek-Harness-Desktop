@@ -96,8 +96,14 @@ try {
     await openDrawer(page);
     await page.evaluate(() => document.querySelector('#new-session')?.click());
     await waitFor(page, () => (document.querySelector('.sheet-title')?.textContent || '').includes('新会话'), 'chooser');
-    await clickSheet(page, '无工作区文件夹');
-    await sleep(1500);
+    const previousSid = await page.evaluate(() => document.querySelector('#phone')?.dataset.sessionId || '');
+    await clickSheet(page, '无工作区文件夹', { exact: true });
+    // session.create round-trips the host; wait for the new session to open.
+    await waitFor(page, (prev) => {
+      const sid = document.querySelector('#phone')?.dataset.sessionId || '';
+      return sid && sid !== prev && !document.querySelector('#sheet-root .sheet-title');
+    }, 'new no-folder session', 20_000, previousSid);
+    await sleep(800);
     await dismissOverlays(page);
     const files = await surfaceShots(page, 'hero', null, async () => {
       const hero = await page.evaluate(() => ({
@@ -179,7 +185,7 @@ try {
       await sleep(500);
     }, async () => {
       const view = await page.evaluate(() => {
-        const rows = [...document.querySelectorAll('#options .sheet-item')].filter((el) => el.offsetParent);
+        const rows = [...document.querySelectorAll('#options .sheet-item')].filter((el) => el.getBoundingClientRect().width > 0);
         const options = document.querySelector('#options');
         return {
           count: rows.length,

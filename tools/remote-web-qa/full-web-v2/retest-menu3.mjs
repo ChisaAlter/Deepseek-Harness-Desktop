@@ -171,9 +171,13 @@ try {
     return { status: 'Pass', note: `Fork「${forked.title}」两端都有；父在；fork 含父历史=${hasHistory}` };
   });
 
-  await runCase('MENU-007', async () => {
+  // A seed + its fork is not a valid ordering fixture: the fork renders under
+  // its parent, so moving the parent cannot change the visible order.
+  // retest-move.mjs owns MENU-007 on a 3-row non-fork group.
+  await runCase('MENU-007(2-row-fork, informational)', async () => {
     const orderOf = async () => (await spaSessions(page)).rows.filter((r) => !r.child).map((r) => r.id);
     const before = await orderOf();
+    if (before.length < 3) return { status: 'NA-pre', note: `组内 ${before.length} 个顶级行（fork 折在父下），交由 retest-move 的 3 行组判定` };
     await sessionMenu(sid);
     const menu = await page.evaluate(() => [...document.querySelectorAll('#sheet-root .sheet-item')]
       .map((n) => (n.textContent || '').trim()));

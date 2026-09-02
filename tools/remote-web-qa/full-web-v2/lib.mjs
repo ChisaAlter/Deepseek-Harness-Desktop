@@ -213,6 +213,21 @@ export async function fillDialog(page, value, { confirmLabel = '' } = {}) {
 }
 
 export async function sendAndIdle(page, text, timeout = 240_000, { autoAllow = true } = {}) {
+  // A session may still be running (or an approval pending) from a previous
+  // step; the composer swaps Send for Stop then. Wait for idle like a user would.
+  const idleStart = Date.now();
+  while (Date.now() - idleStart < 60_000) {
+    const busy = await page.evaluate(() => ({
+      stop: !document.querySelector('#stop-btn')?.classList.contains('hidden'),
+      approval: !document.querySelector('#approval')?.classList.contains('hidden'),
+    }));
+    if (!busy.stop && !busy.approval) break;
+    if (busy.approval && autoAllow) {
+      await page.evaluate(() => [...document.querySelectorAll('#approval-actions button')]
+        .find((b) => (b.textContent || '').includes('允许一次'))?.click());
+    }
+    await sleep(1000);
+  }
   const before = await page.evaluate(() => document.querySelectorAll('#log .assistant').length);
   await page.click('#draft');
   await page.evaluate(() => { const d = document.querySelector('#draft'); if (d) d.value = ''; });

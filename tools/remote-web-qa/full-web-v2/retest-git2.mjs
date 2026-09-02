@@ -10,7 +10,17 @@ import {
 
 const TMP = process.env.DSH_QA_TMP || 'C:\\Ai\\dshd-qa-ws-v2-20260901-2345';
 const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' }).trim();
-const BARE2 = git(TMP, 'remote', 'get-url', 'origin');
+// F-REMOTE: a local bare repo is the origin; create and attach it when the
+// fixture repo has none yet (no external forge needed).
+function ensureOrigin() {
+  try { return git(TMP, 'remote', 'get-url', 'origin'); } catch { /* none yet */ }
+  const bare = process.env.DSH_QA_BARE || `C:\\Ai\\dshd-qa-remote-${Date.now().toString().slice(-6)}.git`;
+  execFileSync('git', ['init', '--bare', bare], { encoding: 'utf8' });
+  git(TMP, 'remote', 'add', 'origin', bare);
+  console.log(`[git2] created bare origin ${bare}`);
+  return bare;
+}
+const BARE2 = ensureOrigin();
 const PRIMARY_RE = /^(Commit & push|Commit, push & PR|Push & create PR|Publish repository|View PR|Commit|Push|Pull|Sync branch)$/;
 
 const url = await pairingUrl();
@@ -80,7 +90,7 @@ try {
   await openTmpSession();
 
   await runCase('GIT-010', async () => {
-    writeFileSync(`${TMP}\\push3.txt`, 'p3\n');
+    writeFileSync(`${TMP}\\push-${Date.now()}.txt`, 'p\n');
     const primary = await waitPrimary(/Commit & push|Commit, push & PR/);
     const hit = await clickPrimary(/Commit & push|Commit, push & PR/);
     await page.evaluate(() => {
@@ -97,15 +107,20 @@ try {
     let pushed = false;
     while (Date.now() < deadline && !pushed) {
       await sleep(3000);
-      try { pushed = execFileSync('git', ['-C', BARE2, 'log', '--oneline', '-3'], { encoding: 'utf8' }).includes('GIT-010'); } catch { /* */ }
+      // The desktop pushes the current branch name (main); a fresh bare repo's
+      // HEAD still points at master, so look across all refs.
+      try { pushed = execFileSync('git', ['-C', BARE2, 'log', '--oneline', '-3', '--all'], { encoding: 'utf8' }).includes('GIT-010'); } catch { /* */ }
     }
     const local = git(TMP, 'log', '--oneline', '-1');
     if (!pushed) {
       throw new Error(`60s 裸仓未收到（primary=${primary.label} hit=${hit} 本地=${local}）${local.includes('GIT-010') ? '→ 只 commit 未 push' : ''}`);
     }
-    return { status: 'Pass', note: `「${hit}」一次点完：commit+push 落裸仓（PR 步无 forge 属预期失败路径）` };
+    const bareRef = execFileSync('git', ['-C', BARE2, 'branch', '--format=%(refname:short)'], { encoding: 'utf8' }).trim().split(/\s+/).join(',');
+    return { status: 'Pass', note: `「${hit}」一次点完：commit+push 落裸仓（bare refs=${bareRef}）` };
   });
 
+  // GIT-011/012/014 below depend on a legacy clone path; retest-git4 owns them.
+  if (process.env.DSH_QA_LEGACY_GIT === '1') {
   await runCase('GIT-011', async () => {
     const C2 = execFileSync('powershell', ['-NoProfile', '-Command', `(Get-ChildItem C:\\Ai -Directory -Filter 'dshd-qa-clone2-*' | Select-Object -Last 1).FullName`], { encoding: 'utf8' }).trim();
     git(C2, 'pull', 'origin', 'master');
@@ -169,6 +184,7 @@ try {
     if (still) throw new Error('永久 loading');
     return { status: 'Pass', note: `失败可见：「${err.replace(/\s+/g, ' ').slice(0, 70)}」；无永久 loading`, evidence: [file] };
   });
+  }
 
   await runCase('GIT-008', async () => {
     const name = `dshd-qa-br-${Date.now().toString().slice(-6)}`;
