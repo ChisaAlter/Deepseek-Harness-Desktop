@@ -5,6 +5,7 @@ import { applyHostFrame, hostFrameNeedsCatalogRefresh, hostLabel } from './host/
 import { textBlock, imageBlock, promptPayload, ALLOWED_IMAGE_TYPES } from './host/prompt.js';
 import { foldEvents } from './conversation/fold.js';
 import { isUntitledBlank, sessionTitle } from './conversation/title.js';
+import { switchDraft } from './conversation/draft-switch.js';
 import { muxPatch, titleFromProjection } from './conversation/live.js';
 import { visibleScreen } from './ui/chrome.js';
 import {
@@ -1551,17 +1552,24 @@ async function connectSticky() {
 
 async function openSession(sessionId) {
   const previousSessionId = state.sessionId;
-  if (state.transport === 'chisacode' && previousSessionId && previousSessionId !== sessionId) {
-    draftStore?.saveAttachments(previousSessionId, state.attachments);
-  }
+  const restored = state.transport === 'chisacode'
+    ? switchDraft({
+      store: draftStore,
+      fromId: previousSessionId,
+      toId: sessionId,
+      currentText: draft.value,
+      currentAttachments: state.attachments,
+    })
+    : { text: '', attachments: [] };
   state.sessionId = sessionId;
+  draft.dataset.draftSession = sessionId;
   if (state.catalogSessions) {
     applyHostCatalog({ sessions: state.catalogSessions, workspaces: state.workspaces });
   }
   phone.removeAttribute('data-drawer');
   backdrop.classList.add('hidden');
-  draft.value = draftStore?.load(sessionId) || '';
-  state.attachments = draftStore?.loadAttachments(sessionId) || [];
+  draft.value = restored.text;
+  state.attachments = restored.attachments;
   state.timelinePage = { hasOlder: false, beforeSeq: null };
   state.timelineLoadingOlder = false;
   state.events = [];
@@ -4452,7 +4460,9 @@ search.addEventListener('input', () => {
   }, 200);
 });
 draft.addEventListener('input', () => {
-  if (state.transport === 'chisacode' && state.sessionId) {
+  // Only persist for the session the textarea is bound to; a late input event
+  // during a switch must not land under the new id.
+  if (state.transport === 'chisacode' && state.sessionId && draft.dataset.draftSession === state.sessionId) {
     draftStore?.save(state.sessionId, draft.value);
   }
   renderComposer();
