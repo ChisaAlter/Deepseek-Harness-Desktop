@@ -7,7 +7,7 @@ const { normalizeRelayHostToken } = require('../shared/relay-auth');
 const { normalizeRelayOrigin } = require('../shared/lan');
 const { normalizeRemotePatch } = require('./remote-patch');
 
-const REMOTE_FEATURE_ENABLED = true;
+const REMOTE_FEATURE_ENABLED = false;
 
 const DEFAULTS = {
   workspace: '',
