@@ -229,10 +229,11 @@ export async function sendAndIdle(page, text, timeout = 240_000, { autoAllow = t
     await sleep(1000);
   }
   const before = await page.evaluate(() => document.querySelectorAll('#log .assistant').length);
-  await page.click('#draft');
-  await page.evaluate(() => { const d = document.querySelector('#draft'); if (d) d.value = ''; });
+  // Focus + DOM click: coordinate clicks fail once a long timeline pushes the
+  // composer below the fold in the headless viewport.
+  await page.evaluate(() => { const d = document.querySelector('#draft'); if (d) { d.scrollIntoView(); d.value = ''; d.focus(); } });
   await page.type('#draft', text);
-  await page.click('#send-btn');
+  await page.evaluate(() => document.getElementById('send-btn')?.click());
   const started = Date.now();
   while (Date.now() - started < timeout) {
     const view = await page.evaluate((prev, allow) => {

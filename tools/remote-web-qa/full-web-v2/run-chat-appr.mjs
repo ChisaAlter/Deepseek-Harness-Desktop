@@ -32,12 +32,18 @@ async function newSessionInWs(ws) {
     [...document.querySelectorAll('#sheet-root .sheet-item')]
       .find((n) => (n.textContent || '').includes(want))?.click();
   }, ws);
+  // session.create round-trips the host: wait for a *different* sessionId,
+  // otherwise the caller keeps operating on the previous session.
+  const previous = await page.evaluate(() => document.querySelector('#phone')?.dataset.sessionId || '');
   let sid = '';
-  const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline && !sid) {
-    sid = await page.evaluate(() => document.querySelector('#phone')?.dataset.sessionId || '');
-    if (!sid) await sleep(1000);
+  const deadline = Date.now() + 25_000;
+  while (Date.now() < deadline) {
+    const now = await page.evaluate(() => document.querySelector('#phone')?.dataset.sessionId || '');
+    if (now && now !== previous) { sid = now; break; }
+    await sleep(1000);
   }
+  if (!sid) throw new Error('新会话 25s 未打开（sessionId 未变化）');
+  await sleep(600);
   if (!sid) throw new Error('no session');
   return sid;
 }
@@ -101,8 +107,32 @@ try {
   }));
 
   // ---------- CHAT-003 ACK 不串台 ----------
+  const domState = () => page.evaluate(() => ({
+    sid: (document.querySelector('#phone')?.dataset.sessionId || '').slice(0, 16),
+    composerHidden: document.querySelector('#composer')?.classList.contains('hidden'),
+    approvalHidden: document.querySelector('#approval')?.classList.contains('hidden'),
+    readonly: (document.querySelector('#readonly-note')?.textContent || '').slice(0, 40),
+    stop: !document.querySelector('#stop-btn')?.classList.contains('hidden'),
+    sendVisible: Boolean(document.querySelector('#send-btn')?.offsetParent),
+    sendDisabled: document.querySelector('#send-btn')?.disabled,
+    draftVisible: Boolean(document.querySelector('#draft')?.offsetParent),
+    chipVisible: Boolean(document.querySelector('#access-chip')?.offsetParent),
+    settingsOpen: !document.querySelector('#settings')?.classList.contains('hidden'),
+    sheet: document.querySelector('#sheet-root .sheet-title')?.textContent || '',
+    dialog: (document.querySelector('.dialog')?.textContent || '').slice(0, 40),
+    drawer: document.querySelector('#phone')?.hasAttribute('data-drawer'),
+    users: document.querySelectorAll('#log .user').length,
+    banner: document.querySelector('#banner')?.textContent || '',
+  }));
+
   await runCase('CHAT-003', async () => {
-    const viewA = await sendAndIdle(page, '这是会话A标记句。请只回复：ACK-A', 180_000);
+    const pre = await domState();
+    console.log('  [CHAT-003 pre]', JSON.stringify(pre));
+    if (pre.settingsOpen || pre.sheet || pre.dialog || pre.drawer) await dismissOverlays(page);
+    const viewA = await sendAndIdle(page, '这是会话A标记句。请只回复：ACK-A', 180_000).catch(async (error) => {
+      console.log('  [CHAT-003 fail]', JSON.stringify(await domState()));
+      throw error;
+    });
     if (!/ACK-A/.test(viewA.log + viewA.lastAssistant)) throw new Error('A 无 ACK-A');
     const sidB = await newSessionInWs(WS);
     await switchGrok(page);
@@ -288,8 +318,11 @@ try {
     if (!chipState.chipVisible) {
       return { status: 'Blocked', note: `composer 不可用：${JSON.stringify(chipState)}` };
     }
+    console.log('  [APPR-001 pre]', JSON.stringify(await domState()));
     // ① workspace-write + command round.
-    await page.click('#access-chip');
+    // DOM click: puppeteer's coordinate click fails when the composer sits
+    // below the fold after a long timeline.
+    await page.evaluate(() => document.getElementById('access-chip')?.click());
     await waitFor(page, () => !document.querySelector('#settings')?.classList.contains('hidden'), 'access');
     await page.evaluate(() => {
       [...document.querySelectorAll('#options .sheet-item')]
@@ -318,7 +351,7 @@ try {
     let step = '①写入+命令';
     if (!got) {
       // ② readonly + write file.
-      await page.click('#access-chip');
+      await page.evaluate(() => document.getElementById('access-chip')?.click());
       await waitFor(page, () => !document.querySelector('#settings')?.classList.contains('hidden'), 'access');
       await page.evaluate(() => {
         [...document.querySelectorAll('#options .sheet-item')]
