@@ -35,6 +35,37 @@ export type { MessageEditKey } from './locales.ts'
 /** Dictionary namespace owned by this plugin. */
 const NS = 'messageEdit'
 
+/**
+ * The seq of the latest turn-opening, user-authored message in one event
+ * window — the same row the pencil calls "latest". Plugin-injected context
+ * (time notes, instructions, file-change reminders) also rides `user/message`
+ * with a non-user source, and a steering message admitted into an already
+ * open turn is user-authored but never opens one; neither makes the addressed
+ * message stale, so both are skipped here.
+ * @param entries - the source session's contiguous event window.
+ * @returns the latest turn-opening user message seq, or undefined when none is loaded.
+ */
+export function latestTurnOpeningUserSeq(
+  entries: readonly { readonly type: string; readonly event: { readonly type: string; readonly seq: number; readonly data?: unknown } }[],
+): number | undefined {
+  let latest: number | undefined
+  let turnOpened = false
+  for (const row of entries) {
+    if (row.type !== 'event') continue
+    const { event } = row
+    if (event.type === 'turn/start') {
+      turnOpened = false
+      continue
+    }
+    if (event.type !== 'user/message' || turnOpened) continue
+    const source = (event.data as { source?: { kind?: string } } | undefined)?.source
+    if (source?.kind !== 'user') continue
+    turnOpened = true
+    latest = event.seq
+  }
+  return latest
+}
+
 /** Required services: the slot registry, sessions (fork/open/scope), the conversation input face, and the copy. */
 export const inject = ['slots', 'sessions', 'conversation', 'locale']
 
@@ -83,17 +114,11 @@ export function apply(ctx: Context): void {
             // before an older seq silently drops the newer turns, and a
             // running source may still admit queued messages.
             const binding = ctx.sessions.binding(sessionId)
-            const snapshot = binding?.session.getSnapshot()
-            if (snapshot !== undefined) {
-              if (snapshot.running) return { kind: 'error', text: t('editor.hint.running') }
-              const entries = binding?.eventSource.getSnapshot().entries ?? []
-              let lastUserSeq: number | undefined
-              for (let i = 0; i < entries.length; i += 1) {
-                const row = entries[i]
-                if (row?.type !== 'event') continue
-                if (row.event.type === 'user/message') lastUserSeq = row.event.seq
+            if (binding !== undefined) {
+              if (binding.session.getSnapshot().running) {
+                return { kind: 'error', text: t('editor.hint.running') }
               }
-              if (lastUserSeq !== seq) {
+              if (latestTurnOpeningUserSeq(binding.eventSource.getSnapshot().entries) !== seq) {
                 return { kind: 'error', text: t('editor.hint.stale') }
               }
             }

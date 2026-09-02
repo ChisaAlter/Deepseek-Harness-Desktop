@@ -95,6 +95,35 @@ def inject_base(html: str) -> tuple[str, bool]:
     return html.replace("<head>", '<head>\n  <base href="/dshd/">', 1), True
 
 
+def stamp_asset_versions(html: str, stamp: str) -> tuple[str, int]:
+    # Mobile WebViews cache aggressively regardless of Cache-Control; a fresh
+    # ?v= on every deploy is the only reliable bust for app.css / app.js.
+    pattern = re.compile(r'(href|src)=(["\'])(\./[^"\'?]+\.(?:css|m?js))(?:\?v=[^"\']*)?\2')
+    count = 0
+
+    def repl(match):
+        nonlocal count
+        count += 1
+        return f'{match.group(1)}={match.group(2)}{match.group(3)}?v={stamp}{match.group(2)}'
+
+    return pattern.sub(repl, html), count
+
+
+def stamp_module_versions(source: str, stamp: str) -> tuple[str, int]:
+    # ESM child modules have their own cache keys. Keep relative imports in
+    # uploaded JavaScript on the same deploy stamp as index.html, otherwise a
+    # fresh app.js can be evaluated with an older fold/tool module.
+    pattern = re.compile(r'(from\s+|import\s*(?:\(\s*)?)(["\'])(\./[^"\'?]+\.m?js)(?:\?v=[^"\']*)?\2')
+    count = 0
+
+    def repl(match):
+        nonlocal count
+        count += 1
+        return f'{match.group(1)}{match.group(2)}{match.group(3)}?v={stamp}{match.group(2)}'
+
+    return pattern.sub(repl, source), count
+
+
 def find_listen80_site(sftp):
     enabled = "/etc/nginx/sites-enabled"
     names = sftp.listdir(enabled)
@@ -175,15 +204,25 @@ else:
 
 ensure_dir(sftp, remote_root)
 uploaded = 0
+stamped_modules = 0
 for item in files:
     rel = item["rel"].replace("\\", "/")
     dest = posixpath.join(remote_root, rel)
     ensure_dir(sftp, posixpath.dirname(dest))
-    sftp.put(item["local"], dest)
+    if rel.endswith(".js"):
+        with open(item["local"], encoding="utf-8") as fh:
+            source = fh.read()
+        source, count = stamp_module_versions(source, manifest["deployStamp"])
+        stamped_modules += count
+        with sftp.open(dest, "w") as fh:
+            fh.write(source.encode("utf-8"))
+    else:
+        sftp.put(item["local"], dest)
     sftp.chmod(dest, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
     print("put", rel)
     uploaded += 1
 print("uploaded", uploaded, "files ->", remote_root)
+print("stamped", stamped_modules, "relative JS module refs")
 
 ssh_exec(transport, f"find {remote_root} -name '*.test.js' -type f -delete", check=False)
 
@@ -191,11 +230,14 @@ index_path = posixpath.join(remote_root, "index.html")
 with sftp.open(index_path, "r") as fh:
     html = fh.read().decode("utf-8")
 html, changed = inject_base(html)
-if changed:
+html, stamped = stamp_asset_versions(html, manifest["deployStamp"])
+if changed or stamped:
     with sftp.open(index_path, "w") as fh:
         fh.write(html.encode("utf-8"))
     sftp.chmod(index_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
-    print("injected <base href=\"/dshd/\">")
+    if changed:
+        print("injected <base href=\"/dshd/\">")
+    print(f"stamped {stamped} asset refs with ?v={manifest['deployStamp']}")
 else:
     print("base already present; skipped inject")
 
@@ -315,6 +357,7 @@ writeFileSync(
     remoteRoot: REMOTE_ROOT,
     snippetPath: SNIPPET_PATH,
     snippetBody: NGINX_SNIPPET,
+    deployStamp: new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z'),
     files,
   }),
   'utf8',

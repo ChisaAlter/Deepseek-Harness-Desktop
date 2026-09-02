@@ -34,6 +34,11 @@ import type { StatsLineInjected } from './chat/StatsLine.tsx'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
 
+/** Optional open face on the workspaces service; absent on pins that ship without it. */
+interface WorkspacesOpenPathFace {
+  openPath?: (path: string) => Promise<void>
+}
+
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
     turnData: ({ useChat }, nodeKey) => function useTurnData(key) {
@@ -121,9 +126,16 @@ export function apply(ctx: Context): void {
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
           openFile: async (path) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
-            const result = await ctx.remote.session.openWorkspacePath({
-              path: resolveWorkspacePath(cwd, path),
-            })
+            const absolute = resolveWorkspacePath(cwd, path)
+            // `workspaces.openPath` is the shared open vocabulary the desktop
+            // surfaces plugin intercepts (Files tab + Browser for html/svg/pdf).
+            // Without it, the Host opener hands the file to the OS.
+            const openPath = (ctx.get('workspaces') as WorkspacesOpenPathFace | undefined)?.openPath
+            if (typeof openPath === 'function') {
+              await openPath(absolute)
+              return
+            }
+            const result = await ctx.remote.session.openWorkspacePath({ path: absolute })
             if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
           },
           loadOlder: () => { void session.loadOlder() },

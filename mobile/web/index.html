@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>手机远程</title>
-  <link rel="stylesheet" href="./tokens.css" />
-  <link rel="stylesheet" href="./app.css?v=20260830-layout" />
+    <link rel="stylesheet" href="./tokens.css?v=20260902-mobile-ui" />
+    <link rel="stylesheet" href="./app.css?v=20260902-mobile-ui" />
 </head>
 <body>
   <div class="phone" id="phone">
@@ -66,6 +66,11 @@
         <div class="slash-pop hidden" id="slash-pop"></div>
         <p class="readonly-note hidden" id="readonly-note"></p>
         <form class="composer" id="composer">
+          <div class="beam-layer" aria-hidden="true">
+            <span class="beam-inner"></span>
+            <span class="beam-stroke"></span>
+            <span class="beam-bloom"></span>
+          </div>
           <div class="attach-rail hidden" id="attach-rail"></div>
           <textarea id="draft" rows="2" placeholder="给智能体发消息"></textarea>
           <div class="composer-row">
@@ -133,6 +138,6 @@
     <input type="file" accept="image/*" capture="environment" id="file-camera" hidden />
     <input type="file" accept="image/*" multiple id="file-gallery" hidden />
   </div>
-    <script type="module" src="./app.js?v=20260902-orphan-fork"></script>
+    <script type="module" src="./app.js?v=20260902-mobile-ui"></script>
 </body>
 </html>

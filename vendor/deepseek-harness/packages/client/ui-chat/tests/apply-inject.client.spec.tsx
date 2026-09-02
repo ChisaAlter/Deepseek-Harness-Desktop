@@ -133,6 +133,25 @@ describe('Chat inject API', () => {
     await b.runtime.dispose()
   })
 
+  it('routes file opens through workspaces.openPath when the service exposes it', async () => {
+    const b = await bench()
+    const { injected } = b.chatViewApi(ROOT)
+    const openPath = vi.fn(async (_path: string) => {})
+    const workspaces = b.runtime.workspaces as unknown as { openPath?: typeof openPath }
+    workspaces.openPath = openPath
+    try {
+      await injected.openFile('site/index.html')
+      expect(openPath).toHaveBeenCalledWith('/proj/site/index.html')
+      expect(b.openWorkspacePath).not.toHaveBeenCalled()
+
+      openPath.mockRejectedValueOnce(new Error('path open failed: denied'))
+      await expect(injected.openFile('site/other.html')).rejects.toThrow('path open failed: denied')
+    } finally {
+      delete workspaces.openPath
+    }
+    await b.runtime.dispose()
+  })
+
   it('fails loud when a Chat View inject resolves no Session', async () => {
     const b = await bench()
     const entry = b.runtime.slots.entries('conversation.view')[0]!

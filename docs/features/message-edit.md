@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `message-edit` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — pin `dsh-v0.1.2-alpha.2`；确认汇调用 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })`。首轮编辑打开空子会话（`beforeSeq` 前无更早 turn/end → cut 0）。官方 `atSeq` 仍给其他调用方，二者不得同传。 |
+| **last verified** | 2026-09-02 — 修复两处卡死：① 确认时的 stale 守卫改为只看「开启轮次的用户消息」（`latestTurnOpeningUserSeq`）；插件注入的上下文（time-context／instructions／文件变更提醒等以 `user/message` 落日志但 `source.kind !== 'user'`）和同轮 steering 不再误报「会话已有更新的消息」；② `SessionInputShell.beginEdit/finishEdit` 显式 `publish()`，种子文本或恢复文本与当前草稿相同时不再漏发编辑态变化（此前横幅与气泡会停留在编辑态、取消无响应）。先前 2026-08-31：pin `dsh-v0.1.2-alpha.2`；确认汇调用 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })`。 |
 
 ## User paths
 
@@ -20,7 +20,8 @@
 - 铅笔只出现在**最新**已定稿用户消息上；点击铅笔不产生任何 Host 写入（首次写入是确认时的 fork）。
 - 编辑面必须是 `conversation.composer.bar` 路径上的真 composer（`SessionInput.beginEdit` 编辑会话）；**禁止**在气泡里再造第二个简化编辑器。
 - 源会话日志不可变；子会话切点在被编辑轮次之前，模型不会重复看到旧提示词。
-- 失败路径不丢草稿、不留 pending 锁死；「仅限最新 + 空闲」在确认时刻仍然成立（stale/running 守卫）。
+- 失败路径不丢草稿、不留 pending 锁死；「仅限最新 + 空闲」在确认时刻仍然成立（stale/running 守卫）。「最新」与铅笔一致：指最后一条**开启轮次**的用户消息；同轮内后到的插件注入上下文与 steering 不构成「更新的消息」。
+- 编辑会话的开始／结束必须到达订阅者（composer 横幅、编辑态气泡），不得依赖草稿文本恰好发生变化。
 - 编辑会话存续期间：submit 改道到编辑汇、斜杠裁决跳过、命令认领拒绝、持久化镜像抑制；结束（成功或取消）恢复收起的草稿与图片。
 - 底部 composer 不经 `conversation.blocks` 禁用；一切 UI 仅官方 tokens（`--dsw-alias-*`／`--dsw-specific-*`）。
 - 文案中英齐备（`messageEdit` 命名空间 + ui-conversation 的 `input.editCancel`）；产品文案中文、代码注释英文。

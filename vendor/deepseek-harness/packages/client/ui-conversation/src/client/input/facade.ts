@@ -276,6 +276,10 @@ export class SessionInputShell implements SessionInput {
     this.edit = { spec, stash: { draft: this.snapshot.draft, imageIds: this.imageIds } }
     this.imageIds = []
     this.setDraft(spec.seed)
+    // setDraft publishes only through an editor content change; a seed equal
+    // to the current draft (or an image-only stash) would otherwise leave the
+    // edit state and the cleared rail unpublished.
+    this.publish()
     return true
   }
 
@@ -296,6 +300,10 @@ export class SessionInputShell implements SessionInput {
     this.edit = undefined
     this.imageIds = edit.stash.imageIds
     this.setDraft(edit.stash.draft)
+    // Same reason as beginEdit: the end of the edit must reach subscribers
+    // (banner, editing bubble) even when the restored text equals the
+    // revision left in the editor — e.g. the user emptied it before cancel.
+    this.publish()
   }
 
   /**

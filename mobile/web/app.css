@@ -169,14 +169,156 @@ button { cursor: pointer; }
 .bubble-images img.multi { width: 64px; height: 64px; }
 .assistant p { margin: 0 0 8px; }
 .assistant p:last-child { margin: 0; }
-.tool {
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 12px; padding: 10px 12px;
+/* —— 流程行：思考 / 工具调用（对应桌面 ReasoningRow / ToolRow 的 DisclosureRow 结构）—— */
+.flow-row { display: flex; flex-direction: column; min-width: 0; }
+.log > .flow-row + .flow-row, .turn-process-body > .flow-row + .flow-row { margin-top: -8px; }
+.flow-head {
+  position: relative; display: flex; align-items: center; gap: 6px;
+  width: 100%; min-height: 28px; padding: 3px 4px 3px 0; border: 0; border-radius: 8px;
+  background: transparent; text-align: left; overflow: hidden;
+  font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary);
+}
+.flow-head:not(.is-static):hover { background: var(--dsw-alias-interactive-bg-hover); }
+.flow-head.is-static { cursor: default; }
+.flow-lead { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.flow-icon { flex: none; color: var(--dsw-alias-label-tertiary); }
+.flow-row[data-variant="bash"] .flow-icon { color: var(--dsw-alias-state-warn-primary); }
+.flow-row[data-variant="edit"] .flow-icon, .flow-row[data-variant="write"] .flow-icon { color: var(--dsw-alias-state-business-primary); }
+.flow-row[data-variant="search"] .flow-icon { color: var(--dsw-alias-state-success-primary); }
+.flow-title { flex: none; color: var(--dsw-alias-label-primary); }
+.flow-sep {
+  flex: none; width: 2px; height: 2px; margin: 0 2px; border-radius: 1px;
+  background: var(--dsw-alias-label-caption);
+}
+.flow-summary {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--dsw-alias-label-tertiary);
+}
+.flow-summary[data-follow-end] { text-overflow: clip; }
+.flow-row[data-state="error"] .flow-summary { color: var(--dsw-alias-state-error-primary); }
+.flow-chevron {
+  flex: none; margin-left: auto; color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+.flow-row[data-open="true"] .flow-chevron { transform: rotate(180deg); }
+/* State dot: running chases, ok green, error red, stopped grey (desktop StateDot). */
+.state-dot {
+  flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--dsw-alias-label-caption);
+}
+.state-dot[data-state="ok"] { background: var(--dsw-alias-state-success-primary); }
+.state-dot[data-state="error"] { background: var(--dsw-alias-state-error-primary); }
+.state-dot[data-state="running"] {
+  background: transparent;
+  border: 1.5px solid var(--dsw-alias-state-business-primary);
+  border-right-color: transparent;
+  animation: flow-dot-spin 0.9s linear infinite;
+}
+@keyframes flow-dot-spin { to { transform: rotate(360deg); } }
+/* Running Think row: light sweep across the head (desktop dsh-reasoning-row-sweep). */
+.think-row[data-state="running"] .flow-head::after {
+  content: ""; position: absolute; inset-block: 0; left: -300px; width: 300px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 55%, transparent 100%);
+  animation: flow-sweep 2.6s ease-out infinite; pointer-events: none;
+}
+[data-ds-dark-theme] .think-row[data-state="running"] .flow-head::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 55%, transparent 100%);
+}
+@keyframes flow-sweep { 0% { left: -300px; } 90%, 100% { left: 100%; } }
+.flow-body { padding: 2px 0 6px 22px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.think-body {
+  color: var(--dsw-alias-label-tertiary); font-size: 13px; line-height: 20px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.flow-section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.flow-section-label { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-caption); }
+.flow-code, .term-output {
+  margin: 0; padding: 8px 10px; border-radius: 10px;
+  background: var(--dsw-alias-bg-module-platform);
+  font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px;
+  white-space: pre-wrap; word-break: break-word; overflow-x: auto;
+  color: var(--dsw-alias-label-secondary);
+}
+.flow-code-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.flow-more {
+  align-self: flex-start; height: 24px; padding: 0 8px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px;
+}
+.flow-more:hover { background: var(--dsw-alias-interactive-bg-hover); }
+/* Terminal card */
+.term-card {
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px;
   background: var(--dsw-alias-bg-layer-1);
 }
-.tool-head { display: flex; justify-content: space-between; font-size: 12px; }
-.tool-name { font-weight: 500; color: var(--dsw-alias-label-secondary); }
-.tool-ok { color: var(--dsw-alias-state-success-primary); }
+.term-prompt {
+  display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
+  font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px;
+  color: var(--dsw-alias-label-primary); word-break: break-all;
+}
+.term-sign { flex: none; color: var(--dsw-alias-state-success-primary); }
+.term-output { border-radius: 0; border-top: 1px solid var(--dsw-alias-border-l1); }
+.term-wait { margin: 0; padding: 6px 10px 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-caption); }
+/* Diff card */
+.diff-card {
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+.diff-path {
+  display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 10px;
+  font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px;
+  color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+.diff-stat { margin-left: auto; flex: none; color: var(--dsw-alias-label-caption); }
+.diff-body { display: flex; flex-direction: column; overflow-x: auto; }
+.diff-card .diff-line {
+  display: flex; gap: 8px; padding: 0 10px;
+  font-family: var(--ds-font-family-code); font-size: 12px; line-height: 20px;
+  white-space: pre; color: var(--dsw-alias-label-secondary);
+}
+.diff-sign { flex: none; width: 10px; color: var(--dsw-alias-label-caption); }
+.diff-card .diff-line.add { background: rgba(34, 197, 94, 0.12); color: var(--dsw-alias-label-primary); }
+.diff-card .diff-line.add .diff-sign { color: var(--dsw-alias-state-success-primary); }
+.diff-card .diff-line.del { background: rgba(236, 19, 19, 0.10); color: var(--dsw-alias-label-primary); }
+.diff-card .diff-line.del .diff-sign { color: var(--dsw-alias-state-error-primary); }
+.diff-card .flow-more { margin: 4px 6px 6px; }
+/* Failed turn (desktop 「本轮运行失败」 row): red dot, bold title, message, code tag. */
+.turn-error {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-secondary);
+}
+.turn-error .state-dot { margin-top: 6px; }
+.turn-error-main { flex: 1; min-width: 0; word-break: break-word; }
+.turn-error-main b { font-weight: 500; color: var(--dsw-alias-state-error-primary); }
+.turn-error-code {
+  display: inline-block; vertical-align: baseline; padding: 0 6px; border-radius: 6px;
+  background: var(--dsw-alias-bg-module-platform); color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code); font-size: 11px; line-height: 20px;
+}
+/* Turn process disclosure: "N 次工具调用 · N 条消息" folding a settled turn's rows. */
+.turn-process { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.turn-process-head {
+  display: inline-flex; align-items: center; gap: 4px; align-self: flex-start;
+  height: 26px; padding: 0 8px 0 6px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--dsw-alias-label-tertiary);
+  font-size: 13px; line-height: 20px;
+}
+.turn-process-head:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.turn-process[data-open="true"] .turn-process-head .flow-chevron { transform: rotate(180deg); }
+.turn-process-body {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 4px 0 4px 10px; margin-left: 4px;
+  border-left: 2px solid var(--dsw-alias-border-l2);
+}
+.turn-process-body .assistant { color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+.assistant[data-streaming] > p:last-child::after {
+  content: ""; display: inline-block; width: 6px; height: 14px; margin-left: 2px;
+  vertical-align: -2px; border-radius: 1px; background: var(--dsw-alias-label-tertiary);
+  animation: flow-caret 1s steps(2, start) infinite;
+}
+@keyframes flow-caret { to { visibility: hidden; } }
 .blank {
   flex: 1; display: flex; flex-direction: column; justify-content: center;
   padding: 24px; gap: 8px;
@@ -188,6 +330,76 @@ button { cursor: pointer; }
   border-radius: 22px;
   background: var(--dsw-specific-input-major);
   box-shadow: var(--dsw-shadow-lv2);
+}
+/* —— 输入框边缘流光（对应桌面 InputBar 的 Border beam）：运行中一条彩色
+   光带沿胶囊边缘旋转，内侧带一层柔光晕。三层都不接收指针事件，正文层叠在其上。 —— */
+@property --beam-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+.composer { position: relative; }
+.composer > :not(.beam-layer) { position: relative; z-index: 1; }
+.beam-layer {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  border-radius: inherit; pointer-events: none;
+}
+.beam-inner, .beam-stroke, .beam-bloom {
+  position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  opacity: 0; transition: opacity 420ms ease;
+}
+.composer.is-running .beam-layer { animation: beam-spin 1.96s linear infinite; }
+.beam-stroke {
+  z-index: 3; padding: 1.5px;
+  background:
+    conic-gradient(from var(--beam-angle), transparent 0%, transparent 54%, rgba(255, 255, 255, 0.12) 58%, rgba(255, 255, 255, 0.55) 64%, rgba(255, 255, 255, 0.2) 70%, transparent 76%, transparent 100%),
+    conic-gradient(from var(--beam-angle), rgb(255, 50, 100), rgb(40, 140, 255), rgb(50, 200, 80), rgb(30, 185, 170), rgb(100, 70, 255), rgb(255, 120, 40), rgb(240, 50, 180), rgb(255, 50, 100));
+  -webkit-mask:
+    conic-gradient(from var(--beam-angle), transparent 0%, transparent 30%, rgba(255, 255, 255, 0.12) 36%, rgba(255, 255, 255, 0.4) 44%, #fff 52%, #fff 80%, rgba(255, 255, 255, 0.4) 86%, rgba(255, 255, 255, 0.12) 92%, transparent 96%, transparent 100%),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask:
+    conic-gradient(from var(--beam-angle), transparent 0%, transparent 30%, rgba(255, 255, 255, 0.12) 36%, rgba(255, 255, 255, 0.4) 44%, #fff 52%, #fff 80%, rgba(255, 255, 255, 0.4) 86%, rgba(255, 255, 255, 0.12) 92%, transparent 96%, transparent 100%),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: intersect, exclude;
+}
+.beam-inner {
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 180px 32px at 74% 100%, rgba(100, 70, 255, 0.42), transparent),
+    radial-gradient(ellipse 74px 32px at 94% 0%, rgba(255, 120, 40, 0.38), transparent),
+    radial-gradient(ellipse 60px 35px at 12% 0%, rgba(40, 140, 255, 0.4), transparent),
+    radial-gradient(ellipse 70px 40px at 33% 0%, rgba(255, 50, 100, 0.36), transparent);
+  box-shadow: inset 0 0 9px 1px rgba(255, 255, 255, 0.22);
+  -webkit-mask-image: conic-gradient(from var(--beam-angle), transparent 0%, transparent 30%, rgba(255, 255, 255, 0.12) 36%, #fff 52%, #fff 80%, rgba(255, 255, 255, 0.12) 92%, transparent 96%, transparent 100%);
+  mask-image: conic-gradient(from var(--beam-angle), transparent 0%, transparent 30%, rgba(255, 255, 255, 0.12) 36%, #fff 52%, #fff 80%, rgba(255, 255, 255, 0.12) 92%, transparent 96%, transparent 100%);
+}
+.beam-bloom {
+  z-index: 2; padding: 1.5px;
+  background: conic-gradient(from var(--beam-angle), transparent 0%, transparent 58%, rgba(255, 255, 255, 0.08) 64%, rgba(255, 80, 180, 0.55) 69%, rgba(80, 180, 255, 0.7) 70.5%, rgba(255, 80, 180, 0.45) 73%, transparent 82%, transparent 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  filter: blur(8px) brightness(1.3) saturate(1.2);
+}
+.composer.is-running .beam-stroke { opacity: 1; animation: beam-hue 12s ease-in-out infinite; }
+.composer.is-running .beam-inner { opacity: 0.42; animation: beam-hue 12s ease-in-out infinite; }
+.composer.is-running .beam-bloom { opacity: 0.28; animation: beam-hue-bloom 12s ease-in-out infinite; }
+@keyframes beam-spin { to { --beam-angle: 360deg; } }
+@keyframes beam-hue {
+  0%, 100% { filter: hue-rotate(-30deg) brightness(1.3) saturate(1.2); }
+  50% { filter: hue-rotate(30deg) brightness(1.3) saturate(1.2); }
+}
+@keyframes beam-hue-bloom {
+  0%, 100% { filter: blur(8px) hue-rotate(-30deg) brightness(1.3) saturate(1.2); }
+  50% { filter: blur(8px) hue-rotate(30deg) brightness(1.3) saturate(1.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer.is-running .beam-layer, .composer.is-running .beam-stroke,
+  .composer.is-running .beam-inner, .composer.is-running .beam-bloom { animation: none; }
 }
 .composer textarea {
   width: 100%; min-height: 48px; max-height: 120px;
@@ -260,7 +472,10 @@ button { cursor: pointer; }
   position: absolute; inset: 0 auto 0 0; z-index: 11;
   width: min(320px, calc(100% - 48px));
   display: flex; flex-direction: column;
-  padding: 16px 8px 8px;
+  /* Top padding matches .phone-menu's top (12px) so the menu button and the
+     search field share one 36px row instead of the button sitting on top
+     of the field. */
+  padding: 12px 8px 8px;
   background-color: var(--dsw-alias-bg-base);
   background-image: linear-gradient(var(--dsw-specific-sidebar-fill), var(--dsw-specific-sidebar-fill));
   transform: translateX(-100%);
@@ -272,6 +487,12 @@ button { cursor: pointer; }
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
 }
+/* Leave the menu button's column (left 10 + 36 wide, in .phone coordinates)
+   free: the drawer's 8px padding puts the field at x=10, so 46px of margin
+   starts it 8px right of the button. */
+.drawer .search { margin-left: 46px; }
+.phone[data-drawer] .phone-menu { box-shadow: none; background: transparent; }
+.phone[data-drawer] .phone-menu:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .new-session {
   display: flex; align-items: center; justify-content: center;
   background: var(--dsw-alias-button-elevated-fill); font-weight: 500;
@@ -288,16 +509,67 @@ button { cursor: pointer; }
 .session.active { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
 .session b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session span { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+/* Workspace (directory) group head: folder glyph + chevron, title over the
+   absolute path, session count on the right. Mirrors the desktop sidebar's
+   project row so the drawer reads as a directory tree, not a flat list. */
+.workspace-head { margin-top: 6px; }
+.workspace-head:first-child { margin-top: 0; }
+.workspace-head .workspace-toggle {
+  flex-direction: row; align-items: center; gap: 8px;
+  padding: 6px 8px 6px 6px;
+}
+.workspace-lead {
+  flex: none; display: inline-flex; align-items: center; gap: 2px;
+  color: var(--dsw-alias-label-tertiary);
+}
+.workspace-chevron {
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+.workspace-head[data-expanded="true"] .workspace-chevron { transform: rotate(90deg); }
+.workspace-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.workspace-text b { font-weight: 600; font-size: 14px; line-height: 20px; }
+/* Caption above the sessions that belong to no registered workspace; aligned
+   with the row text (12px row padding + 4px). */
+.session-section-label {
+  margin: 10px 0 2px; padding: 0 16px;
+  font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary);
+}
+.workspace-path {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-caption);
+}
+.workspace-count {
+  flex: none; min-width: 20px; height: 18px; padding: 0 6px;
+  border-radius: 9px; background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px; line-height: 18px; text-align: center;
+}
+/* Sessions inside a workspace group sit one level in, with a guide line so
+   the tree structure is visible at a glance. */
+.session-row.in-workspace {
+  margin-left: 14px;
+  padding-left: 10px;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+.session-row.in-workspace.session-child { padding-left: 24px; }
+.session-row.in-workspace .session { padding-top: 6px; padding-bottom: 6px; }
 .drawer-foot {
   margin-top: auto; display: flex; align-items: center; gap: 8px;
   height: 42px; border: 0; border-radius: 12px;
   background: transparent; text-align: left; padding: 0 10px;
 }
 .drawer-foot:hover { background: var(--dsw-alias-interactive-bg-hover); }
+/* —— 设置屏：灰底 + 白卡（分组设置的经典对比），一套节奏：
+   section 之间 24px，section 内标题→控件 8px，卡内行高 ≥ 44px。 —— */
 .settings {
   position: absolute; inset: 0; z-index: 18;
   display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) var(--dsw-alias-glass-opacity), transparent);
+  /* Opaque on purpose: this is a full-screen route over the chat, not a
+     glass sheet. A translucent (or, on WebViews without color-mix(),
+     transparent) background let the chat header / hero / composer bleed
+     through and read as one overlapping mess. */
+  background: var(--dsw-specific-sidebar-fill);
 }
 .set-head {
   display: flex; align-items: center; gap: 8px;
@@ -313,41 +585,83 @@ button { cursor: pointer; }
 }
 .icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .options {
-  flex: 1; overflow: auto; padding: 0 24px 28px;
-  display: flex; flex-direction: column; gap: 16px;
+  flex: 1; overflow: auto; padding: 4px 16px 32px;
+  display: flex; flex-direction: column; gap: 24px;
 }
+.set-section { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.set-section-head { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+.set-section-title {
+  margin: 0; font-size: 13px; line-height: 18px; font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+}
+.set-section-desc, .row-desc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+.set-section > .row-desc { padding: 0 4px; }
+.set-actions { display: flex; flex-direction: column; gap: 8px; }
+.options > .ghost-btn, .options > .primary-btn, .options > .danger-btn,
+.set-section > .ghost-btn, .set-section > .primary-btn, .set-section > .danger-btn,
+.set-actions > .ghost-btn, .set-actions > .primary-btn { width: 100%; }
 .notice {
-  padding: 8px 12px; border-radius: 8px;
+  margin: 0; padding: 10px 12px; border-radius: 10px;
   background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary); font-size: 12px;
+  color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px;
 }
-.row-desc { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 .tiles { display: flex; gap: 8px; }
 .tile {
-  flex: 1; height: 64px; border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
-  text-align: left; padding: 8px;
+  flex: 1; min-width: 0; height: 44px; padding: 0 8px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  font-size: 14px; line-height: 22px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.tile:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .tile[aria-pressed="true"] {
   border-color: var(--dsw-alias-state-business-primary);
   background: var(--dsw-specific-sidebar-nav-item-active-accent);
+  color: var(--dsw-alias-state-business-primary);
 }
-.slider { appearance: none; width: 100%; height: 22px; background: transparent; }
+.slider-row { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 14px; }
+.slider-value {
+  flex: none; min-width: 40px; text-align: right;
+  font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary);
+}
+.slider { appearance: none; -webkit-appearance: none; flex: 1; min-width: 0; height: 22px; margin: 0; background: transparent; }
 .slider::-webkit-slider-runnable-track {
   height: 6px; border-radius: 999px;
   background: linear-gradient(var(--dsw-alias-brand-primary), var(--dsw-alias-brand-primary)) 0 0 / var(--fill, 80%) 100% no-repeat,
-    var(--dsw-alias-bg-layer-2);
+    var(--dsw-alias-bg-module-platform);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l1);
 }
 .slider::-webkit-slider-thumb {
-  appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 999px;
+  appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin-top: -6px; border-radius: 999px;
   background: var(--dsw-static-neutral-bluish-00);
   border: 2px solid var(--dsw-alias-brand-primary);
+  box-shadow: var(--dsw-shadow-lv2);
+}
+.slider::-moz-range-track {
+  height: 6px; border-radius: 999px; background: var(--dsw-alias-bg-module-platform);
+}
+.slider::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--dsw-alias-brand-primary); }
+.slider::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 999px;
+  background: var(--dsw-static-neutral-bluish-00); border: 2px solid var(--dsw-alias-brand-primary);
 }
 .hair {
   display: flex; align-items: center; gap: 12px; min-height: 48px;
   padding: 8px 0; border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 .hair .grow { flex: 1; min-width: 0; }
+.hair-title { font-size: 14px; line-height: 22px; }
+.hair-value {
+  flex: none; max-width: 55%; font-size: 13px; line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Hair rows inside a card share the card's inset and lose the trailing rule. */
+.group > .hair { padding: 10px 14px; min-height: 48px; }
+.group > .hair:last-child { border-bottom: 0; }
+.group > .hair .paste { width: auto; flex: 1; min-width: 0; max-width: 60%; height: 32px; padding: 0 10px; }
 .tag { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
 /* —— 扫码屏（对应 Android ScanScreen：深底、角标取景框、取消/手电筒） —— */
 .scan {
@@ -407,6 +721,25 @@ button { cursor: pointer; }
 .sheet-item .sheet-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sheet-item .sheet-hint { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
 .sheet-note { margin: 0; padding: 8px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.sheet-group { padding-top: 12px; }
+.sheet-divider { height: 1px; margin: 4px 12px; background: var(--dsw-alias-border-l1); }
+/* Picker sheets (权限 / 模型): pressed row = the current choice. */
+.sheet .mode-row[aria-pressed="true"] { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+.effort-segment {
+  display: flex; gap: 4px; margin: 4px 12px 8px; padding: 2px; border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+.effort-option {
+  flex: 1; min-width: 0; height: 32px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--dsw-alias-label-secondary);
+  font-size: 13px; line-height: 20px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.effort-option[aria-pressed="true"] { background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-shadow-lv2); }
+/* Git sheet head: branch glyph + ref, sync line, "切换 ›" trailing. */
+.git-sheet-head .git-sheet-ref { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; line-height: 22px; }
+.git-sheet-head .git-sheet-ref svg { color: var(--dsw-alias-label-tertiary); }
+.git-sheet-head .chev { flex: none; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
 .sheet .paste { margin: 8px; width: auto; }
 .dialog-layer {
   position: absolute; inset: 0; z-index: 33;
@@ -475,13 +808,19 @@ button { cursor: pointer; }
 
 /* —— 设置 Hub（分组钻取，对应 Android SettingsHub / LinkRow / Group） —— */
 .group-label {
-  margin: 0 0 8px 4px; font-size: 12px; line-height: 18px;
+  margin: 0 0 0 4px; font-size: 12px; line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
 .group {
   display: flex; flex-direction: column;
+  border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 12px; background: var(--dsw-alias-bg-layer-1); overflow: hidden;
 }
+/* List items reused inside a card: square off the per-item radius (the card
+   owns the corners) and rule between items instead of relying on padding. */
+.group > .sheet-item { border-radius: 0; min-height: 48px; padding: 10px 14px; }
+.group > .sheet-item + .sheet-item { border-top: 1px solid var(--dsw-alias-border-l1); }
+.group > .sheet-item .sheet-item-main { gap: 2px; }
 .link-row {
   display: flex; align-items: center; gap: 8px; width: 100%;
   min-height: 52px; padding: 12px 14px; border: 0; background: transparent; text-align: left;
@@ -529,6 +868,8 @@ button { cursor: pointer; }
 .danger-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
 
 /* —— 工作区 pane：32px 分段 Git 胶囊 + tabs + 文件行 —— */
+.git-block { display: flex; flex-direction: column; gap: 6px; }
+.git-block .git-status-line { padding: 0 4px; }
 .git-capsule {
   display: flex; align-items: stretch; height: 32px;
   border: 1px solid var(--dsw-alias-border-l2); border-radius: 18px; overflow: hidden;
@@ -769,7 +1110,10 @@ button { cursor: pointer; }
 }
 .diff-line { padding: 0 12px; white-space: pre; }
 .diff-line.header { color: var(--dsw-alias-label-caption); padding-top: 4px; padding-bottom: 4px; }
-.diff-line.add { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); }
+.diff-line.add { background: rgba(34, 197, 94, 0.12); }
+@supports (color: color-mix(in srgb, red, blue)) {
+  .diff-line.add { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); }
+}
 .diff-line.remove { background: var(--dsw-alias-state-warn-tertiary); color: var(--dsw-alias-state-error-primary); }
 .ext-row {
   display: flex; align-items: flex-start; gap: 10px;

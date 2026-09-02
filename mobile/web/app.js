@@ -3,7 +3,11 @@ import { handshake } from './host/handshake.js';
 import { openEventSockets } from './host/events.js';
 import { applyHostFrame, hostFrameNeedsCatalogRefresh, hostLabel } from './host/frames.js';
 import { textBlock, imageBlock, promptPayload, ALLOWED_IMAGE_TYPES } from './host/prompt.js';
-import { foldEvents } from './conversation/fold.js';
+// Keep ESM child modules on the same cache-busting contract as index.html.
+// Mobile WebViews cache module URLs independently, so updating app.js alone
+// can otherwise combine a new parent with an old fold implementation.
+import { foldEvents, groupTurns } from './conversation/fold.js?v=20260902-mobile-ui';
+import { lineDiff, toolRowModel } from './conversation/tool-model.js?v=20260902-mobile-ui';
 import { isUntitledBlank, sessionTitle } from './conversation/title.js';
 import { switchDraft } from './conversation/draft-switch.js';
 import { muxPatch, titleFromProjection } from './conversation/live.js';
@@ -36,7 +40,7 @@ import {
 } from './host/catalog.js';
 import { freezePane } from './host/freeze.js';
 import { historyQuery, hostHistoryPage, mergeApprovalPending, mergeOlderHistory, pendingFromHistoryEvents, runningFromHistoryEvents } from './host/history.js';
-import { effortsFor, flattenModels, modelChipLabel } from './host/models.js';
+import { effortsFor, flattenModels, isRoutable, modelChipLabel } from './host/models.js';
 import { attachmentGuard } from './host/attach-guard.js';
 import { approvalFromMux, approvalResolvedId, muxEventShouldApply, muxPayload, runningFromMux } from './host/mux.js';
 import { catalogRefreshReason, createCatalogRefreshScheduler } from './host/catalog-refresh.js';
@@ -213,6 +217,7 @@ const state = {
   modelPane: null,
   modelBusy: false,
   modelCatalog: { current: null, rows: [], failures: [] },
+  modelCatalogRaw: null,
   permission: { current: '', planOn: false },
   slash: { open: false, loading: false, error: '', commands: [] },
   query: '',
@@ -233,6 +238,7 @@ const state = {
   gitAuthError: '',
   gitToast: '',
   gitDialog: '',
+  pickerSheet: '',
   gitConfirmAction: '',
   branches: [],
   branchQuery: '',
@@ -411,6 +417,9 @@ function syncRunning() {
   runFlag.classList.toggle('hidden', !state.running);
   sendBtn.classList.toggle('hidden', state.running);
   stopBtn.classList.toggle('hidden', !state.running);
+  // Border beam on the composer capsule while the agent is thinking/streaming
+  // (desktop InputBar `cardBeam`).
+  composer.classList.toggle('is-running', state.running);
 }
 
 function currentModeState() {
@@ -548,17 +557,49 @@ function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
   return wrap;
 }
 
-function workspaceHeadNode(workspace) {
+const FOLDER_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3.1a1 1 0 0 1 .7.3l1 1a1 1 0 0 0 .7.3h3.5A1.5 1.5 0 0 1 14 6.1v5.4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5v-7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+const CHEVRON_ICON_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function svgNode(markup) {
+  const template = document.createElement('template');
+  template.innerHTML = markup;
+  return template.content.firstElementChild;
+}
+
+function workspaceHeadNode(workspace, { count = 0 } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'session-row workspace-head';
   if (workspace.workspaceId) wrap.dataset.workspaceId = workspace.workspaceId;
+  const expanded = state.expandedWorkspaces[workspace.workspaceId] !== false;
+  wrap.dataset.expanded = expanded ? 'true' : 'false';
   const expand = document.createElement('button');
   expand.type = 'button';
-  expand.className = 'session';
+  expand.className = 'session workspace-toggle';
+  expand.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  expand.setAttribute('aria-label', `${expanded ? '折叠' : '展开'}工作区 ${workspace.title || workspace.path || ''}`.trim());
+  const lead = document.createElement('span');
+  lead.className = 'workspace-lead';
+  const chevron = svgNode(CHEVRON_ICON_SVG);
+  chevron.classList.add('workspace-chevron');
+  const folder = svgNode(FOLDER_ICON_SVG);
+  folder.classList.add('workspace-folder');
+  lead.append(chevron, folder);
+  const text = document.createElement('span');
+  text.className = 'workspace-text';
   const title = document.createElement('b');
   title.textContent = workspace.title || workspace.path || workspace.workspaceId;
-  expand.append(title);
-  const expanded = state.expandedWorkspaces[workspace.workspaceId] !== false;
+  const path = document.createElement('span');
+  path.className = 'workspace-path';
+  path.textContent = workspace.path || '无工作区文件夹';
+  path.title = workspace.path || '无工作区文件夹';
+  text.append(title, path);
+  expand.append(lead, text);
+  if (count > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'workspace-count';
+    badge.textContent = String(count);
+    expand.append(badge);
+  }
   expand.addEventListener('click', () => {
     state.expandedWorkspaces[workspace.workspaceId] = !expanded;
     renderSessions();
@@ -599,9 +640,11 @@ function drawerFootButton(label, { disabled = false, onClick }) {
   return button;
 }
 
-function appendGroupedRows(nodes, rows) {
+function appendGroupedRows(nodes, rows, { inWorkspace = false } = {}) {
   const walk = (node, { child = false } = {}) => {
-    nodes.push(sessionRowNode(node.row, { child, subagentTag: node.orphanSubagent }));
+    const rowNode = sessionRowNode(node.row, { child, subagentTag: node.orphanSubagent });
+    if (inWorkspace) rowNode.classList.add('in-workspace');
+    nodes.push(rowNode);
     for (const kid of node.children || []) walk(kid, { child: true });
   };
   for (const node of sessionRowForest(rows)) walk(node);
@@ -636,12 +679,13 @@ function renderSessions() {
   } else if (state.sessionView === 'grouped') {
     const { sections, ungrouped } = workspaceDrawerSections(rows, state.workspaces);
     for (const section of sections) {
-      nodes.push(workspaceHeadNode(section.workspace));
+      nodes.push(workspaceHeadNode(section.workspace, { count: section.rows.length }));
       if (state.expandedWorkspaces[section.workspace.workspaceId] !== false) {
-        appendGroupedRows(nodes, section.rows);
+        appendGroupedRows(nodes, section.rows, { inWorkspace: true });
       }
     }
     if (ungrouped.length) {
+      if (sections.length) nodes.push(descNode('未归入工作区', 'row-desc session-section-label'));
       appendGroupedRows(nodes, ungrouped);
     }
   } else {
@@ -768,52 +812,340 @@ function renderMarkdownInto(node, text) {
   }
 }
 
-function toolRowNode(row) {
+// —— 流程行（对应桌面 ui-tool ToolRow / ui-chat ReasoningRow / TurnProcessNodeView） —— //
+
+const FLOW_ICONS = {
+  think: '<svg viewBox="0 0 16 16" fill="none"><path d="M8 1.75a4.25 4.25 0 0 1 2.4 7.76c-.4.28-.65.7-.65 1.17V11H6.25v-.32c0-.47-.25-.9-.65-1.17A4.25 4.25 0 0 1 8 1.75Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M6.5 13h3M7 14.5h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  search: '<svg viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.2"/><path d="m10.2 10.2 3.3 3.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  read: '<svg viewBox="0 0 16 16" fill="none"><path d="M4 1.75h5.2L13 5.55V13.25a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M9 1.75V5.5h4M5.5 8.5h5M5.5 11h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  bash: '<svg viewBox="0 0 16 16" fill="none"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="m4.5 6 2 2-2 2M8 10h3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  write: '<svg viewBox="0 0 16 16" fill="none"><path d="M4 1.75h5.2L13 5.55V13.25a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M8 7v5M5.5 9.5h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  edit: '<svg viewBox="0 0 16 16" fill="none"><path d="m10.6 2.4 3 3-7.7 7.7-3.6.6.6-3.6 7.7-7.7Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="m9.2 3.8 3 3" stroke="currentColor" stroke-width="1.2"/></svg>',
+  code: '<svg viewBox="0 0 16 16" fill="none"><path d="m5 4.5-3.5 3.5L5 11.5M11 4.5l3.5 3.5-3.5 3.5M9.3 2.5 6.7 13.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  others: '<svg viewBox="0 0 16 16" fill="none"><path d="M9.3 2.2a3.4 3.4 0 0 0 4.2 4.3l-6.9 6.9a1.6 1.6 0 1 1-2.3-2.3l6.9-6.9Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>',
+  subagent: '<svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 13.5a4.5 4.5 0 0 1 9 0" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+  chevron: '<svg viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+/** Which rows / disclosures the user has opened, keyed by row id. */
+const flowOpen = new Set();
+
+function flowIcon(kind) {
+  const node = svgNode(FLOW_ICONS[kind] || FLOW_ICONS.others);
+  node.setAttribute('width', '14');
+  node.setAttribute('height', '14');
+  node.setAttribute('aria-hidden', 'true');
+  node.classList.add('flow-icon');
+  return node;
+}
+
+function firstLineOf(text) {
+  const value = String(text || '');
+  const nl = value.indexOf('\n');
+  return nl === -1 ? value : value.slice(0, nl);
+}
+
+function latestLineOf(text) {
+  const value = String(text || '').trimEnd();
+  const nl = value.lastIndexOf('\n');
+  return nl === -1 ? value : value.slice(nl + 1);
+}
+
+/**
+ * Shared disclosure chrome: [state dot] [icon] title · summary ▾, expanding
+ * to `body`. `state` is running / ok / error / stopped (desktop StateDot).
+ */
+function flowRowNode({ id, icon, title, summary, state, body, variant = '', extraClass = '', defaultOpen = false }) {
   const node = document.createElement('div');
-  node.className = 'tool';
-  const head = document.createElement('div');
-  head.className = 'tool-head';
-  const name = document.createElement('span');
-  name.className = 'tool-name';
-  name.textContent = row.text;
-  const ok = document.createElement('span');
-  ok.className = `tool-ok${row.status === 'failed' ? ' bad' : ''}`;
-  ok.textContent = row.card || '';
-  head.append(name, ok);
-  node.append(head);
-  const detail = row.detail;
-  if (detail && (detail.summary || detail.body)) {
-    if (detail.summary) {
-      const summary = document.createElement('p');
-      summary.className = 'tool-summary';
-      summary.textContent = detail.summary;
-      node.append(summary);
-    }
-    if (detail.body) {
-      const expand = document.createElement('details');
-      expand.className = 'tool-detail';
-      const label = document.createElement('summary');
-      label.textContent = '详情';
-      expand.append(label);
-      if (detail.bodyKind === 'markdown') {
-        const body = document.createElement('div');
-        renderMarkdownInto(body, detail.body);
-        expand.append(body);
-      } else {
-        const pre = document.createElement('pre');
-        pre.className = 'md-code';
-        pre.textContent = detail.body;
-        expand.append(pre);
-      }
-      node.append(expand);
-    }
+  node.className = `flow-row ${extraClass}`.trim();
+  node.dataset.state = state;
+  if (variant) node.dataset.variant = variant;
+  const open = flowOpen.has(id) || (defaultOpen && !flowOpen.has(`closed:${id}`));
+  node.dataset.open = open ? 'true' : 'false';
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'flow-head';
+  head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const lead = document.createElement('span');
+  lead.className = 'flow-lead';
+  const dot = document.createElement('span');
+  dot.className = 'state-dot';
+  dot.dataset.state = state;
+  lead.append(dot, flowIcon(icon));
+  const titleNode = document.createElement('span');
+  titleNode.className = 'flow-title';
+  titleNode.textContent = title;
+  head.append(lead, titleNode);
+  if (summary) {
+    const sep = document.createElement('span');
+    sep.className = 'flow-sep';
+    const summaryNode = document.createElement('span');
+    summaryNode.className = 'flow-summary';
+    summaryNode.textContent = summary;
+    if (state === 'running' && icon === 'think') summaryNode.dataset.followEnd = 'true';
+    head.append(sep, summaryNode);
   }
+  if (body) {
+    const chevron = flowIcon('chevron');
+    chevron.classList.add('flow-chevron');
+    head.append(chevron);
+    head.addEventListener('click', () => {
+      const next = node.dataset.open !== 'true';
+      if (next) {
+        flowOpen.add(id);
+        flowOpen.delete(`closed:${id}`);
+      } else {
+        flowOpen.delete(id);
+        flowOpen.add(`closed:${id}`);
+      }
+      node.dataset.open = next ? 'true' : 'false';
+      head.setAttribute('aria-expanded', next ? 'true' : 'false');
+      body.classList.toggle('hidden', !next);
+    });
+  } else {
+    head.classList.add('is-static');
+  }
+  node.append(head);
+  if (body) {
+    body.classList.add('flow-body');
+    body.classList.toggle('hidden', !open);
+    node.append(body);
+  }
+  // The running summary follows its tail like the desktop Think row.
+  if (state === 'running' && icon === 'think') {
+    requestAnimationFrame(() => {
+      const summaryNode = head.querySelector('.flow-summary');
+      if (summaryNode) summaryNode.scrollLeft = summaryNode.scrollWidth;
+    });
+  }
+  return node;
+}
+
+function codeBlockNode(text, { className = '', maxLines = 0 } = {}) {
+  const pre = document.createElement('pre');
+  pre.className = `flow-code ${className}`.trim();
+  const lines = String(text ?? '').split('\n');
+  if (maxLines > 0 && lines.length > maxLines) {
+    pre.textContent = lines.slice(0, maxLines).join('\n');
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'flow-more';
+    more.textContent = `还有 ${lines.length - maxLines} 行`;
+    more.addEventListener('click', () => {
+      pre.textContent = lines.join('\n');
+      more.remove();
+    });
+    const wrap = document.createElement('div');
+    wrap.className = 'flow-code-wrap';
+    wrap.append(pre, more);
+    return wrap;
+  }
+  pre.textContent = lines.join('\n');
+  return pre;
+}
+
+function labeledBlock(label, child) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flow-section';
+  const head = document.createElement('p');
+  head.className = 'flow-section-label';
+  head.textContent = label;
+  wrap.append(head, child);
+  return wrap;
+}
+
+/** Terminal card: prompt row + output (desktop TerminalBlock, simplified). */
+function terminalCardNode(command, output, state) {
+  const card = document.createElement('div');
+  card.className = 'term-card';
+  const prompt = document.createElement('div');
+  prompt.className = 'term-prompt';
+  const sign = document.createElement('span');
+  sign.className = 'term-sign';
+  sign.textContent = '$';
+  const cmd = document.createElement('code');
+  cmd.textContent = command || '';
+  prompt.append(sign, cmd);
+  card.append(prompt);
+  if (output) {
+    card.append(codeBlockNode(output, { className: 'term-output', maxLines: 12 }));
+  } else if (state === 'running') {
+    const wait = document.createElement('p');
+    wait.className = 'term-wait';
+    wait.textContent = '正在运行…';
+    card.append(wait);
+  }
+  return card;
+}
+
+/** Diff card: removed / added lines from the intended mutation (desktop DiffBlock, simplified). */
+function diffCardNode(diff) {
+  const card = document.createElement('div');
+  card.className = 'diff-card';
+  const path = document.createElement('p');
+  path.className = 'diff-path';
+  path.textContent = diff.path;
+  card.append(path);
+  const lines = lineDiff(diff.oldText, diff.newText);
+  const body = document.createElement('div');
+  body.className = 'diff-body';
+  const MAX = 24;
+  const shown = lines.slice(0, MAX);
+  for (const line of shown) {
+    const row = document.createElement('div');
+    row.className = `diff-line ${line.kind}`;
+    const sign = document.createElement('span');
+    sign.className = 'diff-sign';
+    sign.textContent = line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ';
+    const text = document.createElement('span');
+    text.className = 'diff-text';
+    text.textContent = line.text;
+    row.append(sign, text);
+    body.append(row);
+  }
+  card.append(body);
+  if (lines.length > MAX) {
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'flow-more';
+    more.textContent = `还有 ${lines.length - MAX} 行`;
+    more.addEventListener('click', () => {
+      for (const line of lines.slice(MAX)) {
+        const row = document.createElement('div');
+        row.className = `diff-line ${line.kind}`;
+        const sign = document.createElement('span');
+        sign.className = 'diff-sign';
+        sign.textContent = line.kind === 'add' ? '+' : line.kind === 'del' ? '−' : ' ';
+        const text = document.createElement('span');
+        text.className = 'diff-text';
+        text.textContent = line.text;
+        row.append(sign, text);
+        body.append(row);
+      }
+      more.remove();
+    });
+    card.append(more);
+  }
+  const adds = lines.filter((l) => l.kind === 'add').length;
+  const dels = lines.filter((l) => l.kind === 'del').length;
+  const stat = document.createElement('span');
+  stat.className = 'diff-stat';
+  stat.textContent = `+${adds} −${dels}`;
+  path.append(stat);
+  return card;
+}
+
+function toolRowNode(row) {
+  // ChisaCode projected items carry a pre-digested `detail`; raw dsh events carry `call`.
+  if (!row.call) return legacyToolRowNode(row);
+  const model = toolRowModel(row.call, { cwd: state.cwd });
+  const body = document.createElement('div');
+  if (model.variant === 'bash') {
+    body.append(terminalCardNode(model.body || model.summary, model.output, model.state));
+  } else if (model.diff && (model.variant === 'edit' || model.variant === 'write')) {
+    body.append(diffCardNode(model.diff));
+    if (model.state === 'error' && model.output) body.append(labeledBlock('结果', codeBlockNode(model.output, { maxLines: 12 })));
+  } else {
+    if (model.body) body.append(labeledBlock('输入', codeBlockNode(model.body, { maxLines: 12 })));
+    if (model.output) body.append(labeledBlock(model.state === 'error' ? '错误' : '结果', codeBlockNode(model.output, { maxLines: 16 })));
+  }
+  const hasBody = body.childNodes.length > 0;
+  return flowRowNode({
+    id: `tool:${row.id}`,
+    icon: model.subagent ? 'subagent' : model.variant,
+    title: model.subagent ? '子智能体' : model.title,
+    summary: model.state === 'error' && model.errorSummary ? model.errorSummary : model.summary,
+    state: model.state,
+    variant: model.variant,
+    extraClass: 'tool-row',
+    body: hasBody ? body : null,
+  });
+}
+
+/** ChisaCode projected `tool_call` items (Android parity path). */
+function legacyToolRowNode(row) {
+  const state = row.status === 'failed' ? 'error' : row.status === 'running' ? 'running' : row.status === 'canceled' ? 'stopped' : 'ok';
+  const detail = row.detail;
+  let body = null;
+  if (detail?.body) {
+    body = document.createElement('div');
+    if (detail.bodyKind === 'markdown') renderMarkdownInto(body, detail.body);
+    else body.append(codeBlockNode(detail.body, { maxLines: 16 }));
+  }
+  return flowRowNode({
+    id: `tool:${row.id}`,
+    icon: 'others',
+    title: row.text || '工具调用',
+    summary: detail?.summary || row.card || '',
+    state,
+    extraClass: 'tool-row',
+    body,
+  });
+}
+
+function reasoningRowNode(row) {
+  const running = row.running === true;
+  const body = document.createElement('div');
+  const text = document.createElement('div');
+  text.className = 'think-body';
+  text.textContent = row.text;
+  body.append(text);
+  return flowRowNode({
+    id: `think:${row.id}`,
+    icon: 'think',
+    title: '思考',
+    summary: running ? latestLineOf(row.text) : firstLineOf(row.text),
+    state: running ? 'running' : 'ok',
+    extraClass: 'think-row',
+    body: row.text ? body : null,
+  });
+}
+
+function turnProcessNode(group) {
+  const labels = [];
+  if (group.toolCalls > 0) labels.push(`${group.toolCalls} 次工具调用`);
+  if (group.messages > 0) labels.push(`${group.messages} 条消息`);
+  if (group.subagents > 0) labels.push(`${group.subagents} 个 subagent`);
+  const label = labels.length ? labels.join(' · ') : '已思考';
+  const node = document.createElement('div');
+  node.className = 'turn-process';
+  const open = flowOpen.has(group.id);
+  node.dataset.open = open ? 'true' : 'false';
+  const head = document.createElement('button');
+  head.type = 'button';
+  head.className = 'turn-process-head';
+  head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const text = document.createElement('span');
+  text.className = 'turn-process-label';
+  text.textContent = label;
+  const chevron = flowIcon('chevron');
+  chevron.classList.add('flow-chevron');
+  head.append(text, chevron);
+  const body = document.createElement('div');
+  body.className = 'turn-process-body';
+  body.classList.toggle('hidden', !open);
+  for (const row of group.rows) body.append(logRowNode(row));
+  head.addEventListener('click', () => {
+    const next = node.dataset.open !== 'true';
+    if (next) flowOpen.add(group.id);
+    else flowOpen.delete(group.id);
+    node.dataset.open = next ? 'true' : 'false';
+    head.setAttribute('aria-expanded', next ? 'true' : 'false');
+    body.classList.toggle('hidden', !next);
+  });
+  node.append(head, body);
   return node;
 }
 
 function logRowNode(row) {
   if (row.role === 'tool') {
     return toolRowNode(row);
+  }
+  if (row.role === 'turn-process') {
+    return turnProcessNode(row);
+  }
+  if (row.role === 'reasoning') {
+    return reasoningRowNode(row);
   }
   const node = document.createElement('div');
   if (row.role === 'user') {
@@ -841,16 +1173,26 @@ function logRowNode(row) {
     }
     return node;
   }
-  if (row.role === 'reasoning') {
-    node.className = 'reasoning';
-    const paragraph = document.createElement('p');
-    paragraph.textContent = row.text;
-    node.append(paragraph);
-    return node;
-  }
   if (row.role === 'error') {
-    node.className = 'log-error';
-    node.textContent = row.text;
+    node.className = 'turn-error';
+    const dot = document.createElement('span');
+    dot.className = 'state-dot';
+    dot.dataset.state = 'error';
+    const main = document.createElement('span');
+    main.className = 'turn-error-main';
+    if (row.title) {
+      const title = document.createElement('b');
+      title.textContent = row.title;
+      main.append(title, document.createTextNode(' '));
+    }
+    main.append(document.createTextNode(row.text));
+    if (row.code) {
+      const code = document.createElement('code');
+      code.className = 'turn-error-code';
+      code.textContent = row.code;
+      main.append(document.createTextNode(' '), code);
+    }
+    node.append(dot, main);
     return node;
   }
   if (row.role === 'todo') {
@@ -891,6 +1233,7 @@ function logRowNode(row) {
     return node;
   }
   node.className = 'assistant';
+  if (row.running) node.dataset.streaming = 'true';
   renderMarkdownInto(node, row.text || '');
   return node;
 }
@@ -923,7 +1266,9 @@ function timelineErrorNode() {
  * history back down.
  */
 function renderLog({ anchor = 'auto' } = {}) {
-  const rows = foldEvents(state.events);
+  // The session row's live `running` beats the event log while a turn is
+  // streaming (mux status frames land before the closing history pull).
+  const rows = groupTurns(foldEvents(state.events), { running: state.running === true ? true : null });
   const placeholder = Boolean(state.timelineError) || state.timelineLoading;
   blankEl.classList.toggle('hidden', rows.length > 0 || placeholder);
   logEl.classList.toggle('hidden', rows.length === 0 && !placeholder);
@@ -1145,6 +1490,7 @@ function applyHistoryPayload(payload) {
     state.pendingApprovals,
     pendingFromHistoryEvents(page.events, state.sessionId),
   );
+  syncModelSelection();
 }
 
 const scheduleCatalogRefresh = createCatalogRefreshScheduler(async () => {
@@ -1169,6 +1515,34 @@ if (muxDebug) {
     hostCall: (method, payload) => hostCall(state.chisacode?.client, method, payload),
     workspaces: () => JSON.parse(JSON.stringify(state.workspaces || null)),
     sessions: () => state.sessions.map((row) => ({ sessionId: row.sessionId, workspaceId: row.workspaceId, title: sessionTitle(row) })),
+    // Timeline preview for layout QA: paint an event log without a host.
+    previewTimeline: (events, { running = false } = {}) => {
+      state.events = Array.isArray(events) ? events : [];
+      state.timelineError = '';
+      state.timelineLoading = false;
+      state.running = running;
+      composer.classList.toggle('is-running', running);
+      stopBtn.classList.toggle('hidden', !running);
+      sendBtn.classList.toggle('hidden', running);
+      renderLog({ anchor: 'bottom' });
+      return logEl.children.length;
+    },
+    // Sheet preview: seed the picker/git state without a host and open one sheet.
+    previewSheet: (kind, seed = {}) => {
+      if (seed.sessionId) state.sessionId = seed.sessionId;
+      if (seed.permission) state.permission = { ...state.permission, ...seed.permission };
+      if (seed.modelCatalog) {
+        state.modelCatalog = seed.modelCatalog;
+        state.modelPane = { loading: false, error: '', rows: seed.modelCatalog.rows };
+      }
+      if (seed.gitStatus) state.gitStatus = { ...state.gitStatus, ...seed.gitStatus };
+      if (seed.cwd) state.cwd = seed.cwd;
+      clearExclusiveDialogs();
+      state.pickerSheet = kind === 'mode' || kind === 'model' ? kind : '';
+      state.gitDialog = kind === 'git' ? 'menu' : '';
+      renderSheet();
+      return sheetRoot.children.length;
+    },
   };
 }
 
@@ -1250,6 +1624,14 @@ function handleMuxFrame(frame) {
   }
   if (payload?.type === 'session/projection' && payload.sessionId === state.sessionId) {
     state.permission = applyPermissionProjectionFrame(state.permission, payload);
+    if (payload.key === 'modelSelection') {
+      const target = currentRow();
+      if (target) {
+        target.projections = target.projections || { values: {} };
+        target.projections.values = { ...target.projections.values, modelSelection: payload.value };
+        syncModelSelection();
+      }
+    }
     const title = payload.key === 'title' ? titleFromProjection(payload.value) : '';
     const row = currentRow();
     if (row && title) {
@@ -1644,11 +2026,31 @@ async function loadSessionModels() {
     const catalog = await hostCall(state.chisacode.client, 'session.models', {
       sessionId: state.sessionId,
     });
-    state.modelCatalog = flattenModels(catalog);
+    state.modelCatalogRaw = catalog;
+    state.modelCatalog = flattenModels(catalog, currentModelSelectionProjection());
     renderComposer();
     if (state.settingsOpen && state.settingsPane === '模型') renderSettings();
+    if (state.pickerSheet === 'model') renderSheet();
   } catch (error) {
     showBanner(`读取模型失败：${error?.message || '电脑没有响应'}`);
+  }
+}
+
+/** The open session's `modelSelection` projection value (from history / mux). */
+function currentModelSelectionProjection() {
+  const values = currentRow()?.projections?.values;
+  return values && typeof values === 'object' ? values.modelSelection : undefined;
+}
+
+/** Re-derive the current model from the projection without refetching the catalog. */
+function syncModelSelection() {
+  if (!state.modelCatalogRaw) return;
+  const next = flattenModels(state.modelCatalogRaw, currentModelSelectionProjection());
+  const before = state.modelCatalog.current;
+  state.modelCatalog = { ...state.modelCatalog, current: next.current };
+  if (JSON.stringify(before) !== JSON.stringify(next.current)) {
+    renderComposer();
+    if (state.pickerSheet === 'model') renderSheet();
   }
 }
 
@@ -2955,6 +3357,52 @@ function paneTitleNode(text) {
   return node;
 }
 
+/**
+ * Settings section: a small header (title + optional description) above its
+ * controls. Every pane composes from these so the vertical rhythm is one
+ * rule (24px between sections, 8px inside) instead of every element getting
+ * the same gap regardless of what it is.
+ */
+function sectionNode(title, desc, ...children) {
+  const section = document.createElement('section');
+  section.className = 'set-section';
+  if (title || desc) {
+    const head = document.createElement('div');
+    head.className = 'set-section-head';
+    if (title) {
+      const heading = document.createElement('h3');
+      heading.className = 'set-section-title';
+      heading.textContent = title;
+      head.append(heading);
+    }
+    if (desc) head.append(descNode(desc, 'set-section-desc'));
+    section.append(head);
+  }
+  for (const child of children) {
+    if (child) section.append(child);
+  }
+  return section;
+}
+
+/** Right-aligned read-only value for a hair row. */
+function valueNode(text) {
+  const node = document.createElement('span');
+  node.className = 'hair-value';
+  node.textContent = text;
+  node.title = text;
+  return node;
+}
+
+/** Grouped card holding rows (hair rows, list items, inputs). */
+function groupNode(...children) {
+  const group = document.createElement('div');
+  group.className = 'group';
+  for (const child of children) {
+    if (child) group.append(child);
+  }
+  return group;
+}
+
 function descNode(text, cls = 'row-desc') {
   const node = document.createElement('p');
   node.className = cls;
@@ -2996,6 +3444,7 @@ function hairRow(title, desc, trailing) {
   const grow = document.createElement('div');
   grow.className = 'grow';
   const titleNode = document.createElement('div');
+  titleNode.className = 'hair-title';
   titleNode.textContent = title;
   grow.append(titleNode);
   if (desc) grow.append(descNode(desc));
@@ -3026,7 +3475,8 @@ function renderSettingsHub() {
     remoteReadOnly: state.transport === 'chisacode',
   });
   for (const group of groups) {
-    const wrap = document.createElement('div');
+    const wrap = document.createElement('section');
+    wrap.className = 'set-section';
     const label = document.createElement('p');
     label.className = 'group-label';
     label.textContent = group.label;
@@ -3077,9 +3527,8 @@ function renderSettingsHub() {
 }
 
 function renderPhoneAppearance() {
-  options.append(descNode('只改这台手机。电脑窗口的色制和背景图在「电脑外观」。'));
-  options.append(paneTitleNode('色制'));
-  options.append(descNode('这台手机用浅色、深色，还是跟随系统。'));
+  options.append(noticeNode('只改这台手机。电脑窗口的色制和背景图在「电脑外观」。'));
+
   const tiles = document.createElement('div');
   tiles.className = 'tiles';
   for (const [id, label] of [['light', '浅色'], ['dark', '深色'], ['system', '跟随系统']]) {
@@ -3096,30 +3545,42 @@ function renderPhoneAppearance() {
     });
     tiles.append(tile);
   }
-  options.append(tiles);
-  options.append(paneTitleNode('玻璃透明度'));
-  options.append(descNode('这台手机的毛玻璃。数值越低越通透。不改电脑窗口。'));
+  options.append(sectionNode('色制', '这台手机用浅色、深色，还是跟随系统。', tiles));
+
+  const sliderRow = document.createElement('div');
+  sliderRow.className = 'slider-row';
+  const sliderValue = document.createElement('span');
+  sliderValue.className = 'slider-value';
+  sliderValue.textContent = `${store.glass}%`;
   const slider = document.createElement('input');
   slider.className = 'slider';
   slider.type = 'range';
   slider.min = '0';
   slider.max = '100';
   slider.value = String(store.glass);
+  slider.setAttribute('aria-label', '玻璃透明度');
   slider.style.setProperty('--fill', `${store.glass}%`);
   slider.addEventListener('input', () => {
     store.glass = Number(slider.value);
     slider.style.setProperty('--fill', `${store.glass}%`);
+    sliderValue.textContent = `${store.glass}%`;
     persistPhoneStore('glass', store.glass);
     applyAppearance();
   });
-  options.append(slider);
-  options.append(paneTitleNode('字体'));
-  options.append(hairRow('界面字体', '留空则用系统默认。只作用于这台手机。'));
-  options.append(fieldInput(store.uiFont, '系统默认', (value) => {
+  sliderRow.append(slider, sliderValue);
+  options.append(sectionNode('玻璃透明度', '这台手机的毛玻璃。数值越低越通透。不改电脑窗口。', groupNode(sliderRow)));
+
+  const fontInput = fieldInput(store.uiFont, '系统默认', (value) => {
     store.uiFont = value;
     persistPhoneStore('uiFont', value);
     applyAppearance();
-  }));
+  });
+  fontInput.setAttribute('aria-label', '界面字体');
+  options.append(sectionNode(
+    '字体',
+    '留空则用系统默认。只作用于这台手机。',
+    groupNode(hairRow('界面字体', '', fontInput)),
+  ));
 }
 
 function gitCapsuleNode() {
@@ -3429,7 +3890,6 @@ function renderModePane() {
     options.append(descNode('先打开一个会话。权限预设来自正在跑的 dsh web。'));
     return;
   }
-  options.append(descNode('切换会发送 /permission <id>，失败会回滚。'));
   const group = document.createElement('div');
   group.className = 'group';
   for (const mode of DEFAULT_PRESETS) {
@@ -3453,7 +3913,7 @@ function renderModePane() {
     button.addEventListener('click', () => changeAgentMode(mode.id));
     group.append(button);
   }
-  options.append(group);
+  options.append(sectionNode('权限预设', '切换会发送 /permission <id>，失败会回滚。', group));
 }
 
 async function changeAgentModel(provider, model, reasoningEffort) {
@@ -3485,6 +3945,7 @@ async function changeAgentModel(provider, model, reasoningEffort) {
     state.modelBusy = false;
     renderComposer();
     renderSettings();
+    if (state.pickerSheet === 'model') renderSheet();
   }
 }
 
@@ -3495,14 +3956,17 @@ function loadModelPane() {
   hostCall(state.chisacode.client, 'session.models', { sessionId: state.sessionId })
     .then((catalog) => {
       if (state.modelPane !== pane) return;
-      state.modelCatalog = flattenModels(catalog);
+      state.modelCatalogRaw = catalog;
+      state.modelCatalog = flattenModels(catalog, currentModelSelectionProjection());
       state.modelPane = { loading: false, error: '', rows: state.modelCatalog.rows };
       renderSettings();
+      if (state.pickerSheet === 'model') renderSheet();
     })
     .catch((error) => {
       if (state.modelPane !== pane) return;
       state.modelPane = { loading: false, error: error?.message || '电脑没有响应', rows: [] };
       renderSettings();
+      if (state.pickerSheet === 'model') renderSheet();
     });
 }
 
@@ -3514,18 +3978,25 @@ function renderModelPane() {
   if (!state.modelPane) loadModelPane();
   const pane = state.modelPane;
   const { current, rows } = state.modelCatalog;
-  options.append(descNode('模型清单来自正在跑的 dsh web；切换会立即写回这个会话。'));
-  options.append(hairRow('当前模型', modelChipLabel(current, rows)));
+  options.append(sectionNode(
+    null,
+    null,
+    groupNode(hairRow('当前模型', modelChipLabel(current, rows))),
+  ));
   if (pane?.loading) {
-    options.append(descNode('正在读取可选模型…'));
+    options.append(sectionNode('可选模型', '模型清单来自正在跑的 dsh web；切换会立即写回这个会话。', descNode('正在读取可选模型…')));
     return;
   }
   if (pane?.error) {
-    options.append(noticeNode(`读取模型失败：${pane.error}`));
-    options.append(ghostButton('重试', () => {
-      loadModelPane();
-      renderSettings();
-    }));
+    options.append(sectionNode(
+      '可选模型',
+      null,
+      noticeNode(`读取模型失败：${pane.error}`),
+      ghostButton('重试', () => {
+        loadModelPane();
+        renderSettings();
+      }),
+    ));
     return;
   }
   const group = document.createElement('div');
@@ -3534,7 +4005,8 @@ function renderModelPane() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'sheet-item mode-row';
-    button.disabled = state.modelBusy;
+    const routable = isRoutable(row);
+    button.disabled = state.modelBusy || !routable;
     button.setAttribute('aria-pressed', String(current?.provider === row.provider && current?.model === row.id));
     const main = document.createElement('span');
     main.className = 'sheet-item-main';
@@ -3543,16 +4015,18 @@ function renderModelPane() {
     main.append(title);
     const hint = document.createElement('span');
     hint.className = 'sheet-hint';
-    hint.textContent = [row.providerName, row.reasoning ? '含思考档' : ''].filter(Boolean).join(' · ');
+    hint.textContent = [
+      row.providerName,
+      !routable ? '未配置 API Key' : (row.reasoning ? '含思考档' : ''),
+    ].filter(Boolean).join(' · ');
     main.append(hint);
     button.append(main);
-    button.addEventListener('click', () => changeAgentModel(row.provider, row.id));
+    if (routable) button.addEventListener('click', () => changeAgentModel(row.provider, row.id));
     group.append(button);
   }
-  options.append(group);
+  options.append(sectionNode('可选模型', '模型清单来自正在跑的 dsh web；切换会立即写回这个会话。', group));
   const efforts = effortsFor(current, rows);
   if (efforts.length) {
-    options.append(descNode('思考强度'));
     const effortGroup = document.createElement('div');
     effortGroup.className = 'group';
     for (const effort of efforts) {
@@ -3560,19 +4034,30 @@ function renderModelPane() {
       button.type = 'button';
       button.className = 'sheet-item mode-row';
       button.setAttribute('aria-pressed', String(current?.reasoningEffort === effort.id));
-      button.textContent = effort.name || effort.id;
+      const main = document.createElement('span');
+      main.className = 'sheet-item-main';
+      main.textContent = effort.name || effort.id;
+      button.append(main);
+      if (current?.reasoningEffort === effort.id) {
+        const mark = document.createElement('span');
+        mark.className = 'mode-current';
+        mark.textContent = '当前';
+        button.append(mark);
+      }
       button.addEventListener('click', () => {
         if (current) changeAgentModel(current.provider, current.model, effort.id);
       });
       effortGroup.append(button);
     }
-    options.append(effortGroup);
+    options.append(sectionNode('思考强度', '只对当前模型生效。', effortGroup));
   }
 }
 
 function renderWorkspacePane() {
-  options.append(gitCapsuleNode());
-  options.append(descNode(gitStatusLine(state.gitStatus)));
+  const gitBlock = document.createElement('div');
+  gitBlock.className = 'git-block';
+  gitBlock.append(gitCapsuleNode(), descNode(gitStatusLine(state.gitStatus), 'row-desc git-status-line'));
+  options.append(gitBlock);
   const tabs = document.createElement('div');
   tabs.className = 'ws-tabs';
   for (const [id, label] of [['changes', '更改'], ['files', '文件']]) {
@@ -3603,20 +4088,25 @@ function renderWorkspacePane() {
 
 function renderHostRequestPane(pane) {
   if (state.transport === 'chisacode') {
-    options.append(descNode('dshd 远程不控制电脑窗口。请在电脑端打开对应设置。'));
     const unavailable = primaryButton(`请在电脑端打开${pane}`, () => {});
     unavailable.disabled = true;
-    options.append(unavailable);
+    options.append(sectionNode(null, 'dshd 远程不控制电脑窗口。请在电脑端打开对应设置。', unavailable));
     return;
   }
-  options.append(descNode('这些项在电脑 Host 上。手机只发送打开请求，不画假清单。'));
   const section = hostSettingsSection(pane);
   if (section) {
-    options.append(primaryButton(`在电脑上打开${pane}`, () => requestHost('openSettings', { sectionId: section })));
+    options.append(sectionNode(
+      null,
+      '这些项在电脑 Host 上。手机只发送打开请求，不画假清单。',
+      primaryButton(`在电脑上打开${pane}`, () => requestHost('openSettings', { sectionId: section })),
+    ));
     return;
   }
-  options.append(descNode('会话内选项只留在这次连接。电脑窗口关闭行为请在电脑设置里改。', 'lead'));
-  options.append(ghostButton('在电脑上打开设置', () => requestHost('openSettings')));
+  options.append(sectionNode(
+    null,
+    '会话内选项只留在这次连接。电脑窗口关闭行为请在电脑设置里改。',
+    ghostButton('在电脑上打开设置', () => requestHost('openSettings')),
+  ));
 }
 
 
@@ -3648,40 +4138,58 @@ function renderSettings() {
       return;
     }
     options.append(noticeNode('图库窗口在电脑上。这里可以请电脑打开外观。'));
-    options.append(paneTitleNode('背景图'));
-    options.append(ghostButton('在电脑上打开图库', () => requestHost('openGallery')));
-    options.append(ghostButton('在电脑上打开外观', () => requestHost('openSettings', { sectionId: 'appearance' })));
+    const actions = document.createElement('div');
+    actions.className = 'set-actions';
+    actions.append(
+      ghostButton('在电脑上打开图库', () => requestHost('openGallery')),
+      ghostButton('在电脑上打开外观', () => requestHost('openSettings', { sectionId: 'appearance' })),
+    );
+    options.append(sectionNode('背景图', null, actions));
     return;
   }
   if (pane === '界面设置') {
-    options.append(hairRow(
-      '标题栏 Git 操作',
-      '电脑宽屏标题栏和手机对话页头显示分支胶囊。工作区顶部的 Git 操作始终可用。',
-      switchNode(store.gitTitle, () => {
-        store.gitTitle = !store.gitTitle;
-        persistPhoneStore('gitTitle', store.gitTitle);
-        renderHeader();
-        renderSettings();
-      }),
+    options.append(sectionNode(
+      '手机',
+      null,
+      groupNode(hairRow(
+        '标题栏 Git 操作',
+        '电脑宽屏标题栏和手机对话页头显示分支胶囊。工作区顶部的 Git 操作始终可用。',
+        switchNode(store.gitTitle, () => {
+          store.gitTitle = !store.gitTitle;
+          persistPhoneStore('gitTitle', store.gitTitle);
+          renderHeader();
+          renderSettings();
+        }),
+      )),
     ));
     const hostSettings = ghostButton(
       state.transport === 'chisacode' ? '请在电脑端打开界面设置' : '在电脑上打开界面设置',
       () => requestHost('openSettings'),
     );
     hostSettings.disabled = state.transport === 'chisacode';
-    options.append(hostSettings);
+    options.append(sectionNode(
+      '电脑',
+      state.transport === 'chisacode' ? '标题栏 Git、分栏、日志等窗口设置只能在电脑端修改。' : null,
+      hostSettings,
+    ));
     return;
   }
   if (pane === '连接详情') {
     options.append(noticeNode('远程页上的改动只留在这次连接，不会写回电脑上的 settings.yaml。'));
-    options.append(hairRow('主机', state.hostName));
-    options.append(hairRow('通道', connectionLabel()));
+    options.append(sectionNode(
+      null,
+      null,
+      groupNode(
+        hairRow('主机', '', valueNode(state.hostName)),
+        hairRow('通道', '', valueNode(connectionLabel())),
+      ),
+    ));
     const danger = document.createElement('button');
     danger.type = 'button';
     danger.className = 'danger-btn';
     danger.textContent = '断开这台设备';
     danger.addEventListener('click', () => logoutDevice());
-    options.append(danger);
+    options.append(sectionNode(null, null, danger));
     return;
   }
   if (pane === '权限') {
@@ -3911,6 +4419,141 @@ function renderHistorySheet() {
   sheetRoot.append(layer);
 }
 
+/** Row inside a picker sheet: label (+ hint) with the current choice marked. */
+function pickerRow({ label, hint = '', current = false, enabled = true, onClick }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'sheet-item mode-row';
+  button.disabled = !enabled;
+  button.setAttribute('aria-pressed', String(current));
+  const main = document.createElement('span');
+  main.className = 'sheet-item-main';
+  const title = document.createElement('span');
+  title.textContent = label;
+  main.append(title);
+  if (hint) {
+    const hintNode = document.createElement('span');
+    hintNode.className = 'sheet-hint';
+    hintNode.textContent = hint;
+    main.append(hintNode);
+  }
+  button.append(main);
+  if (current) {
+    const mark = document.createElement('span');
+    mark.className = 'mode-current';
+    mark.textContent = '当前';
+    button.append(mark);
+  }
+  if (enabled) button.addEventListener('click', onClick);
+  return button;
+}
+
+function closePicker() {
+  state.pickerSheet = '';
+  renderSheet();
+}
+
+/** 权限 picker: the composer chip's sheet (desktop PermissionSelect menu). */
+function renderModePickerSheet() {
+  const { layer, sheet } = sheetLayer('权限', closePicker);
+  const { modes, currentModeId } = currentModeState();
+  for (const mode of modes) {
+    sheet.append(pickerRow({
+      label: mode.label,
+      hint: mode.desc || '',
+      current: mode.id === currentModeId,
+      enabled: !state.modeBusy,
+      onClick: () => {
+        closePicker();
+        changeAgentMode(mode.id);
+      },
+    }));
+  }
+  const note = document.createElement('p');
+  note.className = 'sheet-note';
+  note.textContent = '切换会发送 /permission <id>，失败会回滚。';
+  sheet.append(note);
+  sheetRoot.append(layer);
+}
+
+/** 模型 picker: models grouped by provider, plus the current model's thinking efforts. */
+function renderModelPickerSheet() {
+  const { layer, sheet } = sheetLayer('模型', closePicker);
+  if (!state.modelPane) loadModelPane();
+  const pane = state.modelPane;
+  const { current, rows } = state.modelCatalog;
+  if (pane?.loading && !rows.length) {
+    const note = document.createElement('p');
+    note.className = 'sheet-note';
+    note.textContent = '正在读取可选模型…';
+    sheet.append(note);
+  } else if (pane?.error) {
+    const note = document.createElement('p');
+    note.className = 'sheet-note sheet-error';
+    note.textContent = `读取模型失败：${pane.error}`;
+    sheet.append(note, sheetItem({ label: '重试', onClick: () => { loadModelPane(); renderSheet(); } }));
+  } else {
+    let provider = null;
+    for (const row of rows) {
+      if (row.providerName !== provider) {
+        provider = row.providerName;
+        const group = document.createElement('p');
+        group.className = 'sheet-title sheet-group';
+        group.textContent = provider || '模型';
+        sheet.append(group);
+      }
+      const routable = isRoutable(row);
+      sheet.append(pickerRow({
+        label: row.name,
+        hint: !routable
+          ? '未配置 API Key，请在电脑端 设置 → 模型 里填写'
+          : (row.reasoning ? '含思考档' : ''),
+        current: current?.provider === row.provider && current?.model === row.id,
+        enabled: !state.modelBusy && routable,
+        onClick: () => {
+          closePicker();
+          changeAgentModel(row.provider, row.id);
+        },
+      }));
+    }
+    const efforts = effortsFor(current, rows);
+    if (efforts.length) {
+      const group = document.createElement('p');
+      group.className = 'sheet-title sheet-group';
+      group.textContent = '思考强度';
+      sheet.append(group);
+      const segment = document.createElement('div');
+      segment.className = 'effort-segment';
+      for (const effort of efforts) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'effort-option';
+        button.setAttribute('aria-pressed', String(current?.reasoningEffort === effort.id));
+        button.textContent = effort.name || effort.id;
+        button.addEventListener('click', () => {
+          if (current) changeAgentModel(current.provider, current.model, effort.id);
+        });
+        segment.append(button);
+      }
+      sheet.append(segment);
+    }
+  }
+  sheetRoot.append(layer);
+}
+
+function openPicker(kind) {
+  if (!state.sessionId) {
+    showBanner('先打开一个会话，再选择权限或模型。');
+    return;
+  }
+  if (currentReadOnlyReason()) return;
+  clearExclusiveDialogs();
+  state.attachOpen = false;
+  state.gitDialog = '';
+  state.pickerSheet = kind;
+  renderSheet();
+}
+
 function renderSheet() {
   sheetRoot.replaceChildren();
   if (state.newSession) {
@@ -3968,11 +4611,48 @@ function renderSheet() {
     sheetRoot.append(layer);
     return;
   }
+  if (state.pickerSheet === 'mode') {
+    renderModePickerSheet();
+    return;
+  }
+  if (state.pickerSheet === 'model') {
+    renderModelPickerSheet();
+    return;
+  }
   if (state.gitDialog === 'menu') {
-    const { layer, sheet } = sheetLayer('Git 操作', closeGitLayer);
+    const { layer, sheet } = sheetLayer('Git', closeGitLayer);
     const quick = currentQuick();
     const hasOpenPr = state.gitStatus.pr?.state === 'open';
     const status = state.gitStatus;
+    // Branch head: the current ref with its sync line, tapping opens the
+    // branch switcher (desktop title-bar branch menu).
+    if (status.isRepo !== false) {
+      const head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'sheet-item git-sheet-head';
+      head.disabled = state.gitBusy;
+      const main = document.createElement('span');
+      main.className = 'sheet-item-main';
+      const ref = document.createElement('span');
+      ref.className = 'git-sheet-ref';
+      ref.append(svgNode('<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm6-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM5 6v4m6-4c0 2-1.5 3-3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>'));
+      const refName = document.createElement('b');
+      refName.textContent = status.refName ?? '—';
+      ref.append(refName);
+      const line = document.createElement('span');
+      line.className = 'sheet-hint';
+      line.textContent = gitStatusLine(status).replace(/^[^·]*· /, '');
+      main.append(ref, line);
+      const chev = document.createElement('span');
+      chev.className = 'chev';
+      chev.textContent = '切换 ›';
+      head.append(main, chev);
+      head.addEventListener('click', () => loadBranches());
+      sheet.append(head);
+      const divider = document.createElement('div');
+      divider.className = 'sheet-divider';
+      sheet.append(divider);
+    }
     sheet.append(
       sheetItem({ label: 'Fetch', enabled: !state.gitBusy, onClick: () => gitAction('gitFetchForStatus') }),
       sheetItem({ label: 'Pull', enabled: !state.gitBusy, onClick: () => gitAction('gitPull') }),
@@ -4003,12 +4683,29 @@ function renderSheet() {
         },
       }),
     );
+    if (quick.kind === 'run_init') {
+      sheet.append(sheetItem({
+        label: 'Initialize Git',
+        hint: '在当前工作区初始化仓库',
+        enabled: !state.gitBusy,
+        onClick: () => runGitPrimary(),
+      }));
+    }
     if (quick.kind === 'show_hint' && quick.hint) {
       const note = document.createElement('p');
       note.className = 'sheet-note';
       note.textContent = quick.hint;
       sheet.append(note);
     }
+    sheet.append(sheetItem({
+      label: '更改与文件',
+      hint: '查看本轮改动、浏览工作区文件',
+      onClick: () => {
+        closeGitLayer();
+        openSettings('工作区');
+        refreshGit();
+      },
+    }));
     sheetRoot.append(layer);
     return;
   }
@@ -4452,14 +5149,17 @@ el('paste-enter').addEventListener('click', () => {
   }
   connect(outcome.offerUrl).catch((error) => showError(error.message || '连接失败'));
 });
+// The menu button stays above the open drawer and doubles as its close
+// control; the drawer's search field is inset so the two never overlap.
+function setDrawerOpen(open) {
+  phone.toggleAttribute('data-drawer', open);
+  backdrop.classList.toggle('hidden', !open);
+  el('menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
 el('menu').addEventListener('click', () => {
-  phone.setAttribute('data-drawer', '');
-  backdrop.classList.remove('hidden');
+  setDrawerOpen(!phone.hasAttribute('data-drawer'));
 });
-backdrop.addEventListener('click', () => {
-  phone.removeAttribute('data-drawer');
-  backdrop.classList.add('hidden');
-});
+backdrop.addEventListener('click', () => setDrawerOpen(false));
 el('new-session').addEventListener('click', () => {
   createSession().catch((error) => showBanner(error.message));
 });
@@ -4510,14 +5210,14 @@ el('attach-toggle').addEventListener('click', () => {
   state.gitDialog = '';
   renderSheet();
 });
-accessChip.addEventListener('click', () => openSettings('权限'));
+accessChip.addEventListener('click', () => openPicker('mode'));
 planChip.addEventListener('click', () => {
   if (!state.sessionId) return;
   runHostCommand('/plan off').then(() => {
     renderComposer();
   }).catch((error) => showBanner(error.message || '无法关闭计划'));
 });
-el('model-chip').addEventListener('click', () => openSettings('模型'));
+el('model-chip').addEventListener('click', () => openPicker('model'));
 blankWorkspaceChip?.addEventListener('click', () => startNewSessionChooser());
 fileCamera.addEventListener('change', () => {
   addFiles(fileCamera.files);
@@ -4528,8 +5228,16 @@ fileGallery.addEventListener('change', () => {
   fileGallery.value = '';
 });
 gitPill.addEventListener('click', () => {
-  openSettings('工作区');
-  refreshGit();
+  // Desktop title-bar parity: the branch pill opens the Git action sheet
+  // (branch switch + fetch / pull / commit / push / PR) in place.
+  clearExclusiveDialogs();
+  state.pickerSheet = '';
+  state.attachOpen = false;
+  state.gitDialog = 'menu';
+  renderSheet();
+  refreshGit().then(() => {
+    if (state.gitDialog === 'menu') renderSheet();
+  }).catch(() => {});
 });
 
 // —— 启动 —— //

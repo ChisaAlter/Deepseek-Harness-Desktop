@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `surfaces-work-loops` |
 | **status** | `active` |
-| **last verified** | 2026-08-26 — 空态卡片压扁为紧凑矩形（图标与标题同行、描述占满下行，`min-height` 112→64px，padding 16→10/12px；仅 `EmptyState.module.css`，令牌不变），ui-surfaces 11 文件 88 测试全绿。此前 2026-08-25 — `workspace-fs.writeFile` 增加 `.git` 段拦截（安全审查 L-4），`workspace-fs.test.js` 9/9 绿。此前同日（合并树 `ea659884`，consolidation #39 落地后）— desktop `npm test` 997/0/3 绿；harness `test:gui` 409 文件 5338 绿（`node-half.client.spec.ts` 源面解析修复后 0 红）；`qa:source` surfaces/terminal/files/diff/agents 步骤全 PASS（同日第二轮：壁纸三步归因为 walk 英文匹配缺口并修复后，qa:source 整表全绿 exit 0）。此前同日：硬化计划 PR-A~D（保存竞态串行化、preview-automation 全链删除、preview-workspace 流式+上限、每搜索会话一次 walk + 批量 check-ignore、persist 死字段清除、gitInit 后 Diff 门重探、草稿上限按字节） |
+| **last verified** | 2026-09-02 — 修复对话里 `.html` 等文件点开弹系统浏览器：`dsh-v0.1.2-alpha.2` pin 的 `WorkspaceController` 不再带 `openPath`，ui-surfaces 的 `wrapOpenPath` 因此静默变 no-op，ui-chat `openFile` 直连 `remote.session.openWorkspacePath`（Host 系统打开器）。现 ui-surfaces `ensureBaseOpenPath` 在缺失时先装 Host 本体再包拦截器，ui-chat `openFile` 优先走 `workspaces.openPath`；ui-surfaces `apply.client.spec` +5、ui-chat `apply-inject.client.spec` +1，四文件 43 测试全绿，两包 `tsc --noEmit` 干净，`lib/client.js` 已重新 bundle。此前 2026-08-26 — 空态卡片压扁为紧凑矩形（图标与标题同行、描述占满下行，`min-height` 112→64px，padding 16→10/12px；仅 `EmptyState.module.css`，令牌不变），ui-surfaces 11 文件 88 测试全绿。此前 2026-08-25 — `workspace-fs.writeFile` 增加 `.git` 段拦截（安全审查 L-4），`workspace-fs.test.js` 9/9 绿。此前同日（合并树 `ea659884`，consolidation #39 落地后）— desktop `npm test` 997/0/3 绿；harness `test:gui` 409 文件 5338 绿（`node-half.client.spec.ts` 源面解析修复后 0 红）；`qa:source` surfaces/terminal/files/diff/agents 步骤全 PASS（同日第二轮：壁纸三步归因为 walk 英文匹配缺口并修复后，qa:source 整表全绿 exit 0）。此前同日：硬化计划 PR-A~D（保存竞态串行化、preview-automation 全链删除、preview-workspace 流式+上限、每搜索会话一次 walk + 批量 check-ignore、persist 死字段清除、gitInit 后 Diff 门重探、草稿上限按字节） |
 
 ## User paths
 
@@ -21,6 +21,7 @@
 - 显式保存与防抖落盘走同一 `FileSaveCoordinator` 队列，保存期间敲入的字符保持未保存；搜索会话只走一次树、键击内存过滤（Refresh 重走）。
 - `shell:preview-automation-*` 链已删除，不得在无新卡+权限模型的情况下复活。
 - browser-doc 扩展名单一事实：`{html, htm, xhtml, svg, pdf}`（openPath 双开与 FilePreview 工具栏同集合）。
+- 对话 / 工具行 / 终端 / 技能的文件打开都走 `workspaces.openPath` 这一个词汇；pin 的 Workspace 服务没有该方法时由 ui-surfaces `ensureBaseOpenPath` 补 Host 本体，ui-chat `openFile` 不得绕过它直连 `remote.session.openWorkspacePath`（那会让 html 落到系统浏览器）。
 - `gitInit` 成功广播 `dshd-git-init`，Diff 门无需切会话即重探。
 - Files 保存拒绝任何含 `.git` 段的路径（大小写不敏感，含 `.git` gitlink 本体）；`listDir` 隐藏 `.git` 与之同一契约。`.gitignore` / `.github/**` 等普通 dotfile 照常可存。
 

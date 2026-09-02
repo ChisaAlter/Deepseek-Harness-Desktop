@@ -4,7 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { apply, desktopListingAvailable, inject } from '../src/client/index.ts'
+import { apply, desktopListingAvailable, ensureBaseOpenPath, inject } from '../src/client/index.ts'
 import type { SurfacesRootInjected } from '../src/client/SurfacesRoot.tsx'
 import { SurfacesRoot } from '../src/client/SurfacesRoot.tsx'
 
@@ -30,21 +30,32 @@ function sessionsStub(opts: { current?: string; cwd?: string } = {}) {
   }
 }
 
-async function bench(opts: { current?: string; cwd?: string } = {}) {
+type OpenPathFn = (path: string, options?: { line?: number }) => Promise<void>
+
+async function bench(opts: { current?: string; cwd?: string; withoutOpenPath?: boolean } = {}) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
   const layout = { openSurfaces: vi.fn() }
   const originalOpen = vi.fn(async (_path: string, _options?: { line?: number }) => {})
-  const workspaces = { openPath: originalOpen }
+  const workspaces: { openPath?: OpenPathFn } = opts.withoutOpenPath === true ? {} : { openPath: originalOpen }
+  const openWorkspacePath = vi.fn(async (_request: { path: string }): Promise<
+    { ok: true } | { ok: false; error: { message: string } }
+  > => ({ ok: true }))
+  const remote = { session: { openWorkspacePath } }
   ctx.provide('layout', layout)
   ctx.provide('locale', new LocaleRuntime(ctx))
   ctx.provide('workspaces', workspaces)
   ctx.provide('sessions', sessionsStub(opts))
+  ctx.provide('remote', remote)
+  ctx.provide('remote.session', remote.session)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, layout, workspaces, originalOpen }
+  return {
+    ctx, slots, declaration, fiber, layout, originalOpen, openWorkspacePath,
+    workspaces: workspaces as { openPath: OpenPathFn },
+  }
 }
 
 function bindOpenFile(
@@ -65,7 +76,7 @@ afterEach(() => {
 
 describe('ui-surfaces apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'layout', 'locale', 'workspaces', 'sessions'])
+    expect(inject).toEqual(['slots', 'layout', 'locale', 'workspaces', 'sessions', 'remote', 'remote.session'])
   })
 
   it('occupies surfaces and declares six single session-maybe children', async () => {
@@ -131,6 +142,56 @@ describe('ui-surfaces apply', () => {
     await b.fiber.dispose()
     expect(b.workspaces.openPath).toBe(b.originalOpen)
     expect(wrapped).not.toBe(b.originalOpen)
+  })
+
+  describe('pin without workspaces.openPath', () => {
+    it('installs a Host-opener body so the intercept still exists', async () => {
+      const b = await bench({ current: 'sess-1', withoutOpenPath: true })
+      expect(typeof b.workspaces.openPath).toBe('function')
+      const openFile = bindOpenFile(b.slots)
+      ;(window as Window & { shell?: { listDir: () => Promise<unknown> } }).shell = {
+        listDir: async () => ({ ok: true }),
+      }
+      await b.workspaces.openPath('/tmp/proj/index.html')
+      expect(openFile).toHaveBeenCalledWith('sess-1', 'index.html')
+      expect(b.openWorkspacePath).not.toHaveBeenCalled()
+      await b.fiber.dispose()
+    })
+
+    it('falls through to remote.session.openWorkspacePath and surfaces its failure', async () => {
+      const b = await bench({ current: 'sess-1', withoutOpenPath: true })
+      await b.workspaces.openPath('/tmp/other/a.ts')
+      expect(b.openWorkspacePath).toHaveBeenCalledWith({ path: '/tmp/other/a.ts' })
+
+      b.openWorkspacePath.mockResolvedValueOnce({ ok: false, error: { message: 'xdg-open is not available' } })
+      await expect(b.workspaces.openPath('/tmp/other/b.ts')).rejects.toThrow('path open failed: xdg-open is not available')
+      await b.fiber.dispose()
+    })
+
+    it('removes the installed body on dispose', async () => {
+      const b = await bench({ withoutOpenPath: true })
+      await b.fiber.dispose()
+      expect((b.workspaces as { openPath?: unknown }).openPath).toBeUndefined()
+    })
+
+    it('rejects when the remote namespace is missing', async () => {
+      const ctx = new Context()
+      const workspaces: { openPath?: OpenPathFn } = {}
+      const dispose = ensureBaseOpenPath(ctx, workspaces)
+      await expect(workspaces.openPath?.('/tmp/a.ts')).rejects.toThrow(/openWorkspacePath is not available/)
+      dispose()
+      expect(workspaces.openPath).toBeUndefined()
+    })
+
+    it('leaves an existing openPath untouched', () => {
+      const ctx = new Context()
+      const existing = vi.fn(async () => {})
+      const workspaces = { openPath: existing }
+      const dispose = ensureBaseOpenPath(ctx, workspaces)
+      expect(workspaces.openPath).toBe(existing)
+      dispose()
+      expect(workspaces.openPath).toBe(existing)
+    })
   })
 
   it('reports desktop listing from window.shell.listDir', () => {

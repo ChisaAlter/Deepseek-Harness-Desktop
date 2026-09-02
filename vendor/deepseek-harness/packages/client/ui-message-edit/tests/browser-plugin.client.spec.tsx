@@ -27,8 +27,32 @@ afterEach(cleanup)
 const sid = (k: string): SessionId => k as SessionId
 
 interface SnapshotLike {
-  readonly nodes: readonly { kind: string; seq: number }[]
+  /**
+   * Transcript rows in log order: `user` opens a turn (turn/start precedes
+   * it), `steering` is user-authored inside the open turn, `context` is a
+   * plugin-sourced injection riding user/message.
+   */
+  readonly nodes: readonly { kind: 'user' | 'steering' | 'context'; seq: number }[]
   readonly running: boolean
+}
+
+/** Project the fake transcript rows into the event-window entries the sink reads. */
+function entriesOf(nodes: SnapshotLike['nodes']) {
+  const entries: Array<{ type: 'event'; event: { type: string; seq: number; data?: unknown } }> = []
+  for (const node of nodes) {
+    if (node.kind === 'user') {
+      entries.push({ type: 'event', event: { type: 'turn/start', seq: node.seq - 1, data: { turn: node.seq } } })
+    }
+    entries.push({
+      type: 'event',
+      event: {
+        type: 'user/message',
+        seq: node.seq,
+        data: { source: node.kind === 'context' ? { kind: 'plugin', plugin: 'time-context' } : { kind: 'user' } },
+      },
+    })
+  }
+  return entries
 }
 
 /** Boot the plugin over fake faces; sessions/conversation record every call. */
@@ -60,11 +84,7 @@ async function bench(options: {
     binding: vi.fn((_id: SessionId) => ({
       session: { getSnapshot: () => snapshot },
       eventSource: {
-        getSnapshot: () => ({
-          entries: snapshot.nodes
-            .filter((node) => node.kind === 'user')
-            .map((node) => ({ type: 'event' as const, event: { type: 'user/message' as const, seq: node.seq } })),
-        }),
+        getSnapshot: () => ({ entries: entriesOf(snapshot.nodes) }),
       },
     })),
   }
@@ -217,6 +237,58 @@ describe('ui-message-edit browser plugin', () => {
 
     expect(outcome).toEqual({ kind: 'error', text: en['editor.hint.stale'] })
     expect(b.sessions.fork).not.toHaveBeenCalled()
+  })
+
+  it('still confirms when plugin-injected context followed the message on user/message', async () => {
+    // time-context / instructions / file-change reminders ride user/message
+    // with a plugin source; they are not newer user turns.
+    const b = await bench({ snapshot: { nodes: [{ kind: 'user', seq: 7 }, { kind: 'context', seq: 9 }], running: false } })
+    await b.fiber.await()
+
+    const face = b.editor()!.inject!(sid('s1'))
+    face.beginEdit(7, 'original prompt')
+    const outcome = await b.edits.get('s1')!.submit('revised', [], SIGNAL)
+
+    expect(outcome).toEqual({ kind: 'success' })
+    expect(b.sessions.fork).toHaveBeenCalledWith({ sessionId: 's1', beforeSeq: 7, increaseTitle: true })
+  })
+
+  it('still confirms when a steering message was admitted into the same turn', async () => {
+    const b = await bench({ snapshot: { nodes: [{ kind: 'user', seq: 7 }, { kind: 'steering', seq: 12 }], running: false } })
+    await b.fiber.await()
+
+    const face = b.editor()!.inject!(sid('s1'))
+    face.beginEdit(7, 'original prompt')
+    const outcome = await b.edits.get('s1')!.submit('revised', [], SIGNAL)
+
+    expect(outcome).toEqual({ kind: 'success' })
+    expect(b.sessions.fork).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats a truncated window without turn/start as one open turn and skips non-user rows before it', async () => {
+    const b = await bench({ snapshot: { nodes: [{ kind: 'user', seq: 7 }], running: false } })
+    await b.fiber.await()
+    b.sessions.binding.mockReturnValue({
+      session: { getSnapshot: () => ({ running: false }) },
+      eventSource: {
+        getSnapshot: () => ({
+          entries: [
+            { type: 'chunks', event: { type: 'assistant/chunks', seq: 3 } },
+            // Pre-step injections may precede the turn's own user message.
+            { type: 'event', event: { type: 'user/message', seq: 4, data: { source: { kind: 'plugin', plugin: 'x' } } } },
+            { type: 'event', event: { type: 'user/message', seq: 5, data: {} } },
+            { type: 'event', event: { type: 'user/message', seq: 6 } },
+            { type: 'event', event: { type: 'user/message', seq: 7, data: { source: { kind: 'user' } } } },
+          ],
+        }),
+      },
+    } as never)
+
+    const face = b.editor()!.inject!(sid('s1'))
+    face.beginEdit(7, 'original prompt')
+    const outcome = await b.edits.get('s1')!.submit('revised', [], SIGNAL)
+
+    expect(outcome).toEqual({ kind: 'success' })
   })
 
   it('refuses the confirm while the source session is running, without forking', async () => {

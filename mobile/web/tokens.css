@@ -54,8 +54,10 @@
   --dsw-static-amber-400: rgb(247, 173, 49);
   --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
   --dsw-specific-bubble: rgb(237, 243, 254);
-  --dsw-specific-input-major: color-mix(in srgb, rgb(255, 255, 255) 80%, transparent);
-  --dsw-specific-menu: color-mix(in srgb, rgb(255, 255, 255) 80%, transparent);
+  /* rgba fallbacks: WebViews without color-mix() drop the declaration and the
+     composer / menus would otherwise render with no background at all. */
+  --dsw-specific-input-major: rgba(255, 255, 255, 0.8);
+  --dsw-specific-menu: rgba(255, 255, 255, 0.8);
   --dsw-specific-sidebar-fill: rgb(249, 250, 251);
   --dsw-specific-sidebar-nav-item-active: rgb(235, 238, 242);
   --dsw-specific-sidebar-nav-item-active-accent: rgb(228, 237, 253);
@@ -96,8 +98,8 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-warn-secondary: rgb(247, 173, 49);
   --dsw-alias-state-warn-tertiary: rgb(39, 36, 31);
   --dsw-specific-bubble: rgb(44, 44, 46);
-  --dsw-specific-input-major: color-mix(in srgb, rgb(44, 44, 46) 80%, transparent);
-  --dsw-specific-menu: color-mix(in srgb, rgb(53, 54, 56) 80%, transparent);
+  --dsw-specific-input-major: rgba(44, 44, 46, 0.8);
+  --dsw-specific-menu: rgba(53, 54, 56, 0.8);
   --dsw-specific-sidebar-fill: rgb(27, 27, 28);
   --dsw-specific-sidebar-nav-item-active: rgb(67, 69, 74);
   --dsw-specific-sidebar-nav-item-active-accent: rgb(53, 54, 56);
