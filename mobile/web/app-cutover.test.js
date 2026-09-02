@@ -39,6 +39,15 @@ test('new-session browse unwraps workspace.create nested id and keeps open blank
   assert.match(app, /withHeldLiveRow\(/);
 });
 
+test('drawer workspace mutations stay on 0.1.2 host verbs and never use window.prompt', () => {
+  assert.match(app, /insertSessionMove\(/);
+  assert.match(app, /browseStartPath\(/);
+  assert.match(app, /hostCall\([^,]+, 'agentPreset\.list'/);
+  assert.match(app, /presetChoices\(/);
+  assert.equal(app.includes("window.prompt('工作区名称'"), false);
+  assert.equal(app.includes("window.prompt('新文件夹名称')"), false);
+});
+
 test('approval respond confirms host history after an E2EE ack timeout', () => {
   assert.match(app, /deliverApprovalRespond\(/);
   assert.match(app, /session\.history/);
@@ -52,14 +61,51 @@ test('history poll hydrates unanswered approval/asked into the strip', () => {
   assert.match(poll, /renderApproval\(\)/);
 });
 
+test('open chat exposes the host session id on #phone for the current row', () => {
+  assert.match(app, /phone\.dataset\.sessionId = row\?\.sessionId \|\| ''/);
+});
+
 test('opening a session refreshes Git so the titlebar pill can show', () => {
   assert.match(app, /void refreshGit\(\)/);
 });
 
+test('non-repo Git pill stays visible so Initialize Git is reachable', () => {
+  assert.match(app, /state\.gitStatus\.isRepo === false/);
+  assert.match(app, /Initialize Git/);
+});
+
+test('drawer hides untitled blank rows that arrive live via host/session-added', () => {
+  const render = app.slice(app.indexOf('function renderSessions()'), app.indexOf('function renderSessions()') + 600);
+  assert.match(render, /!isUntitledBlank\(row\)/);
+  assert.match(app, /import \{ isUntitledBlank, sessionTitle \} from '\.\/conversation\/title\.js'/);
+});
+
+test('paired SPA subscribes the catalog mux right after connect, not only on openSession', () => {
+  const connectTail = app.slice(app.indexOf('async function finishChisaCodeConnect'), app.indexOf('async function connect('));
+  assert.match(connectTail, /startLiveFollow\(\)/);
+  assert.match(app, /catalogRefreshReason\(payload\)/);
+});
+
+test('sending the first prompt promotes the blank session into the live drawer', () => {
+  const send = app.slice(app.indexOf('async function sendPrompt()'), app.indexOf('async function cancelRun()'));
+  assert.match(send, /row\.blank = false/);
+  assert.match(send, /promoteHeldLive\(\)/);
+});
+
 test('drawer search is host session.search with a 20-hit hasMore hint', () => {
-  assert.match(app, /hostCall\(paired\.client, 'session\.search', \{ query \}\)/);
-  assert.match(app, /state\.searchHasMore = result\.hasMore === true/);
+  assert.match(app, /hostCall\(paired\.client, 'session\.search', \{ query, limit: 20 \}\)/);
+  assert.match(app, /state\.searchHasMore = result\.hasMore === true \|\| items\.length > 20/);
   assert.match(app, /还有更多结果，请改用更精确的词/);
+});
+
+test('destructive confirm dialogs win over leftover rename or mkdir dialogs', () => {
+  assert.match(app, /function clearExclusiveDialogs\(/);
+  const confirm = app.slice(app.indexOf('function startSessionConfirm'));
+  assert.match(confirm, /clearExclusiveDialogs\(/);
+  const dialog = app.slice(app.indexOf('function renderDialog()'));
+  const confirmIdx = dialog.indexOf('if (state.sessionConfirm)');
+  const renameIdx = dialog.indexOf('if (state.workspaceRename)');
+  assert.equal(confirmIdx >= 0 && renameIdx >= 0 && confirmIdx < renameIdx, true, 'sessionConfirm must render before workspaceRename');
 });
 
 test('paired SPA uses host history poll and freeze bars, not ACP files', () => {

@@ -52,12 +52,12 @@ test('groupSessionRows folds subagents under a loaded parent', () => {
   assert.equal(groups[0].orphanSubagent, false);
 });
 
-test('groupSessionRows keeps orphan subagents visible at top level with a flag', () => {
+test('groupSessionRows hides orphan subagents (desktop sidebar parity)', () => {
+  // Desktop ui-workspace does not list subagent sessions whose parent is
+  // gone (deleted/archived). D = P requires the drawer to hide them too.
   const orphan = row('s9', { relation: { kind: 'subagent', parentAgentId: 'missing' } });
   const groups = groupSessionRows([orphan]);
-  assert.equal(groups.length, 1);
-  assert.equal(groups[0].row.sessionId, 's9');
-  assert.equal(groups[0].orphanSubagent, true);
+  assert.equal(groups.length, 0);
 });
 
 test('groupSessionRows leaves non-subagent relations top-level', () => {

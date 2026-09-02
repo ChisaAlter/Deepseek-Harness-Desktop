@@ -32,7 +32,8 @@ function consumeSse(buffer) {
   return { envelopes, rest };
 }
 
-/** Chunks already land in session.history; forwarding them over E2EE starves approval frames. */
+/** Chunks already land in session.history; forwarding them over E2EE starves approval frames.
+ *  `consumeSse` above is kept for the legacy SSE parser tests only. */
 const MUX_DROP_EVENT_TYPES = new Set(['assistant/chunk']);
 
 function shouldForwardMuxEnvelope(envelope) {
@@ -43,36 +44,169 @@ function shouldForwardMuxEnvelope(envelope) {
   return !MUX_DROP_EVENT_TYPES.has(eventType);
 }
 
-async function openMuxSse({ origin, onEnvelope, fetchImpl, signal }) {
-  const raw = typeof origin === 'string' ? origin.trim() : '';
-  if (!raw) throw new Error('桌面端未启动');
-  const originUrl = new URL(raw);
-  const target = new URL('/api/events.mux', `${originUrl.origin}/`);
-  const fetchFn = fetchImpl || globalThis.fetch;
-  const response = await fetchFn(target.href, {
-    headers: {
-      accept: 'text/event-stream',
-      'accept-encoding': 'identity',
-      host: `${originUrl.hostname}:${originUrl.port || (originUrl.protocol === 'https:' ? '443' : '80')}`,
-    },
-    signal,
-  });
-  if (!response.ok || !response.body) {
-    throw new Error(`mux SSE HTTP ${response.status}`);
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) return;
-    buffer += decoder.decode(value, { stream: true });
-    const consumed = consumeSse(buffer);
-    buffer = consumed.rest;
-    for (const envelope of consumed.envelopes) {
-      if (shouldForwardMuxEnvelope(envelope)) onEnvelope(envelope);
+/**
+ * Harness pin 0.1.2-alpha.2 has no SSE `/api/events.mux`; live state rides the
+ * Gateway WebSocket `/api/remote.mux` as logical streams. The drawer needs
+ * three of them (DEF-SYNC-REVERSE):
+ *   `$events`          Cordis `api-session/*` emits → host/session-* frames
+ *   `session/control`  every session's projection/queue/jobs → session/* frames
+ *   `workspace/follow` workspace increments → host/workspace-* frames
+ */
+const MUX_STREAMS = Object.freeze(['$events', 'session/control', 'workspace/follow']);
+
+const SESSION_EMIT_TYPES = Object.freeze({
+  'api-session/added': 'host/session-added',
+  'api-session/removed': 'host/session-removed',
+  'api-session/status': 'host/session-status',
+  'api-session/error': 'host/agent-error',
+});
+
+const WORKSPACE_INCREMENT_TYPES = Object.freeze({
+  upsert: 'host/workspace-changed',
+  remove: 'host/workspace-removed',
+  order: 'host/workspace-order-changed',
+  archived: 'host/archived-sessions-changed',
+});
+
+function summaryBlank(summary) {
+  if (!summary || typeof summary !== 'object') return undefined;
+  if (typeof summary.blank === 'boolean') return summary.blank;
+  const meta = summary.projections && summary.projections.values
+    ? summary.projections.values.sessionListMetadata
+    : null;
+  return meta && typeof meta.blank === 'boolean' ? meta.blank : undefined;
+}
+
+/**
+ * Translate one logical-stream item into the mux payload the SPA consumes.
+ * @returns {object|null} payload, or null for ready/baseline/unknown items.
+ */
+function mapRemoteStreamItem(endpoint, value) {
+  if (!value || typeof value !== 'object') return null;
+  if (endpoint === '$events') {
+    if (value.type !== 'emit' || typeof value.event !== 'string') return null;
+    const type = SESSION_EMIT_TYPES[value.event];
+    if (!type) return null;
+    const args = Array.isArray(value.args) ? value.args : [];
+    if (value.event === 'api-session/added') {
+      const summary = args[0] && typeof args[0] === 'object' ? args[0] : {};
+      const blank = summaryBlank(summary);
+      return { ...summary, type, sessionId: summary.sessionId, ...(blank === undefined ? {} : { blank }) };
     }
+    if (value.event === 'api-session/status') {
+      return { type, sessionId: args[0], running: args[1] === true };
+    }
+    if (value.event === 'api-session/error') {
+      return { type, sessionId: args[0], message: typeof args[1] === 'string' ? args[1] : '' };
+    }
+    return { type, sessionId: args[0] };
+  }
+  if (endpoint === 'session/control') {
+    if (value.type === 'projection') {
+      return { type: 'session/projection', sessionId: value.sessionId, key: value.key, value: value.value, seq: value.seq };
+    }
+    if (value.type === 'queue') return { type: 'session/queue', sessionId: value.sessionId, items: value.items };
+    if (value.type === 'jobs') return { type: 'session/jobs', sessionId: value.sessionId, jobs: value.jobs };
+    return null;
+  }
+  if (endpoint === 'workspace/follow') {
+    const type = WORKSPACE_INCREMENT_TYPES[value.type];
+    if (!type) return null;
+    const { type: _drop, ...rest } = value;
+    return { type, ...rest };
+  }
+  return null;
+}
+
+function sleep(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal && signal.aborted) { resolve(); return; }
+    const timer = setTimeout(done, ms);
+    // A pending reconnect must never pin a daemon/test process alive on its own.
+    if (typeof timer.unref === 'function') timer.unref();
+    function done() {
+      clearTimeout(timer);
+      if (signal) signal.removeEventListener('abort', done);
+      resolve();
+    }
+    if (signal) signal.addEventListener('abort', done, { once: true });
+  });
+}
+
+/**
+ * Keep the catalog streams open until `signal` aborts; reconnect with backoff
+ * when the socket closes. Resolves only on abort; rejects only on a bad origin.
+ * `fetchImpl` is accepted for call-site compatibility and unused.
+ */
+async function openMuxSse({ origin, cookie, onEnvelope, signal, WebSocketImpl, reconnectDelayMs = 1_000 }) {
+  const { assertLoopbackHarnessOrigin, sanitizeHarnessCookie } = require('./dshd-host-tunnel.js');
+  const originUrl = new URL(assertLoopbackHarnessOrigin(origin));
+  const target = new URL('/api/remote.mux', `${originUrl.origin}/`);
+  target.protocol = 'ws:';
+  const WS = WebSocketImpl || globalThis.WebSocket;
+  if (typeof WS !== 'function') throw new Error('mux: WebSocket unavailable');
+  const pair = sanitizeHarnessCookie(cookie);
+  let seq = 0;
+  let attempt = 0;
+
+  while (!(signal && signal.aborted)) {
+    const streamIds = new Map(MUX_STREAMS.map((endpoint) => [`mux-${endpoint}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, endpoint]));
+    const options = { headers: {} };
+    if (pair) options.headers.Cookie = pair;
+    const socket = new WS(target.href, options);
+    let sawItem = false;
+
+    await new Promise((resolve) => {
+      let closed = false;
+      const finish = () => {
+        if (closed) return;
+        closed = true;
+        if (signal) signal.removeEventListener('abort', onAbort);
+        resolve();
+      };
+      function onAbort() {
+        try {
+          if (socket.readyState === 1) {
+            for (const streamId of streamIds.keys()) socket.send(JSON.stringify({ type: 'cancel', streamId }));
+          }
+          socket.close();
+        } catch { /* teardown */ }
+        finish();
+      }
+      if (signal) signal.addEventListener('abort', onAbort, { once: true });
+      socket.addEventListener('open', () => {
+        try {
+          for (const [streamId, endpoint] of streamIds) {
+            socket.send(JSON.stringify({ type: 'open', streamId, endpoint, payload: { args: {} } }));
+          }
+        } catch { /* close event follows */ }
+      });
+      socket.addEventListener('message', (event) => {
+        let frame;
+        try {
+          const data = event && event.data;
+          frame = JSON.parse(typeof data === 'string' ? data : Buffer.from(data).toString('utf8'));
+        } catch { return; }
+        if (!frame || frame.type !== 'item') return;
+        const endpoint = streamIds.get(frame.streamId);
+        if (!endpoint) return;
+        sawItem = true;
+        const payload = mapRemoteStreamItem(endpoint, frame.value);
+        if (!payload) return;
+        seq += 1;
+        const envelope = { type: 'server-request', rpcId: `${endpoint}#${seq}`, payload };
+        if (shouldForwardMuxEnvelope(envelope)) {
+          try { onEnvelope(envelope); } catch { /* listener errors must not kill the loop */ }
+        }
+      });
+      socket.addEventListener('error', () => { /* close follows */ });
+      socket.addEventListener('close', finish);
+    });
+
+    if (signal && signal.aborted) break;
+    attempt = sawItem ? 0 : attempt + 1;
+    await sleep(Math.min(reconnectDelayMs * (2 ** Math.min(attempt, 4)), 15_000), signal);
   }
 }
 
-module.exports = { consumeSse, openMuxSse, shouldForwardMuxEnvelope };
+module.exports = { MUX_STREAMS, consumeSse, mapRemoteStreamItem, openMuxSse, shouldForwardMuxEnvelope };

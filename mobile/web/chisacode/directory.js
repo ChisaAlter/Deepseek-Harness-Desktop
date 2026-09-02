@@ -64,7 +64,8 @@ function parentSessionIdOf(row) {
 /**
  * Group directory rows for the drawer: subagents fold under their direct
  * parent when the parent is loaded; subagents whose parent is not in the
- * loaded set stay top-level flagged `orphanSubagent`. Other relation kinds
+ * loaded set are **hidden** — the desktop ui-workspace sidebar does not list
+ * orphan subagents, and the drawer contract is D = P. Other relation kinds
  * (detached / handoff / team-slot) intentionally stay top-level.
  * @param {Array<object>} rows
  * @returns {Array<{ row: object, children: Array<object>, orphanSubagent: boolean }>}
@@ -82,7 +83,8 @@ function groupSessionRows(rows) {
       childrenByParent.set(parentId, bucket);
       continue;
     }
-    top.push({ row, orphanSubagent: Boolean(parentId) });
+    if (parentId) continue;
+    top.push({ row, orphanSubagent: false });
   }
   return top.map(({ row, orphanSubagent }) => ({
     row,

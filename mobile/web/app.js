@@ -1,10 +1,10 @@
 import { callUnary, respond } from './host/rpc.js';
 import { handshake } from './host/handshake.js';
 import { openEventSockets } from './host/events.js';
-import { applyHostFrame, hostLabel } from './host/frames.js';
+import { applyHostFrame, hostFrameNeedsCatalogRefresh, hostLabel } from './host/frames.js';
 import { textBlock, imageBlock, promptPayload, ALLOWED_IMAGE_TYPES } from './host/prompt.js';
 import { foldEvents } from './conversation/fold.js';
-import { sessionTitle } from './conversation/title.js';
+import { isUntitledBlank, sessionTitle } from './conversation/title.js';
 import { muxPatch, titleFromProjection } from './conversation/live.js';
 import { visibleScreen } from './ui/chrome.js';
 import {
@@ -23,8 +23,11 @@ import { gitCall, hostCall } from './host/backend.js';
 import { deliverApprovalRespond } from './host/approval-respond.js';
 import {
   archivedSessionRows,
+  browseStartPath,
   heldSessionRow,
+  insertSessionMove,
   liveSessionRows,
+  presetChoices,
   withHeldLiveRow,
   workspaceChoices,
   workspaceDrawerSections,
@@ -34,6 +37,7 @@ import { freezePane } from './host/freeze.js';
 import { historyQuery, hostHistoryPage, mergeApprovalPending, mergeOlderHistory, pendingFromHistoryEvents, runningFromHistoryEvents } from './host/history.js';
 import { effortsFor, flattenModels, modelChipLabel } from './host/models.js';
 import { approvalFromMux, approvalResolvedId, muxEventShouldApply, muxPayload, runningFromMux } from './host/mux.js';
+import { catalogRefreshReason, createCatalogRefreshScheduler } from './host/catalog-refresh.js';
 import {
   DEFAULT_PRESETS,
   applyPermissionProjectionFrame,
@@ -199,6 +203,8 @@ const state = {
   sessionMenu: '',
   sessionConfirm: null,
   sessionRename: null,
+  workspaceRename: null,
+  folderCreate: null,
   workspaceMenu: '',
   history: null,
   modelPane: null,
@@ -483,10 +489,13 @@ function renderHeader() {
   const row = currentRow();
   chatTitle.textContent = row ? sessionTitle(row) : '新会话';
   hostLine.textContent = headerHostLabel();
-  const showPill = store.gitTitle && state.gitStatus.refName != null;
+  phone.dataset.sessionId = row?.sessionId || '';
+  const showPill = store.gitTitle && (state.gitStatus.refName != null || state.gitStatus.isRepo === false);
   gitPill.classList.toggle('hidden', !showPill);
   if (showPill) {
-    gitPill.textContent = `${state.gitStatus.refName} · ${state.gitStatus.aheadCount}`;
+    gitPill.textContent = state.gitStatus.refName != null
+      ? `${state.gitStatus.refName} · ${state.gitStatus.aheadCount}`
+      : 'Initialize Git';
   }
   syncRunning();
 }
@@ -494,6 +503,7 @@ function renderHeader() {
 function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
   const wrap = document.createElement('div');
   wrap.className = `session-row${child ? ' session-child' : ''}`;
+  if (row.sessionId) wrap.dataset.sessionId = row.sessionId;
   const button = document.createElement('button');
   button.type = 'button';
   button.className = `session${row.sessionId === state.sessionId ? ' active' : ''}`;
@@ -519,8 +529,10 @@ function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
     more.textContent = '⋯';
     more.addEventListener('click', (event) => {
       event.stopPropagation();
+      clearExclusiveDialogs();
       state.sessionMenu = row.sessionId;
       renderSheet();
+      renderDialog();
     });
     wrap.append(more);
   }
@@ -530,6 +542,7 @@ function sessionRowNode(row, { child = false, subagentTag = false } = {}) {
 function workspaceHeadNode(workspace) {
   const wrap = document.createElement('div');
   wrap.className = 'session-row workspace-head';
+  if (workspace.workspaceId) wrap.dataset.workspaceId = workspace.workspaceId;
   const expand = document.createElement('button');
   expand.type = 'button';
   expand.className = 'session';
@@ -558,8 +571,10 @@ function workspaceHeadNode(workspace) {
   more.textContent = '⋯';
   more.addEventListener('click', (event) => {
     event.stopPropagation();
+    clearExclusiveDialogs();
     state.workspaceMenu = workspace.workspaceId;
     renderSheet();
+    renderDialog();
   });
   wrap.append(add, more);
   return wrap;
@@ -585,7 +600,10 @@ function appendGroupedRows(nodes, rows) {
 
 function renderSessions() {
   const query = state.query.trim();
-  const rows = state.sessions.filter((row) => !row.archived);
+  // Blank rows may enter state.sessions live via host/session-added; the
+  // desktop reuses blank as New Session, so the drawer hides them until a
+  // title or first turn lands (LIST-006).
+  const rows = state.sessions.filter((row) => !row.archived && !isUntitledBlank(row));
   const nodes = [];
   if (state.sessionsError) {
     nodes.push(descNode(state.sessionsError));
@@ -647,14 +665,15 @@ async function runSessionSearch(query) {
   state.searchLoading = true;
   renderSessions();
   try {
-    const result = await hostCall(paired.client, 'session.search', { query });
+    const result = await hostCall(paired.client, 'session.search', { query, limit: 20 });
     if (state.chisacode !== paired || state.query.trim() !== query) return;
     const byId = new Map(state.sessions.map((row) => [row.sessionId, row]));
-    state.searchHits = (result.items || []).map((item) => ({
+    const items = Array.isArray(result.items) ? result.items : [];
+    state.searchHits = items.slice(0, 20).map((item) => ({
       ...(byId.get(item.sessionId) || { sessionId: item.sessionId, projections: { values: {} } }),
       searchSnippet: item.snippet || '',
     }));
-    state.searchHasMore = result.hasMore === true;
+    state.searchHasMore = result.hasMore === true || items.length > 20;
     state.searchLoading = false;
     renderSessions();
   } catch (error) {
@@ -1119,7 +1138,29 @@ function applyHistoryPayload(payload) {
   );
 }
 
+const scheduleCatalogRefresh = createCatalogRefreshScheduler(async () => {
+  if (!state.chisacode?.client) return;
+  await refreshHostCatalog();
+  renderSessions();
+  renderHeader();
+  if (state.history) {
+    state.history.rows = state.archivedRows.slice();
+    renderSheet();
+  }
+});
+
+// Diagnostic ring buffer (opt-in via localStorage 'dshd-debug-mux' = '1').
+const muxDebug = (() => {
+  try { return localStorage.getItem('dshd-debug-mux') === '1'; } catch { return false; }
+})();
+if (muxDebug) window.__dshdMux = [];
+
 function handleMuxFrame(frame) {
+  if (muxDebug) {
+    const { payload: dbg } = muxPayload(frame);
+    window.__dshdMux.push({ at: Date.now(), type: dbg?.type || '', event: dbg?.event?.type || '', sessionId: dbg?.sessionId || '', key: dbg?.key || '' });
+    if (window.__dshdMux.length > 400) window.__dshdMux.shift();
+  }
   const pending = approvalFromMux(frame);
   if (pending && pending.sessionId === state.sessionId) {
     if (!state.pendingApprovals.some((item) => item.rpcId === pending.rpcId)) {
@@ -1133,6 +1174,21 @@ function handleMuxFrame(frame) {
     renderApproval();
   }
   const { payload } = muxPayload(frame);
+  // Desktop-side title / first-turn frames for *other* sessions promote the
+  // blank rows announced by host/session-added (DEF-SYNC-REVERSE).
+  if (
+    (payload?.type === 'session/projection' && (payload.key === 'title' || payload.key === 'sessionListMetadata'))
+    || (payload?.type === 'session/event' && payload.event?.type === 'turn/start')
+  ) {
+    if (hostFrameNeedsCatalogRefresh(state.sessions, payload)) {
+      scheduleCatalogRefresh('projection');
+    } else {
+      state.sessions = applyHostFrame(state.sessions, payload);
+      renderSessions();
+    }
+  }
+  const refreshReason = catalogRefreshReason(payload);
+  if (refreshReason) scheduleCatalogRefresh(refreshReason);
   if (
     payload?.type === 'host/session-status'
     || payload?.type === 'host/session-added'
@@ -1443,6 +1499,9 @@ async function finishChisaCodeConnect(paired, reconnected) {
   renderSessions();
   renderHeader();
   renderScreen();
+  // The drawer must track desktop-side catalog changes even before a session
+  // is opened (DEF-SYNC-REVERSE); openSession re-arms the same follow.
+  if (!loadError) startLiveFollow();
 }
 
 async function connect(offerUrl) {
@@ -1567,6 +1626,16 @@ function startNewSessionChooser() {
     workspace: null,
   };
   renderSheet();
+  const client = state.chisacode?.client;
+  const session = state.newSession;
+  if (!client) return;
+  void hostCall(client, 'agentPreset.list', {}).then((listed) => {
+    if (state.newSession !== session) return;
+    updateNewSession({ presets: presetChoices(listed) });
+  }).catch(() => {
+    if (state.newSession !== session) return;
+    updateNewSession({ presets: [] });
+  });
 }
 
 async function createWorkspaceSession(workspaceId, extra = {}) {
@@ -1601,8 +1670,9 @@ async function openDirectoryBrowse() {
   if (!client) return;
   updateNewSession({ step: 'browse', loading: true, error: '', browse: null });
   const session = state.newSession;
+  const start = browseStartPath(state.workspaces);
   try {
-    const listed = await hostCall(client, 'host.listDirectory', {});
+    const listed = await hostCall(client, 'host.listDirectory', start ? { path: start } : {});
     if (state.newSession !== session) return;
     updateNewSession({ loading: false, browse: listed });
   } catch (error) {
@@ -1649,17 +1719,41 @@ async function createBrowsedWorkspace() {
   }
 }
 
-async function createDirectoryInBrowse() {
-  const name = window.prompt('新文件夹名称');
-  if (!name || !name.trim()) return;
+function clearExclusiveDialogs() {
+  state.workspaceRename = null;
+  state.folderCreate = null;
+  state.sessionRename = null;
+  state.sessionConfirm = null;
+}
+
+function startFolderCreate() {
+  if (!state.newSession?.browse?.path) return;
+  clearExclusiveDialogs();
+  state.folderCreate = { value: '', busy: false, error: '' };
+  renderDialog();
+}
+
+async function submitFolderCreate() {
+  const create = state.folderCreate;
   const client = state.chisacode?.client;
   const path = state.newSession?.browse?.path;
-  if (!client || !path) return;
+  if (!create || create.busy || !client || !path) return;
+  const name = create.value.trim();
+  if (!name) return;
+  create.busy = true;
+  create.error = '';
+  renderDialog();
   try {
-    const created = await hostCall(client, 'host.createDirectory', { path, name: name.trim() });
+    const created = await hostCall(client, 'host.createDirectory', { path, name });
+    if (state.folderCreate !== create) return;
+    state.folderCreate = null;
+    renderDialog();
     await browseDirectory(created.path || path);
   } catch (error) {
-    updateNewSession({ error: error?.message || '无法创建文件夹' });
+    if (state.folderCreate !== create) return;
+    create.busy = false;
+    create.error = error?.message || '无法创建文件夹';
+    renderDialog();
   }
 }
 
@@ -1683,8 +1777,50 @@ function clearSessionView(sessionId) {
   renderHeader();
 }
 
+function startWorkspaceRename(workspace) {
+  state.workspaceMenu = '';
+  clearExclusiveDialogs();
+  state.workspaceRename = {
+    workspaceId: workspace.workspaceId,
+    value: workspace.title || '',
+    busy: false,
+    error: '',
+  };
+  renderSheet();
+  renderDialog();
+}
+
+async function submitWorkspaceRename() {
+  const rename = state.workspaceRename;
+  const paired = state.chisacode;
+  if (!rename || rename.busy || !paired) return;
+  const title = rename.value.trim();
+  if (!title) return;
+  rename.busy = true;
+  rename.error = '';
+  renderDialog();
+  try {
+    await hostCall(paired.client, 'workspace.rename', {
+      workspaceId: rename.workspaceId,
+      title,
+    });
+    if (state.workspaceRename !== rename) return;
+    state.workspaceRename = null;
+    renderDialog();
+    await refreshHostCatalog();
+    renderSessions();
+    setToast('已重命名工作区');
+  } catch (error) {
+    if (state.workspaceRename !== rename) return;
+    rename.busy = false;
+    rename.error = error?.message || '电脑没有响应';
+    renderDialog();
+  }
+}
+
 function startSessionRename(row) {
   state.sessionMenu = '';
+  clearExclusiveDialogs();
   state.sessionRename = {
     sessionId: row.sessionId,
     value: sessionTitle(row),
@@ -1746,18 +1882,12 @@ async function forkSession(row) {
 
 async function moveSession(row, direction) {
   const client = state.chisacode?.client;
-  if (!client) return;
-  const ids = state.sessions.map((item) => item.sessionId);
-  const index = ids.indexOf(row.sessionId);
-  const swapWith = direction === 'up' ? ids[index - 1] : ids[index + 2] || ids[index + 1];
-  if (!swapWith || index < 0) return;
+  const payload = insertSessionMove(row, direction, state.workspaces, state.sessions);
+  if (!client || !payload) return;
   state.sessionMenu = '';
   renderSheet();
   try {
-    await hostCall(client, 'workspace.insertSessionBefore', {
-      sessionId: direction === 'up' ? row.sessionId : swapWith,
-      beforeSessionId: direction === 'up' ? swapWith : row.sessionId,
-    });
+    await hostCall(client, 'workspace.insertSessionBefore', payload);
     await refreshHostCatalog();
     renderSessions();
   } catch (error) {
@@ -1781,6 +1911,8 @@ async function regenerateSessionTitle(row) {
 
 function startSessionConfirm(kind, row) {
   state.sessionMenu = '';
+  state.workspaceMenu = '';
+  clearExclusiveDialogs();
   state.sessionConfirm = {
     kind,
     sessionId: row.sessionId,
@@ -1813,7 +1945,7 @@ async function runSessionConfirm() {
     state.sessionConfirm = null;
     renderDialog();
     renderSessions();
-    setToast(confirm.kind === 'archive' ? '已归档' : confirm.kind === 'workspace-delete' ? '已删除工作区' : '已删除');
+    setToast(confirm.kind === 'archive' ? '已归档' : confirm.kind === 'workspace-delete' ? '已从列表移除' : '已删除');
   } catch (error) {
     if (state.sessionConfirm !== confirm) return;
     confirm.busy = false;
@@ -1926,7 +2058,15 @@ async function sendPrompt() {
   draftStore?.clear(state.sessionId);
   state.attachments = [];
   const row = currentRow();
-  if (row) row.running = true;
+  if (row) {
+    row.running = true;
+    row.blank = false;
+    if (state.heldSession?.sessionId === row.sessionId) {
+      state.heldSession = { ...row, blank: false };
+    }
+    promoteHeldLive();
+    renderSessions();
+  }
   renderComposer();
   renderSlashPop();
   renderHeader();
@@ -3581,6 +3721,17 @@ function renderNewSessionSheet() {
     return;
   }
   if (session.step === 'workspace') {
+    for (const preset of session.presets || []) {
+      sheet.append(sheetItem({
+        label: `预设 · ${preset.name}`,
+        hint: '用此智能体预设开新会话',
+        onClick: () => {
+          state.newSession = null;
+          renderSheet();
+          void createWorkspaceSession('', { agentPreset: preset.id });
+        },
+      }));
+    }
     for (const workspace of session.workspaces) {
       sheet.append(sheetItem({
         label: workspace.name,
@@ -3609,7 +3760,7 @@ function renderNewSessionSheet() {
     }
     sheet.append(sheetItem({
       label: '新建文件夹',
-      onClick: () => createDirectoryInBrowse(),
+      onClick: () => startFolderCreate(),
     }));
     sheet.append(sheetItem({
       label: '使用此目录作为工作区',
@@ -3630,17 +3781,22 @@ function renderSessionMenuSheet() {
     state.sessionMenu = '';
     renderSheet();
   });
-  sheet.append(
+  const items = [
     sheetItem({ label: '重命名', onClick: () => startSessionRename(row) }),
     sheetItem({ label: 'Fork', hint: '复制为新会话', onClick: () => forkSession(row) }),
-    sheetItem({ label: '上移', onClick: () => moveSession(row, 'up') }),
-    sheetItem({ label: '下移', onClick: () => moveSession(row, 'down') }),
-    sheetItem({
-      label: '归档',
-      hint: '移入「已归档会话」，可取消归档',
-      onClick: () => startSessionConfirm('archive', row),
-    }),
-  );
+  ];
+  if (insertSessionMove(row, 'up', state.workspaces, state.sessions)) {
+    items.push(sheetItem({ label: '上移', onClick: () => moveSession(row, 'up') }));
+  }
+  if (insertSessionMove(row, 'down', state.workspaces, state.sessions)) {
+    items.push(sheetItem({ label: '下移', onClick: () => moveSession(row, 'down') }));
+  }
+  items.push(sheetItem({
+    label: '归档',
+    hint: '移入「已归档会话」，可取消归档',
+    onClick: () => startSessionConfirm('archive', row),
+  }));
+  sheet.append(...items);
   sheetRoot.append(layer);
 }
 
@@ -3722,18 +3878,7 @@ function renderSheet() {
       sheet.append(
         sheetItem({
           label: '重命名工作区',
-          onClick: () => {
-            const title = window.prompt('工作区名称', workspace.title || '');
-            state.workspaceMenu = '';
-            renderSheet();
-            if (!title || !title.trim()) return;
-            hostCall(state.chisacode.client, 'workspace.rename', {
-              workspaceId: workspace.workspaceId,
-              title: title.trim(),
-            }).then(() => refreshHostCatalog()).then(() => renderSessions()).catch((error) => {
-              showBanner(error.message || '重命名失败');
-            });
-          },
+          onClick: () => startWorkspaceRename(workspace),
         }),
         sheetItem({
           label: '从列表移除',
@@ -3885,6 +4030,78 @@ function dialogFoot(dialog, buttons) {
   dialog.append(foot);
 }
 
+function renderNamedDialog({ title, hint, field, placeholder, busyLabel, saveLabel, error, busy, onClose, onSave }) {
+  const close = () => {
+    if (busy) return;
+    onClose();
+  };
+  const { layer, dialog } = dialogLayer(true, close);
+  dialogHead(dialog, title, hint);
+  const body = document.createElement('div');
+  body.className = 'dialog-body';
+  body.append(fieldInput(field, placeholder, (value) => {
+    saveBtn.disabled = busy || !value.trim();
+    onSave.draft(value);
+  }));
+  if (error) {
+    const note = document.createElement('p');
+    note.className = 'sheet-note sheet-error';
+    note.textContent = error;
+    body.append(note);
+  }
+  dialog.append(body);
+  const saveBtn = primaryButton(busy ? busyLabel : saveLabel, () => onSave.submit());
+  saveBtn.disabled = busy || !String(field || '').trim();
+  const cancelBtn = ghostButton('取消', close);
+  cancelBtn.disabled = busy;
+  dialogFoot(dialog, [cancelBtn, saveBtn]);
+  dialogRoot.append(layer);
+}
+
+function renderWorkspaceRenameDialog() {
+  const rename = state.workspaceRename;
+  renderNamedDialog({
+    title: '重命名工作区',
+    hint: '名字写回电脑端，两边同步显示。',
+    field: rename.value,
+    placeholder: '工作区名称',
+    busyLabel: '正在保存…',
+    saveLabel: '保存',
+    error: rename.error,
+    busy: rename.busy,
+    onClose: () => {
+      state.workspaceRename = null;
+      renderDialog();
+    },
+    onSave: {
+      draft: (value) => { rename.value = value; },
+      submit: () => submitWorkspaceRename(),
+    },
+  });
+}
+
+function renderFolderCreateDialog() {
+  const create = state.folderCreate;
+  renderNamedDialog({
+    title: '新建文件夹',
+    hint: '在当前浏览目录下创建一个子文件夹。',
+    field: create.value,
+    placeholder: '文件夹名称',
+    busyLabel: '正在创建…',
+    saveLabel: '创建',
+    error: create.error,
+    busy: create.busy,
+    onClose: () => {
+      state.folderCreate = null;
+      renderDialog();
+    },
+    onSave: {
+      draft: (value) => { create.value = value; },
+      submit: () => submitFolderCreate(),
+    },
+  });
+}
+
 function renderSessionRenameDialog() {
   const rename = state.sessionRename;
   const close = () => {
@@ -3944,10 +4161,10 @@ function renderSessionConfirmDialog() {
   cancelBtn.disabled = confirm.busy;
   const okBtn = document.createElement('button');
   okBtn.type = 'button';
-  okBtn.className = isDelete ? 'danger-btn' : 'primary-btn';
+  okBtn.className = isDelete || isWorkspace ? 'danger-btn' : 'primary-btn';
   okBtn.textContent = confirm.busy
-    ? (isDelete ? '正在删除…' : '正在归档…')
-    : (isDelete ? '删除' : '归档');
+    ? (isWorkspace ? '正在移除…' : isDelete ? '正在删除…' : '正在归档…')
+    : (isWorkspace ? '移除' : isDelete ? '删除' : '归档');
   okBtn.disabled = confirm.busy;
   okBtn.addEventListener('click', () => runSessionConfirm());
   dialogFoot(dialog, [cancelBtn, okBtn]);
@@ -3956,12 +4173,20 @@ function renderSessionConfirmDialog() {
 
 function renderDialog() {
   dialogRoot.replaceChildren();
-  if (state.sessionRename) {
-    renderSessionRenameDialog();
-    return;
-  }
   if (state.sessionConfirm) {
     renderSessionConfirmDialog();
+    return;
+  }
+  if (state.workspaceRename) {
+    renderWorkspaceRenameDialog();
+    return;
+  }
+  if (state.folderCreate) {
+    renderFolderCreateDialog();
+    return;
+  }
+  if (state.sessionRename) {
+    renderSessionRenameDialog();
     return;
   }
   const kind = state.gitDialog;
