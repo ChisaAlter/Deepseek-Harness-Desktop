@@ -63,6 +63,7 @@ import {
   loadSecrets,
   pairFromOfferUrl,
   reconnectSticky,
+  rotateClientId,
   savedComputerRows,
 } from './chisacode/session.js';
 import {
@@ -1330,6 +1331,9 @@ function forceLogout(message) {
   if (state.transport === 'chisacode' && serverId) {
     clearSecret(serverId);
     draftStore?.clearAll();
+    // The relay keeps the old registration briefly; a fresh id lets the next
+    // pairing in this tab handshake instead of stalling (DEF-REPAIR-INTAB).
+    rotateClientId();
   }
   draftStore = null;
   sockets?.close();

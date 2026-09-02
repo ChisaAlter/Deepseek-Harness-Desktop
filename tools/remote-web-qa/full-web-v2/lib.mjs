@@ -338,11 +338,12 @@ export async function desktopSessions(page) {
   return page.evaluate(() => new Promise((resolve) => {
     setTimeout(() => {
       // Rows under the desktop 已归档 section are not live rows (D excludes them).
+      // The desktop 已归档 block is the 已归档 header plus every group section
+      // after it in document order; none of those rows belong to D.
       const archivedHead = [...document.querySelectorAll('[aria-expanded]')]
         .find((n) => /已归档/.test((n.textContent || '').trim().slice(0, 12)));
-      const archivedSection = archivedHead ? (archivedHead.closest('[class*="groupSection"], [class*="Section"], section') || archivedHead.parentElement) : null;
       const rows = [...document.querySelectorAll('[class*="sessionRow"]')]
-        .filter((row) => !(archivedSection && archivedSection.contains(row) && !archivedHead.contains(row)));
+        .filter((row) => !(archivedHead && (archivedHead.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)));
       const titles = [];
       const childTitles = [];
       for (const row of rows) {

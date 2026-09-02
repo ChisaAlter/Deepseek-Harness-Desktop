@@ -94,14 +94,32 @@ function randomIdHex(bytes = 8) {
   return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+const CLIENT_ID_KEY = 'dsh-chisacode-client-id';
+
 function clientId() {
-  const key = 'dsh-chisacode-client-id';
-  let id = localStorage.getItem(key);
+  let id = localStorage.getItem(CLIENT_ID_KEY);
   if (!id) {
     id = `mob_${randomIdHex(8)}`;
-    localStorage.setItem(key, id);
+    localStorage.setItem(CLIENT_ID_KEY, id);
   }
   return id;
+}
+
+/** The persisted mobile clientId (minted on first use). */
+function currentClientId() {
+  return clientId();
+}
+
+/**
+ * Forget the persisted clientId so the next pairing registers as a new
+ * client. The relay keeps the previous registration alive briefly after an
+ * in-tab logout; reusing the id makes the fresh handshake stall silently.
+ * @returns {string} the id that was discarded ('' when none).
+ */
+function rotateClientId() {
+  const previous = localStorage.getItem(CLIENT_ID_KEY) || '';
+  localStorage.removeItem(CLIENT_ID_KEY);
+  return previous;
 }
 
 /**
@@ -292,6 +310,8 @@ export {
   loadSecrets,
   clearSecret,
   clearAllSecrets,
+  currentClientId,
+  rotateClientId,
   saveSecret,
   listStickyServerIds,
   getMostRecentStickyServerId,

@@ -108,6 +108,11 @@ test('search input enters search mode before the debounce so live frames cannot 
   assert.match(handler, /renderSessions\(\);\s*clearTimeout\(searchTimer\)/);
 });
 
+test('logout rotates the mobile clientId so an in-tab re-pair does not stall', () => {
+  const logout = app.slice(app.indexOf('function forceLogout'), app.indexOf('async function shell('));
+  assert.match(logout, /clearSecret\(serverId\);[\s\S]*rotateClientId\(\);/);
+});
+
 test('sending the first prompt promotes the blank session into the live drawer', () => {
   const send = app.slice(app.indexOf('async function sendPrompt()'), app.indexOf('async function cancelRun()'));
   assert.match(send, /row\.blank = false/);

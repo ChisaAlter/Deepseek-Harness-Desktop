@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import {
   agentRows,
   buildClientRelayUrl,
+  currentClientId,
   normalizeOfferUrl,
   pairFromOfferUrl,
   reconnectSticky,
+  rotateClientId,
   savedComputerRows,
 } from './session.js';
 
@@ -17,6 +19,21 @@ if (!globalThis.localStorage) {
     removeItem: (key) => { bag.delete(key); },
   };
 }
+
+// DEF-REPAIR-INTAB: after 「断开这台设备」 the relay still holds the old
+// clientId registration; re-pairing with the same id stalls with no error.
+// Logout must mint a fresh clientId for the next pairing.
+test('rotateClientId discards the persisted mobile clientId so the next pairing gets a new one', () => {
+  const first = currentClientId();
+  assert.match(first, /^mob_[0-9a-f]{16}$/);
+  assert.equal(currentClientId(), first);
+  const rotated = rotateClientId();
+  assert.equal(rotated, first);
+  const second = currentClientId();
+  assert.match(second, /^mob_[0-9a-f]{16}$/);
+  assert.notEqual(second, first);
+  assert.equal(localStorage.getItem('dsh-chisacode-client-id'), second);
+});
 
 test('buildClientRelayUrl always passes role=client and useTls===true only', () => {
   const calls = [];
