@@ -264,6 +264,30 @@ try {
     await dismissOverlays(page);
     await page.evaluate(() => document.querySelector('#backdrop')?.click());
     await sleep(400);
+    // The composer (and its chips) is replaced while an approval is pending or
+    // the session is read-only; wait for it and report the reason otherwise.
+    const chipState = await (async () => {
+      const deadline = Date.now() + 15_000;
+      let s = null;
+      while (Date.now() < deadline) {
+        s = await page.evaluate(() => ({
+          chipVisible: Boolean(document.getElementById('access-chip')?.offsetParent),
+          approval: !document.querySelector('#approval')?.classList.contains('hidden'),
+          readonly: !document.querySelector('#readonly-note')?.classList.contains('hidden'),
+          stop: !document.querySelector('#stop-btn')?.classList.contains('hidden'),
+        }));
+        if (s.chipVisible) return s;
+        if (s.approval) {
+          await page.evaluate(() => [...document.querySelectorAll('#approval-actions button')]
+            .find((b) => (b.textContent || '').includes('允许一次'))?.click());
+        }
+        await sleep(1000);
+      }
+      return s;
+    })();
+    if (!chipState.chipVisible) {
+      return { status: 'Blocked', note: `composer 不可用：${JSON.stringify(chipState)}` };
+    }
     // ① workspace-write + command round.
     await page.click('#access-chip');
     await waitFor(page, () => !document.querySelector('#settings')?.classList.contains('hidden'), 'access');
@@ -346,6 +370,8 @@ try {
     const pendingNow = await page.evaluate(() => !document.querySelector('#approval')?.classList.contains('hidden'));
     if (pendingNow) return { status: 'Blocked', note: '前一审批仍在场，跳过第二次触发' };
     await dismissOverlays(page);
+    const draftVisible = await page.evaluate(() => Boolean(document.getElementById('draft')?.offsetParent));
+    if (!draftVisible) return { status: 'Blocked', note: 'composer 不可用（只读或审批接管中）' };
     await page.click('#draft');
     await page.evaluate(() => { const d = document.querySelector('#draft'); d.value = ''; });
     await page.type('#draft', '在工作区根目录创建 dshd-qa-approve2.txt，内容 qa2。');

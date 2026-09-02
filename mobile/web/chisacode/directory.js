@@ -61,6 +61,10 @@ function parentSessionIdOf(row) {
   return '';
 }
 
+function isSubagentRow(row) {
+  return relationOf(row)?.kind === 'subagent' || row?.origin === 'subagent';
+}
+
 /**
  * Group directory rows for the drawer: subagents fold under their direct
  * parent when the parent is loaded; subagents whose parent is not in the
@@ -83,7 +87,9 @@ function groupSessionRows(rows) {
       childrenByParent.set(parentId, bucket);
       continue;
     }
-    if (parentId) continue;
+    // Orphan *subagents* are hidden (desktop parity); orphan forks are normal
+    // sessions the desktop lists ungrouped, so they stay top-level.
+    if (parentId && isSubagentRow(row)) continue;
     top.push({ row, orphanSubagent: false });
   }
   return top.map(({ row, orphanSubagent }) => ({

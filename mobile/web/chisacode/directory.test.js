@@ -58,6 +58,18 @@ test('groupSessionRows hides orphan subagents (desktop sidebar parity)', () => {
   const orphan = row('s9', { relation: { kind: 'subagent', parentAgentId: 'missing' } });
   const groups = groupSessionRows([orphan]);
   assert.equal(groups.length, 0);
+  const byOrigin = { sessionId: 's10', origin: 'subagent', parentSessionId: 'missing' };
+  assert.equal(groupSessionRows([byOrigin]).length, 0);
+});
+
+test('groupSessionRows keeps orphan forks top-level (desktop shows them ungrouped)', () => {
+  // A fork carries parentSessionId but is a normal session; when its parent
+  // is deleted/archived the desktop still lists it, so must the drawer.
+  const fork = { sessionId: 'f1', parentSessionId: 'gone-parent', projections: { values: { title: 'SEED' } } };
+  const groups = groupSessionRows([fork]);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].row.sessionId, 'f1');
+  assert.equal(groups[0].orphanSubagent, false);
 });
 
 test('groupSessionRows leaves non-subagent relations top-level', () => {
