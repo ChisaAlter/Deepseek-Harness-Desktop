@@ -91,7 +91,7 @@ try {
     return { status: 'Pass', note: `桌面空白新会话+首句 → 手机 ${beforeP}→${afterP}`, evidence: [e1, e2] };
   });
 
-  await runCase('SRCH-001', async () => {
+  await runCase('SRCH-001(list-module, informational)', async () => {
     await dismissOverlays(page);
     await openDrawer(page);
     await page.evaluate(() => {
@@ -116,7 +116,7 @@ try {
     };
   });
 
-  await runCase('SRCH-003', async () => {
+  await runCase('SRCH-003(list-module, informational)', async () => {
     const rows = await page.evaluate(() => [...document.querySelectorAll('#session-list .session-row:not(.workspace-head)')].length);
     if (rows < 20) return { status: 'NA-pre', note: `命中 ${rows} < 20` };
     if (rows > 20) throw new Error(`${rows} > 20`);
