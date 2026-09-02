@@ -8,6 +8,9 @@ import {
   workspaceChoices,
   workspaceDrawerSections,
   workspaceIdFromCreate,
+  browseStartPath,
+  insertSessionMove,
+  presetChoices,
 } from './catalog.js';
 
 const sessions = {
@@ -84,12 +87,50 @@ test('archivedSessionRows keeps summary-less archived ids as 缺失会话', () =
   assert.equal(rows[1].blank, false);
 });
 
-test('workspaceDrawerSections groups live rows under workspace.list order', () => {
-  const live = liveSessionRows({ sessions, workspaces });
+test('workspaceDrawerSections groups live rows under workspace.sessionIds order', () => {
+  const live = [
+    ...liveSessionRows({ sessions, workspaces }),
+  ].reverse();
   const { sections, ungrouped } = workspaceDrawerSections(live, workspaces);
   assert.equal(sections[0].workspace.workspaceId, 'ws-1');
-  assert.deepEqual(sections[0].rows.map((row) => row.sessionId).sort(), ['child-1', 'live-1', 'titled-blank']);
+  assert.deepEqual(sections[0].rows.map((row) => row.sessionId), ['live-1', 'child-1', 'titled-blank']);
   assert.deepEqual(ungrouped, []);
+});
+
+test('browseStartPath uses the parent of the first registered workspace', () => {
+  assert.equal(browseStartPath(workspaces), 'C:\\');
+  assert.equal(browseStartPath({ items: [{ path: 'C:/Ai/Deepseek-Harness-Desktop' }] }), 'C:/Ai');
+  assert.equal(browseStartPath({ items: [] }), '');
+  assert.equal(browseStartPath(null), '');
+});
+
+test('presetChoices reads host roster.presets and hides broken rows', () => {
+  assert.deepEqual(presetChoices({
+    presets: [
+      { id: 'a', name: 'Alpha' },
+      { id: 'b', name: 'Broken', broken: true },
+    ],
+  }), [{ id: 'a', name: 'Alpha' }]);
+  assert.deepEqual(presetChoices({ items: [{ id: 'legacy', name: 'L' }] }), []);
+  assert.deepEqual(presetChoices([{ id: 'raw', name: 'Raw' }]), []);
+  assert.deepEqual(presetChoices({ presets: [] }), []);
+});
+
+test('insertSessionMove steps one slot inside workspace.sessionIds', () => {
+  const live = liveSessionRows({ sessions, workspaces });
+  const row = { sessionId: 'child-1', workspaceId: 'ws-1' };
+  assert.deepEqual(insertSessionMove(row, 'up', workspaces, live), {
+    workspaceId: 'ws-1',
+    sessionId: 'child-1',
+    beforeSessionId: 'live-1',
+  });
+  assert.deepEqual(insertSessionMove(row, 'down', workspaces, live), {
+    workspaceId: 'ws-1',
+    sessionId: 'titled-blank',
+    beforeSessionId: 'child-1',
+  });
+  assert.equal(insertSessionMove({ sessionId: 'live-1', workspaceId: 'ws-1' }, 'up', workspaces, live), null);
+  assert.equal(insertSessionMove({ sessionId: 'lone', workspaceId: '' }, 'down', workspaces, live), null);
 });
 
 test('heldSessionRow keeps the open blank session that liveSessionRows hides', () => {

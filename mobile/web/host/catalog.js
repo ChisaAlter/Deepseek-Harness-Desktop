@@ -90,14 +90,63 @@ function archivedSessionRows({ sessions, workspaces }) {
   });
 }
 
+function parentDir(path) {
+  const raw = String(path || '').replace(/[\\/]+$/, '');
+  if (!raw) return '';
+  const slash = raw.lastIndexOf('/');
+  const back = raw.lastIndexOf('\\');
+  const idx = Math.max(slash, back);
+  if (idx <= 0) return '';
+  const sep = slash > back ? '/' : '\\';
+  if (idx === 2 && raw[1] === ':') return raw.slice(0, 3);
+  return raw.slice(0, idx) || sep;
+}
+
+function browseStartPath(workspaces) {
+  const items = Array.isArray(workspaces?.items) ? workspaces.items : [];
+  const first = items.find((item) => typeof item?.path === 'string' && item.path);
+  return first ? parentDir(first.path) : '';
+}
+
+function insertSessionMove(row, direction, workspaces, liveRows) {
+  const workspaceId = row?.workspaceId;
+  const sessionId = row?.sessionId;
+  if (!workspaceId || !sessionId) return null;
+  const workspace = (Array.isArray(workspaces?.items) ? workspaces.items : [])
+    .find((item) => item?.workspaceId === workspaceId);
+  if (!workspace) return null;
+  const visible = new Set(
+    (Array.isArray(liveRows) ? liveRows : [])
+      .filter((item) => item?.workspaceId === workspaceId && item?.sessionId)
+      .map((item) => item.sessionId),
+  );
+  const ids = (workspace.sessionIds || []).filter((id) => visible.has(id));
+  const index = ids.indexOf(sessionId);
+  if (index < 0) return null;
+  if (direction === 'up') {
+    if (index === 0) return null;
+    return { workspaceId, sessionId, beforeSessionId: ids[index - 1] };
+  }
+  if (direction === 'down') {
+    if (index >= ids.length - 1) return null;
+    return { workspaceId, sessionId: ids[index + 1], beforeSessionId: sessionId };
+  }
+  return null;
+}
+
 function workspaceDrawerSections(liveRows, workspaces) {
   const items = Array.isArray(workspaces?.items) ? workspaces.items : [];
   const rows = Array.isArray(liveRows) ? liveRows : [];
+  const byId = new Map(rows.filter((row) => row?.sessionId).map((row) => [row.sessionId, row]));
   const used = new Set();
   const sections = items.map((workspace) => {
-    const ids = new Set(workspace.sessionIds || []);
-    const grouped = rows.filter((row) => ids.has(row.sessionId));
-    for (const row of grouped) used.add(row.sessionId);
+    const grouped = [];
+    for (const sessionId of workspace.sessionIds || []) {
+      const row = byId.get(sessionId);
+      if (!row) continue;
+      grouped.push(row);
+      used.add(sessionId);
+    }
     return { workspace, rows: grouped };
   });
   return {
@@ -138,6 +187,19 @@ function withHeldLiveRow(liveRows, held) {
   return [held, ...rows];
 }
 
+function presetChoices(value) {
+  const items = Array.isArray(value?.presets) ? value.presets : [];
+  return items.flatMap((item) => {
+    if (item?.broken === true) return [];
+    const id = typeof item?.id === 'string' ? item.id : (typeof item?.agentPreset === 'string' ? item.agentPreset : '');
+    if (!id) return [];
+    const name = typeof item?.name === 'string' && item.name.trim()
+      ? item.name.trim()
+      : (typeof item?.title === 'string' && item.title.trim() ? item.title.trim() : id);
+    return [{ id, name }];
+  });
+}
+
 function workspaceIdFromCreate(value) {
   const nested = value && typeof value === 'object' && value.workspace && typeof value.workspace === 'object'
     ? value.workspace
@@ -149,8 +211,12 @@ function workspaceIdFromCreate(value) {
 
 export {
   archivedSessionRows,
+  browseStartPath,
   heldSessionRow,
+  insertSessionMove,
   liveSessionRows,
+  parentDir,
+  presetChoices,
   withHeldLiveRow,
   workspaceChoices,
   workspaceDrawerSections,

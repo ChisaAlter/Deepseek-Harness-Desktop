@@ -1161,7 +1161,15 @@ const scheduleCatalogRefresh = createCatalogRefreshScheduler(async () => {
 const muxDebug = (() => {
   try { return localStorage.getItem('dshd-debug-mux') === '1'; } catch { return false; }
 })();
-if (muxDebug) window.__dshdMux = [];
+if (muxDebug) {
+  window.__dshdMux = [];
+  // Read-only diagnostics for QA drivers (same opt-in flag): raw host RPC and state snapshot.
+  window.__dshdDebug = {
+    hostCall: (method, payload) => hostCall(state.chisacode?.client, method, payload),
+    workspaces: () => JSON.parse(JSON.stringify(state.workspaces || null)),
+    sessions: () => state.sessions.map((row) => ({ sessionId: row.sessionId, workspaceId: row.workspaceId, title: sessionTitle(row) })),
+  };
+}
 
 function handleMuxFrame(frame) {
   if (muxDebug) {
