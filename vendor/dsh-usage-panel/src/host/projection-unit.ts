@@ -5,7 +5,7 @@
 // describes schema + top-level view; do not satisfy that stale face.
 import { USAGE_PANEL_KEY, applyEvent, initState, usagePanelSchema, type UsagePanelState } from './projection.ts'
 
-export const PROJECTION_STATE_VERSION = 1
+export const PROJECTION_STATE_VERSION = 2
 
 export const usagePanelProjectionDefinition = {
   key: USAGE_PANEL_KEY,

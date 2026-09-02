@@ -1,13 +1,20 @@
 /* Session stats row: 13/20 tertiary text (the secondary content tier) under
    the flow, aligned to the shared message column axis
-   (--dsh-chat-content-width). */
+   (--dsh-chat-content-width). When the composer card is drag-resized, the
+   seat publishes --dsh-composer-resized-width and this row follows it (same
+   card-minus-clearance relation) so the stats band stays one family with the
+   input card; the fallback keeps the rest axis. */
 
 .root {
   /* Block, not flex: text-overflow only elides a block's inline content, so
      an overlong line ends in … instead of a mid-glyph clip. */
   display: block;
   text-align: center;
-  max-width: var(--dsh-chat-content-width);
+  max-width: calc(
+    var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)) -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance)
+  );
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;

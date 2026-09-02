@@ -9,8 +9,16 @@ import css from './ComposerResizeHandles.module.css'
 const HEIGHT_VAR = '--dsh-composer-resized-height'
 const WIDTH_VAR = '--dsh-composer-resized-width'
 
+const SEAT_SELECTOR = '[data-composer-seat]'
+const SCROLL_SELECTOR = '[data-conversation-scroll]'
+
 function seatOf(node: HTMLElement | null): HTMLElement | null {
-  return node?.closest('[data-composer-seat]') ?? null
+  return node?.closest(SEAT_SELECTOR) ?? null
+}
+
+/** The conversation column that owns both the transcript and the composer seat. */
+function scrollOf(node: HTMLElement | null): HTMLElement | null {
+  return node?.closest(SCROLL_SELECTOR) ?? null
 }
 
 /**
@@ -50,6 +58,10 @@ function applyWidth(card: HTMLElement, width: number): void {
     }
     seat.style.setProperty(WIDTH_VAR, value)
     seat.dataset.composerResizedWidth = ''
+    // The transcript column (ChatView .column) is a sibling of the seat under
+    // [data-conversation-scroll] — it cannot read a variable published only on
+    // the seat, so the same width is published on the shared column host.
+    scrollOf(seat)?.style.setProperty(WIDTH_VAR, value)
   }
   for (const el of targets) {
     el.style.width = value
@@ -60,6 +72,7 @@ function applyWidth(card: HTMLElement, width: number): void {
 function clearSize(scroll: HTMLElement | null, card: HTMLElement | null): void {
   const seat = seatOf(scroll) ?? seatOf(card)
   const widthSeat = widthSeatOf(card) ?? seat
+  const host = scrollOf(seat) ?? scrollOf(scroll) ?? scrollOf(card)
   const scrolls = seat === null
     ? (scroll === null ? [] : [scroll])
     : [...seat.querySelectorAll<HTMLElement>('[data-input-scroll], [data-approval-scroll]')]
@@ -82,6 +95,7 @@ function clearSize(scroll: HTMLElement | null, card: HTMLElement | null): void {
     widthSeat.style.removeProperty(WIDTH_VAR)
     delete widthSeat.dataset.composerResizedWidth
   }
+  host?.style.removeProperty(WIDTH_VAR)
 }
 
 function adoptFromSeat(scroll: HTMLElement, card: HTMLElement): void {
@@ -104,6 +118,8 @@ function adoptFromSeat(scroll: HTMLElement, card: HTMLElement): void {
  * Pointer drag that sets composer scrollport height and card width.
  * When a `[data-composer-seat]` ancestor is present, the size is published
  * there and copied to every InputBar / ApprovalPanel body under that seat.
+ * The width is additionally published on the `[data-conversation-scroll]`
+ * column host so the transcript column (a sibling of the seat) can follow.
  * @param enabled - Interface Settings `composerResize`.
  * @param cardRef - the composer card (`[data-composer-card]`).
  * @param scrollRef - the draft or approval scrollport.

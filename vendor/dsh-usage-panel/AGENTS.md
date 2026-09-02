@@ -48,7 +48,7 @@ npm pack --dry-run   # 发布前人工确认清单
 2. **双源模型归因**：`request/context.model` 打底，`request/header.config.model` 覆盖。
 3. **四桶记账**：input/output/cacheRead/cacheWrite 分开；v0.2.0 起升级为落盘投影后：流式 `assistant/chunk` 的 provisional usage 必须被最终 `assistant/message` 覆盖；`llm/retry` 独立计数；`compaction/summary` 独立归因；reasoning 已含于 output，不重复加。
 4. **日期口径 UTC**：dayKey 用 UTC 桶（v0.1.0 用本地时区，跨时区漂移），README 与 UI 必须显式声明口径。
-5. **只读承诺**：永不写回原始会话日志；投影机制的落盘是框架对派生缓存的落盘，不触碰原始日志。
+5. **只读承诺**：永不写回原始会话日志；投影机制的落盘是框架对派生缓存的落盘，不触碰原始日志。**唯一例外(用户授权的自动修复)**：仅当框架报告某会话日志损坏(如 seq gap)时，用户从统计页显式点击「自动修复」→ 只重写该损坏工件(解码全部行→0 基连续重编号→重打包→原子替换)，先落 `.bak-<ts>` 备份；解码/序列化任一失败即中止不写；健康日志永不触碰。
 6. **安全边界**：RPC `{ authority: 'loopback' }`，不开放裸 HTTP 端口。
 7. **入口稳定**：`settings.section` id `usage-stats`、order 25、RPC 通道 `/usage-stats`——这些 id 被宿主配置引用，改名即破坏安装。
 
@@ -84,6 +84,14 @@ npm pack --dry-run   # 发布前人工确认清单
 - **`i18n.locale` 必须是 getter**：字段快照在语言切换后保持旧值，格式化函数会一直用初始语言。
 - **`ctx.on('locale/change', …)` 直接挂在 ctx 上**（cordis Context 就是 EventEmitter，没有 `ctx.events`）；更稳的是挂 `locale.subscribe(update)`（切换与迟到词典注册都会 bump revision）。
 - **投影注册表的冷折叠是单趟**：`buildCell` = `init()` + 逐事件 `apply()`，无回看。种子边界因此用"武装"语义：看到最后一个 `session/end-seed` 之前**一律不计数**；`foldEvents`（自控路径）必须先预扫最后一个标记再折叠；`session/end-seed` 分支必须"last marker wins"（`seq <= seedEnd` 时保持原值），否则预置的 seedEnd 会被更早的标记覆盖。
+- **step/start 仅在"计数历史"内武装**：种子里的 step/start 若入 `stepStart`，fork 会话（turn/step 重置）的活 step 会被种子时刻错误归类——`step/start` 分支先过 `isCounted`。`assistant/message` 覆盖时**继承已有 step 的峰谷快照**（消息晚于下一步 start 到达时不得重采样）。
+- **storageDomain 域打开是 async，`apply` 不能 await**：BillingStore 先内存态、域打开后 `attachMedium` 升级（升级不清已有缓存，内存期保存不丢）；域/表名必须匹配 `UNIT_NAME_RE`（`/^[a-z][a-z0-9_]*$/`，无连字符）。
+- **npm rc.6 类型面缺 `stateOf`/`listModels`**：桌面宿主有；沿用 `register()` 的既有先例——局部结构化断言，不依赖宿主类型包。
+- **UI 偏好双面同步**：设置弹层与输入框条共用 bundle 内发布订阅（`billing-bus`），host JSON 是唯一持久源——条自行拉取一次，之后都由总线推送，改价零刷新即时生效。
+- **弹层加载禁止"无 catch 的 Promise.all"**（真实事故）：计费弹层一度用 `Promise.all([billing.get, billing.models])` 且无 catch/finally，`billing.get` 一失败 `setLoading(false)` 永不执行 → 弹层永远"正在统计会话日志…"。规则：RPC 组合必须 allSettled / 独立 catch + 错误态/重试；模型目录（可能含死端点的 `listModels`）必须在 host 侧用 `withTimeout` 兜底、client 侧懒加载降级为空 + 手动添加。
+- **大语料扫描必须让步**：`coldSnapshot` 版本不匹配时会从 seq 0 全量重折（同步循环）；扫描循环每批让步 `setImmediate` + 进度日志（`scanPacer`），投影/回退两条路径都有。
+- **RPC 调用必须显式传 payload 对象**（真实事故）：传输层 `JSON.stringify` 会丢掉值为 `undefined` 的键，而宿主 envelope schema `clientRequestSchema` 的 `payload` 键必填 → 不带 payload 的 `rpc.call(channel, endpoint)` 一律报 `invalid client-request message`。规则：所有 `call*` 封装显式传 `{}`，禁止省略第三参。
+- **竞品红线（计费口径）**：不猜价——未定价显示"设置价格"/"—"；非 DeepSeek 模型须自定义价；费用一律"估算,非账单"；高峰期窗口/官方价目是数据文件(asOf+来源+单测锁值)，绝无写死的假表。
 - **`mergeSessionValue` 是纯函数**：返回值必须重新赋值（`a = mergeSessionValue(a, …)`），漏掉会静默丢数据——scan.ts 与 index.ts 都踩过。
 - **zod v4 的 `z.record` 签名变了**：`z.record(valueSchema)` 在 v4 里被当作 key schema；必须 `z.record(z.string(), valueSchema)`。
 - **`SessionId` 是品牌类型**：`readSession/readTitle/coldSnapshot` 拒绝裸 `string`；用 `header.id` 本体，别 `String()`。

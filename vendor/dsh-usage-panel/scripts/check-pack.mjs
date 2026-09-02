@@ -5,7 +5,9 @@
 // renders without shipping the bytes. Runs in `prepublishOnly` and in CI.
 import { execFileSync } from 'node:child_process'
 
+// Windows: npm is a .cmd shim and needs a shell; Git Bash PATH also varies.
 const raw = execFileSync('npm', ['pack', '--dry-run', '--json'], {
+  shell: process.platform === 'win32',
   encoding: 'utf8',
   stdio: ['ignore', 'pipe', 'inherit'],
 })

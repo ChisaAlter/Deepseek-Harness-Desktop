@@ -12,13 +12,18 @@ import type { SessionTitleEventData } from '@deepseek-ai/dsh-session-title'
 import type { LlmRetryEventData } from '@deepseek-ai/dsh-llm-retry'
 import type { CompactionId } from '@deepseek-ai/dsh-compaction'
 import type { Overview } from '../shared/contract.ts'
-import { emptyAggregate, finalizeOverview, mergeSessionValue, type Aggregate } from './aggregate.ts'
+import { emptyAggregate, finalizeOverview, mergeSessionValue, rankSessions, type Aggregate, type SessionAgg } from './aggregate.ts'
 import { applyEvent, initState, type UsagePanelState } from './projection.ts'
+import { scanPacer } from './pacing.ts'
 
 export interface ScanFallbackDeps {
   sq: SessionQueryEngine
   providerNames: Record<string, string>
   logFailure: (message: string) => void
+  /** Receive the full ranked session index for the paging endpoints. */
+  storeIndex: (sessions: SessionAgg[]) => void
+  /** Receive the failed-session ids (repair candidates). */
+  storeFailed: (ids: string[]) => void
 }
 
 /** True for events the reducer will count (post-seed usage / retry). */
@@ -42,6 +47,7 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
   const { sq, providerNames, logFailure } = deps
   let a: Aggregate = emptyAggregate()
   const titles = new Map<string, string | null>()
+  const failed: string[] = []
   let sessionsTotal = 0
   let sessionsOk = 0
   let sessionsFailed = 0
@@ -67,17 +73,24 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
     })
   }
 
+  // Cooperative pacing: the fallback replays full logs per session and a huge
+  // corpus must not stall the host event loop.
+  const pacer = scanPacer((message) => console.log('[dsh-usage-panel]', message))
+  let index = 0
   for (const rec of sessions) {
+    index += 1
     const header = rec && rec.header
     if (!header) {
       sessionsTotal += 1
       sessionsFailed += 1
+      await pacer.beat(index, sessions.length)
       continue
     }
     const sessionId = header.id
     sessionsTotal += 1
     if (!rec.persisted) {
       sessionsPending += 1
+      await pacer.beat(index, sessions.length)
       continue
     }
     let snapshot: { events?: SessionEvent[] } | null = null
@@ -85,12 +98,15 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
       snapshot = await sq.readSession(header.id)
     } catch (err) {
       sessionsFailed += 1
+      if (failed.length < 50) failed.push(sessionId)
       logFailure('readSession ' + sessionId + ' failed: ' + String((err as Error)?.message ?? err))
+      await pacer.beat(index, sessions.length)
       continue
     }
     const events = snapshot && snapshot.events
     if (!events || !events.length) {
       sessionsOk += 1
+      await pacer.beat(index, sessions.length)
       continue
     }
 
@@ -118,10 +134,14 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
     titles.set(sessionId, title)
     // mergeSessionValue is pure — the returned aggregate replaces the old one.
     const depth = Number((header as { delegationDepth?: unknown }).delegationDepth) || 0
-    a = mergeSessionValue(a, state, sessionId, now, depth)
+    const cwd = (header as { cwd?: unknown }).cwd || null
+    a = mergeSessionValue(a, state, sessionId, now, depth, typeof cwd === 'string' ? cwd : null)
     sessionsOk += 1
+    await pacer.beat(index, sessions.length)
   }
 
+  deps.storeIndex(rankSessions(a.sessions, Number.MAX_SAFE_INTEGER))
+  deps.storeFailed(failed)
   return finalizeOverview({
     aggregate: a,
     now,
@@ -133,5 +153,6 @@ export async function scanFallback(deps: ScanFallbackDeps, now: number): Promise
     eventsCounted,
     titles,
     providerNames,
+    failedSessionIds: failed,
   })
 }

@@ -34,9 +34,16 @@
 
 /* Message column: shared chat width (ConversationRoot --dsh-chat-content-width),
    centered on the same axis as the input box (which caps at chat + 16px); the
-   scroller itself stays full-bleed. */
+   scroller itself stays full-bleed. When the input card is drag-resized the
+   column host publishes --dsh-composer-resized-width and the transcript
+   follows (card minus both side clearances) so the shared width axis holds;
+   the fallback keeps the resting width. */
 .column {
-  max-width: var(--dsh-chat-content-width);
+  max-width: calc(
+    var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)) -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance)
+  );
   width: 100%;
   margin: 0 auto;
   display: flex;

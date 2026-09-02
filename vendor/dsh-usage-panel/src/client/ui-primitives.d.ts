@@ -24,4 +24,19 @@ declare module '@deepseek-ai/dsh-client-ui-primitives' {
     align?: 'start' | 'end'
     portal?: boolean
   }): JSX.Element
+
+  export function Modal(props: {
+    open: boolean
+    onClose: () => void
+    title: ReactNode
+    closeLabel?: string
+    description?: ReactNode
+    children?: ReactNode
+    footer?: ReactNode
+    className?: string
+    contentClassName?: string
+    headless?: boolean
+  }): JSX.Element
+
+  export function Switch(props: import('react').InputHTMLAttributes<HTMLInputElement>): JSX.Element
 }

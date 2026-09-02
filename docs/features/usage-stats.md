@@ -4,22 +4,27 @@
 | --- | --- |
 | **id** | `usage-stats` |
 | **status** | `active` |
-| **last verified** | 2026-08-26 — D1 挂载机制随 desktop-launcher 单一 overlay 收敛：`ensureUsagePanelPlugin` 不再向 `cordis.patch.yml` 写受管块，改写 `desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml`（控制器仅全量启动经 `--patch` 传；skip 启动不预置不变）；禁用 / ensure 失败 / 市场 bundle 接管时删 overlay 不传（杜绝双挂载与陈旧 overlay）；旧受管块每次启动被 strip（迁移）。此前 2026-08-24 — 热力图改为半年窗口内按月切换（默认当月 UTC，‹ › 选月；色阶按当月非零日四分位）。Host 仍返 182 日桶。自动化：`vendor/dsh-usage-panel` `npm test` + `npm run build`。 |
+| **last verified** | 2026-08-28 — 费用条宽度随输入卡拖动联动（`--dsh-composer-resized-width` 回退静止卡宽,见 [composer-family-width](composer-family-width.md)）。此前 2026-08-26 — 计费功能(v0.3 本地改版):投影 stateVersion 2 增峰谷桶,输入框下方费用条(conversation.composer.dock 官方槽)、"设置"弹层(官方 Modal:模型多选/峰谷开关/自定义价/条显隐)、KPI/会话卡/导出费用列;官方价目 asOf 2026-08-17 + 来源链接单测锁值;价格持久化为插件自有 JSON(storageDomain `dsh_usage_panel_billing`);扫描分批评让步防大语料重折假死。此前 2026-08-26 — D1 挂载机制收敛(overlay patch + strip 迁移,见 Invariants);2026-08-24 — 热力图半年窗口月度切换。自动化:`vendor/dsh-usage-panel` `npm test` + `npm run build`。 |
 
 ## User paths
 
-1. 设置 → 「用量统计」（`usage-stats`）：KPI、半年窗口内按月可选 UTC 热力图、按模型柱/环、Top 会话、导出。
-2. 无计费用量（含仅空白会话）走空态文案；扫描失败仍出仪表盘，不挡启动。
-3. 刷新从 host RPC 重扫；数字来自本机会话投影，不写回日志。
+1. 设置 → 「用量统计」（`usage-stats`）：KPI（含估算费用卡）、半年窗口内按月可选 UTC 热力图、按模型柱/环、Top 会话（含费用列）、导出（含费用列）、「设置」弹层（模型多选 + 峰谷开关 + 自定义价 + 条显隐）。
+2. 会话输入框下方常驻费用条：当前高峰/谷段 + 切换倒计时 + 当前会话估算费用；悬停显示当前模型价目行；未定价提示"设置价格"。
+3. 无计费用量（含仅空白会话）走空态文案；扫描失败仍出仪表盘，不挡启动。
+4. 刷新从 host RPC 重扫；数字来自本机会话投影，不写回日志。
 
 ## Invariants
 
 - 预置包名 `dsh-usage-panel`；设置 section id `usage-stats`；投影 key `usagePanel`。同一 profile 只挂一份。
 - 挂载走桌面自有 overlay（`desktop-usage-panel.patch.yml`，仅全量启动经 `--patch` 传），不写 `cordis.patch.yml` 受管块（该文件纯用户所有，见 desktop-launcher 卡）；市场 bundle 已挂载或插件被禁用时 overlay 必须删除（insert + bundle 同时组合 = 双挂载）。
-- 桌面 `desktop-plugins` 副本赢过市场装的同名目录（junction 覆盖非 junction 安装）。
-- 只统计 Token 四桶；不做余额 / CNY / 峰谷价。
+- **用户自装优先**：profile `node_modules/dsh-usage-panel` 是真实目录（非本桌面管理的 junction）或指向第三方目标时，桌面后退（`{ userOwned: true }`，不覆盖、不重建 junction），并删除 overlay 防双挂载；用户安装存活。仅当 node_modules 无该条目时，桌面才复制预置包并自管 junction。
+- 只统计 Token 四桶；**计费为估算**（费用 = 峰谷桶 × 用户价格，全部本地计算,非账单）;不做余额 API。
+- 峰谷口径：北京时间 UTC+8 无夏令时,周一至五 09:00–12:00、14:00–18:00 高峰;整步按 step/start 时刻归类;compaction 不入费用桶;官方价目 asOf 2026-08-17 + 来源链接 + 单测锁值。
+- 不猜价：未定价模型显示"设置价格"/"—",绝不编造数字(竞品红线延续)。
 - 日桶 UTC；字幕声明 UTC。
-- 颜色只走 `--dsw-alias-*` / `--dsw-static-deepseek-*`；刷新/导出用 `ui-primitives`。
+- 颜色只走 `--dsw-alias-*` / `--dsw-static-deepseek-*`；刷新/导出/设置弹层用 `ui-primitives`；输入条挂官方 `conversation.composer.dock` 槽,零 DOM 探测。
+- 价格持久化 = 插件自有 JSON(storageDomain 域 `dsh_usage_panel_billing`),不写入会话日志;条轮询受可见性 + 开关双门控。
+- **损坏日志修复(用户授权,只读承诺的唯一例外)**:扫描失败的会话 id 在覆盖度中列出;页面显式「自动修复」→ 仅重写该损坏工件(解码全部行→0 基连续重编号→重打包 zstd→原子替换,先备份 `.bak-<ts>`);解码失败即中止;健康日志永不触碰;仅桌面运行时可用(standalone npm 优雅报错)。
 - 安装落点是桌面 `dsh-home/profiles/web`，不是 `~/.dsh`（见 [dsh-home](dsh-home.md)）。
 - 预置失败只打日志，不挡 `dsh web`。
 
@@ -32,8 +37,8 @@
 
 ## Do not touch
 
-- 上游 token-meter / StatsLine / ContextMeter
-- 账户余额、计价、侧栏 footer、会话浮卡
+- 上游 token-meter / StatsLine / ContextMeter — 例外：StatsLine 宽度联动由 [composer-family-width](composer-family-width.md) 卡拥有
+- 账户余额 API、/user/balance、侧栏 footer 的余额能力
 - 无关邻域：市场窗、壁纸、Surfaces（除非用户扩大 Touching）
 
 ## Gates
