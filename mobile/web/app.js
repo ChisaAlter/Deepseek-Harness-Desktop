@@ -1195,6 +1195,10 @@ function handleMuxFrame(frame) {
     || payload?.type === 'host/session-removed'
   ) {
     state.sessions = applyHostFrame(state.sessions, payload);
+    if (state.heldSession?.sessionId === payload.sessionId && typeof payload.running === 'boolean') {
+      state.heldSession = { ...state.heldSession, running: payload.running };
+      state.sessions = withHeldLiveRow(state.sessions, state.heldSession);
+    }
     renderHeader();
     renderSessions();
     renderComposer();
@@ -1202,7 +1206,6 @@ function handleMuxFrame(frame) {
     const running = runningFromMux(frame);
     const sid = payload?.sessionId || state.sessionId;
     if (running !== null && sid) {
-      const wasRunning = currentRow()?.running === true;
       if (state.heldSession?.sessionId === sid) {
         state.heldSession = { ...state.heldSession, running };
       }
@@ -1215,9 +1218,17 @@ function handleMuxFrame(frame) {
       renderHeader();
       renderSessions();
       renderComposer();
-      // The running→idle status frame can beat the last history tick; the
-      // poll stops on idle, so fetch the closing assistant turn once here.
-      if (sid === state.sessionId && wasRunning && running === false) void pullCurrentHistory();
+    }
+  }
+  // The running→idle status frame can beat the last history tick (and a
+  // catalog refresh may have already overwritten row.running), so on any
+  // idle frame for the open session fetch the closing assistant turn.
+  {
+    const idleFor = runningFromMux(frame) === false ? (payload?.sessionId || state.sessionId) : '';
+    if (idleFor && idleFor === state.sessionId) {
+      void pullCurrentHistory();
+      // The closing assistant message can commit just after the idle status.
+      setTimeout(() => { if (state.sessionId === idleFor) void pullCurrentHistory(); }, 1500);
     }
   }
   if (payload?.type === 'session/projection' && payload.sessionId === state.sessionId) {
@@ -1270,11 +1281,13 @@ function startLiveFollow() {
 }
 
 /** One `session.history` refresh of the open session (poll tick or final catch-up). */
+let historyPullInflight = null;
 function pullCurrentHistory() {
   const sessionId = state.sessionId;
   const client = state.chisacode?.client;
   if (!sessionId || !client) return Promise.resolve();
-  return hostCall(client, 'session.history', historyQuery(sessionId))
+  if (historyPullInflight) return historyPullInflight;
+  historyPullInflight = hostCall(client, 'session.history', historyQuery(sessionId))
     .then((payload) => {
       if (state.sessionId !== sessionId) return;
       applyHistoryPayload(payload);
@@ -1284,7 +1297,9 @@ function pullCurrentHistory() {
       renderComposer();
       renderApproval();
     })
-    .catch(() => {});
+    .catch(() => {})
+    .finally(() => { historyPullInflight = null; });
+  return historyPullInflight;
 }
 
 function forceLogout(message) {

@@ -88,7 +88,11 @@ test('paired SPA subscribes the catalog mux right after connect, not only on ope
 
 test('running→idle status frame triggers one final history pull for the open session', () => {
   const mux = app.slice(app.indexOf('function handleMuxFrame'), app.indexOf('function startLiveFollow'));
-  assert.match(mux, /wasRunning && running === false\) void pullCurrentHistory\(\)/);
+  // host/session-status is consumed by the applyHostFrame branch; the idle
+  // pull sits outside that if/else so both frame shapes reach it, and a
+  // delayed second pull covers the assistant message committing after idle.
+  assert.match(mux, /if \(idleFor && idleFor === state\.sessionId\) \{\s*void pullCurrentHistory\(\);/);
+  assert.match(mux, /setTimeout\(\(\) => \{ if \(state\.sessionId === idleFor\) void pullCurrentHistory\(\); \}, 1500\)/);
   assert.match(app, /function pullCurrentHistory\(\)/);
 });
 
