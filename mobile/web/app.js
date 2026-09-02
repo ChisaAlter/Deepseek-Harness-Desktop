@@ -4474,6 +4474,14 @@ el('close-settings').addEventListener('click', () => closeSettings());
 let searchTimer = 0;
 search.addEventListener('input', () => {
   state.query = search.value;
+  // Switch the drawer into search mode immediately so the full list never
+  // shows (or gets re-painted by live frames) during the debounce window.
+  state.searchLoading = Boolean(state.query.trim());
+  if (!state.searchLoading) {
+    state.searchHits = null;
+    state.searchHasMore = false;
+  }
+  renderSessions();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     void runSessionSearch(state.query.trim());

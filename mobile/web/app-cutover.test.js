@@ -102,6 +102,12 @@ test('sendPrompt refuses images on a model that declares no image input before s
   assert.match(send, /showBanner\(guard\.message\)/);
 });
 
+test('search input enters search mode before the debounce so live frames cannot repaint the full list', () => {
+  const handler = app.slice(app.indexOf("search.addEventListener('input'"), app.indexOf("draft.addEventListener('input'"));
+  assert.match(handler, /state\.searchLoading = Boolean\(state\.query\.trim\(\)\)/);
+  assert.match(handler, /renderSessions\(\);\s*clearTimeout\(searchTimer\)/);
+});
+
 test('sending the first prompt promotes the blank session into the live drawer', () => {
   const send = app.slice(app.indexOf('async function sendPrompt()'), app.indexOf('async function cancelRun()'));
   assert.match(send, /row\.blank = false/);
