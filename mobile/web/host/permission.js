@@ -1,7 +1,9 @@
+// Verbatim desktop wording (vendor ui-conversation locales `access.preset.*`)
+// so the phone chip and the desktop PermissionSelect compare string-equal.
 const PRESET_LABELS = {
-  'read-only': '只读',
-  'workspace-write': '工作区写入',
-  'danger-full-access': '完全访问',
+  'read-only': '仅可查看',
+  'workspace-write': '可写入工作区',
+  'danger-full-access': '完全权限',
   plan: '计划',
 };
 

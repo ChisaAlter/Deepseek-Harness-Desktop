@@ -11,7 +11,16 @@ import {
 
 test('permissionCommand is the host slash line', () => {
   assert.equal(permissionCommand('read-only'), '/permission read-only');
-  assert.equal(permissionLabel('workspace-write'), '工作区写入');
+});
+
+// DEF-ACCESS-LABEL: preset names must equal the desktop PermissionSelect
+// strings (ui-conversation locales `access.preset.*`) so SYNC compares equal.
+test('permissionLabel uses the desktop preset wording verbatim', () => {
+  assert.equal(permissionLabel('read-only'), '仅可查看');
+  assert.equal(permissionLabel('workspace-write'), '可写入工作区');
+  assert.equal(permissionLabel('danger-full-access'), '完全权限');
+  assert.equal(permissionLabel('plan'), '计划');
+  assert.equal(permissionLabel('unknown-id'), 'unknown-id');
 });
 
 test('permissionFromEvents folds preset and plan/mode', () => {
