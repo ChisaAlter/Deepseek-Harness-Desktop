@@ -86,6 +86,12 @@ test('paired SPA subscribes the catalog mux right after connect, not only on ope
   assert.match(app, /catalogRefreshReason\(payload\)/);
 });
 
+test('running→idle status frame triggers one final history pull for the open session', () => {
+  const mux = app.slice(app.indexOf('function handleMuxFrame'), app.indexOf('function startLiveFollow'));
+  assert.match(mux, /wasRunning && running === false\) void pullCurrentHistory\(\)/);
+  assert.match(app, /function pullCurrentHistory\(\)/);
+});
+
 test('sending the first prompt promotes the blank session into the live drawer', () => {
   const send = app.slice(app.indexOf('async function sendPrompt()'), app.indexOf('async function cancelRun()'));
   assert.match(send, /row\.blank = false/);

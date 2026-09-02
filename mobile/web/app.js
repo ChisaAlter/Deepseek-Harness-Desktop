@@ -1202,6 +1202,7 @@ function handleMuxFrame(frame) {
     const running = runningFromMux(frame);
     const sid = payload?.sessionId || state.sessionId;
     if (running !== null && sid) {
+      const wasRunning = currentRow()?.running === true;
       if (state.heldSession?.sessionId === sid) {
         state.heldSession = { ...state.heldSession, running };
       }
@@ -1214,6 +1215,9 @@ function handleMuxFrame(frame) {
       renderHeader();
       renderSessions();
       renderComposer();
+      // The running→idle status frame can beat the last history tick; the
+      // poll stops on idle, so fetch the closing assistant turn once here.
+      if (sid === state.sessionId && wasRunning && running === false) void pullCurrentHistory();
     }
   }
   if (payload?.type === 'session/projection' && payload.sessionId === state.sessionId) {
@@ -1261,18 +1265,26 @@ function startLiveFollow() {
     if (!state.sessionId || !state.chisacode?.client) return;
     const row = currentRow();
     if (row?.running !== true && !state.pendingApprovals.length) return;
-    hostCall(state.chisacode.client, 'session.history', historyQuery(state.sessionId))
-      .then((payload) => {
-        if (!state.sessionId) return;
-        applyHistoryPayload(payload);
-        renderLog();
-        renderHeader();
-        renderSessions();
-        renderComposer();
-        renderApproval();
-      })
-      .catch(() => {});
+    void pullCurrentHistory();
   }, HISTORY_POLL_MS);
+}
+
+/** One `session.history` refresh of the open session (poll tick or final catch-up). */
+function pullCurrentHistory() {
+  const sessionId = state.sessionId;
+  const client = state.chisacode?.client;
+  if (!sessionId || !client) return Promise.resolve();
+  return hostCall(client, 'session.history', historyQuery(sessionId))
+    .then((payload) => {
+      if (state.sessionId !== sessionId) return;
+      applyHistoryPayload(payload);
+      renderLog();
+      renderHeader();
+      renderSessions();
+      renderComposer();
+      renderApproval();
+    })
+    .catch(() => {});
 }
 
 function forceLogout(message) {
