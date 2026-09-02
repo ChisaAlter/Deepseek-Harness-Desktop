@@ -34,11 +34,15 @@ try {
 
   await runCase('PAIR-004', async () => {
     // Refresh pairing code: two consecutive offers must differ (new pairingToken).
-    const first = url;
-    const second = await pairingUrl();
-    const fp = (u) => new URL(u).hash.slice(7, 27);
-    if (fp(first) === fp(second)) throw new Error('两次 offer 指纹相同，刷新无效');
-    return { status: 'Pass', note: `offer 指纹变化 ${fp(first).slice(0, 6)}… → ${fp(second).slice(0, 6)}…（产品弹窗按钮走同一 generate 路径）` };
+    const decode = (u) => {
+      const b64 = new URL(u).hash.slice(7).replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+    };
+    const ta = decode(url)?.authBootstrap?.pairingToken || '';
+    const tb = decode(await pairingUrl())?.authBootstrap?.pairingToken || '';
+    if (!ta || !tb) throw new Error('offer 缺 pairingToken');
+    if (ta === tb) throw new Error('刷新后 pairingToken 未变');
+    return { status: 'Pass', note: `pairingToken 刷新变化（${ta.slice(0, 6)}…→${tb.slice(0, 6)}…；产品弹窗刷新走同一 generate 路径）` };
   });
 
   record('PAIR-003', 'Blocked', '中继由公网 125.124.85.212:8411 提供且本场依赖它保持连接；断中继造障放全场末尾（PAIR-019 一并）');
@@ -199,6 +203,8 @@ try {
 
   // Re-pair for later modules and confirm PAIR-010 sticky again is clean.
   await runCase('PAIR-007b(re-pair)', async () => {
+    // The relay backs off briefly after a device disconnect; give it a beat.
+    await sleep(6000);
     const fresh = await pairingUrl();
     await pairInto(page, fresh);
     return { status: 'Pass', note: '断开后重新配对成功（后续模块用此会话）' };

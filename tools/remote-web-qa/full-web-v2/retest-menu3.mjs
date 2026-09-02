@@ -53,7 +53,11 @@ async function workspaceMenu(name) {
   await waitFor(page, () => Boolean(document.querySelector('#sheet-root .sheet-title')), 'ws menu');
 }
 
-async function archiveViaPhone(id, title) {
+async function archiveViaPhone(id) {
+  // Titles regenerate on the host after the first turn; always read the live
+  // title right before archiving so archived-sheet lookups match.
+  const fresh = (await spaSessions(page)).rows.find((r) => r.id === id)?.title;
+  if (fresh) title = fresh;
   await sessionMenu(id);
   await clickSheet(page, '归档', { exact: true });
   await waitFor(page, () => /归档「/.test(document.querySelector('.dialog')?.textContent || ''), 'confirm', 8_000);

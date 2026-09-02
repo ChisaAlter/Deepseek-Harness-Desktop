@@ -274,11 +274,24 @@ try {
     await sleep(1200);
     const rail = await page.evaluate(() => !document.querySelector('#attach-rail')?.classList.contains('hidden'));
     if (!rail) throw new Error('附件条未出现');
-    const view = await sendAndIdle(page, '请只回复一行：收到图片', 180_000);
-    const hasImg = await page.evaluate(() => Boolean(document.querySelector('#log img')));
+    // grok-4.6 declares no image input: the pre-send guard must refuse with
+    // the desktop wording and keep the attachment (DEF-ATTACH-TEXTMODEL).
+    const usersBefore = await page.evaluate(() => document.querySelectorAll('#log .user').length);
+    await page.click('#draft');
+    await page.type('#draft', '请只回复一行：收到图片');
+    await page.click('#send-btn');
+    await sleep(2500);
+    const view = await page.evaluate((n) => ({
+      banner: document.querySelector('#banner')?.textContent || '',
+      usersGained: document.querySelectorAll('#log .user').length - n,
+      stop: !document.querySelector('#stop-btn')?.classList.contains('hidden'),
+    }), usersBefore);
     const file = await shot(page, 'cmp-021-attach');
-    if (!hasImg) throw new Error('时间线无图');
-    return { status: 'Pass', note: `附件发送成功；气泡回显图；回复=${view.lastAssistant.slice(0, 16)}`, evidence: [file] };
+    if (view.usersGained > 0 || view.stop) throw new Error(`附图在文本模型上发出去了（users+${view.usersGained}）`);
+    if (!/不支持图片/.test(view.banner)) throw new Error(`无拒图 banner: ${view.banner.slice(0, 60)}`);
+    await page.evaluate(() => document.querySelector('#attach-rail button')?.click());
+    await page.evaluate(() => { const d = document.querySelector('#draft'); d.value = ''; d.dispatchEvent(new Event('input', { bubbles: true })); });
+    return { status: 'Pass', note: `发送前拦截：「${view.banner}」；未发出`, evidence: [file] };
   });
 
   await runCase('CMP-024', async () => {

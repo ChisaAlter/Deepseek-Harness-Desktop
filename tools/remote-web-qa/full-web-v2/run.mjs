@@ -33,7 +33,7 @@ const MODULES = [
   { id: 'MENU', scripts: ['retest-menu3.mjs', 'retest-sync-reverse.mjs', 'retest-move.mjs'] },
   { id: 'CMP', scripts: ['run-cmp.mjs', 'retest-access-label.mjs', 'probe-attach.mjs'] },
   { id: 'CHAT', scripts: ['run-chat-appr.mjs'] },
-  { id: 'GIT', scripts: ['run-git.mjs', 'retest-git4.mjs'] },
+  { id: 'GIT', scripts: ['run-git.mjs', 'retest-git2.mjs', 'retest-git4.mjs'] },
   { id: 'FINAL', scripts: ['run-final.mjs'] },
 ];
 

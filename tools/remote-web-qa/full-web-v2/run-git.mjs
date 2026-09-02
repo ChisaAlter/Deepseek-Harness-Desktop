@@ -192,7 +192,9 @@ try {
       const b = [...document.querySelectorAll('button')].find((x) => /切换分支/.test(x.getAttribute('aria-label') || ''));
       return b ? b.textContent.trim() : '';
     });
-    return { status: 'Pass', note: `Init → pill=${after}；桌面分支按钮=${dGit}（桌面若停别仓则以 git 命令核 ref=${git(TMP, 'rev-parse', '--abbrev-ref', 'HEAD')}）`, evidence: [e1] };
+    // A freshly initialised repo has no commit yet; symbolic-ref reads HEAD safely.
+    const ref = git(TMP, 'symbolic-ref', '--short', 'HEAD');
+    return { status: 'Pass', note: `Init → pill=${after}；桌面分支按钮=${dGit}；git symbolic-ref=${ref}`, evidence: [e1] };
   });
 
   await runCase('GIT-002', async () => {
@@ -242,6 +244,9 @@ try {
     return { status: 'Pass', note: `Commit 落库：${git(TMP, 'log', '--oneline', '-1')}` };
   });
 
+  // GIT-004/008/010/011/012/014 below read the pill instead of the git sheet
+  // primary label and bare `master`; retest-git2 / retest-git4 own those ids now.
+  if (process.env.DSH_QA_LEGACY_GIT === '1') {
   await runCase('GIT-008', async () => {
     const name = `dshd-qa-br-${Date.now().toString().slice(-6)}`;
     await dismissOverlays(page);
@@ -417,6 +422,7 @@ try {
     if (still) throw new Error('永久 loading');
     return { status: 'Pass', note: `失败可见（${(view.toast || view.banner).slice(0, 60)}），未永久 loading` };
   });
+  }
 
   await runCase('GIT-016', async () => {
     // clean state main button hint.

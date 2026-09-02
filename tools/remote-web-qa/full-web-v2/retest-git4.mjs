@@ -15,11 +15,6 @@ const git = (cwd, ...args) => execFileSync('git', ['-C', cwd, ...args], { encodi
 const BARE = process.env.DSH_QA_BARE || git(TMP, 'remote', 'get-url', 'origin');
 const PRIMARY_RE = /^(Commit & push|Commit, push & PR|Push & create PR|Publish repository|View PR|Commit|Push|Pull|Sync branch)$/;
 
-record('GIT-010', 'Pass',
-  '更正判定：stacked「Commit, push & PR」两次点击的 commit **都推到了裸仓 main 分支**（bare main log 含 qa: GIT-010 stacked / stacked clean）。此前 Fail 是 oracle 盯错 master 谱系。PR 步无 forge 报错属预期');
-record('GIT-019(push-ahead)', 'Pass',
-  '更正判定：Push 把 ahead 推上 origin/main（bare main 含 div3 local 等本地提交）；oracle 谱系错误已修');
-
 const url = await pairingUrl();
 const { browser, page } = await launchSpa();
 

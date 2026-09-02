@@ -80,7 +80,8 @@ try {
       const btn = [...document.querySelectorAll('[class*="sessionRow"]')]
         .find((r) => ((r.querySelector('[class*="title"]')?.textContent || '').trim() === want));
       if (!btn) return false;
-      (btn.querySelector('button, a') || btn).click();
+      // Click the title, not the row's first button (that is the ⋯ action menu).
+      (btn.querySelector('[class*="title"]') || btn).click();
       return true;
     }, title);
     await sleep(3000);
@@ -260,6 +261,9 @@ try {
   let apprShots = [];
   await runCase('APPR-001', async () => {
     await openSid(sidA);
+    await dismissOverlays(page);
+    await page.evaluate(() => document.querySelector('#backdrop')?.click());
+    await sleep(400);
     // ① workspace-write + command round.
     await page.click('#access-chip');
     await waitFor(page, () => !document.querySelector('#settings')?.classList.contains('hidden'), 'access');
@@ -339,6 +343,9 @@ try {
 
   await runCase('APPR-005', async () => {
     // second trigger; while approval visible check send disabled+slash closed then phone reject.
+    const pendingNow = await page.evaluate(() => !document.querySelector('#approval')?.classList.contains('hidden'));
+    if (pendingNow) return { status: 'Blocked', note: '前一审批仍在场，跳过第二次触发' };
+    await dismissOverlays(page);
     await page.click('#draft');
     await page.evaluate(() => { const d = document.querySelector('#draft'); d.value = ''; });
     await page.type('#draft', '在工作区根目录创建 dshd-qa-approve2.txt，内容 qa2。');
