@@ -5,7 +5,7 @@
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-3);
-  transition: border-color .16s, background .16s;
+  transition: border-color var(--ds-motion-duration-popover) var(--ds-ease-in-out), background var(--ds-motion-duration-popover) var(--ds-ease-in-out);
 }
 
 .card:hover {
@@ -65,7 +65,7 @@
 .chevron {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
-  transition: transform .16s;
+  transition: transform var(--ds-motion-duration-popover) var(--ds-ease-in-out);
 }
 
 .chevronOpen {

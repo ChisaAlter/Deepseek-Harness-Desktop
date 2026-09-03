@@ -53,7 +53,7 @@
   border-radius: 50%;
   corner-shape: round;
   background: var(--dsw-alias-label-primary-foreground);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .switchOn .thumb {

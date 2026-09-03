@@ -24,7 +24,7 @@
   border-radius: 2px;
   background: var(--dsw-alias-border-l3);
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .resizeHandle:hover::after {

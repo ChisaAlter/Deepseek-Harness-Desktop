@@ -379,7 +379,7 @@
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
   transform: rotate(-45deg) translate(-1px, -1px);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .customized[open] > .customizedSummary::before {

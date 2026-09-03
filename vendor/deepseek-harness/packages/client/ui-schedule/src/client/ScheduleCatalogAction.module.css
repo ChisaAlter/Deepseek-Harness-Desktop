@@ -27,7 +27,7 @@
 }
 
 .trigger > svg:last-child {
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .triggerOpen {

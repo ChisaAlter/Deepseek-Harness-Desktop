@@ -73,7 +73,7 @@
   background: var(--dsw-static-neutral-bluish-00);
   border: 2px solid var(--dsw-alias-brand-primary);
   box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
-  transition: transform 0.1s ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
   corner-shape: round;
 }
 
@@ -184,7 +184,7 @@
   border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 14px;
   background: var(--dsw-alias-bg-layer-1);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--ds-motion-duration-popover) var(--ds-ease-in-out), box-shadow var(--ds-motion-duration-popover) var(--ds-ease-in-out);
 }
 
 .card:hover {
@@ -325,7 +325,7 @@
   display: flex;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .card:hover .cardActions,

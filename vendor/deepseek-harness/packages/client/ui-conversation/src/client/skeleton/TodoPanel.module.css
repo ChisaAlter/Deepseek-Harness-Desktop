@@ -135,6 +135,12 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .glyphProgress {
+    animation: none;
+  }
+}
+
 /* Figma strip is single-line; long items ellipsize with no inline expand. */
 .content {
   min-width: 0;

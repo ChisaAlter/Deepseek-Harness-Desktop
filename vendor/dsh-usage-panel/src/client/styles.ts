@@ -4,7 +4,7 @@ export const STYLE_ID = 'dsh-usage-panel/styles'
 
 export const CSS = [
   '.dsw-ust-root{position:relative;display:flex;flex-direction:column;gap:16px;padding:16px 20px 28px;min-width:0}',
-  '.dsw-ust-tooltip{position:fixed;left:0;top:0;transform:translate(-50%,-110%);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);padding:8px 12px;border-radius:8px;font-size:12px;line-height:18px;white-space:nowrap;pointer-events:none;box-shadow:var(--dsw-shadow-lv2);opacity:0;transition:opacity .12s ease;z-index:9999}',
+  '.dsw-ust-tooltip{position:fixed;left:0;top:0;transform:translate(-50%,-110%);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);padding:8px 12px;border-radius:8px;font-size:12px;line-height:18px;white-space:nowrap;pointer-events:none;box-shadow:var(--dsw-shadow-lv2);opacity:0;transition:opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);z-index:9999}',
   '.dsw-ust-tooltip.show{opacity:1}',
   '.dsw-ust-tooltip-title{font-size:12px;line-height:18px;font-weight:600;color:var(--dsw-alias-label-primary);margin-bottom:4px;white-space:nowrap}',
   '.dsw-ust-tooltip-row{display:flex;align-items:center;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);white-space:nowrap}',

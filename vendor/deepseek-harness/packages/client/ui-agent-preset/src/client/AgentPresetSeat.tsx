@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  IconAgentPresetOutline16, IconChevronDownOutline14, IconWarningOutline16, Menu, Toast,
+  FlipText, IconAgentPresetOutline16, IconChevronDownOutline14, IconWarningOutline16, Menu, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -141,7 +141,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
         ))}
       </span>
     )
-    : label
+    : <FlipText className={css.presetLabel} text={label} />
 
   return (
     <>

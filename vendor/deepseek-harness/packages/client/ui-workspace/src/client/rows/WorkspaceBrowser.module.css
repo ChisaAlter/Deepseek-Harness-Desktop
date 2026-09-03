@@ -66,10 +66,10 @@
   opacity: 1;
   visibility: visible;
   transition:
-    max-width 180ms var(--ds-ease-in-out),
-    margin-right 180ms var(--ds-ease-in-out),
-    opacity 120ms var(--ds-ease-in-out),
-    transform 180ms var(--ds-ease-in-out),
+    max-width var(--ds-transition-duration) var(--ds-ease-in-out),
+    margin-right var(--ds-transition-duration) var(--ds-ease-in-out),
+    opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    transform var(--ds-transition-duration) var(--ds-ease-in-out),
     visibility 0s linear;
 }
 
@@ -79,7 +79,7 @@
   opacity: 0;
   transform: translateX(-4px);
   visibility: hidden;
-  transition-delay: 0s, 0s, 0s, 0s, 180ms;
+  transition-delay: 0s, 0s, 0s, 0s, var(--ds-transition-duration);
 }
 
 .searchSlot {
@@ -92,8 +92,8 @@
   padding-left: 0;
   box-sizing: border-box;
   transition:
-    max-width 180ms var(--ds-ease-in-out),
-    padding-left 180ms var(--ds-ease-in-out);
+    max-width var(--ds-transition-duration) var(--ds-ease-in-out),
+    padding-left var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 .searchSlotExpanded {
@@ -111,9 +111,9 @@
   overflow: hidden;
   visibility: visible;
   transition:
-    max-width 180ms var(--ds-ease-in-out),
-    opacity 120ms var(--ds-ease-in-out),
-    transform 180ms var(--ds-ease-in-out),
+    max-width var(--ds-transition-duration) var(--ds-ease-in-out),
+    opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    transform var(--ds-transition-duration) var(--ds-ease-in-out),
     visibility 0s linear;
 }
 
@@ -123,7 +123,7 @@
   transform: translateX(4px);
   visibility: hidden;
   pointer-events: none;
-  transition-delay: 0s, 0s, 0s, 180ms;
+  transition-delay: 0s, 0s, 0s, var(--ds-transition-duration);
 }
 
 /* Inline search always fills the room between the title and trailing actions;
@@ -146,10 +146,10 @@
   color: var(--dsw-alias-label-secondary);
   overflow: hidden;
   transition:
-    width 180ms var(--ds-ease-in-out),
-    padding 180ms var(--ds-ease-in-out),
-    border-color 180ms var(--ds-ease-in-out),
-    background-color 180ms var(--ds-ease-in-out);
+    width var(--ds-transition-duration) var(--ds-ease-in-out),
+    padding var(--ds-transition-duration) var(--ds-ease-in-out),
+    border-color var(--ds-transition-duration) var(--ds-ease-in-out),
+    background-color var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 .searchExpanded {
@@ -204,7 +204,7 @@
   font-size: 13px;
   line-height: 18px;
   color: var(--dsw-alias-label-primary);
-  transition: opacity 120ms var(--ds-ease-in-out);
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .searchExpanded .searchInput {
@@ -321,7 +321,7 @@
 
 /* Wide-only content fades back in on expand remount (mirrors the shell). */
 .wide {
-  animation: wide-in 200ms var(--ds-ease-in-out);
+  animation: wide-in var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 @keyframes wide-in {

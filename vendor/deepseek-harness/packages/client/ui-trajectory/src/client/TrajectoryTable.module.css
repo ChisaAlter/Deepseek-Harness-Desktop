@@ -189,8 +189,8 @@
   cursor: default;
   outline: none;
   transition:
-    background-color 120ms var(--ds-ease-in-out),
-    opacity 120ms var(--ds-ease-in-out);
+    background-color var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .table tbody tr[data-timeline-focus='outside'] {
@@ -259,8 +259,8 @@
     0 0 0 3px transparent;
   content: '';
   transition:
-    background 120ms var(--ds-ease-in-out),
-    box-shadow 120ms var(--ds-ease-in-out);
+    background var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    box-shadow var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .requestBoundaryControl::after {
@@ -280,8 +280,8 @@
   pointer-events: none;
   transform: translateX(-2px);
   transition:
-    opacity 120ms var(--ds-ease-in-out),
-    transform 120ms var(--ds-ease-in-out);
+    opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+    transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
   user-select: none;
   white-space: nowrap;
 }
@@ -559,7 +559,7 @@
   .kindTagLabel,
   .turnLabelFull,
   .turnLabelCompact {
-    transition-duration: 180ms;
+    transition-duration: var(--ds-transition-duration);
     transition-timing-function: var(--ds-ease-in-out);
   }
 
@@ -739,7 +739,7 @@
 .table tbody tr[data-collapsed-summary] {
   cursor: pointer;
   outline: none;
-  transition: background-color 120ms var(--ds-ease-in-out);
+  transition: background-color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .table tbody tr[data-collapsed-summary]:hover {
@@ -1375,7 +1375,7 @@
 
 .thinkingChevron {
   flex: none;
-  transition: transform 120ms var(--ds-ease-in-out);
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .thinkingToggle[aria-expanded='true'] .thinkingChevron {
@@ -1683,7 +1683,7 @@
 }
 
 .toolCatalogChevron {
-  transition: transform 100ms var(--ds-ease-in-out);
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .toolCatalogItem[open] .toolCatalogChevron {

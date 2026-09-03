@@ -51,6 +51,13 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
+.selectorLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chevron {
   flex: none;
 }

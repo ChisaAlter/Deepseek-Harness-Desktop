@@ -14,7 +14,7 @@ Status: implemented
 
 **`usePresence(open)` 是唯一的退场滞留。** 它在 layout effect 里挂载，好让焦点和测量在绘制前看到树；先写 `data-state="closed"`，两个 animation frame 后再写 `"open"`，好让 CSS 过渡能播；关闭时写 `"closed"`，200ms 后卸载（减少动效时立即卸）。调用方在 `mounted` 为真时渲染，并根据逻辑上的 `open`（而不是 `data-state`）设置 `aria-hidden`，因为进场从 `closed` 开始，若按 `data-state` 隐藏，辅助技术会在进场时就看不到这个表面。
 
-**原语吃掉 recipe，功能弹层复用它们。** `Modal`、`Menu`、`HoverCard`、`Tooltip`、`DisclosureRow` 和 `OnboardingSurface` 使用该 hook。设置、`PopupSelect`、斜杠 `MenuView`、`ImageLightbox`、composer 的 `ModelSelect` 菜单、`ContextMeter` 面板，以及侧栏工作区会话列表（`GroupSessionRun`）同样如此。composer 工具栏上的四个弹层——加号 `MenuView`、权限 `Menu`、`ModelSelect`、`ContextMeter`——都走 `popover` recipe，进出同一套时长。`FlipText` 在权限、模型和推理等级触发器文案被新值替换时播放 400ms 的 `flip` recipe（`--ds-motion-duration-flip` / `FLIP_TEXT_MS`）；这段滞留与 Presence 的 200ms 退场相互独立。关闭时会清空的 store 为退场帧保留最后一次打开的快照。Toast 继续用自己的停留加淡出。新的对话框、菜单和切换使用原语，或使用同一 hook 与 recipe；它们不引入动画库，也不动画 `backdrop-filter` 或大面板尺寸。
+**原语吃掉 recipe，功能弹层复用它们。** `Modal`、`Menu`、`HoverCard`、`Tooltip`、`DisclosureRow` 和 `OnboardingSurface` 使用该 hook。设置、`PopupSelect`、斜杠 `MenuView`、`ImageLightbox`、composer 的 `ModelSelect` 菜单、`ContextMeter` 面板，以及侧栏工作区会话列表（`GroupSessionRun`）同样如此。composer 工具栏上的四个弹层——加号 `MenuView`、权限 `Menu`、`ModelSelect`、`ContextMeter`——都走 `popover` recipe，进出同一套时长。`FlipText` 在权限、模型和推理等级触发器文案被新值替换时播放 400ms 的 `flip` recipe（`--ds-motion-duration-flip` / `FLIP_TEXT_MS`）——设置选择器胶囊（`SettingsSelect`，覆盖语言、回车行为、权限预设、关闭行为、自启、重启策略、MCP / Skills 过滤、视觉模型、协议、网关、图源与价格面板行）、转录呈现行、Agent 预设芯片与远程设置芯片同样如此；这段滞留与 Presence 的 200ms 退场相互独立。关闭时会清空的 store 为退场帧保留最后一次打开的快照。Toast 继续用自己的停留加淡出。新的对话框、菜单和切换使用原语，或使用同一 hook 与 recipe；它们不引入动画库，也不动画 `backdrop-filter` 或大面板尺寸。
 
 [Web 样式系统](../process/2026-07-19-web-styling-system.md) 仍然拥有 token 与 CSS Modules 框架。本笔记拥有 overlay recipe、Presence，以及不上动画库这条规则。
 

@@ -71,6 +71,12 @@
   to { transform: rotate(360deg); }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
 .failed {
   max-width: 480px;
   display: flex;

@@ -184,7 +184,7 @@
   content: '';
   opacity: 0.8;
   transform: rotate(-45deg);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .retrySummary:hover {

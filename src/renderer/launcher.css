@@ -516,7 +516,7 @@ main:has(#panel-import.is-active) {
 .import-fold-icon {
   width: 14px;
   height: 14px;
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .import-fold.is-collapsed .import-fold-icon {

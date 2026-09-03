@@ -185,6 +185,12 @@
   80%, 100% { opacity: 1; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .skeletonBar {
+    animation: none;
+  }
+}
+
 /* Breadcrumb header of a drilled source: pinned outside .viewport so the
    descent stays reversible while the candidate list scrolls under it.
    4px sides + the crumb's own 6px = the first crumb's text sits at 10px,

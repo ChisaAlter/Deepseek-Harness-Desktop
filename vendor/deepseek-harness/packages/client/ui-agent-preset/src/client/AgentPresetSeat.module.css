@@ -59,6 +59,13 @@
 
 /* Wraps the staggered characters into one flex item, so the chip's gap
    applies around the name as a whole rather than between characters. */
+.presetLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .introText {
   display: inline-block;
   white-space: pre;

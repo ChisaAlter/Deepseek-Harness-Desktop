@@ -198,7 +198,7 @@ button { cursor: pointer; }
 .flow-row[data-state="error"] .flow-summary { color: var(--dsw-alias-state-error-primary); }
 .flow-chevron {
   flex: none; margin-left: auto; color: var(--dsw-alias-label-caption);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 .flow-row[data-open="true"] .flow-chevron { transform: rotate(180deg); }
 /* State dot: running chases, ok green, error red, stopped grey (desktop StateDot). */
@@ -400,6 +400,10 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .composer.is-running .beam-layer, .composer.is-running .beam-stroke,
   .composer.is-running .beam-inner, .composer.is-running .beam-bloom { animation: none; }
+  .beam-layer { transition: none; }
+  .state-dot[data-state="running"] { animation: none; }
+  .think-row[data-state="running"] .flow-head::after { animation: none; }
+  .assistant[data-streaming] > p:last-child::after { animation: none; }
 }
 .composer textarea {
   width: 100%; min-height: 48px; max-height: 120px;
@@ -540,7 +544,7 @@ button { cursor: pointer; }
 }
 .workspace-chevron {
   color: var(--dsw-alias-label-caption);
-  transition: transform 120ms ease;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 .workspace-head[data-expanded="true"] .workspace-chevron { transform: rotate(90deg); }
 .workspace-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }

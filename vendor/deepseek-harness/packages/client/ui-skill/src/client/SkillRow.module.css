@@ -57,7 +57,7 @@
 .iconIdle {
   display: inline-flex;
   opacity: 1;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .chevronHover {
@@ -65,7 +65,7 @@
   inset: 0;
   margin: auto;
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .row:hover .iconIdle {
@@ -177,7 +177,7 @@
   line-height: 16px;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 100ms ease;
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }
 
 .card:hover .inspectButton,

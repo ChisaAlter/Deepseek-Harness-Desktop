@@ -65,3 +65,9 @@
   25%, 37.4% { opacity: 0.35; }
   37.5%, 100% { opacity: 0.15; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .cell {
+    animation: none;
+  }
+}

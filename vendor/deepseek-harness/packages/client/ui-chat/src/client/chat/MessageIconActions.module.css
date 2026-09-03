@@ -39,7 +39,7 @@
     ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
   ) .actions {
     opacity: 0;
-    transition: opacity 80ms ease;
+    transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
   }
 
   [data-actions-reveal='hover']:hover .actions,

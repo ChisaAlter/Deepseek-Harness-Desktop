@@ -121,7 +121,10 @@ describe('PermissionRow', () => {
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(enable)
     await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
-    expect(dialog.isConnected).toBe(false)
+    // The shared overlay recipe holds the dialog mounted through the 200ms
+    // exit; aria-hidden closes it immediately, unmount follows the hold.
+    expect(screen.queryByRole('dialog', { name: '确认启用完全权限？' })).toBeNull()
+    await waitFor(() => { expect(dialog.isConnected).toBe(false) })
   })
 
   it('hides an unavailable namespace and disables a read-only provider', async () => {

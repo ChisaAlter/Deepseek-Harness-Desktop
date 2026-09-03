@@ -7,6 +7,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import { FlipText } from './FlipText.tsx'
 import { IconChevronDownOutline14 } from './icons/index.tsx'
 import { Menu } from './Menu.tsx'
 import css from './SettingsSelect.module.css'
@@ -106,9 +107,10 @@ export function SettingsSelect({
             disabled={disabled}
             onClick={() => { setOpen(current => !current) }}
           >
-            <span className={clsx(css.label, selected === undefined && value === '' && placeholder !== '' && css.placeholder)}>
-              {label}
-            </span>
+            <FlipText
+              className={clsx(css.label, selected === undefined && value === '' && placeholder !== '' && css.placeholder)}
+              text={label}
+            />
             <IconChevronDownOutline14 className={css.chevron} />
           </button>
         )}

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `settings-select` |
 | **status** | `active` |
-| **last verified** | 2026-09-01 — vendor `settings-select` / Menu client spec; HarnessRestartRow optimistic Switch (no saving flash); PriceSettingsPanel + ModelsSection add-provider `SettingsSelect` |；本次 alpha.4：SettingsSelect、Appearance 与模型设置回归通过。
+| **last verified** | 2026-09-03 — 触发器标签接 `FlipText`（选值翻转，flip recipe）；vendor 选择器相关 spec 全过。2026-09-01 — HarnessRestartRow optimistic Switch（无 saving flash）；PriceSettingsPanel + ModelsSection add-provider `SettingsSelect`；alpha.4：SettingsSelect、Appearance 与模型设置回归通过。 |
 
 ## User paths
 
@@ -22,6 +22,7 @@
 - `SettingsSelect` 是 `ui-primitives` 公开原语（`variant="inline"|"block"`，`align`）。样式只用 `--dsw-alias-*` 与组件局部令牌，无字面颜色。`block` 触发器与打开列表都跟字段同宽（`Menu.matchAnchorWidth`），列表底用 `--dsw-alias-bg-module-platform`（与胶囊相同），不是 218px 玻璃卡片透壁纸。
 - 选项集合与写入语义不变：只换触发器与打开面。
 - 设置里的**值选择**走 `SettingsSelect`。行内操作菜单（删除确认、卡片展开、开关）不是下拉，不改。
+- 触发器标签在选值替换时走 `FlipText`（flip recipe，400ms；减弱动效立即换文案），与 Composer 模型 / 权限芯片同一份动效合同（`docs/motion.md` flip 表）。
 - Composer 模型座 / `/permission` 芯片不在本卡。
 - 存在性由 `src/shared/harness-desktop-forks.js` 的 `FORK_FILE_MARKERS` 钉住。
 

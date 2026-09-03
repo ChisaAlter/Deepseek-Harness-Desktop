@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { IconCloseOutline16 } from './icons/index.tsx'
+import { usePresence } from './usePresence.ts'
 import css from './Modal.module.css'
 
 interface ModalBaseProps {
@@ -34,11 +35,14 @@ type ModalProps = ModalBaseProps & (
  * @param props.contentClassName - optional class for a scrollable content region.
  * @param props.headless - render children directly in the card (no default
  * header/close/body chrome); mask, card, Escape, and aria-label remain.
- * @returns null when closed; otherwise the overlay tree.
+ * @returns null when unmounted; the overlay tree stays mounted through the
+ * 200ms exit hold so the shared overlay recipe can play its exit transition.
  */
 export function Modal({
   open, onClose, title, closeLabel, description, children, footer, headerActions, className, contentClassName, headless = false,
 }: ModalProps) {
+  const { mounted, state } = usePresence(open)
+
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -48,13 +52,20 @@ export function Modal({
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [open, onClose])
 
-  if (!open) return null
+  if (!mounted) return null
 
   return createPortal((
-    <div className={css.root} role="presentation">
-      <div className={css.mask} aria-hidden="true" onClick={onClose} />
+    <div
+      className={css.root}
+      role="presentation"
+      data-dsh-motion="overlay"
+      data-state={state}
+      aria-hidden={open ? undefined : true}
+    >
+      <div className={css.mask} data-dsh-motion-part="mask" aria-hidden="true" onClick={onClose} />
       <div
         className={clsx(css.dialog, className)}
+        data-dsh-motion-part="panel"
         role="dialog"
         aria-modal="true"
         aria-label={title}

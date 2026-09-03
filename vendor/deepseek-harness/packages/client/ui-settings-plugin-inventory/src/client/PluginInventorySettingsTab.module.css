@@ -447,7 +447,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .chevron {
-    transition: transform 140ms var(--ds-ease-in-out);
+    transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
   }
 }
 

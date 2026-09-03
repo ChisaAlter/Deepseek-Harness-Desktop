@@ -63,7 +63,7 @@
   color: var(--dsw-alias-label-primary-inverted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s ease-in-out;
+  transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out);
 }
 
 .item:hover .remove,

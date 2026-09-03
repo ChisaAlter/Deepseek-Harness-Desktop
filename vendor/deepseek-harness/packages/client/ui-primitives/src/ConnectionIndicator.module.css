@@ -14,7 +14,7 @@
   font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
-  transition: background-color 160ms ease-out, color 160ms ease-out;
+  transition: background-color var(--ds-motion-duration-popover) var(--ds-ease-in-out), color var(--ds-motion-duration-popover) var(--ds-ease-in-out);
 }
 
 .warning {

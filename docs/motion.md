@@ -12,13 +12,14 @@
 
 - 官方 Web UI：`vendor/deepseek-harness/packages/client/**`、`apps/web/**`
 - 桌面壳：`src/renderer/**`、`src/main/closing-overlay.js`
+- 桌面自有分区与手机端：设置市场（`ui-settings-market`）、远程设置（`ui-settings-remote`）、用量统计（`vendor/dsh-usage-panel`）、手机 Web（`mobile/web`）复用同一套 token 与家族（见下）
 
 ## 原则
 
-1. **只动 `opacity` 和 `transform`。** 禁止动画 `backdrop-filter`、大面板宽高，禁止引入动画库。
+1. **只动 `opacity` 和 `transform`。** 禁止动画 `backdrop-filter`，禁止引入动画库。布局属性（栏宽、行高、轨道 top/left、进度 width）只允许出现在**布局轨道**清单里（见「同 token、非 recipe」），且拖拽中与减弱动效必须停。
 2. **新对话框、菜单、同层切换走 recipe。** 表面从 `usePresence` 写上 `data-dsh-motion` 和 `data-state`，不得另起一套时长或缓动。
 3. **触发器换文案用 `FlipText`。** 权限、模型、推理等级这类芯片在所选值替换旧文案时翻转，不闪切。
-4. **`prefers-reduced-motion: reduce` 把 `--ds-transition-duration*` 和 `--ds-motion-duration-*` 收成 `0s`。** 新动效必须吃这些 token，才能一并关掉。
+4. **`prefers-reduced-motion: reduce` 把 `--ds-transition-duration*` 和 `--ds-motion-duration-*` 收成 `0s`。** 新动效必须吃这些 token，才能一并关掉。字面量时长不随 token 归零，减弱动效下会照播——功能 CSS 禁止写死毫秒，这是 token 化的可达性理由，不只是风格。
 5. **先复用原语。** `Modal` / `Menu` / `Tooltip` / `HoverCard` / `DisclosureRow` / `OnboardingSurface` 已经带齐 Presence 与 recipe。
 
 ## Token
@@ -28,17 +29,19 @@
 | Token | 当前值 | 用途 |
 | --- | --- | --- |
 | `--ds-ease-in-out` | `cubic-bezier(0.4, 0, 0.2, 1)` | 共享缓动 |
-| `--ds-transition-duration-fast` | 100ms | 快过渡；overlay 退场、swap / fade |
-| `--ds-transition-duration` | 200ms | 默认过渡；overlay 进场 |
+| `--ds-transition-duration-fast` | 100ms | 快过渡；overlay 退场、swap / fade、微交互 hover / 按压 |
+| `--ds-transition-duration` | 200ms | 默认过渡；overlay 进场、卡片级 hover、布局轨道 |
 | `--ds-transition-duration-slow` | 300ms | 栏开合、Hero 小动效 |
 | `--ds-motion-duration-overlay` | 200ms | overlay 进场 |
 | `--ds-motion-duration-overlay-out` | 100ms | overlay 退场 |
-| `--ds-motion-duration-popover` | 160ms | 菜单 / 浮层 |
+| `--ds-motion-duration-popover` | 160ms | 菜单 / 浮层、卡片 hover 反馈 |
 | `--ds-motion-duration-swap` | 100ms | fade、swap |
 | `--ds-motion-duration-flip` | 400ms | `FlipText` |
 | `--ds-motion-distance-overlay` | 8px | overlay 面板上移 |
 | `--ds-motion-distance-popover` | 4px | popover 上移 |
 | `--ds-motion-scale-overlay` | 0.96 | overlay 面板缩放 |
+
+档位只有五档：fast 100 / popover 160 / default 200 / slow 300 / flip 400。历史上散落的 80 / 120 / 140 / 180 / 220ms 字面量已归并到 100 / 160 / 200；不再新增档位，需要新档先改主题表。
 
 `usePresence` 的退场挂载默认 200ms（`PRESENCE_EXIT_MS`），与 overlay 进场 token 对齐。`FlipText` 的 400ms 挂载（`FLIP_TEXT_MS`）独立于 Presence。
 
@@ -74,6 +77,7 @@
 | 工作区：重命名、删会话、选择失败 | `WorkspaceBrowser`、`WorkspacePicker` |
 | 目录选择、新建文件夹 | `DirectoryBrowser` |
 | 设置：MCP 增改删、Skills 增改删、模型删除 / 拉取候选、Agent 预设复制 / 查看 / 删除、首次模型引导 | `McpSection`、`SkillsSection` / `SkillForm`、`ModelsSection`、`ModelListEditor`、`AgentPresetSection`、`OnboardingModal` |
+| 设置：插件市场分区 | `MarketSection`（桌面自有 `ui-settings-market`） |
 
 ### popover
 
@@ -94,7 +98,6 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 文件树复制路径 | `FileTree` |
 | Agent 预设 | `AgentPresetSeat`、`PresetMenu` |
 | 设置行：语言、关闭行为、回车发送、权限预设、Harness 重启次数 / 延迟、MCP 启用过滤、Skills 来源过滤 | `LanguageRow`、`CloseBehaviorRow`、`EnterBehaviorRow`、`PermissionRow`、`HarnessRestartRow`、`McpSection`、`SkillsSection` |
-| JSON 树复制 | `JsonTree` |
 
 ### fade
 
@@ -116,6 +119,9 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | --- | --- |
 | 权限芯片文案 | `PermissionSelect` → `FlipText` |
 | 模型名、推理等级 | `ModelSelect` → `FlipText` |
+| 远程设置芯片 | `RemoteSection` → `FlipText`（桌面自有 `ui-settings-remote`） |
+| 设置选择器（语言、回车行为、权限预设、关闭行为、自启、重启策略、MCP / Skills 过滤、视觉模型、协议、网关、图源、价格面板） | `SettingsSelect` → `FlipText` |
+| 转录呈现、Agent 预设芯片 | `TranscriptViewRow`、`AgentPresetSeat` → `FlipText` |
 
 ### 同 token、非 recipe
 
@@ -126,7 +132,22 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 侧栏 / 栏开合 | `AppFrame` 过渡 `grid-template-columns` / `rows`、把手 `left`、图标位移；拖拽中暂停；减弱动效时停下 |
 | 开关 | `Switch` 滑块 `transform`，`--ds-transition-duration-fast` |
 | 按钮、输入、行 hover | 交互色 token，不是进出场 recipe |
-| 空会话 Hero 小鱼 | 悬停且未减弱动效时，`--ds-transition-duration-slow` 轻摆 |
+| 微交互 | 图标按钮按压、卡片按压位移等 `transform` 反馈，`--ds-transition-duration-fast`；卡片级 hover（边框 / 底色）用 `--ds-motion-duration-popover` |
+| 布局轨道 | `TurnNavigator` 回合轨（`height` / `top` / mark 宽，自有 swift 曲线）、`WorkspaceBrowser` 行收合（`max-width` / `margin` / `padding` / `width` + `visibility` 延迟）、`UpdateAction` 进度宽度：布局属性动画，时长 `--ds-transition-duration`，减弱动效停 |
+| 侧栏轨道收合编排 | `SidebarRoot`：收合相位 150ms + 回宽 200ms（`wide-in`），跟随 AppFrame 300ms 轨道；减弱动效停 |
+| 空会话 Hero 小鱼 | 悬停且未减弱动效时，1.6s 轻摆循环 |
+
+### 指示器家族
+
+无限循环的忙碌 / 加载指示是产品语言，不是 recipe；循环周期是设计值，**不进 token 表**。规则：每个使用处必须自带 `prefers-reduced-motion` 停止；新忙碌指示优先复用家族图形，不要另造一种新旋转。
+
+| 家族 | 实例（周期） |
+| --- | --- |
+| 骨架扫光 | ReasoningRow / ToolRow / SkillRow / GenericCommandCard / bash-sample 的行扫光 2.6s；`MenuView` 菜单骨架 2s |
+| Composer 光束 | `InputBar`：`beam-spin` 1.96s、`beam-hue` 12s、`beam-hue-bloom` 12s、光束层淡入 420ms；`mobile/web` 手机端同值复刻 |
+| Spinner | `TodoPanel` 1s、`GitProgressToast` 0.7s、`AppearanceSection` 图库 0.7s、`TrajectoryTable` 历史加载 700ms、`TurnNavigator` busy 1s、`ChatView` 回合状态 1.8s、`MessageItem` 重试 1.6s、`InputBar` 待发 1s |
+| 指示灯 | `StateDot` 追逐 1s（行内 `-125ms` 错相）、`ConnectionIndicator` 点阵 1.5s step-end |
+| 手机 flow | `mobile/web`：`flow-dot-spin` 0.9s、`flow-sweep` 2.6s、`flow-caret` 1s steps(2) |
 
 ### 独立例外
 
@@ -138,6 +159,8 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 桌面启动页 | 标志 / 文案 `rise`（8px + fade，错开 0 / 80 / 120 / 160ms）；盖章 `pulse` 1.2s；瞄准环 `spin` 1.05s；日志行 `fade`。时长走官方 token；减弱动效时全部停 | [`boot.css`](../src/renderer/boot.css)。仪器风不得扩散，见 [桌面启动页](design-language.md#桌面启动页) |
 | 关闭遮罩 | 本地 0.85s 无限旋转；不读 `--ds-motion-*`，也没有减弱动效分支 | [`closing-overlay.js`](../src/main/closing-overlay.js) |
 | dshbot 机器人头像 | 思考时用同命令数路径连续压扁/鼓边/拉长/侧倾（软泥）；眼白眨眼与瞳孔只动 `transform`；上传图 `scale` 脉冲。缓动走 `--ds-ease-in-out`，减弱动效全停 | [`vendor/dshbot/client/client.js`](../vendor/dshbot/client/client.js)。不得扩散到官方 Web UI 弹层 |
+| Agent 预设席位入场 | 图标 150ms / 文案 400ms，`cubic-bezier(0.16, 1, 0.3, 1)` 一次性入场；减弱动效停 | `AgentPresetSeat.module.css` |
+| 用量统计图表入场 | 热力格 0.45s、柱 / 环 0.9s，同曲线一次性生长；减弱动效停 | `dsh-usage-panel` `styles.ts` |
 
 ## 如何新增
 
@@ -149,7 +172,8 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 同层换一块内容 | 换 `key` 的节点加 `swap` |
 | 触发器标签从 A 变成 B | `FlipText` |
 | 短暂成功 / 失败条 | 现有 `Toast`，不要新写一套停留和淡出 |
-| 持续忙碌指示 | 启动页 / 关闭遮罩是壳层例外；Web UI 内不要再加无限旋转 |
+| 持续忙碌指示 | 加入指示器家族（上表），必须带 `prefers-reduced-motion` 停止；不要为一次性反馈另造新的无限循环 |
+| 布局属性动画 | 先进「布局轨道」清单（本文档裁决），时长吃 token，拖拽与减弱动效必须停 |
 
 逻辑关闭后树还要挂 200ms。测试用 `aria-hidden` / `queryByRole` 判断已关，不要断言立刻卸载。商店在关闭时清空的，退场帧保留最后一次打开的快照。
 
