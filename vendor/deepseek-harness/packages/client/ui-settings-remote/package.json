@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-settings-remote",
   "description": "Desktop Remote: sidebar pairing popup plus Settings → Remote (gateway advanced + IM channel tabs via window.shell)",
-  "version": "0.1.2-alpha.4",
+  "version": "0.1.2-rc.1",
   "publishConfig": {
     "access": "public"
   },

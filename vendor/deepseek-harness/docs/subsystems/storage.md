@@ -65,6 +65,26 @@ interface DomainSpec {
    * (a stale record document is discarded, never migrated).
    */
   readonly layout?: 'single' | 'per-record'
+  /**
+   * Older domain versions whose stored records the current record schemas
+   * also accept (the declaring owner vouches for that, typically by
+   * declaring the fields older records lack as optional). `per-record` backends
+   * read documents stamped with a listed version instead of discarding them,
+   * and accept a legacy whole-unit file so stamped for the one-time
+   * bootstrap; writes always stamp {@link version}.
+   */
+  readonly compatibleVersions?: readonly number[]
+  /**
+   * What `open` does with a stored table record that fails its zod schema.
+   * Absent (the default), the whole open rejects with `invalid-record` —
+   * right for authoritative data. `'backup-and-skip'` is for domains whose
+   * records are disposable derived data: the backend moves the record's
+   * document aside (`KvUnit.backupRecord`), the failure is logged with
+   * its cause, and the open continues with the record absent. A backend
+   * without `backupRecord` (no per-record document to move) falls back
+   * to the rejecting default. The global slot always rejects.
+   */
+  readonly invalidRecords?: 'backup-and-skip'
   /** Optional global singleton slot. */
   readonly global?: DomainGlobalSpec<unknown>
   /** Table declarations keyed by table name; each name must match `UNIT_NAME_RE`. */
@@ -180,7 +200,10 @@ The mounted domain facility. Opens declared domains over routed backends; one fa
  * (`facet-unsupported`); open the unit projected from the spec (backend
  * `version-mismatch`/`malformed-medium` pass through); load and validate
  * every stored record against the spec's zod schemas (`invalid-record`
- * with the offending table and key); construct the domain.
+ * with the offending table and key — unless the spec declares
+ * `invalidRecords: 'backup-and-skip'` and the unit can move documents aside, in
+ * which case the failing record is backed up, logged, and skipped);
+ * construct the domain.
  *
  * Lifecycle: the CALLER owns the returned handle and closes it via
  * `Domain.close()` (typically as its own `ctx.effect` disposer) — the

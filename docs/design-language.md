@@ -2,7 +2,7 @@
 
 中文 · [English](design-language.en.md)
 
-DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.2-alpha.4`（`4e84901e6471b79ec0338099867ebb4606d12bb5`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
+DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.2-rc.1`（`a66e4702047846cdaa10c66c9d3df3951f5ea70d`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
 
 「与基线一致」不靠主观印象，按三条硬标准判定，全部落在实物上：
 
