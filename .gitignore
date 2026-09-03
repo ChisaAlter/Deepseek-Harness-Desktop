@@ -44,6 +44,8 @@ apps/mobile/dist/
 
 # Local agent/QA artifacts
 gui-test-screenshots/
+.codely-cli/
+CODELY.md
 .cursor/*
 !.cursor/rules/
 .cursor/rules/*
