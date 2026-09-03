@@ -125,7 +125,7 @@ npm start
 
 改界面请改 `vendor/deepseek-harness`，并遵守 [设计语言](docs/design-language.md) 和 [动效](docs/motion.md)。产品蓝图、流程与模块入口见 [产品手册](docs/handbook/README.md)；改行为契约见 [Feature Spine](docs/features/README.md)。改完客户端源码后，在该目录执行 `pnpm run build:official` 再重启桌面端（与官方 `dsh web` 发版同一条命令；不要只跑 `build:lib:client`，否则侧栏会退回「DSH 本地构建」）。
 
-当前官方基线写在 `vendor/harness-upstream.json`，现为 `0.1.2-rc.1`（`dsh-v0.1.2-rc.1` / `a66e4702047846cdaa10c66c9d3df3951f5ea70d`）。npx 兜底是官方 `@deepseek-ai/dsh@0.1.2-rc.1`，该版本已发布到 npm。不含标题栏、Git、右栏 surfaces 和底栏终端的部分仍只在源码启动和安装包路径里。安装包 0.2.7 仍钉 `0.1.1-rc.1`，与源码钉不是同一条线。
+当前官方基线写在 `vendor/harness-upstream.json`，现为 `0.1.2-rc.1`（`dsh-v0.1.2-rc.1` / `a66e4702047846cdaa10c66c9d3df3951f5ea70d`）。npx 兜底是官方 `@deepseek-ai/dsh@0.1.2-rc.1`，该版本已发布到 npm。不含标题栏、Git、右栏 surfaces 和底栏终端的部分仍只在源码启动和安装包路径里。安装包 0.2.9 起与源码同钉 `0.1.2-rc.1`；已发布的 0.2.7 及更早仍钉 `0.1.1-rc.1`，升级后对齐。
 
 ```powershell
 npm test              # 桌面壳单测
