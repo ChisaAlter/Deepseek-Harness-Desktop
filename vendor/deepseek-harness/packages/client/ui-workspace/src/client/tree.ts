@@ -1,7 +1,12 @@
 /**
  * Derives the workspace browser tree from Host Workspace order and membership.
- * Unassigned Sessions trail under Ungrouped; only the selected blank Session
- * remains visible.
+ * Only two kinds of Session are listed: members of a registered Workspace, and
+ * no-directory tasks living in the Host scratch cwd (they trail under the
+ * "No workspace folder" section). Any other unaccounted Session belongs to a
+ * Workspace that is not registered right now — deleting a registration hides
+ * its Sessions, registering the same directory again brings them back — so it
+ * appears nowhere: not grouped, not in the flat list, not in search, not in
+ * Archived. Only the selected blank Session remains visible.
  */
 import {
   type SessionListState, type SessionSearchResultItem, type SessionSummary,
@@ -17,8 +22,39 @@ import {
   indexSubagentDescendants, type SubagentDescendantSummary,
 } from './subagent-lineage.ts'
 
-/** Group key for Sessions outside every Workspace. */
+/** Group key for no-directory Sessions (the Host scratch cwd bucket). */
 export const UNGROUPED_KEY = ''
+
+/**
+ * Whether a Session is a no-directory task: no Workspace accounts it and it
+ * runs in the Host scratch cwd. Until the Workspace baseline supplies that cwd
+ * nothing qualifies.
+ * @param session - list summary.
+ * @param accounted - ids every registered Workspace accounts.
+ * @param scratchCwd - Host scratch cwd from the Workspace baseline.
+ * @returns true for a listable no-directory Session.
+ */
+export function isNoDirectorySession(
+  session: SessionSummary,
+  accounted: ReadonlySet<SessionId>,
+  scratchCwd: string | undefined,
+): boolean {
+  return scratchCwd !== undefined && session.cwd === scratchCwd && !accounted.has(session.id)
+}
+
+/** Ids accounted by the registered Workspaces (membership, never cwd). */
+function accountedIds(workspaces: readonly WorkspaceView[]): Set<SessionId> {
+  const accounted = new Set<SessionId>()
+  for (const workspace of workspaces) {
+    for (const id of workspace.sessionIds) accounted.add(id)
+  }
+  return accounted
+}
+
+/** A Session the browser may list at all: Workspace member or no-directory task. */
+function listed(session: SessionSummary, accounted: ReadonlySet<SessionId>, scratchCwd: string | undefined): boolean {
+  return accounted.has(session.id) || isNoDirectorySession(session, accounted, scratchCwd)
+}
 
 /** Pending interaction kinds with dedicated Workspace-row presentation. */
 export type SessionPendingInteractionStatus = 'approval' | 'plan-review' | 'question'
@@ -50,10 +86,10 @@ export type SessionOrderBy = 'manual' | 'updated'
 export interface GroupNode {
   /** Group key: the workspace id or {@link UNGROUPED_KEY}. */
   key: string
-  /** Backing Workspace id; absent only for the ungrouped bucket. */
+  /** Backing Workspace id; absent only for the no-directory bucket. */
   workspaceId: WorkspaceId | undefined
   cwd: string | undefined
-  /** Workspace creation time (epoch ms); absent only for the ungrouped bucket. */
+  /** Workspace creation time (epoch ms); absent only for the no-directory bucket. */
   createdAt: number | undefined
   label: string
   /** Total visible sessions in the group. */
@@ -91,7 +127,7 @@ export interface SearchResultSet {
 /** Viewing state consumed by the derivation. */
 export interface TreeView {
   expandedGroups: readonly string[]
-  /** Browser-local order for Sessions without a backing Workspace account. */
+  /** Browser-local order for no-directory Sessions (no Host account to write). */
   ungroupedOrder?: readonly string[]
 }
 
@@ -185,24 +221,25 @@ function orderedUngrouped(members: readonly SessionSummary[], stored: readonly s
 
 /**
  * Group Sessions by Host Workspace: one group per entity in stable Host
- * order, with members resolved from sessionIds in their stored order. Sessions
- * outside every Workspace trail in the browser-local Ungrouped order, which
- * falls back to recency before that order is initialized.
+ * order, with members resolved from sessionIds in their stored order.
+ * No-directory Sessions trail in the browser-local bucket order, which falls
+ * back to recency before that order is initialized. Unaccounted Sessions in
+ * any other cwd are not listed.
  */
 function groupByWorkspace(
   list: SessionListState,
   workspaces: readonly WorkspaceView[],
   archived: ReadonlySet<SessionId>,
   ungroupedOrder: readonly string[] | undefined,
+  scratchCwd: string | undefined,
 ): Group[] {
   const groups: Group[] = []
-  const accounted = new Set<SessionId>()
+  const accounted = accountedIds(workspaces)
   for (const workspace of workspaces) {
     const members: SessionSummary[] = []
     for (const id of workspace.sessionIds) {
       const summary = list.byId[id]
       if (summary === undefined) continue // account may lead the list pull; the row appears when the summary lands
-      accounted.add(id)
       if (!sessionVisible(summary, list.current, archived)) continue
       members.push(summary)
     }
@@ -214,7 +251,7 @@ function groupByWorkspace(
   const stray = list.ids
     .map(id => list.byId[id])
     .filter((s): s is SessionSummary =>
-      s !== undefined && !accounted.has(s.id) && sessionVisible(s, list.current, archived))
+      s !== undefined && isNoDirectorySession(s, accounted, scratchCwd) && sessionVisible(s, list.current, archived))
   if (stray.length > 0) {
     groups.push(buildGroup(
       UNGROUPED_KEY,
@@ -227,6 +264,30 @@ function groupByWorkspace(
     ))
   }
   return groups
+}
+
+/**
+ * Group key holding the current Session: its Workspace id, {@link UNGROUPED_KEY}
+ * for a no-directory task, undefined when nothing is selected or the current
+ * Session is not listed (member of an unregistered Workspace).
+ * @param list - sessions list snapshot.
+ * @param workspaces - real workspaces.
+ * @param scratchCwd - Host scratch cwd from the Workspace baseline.
+ * @returns the account key, or undefined.
+ */
+export function currentGroupKey(
+  list: SessionListState,
+  workspaces: readonly WorkspaceView[],
+  scratchCwd: string | undefined,
+): string | undefined {
+  const current = list.current
+  if (current === undefined) return undefined
+  const owner = workspaces.find(w => w.sessionIds.includes(current))
+  if (owner !== undefined) return owner.workspaceId
+  const summary = list.byId[current]
+  return summary !== undefined && isNoDirectorySession(summary, accountedIds(workspaces), scratchCwd)
+    ? UNGROUPED_KEY
+    : undefined
 }
 
 /** Keep navigation presentation independent from domain-owned interaction objects. */
@@ -273,6 +334,7 @@ function sessionNode(
  * @param archivedSessionIds - registry-global archive set.
  * @param pendingInteractions - pending UI interactions by Session.
  * @param view - local expansion arrays.
+ * @param scratchCwd - Host scratch cwd (Workspace baseline); gates the no-directory bucket.
  * @returns group sections in render order.
  */
 export function deriveGroups(
@@ -281,16 +343,14 @@ export function deriveGroups(
   archivedSessionIds: readonly SessionId[],
   pendingInteractions: SessionPendingInteractions,
   view: TreeView,
+  scratchCwd: string | undefined,
 ): GroupNode[] {
   const archived = new Set(archivedSessionIds)
   const expandedGroups = new Set(view.expandedGroups)
   const descendants = indexSubagentDescendants(list.byId)
-  const currentGroup = list.current === undefined
-    ? undefined
-    : (workspaces.find(w => w.sessionIds.includes(list.current as SessionId))?.workspaceId as string | undefined)
-        ?? UNGROUPED_KEY
+  const currentGroup = currentGroupKey(list, workspaces, scratchCwd)
   const groups: GroupNode[] = []
-  for (const g of groupByWorkspace(list, workspaces, archived, view.ungroupedOrder)) {
+  for (const g of groupByWorkspace(list, workspaces, archived, view.ungroupedOrder, scratchCwd)) {
     const expanded = expandedGroups.has(g.key)
     groups.push({
       key: g.key,
@@ -315,21 +375,26 @@ export function deriveGroups(
  * no parent/child adjacency. Content search lives outside this derivation
  * (see {@link deriveSearchResults}).
  * @param list - sessions list snapshot.
+ * @param workspaces - real workspaces (membership decides what is listed).
  * @param archivedSessionIds - registry-global archive set.
  * @param pendingInteractions - pending UI interactions by Session.
+ * @param scratchCwd - Host scratch cwd from the Workspace baseline.
  * @returns flat rows in render order.
  */
 export function deriveFlat(
   list: SessionListState,
+  workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
   pendingInteractions: SessionPendingInteractions,
+  scratchCwd: string | undefined,
 ): SessionNode[] {
   const archived = new Set(archivedSessionIds)
+  const accounted = accountedIds(workspaces)
   const descendants = indexSubagentDescendants(list.byId)
   const rows: SessionSummary[] = []
   for (const id of list.ids) {
     const s = list.byId[id]
-    if (s === undefined || !sessionVisible(s, list.current, archived)) continue
+    if (s === undefined || !listed(s, accounted, scratchCwd) || !sessionVisible(s, list.current, archived)) continue
     rows.push(s)
   }
   rows.sort(byRecency)
@@ -338,19 +403,25 @@ export function deriveFlat(
 
 /**
  * Derive archived session rows in registry-set order. Subagent-origin ids are
- * skipped. Ids with no summary become non-blank placeholders so Unarchive /
- * Delete stay reachable (Host prune removes true ghosts on list).
+ * skipped, as are archived members of unregistered Workspaces (they come back
+ * with the directory). Ids with no summary become non-blank placeholders so
+ * Unarchive / Delete stay reachable (Host prune removes true ghosts on list).
  * @param list - session list snapshot.
+ * @param workspaces - real workspaces (membership decides what is listed).
  * @param archivedSessionIds - registry-global archive set.
+ * @param scratchCwd - Host scratch cwd from the Workspace baseline.
  * @param missingTitle - localized title for summary-less archive rows.
  * @returns archived rows in set order.
  */
 export function deriveArchived(
   list: SessionListState,
+  workspaces: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[],
+  scratchCwd: string | undefined,
   missingTitle = 'Missing session',
 ): SessionNode[] {
   const descendants = indexSubagentDescendants(list.byId)
+  const accounted = accountedIds(workspaces)
   const pendingInteractions: SessionPendingInteractions = new Map()
   const rows: SessionSummary[] = []
   for (const id of archivedSessionIds) {
@@ -366,6 +437,7 @@ export function deriveArchived(
       })
       continue
     }
+    if (!listed(s, accounted, scratchCwd)) continue
     rows.push(s)
   }
   return rows.map(session => sessionNode(session, descendants, pendingInteractions))
@@ -382,6 +454,7 @@ export function deriveArchived(
  * @param pendingInteractions - pending UI interactions by Session.
  * @param content - ranked Host content-search page.
  * @param limit - protocol-owned maximum merged row count.
+ * @param scratchCwd - Host scratch cwd from the Workspace baseline.
  * @returns bounded deduplicated flat rows and a refine-query hint bit.
  */
 export function deriveSearchResults(
@@ -392,10 +465,12 @@ export function deriveSearchResults(
   pendingInteractions: SessionPendingInteractions,
   content: { items: readonly SessionSearchResultItem[]; hasMore: boolean },
   limit: number,
+  scratchCwd: string | undefined,
 ): SearchResultSet {
   const q = query.trim().toLowerCase()
   if (q === '') return { items: [], hasMore: false }
   const archived = new Set(archivedSessionIds)
+  const accounted = accountedIds(workspaces)
   const descendants = indexSubagentDescendants(list.byId)
 
   const workspaceBySession = new Map<SessionId, string>()
@@ -404,19 +479,24 @@ export function deriveSearchResults(
       if (!workspaceBySession.has(sessionId)) workspaceBySession.set(sessionId, workspace.title)
     }
   }
-  const labelOf = (summary: SessionSummary): string =>
-    workspaceBySession.get(summary.id) ?? workspaceLabel(summary.cwd)
+  // A no-directory task has no folder to name: its workspace column stays
+  // empty and the renderer substitutes the localized bucket label.
+  const labelOf = (summary: SessionSummary): string => workspaceBySession.get(summary.id) ?? ''
   const contentBySession = new Map<SessionId, SessionSearchResultItem>()
   for (const item of content.items) {
     if (!contentBySession.has(item.sessionId)) contentBySession.set(item.sessionId, item)
   }
+  const searchable = (summary: SessionSummary | undefined): summary is SessionSummary =>
+    // Blank placeholders never match a query (their canonical title displays
+    // localized, so matching it would tie search to one language).
+    summary !== undefined && !summary.blank
+    && listed(summary, accounted, scratchCwd)
+    && sessionVisible(summary, list.current, archived)
 
   const local: SessionSummary[] = []
   for (const id of list.ids) {
     const summary = list.byId[id]
-    // Blank placeholders never match a query (their canonical title displays
-    // localized, so matching it would tie search to one language).
-    if (summary === undefined || summary.blank || !sessionVisible(summary, list.current, archived)) continue
+    if (!searchable(summary)) continue
     if (
       sessionTitle(summary).toLowerCase().includes(q)
       || labelOf(summary).toLowerCase().includes(q)
@@ -436,7 +516,7 @@ export function deriveSearchResults(
   for (const summary of local) include(summary)
   for (const item of content.items) {
     const summary = list.byId[item.sessionId]
-    if (summary !== undefined && !summary.blank && sessionVisible(summary, list.current, archived)) include(summary)
+    if (searchable(summary)) include(summary)
   }
 
   return {

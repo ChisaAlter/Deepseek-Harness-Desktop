@@ -30,7 +30,7 @@
   display: inline-flex;
   align-items: center;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   background: var(--dsw-alias-bg-base);
 }
@@ -59,7 +59,7 @@
 }
 
 .rule {
-  width: 1px;
+  width: 0.5px;
   align-self: stretch;
   margin: 6px 0;
   background: var(--dsw-alias-border-l2);
@@ -108,7 +108,7 @@
 }
 
 .panes[data-split-direction='horizontal'] .pane {
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .panes[data-split-direction='horizontal'] .pane:first-child {
@@ -116,7 +116,7 @@
 }
 
 .panes[data-split-direction='vertical'] .pane {
-  border-top: 1px solid var(--dsw-alias-border-l2);
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .panes[data-split-direction='vertical'] .pane:first-child {
@@ -201,7 +201,7 @@
   z-index: 2;
   display: inline-flex;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-base);
 }
@@ -227,7 +227,7 @@
   flex-direction: column;
   width: 144px;
   min-width: 144px;
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-base);
 }
 
@@ -237,7 +237,7 @@
   align-items: stretch;
   justify-content: flex-end;
   height: 22px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .sidebarActions {
@@ -249,7 +249,7 @@
 .sidebarActions .action {
   width: 22px;
   height: 100%;
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .sidebarActions .action:first-child {
@@ -299,7 +299,7 @@
 .groupItems {
   margin-left: 4px;
   padding-left: 6px;
-  border-left: 1px solid var(--dsw-alias-border-l2);
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .sessionRow {

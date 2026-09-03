@@ -35,12 +35,12 @@ function writeSource(dir) {
   return dir;
 }
 
-test('ensureUsagePanelPlugin copies the bundled package and writes a desktop overlay', () => {
+test('ensureUsagePanelPlugin copies the bundled package and writes a desktop overlay', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
     const profileDir = path.join(home, 'profiles', 'web');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
     assert.equal(result.added, true);
     const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
@@ -61,7 +61,7 @@ test('ensureUsagePanelPlugin copies the bundled package and writes a desktop ove
   }
 });
 
-test('ensureUsagePanelPlugin backs off a user-owned real-directory install', () => {
+test('ensureUsagePanelPlugin backs off a user-owned real-directory install', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -74,7 +74,7 @@ test('ensureUsagePanelPlugin backs off a user-owned real-directory install', () 
     fs.mkdirSync(dest, { recursive: true });
     fs.writeFileSync(path.join(dest, 'desktop-usage-panel.patch.yml'), '- insert:\n    - id: usage-stats\n', 'utf8');
 
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
     assert.equal(result.userOwned, true);
     // No desktop copy refresh, no junction replacement.
@@ -88,7 +88,7 @@ test('ensureUsagePanelPlugin backs off a user-owned real-directory install', () 
   }
 });
 
-test('ensureUsagePanelPlugin treats a junction to a foreign target as user-owned', { skip: process.platform === 'linux' && !process.getuid ? false : false }, () => {
+test('ensureUsagePanelPlugin treats a junction to a foreign target as user-owned', { skip: process.platform === 'linux' && !process.getuid ? false : false }, async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   const foreign = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-user-'));
@@ -97,7 +97,7 @@ test('ensureUsagePanelPlugin treats a junction to a foreign target as user-owned
     const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
     fs.mkdirSync(path.dirname(linked), { recursive: true });
     fs.symlinkSync(foreign, linked, process.platform === 'win32' ? 'junction' : 'dir');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.userOwned, true);
     // The foreign link survives; its content is untouched.
     assert.equal(fs.readlinkSync(linked), foreign);
@@ -108,7 +108,7 @@ test('ensureUsagePanelPlugin treats a junction to a foreign target as user-owned
   }
 });
 
-test('ensureUsagePanelPlugin migrates the legacy managed block out of the user patch', () => {
+test('ensureUsagePanelPlugin migrates the legacy managed block out of the user patch', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -125,7 +125,7 @@ test('ensureUsagePanelPlugin migrates the legacy managed block out of the user p
       USAGE_PANEL_END,
       '',
     ].join('\n'), 'utf8');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
     const patch = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8');
     assert.equal(patch.includes(USAGE_PANEL_BEGIN), false);
@@ -138,15 +138,15 @@ test('ensureUsagePanelPlugin migrates the legacy managed block out of the user p
   }
 });
 
-test('ensureUsagePanelPlugin refreshes the bundled copy on later starts', () => {
+test('ensureUsagePanelPlugin refreshes the bundled copy on later starts', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
     const profileDir = path.join(home, 'profiles', 'web');
-    const first = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const first = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     const firstOverlay = fs.readFileSync(first.overlayFile, 'utf8');
     fs.writeFileSync(path.join(source, 'lib', 'index.js'), 'export const name = "updated"\n', 'utf8');
-    const again = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const again = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(again.ok, true);
     assert.equal(again.added, false);
     const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'lib', 'index.js');
@@ -159,7 +159,40 @@ test('ensureUsagePanelPlugin refreshes the bundled copy on later starts', () => 
   }
 });
 
-test('ensureUsagePanelPlugin removes the overlay when the profile already lists the bundle', () => {
+test('ensureUsagePanelPlugin skips unchanged files and preserves source timestamps', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const srcFile = path.join(source, 'lib', 'client.js');
+    const old = new Date(Date.now() - 86_400_000);
+    fs.utimesSync(srcFile, old, old);
+    await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const destFile = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'lib', 'client.js');
+    const firstStat = fs.statSync(destFile);
+    assert.ok(Math.abs(firstStat.mtimeMs - fs.statSync(srcFile).mtimeMs) < 1, 'copy preserves source mtime');
+    // A second start must not rewrite an identical file: a rewrite would move
+    // the destination's ctime.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const secondStat = fs.statSync(destFile);
+    assert.equal(secondStat.ctimeMs, firstStat.ctimeMs, 'unchanged file is not rewritten');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+});
+
+test('ensureUsagePanelPlugin never copies the bundle with a synchronous fs call', () => {
+  // fs.cpSync of the ~6k-file bundle blocked the Electron main thread 4–11 s
+  // per full start; Windows flags a window 未响应 after 5 s.
+  const source = fs.readFileSync(path.join(__dirname, 'usage-panel-preset.js'), 'utf8');
+  assert.doesNotMatch(source, /\bcpSync\(/);
+  assert.match(source, /fsp\.cp\(/);
+  assert.match(source, /async function ensureUsagePanelPlugin/);
+});
+
+test('ensureUsagePanelPlugin removes the overlay when the profile already lists the bundle', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -181,7 +214,7 @@ test('ensureUsagePanelPlugin removes the overlay when the profile already lists 
     const overlayFile = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'desktop-usage-panel.patch.yml');
     fs.mkdirSync(path.dirname(overlayFile), { recursive: true });
     fs.writeFileSync(overlayFile, '- insert: []\n', 'utf8');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
     assert.equal(result.added, false);
     assert.equal(result.overlayFile, undefined);
@@ -196,11 +229,11 @@ test('ensureUsagePanelPlugin removes the overlay when the profile already lists 
   }
 });
 
-test('ensureUsagePanelPlugin fails closed when the bundled package is missing', () => {
+test('ensureUsagePanelPlugin fails closed when the bundled package is missing', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-missing-'));
   try {
-    const result = ensureUsagePanelPlugin({
+    const result = await ensureUsagePanelPlugin({
       sourceDir: source,
       profileDir: path.join(home, 'profiles', 'web'),
     });
@@ -212,7 +245,7 @@ test('ensureUsagePanelPlugin fails closed when the bundled package is missing', 
   }
 });
 
-test('ensureUsagePanelPlugin copies bundled node_modules with the package', () => {
+test('ensureUsagePanelPlugin copies bundled node_modules with the package', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -223,7 +256,7 @@ test('ensureUsagePanelPlugin copies bundled node_modules with the package', () =
     fs.mkdirSync(path.join(source, 'node_modules', 'zod'), { recursive: true });
     fs.writeFileSync(path.join(source, 'node_modules', 'zod', 'package.json'), '{"name":"zod"}\n', 'utf8');
     const profileDir = path.join(home, 'profiles', 'web');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
     const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'node_modules', 'zod', 'package.json');
     assert.equal(fs.existsSync(dest), true);
@@ -233,7 +266,7 @@ test('ensureUsagePanelPlugin copies bundled node_modules with the package', () =
   }
 });
 
-test('ensureUsagePanelPlugin fails closed and strips the insert when zod is missing', () => {
+test('ensureUsagePanelPlugin fails closed and strips the insert when zod is missing', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -254,7 +287,7 @@ test('ensureUsagePanelPlugin fails closed and strips the insert when zod is miss
     const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'lib');
     fs.mkdirSync(dest, { recursive: true });
     fs.writeFileSync(path.join(dest, 'index.js'), 'export const name = "kept"\n', 'utf8');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, false);
     assert.match(result.error, /missing-source:node_modules:zod/);
     const patch = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8');
@@ -267,7 +300,7 @@ test('ensureUsagePanelPlugin fails closed and strips the insert when zod is miss
   }
 });
 
-test('ensureUsagePanelPlugin fails closed when a dependency export file is missing', () => {
+test('ensureUsagePanelPlugin fails closed when a dependency export file is missing', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -283,7 +316,7 @@ test('ensureUsagePanelPlugin fails closed when a dependency export file is missi
     })}\n`, 'utf8');
     fs.writeFileSync(path.join(zodDir, 'index.js'), 'export default {}\n', 'utf8');
     const profileDir = path.join(home, 'profiles', 'web');
-    const result = ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, false);
     assert.match(result.error, /index\.cjs/);
   } finally {

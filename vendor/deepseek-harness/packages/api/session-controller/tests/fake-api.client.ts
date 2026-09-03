@@ -168,6 +168,7 @@ export class FakeApiClient {
   workspaceBaseline: Extract<WorkspaceFollowFrame, { type: 'baseline' }>['value'] = {
     items: [],
     archivedSessionIds: [],
+    scratchCwd: '/fk-home/no-workspace',
   }
   lastSearchSignal: AbortSignal | undefined
 

@@ -17,7 +17,11 @@ export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
   return {
     workspace: ['vendor/*', 'packages/*/*', 'apps/cli'],
-    entry: client ? '' : ['lib/types/{index,invariant,startup}.js'],
+    // Some alpha.4 bundles intentionally have no invariant companion
+    // (notably headless/base). Package-local configs build invariant entries
+    // where they exist; the workspace aggregate must not require a missing
+    // optional file on Windows.
+    entry: client ? '' : ['lib/types/{index,startup}.js'],
     outDir: 'lib',
     format: ['esm'],
     platform: 'node',

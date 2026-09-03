@@ -14,7 +14,7 @@ Status: implemented
 
 `@deepseek-ai/dsh-tool-str-replace-editor` 独立消费 `ctx.fs`，注册包含 `view`、`create`、`str_replace` 与 `insert` 的 `str_replace_editor`。它提供带行号文本查看、过滤后的两层目录列表、唯一字面量替换、规范插入边界和有界输出。路径必须为绝对路径；文件查看会保留内容中的制表符，因此复制的文本仍可作为有效的字面量替换输入；变更会保留请求编辑范围之外的制表符；公开 schema 与错误则只使用 `old_str`。命令专属字段接受 `null` 占位参数：当前命令不使用该字段时，执行会将其视为未提供；必填检查保持不变；`view_range: null` 表示查看完整文件；`str_replace.new_str: null` 会被拒绝，只有省略该字段才表示删除。它可以与持久 Bash、一次性 Bash、沙箱 Bash 或无 shell 组合。
 
-`dsh-system-prompt` 接受 `includeHarnessIdentity: false`；`dsh-agent-spine-demo` 会转发该设置，并接受 `toolBash: false`。因此部署可以拥有精确 persona，并替换 spine 的原生 Bash，而不会重复注册提示词或工具。既有默认值不变。
+`dsh-system-prompt` 接受 `includeHarnessIdentity: false`，profile 组合同时拥有该配置行与所选 shell 工具配置行。`sdk-minimal` 将该值设为 `false`，且只挂载按平台选择的持久 shell，因此部署可以拥有精确 persona，而不会重复注册提示词或工具。既有默认值不变。
 
 两个插件都进入 Python runtime 闭包。持久 Bash 的闭包还包含 PTY 服务／本地后端，以及该后端要求的沙箱服务。由于 `node-pty` 在 macOS 上会执行原生 `spawn-helper`，每个打包后的 macOS 运行时可执行文件都会携带一个 `-spawn-helper` 伴随文件；Linux 直接使用 `forkpty`。固定版本的 `node-pty` 补丁会先检查 `DSH_NODE_PTY_SPAWN_HELPER`，因此对当前提供非伴随 helper 的外部消费方而言，该变量仍是真正的覆盖项。未设置该覆盖时，补丁会在打包可执行文件的伴随文件存在时解析它，否则在普通 Node 运行中保留上游查找方式。若 helper 缺失或不可执行，macOS 构建器会在发布前失败。
 

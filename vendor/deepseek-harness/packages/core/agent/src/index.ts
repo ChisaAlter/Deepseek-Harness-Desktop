@@ -11,7 +11,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { isPromise } from 'node:util/types'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
-import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Agent } from './types.ts'
 import type { AgentOptions } from './runtime-types.ts'
 
@@ -73,9 +73,9 @@ export interface CreateAgentOptions {
   readonly sessionId: SessionId
   /**
    * Session creation metadata: validated absolute `cwd`, `parentSession`
-   * fork lineage, the `seedLength` seed boundary, the coarse `origin`
+   * fork lineage, the `isSeeded` fork marker, the coarse `origin`
    * classification, and the `delegationDepth` recursion budget. Mirrors the
-   * `cwd`/`parentSession`/`seedLength`/`origin`/`delegationDepth` fields of
+   * `cwd`/`parentSession`/`isSeeded`/`origin`/`delegationDepth` fields of
    * {@link CreateSessionOptions.meta} in dsh-session (the internal-only
    * `createdAt`, used when reconstructing a persisted session, is deliberately
    * excluded — a factory caller never sets it). This is durable session data,
@@ -85,11 +85,13 @@ export interface CreateAgentOptions {
   readonly meta?: {
     readonly cwd?: string
     readonly parentSession?: SessionId
-    readonly seedLength?: number
+    readonly isSeeded?: boolean
     readonly origin?: 'subagent'
     readonly delegationDepth?: number
     readonly agentPreset?: string
   }
+  /** Exact fork-inherited prefix length when the session metadata sets `isSeeded`. */
+  readonly inheritedEventCount?: SessionLogOffset
   /**
    * Initial replay/fork history. A fork supplies a balanced completed-turn
    * prefix of the parent's log. The complete seed must be contiguous from seq

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `parked` |
-| **last verified** | 2026-09-02 凌晨 — 产品仍停放。**T2 rehearsal 全功能 v2 首轮跑完**（[执行表](../qa/mobile-remote-full-web-cases.md)，报告 `docs/qa/results/2026-09-01/full-web-v2/REPORT.md`）：**不是 T1/T3**。Pass 亮点：LIST-001 **D=P 91 行全等**（双端 CDP 对照）、五轮×2（旧仓码 789 / 新目录码 123 同一条故事）、GIT 15 条（Init/分支/创建并检出/Commit/**Commit&push 落裸仓 main**/Pull/分叉 Sync disabled）、LAY 12 表面×3 视口、FRZ 冻结原文+NEVER 抽检、PAIR 12 条。**真缺陷：** DEF-ORPHAN-SUB（孤儿子智能体平铺，**已修** `directory.js`+单测+`orphan-fix` cache-bust）；DEF-SYNC-REVERSE（桌面→手机新建/改名不活推，**未修**，LIST-003/NEW-002/MENU-002 Fail）；DEF-DRAFT-SWITCH（草稿切回丢，未修）；DEF-ATTACH-TEXTMODEL（文本模型附图无拦截无回复，未修）；DEF-MOVE-NOOP 候选（两行组上移无效）；DEF-ACCESS-LABEL（完全访问 vs 完全权限文案）。Blocked：造障类未批、F-APPR 两档无审批弹窗、GIT-013/014 留人工一次点击。**Fail=7 → 不可交付**；解禁/T1 前不得写「实机全量通过」。 |
+| **last verified** | 2026-09-03 — 产品仍停放，另完成已连接 Android 15 真机 smoke：新 APK 安装成功；`https://appassets.androidplatform.net` 内置 SPA 可显示会话列表与 composer；plain `ws://` 中继不再被 WebView mixed-content 拦截；`100dvh` 0 高度回退已验证；composer 工具行在 360px 宽度不换行。Android `:app:testDebugUnitTest` 通过，mobile web 268/268 通过。此前 T2 rehearsal 的未交付缺陷与限制保持不变，**不得写「实机全量通过」**。 |
 
 ## User paths
 

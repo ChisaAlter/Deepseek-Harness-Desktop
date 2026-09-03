@@ -7,7 +7,9 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { PRESENCE_EXIT_MS } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RowDragProps } from '../src/client/rows/Rows.tsx'
-import { ArchivedSessionNodeItem, GroupSessionRun, ProjectRowItem, SearchResultItem, SessionNodeItem } from '../src/client/rows/Rows.tsx'
+import {
+  ArchivedSessionNodeItem, GroupSessionRun, ProjectRowItem, SearchResultItem, SessionNodeItem, TasksSectionHeader,
+} from '../src/client/rows/Rows.tsx'
 import type { GroupNode, SearchResultNode, SessionNode } from '../src/client/tree.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -441,6 +443,22 @@ describe('workspace browser rows', () => {
     }
     render(<ProjectRowItem group={group} onToggle={vi.fn()} onCreate={vi.fn()} t={t} />)
     expect(screen.queryByRole('button', { name: /工作区/ })).toBeNull()
+  })
+
+  it('no-directory section header toggles, mints a task from ＋, and carries no folder chrome', () => {
+    const onToggle = vi.fn()
+    const onCreate = vi.fn()
+    render(<TasksSectionHeader expanded={false} containsCurrent onToggle={onToggle} onCreate={onCreate} t={t} />)
+    const row = screen.getByRole('treeitem')
+    expect(row.textContent).toContain('无工作目录')
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('button', { name: /工作区/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '在“无工作目录”中新建会话' }))
+    expect(onCreate).toHaveBeenCalledTimes(1)
+    // The ＋ click stops at the button: the section did not toggle.
+    expect(onToggle).not.toHaveBeenCalled()
+    fireEvent.click(row)
+    expect(onToggle).toHaveBeenCalledTimes(1)
   })
 
   it('blank New Session rows carry no menu, no time label, and no hover-card time', () => {

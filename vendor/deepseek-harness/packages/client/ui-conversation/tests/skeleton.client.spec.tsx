@@ -94,8 +94,10 @@ function workspace(id = 'w1'): WorkspaceView {
   }
 }
 
+/** Host scratch cwd advertised by the Workspace baseline (no-directory tasks live there). */
+const SCRATCH = '/dsh-home/no-workspace'
 const workspaceState = (items: readonly WorkspaceView[]): WorkspaceSnapshot => ({
-  items, archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+  items, archivedSessionIds: [], scratchCwd: SCRATCH, state: 'idle', phase: 'ready', error: null,
 })
 
 function sessionSnapshotOf(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
@@ -123,6 +125,10 @@ function mount(
     viewTabs?: ViewTab[]
     /** Hide the Chat/Trajectory tablist while keeping views.list intact. */
     viewTabsChrome?: boolean
+    /** The selected session's list-summary cwd (defaults to the fixture Workspace path). */
+    summaryCwd?: string
+    /** No-directory pick callback injected by apply. */
+    selectNoDirectory?: () => Promise<void>
   } = {},
 ) {
   const root = sid('root')
@@ -134,7 +140,7 @@ function mount(
   }
   const childRow = {
     id: SID, displayTitle: 'Child', parentId: options.nestedSubagent === true ? parent : root,
-    cwd: '/projects/one', running: false, blank: options.summaryBlank ?? false, updatedAt: 3,
+    cwd: options.summaryCwd ?? '/projects/one', running: false, blank: options.summaryBlank ?? false, updatedAt: 3,
     ...(options.summaryOrigin === undefined ? {} : { origin: options.summaryOrigin }),
   }
   const listed = options.omitSummaryRow !== true
@@ -206,6 +212,7 @@ function mount(
           renderSlot={renderSlot as never}
           useViewTabs={sel => sel(options.viewTabsChrome !== false)}
           open={open}
+          selectView={(view) => { store.actions.setView(view) }}
           t={t}
         />
       )
@@ -230,6 +237,7 @@ function mount(
           actions={store.actions}
           renderSlot={renderSlot as never}
           bindDraftMirror={write => wiring.bindMirror(write)}
+          openView={(view, focus) => { store.actions.openView(view, focus) }}
         />
       )
     }
@@ -305,11 +313,13 @@ function mount(
     renderSlot,
     renderSlotChain,
     selectWorkspace: retargetWorkspace,
+    selectNoDirectory: options.selectNoDirectory ?? vi.fn(async () => {}),
     t,
   }
   const view = render(<ConversationRoot {...props} />)
   return {
     view, store, wiring, sink, retargetWorkspace, session, conversation, slotCalls, lineageOwners, seatOwners, open,
+    workspaces,
     pickerOwner: () => pickerOwner,
     rerender: () => { view.rerender(<ConversationRoot {...props} />) },
   }
@@ -334,6 +344,25 @@ describe('Hero chrome', () => {
 })
 
 describe('ConversationRoot resident composer', () => {
+  it('does not redispatch composer child slots for an unrelated Session publication', () => {
+    const b = mount(sessionSnapshotOf())
+    const childKeys = new Set([
+      'conversation.input.overlay',
+      'conversation.input.left',
+      'conversation.input.right',
+      'conversation.composer.dock',
+    ])
+    const dispatchCount = () => b.slotCalls.filter(key => childKeys.has(key)).length
+    const before = dispatchCount()
+
+    act(() => {
+      const current = b.session.getSnapshot()
+      b.session.set({ ...current, hasMore: !current.hasMore })
+    })
+
+    expect(dispatchCount()).toBe(before)
+  })
+
   it('renders the composer inert with the blocker\u2019s own reason', () => {
     const b = mount(sessionSnapshotOf(), undefined, undefined, {
       composerBlock: { reason: 'select a model first' },
@@ -443,8 +472,7 @@ describe('ConversationRoot resident composer', () => {
         { ...workspace('second'), title: 'Selected Folder' },
       ],
     )
-    // Hero chrome present, view ring absent; scroll host already wraps the
-    // resident composer so the blank → active flip does not remount it.
+    // Hero chrome is present and the selected View slot remains absent.
     const host = b.view.container.querySelector('[data-conversation-scroll]')
     const header = b.view.container.querySelector('header')
     expect(host).not.toBeNull()
@@ -580,6 +608,71 @@ describe('ConversationRoot resident composer', () => {
     expect(selectWorkspace).toHaveBeenCalledWith(wid('second'))
     expect(b.view.queryByText('Selected Folder')).toBeNull()
     expect(b.view.getByText('one')).toBeTruthy()
+  })
+
+  it('offers No workspace folder from the chip menu, shows that copy while pending, and rolls back on failure', async () => {
+    const selectNoDirectory = vi.fn(async () => {})
+    const b = mount(sessionSnapshotOf({ blank: true }), undefined, undefined, { selectNoDirectory })
+    fireEvent.click(b.view.getByRole('button', { name: '选择工作区' }))
+    const owner = b.pickerOwner() as {
+      open: boolean
+      noDirectorySelected?: boolean
+      onPickNoDirectory(): void
+    }
+    expect(owner.open).toBe(true)
+    expect(owner.noDirectorySelected).toBe(false)
+    await act(async () => { owner.onPickNoDirectory(); await Promise.resolve() })
+    expect(selectNoDirectory).toHaveBeenCalledTimes(1)
+    // The chip speaks for the pending target and the picker marks that entry.
+    expect(b.view.getByText('无工作目录')).toBeTruthy()
+    expect((b.pickerOwner() as { noDirectorySelected?: boolean }).noDirectorySelected).toBe(true)
+    // Picking a Workspace afterwards drops the no-directory pending state.
+    act(() => { (b.pickerOwner() as { onPick(id: WorkspaceId): void }).onPick(wid('one')) })
+    expect((b.pickerOwner() as { noDirectorySelected?: boolean }).noDirectorySelected).toBe(false)
+    b.view.unmount()
+
+    const failing = mount(sessionSnapshotOf({ blank: true }), undefined, undefined, {
+      selectNoDirectory: vi.fn(async () => { throw new Error('connect failed') }),
+    })
+    fireEvent.click(failing.view.getByRole('button', { name: '选择工作区' }))
+    const failingOwner = failing.pickerOwner() as { onPickNoDirectory(): void }
+    await act(async () => { failingOwner.onPickNoDirectory(); await Promise.resolve() })
+    expect(failing.view.queryByText('无工作目录')).toBeNull()
+    expect(failing.view.getByText('one')).toBeTruthy()
+  })
+
+  it('a blank session in the Host scratch cwd is a no-directory task: chip copy, composer unlocked', () => {
+    const b = mount(
+      sessionSnapshotOf({ blank: true }),
+      [workspace('one')],
+      undefined,
+      { summaryBlank: true, summaryCwd: SCRATCH },
+    )
+    // Never the scratch directory's basename — membership plus cwd decide.
+    expect(b.view.getByText('无工作目录')).toBeTruthy()
+    expect(b.view.queryByText('no-workspace')).toBeNull()
+    // The composer is a live text surface, not the Workspace trigger.
+    const box = b.view.getByRole('textbox')
+    expect(box.getAttribute('aria-haspopup')).toBeNull()
+    expect(box.getAttribute('data-placeholder')).not.toBe('选择一个工作区开始')
+    expect((b.pickerOwner() as { noDirectorySelected?: boolean }).noDirectorySelected).toBe(true)
+  })
+
+  it('a blank session whose Workspace was deleted stays inert instead of posing as a task', () => {
+    const b = mount(
+      sessionSnapshotOf({ blank: true }),
+      [workspace('other')],
+      undefined,
+      { summaryBlank: true, summaryCwd: '/projects/deleted' },
+    )
+    expect(b.view.queryByText('无工作目录')).toBeNull()
+    expect(b.view.queryByText('deleted')).toBeNull()
+    expect(b.view.getByRole('button', { name: '选择工作区' })).toBeTruthy()
+    // The composer stays the Workspace trigger (inert) until a target is picked.
+    const box = b.view.getByRole('textbox')
+    expect(box.getAttribute('aria-haspopup')).toBe('menu')
+    expect(box.getAttribute('data-placeholder')).toBe('选择一个工作区开始')
+    expect((b.pickerOwner() as { noDirectorySelected?: boolean }).noDirectorySelected).toBe(false)
   })
 
   it('blank session keeps the interactive picker chip (workspace switchable until the first message)', () => {

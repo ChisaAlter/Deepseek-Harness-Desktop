@@ -3,9 +3,12 @@
  * @module @deepseek-ai/dsh-host-mcp-servers/types
  */
 
-import type { ChildFiberPhase, McpServerRecord } from '@deepseek-ai/dsh-mcp-servers-file/types'
+import type { McpServerRecord } from '@deepseek-ai/dsh-mcp-servers-file'
 
-export type { McpServerRecord } from '@deepseek-ai/dsh-mcp-servers-file/types'
+export type { McpServerRecord } from '@deepseek-ai/dsh-mcp-servers-file'
+
+/** Fiber phase mirrored from the live child mcp-client plugin. */
+export type ChildFiberPhase = 'pending' | 'loading' | 'active' | 'failed' | 'unloading' | null
 
 /** Whether the row comes from the managed file or a composition plugin. */
 export type McpServerOrigin = 'managed' | 'composition'

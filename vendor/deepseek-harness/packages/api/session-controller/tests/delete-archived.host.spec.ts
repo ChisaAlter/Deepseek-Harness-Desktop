@@ -34,7 +34,7 @@ function header(
   id: string,
   extra: Partial<Pick<SessionHeader, 'parentSession' | 'origin'>> = {},
 ): SessionHeader {
-  return { version: 0, id: sid(id), createdAt: 1, ...extra }
+  return { version: 0, id: sid(id), createdAt: 1, isSeeded: false, ...extra }
 }
 
 /**

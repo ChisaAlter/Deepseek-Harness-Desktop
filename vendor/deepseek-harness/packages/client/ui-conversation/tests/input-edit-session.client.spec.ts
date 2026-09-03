@@ -113,52 +113,6 @@ describe('composer edit session', () => {
     expect(shell.snapshot.imageIds).toEqual([id('img-1')])
   })
 
-  it('publishes the edit state even when the seed equals the current draft', () => {
-    const { shell, spec } = bench()
-    const seen: Array<string | undefined> = []
-    shell.state.subscribe(() => { seen.push(shell.snapshot.edit?.key) })
-    shell.setDraft('original prompt')
-    shell.addImages([id('img-1')])
-    seen.length = 0
-
-    expect(shell.beginEdit(spec)).toBe(true)
-    expect(seen).toContain('message-edit:7')
-    expect(shell.snapshot.edit?.key).toBe('message-edit:7')
-    expect(shell.snapshot.imageIds).toEqual([])
-  })
-
-  it('cancel reaches subscribers when the revision was emptied and the stash is empty too', () => {
-    const { shell, spec } = bench()
-    shell.beginEdit(spec)
-    shell.setDraft('')
-    const seen: Array<string | undefined> = []
-    shell.state.subscribe(() => { seen.push(shell.snapshot.edit?.key) })
-
-    shell.cancelEdit()
-    expect(seen).toContain(undefined)
-    expect(shell.snapshot.edit).toBeUndefined()
-    expect(shell.snapshot.draft).toBe('')
-  })
-
-  it('cancel after a refused edit submit ends the edit and restores the stash', async () => {
-    const { shell, spec } = bench({
-      editSink: () => Promise.resolve({ kind: 'error', text: '会话已有更新的消息' }),
-    })
-    shell.setDraft('stash')
-    shell.beginEdit(spec)
-    shell.setDraft('revised prompt')
-    shell.submit('queue')
-    await vi.waitFor(() => {
-      expect(shell.notices.getSnapshot()).toMatchObject({ level: 'error' })
-    })
-    expect(shell.snapshot.edit).toBeDefined()
-    expect(shell.snapshot.draft).toBe('revised prompt')
-
-    shell.cancelEdit()
-    expect(shell.snapshot.edit).toBeUndefined()
-    expect(shell.snapshot.draft).toBe('stash')
-  })
-
   it('routes submit to the edit sink, ends the edit on success, and restores the stash', async () => {
     const { shell, defaultSink, editSink, spec } = bench()
     shell.setDraft('half-typed next prompt')

@@ -43,6 +43,10 @@ const result = await runLoaderSmoke({
 
 当场景固定一个设计好的失败面——例如一次性轮次以错误结果结束——时设置 `expectedExitCode`；以任何其他方式退出（包括成功退出）都会使冒烟测试失败。
 
+### 测试交付 profile
+
+Profile 集成 driver 使用仅限仓库内部的 `tests/fixtures/production-profile.ts` helper。它通过 `loadProfile` 加载指定的已交付 profile 及其组合包 patch，修复 profile 的模块回退，然后把组合包 patch 与测试 `*.patch.yml` 文件依次交给 `boot` 挂载的根 `cordis:include`。这些 patch 应只包含测试提供方或模型、隔离持久化路径及被测对象专用变更。只需要 agent loop 而不测试 profile 集成的包级单元测试改为在本地挂载 `dsh-agent-loop-testkit`。
+
 ### 驱动 fixture 轮次
 
 `runFixtureTurn(ctx, options)` 让一项任务通过恰好一个已配置的根 agent：它等待任务进入持久收件箱，把规范事件转发给你的观察器，刷写会话，并返回最终 assistant 文本与累计用量。示例本地的 driver 继续负责配置、渲染与断言。
@@ -77,7 +81,8 @@ harness 建立在一个分离之上：冒烟测试在隔离世界中的子进程
 |---|---|
 | [`src/index.ts`](src/index.ts) | 模式解析器、`runLoaderSmoke` 子进程 harness、选项与结果类型 |
 | [`src/agent-turn.ts`](src/agent-turn.ts) | `runFixtureTurn` 直接 agent driver 与结果信封 |
-| [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；消费它的测试套件会检验该 harness） |
+| — | 不发布运行时不变量伴生入口；消费它的测试套件会检验该 harness。 |
+| [`tests/fixtures/production-profile.ts`](tests/fixtures/production-profile.ts) | 仅限仓库内部、供集成 fixture 使用的交付 profile 组装 helper |
 
 </details>
 

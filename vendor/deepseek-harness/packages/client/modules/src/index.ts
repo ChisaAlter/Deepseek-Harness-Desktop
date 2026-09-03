@@ -27,13 +27,12 @@ import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Entry } from '@deepseek-ai/cordis-plugin-loader'
 import type { IndexInjection } from '@deepseek-ai/dsh-host-webserver'
-import { missingHostFeatures, parseCompatibilityFeatures } from '@deepseek-ai/dsh-app-boot/features'
 import { optionalStringArray, stripClientSuffix } from './client/manifest.ts'
 import type { WebBootBatch, WebBootBatchPhase, WebBootEntry, WebBootGraph } from './client/manifest.ts'
 
@@ -63,6 +62,11 @@ interface DshClientDeclaration {
    * Absent means the package uses only the baseline externals.
    */
   external?: string[]
+}
+
+/** Optional Host-side feature requirements carried beside `dsh.client`. */
+interface DshCompatibilityDeclaration {
+  features: string[]
 }
 
 /** The declared fields a graph row carries, normalized (absent array declarations become empty). */
@@ -106,6 +110,27 @@ interface ClientPackageSource extends ResolvedPkgMeta {
 /** Recovery instruction shared by grouped startup and steady-state bundle diagnostics. */
 const CLIENT_BUNDLE_BUILD_INSTRUCTION = 'run `pnpm run build` before launch'
 
+/** Feature ids implemented by the host half shipped in this dsh build. */
+const SUPPORTED_HOST_FEATURES = new Set([
+  'conversation.chat.user-actions',
+  'session.fork.beforeSeq',
+  'session.fork.blank',
+])
+
+/** Validate and normalize an optional `dsh.compatibility` declaration. */
+function parseDshCompatibility(pkgName: string, value: unknown): DshCompatibilityDeclaration | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${pkgName}: dsh.compatibility.features must be a string array of feature ids`)
+  }
+  const features = (value as Record<string, unknown>).features
+  if (features === undefined) return { features: [] }
+  if (!Array.isArray(features) || features.some(feature => typeof feature !== 'string')) {
+    throw new Error(`${pkgName}: dsh.compatibility.features must be a string array of feature ids`)
+  }
+  return { features }
+}
+
 /** Missing built client export, retained as structured data for activation-error grouping. */
 class MissingClientBundleError extends Error {
   constructor(
@@ -120,21 +145,6 @@ class MissingClientBundleError extends Error {
         `  path: ${clientPath}`,
       ].join('\n'),
       { cause },
-    )
-  }
-}
-
-/** Host-feature gate failure: the package requires features this host does not support. */
-class ClientCompatibilityError extends Error {
-  constructor(
-    readonly packageName: string,
-    readonly missing: readonly string[],
-  ) {
-    super(
-      [
-        `client-modules: ${packageName} requires host features this dsh host does not support: ${missing.join(', ')}`,
-        '  the package is not part of the boot graph — update dsh to a host that provides them, or remove the plugin',
-      ].join('\n'),
     )
   }
 }
@@ -773,18 +783,17 @@ export class ClientModuleRegistry extends Service {
       this.pkgMeta.set(sourceKey, null)
       return null
     }
-    // Host-feature gate before the package enters the boot graph: a
-    // malformed dsh.compatibility declaration (parseCompatibilityFeatures
-    // names the package) or unsupported required features reject the package
-    // before any bundle is read or served. The activation pass aggregates
-    // these throws into ClientPackageCompositionError.
-    const dshCompatibility = dsh !== null && typeof dsh === 'object'
-      ? (dsh as Record<string, unknown>).compatibility
-      : undefined
-    const required = parseCompatibilityFeatures(packageName, dshCompatibility)
-    if (required !== undefined) {
-      const missing = missingHostFeatures(required)
-      if (missing.length > 0) throw new ClientCompatibilityError(packageName, missing)
+    const compatibility = parseDshCompatibility(
+      packageName,
+      dsh !== null && typeof dsh === 'object' ? (dsh as Record<string, unknown>).compatibility : undefined,
+    )
+    const missingFeatures = [...new Set(compatibility?.features
+      .filter(feature => !SUPPORTED_HOST_FEATURES.has(feature)) ?? [])]
+    if (missingFeatures.length > 0) {
+      throw new Error([
+        `client-modules: ${packageName} requires host features this dsh host does not support: ${missingFeatures.join(', ')}`,
+        '  the package is not part of the boot graph — update dsh to a host that provides them, or remove the plugin',
+      ].join('\n'))
     }
     const clientRel = clientExportOf(packageName, pkg.exports)
     if (clientRel === undefined) {
@@ -1028,69 +1037,6 @@ export class ClientModuleRegistry extends Service {
     this.notifyGraphChanged()
   }
 
-  /**
-   * Serve a same-directory asset next to a registered client bundle
-   * (`dirname(client.js)/assets/<file>`). Combo scripts stay in the composed
-   * map; these bytes are read from disk per request so a copied wasm/font
-   * does not need a graph rebuild.
-   */
-  private servePluginAsset(pathname: string, method: string, res: ServerResponse): boolean {
-    let decoded = pathname
-    try {
-      decoded = decodeURIComponent(pathname)
-    } catch {
-      return false
-    }
-    const match = /^\/plugins\/(.+)\/assets\/([^/]+)$/.exec(decoded)
-    if (match === null) return false
-    const id = match[1]
-    const name = match[2]
-    if (
-      id === undefined
-      || name === undefined
-      || name === ''
-      || name === '.'
-      || name === '..'
-      || name.includes('\\')
-      || name.includes('\0')
-    ) {
-      res.writeHead(404)
-      res.end()
-      return true
-    }
-    const clientPath = this.clientPath(id)
-    if (clientPath === undefined) {
-      res.writeHead(404)
-      res.end()
-      return true
-    }
-    const assetsRoot = resolve(dirname(clientPath), 'assets')
-    const file = resolve(assetsRoot, name)
-    const rel = relative(assetsRoot, file)
-    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
-      res.writeHead(404)
-      res.end()
-      return true
-    }
-    try {
-      const body = readFileSync(file)
-      const contentType = name.endsWith('.wasm')
-        ? 'application/wasm'
-        : name.endsWith('.woff2')
-          ? 'font/woff2'
-          : 'application/octet-stream'
-      res.writeHead(200, {
-        'content-type': contentType,
-        'cache-control': 'no-cache',
-      })
-      res.end(method === 'HEAD' ? undefined : body)
-    } catch {
-      res.writeHead(404)
-      res.end()
-    }
-    return true
-  }
-
   private readonly serveBundle = (req: IncomingMessage, res: ServerResponse): void => {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405)
@@ -1099,6 +1045,7 @@ export class ClientModuleRegistry extends Service {
     }
     /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server requests. */
     const requestUrl = new URL(req.url ?? '/', 'http://x')
+    if (this.serveAsset(requestUrl, req.method, res)) return
     const resourceUrl = `${requestUrl.pathname}${requestUrl.search}`
     const response = this.responses.get(resourceUrl) ?? this.previousBatchResponses.get(resourceUrl)
     if (response !== undefined) {
@@ -1109,12 +1056,70 @@ export class ClientModuleRegistry extends Service {
       res.end(req.method === 'HEAD' ? undefined : response.body)
       return
     }
-    if (this.servePluginAsset(requestUrl.pathname, req.method, res)) return
     // Anything else under /plugins (including unadvertised combinations and
     // /plugins/events when the HMR row is absent) is an unknown resource.
     res.writeHead(404)
     res.end()
   }
+
+  /** Serve an asset stored beside one registered package's client bundle. */
+  private serveAsset(requestUrl: URL, method: 'GET' | 'HEAD', res: ServerResponse): boolean {
+    const pathname = requestUrl.pathname
+    for (const [packageName, record] of this.table) {
+      const prefix = `/plugins/${packageName}/assets/`
+      if (!pathname.startsWith(prefix)) continue
+      let relativePath: string
+      try {
+        relativePath = decodeURIComponent(pathname.slice(prefix.length))
+      } catch {
+        res.writeHead(404)
+        res.end()
+        return true
+      }
+      const parts = relativePath.split('/')
+      if (
+        relativePath.length === 0
+        || parts.some(part => part.length === 0 || part === '.' || part === '..' || part.includes('\\') || part.includes('\0'))
+      ) {
+        res.writeHead(404)
+        res.end()
+        return true
+      }
+      const assetRoot = resolve(dirname(record.meta.clientPath), 'assets')
+      const assetPath = resolve(assetRoot, ...parts)
+      if (assetPath !== assetRoot && !assetPath.startsWith(`${assetRoot}${sep}`)) {
+        res.writeHead(404)
+        res.end()
+        return true
+      }
+      let body: Buffer
+      try {
+        body = readFileSync(assetPath)
+      } catch {
+        res.writeHead(404)
+        res.end()
+        return true
+      }
+      res.writeHead(200, {
+        'content-type': assetContentType(assetPath),
+        'cache-control': 'no-cache',
+      })
+      res.end(method === 'HEAD' ? undefined : body)
+      return true
+    }
+    return false
+  }
 }
 
 export default ClientModuleRegistry
+
+function assetContentType(path: string): string {
+  switch (extname(path).toLowerCase()) {
+    case '.wasm': return 'application/wasm'
+    case '.woff': return 'font/woff'
+    case '.woff2': return 'font/woff2'
+    case '.ttf': return 'font/ttf'
+    case '.otf': return 'font/otf'
+    default: return 'application/octet-stream'
+  }
+}

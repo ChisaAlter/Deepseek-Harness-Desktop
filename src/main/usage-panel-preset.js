@@ -5,6 +5,8 @@ const path = require('path');
 const { missingRuntimeFiles } = require('./plugin-runtime-files');
 const { webProfileDir, stripBlockFromFile } = require('./plugins');
 
+const fsp = fs.promises;
+
 const USAGE_PANEL_PACKAGE = 'dsh-usage-panel';
 const USAGE_PANEL_BEGIN = '# --- dshd-gui-usage-panel ---';
 const USAGE_PANEL_END = '# --- end dshd-gui-usage-panel ---';
@@ -65,6 +67,43 @@ function removeLinkOrDir(target) {
   fs.rmSync(target, { recursive: true, force: true });
 }
 
+/**
+ * True when the destination already holds this exact file (same size and
+ * mtime). Copies preserve timestamps, so an untouched bundle compares equal
+ * on the next start and only the manifest walk hits the disk.
+ * @param {string} src
+ * @param {string} dest
+ */
+async function unchangedFile(src, dest) {
+  try {
+    const [from, to] = await Promise.all([fsp.stat(src), fsp.stat(dest)]);
+    if (!from.isFile() || !to.isFile()) {
+      return false;
+    }
+    return from.size === to.size && Math.abs(from.mtimeMs - to.mtimeMs) < 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Refresh the desktop-managed copy off the UI thread. `fs.cpSync` of the
+ * ~6k-file bundle held the Electron main thread 4–11 s on every full start,
+ * which is over Windows' 5 s hang threshold (未响应). The async copy runs on
+ * the libuv threadpool and skips files whose size+mtime already match, so
+ * the steady state is a stat walk rather than a rewrite.
+ * @param {string} sourceDir
+ * @param {string} destDir
+ */
+async function copyBundle(sourceDir, destDir) {
+  await fsp.cp(sourceDir, destDir, {
+    recursive: true,
+    force: true,
+    preserveTimestamps: true,
+    filter: async (src, dest) => !(await unchangedFile(src, dest)),
+  });
+}
+
 function linkIntoProfileModules(destDir, profileDir) {
   const linked = path.join(profileDir, 'node_modules', USAGE_PANEL_PACKAGE);
   fs.mkdirSync(path.dirname(linked), { recursive: true });
@@ -123,10 +162,10 @@ function isUserOwned(profileDir, destDir) {
  * node_modules entry does the desktop copy the bundle and manage the
  * junction itself. Missing `package.json` or zod returns
  * `{ ok: false }` and removes the overlay so the controller never passes a
- * stale one.
+ * stale one. Async: the bundle copy must never block the main thread.
  * @param {{ sourceDir?: string, profileDir?: string, disabledPlugins?: string[] }} [options]
  */
-function ensureUsagePanelPlugin(options = {}) {
+async function ensureUsagePanelPlugin(options = {}) {
   const sourceDir = options.sourceDir || defaultSourceDir();
   if (!fs.existsSync(path.join(sourceDir, 'package.json'))) {
     return { ok: false, added: false, error: 'missing-source:package.json' };
@@ -156,7 +195,7 @@ function ensureUsagePanelPlugin(options = {}) {
   }
   const existed = fs.existsSync(path.join(destDir, 'package.json'));
   fs.mkdirSync(destDir, { recursive: true });
-  fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
+  await copyBundle(sourceDir, destDir);
   linkIntoProfileModules(destDir, profileDir);
   if (profileListsBundle(profileDir)) {
     // A marketplace install already mounts the package as a profile bundle;

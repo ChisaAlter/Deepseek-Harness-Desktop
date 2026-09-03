@@ -70,7 +70,7 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
 
   const arrow = (key: ArbitrateKey) => (event: KeyboardEvent | null): boolean => {
     const inComposition = event !== null && isComposingEvent(event, recentlyComposing)
-    if (handlers.arbitrate(key, inComposition) === 'consumed') {
+    if (handlers.arbitrate(key, inComposition) !== 'pass') {
       event?.preventDefault()
       return true
     }
@@ -86,8 +86,8 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
     }),
     editor.registerCommand(KEY_ARROW_UP_COMMAND, arrow('up'), COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(KEY_ARROW_DOWN_COMMAND, arrow('down'), COMMAND_PRIORITY_CRITICAL),
-    // Tab drills into a drillable highlighted row; otherwise it passes so the
-    // browser keeps its native focus traversal.
+    // Tab acts only when the trigger menu has a highlighted completion;
+    // otherwise it passes so the browser keeps its native focus traversal.
     editor.registerCommand(KEY_TAB_COMMAND, arrow('tab'), COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(KEY_ESCAPE_COMMAND, (event) => {
       // Escape layering: an open overlay closes; claimed without an overlay

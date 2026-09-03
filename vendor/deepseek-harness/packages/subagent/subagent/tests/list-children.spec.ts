@@ -7,7 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -103,14 +103,16 @@ async function authorChild(
   id: string,
   header: Partial<SessionHeader>,
   events: SessionEvent[],
+  inheritedEventCount = SessionLogOffset(0),
 ): Promise<SessionId> {
   const sessionId = SessionId(id)
   await ctx.sessionPersistence.create({
     version: SESSION_FORMAT_VERSION,
     id: sessionId,
     createdAt: 1,
+    isSeeded: false,
     ...header,
-  })
+  }, header.isSeeded === true ? inheritedEventCount : undefined)
   await ctx.sessionPersistence.append(sessionId, events)
   return sessionId
 }
@@ -277,6 +279,7 @@ describe('SubagentRuntime.listChildren', () => {
       version: SESSION_FORMAT_VERSION,
       id: coldParent,
       createdAt: 1,
+      isSeeded: false,
     })
     await ctx.sessionPersistence.append(coldParent, [
       { type: 'turn/start', seq: 0, time: 1, data: { turn: 1, trigger: { kind: 'message', source: { kind: 'user' } } } },
@@ -448,11 +451,11 @@ describe('SubagentRuntime.listChildren', () => {
     const events = childEvents(descriptorPayload('twice'))
     events.splice(3, 0, {
       type: 'subagent/descriptor',
-      seq: 3,
+      seq: SessionSeq(3),
       time: 3,
       data: descriptorPayload('twice again'),
     } as SessionEvent)
-    events[4] = { ...events[4]!, seq: 4 }
+    events[4] = { ...events[4]!, seq: SessionSeq(4) }
     const doubled = await authorChild(ctx, '00000000-0000-4000-8000-00000000dupe', {
       parentSession: parent.id,
       origin: 'subagent',
@@ -501,11 +504,11 @@ describe('SubagentRuntime.listChildren', () => {
     const events = childEvents(descriptorPayload('was valid'))
     events.splice(3, 0, {
       type: 'subagent/descriptor',
-      seq: 3,
+      seq: SessionSeq(3),
       time: 3,
       data: { version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 7 },
     } as SessionEvent)
-    events[4] = { ...events[4]!, seq: 4 }
+    events[4] = { ...events[4]!, seq: SessionSeq(4) }
     const invalidated = await authorChild(ctx, '00000000-0000-4000-8000-00000000ad01', {
       parentSession: parent.id,
       origin: 'subagent',
@@ -521,12 +524,12 @@ describe('SubagentRuntime.listChildren', () => {
       parentSession: parent.id,
       origin: 'subagent',
     }, childEvents(descriptorPayload('disk label')))
-    // seq 2 >= seedLength 0: the cached identity provably comes from the
-    // child's own suffix, so it is final and the log is never re-read — the
+    // The unseeded child's cut is exactly 0, so its cached identity is final
+    // and the log is never re-read — the
     // divergent label proves the row, not the log, produced the entry.
     ctx.sessionProjectionCache.cachedSnapshot = () => ({
-      asOfSeq: 2,
-      values: { subagent: { mode: 'continuable', label: 'cached own', seq: 2 } },
+      asOfSeq: SessionSeq(2),
+      values: { subagent: { mode: 'continuable', label: 'cached own', seq: SessionSeq(2) } },
     })
     const inspect = vi.spyOn(ctx.sessionPersistence, 'borrowSession')
     await expect(ctx.subagents.listChildren(parent.id)).resolves.toEqual([{
@@ -549,14 +552,14 @@ describe('SubagentRuntime.listChildren', () => {
     ] as SessionEvent[]
     const forkChild = await authorChild(ctx, '00000000-0000-4000-8000-00000000ae02', {
       parentSession: parent.id,
-      seedLength: seed.length,
+      isSeeded: true,
       origin: 'subagent',
-    }, events)
-    // A creation-window checkpoint carried the ANCESTOR identity: its seq 2
-    // fails the own-suffix gate (< seedLength 4), so preparation rules.
+    }, events, SessionLogOffset(seed.length))
+    // A seeded header does not expose the integer cut, so a misleading cached
+    // ANCESTOR identity is bypassed and authoritative preparation rules.
     ctx.sessionProjectionCache.cachedSnapshot = () => ({
-      asOfSeq: 2,
-      values: { subagent: { mode: 'continuable', label: 'ancestor label', seq: 2 } },
+      asOfSeq: SessionSeq(2),
+      values: { subagent: { mode: 'continuable', label: 'ancestor label', seq: SessionSeq(2) } },
     })
     const inspect = vi.spyOn(ctx.sessionPersistence, 'borrowSession')
     await expect(ctx.subagents.listChildren(parent.id)).resolves.toEqual([{
@@ -572,7 +575,7 @@ describe('SubagentRuntime.listChildren', () => {
     ['createdAt', (meta: SessionHeader): SessionHeader => ({ ...meta, createdAt: meta.createdAt + 1 })],
     ['cwd', (meta: SessionHeader): SessionHeader => ({ ...meta, cwd: '/elsewhere' })],
     ['parentSession', (meta: SessionHeader): SessionHeader => ({ ...meta, parentSession: SessionId('another-parent') })],
-    ['seedLength', (meta: SessionHeader): SessionHeader => ({ ...meta, seedLength: (meta.seedLength ?? 0) + 1 })],
+    ['isSeeded', (meta: SessionHeader): SessionHeader => ({ ...meta, isSeeded: !meta.isSeeded })],
     ['delegationDepth', (meta: SessionHeader): SessionHeader => ({ ...meta, delegationDepth: (meta.delegationDepth ?? 0) + 1 })],
   ] as const)('diagnoses an inspection returning another lifecycle (%s) as corrupt', async (_field, mutate) => {
     const { ctx, parent } = await setup([textResponse('done')])
@@ -603,7 +606,7 @@ describe('SubagentRuntime.listChildren', () => {
       origin: 'subagent',
     }, childEvents(descriptorPayload('actually valid')))
     // A stale cached sentinel must not out-rank the authoritative re-fold.
-    ctx.sessionProjectionCache.cachedSnapshot = () => ({ asOfSeq: 0, values: { subagent: null } })
+    ctx.sessionProjectionCache.cachedSnapshot = () => ({ asOfSeq: SessionSeq(0), values: { subagent: null } })
     const inspect = vi.spyOn(ctx.sessionPersistence, 'borrowSession')
     await expect(ctx.subagents.listChildren(parent.id)).resolves.toEqual([{
       kind: 'child', id: healthy, label: 'actually valid', mode: 'continuable',
@@ -663,9 +666,9 @@ describe('SubagentRuntime.listChildren', () => {
     const seed = childEvents(descriptorPayload('ancestor label'))
     const forkChild = await authorChild(ctx, '00000000-0000-4000-8000-0000000000f0', {
       parentSession: parent.id,
-      seedLength: seed.length,
+      isSeeded: true,
       origin: 'subagent',
-    }, seed)
+    }, seed, SessionLogOffset(seed.length))
     const entries = await ctx.subagents.listChildren(parent.id)
     expect(entries).toEqual([{ kind: 'diagnostic', id: forkChild, reason: 'corrupt' }])
   })
@@ -786,14 +789,14 @@ describe('SubagentRuntime.listChildren', () => {
     const compactedEvents = childEvents(descriptorPayload('twin child'))
     compactedEvents.push({
       type: 'user/message',
-      seq: 4,
+      seq: SessionSeq(4),
       time: 5,
       data: createUserMessage({
         content: [{ type: 'text', text: 'summary of everything' }],
         source: { kind: 'plugin', plugin: 'compact' },
       }),
-      surfaceOp: { op: 'replace', start: 1, end: 1 },
-      sourceEventSeqs: [1],
+      surfaceOp: { op: 'replace', start: SessionSeq(1), end: SessionSeq(1) },
+      sourceEventSeqs: [SessionSeq(1)],
     })
     const compacted = await authorChild(ctx, '00000000-0000-4000-8000-00000000c1de', {
       parentSession: parent.id,
@@ -874,7 +877,7 @@ describe('SubagentRuntime.listChildren', () => {
     // points; both writes are fail-soft asynchronous, so wait for the row.
     const header = (await ctx.sessionPersistence.list()).find(meta => meta.id === childId)
     await vi.waitFor(() => {
-      expect(ctx.sessionProjectionCache.cachedSnapshot(header!)?.values.subagent).toBeDefined()
+      expect(ctx.sessionProjectionCache.cachedSnapshot(header!, SessionLogOffset(0))?.values.subagent).toBeDefined()
     }, { timeout: 5_000 })
     const inspect = vi.spyOn(ctx.sessionPersistence, 'borrowSession')
     await expect(ctx.subagents.listChildren(parent.id)).resolves.toEqual([{
@@ -900,7 +903,7 @@ describe('SubagentRuntime.listChildren', () => {
     expect(inspect).toHaveBeenCalledTimes(1)
     // A stored row whose cut predates the descriptor: the subagent key is
     // absent from the served values, and preparation still rules.
-    ctx.sessionProjectionCache.cachedSnapshot = () => ({ asOfSeq: 0, values: {} })
+    ctx.sessionProjectionCache.cachedSnapshot = () => ({ asOfSeq: SessionSeq(0), values: {} })
     await expect(ctx.subagents.listChildren(parent.id)).resolves.toEqual(expected)
     expect(inspect).toHaveBeenCalledTimes(2)
   })

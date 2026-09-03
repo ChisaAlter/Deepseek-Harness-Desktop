@@ -50,7 +50,9 @@ function config(): ResolvedConfig {
 
 function agent(ctx: Context, cwd?: string): Agent {
   const id = SessionId('agent')
-  const session = Session.create(id, undefined, { version: 0, id, createdAt: 0, ...cwd === undefined ? {} : { cwd } })
+  const session = Session.create(id, undefined, {
+    version: 0, id, createdAt: 0, isSeeded: false, ...cwd === undefined ? {} : { cwd },
+  })
   return {
     id, options: {}, session, inbox: new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }),
     status: 'idle',
@@ -615,7 +617,7 @@ describe('terminal-bash plugin shape', () => {
     expect(() => { setSandboxMode(session, 'read-only') }).toThrow(
       'cannot change sandbox mode from "danger-full-access" to "read-only" while persistent terminal sessions are open or being created; wait for creation to settle and close them first',
     )
-    expect(session.events.filter(event => event.type === 'sandbox/mode')).toHaveLength(1)
+    expect(session.snapshotEvents().filter(event => event.type === 'sandbox/mode')).toHaveLength(1)
 
     const replacementFiber = await registerStubLocalBackend(ctx, () => stubLocalSession())
     const second = await ctx.terminals.spawn(owner, { type: 'stub' })
@@ -625,7 +627,7 @@ describe('terminal-bash plugin shape', () => {
     await ctx.terminals.kill(owner, created.sessionId)
     await ctx.terminals.kill(owner, second.sessionId)
     expect(() => { setSandboxMode(session, 'read-only') }).not.toThrow()
-    expect(session.events.filter(event => event.type === 'sandbox/mode')).toHaveLength(2)
+    expect(session.snapshotEvents().filter(event => event.type === 'sandbox/mode')).toHaveLength(2)
   })
 
   it('also fences sandbox-mode changes across unpublished PTY creation', async () => {

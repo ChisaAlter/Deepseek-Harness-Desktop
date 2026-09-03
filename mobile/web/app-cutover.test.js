@@ -25,6 +25,13 @@ test('composer and drawer gaps follow the 4px spacing grid', () => {
   assert.equal(css.includes('.composer-side { display: flex; align-items: center; gap: 2px; }'), false);
 });
 
+test('Android WebView receives a measured viewport-height fallback for the app shell', () => {
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'app.css'), 'utf8');
+  assert.match(css, /height: var\(--dsh-viewport-height, 100dvh\)/);
+  assert.match(app, /syncViewportHeight/);
+  assert.match(app, /--dsh-viewport-height/);
+});
+
 test('paired SPA executes host slash commands, not session.prompt as /permission chat', () => {
   assert.match(app, /commands\/execute/);
   assert.match(app, /commands\/list/);

@@ -46,7 +46,7 @@ dsh --profile sdk-minimal
 <details>
 <summary>实现细节——点击展开</summary>
 
-该 bundle 的单个 insert 就是完整应用配置树：SDK stdio 启动与 JSON-RPC 服务、一个由环境配置的 DeepSeek 适配器、无执行器 agent 主干、本地子进程与不受限文件系统提供方、按平台选择的持久 shell PTY、字符串替换编辑器，以及位于 `$DSH_HOME/sessions` 的未压缩 JSONL 持久化。它不继承其他 bundle，因此每个额外配置项都是显式 profile 变更。
+该 bundle 的单个 insert 就是完整应用配置树：SDK stdio 启动与 JSON-RPC 服务、一个由环境配置的 DeepSeek 适配器、显式 agent 核心、本地子进程与不受限文件系统提供方、按平台选择的持久 shell PTY、字符串替换编辑器，以及位于 `$DSH_HOME/sessions` 的未压缩 JSONL 持久化。它不继承其他 bundle，因此每个额外配置项都是显式 profile 变更。
 
 ### 源码地图
 
@@ -54,7 +54,7 @@ dsh --profile sdk-minimal
 |---|---|
 | [`cordis.patch.yml`](cordis.patch.yml) | 完整独立 profile 配置树及其环境默认值 |
 | [`src/index.ts`](src/index.ts) | Bundle 包入口 |
-| [`src/invariant.ts`](src/invariant.ts) | 静态组合的不变式伴生插件 |
+| — | 不发布运行时不变式伴生入口；本包只是静态 patch 列表载体，插入的各行分别拥有自己的运行时关系和不变式。 |
 | [`tests/sdk-minimal.spec.ts`](tests/sdk-minimal.spec.ts) | 精确组合、profile 名称与平台选择检查 |
 
 </details>

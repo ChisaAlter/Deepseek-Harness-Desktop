@@ -17,6 +17,30 @@ test('preferredLanIp skips link-local and prefers RFC1918', () => {
   assert.equal(preferredLanIp(['8.8.8.8']), '8.8.8.8');
 });
 
+test('preferredLanIp ranks the real Wi-Fi / Ethernet NIC above WSL, Hyper-V and proxy TUN adapters', () => {
+  // The Windows enumeration order this regressed on: virtual adapters first,
+  // all in 172.16/12, and the proxy TUN at 172.19.0.1 used to win the QR.
+  const rows = [
+    { address: '172.22.240.1', name: 'vEthernet (WSL (Hyper-V firewall))' },
+    { address: '172.21.48.1', name: 'vEthernet (Default Switch)' },
+    { address: '169.254.26.133', name: '本地连接' },
+    { address: '192.168.53.56', name: '以太网' },
+    { address: '192.168.53.58', name: 'WLAN' },
+    { address: '172.19.0.1', name: 'singbox_tun' },
+  ];
+  assert.equal(preferredLanIp(rows), '192.168.53.56');
+  // A single real 172.x NIC still wins over a virtual 192.168 bridge.
+  assert.equal(preferredLanIp([
+    { address: '192.168.99.1', name: 'VMware Network Adapter VMnet8' },
+    { address: '172.20.5.7', name: 'Ethernet' },
+  ]), '172.20.5.7');
+  // With no adapter names the address heuristics alone still avoid the .1 host of 172.16/12.
+  assert.equal(preferredLanIp(['172.19.0.1', '192.168.1.8']), '192.168.1.8');
+  assert.equal(preferredLanIp(['172.19.0.1', '10.0.0.4']), '10.0.0.4');
+  // Only virtual candidates: pick the best of them rather than nothing.
+  assert.equal(preferredLanIp([{ address: '172.19.0.1', name: 'singbox_tun' }]), '172.19.0.1');
+});
+
 test('isVirtualOrLinkLocalIpv4 covers APIPA and CGNAT', () => {
   assert.equal(isVirtualOrLinkLocalIpv4('169.254.10.1'), true);
   assert.equal(isVirtualOrLinkLocalIpv4('100.64.0.1'), true);

@@ -243,6 +243,9 @@ function workspaceListFromFollowFrame(value) {
   return {
     items: baseline.items,
     archivedSessionIds: Array.isArray(baseline.archivedSessionIds) ? baseline.archivedSessionIds : [],
+    // Host scratch cwd for no-directory Sessions: the phone applies the same
+    // membership-or-scratch listing rule as the desktop sidebar.
+    scratchCwd: typeof baseline.scratchCwd === 'string' ? baseline.scratchCwd : '',
   };
 }
 

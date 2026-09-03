@@ -1,1 +1,0 @@
-PRAGMA page_size;

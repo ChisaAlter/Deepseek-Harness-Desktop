@@ -87,6 +87,20 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n',
       'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx': '<div data-composer-beam="" />\n',
       'packages/client/ui-chat/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
+      'packages/api/workspace-controller/src/types.ts': 'export interface WorkspaceBaseline { readonly scratchCwd: string }\n',
+      'packages/api/workspace-controller/src/index.ts': "export function scratchWorkspaceCwd() { return dshHomePath('no-workspace') }\n",
+      'packages/api/workspace-controller/src/client/model.ts': 'export interface WorkspaceSnapshot { readonly scratchCwd?: string }\n',
+      'packages/workspace/workspace/src/index.ts': 'private async readoptableSessionIds(canonical: string) {}\n',
+      'packages/client/ui-workspace/src/client/navigation.ts': 'connectNoDirectory() { return this.workspaces.list.getSnapshot().scratchCwd }\ndeleteWorkspace() {}\n',
+      'packages/client/ui-workspace/src/client/tree.ts': 'export function isNoDirectorySession() {}\nexport function currentGroupKey() {}\n',
+      'packages/client/ui-workspace/src/client/WorkspacePicker.tsx': "const NO_DIRECTORY = '::no-directory'\nonPickNoDirectory?.()\n",
+      'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx': '<TasksSectionHeader onCreate={() => { connectNoDirectory() }} />\n',
+      'packages/client/ui-workspace/src/client/locales.ts': "'menu.noDirectory': 'No workspace folder',\n",
+      'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx': 'const noDirectorySession = false\nvoid selectNoDirectory()\n',
+      'packages/client/ui-conversation/src/client/apply.ts': 'selectNoDirectory: async () => { await workspaceNavigation.connectNoDirectory() }\n',
+      'packages/client/ui-conversation/src/client/locales.ts': "'hero.noDirectory': 'No workspace folder',\n",
+      'packages/api/workspace-controller/tsconfig.host.json': '{"references":[{"path":"../../util/home-paths"}]}\n',
+      'packages/api/workspace-controller/package.json': '{"peerDependencies":{"@deepseek-ai/dsh-home-paths":"workspace:^"}}\n',
       'apps/cli/src/args.ts': "program.option('--skip-user-plugins', 'boot the shipped bundle template')\n",
       'apps/cli/src/dump-config.ts': 'export function dumpConfigLayers(options: { skipUserPlugins?: boolean }) {}\n',
       'tsconfig.host.json': '{"references":[{"path":"packages/host/mcp-servers"},{"path":"packages/host/skill-inventory"},{"path":"packages/llm/llm-vision-fallback"},{"path":"packages/mcp/mcp-servers-file"}]}\n',
@@ -136,13 +150,25 @@ test('assertDesktopForks throws when transparent theme markers drop', (t) => {
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /TRANSPARENT_ATTR|data-dsh-transparent/);
 });
 
+test('assertDesktopForks throws when the no-directory picker entry or the Ungrouped bucket regress', (t) => {
+  const root = makeFixture(t);
+  const pickerPath = path.join(root, ...'packages/client/ui-workspace/src/client/WorkspacePicker.tsx'.split('/'));
+  fs.writeFileSync(pickerPath, "const ADD_WORKSPACE = '::add-workspace'\n");
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /NO_DIRECTORY/);
+
+  const fixed = makeFixture(t);
+  const localesPath = path.join(fixed, ...'packages/client/ui-workspace/src/client/locales.ts'.split('/'));
+  fs.writeFileSync(localesPath, "'menu.noDirectory': 'No workspace folder',\n'group.ungrouped': 'Ungrouped',\n");
+  assert.throws(() => assertDesktopForks(fixed, '0.1.0-rc.5'), /Ungrouped/);
+});
+
 test('assertDesktopForks throws when copy-ghostty-assets drops out of package.json', (t) => {
   const root = makeFixture(t);
   fs.writeFileSync(path.join(root, 'package.json'), '{}\n');
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /copy-ghostty-assets/);
 });
 
-test('assertDesktopForks accepts the current vendor tree at alpha.2', () => {
+test('assertDesktopForks accepts the current vendor tree at alpha.4', () => {
   const vendor = path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');
-  assertDesktopForks(vendor, '0.1.2-alpha.2');
+  assertDesktopForks(vendor, '0.1.2-alpha.4');
 });

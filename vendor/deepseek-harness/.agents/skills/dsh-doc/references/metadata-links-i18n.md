@@ -49,9 +49,9 @@ Before assigning `package-library` or `package-bundle`, inspect the facts: read 
 
 Agents search frontmatter `description` values to shortlist pages before loading full documents. Write each value like a Skill description: state what the page covers and when a reader should open it. Use one or two concrete sentences, include searchable domain terms, and distinguish the page from nearby owners. Do not summarize every section, claim superiority, repeat the title, advertise vaguely, preserve change history, or write a technical status report.
 
-Good: `SQLite session persistence for deployments and maintainers choosing, configuring, or debugging the opt-in packed-row backend.`
+Good: `The shipped JSONL session-persistence backend for deployments and maintainers choosing, configuring, or debugging per-session durable logs with optional Zstandard compression.`
 
-Weak: `The best and most advanced SQLite storage implementation with lots of optimizations.`
+Weak: `The best and most advanced session storage implementation with lots of optimizations.`
 
 ## Repository links and path mentions
 

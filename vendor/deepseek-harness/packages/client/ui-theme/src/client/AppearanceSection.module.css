@@ -61,6 +61,7 @@
     linear-gradient(var(--dsw-alias-brand-primary), var(--dsw-alias-brand-primary)) 0 0 / var(--dsh-slider-fill, 0%) 100% no-repeat,
     var(--dsw-alias-bg-layer-2);
   box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l1);
+  corner-shape: round;
 }
 
 .slider::-webkit-slider-thumb {
@@ -73,6 +74,7 @@
   border: 2px solid var(--dsw-alias-brand-primary);
   box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
   transition: transform 0.1s ease;
+  corner-shape: round;
 }
 
 .slider::-webkit-slider-thumb:hover {
@@ -131,7 +133,7 @@
   justify-content: center;
   gap: 4px;
   padding: 20px 32px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 16px;
   background: transparent;
   font: inherit;
@@ -179,7 +181,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 14px;
   background: var(--dsw-alias-bg-layer-1);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -244,6 +246,7 @@
   height: 16px;
   border-radius: 999px;
   box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  corner-shape: round;
 }
 
 .miniLines {
@@ -279,6 +282,7 @@
   font-size: 10px;
   line-height: 1.4;
   opacity: 0.85;
+  corner-shape: round;
 }
 
 .halfBadge {
@@ -295,6 +299,7 @@
   color: var(--dsw-static-neutral-bluish-00);
   font-size: 10px;
   line-height: 1;
+  corner-shape: round;
 }
 
 .cardFoot {
@@ -303,7 +308,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
   min-height: 38px;
 }
 
@@ -355,7 +360,7 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-1);
 }
@@ -366,7 +371,7 @@
   gap: 10px;
   margin: 0;
   padding: 12px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
 }
 
@@ -410,7 +415,7 @@
   width: 100%;
   height: 88px;
   border-radius: 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   background-color: var(--dsw-alias-bg-layer-1);
   background-position: center;
   background-repeat: no-repeat;
@@ -517,10 +522,11 @@
 .gallerySpinner {
   width: 28px;
   height: 28px;
-  border: 2px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-top-color: var(--dsw-alias-label-primary);
   border-radius: 50%;
   animation: gallery-spin 0.7s linear infinite;
+  corner-shape: round;
 }
 
 @keyframes gallery-spin {
@@ -547,7 +553,7 @@
   min-width: 0;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
@@ -565,7 +571,7 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 88%, transparent);
   color: var(--dsw-alias-label-primary);
@@ -626,7 +632,7 @@
   width: 100%;
   max-height: 55vh;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-base);
   cursor: grab;

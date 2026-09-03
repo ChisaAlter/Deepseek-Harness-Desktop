@@ -346,7 +346,7 @@ export class TeamRoster {
       const session = this.ctx.sessions.get(childId)
       if (session === undefined) {
         const stored = await this.ctx.sessionPersistence.inspect(childId, signal)
-        const suffix = stored.events.slice(stored.meta.seedLength ?? 0)
+        const suffix = stored.events.slice(stored.inheritedEventCount)
         if (messageAccepted(suffix, message => message.id === messageId)) return
         throw new TeamError(
           `teammate "${childId}" initial prompt was not durably accepted`,
@@ -374,7 +374,7 @@ export class TeamRoster {
       try {
         signal.throwIfAborted()
         await this.ctx.sessions.flush(session)
-        const suffix = session.events.slice(session.header.seedLength ?? 0)
+        const suffix = session.ownEvents()
         if (messageAccepted(suffix, message => message.id === messageId)) return
         if (this.ctx.sessions.get(childId) !== session) continue
         await progress.promise
@@ -398,7 +398,7 @@ export class TeamRoster {
       let failure = 'provisioning did not leave a resumable child Session'
       try {
         const loaded = await this.ctx.sessionPersistence.inspect(member.id, signal)
-        const suffix = loaded.events.slice(loaded.meta.seedLength ?? 0)
+        const suffix = loaded.events.slice(loaded.inheritedEventCount)
         const descriptor = foldSubagentDescriptor(suffix)
         const acceptedInitialPrompt = messageAccepted(suffix, message => message.source.kind === 'user')
         if (loaded.meta.parentSession === root.id
@@ -481,6 +481,6 @@ export class TeamRoster {
 
   /** Whether a Session's own suffix identifies a provider-owned subagent child. */
   private subagentDescriptor(agent: Agent): boolean {
-    return foldSubagentDescriptor(agent.session.events.slice(agent.session.header.seedLength ?? 0)) !== undefined
+    return foldSubagentDescriptor(agent.session.ownEvents()) !== undefined
   }
 }

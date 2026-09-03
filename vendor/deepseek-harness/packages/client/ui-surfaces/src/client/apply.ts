@@ -103,15 +103,6 @@ interface SurfacesStoreActions {
   openFile: (sessionId: string, relativePath: string, options?: { revealLine?: number }) => void
 }
 
-/** The one `remote.session` call the Host-opener fallback reads. */
-interface OpenWorkspacePathRemote {
-  session?: {
-    openWorkspacePath?: (request: { path: string }) => Promise<
-      { ok: true } | { ok: false; error: { message: string } }
-    >
-  }
-}
-
 /**
  * @returns the desktop `window.shell` object, or undefined outside the renderer.
  */
@@ -200,35 +191,8 @@ export function desktopListingAvailable(): boolean {
   return typeof readWindowShell()?.listDir === 'function'
 }
 
-/**
- * Give `workspaces.openPath` a Host-opener body when the pinned Workspace
- * service ships without one. The intercept below wraps whatever is installed
- * here, so chat chips, tool rows, terminal links, and skills keep one vocabulary
- * and the fall-through still reaches `remote.session.openWorkspacePath`
- * (the OS opener) instead of silently doing nothing.
- * @param ctx - Client root context (reads `remote` lazily, per call).
- * @param workspaces - the live workspaces service object.
- * @returns a disposer that removes the installed body while it is still current.
- */
-export function ensureBaseOpenPath(ctx: Context, workspaces: Partial<OpenPathService>): () => void {
-  if (typeof workspaces.openPath === 'function') return () => {}
-  const installed = async function openPathViaHost(path: string): Promise<void> {
-    const remote = ctx.get('remote') as OpenWorkspacePathRemote | undefined
-    const open = remote?.session?.openWorkspacePath
-    if (typeof open !== 'function') {
-      throw new Error('workspaces.openPath: remote.session.openWorkspacePath is not available')
-    }
-    const result = await open({ path })
-    if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
-  }
-  workspaces.openPath = installed
-  return () => {
-    if (workspaces.openPath === installed) delete workspaces.openPath
-  }
-}
-
 /** Services required by the surfaces plugin. */
-export const inject = ['slots', 'layout', 'locale', 'workspaces', 'sessions', 'remote', 'remote.session']
+export const inject = ['slots', 'layout', 'locale', 'workspaces', 'sessions']
 
 /**
  * Register dictionaries, occupy the layout `surfaces` column, and intercept
@@ -268,28 +232,20 @@ export function apply(ctx: Context): void {
     },
   }, SurfacesRoot))
 
-  ctx.effect(() => {
-    const workspaces = ctx.workspaces as Partial<OpenPathService>
-    const removeBase = ensureBaseOpenPath(ctx, workspaces)
-    const unwrap = wrapOpenPath(workspaces, {
-      takeoverEnabled: desktopListingAvailable,
-      currentSessionId: () => ctx.sessions.list.getSnapshot().current,
-      openInSurfaces: async (path, sessionId, options) => {
-        const cwd = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd
-        if (typeof cwd !== 'string' || cwd.length === 0) return false
-        const relative = relativeTo(cwd, path)
-        if (relative === undefined || relative === '') return false
-        if (live.openFile === undefined) return false
-        if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
-        else live.openFile(sessionId, relative)
-        ctx.layout.openSurfaces()
-        await previewBrowserDocument(cwd, relative)
-        return true
-      },
-    })
-    return () => {
-      unwrap()
-      removeBase()
-    }
-  }, 'ui-surfaces: openPath intercept')
+  ctx.effect(() => wrapOpenPath(ctx.workspaces as Partial<OpenPathService>, {
+    takeoverEnabled: desktopListingAvailable,
+    currentSessionId: () => ctx.sessions.list.getSnapshot().current,
+    openInSurfaces: async (path, sessionId, options) => {
+      const cwd = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd
+      if (typeof cwd !== 'string' || cwd.length === 0) return false
+      const relative = relativeTo(cwd, path)
+      if (relative === undefined || relative === '') return false
+      if (live.openFile === undefined) return false
+      if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
+      else live.openFile(sessionId, relative)
+      ctx.layout.openSurfaces()
+      await previewBrowserDocument(cwd, relative)
+      return true
+    },
+  }), 'ui-surfaces: openPath intercept')
 }

@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { Session, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceRevision } from '@deepseek-ai/dsh-session-persistence'
 import type { BorrowedSessionSource } from '@deepseek-ai/dsh-session-persistence'
@@ -8,17 +8,21 @@ import { describe, expect, it, vi } from 'vitest'
 import { SessionObservationReader } from '../src/observation.ts'
 
 function header(id: string): SessionHeader {
-  return { version: 0, id: SessionId(id), createdAt: 1, cwd: '/workspace' }
+  return { version: 0, id: SessionId(id), createdAt: 1, cwd: '/workspace', isSeeded: false }
 }
 
 function preparedSource(
   meta: SessionHeader,
   dispose = vi.fn(),
 ): BorrowedSessionSource {
-  const preparedSession = Session.create(meta.id, [], meta)
+  const preparedSession = Session.create(meta.id, [], meta, SessionLogOffset(0))
   return {
     source: 'prepared',
-    inspection: { meta: preparedSession.header, events: preparedSession.events },
+    inspection: {
+      meta: preparedSession.header,
+      inheritedEventCount: preparedSession.inheritedEventCount,
+      events: preparedSession.snapshotEvents(),
+    },
     revision: SessionPersistenceRevision(`fixture:${meta.id}`),
     preparedSession,
     [Symbol.dispose]: dispose,
@@ -76,7 +80,9 @@ describe('SessionObservationReader', () => {
     const prepared = preparedSource(meta)
     const borrowSession = vi.fn()
       .mockResolvedValueOnce({
-        source: 'live', inspection: { meta, events: [] }, [Symbol.dispose]: disposeLive,
+        source: 'live',
+        inspection: { meta, inheritedEventCount: SessionLogOffset(0), events: [] },
+        [Symbol.dispose]: disposeLive,
       } satisfies BorrowedSessionSource)
       .mockResolvedValueOnce(prepared)
     ctx.provide('sessionPersistence', { borrowSession } as never)
@@ -136,6 +142,25 @@ describe('SessionObservationReader', () => {
     expect(() => observed.retain()).toThrow('is disposed')
     expect(retained.source).toBe('live')
     retained[Symbol.dispose]()
+    await ctx.fiber.dispose()
+  })
+
+  it('carries the exact inherited cut on a live observation', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    const inherited = [
+      { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
+      { type: 'turn/end', seq: SessionSeq(1), time: 2, data: { turn: 1, reason: { kind: 'completed' } } },
+    ] as const
+    const session = ctx.sessions.create(SessionId('seeded-observation'), {
+      seed: inherited,
+      inheritedEventCount: SessionLogOffset(inherited.length),
+      meta: { cwd: '/workspace', isSeeded: true },
+    })
+
+    using observed = await new SessionObservationReader(ctx).read(session.id, { projectionMode: 'none' })
+
+    expect(observed.inheritedEventCount).toBe(SessionLogOffset(inherited.length))
     await ctx.fiber.dispose()
   })
 

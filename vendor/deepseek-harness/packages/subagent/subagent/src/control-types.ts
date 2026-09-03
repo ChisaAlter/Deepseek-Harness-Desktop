@@ -6,10 +6,9 @@
  * @module @deepseek-ai/dsh-subagent/control-types
  */
 
-import type { EncodedImageAttachment } from '@deepseek-ai/dsh-attachment/types'
+import type { PromptContentPart } from '@deepseek-ai/dsh-attachment/types'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
-import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /**
@@ -95,21 +94,6 @@ export type SubagentAddress =
     | { readonly mode: 'continuable' }
   )
 
-/**
- * One browser-encoded upload as the Session prompt wire carries it: the shared
- * attachment vocabulary under the content-block tag.
- */
-export interface EncodedImagePromptBlock extends EncodedImageAttachment {
-  readonly type: 'image'
-}
-
-/**
- * One block a browser prompt may carry. The encoded upload is accepted by the
- * wire and refused by the Host, so the Client narrows nothing: a caller that
- * attaches an image is answered, not silently stripped.
- */
-export type SubagentPromptContentPart = ContentBlock | EncodedImagePromptBlock
-
 /** One human message addressed to a continuable direct child. */
 export interface SubagentPromptRequest {
   /** Identity persisted on the accepted message, minted before the call. */
@@ -118,8 +102,12 @@ export interface SubagentPromptRequest {
   readonly childSessionId: SessionId
   /** Required discriminator retained from the browser control address. */
   readonly mode: 'continuable'
-  /** Content proposed as the child's user message; images are refused. */
-  readonly content: readonly SubagentPromptContentPart[]
+  /**
+   * Browser prompt parts delivered as the child's user message. The Host
+   * admits and persists image parts before delivery, so the wire never
+   * carries a durable attachment reference the caller could fabricate.
+   */
+  readonly content: readonly PromptContentPart[]
   /** Optional browser zone sampled for this exact human prompt. */
   readonly clientTimeZone?: string
 }
@@ -135,10 +123,8 @@ export interface SubagentInterruptReceipt {
 }
 
 /**
- * Failure details the control surface answers with. The catalog read, the
- * prompt, and the interrupt produce these codes; a Client fabricates
- * `subagent/not-resumable` and `subagent/delivery-unavailable` for a one-shot
- * address it refuses before the call, so both planes read one vocabulary.
+ * Failure details the control surface answers with. Catalog reads, prompts,
+ * and interrupts share this vocabulary with the Client Remote result.
  */
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
@@ -150,11 +136,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'subagent/not-resumable': { readonly childSessionId: SessionId }
     /** The claimed parent does not own the addressed child. */
     'subagent/unauthorized': { readonly childSessionId: SessionId }
-    /**
-     * The continuation admits no attachment. `reason` names the refused plane
-     * for the caller's copy, as the Session prompt's attachment refusals do.
-     */
-    'subagent/attachment-unsupported': { readonly childSessionId: SessionId; readonly reason: string }
+    /** Image admission or model image-capability refusal. */
+    'subagent/attachment-invalid': { readonly reason: string }
     /** The child exists but its inbox cannot admit the message now. */
     'subagent/delivery-unavailable': { readonly childSessionId: SessionId }
     /** The deployment mounts no session-projection registry. */

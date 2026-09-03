@@ -165,14 +165,15 @@ test('remote bind address and LAN TLS normalize with safe fallbacks', () => {
   saveConfig({ remoteBindAddress: '0.0.0.0', remoteLanTls: false });
 });
 
-test('remote feature is parked and cannot be enabled', () => {
-  assert.equal(REMOTE_FEATURE_ENABLED, false);
+test('remote feature is released: the flag is on and the saved config keeps remote settings', () => {
+  assert.equal(REMOTE_FEATURE_ENABLED, true);
   const saved = saveConfig({ remoteEnabled: true, remoteMode: 'relay' });
-  assert.equal(saved.remoteEnabled, false);
-  assert.equal(saved.remoteMode, 'lan');
+  assert.equal(saved.remoteEnabled, true);
+  assert.equal(saved.remoteMode, 'relay');
   const pub = publicConfig(saved);
-  assert.equal(pub.remoteAvailable, false);
-  assert.equal(pub.remoteEnabled, false);
+  assert.equal(pub.remoteAvailable, true);
+  assert.equal(pub.remoteEnabled, true);
+  saveConfig({ remoteEnabled: false, remoteMode: 'lan' });
 });
 
 test('remote relay endpoint normalizes to host:port for ChisaCode transport', () => {
@@ -182,7 +183,7 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
     remoteRelayUrl: 'http://relay.example:8787/path',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(customRelay.remoteEnabled, false);
+  assert.equal(customRelay.remoteEnabled, true);
   assert.equal(customRelay.remoteRelayUrl, 'relay.example:8787');
   assert.equal(customRelay.remoteRelayEndpoint, 'relay.example:8787');
   const defaultRelay = saveConfig({
@@ -215,8 +216,9 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
   assert.equal(lanMode.remoteMode, 'lan');
   assert.equal(lanMode.remoteRelayUrl, '125.124.85.212:8411');
   const pub = publicConfig(httpsRelay);
-  assert.equal(pub.remoteAvailable, false);
-  assert.equal(pub.remoteEnabled, false);
+  assert.equal(pub.remoteAvailable, true);
+  assert.equal(pub.remoteEnabled, true);
+  saveConfig({ remoteEnabled: false, remoteMode: 'lan' });
 });
 
 test('remoteAppBaseUrl never backfills relay origin as SPA landing', () => {

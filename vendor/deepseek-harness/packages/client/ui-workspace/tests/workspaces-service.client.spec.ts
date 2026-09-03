@@ -61,6 +61,8 @@ function sessionState(
   }
 }
 
+const SCRATCH = '/dsh-home/no-workspace'
+
 function workspaceState(
   items: WorkspaceSnapshot['items'] = [],
   archivedSessionIds: readonly SessionId[] = [],
@@ -69,6 +71,7 @@ function workspaceState(
   return {
     items,
     archivedSessionIds,
+    ...(phase === 'ready' ? { scratchCwd: SCRATCH } : {}),
     phase,
     state: phase === 'ready' ? 'idle' : 'loading',
     error: null,
@@ -152,12 +155,23 @@ class FakeWorkspaces implements IWorkspaces {
 
   declare readonly create: IWorkspaces['create']
   declare readonly rename: IWorkspaces['rename']
-  declare readonly delete: IWorkspaces['delete']
   declare readonly insertBefore: IWorkspaces['insertBefore']
   declare readonly insertSessionBefore: IWorkspaces['insertSessionBefore']
+  readonly deleteCalls: WorkspaceId[] = []
+  onDelete: IWorkspaces['delete'] = async (workspaceId) => {
+    this.list.update(state => ({
+      ...state,
+      items: state.items.filter(item => item.workspaceId !== workspaceId),
+    }))
+  }
 
   constructor(initial: WorkspaceSnapshot) {
     this.list = new MutableSource(initial)
+  }
+
+  delete(workspaceId: WorkspaceId): Promise<void> {
+    this.deleteCalls.push(workspaceId)
+    return this.onDelete(workspaceId)
   }
 
   archiveSession(sessionId: SessionId): Promise<void> {
@@ -274,6 +288,59 @@ describe('UiWorkspaceService', () => {
     expect(b.sessions.create).toHaveBeenLastCalledWith({ workspaceId: wid('gamma') })
     await expect(b.uiWorkspace.connectWorkspace(wid('ghost')))
       .rejects.toThrow('uiWorkspace.connectWorkspace: unknown workspace ghost')
+  })
+
+  it('connects a no-directory task by reusing the scratch blank or creating one in the scratch cwd', async () => {
+    const memberBlank = summary('member-blank', { blank: true, cwd: SCRATCH })
+    const orphanBlank = summary('orphan-blank', { blank: true, cwd: '/w/deleted' })
+    const archivedTask = summary('archived-task', { blank: true, cwd: SCRATCH })
+    const usedTask = summary('used-task', { cwd: SCRATCH })
+    const b = bench({
+      sessions: sessionState([memberBlank, orphanBlank, archivedTask, usedTask], usedTask.id),
+      workspaces: workspaceState([workspace('alpha', [memberBlank.id])], [archivedTask.id]),
+    })
+
+    // A Workspace member, a blank from an unregistered Workspace, an archived
+    // scratch blank, and a used scratch task never count as the reusable blank.
+    const creation = Promise.withResolvers<SessionId>()
+    b.sessions.create.mockImplementation(() => creation.promise)
+    const first = b.uiWorkspace.connectNoDirectory()
+    const second = b.uiWorkspace.connectNoDirectory()
+    expect(b.sessions.create).toHaveBeenCalledTimes(1)
+    expect(b.sessions.create).toHaveBeenCalledWith({ cwd: SCRATCH })
+    creation.resolve(sid('fresh-task'))
+    await expect(Promise.all([first, second])).resolves.toEqual([sid('fresh-task'), sid('fresh-task')])
+
+    const reusable = summary('reusable', { blank: true, cwd: SCRATCH })
+    b.sessions.list.set(sessionState([memberBlank, reusable]))
+    await expect(b.uiWorkspace.connectNoDirectory()).resolves.toBe(reusable.id)
+    expect(b.sessions.create).toHaveBeenCalledTimes(1)
+
+    const pending = bench()
+    await expect(pending.uiWorkspace.connectNoDirectory())
+      .rejects.toThrow('the Workspace baseline has not arrived yet')
+    expect(pending.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it('clears the selection when the deleted Workspace held the current Session', async () => {
+    const inside = summary('inside', { cwd: '/w/gone' })
+    const outside = summary('outside', { cwd: '/w/kept' })
+    const b = bench({
+      sessions: sessionState([inside, outside], inside.id),
+      workspaces: workspaceState([workspace('gone', [inside.id]), workspace('kept', [outside.id])]),
+    })
+
+    await b.uiWorkspace.deleteWorkspace(wid('kept'))
+    expect(b.workspaces.deleteCalls).toEqual([wid('kept')])
+    expect(b.sessions.clear).not.toHaveBeenCalled()
+
+    await b.uiWorkspace.deleteWorkspace(wid('gone'))
+    expect(b.sessions.clear).toHaveBeenCalledOnce()
+    expect(b.sessions.list.getSnapshot().current).toBeUndefined()
+
+    b.workspaces.onDelete = () => Promise.reject(new Error('delete rejected'))
+    await expect(b.uiWorkspace.deleteWorkspace(wid('ghost'))).rejects.toThrow('delete rejected')
+    expect(b.sessions.clear).toHaveBeenCalledOnce()
   })
 
   it('targets an explicit, current-session, then recent Workspace and reports failed starts', async () => {

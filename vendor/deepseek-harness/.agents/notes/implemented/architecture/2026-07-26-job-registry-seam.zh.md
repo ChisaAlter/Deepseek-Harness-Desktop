@@ -16,7 +16,7 @@ Status: implemented
 - **`@deepseek-ai/dsh-jobs-local`（Service Provider）**——`LocalJobRegistry`，即进程内注册表：内存存储、按 kind 划分的 id 计数器、等待方簿记、`TASK_WAIT_TIMEOUT` deadline 代码、所有者清理 effect、强制失败的拆除，以及默认值为 10 且可配置的准入策略。准入从同一组记录中按确切 owner 派生 `running` 加 `stopping` 容量，并为无 owner 任务使用一个共享桶；它不新增公开计数或第二个状态 owner。`dsh-timeout` 依赖与由 Schemastery 管理的 Service Provider 配置都位于此包；Service Definition 包不含任何提供方依赖。
 - **`@deepseek-ai/dsh-tool-jobs`（Consumer）**——保持不变；它注入 `'jobs'`，从不导入提供方类型。
 
-各组合在原先加载 `dsh-jobs` 的位置改为加载 `dsh-jobs-local`：CLI（命令行界面）的 cordis.yml 配置项、`agent-spine-demo`、各测试 harness，以及工具目录生成器的启动流程。生产方的配置错误诊断信息（「background jobs unavailable: load …」）点名 `dsh-jobs`——即声明缺失的 `ctx.jobs` 服务的 Service Definition 包；Service Definition 包自身的 API（其 README 与直接挂载防线）会指向各 Service Provider，因此当另一个后端日后成为推荐默认时，生产方的消息依旧正确。生产方、`JobKindMap` 声明合并和控制器仍然只导入 `@deepseek-ai/dsh-jobs`。
+各组合在原先加载 `dsh-jobs` 的位置改为加载 `dsh-jobs-local`：`dsh-base`、`sdk-minimal`、各测试 harness，以及工具目录生成器的启动流程。生产方的配置错误诊断信息（「background jobs unavailable: load …」）点名 `dsh-jobs`——即声明缺失的 `ctx.jobs` 服务的 Service Definition 包；Service Definition 包自身的 API（其 README 与直接挂载防线）会指向各 Service Provider，因此当另一个后端日后成为推荐默认时，生产方的消息依旧正确。生产方、`JobKindMap` 声明合并和控制器仍然只导入 `@deepseek-ai/dsh-jobs`。
 
 该 seam 保持进程内约定语义不变：`JobStart.run()` 仍然传入回调和确切的 `Agent` 对象，因此持久化或跨进程后端在能满足此 Service Definition 之前仍有设计工作要做（身份、重启、所有权、观察）。这次拆分把该项未来工作移出了每个 Consumer 的依赖图；它并不预先设计后端。
 

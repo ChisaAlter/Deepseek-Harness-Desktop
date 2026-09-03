@@ -8,7 +8,12 @@ import GoalService, { GoalId } from '@deepseek-ai/dsh-goal'
 import type { GoalRef } from '@deepseek-ai/dsh-goal'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
-import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
+import {
+  SESSION_FORMAT_VERSION,
+  Session,
+  SessionId,
+  SessionLogOffset,
+} from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -49,7 +54,7 @@ function stubAgent(rawId: string, supplied?: Session): StubAgent {
 
 /** Open one message-triggered turn with its accepted model-visible input. */
 function openTurn(stub: StubAgent, source: MessageSource, text = 'prompt'): number {
-  const turn = stub.session.events
+  const turn = stub.session.snapshotEvents()
     .filter(event => event.type === 'turn/start')
     .reduce((max, event) => Math.max(max, event.data.turn), 0) + 1
   const message = createUserMessage({
@@ -262,13 +267,13 @@ describe('goal tool execution authority', () => {
     const created = ctx.goals.create(root.agent, { objective: 'resume the fork' })
     closeTurn(root, originalTurn)
     const forkId = SessionId('goal-tool-resumed-fork')
-    const forkSession = Session.create(forkId, root.session.events, {
+    const forkSession = Session.create(forkId, root.session.snapshotEvents(), {
       version: SESSION_FORMAT_VERSION,
       id: forkId,
       createdAt: Date.now(),
       parentSession: root.session.id,
-      seedLength: root.session.seq,
-    })
+      isSeeded: true,
+    }, SessionLogOffset(root.session.seq))
     const fork = stubAgent(forkId, forkSession)
     ctx.agents.register(fork.agent)
     expect(ctx.goals.get(fork.agent)).toMatchObject({ id: created.id, activation: 'disarmed' })

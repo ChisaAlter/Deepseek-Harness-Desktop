@@ -227,6 +227,58 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
+  it('delivers an admitted image batch through steer with the same ordered content as queue', async () => {
+    const { ctx, agent, sessionId } = await harness()
+    const attachments = {
+      imageLimits: {
+        maxImageBytes: 4,
+        maxImagesPerMessage: 2,
+        maxMessageImageBytes: 4,
+        maxImagePixels: 4,
+        maxImageDimension: 2000,
+        mediaTypes: ['image/png'],
+      },
+      validateImage: vi.fn(() => Promise.resolve()),
+      saveImage: vi.fn((input: { data: Uint8Array; mediaType: 'image/png'; name?: string }) => Promise.resolve({
+        attachmentId: `att-${String(input.data[0])}`,
+        mediaType: input.mediaType,
+        bytes: input.data.byteLength,
+        width: 1,
+        height: 1,
+        ...input.name === undefined ? {} : { name: input.name },
+      })),
+    }
+    ctx.provide('attachments', Object.setPrototypeOf(attachments, AttachmentStore.prototype) as never)
+    const steer = vi.fn()
+    const followup = vi.fn()
+    Object.assign(agent, { steer, followup })
+    const remote = createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
+      cwd: '/tmp',
+    })
+
+    const result = await remote.prompt(promptRequest({
+      sessionId,
+      mode: 'steer' as const,
+      content: [
+        { type: 'text' as const, text: 'look at this' },
+        { type: 'image' as const, mediaType: 'image/png' as const, data: 'AQ==', name: 'mid-turn.png' },
+      ],
+    }))
+    expect(result.ok).toBe(true)
+    expect(followup).not.toHaveBeenCalled()
+    expect((steer.mock.calls[0]?.[0] as UserMessage).content).toEqual([
+      { type: 'text', text: 'look at this' },
+      {
+        type: 'image',
+        attachment: {
+          attachmentId: 'att-1', mediaType: 'image/png', bytes: 1, width: 1, height: 1, name: 'mid-turn.png',
+        },
+      },
+    ])
+    await ctx.fiber.dispose()
+  })
+
   it('allows a text-only selection while durable or pending images remain available for later models', async () => {
     const { ctx, agent, sessionId } = await harness()
     registerTextOnly(ctx)

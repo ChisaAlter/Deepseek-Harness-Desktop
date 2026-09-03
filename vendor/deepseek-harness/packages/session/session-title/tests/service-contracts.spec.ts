@@ -1,7 +1,7 @@
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { Session, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService, {
   SessionTitleProviderId,
@@ -72,7 +72,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
     const withProvider = await setup()
     const generate = vi.fn(async (): Promise<SessionTitleProviderResult> => ({
       title: 'unused',
-      messageSeqs: [0],
+      messageSeqs: [SessionSeq(0)],
     }))
     withProvider.sessionTitle.register({
       id: SessionTitleProviderId('empty-provider'),
@@ -171,7 +171,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
     })
     const source = appendPrompt(seed, 'Create exactly one fallback title')
     seed.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
-    const session = ctx.sessions.create(SessionId('fallback-concurrency'), { seed: seed.events })
+    const session = ctx.sessions.create(SessionId('fallback-concurrency'), { seed: seed.snapshotEvents() })
 
     const results = await Promise.all([
       ctx.sessionTitle.refresh(session),
@@ -179,8 +179,8 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
     ])
 
     expect(results[0]).toEqual(results[1])
-    expect(session.events.filter(event => event.type === 'session/title')).toHaveLength(1)
-    expect(session.events.map(event => event.type)).toEqual([
+    expect(session.snapshotEvents().filter(event => event.type === 'session/title')).toHaveLength(1)
+    expect(session.snapshotEvents().map(event => event.type)).toEqual([
       'turn/start',
       'user/message',
       'turn/end',
@@ -204,7 +204,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
     })
 
     await expect(refresh).resolves.toMatchObject({ title: 'Already accepted' })
-    expect(session.events.filter(event => event.type === 'session/title')).toHaveLength(1)
+    expect(session.snapshotEvents().filter(event => event.type === 'session/title')).toHaveLength(1)
   })
 
   it('lets the newest overlapping explicit refresh win', async () => {
@@ -266,7 +266,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
     await fiber.dispose()
     await settle()
 
-    expect(session.events.some(event => event.type === 'session/title')).toBe(false)
+    expect(session.snapshotEvents().some(event => event.type === 'session/title')).toBe(false)
     const inactiveError = await lifecycle.inactiveRefresh
     expect(inactiveError).toBeInstanceOf(Error)
     if (!(inactiveError instanceof Error)) throw new Error('expected inactive refresh to reject')
@@ -285,7 +285,7 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
     await Promise.resolve()
     await fiber.dispose()
 
-    expect(session.events.some(event => event.type === 'session/title')).toBe(false)
+    expect(session.snapshotEvents().some(event => event.type === 'session/title')).toBe(false)
     expect(warn).not.toHaveBeenCalled()
   })
 
@@ -362,7 +362,9 @@ describe('SessionTitleService configuration and refresh boundaries', () => {
 describe('SessionTitleService Provider validation and stale scheduling', () => {
   it('rejects malformed provider registrations before publishing them', async () => {
     const ctx = await setup()
-    const generate = async (): Promise<SessionTitleProviderResult> => ({ title: 'title', messageSeqs: [0] })
+    const generate = async (): Promise<SessionTitleProviderResult> => ({
+      title: 'title', messageSeqs: [SessionSeq(0)],
+    })
     expect(() => ctx.sessionTitle.register(null as never)).toThrow(/must be an object/)
     expect(() => ctx.sessionTitle.register('provider' as never)).toThrow(/must be an object/)
     expect(() => ctx.sessionTitle.register({

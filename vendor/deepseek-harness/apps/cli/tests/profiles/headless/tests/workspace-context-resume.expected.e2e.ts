@@ -14,6 +14,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
+  SessionSeq,
   type SessionEvent,
   type SessionHeader,
 } from '@deepseek-ai/dsh-session'
@@ -27,7 +28,7 @@ const replayFixture = join(fixtureDir, 'replay.jsonl')
 const replayOverride = join(fixtureDir, 'replay.override.json')
 const sessionExpected = join(fixtureDir, 'session.expected.jsonl')
 const precedenceExpected = join(dirname(fixtureDir), 'precedence-change/session.expected.jsonl')
-const configPath = fileURLToPath(new URL('../workspace-context-resume.cordis.snapshot.yml', import.meta.url))
+const configPath = fileURLToPath(new URL('../workspace-context-resume-snapshot.patch.yml', import.meta.url))
 const binScript = fileURLToPath(new URL('../../../../../../packages/test-support/loader-smoke/tests/fixtures/headless-driver.ts', import.meta.url))
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const sessionId = SessionId('workspace-context-resume')
@@ -53,6 +54,7 @@ async function seedVisibleBaseline(
     id: sessionId,
     createdAt: 1,
     cwd,
+    isSeeded: false,
     delegationDepth: 0,
   }
   const files = options.files ?? [{ name: 'AGENTS.md', content: oldInstruction }]
@@ -69,17 +71,17 @@ async function seedVisibleBaseline(
       : { instructionFileCandidates: options.instructionFileCandidates },
   })
   const events: SessionEvent[] = [
-    { type: 'turn/start', seq: 0, time: 10, data: { turn: 1 } },
+    { type: 'turn/start', seq: SessionSeq(0), time: 10, data: { turn: 1 } },
     {
       type: 'user/message',
-      seq: 1,
+      seq: SessionSeq(1),
       time: 11,
       data: createUserMessage({ content: [{ type: 'text', text: 'Remember the workspace instruction.' }], source: { kind: 'user' } }),
       surfaceOp: 'append',
     },
     {
       type: 'user/message',
-      seq: 2,
+      seq: SessionSeq(2),
       time: 12,
       data: createUserMessage({
         content: [{ type: 'text', text: baseline.text }],
@@ -98,7 +100,7 @@ async function seedVisibleBaseline(
       }),
       surfaceOp: 'append',
     },
-    { type: 'turn/end', seq: 3, time: 13, data: { turn: 1, reason: { kind: 'completed' } } },
+    { type: 'turn/end', seq: SessionSeq(3), time: 13, data: { turn: 1, reason: { kind: 'completed' } } },
   ]
   try {
     await ctx.sessionPersistence.create(meta)

@@ -75,7 +75,7 @@ The backend is a document-per-row layout over one `node:sqlite` connection, desi
 
 ### Open sequence
 
-Opening the database mirrors the session-persistence SQLite backend: `mkdir` the parent `0o700`, exclusively create a missing file `0o600`, apply `PRAGMA foreign_keys = ON` and the journal mode, check `user_version`, create the `units` and `unit_globals` metadata tables, and stamp fresh databases last so a failure leaves the medium unstamped.
+Opening the database creates the parent as `0o700`, exclusively creates a missing file as `0o600`, applies `PRAGMA foreign_keys = ON` and the journal mode, checks `user_version`, creates the `units` and `unit_globals` metadata tables, and stamps fresh databases last so a failure leaves the medium unstamped.
 
 ### Source map
 
@@ -84,7 +84,7 @@ Opening the database mirrors the session-persistence SQLite backend: `mkdir` the
 | [`src/index.ts`](src/index.ts) | Plugin entry: backend registration, `path`/`journalMode` config, unit table |
 | [`src/schema.ts`](src/schema.ts) | Open sequence, physical layout version, metadata tables, record table naming |
 | [`src/unit.ts`](src/unit.ts) | One opened unit: prepared statements, JSON value parse, close |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant: versions are open-time checks) |
+| — | No runtime invariant companion is published; schema-version and unit-version consistency are open-time checks that reject before a unit exists, and durability needs the backend round-trip tests in the shared KV conformance suite; this package exposes no continuously observable in-process relation. |
 
 </details>
 
@@ -129,7 +129,7 @@ These limits define when this backend is a poor fit or needs special operational
 - **Synchronous driver blocks the event loop** — each write is a synchronous `DatabaseSync` call; the block lasts a single statement, which is acceptable at domain-data scale.
 - **No busy-wait or retry policy** — a competing connection holding a write lock rejects the operation immediately instead of waiting; the domain layer's write chain serializes writes within one process, and cross-process coordination is out of scope.
 - **Only the current physical layout version opens** — any other stamped `user_version` is rejected rather than migrated (pre-release stance).
-- **Open sequence duplicated from the session packages** — `openDatabase` mirrors the session-persistence SQLite open sequence; extraction into a shared medium layer is deferred to the planned session-backend migration.
+- **Open sequence duplicated with the query provider** — `openDatabase` and `session-query-sqlite` both enforce SQLite file ownership, but each package owns a distinct application identity and schema; no shared medium helper couples them.
 
 <a id="dev-note"></a>
 ### Dev Note

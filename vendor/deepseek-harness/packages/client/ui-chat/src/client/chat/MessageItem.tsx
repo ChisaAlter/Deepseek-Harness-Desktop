@@ -149,7 +149,7 @@ function TurnMaxTokensItem({ t }: {
 
 /** Right-aligned bubble shared by user and steering rows. */
 function UserStyleBubble({
-  content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], previewImages, reveal = 'always', t,
+  content, renderMessageImages, actions, pending = false, echo = false, referenceLabels = [], previewImages, reveal, t,
 }: {
   content: readonly unknown[]
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
@@ -163,7 +163,7 @@ function UserStyleBubble({
   referenceLabels?: readonly string[]
   /** Local submission-echo previews replacing the content-derived image group. */
   previewImages?: readonly MessageImageSource[]
-  /** Whole actions-row visibility: earlier rows reveal on hover, the latest stays shown (turn tails' gate). */
+  /** Visibility policy for the row's action strip. */
   reveal?: 'always' | 'hover'
   t: ChatViewSlotProps['t']
 }): ReactNode {
@@ -225,10 +225,10 @@ export function PendingSteeringBubble({ content, renderMessageImages, t }: {
 }
 
 /**
- * Render one local submission echo with the exact visual language of the
- * durable user node that replaces it: draft text plus object-URL previews,
- * visible from the submit click until the durable `user/message` (or its
- * queue occurrence) renders.
+ * Render one local transcript or steering submission echo with the same
+ * visual language and surface marker as the Host occurrence that replaces
+ * it: draft text plus object-URL previews, visible from the submit click
+ * until the durable `user/message` or steering occurrence renders.
  * @param props - the session snapshot's pending submission and render seats.
  * @returns the echoed user bubble.
  */
@@ -257,6 +257,7 @@ export function PendingSubmissionBubble({ submission, renderMessageImages, t }: 
       content={content}
       previewImages={previewImages}
       renderMessageImages={renderMessageImages}
+      pending={submission.placement === 'steering'}
       echo
       t={t}
       actions={text => (

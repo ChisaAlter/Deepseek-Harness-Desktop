@@ -126,7 +126,11 @@ export type WorkspaceBrowserInjected = {
   forkSession: (sessionId: SessionId) => void
   /** Rename a Host Workspace (rejects on name conflict; resolves on durability). */
   renameWorkspace: (workspaceId: WorkspaceId, title: string) => Promise<void>
-  /** Delete only a Host Workspace registration; directory and Session logs remain. */
+  /**
+   * Delete only a Host Workspace registration; directory and Session logs
+   * remain, but its Sessions leave the sidebar until the same directory is
+   * registered again. A current Session inside it clears into New Session.
+   */
   deleteWorkspace: (workspaceId: WorkspaceId) => Promise<void>
   /**
    * Reorder a Workspace in the durable registry display order.

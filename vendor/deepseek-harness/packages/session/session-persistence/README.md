@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-persistence` stores a session's event log durably, reloads it on resume, and lists stored sessions through one backend-neutral service (`ctx.sessionPersistence`) that every persistence backend implements. The persisted unit is the existing `SessionEvent` log — there is no parallel stored message type — and non-replayable metadata (format version, working directory, lineage, seed boundary) travels separately as `SessionHeader`. Backends own their storage, the service owns the semantics: append-only logs, contiguous sequence numbers, crash recovery that preserves an interrupted turn instead of truncating it, and durable writes that resolve only after the batch is safe. Pick a backend (`session-persistence-jsonl` for per-session files, `session-persistence-sqlite` for one database), mount it, and sessions persist and resume without the loop or the model knowing which backend is underneath.
+`dsh-session-persistence` stores a session's event log durably, reloads it on resume, and lists stored sessions through the backend-neutral `ctx.sessionPersistence` service. The persisted unit is the existing `SessionEvent` log — there is no parallel stored message type. `SessionHeader.isSeeded` makes lineage visible to lightweight listing, while the exact `inheritedEventCount` accompanies every body-bearing storage read and prepared Session. A backend owns its storage, while the service owns append-only logs, contiguous sequence numbers, crash recovery that preserves an interrupted turn instead of truncating it, and durable writes that resolve only after the batch is safe. The shipped JSONL provider implements this service with one artifact per Session; third-party providers may implement the same contract without changing the loop or model.
 
 ## Table of Contents
 
@@ -29,25 +29,25 @@ Mount one persistence backend to make sessions durable. The backend registers it
 
 ### Choosing a backend
 
-The seam ships two interchangeable backends. Choose [JSONL](../session-persistence-jsonl/README.md) when each session should live in its own on-disk artifact: it stores one append-only `.jsonl.zstd` log per session and returns an absolute artifact path from `locate(meta)`. Choose [SQLite](../session-persistence-sqlite/README.md) when one queryable database fits the deployment: it keeps every session's log in a single database with packed physical rows and returns no per-session artifact. A third-party backend may implement the service directly; the [backend contract](#understand-the-implementation) below is what it must honor.
+The seam ships the [JSONL](../session-persistence-jsonl/README.md) backend. It stores one append-only `.jsonl.zstd` artifact per Session and returns its absolute path from `locate(meta)`. A third-party backend may implement the service directly; the [backend contract](#understand-the-implementation) below is what it must honor.
 
 ### What the service provides
 
 With a backend mounted, you can store a session's events durably, reload the stored log, and list what is stored:
 
 ```text
-await ctx.sessionPersistence.create(meta)                  // register a session
+await ctx.sessionPersistence.create(meta, inheritedEventCount) // cut required when meta.isSeeded
 await ctx.sessionPersistence.ensureMaterialized(session)   // persist an empty resumable session
 await ctx.sessionPersistence.append(id, events)            // durably persist a batch
-const { meta, events } = await ctx.sessionPersistence.load(id)   // reload on resume
+const { meta, inheritedEventCount, events } = await ctx.sessionPersistence.load(id)
 const headers = await ctx.sessionPersistence.list()        // every stored session
 ```
 
-`append` resolves only after the batch is durable, so a resolved write survives an OS crash or power loss. Ordinary `create` remains lazy; a lifecycle frontend calls `ensureMaterialized` only when an empty session must itself appear in durable listing without inventing an event. `load` returns an immutable balanced log and commits any needed crash recovery; `inspect` reads the same view without committing recovery. Consumers that resume from a watermark can read only the events at or past a sequence number, and a session's artifact location (`locate`) resolves without filesystem I/O.
+`append` resolves only after the batch is durable, so a resolved write survives an OS crash or power loss. Ordinary `create(meta, inheritedEventCount)` remains lazy; `meta.isSeeded: true` requires the sibling exact cut, while unseeded metadata may omit it and rejects a nonzero value. The first materializing batch for a seeded session must reach the complete inherited prefix, so storage never exposes metadata whose cut exceeds its log. A lifecycle frontend calls `ensureMaterialized` only when an empty session must itself appear in durable listing without inventing an event. `load` returns an immutable balanced log and commits any needed crash recovery; `inspect` reads the same complete view without committing recovery. `readFrom` accepts a `SessionLogOffset` and returns a detached `SessionEventSuffix` carrying that `fromSeq`, the unchanged inherited cut, and only stored events at or after the cut. A session's artifact location (`locate`) resolves without filesystem I/O.
 
 ### Resuming and crash recovery
 
-Resume is `load` plus session preparation: the stored log comes back with its header lineage intact, so a resumed agent sees the same history and composition. A session that crashed mid-turn reloads with its interrupted final turn preserved and balanced: `load` appends synthetic `tool/result` and `turn/end {interrupted}` closers for unanswered calls instead of dropping the events — a single turn can be large, and those events were durably written before the crash. Only a never-fully-written torn tail fragment is discarded.
+Resume is `load` plus session preparation: the stored log comes back with its header lineage and exact inherited cut intact, so ownership checks do not infer the cut from a marker or the full restore length. A session that crashed mid-turn reloads with its interrupted final turn preserved and balanced: `load` appends synthetic `tool/result` and `turn/end {interrupted}` closers for unanswered calls instead of dropping the events — a single turn can be large, and those events were durably written before the crash. Only a never-fully-written torn tail fragment is discarded.
 
 ### Failures and recovery
 
@@ -65,7 +65,7 @@ This section explains how the seam realizes durable storage and how backends plu
 
 ### Design concept
 
-The package is the Service Definition of a capability seam with two halves. The abstract `SessionPersistence` service is the public contract; a `PersistenceCoordinator` provides backend-neutral orchestration for buffering, serialization, materialization, repair, adoption, and quiescent disposal. A backend implements the small durable primitives for stored reads, append, repair, and listing, so JSONL and SQLite share lifecycle correctness while keeping different storage primitives.
+The package is the Service Definition of a capability seam with two halves. The abstract `SessionPersistence` service is the public contract; a `PersistenceCoordinator` provides backend-neutral orchestration for buffering, serialization, materialization, repair, adoption, and quiescent disposal. The JSONL provider implements the small durable primitives for stored reads, append, repair, and listing; a third-party provider may reuse the same coordinator or implement the service directly.
 
 ### The invariants every backend honors
 
@@ -83,7 +83,7 @@ The package is the Service Definition of a capability seam with two halves. The 
 | [`src/write-behind.ts`](src/write-behind.ts) | The per-session bounded write controller and flush barrier |
 | [`src/preparations.ts`](src/preparations.ts) | Bounded retention of unpublished Session preparations for resume reuse |
 | [`src/revision.ts`](src/revision.ts) | The branded opaque revision token |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; the coordinator asserts stored/live identity and cwd) |
+| — | No runtime invariant companion is published; persistence correctness requires backend round-trip and crash-tail tests; this package exposes no continuously observable in-process relation. |
 
 ### The write path at a glance
 
@@ -103,7 +103,6 @@ Read these pages when the package-level contract is not enough. They move from t
 
 - [Session persistence subsystem](../../../docs/subsystems/persistence.md) — the full service contract, flush checkpoint, crash recovery, and generated Cordis API.
 - [JSONL persistence backend](../session-persistence-jsonl/README.md) — the shipped per-session-file backend.
-- [SQLite persistence backend](../session-persistence-sqlite/README.md) — the opt-in single-database backend.
 - [Session checkpoint policy](../session-checkpoint-policy/README.md) — the plugin that flushes through this service at semantic boundaries.
 - [Session package map](../README.md) — adjacent persistence, projection, title, and telemetry packages.
 

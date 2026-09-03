@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-session-title",
   "description": "Log-backed session title service and provider registry for the DeepSeek Harness",
-  "version": "0.1.2-alpha.2",
+  "version": "0.1.2-alpha.4",
   "publishConfig": {
     "access": "public"
   },
@@ -63,7 +63,6 @@
     "@deepseek-ai/dsh-llm": "workspace:^",
     "@deepseek-ai/dsh-session": "workspace:^",
     "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:^",
-    "@deepseek-ai/dsh-session-persistence-sqlite": "workspace:^",
     "@deepseek-ai/dsh-session-projection": "workspace:^"
   }
 }

@@ -190,6 +190,7 @@
   height: 28px;
   border: none;
   border-radius: 50%;
+  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -261,7 +262,7 @@
   padding: 8px 16px;
   margin: 0 2px 8px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 12px;
   background: var(--dsw-alias-button-elevated-fill);
   color: var(--dsw-alias-label-primary);
@@ -356,6 +357,7 @@
   padding: 0;
   border-radius: 50%;
   color: var(--dsw-alias-label-primary);
+  corner-shape: round;
 }
 
 /* Region seat: always mounted so the foot never moves. Its trailing margin

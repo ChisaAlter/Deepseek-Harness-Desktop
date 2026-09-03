@@ -199,6 +199,7 @@ test('forwardHostRpc fills workspace.list from workspace/follow baseline when un
               sessionIds: ['s-pong'],
             }],
             archivedSessionIds: ['s-old'],
+            scratchCwd: 'C:/Users/t/.dsh/no-workspace',
           },
         },
       }),
@@ -216,6 +217,8 @@ test('forwardHostRpc fills workspace.list from workspace/follow baseline when un
   assert.equal(result.value.items[0].title, 'Deepseek-Harness-Desktop');
   assert.deepEqual(result.value.items[0].sessionIds, ['s-pong']);
   assert.deepEqual(result.value.archivedSessionIds, ['s-old']);
+  // The phone lists against the same scratch cwd the desktop sidebar uses.
+  assert.equal(result.value.scratchCwd, 'C:/Users/t/.dsh/no-workspace');
   assert.ok(muxSocket);
   assert.equal(new URL(muxSocket.url).pathname, '/api/remote.mux');
   assert.deepEqual(muxSocket.ctorArgs[1], { headers: { Cookie: 'dsh-browser-session=follow-cookie' } });

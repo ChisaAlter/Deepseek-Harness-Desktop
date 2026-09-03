@@ -12,6 +12,7 @@ import {
   SESSION_FORMAT_VERSION,
   Session,
   SessionId,
+  SessionSeq,
 } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-reference/types'
 import type {} from '@deepseek-ai/dsh-session-title'
@@ -58,7 +59,7 @@ function sourceSessionFixture(): string {
       createdAt: 0,
       cwd: '{{cwd}}',
     }),
-    ...session.events.map(event => JSON.stringify(event)),
+    ...session.snapshotEvents().map(event => JSON.stringify(event)),
     '',
   ].join('\n')
 }
@@ -80,7 +81,7 @@ function targetSessionFixture(): string {
       references: [{
         sessionId: SOURCE_SESSION_ID,
         label: 'Research notes',
-        capturedThroughSeq: 4,
+        capturedThroughSeq: SessionSeq(4),
         compacted: false,
         originalMessages: 2,
         retainedMessages: 2,
@@ -105,7 +106,7 @@ function targetSessionFixture(): string {
       createdAt: 0,
       cwd: '{{cwd}}',
     }),
-    ...session.events.map(event => JSON.stringify(event)),
+    ...session.snapshotEvents().map(event => JSON.stringify(event)),
     '',
   ].join('\n')
 }

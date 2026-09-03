@@ -84,10 +84,28 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx', includes: ['data-composer-beam'] },
   { file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx', includes: ['data-stats-line'] },
+  // No-directory sessions (docs/features/no-directory-sessions.md): the Host
+  // advertises the scratch cwd on the Workspace baseline, registering a
+  // directory re-adopts its sessions, the hero picker offers "No workspace
+  // folder", and the sidebar lists only Workspace members plus scratch tasks.
+  { file: 'packages/api/workspace-controller/src/types.ts', includes: ['scratchCwd'] },
+  { file: 'packages/api/workspace-controller/src/index.ts', includes: ['scratchWorkspaceCwd', "'no-workspace'"] },
+  { file: 'packages/api/workspace-controller/src/client/model.ts', includes: ['scratchCwd'] },
+  { file: 'packages/workspace/workspace/src/index.ts', includes: ['readoptableSessionIds'] },
+  { file: 'packages/client/ui-workspace/src/client/navigation.ts', includes: ['connectNoDirectory', 'deleteWorkspace', 'scratchCwd'] },
+  { file: 'packages/client/ui-workspace/src/client/tree.ts', includes: ['isNoDirectorySession', 'currentGroupKey'] },
+  { file: 'packages/client/ui-workspace/src/client/WorkspacePicker.tsx', includes: ['NO_DIRECTORY', 'onPickNoDirectory'] },
+  { file: 'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx', includes: ['TasksSectionHeader', 'connectNoDirectory'] },
+  { file: 'packages/client/ui-workspace/src/client/locales.ts', includes: ['menu.noDirectory'], excludes: ['Ungrouped'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx', includes: ['selectNoDirectory', 'noDirectorySession'] },
+  { file: 'packages/client/ui-conversation/src/client/apply.ts', includes: ['selectNoDirectory', 'connectNoDirectory'] },
+  { file: 'packages/client/ui-conversation/src/client/locales.ts', includes: ['hero.noDirectory'] },
   // Desktop launcher recovery flag on the upstream CLI args parser.
   { file: 'apps/cli/src/args.ts', includes: ['skip-user-plugins'] },
   { file: 'apps/cli/src/dump-config.ts', includes: ['skipUserPlugins'] },
   { file: 'tsconfig.host.json', includes: ['packages/host/mcp-servers', 'packages/host/skill-inventory', 'packages/llm/llm-vision-fallback', 'packages/mcp/mcp-servers-file'] },
+  { file: 'packages/api/workspace-controller/tsconfig.host.json', includes: ['../../util/home-paths'] },
+  { file: 'packages/api/workspace-controller/package.json', includes: ['@deepseek-ai/dsh-home-paths'] },
   { file: 'tsconfig.base.json', includes: ['dsh-host-mcp-servers', 'dsh-host-skill-inventory', 'dsh-llm-vision-fallback', 'dsh-mcp-servers-file'] },
   // Desktop composition carries the browse rows in the shipped base, so the
   // upstream preset e2e must re-insert only the host row.

@@ -12,6 +12,16 @@
   {
     "kind": "chunks",
     "chunks": [
+      { "type": "block-start", "index": 0, "blockType": "text" },
+      { "type": "text-delta", "index": 0, "text": "Goal tool snapshot" },
+      { "type": "block-end", "index": 0, "block": { "type": "text", "text": "Goal tool snapshot" } },
+      { "type": "usage", "usage": { "inputTokens": 8, "outputTokens": 3 } },
+      { "type": "finish", "reason": { "kind": "stop" } }
+    ]
+  },
+  {
+    "kind": "chunks",
+    "chunks": [
       { "type": "block-start", "index": 0, "blockType": "tool-call" },
       { "type": "tool-call-delta", "index": 0, "id": "call_goal_create", "name": "create_goal", "argumentsDelta": "{\"objective\":\"Finish the headless goal-tool snapshot proof\",\"max_goal_rounds\":7}" },
       { "type": "block-end", "index": 0, "block": { "type": "tool-call", "id": "call_goal_create", "name": "create_goal", "arguments": "{\"objective\":\"Finish the headless goal-tool snapshot proof\",\"max_goal_rounds\":7}" } },

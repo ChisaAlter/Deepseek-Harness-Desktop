@@ -167,10 +167,59 @@ test('workspaceIdFromCreate reads harness workspace.create nested view', () => {
   assert.equal(workspaceIdFromCreate(null), '');
 });
 
-test('workspaceChoices maps host workspace.list plus no-folder sentinel', () => {
+test('workspaceChoices maps host workspace.list plus the no-directory sentinel in the scratch cwd', () => {
   const { choices, noFolder } = workspaceChoices(workspaces, { home: 'C:\\Users\\t', scratchCwd: 'C:\\dsh\\none' });
   assert.equal(choices[0].id, 'ws-1');
   assert.equal(choices[0].cwd, 'C:\\proj');
   assert.equal(noFolder.id, '');
-  assert.equal(noFolder.cwd, '');
+  assert.equal(noFolder.name, '无工作区文件夹');
+  // Describe fallback when the baseline carries no scratch cwd.
+  assert.equal(noFolder.cwd, 'C:\\dsh\\none');
+  // The Workspace baseline value wins: it is what the desktop lists against.
+  const fromBaseline = workspaceChoices({ ...workspaces, scratchCwd: 'C:\\dsh-home\\no-workspace' }, { scratchCwd: 'C:\\dsh\\none' });
+  assert.equal(fromBaseline.noFolder.cwd, 'C:\\dsh-home\\no-workspace');
+  assert.equal(fromBaseline.scratchCwd, 'C:\\dsh-home\\no-workspace');
+  assert.equal(workspaceChoices(workspaces).noFolder.cwd, '');
+});
+
+test('desktop parity: only Workspace members and scratch-cwd tasks are listed; deleted-Workspace orphans hide until re-added', () => {
+  const SCRATCH = 'C:\\dsh-home\\no-workspace';
+  const catalog = {
+    items: [
+      { sessionId: 'member', blank: false, cwd: 'C:\\proj', projections: { values: { title: '成员' } } },
+      { sessionId: 'task', blank: false, cwd: SCRATCH, projections: { values: { title: '无目录任务' } } },
+      { sessionId: 'orphan', blank: false, cwd: 'C:\\deleted', projections: { values: { title: '孤儿' } } },
+      { sessionId: 'orphan-archived', blank: false, cwd: 'C:\\deleted', projections: { values: { title: '孤儿归档' } } },
+      { sessionId: 'task-archived', blank: false, cwd: SCRATCH, projections: { values: { title: '任务归档' } } },
+    ],
+  };
+  const registered = {
+    items: [{ workspaceId: 'ws-1', title: 'proj', path: 'C:\\proj', sessionIds: ['member'] }],
+    archivedSessionIds: ['orphan-archived', 'task-archived', 'ghost'],
+    scratchCwd: SCRATCH,
+  };
+  const live = liveSessionRows({ sessions: catalog, workspaces: registered });
+  assert.deepEqual(live.map((row) => row.sessionId).sort(), ['member', 'task']);
+  const { sections, ungrouped } = workspaceDrawerSections(live, registered);
+  assert.deepEqual(sections[0].rows.map((row) => row.sessionId), ['member']);
+  assert.deepEqual(ungrouped.map((row) => row.sessionId), ['task']);
+  // Archived: orphan hidden, scratch task and the summary-less placeholder kept.
+  assert.deepEqual(
+    archivedSessionRows({ sessions: catalog, workspaces: registered }).map((row) => row.sessionId),
+    ['task-archived', 'ghost'],
+  );
+  // Before the baseline supplies the scratch cwd nothing unaccounted is listed.
+  const pending = { ...registered, scratchCwd: '' };
+  assert.deepEqual(liveSessionRows({ sessions: catalog, workspaces: pending }).map((row) => row.sessionId), ['member']);
+  // Registering the directory again brings its sessions back under that Workspace.
+  const readded = {
+    ...registered,
+    items: [...registered.items, { workspaceId: 'ws-2', title: 'deleted', path: 'C:\\deleted', sessionIds: ['orphan', 'orphan-archived'] }],
+  };
+  const back = liveSessionRows({ sessions: catalog, workspaces: readded });
+  assert.deepEqual(back.map((row) => row.sessionId).sort(), ['member', 'orphan', 'task']);
+  assert.deepEqual(
+    archivedSessionRows({ sessions: catalog, workspaces: readded }).map((row) => row.sessionId),
+    ['orphan-archived', 'task-archived', 'ghost'],
+  );
 });

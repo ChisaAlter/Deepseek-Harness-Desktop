@@ -22,10 +22,13 @@ import type { WorkspaceId, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { SessionNode, SessionOrderBy } from '../tree.ts'
-import { deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, UNGROUPED_KEY } from '../tree.ts'
+import {
+  currentGroupKey, deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, isNoDirectorySession,
+  UNGROUPED_KEY,
+} from '../tree.ts'
 import {
   ArchivedSectionHeader, ArchivedSessionNodeItem, ProjectRowItem,
-  SearchResultItem, SessionNodeItem,
+  SearchResultItem, SessionNodeItem, TasksSectionHeader,
 } from './Rows.tsx'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
@@ -283,12 +286,14 @@ function ArchivedSessionSection({
 
 type SessionTreeProps = Pick<
   WorkspaceBrowserProps,
-  'useSessions' | 'useSessionPendingInteraction' | 'startSession' | 'open' | 'forkSession'
+  'useSessions' | 'useSessionPendingInteraction' | 'startSession' | 'connectNoDirectory' | 'open' | 'forkSession'
   | 'insertWorkspaceBefore' | 'insertSessionBefore' | 't'
 > & {
   /** Host account home for POSIX hover-path abbreviation. */
   home?: string | undefined
   workspaces: readonly WorkspaceView[]
+  /** Host scratch cwd from the Workspace baseline; gates the no-directory bucket. */
+  scratchCwd: string | undefined
   /** Explicit persisted zero-or-five-session state by Workspace group. */
   groupExpansion: Readonly<Record<string, boolean>>
   /** Persist one Workspace group's zero-or-five-session state. */
@@ -327,7 +332,8 @@ type SessionTreeProps = Pick<
 
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
 function SessionTree({
-  useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, archivedSessionIds,
+  useSessions, useSessionPendingInteraction, startSession, connectNoDirectory, open, forkSession,
+  workspaces, scratchCwd, archivedSessionIds,
   showArchivedList, archivedExpanded, onToggleArchived,
   onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive,
   onSessionUnarchive, onSessionDelete,
@@ -347,10 +353,7 @@ function SessionTree({
   const previousOrderBy = useRef(orderBy)
   const nativeDragActive = drag !== null || workspaceDrag !== null
   useNativeDragAcceptance(nativeDragActive)
-  const currentGroup = current === undefined
-    ? undefined
-    : (workspaces.find(w => w.sessionIds.includes(current))?.workspaceId as string | undefined)
-      ?? UNGROUPED_KEY
+  const currentGroup = currentGroupKey(list, workspaces, scratchCwd)
   useEffect(() => {
     if (current === undefined || currentGroup === undefined || Object.hasOwn(groupExpansion, currentGroup)) return
     setGroupExpanded(currentGroup, true)
@@ -359,10 +362,15 @@ function SessionTree({
     () => Object.entries(groupExpansion).filter(([, expanded]) => expanded).map(([key]) => key),
     [groupExpansion],
   )
+  // The bucket account holds no-directory tasks only; unaccounted Sessions in
+  // any other cwd are unlisted (their Workspace is not registered right now).
   const ungroupedSessionIds = useMemo(() => {
     const accounted = new Set(workspaces.flatMap(workspace => workspace.sessionIds))
-    return list.ids.filter((id: SessionId) => list.byId[id] !== undefined && !accounted.has(id))
-  }, [list, workspaces])
+    return list.ids.filter((id: SessionId) => {
+      const summary = list.byId[id]
+      return summary !== undefined && isNoDirectorySession(summary, accounted, scratchCwd)
+    })
+  }, [list, workspaces, scratchCwd])
   useEffect(() => {
     if (list.phase !== 'ready') return
     const switchedToUpdated = previousOrderBy.current !== 'updated' && orderBy === 'updated'
@@ -407,12 +415,12 @@ function SessionTree({
       ...(sessionOrderByAccount[UNGROUPED_KEY] === undefined
         ? {}
         : { ungroupedOrder: sessionOrderByAccount[UNGROUPED_KEY] }),
-    }),
-    [list, orderedWorkspaces, archivedSessionIds, pendingInteractions, expandedGroups, sessionOrderByAccount],
+    }, scratchCwd),
+    [list, orderedWorkspaces, archivedSessionIds, pendingInteractions, expandedGroups, sessionOrderByAccount, scratchCwd],
   )
   const archivedNodes = useMemo(
-    () => deriveArchived(list, archivedSessionIds, t('archived.missingTitle')),
-    [list, archivedSessionIds, t],
+    () => deriveArchived(list, workspaces, archivedSessionIds, scratchCwd, t('archived.missingTitle')),
+    [list, workspaces, archivedSessionIds, scratchCwd, t],
   )
   const now = Date.now()
   const commitSessionDrag = (activeDrag: DragState, over: NonNullable<DragState['over']>): void => {
@@ -562,36 +570,48 @@ function SessionTree({
                   dropWorkspace(workspaceGroupHalf(e))
                 }}
             >
-              <ProjectRowItem
-                group={group}
-                home={home}
-                t={t}
-                onToggle={() => {
-                  if (group.expanded) {
-                    setExpandedSessionGroups(keys => keys.filter(key => key !== group.key))
-                  }
-                  setGroupExpanded(group.key, !group.expanded)
-                }}
-                onCreate={() => {
-                  if (group.workspaceId !== undefined) {
-                    setGroupExpanded(group.key, true)
-                    startSession(group.workspaceId)
-                  }
-                }}
-                drag={workspaceDragProps}
-                actions={group.workspaceId === undefined
-                  ? undefined
-                  : {
-                    rename: () => {
-                    /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
-                      if (group.workspaceId !== undefined) onRenameRequest(group.workspaceId, group.label)
-                    },
-                    delete: () => {
-                    /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
-                      if (group.workspaceId !== undefined) onDeleteRequest(group.workspaceId, group.label)
-                    },
-                  }}
-              />
+              {workspaceId === undefined
+                ? (
+                  // The no-directory bucket is a section, not a folder: no
+                  // Workspace menu, no drag, and its ＋ mints a scratch task.
+                  <TasksSectionHeader
+                    expanded={group.expanded}
+                    containsCurrent={group.containsCurrent}
+                    t={t}
+                    onToggle={() => {
+                      if (group.expanded) {
+                        setExpandedSessionGroups(keys => keys.filter(key => key !== group.key))
+                      }
+                      setGroupExpanded(group.key, !group.expanded)
+                    }}
+                    onCreate={() => {
+                      setGroupExpanded(group.key, true)
+                      connectNoDirectory()
+                    }}
+                  />
+                )
+                : (
+                  <ProjectRowItem
+                    group={group}
+                    home={home}
+                    t={t}
+                    onToggle={() => {
+                      if (group.expanded) {
+                        setExpandedSessionGroups(keys => keys.filter(key => key !== group.key))
+                      }
+                      setGroupExpanded(group.key, !group.expanded)
+                    }}
+                    onCreate={() => {
+                      setGroupExpanded(group.key, true)
+                      startSession(workspaceId)
+                    }}
+                    drag={workspaceDragProps}
+                    actions={{
+                      rename: () => { onRenameRequest(workspaceId, group.label) },
+                      delete: () => { onDeleteRequest(workspaceId, group.label) },
+                    }}
+                  />
+                )}
               {(sessionsExpanded
                 ? group.sessions
                 : collapsed.rows
@@ -670,7 +690,7 @@ function SessionTree({
 /** The flat "In one list" body: every session is one draggable top-level row. */
 function FlatList({
   useSessions, useSessionPendingInteraction, open, forkSession, onSessionRename, onSessionArchive,
-  onSessionUnarchive, onSessionDelete, archivedSessionIds,
+  onSessionUnarchive, onSessionDelete, workspaces, scratchCwd, archivedSessionIds,
   showArchivedList, archivedExpanded, onToggleArchived,
   orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t,
 }: Pick<
@@ -683,6 +703,8 @@ function FlatList({
   | 'onSessionArchive'
   | 'onSessionUnarchive'
   | 'onSessionDelete'
+  | 'workspaces'
+  | 'scratchCwd'
   | 'archivedSessionIds'
   | 'showArchivedList'
   | 'archivedExpanded'
@@ -697,8 +719,8 @@ function FlatList({
   const list = useSessions(s => s)
   const pendingInteractions = useSessionPendingInteraction(s => s)
   const baseRows = useMemo(
-    () => deriveFlat(list, archivedSessionIds, pendingInteractions),
-    [list, archivedSessionIds, pendingInteractions],
+    () => deriveFlat(list, workspaces, archivedSessionIds, pendingInteractions, scratchCwd),
+    [list, workspaces, archivedSessionIds, pendingInteractions, scratchCwd],
   )
   const sessionIds = useMemo(() => baseRows.map(row => row.id), [baseRows])
   const previousOrderBy = useRef(orderBy)
@@ -748,8 +770,8 @@ function FlatList({
     setSessionOrder(FLAT_SESSION_ORDER_KEY, nextOrder.map(id => id as string))
   }
   const archivedNodes = useMemo(
-    () => deriveArchived(list, archivedSessionIds, t('archived.missingTitle')),
-    [list, archivedSessionIds, t],
+    () => deriveArchived(list, workspaces, archivedSessionIds, scratchCwd, t('archived.missingTitle')),
+    [list, workspaces, archivedSessionIds, scratchCwd, t],
   )
   const now = Date.now()
   return (
@@ -823,12 +845,13 @@ function SearchResults({
   useSessionPendingInteraction,
   open,
   workspaces,
+  scratchCwd,
   archivedSessionIds,
   query,
   remote,
   resultLimit,
   t,
-}: Pick<SessionTreeProps, 'useSessions' | 'useSessionPendingInteraction' | 'open' | 't'> & {
+}: Pick<SessionTreeProps, 'useSessions' | 'useSessionPendingInteraction' | 'open' | 'scratchCwd' | 't'> & {
   workspaces: readonly WorkspaceView[]
   archivedSessionIds: readonly SessionNode['id'][]
   query: string
@@ -849,8 +872,9 @@ function SearchResults({
       pendingInteractions,
       currentRemote,
       resultLimit,
+      scratchCwd,
     ),
-    [list, workspaces, query, archivedSessionIds, pendingInteractions, currentRemote, resultLimit],
+    [list, workspaces, query, archivedSessionIds, pendingInteractions, currentRemote, resultLimit, scratchCwd],
   )
   const pending = currentRemote.status === 'loading'
   const failed = currentRemote.status === 'error'
@@ -905,6 +929,7 @@ export function WorkspaceBrowser({
   useStore,
   actions,
   startSession,
+  connectNoDirectory,
   open,
   renameSession,
   forkSession,
@@ -927,6 +952,7 @@ export function WorkspaceBrowser({
   const workspaces = useWorkspaces(state => state.items)
   const workspacePhase = useWorkspaces(state => state.phase)
   const archivedSessionIds = useWorkspaces(state => state.archivedSessionIds)
+  const scratchCwd = useWorkspaces(state => state.scratchCwd)
   // Live occupancy of this surface's directory-flow hole (the same source the
   // flow reads): a composition without a picking affordance can add nothing.
   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
@@ -944,10 +970,8 @@ export function WorkspaceBrowser({
     const current = state.current
     return current !== undefined && state.byId[current]?.blank === true ? current : undefined
   })
-  const currentBlankAccount = currentBlankSessionId === undefined
-    ? undefined
-    : (workspaces.find(workspace => workspace.sessionIds.includes(currentBlankSessionId))
-      ?.workspaceId as string | undefined) ?? UNGROUPED_KEY
+  const currentBlankAccount = useSessions(state =>
+    currentBlankSessionId === undefined ? undefined : currentGroupKey(state, workspaces, scratchCwd))
   const promotedBlank = useRef<{ sessionId: SessionId; accountKey: string } | undefined>(undefined)
   useEffect(() => {
     if (currentBlankSessionId === undefined || currentBlankAccount === undefined) {
@@ -1351,6 +1375,7 @@ export function WorkspaceBrowser({
               useSessionPendingInteraction={useSessionPendingInteraction}
               open={open}
               workspaces={workspaces}
+              scratchCwd={scratchCwd}
               archivedSessionIds={archivedSessionIds}
               query={normalizedQuery}
               remote={remoteSearch}
@@ -1366,6 +1391,8 @@ export function WorkspaceBrowser({
                 onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
                 onSessionUnarchive={onSessionUnarchive}
                 onSessionDelete={onSessionDeleteRequest}
+                workspaces={workspaces}
+                scratchCwd={scratchCwd}
                 archivedSessionIds={archivedSessionIds}
                 showArchivedList={showArchivedList}
                 archivedExpanded={archivedExpanded}
@@ -1388,6 +1415,7 @@ export function WorkspaceBrowser({
                 onSessionDelete={onSessionDeleteRequest}
                 forkSession={forkSession}
                 workspaces={workspaces}
+                scratchCwd={scratchCwd}
                 groupExpansion={groupExpansion}
                 setGroupExpanded={actions.setGroupExpanded}
                 sessionOrderByAccount={sessionOrderByAccount}
@@ -1399,6 +1427,7 @@ export function WorkspaceBrowser({
                 archivedExpanded={archivedExpanded}
                 onToggleArchived={onToggleArchived}
                 startSession={startSession}
+                connectNoDirectory={connectNoDirectory}
                 open={open}
                 insertWorkspaceBefore={insertWorkspaceBefore}
                 insertSessionBefore={insertSessionBefore}

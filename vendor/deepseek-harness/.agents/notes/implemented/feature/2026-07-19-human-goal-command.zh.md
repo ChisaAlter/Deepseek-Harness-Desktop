@@ -38,7 +38,7 @@ Status: implemented
 
 ### 应用组合
 
-`agent-spine-demo` 接受可选的 `goals` 组合对象，其中包含目标领域与模型工具的所有者配置。省略或设为 `false` 时不会挂载该栈。对无头单次调用方而言，明确选择加入非常重要：它们的结果 API 会在与调用关联的一个物理轮次后结束，不能静默变成长时间运行的逻辑目标操作。
+`dsh-base` 将 goal 领域与模型工具所有者作为显式配置行挂载，独立的 `sdk-minimal` 配置树则省略完整栈。这项显式组合选择对 SDK 单次调用方很重要：它们的结果 API 会在与调用关联的一个物理轮次后结束，不能静默变成长时间运行的逻辑目标操作。
 
 TUI 应用包作出相反的产品选择。它默认让 `goals` 使用所有者默认值，并挂载目标领域、模型工具、同会话驱动器、命令注册表与本生产方；`goals: false` 会一致地移除整个栈。Web 组合包把 goal 领域与驱动器保留在 host 中以供远程访问，停用 host 命令生产方，并在 `standard`、`code` 与 `cordis` agent preset 中挂载该生产方；`minimal` 会同时省略命令与模型 goal 工具。切换 preset 不会改变 host 所拥有的 goal 状态，Web GoalBar 仍保留直接 edit、pause、resume 与 clear 控制。[ACP（Agent Client Protocol）自动化应用](../simplification/2026-07-23-acp-automation-only-protocol.zh.md)也默认挂载目标领域与模型工具，但有意省略命令服务。Python SDK 运行时闭包交付本生产方、命令与目标栈，使外部 `cordis.yml` 能组合相同命令。
 

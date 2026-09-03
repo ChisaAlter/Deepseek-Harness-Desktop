@@ -2,6 +2,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
+import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import {
   SessionPersistenceCorruptionError,
@@ -114,15 +115,22 @@ export function testSessionPersistence(
       signal?.throwIfAborted()
       if (inspection === undefined) throw new SessionPersistenceNotFoundError(sessionId)
       try {
+        const inheritedEventCount = (inspection as Partial<SessionInspection>).inheritedEventCount
+        if (inspection.meta.isSeeded && inheritedEventCount === undefined) {
+          throw new Error('seeded test persistence must provide inheritedEventCount')
+        }
+        const cut = SessionLogOffset(inheritedEventCount ?? 0)
         const preparedSession = ctx.sessions.prepare(inspection.meta.id, {
           seed: [...inspection.events],
           meta: inspection.meta,
+          inheritedEventCount: cut,
           seedSource: 'persistence',
         })
         return {
           source: 'prepared',
           inspection: {
             meta: preparedSession.header,
+            inheritedEventCount: preparedSession.inheritedEventCount,
             events: Object.freeze([...inspection.events]),
           },
           revision: SessionPersistenceRevision(`test:${sessionId}:${String(preparedSession.seq)}`),

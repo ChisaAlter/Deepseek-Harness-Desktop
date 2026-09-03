@@ -10,7 +10,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { normalizeSessionSnapshot, type NormalizeContext } from '@deepseek-ai/dsh-session-snapshot'
 import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-loader-smoke'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionSeq, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { describe, expect, it } from 'vitest'
 
@@ -19,7 +19,7 @@ const replayOverride = join(fixtureDir, 'replay.override.json')
 const childReplay = join(fixtureDir, 'child.replay.jsonl')
 const parentExpected = join(fixtureDir, 'parent.expected.jsonl')
 const childExpected = join(fixtureDir, 'child.expected.jsonl')
-const configPath = fileURLToPath(new URL('../subagent-inheritance.cordis.snapshot.yml', import.meta.url))
+const configPath = fileURLToPath(new URL('../subagent-inheritance-snapshot.patch.yml', import.meta.url))
 const binScript = fileURLToPath(new URL('../../../../../../packages/test-support/loader-smoke/tests/fixtures/headless-driver.ts', import.meta.url))
 const tsconfigPath = fileURLToPath(new URL('../../../../../../tsconfig.json', import.meta.url))
 const sessionId = SessionId('subagent-inheritance-parent')
@@ -36,15 +36,16 @@ async function seedReadOnlyParent(root: string, cwd: string): Promise<void> {
     id: sessionId,
     createdAt: 1,
     cwd,
+    isSeeded: false,
     delegationDepth: 0,
   }
   const events: SessionEvent[] = [
-    { type: 'turn/start', seq: 0, time: 10, data: { turn: 1 } },
-    { type: 'user/message', seq: 1, time: 11, data: createUserMessage({ content: [{ type: 'text', text: 'Tighten this session to read-only.' }], source: { kind: 'user' } }), surfaceOp: 'append' },
-    { type: 'sandbox/mode', seq: 2, time: 12, data: { mode: 'read-only' } },
+    { type: 'turn/start', seq: SessionSeq(0), time: 10, data: { turn: 1 } },
+    { type: 'user/message', seq: SessionSeq(1), time: 11, data: createUserMessage({ content: [{ type: 'text', text: 'Tighten this session to read-only.' }], source: { kind: 'user' } }), surfaceOp: 'append' },
+    { type: 'sandbox/mode', seq: SessionSeq(2), time: 12, data: { mode: 'read-only' } },
     {
       type: 'request/header',
-      seq: 3,
+      seq: SessionSeq(3),
       time: 13,
       data: {
         header: {
@@ -57,7 +58,7 @@ async function seedReadOnlyParent(root: string, cwd: string): Promise<void> {
         reason: 'initial',
       },
     },
-    { type: 'turn/end', seq: 4, time: 14, data: { turn: 1, reason: { kind: 'completed' } } },
+    { type: 'turn/end', seq: SessionSeq(4), time: 14, data: { turn: 1, reason: { kind: 'completed' } } },
   ]
   try {
     await ctx.sessionPersistence.create(meta)

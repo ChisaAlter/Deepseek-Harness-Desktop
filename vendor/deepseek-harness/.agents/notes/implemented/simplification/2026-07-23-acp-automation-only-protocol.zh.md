@@ -24,7 +24,7 @@ ACP 仍有一个有用的职责：另一个 agent（智能体）或自动化控�
 
 保留一次性 `session/request_permission`。它是为桥接层拥有的 agent 提供的机器策略通道，而不是面向人类的审批 UI：应答者只接受桥接层当前会话映射中登记的同一 agent 对象；不属于桥接层当前 agent 的请求或未关联具体调用的请求会继续委派；RPC 失败则映射为故障时默认拒绝的 `unavailable` 结果。客户端可选择允许一次、拒绝一次或取消，桥接层绝不会将该响应转换为持久授权。询问策略仍归审批 seam 及其生产者所有；[`dsh-subagent-acp`](../../../../packages/subagent/subagent-acp/README.zh.md) 会以程序化方式使用该通道。
 
-应用组装包含 agent 主干、持久化、检查点策略、派生会话查询和 ACP 传输层。ACP 桥接层直接读取持久化以生成标准可恢复摘要；它不公开命令、会话引用、plan mode、权限选择器或用户问题展示接口。
+应用组装包含必需 agent 核心、持久化、检查点策略、派生会话查询和 ACP 传输层。ACP 桥接层直接读取持久化以生成标准可恢复摘要；它不公开命令、会话引用、plan mode、权限选择器或用户问题展示接口。
 
 传输层调用 agent、会话和审批的接口服务，而不依赖具体的 agent loop（智能体循环）。工具执行仍留在 harness 内；ACP 绝不会把 shell 执行委派给编辑器。stdout 只承载分帧 JSON-RPC，因此 app 不挂载 stdout logger，桥接层也不会 monkey-patch 进程输出。
 

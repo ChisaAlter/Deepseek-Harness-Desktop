@@ -38,7 +38,7 @@ Generic slash input, status text, and errors are not persisted. Successful goal 
 
 ### App composition
 
-`agent-spine-demo` accepts an optional `goals` composition object containing the goal-domain and model-tool owner configs. Omission or `false` leaves the stack unmounted. This explicit opt-in is important for headless one-shot callers: their result API settles one correlated physical turn and must not silently become a long-running logical goal operation.
+`dsh-base` mounts the goal domain and model-tool owners as explicit rows, while the standalone `sdk-minimal` tree omits the complete stack. This explicit composition choice is important for SDK one-shot callers: their result API settles one correlated physical turn and must not silently become a long-running logical goal operation.
 
 The TUI app bundle makes the opposite product choice. It defaults `goals` to the owner defaults and mounts the goal domain, model tools, same-session driver, command registry, and this producer; `goals: false` removes the stack coherently. The Web bundle keeps the goal domain and driver on the host for remote access, disables the host command producer, and mounts the producer in the `standard`, `code`, and `cordis` agent presets; `minimal` omits both the command and model goal tools. A preset switch does not mutate host-owned goal state, and the Web GoalBar retains direct edit, pause, resume, and clear controls. The [ACP automation app](../simplification/2026-07-23-acp-automation-only-protocol.md) also defaults the goal domain and model tools but deliberately omits command services. The Python SDK runtime closure ships this producer, commands, and the goal stack so an external `cordis.yml` can compose the same command.
 

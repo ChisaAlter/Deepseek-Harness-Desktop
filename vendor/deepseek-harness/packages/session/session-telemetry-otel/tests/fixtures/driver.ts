@@ -9,9 +9,11 @@
 import { writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
-import { boot, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { gunzipSync } from 'node:zlib'
+import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
 import { recordFeedback } from '@deepseek-ai/dsh-command-feedback'
 import { runFixtureTurn } from '@deepseek-ai/dsh-loader-smoke'
+import { bootProductionProfile } from '../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
 
 const configPath = process.argv[2]
 if (configPath === undefined) throw new Error('session-telemetry-otel driver requires a config path')
@@ -21,7 +23,9 @@ const server = createServer((request, response) => {
   const chunks: Buffer[] = []
   request.on('data', chunk => chunks.push(chunk as Buffer))
   request.on('end', () => {
-    captures.push(JSON.parse(Buffer.concat(chunks).toString()))
+    const body = Buffer.concat(chunks)
+    const decoded = request.headers['content-encoding'] === 'gzip' ? gunzipSync(body) : body
+    captures.push(JSON.parse(decoded.toString()))
     response.writeHead(200, { 'content-type': 'application/json' }).end('{}')
   })
 })
@@ -30,8 +34,14 @@ await once(server, 'listening')
 const address = server.address()
 if (address === null || typeof address === 'string') throw new Error('collector has no port')
 process.env.DSH_TELEMETRY_E2E_URL = `http://127.0.0.1:${address.port}/v1/logs`
+process.env.DSH_TELEMETRY_OTLP_URL = process.env.DSH_TELEMETRY_E2E_URL
+process.env.DSH_TELEMETRY_MODE = process.env.DSH_TELEMETRY_E2E_MODE ?? 'FULL'
 
-const ctx = await boot('telemetry-otel-e2e', resolveConfigPath(configPath, undefined))
+const ctx = await bootProductionProfile({
+  binName: 'telemetry-otel-e2e',
+  profile: 'headless',
+  overlayPaths: [resolveConfigPath(configPath, undefined)],
+})
 try {
   // The fixture credential rides the model-visible user message; the exported
   // copy must scrub it while the canonical log keeps the original bytes.

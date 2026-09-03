@@ -14,13 +14,15 @@ Status: implemented
 
 ## 决策
 
-`host.describe` 宣告 `scratchCwd`。Host 用 `dshHomePath('no-workspace')` 解析它（`$DSH_HOME/no-workspace` 或 `~/.dsh/no-workspace`），并在 describe 时 `mkdir`。浏览器从不拼接该路径。
+Workspace Controller 在每次 `workspace.follow` 的 baseline 上宣告 `scratchCwd`（`WorkspaceBaseline.scratchCwd`；alpha.4 已无 `host.describe`）。Host 用 `dshHomePath('no-workspace')` 解析它（`$DSH_HOME/no-workspace` 或 `~/.dsh/no-workspace`），并在 controller 初始化时 `mkdir`。客户端镜像为 `WorkspaceSnapshot.scratchCwd`，首个 baseline 到达前为空；浏览器从不拼接该路径。
 
-`IWorkspaces.connectNoDirectory()` 复用 cwd 等于 `scratchCwd`、id 不在任何 Workspace `sessionIds` 中、且未归档的空白 Session；否则调用 `session.create({ cwd: scratchCwd })`。它从不调用 `workspace.create`。进行中的调用会合流。导航由调用方负责（`sessions.open`）。
+`uiWorkspace.connectNoDirectory()` 复用 cwd 等于 `scratchCwd`、id 不在任何 Workspace `sessionIds` 中、未归档、且非 subagent 来源的空白 Session；否则调用 `session.create({ cwd: scratchCwd })`。它从不调用 `workspace.create`。进行中的调用会合流。导航由调用方负责（`sessions.open`）；ui-conversation 的 `selectNoDirectory` 与 `selectWorkspace` 同样带走主视觉区草稿。
+
+**列出与否只看成员身份，绝不看 cwd。** 侧栏只列两类 Session：已登记 Workspace 的成员，以及无目录任务（`isNoDirectorySession`：无归属**且** cwd 等于 `scratchCwd`）。其他无归属 Session——首先是被删除登记的 Workspace 的成员——在任何地方都不列出：分组、单列表、搜索、已归档都没有。`WorkspaceRegistry.create(path)` 会把规范化 cwd 等于该目录、且未被其他记录记账的所有持久化/在线 header 重新接纳，因此重新登记同一目录就把这些 Session（含归档状态）带回来。`uiWorkspace.deleteWorkspace` 在当前 Session 属于被删 Workspace 时清空选择。
 
 主视觉区 picker 在 **添加工作区…** 之上钉一行 **无工作目录**（`menu.noDirectory`，`IconNewChatOutline16`）。选中后由 ui-conversation apply 注入的 `selectNoDirectory` 带走当前草稿并打开已连接的 Session。没有 Workspace 成员身份的 Session 在芯片上显示该文案（绝不用 scratch 目录的 basename），并解锁 composer。冷启动、尚无 Session 时仍使用「选择工作区」占位和惰性 composer。`addIsTheOnlyEntry` 仅在仅添加的侧栏表层只剩添加动作时为真；主视觉区空列表保留菜单，因为「无工作目录」和「添加工作区」是两个选项。
 
-分组侧栏把 **项目**（`section.projects`）与 **任务**（`section.tasks`）分开。项目行保留文件夹外观、菜单、拖拽和 `startSession`。任务没有 `ProjectRowItem`：会话直接列在可折叠标题下，缩进与项目下的会话行一致，段内 `+` 调用 `connectNoDirectory`，没有任务会话时不渲染该段。顶部「新会话」仍使用 `startSession`。
+分组侧栏保留 Workspace 文件夹行（外观、菜单、拖拽、`startSession`），末尾跟一节 **无工作目录**（`group.ungrouped`，键 `UNGROUPED_KEY`），由 `TasksSectionHeader` 而非 `ProjectRowItem` 渲染：会话直接列在可折叠标题下，缩进与 Workspace 下的会话行一致，节内 `+` 调用 `connectNoDirectory`，没有会话时不渲染该节。其顺序仅存于浏览器本地（没有 Host 账目可写）。顶部「新会话」仍使用 `startSession`。
 
 主视觉区芯片的 `pointerdown` 调用 `stopPropagation()`，避免兄弟 Menu 的外部关闭与 click 切换竞态，与 InputBar 卡片相同。
 
@@ -36,4 +38,4 @@ Status: implemented
 
 ## 后果
 
-无目录 Session 是 Host Session，cwd 由 Host 持有，Workspace 索引中没有它。删除 Workspace 注册后，其成员仍落入任务。测试钉住：芯片切换（pointerdown 到不了 `document`）、无成员时解锁 composer、picker 页脚不调用 `createWorkspace`、任务段 `+` 调用 `connectNoDirectory`、Host `scratchCwd` 作为目录存在、运行时复用与新建。这些包变更后必须重建客户端插件包；Host `describe` 变更需要完全重启桌面应用。
+无目录 Session 是 Host Session，cwd 由 Host 持有，Workspace 索引中没有它。删除 Workspace 登记后，其成员在各处隐藏，直到同一目录再次登记（2026-09-03 修订；此前会落入分组桶）。测试钉住：picker 条目与其选中标记、仅 scratch cwd 的 Session 解锁 composer（被删 Workspace 的空白会话保持惰性）、节内 `+` 调用 `connectNoDirectory`、baseline 携带 `scratchCwd`、`connectNoDirectory` 复用/新建与合流、registry 创建时重新接纳、分组/单列表/搜索/已归档四处都隐藏孤儿会话。这些包变更后必须重建客户端插件包；Host baseline 变更需要完全重启桌面应用。

@@ -22,7 +22,7 @@ import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import { ShellExecutor } from '@deepseek-ai/dsh-shell'
@@ -236,20 +236,39 @@ function sandboxAgent(
   ctx?: Context,
   onAppend?: (type: string) => void,
 ): Agent {
-  const events: Array<{ type: string; data?: Record<string, unknown>; seq?: number }> = [
-    { type: 'turn/start', seq: 0, data: { turn: 1 } },
+  const events: Array<{
+    type: string
+    seq: ReturnType<typeof SessionSeq>
+    time: number
+    data: Record<string, unknown>
+  }> = [
+    { type: 'turn/start', seq: SessionSeq(0), time: 0, data: { turn: 1 } },
   ]
-  if (mode !== undefined) events.push({ type: 'sandbox/mode', seq: 1, data: { mode } })
+  if (mode !== undefined) {
+    events.push({ type: 'sandbox/mode', seq: SessionSeq(1), time: 1, data: { mode } })
+  }
   const id = SessionId('sandbox-session')
   return {
     id,
     ...ctx === undefined ? {} : { ctx: ctx.plugin(() => {}).ctx },
     session: {
       id,
-      header: { version: 0, id, createdAt: 0 },
-      events,
+      header: { version: 0, id, createdAt: 0, isSeeded: false },
+      inheritedEventCount: SessionLogOffset(0),
+      firstLiveSeq: SessionLogOffset(0),
+      get seq() { return SessionLogOffset(events.length) },
+      eventAt: (seq: ReturnType<typeof SessionSeq>) => events[seq],
+      snapshotEvents: (
+        fromSeq = SessionLogOffset(0),
+        toSeqExclusive = SessionLogOffset(events.length),
+      ) => events.slice(fromSeq, toSeqExclusive),
       append: (type: string, data: Record<string, unknown>) => {
-        const event = { type, data }
+        const event = {
+          type,
+          seq: SessionSeq(events.length),
+          time: events.length,
+          data,
+        }
         events.push(event)
         onAppend?.(type)
         return event
@@ -270,7 +289,15 @@ function registerFakeAgent(ctx: Context, sessionId: string): Agent {
   const agent = {
     id,
     ctx: scopeFiber.ctx,
-    session: { id, header: { version: 0, id, createdAt: 0 }, events: [] },
+    session: {
+      id,
+      header: { version: 0, id, createdAt: 0, isSeeded: false },
+      inheritedEventCount: SessionLogOffset(0),
+      firstLiveSeq: SessionLogOffset(0),
+      seq: SessionLogOffset(0),
+      eventAt: () => undefined,
+      snapshotEvents: () => [],
+    },
   } as unknown as Agent
   ctx.agents.register(agent)
   return agent
@@ -621,10 +648,10 @@ describe('sandbox escalation through ctx.approval', () => {
     expect(prompted).not.toHaveBeenCalled()
 
     const malformed = sandboxAgent()
-    ;(malformed.session.events as unknown as Array<{ type: string; data: { mode: string } }>).push({
-      type: 'sandbox/mode',
-      data: { mode: 'unknown-mode' },
-    })
+    ;(malformed.session.append as unknown as (
+      type: string,
+      data: Record<string, unknown>,
+    ) => unknown)('sandbox/mode', { mode: 'unknown-mode' })
     expect(text(await call(ctx, 'pwsh', escalate, malformed))).toContain('not strictly wider')
   })
 

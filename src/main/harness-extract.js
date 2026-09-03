@@ -14,8 +14,82 @@ function harnessArchivePath() {
   return path.join(process.resourcesPath, 'vendor', 'deepseek-harness.tar');
 }
 
+const fsp = fs.promises;
+
+/** Suffix marker for a retired extract awaiting background deletion. */
+const STALE_SUFFIX = '.stale-';
+
+/** Background deletions still running; tests drain them via settleBackgroundWork. */
+const backgroundWork = new Set();
+
+function trackBackground(promise) {
+  backgroundWork.add(promise);
+  promise.finally(() => backgroundWork.delete(promise)).catch(() => {});
+  return promise;
+}
+
+async function settleBackgroundWork() {
+  while (backgroundWork.size) {
+    await Promise.allSettled([...backgroundWork]);
+  }
+}
+
 function extractedHarnessRoot() {
   return path.join(app.getPath('userData'), 'runtime', app.getVersion());
+}
+
+function staleExtractPath(dest) {
+  return `${dest}${STALE_SUFFIX}${Date.now().toString(36)}-${process.pid}`;
+}
+
+/**
+ * Retire a stale extract without stalling the Electron UI thread. `fs.rmSync`
+ * on a ~57k-file runtime held the main thread 16–46 s on a warm NVMe box and
+ * Windows flagged the window 未响应 (WER `AppHangTransient`). A rename is
+ * O(1); the recursive delete then runs on the libuv threadpool while tar
+ * extracts the fresh tree. If the rename is refused (a file still locked),
+ * fall back to an awaited async rm — slower, but still off the UI thread.
+ * @param {string} dest
+ * @param {(line: string) => void} log
+ * @returns {Promise<string|null>} retired path, or null when removed in place.
+ */
+async function retireStaleExtract(dest, log = () => {}) {
+  const stale = staleExtractPath(dest);
+  try {
+    await fsp.rename(dest, stale);
+  } catch {
+    await fsp.rm(dest, { recursive: true, force: true });
+    return null;
+  }
+  trackBackground(fsp.rm(stale, { recursive: true, force: true }).catch((error) => {
+    log(`清理旧运行时失败（下次启动重试）：${error.message}`);
+  }));
+  return stale;
+}
+
+/**
+ * Delete retired extracts a previous run did not finish removing (quit
+ * mid-delete). Runs in the background; never blocks a start.
+ * @param {string} runtimeRoot userData/runtime
+ * @param {(line: string) => void} log
+ * @returns {Promise<string[]>} retired paths that were scheduled for removal.
+ */
+async function sweepStaleExtracts(runtimeRoot, log = () => {}) {
+  let entries = [];
+  try {
+    entries = await fsp.readdir(runtimeRoot, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const stale = entries
+    .filter((entry) => entry.isDirectory() && entry.name.includes(STALE_SUFFIX))
+    .map((entry) => path.join(runtimeRoot, entry.name));
+  for (const dir of stale) {
+    trackBackground(fsp.rm(dir, { recursive: true, force: true }).catch((error) => {
+      log(`清理旧运行时残留失败：${error.message}`);
+    }));
+  }
+  return stale;
 }
 
 /**
@@ -152,6 +226,9 @@ async function ensurePackagedHarness(log = () => {}) {
   const dest = extractedHarnessRoot();
   const archive = harnessArchivePath();
   const loose = looseHarnessRoot();
+  // Listing is cheap and must finish before any rename below so the sweep
+  // and retireStaleExtract never race on the same directory.
+  await sweepStaleExtracts(path.dirname(dest), log).catch(() => []);
   const archiveExists = fs.existsSync(archive);
   // readPackagedPin throws on a missing/invalid pin before anything on disk
   // is deleted; a broken install must not destroy a usable runtime.
@@ -177,7 +254,7 @@ async function ensurePackagedHarness(log = () => {}) {
   // re-extract guaranteed possible, so deleting dest is safe.
   if (fs.existsSync(dest)) {
     log(hasBuiltHarness(dest) ? '运行时与安装包不一致，正在重新解压…' : '运行时不完整，正在重新解压…');
-    fs.rmSync(dest, { recursive: true, force: true });
+    await retireStaleExtract(dest, log);
   }
   if (hasBuiltHarness(loose)) {
     return loose;
@@ -203,4 +280,8 @@ module.exports = {
   packagedRuntimeIdentity,
   writeRuntimeStamp,
   tarCommand,
+  retireStaleExtract,
+  sweepStaleExtracts,
+  settleBackgroundWork,
+  STALE_SUFFIX,
 };

@@ -24,7 +24,14 @@ import { ConversationViewRegistry } from './view-registry.ts'
 export interface ConversationBinding {
   readonly snapshot: ObservableSnapshot<ConversationSnapshot>
   /**
+   * Add one selected target to the Session's monotonic active set.
+   * @param target - registered or subsequently registered Conversation target.
+   */
+  activate(target: string): void
+  /**
    * Resolve one target-owned snapshot source.
+   * The first subscriber activates the target unless shell selection already
+   * activated it; activation lasts for the remaining Session lifetime.
    * @param target - registered Conversation target.
    * @returns identity-stable source following the target.
    */
@@ -61,20 +68,25 @@ class BoundConversation implements ConversationBinding {
       const views = this.viewStore as unknown as { get(key: string): unknown }
       source = {
         getSnapshot: () => views.get(target),
-        subscribe: (listener) => { return this.snapshot.subscribe(listener) },
+        subscribe: (listener) => {
+          const unsubscribe = this.snapshot.subscribe(listener)
+          this.activate(target)
+          return unsubscribe
+        },
       }
       this.targetSources.set(target, source)
     }
     return source as ObservableSnapshot<ConversationViewSnapshotMap[Target] | undefined>
   }
 
+  activate(target: string): void {
+    if (this.assembler.activateTarget(target)) this.snapshot.set(this.currentSnapshot())
+  }
+
   rebuild(): void { this.publish(this.assembler.rebuildRegistry()) }
 
   dispose(): void {
-    if (this.frame !== undefined && typeof cancelAnimationFrame === 'function') {
-      cancelAnimationFrame(this.frame)
-    }
-    this.frame = undefined
+    this.cancelFrame()
     this.disposeFeed()
   }
 
@@ -109,13 +121,26 @@ class BoundConversation implements ConversationBinding {
     if (publication === 'none') return
     if (publication === 'animation-frame' && typeof requestAnimationFrame === 'function') {
       if (this.frame !== undefined) return
+      // Cross three paint opportunities before publishing high-frequency stream updates.
       this.frame = requestAnimationFrame(() => {
-        this.frame = undefined
-        this.flush()
+        this.frame = requestAnimationFrame(() => {
+          this.frame = requestAnimationFrame(() => {
+            this.frame = undefined
+            this.flush()
+          })
+        })
       })
       return
     }
+    this.cancelFrame()
     this.flush()
+  }
+
+  private cancelFrame(): void {
+    if (this.frame !== undefined && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.frame)
+    }
+    this.frame = undefined
   }
 
   private flush(): void {
@@ -125,7 +150,7 @@ class BoundConversation implements ConversationBinding {
   private currentSnapshot(): ConversationSnapshot {
     return {
       views: this.viewStore,
-      activeTargets: this.assembler.activeTargets(),
+      activeTargets: this.assembler.activityTargets(),
     }
   }
 }

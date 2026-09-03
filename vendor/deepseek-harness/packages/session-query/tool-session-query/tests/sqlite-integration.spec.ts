@@ -8,6 +8,7 @@ import { createUserMessage, ToolCallId  } from '@deepseek-ai/dsh-llm'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
+  SessionSeq,
   type Session,
 } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -57,10 +58,11 @@ describe('tool-session-query with the real SQLite provider', () => {
       id: persisted,
       createdAt: 1,
       cwd: '/work',
+      isSeeded: false,
     })
     await ctx.sessionPersistence.append(persisted, [{
       type: 'user/message',
-      seq: 0,
+      seq: SessionSeq(0),
       time: 2,
       data: createUserMessage({
         content: [{ type: 'text', text: 'persisted integration needle' }],
@@ -129,11 +131,12 @@ describe('tool-session-query with the real SQLite provider', () => {
       id: persisted,
       createdAt: base,
       cwd: '/work',
+      isSeeded: false,
     })
     await ctx.sessionPersistence.append(persisted, [
       {
         type: 'user/message',
-        seq: 0,
+        seq: SessionSeq(0),
         time: base + 123,
         data: createUserMessage({
           content: [{ type: 'text', text: 'fractional integration needle' }],
@@ -143,7 +146,7 @@ describe('tool-session-query with the real SQLite provider', () => {
       },
       {
         type: 'user/message',
-        seq: 1,
+        seq: SessionSeq(1),
         time: base + 124,
         data: createUserMessage({
           content: [{ type: 'text', text: 'fractional integration needle' }],
@@ -153,7 +156,7 @@ describe('tool-session-query with the real SQLite provider', () => {
       },
       {
         type: 'user/message',
-        seq: 2,
+        seq: SessionSeq(2),
         time: -124,
         data: createUserMessage({
           content: [{ type: 'text', text: 'pre-epoch fractional needle' }],
@@ -163,7 +166,7 @@ describe('tool-session-query with the real SQLite provider', () => {
       },
       {
         type: 'user/message',
-        seq: 3,
+        seq: SessionSeq(3),
         time: -123,
         data: createUserMessage({
           content: [{ type: 'text', text: 'pre-epoch fractional needle' }],

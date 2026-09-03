@@ -30,6 +30,9 @@ export interface PendingSubmissionImage {
   readonly height?: number
 }
 
+/** Client surface selected when a local submission begins. */
+export type PendingSubmissionPlacement = 'transcript' | 'queued' | 'steering'
+
 /**
  * One local prompt-submission echo: inserted synchronously when a submission
  * begins, so the conversation can show the message before serialization,
@@ -39,6 +42,8 @@ export interface PendingSubmissionImage {
 export interface PendingSubmission {
   /** The prompt RPC identity; the durable `user/message` source echoes it as `rpcId`. */
   readonly requestId: SessionRequestId
+  /** Expected surface until the Host reports the admitted queue or durable occurrence. */
+  readonly placement: PendingSubmissionPlacement
   /** Client wall-clock ms when the submission began. */
   readonly time: number
   /** Prompt text exactly as it will be sent (one text block). */

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `message-edit` |
 | **status** | `active` |
-| **last verified** | 2026-09-02 — 修复两处卡死：① 确认时的 stale 守卫改为只看「开启轮次的用户消息」（`latestTurnOpeningUserSeq`）；插件注入的上下文（time-context／instructions／文件变更提醒等以 `user/message` 落日志但 `source.kind !== 'user'`）和同轮 steering 不再误报「会话已有更新的消息」；② `SessionInputShell.beginEdit/finishEdit` 显式 `publish()`，种子文本或恢复文本与当前草稿相同时不再漏发编辑态变化（此前横幅与气泡会停留在编辑态、取消无响应）。先前 2026-08-31：pin `dsh-v0.1.2-alpha.2`；确认汇调用 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })`。 |
+| **last verified** | 2026-09-02 — 修复两处卡死：① 确认时的 stale 守卫改为只看「开启轮次的用户消息」（`latestTurnOpeningUserSeq`）；插件注入的上下文（time-context／instructions／文件变更提醒等以 `user/message` 落日志但 `source.kind !== 'user'`）和同轮 steering 不再误报「会话已有更新的消息」；② `SessionInputShell.beginEdit/finishEdit` 显式 `publish()`，种子文本或恢复文本与当前草稿相同时不再漏发编辑态变化（此前横幅与气泡会停留在编辑态、取消无响应）。先前 2026-08-31：pin `dsh-v0.1.2-alpha.2`；确认汇调用 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })`。 |；本次 alpha.4：SessionSeq/snapshotEvents 迁移后 vendor GUI 与桌面回归通过。
 
 ## User paths
 

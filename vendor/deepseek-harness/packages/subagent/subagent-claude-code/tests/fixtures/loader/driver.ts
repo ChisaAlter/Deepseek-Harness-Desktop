@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /** Inspect the public Claude Code Bundle composition without invoking the product. */
 
-import { boot, loadOverlayPatches, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-tools'
+import { bootProductionProfile } from '../../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
 
 const configPath = process.argv[2]
 const bundlePatchPath = process.argv[3]
@@ -12,16 +13,19 @@ if (configPath === undefined || bundlePatchPath === undefined) {
 }
 
 let starts = 0
-const ctx = await boot(
-  'subagent-claude-code-loader-composition',
-  resolveConfigPath(configPath, undefined),
-  loadOverlayPatches('subagent-claude-code-loader-composition', bundlePatchPath),
-  (hostCtx) => {
+const ctx = await bootProductionProfile({
+  binName: 'subagent-claude-code-loader-composition',
+  profile: 'headless',
+  overlayPaths: [
+    resolveConfigPath(bundlePatchPath, undefined),
+    resolveConfigPath(configPath, undefined),
+  ],
+  prepare: (hostCtx) => {
     hostCtx.on('subagent/start', () => {
       starts += 1
     })
   },
-)
+})
 
 try {
   const providerNames = [
@@ -70,7 +74,8 @@ try {
     .sort()
 
   process.stdout.write(`${JSON.stringify({
-    registeredProviders: ctx.subagents.list().sort(),
+    registeredProviders: ctx.subagents.list().filter(providerName =>
+      providerNames.includes(providerName as typeof providerNames[number])).sort(),
     providers,
     tools,
     jobTools,

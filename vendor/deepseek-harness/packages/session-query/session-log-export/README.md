@@ -29,7 +29,7 @@ Use this package when the Web bundle should let users export a session log. It r
 
 ### When to choose it
 
-Choose it for a Web deployment that needs user-facing session export with a visible download dialog. Avoid it when a programmatic or Host-side export is needed: this package produces a browser download, not a Host path write, and it requires a persistence backend that stores a per-session raw artifact (the shipped JSONL backend supports plaintext and zstd; SQLite export is not supported).
+Choose it for a Web deployment that needs user-facing session export with a visible download dialog. Avoid it when a programmatic or Host-side export is needed: this package produces a browser download, not a Host path write, and it requires the shipped JSONL provider's per-Session raw artifact in plaintext or zstd form.
 
 ### Composition
 
@@ -121,7 +121,7 @@ None. The log-only command lifecycle and browser download do not change the deri
 
 These limits define when this package is a poor fit or needs special operational care. They are current package constraints, not a task backlog.
 
-- **Requires a per-session raw artifact backend** — the download endpoint needs a persistence backend with a per-session raw artifact; the shipped JSONL backend supports plaintext and zstd, and SQLite export is not supported.
+- **Requires a per-Session raw artifact** — the download endpoint reads the shipped JSONL provider's plaintext or zstd artifact; an out-of-tree provider without a raw artifact cannot serve this route.
 - **Browser download, not a Host-path writer** — the browser chooses the local destination; no Host path or native folder action is returned.
 - **Preflight reports only pre-stream failures** — a descendant or attachment failure after the browser accepts the GET is reported by the browser download manager, not by the dialog.
 
@@ -138,3 +138,5 @@ This Dev Note is working context for maintainers: open design questions and dire
 The download is deliberately browser-scoped; a Host-path or native folder export would need a new endpoint contract and a decision on where the ZIP lands.
 
 </details>
+
+**Runtime invariant:** No companion is published. Connection and the command registry own both registrations, while each export reads authoritative Session services.

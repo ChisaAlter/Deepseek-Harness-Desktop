@@ -4,8 +4,8 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import LlmRuntime, { ToolCallId, type GenerateOptions, LlmAdapter, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
-import SessionPersistence from '@deepseek-ai/dsh-session-persistence'
+import type { SessionEvent, SessionHeader, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import SessionPersistence, { type SessionEventSuffix, type SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import * as checkpointPolicy from '../src/index.ts'
@@ -19,16 +19,16 @@ class TestPersistence extends SessionPersistence {
   create(_meta: SessionHeader): Promise<void> { return Promise.resolve() }
   append(_id: SessionId, _events: readonly SessionEvent[]): Promise<void> { return Promise.resolve() }
   delete(_id: SessionId): Promise<void> { return Promise.resolve() }
-  load(_id: SessionId): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
+  load(_id: SessionId): Promise<SessionInspection> {
     return Promise.reject(new Error('not used'))
   }
-  inspect(_id: SessionId): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
+  inspect(_id: SessionId): Promise<SessionInspection> {
     return Promise.reject(new Error('not used'))
   }
   borrowSession(_id: SessionId, _signal?: AbortSignal): ReturnType<SessionPersistence['borrowSession']> {
     return Promise.reject(new Error('not used'))
   }
-  readFrom(_id: SessionId, _fromSeq: number): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
+  readFrom(_id: SessionId, _fromSeq: SessionLogOffset): Promise<SessionEventSuffix> {
     return Promise.reject(new Error('not used'))
   }
   list(): Promise<SessionHeader[]> { return Promise.resolve([]) }

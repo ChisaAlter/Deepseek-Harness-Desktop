@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 何时选择
 
-为需要带可见下载弹窗的用户级会话导出的 Web 部署选择它。需要程序化或 Host 侧导出时避免使用：本包产生的是浏览器下载，而非 Host 路径写入，并且它要求持久化后端保存逐会话原始产物（随附 JSONL 后端支持明文与 zstd；不支持 SQLite 导出）。
+为需要带可见下载弹窗的用户级会话导出的 Web 部署选择它。需要程序化或 Host 侧导出时避免使用：本包产生的是浏览器下载，而非 Host 路径写入，并且它要求随产品交付的 JSONL provider 提供逐 Session 的明文或 zstd 原始产物。
 
 ### 组合
 
@@ -121,7 +121,7 @@ Host 路由是业务拥有的精确 Fetch contribution。Connection 应用 Host/
 
 这些限制说明本包何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是任务积压。
 
-- **要求逐会话原始产物后端**——下载端点需要带逐会话原始产物的持久化后端；随附 JSONL 后端支持明文与 zstd，不支持 SQLite 导出。
+- **要求逐 Session 原始产物**——下载端点读取随产品交付的 JSONL provider 所提供的明文或 zstd 产物；没有原始产物的仓库外 provider 无法服务该 route。
 - **浏览器下载，而非 Host 路径写入**——目标位置由浏览器选择；不会返回 Host 路径或原生文件夹操作。
 - **预检只报告流式传输前的失败**——浏览器接受 GET 后发生的子会话或附件读取失败由浏览器下载管理器报告，不通过弹窗报告。
 
@@ -138,3 +138,5 @@ Host 路由是业务拥有的精确 Fetch contribution。Connection 应用 Host/
 下载刻意限定在浏览器范围；Host 路径或原生文件夹导出需要新的端点约定，并决定 ZIP 的落盘位置。
 
 </details>
+
+**运行时不变式：** 不发布伴生入口。Connection 与 command registry 持有两个注册，每次 export 直接读取权威 Session service。

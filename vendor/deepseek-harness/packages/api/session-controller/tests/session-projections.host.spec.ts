@@ -18,7 +18,7 @@ import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
@@ -132,6 +132,38 @@ function seedMessages(session: Session, count: number): void {
 const remote = (ctx: Context) => createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
 
 describe('session.history projections block', () => {
+  it('keeps the v0 numeric seed cut on the wire while logical headers expose only lineage', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(SessionProjectionRegistry)
+    const parent = ctx.sessions.create(SessionId('wire-seed-parent'), { meta: { cwd: '/workspace' } })
+    parent.append('turn/start', { turn: 1 })
+    parent.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const inheritedEventCount = parent.seq
+    const child = ctx.sessions.create(SessionId('wire-seed-child'), {
+      seed: parent.snapshotEvents(),
+      inheritedEventCount,
+      meta: {
+        cwd: '/workspace',
+        parentSession: parent.id,
+        isSeeded: true,
+      },
+    })
+
+    const snapshot = await opening(remote(ctx), child.id)
+
+    expect(snapshot.header).toEqual({
+      version: 0,
+      id: child.id,
+      createdAt: child.header.createdAt,
+      cwd: '/workspace',
+      parentSession: parent.id,
+      seedLength: inheritedEventCount,
+    })
+    expect(snapshot.header).not.toHaveProperty('isSeeded')
+  })
+
   it('tracks pending and used model selections across repeated request headers', async () => {
     const { ctx, session } = await harness(true)
     remote(ctx)
@@ -318,7 +350,7 @@ describe('session.history projections block', () => {
     expect('test/last-user' in after.projections.values).toBe(false)
     expect(after.projections.values.sessionListMetadata).toEqual({
       blank: true,
-      lastPromptAt: session.events.at(-1)?.time,
+      lastPromptAt: session.eventAt(SessionSeq(session.seq - 1))?.time,
     })
   })
 
@@ -352,7 +384,7 @@ describe('session.list projections column', () => {
     expect(row?.projections?.values['test/last-user']).toEqual({ text: 'm0' })
     expect(row?.projections?.values.sessionListMetadata).toEqual({
       blank: false,
-      lastPromptAt: session.events.at(-1)?.time,
+      lastPromptAt: session.eventAt(SessionSeq(session.seq - 1))?.time,
     })
     expect(row?.projections?.asOfSeq).toBe(session.seq - 1)
   })
@@ -414,7 +446,7 @@ describe('session.list projections column', () => {
       cachedSnapshot: (meta: { id: unknown; createdAt: number }) =>
         (meta.id === coldId && meta.createdAt === 5
           ? {
-            asOfSeq: 7,
+            asOfSeq: SessionSeq(7),
             values: {
               'test/last-user': { text: 'cached' },
               sessionListMetadata: { blank: false, lastPromptAt: 6 },
@@ -538,7 +570,7 @@ describe('Session control projection frames', () => {
     return frames
   }
 
-  it('broadcasts a frame per changed unit with the causing seq, and none for same-reference applies', async () => {
+  it('broadcasts changed view references with the causing seq and skips same-reference applies', async () => {
     const { ctx, session } = await harness(true)
     ctx.sessionProjections.register(lastUserUnit())
     const proxy = remote(ctx)
@@ -554,6 +586,7 @@ describe('Session control projection frames', () => {
     now.mockReturnValue(200)
     session.append('turn/start', { turn: 1 })
     now.mockReturnValue(300)
+    // The equal payload is a new object, so Object.is still treats its view as changed.
     seedMessages(session, 1)
     now.mockRestore()
 

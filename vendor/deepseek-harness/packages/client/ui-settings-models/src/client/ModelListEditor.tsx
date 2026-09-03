@@ -18,12 +18,13 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import { formatCapacity, parseCapacity } from './DeepSeekModelsEditor.tsx'
+import type { ModelsOperations } from './operations.ts'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import {
   enrichDiscoveredModelsBestEffort,
   type EnrichedDiscoveredModel,
 } from './models-dev-metadata.ts'
-import { discoveredModelsOf, type ModelsOperations } from './operations.ts'
+import { discoveredModelsOf } from './operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -214,6 +215,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const [failure, setFailure] = useState<string | undefined>(undefined)
   const [candidates, setCandidates] = useState<readonly EnrichedDiscoveredModel[] | undefined>(undefined)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
+  const [candidateQuery, setCandidateQuery] = useState('')
   // Capacities are edited as text, so a field's keystrokes are held here rather
   // than re-derived from the parsed count on every change — that would rewrite
   // `1000` to `1K` mid-word. Unreadable text is kept past blur so the refusal
@@ -306,6 +308,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
       // Everything already configured starts unchecked, so adopting a
       // selection never silently rewrites a capacity the user corrected.
       const known = new Set(models.map(model => textOf(model, 'id')))
+      setCandidateQuery('')
       setCandidates(enriched)
       setPicked(new Set(enriched.filter(model => !known.has(model.id)).map(model => model.id)))
     } catch (error) {
@@ -320,6 +323,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
   const closePicker = (): void => {
     setCandidates(undefined)
     setPicked(new Set())
+    setCandidateQuery('')
   }
 
   const adoptPicked = (): void => {
@@ -346,15 +350,24 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
     })
   }
 
-  const activeCandidates = Array.isArray(candidates) ? candidates : []
-  const allCandidatesPicked = activeCandidates.length > 0
-    && activeCandidates.every(candidate => picked.has(candidate.id))
+  const activeCandidates = candidates ?? []
+  const normalizedCandidateQuery = candidateQuery.trim().toLowerCase()
+  const visibleCandidates = normalizedCandidateQuery.length === 0
+    ? activeCandidates
+    : activeCandidates.filter(candidate => candidate.id.toLowerCase().includes(normalizedCandidateQuery)
+      || candidate.name?.toLowerCase().includes(normalizedCandidateQuery) === true)
+  const allVisibleCandidatesPicked = visibleCandidates.length > 0
+    && visibleCandidates.every(candidate => picked.has(candidate.id))
 
-  const toggleAllCandidates = (): void => {
+  const toggleVisibleCandidates = (): void => {
     setPicked((current) => {
-      return activeCandidates.every(candidate => current.has(candidate.id))
-        ? new Set()
-        : new Set(activeCandidates.map(candidate => candidate.id))
+      const next = new Set(current)
+      if (visibleCandidates.every(candidate => current.has(candidate.id))) {
+        for (const candidate of visibleCandidates) next.delete(candidate.id)
+      } else {
+        for (const candidate of visibleCandidates) next.add(candidate.id)
+      }
+      return next
     })
   }
 
@@ -428,9 +441,6 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
               disabled={disabled}
               onClick={() => {
                 onChange(models.filter((_model, at) => at !== index))
-                // Capacity edit buffers are keyed by position, so every row
-                // after this one shifts down and would otherwise inherit its
-                // neighbour's half-typed text.
                 setEditing(current => reindexOnRemove(current, index))
               }}
             >
@@ -535,28 +545,45 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
           </>
         )}
       >
-        <div className={styles['candidateActions']}>
-          <Button variant="ghost" size="sm" onClick={toggleAllCandidates}>
-            {t(allCandidatesPicked ? 'fetchDeselectAll' : 'fetchSelectAll')}
+        <div className={styles['candidateToolbar']}>
+          <input
+            className={`${styles['input']} ${styles['candidateSearch']}`}
+            type="search"
+            value={candidateQuery}
+            placeholder={t('fetchSearch')}
+            aria-label={t('fetchSearch')}
+            onChange={(event) => { setCandidateQuery(event.target.value) }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={visibleCandidates.length === 0}
+            onClick={toggleVisibleCandidates}
+          >
+            {t(allVisibleCandidatesPicked ? 'fetchDeselectAll' : 'fetchSelectAll')}
           </Button>
         </div>
-        <ul className={styles['candidateList']}>
-          {activeCandidates.map(candidate => (
-            <li key={candidate.id} className={styles['candidate']}>
-              <label className={styles['candidateLabel']}>
-                <input
-                  type="checkbox"
-                  checked={picked.has(candidate.id)}
-                  onChange={() => { toggle(candidate.id) }}
-                />
-                {/* The id alone: it is the string adoption writes, and the
-                    capacities the endpoint reported are adopted with it and
-                    editable in the row that appears. */}
-                <span className={styles['candidateId']}>{candidate.id}</span>
-              </label>
-            </li>
-          ))}
-        </ul>
+        {visibleCandidates.length === 0
+          ? <p className={styles['candidateEmpty']} role="status">{t('fetchNoMatches')}</p>
+          : (
+            <ul className={styles['candidateList']}>
+              {visibleCandidates.map(candidate => (
+                <li key={candidate.id} className={styles['candidate']}>
+                  <label className={styles['candidateLabel']}>
+                    <input
+                      type="checkbox"
+                      checked={picked.has(candidate.id)}
+                      onChange={() => { toggle(candidate.id) }}
+                    />
+                    {/* The id alone: it is the string adoption writes, and the
+                        capacities the endpoint reported are adopted with it and
+                        editable in the row that appears. */}
+                    <span className={styles['candidateId']}>{candidate.id}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
       </Modal>
     </section>
   )

@@ -131,7 +131,7 @@ function WidthHandle(props: {
 export function ConversationRoot({
   sessionId, useSession, useSessions, useSessionPendingInteraction,
   useWorkspaces, useConversation, useInput, useComposerBlock,
-  renderSlot, renderSlotChain, selectWorkspace, t,
+  renderSlot, renderSlotChain, selectWorkspace, selectNoDirectory, t,
 }: ConversationRootProps) {
   const session = useSession(s => s)
   const pendingInteraction = useSessionPendingInteraction(snapshot =>
@@ -151,6 +151,7 @@ export function ConversationRoot({
 
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<WorkspaceId | undefined>()
+  const [pendingNoDirectory, setPendingNoDirectory] = useState(false)
   const pickerAnchor = useRef<HTMLButtonElement>(null)
 
   // Publishes the two live measurements floating View chrome reads off the
@@ -240,6 +241,15 @@ export function ConversationRoot({
   const pendingWorkspace = workspaces.items.find(
     workspace => workspace.workspaceId === pendingWorkspaceId,
   )
+  // A no-directory task is a Session living in the Host scratch cwd with no
+  // Workspace membership. Membership alone is not enough: a blank Session
+  // whose Workspace was deleted from the sidebar is also unaccounted, and that
+  // one must fall back to "Choose workspace", never unlock the composer.
+  const noDirectorySession = sessionId !== undefined
+    && workspaces.phase === 'ready'
+    && sessionWorkspace === undefined
+    && workspaces.scratchCwd !== undefined
+    && cwd === workspaces.scratchCwd
 
   // Clear the pending pick once the session lands in it, or when the picked
   // workspace disappears from a ready list (deleted from the sidebar).
@@ -250,6 +260,10 @@ export function ConversationRoot({
       setPendingWorkspaceId(undefined)
     }
   }, [pendingWorkspaceId, sessionWorkspace?.workspaceId, workspaces.phase, pendingWorkspace])
+
+  useEffect(() => {
+    if (pendingNoDirectory && noDirectorySession) setPendingNoDirectory(false)
+  }, [pendingNoDirectory, noDirectorySession])
 
   // While a session is still replaying (loading + blank) the hero/docked
   // choice is unknowable — render the composer hidden instead of flashing
@@ -276,13 +290,17 @@ export function ConversationRoot({
 
   // The chip is a selector; label resolution walks the flow top-down:
   //   1. a just-picked workspace (pending) → its title;
-  //   2. cold start, no session yet → placeholder ("Choose workspace");
-  //   3. the blank session's workspace is in the list → its title;
-  //   4. list still loading → cwd folder name bridges so the title does not
+  //   2. a just-picked or landed no-directory session → "No workspace folder"
+  //      (membership + scratch cwd, never the scratch directory's basename);
+  //   3. cold start, no session yet → placeholder ("Choose workspace");
+  //   4. the blank session's workspace is in the list → its title;
+  //   5. list still loading → cwd folder name bridges so the title does not
   //      flash on refresh (empty cwd → placeholder);
-  //   5. list ready but no owning workspace (deleted from the sidebar) →
+  //   6. list ready but no owning workspace (deleted from the sidebar) →
   //      placeholder, never the deleted folder's name via cwd.
+  const noDirectoryTitle = pendingNoDirectory || noDirectorySession ? t('hero.noDirectory') : undefined
   const chipTitle = pendingWorkspace?.title
+    ?? noDirectoryTitle
     ?? (sessionId === undefined
       ? undefined
       : sessionWorkspace?.title
@@ -303,12 +321,20 @@ export function ConversationRoot({
         open: pickerOpen,
         anchorRef: pickerAnchor,
         selectedId: pendingWorkspaceId ?? sessionWorkspace?.workspaceId,
+        noDirectorySelected: pendingWorkspaceId === undefined && (pendingNoDirectory || noDirectorySession),
         onPick: (workspaceId) => {
           setPickerOpen(false)
+          setPendingNoDirectory(false)
           setPendingWorkspaceId(workspaceId)
           void selectWorkspace(workspaceId).catch(() => {
             setPendingWorkspaceId(current => current === workspaceId ? undefined : current)
           })
+        },
+        onPickNoDirectory: () => {
+          setPickerOpen(false)
+          setPendingWorkspaceId(undefined)
+          setPendingNoDirectory(true)
+          void selectNoDirectory().catch(() => { setPendingNoDirectory(false) })
         },
         onClose: () => { setPickerOpen(false) },
       })}
@@ -318,9 +344,10 @@ export function ConversationRoot({
 
   // The placeholder chip ("Choose workspace") and the Workspace-trigger input travel
   // together: no workspace picked yet (cold start, no session at all), or a
-  // blank session whose workspace vanished (deleted from the sidebar). The
-  // bar is ONE session-maybe slot rendered unconditionally — inert is a prop,
-  // not a different tree, so the textarea DOM survives the transition.
+  // blank session whose workspace vanished (deleted from the sidebar). A
+  // no-directory task shows its own chip copy and accepts input. The bar is
+  // ONE session-maybe slot rendered unconditionally — inert is a prop, not a
+  // different tree, so the textarea DOM survives the transition.
   const inert = sessionId === undefined || (hero && chipTitle === undefined)
   // A raised block is the same inert posture with the blocker's own reason:
   // one disabled textarea, never a second tree. The no-workspace state wins
@@ -341,11 +368,6 @@ export function ConversationRoot({
         // user clears it.
         ? { blocked: composerBlock, placeholder: composerBlock.reason }
         : hero ? { placeholder: t('placeholder.hero') } : {}),
-    overlay: sessionId === undefined ? undefined : renderSlot('conversation.input.overlay', {}),
-    leftItems: zone === undefined ? null : renderSlot('conversation.input.left', zone),
-    rightItems: zone === undefined ? null : renderSlot('conversation.input.right', zone),
-    // Ambient dock under the card shares the composer's width constraint.
-    footer: !hero && zone !== undefined ? renderSlot('conversation.composer.dock', zone) : null,
   })
 
   const composerBar = (

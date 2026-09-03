@@ -18,6 +18,8 @@ Client Runtime 提供 target-neutral 的 Conversation Node 组装引擎，业务
 
 本 Note 保留实现后仍有价值的方案推导、逐业务适配、职责、算法和取舍。
 
+Chat 只注册 `next-step` Inbox Definition，因为消息分类是其唯一消费方；`next-turn` splice 仍是持久 Session input，但不会创建 Chat Context。Chat 与 Trajectory 各自维护 target 专属 next-step state。每次插入只把消息 ID 写入不可变 splice 节点。成功 claim 时只 materialize 一次 pending 链，以当前批次替换上一个 claimed Set，并让后续 Context 共享该 Set，直到下一次 claim。AgentLoop 会在领取下一批消息之前追加当前 claim 接纳的全部消息；被拒绝的 claim 不追加 `user/message`，因此后续分类只需当前批次。历史 Context 因而只保留线性 ID state，不再保留累计数组和 Set 快照。
+
 ### 责任分层
 
 | 层 | 长期职责 | 明确不负责 |
@@ -123,16 +125,16 @@ Assembler 不以 State 引用相等判断是否需要发布或传播。每次成
 | 返回值 | 行为 |
 |---|---|
 | `immediate` | 请求当前 microtask 通知与 flush |
-| `animation-frame` | 把多条高频更新合并到下一帧 materialize |
+| `animation-frame` | 跨过三个浏览器 animation frame 后，把多条高频更新合并为一次 materialization |
 | `none` | 本 Match 不主动安排 flush，State 和 dirty 标记仍被保留 |
 
 省略 `publication()` 等于 `immediate`。Assistant token delta 与 packed run 使用 `animation-frame`，不可见 Inbox Context 使用 `none`，final、依赖 replay 和 Location 边界会以 immediate 路径发布最新结果。
 
-一帧内的每条 live delta 仍执行 `update()`，一个历史 packed run 则执行一次 batch `update()`；合并的只是 `buildViewNode()`、View Builder 和 React snapshot 通知，不会丢失 fragment。
+三帧间隔内的每条 live delta 仍执行 `update()`，一个历史 packed run 则执行一次 batch `update()`；Location-data publication、`buildViewNode()`、View Builder 与 React snapshot 通知会合并执行，不会丢失 fragment。immediate publication 会取消等待中的帧间隔，并立即发布最新 State。
 
 #### `buildLocationData(context, scope)`
 
-`buildLocationData()` 让 Definition 把 State 的只读派生值发布到 Engine-owned Step 或 Turn，而不把另一个业务的可变 State 暴露出去。Assembler 在每次 materialize 中固定先处理 `step`、再处理 `turn`，因此 Turn 级聚合可以读取同一轮已经更新的 Step data；全部 Location data 就绪后才调用 `buildViewNode()`。
+`buildLocationData()` 让 Definition 把 State 的只读派生值发布到 Engine-owned Step 或 Turn，而不把另一个业务的可变 State 暴露出去。Assembler 会把前一次 publication 传回它的 owner；业务数据未变时，owner 原样返回该值。Assembler 在每次 materialize 中固定先处理 `step`、再处理 `turn`，因此 Turn 级聚合可以读取同一轮已经更新的 Step data；全部 Location data 就绪后才调用 `buildViewNode()`。
 
 Definition 分别收到 `step` 和 `turn` scope，可以在任一阶段返回一个值或 `null`。返回值必须声明准确的 turn/step 坐标，并使用与 Definition `kind` 相同的 key；Assembler 拥有替换和移除，并拒绝另一个 Context 占用同一 Location key。
 
@@ -257,8 +259,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 
 | 业务 / `kind` | 稳定 ID | start Match | update Matches | State 与跨 Context 读取 |
 |---|---|---|---|---|
-| Next-turn Inbox / `inbox-next-turn` | splice Event seq | 每条目标为 next-turn 的 `agent/inbox/spliced` | 无 | 从 `reader.previous(ownKind)` 的 pending/claimed 瞬间态应用当前 splice |
-| Next-step Inbox / `inbox-next-step` | splice Event seq | 每条目标为 next-step 的 `agent/inbox/spliced` | 无 | 同样形成逐指令瞬间态，claimed 集合供 Message 读取 |
+| Next-step Inbox / `inbox-next-step` | splice Event seq | 每条目标为 next-step 的 `agent/inbox/spliced` | 无 | 把消息 ID 追加到持久 splice state；每次 claim 只 materialize 一次，并向 Message 暴露共享的当前 claimed batch |
 | Message / `input-message` | message ID | append-surface `user/message` | 无 | 根据 source 生成 context message，或读取最近 next-step Inbox 判断 user/steering |
 | Request Prompt / `request-prompt` | header Event seq | 每条 `request/header` | 无 | 通过 Reader 读取前一条 Request Prompt，保留完整 prompt 状态，并判定 system/tool 变化 |
 | Assistant / `assistant-step` | `turn:step` | `step/start` | scalar 或 packed `assistant/chunk`、final `assistant/message`、同 step Retry | 聚合 blocks、usage、首 token 时间、final 和 retry 隐藏状态，并发布同 key Step data |
@@ -275,7 +276,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 
 | 业务 | `publication()` | Chat 产物 | 历史分页与运行时行为 |
 |---|---|---|---|
-| Inbox | `none` | 不生成 Node | prepend 补前序 splice 时沿 Reader 链重算瞬间态 |
+| Inbox | `none` | 不生成 Node | prepend 补前序 splice 时沿 Reader 链重算 next-step ID state；next-turn 不创建 Chat Context |
 | Message | 默认 immediate | `user`、`steering` 或 `context` | window gap 修复可让同一 message key 重新分类 |
 | Request Prompt | 默认 immediate | 每条带非空 system 字段的 header 都生成一个 `system-prompt` | Step 首条 header 锚定在请求消息之前；同 step 后续序列锚定在表层改写之后；prepend 补入前序 header 后可纠正部分窗口的锚点 |
 | Assistant | scalar chunk 与 packed run 为 RAF，final immediate，纯 usage/finish 为 none | 同 key `assistant-step`，状态为 running/settled/interrupted | scalar 与 packed reducer 等价；缺 `step/start` 可先用 Matches fallback；Location close 生成中断表现 |
@@ -288,7 +289,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 | Deliverables | 默认 immediate | 不生成 Node | Tool 结算增量更新所属 Turn data，Turn Tail 扩展槽读取 produced files |
 | Fallback | 默认 immediate | `unknown` JSON row | 只兜底 append surface，普通业务已认领但暂不可见时不会重复生成 |
 
-Inbox 展示了“每条 Event 都是一个 start-only 瞬间态 Context”，不是所有业务都需要 start/update 配对。它通过 Reader 与前一个同 kind Context 形成连续 fold，而非给整个 Inbox 人工制造生命周期 ID。
+Inbox 展示了“每条 Event 都是一个 start-only 瞬间态 Context”，不是所有业务都需要 start/update 配对。每个 next-step state 通过 Reader 与前一个同 kind Context 形成连续 fold，而非给整个 Inbox 人工制造生命周期 ID。state 自身共享不可变 pending splice 节点和一个当前 claimed-batch Set；未消费的 next-turn input 不进入 Conversation，因为 Chat 与 Trajectory 都不读取它来分类。
 
 Request Prompt 展示了如何在不共享 target State 的前提下共用纯解释逻辑：Chat 与 Trajectory 各自在自己的 Definition 中调用 `inspectRequestPrompt()`。该函数规范化完整 header，并判定面向模型的 system/tool 差异；随后每个 target 自行选择产物。Chat 会物化每条带非空 system 字段的 header，包括为显式声明的序列或表层替换后的请求重复未变 header 的 `series` 快照；Trajectory 则保留完整请求事实及其变化分类。普通的仅追加后续 Turn 不会再次写入未变 header。一个 Step 中的首条 header 遵循提供方信封，而不是 header Event 位置：step one 使用所属 Turn start，后续 step 使用各自的 Step start，把 system 字段放到该请求的 user-role 消息之前；同一 Step 的后续 header 保留在开启新序列的表层改写之后。部分窗口未包含前序 header 时，非 `initial` header 会保留在自身 Event，直到 prepend 补入该前序 header。每条 header 都是完整快照，因此已加载窗口中的首条 `resume`、`change` 或 `series` header 无需凭空构造与未加载历史的比较，也能渲染其 system 字段。
 
@@ -306,25 +307,29 @@ Unknown fallback 展示了 Registry ownership：fallback 只处理没有任何�
 
 ## View Builder 与 React identity
 
-[`ConversationViewRegistry`](../../../../packages/client/ui-conversation/src/client/conversation/view-registry.ts) 为每个 target 创建独立的 per-Session builder。Registry 保存 factory，不共享某个 Session 的排序或缓存。
+[`ConversationViewRegistry`](../../../../packages/client/ui-conversation/src/client/conversation/view-registry.ts) 为每个 target 保存独立的 builder factory，不共享某个 Session 的排序或缓存。
 
-Assembler 低频完整替换时调用 `replace({ nodes, timeline })`；普通 prepend/append flush 调用 `apply({ upserts, timeline })`。Builder 只接收 Definition 已构造完成的 target Nodes。
+shell 选择或 target source 的首个 subscriber 会把该 target 加入 Session 单调增长的 active-target set。Assembler 按唯一 target 索引每个 Context，但不会为 inactive target 创建 builder、Node 或 snapshot。首次激活会 flush 尚未发布的 target-neutral 工作、创建 builder，并从该 target 的当前 Context 调用一次 `replace({ nodes, timeline })`。
 
-[`ChatSnapshotBuilder`](../../../../packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts) 维护 `order`、keyed `nodes` store、turn/step `locations` index、`timeline`，以及由 StatsLine 使用并镜像到顶层公共兼容字段的 `legacy` slice。
+Session binding 可用、缓存的 binding 成为 current 或 View roster 变化时，shell 会同步解析持久化选择，再显式激活已注册的偏好 View 或 Chat fallback。Tab 与 focus action 在更新选择状态前先激活解析出的 target。blank Session 不渲染 View slot；`ConversationSnapshot.activeTargets` 只从已物化的 active snapshot 派生，不查询 inactive target Context 的 activity。
 
-Chat 结构变化只由新 key、`anchorSeq`、visibility 或 Location identity 变化触发。普通内容变化不重建 `order`；keyed Node store 只替换该 key 的 value。
+普通 prepend 与 append flush 只对 active target 调用 `apply({ upserts, timeline })`。完整 window replace 与 Registry rebuild 只对 active target 调用 `replace()`。取消订阅不会移除 target，因此返回已打开的 View 不会重建。
+
+[`ChatSnapshotBuilder`](../../../../packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts) 维护 `order`、带身份稳定 Node 与 Turn-process source 的 keyed `nodes` store、turn/step `locations` index、`timeline`，以及由 StatsLine 使用并镜像到顶层公共兼容字段的 `legacy` slice。
+
+Chat 结构变化只由新 key、`anchorSeq`、visibility 或 Location identity 变化触发。普通内容变化不重建 `order`；keyed Node store 只替换该 key 的 value 并发布其 source。Turn-process projector 仅为结构、规格或状态发生变化的 Turn 重算跨 Node 呈现，再只发布该 Turn 的 process source。
 
 Builder 遇到结构变化时从 store 的当前 values 计算 visible order，并按未变化引用复用索引数组。Prepend 可以增加前部历史 key，append 可以增加尾部或按业务 anchor 落位，既有 key 不因排序变化而重命名。
 
-[`ChatView`](../../../../packages/client/ui-chat/src/client/chat/ChatView.tsx) 只遍历 `order`。每个 [`ChatNodeSeat`](../../../../packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx) 以 Context key 固定在同一个父列表中，并按 `node.kind` 分发 `'conversation.chat.node'` keyed slot。
+[`ChatView`](../../../../packages/client/ui-chat/src/client/chat/ChatView.tsx) 只遍历 `order`，并为每个 key 解析两份稳定 source。每个 [`ChatNodeSeat`](../../../../packages/client/ui-chat/src/client/chat/ChatNodeSeat.tsx) 以 Context key 固定在同一个父列表中，只订阅自身的 Node 与 Turn-process source，并按 `node.kind` 分发 `'conversation.chat.node'` keyed slot。
 
 [`ChatNodeDataMap`](../../../../packages/client/ui-chat/src/client/contract/chat-nodes.ts) 是 declaration-merged 的 renderer payload registry。每个业务模块分别注册自己的 Definition 和 keyed renderer；`registerConversationNodes()` 与 `registerChatNodeRenderers()` 只负责装配这些独立贡献，不通过 closed union 或中心 switch 解释业务。内建实现位于 `ui-chat`，且该类型和注册边界允许业务迁入独立 package 而不修改 Chat dispatcher。
 
-`conversation.view` 的 Chat entry 在声明 `conversation.chat.node` child slot 时统一注册 `ChatNodeTurnDataInjected`。`ChatNodeSeat` 只把稳定 Node key 作为 `hookContext` 传给 slot；Slot renderer 用官方 standard props 中的 `useSession` 和该 key 构造 `useTurnData(businessKey)`，因此每个 keyed Chat renderer 都能读取自己 Node 所属 Turn 的强类型只读 data，Assistant renderer 不拥有特殊注入权限。
+`conversation.view` 的 Chat entry 在声明 `conversation.chat.node` child slot 时统一注册 `ChatNodeTurnDataInjected`。`ChatNodeSeat` 把 Node 所属 Turn 的稳定 data store 作为 `hookContext` 传给 slot；Slot renderer 直接在该 store 上绑定 `useTurnData(businessKey)`，因此每个 keyed Chat renderer 都能读取自己 Node 所属 Turn 的强类型只读 data，Assistant renderer 不拥有特殊注入权限。
 
-Slot-level contextual Hook 与 entry-owned `inject.hooks` 是两条独立路径。后者继续只绑定 registration-owned Observable；前者按稳定 slot inject face 缓存定义，并按稳定 render occurrence 绑定 factory 和 Hook。`useTurnData()` 内部 selector 只返回当前 Node 的 `turn.data.get(key)`，无关 Session publication 会被 selector equality 截断。
+Slot-level contextual Hook 与 entry-owned `inject.hooks` 是两条独立路径。后者继续只绑定 registration-owned Observable；前者按稳定 slot inject face 缓存定义，并按稳定 render occurrence 绑定 factory 和 Hook。`useTurnData()` 订阅 `turn.data.source(key)`，其他 Location-data key 或 Session snapshot 的发布不会通知它。
 
-标准 `useSession` 仍属于所有 session-scoped slot renderer 的公开能力，`useTurnData()` 是收窄常见读取方式而不是权限沙箱。全窗口统计或任意对象索引仍可显式使用 Session snapshot；它们不能伪装成“当前 Node 的 Turn data”。
+标准 `useSession` 仍属于所有 session-scoped slot renderer 的公开能力，但 `ChatNodeSeat` 不再需要它或聚合 `useChat`。`useTurnData()` 是收窄常见读取方式而不是权限沙箱。全窗口统计或任意对象索引仍可显式使用 Session snapshot；它们不能伪装成“当前 Node 的 Turn data”。
 
 Assistant streaming 到 final、Tool running 到 settled 始终留在同一个 Seat，只更新 data 和必要的排序属性。结算不会因跨 parent 移动而重置组件内部 State。
 
@@ -345,15 +350,15 @@ SessionEventLike window
        -> Context matches + State + Location
        -> Definition.buildLocationData(step -> turn)
             -> StepLocation.data / TurnLocation.data
-       -> Definition.buildViewNode() for its declared target
-  -> target View Builder
+       -> Definition.buildViewNode() for each active target
+  -> active target View Builder
        -> chat: ChatSnapshotBuilder -> ChatView -> keyed ChatNodeSeat
        -> trajectory: TrajectorySnapshotBuilder -> stages/layout/table
 ```
 
 ## 验证
 
-Runtime tests 固定 Definition 生命周期注册、exact-ID append、update-before-start 收集与 start 后正序 replay、prepend identity、Reader window-gap 修复、传递依赖、Location closure、Step→Turn data phase order、Location data replacement、publication cadence、非法撤回和 per-target Builder。
+Runtime tests 固定 Definition 生命周期注册、exact-ID append、update-before-start 收集与 start 后正序 replay、prepend identity、Reader window-gap 修复、传递依赖、Location closure、Step→Turn data phase order、Location data replacement、publication cadence、非法撤回、首次订阅 activation、单调 active target 和 per-target Builder。
 
 Conversation tests 覆盖全部内建 Chat Definition、Assistant Step data、Turn Tail 与 Deliverables Turn data、Chat 排序和结构共享、selector isolation、Assistant/Tool running-to-settled identity、nested Code Dispatch、steering、Compaction、Retry、interruption、load-older anchoring 和 slot dispatch。Trajectory tests 则覆盖它独立注册的 Message、Assistant、Tool、Compaction、Request-header 与 boundary Definition，以及继续保留的 stage-oriented view model。
 
@@ -385,9 +390,13 @@ Assembled Web snapshot、GUI 和浏览器场景覆盖真实 plugin graph。浏�
 
 **让 Location data 消费者直接读取提供方 Context State。** 拒绝：消费者会依赖另一个业务的可变内部形状，也无法表达值属于哪个 Turn/Step。declaration-merged data map 只公开提供方选择发布的只读值和 Engine-owned 坐标。
 
+**按 State identity 缓存每个 Definition 的 Location data。** 拒绝：Definition 可以原地修改并返回同一个 State 对象，其 Location data 也可能依赖 Match Location 或其他 Definition 发布的 value。各 Definition 改为自行判断业务值是否变化；未变化时原样返回前一次 publication。
+
 **增加通用 `end()`、prepared 或 window reset 生命周期。** 拒绝：不同业务完成条件不同，分页缺口也不是业务生命周期。业务 Event 更新 State，Location close 触发 replay/build，Reader dependency 负责补页失效。
 
 **在同一个 Event Definition 内通过 `buildViewNode(target)` 为 Chat 与 Trajectory 分支。** 拒绝：两种视图需要不同的业务 State 与中间记录，共用 Definition 会迫使每个 package 携带另一边的条件与 payload。target 自有的 Definition 把这些选择留在本地，同时复用 Assembler 的摄入与生命周期约定。
+
+**最后一个 subscriber 离开时停用 target。** 拒绝：返回该 View 会反复重建完整 snapshot。订阅只确认首次使用；随后 target 在 Session 剩余生命周期中保持增量更新。
 
 **在最终业务 Node 上再叠一层通用 layout model。** 拒绝：activity、tail candidacy 和 layout enum 会把当前 Chat 的业务语义重新集中到引擎。最终 Node 直接携带 renderer 所需 data，只共享 identity、排序和 Location 事实。
 
@@ -405,9 +414,13 @@ Host 业务 package 把自己的持久 Event 成员 declaration-merge 到 `@deep
 
 Append 不扫描历史 Context；prepend 只 replay Match、Location 或 Reader 答案真正受影响的 Context。Chat 结构变化仍可能重算 visible order 和索引，但不会重跑无关业务 fold 或替换未变化 Node identity。
 
-State 更新与发布频率分离后，Assistant 的每条 live delta 与每个历史 packed run 都会被 fold，同时每 animation frame 最多 materialize 一次。step/turn close 和 final 可立即发布最新 State。
+State update 与 publication cadence 分离后，Assistant 的每条 live delta 与每个历史 packed run 都会被 fold，同时每三个 animation frame 最多 materialize 一次。Assistant view 读取前置 Step Location 阶段刚写入的同一 projection。Turn Process 对持续 Assistant chunk 直接返回已有 open data 和 Node，不再重复派生或编码；Turn Tail 到 `turn/end` 才执行完整 Match 扫描。Step/Turn close 与 final Event 会立即发布最新 State。
 
-Step/Turn 是业务间共享聚合的稳定宿主。Turn Tail 和 Deliverables 无需由 renderer 扫描全局 Nodes 即可派生值；Slot-level `useTurnData()` 把常见读取限制到当前 Node 所属 Turn，并通过 selector equality 隔离无关更新。
+inactive target 会保留 Definition State 和 target Context 索引，但不保留 builder、已物化 Node 或 snapshot。已挂载的内建或第三方 View 通过正常订阅激活自己的 target；已经打开的 target 则继续接收增量更新。
+
+Step/Turn 是业务间共享聚合的稳定宿主。Turn Tail 和 Deliverables 无需由 renderer 扫描全局 Nodes 即可派生值；Slot-level `useTurnData()` 把常见读取限制到当前 Node 所属 Turn，并通过 keyed Location source 隔离无关更新。
+
+Inbox Context 的保留量随 splice 数和已 claim 消息数增长，不再随其累计前缀增长。该结构消除了重复 state 增长，但不会对持久 Session event 中的消息正文去重，也不会限制已加载 event window。
 
 代价是 Runtime 新增 Registry、Assembler、Location data、依赖重放和 per-target Builder 契约，UI Slots 也新增 parent-owned common inject 与 per-occurrence `hookContext`。消费 Assistant delta 的 Definition 还需要维护等价的 scalar 与 packed update 分支。Definition 作者必须理解稳定 ID、唯一 scalar start、正序 replay、Step→Turn 发布顺序、只读 Reader 和 Node 不撤回规则。
 

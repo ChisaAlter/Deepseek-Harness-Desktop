@@ -254,6 +254,7 @@ describe('automation-only ACP bridge', () => {
       id: sessionId,
       createdAt: 1,
       cwd: process.cwd(),
+      isSeeded: false,
     }])
     const resume = vi.spyOn(harness.ctx.agents, 'resume')
 
@@ -363,14 +364,14 @@ describe('automation-only ACP bridge', () => {
     const active = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const persistence = harness.ctx.get('sessionPersistence')!
     vi.spyOn(persistence, 'list').mockResolvedValue([
-      { version: 0, id: SessionId(active.sessionId), createdAt: 9, cwd: process.cwd() },
-      { version: 0, id: SessionId('subagent'), createdAt: 8, cwd: '/missing/filter', origin: 'subagent' },
-      { version: 0, id: SessionId('fork'), createdAt: 7, cwd: '/missing/filter', parentSession: SessionId('parent') },
-      { version: 0, id: SessionId('no-cwd'), createdAt: 6 },
-      { version: 0, id: SessionId('relative'), createdAt: 5, cwd: 'relative' },
-      { version: 0, id: SessionId('other'), createdAt: 4, cwd: '/missing/other' },
-      { version: 0, id: SessionId('valid-b'), createdAt: 3, cwd: '/missing/filter' },
-      { version: 0, id: SessionId('valid-a'), createdAt: 3, cwd: '/missing/filter' },
+      { version: 0, id: SessionId(active.sessionId), createdAt: 9, cwd: process.cwd(), isSeeded: false },
+      { version: 0, id: SessionId('subagent'), createdAt: 8, cwd: '/missing/filter', isSeeded: false, origin: 'subagent' },
+      { version: 0, id: SessionId('fork'), createdAt: 7, cwd: '/missing/filter', isSeeded: true, parentSession: SessionId('parent') },
+      { version: 0, id: SessionId('no-cwd'), createdAt: 6, isSeeded: false },
+      { version: 0, id: SessionId('relative'), createdAt: 5, cwd: 'relative', isSeeded: false },
+      { version: 0, id: SessionId('other'), createdAt: 4, cwd: '/missing/other', isSeeded: false },
+      { version: 0, id: SessionId('valid-b'), createdAt: 3, cwd: '/missing/filter', isSeeded: false },
+      { version: 0, id: SessionId('valid-a'), createdAt: 3, cwd: '/missing/filter', isSeeded: false },
     ])
 
     await expect(harness.client.listSessions({ cwd: 'relative' })).rejects.toThrow(/absolute path/)
@@ -882,7 +883,7 @@ describe('automation-only ACP bridge', () => {
     expect(secondImage.attachment.mediaType).toBe('image/jpeg')
     expect(secondImage.attachment.bytes).toBe(1)
     const agent = harness.ctx.agents.get(SessionId(sessionId))
-    expect(JSON.stringify(agent?.session.events)).not.toContain('AQ==')
+    expect(JSON.stringify(agent?.session.snapshotEvents())).not.toContain('AQ==')
   })
 
   it('rejects a malformed image batch atomically and frees the prompt slot', async () => {
@@ -953,7 +954,7 @@ describe('automation-only ACP bridge', () => {
       sessionId,
       prompt: [{ type: 'image', data: '', mimeType: 'image/png' }],
     })).rejects.toThrow(/inline image prompts were not advertised/)
-    expect(harness.ctx.agents.get(SessionId(sessionId))?.session.events.some(event => event.type === 'turn/start')).toBe(false)
+    expect(harness.ctx.agents.get(SessionId(sessionId))?.session.snapshotEvents().some(event => event.type === 'turn/start')).toBe(false)
   })
 
   it('renders baseline resource links as textual references in the user message', async () => {

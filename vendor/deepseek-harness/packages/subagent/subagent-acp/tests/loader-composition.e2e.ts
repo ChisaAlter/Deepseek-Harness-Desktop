@@ -8,7 +8,7 @@ import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-l
 
 /**
  * Keyless REAL-composition coverage for the ACP provider through a test-only
- * cordis.yml: parent-session cwd inheritance and model-visible failure detail
+ * patch file: parent-session cwd inheritance and model-visible failure detail
  * both cross the Loader, subprocess, ACP, tool, and persisted-session paths.
  * The with-key tier lives in subagent-acp.e2e.ts.
  */
@@ -18,7 +18,7 @@ const driver = fileURLToPath(new URL(
   import.meta.url,
 ))
 const configPath = fileURLToPath(new URL(
-  './fixtures/loader/cordis.yml',
+  './fixtures/loader/acp.patch.yml',
   import.meta.url,
 ))
 const mockServer = fileURLToPath(new URL('./mock-acp-server.ts', import.meta.url))
@@ -43,7 +43,7 @@ function toolResultText(events: SessionEvent[]): string {
     .join('')
 }
 
-describe('ACP subagent cwd inheritance through a real cordis.yml', () => {
+describe('ACP subagent cwd inheritance through the production profile', () => {
   it('runs the child in the parent session workspace and announces it as the ACP session cwd', async () => {
     let events: SessionEvent[] = []
     let workspace = ''

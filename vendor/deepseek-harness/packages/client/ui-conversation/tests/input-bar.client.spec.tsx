@@ -94,6 +94,7 @@ interface BenchOptions {
   overlay?: React.ReactNode
   leftItems?: React.ReactNode
   rightItems?: React.ReactNode
+  footer?: React.ReactNode
   attachments?: readonly ComposerAttachment[]
   addImages?: (files: readonly File[]) => string | null
   commandMenuOpen?: boolean
@@ -157,6 +158,10 @@ function bench(over?: BenchOptions) {
   const slotCalls: { key: string; owner: unknown }[] = []
   const renderSlot = ((key: string, owner: object) => {
     slotCalls.push({ key, owner })
+    if (key === 'conversation.input.overlay') return over?.overlay ?? null
+    if (key === 'conversation.input.left') return over?.leftItems ?? null
+    if (key === 'conversation.input.right') return over?.rightItems ?? null
+    if (key === 'conversation.composer.dock') return over?.footer ?? null
     if (key === 'conversation.input.plan') return over?.planEntry ?? null
     if (key === 'conversation.input.model') return over?.modelEntry ?? null
     return null
@@ -224,9 +229,6 @@ function bench(over?: BenchOptions) {
     ...(over?.onRequestWorkspace !== undefined ? { onRequestWorkspace: over.onRequestWorkspace } : {}),
     ...(over?.placeholder !== undefined ? { placeholder: over.placeholder } : {}),
     ...(over?.accessory !== undefined ? { accessory: over.accessory } : {}),
-    ...(over?.overlay !== undefined ? { overlay: over.overlay } : {}),
-    ...(over?.leftItems !== undefined ? { leftItems: over.leftItems } : {}),
-    ...(over?.rightItems !== undefined ? { rightItems: over.rightItems } : {}),
   }
   const view = render(<InputBar {...props} />)
   const textarea = view.container.querySelector<HTMLDivElement>('[data-composer-input]')!
@@ -378,17 +380,16 @@ describe('image draft rail', () => {
     const unknown = bench({ promptError: attachmentError('ATTACHMENT_NOT_REFERENCED') })
     expect(unknown.view.getByRole('alert').textContent).toContain('图片发送失败（ATTACHMENT_NOT_REFERENCED）')
     cleanup()
-    // A subagent turn refuses images under its own code; the reason keys the
-    // same product copy, because the user cannot act on which domain refused.
+    // A subagent refusal uses the same product copy for the same reason.
     const subagent = bench({
       promptError: {
         op: 'send',
-        error: new RemoteError('subagent/attachment-unsupported', 'raw wire text', {
-          childSessionId: SID, reason: 'SUBAGENT_IMAGE_UNSUPPORTED',
+        error: new RemoteError('subagent/attachment-invalid', 'raw wire text', {
+          reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES',
         }),
       },
     })
-    expect(subagent.view.getByRole('alert').textContent).toContain('子智能体会话暂不支持图片')
+    expect(subagent.view.getByRole('alert').textContent).toContain('当前模型不支持图片，请切换支持图片的模型')
     cleanup()
     const other = bench({
       promptError: { op: 'send', error: new RemoteError('gateway/internal', 'boom', {}) },
@@ -1307,15 +1308,17 @@ describe('strips and variants', () => {
     expect(view.container.querySelector('[class*="hero"]')).not.toBeNull()
   })
 
-  it('renders overlay anchor and left/right slot items', () => {
+  it('renders overlay, left/right, and footer slots at their layout positions', () => {
     const { view } = bench({
       overlay: <i data-testid="ov" />,
       leftItems: <i data-testid="li" />,
       rightItems: <i data-testid="ri" />,
+      footer: <i data-testid="foot" />,
     })
     expect(view.getByTestId('ov')).toBeTruthy()
     expect(view.getByTestId('li')).toBeTruthy()
     expect(view.getByTestId('ri')).toBeTruthy()
+    expect(view.getByTestId('foot')).toBeTruthy()
   })
 })
 
@@ -1328,7 +1331,10 @@ describe('command launcher chrome and control seats', () => {
     // Every seat dispatched, nothing rendered (render passes may repeat; the
     // seat set is the contract).
     expect([...new Set(slotCalls.map(c => c.key))]).toEqual([
-      'conversation.input.attachments', 'conversation.input.plan', 'conversation.input.model',
+      'conversation.input.overlay', 'conversation.input.attachments',
+      'conversation.input.plan', 'conversation.input.left',
+      'conversation.input.right', 'conversation.input.model',
+      'conversation.composer.dock',
     ])
     expect(view.queryByLabelText('Plan mode')).toBeNull()
     expect(view.queryByLabelText('Model')).toBeNull()
@@ -1364,11 +1370,11 @@ describe('command launcher chrome and control seats', () => {
       .every(icon => icon.closest('[aria-hidden="true"]') !== null)).toBe(true)
     fireEvent.click(trigger)
     const items = view.getAllByRole('menuitem')
-    expect(items.map(o => o.textContent)).toEqual(['仅可查看', '可写入工作区', '完全权限'])
+    expect(items.map(o => o.textContent)).toEqual(['仅可查看', '工作区内修改', '完全权限'])
     fireEvent.click(items[1]!)
     // Optimistic pick + disable until admission resolves (command stub resolves true).
     const busy = view.getByLabelText(/^访问模式/) as HTMLButtonElement
-    expect(currentLabel(busy)).toBe('可写入工作区')
+    expect(currentLabel(busy)).toBe('工作区内修改')
     expect(busy.disabled).toBe(true)
     expect(command).toHaveBeenCalledWith('/permission workspace-write')
     await act(async () => {})
@@ -1442,7 +1448,7 @@ describe('command launcher chrome and control seats', () => {
     fireEvent.click(view.getByRole('checkbox'))
     fireEvent.click(view.getByRole('button', { name: '取消' }))
     expect(command).not.toHaveBeenCalled()
-    expect(currentLabel(view.getByLabelText(/^访问模式/) as HTMLButtonElement)).toBe('可写入工作区')
+    expect(currentLabel(view.getByLabelText(/^访问模式/) as HTMLButtonElement)).toBe('工作区内修改')
 
     openConfirmation()
     expect((view.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
@@ -1494,12 +1500,13 @@ describe('command launcher chrome and control seats', () => {
     expect(view.getByTestId('plan-entry')).toBeTruthy()
     expect(view.getByTestId('model-entry')).toBeTruthy()
     // The bar hands its chrome disable state to the filling entry.
-    const controls = slotCalls.filter(call => call.key !== 'conversation.input.attachments')
+    const controlKeys = new Set(['conversation.input.plan', 'conversation.input.model'])
+    const controls = slotCalls.filter(call => controlKeys.has(call.key))
     expect(controls.every(c => (c.owner as { locked: boolean }).locked)).toBe(true)
     expect(attachmentOwner(slotCalls).canAcceptDrop).toBe(false)
     cleanup()
     const live = bench({ running: true })
-    const liveControls = live.slotCalls.filter(call => call.key !== 'conversation.input.attachments')
+    const liveControls = live.slotCalls.filter(call => controlKeys.has(call.key))
     expect(liveControls.every(c => !(c.owner as { locked: boolean }).locked)).toBe(true)
     expect(attachmentOwner(live.slotCalls).canAcceptDrop).toBe(true)
   })

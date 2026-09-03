@@ -72,6 +72,7 @@ const baseline = (id?: string): Extract<WorkspaceFollowFrame, { type: 'baseline'
       updatedAt: '2026-01-01T00:00:00.000Z',
     }],
     archivedSessionIds: [],
+    scratchCwd: '/dsh-home/no-workspace',
   },
 })
 
@@ -459,7 +460,7 @@ describe('WorkspaceController', () => {
   it('publishes the model source and exposes successful Workspace commands', async () => {
     const remote = new CommandWorkspaceRemote()
     const model = new ClientWorkspaceModel(remote)
-    model.replaceBaseline({ items: [workspace('one')], archivedSessionIds: [] })
+    model.replaceBaseline({ items: [workspace('one')], archivedSessionIds: [], scratchCwd: '/dsh-home/no-workspace' })
     const controller = new WorkspaceController(new Context(), model)
 
     expect(controller.list).toBe(model)

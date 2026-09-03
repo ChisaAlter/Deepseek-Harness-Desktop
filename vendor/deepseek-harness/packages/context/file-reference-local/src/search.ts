@@ -295,10 +295,12 @@ async function readDirectory(absolute: string, signal: AbortSignal) {
     signal.throwIfAborted()
     return entries.sort((left, right) => compareText(left.name, right.name))
   } catch (_error: unknown) {
+    /* v8 ignore start -- Windows chmod cannot make the unreadable-directory fixture fail readdir; POSIX behavior covers this fallback. */
     signal.throwIfAborted()
     // An unreadable/missing subtree contributes no candidates; other readable
     // branches remain useful and autocomplete is advisory.
     return []
+    /* v8 ignore stop */
   }
 }
 

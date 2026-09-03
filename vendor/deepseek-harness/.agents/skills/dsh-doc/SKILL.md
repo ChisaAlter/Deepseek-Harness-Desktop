@@ -7,7 +7,7 @@ description: Create, restructure, review, audit, or migrate DeepSeek Harness Mar
 
 ## Summary
 
-The DeepSeek Harness documentation standard: make every page searchable, newcomer-readable, and exact enough for agents and maintainers, and keep the documentation website a tested projection of repository Markdown. Apply repository `AGENTS.md` files and executed gates first, then this workflow for kind-mapped metadata, progressive detail, line-aligned bilingual pages, corpus audits, and website publication. Preserve one owner per fact: source, tests, generated catalogs, package READMEs, guides, Agent Notes, and scratch each keep their own kind of truth. The `session-persistence-sqlite` README pair is the reference example of the format.
+The DeepSeek Harness documentation standard: make every page searchable, newcomer-readable, and exact enough for agents and maintainers, and keep the documentation website a tested projection of repository Markdown. Apply repository `AGENTS.md` files and executed gates first, then this workflow for kind-mapped metadata, progressive detail, line-aligned bilingual pages, corpus audits, and website publication. Preserve one owner per fact: source, tests, generated catalogs, package READMEs, guides, Agent Notes, and scratch each keep their own kind of truth. The `session-persistence-jsonl` README pair is the reference example of the format.
 
 ## Table of Contents
 
@@ -108,7 +108,7 @@ Load only the reference needed for the task. Each reference links directly from 
 
 The four README templates in [`templates/`](templates/) are the working skeletons for the four `kind` labels; open the one your document's kind names before writing.
 
-Use [dsh-prose-standard](../dsh-prose-standard/SKILL.md) for sentence-level contract coverage and editorial judgment. The `session-persistence-sqlite` README pair ([English](../../../packages/session/session-persistence-sqlite/README.md), [Chinese](../../../packages/session/session-persistence-sqlite/README.zh.md)) is the reference example: searchable YAML, Summary and Table of Contents, user-to-developer progression with a folded developer section, Further Exploration, canonical Model Experience and Known Limitations sections, and a final Dev Note.
+Use [dsh-prose-standard](../dsh-prose-standard/SKILL.md) for sentence-level contract coverage and editorial judgment. The `session-persistence-jsonl` README pair ([English](../../../packages/session/session-persistence-jsonl/README.md), [Chinese](../../../packages/session/session-persistence-jsonl/README.zh.md)) is the reference example: searchable YAML, Summary and Table of Contents, user-to-developer progression with a folded developer section, Further Exploration, canonical Model Experience and Known Limitations sections, and a final Dev Note.
 
 ## Validation
 

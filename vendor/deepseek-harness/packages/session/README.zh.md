@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-session 组让 agent（智能体）的对话在实时 loop 之外持久可复用：持久化 seam 存储事件日志并在恢复时还原，检查点策略让请求、工具副作用与已完成步骤在下一步动作前持久化，投影向客户端载体提供日志派生的完整值，标题根据会话内容为其命名，遥测则向外上报会话活动。先选持久化后端——JSONL 是随产品交付的默认项，SQLite 是可选启用、单库的后端——再按部署需要挂载检查点策略以及投影、标题或遥测包。本页是组的映射；每个包 README 负责各自的约定，`session-query/` 是同级独立组，其读取／工具接口独立消费持久化。
+session 组让 agent（智能体）的对话在实时 loop 之外持久可复用：持久化 seam 存储事件日志并在恢复时还原，检查点策略让请求、工具副作用与已完成步骤在下一步动作前持久化，投影向客户端载体提供日志派生的完整值，标题根据会话内容为其命名，遥测则向外上报会话活动。先挂载随产品交付的 JSONL 持久化 provider，再按部署需要挂载检查点策略以及投影、标题或遥测包。本页是组的映射；每个包 README 负责各自的约定，`session-query/` 是同级独立组，其读取／工具接口独立消费持久化。
 
 ## 目录
 
@@ -30,7 +30,6 @@ session 组让 agent（智能体）的对话在实时 loop 之外持久可复用
 |---|---|---|
 | [`session-persistence/`](session-persistence/README.zh.md) | 定义持久会话存储服务，以及每个后端组合的共享写入协调机制 | `ctx.sessionPersistence` |
 | [`session-persistence-jsonl/`](session-persistence-jsonl/README.zh.md) | 随产品交付的后端：每会话一份仅追加 JSONL 日志，可选 Zstandard 压缩 | 注册到 `ctx.sessionPersistence` |
-| [`session-persistence-sqlite/`](session-persistence-sqlite/README.zh.md) | 可选后端：所有会话日志存入一个带物理打包行的 SQLite 数据库 | 注册到 `ctx.sessionPersistence` |
 | [`session-checkpoint-policy/`](session-checkpoint-policy/README.zh.md) | 让模型请求、顶层工具副作用与已完成步骤在下一步动作前持久化 | 包装 `ctx.llm` 与 `ctx.tools` |
 | [`session-log-deepseek/`](session-log-deepseek/README.zh.md) | 把增量规范日志作为可选的官方 DeepSeek 请求元数据上传 | 贡献 `dsh_session_log` |
 
@@ -41,6 +40,7 @@ session 组让 agent（智能体）的对话在实时 loop 之外持久可复用
 | [`session-projection/`](session-projection/README.zh.md) | 定义并驱动把已提交事件折叠为完整当前值的投影单元 | `ctx.sessionProjections` |
 | [`session-projection-cache/`](session-projection-cache/README.zh.md) | 持久化投影检查点，使冷读跳过全量日志加载 | `ctx.sessionProjectionCache` |
 | [`session-stats/`](session-stats/README.zh.md) | 通过 `sessionStats` 单元提供全日志会话计数与墙钟时间 | 注册到 `ctx.sessionProjections` |
+| [`session-turn-outline/`](session-turn-outline/README.zh.md) | 通过 `turnOutline` 单元提供全日志轮次大纲（轮次号、`turn/start` seq、提示词预览） | 注册到 `ctx.sessionProjections` |
 
 ### 标题
 

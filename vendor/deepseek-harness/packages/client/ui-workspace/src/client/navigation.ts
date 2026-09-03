@@ -40,10 +40,19 @@ export interface UiWorkspace {
    */
   deleteSession(sessionId: SessionId): Promise<void>
   /**
-   * Connect a Session that is not a Workspace member.
+   * Connect a Session that is not a Workspace member: reuse the blank Session
+   * living in the Host scratch cwd, else create one there. Never registers a
+   * Workspace.
    * @returns the connected Session id.
    */
   connectNoDirectory(): Promise<SessionId>
+  /**
+   * Delete a Workspace registration. Its Sessions leave every grouping
+   * surface until the same directory is registered again; when the current
+   * Session was one of them the selection clears into the New Session view.
+   * @param workspaceId - Workspace registration to remove.
+   */
+  deleteWorkspace(workspaceId: WorkspaceId): Promise<void>
   /**
    * Open the Host-native directory picker.
    * @returns the selected directory, or null when cancelled.
@@ -85,6 +94,8 @@ export class DirectoryBrowseError extends Error {
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
+  /** In-flight no-directory create; concurrent callers share one Session. */
+  private connectingNoDirectory: Promise<SessionId> | undefined
 
   /**
    * @param ctx - Client root Context.
@@ -161,7 +172,37 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   async connectNoDirectory(): Promise<SessionId> {
-    return this.sessions.create()
+    const inflight = this.connectingNoDirectory
+    if (inflight !== undefined) return inflight
+    const workspace = this.workspaces.list.getSnapshot()
+    const scratchCwd = workspace.scratchCwd
+    if (scratchCwd === undefined) {
+      throw new Error('uiWorkspace.connectNoDirectory: the Workspace baseline has not arrived yet')
+    }
+    const archived = workspace.archivedSessionIds
+    const sessions = this.sessions.list.getSnapshot()
+    for (const id of sessions.ids) {
+      const summary = sessions.byId[id]
+      if (summary !== undefined && summary.blank && summary.cwd === scratchCwd
+        && summary.origin === undefined
+        && !workspace.items.some(item => item.sessionIds.includes(summary.id))
+        && !archived.includes(summary.id)) return summary.id
+    }
+    const attempt = this.sessions.create({ cwd: scratchCwd })
+      .finally(() => { this.connectingNoDirectory = undefined })
+    this.connectingNoDirectory = attempt
+    return attempt
+  }
+
+  async deleteWorkspace(workspaceId: WorkspaceId): Promise<void> {
+    const workspace = this.workspaces.list.getSnapshot().items
+      .find(item => item.workspaceId === workspaceId)
+    const current = this.sessions.list.getSnapshot().current
+    await this.workspaces.delete(workspaceId)
+    if (current !== undefined && workspace?.sessionIds.includes(current) === true
+      && this.sessions.list.getSnapshot().current === current) {
+      this.sessions.clear()
+    }
   }
 
   async pickDirectory(): Promise<string | null> {

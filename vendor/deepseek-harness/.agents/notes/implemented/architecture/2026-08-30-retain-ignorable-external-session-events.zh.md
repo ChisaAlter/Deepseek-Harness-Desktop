@@ -12,9 +12,7 @@ Status: implemented
 
 ## 决定
 
-标准 `SessionEvent` 信封保留 `ignorable?: true`，每种表示都保留它：seed 校验、JSONL、SQLite、API 传输、生成目录与测试 fixture。`PersistenceCoordinator` 继续拒绝未知事件，除非已存信封显式带有 `ignorable: true`；字段不存在时仍表示读取必需。
-
-SQLite schema 20 对打包物理行存储 `ignorable=0`，对带 `ignorable: true` 的标量事件存储 `ignorable=1`，对其他标量事件存储 `NULL`。这样，逻辑标记与打包行判别值可以共用一种表示，同时不会把名称与物理分片标签相同的标量事件混淆为打包行。
+标准 `SessionEvent` 信封保留 `ignorable?: true`，每种表示都保留它：seed 校验、JSONL、API 传输、生成目录与测试 fixture。`PersistenceCoordinator` 继续拒绝未知事件，除非已存信封显式带有 `ignorable: true`；字段不存在时仍表示读取必需。
 
 只有替代机制在事件生产、持久化、重新加载与传输中都支持当前第三方插件，并为已包含该标记的会话提供显式切换方案后，才能删除此字段。[Session log 版本决策](2026-08-10-session-log-version-mechanism.zh.md)继续定义默认读取必需的安全规则与格式版本策略。
 
@@ -30,6 +28,4 @@ SQLite schema 20 对打包物理行存储 `ignorable=0`，对带 `ignorable: tru
 
 ## 影响
 
-第三方信息性事件的已存记录带有显式标记时可以继续重新加载，未知必需事件则仍会明确失败。在替代机制满足切换条件前，该字段继续属于公开事件信封、持久化 schema、传输类型、生成引用及其测试。
-
-恢复持久列改变了预发布物理数据库格式，因此 SQLite 从 schema 19 提升到 schema 20。提供方继续拒绝其他 schema 版本，而不是迁移它们。
+第三方信息性事件的已存记录带有显式标记时可以继续重新加载，未知必需事件则仍会明确失败。在替代机制满足切换条件前，该字段继续属于公开事件信封、JSONL 表示、传输类型、生成引用及其测试。

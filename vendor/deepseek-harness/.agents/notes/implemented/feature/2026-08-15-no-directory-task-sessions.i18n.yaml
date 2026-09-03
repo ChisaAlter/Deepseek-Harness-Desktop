@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-15-no-directory-task-sessions.md
-2026-08-15-no-directory-task-sessions.md: dbc9e3f4a9ac1a2539512ca23da8f797f5dc6e0f
-2026-08-15-no-directory-task-sessions.zh.md: cabb2c6c7e74a424b19b51f0922d5dca7fdedc44
+2026-08-15-no-directory-task-sessions.md: 97f0cf9f896b479e60886d4419220a789e963de5
+2026-08-15-no-directory-task-sessions.zh.md: 41c3e1fec641e590a14fb6791e301d714d419f47

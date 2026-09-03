@@ -889,7 +889,7 @@ describe('arbitrate', () => {
     expect(controller.menu.getSnapshot().open).toBe(false)
   })
 
-  it('tab drills into a drillable highlight and passes on plain rows', async () => {
+  it('tab drills into a drillable highlight and picks a plain completion', async () => {
     const drillable = readySource('/', 'command', [{ name: 'src', drill: true }, { name: 'plan' }], () => undefined)
     const { controller } = controllerBench([drillable.source])
     controller.track('/s', 2, { tier: 'plain' }, 1)
@@ -897,12 +897,37 @@ describe('arbitrate', () => {
     expect(controller.arbitrate('tab', false)).toBe('consumed')
     expect(drillable.picks[0]!.action).toBe('drill')
     expect(drillable.picks[0]!.candidate.name).toBe('src')
-    // Plain row (no drill flag): the key passes so native focus stays intact.
+    // Plain row (no drill flag): Tab settles the highlighted completion.
     controller.track('/s', 2, { tier: 'plain' }, 2)
     await tick()
     controller.arbitrate('down', false)
-    expect(controller.arbitrate('tab', false)).toBe('pass')
-    expect(drillable.picks).toHaveLength(1)
+    expect(controller.arbitrate('tab', false)).toBe('pick-highlighted')
+    expect(drillable.picks[1]!.action).toBe('pick')
+    expect(drillable.picks[1]!.candidate.name).toBe('plan')
+    expect(controller.menu.getSnapshot().open).toBe(false)
+  })
+
+  it('tab during a pending refinement is consumed: no pick, no focus traversal', async () => {
+    const picks: string[] = []
+    const cmd = deferredSource('/', 'command', {
+      onPick: (pick) => { picks.push(pick.candidate.name); return undefined },
+    })
+    const { controller } = controllerBench([cmd.source])
+    controller.track('/g', 2, { tier: 'plain' }, 1)
+    cmd.pending[0]!.resolve([{ name: 'goal' }, { name: 'plan' }])
+    await tick()
+    expect(controller.menu.getSnapshot().highlight).toEqual({ source: 'command', index: 0 })
+    // Refinement: previous rows and highlight stay visible while the fetch pends.
+    controller.track('/go', 3, { tier: 'plain' }, 2)
+    expect(controller.menu.getSnapshot().highlight).toEqual({ source: 'command', index: 0 })
+    expect(controller.arbitrate('tab', false)).toBe('consumed')
+    expect(picks).toHaveLength(0)
+    expect(controller.menu.getSnapshot().open).toBe(true)
+    // Settled: the same gesture settles the highlighted completion.
+    cmd.pending[1]!.resolve([{ name: 'goal' }])
+    await tick()
+    expect(controller.arbitrate('tab', false)).toBe('pick-highlighted')
+    expect(picks).toEqual(['goal'])
   })
 
   it('a settling pick reports the pick action', async () => {
@@ -913,19 +938,21 @@ describe('arbitrate', () => {
 
   it('IME composition passes every key untouched', async () => {
     const { controller } = await menuBench()
-    for (const key of ['up', 'down', 'enter', 'escape'] as const) {
+    for (const key of ['up', 'down', 'enter', 'escape', 'tab'] as const) {
       expect(controller.arbitrate(key, true)).toBe('pass')
     }
     expect(controller.menu.getSnapshot().open).toBe(true)
   })
 
-  it('closed menu passes; an open menu without a highlight passes enter', () => {
+  it('closed menu passes; an open menu without a highlight passes picking keys', () => {
     const cmd = deferredSource('/', 'command')
     const { controller } = controllerBench([cmd.source])
     expect(controller.arbitrate('enter', false)).toBe('pass')
+    expect(controller.arbitrate('tab', false)).toBe('pass')
     // Open with the only group still pending: nothing to pick yet.
     controller.track('/g', 2, { tier: 'plain' }, 1)
     expect(controller.arbitrate('enter', false)).toBe('pass')
+    expect(controller.arbitrate('tab', false)).toBe('pass')
   })
 
   it('enter during a pending refinement is consumed: no pick, no submit fallthrough', async () => {

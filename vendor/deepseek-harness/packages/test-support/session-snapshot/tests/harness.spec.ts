@@ -66,6 +66,8 @@ async function scenario(behavior: object): Promise<{ dir: string; fixtureFile: s
 }
 
 const boot: InputStep[] = [{ op: 'initialize' }, { op: 'newSession' }]
+// A Windows coverage shard can spend more than 20ms harvesting logs before vi.waitFor records the diagnostic error.
+const titleDiagnosticTimeoutMs = process.platform === 'win32' ? 5_000 : 20
 
 it('keeps scenario-owned snapshot spill root length stable across platforms', () => {
   const fixtureFile = '/fixtures/scenario/session.jsonl'
@@ -1057,11 +1059,11 @@ describe('runScenario', () => {
         steps: [
           ...boot,
           { op: 'promptAndCancel', text: 'hang' },
-          { op: 'waitForTitleAfterTurnEnd', timeoutMs: 20 },
+          { op: 'waitForTitleAfterTurnEnd', timeoutMs: titleDiagnosticTimeoutMs },
         ],
       },
       { agent: AGENT, mode: 'replay', fixtureFile },
-    )).rejects.toThrow(/did not persist session\/title after turn\/end within 20ms/)
+    )).rejects.toThrow(new RegExp(`did not persist session/title after turn/end within ${titleDiagnosticTimeoutMs}ms`))
   })
 
   it('waitForEventAfterTurnEnd holds the app for a typed post-boundary record and times out otherwise', { timeout: 20_000 }, async () => {

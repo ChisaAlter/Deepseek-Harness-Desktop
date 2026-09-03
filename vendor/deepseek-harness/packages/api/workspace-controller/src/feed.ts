@@ -50,8 +50,11 @@ export class WorkspaceFeed {
   private order: readonly string[]
   private archived: readonly string[]
 
-  /** @param ctx - Host context containing the authoritative Workspace registry. */
-  constructor(private readonly ctx: Context) {
+  /**
+   * @param ctx - Host context containing the authoritative Workspace registry.
+   * @param scratchCwd - Host-owned cwd for Sessions outside every Workspace.
+   */
+  constructor(private readonly ctx: Context, private readonly scratchCwd: string) {
     const baseline = ctx.workspaceRegistry.list()
     this.knownIds = new Set(baseline.map(workspace => String(workspace.id)))
     this.order = baseline.map(workspace => String(workspace.id))
@@ -71,6 +74,7 @@ export class WorkspaceFeed {
     return {
       items: this.ctx.workspaceRegistry.list().map(workspaceView),
       archivedSessionIds: [...this.ctx.workspaceRegistry.archivedSessionIds],
+      scratchCwd: this.scratchCwd,
     }
   }
 

@@ -48,7 +48,7 @@ Conversation 接受 Session 保留的同一组 `{ type, event }` entry。Definit
 
 **只依赖 HTTP 内容编码。** gzip 与 Brotli 会减少网络字节，但不会移除重复的 JSON 解析、校验、分配、索引与 fold 工作。
 
-**直接按物理持久化行分页。** 这还可以避免冷 Host 读取时的逻辑展开，但页面切分取决于追加来源消息与替换 provenance，而不是后端行边界。当前决策让 API 保持对 JSONL、SQLite 与未来持久化布局的独立性。
+**直接按物理持久化行分页。** 这还可以避免 cold Host 读取时的逻辑展开，但页面切分取决于追加来源消息与替换 provenance，而不是 provider 行边界。当前决策让 API 保持对 JSONL 与未来持久化布局的独立性。
 
 **只返回组装后的 Assistant 快照。** [仅保留组装消息的否决记录](../../rejected/simplification/2026-06-20-assembled-assistant-messages-only.zh.md)仍然适用：final message 之外的事件族承载用户可见状态与诊断状态，未完成步骤也需要其实际累计分片。
 

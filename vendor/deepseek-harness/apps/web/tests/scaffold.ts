@@ -67,6 +67,7 @@ import SessionStore, {
   packChunkRuns,
   SESSION_FORMAT_VERSION,
   SessionId,
+  SessionSeq,
   type Session,
   type SessionEvent,
   type SessionHeader,
@@ -801,9 +802,21 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
  * in-memory record-mode harvest, so the on-disk zstd default never matters.
  */
 function rawSessionLog(session: Session): string {
+  const header = session.header
   return [
-    JSON.stringify({ type: 'session', ...session.header }),
-    ...packChunkRuns(session.events).map(record => JSON.stringify(record)),
+    JSON.stringify({
+      type: 'session',
+      version: header.version,
+      id: header.id,
+      createdAt: header.createdAt,
+      ...header.cwd === undefined ? {} : { cwd: header.cwd },
+      ...header.parentSession === undefined ? {} : { parentSession: header.parentSession },
+      ...header.isSeeded ? { seedLength: Number(session.inheritedEventCount) } : {},
+      ...header.origin === undefined ? {} : { origin: header.origin },
+      ...header.delegationDepth === undefined ? {} : { delegationDepth: header.delegationDepth },
+      ...header.agentPreset === undefined ? {} : { agentPreset: header.agentPreset },
+    }),
+    ...packChunkRuns(session.snapshotEvents()).map(record => JSON.stringify(record)),
     '',
   ].join('\n')
 }
@@ -848,7 +861,7 @@ async function assertReplaySession(
   const userPrompts = fixtureUserPrompts(expected)
   const candidates = sessions.filter((session) => {
     if (session.header.parentSession !== undefined) return false
-    const actual = session.events.flatMap((event) => {
+    const actual = session.snapshotEvents().flatMap((event) => {
       if (event.type !== 'user/message' || event.data.source.kind !== 'user') return []
       const text = event.data.content.filter(block => block.type === 'text').map(block => block.text).join('')
       return text.length === 0 ? [] : [text]
@@ -1030,6 +1043,7 @@ export async function seedSession(
     id: SessionId(id),
     createdAt: Date.now() - 60_000,
     cwd: scaffold.workspaceCwd,
+    isSeeded: false,
     delegationDepth: 0,
     ...agentPreset === undefined ? {} : { agentPreset },
   }
@@ -1054,11 +1068,12 @@ export async function seedBlankSession(
     id: SessionId(id),
     createdAt: Date.now() - 60_000,
     cwd,
+    isSeeded: false,
     delegationDepth: 0,
   }
   await persistSeedSession(scaffold, meta, [{
     type: 'session/end-seed',
-    seq: 0,
+    seq: SessionSeq(0),
     time: meta.createdAt,
     data: {},
   }])
@@ -1179,12 +1194,14 @@ export async function captureStableAria(
  * @param page - the page under test.
  * @param selector - the region locator selector.
  * @param workspaceCwd - normalization input.
+ * @param options - optional user-visible state to establish before capture.
  * @returns the stable normalized expanded snapshot.
  */
 export async function captureExpandedTurnProcessAria(
   page: Page,
   selector: string,
   workspaceCwd: string,
+  options: { scrollToBottom?: boolean } = {},
 ): Promise<string> {
   const controls = page.locator('[data-turn-process]')
   const count = await controls.count()
@@ -1197,6 +1214,17 @@ export async function captureExpandedTurnProcessAria(
     opened.push(index)
   }
   try {
+    if (options.scrollToBottom === true) {
+      const backToBottom = page.getByRole('button', { name: 'Back to bottom', exact: true })
+      const scroll = page.locator('[data-conversation-scroll]')
+      await expect.poll(async () => {
+        const distanceFromBottom = await scroll.evaluate((host) => {
+          host.scrollTop = host.scrollHeight
+          return host.scrollHeight - host.clientHeight - host.scrollTop
+        })
+        return Math.abs(distanceFromBottom) <= 1 && await backToBottom.count() === 0
+      }, { timeout: 10_000 }).toBe(true)
+    }
     return await captureStableAria(page, selector, workspaceCwd)
   } finally {
     for (const index of opened.reverse()) {

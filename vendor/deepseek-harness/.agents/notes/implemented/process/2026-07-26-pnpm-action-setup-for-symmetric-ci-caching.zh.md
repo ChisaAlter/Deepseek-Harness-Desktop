@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`pnpm/action-setup@v4` 是 CI 中提供 pnpm 的唯一机制：没有任何工作流运行 `corepack enable`。根目录的 `@yarnpkg/cli-dist` 开发依赖另行提供 generated-project e2e 所运行的现代 Yarn CLI（命令行界面）；因此，用于包管理器覆盖率的 Yarn 不会沿用 runner 镜像里的 Yarn Classic。缓存仍是叠加在 pnpm 提供机制上的按作业策略，保留三种有意采用的形态：
+`pnpm/action-setup@v4` 是 CI 中提供 pnpm 的机制：没有任何工作流运行 `corepack enable`。自托管 Windows 安装步骤是刻意的例外——它们调用 `corepack pnpm`，因为 clone 模式安装需要系统 corepack pnpm 携带、而 `pnpm/action-setup` 的 dest 构建缺少的 `@reflink/reflink` 原生模块（见 [Windows ReFS store note](2026-08-30-windows-refs-store-block-clone-install.zh.md)）。根目录的 `@yarnpkg/cli-dist` 开发依赖另行提供 generated-project e2e 所运行的现代 Yarn CLI（命令行界面）；因此，用于包管理器覆盖率的 Yarn 不会沿用 runner 镜像里的 Yarn Classic。缓存仍是叠加在 pnpm 提供机制上的按作业策略，保留三种有意采用的形态：
 
 - **对称缓存**（既恢复也保存）：带 `cache: pnpm` 的 `actions/setup-node`——`e2e.yml`、`docs-pages.yml`、`pi-ai-provider-e2e.yml`、`build-exe-for-python-sdk.yml`、`ci.yml` 的 node-compat 作业，以及 `ci-master.yml` 的两个 benchmark 作业。larger-runner benchmark 通过条件化的 `cache:` 输入让 store 缓存仅限 Linux；consolidated benchmark 在两个平台上都启用缓存。
 - **只恢复不上传**（手写的 `actions/cache` 步骤）：企业 runner 上的三个 PR（Pull Request）作业和基于 Wine 的必需 Windows 作业只恢复不保存，把缓存压缩／上传挡在它们的延迟敏感路径之外——这种不对称是 `setup-node` 的缓存无法表达的。每个作业都在 action 可替换的安装目录之外配置 store，并解析该路径。没有任何 master 作业生产这些 hosted 缓存，这些恢复步骤只能命中仍有归档的旧条目，直至其被逐出；企业作业在自托管故障切换期间跳过恢复，因为该 VM 的持久 store 已经预热。
@@ -27,7 +27,7 @@ Status: implemented
 
 ## 后果
 
-- corepack 依赖已从 CI 中彻底消失；pnpm 在所有工作流中都经由 pnpm 团队的官方 action 提供，版本锁定继续单一来源于 `package.json` 的 `packageManager` 字段。
+- corepack 依赖已从 CI 中消失，唯独自托管 Windows 安装步骤例外——它们为 ReFS 块克隆原生模块调用 `corepack pnpm`；pnpm 在其他工作流中都经由 pnpm 团队的官方 action 提供，版本锁定继续单一来源于 `package.json` 的 `packageManager` 字段。
 - generated-project e2e 运行根目录锁定的 Yarn 4 CLI，既不再沿用 runner 镜像中的 Yarn 版本，也不会因此悄然跳过。
 - 已转换泳道的缓存键格式变更了一次；各跑一次冷运行重建缓存后，命中率与旧步骤持平。内建缓存键涵盖平台、架构与锁文件哈希，但不含 Node 版本，因此 node-compat 的各个矩阵任务共享同一条 store 缓存记录——这是安全的，因为 pnpm store 与 Node 版本无关。
 - `setup-node` 内建的 pnpm 缓存只按精确键恢复，没有 `restore-keys` 前缀回退：`pnpm-lock.yaml` 一旦变更，已转换泳道会从冷 store 起步，而不是利用上一条缓存记录预填充。

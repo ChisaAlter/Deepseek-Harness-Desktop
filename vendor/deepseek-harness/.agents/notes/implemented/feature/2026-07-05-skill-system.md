@@ -12,7 +12,7 @@ DeepSeek Harness uses the same primitive so project-specific review, plugin-auth
 
 ## Decision
 
-`@deepseek-ai/dsh-skill` is the pure provider registry (`ctx.skills`), `@deepseek-ai/dsh-skill-filesystem` is the shipped local filesystem provider, and `@deepseek-ai/dsh-tool-skill` owns the durable session catalog and model-facing loader tool. `dsh-agent-spine-demo` loads the registry, local provider, and consumer by default so TUI, headless, and ACP apps get the same behavior while embedded or remote providers contribute skills without changing the registry or consumer. Its `skills` config forwards `registry`, `local`, and `tool` branches to those owners.
+`@deepseek-ai/dsh-skill` is the pure provider registry (`ctx.skills`), `@deepseek-ai/dsh-skill-filesystem` is the shipped local filesystem provider, and `@deepseek-ai/dsh-tool-skill` owns the durable session catalog and model-facing loader tool. `dsh-base` loads the registry, local provider, and consumer as separate rows so its profiles get the same behavior while embedded or remote providers contribute skills without changing the registry or consumer. Each row exposes only its owning package's configuration.
 
 Dedicated packaged providers can contribute immutable skills without filesystem discovery. The shipped CLI declares `@deepseek-ai/dsh-skill-badge` disabled by default; enabling its composition row contributes the official badge instructions through the same registry and consumer (see [the package contract](../../../../packages/skill/skill-badge/README.md)).
 

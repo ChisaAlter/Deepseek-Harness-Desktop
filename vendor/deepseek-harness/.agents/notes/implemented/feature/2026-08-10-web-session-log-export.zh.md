@@ -25,6 +25,6 @@ Trajectory 视图没有任何方式把调试工件交到人手里：原始会话
 ## 后果
 
 - 导出保真度：读取每个实时根会话或后代前，导出器会通过权威的 `SessionStore.flush` 持久性屏障；每个导出文件都与由此得到的持久化工件逐字节一致。实时会话可能在自身读取后再次追加，因此归档是按会话读取边界形成的快照，而不是整棵树的原子快照。压缩包名为 `dsh-session-<sanitized-id>.zip`，归档路径在塑造条目前会先净化会话 id。
-- `supportsRawArtifacts` 明确区分后端能力与会话缺失：SQLite 等不支持的后端报告 `false`，具体 `readRaw` 默认会拒绝；JSONL 覆写则报告 `true`、自持物理解码，并只用 `undefined` 表示工件缺失。`session-log-export` 向 Connection 注册一个精确的 Host-only Fetch 路由；流式响应不使用 Remote descriptor 或 JSON envelope 表示。
+- `supportsRawArtifacts` 明确区分后端能力与会话缺失：没有每 Session 一份原始工件的后端报告 `false`，具体 `readRaw` 默认会拒绝；交付的 JSONL 覆写报告 `true`、自持物理解码，并只用 `undefined` 表示工件缺失。`session-log-export` 向 Connection 注册一个精确的 Host-only Fetch 路由；流式响应不使用 Remote descriptor 或 JSON envelope 表示。
 - fixture 模式（无宿主）对导出应答 404，浏览器会将其报告为下载失败；navigation-panes golden 快照包含「导出」按钮。
 - 暂缓：transcript.md 以及 report/feedback 打包留待后续；逐字节忠实、无清单的形态让 v2 的打包扩展保持廉价。

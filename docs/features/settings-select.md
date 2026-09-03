@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `settings-select` |
 | **status** | `active` |
-| **last verified** | 2026-09-01 — vendor `settings-select` / Menu client spec; HarnessRestartRow optimistic Switch (no saving flash); PriceSettingsPanel + ModelsSection add-provider `SettingsSelect` |
+| **last verified** | 2026-09-01 — vendor `settings-select` / Menu client spec; HarnessRestartRow optimistic Switch (no saving flash); PriceSettingsPanel + ModelsSection add-provider `SettingsSelect` |；本次 alpha.4：SettingsSelect、Appearance 与模型设置回归通过。
 
 ## User paths
 

@@ -10,7 +10,7 @@
   box-sizing: border-box;
   width: min(320px, calc(100vw - 32px));
   padding: 12px 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0;
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv2);
@@ -67,10 +67,11 @@
   width: 16px;
   height: 16px;
   margin-top: 2px;
-  border: 2px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-top-color: var(--dsw-alias-label-primary);
   border-radius: 50%;
   animation: git-progress-spin 0.7s linear infinite;
+  corner-shape: round;
 }
 
 .action {
@@ -98,6 +99,7 @@
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
+  corner-shape: round;
 }
 
 .close:hover {

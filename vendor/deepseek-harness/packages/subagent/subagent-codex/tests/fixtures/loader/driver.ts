@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /** Inspect the public Codex provider composition without invoking the product. */
 
-import { boot, loadOverlayPatches, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-tools'
+import { bootProductionProfile } from '../../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
 
 const configPath = process.argv[2]
 const bundlePatchPath = process.argv[3]
@@ -12,16 +13,19 @@ if (configPath === undefined || bundlePatchPath === undefined) {
 }
 
 let starts = 0
-const ctx = await boot(
-  'subagent-codex-loader-composition',
-  resolveConfigPath(configPath, undefined),
-  loadOverlayPatches('subagent-codex-loader-composition', bundlePatchPath),
-  (hostCtx) => {
+const ctx = await bootProductionProfile({
+  binName: 'subagent-codex-loader-composition',
+  profile: 'headless',
+  overlayPaths: [
+    resolveConfigPath(bundlePatchPath, undefined),
+    resolveConfigPath(configPath, undefined),
+  ],
+  prepare: (hostCtx) => {
     hostCtx.on('subagent/start', () => {
       starts += 1
     })
   },
-)
+})
 
 try {
   const providerNames = ['codex', 'codex-primary', 'codex-secondary'] as const
@@ -64,7 +68,7 @@ try {
     .sort()
 
   process.stdout.write(`${JSON.stringify({
-    providers: ctx.subagents.list(),
+    providers: providerNames.filter(providerName => ctx.subagents.getProvider(providerName) !== undefined),
     providerDetails: providers,
     tools,
     jobTools,

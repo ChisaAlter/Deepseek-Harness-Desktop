@@ -43,6 +43,10 @@ const result = await runLoaderSmoke({
 
 Set `expectedExitCode` when the scenario pins a designed failure surface — a one-shot turn ending in an error result — and a run that exits any other way, including succeeding, still fails the smoke.
 
+### Testing a shipped profile
+
+Profile integration drivers use the repository-only `tests/fixtures/production-profile.ts` helper. It loads the named shipped profile and its bundle patches through `loadProfile`, reconciles the profile's module fallback, and passes the bundle patches followed by the test's `*.patch.yml` files to the root `cordis:include` mounted by `boot`. Those patches should contain only the test provider or model, isolated persistence paths, and subject-specific changes. Package-level unit tests that need an agent loop without profile integration mount `dsh-agent-loop-testkit` locally instead.
+
 ### Driving a fixture turn
 
 `runFixtureTurn(ctx, options)` drives one task through exactly one configured root agent: it waits for the task to reach the durable inbox, forwards canonical events to your observer, flushes the session, and returns the final assistant text plus accumulated usage. Example-local drivers keep configuration, rendering, and assertion ownership.
@@ -77,7 +81,8 @@ The harness is built on one separation: the smoke runs in a child process under 
 |---|---|
 | [`src/index.ts`](src/index.ts) | Mode resolver, `runLoaderSmoke` subprocess harness, options and result types |
 | [`src/agent-turn.ts`](src/agent-turn.ts) | `runFixtureTurn` direct-agent driver and result envelope |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; consuming test suites exercise the harness) |
+| — | No runtime invariant companion is published; this test-support package owns no production event stream or mutable data; consuming test suites exercise its behavior. |
+| [`tests/fixtures/production-profile.ts`](tests/fixtures/production-profile.ts) | Repository-only shipped-profile composition helper for integration fixtures |
 
 </details>
 

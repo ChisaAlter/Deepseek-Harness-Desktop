@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `dsh-tools` |
 | **status** | `active` |
-| **last verified** | 2026-08-27 (post-merge closeout re-verification) — merged to `main` via PR #54 (`cac4f790`); on the merged tree vendor `test:gui` is green (412 files / 5409 pass / 1 skip) and desktop `npm test` is 1219 pass / 0 fail; the upstream handoff doc now extracts the diff from the merge commit (source branch deleted). Earlier same day — host TypeScript compilation, 454 focused Harness tests (llm, adapters, agent-loop, session, tools, sqlite persistence), per-file 100% coverage on every changed Harness source file, keyless snapshot suite delta-neutral vs main, and 1,118 desktop tests |
+| **last verified** | 2026-08-27 (post-merge closeout re-verification) — merged to `main` via PR #54 (`cac4f790`); on the merged tree vendor `test:gui` is green (412 files / 5409 pass / 1 skip) and desktop `npm test` is 1219 pass / 0 fail; the upstream handoff doc now extracts the diff from the merge commit (source branch deleted). Earlier same day — host TypeScript compilation, 454 focused Harness tests (llm, adapters, agent-loop, session, tools, sqlite persistence), per-file 100% coverage on every changed Harness source file, keyless snapshot suite delta-neutral vs main, and 1,118 desktop tests |；本次 alpha.4：未复活 persistence-sqlite；正式构建与 keyless smoke 通过。
 
 ## User paths
 

@@ -16,7 +16,7 @@ button { cursor: pointer; }
      scroll themselves. min-height would let the page grow past the viewport
      and break timeline bottom-anchor / load-older scroll preservation. */
   height: 100%;
-  height: 100dvh;
+  height: var(--dsh-viewport-height, 100dvh);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -408,12 +408,21 @@ button { cursor: pointer; }
 }
 .composer textarea::placeholder { color: var(--dsw-alias-label-caption); }
 .composer-row {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: flex-start; align-items: center;
   padding: 4px 8px 8px; gap: 8px;
+  /* One tool row, always: chips never wrap onto a second line on a narrow phone. */
+  flex-wrap: nowrap;
 }
 .composer-side { display: flex; align-items: center; gap: 8px; }
+/* Inside the tool row the two sides dissolve into one flex line so the
+   shrink budget is shared by the two long chips (access preset, model ·
+   effort) directly, instead of one side overflowing into the other. The
+   row's own 8px gap replaces the side gap; the model chip's auto margin
+   restores the left / right grouping. */
+.composer-row > .composer-side { display: contents; }
+.composer-row #model-chip { margin-left: auto; }
 .send {
-  display: grid; place-items: center;
+  display: grid; place-items: center; flex: none;
   width: 34px; height: 34px; border: 0; border-radius: 999px;
   background: var(--dsw-alias-button-info-fill);
   color: var(--dsw-static-neutral-bluish-00);
@@ -430,8 +439,15 @@ button { cursor: pointer; }
   height: 28px; padding: 0 8px; border: 0; border-radius: 8px;
   background: transparent; color: var(--dsw-alias-label-secondary);
   font-size: 13px; line-height: 20px; font-weight: 500;
+  white-space: nowrap; flex: none;
 }
 .chip:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.chip > svg { flex: none; }
+/* "model · effort" / the access preset can outgrow a phone row: these chips
+   give way with an ellipsis on their label span instead of wrapping (full
+   text stays in title). The floor keeps a readable stub on both. */
+.chip-shrink { flex: 0 1 auto; min-width: 72px; }
+.chip-shrink .chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attach-rail {
   display: flex; gap: 10px; overflow-x: auto; padding: 0 12px;
 }

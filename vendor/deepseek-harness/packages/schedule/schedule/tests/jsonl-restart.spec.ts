@@ -108,7 +108,7 @@ describe('Schedule production JSONL restart', () => {
     await handle.agent.whenIdle()
     await expect(restarted.sessions.flush(handle.agent.session)).resolves.toBe(true)
     const dispatchedStored = await restarted.sessionPersistence.inspect(sessionId)
-    expect(foldScheduleEvents(dispatchedStored.events, dispatchedStored.meta.seedLength ?? 0).active)
+    expect(foldScheduleEvents(dispatchedStored.events, dispatchedStored.inheritedEventCount).active)
       .toEqual([])
     const dispatches = dispatchedStored.events.filter(event =>
       event.type === 'schedule/change' && event.data.operation === 'dispatch')
@@ -129,7 +129,7 @@ describe('Schedule production JSONL restart', () => {
     await replayed.sessions.flush(replayHandle.agent.session)
 
     expect(replayAdapter.requests).toEqual([])
-    expect(replayHandle.agent.session.events.filter(event =>
+    expect(replayHandle.agent.session.snapshotEvents().filter(event =>
       event.type === 'schedule/change' && event.data.operation === 'dispatch')).toHaveLength(1)
     const replayedStored = await replayed.sessionPersistence.inspect(sessionId)
     expect(replayedStored.events.filter(event =>

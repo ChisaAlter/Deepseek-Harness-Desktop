@@ -65,7 +65,10 @@
       "package.json"
     ],
     "asarUnpack": [
-      "src/main/chisacode-daemon-runner.mjs"
+      "src/main/chisacode-daemon-runner.mjs",
+      "src/main/dshd-daemon-hooks.mjs",
+      "src/shared/dshd-host-tunnel.js",
+      "src/shared/dshd-mux-sse.js"
     ],
     "extraResources": [
       {

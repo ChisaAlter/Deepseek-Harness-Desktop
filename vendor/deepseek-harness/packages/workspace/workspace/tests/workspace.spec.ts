@@ -23,6 +23,7 @@ const header = (id: string, cwd?: string, createdAt = 0): SessionHeader => ({
   version: 0,
   id: SessionId(id),
   createdAt,
+  isSeeded: false,
   ...(cwd === undefined ? {} : { cwd }),
 })
 
@@ -493,10 +494,35 @@ describe('WorkspaceRegistry create and lookup', () => {
     expect(result.load).not.toHaveBeenCalled()
     expect(result.inspect).not.toHaveBeenCalled()
 
+    // Registering the same directory again is how its sessions come back: the
+    // new record re-adopts every header whose canonical cwd is that directory.
     const reregistered = await result.registry.create(dir)
     expect(reregistered.id).not.toBe(workspace.id)
     expect(reregistered.path).toBe(dir)
-    expect(reregistered.sessionIds).toEqual([])
+    expect(reregistered.sessionIds).toEqual(['kept-session'])
+    expect(result.load).not.toHaveBeenCalled()
+  })
+
+  it('re-adopts newest-first only the sessions whose canonical cwd is the registered directory', async () => {
+    const dir = await makeDir('readopt')
+    const other = await makeDir('readopt-other')
+    const missing = join(other, 'gone')
+    const result = await harness({
+      sessions: [
+        header('older', dir, 10),
+        header('newer', dir, 20),
+        header('elsewhere', other, 30),
+        header('dangling', missing, 40),
+        header('no-cwd', undefined, 50),
+      ],
+    })
+
+    const workspace = await result.registry.create(dir)
+    expect(workspace.sessionIds).toEqual(['newer', 'older'])
+    // The other directory keeps its own sessions for its own registration.
+    const rival = await result.registry.create(other)
+    expect(rival.sessionIds).toEqual(['elsewhere'])
+    expect(result.load).not.toHaveBeenCalled()
   })
 
   it('rolls registry order and cache back when record deletion fails', async () => {
@@ -686,9 +712,13 @@ describe('Workspace session ordering', () => {
     const dir = await makeDir('live')
     const result = await harness({ sessions: [], liveSessions: [header('live', dir, 1)] })
     const workspace = await result.registry.create(dir)
+    // Registration already adopted the live session from the live index; the
+    // explicit attach is idempotent and never re-lists persistence.
+    expect(workspace.sessionIds).toEqual(['live'])
+    const listed = result.list.mock.calls.length
     await workspace.attachSession(SessionId('live'))
     expect(workspace.sessionIds).toEqual(['live'])
-    expect(result.list).toHaveBeenCalledTimes(1)
+    expect(result.list).toHaveBeenCalledTimes(listed)
   })
 
   it('rejects mismatched, missing, unresolved, non-directory, and unknown cwd facts', async () => {

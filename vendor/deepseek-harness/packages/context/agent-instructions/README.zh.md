@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-agent-instructions` 将兼容 `AGENTS.md` 的工作区指令文件加载到模型上下文：用户全局文件与项目指令链作为一条持久基线进入第一次请求，成功的 `read`、`write` 或 `edit` 调用会把新出现的嵌套文件、变更与移除带入后续请求。它随默认 `dsh-agent-spine-demo` 组合包发布并默认启用，可通过组合包配置禁用。一切内容都受字节预算约束：较宽泛的文件先被省略，最具体的文件最后被截断，空指令链不产生任何内容。没有文件 watcher——外部编辑会在下一次成功的文件系统 touch 时，或恢复后的会话对账其基线时变得可见。
+`dsh-agent-instructions` 将兼容 `AGENTS.md` 的工作区指令文件加载到模型上下文：用户全局文件与项目指令链作为一条持久基线进入第一次请求，成功的 `read`、`write` 或 `edit` 调用会把新出现的嵌套文件、变更与移除带入后续请求。`dsh-base` 默认包含它，profile patch 可以禁用。一切内容都受字节预算约束：较宽泛的文件先被省略，最具体的文件最后被截断，空指令链不产生任何内容。没有文件 watcher——外部编辑会在下一次成功的文件系统 touch 时，或恢复后的会话对账其基线时变得可见。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当 agent（智能体）需要依据工作区自身的指令文件工作时，挂载此插件。默认 spine 组合包已包含它并给予 65,536 字节预算，因此大多数组合只需调整 `maxBytes`；没有文件系统提供方的树加载不到任何内容，直到提供方出现。
+当 agent（智能体）需要依据工作区自身的指令文件工作时，挂载此插件。`dsh-base` 已包含它并给予 65,536 字节预算，因此基于 base 的 profile 仅在需要其他 `maxBytes` 时替换该配置行；没有文件系统提供方的树加载不到任何内容，直到提供方出现。
 
 ### agent 获得的内容
 
@@ -93,7 +93,7 @@ export interface Config {
 | [`src/render.ts`](src/render.ts) | 指令渲染、预算截断、变更记录 |
 | [`src/state.ts`](src/state.ts) | 持久消息来源、版本／digest 缓存、对账 |
 | [`src/digest.ts`](src/digest.ts) | SHA-1 内容标识与每目录重复键 |
-| [`src/invariant.ts`](src/invariant.ts) | 持久上下文约定的不变式伴生插件 |
+| — | 不发布运行时不变式伴生入口；回放会容忍未知或格式错误的 workspace source，私有 pending/cache 状态转换由聚焦 pipeline 测试覆盖。 |
 
 ### 主要流程
 

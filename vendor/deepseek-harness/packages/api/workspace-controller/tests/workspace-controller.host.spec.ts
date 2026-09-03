@@ -24,6 +24,7 @@ const roots: Context[] = []
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(ctx => ctx.fiber.dispose()))
+  vi.unstubAllEnvs()
 })
 
 interface Deferred<T> {
@@ -39,6 +40,9 @@ function deferred<T>(): Deferred<T> {
 
 async function harness() {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-workspace-controller-')))
+  // The scratch cwd derives from the Harness home; pin it to the fixture so
+  // the real account home is never touched or asserted against.
+  vi.stubEnv('DSH_HOME', join(root, 'dsh-home'))
   const ctx = new Context()
   roots.push(ctx)
   await ctx.plugin(SessionStore)
@@ -172,6 +176,33 @@ describe('WorkspaceController commands', () => {
     await expect(staleRename).rejects.toMatchObject({ code: 'workspace/not-found' })
   })
 
+  it('re-adopts the directory\'s sessions when a deleted Workspace is registered again', async () => {
+    const { controller, ctx, root } = await harness()
+    const path = stageDir(root, 'project')
+    const first = await controller.create({ path })
+    const older = ctx.sessions.create(SessionId('session-older'), { meta: { cwd: path } })
+    const newer = ctx.sessions.create(SessionId('session-newer'), { meta: { cwd: path } })
+    const elsewhere = ctx.sessions.create(SessionId('session-elsewhere'), {
+      meta: { cwd: stageDir(root, 'elsewhere') },
+    })
+    const workspace = ctx.workspaceRegistry.get(first.workspace.workspaceId)
+    if (workspace === undefined) throw new Error('fixture Workspace disappeared')
+    await workspace.attachSession(older.id)
+    await workspace.attachSession(newer.id)
+    expect(elsewhere.header.cwd).not.toBe(path)
+
+    await expect(controller.delete({ workspaceId: first.workspace.workspaceId })).resolves.toEqual({ deleted: true })
+    expect(ctx.workspaceRegistry.list()).toEqual([])
+
+    // The persistence listing stands in for logs written while the Workspace
+    // was unregistered; live headers are indexed as well.
+    const again = await controller.create({ path })
+    expect(again.created).toBe(true)
+    expect(again.workspace.workspaceId).not.toBe(first.workspace.workspaceId)
+    expect(new Set(again.workspace.sessionIds)).toEqual(new Set([older.id, newer.id]))
+    expect(again.workspace.sessionIds).not.toContain(elsewhere.id)
+  })
+
   it('reorders Workspaces and Sessions and archives only known Sessions', async () => {
     const { controller, ctx, root } = await harness()
     const first = await controller.create({ path: stageDir(root, 'first') })
@@ -227,9 +258,10 @@ describe('WorkspaceController follow', () => {
   it('seeds a new feed from existing rows and rejects an inconsistent registry commit', async () => {
     const { ctx, root } = await harness()
     const existing = await ctx.workspaceRegistry.create(stageDir(root, 'existing'))
-    const feed = new WorkspaceFeed(ctx)
+    const feed = new WorkspaceFeed(ctx, join(root, 'scratch'))
     expect(feed.baseline()).toMatchObject({
       items: [{ workspaceId: existing.id }],
+      scratchCwd: join(root, 'scratch'),
     })
 
     expect(() => {
@@ -251,10 +283,13 @@ describe('WorkspaceController follow', () => {
     const { controller, ctx, root } = await harness()
     const abort = new AbortController()
     const iterator = controller.follow(abort.signal)[Symbol.asyncIterator]()
+    // The scratch cwd is the Harness-home no-workspace directory: Sessions
+    // created there are no-directory tasks, never Workspace members.
     await expect(nextFrame(iterator)).resolves.toEqual({
       type: 'baseline',
-      value: { items: [], archivedSessionIds: [] },
+      value: { items: [], archivedSessionIds: [], scratchCwd: join(root, 'dsh-home', 'no-workspace') },
     })
+    expect(controller.scratchCwd).toBe(join(root, 'dsh-home', 'no-workspace'))
 
     const first = await controller.create({ path: stageDir(root, 'first') })
     await expect(nextFrame(iterator)).resolves.toMatchObject({

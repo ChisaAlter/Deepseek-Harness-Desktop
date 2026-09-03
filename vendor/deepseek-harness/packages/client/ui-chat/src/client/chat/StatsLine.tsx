@@ -2,7 +2,7 @@
 // Mounted on 'conversation.composer.dock' so it sticks with the composer in the
 // active conversation scrollport (see ConversationRoot data-conversation-scroll).
 
-import { Fragment, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { UseProjection } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -135,6 +135,55 @@ export interface StatsLineInjected {
   }
 }
 
+/** Render and measure one non-empty statistics line. */
+const StatsLineContent = memo(function StatsLineContent({
+  groups,
+  line,
+  rowState,
+}: {
+  readonly groups: readonly string[]
+  readonly line: string
+  readonly rowState: 'hidden' | 'pending' | undefined
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [truncated, setTruncated] = useState(false)
+  const measure = useCallback(() => {
+    const el = rootRef.current
+    if (el === null) return
+    const next = el.scrollWidth > el.clientWidth
+    setTruncated(current => current === next ? current : next)
+  }, [])
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (el === null || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => { observer.disconnect() }
+  }, [measure])
+  useLayoutEffect(measure, [line, measure])
+  const row = (
+    <div
+      ref={rootRef}
+      className={css.root}
+      data-stats-line={rowState}
+      aria-hidden={rowState === undefined ? undefined : true}
+    >
+      {groups.map((group, i) => (
+        <Fragment key={group}>
+          {i > 0 && <><span className={css.sep} aria-hidden>|</span>{' '}</>}
+          <span>{group}</span>
+        </Fragment>
+      ))}
+    </div>
+  )
+  if (rowState !== undefined) return row
+  return (
+    <Tooltip label={line} side="top" delayMs={500} disabled={!truncated}>
+      {row}
+    </Tooltip>
+  )
+})
+
 export const StatsLine = memo(function StatsLine({
   useChat, useProjection, useSession, useStatsLine, t,
 }: StatsLineProps) {
@@ -183,45 +232,11 @@ export const StatsLine = memo(function StatsLine({
     }))
   }
   const line = groups.join(' | ')
-  // The row elides with ellipsis when overlong; a delayed hover tooltip carries
-  // the full line, enabled only while content is actually clipped.
-  const rootRef = useRef<HTMLDivElement | null>(null)
-  const [truncated, setTruncated] = useState(false)
-  useLayoutEffect(() => {
-    const el = rootRef.current
-    if (el === null) return
-    const measure = () => { setTruncated(el.scrollWidth > el.clientWidth) }
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    return () => { observer.disconnect() }
-  }, [line])
   // An in-flight first step has no closed counts and no billed usage yet;
   // unmounting here collapses the dock under the composer. Keep the row's
   // height while `running` so the capsule does not jump, idle empty sessions
   // still render nothing.
   if (groups.length === 0 && !running) return null
   const rowState = !statsLine ? 'hidden' : groups.length === 0 ? 'pending' : undefined
-  const row = (
-    <div
-      ref={rootRef}
-      className={css.root}
-      data-stats-line={rowState}
-      aria-hidden={rowState === undefined ? undefined : true}
-    >
-      {groups.map((group, i) => (
-        <Fragment key={group}>
-          {i > 0 && <><span className={css.sep} aria-hidden>|</span>{' '}</>}
-          <span>{group}</span>
-        </Fragment>
-      ))}
-    </div>
-  )
-  if (!statsLine || groups.length === 0) return row
-  return (
-    <Tooltip label={line} side="top" delayMs={500} disabled={!truncated}>
-      {row}
-    </Tooltip>
-  )
+  return <StatsLineContent groups={groups} line={line} rowState={rowState} />
 })

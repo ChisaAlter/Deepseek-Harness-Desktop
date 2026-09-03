@@ -35,7 +35,8 @@ async function bench() {
   const runtime = await SlotTestRuntime.create()
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const connectWorkspace = vi.fn(async () => ROOT)
-  runtime.ctx.provide('uiWorkspace', { connectWorkspace } as never)
+  const connectNoDirectory = vi.fn(async () => ROOT)
+  runtime.ctx.provide('uiWorkspace', { connectWorkspace, connectNoDirectory } as never)
   const sessionFake = sessionFakeFor()
   await runtime.sessions.add({
     id: ROOT,
@@ -77,6 +78,15 @@ async function bench() {
     const entry = entryOf('conversation')
     return (entry.inject as unknown as (sessionId: SessionId | undefined) => ConversationInjected)(id)
   }
+  const headerApi = (id: SessionId) => {
+    const entry = entryOf('conversation.session.header')
+    const instance = runtime.storeOf('conversation.session.header', id) as ConversationInstance
+    const injected = (entry.inject as unknown as (
+      sessionId: SessionId,
+      actions: ConversationActions,
+    ) => ConversationSessionHeaderInjected)(id, instance.actions)
+    return { instance, injected }
+  }
   const composerApi = (id: SessionId | undefined) => {
     const entry = entryOf('conversation.composer.bar')
     return (entry.inject as unknown as (sessionId: SessionId | undefined) => ComposerBarInjected)(id)
@@ -88,8 +98,9 @@ async function bench() {
   const viewSource = (id: SessionId): ObservableSnapshot<readonly ViewTab[]> =>
     conversationApi(id).injected.hooks.conversationViews
   return {
-    runtime, feature, slots: runtime.slots, entryOf, conversationApi, conversationHeaderApi, residentApi, composerApi,
-    inputApi, viewSource, sessionFake, connectWorkspace,
+    runtime, feature, slots: runtime.slots, entryOf, conversationApi,
+    conversationHeaderApi, headerApi, residentApi, composerApi,
+    inputApi, viewSource, sessionFake, connectWorkspace, connectNoDirectory,
   }
 }
 
@@ -98,9 +109,77 @@ describe('Conversation inject API', () => {
     const b = await bench()
     const { injected } = b.conversationApi(ROOT)
     expect(b.sessionFake.loadOlder).not.toHaveBeenCalled()
-    expect(Object.keys(injected)).toEqual(['hooks', 'bindDraftMirror'])
+    expect(Object.keys(injected)).toEqual(['hooks', 'bindDraftMirror', 'openView'])
     expect(b.viewSource(ROOT).getSnapshot()).toEqual([])
     await b.runtime.dispose()
+  })
+
+  it('activates a target before committing an explicit View selection', async () => {
+    const b = await bench()
+    const binding = b.runtime.ctx.uiConversation.binding(ROOT)
+    const activate = vi.spyOn(binding, 'activate')
+    const removeChat = b.slots.register(
+      { name: 'conversation.view', id: 'chat', order: 0 },
+      (() => null) as never,
+    )
+    const removeTrajectory = b.slots.register(
+      { name: 'conversation.view', id: 'trajectory', order: 10 },
+      (() => null) as never,
+    )
+    await Promise.resolve()
+    activate.mockClear()
+
+    const body = b.conversationApi(ROOT)
+    body.injected.openView('trajectory', 'call-1')
+    expect(activate).toHaveBeenLastCalledWith('trajectory')
+    expect(body.instance.store.getSnapshot()).toMatchObject({
+      view: 'trajectory',
+      viewRequest: { view: 'trajectory', focus: 'call-1' },
+    })
+
+    const header = b.headerApi(ROOT)
+    header.injected.selectView('chat')
+    expect(activate).toHaveBeenLastCalledWith('chat')
+    expect(header.instance.store.getSnapshot().view).toBe('chat')
+
+    removeTrajectory()
+    removeChat()
+    await b.runtime.dispose()
+  })
+
+  it('restores the selected View when a cached Session becomes current', async () => {
+    const b = await bench()
+    const binding = b.runtime.ctx.uiConversation.binding(ROOT)
+    const activate = vi.spyOn(binding, 'activate')
+    const removeChat = b.slots.register(
+      { name: 'conversation.view', id: 'chat', order: 0 },
+      (() => null) as never,
+    )
+    let removeCustom: (() => void) | undefined
+    try {
+      await b.runtime.flush()
+      localStorage.setItem(`dsh.conversation.${ROOT}`, JSON.stringify({
+        draft: '', view: 'custom', viewRequest: null,
+      }))
+
+      b.runtime.ctx.uiSession.adapter.resolve(ROOT)
+      expect(activate).toHaveBeenLastCalledWith('chat')
+      activate.mockClear()
+
+      removeCustom = b.slots.register(
+        { name: 'conversation.view', id: 'custom', order: 10 },
+        (() => null) as never,
+      )
+      await b.runtime.flush()
+      expect(activate).not.toHaveBeenCalled()
+
+      await b.runtime.sessions.setCurrent(ROOT)
+      expect(activate).toHaveBeenLastCalledWith('custom')
+    } finally {
+      removeCustom?.()
+      removeChat()
+      await b.runtime.dispose()
+    }
   })
 
   it('submits through the provided input machine and mirrors accepted draft edits', async () => {
@@ -195,6 +274,29 @@ describe('Conversation inject API', () => {
     expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [other] })
     expect(state.getSnapshot().draft).toBe('')
     expect(b.inputApi(other).state.getSnapshot().draft).toBe('carry me')
+    await b.runtime.dispose()
+  })
+
+  it('routes the no-directory pick through uiWorkspace and carries the draft the same way', async () => {
+    const b = await bench()
+    const resident = b.residentApi(ROOT)
+    const { state, actions } = b.inputApi(ROOT)
+    actions.setDraft('task draft')
+
+    const task = 'task-1' as SessionId
+    await b.runtime.sessions.add({ id: task }, { current: false })
+    b.connectNoDirectory.mockResolvedValueOnce(task)
+    await resident.selectNoDirectory()
+    expect(b.connectNoDirectory).toHaveBeenCalledTimes(1)
+    expect(b.connectWorkspace).not.toHaveBeenCalled()
+    expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [task] })
+    expect(state.getSnapshot().draft).toBe('')
+    expect(b.inputApi(task).state.getSnapshot().draft).toBe('task draft')
+
+    const opens = b.runtime.sessions.calls.filter(call => call.method === 'open').length
+    b.connectNoDirectory.mockRejectedValueOnce(new Error('offline'))
+    await expect(b.residentApi(undefined).selectNoDirectory()).rejects.toThrow('offline')
+    expect(b.runtime.sessions.calls.filter(call => call.method === 'open')).toHaveLength(opens)
     await b.runtime.dispose()
   })
 

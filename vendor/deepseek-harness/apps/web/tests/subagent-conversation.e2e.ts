@@ -5,8 +5,9 @@ import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
+import { MessageId } from '@deepseek-ai/dsh-llm'
 import {
-  SESSION_FORMAT_VERSION, SessionId as sessionId, type SessionEvent, type SessionHeader, type SessionId,
+  SESSION_FORMAT_VERSION, SessionId as sessionId, SessionLogOffset, SessionSeq, type SessionEvent, type SessionHeader, type SessionId,
 } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent'
 import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
@@ -66,9 +67,10 @@ async function waitForAgentToSettle(scaffold: WebScaffold, id: SessionId): Promi
 async function waitForCacheRow(
   scaffold: WebScaffold,
   header: SessionHeader,
+  inheritedEventCount: SessionLogOffset,
 ): Promise<void> {
   const deadline = Date.now() + 10_000
-  while (scaffold.ctx.sessionProjectionCache.cachedSnapshot(header) === undefined) {
+  while (scaffold.ctx.sessionProjectionCache.cachedSnapshot(header, inheritedEventCount) === undefined) {
     if (Date.now() >= deadline) throw new Error(`cache row for "${header.id}" did not land`)
     await new Promise<void>(resolve => setTimeout(resolve, 10))
   }
@@ -136,6 +138,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       createdAt: oneShotAt,
       cwd: scaffold.workspaceCwd,
       parentSession: parent.id,
+      isSeeded: false,
       origin: 'subagent',
       delegationDepth: 1,
     }
@@ -143,15 +146,17 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     const oneShotEvents = [
       {
         type: 'turn/start',
-        seq: 0,
+        seq: SessionSeq(0),
         time: oneShotAt,
-        data: { turn: 1, trigger: { kind: 'message', source: { kind: 'user' } } },
+        data: { turn: 1 },
       },
       {
         type: 'user/message',
-        seq: 1,
+        seq: SessionSeq(1),
         time: oneShotAt + 1,
         data: {
+          id: MessageId(`legacy-message:${oneShotId}:1`),
+          role: 'user',
           content: [{ type: 'text', text: 'Review the event sourcing explanation.' }],
           source: { kind: 'user' },
         },
@@ -159,7 +164,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       },
       {
         type: 'subagent/descriptor',
-        seq: 2,
+        seq: SessionSeq(2),
         time: oneShotAt + 2,
         data: snapshotSubagentDescriptor({
           mode: 'one-shot', provider: 'spawn', label: ONE_SHOT_LABEL,
@@ -167,14 +172,14 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       },
       {
         type: 'turn/end',
-        seq: 3,
+        seq: SessionSeq(3),
         time: oneShotAt + oneShotDurationMs,
         data: { turn: 1, reason: { kind: 'completed' } },
       },
-    ] as SessionEvent[]
+    ] satisfies SessionEvent[]
     await scaffold.ctx.sessionPersistence.append(oneShotId, oneShotEvents)
-    scaffold.ctx.sessionProjectionCache.coldSnapshot(oneShotHeader, oneShotEvents)
-    await waitForCacheRow(scaffold, oneShotHeader)
+    scaffold.ctx.sessionProjectionCache.coldSnapshot(oneShotHeader, SessionLogOffset(0), oneShotEvents)
+    await waitForCacheRow(scaffold, oneShotHeader, SessionLogOffset(0))
     grandchildId = sessionId('recorded-grandchild')
     const authoredAt = Date.now()
     const grandchildHeader: SessionHeader = {
@@ -183,6 +188,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       createdAt: authoredAt,
       cwd: scaffold.workspaceCwd,
       parentSession: childId,
+      isSeeded: false,
       origin: 'subagent',
       delegationDepth: 2,
     }
@@ -190,15 +196,17 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     const grandchildEvents = [
       {
         type: 'turn/start',
-        seq: 0,
+        seq: SessionSeq(0),
         time: authoredAt,
-        data: { turn: 1, trigger: { kind: 'message', source: { kind: 'user' } } },
+        data: { turn: 1 },
       },
       {
         type: 'user/message',
-        seq: 1,
+        seq: SessionSeq(1),
         time: authoredAt + 1,
         data: {
+          id: MessageId(`legacy-message:${grandchildId}:1`),
+          role: 'user',
           content: [{ type: 'text', text: NESTED_PROMPT }],
           source: { kind: 'user' },
         },
@@ -206,7 +214,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       },
       {
         type: 'subagent/descriptor',
-        seq: 2,
+        seq: SessionSeq(2),
         time: authoredAt + 2,
         data: snapshotSubagentDescriptor({
           mode: 'continuable', provider: 'spawn', label: NESTED_LABEL,
@@ -214,14 +222,14 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       },
       {
         type: 'turn/end',
-        seq: 3,
+        seq: SessionSeq(3),
         time: authoredAt + 3,
         data: { turn: 1, reason: { kind: 'completed' } },
       },
-    ] as SessionEvent[]
+    ] satisfies SessionEvent[]
     await scaffold.ctx.sessionPersistence.append(grandchildId, grandchildEvents)
-    scaffold.ctx.sessionProjectionCache.coldSnapshot(grandchildHeader, grandchildEvents)
-    await waitForCacheRow(scaffold, grandchildHeader)
+    scaffold.ctx.sessionProjectionCache.coldSnapshot(grandchildHeader, SessionLogOffset(0), grandchildEvents)
+    await waitForCacheRow(scaffold, grandchildHeader, SessionLogOffset(0))
     expect(scaffold.ctx.agents.get(childId)).toBeUndefined()
     expect(scaffold.ctx.agents.get(oneShotId)).toBeUndefined()
     expect(scaffold.ctx.agents.get(grandchildId)).toBeUndefined()
@@ -359,7 +367,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     await page.getByRole('button', { name: '3 subagents' }).hover()
     await page.getByRole('treeitem', { name: new RegExp(LABEL) }).click()
     await expect.poll(
-      () => page.getByText(INITIAL_PROMPT, { exact: true }).count(),
+      () => page.getByText(/^Explain event sourcing in one sentence\.Your parent agent id is /).count(),
       { timeout: 15_000 },
     ).toBe(1)
     if (scaffold.ctx.agents.get(childId) !== undefined) {
@@ -442,6 +450,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
       page,
       '[class*="centerCol"]',
       scaffold.workspaceCwd,
+      { scrollToBottom: true },
     )
     await compareOrRefreshGolden(AVAILABLE_CHILD_EXPANDED_EXPECTED, expanded, MODE)
     expect(tripwire.pageErrors).toEqual([])

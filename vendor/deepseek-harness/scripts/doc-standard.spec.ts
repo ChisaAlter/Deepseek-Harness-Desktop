@@ -55,7 +55,6 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/client/ui-primitives': 'Browser-side UI component library; plain component exports.',
   'packages/client/ui-slots': 'Browser-side slot-map declarations; plain type exports.',
   'packages/client/web': 'Browser application boot library; exports the app entry and static module table.',
-  'packages/code-runtime/code-runtime-python': 'Host-side protocol library for the CPython subprocess runtime.',
   'packages/core/scope': 'Scoped-context primitives; exports functions and types without a plugin entry.',
   'packages/experimental/webworker-packer': 'Build-time VFS image packer and command library.',
   'packages/experimental/webworker-runtime': 'Browser worker runtime library with explicit host entry points.',
@@ -165,8 +164,8 @@ describe('dsh-doc skill consolidation', () => {
 
   it('keeps the reference example linked from the skill', () => {
     const skill = readFileSync(resolve(root, '.agents/skills/dsh-doc/SKILL.md'), 'utf8')
-    expect(skill).toContain('session-persistence-sqlite/README.md')
-    expect(skill).toContain('session-persistence-sqlite/README.zh.md')
+    expect(skill).toContain('session-persistence-jsonl/README.md')
+    expect(skill).toContain('session-persistence-jsonl/README.zh.md')
   })
 
   it('defines controlled English as a precision-preserving review discipline', () => {
@@ -252,7 +251,7 @@ describe('dsh-doc skill consolidation', () => {
 })
 
 describe('reference-example README pair', () => {
-  const dir = 'packages/session/session-persistence-sqlite'
+  const dir = 'packages/session/session-persistence-jsonl'
 
   it('keeps exact English/Chinese physical line alignment', () => {
     const sourceLines = readFileSync(resolve(root, dir, 'README.md'), 'utf8').split('\n').length

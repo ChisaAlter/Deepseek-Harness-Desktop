@@ -29,6 +29,11 @@ export interface WorkspaceSnapshot {
   readonly items: readonly WorkspaceView[]
   /** Complete registry-global archive set in Host order. */
   readonly archivedSessionIds: WorkspaceArchiveValue['archivedSessionIds']
+  /**
+   * Host-owned cwd of no-directory Sessions (see {@link WorkspaceBaseline}).
+   * Absent until the first baseline lands.
+   */
+  readonly scratchCwd?: string
   readonly state: 'idle' | 'loading' | 'error'
   readonly phase: WorkspaceListPhase
   readonly error: RemoteFailure | null
@@ -54,6 +59,7 @@ export interface WorkspaceFollowSink {
 export class ClientWorkspaceModel implements WorkspaceFollowSink {
   private items: readonly WorkspaceView[] = []
   private archivedSessionIds: WorkspaceArchiveValue['archivedSessionIds'] = []
+  private scratchCwd: string | undefined
   private state: WorkspaceSnapshot['state'] = 'loading'
   private phase: WorkspaceListPhase = 'pending'
   private error: RemoteFailure | null = null
@@ -199,6 +205,7 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     this.orderFrameGeneration++
     this.installViews(baseline.items)
     this.installArchived(baseline.archivedSessionIds)
+    this.scratchCwd = baseline.scratchCwd
     this.state = 'idle'
     this.phase = 'ready'
     this.error = null
@@ -270,6 +277,7 @@ export class ClientWorkspaceModel implements WorkspaceFollowSink {
     return {
       items: this.items,
       archivedSessionIds: this.archivedSessionIds,
+      ...(this.scratchCwd === undefined ? {} : { scratchCwd: this.scratchCwd }),
       state: this.state,
       phase: this.phase,
       error: this.error,

@@ -115,6 +115,13 @@ export interface WorkspaceArchiveValue {
 export interface WorkspaceBaseline {
   readonly items: readonly WorkspaceView[]
   readonly archivedSessionIds: readonly SessionId[]
+  /**
+   * Host-owned directory (`$DSH_HOME/no-workspace`) that Sessions without a
+   * Workspace membership run in. A Session whose cwd equals this path is a
+   * no-directory task; any other unaccounted Session belongs to a Workspace
+   * that is not (or no longer) registered and stays out of grouping surfaces.
+   */
+  readonly scratchCwd: string
 }
 
 /** One ordered Workspace change after a generation's baseline. */

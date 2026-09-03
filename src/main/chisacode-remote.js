@@ -509,7 +509,9 @@ class ChisaCodeRemote extends EventEmitter {
     const relayEndpoint = (config.remoteRelayEndpoint || config.remoteRelayUrl || defaults.relayEndpoint || '').trim();
     const relayReady = Boolean(relayEndpoint);
     const addresses = listLanAddresses();
-    let snapshotAddress = preferredLanIp(addresses) || 'pair';
+    // Ranked by adapter as well as address: a plain address list cannot tell
+    // the Wi-Fi NIC from a WSL / TUN adapter in the same private range.
+    let snapshotAddress = preferredLanIp() || 'pair';
     if (away && pairingUrl) {
       try {
         snapshotAddress = new URL(resolvedAppBaseUrl(config)).hostname;

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { createMessage } from '@deepseek-ai/dsh-llm'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
-import SessionStore from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
@@ -32,21 +32,21 @@ const viewOf = (state: ReturnType<typeof billedUsageProjectionDefinition.init>):
 
 const stepStart = (seq: number, time: number, turn: number, step: number): SessionEvent => ({
   type: 'step/start',
-  seq,
+  seq: SessionSeq(seq),
   time,
   data: { turn, step },
 })
 
 const usageChunk = (seq: number, time: number, usage: TokenUsage, turn = 1, step = 1): SessionEvent => ({
   type: 'assistant/chunk',
-  seq,
+  seq: SessionSeq(seq),
   time,
   data: { turn, step, chunk: { type: 'usage', usage } },
 })
 
 const finalMessage = (seq: number, time: number, usage: TokenUsage, turn = 1, step = 1): SessionEvent => ({
   type: 'assistant/message',
-  seq,
+  seq: SessionSeq(seq),
   time,
   data: {
     turn,
@@ -159,7 +159,7 @@ describe('billed-usage fold — replace and identity rules', () => {
     let state = definition.init()
     const stepEnd: SessionEvent = {
       type: 'step/end',
-      seq: 0,
+      seq: SessionSeq(0),
       time: PEAK_MS,
       data: { turn: 1, step: 1 },
     }

@@ -22,7 +22,7 @@ The bundle reuses `@deepseek-ai/dsh-sdk-app` for command help, stdin EOF, and bo
 
 ### Explicit composition
 
-The bundle owns one DeepSeek adapter, SDK JSON-RPC serving, the executor-less agent spine, local subprocess and unrestricted filesystem providers, a platform-selected persistent shell, the string-replace editor, and uncompressed JSONL sessions under `$DSH_HOME/sessions`. Linux and macOS mount Bash; Windows mounts PowerShell. The SDK initialization request owns the model id; `DSH_CONTEXT_WINDOW` supplies fallback capacity for models outside the adapter's advisory catalog. The persona comes from `DSH_SYSTEM_PROMPT`, and the credential from `DEEPSEEK_API_KEY`.
+The bundle owns one DeepSeek adapter, SDK JSON-RPC serving, the explicit agent core, local subprocess and unrestricted filesystem providers, a platform-selected persistent shell, the string-replace editor, and uncompressed JSONL sessions under `$DSH_HOME/sessions`. Linux and macOS mount Bash; Windows mounts PowerShell. The SDK initialization request owns the model id; `DSH_CONTEXT_WINDOW` supplies fallback capacity for models outside the adapter's advisory catalog. The persona comes from `DSH_SYSTEM_PROMPT`, and the credential from `DEEPSEEK_API_KEY`.
 
 Harness identity, runtime context, workspace instructions, skills, model-facing job controls, compaction, settings, managed credentials, telemetry, Web tools, subagents, and every other base row are absent rather than hidden. The profile pins `danger-full-access`, `maxTokensAsSuccess: false`, and startup-only patch loading.
 

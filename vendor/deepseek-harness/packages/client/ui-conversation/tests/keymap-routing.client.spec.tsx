@@ -44,6 +44,7 @@ describe('keymap keydown routing', () => {
     registerPlainText(editor)
     const arbitrate = vi.fn<(key: string, composing: boolean) => 'consumed' | 'pick-highlighted' | 'pass'>()
       .mockReturnValueOnce('consumed')
+      .mockReturnValueOnce('pick-highlighted')
       .mockReturnValue('pass')
     registerComposerKeymap(editor, {
       arbitrate,
@@ -58,8 +59,9 @@ describe('keymap keydown routing', () => {
     const consumed = fireEvent.keyDown(root, { key: 'Tab', keyCode: 9 })
     expect(arbitrate).toHaveBeenCalledWith('tab', false)
     expect(consumed).toBe(false) // consumed: preventDefault fired
+    const picked = fireEvent.keyDown(root, { key: 'Tab', keyCode: 9 })
+    expect(picked).toBe(false) // picked: the completion replaces native traversal
     const passed = fireEvent.keyDown(root, { key: 'Tab', keyCode: 9 })
     expect(passed).toBe(true) // pass: the browser keeps native focus traversal
   })
-
 })

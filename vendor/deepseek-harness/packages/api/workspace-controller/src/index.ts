@@ -1,6 +1,8 @@
 /** Host Workspace Remote owner: explicit commands and reconnect-safe state. */
 
-import { Context } from '@deepseek-ai/cordis'
+import { mkdir } from 'node:fs/promises'
+import { Context, Service } from '@deepseek-ai/cordis'
+import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { WorkspaceCommands } from './commands.ts'
 import { DirectoryPickerController } from './directory-picker.ts'
@@ -23,6 +25,20 @@ import type {
 export type * from './types.ts'
 export { DirectoryPickerController } from './directory-picker.ts'
 
+/** Harness-home segment holding Sessions that belong to no Workspace. */
+export const NO_WORKSPACE_DIR = 'no-workspace'
+
+/**
+ * Resolve the Host-owned cwd for Sessions outside every Workspace. It lives
+ * under the Harness home, never under a registrable project directory, so
+ * canonical-cwd membership projection can never absorb such a Session into a
+ * Workspace by accident.
+ * @returns the absolute scratch directory path.
+ */
+export function scratchWorkspaceCwd(): string {
+  return dshHomePath(NO_WORKSPACE_DIR)
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Host Workspace business API and Remote namespace owner. */
@@ -36,17 +52,25 @@ export class WorkspaceController extends TypertRemoteService {
 
   private readonly commands: WorkspaceCommands
   private readonly feed: WorkspaceFeed
+  /** Host-owned cwd advertised to Clients through every follow baseline. */
+  readonly scratchCwd: string
 
   /** @param ctx - Host context containing the Workspace registry. */
   constructor(ctx: Context) {
     super(ctx, 'workspaceController', { namespace: 'workspace' })
+    this.scratchCwd = scratchWorkspaceCwd()
     this.commands = new WorkspaceCommands(ctx)
-    this.feed = new WorkspaceFeed(ctx)
+    this.feed = new WorkspaceFeed(ctx, this.scratchCwd)
     // This package is the Loader entry for both Remote owners it hosts: the
     // directory-picking seam is abstract and never an entry itself. The child
     // stays pending until a picking backend is composed, so a host without one
     // registers no picking namespace instead of answering an unservable verb.
     ctx.plugin(DirectoryPickerController)
+  }
+
+  /** The scratch directory must exist before a Client can target it. */
+  protected async [Service.init](): Promise<void> {
+    await mkdir(this.scratchCwd, { recursive: true })
   }
 
   /**

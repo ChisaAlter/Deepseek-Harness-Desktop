@@ -80,7 +80,7 @@ const dshSdkDiagnosticChildPatch = fileURLToPath(new URL(
   import.meta.url,
 ))
 const dshSdkChildConfig = fileURLToPath(new URL(
-  '../../packages/subagent/subagent-dsh-sdk/tests/fixtures/loader/child.cordis.yml',
+  '../../packages/subagent/subagent-dsh-sdk/tests/fixtures/loader/child.patch.yml',
   import.meta.url,
 ))
 

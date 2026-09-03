@@ -135,19 +135,24 @@ function modelFor(remote = new FakeWorkspaceRemote()): ClientWorkspaceModel {
   return new ClientWorkspaceModel(remote)
 }
 
+const SCRATCH = '/dsh-home/no-workspace'
+
 function baseline(
   model: ClientWorkspaceModel,
   items: readonly WorkspaceView[] = [],
   archivedSessionIds: readonly SessionId[] = [],
 ): void {
-  model.replaceBaseline({ items, archivedSessionIds })
+  model.replaceBaseline({ items, archivedSessionIds, scratchCwd: SCRATCH })
 }
 
 describe('ClientWorkspaceModel', () => {
   it('replaces reconnect state and applies ordered increments', () => {
     const model = modelFor()
     expect(model.getSnapshot()).toMatchObject({ phase: 'pending', state: 'loading' })
+    // The scratch cwd is a baseline fact: absent before it, present after.
+    expect(model.getSnapshot().scratchCwd).toBeUndefined()
     baseline(model, [workspace('old'), workspace('kept')])
+    expect(model.getSnapshot().scratchCwd).toBe(SCRATCH)
     model.upsertView(workspace('new'))
     model.replaceOrder([wid('kept'), wid('new'), wid('old')])
     model.replaceArchived([sid('hidden')])

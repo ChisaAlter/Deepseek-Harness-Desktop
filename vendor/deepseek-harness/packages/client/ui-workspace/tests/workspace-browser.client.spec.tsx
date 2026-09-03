@@ -24,8 +24,10 @@ const t: WorkspaceBrowserProps['t'] = makeTranslate(zh, commonZh)
 
 const sid = (id: string) => id as SessionId
 const wid = (id: string) => id as WorkspaceId
+/** Host scratch cwd from the Workspace baseline: unowned fixture sessions live there so they stay listed. */
+const SCRATCH = '/dsh-home/no-workspace'
 const summary = (id: string, updatedAt: number, overrides: Partial<SessionSummary> = {}): SessionSummary => ({
-  id: sid(id), displayTitle: id, running: false, blank: false, updatedAt, ...overrides,
+  id: sid(id), displayTitle: id, running: false, blank: false, updatedAt, cwd: SCRATCH, ...overrides,
 })
 const sessionState = (items: readonly SessionSummary[], overrides: Partial<SessionListState> = {}): SessionListState => ({
   ids: items.map(item => item.id),
@@ -43,7 +45,9 @@ const workspace = (id: string, sessionIds: string[], title = id): WorkspaceView 
 const workspaceState = (
   items: readonly WorkspaceView[],
   archivedSessionIds: readonly SessionId[] = [],
-): WorkspaceSnapshot => ({ items, archivedSessionIds, state: 'idle', phase: 'ready', error: null })
+): WorkspaceSnapshot => ({
+  items, archivedSessionIds, scratchCwd: SCRATCH, state: 'idle', phase: 'ready', error: null,
+})
 const noPendingInteraction: SessionPendingInteractionSnapshot = new Map()
 function hook<T>(snapshot: T) {
   return function select<S>(selector: (state: T) => S): S { return selector(snapshot) }
@@ -486,18 +490,62 @@ describe('WorkspaceBrowser', () => {
     expect(startSession).toHaveBeenCalledWith(wid('alpha'))
   })
 
-  it('auto-expands the Ungrouped bucket for a loose current session; its header has no menu and its ＋ is inert', () => {
+  it('auto-expands the no-directory section for a current task; its header has no menu and its ＋ mints a task', () => {
     const startSession = vi.fn()
+    const connectNoDirectory = vi.fn()
     mount({
       useSessions: hook(sessionState([summary('loose', 1)], { current: sid('loose') })),
       useWorkspaces: hook(workspaceState([workspace('alpha', [])])),
       startSession,
+      connectNoDirectory,
     })
-    // The loose session's group is UNGROUPED_KEY: expanded by the effect.
+    // The task's group is UNGROUPED_KEY: expanded by the effect.
     expect(screen.getByText('loose')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '工作区“未分组”的操作' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '在“未分组”中新建会话' }))
+    expect(screen.getByText('无工作目录')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '工作区“无工作目录”的操作' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '在“无工作目录”中新建会话' }))
+    expect(connectNoDirectory).toHaveBeenCalledTimes(1)
     expect(startSession).not.toHaveBeenCalled()
+  })
+
+  it('hides sessions of an unregistered Workspace everywhere until its directory is added again', () => {
+    const orphan = summary('orphan', 4, { cwd: '/projects/deleted' })
+    const archivedOrphan = summary('archived-orphan', 3, { cwd: '/projects/deleted' })
+    const member = summary('member', 2, { cwd: '/projects/alpha' })
+    const task = summary('task', 1)
+    const sessions = sessionState([orphan, archivedOrphan, member, task])
+    const b = mount({
+      useSessions: hook(sessions),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['member'])], [sid('archived-orphan')])),
+    })
+    act(() => {
+      b.store.actions.setGroupExpanded('alpha', true)
+      b.store.actions.setGroupExpanded(UNGROUPED_KEY, true)
+    })
+    expect(screen.getByText('member')).toBeTruthy()
+    expect(screen.getByText('task')).toBeTruthy()
+    expect(screen.queryByText('orphan')).toBeNull()
+    // The Archived section has nothing listable either, so it is omitted.
+    expect(screen.queryByText('已归档')).toBeNull()
+
+    // The flat list applies the same membership rule.
+    act(() => { b.store.actions.setGroupBy('flat') })
+    expect(screen.getByText('member')).toBeTruthy()
+    expect(screen.getByText('task')).toBeTruthy()
+    expect(screen.queryByText('orphan')).toBeNull()
+    expect(screen.queryByText('已归档')).toBeNull()
+
+    // Registering the directory again lists both sessions under its Workspace
+    // (the archived one back in the Archived section).
+    act(() => { b.store.actions.setGroupBy('workspace') })
+    rerender(b, {
+      useWorkspaces: hook(workspaceState([
+        workspace('alpha', ['member']), workspace('deleted', ['orphan', 'archived-orphan']),
+      ], [sid('archived-orphan')])),
+    })
+    act(() => { b.store.actions.setGroupExpanded('deleted', true) })
+    expect(screen.getByText('orphan')).toBeTruthy()
+    expect(screen.getByText('已归档')).toBeTruthy()
   })
 
   it('keeps an already-expanded group when the selection moves within it', () => {
@@ -1024,7 +1072,7 @@ describe('WorkspaceBrowser', () => {
     expect(insertSessionBefore).toHaveBeenCalledTimes(1)
   })
 
-  it('persists Ungrouped drag order in both modes without writing a Host Workspace account', async () => {
+  it('persists no-directory drag order in both modes without writing a Host Workspace account', async () => {
     const insertSessionBefore = vi.fn(async () => {})
     const sessions = sessionState([summary('one', 3), summary('two', 2), summary('three', 1)])
     const b = mount({
@@ -1032,7 +1080,7 @@ describe('WorkspaceBrowser', () => {
       useWorkspaces: hook(workspaceState([])),
       insertSessionBefore,
     })
-    fireEvent.click(screen.getByText('未分组'))
+    fireEvent.click(screen.getByText('无工作目录'))
 
     const dragAfter = (sourceTitle: string, targetTitle: string): void => {
       const source = screen.getByText(sourceTitle).closest('[role="treeitem"]') as HTMLElement
@@ -1247,7 +1295,7 @@ describe('WorkspaceBrowser', () => {
     const dialog = screen.getByRole('dialog', { name: '删除工作区' })
     expect(dialog.textContent).toContain('将把“Alpha”从工作区列表中移除')
     expect(dialog.textContent).toContain('文件夹与会话记录会保留')
-    expect(dialog.textContent).toContain('其会话将显示在“未分组”下')
+    expect(dialog.textContent).toContain('其会话将不再显示；重新添加该工作目录后会话会回来')
 
     const confirm = screen.getByRole<HTMLButtonElement>('button', { name: '删除工作区' })
     fireEvent.click(confirm)

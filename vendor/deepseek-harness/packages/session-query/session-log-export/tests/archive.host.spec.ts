@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { unzipSync, strFromU8 } from 'fflate'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionLineageNode } from '@deepseek-ai/dsh-session-query'
 import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
@@ -25,6 +26,7 @@ function header(id: string, parentSession?: SessionId): SessionHeader {
     id: sid(id),
     createdAt: 1000,
     cwd: '/proj',
+    isSeeded: false,
     ...parentSession === undefined ? {} : { parentSession },
     delegationDepth: parentSession === undefined ? 0 : 1,
   }
@@ -33,6 +35,7 @@ function header(id: string, parentSession?: SessionId): SessionHeader {
 function artifact(id: string, parentSession?: SessionId, content?: string): SessionRawArtifact {
   return {
     meta: header(id, parentSession),
+    inheritedEventCount: SessionLogOffset(0),
     filename: 'session.jsonl',
     content: content ?? `{"type":"session","version":0,"id":"${id}","createdAt":1000}\n{"type":"turn/start","seq":0,"time":2000,"data":{"turn":1}}\n`,
   }

@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 检查记录
 
-选择、时间线导航、折叠、搜索与请求汇总只覆盖已加载的窗口。选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时与持久图片。图片 URL 使用 Conversation 拥有的逐会话缓存，因此 Chat 与 Trajectory 对每个附件共享一次已授权读取。没有文本的记录会用图片数量标记其行。独立运行的压缩请求会按时间顺序显示在自己的 `Between turns` 区段中，而带编号的压缩仍位于其所属轮次内。
+选择、时间线导航、折叠与搜索只覆盖 React 可见窗口。请求编号与累计用量覆盖完整的驻留 snapshot。选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时与持久图片。图片 URL 使用 Conversation 拥有的逐会话缓存，因此 Chat 与 Trajectory 对每个附件共享一次已授权读取。没有文本的记录会用图片数量标记其行。独立运行的压缩请求会按时间顺序显示在自己的 `Between turns` 区段中，而带编号的压缩仍位于其所属轮次内。
 
 ### 时间概览
 
@@ -43,11 +43,11 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-视图是纯投影：Trajectory 自有的 Definition 从共享 Session 窗口组装业务记录——包括持久化的取消定稿前缀、只能从分片恢复的打断前缀与被打断的工具记录——因此 Trajectory 既不读取也不改变 Chat 会话快照。
+视图是纯投影：Trajectory 自有的 Definition 从共享 Session 窗口组装业务记录——包括持久化的取消定稿前缀、只能从分片恢复的打断前缀与被打断的工具记录——因此 Trajectory 既不读取也不改变 Chat 会话快照。其 steering 分类器通过持久 splice state 只保留 next-step Inbox ID，并让后续 Context 共享当前 claimed batch。
 
 ### 虚拟行
 
-长记录表只挂载可见行窗口加少量缓冲；仅含请求的分隔行并入下一个具备可测高度的虚拟项，语义行键与 ARIA 索引在向前补页后保持不变。仅含内容更新的流式帧会保持虚拟行的键与高度、复用测量结果，并且不会重复写入末尾滚动位置。已完成的回复会在 Trajectory target State 中保留组装后的 blocks、计时与用量，共享 Session 窗口则保留原始 Event。
+长记录表最初只从挂载时尾部结束的 50 个 target Node 派生 React 数据。后续 Node 会扩展这个固定起点的窗口而不会逐出其前缀；现有加载控件会先显露更早的驻留 Node，再请求下一个 Session 页面。虚拟化只挂载可见行窗口加少量缓冲；仅含请求的分隔行并入下一个具备可测高度的虚拟项，语义行键与 ARIA 索引在向前补页后保持不变。仅含内容更新的流式帧会保持虚拟行的键与高度、复用测量结果，并且不会重复写入末尾滚动位置。已完成的回复会在 Trajectory target State 中保留组装后的 blocks、计时与用量，共享 Session 窗口则保留原始 Event。
 
 ### 布局
 
@@ -96,3 +96,5 @@ Trajectory 要求会话壳把 composer 作为浮层置于全高记录表上方�
 无。
 
 </details>
+
+**运行时不变式：** 不发布伴生入口。这是纯消费插件，不发出 Cordis 事件，也不持有跨插件可变状态；view-slot effect 的释放由 slot ledger 与包测试观察。

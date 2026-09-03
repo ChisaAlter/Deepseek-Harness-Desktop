@@ -41,6 +41,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+  corner-shape: round;
 }
 
 .phase {

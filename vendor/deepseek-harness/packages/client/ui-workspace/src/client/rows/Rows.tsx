@@ -241,9 +241,10 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
 }
 
 /**
- * Ungrouped section header: chevron + localized ungrouped title + create. No
- * folder icon and no Workspace menu — ungrouped sessions sit directly under
- * this row at the same indent as sessions under a workspace.
+ * No-directory section header: chevron + localized "No workspace folder"
+ * title + create. No folder icon and no Workspace menu — these sessions sit
+ * directly under this row at the same indent as sessions under a workspace,
+ * and ＋ mints a Session in the Host scratch cwd instead of a Workspace one.
  * @param props.expanded - whether the session list below is shown.
  * @param props.containsCurrent - the current session is in this section.
  * @param props.onToggle - expand/collapse.

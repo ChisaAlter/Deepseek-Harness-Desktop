@@ -51,7 +51,7 @@ export function InputBar({
   setComposerResizeSize,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
-  placeholder, accessory, overlay, leftItems, rightItems, footer,
+  placeholder, accessory,
 }: InputBarProps) {
   const input = useInput(s => s)
   const notice = useNotices(s => s)
@@ -109,7 +109,7 @@ export function InputBar({
   useEffect(() => {
     if (promptError === null) return
     const { error } = promptError
-    showToast(error.code === 'session/attachment-invalid' || error.code === 'subagent/attachment-unsupported'
+    showToast(error.code === 'session/attachment-invalid' || error.code === 'subagent/attachment-invalid'
       ? attachmentErrorText(t, error.details.reason, imageLimits)
       : `${error.message} (${error.code})`)
   }, [promptError, showToast, t, imageLimits])
@@ -472,7 +472,9 @@ export function InputBar({
           <span className={css.beamBloom} />
         </div>
         <div className={css.cardBody}>
-        {overlay !== undefined && <div className={css.overlayAnchor}>{overlay}</div>}
+        {!hideRoomChrome && sessionId !== undefined && (
+          <div className={css.overlayAnchor}>{renderSlot('conversation.input.overlay', {})}</div>
+        )}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
         {edit !== null && (
           <div className={css.editRow} role="status" data-edit-session>
@@ -555,10 +557,14 @@ export function InputBar({
               {accessSelect}
               {!hideRoomChrome && (sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked }))}
             </div>
-            {leftItems}
+            {hideRoomChrome || input === undefined || sessionId === undefined
+              ? null
+              : renderSlot('conversation.input.left', {})}
           </div>
           <div className={css.trailing}>
-            {rightItems}
+            {hideRoomChrome || input === undefined || sessionId === undefined
+              ? null
+              : renderSlot('conversation.input.right', {})}
             {!hideModelSeat && (sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked }))}
             {!hideRoomChrome && <ContextMeter useProjection={useProjection} t={t} />}
             {interruptible && (
@@ -601,7 +607,9 @@ export function InputBar({
         </div>
         </div>
       </div>
-      {footer}
+      {variant === 'composer' && !hideRoomChrome && input !== undefined && sessionId !== undefined
+        ? renderSlot('conversation.composer.dock', {})
+        : null}
     </div>
   )
 }

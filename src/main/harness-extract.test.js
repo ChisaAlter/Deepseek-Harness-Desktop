@@ -22,6 +22,10 @@ const {
   packagedRuntimeIdentity,
   writeRuntimeStamp,
   ensurePackagedHarness,
+  retireStaleExtract,
+  sweepStaleExtracts,
+  settleBackgroundWork,
+  STALE_SUFFIX,
 } = require('./harness-extract');
 Module._load = originalLoad;
 
@@ -46,9 +50,10 @@ function packagedFixture(t) {
     getPath: () => userData,
     getVersion: () => '9.9.9',
   });
-  t.after(() => {
+  t.after(async () => {
     Object.defineProperty(process, 'resourcesPath', { value: previousResourcesPath, configurable: true });
     for (const key of Object.keys(electronStub.app)) delete electronStub.app[key];
+    await settleBackgroundWork();
     fs.rmSync(root, { recursive: true, force: true });
   });
   return {
@@ -246,4 +251,54 @@ test('ensurePackagedHarness re-extracts a stale extract only when the archive ex
     fs.statSync(archive).size,
   );
   assert.equal(canReuseExtractedHarness(fixture.dest, identity), true);
+  // The stale tree was retired by rename and deleted in the background, so
+  // nothing but the fresh extract remains once that work settles.
+  await settleBackgroundWork();
+  assert.deepEqual(fs.readdirSync(path.join(fixture.userData, 'runtime')), ['9.9.9']);
+});
+
+test('ensurePackagedHarness never deletes a stale extract synchronously', () => {
+  // fs.rmSync of a ~57k-file runtime blocked the Electron main thread 16–46 s
+  // and Windows reported the window 未响应 (WER AppHangTransient).
+  const source = fs.readFileSync(path.join(__dirname, 'harness-extract.js'), 'utf8');
+  assert.doesNotMatch(source, /\brmSync\(/);
+  assert.match(source, /await retireStaleExtract\(dest/);
+});
+
+test('retireStaleExtract renames first and removes the retired tree off the caller path', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'retire-runtime-'));
+  t.after(async () => {
+    await settleBackgroundWork();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const dest = path.join(root, 'runtime', '1.0.0');
+  seedBuiltHarness(dest);
+  const logs = [];
+  const retired = await retireStaleExtract(dest, (line) => logs.push(line));
+  assert.equal(fs.existsSync(dest), false, 'dest is free for the fresh extract immediately');
+  assert.ok(retired && retired.startsWith(`${dest}${STALE_SUFFIX}`));
+  await settleBackgroundWork();
+  assert.equal(fs.existsSync(retired), false);
+  assert.deepEqual(logs, []);
+});
+
+test('sweepStaleExtracts removes retired trees left behind by an interrupted run', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-runtime-'));
+  t.after(async () => {
+    await settleBackgroundWork();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const runtime = path.join(root, 'runtime');
+  const keep = path.join(runtime, '1.0.0');
+  const leftover = path.join(runtime, `1.0.0${STALE_SUFFIX}abc-123`);
+  seedBuiltHarness(keep);
+  seedBuiltHarness(leftover);
+  fs.writeFileSync(path.join(runtime, 'notes.stale-file.txt'), 'file, not a dir');
+  const swept = await sweepStaleExtracts(runtime, () => {});
+  assert.deepEqual(swept, [leftover]);
+  await settleBackgroundWork();
+  assert.equal(fs.existsSync(leftover), false);
+  assert.equal(hasBuiltHarness(keep), true);
+  assert.equal(fs.existsSync(path.join(runtime, 'notes.stale-file.txt')), true);
+  assert.deepEqual(await sweepStaleExtracts(path.join(root, 'missing'), () => {}), []);
 });

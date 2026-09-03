@@ -16,13 +16,12 @@ import {
 import { isChunkRow, packChunkRuns, type ChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { hasAssistantReplyContent } from '../src/client/contract/assistant-content.ts'
-import { decodeTurnProcess } from '../src/client/contract/turn-process.ts'
 import { assistantDefinition } from '../src/client/conversation-nodes/assistant.ts'
 import { chatViewDefinition } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
 import { commandDefinition } from '../src/client/conversation-nodes/command.ts'
 import { compactionDefinition } from '../src/client/conversation-nodes/compaction.ts'
 import { unknownFallbackDefinition } from '../src/client/conversation-nodes/fallback.ts'
-import { nextStepInboxDefinition, nextTurnInboxDefinition } from '../src/client/conversation-nodes/inbox.ts'
+import { nextStepInboxDefinition } from '../src/client/conversation-nodes/inbox.ts'
 import { messageDefinition } from '../src/client/conversation-nodes/message.ts'
 import { inspectRequestPrompt } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { requestPromptDefinition } from '../src/client/conversation-nodes/request-prompt.ts'
@@ -37,7 +36,6 @@ import type {
 } from '../src/client/contract/chat-nodes.ts'
 
 const DEFINITIONS: readonly ConversationNodeDefinition[] = [
-  nextTurnInboxDefinition,
   nextStepInboxDefinition,
   messageDefinition,
   requestPromptDefinition(inspectRequestPrompt),
@@ -107,7 +105,7 @@ function packedInputs(entries: readonly SessionLiveEventEntry[]): SessionEventLi
 function assembler(entries: readonly SessionEventLikeEntry[] = [], hasMore = false): ConversationNodeAssembler {
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
   value.replaceWindow(entries, hasMore)
-  value.flush()
+  value.activateTarget('chat')
   return value
 }
 
@@ -119,6 +117,37 @@ function snapshot(value: ConversationNodeAssembler): ChatSnapshot {
 
 function node(value: ChatSnapshot, kind: string): ChatConversationViewNode | undefined {
   return value.nodes.values().find(candidate => candidate.kind === kind)
+}
+
+function comparableSnapshot(value: ChatSnapshot) {
+  const nodes = value.nodes.values()
+  return {
+    order: value.order,
+    nodes: nodes.map(candidate => ({
+      ...candidate,
+      location: candidate.location.kind === 'step'
+        ? {
+          kind: 'step',
+          turn: candidate.location.turn.turn,
+          turnStatus: candidate.location.turn.status,
+          step: candidate.location.step.step,
+          stepStatus: candidate.location.step.status,
+        }
+        : candidate.location.kind === 'turn'
+          ? {
+            kind: 'turn',
+            turn: candidate.location.turn.turn,
+            turnStatus: candidate.location.turn.status,
+          }
+          : { kind: candidate.location.kind },
+    })),
+    processes: nodes.map(candidate => [
+      candidate.key,
+      value.nodes.processSource(candidate.key).getSnapshot(),
+    ]),
+    navigation: value.navigation.items(),
+    legacy: value.legacy,
+  }
 }
 
 function textMessage(id: string, text: string) {
@@ -215,14 +244,16 @@ describe('built-in conversation node Definitions', () => {
     expect(streamed).not.toBe(opening)
   })
 
-  it('bounds each rail preview instead of copying the whole transcript', () => {
+  it('bounds each rail preview at its card budget instead of copying the whole transcript', () => {
     const long = 'x'.repeat(400)
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),
       at(2, 'user/message', textMessage('user-1', long), { surfaceOp: 'append' }),
     ])
     const items = snapshot(value).navigation.items()
-    expect(items[0]?.prompt.length).toBe(160)
+    // One clipped prompt line: 49 characters plus the trailing ellipsis.
+    expect(items[0]?.prompt.length).toBe(50)
+    expect(items[0]?.prompt.endsWith('…')).toBe(true)
   })
 
   it('classifies reply content separately from reasoning and Tool protocol blocks', () => {
@@ -256,10 +287,7 @@ describe('built-in conversation node Definitions', () => {
         chunk: { type: 'tool-call-delta', index: 2, id: 'call-1', name: 'read', argumentsDelta: '{}' },
       }),
     ])
-    const process = () => {
-      const signature = snapshot(value).timeline.turns.get(1)?.data.get('turn-process')
-      return signature === undefined ? undefined : decodeTurnProcess(signature)
-    }
+    const process = () => snapshot(value).timeline.turns.get(1)?.data.get('turn-process')
     expect(process()).toMatchObject({ processStartSeq: 4, answerAnchorSeq: null, answerStep: null })
     expect(node(snapshot(value), 'turn-process')?.data).toMatchObject({ answerAnchorSeq: null })
 
@@ -322,8 +350,8 @@ describe('built-in conversation node Definitions', () => {
       }),
       at(26, 'turn/end', { turn: 2, reason: { kind: 'interrupted' } }),
     ])
-    const recoveredSignature = snapshot(recovered).timeline.turns.get(2)?.data.get('turn-process')
-    expect(recoveredSignature === undefined ? undefined : decodeTurnProcess(recoveredSignature))
+    const recoveredProcess = snapshot(recovered).timeline.turns.get(2)?.data.get('turn-process')
+    expect(recoveredProcess)
       .toMatchObject({ answerStep: 2, answerAnchorSeq: 25.1 })
 
     const partialWindow = assembler([
@@ -332,8 +360,8 @@ describe('built-in conversation node Definitions', () => {
       }),
       at(31, 'step/end', { turn: 3, step: 4 }),
     ], true)
-    const partialSignature = snapshot(partialWindow).timeline.turns.get(3)?.data.get('turn-process')
-    expect(partialSignature === undefined ? undefined : decodeTurnProcess(partialSignature))
+    const partialProcess = snapshot(partialWindow).timeline.turns.get(3)?.data.get('turn-process')
+    expect(partialProcess)
       .toMatchObject({ processStartSeq: 30.1, answerAnchorSeq: 30.1, answerStep: 4 })
   })
 
@@ -364,8 +392,8 @@ describe('built-in conversation node Definitions', () => {
       at(11, 'step/end', { turn: 1, step: 2 }),
       at(12, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ])
-    const signature = snapshot(value).timeline.turns.get(1)?.data.get('turn-process')
-    expect(signature === undefined ? undefined : decodeTurnProcess(signature)).toMatchObject({
+    const process = snapshot(value).timeline.turns.get(1)?.data.get('turn-process')
+    expect(process).toMatchObject({
       messageCount: 1,
       toolCallCount: 1,
       subagentCount: 1,
@@ -416,6 +444,63 @@ describe('built-in conversation node Definitions', () => {
 
     expect(current.order.map(key => current.nodes.get(key)?.kind)).toEqual([
       'user', 'turn-process', 'context', 'steering', 'assistant-step', 'assistant-step', 'turn-tail',
+    ])
+  })
+
+  it('replays pending splice chains and scopes steering to the current claim', () => {
+    const first = textMessage('claim-first', 'first')
+    const second = textMessage('claim-second', 'second')
+    const canceled = textMessage('claim-canceled', 'canceled')
+    const requeued = textMessage('claim-requeued', 'requeued')
+    const later = textMessage('claim-later', 'later')
+    const current = snapshot(assembler([
+      at(1, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, inserted: [first],
+      }),
+      at(2, 'agent/inbox/spliced', {
+        target: 'next-step', start: 1, inserted: [canceled],
+      }),
+      at(3, 'agent/inbox/spliced', {
+        target: 'next-step', start: 1, inserted: [second],
+      }),
+      at(4, 'agent/inbox/spliced', {
+        target: 'next-step', start: 2, removedCount: 1, inserted: [], outcome: 'canceled',
+      }),
+      at(5, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, removedCount: 2, inserted: [],
+      }),
+      at(6, 'user/message', first, { surfaceOp: 'append' }),
+      at(7, 'user/message', second, { surfaceOp: 'append' }),
+      at(8, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, inserted: [requeued],
+      }),
+      at(9, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, removedCount: 1, inserted: [],
+      }),
+      at(10, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, inserted: [requeued],
+      }),
+      at(11, 'user/message', requeued, { surfaceOp: 'append' }),
+      at(12, 'user/message', canceled, { surfaceOp: 'append' }),
+      at(13, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, removedCount: 1, inserted: [], outcome: 'canceled',
+      }),
+      at(14, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, inserted: [later],
+      }),
+      at(15, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, removedCount: 1, inserted: [],
+      }),
+      at(16, 'user/message', later, { surfaceOp: 'append' }),
+    ]))
+
+    expect(current.order.map(key => current.nodes.get(key)).filter(node =>
+      node?.kind === 'user' || node?.kind === 'steering')).toMatchObject([
+      { kind: 'steering', data: { seq: 6 } },
+      { kind: 'steering', data: { seq: 7 } },
+      { kind: 'user', data: { seq: 11 } },
+      { kind: 'user', data: { seq: 12 } },
+      { kind: 'steering', data: { seq: 16 } },
     ])
   })
 
@@ -534,10 +619,15 @@ describe('built-in conversation node Definitions', () => {
       }),
     ])
     const read = () => {
-      const signature = snapshot(value).timeline.turns.get(4)?.data.get('turn-process')
-      if (signature === undefined) throw new Error('turn-process signature is unavailable')
-      return decodeTurnProcess(signature)
+      const process = snapshot(value).timeline.turns.get(4)?.data.get('turn-process')
+      if (process === undefined) throw new Error('turn-process data is unavailable')
+      return process
     }
+    const streamingNode = node(snapshot(value), 'assistant-step')
+    if (streamingNode === undefined) throw new Error('streaming Assistant node is unavailable')
+    const processSource = snapshot(value).nodes.processSource(streamingNode.key)
+    let processNotifications = 0
+    processSource.subscribe(() => { processNotifications++ })
     const streaming = read()
     value.append(at(44, 'assistant/message', {
       turn: 4, step: 1, message: assistantMessage('settled-4', 'answer'),
@@ -548,6 +638,77 @@ describe('built-in conversation node Definitions', () => {
     expect(streaming).toMatchObject({ answerAnchorSeq: null, answerStep: null })
     expect(settled.answerAnchorSeq).toBe(44)
     expect(settled.answerStep).toBe(1)
+    expect(processNotifications).toBe(1)
+    expect(processSource.getSnapshot()?.spec.answerAnchorSeq).toBe(44)
+  })
+
+  it('reuses the open Turn-process projection across continuing Assistant chunks', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'step/start', { turn: 1, step: 1 }),
+      at(3, 'assistant/chunk', {
+        turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'first' },
+      }),
+    ])
+    const before = snapshot(value)
+    const processNode = node(before, 'turn-process')
+    const processData = before.timeline.turns.get(1)?.data.get('turn-process')
+    const assistantNode = node(before, 'assistant-step')
+    if (assistantNode === undefined) throw new Error('Assistant node is unavailable')
+    const processSource = before.nodes.processSource(assistantNode.key)
+    const processPresentation = processSource.getSnapshot()
+    let processNotifications = 0
+    processSource.subscribe(() => { processNotifications++ })
+
+    value.append(at(4, 'assistant/chunk', {
+      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: ' second' },
+    }))
+    value.flush()
+
+    const after = snapshot(value)
+    expect(after.timeline.turns.get(1)?.data.get('turn-process')).toBe(processData)
+    expect(node(after, 'turn-process')).toBe(processNode)
+    expect(node(after, 'assistant-step')).not.toBe(assistantNode)
+    expect(processSource.getSnapshot()).toBe(processPresentation)
+    expect(processNotifications).toBe(0)
+  })
+
+  it('notifies process sources only for Nodes in the changed Turn', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'step/start', { turn: 1, step: 1 }),
+      at(3, 'assistant/message', {
+        turn: 1, step: 1, message: assistantMessage('answer-1', 'first answer'),
+      }, { surfaceOp: 'append' }),
+      at(4, 'step/end', { turn: 1, step: 1 }),
+      at(5, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      at(6, 'turn/start', { turn: 2 }),
+      at(7, 'step/start', { turn: 2, step: 1 }),
+      at(8, 'assistant/chunk', {
+        turn: 2, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'thinking' },
+      }),
+    ])
+    const assistants = snapshot(value).nodes.values()
+      .filter((candidate): candidate is ChatConversationViewNode & { data: AssistantChatData } => (
+        candidate.kind === 'assistant-step'
+      ))
+    const first = assistants.find(candidate => candidate.data.turn === 1)
+    const second = assistants.find(candidate => candidate.data.turn === 2)
+    if (first === undefined || second === undefined) throw new Error('Assistant fixtures are unavailable')
+    let firstNotifications = 0
+    let secondNotifications = 0
+    snapshot(value).nodes.processSource(first.key).subscribe(() => { firstNotifications++ })
+    snapshot(value).nodes.processSource(second.key).subscribe(() => { secondNotifications++ })
+
+    value.append(at(9, 'assistant/message', {
+      turn: 2, step: 1, message: assistantMessage('answer-2', 'second answer'),
+    }, { surfaceOp: 'append' }))
+    value.append(at(10, 'step/end', { turn: 2, step: 1 }))
+    value.append(at(11, 'turn/end', { turn: 2, reason: { kind: 'completed' } }))
+    value.flush()
+
+    expect(firstNotifications).toBe(0)
+    expect(secondNotifications).toBe(1)
   })
 
   it('anchors a streamed non-text answer from its block start', () => {
@@ -561,11 +722,11 @@ describe('built-in conversation node Definitions', () => {
     const current = snapshot(value)
     const process = node(current, 'turn-process')
     const answer = node(current, 'assistant-step')
-    const signature = current.timeline.turns.get(5)?.data.get('turn-process')
+    const processData = current.timeline.turns.get(5)?.data.get('turn-process')
 
     expect(process?.anchorSeq).toBe(51.9)
     expect(answer?.anchorSeq).toBe(52)
-    expect(signature === undefined ? undefined : decodeTurnProcess(signature))
+    expect(processData)
       .toMatchObject({ answerAnchorSeq: null, answerStep: null })
   })
 
@@ -582,6 +743,9 @@ describe('built-in conversation node Definitions', () => {
     const runningSnapshot = snapshot(value)
     const running = node(runningSnapshot, 'assistant-step')
     expect(running?.data).toMatchObject({ status: 'running', blocks: [{ kind: 'text', text: 'streaming' }] })
+    expect(running?.location.kind === 'step'
+      ? running.location.step.data.get('assistant-step')
+      : undefined).toBe(running?.data)
     const order = runningSnapshot.order
 
     value.append(at(4, 'assistant/message', {
@@ -596,6 +760,9 @@ describe('built-in conversation node Definitions', () => {
     expect(settled?.key).toBe(running?.key)
     expect(settledSnapshot.order).toBe(order)
     expect(settled?.data).toMatchObject({ status: 'settled', blocks: [{ kind: 'text', text: 'settled' }] })
+    expect(settled?.location.kind === 'step'
+      ? settled.location.step.data.get('assistant-step')
+      : undefined).toBe(settled?.data)
 
     const interruptedValue = assembler([
       at(10, 'turn/start', { turn: 2 }),
@@ -768,7 +935,7 @@ describe('built-in conversation node Definitions', () => {
     expect(packedHistory.filter(input => input.event.type.startsWith('chunkrow/'))).toHaveLength(3)
     const packed = assembler(packedHistory)
 
-    expect(snapshot(packed)).toEqual(snapshot(scalar))
+    expect(comparableSnapshot(snapshot(packed))).toEqual(comparableSnapshot(snapshot(scalar)))
     const running = node(snapshot(packed), 'assistant-step')
     expect(running).toMatchObject({ anchorSeq: 6 })
     expect(running?.data).toMatchObject({
@@ -785,7 +952,7 @@ describe('built-in conversation node Definitions', () => {
       value.append(at(14, 'turn/end', { turn: 1, reason: { kind: 'completed' } }))
       value.flush()
     }
-    expect(snapshot(packed)).toEqual(snapshot(scalar))
+    expect(comparableSnapshot(snapshot(packed))).toEqual(comparableSnapshot(snapshot(scalar)))
     expect(node(snapshot(packed), 'turn-tail')?.anchorSeq).toBe(12.2)
 
     const partialHistory = [
@@ -795,7 +962,7 @@ describe('built-in conversation node Definitions', () => {
     ]
     const partialScalar = snapshot(assembler(partialHistory, true))
     const partialPacked = snapshot(assembler(packedInputs(partialHistory), true))
-    expect(partialPacked).toEqual(partialScalar)
+    expect(comparableSnapshot(partialPacked)).toEqual(comparableSnapshot(partialScalar))
     expect(node(partialPacked, 'assistant-step')?.data).toMatchObject({ status: 'interrupted' })
     expect(node(partialPacked, 'turn-tail')?.anchorSeq).toBe(12.2)
 
@@ -831,7 +998,7 @@ describe('built-in conversation node Definitions', () => {
     ]
     const finalizedScalar = snapshot(assembler(finalizedHistory))
     const finalizedPacked = snapshot(assembler(packedInputs(finalizedHistory)))
-    expect(finalizedPacked).toEqual(finalizedScalar)
+    expect(comparableSnapshot(finalizedPacked)).toEqual(comparableSnapshot(finalizedScalar))
     const finalNode = (node(finalizedPacked, 'assistant-step')?.data as AssistantChatData).finalNode
     expect(finalNode?.timing?.firstTokenTime).toBe(1_999)
 
@@ -853,7 +1020,7 @@ describe('built-in conversation node Definitions', () => {
     ]
     const namedToolScalar = snapshot(assembler(namedToolHistory))
     const namedToolPacked = snapshot(assembler(packedInputs(namedToolHistory)))
-    expect(namedToolPacked).toEqual(namedToolScalar)
+    expect(comparableSnapshot(namedToolPacked)).toEqual(comparableSnapshot(namedToolScalar))
     const namedTool = (node(namedToolPacked, 'assistant-step')?.data as AssistantChatData).finalNode
     expect(namedTool?.timing?.firstTokenTime).toBe(4_000)
   })

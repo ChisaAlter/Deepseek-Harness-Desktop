@@ -47,7 +47,7 @@
 
 .scopeNotice {
   padding: 8px 12px;
-  border-left: 2px solid var(--dsw-alias-border-l3);
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 8px;
   background: var(--dsw-alias-bg-module-platform);
 }
@@ -102,7 +102,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .groupSection {
@@ -249,7 +249,7 @@
   height: 32px;
   padding: 0;
   place-items: center;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   color: var(--dsw-alias-label-secondary);
   background: transparent;
@@ -277,7 +277,7 @@
   gap: 8px 12px;
   min-width: 0;
   padding: 8px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .row:hover {
@@ -465,7 +465,7 @@
   box-sizing: border-box;
   width: 100%;
   resize: vertical;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
@@ -505,7 +505,7 @@
   min-width: 0;
   margin: 0;
   padding: 12px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
 }
 

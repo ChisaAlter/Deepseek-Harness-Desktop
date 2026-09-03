@@ -50,6 +50,7 @@
   justify-content: center;
   padding: 0;
   border-radius: 50%;
+  corner-shape: round;
 }
 
 .overlay {
@@ -78,7 +79,7 @@
   max-width: calc(100vw - 24px);
   padding: 20px 20px 24px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0;
   border-radius: 16px;
   /* Raised layer follows the glass slider; the wallpaper canvas cap must
      not punch through this popup. */
@@ -131,7 +132,7 @@
 .retry {
   height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -166,7 +167,7 @@
   margin: 0;
   padding: 0 12px;
   box-sizing: border-box;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
@@ -220,7 +221,7 @@
      thumb to the l2 rung, or the dark palette renders the l1 thumb here. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0;
   border-radius: 16px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-shadow-lv2);
@@ -283,7 +284,7 @@
   height: 28px;
   margin-top: 2px;
   padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l3);
+  border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);

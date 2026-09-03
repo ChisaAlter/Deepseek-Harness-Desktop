@@ -97,11 +97,11 @@ kind: "package-reference"
 | [`src/index.ts`](src/index.ts) | 服务：配置、openAt 生命周期、串行化对账、查询执行、游标 |
 | [`src/query.ts`](src/query.ts) | 请求规范化、参数化谓词、摘录、谓词与绑定预算 |
 | [`src/schema.ts`](src/schema.ts) | 数据库 schema、application id 归属、原地重置、仅所有者文件创建 |
-| [`src/invariant.ts`](src/invariant.ts) | 不变式伴生插件（无运行时不变式；边界在每次串行化查询时校验） |
+| — | 不发布运行时不变式伴生入口；边界在每次串行化查询时校验。 |
 
 ### 索引生命周期
 
-持久化 FTS 行存放在专用派生数据库中并跨重启保留；实时会话使用连接本地 TEMP 表，遮蔽同一会话的持久化基库，并在实时所有者脱离后再次显示基库。每次搜索执行一次串行化观察：列出持久化快照、把逐会话修订与已索引行比较、只检查新增或已更改日志、提取语义文档，并在运行查询前于一个事务中提交对账。重复查询与不变的重新打开不会检查任何内容；切换存储或观察到新增、已更改、已删除或经外部修复的来源时，会在下次稳定观察时对账。来源或事务失败不提交任何内容，下一次搜索重试。
+持久化 FTS 行存放在专用派生数据库中并跨重启保留；实时会话使用连接本地 TEMP 表，遮蔽同一会话的持久化基库，并在实时所有者脱离后再次显示基库。两类表都在数字 `seed_length` 中保留精确继承切点；重建的 header 只公开 `isSeeded`，而切点参与实时 fingerprint 与持久来源修订。每次搜索执行一次串行化观察：列出持久化快照、把逐会话修订与已索引行比较、只检查新增或已更改日志、提取语义文档，并在运行查询前于一个事务中提交对账。重复查询与不变的重新打开不会检查任何内容；切换存储或观察到新增、已更改、已删除或经外部修复的来源时，会在下次稳定观察时对账。来源或事务失败不提交任何内容，下一次搜索重试。
 
 ### Schema 归属
 
@@ -120,7 +120,7 @@ kind: "package-reference"
 - [dsh-session-query](../session-query/README.zh.md)——服务定义：本后端继承的精确读取、过滤与追踪。
 - [dsh-tool-session-query](../tool-session-query/README.zh.md)——调用这些搜索方法的面向模型消费方。
 - [SQLite FTS5 会话搜索](../../../.agents/notes/implemented/feature/2026-07-10-sqlite-session-query-provider.zh.md)——搜索语义、对账与 tokenizer 决策。
-- [SQLite 会话持久化](../../../packages/session/session-persistence-sqlite/README.zh.md)——兄弟持久化后端；切勿把本包的 `path` 指向其数据库。
+- [JSONL 会话持久化](../../session/session-persistence-jsonl/README.zh.md)——本可丢弃索引观察的权威 Session store；其 root 必须与本包的数据库路径分开。
 
 -----
 

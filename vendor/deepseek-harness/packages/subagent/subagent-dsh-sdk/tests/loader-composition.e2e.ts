@@ -1,6 +1,6 @@
 /**
  * Keyless REAL-composition coverage for dynamic child routing and parent cwd
- * inheritance across the SDK wire. A test-only cordis.yml boots through the
+ * inheritance across the SDK wire. A test-only patch boots through the
  * Loader, a scripted model selects provider/model/reasoning, tool config adds
  * maxTokens, and a COMPLETE second harness runtime echoes the effective route
  * and cwd. The same path also verifies model-visible child-failure diagnostics
@@ -18,8 +18,8 @@ import { runLoaderSmoke } from '@deepseek-ai/dsh-loader-smoke'
 
 const fixtureDir = new URL('./fixtures/loader/', import.meta.url)
 const driver = fileURLToPath(new URL('driver.ts', fixtureDir))
-const configPath = fileURLToPath(new URL('cordis.yml', fixtureDir))
-const childConfigPath = fileURLToPath(new URL('child.cordis.yml', fixtureDir))
+const configPath = fileURLToPath(new URL('dsh-sdk.patch.yml', fixtureDir))
+const childConfigPath = fileURLToPath(new URL('child.patch.yml', fixtureDir))
 const childMockPath = fileURLToPath(new URL('child-mock-llm.ts', fixtureDir))
 const repoTsconfig = fileURLToPath(new URL('../../../../tsconfig.json', import.meta.url))
 
@@ -52,7 +52,7 @@ async function childLaunch(failure = false): Promise<{
   env: Record<string, string>
 }> {
   const childHome = await mkdtemp(join(tmpdir(), 'dsh-sdk-subagent-home-'))
-  const childPatch = join(childHome, 'child.cordis.yml')
+  const childPatch = join(childHome, 'child.patch.yml')
   await writeFile(childPatch, (await readFile(childConfigPath, 'utf8'))
     .replace("'./child-mock-llm.ts'", JSON.stringify(pathToFileURL(childMockPath).href)))
   return {
@@ -65,7 +65,7 @@ async function childLaunch(failure = false): Promise<{
   }
 }
 
-describe('SDK subagent routing and diagnostics through a real cordis.yml', () => {
+describe('SDK subagent routing and diagnostics through the production profile', () => {
   it('runs the selected child route in the parent session workspace', async () => {
     const child = await childLaunch()
     let events: SessionEvent[] = []

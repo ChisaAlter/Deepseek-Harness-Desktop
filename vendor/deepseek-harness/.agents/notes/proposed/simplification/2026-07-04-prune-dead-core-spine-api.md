@@ -20,7 +20,7 @@ The production corpus is `packages/*/*/src`, example sources/config, and runtime
 | ACP `agentOptions` root export | The helper has only same-file and ACP-test consumers; the sole outside-package production consumer mounts the plugin namespace. | Keep `name`, `inject`, `Config`, `AcpConfig`, and `apply`; make `agentOptions` source-private and test it through bridge behavior. |
 | `providerWording` and `completedTurnPrefix` root exports | Each has one same-package production caller; only the balanced-prefix helper has a same-package white-box test. | Make them source-private and test provider behavior. |
 | `depthOf`, `SubagentDepthError`, `waitForExit`, and `exitsWithin` root exports | Production subagent backends consume the in-process runner and subprocess construction/disposal helpers, not these enforcement/test internals. `SENSITIVE_ENV_PATTERN` is excluded because the SDK helper applies it to caller-supplied environments. | Keep depth and exit behavior but make the remaining helpers and error source-private; test through spawn and disposal. Keep the shared credential pattern public. |
-| `PersistenceCoordinator.inits`, backend `inits` accessors, `seedCoversPrefix`, and `assertSerializable` | The accessors exist for white-box tests; `seedCoversPrefix` has no outside production importer; `assertSerializable` has no production caller and duplicates the coordinator append boundary's lossless snapshot. | Observe initialization through `session/flush`, make `seedCoversPrefix` source-private, and delete `assertSerializable`. Keep both backends, `SessionHeader`, and SQLite's version contract. |
+| `PersistenceCoordinator.inits`, provider `inits` accessors, `seedCoversPrefix`, and `assertSerializable` | The accessors exist for white-box tests; `seedCoversPrefix` has no outside production importer; `assertSerializable` has no production caller and duplicates the coordinator append boundary's lossless snapshot. | Observe initialization through `session/flush`, make `seedCoversPrefix` source-private, and delete `assertSerializable`. Keep the JSONL provider and `SessionHeader`. |
 | `LlmError.status` and replay status | Adapters/replay populate it, but production branches on stable error code/message and never reads raw status. | Remove the unread field and replay plumbing while preserving error classification. |
 | `BlockAssembler.push()` return value | Both production callers ignore the returned completed block. | Return `void`; keep the deliberately public `blocks()`/`message()` contract. |
 | `compactRegion`'s separate `session` argument | The fixed caller passes the same object already present as `agent.session`; the model-visible mount API can also call the method, but accepting two identities permits a mounted plugin to provide an incoherent pair. | Keep the manual-region API while deliberately narrowing it to `agent.session` as the one source of truth. |
@@ -43,7 +43,7 @@ The production corpus is `packages/*/*/src`, example sources/config, and runtime
 
 ## Proposal
 
-Remove or demote every row as one bounded coordinated public-surface cleanup. Update package READMEs, JSDoc, generated API/event catalogs, type-equivalence records, exports maps where needed, and tests so they exercise the owning public contract instead of preserving test-only entry points. Do not collapse any capability seam, LLM adapter, persistence backend, or lifecycle quiescence contract.
+Remove or demote every row as one bounded coordinated public-surface cleanup. Update package READMEs, JSDoc, generated API/event catalogs, type-equivalence records, exports maps where needed, and tests so they exercise the owning public contract instead of preserving test-only entry points. Do not collapse any capability seam, LLM adapter, persistence provider, or lifecycle quiescence contract.
 
 ## Alternatives considered
 
@@ -55,7 +55,7 @@ Remove or demote every row as one bounded coordinated public-surface cleanup. Up
 
 - Exact-symbol searches show no removed API outside this Agent Note and any implemented-Agent Note amendments.
 - Every API element listed in this Agent Note is absent or demoted as specified; deliberately retained extension/test contracts outside the inventory are unchanged.
-- Tool execution, compaction, both LLM adapters, both persistence backends, workflow isolation, and agent creation/resume retain their shipped behavior.
+- Tool execution, compaction, both LLM adapters, the persistence provider, workflow isolation, and agent creation/resume retain their shipped behavior.
 - Typecheck, coverage, snapshots, doc-sync, module-graph verification, build, and hygiene pass.
 
 ## Risks

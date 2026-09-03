@@ -12,7 +12,7 @@ DeepSeek Harness 使用同一原语，使项目特定的评审、插件编写和
 
 ## 决策
 
-`@deepseek-ai/dsh-skill` 是纯提供方注册表（`ctx.skills`），`@deepseek-ai/dsh-skill-filesystem` 是随附的本地文件系统提供方，`@deepseek-ai/dsh-tool-skill` 负责持久化会话目录与面向模型的 loader 工具。`dsh-agent-spine-demo` 默认加载注册表、本地提供方和消费方，使 TUI、headless 与 ACP（Agent Client Protocol）应用获得相同行为，同时嵌入式或远程提供方可在不修改注册表或消费方的前提下贡献 skill。其 `skills` 配置将 `registry`、`local` 和 `tool` 分支分别转发给对应的所有者。
+`@deepseek-ai/dsh-skill` 是纯提供方注册表（`ctx.skills`），`@deepseek-ai/dsh-skill-filesystem` 是随附的本地文件系统提供方，`@deepseek-ai/dsh-tool-skill` 负责持久化会话目录与面向模型的 loader 工具。`dsh-base` 将注册表、本地提供方和消费方作为独立配置行加载，使其各 profile 获得相同行为，同时嵌入式或远程提供方可在不修改注册表或消费方的前提下贡献 skill。每个配置行只暴露其所属包的配置。
 
 专用的随包提供方可以贡献不可变的 skill，无需文件系统发现。交付的 CLI（命令行界面）默认将 `@deepseek-ai/dsh-skill-badge` 声明为禁用；启用其组合配置行，就会通过同一个注册表和消费方贡献官方徽章指令（见[包约定](../../../../packages/skill/skill-badge/README.zh.md)）。
 

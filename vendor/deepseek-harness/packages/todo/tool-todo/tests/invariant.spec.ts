@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import * as TodoInvariant from '@deepseek-ai/dsh-tool-todo/invariant'
@@ -66,10 +66,10 @@ describe('todo snapshot invariants', () => {
     const session = ctx.sessions.create()
     session.append('turn/start', { turn: 1 })
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
-    const before = [...session.events]
+    const before = session.snapshotEvents()
 
     expect(() => session.append('todo/write', { todos: [] })).toThrow(/outside any open turn/)
-    expect(session.events).toEqual(before)
+    expect(session.snapshotEvents()).toEqual(before)
   })
 
   it('rejects an existing snapshot outside an open turn on late registration', async () => {
@@ -100,13 +100,13 @@ describe('todo snapshot invariants', () => {
   it('validates seeded sessions announced after companion installation', async () => {
     const ctx = await setup()
     const valid = ctx.sessions.create(SessionId('todo-seeded-valid'), { seed: [
-      { type: 'turn/start', seq: 0, time: 1, data: { turn: 1 } },
-      { type: 'todo/write', seq: 1, time: 2, data: { todos: [] } },
+      { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
+      { type: 'todo/write', seq: SessionSeq(1), time: 2, data: { todos: [] } },
     ] })
     expect(() => valid.append('todo/write', { todos: [] })).not.toThrow()
 
     expect(() => ctx.sessions.create(SessionId('todo-seeded-invalid'), { seed: [
-      { type: 'todo/write', seq: 0, time: 1, data: { todos: [] } },
+      { type: 'todo/write', seq: SessionSeq(0), time: 1, data: { todos: [] } },
     ] })).toThrow(/outside any open turn/)
   })
 

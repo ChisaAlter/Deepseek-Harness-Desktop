@@ -97,11 +97,11 @@ The design history lives in the [SQLite FTS5 session search note](../../../.agen
 | [`src/index.ts`](src/index.ts) | Service: config, openAt lifecycle, serialized reconciliation, query execution, cursors |
 | [`src/query.ts`](src/query.ts) | Request normalization, parameterized predicates, snippets, predicate and binding budgets |
 | [`src/schema.ts`](src/schema.ts) | Database schema, application-id ownership, in-place reset, owner-only file creation |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion (no runtime invariant; boundaries are validated per serialized query) |
+| — | No runtime invariant companion is published; reconciliation, cursor generations, and derived-index ownership are validated at each serialized query boundary. |
 
 ### Index lifecycle
 
-Persisted FTS rows live in a dedicated derived database and survive restarts; live sessions use connection-local TEMP tables that shadow the durable base for the same session and reveal it again when the live owner detaches. Each search runs one serialized observation: list persistence snapshots, compare per-session revisions with the indexed rows, inspect only new or changed logs, extract semantic documents, and commit the reconciliation in one transaction before running the query. Repeated queries and unchanged reopens inspect nothing; switching stores or observing new, changed, deleted, or externally repaired sources reconciles on the next stable observation. Source or transaction failure commits nothing and the next search retries.
+Persisted FTS rows live in a dedicated derived database and survive restarts; live sessions use connection-local TEMP tables that shadow the durable base for the same session and reveal it again when the live owner detaches. Both tables retain the exact inherited cut in numeric `seed_length`; reconstructed headers expose only `isSeeded`, while the cut participates in live fingerprints and persisted source revisions. Each search runs one serialized observation: list persistence snapshots, compare per-session revisions with the indexed rows, inspect only new or changed logs, extract semantic documents, and commit the reconciliation in one transaction before running the query. Repeated queries and unchanged reopens inspect nothing; switching stores or observing new, changed, deleted, or externally repaired sources reconciles on the next stable observation. Source or transaction failure commits nothing and the next search retries.
 
 ### Schema ownership
 
@@ -120,7 +120,7 @@ Read these pages when the package-level contract is not enough. They move from t
 - [dsh-session-query](../session-query/README.md) — the service definition: exact reads, filters, and traces this backend inherits.
 - [dsh-tool-session-query](../tool-session-query/README.md) — the model-facing consumer that calls these search methods.
 - [SQLite FTS5 session search](../../../.agents/notes/implemented/feature/2026-07-10-sqlite-session-query-provider.md) — search semantics, reconciliation, and the tokenizer decision.
-- [SQLite session persistence](../../../packages/session/session-persistence-sqlite/README.md) — the sibling persistence backend; never point this package's `path` at its database.
+- [JSONL session persistence](../../session/session-persistence-jsonl/README.md) — the authoritative Session store this disposable index observes; keep its root separate from this package's database path.
 
 -----
 

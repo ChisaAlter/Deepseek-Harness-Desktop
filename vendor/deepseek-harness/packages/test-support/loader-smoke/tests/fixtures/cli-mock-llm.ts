@@ -10,8 +10,12 @@ import {
 
 const HIGH = ReasoningEffortId('high')
 const OFF = ReasoningEffortId('off')
+const SHELL_TOOL = process.platform === 'win32' ? 'pwsh' : 'bash'
+const SHELL_COMMAND = process.platform === 'win32'
+  ? "Write-Output 'CLI_TOOL_ROUND_TRIP'"
+  : 'printf CLI_TOOL_ROUND_TRIP'
 
-/** Keyless headless-agent adapter: one real bash call followed by a final answer. */
+/** Keyless headless-agent adapter: one production shell call followed by a final answer. */
 class CliMockAdapter extends LlmAdapter {
   override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
     return {
@@ -36,13 +40,13 @@ class CliMockAdapter extends LlmAdapter {
     const toolResult = options.messages.at(-1)?.content.find(block => block.type === 'tool-result')
     if (toolResult === undefined) {
       const reasoning = 'Inspecting the task before the tool call.'
-      const args = JSON.stringify({ command: 'printf CLI_TOOL_ROUND_TRIP', description: 'Prove the CLI tool round trip.' })
+      const args = JSON.stringify({ command: SHELL_COMMAND, description: 'Prove the CLI tool round trip.' })
       yield { type: 'block-start', index: 0, blockType: 'reasoning' }
       yield { type: 'reasoning-delta', index: 0, text: reasoning }
       yield { type: 'block-end', index: 0, block: { type: 'reasoning', text: reasoning } }
       yield { type: 'block-start', index: 1, blockType: 'tool-call' }
-      yield { type: 'tool-call-delta', index: 1, id: ToolCallId('cli-smoke-call'), name: 'bash', argumentsDelta: args }
-      yield { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('cli-smoke-call'), name: 'bash', arguments: args } }
+      yield { type: 'tool-call-delta', index: 1, id: ToolCallId('cli-smoke-call'), name: SHELL_TOOL, argumentsDelta: args }
+      yield { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('cli-smoke-call'), name: SHELL_TOOL, arguments: args } }
       yield { type: 'usage', usage: { inputTokens: 11, outputTokens: 3, cacheReadTokens: 2 } }
       yield { type: 'finish', reason: { kind: 'tool-calls' } }
       return

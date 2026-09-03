@@ -7,6 +7,7 @@ import { apply, inject } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type { WorkspaceBrowserInjected, WorkspacePickerInjected } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
 import { WorkspacePicker } from '../src/client/WorkspacePicker.tsx'
+import { apply as hostApply } from '../src/index.ts'
 
 async function bench() {
   const ctx = new Context()
@@ -83,6 +84,10 @@ function declare(slots: SlotRegistry, ...names: HoleName[]): () => void {
 }
 
 describe('ui-workspace apply', () => {
+  it('keeps the host Loader entry inert', () => {
+    expect(hostApply).not.toThrow()
+  })
+
   it('declares the services it drives', () => {
     expect(inject).toEqual([
       'slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker',
@@ -112,6 +117,9 @@ describe('ui-workspace apply', () => {
     declare(b.slots, 'sidebar.workspaces', 'conversation.hero.workspace')
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const startSession = vi.spyOn(b.ctx.uiWorkspace, 'startSession').mockImplementation(() => undefined)
+    const connectNoDirectory = vi.spyOn(b.ctx.uiWorkspace, 'connectNoDirectory')
+      .mockImplementation(async () => 'task' as never)
+    const deleteWorkspace = vi.spyOn(b.ctx.uiWorkspace, 'deleteWorkspace').mockImplementation(async () => undefined)
 
     const browser = (b.slots.entries('sidebar.workspaces')[0]!.inject as () => WorkspaceBrowserInjected)()
     // Both arms delegate to the shared Session navigation action.
@@ -119,6 +127,13 @@ describe('ui-workspace apply', () => {
     expect(startSession).toHaveBeenCalledWith('ws')
     browser.startSession()
     expect(startSession).toHaveBeenLastCalledWith(undefined)
+    // The no-directory ＋ connects the scratch task and opens it; deletion goes
+    // through the navigation service so it can clear a current member.
+    browser.connectNoDirectory()
+    expect(connectNoDirectory).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => { expect(b.open).toHaveBeenCalledWith('task') })
+    await browser.deleteWorkspace('ws' as never)
+    expect(deleteWorkspace).toHaveBeenCalledWith('ws')
     browser.open('session' as never)
     expect(b.open).toHaveBeenCalledWith('session')
     const signal = new AbortController().signal

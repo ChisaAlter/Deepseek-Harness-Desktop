@@ -1,7 +1,15 @@
 /** Shared live/prepared observations for Session page and lifecycle consumers. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+import type {
+  Session,
+  SessionEvent,
+  SessionHeader,
+  SessionId,
+  SessionLogOffset as SessionLogOffsetType,
+  SessionSeqCursor,
+} from '@deepseek-ai/dsh-session'
 import type {
   BorrowedSessionSource,
   SessionPersistenceRevision,
@@ -18,8 +26,10 @@ export interface SessionObservation extends Disposable {
   readonly header: SessionHeader
   /** Immutable contiguous events at {@link cursor}. */
   readonly events: readonly SessionEvent[]
+  /** Exact number of fork-inherited events in this Session lifecycle. */
+  readonly inheritedEventCount: SessionLogOffsetType
   /** Last observed event seq, or -1 for an empty log. */
-  readonly cursor: number
+  readonly cursor: SessionSeqCursor
   /** Durable source revision for a cold prepared observation. */
   readonly revision?: SessionPersistenceRevision
   /** Exact projection baseline at {@link cursor}, when the registry is mounted. */
@@ -123,6 +133,7 @@ export class SessionObservationReader {
             source: 'prepared',
             header: prepared.inspection.meta,
             events,
+            inheritedEventCount: prepared.inspection.inheritedEventCount,
             cursor: events.at(-1)?.seq ?? -1,
             revision: prepared.revision,
             ...projections === undefined ? {} : { projections },
@@ -151,7 +162,7 @@ export class SessionObservationReader {
     session: Session,
     projectionMode: NonNullable<SessionObservationOptions['projectionMode']>,
   ): SessionObservation {
-    const events = Object.freeze([...session.events])
+    const events = session.snapshotEvents()
     const projections = projectionMode === 'none'
       ? undefined
       : this.ctx.get('sessionProjections')?.snapshot(session)
@@ -161,6 +172,7 @@ export class SessionObservationReader {
         source: 'live',
         header: session.header,
         events,
+        inheritedEventCount: session.inheritedEventCount,
         cursor: events.at(-1)?.seq ?? -1,
         ...projections === undefined ? {} : { projections },
         retain: () => {
@@ -182,8 +194,8 @@ export class SessionObservationReader {
     const prepared = observation.preparedSession
     const cache = this.ctx.get('sessionProjectionCache')
     return cache === undefined
-      ? registry.hydrate(prepared, {}, events, 0)
-      : cache.hydratePrepared(prepared, observation.inspection.meta, events)
+      ? registry.hydrate(prepared, {}, events, SessionLogOffset(0))
+      : cache.hydratePrepared(prepared, events)
   }
 }
 

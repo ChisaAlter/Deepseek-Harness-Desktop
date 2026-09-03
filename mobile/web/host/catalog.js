@@ -26,6 +26,21 @@ function workspaceIndex(workspaces) {
   return { items, bySession };
 }
 
+function scratchCwdOf(workspaces) {
+  return typeof workspaces?.scratchCwd === 'string' ? workspaces.scratchCwd : '';
+}
+
+/**
+ * Same listing rule as the desktop sidebar: a Session shows only when a
+ * registered Workspace accounts it, or when it is a no-directory task living
+ * in the Host scratch cwd. Members of a deleted Workspace registration are
+ * listed nowhere until that directory is added again.
+ */
+function isListed(session, workspace, scratchCwd) {
+  if (workspace) return true;
+  return Boolean(scratchCwd) && session?.cwd === scratchCwd;
+}
+
 function toRow(session, workspace, archived) {
   const sessionId = session.sessionId;
   const path = typeof workspace?.path === 'string' ? workspace.path : '';
@@ -65,18 +80,22 @@ function missingArchivedRow(sessionId) {
 function liveSessionRows({ sessions, workspaces }) {
   const archived = archivedSet(workspaces);
   const { bySession } = workspaceIndex(workspaces);
+  const scratchCwd = scratchCwdOf(workspaces);
   return sessionItems(sessions).flatMap((session) => {
     const sessionId = session?.sessionId;
     if (!sessionId) return [];
     if (isUntitledBlank(session)) return [];
     if (session.origin === 'dshbot') return [];
     if (archived.has(sessionId)) return [];
-    return [toRow(session, bySession.get(sessionId), false)];
+    const workspace = bySession.get(sessionId);
+    if (!isListed(session, workspace, scratchCwd)) return [];
+    return [toRow(session, workspace, false)];
   });
 }
 
 function archivedSessionRows({ sessions, workspaces }) {
   const { bySession } = workspaceIndex(workspaces);
+  const scratchCwd = scratchCwdOf(workspaces);
   const byId = new Map();
   for (const session of sessionItems(sessions)) {
     if (session?.sessionId) byId.set(session.sessionId, session);
@@ -85,8 +104,11 @@ function archivedSessionRows({ sessions, workspaces }) {
     if (!sessionId) return [];
     const session = byId.get(sessionId);
     if (session?.origin === 'dshbot') return [];
+    // A summary-less id stays as a placeholder so Delete remains reachable.
     if (!session) return [missingArchivedRow(sessionId)];
-    return [toRow(session, bySession.get(sessionId), true)];
+    const workspace = bySession.get(sessionId);
+    if (!isListed(session, workspace, scratchCwd)) return [];
+    return [toRow(session, workspace, true)];
   });
 }
 
@@ -162,11 +184,17 @@ function workspaceChoices(workspaces, hostDescribe = {}) {
     name: workspace.title || workspace.path || workspace.workspaceId,
     cwd: workspace.path || '',
   }));
+  // The scratch cwd rides the Workspace baseline (workspace.list); an explicit
+  // host describe value stays accepted for older tunnels.
+  const scratchCwd = scratchCwdOf(workspaces)
+    || (typeof hostDescribe.scratchCwd === 'string' ? hostDescribe.scratchCwd : '');
   return {
     choices,
     home: typeof hostDescribe.home === 'string' ? hostDescribe.home : '',
-    scratchCwd: typeof hostDescribe.scratchCwd === 'string' ? hostDescribe.scratchCwd : '',
-    noFolder: { id: '', name: '无工作区文件夹', cwd: '' },
+    scratchCwd,
+    // Creating here must land in the scratch cwd, or the desktop would not
+    // list the Session (it is neither a member nor a no-directory task).
+    noFolder: { id: '', name: '无工作区文件夹', cwd: scratchCwd },
   };
 }
 

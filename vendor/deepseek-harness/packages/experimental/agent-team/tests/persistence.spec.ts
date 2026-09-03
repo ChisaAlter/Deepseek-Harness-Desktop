@@ -11,7 +11,6 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import SqliteSessionPersistence from '@deepseek-ai/dsh-session-persistence-sqlite'
 import SubagentService, { seedDescriptorTurn, snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
@@ -32,7 +31,7 @@ function durable(agent: Agent): {
   pendingMessages: TeamMessageSnapshot[]
 } {
   let projected = teamProjectionDefinition.init(agent.session.header)
-  for (const event of agent.session.events) projected = teamProjectionDefinition.apply(projected, event)
+  for (const event of agent.session.snapshotEvents()) projected = teamProjectionDefinition.apply(projected, event)
   if (projected.failure !== undefined) throw new Error(projected.failure)
   const state = projected
   return {
@@ -80,13 +79,6 @@ const backends: PersistenceMount[] = [
     mount: async (ctx, root) => await ctx.plugin(JsonlSessionPersistence, {
       root: join(root, 'jsonl'),
       compression: 'none',
-    }),
-  },
-  {
-    name: 'SQLite',
-    mount: async (ctx, root) => await ctx.plugin(SqliteSessionPersistence, {
-      path: join(root, 'sessions.sqlite'),
-      journalMode: 'delete',
     }),
   },
 ]
@@ -141,7 +133,7 @@ function persistedChild(
   }))
   const child = ctx.sessions.create(childId, {
     seed,
-    meta: { parentSession: rootId, seedLength: 0, origin: 'subagent' },
+    meta: { parentSession: rootId, origin: 'subagent' },
   })
   child.append('agent/inbox/spliced', {
     target: 'next-turn',

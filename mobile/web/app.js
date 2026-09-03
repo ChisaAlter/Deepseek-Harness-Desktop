@@ -106,6 +106,21 @@ async function loadChisaCodeApi() {
 const origin = window.location.origin;
 const el = (id) => document.getElementById(id);
 const phone = el('phone');
+
+/**
+ * Android WebView 131 can report a valid `innerHeight` while resolving
+ * viewport units (`100vh` / `100dvh`) to 0 inside a Compose-hosted view.
+ * Publish the measured viewport as a pixel fallback; it also tracks the
+ * keyboard and rotation without changing the desktop browser path.
+ */
+function syncViewportHeight() {
+  const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  if (height > 0) phone.style.setProperty('--dsh-viewport-height', `${height}px`);
+}
+window.addEventListener('resize', syncViewportHeight);
+window.visualViewport?.addEventListener('resize', syncViewportHeight);
+syncViewportHeight();
+
 const screenConnect = el('screen-connect');
 const screenScan = el('screen-scan');
 const screenPermission = el('screen-permission');
@@ -458,9 +473,14 @@ function currentReadOnlyReason() {
 function renderComposer() {
   const canSend = Boolean(draft.value.trim()) || state.attachments.length > 0;
   sendBtn.disabled = !canSend || composerOffline();
-  accessChip.firstChild.textContent = currentModeState().currentLabel || '权限';
+  const accessLabel = currentModeState().currentLabel || '权限';
+  accessChip.firstChild.textContent = accessLabel;
+  accessChip.title = accessLabel;
   const modelLabel = currentModelState().label || '模型';
+  // The label span (not a bare text node) is what lets the chip ellipsize
+  // "model · effort" on a narrow phone instead of wrapping the tool row.
   modelChip.firstChild.textContent = modelLabel;
+  modelChip.title = modelLabel;
   planChip.classList.toggle('hidden', !state.permission.planOn || Boolean(currentReadOnlyReason()));
   attachRail.classList.toggle('hidden', state.attachments.length === 0);
   attachRail.replaceChildren(...state.attachments.map((image, index) => {
@@ -685,7 +705,7 @@ function renderSessions() {
       }
     }
     if (ungrouped.length) {
-      if (sections.length) nodes.push(descNode('未归入工作区', 'row-desc session-section-label'));
+      if (sections.length) nodes.push(descNode('无工作区文件夹', 'row-desc session-section-label'));
       appendGroupedRows(nodes, ungrouped);
     }
   } else {
@@ -2016,7 +2036,10 @@ function renderBlankHero() {
   if (!blankWorkspaceChip) return;
   blankWorkspaceChip.classList.toggle('hidden', !canChange);
   if (canChange) {
-    blankWorkspaceChip.textContent = row.workspaceTitle || row.cwd || '无工作区文件夹';
+    // A no-directory task never shows the scratch directory path (desktop parity).
+    const scratch = state.workspaces?.scratchCwd;
+    const noDirectory = !row.workspaceTitle && (!row.cwd || (scratch && row.cwd === scratch));
+    blankWorkspaceChip.textContent = noDirectory ? '无工作区文件夹' : (row.workspaceTitle || row.cwd);
   }
 }
 
@@ -2118,7 +2141,10 @@ async function chooseNewSessionWorkspace(workspace) {
   }
   state.newSession = null;
   renderSheet();
-  await createWorkspaceSession(workspace?.id || '');
+  // No folder: create in the Host scratch cwd so the desktop lists it as a
+  // no-directory task instead of dropping it as an unaccounted Session.
+  const extra = !workspace?.id && workspace?.cwd ? { cwd: workspace.cwd } : {};
+  await createWorkspaceSession(workspace?.id || '', extra);
 }
 
 async function openDirectoryBrowse() {

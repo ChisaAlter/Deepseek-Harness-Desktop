@@ -15,7 +15,7 @@ import {
 import {
   apply as applyChat, inject as injectChat, type ChatViewInjected, type DetailsInjected,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import { createChatStore } from '../src/client/stores.ts'
 
 usePinnedBrowserLanguages('zh-CN')
@@ -35,6 +35,7 @@ type ChatActions = ChatInstance['actions']
 function sessionFakeFor() {
   return {
     loadOlder: vi.fn<ISession['loadOlder']>(() => Promise.resolve()),
+    loadThrough: vi.fn<ISession['loadThrough']>(() => Promise.resolve()),
     readAttachment: vi.fn<ISession['readAttachment']>(() => Promise.resolve({
       ok: true,
       value: { attachment: ATTACHMENT, data: Uint8Array.of(1) },
@@ -92,6 +93,9 @@ describe('Chat inject API', () => {
     injected.loadOlder()
     expect(b.session.loadOlder).toHaveBeenCalledOnce()
 
+    void injected.loadThrough(SessionSeq(42))
+    expect(b.session.loadThrough).toHaveBeenCalledWith(42)
+
     injected.forkAt(17)
     await vi.waitFor(() => {
       expect(b.runtime.sessions.calls).toContainEqual({ method: 'open', args: [ROOT] })
@@ -130,25 +134,6 @@ describe('Chat inject API', () => {
       error: new RemoteError('gateway/internal', 'xdg-open is not available', {}),
     })
     await expect(injected.openFile('src/b.ts')).rejects.toThrow('path open failed: xdg-open is not available')
-    await b.runtime.dispose()
-  })
-
-  it('routes file opens through workspaces.openPath when the service exposes it', async () => {
-    const b = await bench()
-    const { injected } = b.chatViewApi(ROOT)
-    const openPath = vi.fn(async (_path: string) => {})
-    const workspaces = b.runtime.workspaces as unknown as { openPath?: typeof openPath }
-    workspaces.openPath = openPath
-    try {
-      await injected.openFile('site/index.html')
-      expect(openPath).toHaveBeenCalledWith('/proj/site/index.html')
-      expect(b.openWorkspacePath).not.toHaveBeenCalled()
-
-      openPath.mockRejectedValueOnce(new Error('path open failed: denied'))
-      await expect(injected.openFile('site/other.html')).rejects.toThrow('path open failed: denied')
-    } finally {
-      delete workspaces.openPath
-    }
     await b.runtime.dispose()
   })
 

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The session group makes an agent's conversation durable and reusable outside the live loop: the persistence seam stores the event log and restores it on resume, the checkpoint policy keeps requests, tool side effects, and completed steps durable before the next action, projections serve whole log-derived values to client carriers, titles name each session from its content, and telemetry reports session activity outbound. Pick a persistence backend first — JSONL is the shipped default, SQLite an opt-in single-database backend — then add the checkpoint policy and any projection, title, or telemetry packages the deployment needs. This page maps the group; every package README owns its contract, and `session-query/` is a sibling group whose read/tool surface consumes persistence independently.
+The session group makes an agent's conversation durable and reusable outside the live loop: the persistence seam stores the event log and restores it on resume, the checkpoint policy keeps requests, tool side effects, and completed steps durable before the next action, projections serve whole log-derived values to client carriers, titles name each session from its content, and telemetry reports session activity outbound. Mount the shipped JSONL persistence provider first, then add the checkpoint policy and any projection, title, or telemetry packages the deployment needs. This page maps the group; every package README owns its contract, and `session-query/` is a sibling group whose read/tool surface consumes persistence independently.
 
 ## Table of Contents
 
@@ -30,7 +30,6 @@ The group splits into four families: durable storage (persistence seam, backends
 |---|---|---|
 | [`session-persistence/`](session-persistence/README.md) | Defines the durable session-storage service and the shared write coordination every backend composes | `ctx.sessionPersistence` |
 | [`session-persistence-jsonl/`](session-persistence-jsonl/README.md) | Shipped backend: one append-only JSONL log per session, optionally Zstandard-compressed | registers on `ctx.sessionPersistence` |
-| [`session-persistence-sqlite/`](session-persistence-sqlite/README.md) | Opt-in backend: every session's log in one SQLite database with packed physical rows | registers on `ctx.sessionPersistence` |
 | [`session-checkpoint-policy/`](session-checkpoint-policy/README.md) | Makes model requests, top-level tool side effects, and completed steps durable before the next action | wraps `ctx.llm` and `ctx.tools` |
 | [`session-log-deepseek/`](session-log-deepseek/README.md) | Uploads the incremental canonical log as optional official DeepSeek request metadata | contributes `dsh_session_log` |
 
@@ -41,6 +40,7 @@ The group splits into four families: durable storage (persistence seam, backends
 | [`session-projection/`](session-projection/README.md) | Defines and drives projection units that fold committed events into whole current values | `ctx.sessionProjections` |
 | [`session-projection-cache/`](session-projection-cache/README.md) | Persists projection checkpoints so cold reads skip full log loads | `ctx.sessionProjectionCache` |
 | [`session-stats/`](session-stats/README.md) | Serves whole-log conversation counts and wall times through the `sessionStats` unit | registers on `ctx.sessionProjections` |
+| [`session-turn-outline/`](session-turn-outline/README.md) | Serves the whole-log turn outline (turn, `turn/start` seq, prompt preview) through the `turnOutline` unit | registers on `ctx.sessionProjections` |
 
 ### Titles
 

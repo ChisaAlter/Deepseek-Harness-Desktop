@@ -22,7 +22,7 @@ Status: implemented
 
 ### 显式组合
 
-该组合包拥有一个 DeepSeek 适配器、SDK JSON-RPC 服务、无执行器的 agent 主干、本地子进程与不受限文件系统提供方、按平台选择的持久 shell、字符串替换 editor，以及位于 `$DSH_HOME/sessions` 的未压缩 JSONL 会话。Linux 与 macOS 挂载 Bash，Windows 挂载 PowerShell。SDK 初始化请求拥有模型 id；`DSH_CONTEXT_WINDOW` 为不在适配器建议目录中的模型提供后备容量。Persona 来自 `DSH_SYSTEM_PROMPT`，凭据来自 `DEEPSEEK_API_KEY`。
+该组合包拥有一个 DeepSeek 适配器、SDK JSON-RPC 服务、显式 agent 核心、本地子进程与不受限文件系统提供方、按平台选择的持久 shell、字符串替换 editor，以及位于 `$DSH_HOME/sessions` 的未压缩 JSONL 会话。Linux 与 macOS 挂载 Bash，Windows 挂载 PowerShell。SDK 初始化请求拥有模型 id；`DSH_CONTEXT_WINDOW` 为不在适配器建议目录中的模型提供后备容量。Persona 来自 `DSH_SYSTEM_PROMPT`，凭据来自 `DEEPSEEK_API_KEY`。
 
 Harness 身份、运行时上下文、workspace 指令、skills、面向模型的 job 控制、compaction、settings、托管凭据、遥测、Web 工具、subagent 与其他所有 base 配置项均不存在，而不是被隐藏。该 profile 固定使用 `danger-full-access`、`maxTokensAsSuccess: false` 与仅启动时 patch 加载。
 

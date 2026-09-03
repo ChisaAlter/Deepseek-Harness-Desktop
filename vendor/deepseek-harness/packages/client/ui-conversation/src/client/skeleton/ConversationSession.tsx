@@ -8,7 +8,7 @@ import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
 } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
-import type { ViewTab } from '../contract/views.ts'
+import { resolveActiveView } from '../view-selection.ts'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -21,14 +21,6 @@ interface Breadcrumb {
   readonly id: SessionId
   readonly displayTitle: string
   readonly subagent: boolean
-}
-
-const DEFAULT_VIEW_ID = 'chat'
-
-/** Resolve a persisted selection, then registered Chat, without choosing another View. */
-function resolveActiveView(tabs: readonly ViewTab[], selectedId: string | null): ViewTab | undefined {
-  const selected = selectedId === null ? undefined : tabs.find(view => view.id === selectedId)
-  return selected ?? tabs.find(view => view.id === DEFAULT_VIEW_ID)
 }
 
 function deriveAncestry(list: SessionListState, id: SessionId): readonly Breadcrumb[] {
@@ -66,7 +58,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
  */
 export function ConversationSessionHeader({
   sessionId, useSession, useSessions, useConversation, useConversationViews, useViewTabs,
-  useStore, actions, renderSlot, open, t,
+  useStore, renderSlot, open, selectView, t,
 }: ConversationSessionHeaderProps) {
   const tabs = useConversationViews(value => value)
   const showTabs = useViewTabs(value => value)
@@ -154,7 +146,7 @@ export function ConversationSessionHeader({
                   role="tab"
                   aria-selected={viewTab.id === active?.id}
                   className={clsx(css.tab, viewTab.id === active?.id && css.tabActive)}
-                  onClick={() => { actions.setView(viewTab.id) }}
+                  onClick={() => { selectView(viewTab.id) }}
                 >
                   {viewTab.label}
                 </button>
@@ -175,7 +167,7 @@ export function ConversationSessionHeader({
  */
 export function ConversationSession({
   useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, bindDraftMirror,
+  renderSlot, bindDraftMirror, openView,
 }: ConversationSessionProps) {
   const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
@@ -199,7 +191,7 @@ export function ConversationSession({
     <div className={css.viewArea}>
       {active !== undefined && renderSlot('conversation.view', {
         viewRequest,
-        openView: actions.openView,
+        openView,
         completeViewRequest: actions.completeViewRequest,
       }, { only: active.id })}
     </div>

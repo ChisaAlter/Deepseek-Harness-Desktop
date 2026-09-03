@@ -176,7 +176,7 @@ export class VisionFallback extends Service {
     if (info.inputModalities === undefined || info.inputModalities.includes('image')) return messages
 
     const described = new Map<string, string>()
-    for (const event of session.events) {
+    for (const event of session.snapshotEvents()) {
       if (event.type === 'vision/describe') described.set(event.data.attachmentId, event.data.description)
     }
 

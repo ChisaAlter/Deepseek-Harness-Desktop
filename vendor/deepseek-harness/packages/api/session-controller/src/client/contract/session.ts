@@ -9,7 +9,7 @@
  */
 import type { AttachmentIdType, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { PromptContentPart, QueueAction, SessionRequestId } from '../../types.ts'
@@ -27,6 +27,8 @@ export type PendingSubmissionRetirement =
 
 /** Input registering one local submission echo ahead of its prompt call. */
 export interface BeginSubmissionInput {
+  /** Delivery mode used with the upcoming prompt. */
+  readonly mode: 'queue' | 'steer'
   /** Prompt text exactly as the upcoming prompt will send it. */
   readonly text: string
   /** Ordered image previews matching the upcoming prompt's image parts. */
@@ -111,12 +113,21 @@ export interface ISession {
    * @param title - raw title text (the host normalizes acceptance).
    * @returns the normalized accepted title and its event seq, or the business error.
    */
-  rename(title: string): Promise<RemoteResult<{ title: string; seq: number }>>
+  rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>>
   /**
    * Extend the history window backwards (older messages pagination).
    * @returns completion; failures land in snapshot.openState/loadingOlder.
    */
   loadOlder(): Promise<void>
+  /**
+   * Page history backwards until the window covers `seq` (inclusive) — the
+   * turn-jump loader. Repeated calls while a jump is paging lower its shared
+   * target and return the in-flight completion; `snapshot.loadingOlder` is
+   * the busy signal for the whole jump.
+   * @param seq - durable event seq the window must reach (a turn's `turn/start` seq).
+   * @returns completion once covered, exhausted, superseded, or failed soft.
+   */
+  loadThrough(seq: SessionSeq): Promise<void>
   /**
    * Execute one slash-command line against this session's agent — pure
    * admission semantics (the host executor durably logs the lifecycle).

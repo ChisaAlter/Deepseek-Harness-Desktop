@@ -48,14 +48,14 @@ Status: implemented
 对「命令」零知识的触发/菜单/pick 流水线：
 
 - 服务只有 source 注册表（`InputTriggerSource{trigger: '/'|'@', name, order?, candidates, onPick, matchSpace?, matchEnter?}`；(trigger,name) 唯一；可选 `order` 对 roster 排序——越小越靠前、默认 0、同值保持注册序——排序后的 roster 同时是组序与轮询序）与 `sessionOf(sctx)`。实现 match 钩子即参与空格/回车裁决的声明；流水线按 roster 序轮询，首个非 undefined 应答胜出，无人认领落 default sink。matchSpace 同步（空格在击键中触发，只许热缓存）；matchEnter 异步（可 await 源自身预热，预热失败即 reject）。
-- controller 持有唯一权威 hit（含 span；菜单关闭后为 Space 保留）、每会话 menu store、候选 fetch generation、键盘仲裁（combobox 模式：焦点始终在编辑器表面，↑↓/Enter/Escape 拦截且全程过 IME composition 守卫，唯一例外 Shift+Enter 无条件先行），以及 pick 编排（outcome → 自派 bail 事件）。`toggleSource(name, syntheticHit)` 是 chrome launcher 路径：它基于调用方的编辑器 selection，只 seed 对应的已注册 source，并发布 `launcher = name` 直至关闭；普通的键入式 tracking 会清除 launcher 并恢复完整的 trigger roster。两条路径渲染同一个 MenuView，并执行同一条 `onPick` 链。`dismiss()` 动词支撑 MenuView 注入的 `onDismiss`（指针落在菜单与所在 composer 卡片之外即关闭菜单；MenuView 还经 `slash.menu` locale 命名空间本地化组标题，并经 ui-primitives 的 `useAnchoredMaxHeight` 把高度收敛到 composer 上方的视口空间）；每个会话作用域出生时对 source roster 做一次 `warm(projection)`，projection 在该 scope 内只有稳定的 sessionId，无 published/能力跃迁；scope disposer 拆除 controller。
+- controller 持有唯一权威 hit（含 span；菜单关闭后为 Space 保留）、每会话 menu store、候选 fetch generation、键盘仲裁（combobox 模式：焦点始终在编辑器表面；↑↓/Enter/Escape 会被拦截；Tab 会选定高亮补全项，候选项可下钻时走 drill 动作，否则走普通 pick，无高亮时保留原生焦点遍历；所有仲裁都经过 IME composition 守卫，唯一例外是 Shift+Enter 无条件先行），以及 pick 编排（outcome → 自派 bail 事件）。`toggleSource(name, syntheticHit)` 是 chrome launcher 路径：它基于调用方的编辑器 selection，只 seed 对应的已注册 source，并发布 `launcher = name` 直至关闭；普通的键入式 tracking 会清除 launcher 并恢复完整的 trigger roster。两条路径渲染同一个 MenuView，并执行同一条 `onPick` 链。`dismiss()` 动词支撑 MenuView 注入的 `onDismiss`（指针落在菜单与所在 composer 卡片之外即关闭菜单；MenuView 还经 `slash.menu` locale 命名空间本地化组标题，并经 ui-primitives 的 `useAnchoredMaxHeight` 把高度收敛到 composer 上方的视口空间）；每个会话作用域出生时对 source roster 做一次 `warm(projection)`，projection 在该 scope 内只有稳定的 sessionId，无 published/能力跃迁；scope disposer 拆除 controller。
 - 触发检测词边界（`user@host`、URL `/` 永不触发）、守卫分档（plain：`/` 到处 + `@` 行内 / claimed：`/` 抑制、`@` 活 / frozen：全无）为冻结纯核。
 
 ### hub / facade：常驻外壳与严格会话输入体
 
 - hub（trigger/decoration 注册表 + 发送编排）对 slash/command 服务是可选 `ctx.get()` 依赖：无 ui-input-trigger/命令面时输入正常收发，优雅降级。
 - 每个实体会话只有一个 `SessionInputShell`（facade），随会话作用域创建和拆除；无会话时不造 input machine。`ConversationRoot` 自身是 `session-maybe` 常驻外壳，持有 HeroShell、Workspace picker、composer stack 与 chain fallback 外框。它始终拥有同一个 scrollport 与 composer seat；会话出现后，彼此独立的严格会话 header 和 body outlet 只填入这些固定区域。
-- composer bar 是一个无条件渲染的 `session-maybe` slot entry：无会话时同一个 InputBar 以惰性态渲染（machine face 缺席、`disabled` owner prop），`connectWorkspace` 返回 blank 会话后同一实例转为 live——编辑器表面 DOM 在无会话 → blank 切换及其后每次 phase 翻转中都不重建；`ConversationRoot`、Hero 与布局骨架全程保持。
+- composer bar 是一个无条件渲染的 `session-maybe` slot entry：无会话时同一个 InputBar 以惰性态渲染（machine face 缺席、`disabled` owner prop），`connectWorkspace` 返回 blank 会话后同一实例转为 live——编辑器表面 DOM 在无会话 → blank 切换及其后每次 phase 翻转中都不重建；`ConversationRoot`、Hero 与布局骨架全程保持。memoized InputBar 在 renderer 绑定各 child slot 的标准 props 后自行渲染 overlay、left、right 与 dock；`ConversationRoot` 只传标量数据和回调，因此无关 shell render 不会制造新的 ReactNode owner prop 或使 bar 失效。
 - ConversationRoot 的 Hero 判据是 `sessionId === undefined || (composerPhase === 'blank' && (openState === 'open' || summaryBlank === true))`：summary 已证实为空的会话在任何 open state 下都保持 Hero，未经证实的会话则在 loading 期间进入 settling。首次 submit 同步进入 engaging，失败也保留 composer 与错误上下文，不退回 blank Hero；sidebar 的 blank 位只在提示词成功受理后翻 false。
 - 发送统一在 hub defaultSink：乐观清稿后只走 `session.prompt` 且固定 `mode:'queue'`（Web UI 无 steer 入口；host 线缆上的 `mode:'steer'` 不经此 machine）；失败且 live draft 仍为空才回填，用户已经继续输入则不覆盖。不存在 Draft materialize 或 attach 事务。
 - blank Hero 改选 Workspace 时，外壳调用 `connectWorkspace`；目标会话不同时把非空 draft 从当前 shell 搬到目标 shell，再 open 新 id，旧 blank 会话留存但不再 current。
@@ -105,6 +105,7 @@ skill/@subagent 引用不走占位符 + occurrence 身份链——纯文本引�
 | draft 双持久化 {text, occurrences} | mirror 写剪贴板投影零新概念；chip 跨刷新降级可接受 |
 | 原生 textarea undo 栈 | 受控 + 程序化写入下不可靠；粘贴两段 undo 语义只能自管——两侧都随 textarea 一并退役；undo 现归 Lexical history |
 | InputBar 收 16 员 wiring 回调包 | 消费矩阵实证 11 员 InputBar 独占、1 员死成员；标准件通道让组件自取，键盘面包内私递 |
+| 由 `ConversationRoot` 把 InputBar child slot 渲染为 owner prop | 新 React element 会击穿 bar 的 memo 边界；bar 已收到 `renderSlot`，也拥有这些位置 |
 | 空格裁决也认领即执行型命令 | 误触发防线：空格后整行是普通提示词；不可逆副作用只留显式入口 |
 | 通用 tokenPattern 装饰机制 | 结构化 occurrence 记录取代模式扫描 |
 | 占位 select 常驻工具行 | 具名 slot 在注册前保持为空；占位件与真实现冲突时是两个真源 |

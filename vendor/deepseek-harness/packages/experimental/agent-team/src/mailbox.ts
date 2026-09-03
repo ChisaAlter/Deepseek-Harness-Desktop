@@ -6,7 +6,9 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import { queueHostSubagentPrompt } from '@deepseek-ai/dsh-subagent/internal'
 import { errorMessage, TeamError } from './error.ts'
 import type { TeamJournal } from './journal.ts'
 import type { TeamRuntimeLifecycle } from './lifecycle.ts'
@@ -260,7 +262,7 @@ export class TeamMailbox {
           return true
         }
       }
-      await this.ctx.subagents.followup(root, message.targetId, content, { source, signal })
+      await queueHostSubagentPrompt(this.ctx.subagents, root, message.targetId, content, source, signal)
       return target === undefined
         ? true
         : await this.checkpointDelivered(root, target.session, message.id)
@@ -306,8 +308,7 @@ export class TeamMailbox {
 
   /** Whether a target Session already contains the durable message identity. */
   private targetRecorded(session: Session, messageId: TeamMessageId): boolean {
-    const suffix = session.events.slice(session.header.seedLength ?? 0)
-    return messageAccepted(suffix, message => message.source.kind === 'team-message'
+    return messageAccepted(session.ownEvents(), message => message.source.kind === 'team-message'
       && message.source.messageId === messageId)
   }
 
@@ -327,7 +328,7 @@ export class TeamMailbox {
   ): Promise<boolean | undefined> {
     try {
       const stored = await this.ctx.sessionPersistence.inspect(targetId, signal)
-      const suffix = stored.events.slice(stored.meta.seedLength ?? 0)
+      const suffix = stored.events.slice(stored.inheritedEventCount)
       return messageAccepted(suffix, message => message.source.kind === 'team-message'
         && message.source.messageId === messageId)
     } catch (error: unknown) {

@@ -1,6 +1,6 @@
 # Template: package-reference
 
-Use this template for a package whose entry is a Cordis plugin — a service default export or an `apply` function — mounted in a composition. This is the default for `packages/<group>/<pkg>/README.md`. The `session-persistence-sqlite` README pair is the worked example of this template.
+Use this template for a package whose entry is a Cordis plugin — a service default export or an `apply` function — mounted in a composition. This is the default for `packages/<group>/<pkg>/README.md`. The `session-persistence-jsonl` README pair is the worked example of this template.
 
 ## Frontmatter
 

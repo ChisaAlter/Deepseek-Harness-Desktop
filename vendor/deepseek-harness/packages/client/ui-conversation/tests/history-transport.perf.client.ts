@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { isChunkRow, packChunkRuns } from '@deepseek-ai/dsh-session/chunk-rows'
 import type { ChunkRow } from '@deepseek-ai/dsh-session/chunk-rows'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEvent, SessionEventMap } from '@deepseek-ai/dsh-session/types'
 import type {
   ChunkRowEvent,
@@ -441,7 +442,8 @@ function assemble(entries: readonly SessionEventLikeEntry[]): FoldSnapshots {
     { entries: () => [viewDefinition('chat'), viewDefinition('trajectory')] },
   )
   assembler.replaceWindow(entries, false)
-  assembler.flush()
+  assembler.activateTarget('chat')
+  assembler.activateTarget('trajectory')
   return {
     chat: assembler.snapshot('chat'),
     trajectory: assembler.snapshot('trajectory'),
@@ -671,7 +673,7 @@ it('reports compact folding cost for long whitespace-prefix runs', () => {
     }
     const start = wireEntry({
       type: 'step/start',
-      seq: 0,
+      seq: SessionSeq(0),
       time: TIME_ZERO,
       data: { turn: 1, step: 1 },
     })

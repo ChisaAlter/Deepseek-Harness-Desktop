@@ -2,9 +2,10 @@
 /** Snapshot-only Loader driver: stream one fixture turn as canonical JSONL. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { boot, installFailLoud, loadEnv, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
+import { installFailLoud, loadEnv, resolveConfigPath } from '@deepseek-ai/dsh-app-boot'
 import { runFixtureTurn } from '@deepseek-ai/dsh-loader-smoke'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { bootProductionProfile } from './production-profile.ts'
 
 const NAME = 'headless-test-driver'
 const [configPath, ...taskParts] = process.argv.slice(2)
@@ -16,7 +17,11 @@ const uninstallFailLoud = installFailLoud(NAME)
 let ctx: Context | undefined
 try {
   loadEnv(NAME)
-  ctx = await boot(NAME, resolveConfigPath(configPath, undefined))
+  ctx = await bootProductionProfile({
+    binName: NAME,
+    profile: 'headless',
+    overlayPaths: [resolveConfigPath(configPath, undefined)],
+  })
   const result = await runFixtureTurn(ctx, {
     task: taskParts.join(' '),
     onEvent: (sessionId: string, event: SessionEvent) => {

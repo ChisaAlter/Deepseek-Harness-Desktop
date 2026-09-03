@@ -49,7 +49,7 @@
   max-width: 100%;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
   background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-primary);

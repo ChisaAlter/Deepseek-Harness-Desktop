@@ -146,7 +146,10 @@ export class WorkspaceRegistry extends Service {
    * canonicalized through `fs.realpath`; a nonexistent path rejects with the
    * original error and a non-directory rejects. Repeated calls for the same
    * canonical path return the existing entity without changing its title.
-   * A newly created workspace is prepended to the durable registry order.
+   * A newly created workspace is prepended to the durable registry order and
+   * re-adopts every known session whose canonical cwd is that directory and
+   * that no other workspace accounts — deleting a registration hides its
+   * sessions, registering the same directory again brings them back.
    * Different canonical paths may share a display title.
    * @param path - Existing directory to own, in any path spelling.
    * @param title - Display title used only when a new record is created.
@@ -320,7 +323,7 @@ export class WorkspaceRegistry extends Service {
     const record: WorkspaceRecord = {
       path: canonical,
       title: workspaceName,
-      sessionIds: [],
+      sessionIds: await this.readoptableSessionIds(canonical),
       createdAt: now,
       updatedAt: now,
     }
@@ -378,6 +381,33 @@ export class WorkspaceRegistry extends Service {
       throw error
     }
     return entity
+  }
+
+  /**
+   * Sessions a new workspace over `canonical` takes over: every header whose
+   * canonical cwd is that directory and that no surviving workspace record
+   * accounts, newest first. The header index is refreshed from persistence so
+   * sessions written since startup (or by another process) are not missed;
+   * the write chain slot this runs in keeps the read consistent with the
+   * membership decision.
+   */
+  private async readoptableSessionIds(canonical: string): Promise<SessionId[]> {
+    const fresh = (await this.ctx.sessionPersistence.list())
+      .filter(header => !this.headers.has(header.id))
+    await this.indexHeaders(fresh)
+    await this.indexLiveSessions()
+    const accounted = new Set<SessionId>()
+    for (const [, record] of this.requireTable().entries()) {
+      for (const sessionId of record.sessionIds) accounted.add(sessionId)
+    }
+    const adopted: SessionHeader[] = []
+    for (const [sessionId, path] of this.sessionPaths) {
+      if (path !== canonical || accounted.has(sessionId)) continue
+      const header = this.headers.get(sessionId)
+      if (header !== undefined) adopted.push(header)
+    }
+    adopted.sort(compareHeaders)
+    return adopted.map(header => header.id)
   }
 
   private async deleteKnown(id: WorkspaceId): Promise<boolean> {

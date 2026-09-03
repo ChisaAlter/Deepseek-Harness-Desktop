@@ -7,7 +7,9 @@ import * as TimeoutPolicy from '@deepseek-ai/dsh-tool-call-timeout-policy'
 import SessionStore, {
   SESSION_FORMAT_VERSION,
   SessionId,
+  SessionSeq,
   type Session,
+  type SessionEvent,
   type SessionHeader,
   type SessionId as SessionIdValue,
 } from '@deepseek-ai/dsh-session'
@@ -44,6 +46,7 @@ function header(id: string, cwd: string | undefined, createdAt = 1, parentSessio
     version: SESSION_FORMAT_VERSION,
     id: SessionId(id),
     createdAt,
+    isSeeded: false,
     ...cwd === undefined ? {} : { cwd },
     ...parentSession === undefined ? {} : { parentSession },
   }
@@ -93,7 +96,7 @@ function sessionHit(
     persisted: false,
     bestMatch: {
       sessionId: SessionId(id),
-      seq: 4,
+      seq: SessionSeq(4),
       type: 'assistant/message',
       time: 200,
       surface: 'current',
@@ -102,7 +105,7 @@ function sessionHit(
   }
 }
 
-function eventHit(sessionId: SessionIdValue, seq: number, text = 'needle excerpt'): SessionEventSearchHit {
+function eventHit(sessionId: SessionIdValue, seq: SessionSeq, text = 'needle excerpt'): SessionEventSearchHit {
   return {
     sessionId,
     seq,
@@ -181,7 +184,7 @@ class FakeQuery extends SessionQueryEngine {
             title: value,
             messageSeqs: [],
             source: { kind: 'fallback' },
-            eventSeq: 0,
+            eventSeq: SessionSeq(0),
             updatedAt: 1,
           },
         },
@@ -1153,7 +1156,7 @@ describe('workspace authority and lineage redaction', () => {
 
     FakeQuery.eventSearch = () => Promise.resolve({
       session: movedHeader,
-      items: [eventHit(target.id, 0, 'secret event hit')],
+      items: [eventHit(target.id, SessionSeq(0), 'secret event hit')],
     })
     const search = await mounted.call('session_event_search', {
       session_id: target.id,
@@ -1170,7 +1173,7 @@ describe('workspace authority and lineage redaction', () => {
     expect(errorCode(await mounted.call('session_trace', { session_id: target.id })))
       .toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
 
-    const eventTrace = await mounted.ctx.sessionQuery.traceEvent({ sessionId: target.id, seq: 0 })
+    const eventTrace = await mounted.ctx.sessionQuery.traceEvent({ sessionId: target.id, seq: SessionSeq(0) })
     vi.spyOn(mounted.ctx.sessionQuery, 'traceEvent').mockResolvedValueOnce({
       ...eventTrace,
       session: movedHeader,
@@ -1178,7 +1181,7 @@ describe('workspace authority and lineage redaction', () => {
     expect(errorCode(await mounted.call('session_event_trace', { session_id: target.id, seq: 0 })))
       .toBe('SESSION_QUERY_TOOL_UNAUTHORIZED')
 
-    const eventWindow = await mounted.ctx.sessionQuery.readEvent({ sessionId: target.id, seq: 0 })
+    const eventWindow = await mounted.ctx.sessionQuery.readEvent({ sessionId: target.id, seq: SessionSeq(0) })
     vi.spyOn(mounted.ctx.sessionQuery, 'readEvent').mockResolvedValueOnce({
       ...eventWindow,
       session: movedHeader,
@@ -1198,7 +1201,7 @@ describe('workspace authority and lineage redaction', () => {
           title: 'secret moved title',
           messageSeqs: [],
           source: { kind: 'fallback' },
-          eventSeq: 0,
+          eventSeq: SessionSeq(0),
           updatedAt: 1,
         },
       },
@@ -1213,7 +1216,7 @@ describe('workspace authority and lineage redaction', () => {
     const appendLegacy = mounted.caller.append.bind(mounted.caller) as unknown as (
       type: string,
       data: unknown,
-    ) => Session['events'][number]
+    ) => SessionEvent
     const secret = appendLegacy(
       'context/message',
       {
@@ -1582,7 +1585,7 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
     const mounted = await mount()
     FakeQuery.eventSearch = request => Promise.resolve({
       session: header(request.sessionId, '/work'),
-      items: [eventHit(request.sessionId, 1)],
+      items: [eventHit(request.sessionId, SessionSeq(1))],
     })
     await mounted.call('session_event_search', {
       query: 'prior',
@@ -1627,12 +1630,12 @@ describe('search paging, prior-history bounds, titles, and cancellation', () => 
     FakeQuery.eventSearch = request => request.cursor === undefined
       ? Promise.resolve({
         session: header(other.id, '/work'),
-        items: [eventHit(other.id, 1)],
+        items: [eventHit(other.id, SessionSeq(1))],
         nextCursor: cursor,
       })
       : Promise.resolve({
         session: header(other.id, '/work'),
-        items: [eventHit(other.id, 2), eventHit(other.id, 3)],
+        items: [eventHit(other.id, SessionSeq(2)), eventHit(other.id, SessionSeq(3))],
       })
     const result = await mounted.call('session_event_search', {
       session_id: other.id,
@@ -2002,13 +2005,16 @@ describe('trace and exact read rendering', () => {
           },
         }),
       },
-      { surfaceOp: { op: 'replace', start: 0, end: 0 }, sourceEventSeqs: [0] },
+      {
+        surfaceOp: { op: 'replace', start: SessionSeq(0), end: SessionSeq(0) },
+        sourceEventSeqs: [SessionSeq(0)],
+      },
     )
     const result = await mounted.call('session_event_trace', { session_id: session.id, seq: 0 })
     expect(text(result)).toContain('Replacement chain: 1')
     expect(text(result)).toContain('Events cited directly as sources: none')
     expect(text(result)).toContain('Direct derived events: 1')
-    expect(text(result)).toContain(new Date(session.events[0]?.time ?? 0).toISOString())
+    expect(text(result)).toContain(new Date(session.snapshotEvents()[0]?.time ?? 0).toISOString())
   })
 
   it('renders unabridged fenced target JSON and readable semantic or log-only neighbor summaries', async () => {
@@ -2040,7 +2046,7 @@ describe('trace and exact read rendering', () => {
     const appendLegacy = session.append.bind(session) as unknown as (
       type: string,
       data: unknown,
-    ) => Session['events'][number]
+    ) => SessionEvent
     appendLegacy(
       'context/message',
       { content: [{ type: 'text', text: 'after semantic text' }], source: { kind: 'plugin', plugin: 'test' } },

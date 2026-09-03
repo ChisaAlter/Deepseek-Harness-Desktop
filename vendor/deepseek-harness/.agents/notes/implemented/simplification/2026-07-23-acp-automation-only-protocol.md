@@ -24,7 +24,7 @@ The bridge emits only committed semantic facts. A per-session promise chain pres
 
 One-shot `session/request_permission` remains. It is a machine policy channel for bridge-owned agents, not a human approval UI: the answerer accepts only an exact agent object in the bridge's live session map, delegates foreign or call-less requests, and maps failed RPCs to the fail-closed unavailable outcome. The client chooses allow once, reject once, or cancel, and the bridge never turns that response into a durable grant. Asking policy stays in the approval seam and its producers; [`dsh-subagent-acp`](../../../../packages/subagent/subagent-acp/README.md) uses this channel programmatically.
 
-The app composition contains the agent spine, persistence, checkpoint policy, derived session query, and ACP transport. The ACP bridge reads persistence directly for standard resumable summaries; it does not expose command, session-reference, plan-mode, permission-picker, or user-question presentation surfaces.
+The app composition contains the mandatory agent core, persistence, checkpoint policy, derived session query, and ACP transport. The ACP bridge reads persistence directly for standard resumable summaries; it does not expose command, session-reference, plan-mode, permission-picker, or user-question presentation surfaces.
 
 The transport programs interface-level agent, session, and approval services rather than the concrete agent loop. Tool execution stays inside the harness; ACP never delegates shell execution to an editor. stdout carries framed JSON-RPC only, so the app mounts no stdout logger and the bridge does not monkey-patch process output.
 

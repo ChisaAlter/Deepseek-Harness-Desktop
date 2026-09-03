@@ -76,6 +76,14 @@
     # desktop display. Pin the browse pair so every client gets the in-app
     # directory dialog; compose -native instead only on a display-local-only
     # deployment.
+    # Whole-log turn outline for the chat turn rail (the turnOutline
+    # projection key): every turn stays navigable before its events page in.
+    - id: session-turn-outline
+      name: '@deepseek-ai/dsh-session-turn-outline'
+
+    # Resolve bind host, SSH launch, and display once at boot, then mount the
+    # matching dual-face directory picker. Mount -native or -browse directly in
+    # an overlay to pin the interaction.
     - id: directory-picker
       name: '@deepseek-ai/dsh-host-directory-picker-browse'
 
@@ -458,12 +466,6 @@
 
 - id: tool-subagent-fork
   disabled: true
-
-# `tool-subagent-report` is host-plane for the same reason as the registry, not
-# because a preset may not want it: it registers a CONTINUABLE SETUP on that
-# singleton rather than a tool this agent calls, and the setup list is not
-# scope-aware — one copy per mounted preset means every child gets `report`
-# registered once per live session, which throws on the second.
 
 - id: workflow-worker-thread
   disabled: true

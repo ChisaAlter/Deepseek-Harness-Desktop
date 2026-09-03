@@ -4,7 +4,7 @@
 }
 
 /* Dropdown card (figma MenuDropdown 122:9481 / 419:16920): menu surface,
- * r12, inverted hairline border, shadow-lv3, 4px inset padding. */
+ * r12, elevation-prominent (hairline stroke in shadow), 4px inset padding. */
 .list,
 .submenu {
   /* min-widths below are the design's outer card widths — include the pad. */
@@ -13,10 +13,11 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  border: 1px solid var(--dsw-alias-border-inverted);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 20px;
   background: var(--dsw-specific-menu);
-  box-shadow: var(--dsw-shadow-lv3);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
   /* Elevated surface: the scrollbar thumb takes the l2 elevation tokens. The
      declaration sits on the card rather than on `.scrollable .viewport`
      because the elevation is a property of this surface, and the custom
@@ -26,17 +27,14 @@
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
-/* Primary card is 218 wide in the design across both hosts. Long labels
- * ellipsis inside the row; do not let one menu grow while its neighbor stays
- * at the design width. */
+/* Primary card is 218 wide in the design across both hosts. */
 .list {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   z-index: 100;
-  width: 218px;
   min-width: 218px;
-  max-width: 218px;
+  max-width: 360px;
 }
 
 /* Portal mode: fixed in the viewport, coordinates supplied inline from the
@@ -49,16 +47,6 @@
   left: auto;
   z-index: 1100;
   -webkit-app-region: no-drag;
-}
-
-/* Form-field menus: width comes from the anchor rect (inline style). Drop
- * the 218px cap so a wide trigger is not left with an empty side. Fill with
- * the same module-platform token as the SettingsSelect pill so wallpaper
- * does not show through the 80% glass menu surface. */
-.list.matchAnchor {
-  min-width: 0;
-  max-width: none;
-  background: var(--dsw-alias-bg-module-platform);
 }
 
 /* Open above the anchor (empty-state workspace chip: figma 122:9481). */
@@ -91,63 +79,19 @@
   overflow-y: auto;
 }
 
-/* Pinned filter above the scroll region. */
-.header {
-  flex: none;
-}
-
-.filter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
-  box-sizing: border-box;
-  border-radius: 10px;
-}
-
-.filterInput {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 14px;
-  line-height: 22px;
-  color: var(--dsw-alias-label-primary);
-}
-
-.filterInput::placeholder {
-  color: var(--dsw-alias-label-dimmed);
-}
-
-.compactList .filter {
-  min-height: 26px;
-  gap: 6px;
-  padding: 3px 7px;
-}
-
-.compactList .filterInput {
-  font-size: 12px;
-  line-height: 18px;
-}
-
-/* Pinned rows below the scroll region. */
+/* Pinned rows below the scroll region; l2 hairline (l1 is near-invisible on
+ * the menu surface) mirrors the .separator spacing. */
 .footer {
   flex: none;
   display: flex;
   flex-direction: column;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .itemWrap {
   position: relative;
-}
-
-.hintWrap {
-  display: flex;
-  width: 100%;
-  min-width: 0;
 }
 
 /* Menu cell (figma .Menu_cell): min-h 40, r10, pad 10/8, 14/22 primary,
@@ -184,9 +128,7 @@
 
 .list.compactList,
 .submenu.compactList {
-  width: 164px;
   min-width: 164px;
-  max-width: 164px;
   padding: 2px;
   border-radius: 7px;
 }
@@ -272,7 +214,7 @@
 
 /* Separator cell (figma 122:9481): py 4 / px 2 around the hairline. */
 .separator {
-  height: 1px;
+  height: 0.5px;
   margin: 4px 2px;
   background: var(--dsw-alias-border-l1);
 }

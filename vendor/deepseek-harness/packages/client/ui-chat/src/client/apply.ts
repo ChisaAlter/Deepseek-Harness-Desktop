@@ -33,21 +33,12 @@ import { createChatStore } from './stores.ts'
 import type { StatsLineInjected } from './chat/StatsLine.tsx'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
-
-/** Optional open face on the workspaces service; absent on pins that ship without it. */
-interface WorkspacesOpenPathFace {
-  openPath?: (path: string) => Promise<void>
-}
+import { useTurnDataValue } from './chat/use-turn-data.ts'
 
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
-    turnData: ({ useChat }, nodeKey) => function useTurnData(key) {
-      return useChat((snapshot) => {
-        const location = snapshot.nodes.get(nodeKey)?.location
-        return location?.kind === 'turn' || location?.kind === 'step'
-          ? location.turn.data.get(key)
-          : undefined
-      })
+    turnData: (_standard, data) => function useTurnData(key) {
+      return useTurnDataValue(data, key)
     },
   },
 }
@@ -115,10 +106,16 @@ export function apply(ctx: Context): void {
       },
       store: chatStore,
       inject: (sessionId: SessionId, actions: BoundActions<typeof chatStore>): ChatViewInjected => {
-        const session = ctx.sessions.binding(sessionId)?.session
-        if (session === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
+        const binding = ctx.sessions.binding(sessionId)
+        if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
+        const session = binding.session
+        const chat = chatSource(binding)
         return {
           hooks: { transcriptView: transcriptView.mode },
+          keyedHooks: {
+            chatNode: key => chat.getSnapshot().nodes.source(key),
+            chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
+          },
           openDetails: (target) => {
             actions.select(target)
             ctx.layout.openDetails()
@@ -126,19 +123,13 @@ export function apply(ctx: Context): void {
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
           openFile: async (path) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
-            const absolute = resolveWorkspacePath(cwd, path)
-            // `workspaces.openPath` is the shared open vocabulary the desktop
-            // surfaces plugin intercepts (Files tab + Browser for html/svg/pdf).
-            // Without it, the Host opener hands the file to the OS.
-            const openPath = (ctx.get('workspaces') as WorkspacesOpenPathFace | undefined)?.openPath
-            if (typeof openPath === 'function') {
-              await openPath(absolute)
-              return
-            }
-            const result = await ctx.remote.session.openWorkspacePath({ path: absolute })
+            const result = await ctx.remote.session.openWorkspacePath({
+              path: resolveWorkspacePath(cwd, path),
+            })
             if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
           },
           loadOlder: () => { void session.loadOlder() },
+          loadThrough: seq => session.loadThrough(seq),
           loadImage: Object.assign(
             (attachment: ImageAttachmentRef) => ctx.uiConversation.imageUrl(sessionId, attachment),
             { peek: (attachment: ImageAttachmentRef) => ctx.uiConversation.peekImageUrl(sessionId, attachment) },

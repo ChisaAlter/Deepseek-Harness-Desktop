@@ -11,7 +11,7 @@ import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepse
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
@@ -205,18 +205,37 @@ function sandboxAgent(
   ctx?: Context,
   onAppend?: (type: string) => void,
 ): Agent {
-  const events: Array<{ type: string; data?: Record<string, unknown> }> = [{ type: 'turn/start', data: { turn: 1 } }]
-  if (mode !== undefined) events.push({ type: 'sandbox/mode', data: { mode } })
+  const events: Array<{
+    type: string
+    seq: ReturnType<typeof SessionSeq>
+    time: number
+    data: Record<string, unknown>
+  }> = [{ type: 'turn/start', seq: SessionSeq(0), time: 0, data: { turn: 1 } }]
+  if (mode !== undefined) {
+    events.push({ type: 'sandbox/mode', seq: SessionSeq(1), time: 1, data: { mode } })
+  }
   const id = SessionId('sandbox-session')
   return {
     id,
     ...ctx === undefined ? {} : { ctx: ctx.plugin(() => {}).ctx },
     session: {
       id,
-      header: { version: 0, id, createdAt: 0 },
-      events,
+      header: { version: 0, id, createdAt: 0, isSeeded: false },
+      inheritedEventCount: SessionLogOffset(0),
+      firstLiveSeq: SessionLogOffset(0),
+      get seq() { return SessionLogOffset(events.length) },
+      eventAt: (seq: ReturnType<typeof SessionSeq>) => events[seq],
+      snapshotEvents: (
+        fromSeq = SessionLogOffset(0),
+        toSeqExclusive = SessionLogOffset(events.length),
+      ) => events.slice(fromSeq, toSeqExclusive),
       append: (type: string, data: Record<string, unknown>) => {
-        const event = { type, data }
+        const event = {
+          type,
+          seq: SessionSeq(events.length),
+          time: events.length,
+          data,
+        }
         events.push(event)
         onAppend?.(type)
         return event
@@ -644,10 +663,10 @@ describe('sandbox escalation through the generic task producer', () => {
     expect(prompted).not.toHaveBeenCalled()
 
     const malformed = sandboxAgent()
-    ;(malformed.session.events as unknown as Array<{ type: string; data: { mode: string } }>).push({
-      type: 'sandbox/mode',
-      data: { mode: 'unknown-mode' },
-    })
+    ;(malformed.session.append as unknown as (
+      type: string,
+      data: Record<string, unknown>,
+    ) => unknown)('sandbox/mode', { mode: 'unknown-mode' })
     expect(text(await call(ctx, 'bash', escalate, malformed))).toContain('not strictly wider')
   })
 

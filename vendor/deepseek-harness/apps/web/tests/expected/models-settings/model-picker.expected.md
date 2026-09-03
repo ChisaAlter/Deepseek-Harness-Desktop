@@ -3,13 +3,17 @@
   - button "关闭":
     - img
   - paragraph: 以下是模型提供方的可用模型，勾选要添加的模型。
-  - button "全选"
+  - searchbox "搜索模型"
+  - button "取消全选"
   - list:
     - listitem:
-      - checkbox "minimax-m1"
-      - text: minimax-m1
+      - checkbox "MiniMax-M2.7" [checked]
+      - text: MiniMax-M2.7
     - listitem:
-      - checkbox "minimax-m2"
-      - text: minimax-m2
+      - checkbox "MiniMax-M2.7-highspeed" [checked]
+      - text: MiniMax-M2.7-highspeed
+    - listitem:
+      - checkbox "MiniMax-M3" [checked]
+      - text: MiniMax-M3
   - button "取消"
   - button "添加所选"

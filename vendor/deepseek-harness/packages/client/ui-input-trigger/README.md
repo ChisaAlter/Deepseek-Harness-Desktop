@@ -29,7 +29,7 @@ Mount this plugin alongside `ui-conversation`; the menu then appears in the inpu
 
 ### Keyboard and mouse
 
-The composer surface keeps focus while the menu is open: rows pick on mousedown, the highlight rides `aria-activedescendant`, and a pointer press outside both the menu and the composer card dismisses it. Space and Enter adjudication polls the optional `matchSpace`/`matchEnter` hooks in registration order; the first non-undefined answer wins, and a source can refuse a submission it cannot consume whole. A candidate declaring `drill: true` carries a second verb beside the settling pick: its trailing chevron and the Tab key route the same row through `onPick` with `action: 'drill'` (every other path reports `'pick'`), and Tab passes untouched on rows without the flag so native focus traversal survives. A source implementing the optional `header` hook additionally publishes crumbs above its group: the pipeline re-polls it on every hit with the live query and whether a drill, rather than typing, produced it, and a crumb pick routes back through `onPick` with `action: 'drill'`.
+The composer surface keeps focus while the menu is open: rows pick on mousedown, the highlight rides `aria-activedescendant`, and a pointer press outside both the menu and the composer card dismisses it. Space and Enter adjudication polls the optional `matchSpace`/`matchEnter` hooks in registration order; the first non-undefined answer wins, and a source can refuse a submission it cannot consume whole. Tab acts on the highlighted completion: a candidate declaring `drill: true` routes through `onPick` with `action: 'drill'`, while an ordinary candidate settles through `action: 'pick'`; without a highlight, Tab passes untouched so native focus traversal survives. A drillable row's trailing chevron exposes the same second verb to pointer users. A source implementing the optional `header` hook additionally publishes crumbs above its group: the pipeline re-polls it on every hit with the live query and whether a drill, rather than typing, produced it, and a crumb pick routes back through `onPick` with `action: 'drill'`.
 
 -----
 
@@ -86,3 +86,5 @@ These limits define the current trigger pipeline. They are current package const
 None.
 
 </details>
+
+**Runtime invariant:** No companion is published. The trigger pipeline is a browser-side pure core (detect/reduce/match) plus a registry whose disposal is proven by the HMR-safety spec; it emits no cordis events and owns no cross-plugin mutable state.
