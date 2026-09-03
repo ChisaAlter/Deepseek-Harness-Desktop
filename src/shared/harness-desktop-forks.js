@@ -113,6 +113,10 @@ const FORK_FILE_MARKERS = [
   // Desktop-forked settings e2e drivers (SettingsSelect menus, section
   // navigation, zh boot copy, RPC interception).
   { file: 'apps/web/tests/settings-chrome.e2e.ts', includes: ['正在加载插件'] },
+  // Desktop fork: the shipped web-app composition carries the browse rows, so
+  // the scaffold's upstream -auto disable+insert pair must stay removed (it
+  // duplicates the shipped client browse row and fails every boot sweep).
+  { file: 'apps/web/tests/scaffold.ts', excludes: ['directory-picker-browse'] },
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
   // Desktop fork: input.dock panels follow the drag-resized composer card.
   { file: 'apps/web/tests/composer-resize-dock.e2e.ts', includes: ['input.dock panels follow the composer drag width'] },
