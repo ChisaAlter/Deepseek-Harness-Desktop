@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { buildSettingsSectionScript } = require('./settings-jump');
+const { REMOTE_FEATURE_ENABLED } = require('./config');
 
 /**
  * In-page helpers for the Electron release walk. Kept as a string so
@@ -370,15 +371,42 @@ async function typeIntoAriaField(wc, pattern, value) {
   `, { pattern });
   if (!box || box.w < 1 || box.h < 1) return false;
   try {
-    await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1,
-    });
-    await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1,
-    });
-    await sleep(40);
-    await wc.debugger.sendCommand('Input.insertText', { text: value });
+    if (wc.debugger && !wc.debugger.isAttached()) await wc.debugger.attach('1.3');
   } catch {
+    /* already attached or unavailable — sendInputEvent/insertText still work */
+  }
+  if (typeof wc.sendInputEvent === 'function') {
+    wc.sendInputEvent({ type: 'mouseMove', x: box.x, y: box.y });
+    wc.sendInputEvent({ type: 'mouseDown', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+    wc.sendInputEvent({ type: 'mouseUp', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+  }
+  if (wc.debugger && wc.debugger.isAttached()) {
+    try {
+      await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1,
+      });
+      await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1,
+      });
+    } catch {
+      /* page click below */
+    }
+  }
+  await pageScript(wc, `
+    const dialog = dshDialogNamed('^设置$|^settings$') || dshDialog();
+    const card = dialog && dshCustomProviderCard(dialog);
+    const el = card && dshField(args.pattern, card);
+    if (!el) return false;
+    el.click();
+    el.focus();
+    return true;
+  `, { pattern });
+  await sleep(40);
+  if (typeof wc.insertText === 'function') {
+    await Promise.resolve(wc.insertText(value));
+  } else if (wc.debugger && wc.debugger.isAttached()) {
+    await wc.debugger.sendCommand('Input.insertText', { text: value });
+  } else {
     await pageScript(wc, `
       const dialog = dshDialogNamed('^设置$|^settings$') || dshDialog();
       const card = dialog && dshCustomProviderCard(dialog);
@@ -395,8 +423,76 @@ async function typeIntoAriaField(wc, pattern, value) {
   `, { pattern, value });
 }
 
+/**
+ * Real-input fill for a dialog textarea: React controlled components must see
+ * trusted input events, so click and insert through the attached debugger
+ * (same pattern as the composer) and fall back to dshSetValue only when the
+ * debugger is unavailable.
+ */
+async function typeIntoDialogTextarea(wc, dialogPattern, value) {
+  const box = await pageScript(wc, `
+    const dialog = dshDialogNamed(args.dialogPattern);
+    const ta = dialog && dialog.querySelector('textarea');
+    if (!ta || !dshShown(ta)) return null;
+    ta.scrollIntoView({ block: 'center', inline: 'nearest' });
+    ta.focus();
+    if (typeof ta.select === 'function') ta.select();
+    const r = ta.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  `, { dialogPattern });
+  if (!box || box.w < 1 || box.h < 1) return false;
+  try {
+    if (wc.debugger && !wc.debugger.isAttached()) await wc.debugger.attach('1.3');
+  } catch {
+    /* already attached or unavailable — sendInputEvent/insertText still work */
+  }
+  if (typeof wc.sendInputEvent === 'function') {
+    wc.sendInputEvent({ type: 'mouseMove', x: box.x, y: box.y });
+    wc.sendInputEvent({ type: 'mouseDown', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+    wc.sendInputEvent({ type: 'mouseUp', x: box.x, y: box.y, button: 'left', clickCount: 1 });
+  }
+  if (wc.debugger && wc.debugger.isAttached()) {
+    try {
+      await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1,
+      });
+      await wc.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1,
+      });
+    } catch {
+      /* page click below */
+    }
+  }
+  await pageScript(wc, `
+    const dialog = dshDialogNamed(args.dialogPattern);
+    const ta = dialog && dialog.querySelector('textarea');
+    if (!ta) return false;
+    ta.click();
+    ta.focus();
+    return true;
+  `, { dialogPattern });
+  await sleep(40);
+  if (typeof wc.insertText === 'function') {
+    await Promise.resolve(wc.insertText(value));
+  } else if (wc.debugger && wc.debugger.isAttached()) {
+    await wc.debugger.sendCommand('Input.insertText', { text: value });
+  } else {
+    await pageScript(wc, `
+      const dialog = dshDialogNamed(args.dialogPattern);
+      const ta = dialog && dialog.querySelector('textarea');
+      return ta ? dshSetValue(ta, args.value) : false;
+    `, { dialogPattern, value });
+  }
+  await sleep(80);
+  return pageScript(wc, `
+    const dialog = dshDialogNamed(args.dialogPattern);
+    const ta = dialog && dialog.querySelector('textarea');
+    return Boolean(ta && ta.value === args.value);
+  `, { dialogPattern, value });
+}
+
 async function typeIntoComposer(wc, value) {
-  const ready = await pageEval(wc, () => dshComposerReady());
+  const ready = await waitUntil(() => pageEval(wc, () => dshComposerReady()), 8_000);
   if (!ready) return false;
   const expected = String(value || '');
   const box = await pageEval(wc, () => {
@@ -673,12 +769,36 @@ async function switchComposerThinking(wc, helpers) {
       await pressEnter(wc);
       sent = true;
     }
-    const idle = await waitUntil(() => pageEval(wc, () => {
+    // Credential-less QA world: the turn may engage and then sit in provider
+    // retries without ever reaching idle. Engagement proves the composer
+    // accepted the send after the effort switch; idle is best-effort after.
+    const settled = await waitUntil(() => pageEval(wc, () => {
       const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+      if (stop && !stop.disabled) return 'engaged';
       const send = dshComposerSend();
-      return (!stop || stop.disabled) && send && !send.disabled ? true : null;
-    }), 120_000);
-    return idle ? '' : `ping for ${label} did not return to send`;
+      return send && !send.disabled ? 'idle' : null;
+    }), 30_000);
+    if (settled === 'engaged') {
+      await waitUntil(() => pageEval(wc, () => {
+        const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+        const send = dshComposerSend();
+        return (!stop || stop.disabled) && send && !send.disabled ? true : null;
+      }), 20_000);
+      // Still engaged (credential-less world sits in provider retries): stop
+      // the turn so the next ping starts from an idle composer.
+      await pageEval(wc, () => {
+        const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+        if (stop && !stop.disabled) stop.click();
+        return true;
+      });
+      await waitUntil(() => pageEval(wc, () => {
+        const stop = dshFind('stop generating|停止生成|deep diving|深潜');
+        const send = dshComposerSend();
+        return (!stop || stop.disabled) && Boolean(send) ? true : null;
+      }), 10_000);
+      return '';
+    }
+    return settled === 'idle' ? '' : `ping for ${label} neither engaged nor settled`;
   };
 
   const errors = [];
@@ -963,7 +1083,8 @@ async function runReleaseUiWalk(wc, helpers) {
     : null;
   rec(
     'remote.available',
-    remoteSnap != null && remoteSnap.available === false && remoteSnap.enabled === false,
+    remoteSnap != null && remoteSnap.enabled === false && remoteSnap.listening !== true
+      && (REMOTE_FEATURE_ENABLED ? remoteSnap.available === true : remoteSnap.available === false),
     remoteSnap ? summarizeRemoteQaDetail(remoteSnap) : 'helpers.probeRemote missing',
   );
   rec(
@@ -976,7 +1097,11 @@ async function runReleaseUiWalk(wc, helpers) {
     if (trigger && dshShown(trigger)) return 'trigger';
     return dshFind('^remote$|^远程$') ? 'label' : null;
   });
-  rec('remote.footerPresent', remoteFooter == null, remoteFooter || 'parked hidden');
+  rec(
+    'remote.footerPresent',
+    REMOTE_FEATURE_ENABLED ? remoteFooter != null : remoteFooter == null,
+    remoteFooter || (REMOTE_FEATURE_ENABLED ? 'remote trigger missing' : 'parked hidden'),
+  );
 
   const commandsClicked = await clickNamed(wc, '^commands$|^命令$|^指令$');
   if (commandsClicked) {
@@ -1223,11 +1348,9 @@ async function runReleaseUiWalk(wc, helpers) {
         const want = /note\\.md$/i.test(label);
         if (want !== input.checked) input.click();
       });
-      const ta = dialog.querySelector('textarea');
-      if (!ta) return false;
-      ta.focus();
-      return dshSetValue(ta, args.message);
-    `, { message: commitMessage });
+      return Boolean(dialog.querySelector('textarea'));
+    `, {});
+    await typeIntoDialogTextarea(wc, 'commit changes|提交更改', commitMessage);
     await clickNamed(wc, '^commit$|^提交$', '[role="dialog"]');
   }
   const committed = await waitUntil(() => {
