@@ -127,8 +127,7 @@ class MemoryPersistence extends SessionPersistence implements PersistenceBackend
   }
 
   delete(id: SessionId): Promise<void> {
-    if (!this.store.delete(id)) return Promise.reject(new Error(`session "${id}" not found`))
-    return Promise.resolve()
+    return this.coordinator.remove(id)
   }
 
   override prepare(id: SessionId, signal?: AbortSignal): ReturnType<PersistenceCoordinator['prepare']> {
