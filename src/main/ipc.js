@@ -28,6 +28,8 @@ const {
 const { scanImport, probeImportHold, runImport } = require('./data-import');
 const { inspectPlugins, isPresetPlugin } = require('./plugin-forensics');
 const { DSH_IM_ALIASES } = require('./dsh-im-desktop');
+const { DSH_MARKET_ALIASES } = require('./dsh-market-desktop');
+const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 const { isPluginTreeFailure } = require('./plugin-tree-failure');
 const { readLastDesktopStart, recordLastDesktopStart, stickySkipActive } = require('./launcher-gate');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
@@ -673,6 +675,12 @@ function registerIpc({
       if (DSH_IM_ALIASES.includes(raw)) {
         return { ok: false, error: 'desktop-builtin', name: raw };
       }
+      if (DSH_MARKET_ALIASES.includes(raw)) {
+        return { ok: false, error: 'desktop-builtin', name: raw };
+      }
+      if (USAGE_PANEL_ALIASES.includes(raw)) {
+        return { ok: false, error: 'desktop-builtin', name: raw };
+      }
     }
     const config = loadConfig();
     const disabled = [...new Set([...(config.disabledPlugins || []), ...list])];
@@ -696,6 +704,12 @@ function registerIpc({
       return { ok: false, error: 'official-template' };
     }
     if (DSH_IM_ALIASES.includes(raw)) {
+      return { ok: false, error: 'desktop-builtin' };
+    }
+    if (DSH_MARKET_ALIASES.includes(raw)) {
+      return { ok: false, error: 'desktop-builtin' };
+    }
+    if (USAGE_PANEL_ALIASES.includes(raw)) {
       return { ok: false, error: 'desktop-builtin' };
     }
     const config = loadConfig();

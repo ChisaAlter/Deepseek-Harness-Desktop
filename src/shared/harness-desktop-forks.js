@@ -40,7 +40,6 @@ const COMPOSITION_ROWS = [
   { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-preview', name: '@deepseek-ai/dsh-client-ui-preview' },
   { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-agents-panel', name: '@deepseek-ai/dsh-client-ui-agents-panel' },
   { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-settings-remote', name: '@deepseek-ai/dsh-client-ui-settings-remote' },
-  { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-settings-market', name: '@deepseek-ai/dsh-client-ui-settings-market' },
   { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-settings-mcp', name: '@deepseek-ai/dsh-client-ui-settings-mcp' },
   { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-settings-skills', name: '@deepseek-ai/dsh-client-ui-settings-skills' },
   { file: 'packages/bundle/web-app/cordis.patch.yml', id: 'ui-message-edit', name: '@deepseek-ai/dsh-client-ui-message-edit' },

@@ -11,7 +11,7 @@
 
 ## 架构要点
 
-- 预置：`usage-panel-preset.js` + `vendor/dsh-usage-panel`。  
+- 桌面内置模块：`usage-panel-preset.js`（`ensureDesktopUsagePanel`，dsh-im 模式）+ `vendor/dsh-usage-panel`。  
 - Host：`ctx.sessionProjections` key `usagePanel`（stateVersion 2,含峰谷桶）；RPC `/usage-stats` loopback（overview / session.cost / billing.get|set / billing.models）；价格持久化 = storageDomain 域 `dsh_usage_panel_billing`（插件自有 JSON,只读红线不触碰会话日志）。  
 - Client：只注册 `settings.section` id `usage-stats`（不注册 `conversation.composer.dock`）；`ui-primitives` + token；零 DOM 探测。
 - Feature card：[../../features/usage-stats.md](../../features/usage-stats.md)
@@ -22,8 +22,8 @@
 
 ## 不变量
 
-- 同一 profile 一份插件；用户自装（真实目录或外部 junction）优先，桌面后退并删 overlay；仅无该条目时桌面复制预置包并自管 junction。  
-- 预置失败不挡启动。  
+- 同一 profile 一份；桌面内置模块，不可禁用、不可移除，每轮都挂（含 skip 模式）；`DROPPED` 名单防市场双挂载。  
+- 预置失败硬失败，挡启动（桌面运行时损坏）。  
 - `dsh-home/profiles/web`，不是 `~/.dsh`（[dsh-home.md](dsh-home.md)）。  
 - 计费=估算；未定价模型绝不显示数字；峰谷窗口北京时间 UTC+8（周一至五 09:00–12:00/14:00–18:00 高峰,空闲=高峰一半）。
 

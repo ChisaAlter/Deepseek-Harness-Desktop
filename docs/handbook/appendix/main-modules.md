@@ -43,7 +43,7 @@
 | 文件 | 职责 |
 | --- | --- |
 | `marketplace-catalog.js` / `marketplace-install.js` / `marketplace-spec.js` / `marketplace-allowbuilds.js` | 市场 |
-| `dshmarket-preset.js`（仅残留清理）/ `usage-panel-preset.js` / `desktop-install-control.js` | 预置与安装控制 |
+| `usage-panel-preset.js` | 桌面内置模块：用量统计（dsh-im 模式，每轮都挂，不可禁用） |
 | `plugins.js` / `plugin-runtime-files.js` | 插件列表、禁用 bundles、运行时文件 |
 | `plugin-forensics.js` | 不启内核解析日志嫌疑包 |
 | `plugin-tree-failure.js` / `plugin-recovery-actions.js` | 启动失败恢复 |

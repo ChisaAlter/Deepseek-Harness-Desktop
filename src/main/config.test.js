@@ -307,6 +307,19 @@ test('launcher defaults auto-start desktop, ask on update, and quit after a succ
   assert.deepEqual(DEFAULTS.disabledPlugins, []);
 });
 
+test('normalizeDisabledPlugins strips desktop built-in dsh-im and usage-panel aliases', () => {
+  const before = loadConfig();
+  saveConfig({
+    disabledPlugins: ['@xmanrui/dsh-im', 'dsh-im', 'dsh-usage-panel', 'user-pack'],
+  });
+  try {
+    const loaded = loadConfig();
+    assert.deepEqual(loaded.disabledPlugins, ['user-pack']);
+  } finally {
+    saveConfig({ disabledPlugins: before.disabledPlugins });
+  }
+});
+
 test('launcher config patch only accepts the three boolean shell settings', () => {
   assert.deepEqual(normalizeLauncherConfigPatch({
     quitAfterStart: false,

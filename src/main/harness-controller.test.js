@@ -335,22 +335,29 @@ test('skip-user-plugins never ensures dshbot even when the dev preset is on', as
   assert.equal(f.dsh.startOptions[0].skipUserPlugins, true);
 });
 
-test('logs and continues when the usage-panel preset fails', async () => {
+test('a failed usage-panel ensure blocks Harness start (desktop runtime damage)', async () => {
   const f = fixture({
     ensureUsagePanelPlugin: async () => ({ ok: false, error: 'missing-zod' }),
   });
-  await f.controller.start();
-  assert.equal(f.dsh.startCalls, 1);
-  assert.ok(f.dsh.logs.some((line) => /用量统计/.test(line) && /missing-zod/.test(line)));
+  await assert.rejects(
+    () => f.controller.start(),
+    (error) => {
+      assert.match(String(error.message), /桌面内置用量统计失败/);
+      assert.match(String(error.message), /missing-zod/);
+      return true;
+    },
+  );
+  assert.equal(f.dsh.startCalls, 0);
 });
 
-test('skip-user-plugins still wires first-party dsh-im', async () => {
+test('skip-user-plugins still wires first-party usage-panel and dsh-im', async () => {
   const order = [];
+  const usageOverlay = 'C:/profiles/web/desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml';
   const imOverlay = 'C:/profiles/web/desktop-plugins/dsh-im/desktop-dsh-im.patch.yml';
   const f = fixture({
     ensureUsagePanelPlugin: async () => {
       order.push('usage-panel');
-      return { ok: true };
+      return { ok: true, added: false, overlayFile: usageOverlay };
     },
     ensureDshImPlugin: async () => {
       order.push('dsh-im');
@@ -359,9 +366,11 @@ test('skip-user-plugins still wires first-party dsh-im', async () => {
   });
   f.controller.writePluginSkip(new Error('recovery'));
   await f.controller.start();
-  assert.deepEqual(order, ['dsh-im']);
+  assert.deepEqual(order, ['usage-panel', 'dsh-im']);
   assert.equal(f.dsh.startOptions[0].skipUserPlugins, true);
+  assert.ok(f.dsh.startOptions[0].patchFiles.includes(usageOverlay));
   assert.ok(f.dsh.startOptions[0].patchFiles.includes(imOverlay));
+  assert.ok(f.dsh.logs.some((line) => /桌面内置用量统计/.test(line)));
   assert.ok(f.dsh.logs.some((line) => /桌面内置 dsh-im/.test(line)));
 });
 
@@ -413,7 +422,7 @@ test('plugin-tree startup failure retries once with the desktop overlay on both 
   assert.equal(f.controller.snapshot().pluginRecovery.skipUserPlugins, true);
 });
 
-test('full start rides the usage overlay after the install overlay; skip start drops it', async () => {
+test('full start rides the usage overlay after the install overlay; skip start also rides it', async () => {
   const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
   const usageOverlay = 'C:/profiles/web/desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml';
   const f = fixture({
@@ -430,7 +439,7 @@ test('full start rides the usage overlay after the install overlay; skip start d
   skipped.controller.writePluginSkip(new Error('recovery'));
   await skipped.controller.start();
   assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
-  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay]);
+  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay]);
 });
 
 test('full start rides the session-search overlay; skip start drops it', async () => {
@@ -463,37 +472,62 @@ test('a failed session-search ensure never contributes a stale overlay path', as
   assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay]);
 });
 
-test('dsh-im overlay rides --patch on both full and skip starts', async () => {
+test('dsh-im and usage-panel and market overlays ride --patch on both full and skip starts', async () => {
   const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
   const usageOverlay = 'C:/profiles/web/desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml';
   const imOverlay = 'C:/profiles/web/desktop-plugins/dsh-im/desktop-dsh-im.patch.yml';
+  const marketOverlay = 'C:/profiles/web/desktop-plugins/dsh-market/desktop-dsh-market.patch.yml';
   const f = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
     ensureUsagePanelPlugin: async () => ({ ok: true, added: false, overlayFile: usageOverlay }),
     ensureDshImPlugin: async () => ({ ok: true, added: false, overlayFile: imOverlay }),
+    ensureDesktopMarket: async () => ({ ok: true, added: false, overlayFile: marketOverlay }),
   });
   await f.controller.start();
-  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay]);
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay]);
 
   const skipped = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
     ensureUsagePanelPlugin: async () => ({ ok: true, added: false, overlayFile: usageOverlay }),
     ensureDshImPlugin: async () => ({ ok: true, added: false, overlayFile: imOverlay }),
+    ensureDesktopMarket: async () => ({ ok: true, added: false, overlayFile: marketOverlay }),
   });
   skipped.controller.writePluginSkip(new Error('recovery'));
   await skipped.controller.start();
   assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
-  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, imOverlay]);
+  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay]);
 });
 
-test('a failed usage-panel ensure never contributes a stale overlay path', async () => {
+test('a failed usage-panel ensure blocks Harness start and never passes a stale overlay', async () => {
   const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
   const f = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
     ensureUsagePanelPlugin: async () => ({ ok: false, error: 'missing-zod', overlayFile: 'C:/stale.yml' }),
   });
-  await f.controller.start();
-  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay]);
+  await assert.rejects(
+    () => f.controller.start(),
+    (error) => {
+      assert.match(String(error.message), /桌面内置用量统计失败/);
+      return true;
+    },
+  );
+  assert.equal(f.dsh.startCalls, 0);
+});
+
+test('a failed market ensure blocks Harness start and never passes a stale overlay', async () => {
+  const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
+  const f = fixture({
+    ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
+    ensureDesktopMarket: async () => ({ ok: false, error: 'missing-source:package.json', overlayFile: 'C:/stale-market.yml' }),
+  });
+  await assert.rejects(
+    () => f.controller.start(),
+    (error) => {
+      assert.match(String(error.message), /桌面内置市场失败/);
+      return true;
+    },
+  );
+  assert.equal(f.dsh.startCalls, 0);
 });
 
 test('skip start without a desktop-owned overlay passes no patch files', async () => {

@@ -1,8 +1,8 @@
-import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query';
 import type { Overview } from '../shared/contract.ts';
 import { type SessionAgg } from './aggregate.ts';
+import type { HostSessionQuery } from './types.ts';
 export interface ScanFallbackDeps {
-    sq: SessionQueryEngine;
+    sq: HostSessionQuery;
     providerNames: Record<string, string>;
     logFailure: (message: string) => void;
     /** Receive the full ranked session index for the paging endpoints. */

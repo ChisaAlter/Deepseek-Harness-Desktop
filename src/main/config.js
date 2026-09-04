@@ -186,9 +186,12 @@ function normalizePluginRecovery(config) {
 
 function normalizeDisabledPlugins(list) {
   const { withoutDshImAliases } = require('./dsh-im-desktop');
-  return [...new Set(withoutDshImAliases((Array.isArray(list) ? list : [])
-    .map((name) => String(name || '').trim())
-    .filter(Boolean)))];
+  const { withoutUsagePanelAliases } = require('./usage-panel-preset');
+  return [...new Set(withoutUsagePanelAliases(withoutDshImAliases(
+    (Array.isArray(list) ? list : [])
+      .map((name) => String(name || '').trim())
+      .filter(Boolean),
+  )))];
 }
 
 function normalizeLauncherSettings(config) {

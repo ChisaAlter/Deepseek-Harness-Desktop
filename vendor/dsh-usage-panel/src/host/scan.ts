@@ -5,7 +5,7 @@
 // projection path (single accounting core), with the v0.1.0 fork boundary
 // (header.seedLength) synthesized as a virtual session/end-seed when the log
 // lacks the marker. Coverage counters replace the old silent `continue`.
-import type { SessionQueryEngine, SessionRecord } from '@deepseek-ai/dsh-session-query'
+import type { SessionRecord } from '@deepseek-ai/dsh-session-query'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 // Type-only imports that load the event-map augmentations for merged types.
 import type { SessionTitleEventData } from '@deepseek-ai/dsh-session-title'
@@ -15,9 +15,10 @@ import type { Overview } from '../shared/contract.ts'
 import { emptyAggregate, finalizeOverview, mergeSessionValue, rankSessions, type Aggregate, type SessionAgg } from './aggregate.ts'
 import { applyEvent, initState, type UsagePanelState } from './projection.ts'
 import { scanPacer } from './pacing.ts'
+import type { HostSessionQuery } from './types.ts'
 
 export interface ScanFallbackDeps {
-  sq: SessionQueryEngine
+  sq: HostSessionQuery
   providerNames: Record<string, string>
   logFailure: (message: string) => void
   /** Receive the full ranked session index for the paging endpoints. */

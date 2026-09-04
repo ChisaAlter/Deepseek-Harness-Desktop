@@ -8,6 +8,9 @@ const path = require('path');
 const {
   USAGE_PANEL_BEGIN,
   USAGE_PANEL_END,
+  USAGE_PANEL_ALIASES,
+  withoutUsagePanelAliases,
+  ensureDesktopUsagePanel,
   ensureUsagePanelPlugin,
 } = require('./usage-panel-preset');
 
@@ -61,51 +64,14 @@ test('ensureUsagePanelPlugin copies the bundled package and writes a desktop ove
   }
 });
 
-test('ensureUsagePanelPlugin backs off a user-owned real-directory install', async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
-  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
-  try {
-    const profileDir = path.join(home, 'profiles', 'web');
-    const userDir = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
-    fs.mkdirSync(userDir, { recursive: true });
-    fs.writeFileSync(path.join(userDir, 'manager.json'), '{"user":true}', 'utf8');
-    // A stale overlay from an earlier desktop run must be removed.
-    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
-    fs.mkdirSync(dest, { recursive: true });
-    fs.writeFileSync(path.join(dest, 'desktop-usage-panel.patch.yml'), '- insert:\n    - id: usage-stats\n', 'utf8');
-
-    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
-    assert.equal(result.ok, true);
-    assert.equal(result.userOwned, true);
-    // No desktop copy refresh, no junction replacement.
-    assert.equal(fs.existsSync(path.join(dest, 'lib')), false);
-    assert.equal(fs.existsSync(path.join(dest, 'package.json')), false);
-    assert.equal(fs.existsSync(path.join(dest, 'desktop-usage-panel.patch.yml')), false, 'overlay removed (no double mount)');
-    assert.equal(fs.readFileSync(path.join(userDir, 'manager.json'), 'utf8'), '{"user":true}', 'user dir untouched');
-  } finally {
-    fs.rmSync(home, { recursive: true, force: true });
-    fs.rmSync(source, { recursive: true, force: true });
-  }
-});
-
-test('ensureUsagePanelPlugin treats a junction to a foreign target as user-owned', { skip: process.platform === 'linux' && !process.getuid ? false : false }, async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
-  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
-  const foreign = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-user-'));
-  try {
-    const profileDir = path.join(home, 'profiles', 'web');
-    const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
-    fs.mkdirSync(path.dirname(linked), { recursive: true });
-    fs.symlinkSync(foreign, linked, process.platform === 'win32' ? 'junction' : 'dir');
-    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
-    assert.equal(result.userOwned, true);
-    // The foreign link survives; its content is untouched.
-    assert.equal(fs.readlinkSync(linked), foreign);
-  } finally {
-    fs.rmSync(home, { recursive: true, force: true });
-    fs.rmSync(source, { recursive: true, force: true });
-    fs.rmSync(foreign, { recursive: true, force: true });
-  }
+test('ensureUsagePanelPlugin is the desktop built-in module and strips its aliases from a disable list', () => {
+  // The deprecated alias delegates to the built-in module (wrapper, not a
+  // bare reference — mirrors ensureDshImPlugin → ensureDesktopDshIm).
+  assert.equal(typeof ensureUsagePanelPlugin, 'function');
+  assert.equal(typeof ensureDesktopUsagePanel, 'function');
+  assert.deepEqual(USAGE_PANEL_ALIASES, ['dsh-usage-panel']);
+  assert.deepEqual(withoutUsagePanelAliases(['dsh-usage-panel', 'other-plugin', 'dsh-im']), ['other-plugin', 'dsh-im']);
+  assert.deepEqual(withoutUsagePanelAliases([]), []);
 });
 
 test('ensureUsagePanelPlugin migrates the legacy managed block out of the user patch', async () => {
@@ -183,46 +149,33 @@ test('ensureUsagePanelPlugin skips unchanged files and preserves source timestam
   }
 });
 
-test('ensureUsagePanelPlugin never copies the bundle with a synchronous fs call', () => {
+test('ensureDesktopUsagePanel never copies the bundle with a synchronous fs call', () => {
   // fs.cpSync of the ~6k-file bundle blocked the Electron main thread 4–11 s
   // per full start; Windows flags a window 未响应 after 5 s.
   const source = fs.readFileSync(path.join(__dirname, 'usage-panel-preset.js'), 'utf8');
   assert.doesNotMatch(source, /\bcpSync\(/);
   assert.match(source, /fsp\.cp\(/);
-  assert.match(source, /async function ensureUsagePanelPlugin/);
+  assert.match(source, /async function ensureDesktopUsagePanel/);
 });
 
-test('ensureUsagePanelPlugin removes the overlay when the profile already lists the bundle', async () => {
+test('ensureDesktopUsagePanel always writes the overlay regardless of profile bundle state', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
     const profileDir = path.join(home, 'profiles', 'web');
     fs.mkdirSync(profileDir, { recursive: true });
+    // Even with a profile bundle entry, the built-in module always writes its
+    // overlay — stripDroppedPlugins runs before ensureDesktopUsagePanel and
+    // removes the bundle entry, so no double-mount can occur.
     fs.writeFileSync(path.join(profileDir, 'package.json'), `${JSON.stringify({
       dependencies: { 'dsh-usage-panel': '0.2.0' },
       dsh: { profile: { bundles: ['@deepseek-ai/dsh-web-app', 'dsh-usage-panel'] } },
     }, null, 2)}\n`, 'utf8');
-    fs.writeFileSync(path.join(profileDir, 'cordis.patch.yml'), [
-      USAGE_PANEL_BEGIN,
-      '- insert:',
-      '    - id: usage-stats',
-      '      name: "dsh-usage-panel"',
-      USAGE_PANEL_END,
-      '',
-    ].join('\n'), 'utf8');
-    // A stale overlay from a previous non-bundle start must go away too.
-    const overlayFile = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'desktop-usage-panel.patch.yml');
-    fs.mkdirSync(path.dirname(overlayFile), { recursive: true });
-    fs.writeFileSync(overlayFile, '- insert: []\n', 'utf8');
-    const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
+    const result = await ensureDesktopUsagePanel({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
-    assert.equal(result.added, false);
-    assert.equal(result.overlayFile, undefined);
-    assert.equal(fs.existsSync(overlayFile), false);
-    const patch = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8');
-    assert.equal(patch.includes(USAGE_PANEL_BEGIN), false);
-    assert.equal(patch.includes('id: usage-stats'), false);
-    assert.equal(fs.existsSync(path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'package.json')), true);
+    assert.equal(result.added, true);
+    assert.ok(result.overlayFile);
+    assert.ok(fs.readFileSync(result.overlayFile, 'utf8').includes('id: usage-stats'));
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(source, { recursive: true, force: true });

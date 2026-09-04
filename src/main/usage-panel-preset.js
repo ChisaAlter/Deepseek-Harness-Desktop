@@ -7,9 +7,15 @@ const { webProfileDir, stripBlockFromFile } = require('./plugins');
 
 const fsp = fs.promises;
 
+/** npm package name (also used for market/forensics aliases). */
 const USAGE_PANEL_PACKAGE = 'dsh-usage-panel';
+/** Legacy managed-block markers earlier desktop versions wrote into the
+ * user-owned cordis.patch.yml; ensure only strips them (migration). */
 const USAGE_PANEL_BEGIN = '# --- dshd-gui-usage-panel ---';
 const USAGE_PANEL_END = '# --- end dshd-gui-usage-panel ---';
+/** Forensics / config / IPC aliases (usage-panel is desktop built-in: the
+ * aliases are stripped from the disable list, never honored). */
+const USAGE_PANEL_ALIASES = [USAGE_PANEL_PACKAGE];
 const USAGE_PANEL_OVERLAY_FILENAME = 'desktop-usage-panel.patch.yml';
 
 function defaultSourceDir() {
@@ -19,24 +25,6 @@ function defaultSourceDir() {
   } catch {
     return path.join(__dirname, '..', '..', 'vendor', USAGE_PANEL_PACKAGE);
   }
-}
-
-function profileListsBundle(profileDir) {
-  const file = path.join(profileDir, 'package.json');
-  if (!fs.existsSync(file)) {
-    return false;
-  }
-  try {
-    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const bundles = manifest.dsh?.profile?.bundles;
-    return Array.isArray(bundles) && bundles.includes(USAGE_PANEL_PACKAGE);
-  } catch {
-    return false;
-  }
-}
-
-function missingRuntimeDependencies(sourceDir) {
-  return missingRuntimeFiles(sourceDir);
 }
 
 function pathExists(target) {
@@ -104,6 +92,13 @@ async function copyBundle(sourceDir, destDir) {
   });
 }
 
+/**
+ * Junction/symlink profile node_modules → desktop-plugins copy so
+ * require() and package-name resolution stay coherent with the
+ * file:// cordis insert.
+ * @param {string} destDir
+ * @param {string} profileDir
+ */
 function linkIntoProfileModules(destDir, profileDir) {
   const linked = path.join(profileDir, 'node_modules', USAGE_PANEL_PACKAGE);
   fs.mkdirSync(path.dirname(linked), { recursive: true });
@@ -111,111 +106,78 @@ function linkIntoProfileModules(destDir, profileDir) {
   fs.symlinkSync(destDir, linked, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
-function removeOverlayFile(overlayFile) {
-  if (!fs.existsSync(overlayFile)) {
-    return;
-  }
-  try {
-    fs.unlinkSync(overlayFile);
-  } catch {
-    // A stale overlay only mounts when the controller passes it to --patch,
-    // and the controller only passes the overlay this call returned.
-  }
+function withoutUsagePanelAliases(list) {
+  const blocked = new Set(USAGE_PANEL_ALIASES);
+  return (Array.isArray(list) ? list : [])
+    .filter((name) => !blocked.has(String(name || '').trim()));
 }
 
 /**
- * Whether the profile owns the plugin outside the desktop preset: a REAL
- * directory install or a junction to somewhere OTHER than our
- * desktop-plugins copy (a `dsh plugin add` / `link:` user install). The
- * desktop then backs off — no fresh copy, no managed junction, no overlay —
- * so a user-managed install (e.g. built from a custom checkout) survives
- * full starts.
- * @param {string} profileDir
- * @param {string} destDir desktop-managed copy path
- * @returns {boolean}
+ * Wire the desktop-built-in usage-panel from vendor (or packaged resources):
+ * a desktop-owned `--patch` overlay (`desktop-plugins/dsh-usage-panel/
+ * desktop-usage-panel.patch.yml`) carries the package-name insert, and a
+ * profile node_modules junction to the desktop-plugins copy makes the name
+ * resolvable. The overlay rides EVERY start (full and skip) — usage-panel is
+ * desktop built-in Settings → 用量统计, not a user plugin, so the disable
+ * list never applies (config normalization strips the aliases). The
+ * profile's `cordis.patch.yml` is user-owned: this function only strips the
+ * managed block earlier desktop versions wrote there and never writes one
+ * back; the strip and the overlay write happen in the same call before every
+ * spawn so no start can compose both copies (the CLI's `insert` does not
+ * dedupe by id).
+ *
+ * @param {{ sourceDir?: string, profileDir?: string }} [options]
+ * @returns {{
+ *   ok: boolean,
+ *   added?: boolean,
+ *   destDir?: string|null,
+ *   overlayFile?: string,
+ *   error?: string,
+ * }}
  */
-function isUserOwned(profileDir, destDir) {
-  const linked = path.join(profileDir, 'node_modules', USAGE_PANEL_PACKAGE);
-  if (!pathExists(linked)) {
-    return false;
-  }
-  if (!fs.existsSync(path.join(destDir, 'package.json'))) {
-    // No desktop copy yet: anything in node_modules is user-owned.
-    return true;
-  }
-  try {
-    return fs.realpathSync.native(linked) !== fs.realpathSync.native(destDir);
-  } catch {
-    return true;
-  }
-}
-
-/**
- * Copy the bundled usage-panel package into the web profile and register it
- * through a desktop-owned overlay (`--patch`, full starts only). Does not
- * call `dsh plugin add`. The profile's `cordis.patch.yml` is user-owned:
- * this function only strips the managed block earlier desktop versions wrote
- * there and never writes one back. A user-owned install (real directory or a
- * non-managed link in profile node_modules) makes the desktop back off
- * (`{ userOwned: true }`): no copy, no junction, overlay removed so a user
- * patch insert cannot double-mount. Only when the profile has no
- * node_modules entry does the desktop copy the bundle and manage the
- * junction itself. Missing `package.json` or zod returns
- * `{ ok: false }` and removes the overlay so the controller never passes a
- * stale one. Async: the bundle copy must never block the main thread.
- * @param {{ sourceDir?: string, profileDir?: string, disabledPlugins?: string[] }} [options]
- */
-async function ensureUsagePanelPlugin(options = {}) {
+async function ensureDesktopUsagePanel(options = {}) {
   const sourceDir = options.sourceDir || defaultSourceDir();
   if (!fs.existsSync(path.join(sourceDir, 'package.json'))) {
     return { ok: false, added: false, error: 'missing-source:package.json' };
   }
   const profileDir = options.profileDir || webProfileDir();
   const patchFile = path.join(profileDir, 'cordis.patch.yml');
+  // Migration: earlier desktop versions upserted a managed block into the
+  // user-owned cordis.patch.yml. Strip it on every start regardless of the
+  // outcome below — a stale copy composed next to the overlay double-mounts.
   stripBlockFromFile(patchFile, USAGE_PANEL_BEGIN, USAGE_PANEL_END);
-  const destDir = path.join(profileDir, 'desktop-plugins', USAGE_PANEL_PACKAGE);
-  const overlayFile = path.join(destDir, USAGE_PANEL_OVERLAY_FILENAME);
-  const disabled = require('./config').readDisabledPlugins(options);
-  if (disabled.includes(USAGE_PANEL_PACKAGE)) {
-    removeOverlayFile(overlayFile);
-    return { ok: true, added: false, destDir: null, disabled: true };
-  }
-  if (isUserOwned(profileDir, destDir)) {
-    removeOverlayFile(overlayFile);
-    return { ok: true, added: false, destDir: null, userOwned: true };
-  }
-  const missing = missingRuntimeDependencies(sourceDir);
+
+  const missing = missingRuntimeFiles(sourceDir);
   if (missing.length) {
-    removeOverlayFile(overlayFile);
+    // Broken vendor runtime is desktop damage — caller must fail the start
+    // (skip cannot fix it); never pretend success with a stale mount.
     return {
       ok: false,
       added: false,
       error: `missing-source:node_modules:${missing.join(',')}`,
     };
   }
+
+  const destDir = path.join(profileDir, 'desktop-plugins', USAGE_PANEL_PACKAGE);
   const existed = fs.existsSync(path.join(destDir, 'package.json'));
   fs.mkdirSync(destDir, { recursive: true });
   await copyBundle(sourceDir, destDir);
   linkIntoProfileModules(destDir, profileDir);
-  if (profileListsBundle(profileDir)) {
-    // A marketplace install already mounts the package as a profile bundle;
-    // adding the overlay insert too would mount it twice.
-    removeOverlayFile(overlayFile);
-    return { ok: true, added: false, destDir };
-  }
-  const contents = [
-    '# Desktop-managed overlay passed to full starts via --patch: only the',
-    '# usage-panel insert. Skip starts do not pass this file. Regenerated on',
-    '# every full start; do not edit.',
+
+  const overlayFile = path.join(destDir, USAGE_PANEL_OVERLAY_FILENAME);
+  const overlayContents = [
+    '# Desktop-managed overlay passed to EVERY start (full and skip) via',
+    '# --patch: only the built-in usage-panel insert, never the profile user',
+    '# layer. Regenerated on every start; do not edit.',
     '- insert:',
     '    - id: usage-stats',
     `      name: ${JSON.stringify(USAGE_PANEL_PACKAGE)}`,
     '',
   ].join('\n');
   const existing = fs.existsSync(overlayFile) ? fs.readFileSync(overlayFile, 'utf8') : '';
-  if (existing !== contents) {
+  if (existing !== overlayContents) {
     const tmp = `${overlayFile}.tmp`;
-    fs.writeFileSync(tmp, contents, 'utf8');
+    fs.writeFileSync(tmp, overlayContents, 'utf8');
     fs.renameSync(tmp, overlayFile);
   }
   return {
@@ -226,9 +188,17 @@ async function ensureUsagePanelPlugin(options = {}) {
   };
 }
 
+/** @deprecated Use ensureDesktopUsagePanel — kept as alias for harness wiring. */
+function ensureUsagePanelPlugin(options) {
+  return ensureDesktopUsagePanel(options);
+}
+
 module.exports = {
   USAGE_PANEL_PACKAGE,
   USAGE_PANEL_BEGIN,
   USAGE_PANEL_END,
+  USAGE_PANEL_ALIASES,
+  withoutUsagePanelAliases,
+  ensureDesktopUsagePanel,
   ensureUsagePanelPlugin,
 };

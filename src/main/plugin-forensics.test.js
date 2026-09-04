@@ -116,6 +116,22 @@ test('desktop built-in dsh-im suspects are flagged as desktop runtime damage', (
   assert.equal(row.inBox, true);
 });
 
+test('desktop built-in usage-panel suspects are flagged as desktop runtime damage', () => {
+  assert.equal(isInBoxPackageName('dsh-usage-panel'), true);
+  assert.equal(isInBoxPackageName('dsh-usage-panel/client'), true);
+
+  const inspected = inspectPlugins({
+    logs: "Cannot find package 'dsh-usage-panel' imported from /profiles/web/",
+    pluginTreeFailure: true,
+    plugins: [{ name: 'good', spec: '1.0.0' }],
+    bundles: ['good'],
+  });
+  assert.equal(inspected.desktopRuntimeDamage, true);
+  const row = inspected.orphanSuspects.find((item) => item.name === 'dsh-usage-panel');
+  assert.equal(row.inBox, true);
+  assert.equal(row.preset, true);
+});
+
 test('desktop install overlay path suspects are flagged as desktop runtime damage', () => {
   assert.equal(
     isInBoxPackageName('file:///dsh-home/profiles/web/desktop-plugins/install-dsh-plugin/install-dsh-plugin.mjs'),

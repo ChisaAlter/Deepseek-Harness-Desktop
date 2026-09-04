@@ -241,11 +241,6 @@
     - id: ui-settings-remote
       name: '@deepseek-ai/dsh-client-ui-settings-remote'
 
-    # Desktop-owned marketplace section (settings.section id `market`);
-    # registers only when the desktop preload exposes the curated engine.
-    - id: ui-settings-market
-      name: '@deepseek-ai/dsh-client-ui-settings-market'
-
     - id: ui-settings-mcp
       name: '@deepseek-ai/dsh-client-ui-settings-mcp'
 

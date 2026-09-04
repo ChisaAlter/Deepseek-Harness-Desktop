@@ -2097,8 +2097,8 @@ window.__ModuleLoader__.load({
         chain.then((total) => {
           setRepairMsg(t("status.repairDone", { count: total }));
           return load(true);
-        }).then(() => {
-          if (dataRef.current !== null && dataRef.current.coverage.failedSessionIds.length > 0) {
+        }).then((fresh) => {
+          if (fresh !== void 0 && fresh.coverage.failedSessionIds.length > 0) {
             setRepairMsg(t("status.repairStill"));
           }
         }).catch((err) => {
@@ -2109,17 +2109,19 @@ window.__ModuleLoader__.load({
         (force) => {
           setLoading(true);
           setError(null);
-          callOverview(rpc, force).then((res) => {
+          return callOverview(rpc, force).then((res) => {
             setData(res);
             setFreshness(res.stale ? "stale" : "fresh");
             saveCached(res);
+            return res;
           }).catch((err) => {
             const msg = String(err?.message ?? err);
             setError(msg);
             setFreshness(dataRef.current ? "fallback" : "error");
-          }).then(() => setLoading(false));
+            return void 0;
+          }).finally(() => setLoading(false));
         },
-        [rpc]
+        [rpc, dataRef]
       );
       (0, import_react9.useEffect)(() => {
         const cached = loadCached();

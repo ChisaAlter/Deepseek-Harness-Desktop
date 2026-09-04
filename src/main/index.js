@@ -9,6 +9,7 @@ const { removeDshMarketPreset } = require('./dshmarket-preset');
 const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
 const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
+const { ensureDesktopMarket } = require('./dsh-market-desktop');
 const { ensureDshbotPlugin, removeDshbotPreset } = require('./dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
 const { registerIpc } = require('./ipc');
@@ -315,6 +316,7 @@ const harness = new HarnessController({
   ensureUsagePanelPlugin,
   ensureSessionSearchOverlay,
   ensureDshImPlugin,
+  ensureDesktopMarket,
   ensureDshbotPlugin,
   removeDshbotPreset,
   applyDisabledBundles,

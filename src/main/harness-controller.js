@@ -53,6 +53,8 @@ class HarnessController extends EventEmitter {
       || (async () => ({ ok: true }));
     this.ensureDshImPlugin = options.ensureDshImPlugin
       || (async () => ({ ok: true, added: false }));
+    this.ensureDesktopMarket = options.ensureDesktopMarket
+      || (async () => ({ ok: true, added: false }));
     this.ensureDshbotPlugin = options.ensureDshbotPlugin
       || (async () => ({ ok: true, added: false }));
     this.removeDshbotPreset = options.removeDshbotPreset
@@ -433,8 +435,8 @@ class HarnessController extends EventEmitter {
     // cordis.patch.yml is purely user-owned (ensure only strips legacy
     // managed blocks). Never pass that file to --patch: overlays still apply
     // under --skip-user-plugins, so it would re-mount every user row the
-    // skip exists to bypass. The install and dsh-im overlays are required on
-    // all starts; usage and session-search overlays join below on full
+    // skip exists to bypass. The install, usage-panel, and dsh-im overlays
+    // are required on all starts; session-search overlay joins below on full
     // starts only.
     const patchFiles = [];
     if (desktopInstall?.overlayFile) {
@@ -454,18 +456,30 @@ class HarnessController extends EventEmitter {
     } catch (error) {
       this.dsh.log(`清理 dshmarket 预置残留失败：${errorMessage(error)}`, 'app');
     }
-    if (!skipUserPlugins) {
-      try {
-        const usage = await this.ensureUsagePanelPlugin();
-        this.assertOperationCurrent(generation);
-        if (usage && usage.ok === false) {
-          this.dsh.log(`预置用量统计失败：${usage.error || 'unknown'}`, 'app');
-        } else if (usage?.overlayFile) {
-          patchFiles.push(usage.overlayFile);
-        }
-      } catch (error) {
-        this.dsh.log(`预置用量统计失败：${errorMessage(error)}`, 'app');
+    // Usage stats is desktop built-in Settings → 用量统计 — not a user
+    // plugin. Its overlay rides --patch on every start (including
+    // skipUserPlugins recovery); the disable list never applies; missing
+    // vendor deps fail start (desktop runtime damage, skip cannot fix it).
+    try {
+      const usage = await this.ensureUsagePanelPlugin();
+      this.assertOperationCurrent(generation);
+      if (usage && usage.ok === false) {
+        throw new Error(`桌面内置用量统计失败：${usage.error || 'unknown'}`);
       }
+      if (usage?.overlayFile) {
+        patchFiles.push(usage.overlayFile);
+      }
+      if (usage && usage.ok) {
+        this.dsh.log(usage.added ? '已接入桌面内置用量统计' : '桌面内置用量统计已就绪', 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置用量统计失败：')) {
+        throw error;
+      }
+      throw new Error(`桌面内置用量统计失败：${errorMessage(error)}`);
+    }
+    if (!skipUserPlugins) {
       try {
         const search = await this.ensureSessionSearchOverlay();
         this.assertOperationCurrent(generation);
@@ -478,7 +492,6 @@ class HarnessController extends EventEmitter {
         this.dsh.log(`预置会话搜索失败：${errorMessage(error)}`, 'app');
       }
     } else {
-      this.dsh.log('跳过用户插件：不预置用量统计插件', 'app');
       this.dsh.log('跳过用户插件：不预置会话搜索', 'app');
     }
     // dsh-im is desktop built-in Settings → Remote → Channels — not a user
@@ -503,6 +516,29 @@ class HarnessController extends EventEmitter {
         throw error;
       }
       throw new Error(`桌面内置 dsh-im 失败：${errorMessage(error)}`);
+    }
+    // Marketplace is desktop-owned Settings → 市场 — not a user plugin.
+    // Its overlay rides --patch on every start (including
+    // skipUserPlugins recovery); the disable list never applies; missing
+    // vendor source fails start (desktop runtime damage, skip cannot fix it).
+    try {
+      const market = await this.ensureDesktopMarket();
+      this.assertOperationCurrent(generation);
+      if (market && market.ok === false) {
+        throw new Error(`桌面内置市场失败：${market.error || 'unknown'}`);
+      }
+      if (market?.overlayFile) {
+        patchFiles.push(market.overlayFile);
+      }
+      if (market && market.ok) {
+        this.dsh.log(market.added ? '已接入桌面内置市场（设置分区）' : '桌面内置市场已就绪', 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置市场失败：')) {
+        throw error;
+      }
+      throw new Error(`桌面内置市场失败：${errorMessage(error)}`);
     }
     // dshbot is a standalone plugin: never force-ensured, never blocks start.
     // Default starts only clean legacy desktop-preset residue (user installs

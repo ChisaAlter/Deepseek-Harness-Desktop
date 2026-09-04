@@ -103,6 +103,31 @@ npm pack --dry-run   # 发布前人工确认清单
 - **NODE_AUTH_TOKEN 与 OIDC provenance 互斥**：publish.yml 不设 token，npm 走 OIDC。
 - **OIDC Trusted Publishing 必须在 npmjs.com 手动链接 trusted publisher，否则 `npm publish --provenance` 的 PUT 返 404**（真实事故：v0.2.0 tag 推送触发 publish.yml，provenance 签名成功但随后的 `PUT https://registry.npmjs.org/dsh-usage-panel` 报 `404 Not Found — 'is not in this registry'`）。前置条件（manual, once，写在 publish.yml 顶部注释里）：npmjs.com → 包页 → Settings/Publish access → 添加 Trusted Publisher（GitHub Actions，repo=`AlfredChaos/dsh-usage-panel`，workflow=`publish.yml`，environment 留空）。v0.1.0 当时是用 access token 手动发的，OIDC 链接从未真正配过 —— 所以 publish.yml 一直是「绿本地、红 CI」的隐式失效状态，直到 v0.2.0 首次走它才暴露。临时绕过：本地 `npm publish --access public`（**不带 `--provenance`**，provenance 溯源只能在 GitHub Actions 环境生成），但这是偏离 OIDC 架构的一次性手段，且 tarball 不带 provenance。根因修复只能去 npmjs.com 配 trusted publisher。
 
+### 6.5 桌面 vendored pin（dsh-v0.1.2-rc.1）API 漂移坑（2026-09-04 真实事故）
+
+面板 host 按 npm rc.6 类型面写服务调用，而桌面 vendored harness 的 `sessionProjectionCache` 在 alpha.2（2026-08-31）起改了签名，rc.1 沿用：
+
+| rc.6（npm，旧） | rc.1（vendored，现行） |
+|---|---|
+| `async coldSnapshot(id, signal)` | 同步 `coldSnapshot(meta, inheritedEventCount, events)`——调用方自备完整日志 |
+| `cachedSnapshot(header)` | `cachedSnapshot(meta, inheritedEventCount, keys?)` |
+| `SessionLogSnapshot = { session, events }` | 增加 `inheritedEventCount` 字段 |
+
+**症状与机理**（当时：dev checkout 上 195/195 会话「读取失败」、token 全 0、页面永远「更新失败于 {UTC 时间}」）：
+- 1 参调用在 `SessionLogOffset(undefined)` 处立即抛错，被 `scanProjection` 的 per-session try/catch 吞成「读取失败」→ 聚合为空（全 0）；
+- `deltaScan` 里 `cachedSnapshot(header)` 当时在 try/catch **之外** → 整个 delta 扫描 reject → overview RPC 报错 → 客户端 fallback 态；
+- 「修复」按钮重写的是**健康日志**（修复用自己的 decode，两轮 100 个 .bak，47/50 复现失败），重启宿主同样无效——病在插件调用签名，不在日志；
+- 时间线：面板 v0.3（08-31 17:58）提交时 pin 已先行 alpha.2（08-31 16:47），**dev checkout 上从未工作过**；0.2.8 安装包 pin 更老所以「曾经好过」。
+
+**修复模式（现行合同）**：
+- 服务 face 一律走 `src/host/types.ts` 的结构化声明（`HostProjectionCache` / `HostSessionQuery` / `HostSessionLogSnapshot`，镜像 vendored rc.1），获取点 `as unknown as` 一次断言；**npm rc.6 类型面对这些服务不可信**——它是给 npm 宿主用的，桌面快照跟随 vendored pin；
+- 扫描读法：`sq.readSession(id)`（live-preferred + replay 校验，天然产出损坏日志的修复候选）→ `projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events)`（seed + 折叠 + 回写缓存行）；
+- delta 探针 `cachedSnapshot(header, 0)`（未种子化会话 inheritedEventCount 恒 0，与 harness 自身 list.ts 先例一致；fork 会话身份失配 → 退化为重读，正确性不受影响）**必须裹 try/catch**：探针失败 = 退化重读，绝不 let it escape；
+- `SESSION_QUERY_SESSION_NOT_FOUND` ≠ 修复候选（会话在 list 与 read 之间被删）：计 failed 但不入 failedSessionIds，sessionCost 直接 `found:false`；
+- 客户端 `repairFirst` 的复查必须等 `load(true)` 真正 resolve（load 现在返回载荷），旧实现查 `dataRef.current` 是竞态——「修复已生效但提示仍在」的误导文案因此必现。
+
+**为什么所有门禁都没拦住**：本仓库 tests/ 全是纯函数测试（无服务 mock），typecheck 走 npm rc.6 d.ts——签名漂移在这两条车道上不可见；桌面 `qa:source`/`test:gui` 只验面板能挂载渲染，全 0 + 修复提示照样「渲染正常」。教训：跨包签名漂移要靠**针对 vendored 运行时的契约测试**或桌面装配走查盯数字，不能只信面板自身门禁。
+
 ## 7. 文档同步义务
 
 - 改功能必同步 README.md + README.zh-CN.md（双语等价、口径声明、安装方式不变）。

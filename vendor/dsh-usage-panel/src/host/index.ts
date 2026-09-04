@@ -3,17 +3,17 @@
 // Data path: inject waits for sessionProjections / sessionQuery /
 // sessionProjectionCache, then register() installs a client-visible unit
 // (stateSchema + wire). The framework folds events; scans read
-// coldSnapshot.values.usagePanel. A missing cell is pending, never a
-// readSession replay. register() throw fails soft to the full rescan.
+// sessionQuery.readSession + coldSnapshot values.usagePanel (the vendored
+// rc.1 contract hands the caller the complete log). A missing cell is
+// pending, never a readSession replay. register() throw fails soft to the
+// full rescan.
 //
 // Reads are served with stale-while-revalidate: fresh for 10 minutes; older
 // payloads return instantly with `stale: true` while a background rescan
 // refreshes; the refresh button forces a synchronous scan. Read-only.
 import type { Context } from '@deepseek-ai/cordis'
-import type { SessionQueryEngine, SessionRecord } from '@deepseek-ai/dsh-session-query'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionRecord } from '@deepseek-ai/dsh-session-query'
 import type { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
-import type { SessionProjectionCache } from '@deepseek-ai/dsh-session-projection-cache'
 import {
   DEFAULT_BILLING_SETTINGS,
   RPC_BILLING_GET,
@@ -46,7 +46,7 @@ import { BillingStore, openBillingMedium } from './billing-store.ts'
 import { repairSessionLog, resolveDshHome, runtimeCodec } from './session-repair.ts'
 import { openStatsCache, statsCacheKey, type StatsCache } from './stats-cache.ts'
 import { scanPacer, withTimeout } from './pacing.ts'
-import type { HostConnection, HostLlm, LlmProviderInfoLike } from './types.ts'
+import type { HostConnection, HostLlm, HostProjectionCache, HostSessionQuery, LlmProviderInfoLike } from './types.ts'
 
 export const name = 'dsh-usage-panel'
 export const inject = [
@@ -57,14 +57,21 @@ export const inject = [
   'sessionProjectionCache',
 ]
 
+/** sessionQuery's typed absence (vendored rc.1): a deleted session, not a damaged artifact. */
+function isSessionGone(err: unknown): boolean {
+  return (err as { code?: string } | null | undefined)?.code === 'SESSION_QUERY_SESSION_NOT_FOUND'
+}
+
 const STALE_MS = 10 * 60 * 1000 // cache freshness window
 const RESCAN_MS = 10 * 60 * 1000 // periodic keep-warm rescan
 
 export function apply(ctx: Context): void {
   const tag = '[dsh-usage-panel]'
-  const sq = ctx.get('sessionQuery') as SessionQueryEngine
+  // Structural casts to the vendored rc.1 faces (types.ts): the npm rc.6
+  // type packages still describe the retired id-only coldSnapshot contract.
+  const sq = ctx.get('sessionQuery') as unknown as HostSessionQuery
   const registry = ctx.get('sessionProjections') as SessionProjectionRegistry
-  const projCache = ctx.get('sessionProjectionCache') as SessionProjectionCache
+  const projCache = ctx.get('sessionProjectionCache') as unknown as HostProjectionCache
   const connection = ctx.get('connection') as HostConnection | undefined
   const llm = ctx.get('llm') as HostLlm | undefined
 
@@ -170,19 +177,26 @@ export function apply(ctx: Context): void {
         continue
       }
       try {
-        const snap = await projCache.coldSnapshot(id)
-        const value = snap.values.usagePanel
+        // Vendored contract (rc.1): the caller supplies the complete log.
+        // readSession is the live-preferred replay-validated read; the sync
+        // coldSnapshot seeds from the checkpoint rows, folds the tail, and
+        // refreshes the cache row (fire-and-forget write-back).
+        const log = await sq.readSession(id)
+        const snap = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events)
+        const value = snap.values.usagePanel as UsagePanelState | undefined
         if (!value) {
-          sessionsPending += 1 // cell not folded yet (no events / cold)
+          sessionsPending += 1 // no events / nothing folded yet
           await pacer.beat(i + 1, sessions.length)
           continue
         }
-        a = mergeSessionValue(a, value, id, now, 0, header.cwd ?? null)
+        a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null)
         sessionsOk += 1
         ledgerPuts.push({ id, asOfSeq: snap.asOfSeq })
       } catch (err) {
         sessionsFailed += 1
-        if (failed.length < 50) failed.push(id)
+        // A session deleted between list and read is neither usage nor a
+        // damaged artifact: counted failed, kept off the repair list.
+        if (!isSessionGone(err) && failed.length < 50) failed.push(id)
         if (failures.length < 3) failures.push(String((err as Error)?.message ?? err))
       }
       await pacer.beat(i + 1, sessions.length)
@@ -204,7 +218,7 @@ export function apply(ctx: Context): void {
     await Promise.all(
       rankSessions(a.sessions, 10).map(async (s) => {
         try {
-          const t = await sq.readTitle(s.id as SessionId)
+          const t = await sq.readTitle(s.id)
           titles.set(s.id, t ? t.title : null)
         } catch {
           titles.set(s.id, null)
@@ -288,8 +302,18 @@ export function apply(ctx: Context): void {
       if (!header) continue
       const id = header.id
       seen.add(id)
-      const cached = statsCache === null ? undefined : projCache.cachedSnapshot(header)
-      const asOf = cached?.asOfSeq
+      let asOf: number | undefined
+      try {
+        // Zero-I/O probe against the checkpoint table. Unseeded sessions carry
+        // inheritedEventCount 0 (the harness's own listing read does the
+        // same); a seeded (forked) identity then mismatches and re-reads
+        // below. A throwing probe degrades to a re-read — it must never fail
+        // the whole scan.
+        asOf = statsCache === null ? undefined : projCache.cachedSnapshot(header, 0)?.asOfSeq
+      } catch (err) {
+        logFailure('delta probe failed for ' + id + ': ' + String((err as Error)?.message ?? err))
+        asOf = undefined
+      }
       if (asOf !== undefined) {
         const led = statsCache === null ? null : await statsCache.ledgerGet(id)
         if (led === asOf) {
@@ -297,15 +321,16 @@ export function apply(ctx: Context): void {
           continue // UNCHANGED — zero log reads
         }
       }
-      // New or changed session: tail fold + merge into the carried aggregate.
+      // New or changed session: full read + fold + merge into the carried aggregate.
       try {
-        const snap = await projCache.coldSnapshot(id)
-        const value = snap.values.usagePanel
+        const log = await sq.readSession(id)
+        const snap = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events)
+        const value = snap.values.usagePanel as UsagePanelState | undefined
         if (!value) {
           await pacer.beat(i + 1, sessions.length)
           continue
         }
-        a = mergeSessionValue(a, value, id, now, 0, header.cwd ?? null)
+        a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null)
         changed.push(id)
         if (statsCache !== null) {
           await statsCache.ledgerPut(id, snap.asOfSeq)
@@ -313,7 +338,7 @@ export function apply(ctx: Context): void {
         }
         failedSessionIds = failedSessionIds.filter((f) => f !== id)
       } catch (err) {
-        if (failed.length < 50) failed.push(id)
+        if (!isSessionGone(err) && failed.length < 50) failed.push(id)
         logFailure('delta read failed for ' + id + ': ' + String((err as Error)?.message ?? err))
       }
       await pacer.beat(i + 1, sessions.length)
@@ -338,7 +363,7 @@ export function apply(ctx: Context): void {
     await Promise.all(
       rankSessions(a.sessions, 10).map(async (s) => {
         try {
-          const t = await sq.readTitle(s.id as SessionId)
+          const t = await sq.readTitle(s.id)
           titles.set(s.id, t ? t.title : null)
         } catch {
           titles.set(s.id, null)
@@ -432,10 +457,16 @@ export function apply(ctx: Context): void {
         }
         value = liveRegistry.stateOf(live, USAGE_PANEL_KEY)
       } else {
-        const snap = await projCache.coldSnapshot(sessionId as SessionId)
-        value = snap.values.usagePanel
+        // Cold read under the vendored caller-supplied-log contract.
+        const log = await sq.readSession(sessionId)
+        value = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events).values.usagePanel as UsagePanelState | undefined
       }
     } catch (err) {
+      // An absent id is a poll for a deleted session, not a damaged artifact:
+      // found:false without polluting the repair list.
+      if (isSessionGone(err)) {
+        return { found: false, currentModel: 'unknown', currentProvider: 'unknown', cost: ZERO_PHASE, models: [], totals: { ...ZERO_TOTALS } }
+      }
       // Deduplicate: the strip polls every 2s and an unreadable session must
       // not flood the log — the first failure is reported, later ones are silent.
       if (!reportedCostFailures.has(sessionId)) {
@@ -486,7 +517,7 @@ export function apply(ctx: Context): void {
     await Promise.all(
       rows.map(async (s) => {
         try {
-          const t = await sq.readTitle(s.id as SessionId)
+          const t = await sq.readTitle(s.id)
           titles.set(s.id, t ? t.title : null)
         } catch {
           titles.set(s.id, null)

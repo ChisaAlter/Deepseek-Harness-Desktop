@@ -1484,6 +1484,9 @@ var inject = [
   "sessionQuery",
   "sessionProjectionCache"
 ];
+function isSessionGone(err) {
+  return err?.code === "SESSION_QUERY_SESSION_NOT_FOUND";
+}
 var STALE_MS = 10 * 60 * 1e3;
 var RESCAN_MS = 10 * 60 * 1e3;
 function apply(ctx) {
@@ -1569,19 +1572,20 @@ function apply(ctx) {
         continue;
       }
       try {
-        const snap = await projCache.coldSnapshot(id);
+        const log = await sq.readSession(id);
+        const snap = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events);
         const value = snap.values.usagePanel;
         if (!value) {
           sessionsPending += 1;
           await pacer.beat(i + 1, sessions.length);
           continue;
         }
-        a = mergeSessionValue(a, value, id, now, 0, header.cwd ?? null);
+        a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null);
         sessionsOk += 1;
         ledgerPuts.push({ id, asOfSeq: snap.asOfSeq });
       } catch (err) {
         sessionsFailed += 1;
-        if (failed.length < 50) failed.push(id);
+        if (!isSessionGone(err) && failed.length < 50) failed.push(id);
         if (failures.length < 3) failures.push(String(err?.message ?? err));
       }
       await pacer.beat(i + 1, sessions.length);
@@ -1675,8 +1679,13 @@ function apply(ctx) {
       if (!header) continue;
       const id = header.id;
       seen.add(id);
-      const cached = statsCache === null ? void 0 : projCache.cachedSnapshot(header);
-      const asOf = cached?.asOfSeq;
+      let asOf;
+      try {
+        asOf = statsCache === null ? void 0 : projCache.cachedSnapshot(header, 0)?.asOfSeq;
+      } catch (err) {
+        logFailure("delta probe failed for " + id + ": " + String(err?.message ?? err));
+        asOf = void 0;
+      }
       if (asOf !== void 0) {
         const led = statsCache === null ? null : await statsCache.ledgerGet(id);
         if (led === asOf) {
@@ -1685,13 +1694,14 @@ function apply(ctx) {
         }
       }
       try {
-        const snap = await projCache.coldSnapshot(id);
+        const log = await sq.readSession(id);
+        const snap = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events);
         const value = snap.values.usagePanel;
         if (!value) {
           await pacer.beat(i + 1, sessions.length);
           continue;
         }
-        a = mergeSessionValue(a, value, id, now, 0, header.cwd ?? null);
+        a = mergeSessionValue(a, value, id, now, 0, log.session.cwd ?? null);
         changed.push(id);
         if (statsCache !== null) {
           await statsCache.ledgerPut(id, snap.asOfSeq);
@@ -1699,7 +1709,7 @@ function apply(ctx) {
         }
         failedSessionIds = failedSessionIds.filter((f) => f !== id);
       } catch (err) {
-        if (failed.length < 50) failed.push(id);
+        if (!isSessionGone(err) && failed.length < 50) failed.push(id);
         logFailure("delta read failed for " + id + ": " + String(err?.message ?? err));
       }
       await pacer.beat(i + 1, sessions.length);
@@ -1798,10 +1808,13 @@ function apply(ctx) {
         const liveRegistry = registry;
         value = liveRegistry.stateOf(live, USAGE_PANEL_KEY);
       } else {
-        const snap = await projCache.coldSnapshot(sessionId);
-        value = snap.values.usagePanel;
+        const log = await sq.readSession(sessionId);
+        value = projCache.coldSnapshot(log.session, log.inheritedEventCount, log.events).values.usagePanel;
       }
     } catch (err) {
+      if (isSessionGone(err)) {
+        return { found: false, currentModel: "unknown", currentProvider: "unknown", cost: ZERO_PHASE, models: [], totals: { ...ZERO_TOTALS } };
+      }
       if (!reportedCostFailures.has(sessionId)) {
         reportedCostFailures.add(sessionId);
         logFailure("session.cost read failed for " + sessionId + ": " + String(err?.message ?? err));

@@ -1108,6 +1108,29 @@ test('disable-plugin rejects desktop built-in dsh-im aliases without writing con
   }
 });
 
+test('disable-plugin rejects the desktop built-in usage-panel without writing config', async () => {
+  const ipc = loadIpc({
+    dsh: {
+      state: 'ready',
+      logs: [],
+      snapshot: () => ({ state: 'ready' }),
+    },
+  });
+  try {
+    const single = await ipc.invoke('shell:disable-plugin', launcherEvent(), 'dsh-usage-panel');
+    assert.equal(single.ok, false);
+    assert.equal(single.error, 'desktop-builtin');
+    const batch = await ipc.invoke('shell:disable-plugins', launcherEvent(), ['user-pack', 'dsh-usage-panel']);
+    assert.equal(batch.ok, false);
+    assert.equal(batch.error, 'desktop-builtin');
+    assert.equal(batch.name, 'dsh-usage-panel');
+    assert.equal(ipc.saveConfigCalls.length, 0);
+    assert.equal(ipc.startHarness(), 0);
+  } finally {
+    ipc.restore();
+  }
+});
+
 test('disable-plugin skips harness restart when kernel is idle', async () => {
   const ipc = loadIpc({
     dsh: {

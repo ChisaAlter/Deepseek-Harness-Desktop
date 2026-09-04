@@ -65,11 +65,11 @@ export function StatsSection({ rpc, i18n: baseI18n }: StatsSectionProps): JSX.El
         setRepairMsg(t('status.repairDone', { count: total }))
         return load(true)
       })
-      .then(() => {
-        // Re-check the refreshed payload: if a session still reports failed,
-        // the framework is holding in-memory negative state — restart clears
-        // it, and the repair itself is already durable.
-        if (dataRef.current !== null && dataRef.current.coverage.failedSessionIds.length > 0) {
+      .then((fresh) => {
+        // Re-check the REFRESHED payload (load resolves with it): if a session
+        // still reports failed, the damage outlived the repair — the repair
+        // itself is durable and a restart only clears host in-memory state.
+        if (fresh !== undefined && fresh.coverage.failedSessionIds.length > 0) {
           setRepairMsg(t('status.repairStill'))
         }
       })
@@ -83,21 +83,23 @@ export function StatsSection({ rpc, i18n: baseI18n }: StatsSectionProps): JSX.El
     (force: boolean) => {
       setLoading(true)
       setError(null)
-      callOverview(rpc, force)
+      return callOverview(rpc, force)
         .then((res) => {
           setData(res)
           setFreshness(res.stale ? 'stale' : 'fresh')
           saveCached(res)
+          return res
         })
         .catch((err) => {
           const msg = String((err as Error)?.message ?? err)
           setError(msg)
           // Keep the last successful payload visible; never fake freshness.
           setFreshness(dataRef.current ? 'fallback' : 'error')
+          return undefined
         })
-        .then(() => setLoading(false))
+        .finally(() => setLoading(false))
     },
-    [rpc],
+    [rpc, dataRef],
   )
 
   useEffect(() => {

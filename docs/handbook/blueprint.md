@@ -45,7 +45,7 @@ flowchart TB
 | 启动器 | `src/renderer/launcher.*` | main：更新、导入、版本、插件问诊 |
 | 启动页 | `src/renderer/boot.*` | main：状态、日志、恢复动作 |
 | 四栏主框（侧栏 / 对话 / 右栏 Surfaces / 底栏终端） | Harness Web UI | 桌面 IPC：FS、Git、PTY、preview |
-| 设置各 section | Harness `settings.section` 插件 | 市场安装、用量统计、壁纸 catalog、跳转 IPC |
+| 设置各 section | Harness `settings.section` 插件 / 桌面内置模块 | 市场安装、用量统计（桌面内置）、壁纸 catalog、跳转 IPC |
 | 托盘 / 应用菜单 | main `tray.js` / `menu.js` | 打开设置、显示窗口、退出 |
 | 手机 SPA | `mobile/web` | main `remote.js` / `mobile-web.js` 代理到 loopback harness |
 | Android | `mobile/android` | 同一网关；JSON 登录 + `/__remote__/shell` |
