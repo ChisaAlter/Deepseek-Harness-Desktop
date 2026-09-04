@@ -1,6 +1,6 @@
-## Deepseek-Harness-Desktop 0.2.8
+## Deepseek-Harness-Desktop 0.2.9
 
-相对 [0.2.7](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7)：Harness 钉到 `0.1.2-alpha.2`，设置里的值选择统一为官方胶囊 + 菜单，补上会话费用 / 峰谷、透明主题、Skills 分组与标题栏 Git。远程配对本版停放，不随安装包交付。
+相对 [0.2.7](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7)：Harness 升级到 `0.1.2-rc.1`，重点修复旧投影缓存导致的升级后启动失败，并带来内置用量统计、内置市场、会话费用 / 峰谷、透明主题、Skills 分组、标题栏 Git 与一批界面收口。`0.2.8` 未对外发布；远程配对仍停放，不随安装包交付。
 
 ### 升级注意（必读）
 
@@ -9,7 +9,7 @@
 >
 > 0.2.7 起桌面只用自己的 `dsh-home`，不读、不迁官方 `~/.dsh`。请先**完全退出**应用（托盘也要退）。
 >
-> **推荐做法：** 冷启动进入 **启动器 → 导入**，按勾选项拷进桌面家目录。不要拷 `profiles`。旧 rc 的 SQLite 会话库与本版不兼容，不要硬开。
+> **推荐做法：** 冷启动进入 **启动器 → 导入**，按勾选项拷进桌面家目录。不要拷 `profiles`。本版会对可兼容的旧投影缓存自动冷重建，但仍不会直接读取官方 `~/.dsh`。
 >
 > 已经在用 0.2.7 桌面家目录的，直接覆盖安装即可；本版仍钉同一桌面 home，不回读 `~/.dsh`。
 
@@ -32,8 +32,8 @@ if (Test-Path "$old\attachments") {
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.8.exe` |
-| macOS Apple Silicon（arm64） | `Deepseek-Harness-Desktop-0.2.8-mac-arm64.dmg` |
+| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.9.exe` |
+| macOS Apple Silicon（arm64） | `Deepseek-Harness-Desktop-0.2.9-mac-arm64.dmg` |
 
 - macOS 包**未签名**：下载后右键 → 打开；或执行 `xattr -cr /Applications/Deepseek-Harness-Desktop.app`
 - Intel Mac 与 Linux 请从源码运行
@@ -41,9 +41,15 @@ if (Test-Path "$old\attachments") {
 
 ### 本版变化
 
-**内核**
+**关键修复**
 
-- Harness 钉 `dsh-v0.1.2-alpha.2`（与更早 rc 的 SQLite 会话库不兼容）
+- 修复旧版 `session_projcache` 记录可能让 Harness 陷入启动崩溃循环的问题；旧格式记录会备份并冷重建，不再阻塞进入应用
+- 修复已重建的 Web UI 组合仍命中旧 `index.html` 缓存的问题
+- 恢复侧栏分组折叠动画，并补齐输入卡四角连续边光与静止态边缘层级
+
+**Harness 与会话**
+
+- Harness 钉 `dsh-v0.1.2-rc.1`；安装包与源码从 0.2.9 起使用同一官方基线
 - 归档 / 就地编辑重新接上官方 workspace / session Remote
 - 会话统计与峰谷行停靠在输入卡宽度内；界面设置可开「会话累计费用」
 - 标题栏 Git：登记工作区后即可切分支 / 推拉（0.1.2 工作区 unary 口径）
@@ -53,7 +59,8 @@ if (Test-Path "$old\attachments") {
 - 设置里的值选择改为官方胶囊 + 菜单（模型、MCP、Skills、通用 / 界面、价格面板）
 - 外观新增「透明主题」：有壁纸时表层 0% 填充；毛玻璃低于 20% 会一次性提到 20%
 - Skills 支持多选分组
-- 市场 Discover 分页；退役家族（含改名绕过）整段拒绝安装
+- 用量统计与市场改为桌面内置模块；市场 Discover 分页，退役家族（含改名绕过）整段拒绝安装
+- 工作区 / 空态选择器统一为紧凑方形入口
 
 **启动与恢复**
 
