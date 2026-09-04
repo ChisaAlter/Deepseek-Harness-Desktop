@@ -94,7 +94,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-workspace/src/client/navigation.ts': 'connectNoDirectory() { return this.workspaces.list.getSnapshot().scratchCwd }\ndeleteWorkspace() {}\n',
       'packages/client/ui-workspace/src/client/tree.ts': 'export function isNoDirectorySession() {}\nexport function currentGroupKey() {}\n',
       'packages/client/ui-workspace/src/client/WorkspacePicker.tsx': "const NO_DIRECTORY = '::no-directory'\nonPickNoDirectory?.()\n",
-      'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx': '<TasksSectionHeader onCreate={() => { connectNoDirectory() }} />\n',
+      'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx': '<TasksSectionHeader onCreate={() => { connectNoDirectory() }} /><GroupSessionRun open={group.expanded} />\n',
       'packages/client/ui-workspace/src/client/locales.ts': "'menu.noDirectory': 'No workspace folder',\n",
       'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx': 'const noDirectorySession = false\nvoid selectNoDirectory()\n',
       'packages/client/ui-conversation/src/client/apply.ts': 'selectNoDirectory: async () => { await workspaceNavigation.connectNoDirectory() }\n',

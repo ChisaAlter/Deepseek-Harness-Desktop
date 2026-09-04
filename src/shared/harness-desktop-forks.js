@@ -94,7 +94,7 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-workspace/src/client/navigation.ts', includes: ['connectNoDirectory', 'deleteWorkspace', 'scratchCwd'] },
   { file: 'packages/client/ui-workspace/src/client/tree.ts', includes: ['isNoDirectorySession', 'currentGroupKey'] },
   { file: 'packages/client/ui-workspace/src/client/WorkspacePicker.tsx', includes: ['NO_DIRECTORY', 'onPickNoDirectory'] },
-  { file: 'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx', includes: ['TasksSectionHeader', 'connectNoDirectory'] },
+  { file: 'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx', includes: ['TasksSectionHeader', 'connectNoDirectory', 'GroupSessionRun'] },
   { file: 'packages/client/ui-workspace/src/client/locales.ts', includes: ['menu.noDirectory'], excludes: ['Ungrouped'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.tsx', includes: ['selectNoDirectory', 'noDirectorySession'] },
   { file: 'packages/client/ui-conversation/src/client/apply.ts', includes: ['selectNoDirectory', 'connectNoDirectory'] },

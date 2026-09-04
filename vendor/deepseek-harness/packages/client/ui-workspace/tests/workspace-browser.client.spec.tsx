@@ -242,7 +242,7 @@ describe('WorkspaceBrowser', () => {
     ])
   })
 
-  it('expands a group on click and opens a session row', () => {
+  it('expands a group on click and opens a session row', async () => {
     const open = vi.fn()
     mount({
       useSessions: hook(sessionState([summary('alpha-s', 1)])),
@@ -252,9 +252,11 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByText('alpha'))
     fireEvent.click(screen.getByText('alpha-s'))
     expect(open).toHaveBeenCalledWith(sid('alpha-s'))
-    // Collapse hides the row again.
+    // Collapse hides the run again: aria-hidden closes immediately, the
+    // Presence hold keeps the row mounted until the fade exit ends.
     fireEvent.click(screen.getByText('alpha'))
-    expect(screen.queryByText('alpha-s')).toBeNull()
+    expect(screen.getByText('alpha-s').closest('[data-dsh-motion]')?.getAttribute('aria-hidden')).toBe('true')
+    await waitFor(() => { expect(screen.queryByText('alpha-s')).toBeNull() })
   })
 
   it('shows five sessions by default and clears transient show-all when the Workspace collapses', () => {
@@ -548,7 +550,7 @@ describe('WorkspaceBrowser', () => {
     expect(screen.getByText('已归档')).toBeTruthy()
   })
 
-  it('keeps an already-expanded group when the selection moves within it', () => {
+  it('keeps an already-expanded group when the selection moves within it', async () => {
     const first = sessionState([summary('a', 2), summary('b', 1)], { current: sid('a') })
     const b = mount({
       useSessions: hook(first),
@@ -560,7 +562,8 @@ describe('WorkspaceBrowser', () => {
     rerender(b, { useSessions: hook({ ...first, current: sid('b') }) })
     expect(screen.getByText('b')).toBeTruthy()
     fireEvent.click(screen.getByText('alpha'))
-    expect(screen.queryByText('b')).toBeNull()
+    expect(screen.getByText('b').closest('[data-dsh-motion]')?.getAttribute('aria-hidden')).toBe('true')
+    await waitFor(() => { expect(screen.queryByText('b')).toBeNull() })
   })
 
   it('shows only the current blank session as the localized New Session, excluded from search', () => {

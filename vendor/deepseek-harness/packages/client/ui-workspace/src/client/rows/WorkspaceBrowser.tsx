@@ -27,7 +27,7 @@ import {
   UNGROUPED_KEY,
 } from '../tree.ts'
 import {
-  ArchivedSectionHeader, ArchivedSessionNodeItem, ProjectRowItem,
+  ArchivedSectionHeader, ArchivedSessionNodeItem, GroupSessionRun, ProjectRowItem,
   SearchResultItem, SessionNodeItem, TasksSectionHeader,
 } from './Rows.tsx'
 import { FLAT_SESSION_ORDER_KEY } from '../stores.ts'
@@ -348,6 +348,9 @@ function SessionTree({
   // Transient drag marker state; the selected mode owns the resulting order.
   const [drag, setDrag] = useState<DragState | null>(null)
   const sessionDropCommitted = useRef(false)
+  // Last-open rows per group key: the fold exit needs the pre-fold run while
+  // the derivation already reports an empty session list for a folded group.
+  const heldRuns = useRef(new Map<string, { rows: readonly SessionNode[]; hiddenCount: number }>())
   const [workspaceDrag, setWorkspaceDrag] = useState<WorkspaceDragState | null>(null)
   const workspaceDropCommitted = useRef(false)
   const previousOrderBy = useRef(orderBy)
@@ -515,6 +518,15 @@ function SessionTree({
           const workspaceId = group.workspaceId
           const collapsed = collapsedSessionRows(group.sessions)
           const sessionsExpanded = expandedSessionGroups.includes(group.key)
+          // Fold exit frame: while expanded, remember the run the fold leaves
+          // behind (deriveGroups already reports [] for a folded group).
+          const liveRows = sessionsExpanded ? group.sessions : collapsed.rows
+          if (group.expanded) {
+            heldRuns.current.set(group.key, { rows: liveRows, hiddenCount: collapsed.hiddenCount })
+          }
+          const run = group.expanded
+            ? { rows: liveRows, hiddenCount: collapsed.hiddenCount }
+            : (heldRuns.current.get(group.key) ?? { rows: [], hiddenCount: 0 })
           const workspaceMarker = workspaceId !== undefined && workspaceDrag?.over?.id === workspaceId
             ? workspaceDrag.over.half
             : null
@@ -612,62 +624,61 @@ function SessionTree({
                     }}
                   />
                 )}
-              {(sessionsExpanded
-                ? group.sessions
-                : collapsed.rows
-              ).map((node) => {
+              <GroupSessionRun open={group.expanded}>
+                {run.rows.map((node) => {
               // Session drag never leaves its group. Ungrouped writes only the
               // browser-local account; real Workspaces may also write Host order.
-                const sameGroupDrag = drag !== null && drag.accountKey === group.key
-                const dragProps = {
-                  start: () => {
-                    sessionDropCommitted.current = false
-                    setDrag({ accountKey: group.key, sessionId: node.id, over: null })
-                  },
-                  active: sameGroupDrag,
-                  marker: sameGroupDrag && drag.over?.id === node.id ? drag.over.half : null,
-                  hover: (half: 'before' | 'after') => {
+                  const sameGroupDrag = drag !== null && drag.accountKey === group.key
+                  const dragProps = {
+                    start: () => {
+                      sessionDropCommitted.current = false
+                      setDrag({ accountKey: group.key, sessionId: node.id, over: null })
+                    },
+                    active: sameGroupDrag,
+                    marker: sameGroupDrag && drag.over?.id === node.id ? drag.over.half : null,
+                    hover: (half: 'before' | 'after') => {
                   /* v8 ignore next -- narrowing guard: Rows gates hover on `active`, which is false while the drag state is null. */
-                    setDrag(d => (d === null ? d : { ...d, over: { id: node.id, half } }))
-                  },
-                  drop: (half: 'before' | 'after') => {
+                      setDrag(d => (d === null ? d : { ...d, over: { id: node.id, half } }))
+                    },
+                    drop: (half: 'before' | 'after') => {
                   /* v8 ignore next -- narrowing guard: Rows gates drop on `active`, which is false while the drag state is null. */
-                    if (drag === null) return
-                    commitSessionDrag(drag, { id: node.id, half })
-                  },
-                  end: () => {
-                    if (drag?.over !== null && drag?.over !== undefined) commitSessionDrag(drag, drag.over)
-                    else setDrag(null)
-                    sessionDropCommitted.current = false
-                  },
-                }
-                return (
-                  <SessionNodeItem
-                    key={node.id}
-                    node={node}
-                    currentId={current}
-                    now={now}
-                    onOpen={open}
-                    onRename={onSessionRename}
-                    onFork={forkSession}
-                    onArchive={onSessionArchive}
-                    drag={dragProps}
-                    t={t}
-                  />
-                )
-              })}
-              {collapsed.hiddenCount > 0 && (
-                <button
-                  type="button"
-                  className={css.sessionOverflowButton}
-                  aria-expanded={sessionsExpanded}
-                  onClick={() => { setExpandedSessionGroups(keys => toggled(keys, group.key)) }}
-                >
-                  {sessionsExpanded
-                    ? t('sessions.collapse')
-                    : t('sessions.expand', { n: collapsed.hiddenCount })}
-                </button>
-              )}
+                      if (drag === null) return
+                      commitSessionDrag(drag, { id: node.id, half })
+                    },
+                    end: () => {
+                      if (drag?.over !== null && drag?.over !== undefined) commitSessionDrag(drag, drag.over)
+                      else setDrag(null)
+                      sessionDropCommitted.current = false
+                    },
+                  }
+                  return (
+                    <SessionNodeItem
+                      key={node.id}
+                      node={node}
+                      currentId={current}
+                      now={now}
+                      onOpen={open}
+                      onRename={onSessionRename}
+                      onFork={forkSession}
+                      onArchive={onSessionArchive}
+                      drag={dragProps}
+                      t={t}
+                    />
+                  )
+                })}
+                {run.hiddenCount > 0 && (
+                  <button
+                    type="button"
+                    className={css.sessionOverflowButton}
+                    aria-expanded={sessionsExpanded}
+                    onClick={() => { setExpandedSessionGroups(keys => toggled(keys, group.key)) }}
+                  >
+                    {sessionsExpanded
+                      ? t('sessions.collapse')
+                      : t('sessions.expand', { n: run.hiddenCount })}
+                  </button>
+                )}
+              </GroupSessionRun>
             </div>
           )
         })}
