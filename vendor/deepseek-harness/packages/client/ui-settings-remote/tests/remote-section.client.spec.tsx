@@ -55,6 +55,7 @@ function renderRemote(overrides: Partial<RemoteSectionProps> = {}) {
     saveRemote: vi.fn(async () => SNAP),
     rotateRemoteToken: vi.fn(async () => SNAP),
     unbindRemoteDevice: vi.fn(async () => SNAP),
+    renameRemoteDevice: vi.fn(async () => SNAP),
     ...overrides,
   } as RemoteSectionProps
   render(<RemoteSection {...props} />)
@@ -393,6 +394,48 @@ describe('RemoteSection', () => {
     fireEvent.click(screen.getByRole('button', { name: en.unbind }))
     await waitFor(() => { expect(props.unbindRemoteDevice).toHaveBeenCalledWith('dev-1') })
     await screen.findByText(en.devicesEmpty)
+  })
+
+  it('renames a bound device inline and cancels without calling rename', async () => {
+    const device = { id: 'dev-1', name: 'relay-pair', shortId: 'ev-1' }
+    const props = renderRemote({
+      getRemote: vi.fn(async () => snap({ devices: [device], relayConnected: true })),
+      renameRemoteDevice: vi.fn(async () => snap({ devices: [{ ...device, name: 'Pixel 8' }], relayConnected: true })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    fireEvent.click(await screen.findByRole('button', { name: `${en.devices} 1` }))
+    const manage = within(await screen.findByRole('dialog', { name: en.devicesManage }))
+
+    // The editor opens pre-filled with the current name; cancel closes it without a call.
+    fireEvent.click(manage.getByRole('button', { name: en.rename }))
+    const input = manage.getByRole('textbox', { name: en.renameLabel })
+    expect((input as HTMLInputElement).value).toBe('relay-pair')
+    fireEvent.click(manage.getByRole('button', { name: en.renameCancel }))
+    expect(manage.queryByRole('textbox', { name: en.renameLabel })).toBeNull()
+    expect(props.renameRemoteDevice).not.toHaveBeenCalled()
+
+    fireEvent.click(manage.getByRole('button', { name: en.rename }))
+    fireEvent.change(manage.getByRole('textbox', { name: en.renameLabel }), { target: { value: 'Pixel 8' } })
+    fireEvent.submit(manage.getByRole('textbox', { name: en.renameLabel }).closest('form') as Element)
+    await waitFor(() => { expect(props.renameRemoteDevice).toHaveBeenCalledWith('dev-1', 'Pixel 8') })
+    await waitFor(() => { expect(manage.queryByRole('textbox', { name: en.renameLabel })).toBeNull() })
+    expect(manage.getByText('Pixel 8')).toBeTruthy()
+  })
+
+  it('surfaces rename failures like unbind failures', async () => {
+    renderRemote({
+      getRemote: vi.fn(async () => snap({
+        relayConnected: true,
+        devices: [{ id: 'dev-2', name: 'Android' }],
+      })),
+      renameRemoteDevice: vi.fn(async () => { throw 'rename failed' }),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.trigger }))
+    fireEvent.click(await screen.findByRole('button', { name: `${en.devices} 1` }))
+    fireEvent.click(screen.getByRole('button', { name: en.rename }))
+    fireEvent.change(screen.getByRole('textbox', { name: en.renameLabel }), { target: { value: 'Tablet' } })
+    fireEvent.submit(screen.getByRole('textbox', { name: en.renameLabel }).closest('form') as Element)
+    await waitFor(() => { expect(screen.getByText(en.statusErrorGeneric)).toBeTruthy() })
   })
 
   it('opens an empty device dialog, surfaces unbind failures, and closes inner then outer on Escape', async () => {

@@ -17,6 +17,8 @@ export interface RemoteSectionInjected {
   rotateRemoteToken: () => Promise<RemoteSnapshot | null>
   /** Drop one bound device; its cookie stops authorizing. */
   unbindRemoteDevice: (id: string) => Promise<RemoteSnapshot | null>
+  /** Overwrite one bound device's display name. */
+  renameRemoteDevice: (id: string, name: string) => Promise<RemoteSnapshot | null>
 }
 
 /** Full component props assembled by the sidebar footer-action slot. */
@@ -56,6 +58,7 @@ export function RemoteSection({
   saveRemote,
   rotateRemoteToken,
   unbindRemoteDevice,
+  renameRemoteDevice,
 }: RemoteSectionProps): ReactNode {
   const [snap, setSnap] = useState<RemoteSnapshot | null>(null)
   const [error, setError] = useState('')
@@ -63,6 +66,8 @@ export function RemoteSection({
   const [open, setOpen] = useState(false)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
   const [healFired, setHealFired] = useState(false)
   const healAttemptedRef = useRef(false)
 
@@ -101,6 +106,7 @@ export function RemoteSection({
       healAttemptedRef.current = false
       setHealFired(false)
       setCopied(false)
+      setRenamingId(null)
       return
     }
     void refresh()
@@ -151,6 +157,18 @@ export function RemoteSection({
       setBusy(false)
     }
   }, [applySnap, unbindRemoteDevice])
+
+  const rename = useCallback(async (id: string, name: string) => {
+    setBusy(true)
+    try {
+      applySnap(await renameRemoteDevice(id, name))
+      setRenamingId(null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught))
+    } finally {
+      setBusy(false)
+    }
+  }, [applySnap, renameRemoteDevice])
 
   const pairingUrl = snap?.urls?.[0]?.pairingUrl || ''
   const qr = useMemo(() => qrSvg(pairingUrl), [pairingUrl])
@@ -320,10 +338,50 @@ export function RemoteSection({
                     {devices.map(device => (
                       <li key={device.id} className={css.deviceRow}>
                         <div className={css.deviceMeta}>
-                          <span className={css.deviceName}>
-                            {device.name}
-                            {device.online ? <span className={css.online}>{t('devicesOnline')}</span> : null}
-                          </span>
+                          {renamingId === device.id ? (
+                            <form
+                              className={css.renameForm}
+                              onSubmit={(event) => {
+                                event.preventDefault()
+                                void rename(device.id, renameDraft)
+                              }}
+                            >
+                              <input
+                                className={css.renameInput}
+                                value={renameDraft}
+                                maxLength={120}
+                                autoFocus
+                                aria-label={t('renameLabel')}
+                                onChange={(event) => { setRenameDraft(event.target.value) }}
+                              />
+                              <div className={css.renameButtons}>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className={css.renameButton}
+                                  type="submit"
+                                  disabled={busy || !renameDraft.trim()}
+                                >
+                                  {t('save')}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className={css.renameButton}
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() => { setRenamingId(null) }}
+                                >
+                                  {t('renameCancel')}
+                                </Button>
+                              </div>
+                            </form>
+                          ) : (
+                            <span className={css.deviceName}>
+                              {device.name}
+                              {device.online ? <span className={css.online}>{t('devicesOnline')}</span> : null}
+                            </span>
+                          )}
                           {device.detail ? <span className={css.deviceDetail}>{device.detail}</span> : null}
                           {device.shortId ? <span className={css.deviceSeen}>{t('devicesId', { id: device.shortId })}</span> : null}
                           {device.createdAt ? (
@@ -337,14 +395,29 @@ export function RemoteSection({
                               : t('devicesSeenUnknown')}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          className={css.unbind}
-                          disabled={busy}
-                          onClick={() => { void unbind(device.id) }}
-                        >
-                          {t('unbind')}
-                        </button>
+                        <div className={css.deviceActions}>
+                          {renamingId !== device.id ? (
+                            <button
+                              type="button"
+                              className={css.unbind}
+                              disabled={busy}
+                              onClick={() => {
+                                setRenameDraft(device.name)
+                                setRenamingId(device.id)
+                              }}
+                            >
+                              {t('rename')}
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={css.unbind}
+                            disabled={busy}
+                            onClick={() => { void unbind(device.id) }}
+                          >
+                            {t('unbind')}
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>

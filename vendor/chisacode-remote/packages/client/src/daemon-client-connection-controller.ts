@@ -62,13 +62,17 @@ export interface DaemonClientConfig {
     enabled?: boolean;
     daemonPublicKeyB64?: string;
   };
-  /** Relay device credential material; proof fields are derived from the live E2EE channel. */
+  /**
+   * Relay device credential material; proof fields are derived from the live E2EE channel.
+   * `deviceName` rides the first-pairing payload as the client-reported operator label.
+   */
   relayDeviceAuth?: {
     version: 1;
     serverId: string;
     deviceId: string;
     deviceSecret?: string;
     pairingToken?: string;
+    deviceName?: string;
   };
   /**
    * Called when daemon issues a device secret after first pairing.
@@ -563,6 +567,7 @@ export class DaemonConnectionController {
     deviceId: string;
     proof?: string;
     pairingToken?: string;
+    deviceName?: string;
     clientPublicKeyB64: string;
     challenge: string;
   } | null {
@@ -596,6 +601,7 @@ export class DaemonConnectionController {
         version: 1,
         deviceId: credential.deviceId,
         pairingToken: credential.pairingToken,
+        ...(credential.deviceName ? { deviceName: credential.deviceName } : {}),
         ...channelBinding,
       };
     }

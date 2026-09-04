@@ -4,6 +4,7 @@ import {
   agentRows,
   buildClientRelayUrl,
   currentClientId,
+  deviceNameFromUa,
   normalizeOfferUrl,
   pairFromOfferUrl,
   reconnectSticky,
@@ -159,7 +160,21 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
     DaemonClient: MockDaemonClient,
   };
 
-  const paired = await pairFromOfferUrl(api, 'http://192.168.1.8:3180/#offer=encoded');
+  // Node's own navigator.userAgent would classify as 设备; stub a real phone
+  // UA so the pairing payload assertion pins the derived device name.
+  const realNavigator = globalThis.navigator;
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+    },
+  });
+  let paired;
+  try {
+    paired = await pairFromOfferUrl(api, 'http://192.168.1.8:3180/#offer=encoded');
+  } finally {
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: realNavigator });
+  }
 
   assert.equal(paired.serverId, 'srv_pair');
   assert.deepEqual(clientOptions.relayDeviceAuth, {
@@ -167,11 +182,46 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
     serverId: 'srv_pair',
     deviceId: 'dev_revoked_0000',
     pairingToken: 'one-time-token',
+    deviceName: 'iPhone · iOS 18.2',
   });
   assert.equal(relayCalls[0].role, 'client');
   const saved = JSON.parse(localStorage.getItem('dsh-chisacode-device-secrets'));
   assert.equal(saved.srv_pair.deviceId, 'dev_revoked_0000');
   assert.equal(saved.srv_pair.deviceSecret, 's'.repeat(64));
+});
+
+test('deviceNameFromUa mirrors the desktop device naming contract', () => {
+  assert.equal(
+    deviceNameFromUa('Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'),
+    'iPhone · iOS 18.2',
+  );
+  assert.equal(deviceNameFromUa('Mozilla/5.0 (iPhone;)'), 'iPhone');
+  assert.equal(
+    deviceNameFromUa('Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15'),
+    'iPad · iOS 17.5',
+  );
+  assert.equal(
+    deviceNameFromUa('Mozilla/5.0 (Linux; Android 15; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36'),
+    'Android 15 · Pixel 8 Pro',
+  );
+  // WebView shells expose wv/Mobile as the model token — not a real model.
+  assert.equal(deviceNameFromUa('Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36'), 'Android 14');
+  assert.equal(deviceNameFromUa('Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36'), 'Android 13');
+  assert.equal(deviceNameFromUa('Mozilla/5.0 (Linux; Android) AppleWebKit/537.36'), 'Android');
+  assert.equal(
+    deviceNameFromUa('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36'),
+    '电脑',
+  );
+  assert.equal(
+    deviceNameFromUa('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 Safari/605.1.15'),
+    '电脑',
+  );
+  assert.equal(deviceNameFromUa('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'), '电脑');
+  assert.equal(deviceNameFromUa('node'), '设备');
+  assert.equal(deviceNameFromUa(''), '设备');
+  assert.equal(deviceNameFromUa(undefined), '设备');
+  // Protocol + store cap the label at 120 chars.
+  assert.equal(deviceNameFromUa(`Android ${'9'.repeat(200)}`).length, 120);
 });
 
 test('pairing works without crypto.randomUUID (http://<lan-ip> is not a secure context)', async () => {

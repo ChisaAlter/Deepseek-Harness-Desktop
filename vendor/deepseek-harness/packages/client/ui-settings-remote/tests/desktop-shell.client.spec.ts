@@ -19,9 +19,13 @@ describe('desktopShell', () => {
       saveRemote: async () => ({ enabled: true }),
       rotateRemoteToken: async () => ({ enabled: true }),
       unbindRemoteDevice: async () => ({ enabled: true, devices: [] }),
+      renameRemoteDevice: async () => ({ enabled: true, devices: [] }),
     }
     ;(window as Window & { shell?: unknown }).shell = api
     expect(hasRemoteApi(api)).toBe(true)
+    // A preload without rename is an older desktop build — not a Remote surface.
+    const { renameRemoteDevice: _omit, ...withoutRename } = api
+    expect(hasRemoteApi(withoutRename)).toBe(false)
     delete (window as Window & { shell?: unknown }).shell
   })
 })

@@ -132,6 +132,7 @@ test('harness preload keeps work loops and remote controls', () => {
   assert.equal(typeof api.saveRemote, 'function');
   assert.equal(typeof api.rotateRemoteToken, 'function');
   assert.equal(typeof api.unbindRemoteDevice, 'function');
+  assert.equal(typeof api.renameRemoteDevice, 'function');
   assert.equal(api.saveBootLog, undefined);
 });
 
@@ -190,6 +191,7 @@ test('harness preload omits remote controls when the feature flag is off', () =>
     assert.equal(api.saveRemote, undefined);
     assert.equal(api.rotateRemoteToken, undefined);
     assert.equal(api.unbindRemoteDevice, undefined);
+    assert.equal(api.renameRemoteDevice, undefined);
     assert.equal(typeof api.writeFile, 'function');
   }
   const enabled = loadPreload(['electron', '--dshd-shell-role=harness', '--dshd-remote-feature=1']).exposed?.api;

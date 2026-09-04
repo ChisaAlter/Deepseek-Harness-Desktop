@@ -12209,7 +12209,12 @@ var WSHelloMessageSchema = external_exports.object({
     proof: external_exports.string().min(16).max(256).optional(),
     pairingToken: external_exports.string().min(16).max(256).optional(),
     clientPublicKeyB64: external_exports.string().min(1).optional(),
-    challenge: external_exports.string().min(16).max(256).optional()
+    challenge: external_exports.string().min(16).max(256).optional(),
+    /**
+     * Client-reported operator label, stored as the device label on first
+     * pairing. Old daemons ignore it. Trimmed; 1-120 chars.
+     */
+    deviceName: external_exports.string().trim().min(1).max(120).optional()
   }).optional()
 });
 var WSRecordingStateMessageSchema = external_exports.object({
@@ -16907,6 +16912,7 @@ var DaemonConnectionController = class {
         version: 1,
         deviceId: credential.deviceId,
         pairingToken: credential.pairingToken,
+        ...credential.deviceName ? { deviceName: credential.deviceName } : {},
         ...channelBinding
       };
     }

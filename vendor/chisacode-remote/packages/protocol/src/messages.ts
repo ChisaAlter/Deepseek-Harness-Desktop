@@ -561,6 +561,11 @@ export const WSHelloMessageSchema = z.object({
       pairingToken: z.string().min(16).max(256).optional(),
       clientPublicKeyB64: z.string().min(1).optional(),
       challenge: z.string().min(16).max(256).optional(),
+      /**
+       * Client-reported operator label, stored as the device label on first
+       * pairing. Old daemons ignore it. Trimmed; 1-120 chars.
+       */
+      deviceName: z.string().trim().min(1).max(120).optional(),
     })
     .optional(),
 });

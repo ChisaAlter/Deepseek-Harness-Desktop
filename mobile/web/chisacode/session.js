@@ -185,6 +185,38 @@ function agentRows(payload) {
 }
 
 /**
+ * Friendly device name from a browser user-agent, sent as the pairing
+ * `deviceName` so the desktop device list shows a real label instead of the
+ * generic relay-pair one. Mirrors the desktop-side naming contract
+ * (src/shared/remote-devices.js): iPhone/iPad/Android carry OS/model, other
+ * computers read as 电脑, anything unknown stays 设备.
+ * @param {string} userAgent
+ * @returns {string} label capped at 120 chars (protocol + store cap)
+ */
+function deviceNameFromUa(userAgent) {
+  const ua = String(userAgent || '');
+  let name = '设备';
+  if (/iPhone/i.test(ua)) {
+    const ios = ua.match(/OS (\d+[_\d]*)/);
+    name = ios ? `iPhone · iOS ${ios[1].replaceAll('_', '.')}` : 'iPhone';
+  } else if (/iPad/i.test(ua)) {
+    const ios = ua.match(/OS (\d+[_\d]*)/);
+    name = ios ? `iPad · iOS ${ios[1].replaceAll('_', '.')}` : 'iPad';
+  } else if (/Android/i.test(ua)) {
+    const android = ua.match(/Android ([\d.]+)(?:; ([^;)]+))?/i);
+    name = 'Android';
+    if (android) {
+      name = `Android ${android[1]}`;
+      const model = (android[2] || '').replace(/\s*Build\/.*$/i, '').trim();
+      if (model && !/^(wv|Mobile)$/i.test(model)) name += ` · ${model}`;
+    }
+  } else if (/Windows/i.test(ua) || /Mac OS X|Macintosh/i.test(ua) || /Linux/i.test(ua)) {
+    name = '电脑';
+  }
+  return name.slice(0, 120);
+}
+
+/**
  * @param {typeof import('./daemon-client.bundle.js')} api
  * @param {string} offerUrl
  * @returns {Promise<{ client: import('@chisacode/client').DaemonClient, offer: object, serverId: string }>}
@@ -219,6 +251,9 @@ export async function pairFromOfferUrl(api, offerUrl) {
       serverId: offer.serverId,
       deviceId,
       pairingToken,
+      // Report a real device name at first pairing; the desktop stores it as
+      // the device label (renamable later from device management).
+      deviceName: deviceNameFromUa(typeof navigator === 'undefined' ? '' : navigator.userAgent),
     };
   } else if (stored?.deviceId && stored?.deviceSecret) {
     relayDeviceAuth = {
@@ -317,6 +352,7 @@ export {
   getMostRecentStickyServerId,
   savedComputerRows,
   buildClientRelayUrl,
+  deviceNameFromUa,
   hasOfferFragment,
   normalizeOfferUrl,
   agentRows,

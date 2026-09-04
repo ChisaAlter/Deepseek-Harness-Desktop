@@ -161,6 +161,37 @@ test('public device snapshots follow upstream lastUsedAt and do not retain revok
   }]);
 });
 
+test('renameDevice writes through the re-opened device store and stays a no-op without one', () => {
+  const renamed = [];
+  const store = {
+    listDevices() {
+      return [{
+        deviceId: 'dev_phone_1234',
+        label: 'Pixel 8',
+        createdAt: '2026-08-01T00:00:00.000Z',
+        lastUsedAt: '2026-08-27T07:00:00.000Z',
+        revokedAt: null,
+      }];
+    },
+    renameDevice(id, label) {
+      renamed.push([id, label]);
+    },
+  };
+  const remote = new ChisaCodeRemote({
+    getConfig: () => ({ remoteEnabled: true }),
+    getHomeDir: () => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-')),
+  });
+  remote.serverApi = { RelayDeviceCredentialStore: class { constructor() { return store; } } };
+  const snap = remote.renameDevice('dev_phone_1234', 'Pixel 9');
+  assert.deepEqual(renamed, [['dev_phone_1234', 'Pixel 9']]);
+  assert.equal(snap.devices[0].name, 'Pixel 8');
+
+  // Missing id or a daemon API without the store method must not throw.
+  assert.doesNotThrow(() => remote.renameDevice('', 'Pixel 9'));
+  remote.serverApi = {};
+  assert.doesNotThrow(() => remote.renameDevice('dev_phone_1234', 'Pixel 9'));
+});
+
 test('relay TLS follows the persisted endpoint transport setting', () => {
   assert.equal(relayUseTls({ remoteRelayUseTls: false }, '125.124.85.212:8411'), false);
   assert.equal(relayUseTls({ remoteRelayUseTls: true }, 'relay.example.com:443'), true);

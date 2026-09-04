@@ -164,6 +164,7 @@ function harnessApi(renderer, remoteFeature) {
       saveRemote: invoke(renderer, 'shell:save-remote'),
       rotateRemoteToken: invoke(renderer, 'shell:rotate-remote-token'),
       unbindRemoteDevice: invoke(renderer, 'shell:unbind-remote-device'),
+      renameRemoteDevice: invoke(renderer, 'shell:rename-remote-device'),
     } : {}),
   };
 }

@@ -70,6 +70,7 @@ export type DesktopShell = {
   saveRemote?: (patch: RemotePatch) => Promise<RemoteSnapshot | null>
   rotateRemoteToken?: () => Promise<RemoteSnapshot | null>
   unbindRemoteDevice?: (id: string) => Promise<RemoteSnapshot | null>
+  renameRemoteDevice?: (id: string, name: string) => Promise<RemoteSnapshot | null>
 }
 
 /**
@@ -84,18 +85,19 @@ export function desktopShell(): DesktopShell | null {
 }
 
 /** Desktop shell object that actually implements the Remote IPC methods. */
-type RemoteDesktopApi = Required<Pick<DesktopShell, 'getRemote' | 'saveRemote' | 'rotateRemoteToken' | 'unbindRemoteDevice'>>
+type RemoteDesktopApi = Required<Pick<DesktopShell, 'getRemote' | 'saveRemote' | 'rotateRemoteToken' | 'unbindRemoteDevice' | 'renameRemoteDevice'>>
 
 /**
  * Whether the preload object can drive the Remote popup.
  * @param shell - `window.shell`, or null in a plain browser.
- * @returns true only when get/save/rotate/unbind are all functions.
+ * @returns true only when get/save/rotate/unbind/rename are all functions.
  */
 export function hasRemoteApi(shell: DesktopShell | null): shell is RemoteDesktopApi {
   return Boolean(
     shell?.getRemote
-    && shell.saveRemote
-    && shell.rotateRemoteToken
-    && shell.unbindRemoteDevice,
+      && shell.saveRemote
+      && shell.rotateRemoteToken
+      && shell.unbindRemoteDevice
+      && shell.renameRemoteDevice,
   )
 }

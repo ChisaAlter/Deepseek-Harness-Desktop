@@ -12,11 +12,11 @@
 
 1. 设置 → 「远程」（`remote`）→ **网关**：选 **局域网 / 外出**（文案区分；扫码传输都经中继）；中继主机默认内置 `125.124.85.212:8411`。**无宿主令牌墙**。
 2. 设置 → 「远程」→ **消息渠道**：桌面内置 `@xmanrui/dsh-im` 完整 IM UI（九渠 + AI Office）；无商店品牌头。
-3. 侧栏底部手机图标打开配对弹窗：开关 → 中继状态；中继已连接才显示扫码二维码 / 复制链接 / 刷新配对码 → 已配对设备 / 解除配对。
+3. 侧栏底部手机图标打开配对弹窗：开关 → 中继状态；中继已连接才显示扫码二维码 / 复制链接 / 刷新配对码 → 已配对设备 / 重命名 / 解除配对。
 
 ## Invariants
 
-- **停放开关：** `src/main/config.js` `REMOTE_FEATURE_ENABLED`。false 时 preload 不暴露 `getRemote`/`saveRemote`/`rotateRemoteToken`/`unbindRemoteDevice`，`ui-settings-remote` 不注册侧栏与设置入口；`normalizeRemoteConfig` 把 `remoteEnabled` 钉死为 false；IPC `shell:save-remote` 无法打开。解禁只翻这一处（window argv `--dshd-remote-feature` 跟它走）。
+- **停放开关：** `src/main/config.js` `REMOTE_FEATURE_ENABLED`。false 时 preload 不暴露 `getRemote`/`saveRemote`/`rotateRemoteToken`/`unbindRemoteDevice`/`renameRemoteDevice`，`ui-settings-remote` 不注册侧栏与设置入口；`normalizeRemoteConfig` 把 `remoteEnabled` 钉死为 false；IPC `shell:save-remote` 无法打开。解禁只翻这一处（window argv `--dshd-remote-feature` 跟它走）。
 - **配对协议 = dshd offer**（实现为 vendored ChisaCode offer v2）：全量 `createChisaCodeDaemon` 跑在 `chisacode-daemon-runner.mjs` 子进程（**禁止**回迁主进程）；主进程 `ChisaCodeRemote` 只是进程管理面 + file-backed 配对/快照；QR `appBaseUrl`：局域网 = `preferredLanIp():3180`，外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**禁止**把中继 `:8411` 当 SPA。用户可见文案称 dshd daemon / dshd 配对，不出现 ChisaCode 品牌名。
 - **daemon 子进程契约**：runner 在 `asarUnpack`；stdout 只有 JSON 行（控制行 + pino json）；stdin `stop` 与 stdin 关闭都必须优雅停（孤儿零容忍）；意外退出必须落 `snapshot.error` 并保留弹窗重试；不做自动退避重启循环（对齐上游）。
 - **DSHD_* 命名桥**：桌面对外只有 `DSHD_CHISACODE_HOME`（打包需 `DSHD_ALLOW_ENV_HOME=1`，同 dsh-home 守卫）与 `DSHD_DSH_VENDOR_DIR`；`CHISACODE_*` 只允许出现在 daemon 子进程 env 注入处，主进程自身 env 与 PTY / `dsh web` 子进程永不携带；字面量 `DSHD_HOME` 属 dsh-home 卡，不可占用。DEEPSEEK 凭据只经 `official-deepseek-env` 白名单入子进程 env，launch JSON 永不含密钥。
@@ -25,6 +25,7 @@
 - 侧栏 QR 仅客户端 `qrSvg(pairingUrl)`（`includeQr: false`）。
 - 外出中继禁止 `chisacode.sh` / 上游 `account_id`。AGPL：`AGPL-SHIPPING.md`。内置 `125…:8411` 可作为 **传输默认**，不可作 SPA；公网 SPA 走 nginx `:3389/dshd/`（`:80/dshd/` 已部署但云安全组未放行 80）。
 - 粘性：`deviceSecret` 直至用户解除配对；刷新 QR 只换短期 pairing token。
+- **设备名（2026-09-04 起）：** 配对 hello 的 `relayDeviceAuth.deviceName`（append-only 协议字段，trim 后 1–120）是客户端自报的设备名——手机配对页从 UA 派生（`iPhone · iOS 18.2` / `Android 15 · Pixel 8` / `电脑`，兜底 `设备`，见 `mobile/web/chisacode/session.js#deviceNameFromUa`），daemon 存为 device label（旧客户端兜底 `relay-pair`）。改名走 IPC `shell:rename-remote-device` → `ChisaCodeRemote.renameDevice` → `RelayDeviceCredentialStore.renameDevice`（文件落盘、幂等、封顶 120、拒绝已吊销）；两条标签写入路径（签发/改名）都归一 120 预算——`DeviceRecordSchema` 在加载时封顶 `label`，超长持久化标签会让整个 store 文件加载失败。存量 `relay-pair` 行不自动改，用户手动改名即迁移。fork 合同见 `vendor/chisacode-remote/DESKTOP-FORK.md`。
 - dsh-im 桌面内置：insert 在自有 overlay `desktop-plugins/dsh-im/desktop-dsh-im.patch.yml`，`--patch` 叠加（full+skip）；`cordis.patch.yml` 不写受管块（只 strip 迁移）；禁插件 / Recovery 不可关（IPC 返回 `desktop-builtin`，config 归一化剔除别名）；vendor 运行时缺损 fail start（skip 修不了）。
 - 渠道主操作 36px（飞书扫码无 `size=small`）。
 - **断管不崩**：vendored `resolveDshVendorDir` 的 `execSync` 必须携带显式 `stdio`（tripwire 在 `remote-epipe.test.js`）；主进程 stdout/stderr 常驻 `stdio-guard`（断管类流错误吞掉，uncaughtException 仅吞断管写入、其余复刻 Electron 默认对话框）。
@@ -52,7 +53,7 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `chisacode-remote.test.js`；`chisacode-daemon-runner.test.js`（runner 协议 + dist-gated 真实 daemon 端到端）；`remote-epipe.test.js`；`stdio-guard.test.js`；`lan.test.js`；dsh-im-desktop / skip-compose；ui-settings-remote specs |
+| Automated | `chisacode-remote.test.js`；`chisacode-daemon-runner.test.js`（runner 协议 + dist-gated 真实 daemon 端到端）；`remote-epipe.test.js`；`stdio-guard.test.js`；`lan.test.js`；dsh-im-desktop / skip-compose；ui-settings-remote specs；`mobile/web/chisacode/session.test.js`（配对 deviceName 上报） |
 | Manual | 中继已连接 → 扫码配对 → sticky 重连 → 解除；Windows 打包机：子进程隔离下配对 + 强杀主进程无孤儿 daemon；dev 机（harness 已构建）：手机端 dsh provider 建会话 |
 
 ## Sources

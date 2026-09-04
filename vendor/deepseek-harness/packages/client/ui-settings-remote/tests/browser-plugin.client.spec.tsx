@@ -51,6 +51,7 @@ describe('ui-settings-remote browser plugin', () => {
       saveRemote: vi.fn(async () => ({ enabled: true, urls: [] })),
       rotateRemoteToken: vi.fn(async () => ({ enabled: true, urls: [] })),
       unbindRemoteDevice: vi.fn(async () => ({ enabled: true, urls: [], devices: [] })),
+      renameRemoteDevice: vi.fn(async () => ({ enabled: true, urls: [], devices: [] })),
     }
     ;(window as Window & { shell?: unknown }).shell = shell
     await b.ctx.plugin({ inject: [...inject], apply }).await()
@@ -61,6 +62,7 @@ describe('ui-settings-remote browser plugin', () => {
     await expect(injected.getRemote()).resolves.toEqual({ enabled: false, urls: [] })
     await expect(injected.saveRemote({ remoteEnabled: true })).resolves.toEqual({ enabled: true, urls: [] })
     await expect(injected.unbindRemoteDevice('dev-1')).resolves.toEqual({ enabled: true, urls: [], devices: [] })
+    await expect(injected.renameRemoteDevice('dev-1', 'Pixel 8')).resolves.toEqual({ enabled: true, urls: [], devices: [] })
     await b.ctx.fiber.dispose()
   })
 
@@ -71,6 +73,7 @@ describe('ui-settings-remote browser plugin', () => {
       saveRemote: async () => ({ enabled: false, urls: [] }),
       rotateRemoteToken: async () => ({ enabled: false, urls: [] }),
       unbindRemoteDevice: async () => ({ enabled: false, urls: [], devices: [] }),
+      renameRemoteDevice: async () => ({ enabled: false, urls: [], devices: [] }),
     }
     const fiber = b.ctx.plugin({ inject: [...inject], apply })
     await fiber.await()

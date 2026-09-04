@@ -60,6 +60,7 @@ export function apply(ctx: Context): void {
     saveRemote: patch => shell.saveRemote(patch),
     rotateRemoteToken: () => shell.rotateRemoteToken(),
     unbindRemoteDevice: id => shell.unbindRemoteDevice(id),
+    renameRemoteDevice: (id, name) => shell.renameRemoteDevice(id, name),
   })
 
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({

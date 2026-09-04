@@ -454,6 +454,16 @@ function registerIpc({
     return remote ? remote.snapshot() : null;
   });
 
+  handle('shell:rename-remote-device', HARNESS_ONLY, async (_event, id, name) => {
+    if (!REMOTE_FEATURE_ENABLED) {
+      return parkRemoteSnapshot(remote && typeof remote.snapshot === 'function' ? remote.snapshot() : {});
+    }
+    if (remote && typeof remote.renameDevice === 'function') {
+      return remote.renameDevice(id, name);
+    }
+    return remote ? remote.snapshot() : null;
+  });
+
   // Releases without SHA512SUMS.txt must never install silently: the user
   // explicitly accepts the unverified download or nothing is fetched.
   async function confirmUnverifiedInstall(info) {

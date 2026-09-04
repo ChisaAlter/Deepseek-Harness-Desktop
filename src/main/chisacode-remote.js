@@ -897,6 +897,14 @@ class ChisaCodeRemote extends EventEmitter {
     return this.snapshot();
   }
 
+  renameDevice(id, name) {
+    const store = this.deviceStore();
+    if (store && typeof store.renameDevice === 'function' && id) {
+      store.renameDevice(String(id), String(name ?? ''));
+    }
+    return this.snapshot();
+  }
+
   ensureToken() {
     return '';
   }

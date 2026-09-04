@@ -1047,7 +1047,10 @@ export class VoiceAssistantWebSocketServer {
       return false;
     }
     try {
-      const issued = store.issueDevice("relay-pair", auth.deviceId);
+      // deviceName is the client-reported label from the pairing hello
+      // (append-only, trimmed by the hello schema); legacy clients keep the
+      // generic relay-pair label and can be renamed from the desktop UI.
+      const issued = store.issueDevice(auth.deviceName || "relay-pair", auth.deviceId);
       pending.authenticatedDeviceId = issued.deviceId;
       this.sendToClient(ws, {
         type: "relay_device_auth_result",

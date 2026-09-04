@@ -136,6 +136,9 @@ export class RelayDeviceCredentialStore {
     const now = new Date().toISOString();
     // Replace revoked record with same id if present.
     this.data.devices = this.data.devices.filter((device) => device.deviceId !== deviceId);
+    // Label cap matches DeviceRecordSchema; an overlong persisted label would
+    // make the whole store file fail to parse (and drop every device) on load.
+    const normalizedLabel = label?.trim().slice(0, 120);
     this.data.devices.push({
       deviceId,
       secret: deviceSecret,
@@ -144,10 +147,29 @@ export class RelayDeviceCredentialStore {
       lastUsedAt: now,
       revokedAt: null,
       recentChallengeHashes: [],
-      ...(label ? { label } : {}),
+      ...(normalizedLabel ? { label: normalizedLabel } : {}),
     });
     this.persist();
     return { deviceId, deviceSecret };
+  }
+
+  /**
+   * Rename a bound device's operator label.
+   * @param deviceId Device id
+   * @param label New operator label (trimmed, capped at 120 chars)
+   * @returns true when the device exists un-revoked; an unchanged label is a no-op success
+   */
+  renameDevice(deviceId: string, label: string): boolean {
+    const device = this.getDevice(deviceId);
+    if (!device || device.revokedAt) {
+      return false;
+    }
+    const next = label.trim().slice(0, 120);
+    if (next && device.label !== next) {
+      device.label = next;
+      this.persist();
+    }
+    return true;
   }
 
   /**

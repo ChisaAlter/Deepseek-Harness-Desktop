@@ -83,6 +83,7 @@ describe('ui-settings-remote settings section', () => {
       saveRemote: vi.fn(async () => SNAP),
       rotateRemoteToken: vi.fn(async () => SNAP),
       unbindRemoteDevice: vi.fn(async () => SNAP),
+      renameRemoteDevice: vi.fn(async () => SNAP),
     }
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const section = b.slots.entries('settings.section').find(entry => entry.options.id === 'remote')

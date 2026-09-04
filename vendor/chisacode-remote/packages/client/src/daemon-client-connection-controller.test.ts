@@ -120,6 +120,43 @@ describe("DaemonConnectionController", () => {
     await harness.controller.close();
   });
 
+  it("carries the client-reported device name on the first-pairing relay auth payload", async () => {
+    const transport = createTransportHarness();
+    transport.transport.getRelaySecurityContext = () => ({
+      clientPublicKeyB64: "client-pub",
+      authChallenge: "challenge-1",
+    });
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const controller = new DaemonConnectionController(
+      {
+        url: "ws://test",
+        clientId: "client-1",
+        reconnect: { enabled: false },
+        transportFactory: () => transport.transport,
+        relayDeviceAuth: {
+          version: 1,
+          serverId: "srv_1",
+          deviceId: "dev_phone_1",
+          pairingToken: "token_value_1234567890",
+          deviceName: "iPhone · iOS 18.2",
+        },
+      },
+      logger,
+      { onMessage: vi.fn(), onConnected: vi.fn(), onReset: vi.fn() },
+    );
+    const pending = controller.connect();
+    transport.open();
+    expect(JSON.parse(String(transport.sent[0])).relayDeviceAuth).toMatchObject({
+      version: 1,
+      deviceId: "dev_phone_1",
+      pairingToken: "token_value_1234567890",
+      deviceName: "iPhone · iOS 18.2",
+    });
+    controller.markConnected();
+    await expect(pending).resolves.toBeUndefined();
+    await controller.close();
+  });
+
   it("coalesces liveness probes and resolves them from one pong", async () => {
     const harness = createController();
     await connectController(harness);
