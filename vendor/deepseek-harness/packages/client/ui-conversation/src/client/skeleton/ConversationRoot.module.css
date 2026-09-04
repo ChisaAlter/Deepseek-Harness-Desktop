@@ -373,10 +373,6 @@
      elected overlay are siblings — and custom properties inherit down to
      whichever entry is mounted. */
   --dsh-composer-text-max-height: 336px;
-  /* Solid stop of the wallpaper-mode seat fade (see the html[data-dsh-wallpaper]
-     rules below). Below 100% so the wallpaper still reads through the band the
-     seat paints under the input card and stats strip. */
-  --dsh-composer-seat-wallpaper-solidity: 55%;
 }
 
 /* Active phase: header is ordinary column chrome above the scrollport (not
@@ -439,26 +435,14 @@
   );
 }
 
-/* Wallpaper glass mixes bg-base translucent; the sticky seat keeps its own
-   fade so the transcript never runs into the stats strip and input card. The
-   solid stop is the static canvas color at partial alpha, not 100%: a fully
-   opaque seat painted a dark slab across the whole bottom of the wallpaper,
-   while the card itself already carries an opaque surface token. Transparent
-   theme is the exception: every chrome fill including this seat is 0%. */
-:global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .root[data-phase='active'] .composerSeat {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--dsw-static-neutral-bluish-00) 0%, transparent) 0px,
-    color-mix(in srgb, var(--dsw-static-neutral-bluish-00) var(--dsh-composer-seat-wallpaper-solidity), transparent) 36px
-  );
-}
-
+/* Wallpaper mode paints NO seat fill: any banded fill under the composer read
+   as a cast shadow behind the input box. The card's own surface token plus
+   its resting rim light carry the separation; the transcript scrolls under
+   the transparent seat like it does elsewhere in the glass chrome. Transparent
+   theme stays the same 0% (every chrome fill is 0% there). */
+:global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .root[data-phase='active'] .composerSeat,
 :global(html[data-dsh-wallpaper]:not([data-dsh-transparent]) body[data-ds-dark-theme]) .root[data-phase='active'] .composerSeat {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--dsw-static-neutral-bluish-950) 0%, transparent) 0px,
-    color-mix(in srgb, var(--dsw-static-neutral-bluish-950) var(--dsh-composer-seat-wallpaper-solidity), transparent) 36px
-  );
+  background: transparent;
 }
 
 /* An open @/slash menu (data-trigger-menu, ui-input-trigger) renders inside

@@ -31,7 +31,7 @@ body * {
   --dsw-elevation-prominent:
     var(--dsw-elevation-stroke), 0 3px 8px 0 rgba(0, 0, 0, 0.04), 0 0 20px 0 rgba(0, 0, 0, 0.05);
   --dsw-elevation-soft:
-    var(--dsw-elevation-stroke), 0 4px 16px 0 rgba(0, 0, 0, 0.03), 0 0 24px 0 rgba(0, 0, 0, 0.03);
+    var(--dsw-elevation-stroke), 0 4px 16px 0 rgba(0, 0, 0, 0.02), 0 0 24px 0 rgba(0, 0, 0, 0.02);
 }
 
 body[data-ds-dark-theme] {

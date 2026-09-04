@@ -41,7 +41,7 @@ Terminal, diff, and code blocks keep the baseline monospace / no-wrap rules. Tha
 9. **Spacing is a multiple of 4.** Padding, gap, and column gutters use 4 / 8 / 12 / 14 / 16 / 20 / 24.
 10. **Icons are 16px `currentColor`.** Use `ui-primitives` `ic_ds_*`. Dense title-bar chrome may use 14px. Do not add another icon pack or filled brand-color glyphs.
 11. **Motion animates only opacity and transform.** Durations are `--ds-transition-duration*` (100–200ms, flip 400ms). New dialogs / menus use `usePresence` plus a `motion.css` recipe. Do not animate `backdrop-filter` or large-panel width/height, and do not add an animation library. Inventory and exceptions: [Motion](motion.en.md).
-12. **Shadows are lv1 / lv2 / lv3 only.** Menus and dialogs use `lv3`; composer and floating cards use `lv2`. No `0 18px 40px` slabs.
+12. **Shadows are lv1 / lv2 / lv3 only.** Menus and dialogs use `lv3`; floating cards use `lv2`; the composer carries no outset shadow (the resting rim light plus the hairline carry the separation). No `0 18px 40px` slabs.
 13. **Glass stops at the baseline recipe.** Mask `blur(2px)` (`--dsw-mask-blur`) + `--dsw-alias-bg-mask-*`; raised surfaces `color-mix(..., var(--dsw-alias-glass-opacity), transparent)`. No heavier blur, no shadow on every layer.
 14. **Scrollbars are the shared sheet.** No component-local `::-webkit-scrollbar`.
 15. **Product copy is Chinese; code comments are English.** Do not import VS Code / Material / iOS density or decoration over the baseline Web UI.
@@ -61,7 +61,9 @@ Check against the baseline — the baseline is the pinned Web UI served by a loc
 | Selected row | `--dsw-specific-sidebar-nav-item-active` (accent variant `*-accent`) |
 | Font stack | `--dsw-font-family` (system UI + PingFang / YaHei); code `--ds-font-family-code` |
 
-Layout: `AppFrame` is columns, not a card grid. A closed column is width 0 and paints no divider. The title-bar trailing cluster is 28×28 icon buttons with measured window-control inset — do not draw a second window skin. A surfaces tab keeps its close control **to the right of the title**; do not move it unless the user explicitly asks.
+Layout: `AppFrame` is columns, not a card grid. A closed column is width 0 and paints no divider. The title-bar trailing cluster is 28×28 icon buttons with measured window-control inset — do not draw a second window skin. A surfaces tab keeps its close control **to the right of the title**; do not move it unless the user explicitly asks. The right-column empty-state picker cards (`EmptyState` in `ui-surfaces`) are centered **square tiles**: two columns, inner max-width 320, `aspect-ratio: 1 / 1`, 8px gaps, radius 12, with icon / title / description stacked and centered — not horizontal strips.
+
+Composer: the `InputBar` capsule (radius 22) carries a resting rim light of its own — `inset 0 0 12px 1px rgba(255, 255, 255, 0.25)`, wrapping all four edges and corners evenly (an inset light follows `border-radius` natively; on the light theme white-on-white simply disappears, so no theme branch is written). The card carries no outset shadow — elevation-soft stays off the input bar, and the rim plus the hairline carry the separation; bright wallpaper areas showing through the glass are ambient additions only. The running composer beam stacks on top of this rim; the resting/running hierarchy comes from the traveling filament, not a new palette. Wallpaper mode paints no seat band behind the composer: the input card and stats strip sit directly on the wallpaper — any banded fill reads as a cast shadow cast by the box.
 
 ## Allowed exceptions
 

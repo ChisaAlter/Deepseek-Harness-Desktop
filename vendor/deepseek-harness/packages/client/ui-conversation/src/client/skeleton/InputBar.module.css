@@ -63,14 +63,24 @@
   max-width: var(--dsh-composer-card-max-width);
   padding-top: 10px;
   /* Input stroke: the light neutral (l2, one step above the menus' l1),
-     drawn as the elevation hairline so it costs no layout; the shadow is the
-     soft elevation tier. Fill: the input surface token (elevated in dark). */
+     drawn as the elevation hairline so it costs no layout. Fill: the input
+     surface token (elevated in dark). */
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   border-radius: 22px;
   background: var(--dsw-specific-input-major);
   font-family: var(--dsw-font-family-composer, var(--dsw-font-family));
-  box-shadow: var(--dsw-elevation-soft, var(--dsw-shadow-lv2));
+  /* Resting glow: a self-owned two-part light that follows the 22px radius —
+     an inner rim (inset, hugging the border from inside) plus an outer halo
+     (outset, spilling past the border), so the four corner arcs are wrapped
+     by visible light instead of dying into the wallpaper. No dark shadow:
+     light, not darkness, separates the card from the wallpaper, and
+     white-on-white keeps the light theme unchanged without a theme branch.
+     The send/think beam paints above the inner part inside the card. */
+  box-shadow:
+    inset 0 0 14px 2px rgba(255, 255, 255, 0.4),
+    0 0 30px 8px rgba(255, 255, 255, 0.35),
+    var(--dsw-elevation-stroke);
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
      step); the line height keeps the default 10px leading via the shared px
@@ -202,32 +212,12 @@
   background:
     radial-gradient(ellipse 180px 32px at 74% 100%, rgba(100, 70, 255, 0.42), transparent),
     radial-gradient(ellipse 74px 32px at 94% 0%, rgba(255, 120, 40, 0.38), transparent),
-    radial-gradient(ellipse 60px 35px at 12% 0%, rgba(40, 140, 255, 0.4), transparent),
-    radial-gradient(ellipse 70px 40px at 33% 0%, rgba(255, 50, 100, 0.36), transparent);
-  box-shadow: inset 0 0 9px 1px rgba(255, 255, 255, 0.22);
+    radial-gradient(ellipse 80px 40px at 6% 0%, rgba(40, 140, 255, 0.4), transparent),
+    radial-gradient(ellipse 90px 45px at 20% 0%, rgba(255, 50, 100, 0.36), transparent);
+  box-shadow:
+    inset 0 0 18px 3px rgba(100, 70, 255, 0.28),
+    inset 0 0 42px 10px rgba(255, 50, 100, 0.1);
   clip-path: inset(0 round 22px);
-  -webkit-mask-image: conic-gradient(
-    from var(--dsh-composer-beam-angle),
-    transparent 0%,
-    transparent 30%,
-    rgba(255, 255, 255, 0.12) 36%,
-    #fff 52%,
-    #fff 80%,
-    rgba(255, 255, 255, 0.12) 92%,
-    transparent 96%,
-    transparent 100%
-  );
-  mask-image: conic-gradient(
-    from var(--dsh-composer-beam-angle),
-    transparent 0%,
-    transparent 30%,
-    rgba(255, 255, 255, 0.12) 36%,
-    #fff 52%,
-    #fff 80%,
-    rgba(255, 255, 255, 0.12) 92%,
-    transparent 96%,
-    transparent 100%
-  );
 }
 
 .cardBeam .beamInner {
