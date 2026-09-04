@@ -107,6 +107,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'tsconfig.base.json': '{"paths":{"@deepseek-ai/dsh-host-mcp-servers":[],"@deepseek-ai/dsh-host-skill-inventory":[],"@deepseek-ai/dsh-llm-vision-fallback":[],"@deepseek-ai/dsh-mcp-servers-file":[]}}\n',
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
+      'packages/client/ui-surfaces/src/client/EmptyState.module.css': '.inner { max-width: 320px; }\n.card { aspect-ratio: 1 / 1; }\n',
       'apps/web/tests/models-settings.e2e.ts': "await page.route('**/api/llm.discoverModels', async (route) => {\n",
       'apps/web/tests/composer-resize-dock.e2e.ts': "describe('desktop fork: input.dock panels follow the composer drag width', () => {\n",
       'apps/web/tsconfig.json': '{\n  "exclude": ["tests/composer-resize-dock.e2e.ts"]\n}\n',
@@ -141,6 +142,13 @@ test('assertDesktopForks throws when the header golden regains Session log', (t)
   const goldenPath = path.join(root, ...'apps/web/tests/snapshots/agent-preset-selection/header.expected.md'.split('/'));
   fs.writeFileSync(goldenPath, '- button "Session log"\n');
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /Session log/);
+});
+
+test('assertDesktopForks throws when the empty-state picker reverts to horizontal strips', (t) => {
+  const root = makeFixture(t);
+  const cssPath = path.join(root, ...'packages/client/ui-surfaces/src/client/EmptyState.module.css'.split('/'));
+  fs.writeFileSync(cssPath, '.inner { width: 100%; max-width: 480px; }\n.card { min-height: 64px; }\n');
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /EmptyState\.module\.css no longer contains/);
 });
 
 test('assertDesktopForks throws when transparent theme markers drop', (t) => {

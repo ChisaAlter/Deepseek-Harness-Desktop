@@ -9,7 +9,7 @@
 
 .inner {
   width: 100%;
-  max-width: 480px;
+  max-width: 320px;
 }
 
 .heading {
@@ -40,23 +40,22 @@
 
 .card {
   display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 8px;
-  align-items: center;
-  align-content: center;
-  min-height: 64px;
-  padding: 10px 12px;
+  grid-template-columns: 1fr;
+  row-gap: 4px;
+  place-content: center;
+  justify-items: center;
+  aspect-ratio: 1 / 1;
+  padding: 12px;
   border: none;
   border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
-  text-align: left;
+  text-align: center;
   cursor: pointer;
 }
 
 .cardWrap {
   display: flex;
-  min-height: 64px;
 }
 
 .cardWrap .card {
@@ -89,8 +88,6 @@
 }
 
 .cardDescription {
-  grid-column: 1 / -1;
-  margin-top: 2px;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
