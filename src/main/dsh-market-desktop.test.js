@@ -9,6 +9,7 @@ const {
   DSH_MARKET_PACKAGE,
   DSH_MARKET_INSERT_ID,
   DSH_MARKET_OVERLAY_FILENAME,
+  resolveMarketSourceDir,
   withoutMarketAliases,
   ensureDesktopMarket,
 } = require('./dsh-market-desktop');
@@ -29,6 +30,22 @@ function makeSource(root) {
 function overlayPath(profileDir) {
   return path.join(profileDir, 'desktop-plugins', 'dsh-market', DSH_MARKET_OVERLAY_FILENAME);
 }
+
+test('packaged runtime resolves the market package from flattened node_modules', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-market-runtime-'));
+  try {
+    const packagedDir = path.join(root, 'node_modules', ...DSH_MARKET_PACKAGE.split('/'));
+    fs.mkdirSync(packagedDir, { recursive: true });
+    fs.writeFileSync(path.join(packagedDir, 'package.json'), JSON.stringify({
+      name: DSH_MARKET_PACKAGE,
+      main: './lib/index.js',
+    }), 'utf8');
+
+    assert.equal(resolveMarketSourceDir(root), packagedDir);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('ensureDesktopMarket writes the desktop overlay carrying the package-name insert', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-market-'));

@@ -15,10 +15,19 @@ const DSH_MARKET_ALIASES = ['dshmarket'];
 const DSH_MARKET_INSERT_ID = 'ui-settings-market';
 const DSH_MARKET_OVERLAY_FILENAME = 'desktop-dsh-market.patch.yml';
 
+function resolveMarketSourceDir(root) {
+  const candidates = [
+    path.join(root, 'packages', 'client', 'ui-settings-market'),
+    path.join(root, 'node_modules', DSH_MARKET_DIR),
+  ];
+  return candidates.find((dir) => fs.existsSync(path.join(dir, 'package.json')))
+    || candidates[0];
+}
+
 function defaultSourceDir() {
   try {
     const { harnessRoot } = require('./paths');
-    return path.join(harnessRoot(), 'packages', 'client', 'ui-settings-market');
+    return resolveMarketSourceDir(harnessRoot());
   } catch {
     return path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness', 'packages', 'client', 'ui-settings-market');
   }
@@ -97,6 +106,7 @@ module.exports = {
   DSH_MARKET_ALIASES,
   DSH_MARKET_INSERT_ID,
   DSH_MARKET_OVERLAY_FILENAME,
+  resolveMarketSourceDir,
   withoutMarketAliases,
   ensureDesktopMarket,
   ensureMarketPlugin,
