@@ -84,11 +84,13 @@ export async function serveStatic(
   }
   let body: string | Buffer
   let type: string
+  let index = false
   try {
     if (target === distRoot || target === distIndex) {
       if (!authorizeIndex()) return
       body = await renderIndex()
       type = HTML_MIME
+      index = true
     } else {
       body = await readFile(target)
       type = MIME[extname(target)] ?? 'application/octet-stream'
@@ -101,7 +103,13 @@ export async function serveStatic(
     res.end()
     return
   }
-  res.writeHead(200, { 'content-type': type })
+  // The index document carries the boot graph inline (rev'd bundle URLs): it
+  // must revalidate on every load, or a rebuilt composition keeps serving
+  // under the browser's cached old revs forever while the immutable,
+  // content-addressed bundles answer those old URLs from cache.
+  res.writeHead(200, index
+    ? { 'content-type': type, 'cache-control': 'no-cache' }
+    : { 'content-type': type })
   res.end(body)
 }
 

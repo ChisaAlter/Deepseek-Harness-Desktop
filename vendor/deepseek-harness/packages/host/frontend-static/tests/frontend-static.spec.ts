@@ -158,6 +158,13 @@ describe('real Loader composition', () => {
     untap()
     expect((await request(port, '/', authenticated())).body).not.toContain('__T__')
 
+    // The index carries the boot graph inline; it must never be cacheable so
+    // a rebuilt composition reaches the browser without a cache manual clear.
+    {
+      const r = await fetch(`http://127.0.0.1:${String(port)}/`, authenticated())
+      expect(r.headers.get('cache-control')).toBe('no-cache')
+    }
+
     // A missing configured index follows the same empty-404 contract for both
     // of its public entry paths and for both supported methods.
     await rm(join(root!, 'dist', 'index.html'))
