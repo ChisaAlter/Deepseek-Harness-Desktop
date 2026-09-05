@@ -46,6 +46,7 @@ function isAllowedHostMethod(method) {
 
 /** Chunks are redundant once assistant/message exists; 30k of them blow the 30s E2EE RPC. */
 const HISTORY_DROP_TYPES = new Set(['assistant/chunk']);
+const CATALOG_PROJECTIONS = new Set(['title', 'sessionListMetadata']);
 
 function historyEventType(entry) {
   if (!entry || typeof entry !== 'object') return '';
@@ -55,6 +56,25 @@ function historyEventType(entry) {
 }
 
 function slimHostRpcValue(method, value) {
+  if (method === 'session.list' && value && Array.isArray(value.items)) {
+    return {
+      ...value,
+      items: value.items.map((item) => {
+        const projections = item?.projections;
+        if (!projections?.values || typeof projections.values !== 'object') return item;
+        return {
+          ...item,
+          projections: {
+            ...projections,
+            // Session details are fetched by history when the row is opened.
+            // Sending them for every row exhausts the relay deadline on weak links.
+            values: Object.fromEntries(Object.entries(projections.values)
+              .filter(([key]) => CATALOG_PROJECTIONS.has(key))),
+          },
+        };
+      }),
+    };
+  }
   if (method !== 'session.history' && method !== 'subagent.history') return value;
   if (!value || typeof value !== 'object' || !Array.isArray(value.events)) return value;
   return {

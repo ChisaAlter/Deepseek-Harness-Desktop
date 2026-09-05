@@ -493,6 +493,20 @@ function ok(value) {
 function handleHostRpc(method, payload = {}) {
   const sessions = qa.world.sessions;
   const workspaces = qa.world.workspaces;
+  if (method === 'commands/list') {
+    return ok([
+      { name: 'permission', description: '切换权限', input: { hint: '<id>' } },
+      { name: 'plan', description: '计划模式', input: { hint: 'off' } },
+    ]);
+  }
+  if (method === 'commands/execute') {
+    const { agentId, line } = payload.args || {};
+    const session = findSession(agentId);
+    if (line?.startsWith('/permission ') && session) {
+      session.projections.values.permissionPreset = line.slice('/permission '.length).trim();
+    }
+    return ok({ commandId: String(line || '').split(' ')[0], result: { kind: 'text', text: '' } });
+  }
   if (method === 'host.describe') {
     return ok({ home: '/repo', scratchCwd: '/tmp' });
   }
@@ -708,6 +722,10 @@ function pagedAgents(list, page) {
 }
 
 class DaemonClient {
+  setReconnectEnabled(enabled) { this.reconnectEnabled = enabled; }
+  getConnectionState() { return this.connectionState || { status: 'connected' }; }
+  ensureConnected() { record('ensureConnected', []); }
+  async checkLiveness() { record('checkLiveness', []); }
   constructor(options) {
     this.options = options || {};
     this.handlers = new Map();
@@ -722,6 +740,7 @@ class DaemonClient {
   }
 
   _emitStatus(state) {
+    this.connectionState = state;
     for (const listener of this.statusListeners) {
       listener(state);
     }

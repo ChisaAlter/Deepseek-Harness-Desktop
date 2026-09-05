@@ -31,6 +31,53 @@ test('allowlist includes session/workspace/host browse and excludes privileged m
   assert.equal(HOST_RPC_METHODS.has('session.prompt'), true);
 });
 
+test('session list forwards every row but excludes unused heavyweight projections', async () => {
+  const values = {
+    title: 'A session', modelSelection: { provider: 'p', model: 'm' },
+    permissions: { currentValue: 'workspace-write' }, plan: { active: true },
+    sessionListMetadata: { title: 'A session' },
+    usagePanel: { details: 'x'.repeat(150_000) },
+    contextBreakdown: { text: 'y'.repeat(50_000) },
+  };
+  const items = Array.from({ length: 3 }, (_, index) => ({
+    sessionId: `s-${index}`, cwd: '/repo', running: index === 0,
+    blank: index === 1, parentSessionId: index === 2 ? 's-0' : '',
+    projections: { version: 1, values },
+  }));
+  const result = await forwardHostRpc({
+    origin: 'http://127.0.0.1:3080', method: 'session.list', payload: {},
+    fetchImpl: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      return new Response(JSON.stringify({
+        type: 'server-response', rpcId: request.rpcId,
+        result: { ok: true, value: { items, cursor: 'unchanged' } },
+      }));
+    },
+  });
+  assert.equal(result.value.items.length, items.length);
+  assert.equal(result.value.cursor, 'unchanged');
+  for (const [index, item] of result.value.items.entries()) {
+    assert.deepEqual({ ...item, projections: undefined }, { ...items[index], projections: undefined });
+    assert.deepEqual(Object.keys(item.projections.values).sort(), ['sessionListMetadata', 'title']);
+    assert.equal(item.projections.version, 1);
+    assert.equal(item.projections.values.title, values.title);
+  }
+  assert.ok(JSON.stringify(result.value).length < 3000, 'catalog bandwidth budget exceeded');
+  assert.ok(values.usagePanel.details.length > 0, 'must not mutate the host projections');
+});
+
+test('catalog slimming never strips the open session model, permission or plan details', () => {
+  const projections = { values: {
+    title: 'Session', modelSelection: { next: { provider: 'p', model: 'm' } },
+    permissions: { currentValue: 'workspace-write' }, plan: { active: true },
+  } };
+  const detail = { events: [], projections };
+  assert.equal(slimHostRpcValue('session.history', detail).projections, projections);
+  for (const method of ['session.create', 'session.search', 'session.models']) {
+    assert.equal(slimHostRpcValue(method, detail), detail);
+  }
+});
+
 test('assertLoopbackHarnessOrigin rejects empty, non-http, and non-loopback origins', () => {
   assert.throws(() => assertLoopbackHarnessOrigin(''), /桌面端未启动/);
   assert.throws(() => assertLoopbackHarnessOrigin('https://127.0.0.1:3080'), /loopback/);

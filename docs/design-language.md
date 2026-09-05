@@ -30,6 +30,10 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 ## 强制规则
 
+手机远程连接页沿用既有设备状态行与错误行：首次连接及保存设备重连显示「正在连接电脑…」；失败显示「连接失败」，恢复连接按钮并保留已保存设备。不得在连接中继续显示「等待配对」，不得无期限禁用按钮；已连接后的断线自动重连保持不变。
+
+远程 Web 与 Android 共用连接恢复状态：认证后同步目录期间显示同步状态；目录失败在既有抽屉错误行下提供「重试」，不把失败画成空目录。新配对链接取代旧连接尝试，成功后移除 URL 中的一次性 offer；前后台恢复保留草稿并检查连接、重新同步目录与当前会话。沿用现有控件和状态条，不新增独立皮肤。
+
 远程设置的连接方式使用既有分段选择控件，选项命名为「局域网 / 服务器」（英文 LAN / Server）；默认选择服务器，局域网仅作为手动选项。不改变控件布局、配色或配对协议。
 
 插件市场不额外注入 dshbot 第一方推荐卡；目录来源、卡片原语与通用安装管理保持不变。
@@ -67,7 +71,11 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。右边栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。右栏空态的面板选择卡（`ui-surfaces` 的 `EmptyState`）是居中**方块瓷砖**：两列、内宽上限 320、`aspect-ratio: 1 / 1`、间距 8、圆角 12，图标 / 标题 / 描述垂直堆叠居中；不是横向长条卡。
 
-输入条：`InputBar` 胶囊卡（22 圆角）静止态自带整圈轮廓光——`inset 0 0 12px 1px rgba(255, 255, 255, 0.25)`，四条边与四个圆角均匀包裹（inset 光天然跟随 `border-radius`；浅色主题白上加白自然隐形，不写主题分支）。卡片不带外投影（elevation-soft 不上输入条），分离由轮廓光 + 发丝描边承担；壁纸亮部透过玻璃只做环境叠加，轮廓光才是自有合同。运行态思考炫光（beam）叠加在这圈轮廓光之上，静止/运行的层级靠流光对比，不加新色板。壁纸模式下输入条背后不铺座位暗带：输入卡与统计行直接坐在壁纸上，任何带状填充都会读成输入框投下的阴影。
+输入条：`InputBar` 胶囊卡（22 圆角）静止态自带整圈轮廓光——`inset 0 0 12px 1px rgba(255, 255, 255, 0.25)`，四条边与四个圆角均匀包裹（inset 光天然跟随 `border-radius`；浅色主题白上加白自然隐形，不写主题分支）。卡片不带外投影（elevation-soft 不上输入条），分离由轮廓光 + 发丝描边承担；壁纸亮部透过玻璃只做环境叠加，轮廓光才是自有合同。运行态思考炫光（beam）参照 Libraries.dev Border Beam 的 Rotate / Large / Colorful 层次叠加在这圈轮廓光之上：未滤镜的命中壳在卡边外扩 4px 并继续 `overflow: hidden`，22px stroke / inner 内缩回原卡边，stroke 以 0.6 透明度、inner 以旋转窗口共同形成移动亮区，masked bloom 光源由外层容器以 `blur(8px)` 模糊并以 0.36 透明度进入这圈圆角光晕；4px 小于 composer stack 的 6px 间距，因此不盖住 dock。空会话 Hero 的 workspace / agent-preset 行与输入卡共享实际宽轴：有已保存宽度时读取 `--dsh-composer-resized-width`，否则回退 `--dsh-composer-card-max-width`，整行在 composer stack 内居中，不能留在外层满宽左缘。静止/运行的层级靠流光对比，不加新色板。壁纸模式下输入条背后不铺座位暗带：输入卡与统计行直接坐在壁纸上，任何带状填充都会读成输入框投下的阴影。
+
+思考炫光不是常亮彩色整圈：2px stroke 使用参考实现的旋转 conic 强度窗口，inner 使用同方向的双 conic 窗口，允许尾迹之外透明；移动 filament / bloom 是唯一高亮峰，静态 rim 负责始终完整的四边与四角轮廓。圆角按**整轮经过性**验收：24 个冻结角度内，亮峰必须完整经过四个 22px 圆角弧，经过时与相邻直边连续、没有平切或缺口；同时至少存在暗帧，防止再次退化成整圈等亮霓虹。stroke 保留 `border-radius + 两层 ring mask`，不得叠加第二层 `clip-path` 抗锯齿。
+
+输入卡及其 beam 裁切壳、stroke、inner、bloom 光源明确使用 `corner-shape: round`，不跟随全局 superellipse。各层共用圆弧几何，保证 inset 静止轮廓光可见，并与 inner 的圆弧裁切一致。stroke 升至 2px 以覆盖 100% 缩放下的圆角抗锯齿像素；bloom 光源仍为 1.5px。像素验收必须加载产品全局圆角样式、归一化系统缩放，并额外检查静止轮廓的四角覆盖，不能只检查动态亮峰。
 
 ## 允许的例外
 
@@ -88,9 +96,9 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 ## 桌面启动器
 
-启动器是冷启动闸门窗，不是仪器画布。源文件是 [`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。色表是 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 的基线浅色 `:root` 与深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把 Appearance 壁纸种子写进 `--dsw-alias-*`。禁止 `--boot-*`、`data-boot-theme`，也禁止在 `launcher.css` 里写第二套 `[data-theme]` / `prefers-color-scheme` 色板。
-
 Recovery Board 在既有归因文本位区分会话投影缓存格式错误与用户插件失败；缓存错误提示优先于跳过插件模式状态，不新增面板或操作控件，不建议清空原始会话。
+
+启动器是冷启动闸门窗，不是仪器画布。源文件是 [`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。色表是 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 的基线浅色 `:root` 与深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把 Appearance 壁纸种子写进 `--dsw-alias-*`。禁止 `--boot-*`、`data-boot-theme`，也禁止在 `launcher.css` 里写第二套 `[data-theme]` / `prefers-color-scheme` 色板。
 
 ## 现有偏差（不要再扩散）
 

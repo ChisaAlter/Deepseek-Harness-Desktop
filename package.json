@@ -19,6 +19,7 @@
     "smoke:source": "node scripts/run-source-smoke.mjs",
     "qa:source": "node scripts/run-source-qa.mjs",
     "qa:composer": "node scripts/run-composer-official-qa.mjs",
+    "qa:composer-beam": "electron scripts/run-composer-beam-corners.cjs",
     "qa:remote": "node scripts/prestart-ensure.mjs && node scripts/run-remote-gate-qa.mjs",
     "qa:appendix": "node scripts/run-in-app-appendix-a.mjs",
     "qa:shell": "node scripts/run-shell-p0-qa.mjs",

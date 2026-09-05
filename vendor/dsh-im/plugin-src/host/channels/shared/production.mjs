@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { createTokenConnectionSupervisor } from './connection-supervisor.mjs';
 import { createHarnessCommandExecutor } from '../../harness-command-executor.mjs';
 import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
+import { createHarnessAuthTransport } from '../../harness-auth-transport.mjs';
 import {
   BotWorkspaceStore,
   createBotWorkspaceScope,
@@ -83,8 +84,10 @@ export async function createTokenProductionController(ctx, config, internals, de
     sessionMaintenanceExecutor: internals.sessionMaintenanceExecutor,
     fileIngressExecutor: internals.fileIngressExecutor,
   });
+  const baseUrl = harnessOrigin(ctx.webServer, config.harnessBaseUrl);
   const harness = new ResolvedHarness({
-    baseUrl: harnessOrigin(ctx.webServer, config.harnessBaseUrl),
+    baseUrl,
+    ...createHarnessAuthTransport(ctx, baseUrl),
     workspace: defaultWorkspace,
     autostart: false,
     dshBin: config.dshBin ?? 'dsh',

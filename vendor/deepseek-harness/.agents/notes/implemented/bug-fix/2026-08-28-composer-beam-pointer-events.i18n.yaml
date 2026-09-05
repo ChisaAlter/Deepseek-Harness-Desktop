@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-28-composer-beam-pointer-events.md
-2026-08-28-composer-beam-pointer-events.md: f5391bdb120fd540a412312d7985e8201e9dcc47
-2026-08-28-composer-beam-pointer-events.zh.md: 8f4d9e7d7f68a72158c343abf4fae8290c7ea2e2
+2026-08-28-composer-beam-pointer-events.md: 4e8d451c78beb43e72dad22c15ce3ed3971bd557
+2026-08-28-composer-beam-pointer-events.zh.md: afc1c174594f525f6e92087ef9f4af20849223d3

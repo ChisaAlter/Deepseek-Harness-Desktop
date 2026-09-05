@@ -54,6 +54,20 @@ function watchConnection(client, handlers = {}) {
   });
 }
 
+/** Probe foreground sockets; two failures trigger DaemonClient's reconnect threshold. */
+async function checkForegroundConnection(client) {
+  if (client.getConnectionState().status !== 'connected') {
+    client.ensureConnected();
+    return false;
+  }
+  try {
+    await client.checkLiveness({ timeoutMs: 3000 });
+  } catch {
+    await client.checkLiveness({ timeoutMs: 3000 });
+  }
+  return true;
+}
+
 /**
  * Authoritative resync after a reconnect: re-fetch host session.list +
  * workspace.list and, when a session is open, session.history.
@@ -168,6 +182,7 @@ function createDraftStore(storage, serverId) {
 }
 
 export {
+  checkForegroundConnection,
   connectionPhase,
   watchConnection,
   resyncAfterReconnect,

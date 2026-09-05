@@ -17,6 +17,7 @@ import { createTokenConnectionSupervisor } from '../shared/connection-supervisor
 import { harnessOrigin, pluginPaths } from '../shared/production.mjs';
 import { createHarnessCommandExecutor } from '../../harness-command-executor.mjs';
 import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
+import { createHarnessAuthTransport } from '../../harness-auth-transport.mjs';
 
 export async function createProductionController(ctx, config = {}, internals = {}) {
   if (!ctx?.credentials) throw new TypeError('dsh-im slack requires ctx.credentials');
@@ -61,8 +62,10 @@ export async function createProductionController(ctx, config = {}, internals = {
     sessionMaintenanceExecutor: internals.sessionMaintenanceExecutor,
     fileIngressExecutor: internals.fileIngressExecutor,
   });
+  const baseUrl = harnessOrigin(ctx.webServer, config.harnessBaseUrl);
   const harness = new ResolvedHarness({
-    baseUrl: harnessOrigin(ctx.webServer, config.harnessBaseUrl),
+    baseUrl,
+    ...createHarnessAuthTransport(ctx, baseUrl),
     workspace: defaultWorkspace,
     autostart: false,
     dshBin: config.dshBin ?? 'dsh',

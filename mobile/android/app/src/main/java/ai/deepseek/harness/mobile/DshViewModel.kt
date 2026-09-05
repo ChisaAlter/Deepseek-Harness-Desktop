@@ -16,6 +16,8 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
     var error by mutableStateOf("")
     var webUrl by mutableStateOf("")
         private set
+    var webRequestId by mutableStateOf(0L)
+        private set
     var scheme by mutableStateOf(store.scheme)
 
     val hasRememberedWebApp: Boolean
@@ -52,6 +54,7 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
         // only used to validate and extract the fragment; it is never loaded.
         store.webAppUrl = WEB_APP_URL
         webUrl = "$WEB_APP_URL#offer=${link.url.substringAfter("#offer=")}"
+        webRequestId += 1
         route = Route.Web
     }
 
@@ -77,6 +80,7 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
         if (remembered.isEmpty()) return
         error = ""
         webUrl = remembered
+        webRequestId += 1
         route = Route.Web
     }
 

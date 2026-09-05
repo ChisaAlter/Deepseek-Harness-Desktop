@@ -44,6 +44,10 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 
 常驻 composer 在无 Session 与有 Session 之间保持挂载。无 Session 时，同一个编辑器表面保持 inert，Workspace picker 连接 blank Session。该表面是 shell 所有的 Lexical 编辑器：引用 chip 是携带 owner 序列化身份的原子 decorator 节点（提交时经 owner codec 展开），已认领的 slash command 保持为带样式的行首文本，文件夹文本引用以图标前缀携带文件夹图形，草稿的剪贴板投影镜像到逐 Session Conversation store。Queue 操作通过 scoped `ctx.conversation` service 寻址准确的 queue occurrence；queue 预览经 `ui-primitives` 的共享行内引用投影渲染已发送文本（wire 会话形式折叠为其标签），并把本地图片预览或持久化图片部分显示为缩略图，编辑态则展示字面发送文本。持久化缩略图通过会话图片 URL 缓存解析。繁忙时 Enter 行为保存在 Host-backed `ui-conversation` settings namespace。
 
+空会话 Hero 的 workspace 与 agent-preset 行跟随输入卡的实际宽度。有已保存宽度时，其上限读取 `--dsh-composer-resized-width`，否则读取 `--dsh-composer-card-max-width`；整行在更宽的 Hero stack 内居中，因此恢复窄卡时这些控件不会留在 stack 左缘。
+
+运行态边光位于卡片正文后方的未滤镜、pointer-inert 包装层内。4px 圆角裁切壳把 bloom 限制在 6px composer stack 间距内；stroke 与 inner light 对齐 22px 卡边，外层滤镜容器模糊内部 masked 光源且不覆盖 dock 内容。参照 Libraries.dev Rotate，2px stroke 以 0.6 透明度经过旋转 conic 强度窗口，inner light 共享同方向双 conic 窗口，`blur(8px)` bloom 使用 0.36 透明度。静态 rim 始终定义完整胶囊；彩色 beam 自身带透明尾迹，但亮峰必须无重复 stroke `clip-path` 地完整扫过每个圆角。
+
 默认发送采用乐观提交：Enter 在同一事务里清空草稿、occurrence 表和撤销历史，composer 保持 `plain`，发送作为 detached attempt 运行，发送期间可以继续输入和提交。`sendSession` 在序列化之前用投递模式注册 Session 提交回显（`session.beginSubmission`）；Session 根据该模式与当前运行状态推导位置，因此空闲发送进入 transcript，繁忙时 Queue 进入 QueueDock，繁忙时 Steer 进入 pending-steering 区域。随后让出一帧，图片经浏览器原生 `FileReader` data-URL 路径编码。多个并发发送失败时，在用户编辑还原内容之前按提交顺序合并还原；命令提交保持冻结的 `submitting` 阶段。Detached attempt 持有图片 id，直到 admission 完成或 Session scope 销毁。回显以 observed 退休时，durable 图片缓存立即公开预览 URL，同时读取 admitted 附件，随后用规范化 URL 替换预览，并在两个 URL 各自停止使用后撤销。直接 subagent continuation 不创建本地回显，因为其 transport 不保留浏览器 request id。
 
 普通 composer 运行时，如果草稿为空或输入不可用，主指针操作保持为 Stop。可提交的文字或附件会把同一位置切换为 Queue Send；清空或成功提交草稿后恢复 Stop。繁忙态 Enter 设置继续选择 Queue 或 Steer 键盘操作。可继续 subagent 保留独立的 Send 与 Stop 操作（[决策](../../../.agents/notes/implemented/bug-fix/2026-08-20-running-draft-primary-send.zh.md)）。

@@ -68,18 +68,15 @@
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
   border-radius: 22px;
+  /* Circular corners preserve the inset rim under the global corner sheet. */
+  corner-shape: round;
   background: var(--dsw-specific-input-major);
   font-family: var(--dsw-font-family-composer, var(--dsw-font-family));
-  /* Resting glow: a self-owned two-part light that follows the 22px radius —
-     an inner rim (inset, hugging the border from inside) plus an outer halo
-     (outset, spilling past the border), so the four corner arcs are wrapped
-     by visible light instead of dying into the wallpaper. No dark shadow:
-     light, not darkness, separates the card from the wallpaper, and
-     white-on-white keeps the light theme unchanged without a theme branch.
-     The send/think beam paints above the inner part inside the card. */
+  /* Resting rim follows the 22px radius from inside. White-on-white leaves the
+     light theme unchanged without a theme branch; the running beam owns the
+     only exterior halo. */
   box-shadow:
-    inset 0 0 14px 2px rgba(255, 255, 255, 0.4),
-    0 0 30px 8px rgba(255, 255, 255, 0.35),
+    inset 0 0 12px 1px rgba(255, 255, 255, 0.25),
     var(--dsw-elevation-stroke);
   /* The draft text follows the Settings font-size preference (the textarea,
      mirror, and backdrop all inherit from here, so the three layers stay in
@@ -99,8 +96,8 @@
 /* Border beam (Beam / jakubantalik): a traveling colorful filament on the
    composer capsule while send / think / stream is live. The unfiltered
    .beamLayer wrapper is pointer-inert so Chromium compositor hit-testing
-   cannot land on the filtered bloom; .cardBody stacks above it so the draft
-   and toolbar remain the paint-order targets. */
+   cannot land on the filtered bloom; its 4px shell stays inside the 6px stack
+   gap. .cardBody stacks above it so the draft and toolbar remain targets. */
 @property --dsh-composer-beam-angle {
   syntax: '<angle>';
   inherits: true;
@@ -109,10 +106,11 @@
 
 .beamLayer {
   position: absolute;
-  inset: 0;
+  inset: -4px;
   z-index: 0;
   overflow: hidden;
-  border-radius: inherit;
+  border-radius: 26px;
+  corner-shape: round;
   pointer-events: none;
 }
 
@@ -129,11 +127,16 @@
 .beamStroke,
 .beamBloom {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
   pointer-events: none;
   opacity: 0;
   transition: opacity 420ms ease;
+}
+
+.beamInner,
+.beamStroke {
+  inset: 4px;
+  border-radius: 22px;
+  corner-shape: round;
 }
 
 .cardBeam {
@@ -141,21 +144,21 @@
 }
 
 .cardBeam .beamStroke {
-  opacity: 1;
+  opacity: 0.6;
   animation: dsh-composer-beam-hue 12s ease-in-out infinite;
 }
 
 .beamStroke {
   z-index: 3;
-  padding: 1.5px;
+  padding: 2px;
   background:
     conic-gradient(
       from var(--dsh-composer-beam-angle),
       transparent 0%,
       transparent 54%,
-      rgba(255, 255, 255, 0.12) 58%,
-      rgba(255, 255, 255, 0.55) 64%,
-      rgba(255, 255, 255, 0.2) 70%,
+      rgba(255, 255, 255, 0.06) 58%,
+      rgba(255, 255, 255, 0.5) 64%,
+      rgba(255, 255, 255, 0.15) 70%,
       transparent 76%,
       transparent 100%
     ),
@@ -170,18 +173,17 @@
       rgb(240, 50, 180),
       rgb(255, 50, 100)
     );
-  clip-path: inset(0 round 22px);
   -webkit-mask:
     conic-gradient(
       from var(--dsh-composer-beam-angle),
       transparent 0%,
       transparent 30%,
-      rgba(255, 255, 255, 0.12) 36%,
-      rgba(255, 255, 255, 0.4) 44%,
+      rgba(255, 255, 255, 0.1) 36%,
+      rgba(255, 255, 255, 0.35) 44%,
       #fff 52%,
       #fff 80%,
-      rgba(255, 255, 255, 0.4) 86%,
-      rgba(255, 255, 255, 0.12) 92%,
+      rgba(255, 255, 255, 0.35) 86%,
+      rgba(255, 255, 255, 0.1) 92%,
       transparent 96%,
       transparent 100%
     ),
@@ -193,12 +195,12 @@
       from var(--dsh-composer-beam-angle),
       transparent 0%,
       transparent 30%,
-      rgba(255, 255, 255, 0.12) 36%,
-      rgba(255, 255, 255, 0.4) 44%,
+      rgba(255, 255, 255, 0.1) 36%,
+      rgba(255, 255, 255, 0.35) 44%,
       #fff 52%,
       #fff 80%,
-      rgba(255, 255, 255, 0.4) 86%,
-      rgba(255, 255, 255, 0.12) 92%,
+      rgba(255, 255, 255, 0.35) 86%,
+      rgba(255, 255, 255, 0.1) 92%,
       transparent 96%,
       transparent 100%
     ),
@@ -218,6 +220,62 @@
     inset 0 0 18px 3px rgba(100, 70, 255, 0.28),
     inset 0 0 42px 10px rgba(255, 50, 100, 0.1);
   clip-path: inset(0 round 22px);
+  -webkit-mask:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 10%,
+      rgba(255, 255, 255, 0.08) 18%,
+      rgba(255, 255, 255, 0.25) 30%,
+      rgba(255, 255, 255, 0.7) 44%,
+      #fff 56%,
+      #fff 72%,
+      rgba(255, 255, 255, 0.65) 80%,
+      rgba(255, 255, 255, 0.2) 84%,
+      transparent 88%,
+      transparent 100%
+    ),
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0.5) 62%,
+      #fff 72%,
+      #fff 82%,
+      rgba(255, 255, 255, 0.3) 88%,
+      transparent 94%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-over;
+  mask:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 10%,
+      rgba(255, 255, 255, 0.08) 18%,
+      rgba(255, 255, 255, 0.25) 30%,
+      rgba(255, 255, 255, 0.7) 44%,
+      #fff 56%,
+      #fff 72%,
+      rgba(255, 255, 255, 0.65) 80%,
+      rgba(255, 255, 255, 0.2) 84%,
+      transparent 88%,
+      transparent 100%
+    ),
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0.5) 62%,
+      #fff 72%,
+      #fff 82%,
+      rgba(255, 255, 255, 0.3) 88%,
+      transparent 94%,
+      transparent 100%
+    );
+  mask-composite: add;
 }
 
 .cardBeam .beamInner {
@@ -226,8 +284,18 @@
 }
 
 .beamBloom {
+  inset: 0;
   z-index: 2;
+  filter: blur(8px) brightness(1.3) saturate(1.2);
+}
+
+.beamBloom::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
   padding: 1.5px;
+  border-radius: 22px;
+  corner-shape: round;
   background: conic-gradient(
     from var(--dsh-composer-beam-angle),
     transparent 0%,
@@ -239,16 +307,14 @@
     transparent 82%,
     transparent 100%
   );
-  clip-path: inset(0 round 22px);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask-composite: exclude;
-  filter: blur(8px) brightness(1.3) saturate(1.2);
 }
 
 .cardBeam .beamBloom {
-  opacity: 0.28;
+  opacity: 0.36;
   animation: dsh-composer-beam-hue-bloom 12s ease-in-out infinite;
 }
 

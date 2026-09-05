@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `remote-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — 连接文案改为服务器；配置、快照和配对地址默认 relay，保留显式 LAN；宿主测试 52 通过 / 1 跳过，远程 UI 测试 45 通过。安装版文案需随下一次更新交付。 |
+| **last verified** | 2026-09-05 — 仅 IM 九渠 + AI Office：认证、Typert 协议兼容、回复/审批/问答/停止和 Windows 飞书构建修复，19 项 IM 测试 + 6 项桌面装配测试通过，含隔离真实 Harness。插件和 Windows 目录构建成功，打包插件导入及源码一致性检查通过。各平台真实账号绑定/收发待用户实测；本轮不改变手机配对或网关。 |
 
 ## User paths
 
@@ -15,6 +15,9 @@
 3. 侧栏底部手机图标打开配对弹窗：开关 → 中继状态；中继已连接才显示扫码二维码 / 复制链接 / 刷新配对码 → 已配对设备 / 重命名 / 解除配对。
 
 ## Invariants
+
+- 全部 IM 渠道访问同进程本机 Harness 时通过 `harness-auth-transport.mjs` 复用 `connection.authenticatedUrl` / `authorizeIndex` 换取 Cookie，覆盖 HTTP 与事件 WebSocket；不读取签名密钥、不取消鉴权、不向自定义外部地址或重定向发送本机凭据。旧版无认证 API 保持原行为。
+- 检测到 `typertGateway.wireStream` 时使用 `harness-modern-transport.mjs`：旧点式 RPC 映射到当前 Remote API；健康检查取 `$events` ready，工作区/历史取真实 baseline/snapshot；prompt 的 `requestId` 保持原 RPC 归属；审批/问答经 `$events/result` 回传，停止不能越过原 IM 会话的所有权。不得只让健康检查变绿、继续调用已移除的接口。飞书 SDK 补丁先归一 CRLF，仍逐个严格检查源码片段。
 
 - 连接方式文案为「局域网 / 服务器」；未设置时默认服务器（内部值 `relay`），局域网仅在明确选择 `lan` 时使用。既有显式选择保留，不自动开启远程。
 
@@ -55,6 +58,7 @@
 
 | Kind | What |
 | --- | --- |
+| IM | `npm --prefix vendor/dsh-im run test:desktop`；`DSH_IM_LIVE_TEST=1 node --test vendor/dsh-im/host-protocol-live.test.mjs`；`node vendor/dsh-im/plugin-src/host/build.mjs`；真实平台账号收发不以模拟测试代替 |
 | Automated | `chisacode-remote.test.js`；`chisacode-daemon-runner.test.js`（runner 协议 + dist-gated 真实 daemon 端到端）；`remote-epipe.test.js`；`stdio-guard.test.js`；`lan.test.js`；dsh-im-desktop / skip-compose；ui-settings-remote specs；`mobile/web/chisacode/session.test.js`（配对 deviceName 上报） |
 | Manual | 中继已连接 → 扫码配对 → sticky 重连 → 解除；Windows 打包机：子进程隔离下配对 + 强杀主进程无孤儿 daemon；dev 机（harness 已构建）：手机端 dsh provider 建会话 |
 

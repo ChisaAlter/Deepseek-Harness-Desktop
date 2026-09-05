@@ -511,13 +511,18 @@
 }
 
 .heroWorkspaceRow {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
+  align-self: center;
   gap: 2px;
+  width: 100%;
+  max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width));
   min-width: 0;
   margin-top: 4px;
-  /* figma drew px 8; nudged +12 so the chip's folder glyph lines up closer to
-     the card's inner controls below. */
+  /* Figma drew px 8; nudged +12 so the folder glyph aligns with the card's
+     inner controls. The row cap above keeps that inset relative to the actual
+     card when a saved narrow width is restored in the Hero. */
   padding-left: 20px;
 }
 

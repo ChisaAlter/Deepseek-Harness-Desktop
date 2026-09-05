@@ -71,6 +71,7 @@ import {
   savedComputerRows,
 } from './chisacode/session.js';
 import {
+  checkForegroundConnection,
   createDraftStore,
   resyncAfterReconnect,
   watchConnection,
@@ -308,20 +309,42 @@ function showError(message) {
 // —— 已保存的电脑（多台 sticky 选择，纯本地状态） —— //
 
 let connectBusy = false;
+let pendingConnect = null;
 
 async function connectSaved(serverId) {
-  if (connectBusy) return;
+  return runInitialConnect(async (signal) => {
+    const api = await loadChisaCodeApi();
+    await finishChisaCodeConnect(await reconnectSticky(api, serverId, { signal }), true, signal);
+  });
+}
+
+async function runInitialConnect(attempt, { replace = false } = {}) {
+  if (connectBusy && !replace) return;
+  pendingConnect?.abort(new Error('连接已被新的配对替换'));
+  const controller = new AbortController();
+  pendingConnect = controller;
+  if (state.chisacode) forceLogout('', { forget: false });
   connectBusy = true;
   renderSavedComputers();
+  el('paste-enter').disabled = true;
+  el('scan-open').disabled = true;
+  deviceLine.textContent = '正在连接电脑…';
   showError('');
   try {
-    const api = await loadChisaCodeApi();
-    await finishChisaCodeConnect(await reconnectSticky(api, serverId), true);
+    await attempt(controller.signal);
   } catch (error) {
-    showError(error?.message || '重连失败');
+    if (pendingConnect !== controller) return;
+    if (state.chisacode) forceLogout('', { forget: false });
+    deviceLine.textContent = '连接失败';
+    showError(`无法连接电脑：${error?.message || '电脑没有响应'}。请确认电脑端远程和中继已连接后重试；配对已撤销时请重新扫码。`);
   } finally {
-    connectBusy = false;
-    renderSavedComputers();
+    if (pendingConnect === controller) {
+      pendingConnect = null;
+      connectBusy = false;
+      el('paste-enter').disabled = false;
+      el('scan-open').disabled = false;
+      renderSavedComputers();
+    }
   }
 }
 
@@ -679,6 +702,10 @@ function renderSessions() {
   const nodes = [];
   if (state.sessionsError) {
     nodes.push(descNode(state.sessionsError));
+    nodes.push(drawerFootButton('重试', {
+      disabled: state.catalogBusy === true,
+      onClick: () => { void runReconnectResync(); },
+    }));
     sessionList.replaceChildren(...nodes);
     return;
   }
@@ -1475,13 +1502,14 @@ function applyHostCatalog({ sessions, workspaces }) {
 }
 
 async function refreshHostCatalog() {
-  const client = state.chisacode?.client;
+  const paired = state.chisacode;
+  const client = paired?.client;
   if (!client) throw new Error('桌面端未启动');
   const [sessions, workspaces] = await Promise.all([
     hostCall(client, 'session.list', {}),
     hostCall(client, 'workspace.list', {}),
   ]);
-  applyHostCatalog({ sessions, workspaces });
+  if (state.chisacode === paired) applyHostCatalog({ sessions, workspaces });
 }
 
 function applyHistoryPayload(payload) {
@@ -1721,7 +1749,7 @@ function pullCurrentHistory() {
   return historyPullInflight;
 }
 
-function forceLogout(message) {
+function forceLogout(message, { forget = true } = {}) {
   const serverId = state.chisacode?.serverId;
   try {
     state.chisacode?.dispose?.();
@@ -1731,8 +1759,10 @@ function forceLogout(message) {
     }
   } catch { /* ignore */ }
   if (state.transport === 'chisacode' && serverId) {
-    clearSecret(serverId);
-    draftStore?.clearAll();
+    if (forget) {
+      clearSecret(serverId);
+      draftStore?.clearAll();
+    }
     // The relay keeps the old registration briefly; a fresh id lets the next
     // pairing in this tab handshake instead of stalling (DEF-REPAIR-INTAB).
     rotateClientId();
@@ -1877,14 +1907,18 @@ function bindChisaCodeEvents(paired) {
 
 async function runReconnectResync() {
   const paired = state.chisacode;
-  if (state.transport !== 'chisacode' || !paired) return;
+  if (state.transport !== 'chisacode' || !paired || paired.resyncing) return;
+  paired.resyncing = true;
+  state.catalogBusy = true;
+  const sessionId = state.sessionId;
+  renderSessions();
   try {
     const { sessions, workspaces, history } = await resyncAfterReconnect(paired.client, {
-      sessionId: state.sessionId,
+      sessionId,
     });
     if (state.chisacode !== paired) return;
     applyHostCatalog({ sessions, workspaces });
-    if (history && state.sessionId) {
+    if (history && state.sessionId === sessionId) {
       applyHistoryPayload(history);
       state.timelineError = '';
       state.timelineLoading = false;
@@ -1895,19 +1929,55 @@ async function runReconnectResync() {
     renderLog({ anchor: 'bottom' });
     renderApproval();
     renderComposer();
+    showBanner('');
+    startLiveFollow();
     setToast('已重新连接并同步');
   } catch (error) {
     if (state.chisacode !== paired) return;
-    showBanner(`重连后同步失败：${error?.message || '电脑没有响应'}`);
+    state.sessionsError = `同步失败：${error?.message || '电脑没有响应'}`;
+    showBanner(state.sessionsError);
+  } finally {
+    paired.resyncing = false;
+    if (state.chisacode === paired) {
+      state.catalogBusy = false;
+      renderSessions();
+    }
   }
 }
 
-async function finishChisaCodeConnect(paired, reconnected) {
+async function resumeRemoteConnection() {
+  const paired = state.chisacode;
+  if (!paired || !state.connected || connectBusy || paired.checkingForeground || paired.getAuthError?.()) return;
+  paired.checkingForeground = true;
+  try {
+    if (await checkForegroundConnection(paired.client)) {
+      if (state.chisacode === paired) await runReconnectResync();
+    }
+  } catch {
+    if (state.chisacode === paired) renderConnBanner();
+  } finally {
+    paired.checkingForeground = false;
+  }
+}
+
+async function finishChisaCodeConnect(paired, reconnected, signal) {
+  if (signal?.aborted) {
+    await paired.client.close();
+    return;
+  }
+  state.chisacode = paired;
+  const closeOnAbort = () => { void paired.client.close().catch(() => {}); };
+  signal?.addEventListener('abort', closeOnAbort, { once: true });
   const disposeEvents = bindChisaCodeEvents(paired);
   const disposeWatch = watchConnection(paired.client, {
     onStatus: (phase) => {
+      if (state.chisacode !== paired) return;
       state.connPhase = phase.phase;
-      state.connLabel = phase.label;
+      state.connLabel = paired.getAuthError?.()?.message || phase.label;
+      if (phase.phase !== 'online') {
+        stopHistoryPoll();
+        stopMux();
+      }
       renderConnBanner();
       renderComposer();
     },
@@ -1932,15 +2002,23 @@ async function finishChisaCodeConnect(paired, reconnected) {
   state.extPane = { mcp: null, skills: null };
   state.hostName = paired.serverId;
   let loadError = '';
+  deviceLine.textContent = '已连接，正在同步会话…';
   try {
     await refreshHostCatalog();
   } catch (error) {
+    if (signal?.aborted || state.chisacode !== paired) return;
     state.sessions = [];
     state.workspaces = { items: [], archivedSessionIds: [] };
     loadError = error?.message?.includes('桌面端未启动')
       ? '桌面端未启动'
       : `无法加载会话：${error?.message || '电脑没有响应'}`;
     state.sessionsError = loadError;
+  } finally {
+    signal?.removeEventListener('abort', closeOnAbort);
+  }
+  if (signal?.aborted || state.chisacode !== paired) return;
+  if (hasOfferFragment(location.hash)) {
+    window.history.replaceState(null, '', `${location.pathname}${location.search}`);
   }
   deviceLine.replaceChildren();
   deviceLine.append(document.createTextNode(`${reconnected ? '已重连' : '已配对'} ${paired.serverId}`));
@@ -1954,21 +2032,13 @@ async function finishChisaCodeConnect(paired, reconnected) {
 }
 
 async function connect(offerUrl) {
-  showError('');
-  if (!hasOfferFragment(offerUrl)) {
-    throw new Error('请使用桌面端扫码配对二维码（dshd offer）');
-  }
-  const api = await loadChisaCodeApi();
-  await finishChisaCodeConnect(await pairFromOfferUrl(api, offerUrl), false);
-}
-
-async function connectSticky() {
-  const serverId = getMostRecentStickyServerId();
-  if (!serverId) {
-    throw new Error('没有已保存的配对；请重新扫码');
-  }
-  const api = await loadChisaCodeApi();
-  await finishChisaCodeConnect(await reconnectSticky(api, serverId), true);
+  return runInitialConnect(async (signal) => {
+    if (!hasOfferFragment(offerUrl)) {
+      throw new Error('请使用桌面端扫码配对二维码（dshd offer）');
+    }
+    const api = await loadChisaCodeApi();
+    await finishChisaCodeConnect(await pairFromOfferUrl(api, offerUrl, { signal }), false, signal);
+  }, { replace: true });
 }
 
 async function openSession(sessionId) {
@@ -5268,6 +5338,18 @@ gitPill.addEventListener('click', () => {
 
 // —— 启动 —— //
 
+window.addEventListener('hashchange', () => {
+  if (hasOfferFragment(location.hash)) void connect(location.href);
+});
+window.addEventListener('online', () => { void resumeRemoteConnection(); });
+window.addEventListener('dshd-resume', () => { void resumeRemoteConnection(); });
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) void resumeRemoteConnection();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void resumeRemoteConnection();
+});
+
 applyAppearance();
 renderComposer();
 renderScreen();
@@ -5278,12 +5360,5 @@ if (hasOfferFragment(window.location.hash)) {
 } else if (listStickyServerIds().length) {
   // Auto-reconnect targets the most recent computer; the connect screen's
   // saved-computer rows stay disabled until this attempt settles.
-  connectBusy = true;
-  renderSavedComputers();
-  connectSticky()
-    .catch((error) => showError(error.message || '重连失败'))
-    .finally(() => {
-      connectBusy = false;
-      if (state.route === 'connect') renderSavedComputers();
-    });
+  void connectSaved(getMostRecentStickyServerId());
 }

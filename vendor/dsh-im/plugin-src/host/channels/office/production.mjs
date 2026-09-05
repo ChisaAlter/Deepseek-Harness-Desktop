@@ -6,6 +6,7 @@ import { OfficeController } from '../../../../src/channels/office/office-control
 import { OfficeRuntime } from '../../../../src/channels/office/office-runtime.mjs';
 import { HarnessClient } from '../../../../src/channels/shared/harness-client.mjs';
 import { harnessOrigin } from '../shared/production.mjs';
+import { createHarnessAuthTransport } from '../../harness-auth-transport.mjs';
 
 export function officePaths(config = {}) {
   const dshHome = resolve(config.dshHome ?? process.env.DSH_HOME ?? join(homedir(), '.dsh'));
@@ -24,6 +25,7 @@ export async function createProductionController(ctx, config = {}, internals = {
   const harnessBaseUrl = harnessOrigin(ctx.webServer, config.harnessBaseUrl);
   const createHarness = internals.createHarness ?? (({ workspace }) => new ResolvedHarness({
     baseUrl: harnessBaseUrl,
+    ...createHarnessAuthTransport(ctx, harnessBaseUrl),
     workspace,
     autostart: false,
     dshBin: config.dshBin ?? 'dsh',

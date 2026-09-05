@@ -80,8 +80,9 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-goal/src/client/GoalBar.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-theme/src/wallpaper.ts', includes: ['TRANSPARENT_ATTR', 'data-dsh-transparent'] },
   { file: 'packages/client/ui-theme/src/styles/wallpaper.css', includes: ['html[data-dsh-transparent]'] },
-  { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])', '.heroWorkspaceRow', 'max-width: var(--dsh-composer-resized-width', 'align-self: center'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx', includes: ['data-composer-beam'] },
+  { file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.module.css', includes: ['.beamBloom::before', 'inset: -4px', 'blur(8px)', '.beamStroke {', 'padding: 2px', 'transparent 30%', '-webkit-mask-composite: source-in, xor', 'mask-composite: intersect, exclude', 'mask-composite: add', 'corner-shape: round'] },
   { file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx', includes: ['data-stats-line'] },
   // No-directory sessions (docs/features/no-directory-sessions.md): the Host
   // advertises the scratch cwd on the Workspace baseline, registering a

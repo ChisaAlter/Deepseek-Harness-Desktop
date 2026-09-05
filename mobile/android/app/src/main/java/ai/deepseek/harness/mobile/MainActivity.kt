@@ -67,7 +67,13 @@ class MainActivity : ComponentActivity() {
         // Cold-start entry from the system camera / a browser link
         // (VIEW http://*:3180). Runs before setContent so the first
         // composition already lands on the pairing WebView.
-        vm.openPairingLink(intent?.action, intent?.dataString)
+        if (savedInstanceState == null) {
+            vm.openPairingLink(intent?.action, intent?.dataString)
+        } else if (vm.route == Route.Web) {
+            // A restored Activity must not replay a consumed one-time offer.
+            vm.reopenWebApp()
+        }
+        if (intent?.action == Intent.ACTION_VIEW) intent.data = null
         setContent {
             val dark = when (vm.scheme) {
                 "dark" -> true
@@ -87,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     )
                     Route.Web -> RemoteWebScreen(
                         url = vm.webUrl,
+                        requestId = vm.webRequestId,
                         chromeClient = webChromeClient,
                         onLeave = vm::leaveWebApp,
                         onLoadError = {
@@ -120,6 +127,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         vm.openPairingLink(intent.action, intent.dataString)
+        if (intent.action == Intent.ACTION_VIEW) intent.data = null
     }
 
     private fun requestScan() {

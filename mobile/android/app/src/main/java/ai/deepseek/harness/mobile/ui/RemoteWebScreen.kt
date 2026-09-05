@@ -10,6 +10,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.RenderProcessGoneDetail
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,17 +23,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.io.ByteArrayInputStream
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun RemoteWebScreen(
     url: String,
+    requestId: Long,
     chromeClient: WebChromeClient,
     onLeave: () -> Unit,
     onLoadError: (String) -> Unit,
     onOpenExternal: (Uri) -> Unit,
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val appOrigin = remember(url) { Uri.parse(url).origin() }
     val assetLoader = remember {
         WebViewAssetLoader.Builder()
@@ -47,16 +54,37 @@ fun RemoteWebScreen(
             settings.allowContentAccess = true
             settings.mediaPlaybackRequiresUserGesture = true
             settings.setSupportMultipleWindows(false)
-            // The SPA is served from the HTTPS asset origin (crypto.subtle for
-            // the E2EE handshake needs a secure context), but the product
-            // relay is plain ws://<host>:8411 and a LAN desktop is plain http.
-            // Chromium classifies both as blockable mixed content and would
-            // silently drop the socket, leaving a blank page. The relay hop is
-            // already end-to-end encrypted at the DaemonClient layer, so
-            // allowing mixed content here does not weaken the channel.
+            // Local HTTPS assets must reach the configured plain-WS relay.
+            // DaemonClient encrypts the relay payload; this setting itself
+            // does not provide transport security for other HTTP resources.
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.userAgentString = "${settings.userAgentString} DshAndroid/2"
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, false)
+        }
+    }
+    val navigation = remember(webView) { RemoteWebNavigation() }
+
+    DisposableEffect(webView, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    webView.onResume()
+                    webView.evaluateJavascript("window.dispatchEvent(new Event('dshd-resume'))", null)
+                }
+                Lifecycle.Event.ON_PAUSE -> webView.onPause()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(webView) {
+        onDispose {
+            webView.stopLoading()
+            webView.webChromeClient = null
+            webView.webViewClient = WebViewClient()
+            webView.destroy()
         }
     }
 
@@ -66,9 +94,14 @@ fun RemoteWebScreen(
             override fun shouldInterceptRequest(
                 view: WebView,
                 request: WebResourceRequest,
-            ): WebResourceResponse? =
-                assetLoader.shouldInterceptRequest(request.url)
-                    ?: super.shouldInterceptRequest(view, request)
+            ): WebResourceResponse? {
+                val asset = assetLoader.shouldInterceptRequest(request.url)
+                if (asset != null) return asset
+                if (request.url.origin() == appOrigin) {
+                    return WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+                }
+                return super.shouldInterceptRequest(view, request)
+            }
 
             override fun shouldOverrideUrlLoading(
                 view: WebView,
@@ -88,16 +121,21 @@ fun RemoteWebScreen(
                 error: WebResourceError,
             ) {
                 if (request.isForMainFrame) {
-                    onLoadError("无法打开电脑上的手机页：${error.description}")
+                    onLoadError("无法加载内置手机页：${error.description}")
                 }
             }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                if (request.isForMainFrame) onLoadError("内置手机页加载失败（${response.statusCode}）")
+            }
+
+            override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                onLoadError("手机页面已停止，请重新打开；已保存的配对仍保留")
+                return true
+            }
         }
-        onDispose {
-            webView.stopLoading()
-            webView.webChromeClient = null
-            webView.webViewClient = WebViewClient()
-            webView.destroy()
-        }
+        // The WebView lifetime effect owns cleanup, including destruction.
+        onDispose { }
     }
 
     BackHandler {
@@ -109,16 +147,18 @@ fun RemoteWebScreen(
     }
 
     AndroidView(
-        factory = {
-            webView.apply { loadUrl(url) }
-        },
+        factory = { webView },
         update = { view ->
             // A warm singleTask Activity receives a new scan through
             // MainActivity.onNewIntent. The ViewModel URL changes while the
             // same WebView instance remains mounted; only checking for an
             // empty URL leaves the old offer (or the blank landing page)
             // visible and never starts the new pairing handshake.
-            if (view.url != url) view.loadUrl(url)
+            when (navigation.next(requestId, view.url, url)) {
+                WebNavigationAction.Load -> view.loadUrl(url)
+                WebNavigationAction.Reload -> view.reload()
+                WebNavigationAction.None -> Unit
+            }
         },
         modifier = Modifier
             .fillMaxSize()

@@ -1,11 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  checkForegroundConnection,
   connectionPhase,
   createDraftStore,
   resyncAfterReconnect,
   watchConnection,
 } from './controller.js';
+
+test('foreground recovery probes stale sockets twice so the client reconnects', async () => {
+  let probes = 0;
+  await assert.rejects(checkForegroundConnection({
+    getConnectionState: () => ({ status: 'connected' }),
+    async checkLiveness({ timeoutMs }) {
+      assert.equal(timeoutMs, 3000);
+      probes += 1;
+      throw new Error('stale socket');
+    },
+  }), /stale socket/);
+  assert.equal(probes, 2);
+});
+
+test('foreground recovery preserves a live socket and resumes a disconnected client', async () => {
+  assert.equal(await checkForegroundConnection({
+    getConnectionState: () => ({ status: 'connected' }),
+    async checkLiveness() {},
+  }), true);
+  let resumed = 0;
+  assert.equal(await checkForegroundConnection({
+    getConnectionState: () => ({ status: 'disconnected' }),
+    ensureConnected() { resumed += 1; },
+  }), false);
+  assert.equal(resumed, 1);
+});
 
 function fakeConnectionClient(initialState) {
   const listeners = new Set();

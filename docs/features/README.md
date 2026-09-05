@@ -57,7 +57,8 @@ Gate: <卡上 gates>
 | [no-directory-sessions](no-directory-sessions.md) | 「无工作目录」会话（Host scratch cwd）；删除工作区即隐藏其会话，重新添加目录才回来 | vendor `workspace` / `api/workspace-controller` / `ui-workspace` / `ui-conversation` | vendor client+host specs + 桌面 marker 单测 |
 | [git-titlebar](git-titlebar.md) | 标题栏分支/提交/推拉；登记工作区即授权 | `git.js` / workspace-authority | TC-WS-006、TC-GIT-001…007 |
 | [usage-stats](usage-stats.md) | 设置内跨会话 Token 用量；预置改版 dsh-usage-panel | `usage-panel-preset` / vendor 插件 | TC-EXT-008 |
-| [composer-family-width](composer-family-width.md) | 拖动输入卡改宽时统计行/Dock 卡联动跟随 | vendor ui-chat / ui-conversation / ui-goal CSS | vendor vitest + 桌面 marker 单测 |
+| [composer-beam](composer-beam.md) | 运行态输入卡四角连续边光，4px 裁切壳不覆盖 dock | vendor ui-conversation InputBar | vendor focused CSS + Chromium 像素复现 |
+| [composer-family-width](composer-family-width.md) | 输入卡改宽时统计行、Dock 卡与空会话 Hero 控件联动跟随 | vendor ui-chat / ui-conversation / ui-goal CSS | vendor vitest + 桌面 marker 单测 + 实机坐标 |
 | [composer-stats-peak-valley](composer-stats-peak-valley.md) | 会话统计/峰谷行与输入卡宽度对齐；官方峰谷时状态条与开关 | vendor `ui-conversation` / `ui-model-selection` | vendor client specs（peak-valley / chat-apply / host） |
 | [message-edit](message-edit.md) | 最新用户消息就地编辑并重发；fork-beforeSeq 子会话 | vendor `ui-message-edit` | vendor client spec + test:gui |
 | [windows-installer](windows-installer.md) | NSIS 品牌化安装器；`/S` 静默与 artifact 名不变 | `build.nsis` / `build/installer.nsh` | installer-branding 单测；TC-INST-001、009、010 |

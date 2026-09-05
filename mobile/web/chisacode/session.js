@@ -221,7 +221,7 @@ function deviceNameFromUa(userAgent) {
  * @param {string} offerUrl
  * @returns {Promise<{ client: import('@chisacode/client').DaemonClient, offer: object, serverId: string }>}
  */
-export async function pairFromOfferUrl(api, offerUrl) {
+export async function pairFromOfferUrl(api, offerUrl, { signal } = {}) {
   let offer;
   try {
     offer = api.parseConnectionOfferFromUrl(offerUrl);
@@ -235,6 +235,10 @@ export async function pairFromOfferUrl(api, offerUrl) {
   const stored = loadSecrets()[offer.serverId];
   const deviceId = stored?.deviceId || api.createRelayDeviceId();
   const pairingToken = offer.authBootstrap?.pairingToken;
+  const expiresAt = offer.authBootstrap?.expiresAtMs;
+  if (pairingToken && Number.isFinite(expiresAt) && expiresAt <= Date.now()) {
+    throw new Error('配对码已过期，请在电脑端刷新配对码后重新扫码');
+  }
   const relayEndpoint = offer.relay?.endpoint;
   if (!relayEndpoint) {
     throw new Error('配对 offer 缺少中继主机');
@@ -272,6 +276,7 @@ export async function pairFromOfferUrl(api, offerUrl) {
     serverId: offer.serverId,
   });
 
+  let authError = null;
   const client = new api.DaemonClient({
     clientId: clientId(),
     clientType: 'mobile',
@@ -281,23 +286,36 @@ export async function pairFromOfferUrl(api, offerUrl) {
       daemonPublicKeyB64: offer.daemonPublicKeyB64,
     },
     relayDeviceAuth,
-    reconnect: { enabled: true },
+    reconnect: { enabled: false },
     onRelayDeviceAuthResult: (result) => {
+      if (result?.ok === false) {
+        authError = new Error('配对授权已失效，请在电脑端刷新配对码后重新扫码');
+        client.setReconnectEnabled(false);
+        return;
+      }
       if (!result?.ok || !result.deviceId || !result.deviceSecret) {
         return;
       }
-      saveSecret(offer.serverId, {
+      // The controller retains this credential record across transports.
+      // Replace the consumed bootstrap before any automatic reconnect.
+      relayDeviceAuth.deviceId = result.deviceId;
+      relayDeviceAuth.deviceSecret = result.deviceSecret;
+      delete relayDeviceAuth.pairingToken;
+      delete relayDeviceAuth.deviceName;
+      try { saveSecret(offer.serverId, {
         deviceId: result.deviceId,
         deviceSecret: result.deviceSecret,
         daemonPublicKeyB64: offer.daemonPublicKeyB64,
         relayEndpoint,
         useTls,
-      });
+      }); } catch {
+        authError = new Error('无法保存配对密钥，请检查浏览器存储权限后重试');
+      }
     },
   });
 
-  await client.connect();
-  return { client, offer, serverId: offer.serverId };
+  await connectInitial(client, signal, () => authError);
+  return { client, offer, serverId: offer.serverId, getAuthError: () => authError };
 }
 
 /**
@@ -305,7 +323,7 @@ export async function pairFromOfferUrl(api, offerUrl) {
  * @param {typeof import('./daemon-client.bundle.js')} api
  * @param {string} serverId
  */
-export async function reconnectSticky(api, serverId) {
+export async function reconnectSticky(api, serverId, { signal } = {}) {
   const stored = loadSecrets()[serverId];
   if (
     !stored?.deviceId
@@ -321,6 +339,7 @@ export async function reconnectSticky(api, serverId) {
     useTls,
     serverId,
   });
+  let authError = null;
   const client = new api.DaemonClient({
     clientId: clientId(),
     clientType: 'mobile',
@@ -335,10 +354,36 @@ export async function reconnectSticky(api, serverId) {
       deviceId: stored.deviceId,
       deviceSecret: stored.deviceSecret,
     },
-    reconnect: { enabled: true },
+    reconnect: { enabled: false },
+    onRelayDeviceAuthResult: (result) => {
+      if (result?.ok !== false) return;
+      authError = new Error('这台设备的配对授权已失效，请重新扫码配对');
+      client.setReconnectEnabled(false);
+    },
   });
-  await client.connect();
-  return { client, serverId };
+  await connectInitial(client, signal, () => authError);
+  return { client, serverId, getAuthError: () => authError };
+}
+
+async function connectInitial(client, signal, getAuthError = () => null) {
+  let onAbort;
+  try {
+    if (signal?.aborted) throw signal.reason || new Error('连接已取消');
+    const cancelled = new Promise((_, reject) => {
+      onAbort = () => reject(signal.reason || new Error('连接已取消'));
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
+    // Retry only established sessions; otherwise connect() never rejects on
+    // transport failure and the saved-computer chooser stays locked forever.
+    await Promise.race([client.connect(), cancelled]);
+    if (getAuthError()) throw getAuthError();
+    client.setReconnectEnabled(true);
+  } catch (error) {
+    await client.close();
+    throw getAuthError() || error;
+  } finally {
+    if (onAbort) signal?.removeEventListener('abort', onAbort);
+  }
 }
 
 export {

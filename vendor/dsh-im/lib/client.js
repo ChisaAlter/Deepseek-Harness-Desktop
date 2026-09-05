@@ -128,6 +128,7 @@ var package_default = {
     }
   },
   scripts: {
+    "test:desktop": "node --test *.test.mjs",
     build: "node plugin-src/client/build.mjs && node plugin-src/host/build.mjs",
     test: "node --test test/*.test.mjs test/channels/*/*.test.mjs",
     check: "npm run build && npm test && node scripts/verify-package.mjs"
@@ -143,6 +144,7 @@ var package_default = {
     qrcode: "1.5.4"
   },
   devDependencies: {
+    ws: "8.21.3",
     "@larksuiteoapi/node-sdk": "1.73.0",
     "@whiskeysockets/baileys": "7.0.0-rc14",
     esbuild: "0.25.9",
