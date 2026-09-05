@@ -33,6 +33,7 @@ const {
   isDroppedInstallSpec,
   uninstallPlugin,
   installMarketplacePlugin,
+  isBuildApprovalFailure,
 } = require('./marketplace-install');
 
 const NPM_ID = '13071301808/dsh-composer-expand';
@@ -195,6 +196,18 @@ test('parseAllowBuilds drops path and yaml-like keys', () => {
   "bad:key": false
 `);
   assert.deepEqual(keys, ['good-package']);
+});
+
+test('generic dsh workspace guidance is not build approval without an exact key', () => {
+  const log = `
+GET https://codeload.github.com failed with error (23)
+dsh: pnpm failed in profile directory C:/profile/web
+dsh: add the exact key pnpm printed above under allowBuilds in C:/profile/web/pnpm-workspace.yaml, then re-run
+`;
+  assert.deepEqual(parseAllowBuilds(log), []);
+  assert.equal(isBuildApprovalFailure(1, []), false);
+  assert.equal(isBuildApprovalFailure(1, ['dshbot@git+https://github.com/ChisaAlter/dshbot.git']), true);
+  assert.equal(isBuildApprovalFailure(0, ['dshbot']), false);
 });
 
 test('installPlugin rejects non-github specs before invoking the CLI', async () => {

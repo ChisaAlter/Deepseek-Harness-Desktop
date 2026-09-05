@@ -21,7 +21,18 @@ const {
   parseGithubSpec,
   isAllowedMarketplaceSpec,
 } = require('./marketplace-spec');
-const ALLOW_HINT = /ignored build scripts|allowbuilds|approve-builds|blocked.*prepare|pnpm-workspace\.yaml/i;
+
+/**
+ * The dsh CLI prints the pnpm-workspace.yaml remediation for every failed
+ * git-hosted install, including network and checkout failures. Only an exact
+ * allowBuilds key proves that pnpm actually blocked a prepare script.
+ * @param {number | null} code
+ * @param {string[]} allowBuilds
+ * @returns {boolean}
+ */
+function isBuildApprovalFailure(code, allowBuilds) {
+  return code !== 0 && Array.isArray(allowBuilds) && allowBuilds.length > 0;
+}
 
 function whichAll(command) {
   try {
@@ -186,7 +197,7 @@ function runPlugin(args, onProgress) {
     });
     child.on('exit', (code) => {
       const allowBuilds = parseAllowBuilds(log);
-      const needsAllowBuilds = code !== 0 && (ALLOW_HINT.test(log) || allowBuilds.length > 0);
+      const needsAllowBuilds = isBuildApprovalFailure(code, allowBuilds);
       resolve({
         ok: code === 0,
         code: code ?? 1,
@@ -731,4 +742,5 @@ module.exports = {
   installMarketplacePlugin,
   resolveCli,
   runPlugin,
+  isBuildApprovalFailure,
 };

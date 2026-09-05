@@ -240,7 +240,8 @@ export function MarketSection({
         const item = state.status === 'ready'
           ? state.catalog.items.find(row => row.id === op.id) ?? null
           : null
-        if (item) setAsk({ item, keys: result.allowBuilds ?? [] })
+        const keys = result.allowBuilds ?? []
+        if (item && keys.length > 0) setAsk({ item, keys })
         else setNotice({ kind: 'error', text: t('opFailed', { message: result.error || 'allowBuilds' }) })
       } else {
         setNotice({ kind: 'error', text: t('opFailed', { message: result.error || 'unknown' }) })

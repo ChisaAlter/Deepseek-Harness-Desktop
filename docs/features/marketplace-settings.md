@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `marketplace-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — v0.2.9 候选 run `33932288931` 证明仅增加拍平 `node_modules` fallback 仍不够：市场 overlay 在 `dsh.start()` 解压 packaged Harness 之前生成，因此默认 runtime 路径当时必然不存在。新增 pre-extract 生命周期红测，overlay 生成不再要求默认 sourceDir 已落盘；显式传入错误 sourceDir 仍 fail closed，解压后的统一 `missingDesktopForkPackages` 与 after-pack 门禁继续校验市场包及声明入口。相关市场 / controller / dsh / after-pack / packaged P0 测试 118/118 通过。此前 2026-09-04 — run `33893084322` 首次暴露 `missing-source:package.json`，补齐源码 workspace 与拍平 runtime 两种解析。此前 2026-08-27 — 市场目录、安装治理、离线快照与分页收口，desktop / vendor / source QA 全绿。 |
+| **last verified** | 2026-09-05 — 修复 Git 安装失败被误报为 `needsAllowBuilds` 的问题：只有解析到真实 `allowBuilds` key 才进入授权重试；市场 UI 对空 key 的异常结果不再显示无效的「允许并重试」。桌面安装链路 60/60、市场 UI 30/30 通过。此前：v0.2.9 候选 run `33932288931` 证明仅增加拍平 `node_modules` fallback 仍不够：市场 overlay 在 `dsh.start()` 解压 packaged Harness 之前生成，因此默认 runtime 路径当时必然不存在。新增 pre-extract 生命周期红测，overlay 生成不再要求默认 sourceDir 已落盘；显式传入错误 sourceDir 仍 fail closed，解压后的统一 `missingDesktopForkPackages` 与 after-pack 门禁继续校验市场包及声明入口。相关市场 / controller / dsh / after-pack / packaged P0 测试 118/118 通过。 |
 
 ## User paths
 

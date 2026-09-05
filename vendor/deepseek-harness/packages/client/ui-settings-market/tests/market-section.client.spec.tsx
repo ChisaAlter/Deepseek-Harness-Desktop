@@ -133,6 +133,16 @@ describe('MarketSection', () => {
     await screen.findByText(en.installDone)
   })
 
+  it('does not offer a no-op approval when the failure has no allowBuilds key', async () => {
+    const install = vi.fn(async () => ({ ok: false, needsAllowBuilds: true, allowBuilds: [] }))
+    renderMarket({ install: install as unknown as MarketSectionProps['install'] })
+    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('allowBuilds')
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(install).toHaveBeenCalledTimes(1)
+  })
+
   it('closes the allow-builds ask on cancel without a second install call', async () => {
     const install = vi.fn()
       .mockResolvedValueOnce({ ok: false, needsAllowBuilds: true, allowBuilds: ['demo'] })
