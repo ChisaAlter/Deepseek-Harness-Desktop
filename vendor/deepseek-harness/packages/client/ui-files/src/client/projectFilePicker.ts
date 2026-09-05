@@ -59,9 +59,8 @@ function findMatchIndices(value: string, query: string): number[] | null {
 }
 
 /**
- * Map walked workspace entries to picker rows. Ordering is preserved; this
- * pass filters to files and computes highlight indices with the same query
- * normalization desktop file search applies.
+ * Filter walked workspace files by name or path subsequence before limiting
+ * the rows. Matching entries retain their original order and highlight indices.
  * @param entries - walked files and directories.
  * @param rawQuery - search field text.
  * @param limit - max rows; default 200.
@@ -85,6 +84,7 @@ export function getProjectFilePickerMatches(
     const name = fileName(entry.path)
     const nameMatchIndices = findMatchIndices(name, query)
     const pathMatchIndices = findMatchIndices(entry.path, query)
+    if (nameMatchIndices === null && pathMatchIndices === null) continue
     matches.push({
       name,
       nameMatchIndices: nameMatchIndices ?? [],

@@ -23,13 +23,22 @@ describe('getProjectFilePickerMatches', () => {
     ])
   })
 
-  it('preserves the server result order', () => {
+  it('filters local entries while preserving matching result order', () => {
     expect(pathsForQuery(entries, 'index')).toEqual([
       { name: 'index.ts', path: 'apps/web/src/index.ts' },
       { name: 'index.ts', path: 'packages/shared/src/index.ts' },
-      { name: 'README.md', path: 'README.md' },
-      { name: '.gitignore', path: '.gitignore' },
     ])
+  })
+
+  it('omits unrelated files and returns no rows for an unmatched query', () => {
+    expect(pathsForQuery(entries, 'README')).toEqual([{ name: 'README.md', path: 'README.md' }])
+    expect(pathsForQuery(entries, 'definitely-no-such-file')).toEqual([])
+  })
+
+  it('applies the limit after filtering and keeps path-only matches', () => {
+    expect(getProjectFilePickerMatches(entries, 'README', 1).map(row => row.path)).toEqual(['README.md'])
+    expect(getProjectFilePickerMatches(entries, 'shared', 1).map(row => row.path)).toEqual(['packages/shared/src/index.ts'])
+    expect(getProjectFilePickerMatches(entries, 'README', 0)).toEqual([])
   })
 
   it('supports space-separated path tokens and a result limit', () => {

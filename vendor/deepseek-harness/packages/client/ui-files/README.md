@@ -8,6 +8,8 @@ Workspace root is the current session `cwd` from one `useSessions` read. Listing
 
 The `/client` exports are the plugin body (`apply`/`inject`) plus the contract types only; FilesPanel, FilePreview, and FileTree remain package-internal behind the slot registration.
 
+Search filters the local file list by name or path subsequence before applying the result limit. Nonmatching files are omitted; an empty query keeps file order.
+
 ## Model Experience
 
 None, as the Files surface only reads the workspace for display; nothing here reaches a model request.

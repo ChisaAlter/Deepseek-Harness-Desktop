@@ -709,10 +709,14 @@ describe('FilesPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('README.md')).toBeTruthy()
     })
-    fireEvent.change(screen.getByLabelText('Search files'), { target: { value: 'README' } })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Search files'), { target: { value: 'README' } })
+    })
     await waitFor(() => {
       expect(screen.queryByText('src')).toBeNull()
     })
+    expect(screen.getByRole('button', { name: /README.md/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /index.ts/ })).toBeNull()
     fireEvent.keyDown(screen.getByLabelText('Search files'), { key: 'Escape' })
     await waitFor(() => {
       expect(screen.getByText('src')).toBeTruthy()
