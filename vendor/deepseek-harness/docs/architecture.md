@@ -102,6 +102,8 @@ Details: the [sequence diagram](agent-lifecycle.md), the [tool pipeline](tool-ex
 
 ## Session log
 
+Before dispatch, the optional vision-fallback service substitutes images for text-only routes and logs each description. Request reconstruction uses only those logged descriptions; it never invokes an auxiliary model. Completed tool-call identities are validated before `assistant/message` or execution; malformed responses enter request recovery while raw chunks remain available for diagnosis.
+
 The session log is the source of the context the model sees. `deriveMessages()` projects model history from it, and raw `assistant/chunk` events preserve replay and UI fidelity. Fork, resume, transcripts, telemetry, and persistence all derive from this stream.
 
 **Model-visible means logged.** Anything that reaches a model request must be reconstructable from the log, and a runtime invariant asserts it. This is why a new model-visible input requires a new session event: extend `SessionEventMap` and render from the log.

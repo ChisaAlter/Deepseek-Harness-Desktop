@@ -4916,6 +4916,9 @@ importers:
       '@deepseek-ai/dsh-llm':
         specifier: workspace:^
         version: link:../../llm/llm
+      '@deepseek-ai/dsh-llm-vision-fallback':
+        specifier: workspace:^
+        version: link:../../llm/llm-vision-fallback
       '@deepseek-ai/dsh-scope':
         specifier: workspace:^
         version: link:../scope

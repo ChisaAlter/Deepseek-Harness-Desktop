@@ -23,7 +23,7 @@ import type { ContentBlock, GenerateOptions, ImageBlock, Message } from '@deepse
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-settings'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
-import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { finishError } from './finish-error.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -169,10 +169,37 @@ export class VisionFallback extends Service {
     messages: Message[],
     signal: AbortSignal,
   ): Promise<Message[]> {
+    return this.transformMessages(session, route, messages, signal, true)
+  }
+
+  /**
+   * Rebuild a dispatched request using logged descriptions only; never calls a model.
+   * @param session - log whose descriptions are replayed.
+   * @param route - primary request route.
+   * @param messages - original derived history.
+   * @param signal - cancellation of the model-info read.
+   * @returns the reconstructed request messages.
+   */
+  async replayMessages(
+    session: Session,
+    route: { provider: string; model: string },
+    messages: Message[],
+    signal: AbortSignal,
+  ): Promise<Message[]> {
+    return this.transformMessages(session, route, messages, signal, false)
+  }
+
+  private async transformMessages(
+    session: Session,
+    route: { provider: string; model: string },
+    messages: Message[],
+    signal: AbortSignal,
+    generate: boolean,
+  ): Promise<Message[]> {
     if (!messages.some(message => contentHasImage(message.content))) return messages
     const target = this.selection()
     if (target === undefined) return messages
-    const info = await this.ctx.llm.resolveModelInfo(route.provider, route.model)
+    const info = await this.ctx.llm.resolveModelInfo(route.provider, route.model, signal)
     if (info.inputModalities === undefined || info.inputModalities.includes('image')) return messages
 
     const described = new Map<string, string>()
@@ -186,7 +213,7 @@ export class VisionFallback extends Service {
         out.push(message)
         continue
       }
-      out.push({ ...message, content: await this.substituteBlocks(session, target, message.content, described, signal) })
+      out.push({ ...message, content: await this.substituteBlocks(session, target, message.content, described, signal, generate) })
     }
     return out
   }
@@ -202,11 +229,12 @@ export class VisionFallback extends Service {
     content: readonly ContentBlock[],
     described: Map<string, string>,
     signal: AbortSignal,
+    generate: boolean,
   ): Promise<ContentBlock[]> {
     const blocks: ContentBlock[] = []
     for (const block of content) {
       if (block.type === 'tool-result' && contentHasImage(block.content)) {
-        blocks.push({ ...block, content: await this.substituteBlocks(session, target, block.content, described, signal) })
+        blocks.push({ ...block, content: await this.substituteBlocks(session, target, block.content, described, signal, generate) })
         continue
       }
       if (block.type !== 'image') {
@@ -217,6 +245,7 @@ export class VisionFallback extends Service {
       const attachmentId = String(block.attachment.attachmentId)
       let description = described.get(attachmentId)
       if (description === undefined) {
+        if (!generate) throw new LlmError(`vision-fallback: missing logged description for ${attachmentId}`, 'INVALID_REQUEST')
         description = await this.describe(session, target, block, signal)
         described.set(attachmentId, description)
       }
@@ -253,11 +282,18 @@ export class VisionFallback extends Service {
       signal: callDeadline.signal,
     })
     const assembler = new BlockAssembler()
-    for await (const chunk of this.ctx.llm.stream(options)) {
+    try {
+      for await (const chunk of this.ctx.llm.stream(options)) {
+        callDeadline.signal.throwIfAborted()
+        assembler.push(chunk)
+      }
       callDeadline.signal.throwIfAborted()
-      assembler.push(chunk)
+    } catch (error: unknown) {
+      signal.throwIfAborted()
+      const timeout = timeoutOf(callDeadline.signal, VISION_DESCRIBE_TIMEOUT_CODE)
+      if (timeout !== undefined) throw new LlmError(timeout.message, timeout.code)
+      throw error
     }
-    callDeadline.signal.throwIfAborted()
     const terminalError = finishError(assembler.finish)
     if (terminalError !== undefined) throw terminalError
     const text = assembler.blocks()

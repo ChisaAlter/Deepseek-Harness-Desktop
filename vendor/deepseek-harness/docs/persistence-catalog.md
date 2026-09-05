@@ -1067,7 +1067,7 @@ Source: [`packages/core/session/src/types.ts:287`](../packages/core/session/src/
 'vision/describe': VisionDescribeEventData
 ```
 
-Source: [`packages/llm/llm-vision-fallback/src/index.ts:54`](../packages/llm/llm-vision-fallback/src/index.ts)
+Source: [`packages/llm/llm-vision-fallback/src/index.ts:56`](../packages/llm/llm-vision-fallback/src/index.ts)
 
 ### `web/*`
 

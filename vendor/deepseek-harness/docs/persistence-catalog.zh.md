@@ -1069,7 +1069,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'vision/describe': VisionDescribeEventData
 ```
 
-来源：[`packages/llm/llm-vision-fallback/src/index.ts:54`](../packages/llm/llm-vision-fallback/src/index.ts)
+来源：[`packages/llm/llm-vision-fallback/src/index.ts:56`](../packages/llm/llm-vision-fallback/src/index.ts)
 
 ### `web/*`
 

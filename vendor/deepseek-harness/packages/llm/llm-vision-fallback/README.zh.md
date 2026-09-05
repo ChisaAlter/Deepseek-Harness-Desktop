@@ -3,9 +3,9 @@
 
 由用户指定的视觉模型为图片附件生成描述，使纯文本主模型（例如 DeepSeek）也能处理这些图片。
 
-模型设置页把指定路由保存在 `vision-fallback` 设置命名空间（`provider` + `model`；两者皆缺省即关闭该功能）。apiproxy 准入门在 `ctx.visionFallback.configured()` 为真时，为纯文本主模型放行带图请求；agent 循环在每次派发请求前调用 `ctx.visionFallback.rewriteMessages()`：目的地模型的 `inputModalities` 不含 `'image'` 时，图片块会被替换为由指定视觉模型一次性生成的描述文本。`read_image` 工具的路由门（[`@deepseek-ai/dsh-tool-fs`](../../fs/tool-fs)）同样在服务已配置时为纯文本路由放行，工具读入的图片因此走同一套替换。
+模型设置页把指定路由保存在 `vision-fallback` 设置命名空间（`provider` + `model`；两者皆缺省即关闭该功能）。session-controller 和本地 subagent 准入门在 `ctx.visionFallback.configured()` 为真时，为纯文本主模型放行带图请求；agent 循环在每次派发请求前调用 `ctx.visionFallback.rewriteMessages()`：目的地模型的 `inputModalities` 不含 `'image'` 时，图片块会被替换为由指定视觉模型一次性生成的描述文本。`read_image` 工具的路由门（[`@deepseek-ai/dsh-tool-fs`](../../fs/tool-fs)）同样在服务已配置时为纯文本路由放行，工具读入的图片因此走同一套替换。
 
-每条生成的描述都会在主请求派发前以 `vision/describe` 事件追加进会话日志，因此改写后的请求可从日志完整重建，后续步骤会复用已记录的描述而不是重复描述。
+每条生成的描述都会在主请求派发前以 `vision/describe` 事件追加进会话日志，因此改写后的请求可从日志完整重建，后续步骤会复用已记录的描述而不是重复描述。请求不变量调用 `replayMessages()`，缺少描述时拒绝重建而不调用模型。生成的持久事件词汇包含该事件，支持历史重新加载。
 
 ## 配置
 

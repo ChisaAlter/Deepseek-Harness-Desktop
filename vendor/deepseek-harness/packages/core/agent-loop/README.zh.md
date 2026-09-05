@@ -9,6 +9,8 @@ kind: "package-reference"
 
 ## 概述
 
+已配置的识图回退在主请求派发前运行；重建不变量只重放日志中的描述，不生成新描述。完整工具调用的标识无效时，以 `MALFORMED_RESPONSE` 进入 `agent/request-error`，不会记录 assistant 消息或执行工具。
+
 `dsh-agent-loop` 创建 agent——全新创建或从持久化历史恢复——并运行轮次与步骤生命周期：领取提示词、组装请求、流式接收模型响应、分发工具调用，并把每个结果追加回会话日志。作为默认驱动器，它实现 `dsh-agent` 的 `Agent` 接口并在此注册工厂，因此插件通过 `ctx.agents` 创建与驱动 agent，而不必依赖本包。声明式配置项会在启动时自动启动 agent，`maxParallelToolCalls` 限制同时运行的并行安全工具调用数量。它是 harness 唯一的具象循环——超出「调用模型、运行工具、重复」的所有内容都属于监听事件分类体系的插件。标准组合请选择它作为驱动器；如需替换，请实现 `Agent` 并通过 `ctx.agents` 注册。
 
 ## 目录

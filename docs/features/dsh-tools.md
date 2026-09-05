@@ -4,17 +4,17 @@
 | --- | --- |
 | **id** | `dsh-tools` |
 | **status** | `active` |
-| **last verified** | 2026-08-27 (post-merge closeout re-verification) — merged to `main` via PR #54 (`cac4f790`); on the merged tree vendor `test:gui` is green (412 files / 5409 pass / 1 skip) and desktop `npm test` is 1219 pass / 0 fail; the upstream handoff doc now extracts the diff from the merge commit (source branch deleted). Earlier same day — host TypeScript compilation, 454 focused Harness tests (llm, adapters, agent-loop, session, tools, sqlite persistence), per-file 100% coverage on every changed Harness source file, keyless snapshot suite delta-neutral vs main, and 1,118 desktop tests |；本次 alpha.4：未复活 persistence-sqlite；正式构建与 keyless smoke 通过。
+| **last verified** | 2026-09-05 — 核心集合 173 文件 / 3668 通过 / 3 跳过；追加关键回归 99 通过；宿主构建与新增畸形工具调用 keyless dsh 回放通过。真实 API、安装包、双 SDK 快照与逐文件覆盖率未作本次验收。 |
 
 ## User paths
 
-1. A provider streams a tool call; Harness validates its call id and function name before persisting or executing it.
+1. A provider streams a tool call; Harness validates its call id and function name before committing an assistant message or executing it. Raw chunks remain diagnostic evidence.
 2. A malformed provider response enters the normal model-request recovery path without adding an assistant tool call to session history.
 3. Opening an older poisoned session projects a provider-valid transcript so the next prompt can continue.
 
 ## Invariants
 
-- Tool-call ids are non-empty and names match `[A-Za-z0-9_-]{1,64}` before a call becomes durable or executable.
+- Tool-call ids are non-empty and names match `[A-Za-z0-9_-]{1,64}` before a call becomes a durable assistant message or executable content; raw chunks are retained for diagnosis.
 - Malformed model tool calls use the retry-eligible `MALFORMED_RESPONSE` failure code.
 - Transcript repair changes only the derived provider history; the append-only session log remains untouched.
 - Tool registration enforces the same function-name grammar as streamed calls.
@@ -25,7 +25,7 @@
 - `vendor/deepseek-harness/packages/core/agent-loop/` — pre-persistence request-failure guard and tests.
 - `vendor/deepseek-harness/packages/core/session/` — poisoned-transcript projection repair and tests.
 - `vendor/deepseek-harness/packages/session/session-persistence-sqlite/src/codec.ts` — exact optional-field reconstruction for persisted tool-call chunks.
-- `vendor/deepseek-harness/examples/acp-agent/tests/snapshots/empty-response-retry/session.jsonl` — keyless snapshot fixture recording the default retryable-code set.
+- `vendor/deepseek-harness/snapshots/session/malformed-tool-call-retry/` — current keyless dsh snapshot owner for malformed-call recovery.
 - `vendor/deepseek-harness/packages/core/tools/` — registration validation and tests.
 - `vendor/deepseek-harness/packages/extensions/tool-cordis/src/api-catalog.ts` — generated public type catalog.
 - `vendor/deepseek-harness/.agents/notes/` — Harness decision record.

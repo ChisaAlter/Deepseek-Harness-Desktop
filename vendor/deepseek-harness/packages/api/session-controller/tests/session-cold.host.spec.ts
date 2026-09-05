@@ -61,6 +61,7 @@ describe('sessions.list cold merge', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const root = mkdtempSync(join(tmpdir(), 'dsh-cold-'))
+    await ctx.plugin(AgentRegistry)
     const smallPath = join(root, 'small.log')
     const largePath = join(root, 'large.log')
     writeFileSync(smallPath, 'x'.repeat(1024))
@@ -160,6 +161,7 @@ describe('sessions.list cold merge', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const meta = header('probe-disabled', 100)
+    await ctx.plugin(AgentRegistry)
     const inspect = vi.fn()
     providePersistence(ctx, {
       list: () => Promise.resolve([meta]),
@@ -267,6 +269,7 @@ describe('sessions.list cold merge', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const meta = header('broken-cache', 100)
+    await ctx.plugin(AgentRegistry)
     providePersistence(ctx, {
       list: () => Promise.resolve([meta]),
       locate: () => { throw new Error('location failed') },
@@ -370,6 +373,7 @@ describe('cold history recovery view', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     const sessionId = sid('session-interrupted')
+    await ctx.plugin(AgentRegistry)
     const meta = header(sessionId, 1000)
     const stored: StoredPrefix<never> = {
       meta,

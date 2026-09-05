@@ -8,7 +8,7 @@ import type { LlmFailure, ResolvedRetryPolicy } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { MockAdapter, textResponse } from './mock-adapter.ts'
+import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 async function harness(adapter: MockAdapter): Promise<Context> {
   const ctx = new Context()
@@ -30,6 +30,24 @@ function fail(message: string, code: string): () => never {
 }
 
 describe('agent/request-error', () => {
+  it('retries malformed completed tool calls before persisting an assistant message', async () => {
+    const adapter = new MockAdapter([toolCallResponse('', '', {}), textResponse('recovered')])
+    const ctx = await harness(adapter)
+    const agent = ctx.agentLoop.create(SessionId('malformed-retry'), { provider: 'mock', model: 'mock' })
+    const failures: string[] = []
+    ctx.on('agent/request-error', async ({ failure }) => {
+      failures.push(failure.code)
+      return failures.length === 1 ? { kind: 'retry' } : undefined
+    })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await agent.whenIdle()
+    expect(failures).toEqual(['MALFORMED_RESPONSE'])
+    expect(adapter.requests).toHaveLength(2)
+    const events = agent.session.snapshotEvents()
+    expect(events.filter(event => event.type === 'assistant/message')).toHaveLength(1)
+    expect(events.filter(event => event.type === 'tool/call' || event.type === 'tool/result')).toHaveLength(0)
+    await ctx.fiber.dispose()
+  })
   it('does not offer middleware failures to request recovery', async () => {
     const adapter = new MockAdapter([textResponse('unused')])
     const ctx = await harness(adapter)

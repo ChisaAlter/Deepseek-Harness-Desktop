@@ -1069,7 +1069,7 @@ export class SubagentContinuationManager {
    * text-only projection replaces each image with its stable placeholder.
    * @param agent - the live or freshly materialized child agent.
    * @param signal - caller cancellation bounding the model-info read.
-   * @throws {SubagentError} `MODEL_DOES_NOT_SUPPORT_IMAGES` when the child's resolved model declines image input.
+   * @throws {SubagentError} `MODEL_DOES_NOT_SUPPORT_IMAGES` when the child's resolved model declines image input and no vision fallback is configured.
    */
   private async assertImageCapable(
     agent: Agent,
@@ -1082,7 +1082,8 @@ export class SubagentContinuationManager {
      * to refuse against; delivery then defers to the text-only projection. */
     if (llm === undefined) return
     const info = await llm.resolveModelInfo(provider, model, signal)
-    if (info.inputModalities !== undefined && !info.inputModalities.includes('image')) {
+    const vision = this.ctx.get('visionFallback') as { configured(): boolean } | undefined
+    if (info.inputModalities !== undefined && !info.inputModalities.includes('image') && vision?.configured() !== true) {
       throw new SubagentError(
         `Model "${model}" does not support image input.`,
         'MODEL_DOES_NOT_SUPPORT_IMAGES',

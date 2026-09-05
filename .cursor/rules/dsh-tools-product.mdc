@@ -5,6 +5,6 @@ alwaysApply: true
 
 # Harness tool-call integrity
 
-Tool-call ids are non-empty and function names match `[A-Za-z0-9_-]{1,64}` before persistence or execution. Malformed model tool calls use retry-eligible `MALFORMED_RESPONSE`; transcript repair changes derived provider history only, never the append-only session log. Tool registration enforces the same name grammar.
+Tool-call ids are non-empty and function names match `[A-Za-z0-9_-]{1,64}` before committing an assistant message or executing a tool. Raw chunks remain diagnostic evidence. Malformed model tool calls use retry-eligible `MALFORMED_RESPONSE`; transcript repair changes derived provider history only, never the append-only session log. Tool registration enforces the same name grammar.
 
 Full card: [docs/features/dsh-tools.md](../../docs/features/dsh-tools.md)

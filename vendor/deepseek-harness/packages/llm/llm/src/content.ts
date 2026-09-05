@@ -4,6 +4,38 @@ import type { ContentBlock } from './types.ts'
 import type { Message } from './message.ts'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+import { ToolCallId } from './brand.ts'
+import { HarnessError, MALFORMED_RESPONSE_CODE } from './error.ts'
+
+/** Provider-compatible function-name grammar shared by calls and registrations. */
+export const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+
+/**
+ * Check the identity at the model or durable-history boundary.
+ * @param id - provider call id.
+ * @param name - provider function name.
+ * @returns whether both are valid.
+ */
+export function isValidToolCallIdentity(id: unknown, name: unknown): boolean {
+  return typeof id === 'string' && id.length > 0
+    && typeof name === 'string' && TOOL_NAME_PATTERN.test(name)
+}
+
+/**
+ * Reject an invalid completed provider call without inventing its identity.
+ * @param id - provider call id.
+ * @param name - provider function name.
+ * @returns validated identity.
+ */
+export function requireValidToolCallIdentity(id: unknown, name: unknown): { id: ToolCallId; name: string } {
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new HarnessError('model tool call has an empty or missing call id', MALFORMED_RESPONSE_CODE)
+  }
+  if (typeof name !== 'string' || !TOOL_NAME_PATTERN.test(name)) {
+    throw new HarnessError('model tool call has an invalid function name; expected [A-Za-z0-9_-]{1,64}', MALFORMED_RESPONSE_CODE)
+  }
+  return { id: ToolCallId(id), name }
+}
 
 /** Execution-world path that model tools can use to read one normalized attachment. */
 export interface ImageAttachmentAccess {

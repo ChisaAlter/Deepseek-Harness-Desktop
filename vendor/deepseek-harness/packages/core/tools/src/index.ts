@@ -9,7 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
-import { HarnessError } from '@deepseek-ai/dsh-llm'
+import { HarnessError, TOOL_NAME_PATTERN } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import { assertNever, deepFreeze, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -1027,6 +1027,9 @@ export class ToolRuntime extends Service {
    */
   register(definition: ToolDefinition): () => void {
     const name = definition.name
+    if (typeof name !== 'string' || !TOOL_NAME_PATTERN.test(name)) {
+      throw new TypeError('tool name must match [A-Za-z0-9_-]{1,64}')
+    }
     const output = (definition as Partial<ToolDefinition>).output
     if (output === undefined || typeof output !== 'object'
       || typeof output.render !== 'function'

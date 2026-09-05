@@ -50,6 +50,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-llm-vision-fallback": "workspace:^",
     "@deepseek-ai/cordis": "workspace:^",
     "@deepseek-ai/dsh-agent": "workspace:^",
     "@deepseek-ai/dsh-invariants": "workspace:^",

@@ -19,6 +19,8 @@ import { Inbox, agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
 import {
   BlockAssembler,
+  HarnessError,
+  MALFORMED_RESPONSE_CODE,
   LlmError,
   createAssistantMessage,
   errorChain,
@@ -47,6 +49,11 @@ type Phase =
   | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean }
 
 type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
+
+/** Optional image-to-text service; the loop does not require the vision plugin. */
+interface VisionMessageRewriter {
+  rewriteMessages(session: Session, route: { provider: string; model: string }, messages: Message[], signal: AbortSignal): Promise<Message[]>
+}
 
 type PreparedStep =
   | { kind: 'reject' }
@@ -387,7 +394,16 @@ export class ReactLoopAgent implements Agent {
         }
         throw error
       }
-      const finish = assembler.finish
+      let finish = assembler.finish
+      let blocks: Message['content'] = []
+      if (finish.kind !== 'error' && finish.kind !== 'aborted') {
+        try {
+          blocks = assembler.blocks()
+        } catch (error: unknown) {
+          if (!(error instanceof HarnessError) || error.code !== MALFORMED_RESPONSE_CODE) throw error
+          finish = { kind: 'error', failure: { message: error.message, code: error.code } }
+        }
+      }
       if (finish.kind === 'error' || finish.kind === 'aborted') {
         const action = await this.dispatch.waterfall(
           'agent/request-error', {
@@ -408,7 +424,7 @@ export class ReactLoopAgent implements Agent {
       }
 
       const message = createAssistantMessage({
-        content: assembler.blocks(),
+        content: blocks,
         source: {
           provider: request.provider,
           model: request.model,
@@ -532,9 +548,14 @@ export class ReactLoopAgent implements Agent {
     }
     signal.throwIfAborted()
 
+    const vision = this.loopCtx.get('visionFallback') as VisionMessageRewriter | undefined
+    const requestMessages = vision === undefined ? boundaryMessages : await vision.rewriteMessages(
+      session, { provider: config.provider, model: config.model }, boundaryMessages, signal,
+    )
+    signal.throwIfAborted()
     const request = markAgentLoopRequest(deepFreeze({
       ...header.config,
-      messages: boundaryMessages,
+      messages: requestMessages,
       ...header.system !== undefined ? { system: header.system } : {},
       ...header.tools !== undefined ? { tools: header.tools } : {},
       sessionId: this.session.id,

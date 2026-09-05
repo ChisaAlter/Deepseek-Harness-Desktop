@@ -38,6 +38,12 @@ const echoTool = defineTool({
 })
 
 describe('ToolRuntime', () => {
+  it.each(['', 'bad name', 'x'.repeat(65)])('rejects invalid registered tool name %j', async (name) => {
+    const ctx = await setup()
+    expect(() => ctx.tools.register({ ...echoTool, name })).toThrow(/tool name/)
+    expect(ctx.tools.schemas()).toEqual([])
+    await ctx.fiber.dispose()
+  })
   it('registers tools, exposes schemas, and feeds the system-prompt assembly', async () => {
     const ctx = await setup()
     ctx.tools.register(echoTool)

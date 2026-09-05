@@ -9,7 +9,7 @@
  */
 
 import { brandString } from '@deepseek-ai/dsh-brand'
-import { EMPTY_RESPONSE_CODE, LlmError } from '@deepseek-ai/dsh-llm'
+import { EMPTY_RESPONSE_CODE, LlmError, requireValidToolCallIdentity } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, FinishReason, StreamChunk, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { DONE } from './sse.ts'
 import type { WireChunk, WireUsage } from './types.ts'
@@ -111,6 +111,12 @@ export async function* translate(payloads: AsyncIterable<string>): AsyncGenerato
   for await (const payload of payloads) {
     if (payload === DONE) {
       for (const block of order) {
+        if (block.kind === 'tool-call'
+          && pendingFinish?.kind !== 'max-tokens'
+          && pendingFinish?.kind !== 'error'
+          && pendingFinish?.kind !== 'aborted') {
+          requireValidToolCallIdentity(block.callId, block.name)
+        }
         yield { type: 'block-end', index: block.index, block: closeBlock(block) }
       }
       if (pendingUsage) yield { type: 'usage', usage: pendingUsage }

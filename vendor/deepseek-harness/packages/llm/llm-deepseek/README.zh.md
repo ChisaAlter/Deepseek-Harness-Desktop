@@ -9,6 +9,8 @@ kind: "package-reference"
 
 ## 概述
 
+流成功结束时，畸形工具调用标识产生 `MALFORMED_RESPONSE`。截断、失败或取消流中的部分调用保留原终止语义，不会被提升为有效调用。
+
 `@deepseek-ai/dsh-llm-deepseek` 是 harness LLM 服务的 DeepSeek 直连适配器：它拥有 `deepseek-official` 提供方路由，并把 DeepSeek 的 chat-completions 协议格式翻译为 harness 的流式分片协议。借助它，组合可以流式调用 DeepSeek 模型，支持可配置的 thinking 与推理（reasoning）强度、向视觉模型发送图片，并浏览一份建议性模型目录。连接事实——端点、目录、密钥、thinking 策略——按请求解析，因此编辑用户设置文档即可改变下一个请求，无需重启。它是 DeepSeek 的两个结构不同适配器之一：pi-ai 孪生通过库与更多提供方服务自己的路由名，两者可以并排挂载。
 
 ## 目录

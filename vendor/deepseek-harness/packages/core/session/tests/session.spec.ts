@@ -14,6 +14,32 @@ import SessionStore, {
 import type { CreateSessionOptions, SessionEventType, SessionHeader, SessionSurface } from '@deepseek-ai/dsh-session'
 
 describe('Session', () => {
+  it('removes malformed historical calls and their results only from the model projection', () => {
+    const session = Session.create(SessionId('legacy-malformed'))
+    session.append('assistant/message', {
+      turn: 1, step: 1,
+      message: createMessage({
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'retained' },
+          { type: 'tool-call', id: ToolCallId('bad'), name: '', arguments: '{}' },
+        ],
+        source: { kind: 'model', provider: 'mock', model: 'mock', replayState: { response: 'stale' } },
+      }),
+    }, { surfaceOp: 'append' })
+    session.append('tool/result', {
+      turn: 1, step: 1,
+      message: createToolResultMessage({ callId: ToolCallId('bad'), content: [{ type: 'text', text: 'unknown tool' }], isError: true }),
+    }, { surfaceOp: 'append' })
+    const original = JSON.stringify(session.snapshotEvents())
+    for (const target of [session, Session.create(session.id, session.snapshotEvents())]) {
+      const messages = target.deriveMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.content).toEqual([{ type: 'text', text: 'retained' }])
+      expect(messages[0]?.source).toEqual({ kind: 'model', provider: 'mock', model: 'mock' })
+    }
+    expect(JSON.stringify(session.snapshotEvents())).toBe(original)
+  })
   it('exposes one stable readonly surface view', () => {
     const session = Session.create(SessionId('surface-view'))
     const surface = session.surface

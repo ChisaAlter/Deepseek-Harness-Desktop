@@ -339,7 +339,8 @@ export class SessionCommandController {
         if (hasImage) {
           const current = this.agents.selectionFor(agent).current
           const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
-          if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
+          const vision = this.ctx.get('visionFallback') as { configured(): boolean } | undefined
+          if (model.inputModalities !== undefined && !model.inputModalities.includes('image') && vision?.configured() !== true) {
             throw new RemoteError(
               'session/attachment-invalid',
               `Model "${current.model}" does not support image input.`,

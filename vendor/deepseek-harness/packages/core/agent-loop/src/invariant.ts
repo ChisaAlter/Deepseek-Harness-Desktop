@@ -7,6 +7,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import { isAgentLoopRequest, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 import { foldRequestHeader } from '@deepseek-ai/dsh-session'
+import type { Session } from '@deepseek-ai/dsh-session'
+import type { Message } from '@deepseek-ai/dsh-llm'
+
+interface VisionReplay {
+  replayMessages(session: Session, route: { provider: string; model: string }, messages: Message[], signal: AbortSignal): Promise<Message[]>
+}
 
 const PACKAGE_NAME = '@deepseek-ai/dsh-agent-loop'
 
@@ -36,10 +42,14 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     if (header === undefined) {
       return fail('a loop-built request with no request/header event in its session log')
     }
-    const expected = session.deriveMessages()
-    if (JSON.stringify(options.messages) !== JSON.stringify(expected)) {
-      fail(`llm request for session "${String(session.id)}" diverges from the dispatch-time durable derivation (log-reconstruction desync)`)
+    const vision = ctx.get('visionFallback') as VisionReplay | undefined
+    const derived = session.deriveMessages()
+    const checkMessages = (expected: Message[]) => {
+      if (JSON.stringify(options.messages) !== JSON.stringify(expected)) {
+        fail(`llm request for session "${String(session.id)}" diverges from the dispatch-time durable derivation (log-reconstruction desync)`)
+      }
     }
+    if (vision === undefined) checkMessages(derived)
 
     const headerMatches = options.model === header.config.model
       && options.system === header.system
@@ -50,7 +60,15 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     if (!headerMatches) {
       fail(`llm request for session "${String(session.id)}" diverges from the folded request header`)
     }
-    return next()
+    if (vision === undefined) return next()
+    const signal = options.signal
+    if (signal === undefined) return fail('a vision-rewritten loop request must carry a cancellation signal')
+    return (async function* () {
+      checkMessages(await vision.replayMessages(
+        session, { provider: options.provider, model: options.model }, derived, signal,
+      ))
+      yield* next()
+    })()
   }, { global: true, prepend: true })
 }, { inject: ['sessions'] })
 

@@ -549,6 +549,23 @@ describe('continuable image Queue prompts', () => {
     },
   }
 
+  it('admits an image follow-up for a text child when vision fallback is configured', async () => {
+    const { ctx, parent } = await setup([textResponse('child work'), textResponse('image reply')])
+    const started = await ctx.subagents.startContinuable(startSpec(parent))
+    await waitNoActivation(ctx, started.childId)
+    vi.spyOn(ctx.llm, 'resolveModelInfo').mockResolvedValue({ inputModalities: ['text'] } as never)
+    ctx.provide('visionFallback', {
+      configured: () => true,
+      rewriteMessages: (_session: unknown, _route: unknown, messages: unknown) => Promise.resolve(messages),
+      replayMessages: (_session: unknown, _route: unknown, messages: unknown) => Promise.resolve(messages),
+    } as never)
+    await queuePrompt(ctx, parent, started.childId, [{ type: 'text', text: 'see this' }, imageBlock])
+    await waitNoActivation(ctx, started.childId)
+    const loaded = await ctx.sessionPersistence.load(started.childId)
+    expect(hasUserText(loaded.events, 'see this')).toBe(true)
+    await drainManager(ctx)
+  })
+
   it('refuses an image follow-up when the child model declines image input, leaving no partial message', async () => {
     const { ctx, parent } = await setup([textResponse('child work')])
     const started = await ctx.subagents.startContinuable(startSpec(parent))

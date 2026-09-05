@@ -709,6 +709,12 @@ describe('Web session model selection', () => {
       error: { code: 'session/attachment-invalid', details: { reason: 'MODEL_DOES_NOT_SUPPORT_IMAGES' } },
     })
 
+    const disposeVision = ctx.provide('visionFallback', { configured: () => true } as never)
+    expectValue(await remote.prompt(promptRequest({ sessionId, mode: 'queue', content: [image] })))
+    expect(followup).toHaveBeenCalledOnce()
+    followup.mockClear()
+    disposeVision()
+
     expectValue(await remote.selectModel(request({
       sessionId, provider: 'image-capable', model: 'vision',
     })))

@@ -19,6 +19,7 @@ import type { CreateSessionOptions, EpochHeader, PrepareSessionOptions, RequestC
 import { deriveEventMessage, SurfaceManager } from './surface.ts'
 import type { SessionSurface } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
+import { repairMalformedToolCalls } from './tool-transcript.ts'
 
 export * from './types.ts'
 export { SessionPreparation } from './preparation.ts'
@@ -807,7 +808,7 @@ export class Session {
       if (msg) this.derived.push(msg)
     }
     this.derivedNodes = nodes.length
-    return [...this.derived]
+    return repairMalformedToolCalls(this.derived)
   }
 
   /**

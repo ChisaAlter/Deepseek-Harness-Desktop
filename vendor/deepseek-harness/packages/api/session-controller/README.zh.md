@@ -8,6 +8,8 @@ kind: "package-reference"
 
 ## 概述
 
+图片提示准入要求模型原生支持图片或已配置识图回退服务，仍须校验附件并解析模型路由。
+
 `@deepseek-ai/dsh-api-session-controller` 拥有 Host 的 `ctx.sessionController` 服务，以及生成的 Client `session`、`skills` 和 `fileReferences` Remote namespace。它提供 Session 生命周期与历史、Host generation 模型目录、工作区路径打开、用户可调用 skill 发现，以及面向 Agent 的文件引用 adapter。当 Client 需要按 Session 寻址的操作时，请通过 API Gateway 使用它。
 
 ## 目录

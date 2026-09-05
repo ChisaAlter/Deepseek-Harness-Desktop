@@ -10,6 +10,7 @@ import { brandString } from '@deepseek-ai/dsh-brand'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { ToolCallId } from './brand.ts'
 import { createMessage } from './message.ts'
+import { requireValidToolCallIdentity } from './content.ts'
 import type { Message, MessageSource } from './message.ts'
 import type { ContentBlock, FinishReason, ReplayEnvelope, StreamChunk, TokenUsage } from './types.ts'
 
@@ -105,14 +106,14 @@ export class BlockAssembler {
     return partial
   }
 
-  private assemble(partial: PartialBlock, index: number): ContentBlock {
+  private assemble(partial: PartialBlock): ContentBlock {
     if (partial.block) return partial.block
     switch (partial.blockType) {
       case 'text': return { type: 'text', text: partial.text }
       case 'reasoning': return { type: 'reasoning', text: partial.text }
       case 'tool-call': return {
         type: 'tool-call',
-        id: partial.toolCallId ?? brandString<ToolCallId>(`call-${index}`),
+        id: partial.toolCallId ?? brandString<ToolCallId>(''),
         name: partial.toolCallName ?? '',
         arguments: partial.toolCallArguments,
       }
@@ -133,11 +134,14 @@ export class BlockAssembler {
    * and replay metadata both derive from this result, so they cannot disagree.
    */
   private assembled(): { blocks: ContentBlock[]; replay: ReplayEnvelope | undefined } {
-    const all = this.order.map(index => this.assemble(this.mustGet(index), index))
+    const all = this.order.map(index => this.assemble(this.mustGet(index)))
     const kept = this.finish.kind === 'max-tokens'
       ? all.map(block => block.type !== 'tool-call')
       : undefined
     const blocks = kept === undefined ? all : all.filter((_, position) => kept[position])
+    for (const block of blocks) {
+      if (block.type === 'tool-call') requireValidToolCallIdentity(block.id, block.name)
+    }
     const envelope = this._replayState
     if (envelope?.blocks === undefined) return { blocks, replay: envelope }
     if (envelope.blocks.length !== all.length) return { blocks, replay: undefined }
@@ -172,7 +176,7 @@ export class BlockAssembler {
         const partial = this.mustGet(index)
         const type = partial.block?.type ?? partial.blockType
         if (type !== 'text' && type !== 'reasoning') return undefined
-        return this.assemble(partial, index)
+        return this.assemble(partial)
       })
       .filter((block): block is ContentBlock =>
         (block?.type === 'text' || block?.type === 'reasoning') && block.text.trim() !== '')

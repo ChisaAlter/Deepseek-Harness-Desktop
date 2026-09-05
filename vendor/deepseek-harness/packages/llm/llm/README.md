@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+Completed tool calls require non-empty ids and names matching `[A-Za-z0-9_-]{1,64}`. The assembler reports `MALFORMED_RESPONSE` instead of inventing missing identities; tool calls discarded by output truncation do not become executable content.
+
 `@deepseek-ai/dsh-llm` is the provider-neutral model-call service at the center of the harness's LLM capability. Every composition that streams a request to a model provider goes through it, and it owns the shared vocabulary — messages, content blocks, and raw stream chunks — that the agent loop, session log, and every plugin speak. With it you can register provider adapters, stream one model call, list and discover models, resolve exact-model metadata and call defaults, and capture each provider's retry policy; every request is logged so it stays reconstructable from the session log. It executes no retries and owns no provider wire logic: adapters translate their provider's format, and the optional `dsh-llm-retry` package re-runs failed requests at durable step boundaries. Requests are deep-frozen before dispatch, so middleware and adapters can read them but never rewrite them.
 
 ## Table of Contents
