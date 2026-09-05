@@ -35,6 +35,7 @@ const SHOT_DIR = shotDirArg > -1
 
 const results = [];
 let failures = 0;
+let activePage = null;
 
 async function check(name, fn) {
   try {
@@ -43,6 +44,7 @@ async function check(name, fn) {
   } catch (error) {
     failures += 1;
     results.push(`NOT OK - ${name}: ${error?.message || error}`);
+    await activePage?.screenshot({ path: join(SHOT_DIR, `failure-${failures}.png`), fullPage: true });
   }
 }
 
@@ -114,6 +116,7 @@ async function main() {
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
   });
   const page = await browser.newPage();
+  activePage = page;
   await page.setViewport({ width: 390, height: 844 });
   const consoleErrors = [];
   page.on('console', (message) => {
@@ -209,12 +212,12 @@ async function main() {
       hasOlderBtn: Boolean(document.querySelector('#log .load-older')),
       mdCode: Boolean(document.querySelector('#log .md-code')),
       mdHeading: Boolean(document.querySelector('#log .md-heading')),
-      toolSummary: document.querySelector('#log .tool-summary')?.textContent || '',
+      toolSummary: document.querySelector('#log .tool-row .flow-summary')?.textContent || '',
       todo: Boolean(document.querySelector('#log .todo-card')),
       changes: Boolean(document.querySelector('#log .changes-card')),
       meta: [...document.querySelectorAll('#log .meta-row')].map((node) => node.textContent).join('|'),
-      errorRow: Boolean(document.querySelector('#log .log-error')),
-      reasoning: Boolean(document.querySelector('#log .reasoning')),
+      errorRow: Boolean(document.querySelector('#log .turn-error')),
+      reasoning: Boolean(document.querySelector('#log .think-body')),
       injectedImg: Boolean(document.querySelector('#log .assistant img')),
       literalImgText: [...document.querySelectorAll('#log .assistant')]
         .some((node) => node.textContent.includes('<img src=x onerror=alert(1)>')),
@@ -347,20 +350,23 @@ async function main() {
     const chip = await page.evaluate(() => document.querySelector('#model-chip').textContent);
     assert(chip.includes('high'), `effort missing on chip: ${chip}`);
     await page.click('#model-chip');
-    await waitFor(page, () => document.querySelectorAll('#options .mode-row').length >= 2, 'model rows');
-    const copy = await page.evaluate(() => document.querySelector('#options').textContent);
+    await waitFor(page, () => document.querySelectorAll('#sheet-root .mode-row').length >= 2, 'model rows');
+    const copy = await page.evaluate(() => document.querySelector('#sheet-root').textContent);
     assert(copy.includes('含思考档'), 'reasoning hint missing on R3');
-    await clickByText(page, '#options .mode-row', 'Lite');
+    await clickByText(page, '#sheet-root .mode-row', 'Lite');
     await waitFor(page, () => document.querySelector('#model-chip').textContent.includes('Lite'), 'chip updated');
-    const afterLite = await page.evaluate(() => document.querySelector('#options').textContent);
+    await page.click('#model-chip');
+    const afterLite = await page.evaluate(() => document.querySelector('#sheet-root').textContent);
     assert(!afterLite.includes('思考强度'), `fake effort chip after Lite: ${afterLite}`);
     const selects = await qaCalls(page, 'session.selectModel');
     assert(selects.length >= 1, 'session.selectModel was not called');
-    await clickByText(page, '#options .mode-row', 'DeepSeek R3');
-    await waitFor(page, () => document.querySelector('#options').textContent.includes('思考强度'), 'effort rows');
-    await clickByText(page, '#options .mode-row', 'Low');
+    await clickByText(page, '#sheet-root .mode-row', 'DeepSeek R3');
+    await waitFor(page, () => document.querySelector('#model-chip').textContent.includes('R3'), 'R3 selected');
+    await page.click('#model-chip');
+    await waitFor(page, () => document.querySelector('#sheet-root').textContent.includes('思考强度'), 'effort rows');
+    await clickByText(page, '#sheet-root .effort-option', 'Low');
     await waitFor(page, () => document.querySelector('#model-chip').textContent.includes('low'), 'effort chip');
-    await page.click('#close-settings');
+    await closeOverlays(page);
   });
   await shot('mobile-web-phase1-model');
 
@@ -544,7 +550,9 @@ async function main() {
     await waitFor(page, () => document.querySelector('#options .git-capsule'), 'git capsule');
     const primary = await page.evaluate(() => document.querySelector('#options .cap-primary')?.textContent || '');
     assert(primary.includes('Commit & push') || primary.includes('Commit'), `primary: ${primary}`);
-    await page.click('#options .cap-branch');
+    // refreshGit can replace the capsule between pointer-down and pointer-up.
+    // Dispatch on the current control, then verify the actual branch RPC/UI.
+    await page.$eval('#options .cap-branch', (node) => node.click());
     await waitFor(page, () => document.querySelector('#sheet-root .sheet')?.textContent.includes('创建并检出'), 'branch sheet');
     await page.evaluate(() => {
       const input = document.querySelector('#sheet-root input.paste');
@@ -710,6 +718,12 @@ async function main() {
 
   await check('控制台：0 应用错误', async () => {
     assert(consoleErrors.length === 0, `console errors: ${consoleErrors.join(' | ')}`);
+  });
+
+  await check('目录同步失败：抽屉重试恢复真实目录', async () => {
+    await clickByText(page, '#session-list button', '重试');
+    await waitFor(page, () => document.querySelectorAll('#session-list .session').length >= 3, 'catalog retry');
+    assert(!(await page.$eval('#banner', (node) => node.textContent)), 'sync error did not clear');
   });
 
   await browser.close();

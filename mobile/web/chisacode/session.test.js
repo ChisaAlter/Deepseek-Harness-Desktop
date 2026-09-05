@@ -95,9 +95,11 @@ test('reconnectSticky uses role=client and stored useTls', async () => {
   const calls = [];
   class MockDaemonClient {
     constructor(opts) {
+      assert.equal(opts.reconnect.enabled, false);
       this.opts = opts;
     }
 
+    setReconnectEnabled(enabled) { assert.equal(enabled, true); }
     async connect() {}
   }
   const api = {
@@ -115,6 +117,47 @@ test('reconnectSticky uses role=client and stored useTls', async () => {
   assert.equal(calls[0].serverId, 'srv_test');
 });
 
+test('expired offers fail before opening a transport and do not discard saved credentials', async () => {
+  const before = localStorage.getItem('dsh-chisacode-device-secrets');
+  let opened = false;
+  await assert.rejects(pairFromOfferUrl({
+    parseConnectionOfferFromUrl: () => ({
+      serverId: 'srv_expired', relay: { endpoint: 'relay:8411' },
+      authBootstrap: { pairingToken: 'expired', expiresAtMs: Date.now() - 1 },
+    }),
+    createRelayDeviceId: () => 'dev_test',
+    buildRelayWebSocketUrl: () => 'ws://relay:8411',
+    DaemonClient: class {
+      connect() { opened = true; return Promise.resolve(); }
+      setReconnectEnabled() {}
+    },
+  }, 'http://example/#offer=test'), /配对码已过期/);
+  assert.equal(opened, false);
+  assert.equal(localStorage.getItem('dsh-chisacode-device-secrets'), before);
+});
+
+test('superseded sticky attempts close their transport and reject promptly', async () => {
+  localStorage.setItem('dsh-chisacode-device-secrets', JSON.stringify({
+    srv_cancel: { deviceId: 'dev_cancel', deviceSecret: 'secret', daemonPublicKeyB64: 'key', relayEndpoint: 'relay:8411' },
+  }));
+  const controller = new AbortController();
+  let closed = 0;
+  const pending = reconnectSticky({
+    buildRelayWebSocketUrl: () => 'ws://relay:8411',
+    DaemonClient: class {
+      connect() { return new Promise(() => {}); }
+      async close() { closed += 1; }
+      setReconnectEnabled() {}
+    },
+  }, 'srv_cancel', { signal: controller.signal });
+  controller.abort(new Error('superseded'));
+  await assert.rejects(Promise.race([
+    pending,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('attempt did not cancel')), 100)),
+  ]), /superseded/);
+  assert.equal(closed, 1);
+});
+
 test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued device secret', async () => {
   localStorage.setItem('dsh-chisacode-device-secrets', JSON.stringify({
     srv_pair: {
@@ -127,11 +170,15 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
   }));
   const relayCalls = [];
   let clientOptions;
+  let initialAuth;
   class MockDaemonClient {
     constructor(options) {
+      assert.equal(options.reconnect.enabled, false);
       clientOptions = options;
+      initialAuth = { ...options.relayDeviceAuth };
     }
 
+    setReconnectEnabled(enabled) { assert.equal(enabled, true); }
     async connect() {
       clientOptions.onRelayDeviceAuthResult({
         ok: true,
@@ -177,13 +224,15 @@ test('pairFromOfferUrl uses offer v2 bootstrap auth and persists the issued devi
   }
 
   assert.equal(paired.serverId, 'srv_pair');
-  assert.deepEqual(clientOptions.relayDeviceAuth, {
+  assert.deepEqual(initialAuth, {
     version: 1,
     serverId: 'srv_pair',
     deviceId: 'dev_revoked_0000',
     pairingToken: 'one-time-token',
     deviceName: 'iPhone · iOS 18.2',
   });
+  assert.equal(clientOptions.relayDeviceAuth.pairingToken, undefined);
+  assert.equal(clientOptions.relayDeviceAuth.deviceSecret, 's'.repeat(64));
   assert.equal(relayCalls[0].role, 'client');
   const saved = JSON.parse(localStorage.getItem('dsh-chisacode-device-secrets'));
   assert.equal(saved.srv_pair.deviceId, 'dev_revoked_0000');
@@ -242,6 +291,7 @@ test('pairing works without crypto.randomUUID (http://<lan-ip> is not a secure c
         clientOptions = options;
       }
 
+      setReconnectEnabled(enabled) { assert.equal(enabled, true); }
       async connect() {
         clientOptions.onRelayDeviceAuthResult({
           ok: true,

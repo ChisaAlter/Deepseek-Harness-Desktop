@@ -3,9 +3,10 @@
 // Composer family width linkage. The composer seat publishes
 // --dsh-composer-resized-width while the Interface Settings composerResize
 // drag is live; the rows that share the input card's width axis — the session
-// stats line and the queue/todo/goal dock cards above the card — must read
-// that variable so they follow the drag instead of keeping the resting card
-// cap. (The dsh-usage-panel cost strip that used to sit under the card was
+// stats line, the queue/todo/goal dock cards, and the blank-session Hero's
+// workspace/preset row — must read that variable so they follow the drag
+// instead of keeping the resting card cap. (The dsh-usage-panel cost strip
+// that used to sit under the card was
 // retired in favour of ui-conversation's PeakValleyRow, which lives inside the
 // dock and needs no cap of its own.) The follow is a CSS variable
 // reference with the resting cap as fallback (rest state never changes), so
@@ -33,6 +34,7 @@ function normalize(source) {
 /** Resized-width follow marker: the max-width cap reads the seat variable
  *  with the resting card cap as its fallback. */
 const FOLLOW = /max-width:\s*calc\(\s*var\(--dsh-composer-resized-width,\s*var\(--dsh-composer-card-max-width\)\)/;
+const EXACT_FOLLOW = /max-width:\s*var\(--dsh-composer-resized-width,\s*var\(--dsh-composer-card-max-width\)\)/;
 
 const UI_CHAT = path.join(VENDOR, 'deepseek-harness', 'packages', 'client', 'ui-chat', 'src', 'client');
 const UI_CONVERSATION = path.join(VENDOR, 'deepseek-harness', 'packages', 'client', 'ui-conversation', 'src', 'client');
@@ -68,6 +70,15 @@ test('width is published on the conversation scroll host so the transcript sees 
   assert.match(source, /const SCROLL_SELECTOR = '\[data-conversation-scroll\]'/);
   assert.match(source, /scrollOf\(seat\)\?\.style\.setProperty\(WIDTH_VAR, value\)/);
   assert.match(source, /host\?\.style\.removeProperty\(WIDTH_VAR\)/);
+});
+
+test('blank-session Hero controls follow and center on the resized composer card', () => {
+  const css = normalize(readRel(UI_CONVERSATION, 'skeleton/ConversationRoot.module.css'));
+  const rule = ruleOf(css, '\\.heroWorkspaceRow');
+  assert.match(rule, EXACT_FOLLOW);
+  assert.match(rule, /width:\s*100%/);
+  assert.match(rule, /align-self:\s*center/);
+  assert.match(rule, /box-sizing:\s*border-box/);
 });
 
 test('todo panel follows the drag-resized composer card', () => {

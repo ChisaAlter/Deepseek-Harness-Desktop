@@ -166,7 +166,7 @@ function replaceExactlyOnce(source, patch, sourcePath) {
 export function patchLarkSdkHandshakeSource(source, sourcePath = 'Lark SDK') {
   return PATCHES.reduce(
     (patched, patch) => replaceExactlyOnce(patched, patch, sourcePath),
-    source,
+    source.replaceAll('\r\n', '\n'),
   );
 }
 

@@ -6,6 +6,7 @@ import HttpsProxyAgent from 'https-proxy-agent';
 import { createConnectionSupervisor } from './connection-supervisor.mjs';
 import { createHarnessCommandExecutor } from '../../harness-command-executor.mjs';
 import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
+import { createHarnessAuthTransport } from '../../harness-auth-transport.mjs';
 import { verifyFeishuApp } from '../../../../src/channels/feishu/feishu-app.mjs';
 import { FeishuRuntime } from '../../../../src/channels/feishu/feishu-runtime.mjs';
 import { HarnessClient } from '../../../../src/channels/feishu/harness-client.mjs';
@@ -138,8 +139,10 @@ export async function createProductionController(ctx, config = {}, internals = {
     sessionMaintenanceExecutor: internals.sessionMaintenanceExecutor,
     fileIngressExecutor: internals.fileIngressExecutor,
   });
+  const baseUrl = harnessOrigin(ctx.webServer, config.harnessBaseUrl);
   const harness = new Harness({
-    baseUrl: harnessOrigin(ctx.webServer, config.harnessBaseUrl),
+    baseUrl,
+    ...createHarnessAuthTransport(ctx, baseUrl),
     workspace: defaultWorkspace,
     // This plugin is already hosted by a running DSH process. Starting a
     // second DSH would create a competing server and lifecycle.

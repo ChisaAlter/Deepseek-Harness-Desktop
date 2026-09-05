@@ -84,8 +84,9 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-goal/src/client/GoalBar.module.css': '.bar { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
       'packages/client/ui-theme/src/wallpaper.ts': "export const TRANSPARENT_ATTR = 'data-dsh-transparent'\n",
       'packages/client/ui-theme/src/styles/wallpaper.css': 'html[data-dsh-transparent] #dsh-wallpaper::after { background: transparent }\n',
-      'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n',
+      'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n.heroWorkspaceRow { max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)); align-self: center; }\n',
       'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx': '<div data-composer-beam="" />\n',
+      'packages/client/ui-conversation/src/client/skeleton/InputBar.module.css': '.beamLayer { inset: -4px; corner-shape: round; }\n.beamStroke { padding: 2px; mask: conic-gradient(transparent 30%); -webkit-mask-composite: source-in, xor; mask-composite: intersect, exclude; }\n.beamInner { mask-composite: add; }\n.beamBloom { filter: blur(8px); }\n.beamBloom::before {}\n',
       'packages/client/ui-chat/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
       'packages/api/workspace-controller/src/types.ts': 'export interface WorkspaceBaseline { readonly scratchCwd: string }\n',
       'packages/api/workspace-controller/src/index.ts': "export function scratchWorkspaceCwd() { return dshHomePath('no-workspace') }\n",
@@ -156,6 +157,13 @@ test('assertDesktopForks throws when transparent theme markers drop', (t) => {
   const wallpaperPath = path.join(root, ...'packages/client/ui-theme/src/wallpaper.ts'.split('/'));
   fs.writeFileSync(wallpaperPath, 'export const WALLPAPER_ATTR = "data-dsh-wallpaper"\n');
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /TRANSPARENT_ATTR|data-dsh-transparent/);
+});
+
+test('assertDesktopForks throws when composer beam corner coverage regresses', (t) => {
+  const root = makeFixture(t);
+  const beamPath = path.join(root, ...'packages/client/ui-conversation/src/client/skeleton/InputBar.module.css'.split('/'));
+  fs.writeFileSync(beamPath, '.beamLayer { inset: 0; overflow: hidden; }\n.beamBloom { filter: blur(8px); }\n');
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /beamBloom::before|inset: -4px|padding: 2px|source-in, xor/);
 });
 
 test('assertDesktopForks throws when the no-directory picker entry or the Ungrouped bucket regress', (t) => {

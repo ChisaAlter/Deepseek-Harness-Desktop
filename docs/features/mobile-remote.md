@@ -3,12 +3,12 @@
 | Field | Value |
 | --- | --- |
 | **id** | `mobile-remote` |
-| **status** | `parked` |
-| **last verified** | 2026-09-03 — 产品仍停放，另完成已连接 Android 15 真机 smoke：新 APK 安装成功；`https://appassets.androidplatform.net` 内置 SPA 可显示会话列表与 composer；plain `ws://` 中继不再被 WebView mixed-content 拦截；`100dvh` 0 高度回退已验证；composer 工具行在 360px 宽度不换行。Android `:app:testDebugUnitTest` 通过，mobile web 268/268 通过。此前 T2 rehearsal 的未交付缺陷与限制保持不变，**不得写「实机全量通过」**。 |
+| **status** | `active` |
+| **last verified** | 2026-09-05 — 本地 Web + host tunnel/mux 304/304；假 host 浏览器 30/30；Android JVM 测试和 Debug APK 构建此前通过。用户授权后仅启用本机目录模块并重启远程：217 条会话约 62.6KB，公网直连及系统代理各新配对 + 5 次重连，共 12 次目录加载成功，4955–13476ms，无目录超时。公网页面另有一次导航超时，不能宣称任意弱网稳定。无正式发布、无公网前端追加部署、无 APK 安装；ADB 无设备，Android 实机 Blocked。入口已开放但最终 CI 安装包全量验收待完成，**不得写「实机全量通过」**。 |
 
 ## User paths
 
-**当前停放：** 桌面不露出配对入口，不听 `:3180`。下列是解禁后的路径。
+**入口已开放，默认关闭配对：** `REMOTE_FEATURE_ENABLED=true`；远程服务只在用户开启后启动，未配置时默认服务器模式。以下路径仍须针对最终 CI 安装包验收，不能继承历史停放期的 N/A。
 
 1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `http://125.124.85.212:3389/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
 2. 再次打开手机 SPA（无 hash）：用最近一台已存 `deviceSecret` sticky 重连。「已保存的电脑」点选 / 忘记。跨 origin（公网 `/dshd`、LAN `:3180`、APK asset）不互通 sticky。
@@ -119,6 +119,10 @@
 - 助手 Markdown 禁止 `innerHTML` 注入：结构化 block → createElement；链接仅 http/https。
 - 时间线向上分页按 seq 去重并保持滚动锚点。打开会话失败必须清掉上一会话 rows。
 - 「已保存的电脑」是纯本地 sticky；「忘记」只清本机 secret。
+- 保存设备自动 / 手动重连与 offer 首连共用互斥连接入口；连接中显示状态，首次握手失败 / 超时关闭客户端并恢复按钮，不清 sticky。只有成功建立连接后才启用后台自动重连，避免初次失败永久占用选择器。
+- 新 offer 取消未完成的旧连接，旧连接结果不得覆盖新连接。配对认证成功后，当前客户端立即改用 deviceSecret，自动重连不得复用一次性 pairingToken；消费后的 offer 从页面 fragment 清除。认证失败停止后台重试但不静默删除保存凭据。
+- Android WebView 用显式请求序号识别新扫码或重试，不因重组重新插入已消费的 offer；返回前台触发共享 SPA 的连接探测与目录同步。内置资源缺失或主页面加载失败必须可见，不能回落公网下载同名资源。
+- 手机目录转发保留全部 `session.list` 行和原始会话字段，投影只传 `title` / `sessionListMetadata`。模型、权限、计划与用量详情通过打开会话时的 history 按需获取，不能为每次首屏同步重复传输所有会话的详情；history、创建与搜索响应不受目录裁剪影响。目录失败必须可重试，不能假空列表。
 - **非 secure context 兼容**：`http://<LAN-IP>:3180` 禁止裸用 `crypto.randomUUID` / `crypto.subtle`；uuid 走 `getRandomValues` fallback；E2EE 保持 tweetnacl。
 - 设计语言仍抄 `--dsw-alias-*`。
 - 全量启动才启用内容搜索：`--patch` `desktop-session-search.patch.yml` 覆写 `session-query-sqlite` 为 `openAt: first-search` 与 `dsh-home/session-query.sqlite`。禁止把这次 opt-in 写进用户 `cordis.patch.yml`。skip 启动保持发版 `openAt: never`。
@@ -129,7 +133,7 @@
 - `src/main/chisacode-remote.js`、`src/main/chisacode-daemon-runner.mjs`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/main/dshd-git-tunnel.js`、`src/main/mobile-web-server.js`、`src/shared/dshd-host-tunnel.js`、`src/shared/dshd-mux-sse.js`、`src/shared/lan.js`
 - `vendor/chisacode-remote/`（线协议 `dshd.host.rpc.*` / `dshd.git.rpc.*` / `dshd.host.mux.*`）、`ui-settings-remote`、本卡、QA 远程条
 - `tools/mobile-web-qa/`、`tools/remote-web-qa/`
-- `mobile/android/`（扫码 handoff 仅）
+- `mobile/android/`（扫码 handoff、同源 WebView 生命周期、内置 SPA 打包与回归；2026-09-05 用户明确要求同步 Android 修复）
 
 ## Do not touch
 
@@ -148,6 +152,12 @@
 | Manual | **全功能执行表：** [docs/qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)（P0 缺一行未填 = 未测完）。细则：[docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。Android App 本轮不签。 |
 
 ## Sources
+
+- 首连失败回归：`mobile/web/chisacode/connect-lifecycle.test.js`（真实 bundle + 不响应 transport）；`node tools/mobile-web-qa/run-connect-qa.mjs`（受控连接失败与点选重试，390px / 1280px）。
+- 公网定向验收：`node tools/mobile-web-qa/run-connect-public-qa.mjs`（使用正在运行的桌面，创建并在 finally 撤销专用 QA 设备）；[部署与现场证据](../../tools/mobile-web-qa/results/2026-09-05-connect.md)。
+- 追加修复与未发布边界：[本地恢复回归](../../tools/mobile-web-qa/results/2026-09-05-recovery-local.md)。
+- 后续公网复测（两轮超时，非实机 Pass）：[公网性能与实机状态](../../tools/mobile-web-qa/results/2026-09-05-public-retest.md)。
+- 本机修复启用后双路径复测：[目录瘦身启用记录](../../tools/mobile-web-qa/results/2026-09-05-catalog-activation.md)。
 
 - Vendored ChisaCode client/app pairing runtime
 - Host RPC map：`vendor/deepseek-harness/packages/host/apiproxy/src/api/rpc-map.ts`；斜杠命令：Typert `POST /api/commands/list` · `POST /api/commands/execute`

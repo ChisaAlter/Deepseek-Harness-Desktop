@@ -3,7 +3,7 @@
 ## 职责与非目标
 
 **职责：** LAN / 中继远程、ChisaCode 配对、已配对后把 `mobile/web` SPA（Web 与 Android WebView 同一份）接到正在跑的 `dsh web` 与桌面 Git 标题栏。  
-**当前停放：** `REMOTE_FEATURE_ENABLED=false`，桌面不露出入口、不听 3180。  
+**入口已开放：** `REMOTE_FEATURE_ENABLED=true`，默认关闭配对；远程服务只在用户开启后启动。
 **非目标：** 不把启动页仪器风或官方 CSS Modules 整树嵌进手机 SPA；不把 PTY、Browser、`writeFile`、`host.pickDirectory` 暴露给手机；不为 Git / 会话列表 / composer 写 Android Compose 平行实现。
 
 ## 用户路径

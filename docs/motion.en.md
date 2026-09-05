@@ -144,7 +144,7 @@ Infinite busy / loading indicators are product language, not recipes; their loop
 | Family | Instances (period) |
 | --- | --- |
 | Skeleton sweep | ReasoningRow / ToolRow / SkillRow / GenericCommandCard / bash-sample row sweeps 2.6s; `MenuView` menu skeleton 2s |
-| Composer beam | `InputBar`: `beam-spin` 1.96s, `beam-hue` 12s, `beam-hue-bloom` 12s, beam layer fade-in 420ms; `mobile/web` mirrors the values |
+| Composer beam | `InputBar`: `beam-spin` 1.96s, `beam-hue` 12s, `beam-hue-bloom` 12s, beam layer fade-in 420ms; following Libraries.dev Rotate, the 2px / 0.6 stroke and dual-conic inner layer form a moving peak and transparent trail without a duplicate `clip-path`; bloom uses `blur(8px)` / 0.36 inside the 4px rounded clip shell; `mobile/web` mirrors the timing values |
 | Spinner | `TodoPanel` 1s, `GitProgressToast` 0.7s, `AppearanceSection` gallery 0.7s, `TrajectoryTable` history loading 700ms, `TurnNavigator` busy 1s, `ChatView` turn status 1.8s, `MessageItem` retry 1.6s, `InputBar` pending 1s |
 | Status dots | `StateDot` chase 1s (inline `-125ms` stagger), `ConnectionIndicator` dot matrix 1.5s step-end |
 | Phone flow | `mobile/web`: `flow-dot-spin` 0.9s, `flow-sweep` 2.6s, `flow-caret` 1s steps(2) |

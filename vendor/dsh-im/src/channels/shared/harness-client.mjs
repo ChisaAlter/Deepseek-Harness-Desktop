@@ -1373,7 +1373,7 @@ export class HarnessClient {
     return new Promise((resolve, reject) => {
       let socket;
       try {
-        socket = this.#createWebSocket(url.toString());
+        socket = this.#createWebSocket(url.toString(), { sessionId });
       } catch (error) {
         reject(error);
         return;

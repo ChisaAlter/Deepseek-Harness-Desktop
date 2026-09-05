@@ -1,5 +1,5 @@
 # Release Rules
-<!-- last-analyzed: 2026-09-04T13:00:00Z -->
+<!-- last-analyzed: 2026-09-05T04:00:00Z -->
 
 ## Version Sources
 - `package.json` `"version"` (electron-builder artifact names use `${version}`)
@@ -13,7 +13,7 @@
 - Repository policy requires `workflow_dispatch` first, production acceptance on that exact Windows artifact SHA, then publishing those same files; directly pushing a tag publishes too early for that manual gate
 
 ## Test Gate
-- `.github/workflows/test.yml`: `npm test` on Windows and macOS, plus vendored Harness build, skip-compose contract, GUI suites, client catalog, and notices on Windows
+- `.github/workflows/test.yml`: `npm test` on Windows and macOS, plus vendored Harness build, skip-compose contract, GUI suites, core regression suites, keyless malformed-tool recovery replay, client catalog, and notices on Windows
 - `.github/workflows/release.yml`: Windows `dist` followed by blocking packaged smoke (up to two attempts); macOS is best-effort
 - Release job requires a successful `Desktop tests` run for the exact tagged commit
 - Production table: CI Windows Setup SHA, not local `dist/` (`docs/qa/production-acceptance-test-cases.md`)

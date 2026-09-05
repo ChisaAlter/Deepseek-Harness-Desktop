@@ -18,6 +18,7 @@ import { listAgentPresetCatalog } from '../../../../src/channels/shared/agent-pr
 import { createConnectionSupervisor } from './connection-supervisor.mjs';
 import { createHarnessCommandExecutor } from '../../harness-command-executor.mjs';
 import { createHarnessSessionExecutors } from '../../harness-session-coordinator.mjs';
+import { createHarnessAuthTransport } from '../../harness-auth-transport.mjs';
 
 function harnessOrigin(webServer, configured) {
   if (configured !== undefined) return new URL(configured);
@@ -91,8 +92,10 @@ export async function createProductionController(ctx, config = {}, internals = {
     sessionMaintenanceExecutor: internals.sessionMaintenanceExecutor,
     fileIngressExecutor: internals.fileIngressExecutor,
   });
+  const baseUrl = harnessOrigin(ctx.webServer, config.harnessBaseUrl);
   const harness = new Harness({
-    baseUrl: harnessOrigin(ctx.webServer, config.harnessBaseUrl),
+    baseUrl,
+    ...createHarnessAuthTransport(ctx, baseUrl),
     workspace: defaultWorkspace,
     autostart: false,
     dshBin: config.dshBin ?? 'dsh',
