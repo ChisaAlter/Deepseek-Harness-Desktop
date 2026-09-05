@@ -49,6 +49,10 @@ jobs:
         run: node scripts/check-skip-compose-contract.js vendor/deepseek-harness
       - name: GUI component suites
         run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run test:gui
+      - name: Core contract regression suites
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run packages/core/agent-loop packages/core/session packages/core/tools packages/llm packages/api/session-controller packages/api/workspace-controller packages/fs/tool-fs packages/workspace packages/session/session-projection-cache packages/subagent/subagent --maxWorkers 2
+      - name: Malformed tool recovery (keyless dsh replay)
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run --config vitest.snapshot.config.ts snapshots/session/headless.snapshot.ts -t "replays malformed-tool-call-retry"
       - name: Client catalog and notices up to date
         run: |
           node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-client-catalog --check

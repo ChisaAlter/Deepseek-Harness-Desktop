@@ -44,6 +44,8 @@ npm run dist:mac      # macOS 真机
 
 ## 门槛
 
+- `test.yml` 在 vendor 构建后执行 GUI 与无密钥核心回归：识图路由、工具调用、会话历史、控制器、工作区和子代理。任一核心集合失败都会阻止同 SHA 的发布门禁通过。
+
 - QA：每次发布前生产验收全表（CI 包）；`TC-INST-001`、`TC-INST-008`、`TC-INST-009`、`TC-INST-012`、`TC-INST-013`
 
 ## 延伸阅读
