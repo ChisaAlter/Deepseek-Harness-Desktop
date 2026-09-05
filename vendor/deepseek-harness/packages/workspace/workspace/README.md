@@ -50,7 +50,7 @@ With these rows mounted, creating a project shows up in the list immediately and
 
 ### Creating and ordering projects
 
-Create a project from any directory that exists: give its path and an optional title, and the project appears in the list, newest first. A path that does not exist, or a file instead of a directory, is rejected and nothing changes; creating a project for a directory that already has one returns the existing project unchanged. Rename a project at any time, and move it to any position in the list:
+Create a project from any directory that exists: give its path and an optional title, and the project appears in the list, newest first. A path that does not exist, or a file instead of a directory, is rejected. Re-adding an existing directory preserves the project's identity and title while refreshing its headers and adopting unaccounted sessions, including later imports. Existing member order is preserved; newly adopted sessions are prepended newest-first. Rename a project at any time, and move it to any position in the list:
 
 ```text
 // Host consumer code, after the composition above is loaded:
@@ -65,7 +65,7 @@ A session joins the project of the directory it runs in: create a session in a p
 
 ### Hiding sessions and removing projects
 
-Hide a session from the grouping when it should stop appearing there: it disappears from the visible list, while its session, history, and place in the project stay intact. Remove a project when it is no longer needed: it leaves the list, and its folder, files, and session histories are never touched — those sessions become ungrouped. Adding the same directory again afterwards starts a fresh project without the old sessions.
+Hide a session from the grouping when it should stop appearing there: it disappears from the visible list, while its session, history, and place in the project stay intact. Removing a project leaves its folder, files, and histories untouched. Adding the same directory again creates a new registration and re-adopts its historical sessions.
 
 -----
 
@@ -161,7 +161,7 @@ These limits define when the project list is a poor fit or needs special operati
 - **A session joins only with a recorded directory** — a session belongs to a project only when its record carries a directory that resolves to the project's path; sessions without one stay ungrouped, and a session from another directory cannot be moved in.
 - **External changes are seen late** — if another process deletes or damages a directory, the project reflects it only at the next refresh or restart.
 - **Archiving is one-way** — a hidden session keeps its history and its place, but no unarchive action exists yet; the archive set is a durable display filter.
-- **Re-adding a directory starts fresh** — after removal, adding the same directory again creates a new project with an empty session list; the old sessions do not come back automatically.
+- **Directory moves require user action** - re-adding only adopts sessions whose original cwd resolves to that directory. The registry does not guess replacement paths or rewrite session logs.
 
 <a id="dev-note"></a>
 ### Dev Note

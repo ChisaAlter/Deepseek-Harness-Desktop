@@ -146,6 +146,8 @@ export class WorkspaceRegistry extends Service {
    * canonicalized through `fs.realpath`; a nonexistent path rejects with the
    * original error and a non-directory rejects. Repeated calls for the same
    * canonical path return the existing entity without changing its title.
+   * Both new and existing registrations refresh headers and adopt unaccounted
+   * sessions at that path, including histories imported since startup.
    * A newly created workspace is prepended to the durable registry order and
    * re-adopts every known session whose canonical cwd is that directory and
    * that no other workspace accounts — deleting a registration hides its
@@ -312,7 +314,10 @@ export class WorkspaceRegistry extends Service {
 
   private async createCanonical(canonical: string, title?: string): Promise<WorkspaceEntity> {
     for (const entity of this.entities.values()) {
-      if (entity.path === canonical) return entity
+      if (entity.path !== canonical) continue
+      const imported = await this.readoptableSessionIds(canonical)
+      for (const id of imported.reverse()) await entity.attachSession(id)
+      return entity
     }
 
     const workspaceName = title ?? basename(canonical)
@@ -392,8 +397,7 @@ export class WorkspaceRegistry extends Service {
    * membership decision.
    */
   private async readoptableSessionIds(canonical: string): Promise<SessionId[]> {
-    const fresh = (await this.ctx.sessionPersistence.list())
-      .filter(header => !this.headers.has(header.id))
+    const fresh = await this.ctx.sessionPersistence.list()
     await this.indexHeaders(fresh)
     await this.indexLiveSessions()
     const accounted = new Set<SessionId>()

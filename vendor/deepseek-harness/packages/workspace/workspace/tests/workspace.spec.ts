@@ -490,7 +490,7 @@ describe('WorkspaceRegistry create and lookup', () => {
     expect(storedState(result.pool)).toEqual({ initialized: true, workspaceIds: [], archivedSessionIds: [] })
     expect(result.pool.media.get('workspace')!.tables.get('workspaces')!.has(workspace.id)).toBe(false)
     await expect(realpath(dir)).resolves.toBe(dir)
-    expect(result.list).toHaveBeenCalledTimes(1)
+    expect(result.list).toHaveBeenCalledTimes(2)
     expect(result.load).not.toHaveBeenCalled()
     expect(result.inspect).not.toHaveBeenCalled()
 
@@ -523,6 +523,35 @@ describe('WorkspaceRegistry create and lookup', () => {
     const rival = await result.registry.create(other)
     expect(rival.sessionIds).toEqual(['elsewhere'])
     expect(result.load).not.toHaveBeenCalled()
+  })
+
+  it('re-adds an existing directory with later imported sessions without changing its identity or title', async () => {
+    const dir = await makeDir('import-existing')
+    const result = await harness({ sessions: [header('original', dir, 10)] })
+    const workspace = result.registry.list()[0]!
+    await workspace.setTitle('Project')
+    result.setSessions([header('original', dir, 10), header('imported', dir, 20)])
+    const reused = await result.registry.create(dir)
+    expect(reused).toBe(workspace)
+    expect(reused.title).toBe('Project')
+    expect(reused.sessionIds).toEqual(['imported', 'original'])
+    expect(storedRecord(result.pool, workspace.id).sessionIds).toEqual(['imported', 'original'])
+    const before = result.changes.length
+    await result.registry.create(dir)
+    expect(result.changes).toHaveLength(before)
+    await result.fiber.dispose()
+    const restarted = await harness({ pool: result.pool, sessions: [header('original', dir, 10), header('imported', dir, 20)] })
+    expect(restarted.registry.get(workspace.id)?.sessionIds).toEqual(['imported', 'original'])
+  })
+
+  it('rechecks a historical cwd that becomes available after startup', async () => {
+    const parent = await makeDir('restored-cwd')
+    const dir = join(parent, 'project')
+    const result = await harness({ sessions: [header('restored', dir)] })
+    expect(result.registry.list()).toEqual([])
+    await mkdir(dir)
+    const workspace = await result.registry.create(dir)
+    expect(workspace.sessionIds).toEqual(['restored'])
   })
 
   it('rolls registry order and cache back when record deletion fails', async () => {

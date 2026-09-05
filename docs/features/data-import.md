@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `data-import` |
 | **status** | `active` |
-| **last verified** | 2026-08-25 — 新增设置白名单节 / 引用凭据 / `.agent-presets` / home `AGENTS.md` 导入；冷启动闸门改 shallow probe；导入页展示「将迁移/不迁移」说明 |
+| **last verified** | 2026-09-05 — 历史会话恢复与插件归因定向检查：Harness 工作区/API/旧缓存 121 项、桌面导入/恢复/打包单测 171 项通过；重新登记已有目录接纳导入历史，缓存格式错误不归咎用户插件。未执行候选安装包升级实测。此前：2026-08-25 — 新增设置白名单节 / 引用凭据 / `.agent-presets` / home `AGENTS.md` 导入；冷启动闸门改 shallow probe；导入页展示「将迁移/不迁移」说明 |
 
 ## User paths
 
@@ -25,6 +25,7 @@
 - 设置节与凭据条目为**文本级**搬运：不解析嵌套字段、不改写来源文本；跨节 YAML 锚点引用不受支持（已知限制）。凭据只接受 `refs` 下的单行标量条目；目标 `.credentials.yaml` 以 0600 写入。
 - 冷启动闸门用 `probeImportHold` 浅探针（destEmpty && sourceHasData，首个命中即返回，不读会话元数据 / 不解压 zstd）；完整 `scanImport` 只在导入页使用。
 - 不改会话文件夹名、不改写 jsonl。旧 rc `.db` 标不兼容并跳过。
+- 导入会话保留原 `cwd`；已有桌面工作区不会触发首次启动的历史分组。导入后通过重新添加原目录恢复归属（新建或已登记目录均刷新索引，见 [no-directory-sessions](no-directory-sessions.md)）；不猜测迁移后的盘符或目录，不导入来源工作区内部 storage。
 - 列表展示可读写会话 header / `session/title`（明文 jsonl 或 Node 内置 zstd）；勾选与拷贝键仍是 sessions 相对路径 `rel`，不得用标题改名落盘。
 - `runImport` 必收勾选；省略选择 = 零写入。路径穿越与源根外技能路径拒绝落盘。
 - 插件重装规格只允许 `github:owner/repo[#ref]` 或 `name@<semver>`（`installImportPlugin` 受控通道，仅主进程 LAUNCHER IPC 使用）；渲染进程 / 工具的 `installPlugin` 通道保持 github-only。

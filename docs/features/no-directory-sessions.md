@@ -4,14 +4,14 @@
 | --- | --- |
 | **id** | `no-directory-sessions` |
 | **status** | `active` |
-| **last verified** | 2026-09-03 — 在 alpha.4 合树上重建：vendor `packages/workspace`、`api/workspace-controller`、`client/ui-workspace`、`client/ui-conversation` 定向 vitest 全绿；`node --test src/shared/harness-desktop-forks.test.js` 通过。 |
+| **last verified** | 2026-09-05 — 历史会话恢复与插件归因定向检查：Harness 工作区/API/旧缓存 121 项、桌面导入/恢复/打包单测 171 项通过；重新登记已有目录接纳导入历史，缓存格式错误不归咎用户插件。未执行候选安装包升级实测。此前：2026-09-03 — 在 alpha.4 合树上重建：vendor `packages/workspace`、`api/workspace-controller`、`client/ui-workspace`、`client/ui-conversation` 定向 vitest 全绿；`node --test src/shared/harness-desktop-forks.test.js` 通过。 |
 
 ## User paths
 
 1. 空会话 Hero 的工作区芯片菜单里，「添加工作区…」上方固定一项「无工作目录」（`IconNewChatOutline16`）。选中后当前草稿随会话带走，芯片显示「无工作目录」，输入框解锁，可直接对话；不登记任何工作区、不弹目录选择器。
 2. 侧栏「按工作区」视图末尾有一节「无工作目录」（无文件夹图标、无重命名/删除菜单），列出所有 scratch 会话；节头 `＋` 直接新建一个无工作目录会话。空节不渲染。
 3. 删除某个工作区（登记）后：其全部会话（含已归档的）立刻从侧栏消失——分组视图、单列表、搜索、已归档区都不再出现；若正在浏览其中一个会话，选择被清空回到「新会话」页。文件夹与会话日志本身不删。
-4. 再次添加同一目录为工作区：Host 自动把该目录下所有历史会话重新记入这个工作区，侧栏原样回来（含归档状态）。
+4. 再次添加同一目录为工作区：Host 自动把该目录下所有历史会话重新记入这个工作区，侧栏原样回来（含归档状态）。目录已经登记时也刷新历史索引并接纳后来导入的未归属会话，保留工作区 ID、标题与原成员顺序；启动时不可用、后来恢复的原目录会重新校验。
 5. 冷启动没有任何会话时仍是「选择工作区」占位 + 惰性输入框；被删工作区遗留的空白会话也保持惰性，不会伪装成无工作目录任务。
 
 ## Invariants
