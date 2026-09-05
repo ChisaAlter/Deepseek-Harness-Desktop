@@ -789,11 +789,11 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 **期望：** 可进入；取消无坏状态。
 
-### TC-EXT-007 · dshbot 独立插件（默认不装） · P1
+### TC-EXT-007 · dshbot 本体剥离与用户安装保留 · P1
 
-**步骤：** 默认安装确认侧栏**没有**「机器人 / Bots」页签，且启动日志无 dshbot 阻断；（可选）设置 → 插件市场第一方 dshbot 行一键安装（或 `dsh plugin --profile web add github:ChisaAlter/dshbot`）后重启，页签出现、可建群；卸载 dshbot 后重启，页签消失、`.agent-presets/dshbot-room` 被清理。
+**步骤：** 全新安装确认不携带机器人功能和第一方 dshbot 推荐。旧预置升级确认受管装载块和旧预置链接已脱离；用户插件文件、依赖、房间 preset、设置与会话保留。对含不兼容 dshbot 的旧用户配置，确认启动器能归因并单独禁用它，恢复桌面启动而不影响其他插件。
 
-**期望：** dshbot 是独立可发布插件：桌面从不预置、从不因它启动失败；卸载无残留（feature 卡 `dshbot`）。
+**期望：** 桌面不依赖 dshbot 实现；用户插件不兼容仍可能使首次启动失败，但可单独隔离并恢复。数据不因清理或禁用而删除。本仓不验收独立插件的建群或机器人功能（feature 卡 `dshbot`）。
 
 **2026-08-26 源码实机（不填本表 Pass）：** 云端 Linux X11 GUI 对源码 Electron 完整轮换 A/B(自动)/C 三相：未装分支 walk 全绿 → `dsh plugin add github:…#path:/vendor/dshbot`（钉到 `7972a34`）后探针翻转（Bots 页签出现、已安装列出、`dshbot-room` preset 自装）→ remove + 重启回未装分支且三处残留全净。9 个 dshbot 套件 95/95、全仓 1099/0。B 相手工建群因无 `DEEPSEEK_API_KEY` BLOCKED；Windows 安装包三相维持 BLOCKED。报告：[results/2026-08-26/tc-ext-007-dshbot.md](results/2026-08-26/tc-ext-007-dshbot.md)。
 

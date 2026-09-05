@@ -41,6 +41,34 @@ test('generic crashes are not blamed on a plugin', () => {
   assert.equal(inspected.plugins[0].suspect, false);
 });
 
+test('loader application failures identify the leaf plugin rather than the include wrapper', () => {
+  const logs = 'failed to apply loader entry include (cordis:include): failed to apply loader entry stats (@acme/stats): invalid stored record';
+  assert.deepEqual(extractSuspectNames(logs), ['@acme/stats']);
+  const result = inspectPlugins({ logs, plugins: [{ name: '@acme/stats' }] });
+  assert.equal(result.plugins[0].suspect, true);
+  assert.equal(result.evidence[0].name, '@acme/stats');
+});
+
+test('legacy session cache schema failures are not attributed to user plugins', () => {
+  const logs = "failed to apply loader entry session-projection-cache (@deepseek-ai/dsh-session-projection-cache): domain 'session_projcache': stored record 'old' in table 'sessions' does not match its schema";
+  const result = inspectPlugins({ logs, pluginTreeFailure: true, plugins: [{ name: '@acme/stats' }] });
+  assert.equal(result.genericCause, 'session-cache');
+  assert.equal(result.desktopRuntimeDamage, false);
+  assert.deepEqual(result.suspects, []);
+  assert.equal(result.plugins[0].suspect, false);
+  assert.equal(classifyGenericFailure("domain 'other': stored record 'old' does not match its schema"), '');
+});
+
+test('an incompatible user-installed dshbot is a disableable suspect, not desktop damage', () => {
+  const logs = "failed to apply loader entry include (cordis:include): failed to import loader entry dsh-bot (dshbot): The requested module '@deepseek-ai/dsh-settings' does not provide an export named 'settingsNamespace'";
+  const result = inspectPlugins({ logs, pluginTreeFailure: true, plugins: [{ name: 'dshbot' }, { name: 'other-plugin' }], bundles: ['dshbot', 'other-plugin'] });
+  assert.deepEqual(extractSuspectNames(logs), ['dshbot']);
+  assert.equal(result.desktopRuntimeDamage, false);
+  assert.equal(result.plugins.find(row => row.name === 'dshbot').suspect, true);
+  assert.equal(result.plugins.find(row => row.name === 'other-plugin').suspect, false);
+  assert.equal(isPresetPlugin('dshbot'), false);
+});
+
 test('inspectPlugins flags suspects and presets without deleting the latter', () => {
   const inspected = inspectPlugins({
     logs: 'cannot resolve profile bundle "evil-pack"',

@@ -30,6 +30,10 @@ Terminal, diff, and code blocks keep the baseline monospace / no-wrap rules. Tha
 
 ## Hard rules
 
+Remote connection mode uses the existing segmented control with LAN / Server labels. Server is the default; LAN remains an explicit manual choice. Layout, colors, and the pairing protocol stay unchanged.
+
+The plugin marketplace does not inject a first-party dshbot recommendation card. Registry sources, card primitives, and generic plugin management stay unchanged.
+
 1. **Reuse before drawing.** Buttons, fields, menus, dialogs, tooltips, and disclosure rows use `ui-primitives`. Do not restyle their radius, height, or hover.
 2. **Colors are `--dsw-alias-*` / `--dsw-specific-*` only.** Feature CSS must not contain `#hex`, `rgb()`, or a private `--bg` / `--accent` sheet. Missing tokens are added to the theme sheets first, then consumed as semantic aliases.
 3. **Light/dark lives only in the theme tables.** Feature CSS must not branch on `[data-theme]`, `[data-ds-dark-theme]`, or `prefers-color-scheme`.
@@ -85,6 +89,8 @@ Window controls stay on [`window-controls.css`](../src/renderer/window-controls.
 ## Desktop launcher
 
 The launcher is the cold-start gate window, not the instrument canvas. Sources: [`launcher.html`](../src/renderer/launcher.html), [`launcher.css`](../src/renderer/launcher.css), [`launcher.js`](../src/renderer/launcher.js). Color comes from the baseline light `:root` and dark `html[data-ds-dark-theme]` tables in [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css). `html[data-shell-theme=official]` makes [`theme.js`](../src/renderer/theme.js) apply only the light/dark half of `theme.scheme` and skip Appearance wallpaper seeds on `--dsw-alias-*`. Do not use `--boot-*` or `data-boot-theme`, and do not add a second `[data-theme]` / `prefers-color-scheme` palette in `launcher.css`.
+
+The Recovery Board distinguishes session projection-cache schema failures from user-plugin failures in its existing verdict text. Cache diagnostics take precedence over skip-mode status, add no panel or controls, and never recommend clearing original sessions.
 
 ## Known drift (do not spread)
 

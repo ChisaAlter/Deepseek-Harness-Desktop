@@ -295,7 +295,6 @@ const QA_REQUIRED_STEPS = [
   'market.discover',
   'market.installed',
   'usage-stats.section',
-  'plugin.dshbot.tabAbsent',
 ];
 
 function gitHeadSubject(workspacePath) {
@@ -1745,46 +1744,21 @@ async function runReleaseUiWalk(wc, helpers) {
   }), 10_000);
   rec('market.discover', Boolean(market?.discover || discover?.discover), '');
 
-  // The installed truth comes from the profile manifest (main process), not
-  // from scraping the async Installed list: the list fetch can land after
-  // the scrape and must not flip the two-state gate.
-  let dshbotInstalled = false;
-  try {
-    const { listInstalledPlugins } = require('./plugins');
-    const profile = listInstalledPlugins();
-    dshbotInstalled = (profile.plugins || []).some((row) => row.name === 'dshbot')
-      || (profile.bundles || []).includes('dshbot');
-  } catch {
-    // Unreadable profile counts as not installed; the tab checks stay strict.
-  }
-
-  // The tab label grows a count suffix once anything is installed
-  // (「已安装 (1)」), so the click pattern must not anchor on the bare label.
+  // Installed plugin ownership comes from the profile, not a named bundled plugin.
+  const { listInstalledPlugins } = require('./plugins');
+  const profile = listInstalledPlugins();
+  const names = (profile.plugins || []).map((row) => row.name);
   await clickNamed(wc, '^(installed|已安装)( \\(\\d+\\))?$');
-  const installed = await waitUntil(() => pageEval(wc, (expectDshbot) => {
+  const installed = await waitUntil(() => pageEval(wc, (expectedNames) => {
     const dialog = dshDialog();
     if (!dialog) return null;
     const text = dialog.innerText || '';
-    const dshbot = /\bdshbot\b/i.test(text);
-    // The Installed pane is open once its content rendered: the empty-state
-    // copy, the ungrouped section, or an actual row. When the profile says
-    // dshbot is installed, keep polling until the async list shows the row.
-    const paneOpen = /还没有装过社区插件|No community plugins yet|未分组|Ungrouped/i.test(text) || dshbot;
-    if (!paneOpen) return null;
-    if (expectDshbot && !dshbot) return null;
-    return { dshbot };
-  }, dshbotInstalled), 10_000);
-  rec('market.installed', Boolean(installed), installed ? '' : 'Installed tab missing');
-  rec(
-    'plugin.dshbot.market',
-    dshbotInstalled ? Boolean(installed?.dshbot) : true,
-    installed?.dshbot
-      ? 'standalone dshbot listed on Installed'
-      : (dshbotInstalled
-        ? 'dshbot installed but missing from the Installed list'
-        : 'standalone plugin, not installed on this profile'),
-    true,
-  );
+    if (expectedNames.length > 0) {
+      return expectedNames.every((name) => text.includes(name)) ? { ready: true } : null;
+    }
+    return /还没有装过社区插件|No community plugins yet/i.test(text) ? { ready: true } : null;
+  }, names), 10_000);
+  rec('market.installed', profile.ok && Boolean(installed), installed ? '' : 'Installed tab missing or incomplete');
 
   const usageOpened = await openSettings('usage-stats');
   const usage = await waitUntil(() => pageEval(wc, () => {
@@ -1798,26 +1772,6 @@ async function runReleaseUiWalk(wc, helpers) {
   await dismiss();
   await sleep(300);
 
-  // dshbot is a standalone plugin: the Bots tab may only exist when the
-  // profile actually has dshbot installed (profile manifest above).
-  const botsTab = await pageEval(wc, () => {
-    const tab = Array.from(document.querySelectorAll('[role="tab"]')).find((el) =>
-      dshShown(el) && /(bots|机器人)/i.test(dshLabel(el)));
-    return Boolean(tab);
-  });
-  rec(
-    'plugin.dshbot.tabAbsent',
-    dshbotInstalled ? true : !botsTab,
-    botsTab && !dshbotInstalled ? 'bots tab visible without a dshbot install' : '',
-  );
-  rec(
-    'plugin.dshbot.page',
-    dshbotInstalled ? botsTab : !botsTab,
-    dshbotInstalled
-      ? (botsTab ? 'installed dshbot shows the Bots tab' : 'dshbot installed but Bots tab missing')
-      : 'not installed; tab absent',
-    true,
-  );
   } catch (error) {
     rec('walk.uncaught', false, error && error.stack ? error.stack : String(error));
   }

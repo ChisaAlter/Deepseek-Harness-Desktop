@@ -221,8 +221,8 @@ test('main process boots the ChisaCode remote face (RemoteGateway retired)', () 
   assert.doesNotMatch(index, /createDisabledRemote/);
 });
 
-test('dshbot plugin remains outside the vendor prefix', () => {
-  const manifest = JSON.parse(readRel(ROOT, 'vendor/dshbot/package.json'));
-  assert.equal(typeof manifest.name, 'string');
-  assert.ok(manifest.name.length > 0);
+test('desktop does not carry the detached dshbot plugin', () => {
+  assert.equal(fs.existsSync(path.join(ROOT, 'vendor/dshbot/package.json')), false);
+  const manifest = JSON.parse(readRel(ROOT, 'package.json'));
+  assert.doesNotMatch(JSON.stringify(manifest.build.extraResources), /dshbot/);
 });

@@ -1,6 +1,7 @@
 'use strict';
 
 const GENERIC_LABELS = {
+  'session-cache': '历史会话缓存格式不兼容，导致内核启动失败。跳过用户插件无法修复；请更新到包含缓存兼容修复的桌面版本，并保留日志。不要删除原始会话或清空历史数据。',
   oom: '检测到内存不足（OOM），与单个插件无关。',
   'port-in-use': '检测到端口被占用，与单个插件无关。',
   'missing-node': '未找到 Node 运行时，与单个插件无关。',
@@ -69,6 +70,9 @@ function desktopRuntimeDamageVerdict(forensics) {
  * @returns {string}
  */
 function recoveryVerdict(lastStart, recovery, forensics) {
+  if (forensics?.genericCause === 'session-cache') {
+    return GENERIC_LABELS['session-cache'];
+  }
   // In-box damage outranks the sticky-skip banner: neither「恢复完整插件」nor
   // per-plugin disable can repair a broken harness runtime, so saying so first
   // is the only honest verdict.

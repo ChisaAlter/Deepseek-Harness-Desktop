@@ -10,6 +10,7 @@ const GENERIC_PORT = /eaddrinuse|address already in use/i;
 const GENERIC_NODE = /node['"]?\s+is not recognized|cannot find node|enoent.*node(\.exe)?\b/i;
 
 const EVIDENCE_PATTERNS = [
+  { kind: 'loader', regex: /failed to apply loader entry [^()\r\n]+ \((@?[\w.-]+(?:\/[\w.-]+)*)\)/gi },
   { kind: 'bundle', regex: /cannot resolve profile bundle ['"]([^'"]+)['"]/gi },
   { kind: 'package', regex: /cannot find package ['"]([^'"]+)['"]/gi },
   { kind: 'module', regex: /err_module_not_found[^\n'"]*['"]([^'"]+)['"]/gi },
@@ -66,6 +67,7 @@ function classifyGenericFailure(text) {
   if (GENERIC_OOM.test(blob)) return 'oom';
   if (GENERIC_PORT.test(blob)) return 'port-in-use';
   if (GENERIC_NODE.test(blob)) return 'missing-node';
+  if (/domain ['"]session_projcache['"]:[^\r\n]*does not match its schema/i.test(blob)) return 'session-cache';
   return '';
 }
 

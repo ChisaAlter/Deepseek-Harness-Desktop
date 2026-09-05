@@ -30,6 +30,10 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 ## 强制规则
 
+远程设置的连接方式使用既有分段选择控件，选项命名为「局域网 / 服务器」（英文 LAN / Server）；默认选择服务器，局域网仅作为手动选项。不改变控件布局、配色或配对协议。
+
+插件市场不额外注入 dshbot 第一方推荐卡；目录来源、卡片原语与通用安装管理保持不变。
+
 1. **先复用，再绘制。** 按钮、输入、菜单、对话框、Tooltip、开关行，用 `ui-primitives`。不要再造一套圆角、高度、hover。
 2. **颜色只走 `--dsw-alias-*` / `--dsw-specific-*`。** 功能 CSS 禁止写 `#hex`、`rgb()`、独立 `--bg` / `--accent`。缺 token 先加主题表，再引用语义别名。
 3. **明暗只发生在主题表。** 功能 CSS 不得写 `[data-theme]`、`[data-ds-dark-theme]`、`prefers-color-scheme` 分支。
@@ -85,6 +89,8 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 ## 桌面启动器
 
 启动器是冷启动闸门窗，不是仪器画布。源文件是 [`launcher.html`](../src/renderer/launcher.html)、[`launcher.css`](../src/renderer/launcher.css)、[`launcher.js`](../src/renderer/launcher.js)。色表是 [`dsh-webui-tokens.css`](../src/shared/dsh-webui-tokens.css) 的基线浅色 `:root` 与深色 `html[data-ds-dark-theme]`。`html[data-shell-theme=official]` 让 [`theme.js`](../src/renderer/theme.js) 只切 `theme.scheme` 的明暗半，不把 Appearance 壁纸种子写进 `--dsw-alias-*`。禁止 `--boot-*`、`data-boot-theme`，也禁止在 `launcher.css` 里写第二套 `[data-theme]` / `prefers-color-scheme` 色板。
+
+Recovery Board 在既有归因文本位区分会话投影缓存格式错误与用户插件失败；缓存错误提示优先于跳过插件模式状态，不新增面板或操作控件，不建议清空原始会话。
 
 ## 现有偏差（不要再扩散）
 

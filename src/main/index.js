@@ -10,7 +10,7 @@ const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
 const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDesktopMarket } = require('./dsh-market-desktop');
-const { ensureDshbotPlugin, removeDshbotPreset } = require('./dshbot-preset');
+const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
 const { registerIpc } = require('./ipc');
 const { safeStorage } = require('electron');
@@ -317,8 +317,7 @@ const harness = new HarnessController({
   ensureSessionSearchOverlay,
   ensureDshImPlugin,
   ensureDesktopMarket,
-  ensureDshbotPlugin,
-  removeDshbotPreset,
+  removeLegacyDshbotPreset,
   applyDisabledBundles,
   healDanglingBundles,
   saveConfig,

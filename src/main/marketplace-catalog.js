@@ -22,43 +22,7 @@ const SNAPSHOT_PATH = path.join(__dirname, 'marketplace-registry-snapshot.json')
 const WARNING_FRESH_CACHE = '正在使用一小时内的本地插件目录。';
 const WARNING_EMPTY = '无法加载插件目录。';
 
-/**
- * Desktop first-party rows merged into every catalog payload so the product
- * marketplace can install them without waiting for the external registry to
- * list them. A registry row with the same `owner/name` id wins, so upstream
- * curation can override these entries. Same row layout as plugins.json.
- */
-const FIRST_PARTY_PLUGINS = [
-  {
-    name: 'dshbot',
-    owner: 'ChisaAlter',
-    url: 'https://github.com/ChisaAlter/dshbot',
-    category: 'workflow',
-    description: {
-      en: 'Sidebar bot contacts and group rooms (official desktop standalone plugin).',
-      zh: '侧栏机器人联系人与群聊房间（桌面官方独立插件）。',
-    },
-    npm: null,
-    stars: 0,
-    install: 'dsh plugin --profile web add github:ChisaAlter/dshbot',
-    added: '2026-08-25',
-  },
-];
-
-/**
- * Append first-party rows the registry does not already carry.
- * @param {{ plugins?: object[] } | null} registry
- * @returns {{ plugins: object[] }}
- */
-function withFirstPartyPlugins(registry) {
-  const plugins = Array.isArray(registry?.plugins) ? registry.plugins : [];
-  const ids = new Set(plugins.map((row) => row && `${row.owner}/${row.name}`));
-  const missing = FIRST_PARTY_PLUGINS.filter((row) => !ids.has(`${row.owner}/${row.name}`));
-  if (missing.length === 0) {
-    return registry || { plugins: [] };
-  }
-  return { ...registry, plugins: [...plugins, ...missing] };
-}
+// Catalog entries come from the registry or its cached snapshot.
 
 let memoryRegistry = null;
 let memoryFetchedAt = 0;
@@ -226,7 +190,7 @@ function buildCategories(registry, items, locale) {
 }
 
 function toPayload(registry, locale, extra) {
-  const merged = withFirstPartyPlugins(registry);
+  const merged = registry || { plugins: [] };
   const mapped = (merged.plugins || []).map((plugin) => mapPlugin(plugin, locale)).filter(Boolean);
   const items = mapped.filter((item) => !isDropped(item));
   return {
@@ -450,7 +414,7 @@ function getMarketplacePlugin(id) {
   }
   const locale = resolveLocale('zh');
   const disk = memoryRegistry ? null : readDiskCache();
-  const registry = withFirstPartyPlugins(memoryRegistry || disk?.registry || readSnapshot());
+  const registry = memoryRegistry || disk?.registry || readSnapshot();
   const plugin = (registry.plugins || []).find((row) => row && `${row.owner}/${row.name}` === wanted);
   return plugin ? mapPlugin(plugin, locale) : null;
 }

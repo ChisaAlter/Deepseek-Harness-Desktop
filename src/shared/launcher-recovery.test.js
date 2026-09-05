@@ -70,3 +70,10 @@ test('pluginErrorLabel maps known codes', () => {
   assert.equal(pluginErrorLabel('official-template'), '官方模板插件不可禁用。');
   assert.equal(pluginErrorLabel('unknown-code'), 'unknown-code');
 });
+
+test('session cache diagnosis outranks sticky skip without recommending plugin removal', () => {
+  const verdict = recoveryVerdict(null, { skipUserPlugins: true }, { genericCause: 'session-cache' });
+  assert.match(verdict, /会话缓存/);
+  assert.match(verdict, /不要删除/);
+  assert.doesNotMatch(verdict, /恢复完整插件/);
+});

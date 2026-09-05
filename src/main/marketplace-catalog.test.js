@@ -279,14 +279,14 @@ test('locale picks Chinese or English copy and category labels', async () => {
   assert.equal(byId(zh.items, '13071301808/dsh-composer-expand').description, '输入框展开收起。');
   assert.equal(zh.categories[0].id, 'all');
   assert.equal(zh.categories[0].label, '全部');
-  // 7 registry rows plus the merged first-party dshbot row (category workflow).
-  assert.equal(zh.categories[0].count, 8);
+  assert.equal(zh.categories[0].count, 7);
+  assert.equal(byId(zh.items, 'ChisaAlter/dshbot'), undefined);
   assert.equal(zh.categories[1].id, 'ui');
   assert.equal(zh.categories[1].label, 'UI 增强');
   assert.equal(zh.categories[1].count, 6);
   assert.equal(zh.categories[2].id, 'workflow');
   assert.equal(zh.categories[2].label, '工作流与自动化');
-  assert.equal(zh.categories[2].count, 2);
+  assert.equal(zh.categories[2].count, 1);
   assert.equal(zh.categories.some((row) => row.id === 'learn'), false);
 
   const en = await listMarketplace({ locale: 'en' });
