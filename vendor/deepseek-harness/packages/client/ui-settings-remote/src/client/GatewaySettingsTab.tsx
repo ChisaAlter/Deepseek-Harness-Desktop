@@ -97,7 +97,7 @@ export function GatewaySettingsTab({
 
   const bindAddress = snap?.bindAddress || '0.0.0.0'
   const lanTls = Boolean(snap?.lanTls)
-  const mode = snap?.mode === 'relay' ? 'relay' : 'lan'
+  const mode = snap?.mode === 'lan' ? 'lan' : 'relay'
   const relayReady = snap?.relayConfigured === true
   const modeHint = snap ? modeDescription(snap, t) : ''
   const bindOptions = useMemo(() => {

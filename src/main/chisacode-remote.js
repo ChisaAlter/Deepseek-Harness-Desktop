@@ -124,7 +124,7 @@ async function loadServerApi() {
 }
 
 function modeIsAway(config) {
-  return config.remoteMode === 'relay' || config.remoteMode === 'away';
+  return config.remoteMode !== 'lan';
 }
 
 function resolvedAppBaseUrl(config) {

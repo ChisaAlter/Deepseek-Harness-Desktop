@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 Desktop-only **Remote** surfaces:
 
+Connection choices are LAN / Server. Server (`relay`) is selected when no mode is saved; an explicit LAN choice remains available. This default does not enable pairing or change relay endpoints.
+
 1. Sidebar footer phone control (`sidebar.footer.action` id `remote`) — on/off, pairing QR, bound devices with inline rename.
 2. Settings section id `remote` with tabs (`settings.remote.tab`) — **gateway** (LAN/relay mode, port, bind, LAN TLS, relay URL/token, rotate pairing token) and **channels** (preset `@xmanrui/dsh-im`).
 

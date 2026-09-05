@@ -10,7 +10,7 @@ import { GatewaySettingsTab } from '../src/client/GatewaySettingsTab.tsx'
 import { RemoteSettingsSection } from '../src/client/RemoteSettingsSection.tsx'
 import type { GatewaySettingsTabProps } from '../src/client/GatewaySettingsTab.tsx'
 import type { RemotePatch, RemoteSnapshot } from '../src/client/desktop-shell.ts'
-import { en, type RemoteLocaleKey } from '../src/client/locales.ts'
+import { en, zh, type RemoteLocaleKey } from '../src/client/locales.ts'
 
 usePinnedBrowserLanguages('zh-CN')
 afterEach(() => {
@@ -98,6 +98,15 @@ describe('ui-settings-remote settings section', () => {
 })
 
 describe('GatewaySettingsTab', () => {
+  it('labels the relay as Server and selects it when no mode has been saved', async () => {
+    expect(zh.modeRelay).toBe('服务器')
+    expect(en.modeRelay).toBe('Server')
+    renderGateway({ getRemote: vi.fn(async () => ({ relayConfigured: true, urls: [], devices: [] })) })
+    const server = await screen.findByRole('radio', { name: 'Server' })
+    await waitFor(() => { expect(server.getAttribute('aria-checked')).toBe('true') })
+    expect(screen.getByRole('radio', { name: en.modeLan }).getAttribute('aria-checked')).toBe('false')
+  })
+
   it('orders relay credentials before connection mode (T1)', async () => {
     renderGateway()
     const root = await screen.findByLabelText(en.relayUrl).then((el) => el.closest('[data-dsh-remote-gateway]')!)

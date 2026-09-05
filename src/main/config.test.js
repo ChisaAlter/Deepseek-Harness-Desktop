@@ -165,6 +165,16 @@ test('remote bind address and LAN TLS normalize with safe fallbacks', () => {
   saveConfig({ remoteBindAddress: '0.0.0.0', remoteLanTls: false });
 });
 
+test('remote defaults to server without enabling pairing and preserves an explicit LAN choice', () => {
+  const { normalizeRemoteConfig } = require('./config');
+  assert.equal(DEFAULTS.remoteMode, 'relay');
+  assert.equal(DEFAULTS.remoteEnabled, false);
+  assert.equal(normalizeRemoteConfig({}).remoteMode, 'relay');
+  assert.equal(normalizeRemoteConfig({ remoteMode: 'invalid' }).remoteMode, 'relay');
+  assert.equal(publicConfig({}).remoteMode, 'relay');
+  assert.equal(normalizeRemoteConfig({ remoteMode: 'lan' }).remoteMode, 'lan');
+});
+
 test('remote feature is released: the flag is on and the saved config keeps remote settings', () => {
   assert.equal(REMOTE_FEATURE_ENABLED, true);
   const saved = saveConfig({ remoteEnabled: true, remoteMode: 'relay' });

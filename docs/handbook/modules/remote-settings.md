@@ -1,6 +1,6 @@
 # 远程设置（Settings → Remote）
 
-**当前停放**（`REMOTE_FEATURE_ENABLED=false`）：设置无「远程」分区，侧栏无手机图标。下列是解禁后的结构。
+连接方式为「局域网 / 服务器」，未设置时默认服务器（`relay`）。局域网保留为手动选项；默认模式不自动开启远程配对。
 
 设置分区 `remote` 承载连接方式、网关高级项与**桌面内置** IM 渠道（`vendor/dsh-im`）；侧栏手机弹窗只负责开关、设备与扫码配对。产品契约见 [Feature: remote-settings](../../features/remote-settings.md)，配对网关见 [手机远程](mobile-remote.md)。
 

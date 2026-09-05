@@ -1,6 +1,6 @@
 # remote-settings product
 
-**Parked:** `REMOTE_FEATURE_ENABLED = false` in `src/main/config.js`. Settings section `remote` and the sidebar phone QR do not register. Flip that flag to unpark.
+`REMOTE_FEATURE_ENABLED` in `src/main/config.js` controls availability. Connection labels are LAN / Server; missing mode defaults to Server (`relay`), with LAN only on explicit selection. This does not enable pairing.
 
 Settings section `remote` has two tabs: **gateway** (relay URL·token first, then LAN/relay mode as equal-width segment, port, bind, LAN TLS, rotate pairing token) and **channels** (first-party `vendor/dsh-im` — full nine channels + AI Office; no store brand/GitHub; CTAs use capsule + `--dsw-alias-button-primary-*`, not Ant blue). Sidebar phone popup stays on/off + QR + devices. Marketplace install of `@xmanrui/dsh-im` is rejected (`DROPPED`). dsh-im is a desktop built-in: its insert lives in the desktop-owned overlay `desktop-plugins/dsh-im/desktop-dsh-im.patch.yml`, passed via `--patch` on EVERY start (full + skip); the user-owned `cordis.patch.yml` gets no managed block (ensure only strips the legacy one); the disable list never applies (config normalization strips the aliases, `shell:disable-plugin(s)` returns `desktop-builtin`, forensics marks orphan suspects in-box). Missing IM deps block Harness start (skip cannot fix desktop runtime damage). Tokens / `ui-primitives` for gateway; channel shell is token-equivalent CSS.
 

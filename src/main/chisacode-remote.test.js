@@ -84,6 +84,12 @@ test('pairingAppBaseUrl in LAN mode is :3180 never the relay host', () => {
   assert.doesNotMatch(base, /125\.124\.85\.212/);
 });
 
+test('pairingAppBaseUrl defaults to the server landing page without a saved mode', () => {
+  const remote = new ChisaCodeRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
+  const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../shared/lan');
+  assert.equal(remote.pairingAppBaseUrl(), DEFAULT_PUBLIC_APP_BASE_URL);
+});
+
 test('pairingAppBaseUrl in away mode is the public SPA path not LAN or :8411', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   const remote = new ChisaCodeRemote({

@@ -3,27 +3,29 @@
 | Field | Value |
 | --- | --- |
 | **id** | `remote-settings` |
-| **status** | `parked` |
-| **last verified** | 2026-09-01 — `window-harness-cover` 跟 `REMOTE_FEATURE_ENABLED` 断言 argv（现为 `0`）。此前 2026-08-31 — `REMOTE_FEATURE_ENABLED = false`：设置「远程」与侧栏二维码不注册；磁盘 `remoteEnabled` 无法打开；不听 3180。解禁再翻回 true。 |
+| **status** | `active` |
+| **last verified** | 2026-09-05 — 连接文案改为服务器；配置、快照和配对地址默认 relay，保留显式 LAN；宿主测试 52 通过 / 1 跳过，远程 UI 测试 45 通过。安装版文案需随下一次更新交付。 |
 
 ## User paths
 
-**当前停放：** 设置无「远程」分区，侧栏无手机图标。下列路径是解禁后的产品面，本轮不露出。
+**当前可用：** `REMOTE_FEATURE_ENABLED=true`；远程是否开启仍由用户控制。
 
-1. 设置 → 「远程」（`remote`）→ **网关**：选 **局域网 / 外出**（文案区分；扫码传输都经中继）；中继主机默认内置 `125.124.85.212:8411`。**无宿主令牌墙**。
+1. 设置 → 「远程」（`remote`）→ **网关**：选 **局域网 / 服务器**（文案区分；扫码传输都经中继）；中继主机默认内置 `125.124.85.212:8411`。**无宿主令牌墙**。
 2. 设置 → 「远程」→ **消息渠道**：桌面内置 `@xmanrui/dsh-im` 完整 IM UI（九渠 + AI Office）；无商店品牌头。
 3. 侧栏底部手机图标打开配对弹窗：开关 → 中继状态；中继已连接才显示扫码二维码 / 复制链接 / 刷新配对码 → 已配对设备 / 重命名 / 解除配对。
 
 ## Invariants
 
+- 连接方式文案为「局域网 / 服务器」；未设置时默认服务器（内部值 `relay`），局域网仅在明确选择 `lan` 时使用。既有显式选择保留，不自动开启远程。
+
 - **停放开关：** `src/main/config.js` `REMOTE_FEATURE_ENABLED`。false 时 preload 不暴露 `getRemote`/`saveRemote`/`rotateRemoteToken`/`unbindRemoteDevice`/`renameRemoteDevice`，`ui-settings-remote` 不注册侧栏与设置入口；`normalizeRemoteConfig` 把 `remoteEnabled` 钉死为 false；IPC `shell:save-remote` 无法打开。解禁只翻这一处（window argv `--dshd-remote-feature` 跟它走）。
-- **配对协议 = dshd offer**（实现为 vendored ChisaCode offer v2）：全量 `createChisaCodeDaemon` 跑在 `chisacode-daemon-runner.mjs` 子进程（**禁止**回迁主进程）；主进程 `ChisaCodeRemote` 只是进程管理面 + file-backed 配对/快照；QR `appBaseUrl`：局域网 = `preferredLanIp():3180`，外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**禁止**把中继 `:8411` 当 SPA。用户可见文案称 dshd daemon / dshd 配对，不出现 ChisaCode 品牌名。
+- **配对协议 = dshd offer**（实现为 vendored ChisaCode offer v2）：全量 `createChisaCodeDaemon` 跑在 `chisacode-daemon-runner.mjs` 子进程（**禁止**回迁主进程）；主进程 `ChisaCodeRemote` 只是进程管理面 + file-backed 配对/快照；QR `appBaseUrl`：局域网 = `preferredLanIp():3180`，服务器 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**禁止**把中继 `:8411` 当 SPA。用户可见文案称 dshd daemon / dshd 配对，不出现 ChisaCode 品牌名。
 - **daemon 子进程契约**：runner 在 `asarUnpack`；stdout 只有 JSON 行（控制行 + pino json）；stdin `stop` 与 stdin 关闭都必须优雅停（孤儿零容忍）；意外退出必须落 `snapshot.error` 并保留弹窗重试；不做自动退避重启循环（对齐上游）。
 - **DSHD_* 命名桥**：桌面对外只有 `DSHD_CHISACODE_HOME`（打包需 `DSHD_ALLOW_ENV_HOME=1`，同 dsh-home 守卫）与 `DSHD_DSH_VENDOR_DIR`；`CHISACODE_*` 只允许出现在 daemon 子进程 env 注入处，主进程自身 env 与 PTY / `dsh web` 子进程永不携带；字面量 `DSHD_HOME` 属 dsh-home 卡，不可占用。DEEPSEEK 凭据只经 `official-deepseek-env` 白名单入子进程 env，launch JSON 永不含密钥。
 - `snapshot.relayConnected` / `relayError` 反映真实 relay control；未连接时弹窗明示且不展示配对码。
 - 源码启动若缺 `dist` 会构建 ChisaCode server；pack/dist 额外组装并验证 production daemon 依赖，禁止靠构建机残留产物。
 - 侧栏 QR 仅客户端 `qrSvg(pairingUrl)`（`includeQr: false`）。
-- 外出中继禁止 `chisacode.sh` / 上游 `account_id`。AGPL：`AGPL-SHIPPING.md`。内置 `125…:8411` 可作为 **传输默认**，不可作 SPA；公网 SPA 走 nginx `:3389/dshd/`（`:80/dshd/` 已部署但云安全组未放行 80）。
+- 服务器中继禁止 `chisacode.sh` / 上游 `account_id`。AGPL：`AGPL-SHIPPING.md`。内置 `125…:8411` 可作为 **传输默认**，不可作 SPA；公网 SPA 走 nginx `:3389/dshd/`（`:80/dshd/` 已部署但云安全组未放行 80）。
 - 粘性：`deviceSecret` 直至用户解除配对；刷新 QR 只换短期 pairing token。
 - **设备名（2026-09-04 起）：** 配对 hello 的 `relayDeviceAuth.deviceName`（append-only 协议字段，trim 后 1–120）是客户端自报的设备名——手机配对页从 UA 派生（`iPhone · iOS 18.2` / `Android 15 · Pixel 8` / `电脑`，兜底 `设备`，见 `mobile/web/chisacode/session.js#deviceNameFromUa`），daemon 存为 device label（旧客户端兜底 `relay-pair`）。改名走 IPC `shell:rename-remote-device` → `ChisaCodeRemote.renameDevice` → `RelayDeviceCredentialStore.renameDevice`（文件落盘、幂等、封顶 120、拒绝已吊销）；两条标签写入路径（签发/改名）都归一 120 预算——`DeviceRecordSchema` 在加载时封顶 `label`，超长持久化标签会让整个 store 文件加载失败。存量 `relay-pair` 行不自动改，用户手动改名即迁移。fork 合同见 `vendor/chisacode-remote/DESKTOP-FORK.md`。
 - dsh-im 桌面内置：insert 在自有 overlay `desktop-plugins/dsh-im/desktop-dsh-im.patch.yml`，`--patch` 叠加（full+skip）；`cordis.patch.yml` 不写受管块（只 strip 迁移）；禁插件 / Recovery 不可关（IPC 返回 `desktop-builtin`，config 归一化剔除别名）；vendor 运行时缺损 fail start（skip 修不了）。

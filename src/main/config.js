@@ -26,7 +26,7 @@ const DEFAULTS = {
   remoteEnabled: false,
   remotePort: 6767,
   remoteToken: '',
-  remoteMode: 'lan',
+  remoteMode: 'relay',
   remoteBindAddress: '127.0.0.1',
   remoteLanTls: false,
   remoteRelayUrl: '',
@@ -142,10 +142,7 @@ function normalizeRemoteConfig(config) {
   });
   // Legacy host token is ignored for product pairing; keep field for migration clears.
   next.remoteRelayToken = normalizeRelayHostToken(next.remoteRelayToken);
-  next.remoteMode = REMOTE_FEATURE_ENABLED
-    && next.remoteMode === 'relay'
-    ? 'relay'
-    : 'lan';
+  next.remoteMode = next.remoteMode === 'lan' ? 'lan' : 'relay';
   const remotePort = Number(next.remotePort);
   next.remotePort = Number.isInteger(remotePort) && remotePort >= 1024 && remotePort <= 65535
     ? remotePort
@@ -415,7 +412,7 @@ function publicConfig(config) {
     remoteEnabled: Boolean(config.remoteEnabled),
     remoteAvailable: REMOTE_FEATURE_ENABLED,
     remotePort: Number(config.remotePort) || DEFAULTS.remotePort,
-    remoteMode: config.remoteMode === 'relay' ? 'relay' : 'lan',
+    remoteMode: config.remoteMode === 'lan' ? 'lan' : 'relay',
     remoteBindAddress: normalizeRemoteBindAddress(config.remoteBindAddress),
     remoteLanTls: config.remoteLanTls === true,
     remoteRelayUrl: config.remoteRelayUrl || '',
