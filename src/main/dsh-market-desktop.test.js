@@ -47,6 +47,25 @@ test('packaged runtime resolves the market package from flattened node_modules',
   }
 });
 
+test('packaged startup writes the market overlay before the runtime is extracted', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-market-pre-extract-'));
+  const paths = require('./paths');
+  const originalHarnessRoot = paths.harnessRoot;
+  try {
+    paths.harnessRoot = () => path.join(root, 'runtime', '0.2.9');
+    const profileDir = path.join(root, 'profile');
+
+    const result = ensureDesktopMarket({ profileDir });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.sourceDir, null);
+    assert.equal(fs.existsSync(overlayPath(profileDir)), true);
+  } finally {
+    paths.harnessRoot = originalHarnessRoot;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('ensureDesktopMarket writes the desktop overlay carrying the package-name insert', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dshd-market-'));
   try {

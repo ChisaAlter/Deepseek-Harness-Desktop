@@ -21,7 +21,7 @@ function resolveMarketSourceDir(root) {
     path.join(root, 'node_modules', DSH_MARKET_DIR),
   ];
   return candidates.find((dir) => fs.existsSync(path.join(dir, 'package.json')))
-    || candidates[0];
+    || null;
 }
 
 function defaultSourceDir() {
@@ -29,7 +29,7 @@ function defaultSourceDir() {
     const { harnessRoot } = require('./paths');
     return resolveMarketSourceDir(harnessRoot());
   } catch {
-    return path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness', 'packages', 'client', 'ui-settings-market');
+    return null;
   }
 }
 
@@ -53,8 +53,8 @@ function defaultSourceDir() {
  * }}
  */
 function ensureDesktopMarket(options = {}) {
-  const sourceDir = options.sourceDir || defaultSourceDir();
-  if (!fs.existsSync(path.join(sourceDir, 'package.json'))) {
+  const sourceDir = options.sourceDir === undefined ? defaultSourceDir() : options.sourceDir;
+  if (sourceDir && !fs.existsSync(path.join(sourceDir, 'package.json'))) {
     return { ok: false, added: false, sourceDir: null, error: 'missing-source:package.json' };
   }
   const profileDir = options.profileDir || webProfileDir();

@@ -520,7 +520,10 @@ class HarnessController extends EventEmitter {
     // Marketplace is desktop-owned Settings → 市场 — not a user plugin.
     // Its overlay rides --patch on every start (including
     // skipUserPlugins recovery); the disable list never applies; missing
-    // vendor source fails start (desktop runtime damage, skip cannot fix it).
+    // runtime package fails the post-extraction dsh preflight (desktop
+    // runtime damage, skip cannot fix it). Overlay generation itself runs
+    // before dsh.start extracts the packaged Harness, so it must not require
+    // the package directory to exist yet.
     try {
       const market = await this.ensureDesktopMarket();
       this.assertOperationCurrent(generation);
