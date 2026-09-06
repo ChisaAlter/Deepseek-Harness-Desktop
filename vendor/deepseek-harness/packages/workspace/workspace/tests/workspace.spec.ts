@@ -185,6 +185,34 @@ afterEach(async () => {
 })
 
 describe('WorkspaceRegistry lifecycle and bootstrap', () => {
+  it('repairs missing history membership on startup without restoring deleted workspaces or changing archives', async () => {
+    const dir = await makeDir('startup-history')
+    const deleted = await makeDir('startup-deleted')
+    const id = WorkspaceId('00000000-0000-4000-8000-000000000090')
+    const original = { ...record(dir, ['kept-b', 'kept-a']), title: 'My workspace' }
+    const archivedSessionIds = [SessionId('archived'), SessionId('deleted-archive')]
+    const pool = storedPool([[id, original]], { initialized: true, workspaceIds: [id], archivedSessionIds })
+    const sessions = [
+      header('kept-a', dir, 30), header('kept-b', dir, 10),
+      header('history', dir, 40), header('archived', dir, 20),
+      header('deleted-archive', deleted, 50),
+    ]
+    const result = await harness({ pool, sessions })
+    expect(result.registry.list().map(workspace => workspace.id)).toEqual([id])
+    expect(result.registry.get(id)?.sessionIds).toEqual(['history', 'archived', 'kept-b', 'kept-a'])
+    expect(storedRecord(pool, id)).toMatchObject({
+      title: original.title, createdAt: original.createdAt,
+      sessionIds: ['history', 'archived', 'kept-b', 'kept-a'],
+    })
+    expect(result.registry.archivedSessionIds).toEqual(archivedSessionIds)
+    expect(result.list).toHaveBeenCalledTimes(1)
+    expect(result.load).not.toHaveBeenCalled()
+    expect(result.inspect).not.toHaveBeenCalled()
+    const restarted = await harness({ pool, sessions })
+    expect(restarted.registry.get(id)?.sessionIds).toEqual(['history', 'archived', 'kept-b', 'kept-a'])
+    expect(restarted.initChanges).toEqual([])
+  })
+
   it('stays pending without sessionPersistence and never opens or marks the domain', async () => {
     const pool = new MemoryMediaPool()
     const ctx = await storageContext(pool)
@@ -198,6 +226,23 @@ describe('WorkspaceRegistry lifecycle and bootstrap', () => {
     expect(ctx.workspaceRegistry.list()).toEqual([])
     expect(list).toHaveBeenCalledTimes(1)
     expect(storedState(pool)).toEqual({ initialized: true, workspaceIds: [], archivedSessionIds: [] })
+  })
+
+  it('retries a partially written startup membership repair without duplicating members or clearing archives', async () => {
+    const dir = await makeDir('startup-repair-retry')
+    const id = WorkspaceId('00000000-0000-4000-8000-000000000091')
+    const archivedSessionIds = [SessionId('older-history')]
+    const pool = storedPool([[id, record(dir, ['kept'])]], {
+      initialized: true, workspaceIds: [id], archivedSessionIds,
+    })
+    const sessions = [header('kept', dir, 10), header('older-history', dir, 20), header('newer-history', dir, 30)]
+    await expect(harness({ pool, sessions, backend: selectiveFailureBackend(pool, { putAt: 2 }) }))
+      .rejects.toThrow(/selected bootstrap put failure/)
+    expect(storedRecord(pool, id).sessionIds).toEqual(['older-history', 'kept'])
+    expect(storedState(pool).archivedSessionIds).toEqual(archivedSessionIds)
+    const retry = await harness({ pool, sessions })
+    expect(retry.registry.get(id)?.sessionIds).toEqual(['newer-history', 'older-history', 'kept'])
+    expect(retry.registry.archivedSessionIds).toEqual(archivedSessionIds)
   })
 
   it('bootstraps once from list headers only, in workspace/session createdAt order', async () => {
@@ -787,7 +832,7 @@ describe('Workspace session ordering', () => {
 })
 
 describe('header-validated membership projection', () => {
-  it('requires both candidate id and matching canonical cwd without re-reading on list()', async () => {
+  it('repairs unaccounted matching headers at startup and filters mismatched candidates without re-reading on list()', async () => {
     const owned = await makeDir('owned')
     const elsewhere = await makeDir('projection-elsewhere')
     const id = WorkspaceId('00000000-0000-4000-8000-000000000001')
@@ -804,14 +849,14 @@ describe('header-validated membership projection', () => {
       ],
     })
     const workspace = result.registry.list()[0]!
-    expect(workspace.sessionIds).toEqual(['good'])
-    expect(result.registry.list()[0]!.sessionIds).toEqual(['good'])
+    expect(workspace.sessionIds).toEqual(['cwd-only', 'good'])
+    expect(result.registry.list()[0]!.sessionIds).toEqual(['cwd-only', 'good'])
     expect(result.list).toHaveBeenCalledTimes(1)
-    expect(storedRecord(pool, id).sessionIds).toEqual(['good', 'mismatch', 'missing'])
+    expect(storedRecord(pool, id).sessionIds).toEqual(['cwd-only', 'good'])
 
     await workspace.setTitle('pruned')
-    expect(storedRecord(pool, id).sessionIds).toEqual(['good'])
-    expect(workspace.sessionIds).not.toContain('cwd-only')
+    expect(storedRecord(pool, id).sessionIds).toEqual(['cwd-only', 'good'])
+    expect(workspace.sessionIds).not.toContain('mismatch')
   })
 
   it('rejects duplicate candidate ownership, duplicate paths, and initialized order drift', async () => {

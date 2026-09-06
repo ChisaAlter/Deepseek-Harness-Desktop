@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `session-archive` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — pin `dsh-v0.1.2-alpha.2`；归档列表接在官方 `rows/WorkspaceBrowser`。`unarchiveSession` 是 `workspace.unarchiveSession` Remote；`deleteSession` 是 `session.delete` Remote（仅已归档请求根，`origin === 'subagent'` 级联，fork 不随根）。`UiWorkspaceService` 不再 stub。持久化缝为 `SessionPersistence.delete`。 |；本次 alpha.4：vendor test:gui 5310/5311（1 skip），桌面 npm test 1461/1463（2 skip），归档回归通过。
+| **last verified** | 2026-09-06 — workspace / workspace-controller / ui-workspace 定向 262 项通过；补测设置开关在分组和单列表中的即时显隐、默认折叠及归档行不打开。Host 启动补回仍登记目录遗漏的历史成员，保持归档集合不变（见 no-directory-sessions）。尚未替换安装版验证。 |
 
 ## User paths
 

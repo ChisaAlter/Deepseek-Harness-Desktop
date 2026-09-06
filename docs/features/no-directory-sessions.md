@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `no-directory-sessions` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — 历史会话恢复与插件归因定向检查：Harness 工作区/API/旧缓存 121 项、桌面导入/恢复/打包单测 171 项通过；重新登记已有目录接纳导入历史，缓存格式错误不归咎用户插件。未执行候选安装包升级实测。此前：2026-09-03 — 在 alpha.4 合树上重建：vendor `packages/workspace`、`api/workspace-controller`、`client/ui-workspace`、`client/ui-conversation` 定向 vitest 全绿；`node --test src/shared/harness-desktop-forks.test.js` 通过。 |
+| **last verified** | 2026-09-06 — 启动补全历史成员与归档回归：workspace / workspace-controller / ui-workspace 262 项通过；远程目录、隧道与桌面 marker 114 项通过；Workspace TypeScript 构建通过。保留原成员顺序与归档集合，部分写入失败可在重启后继续。未替换安装版或执行升级实测。 |
 
 ## User paths
 
@@ -13,6 +13,7 @@
 3. 删除某个工作区（登记）后：其全部会话（含已归档的）立刻从侧栏消失——分组视图、单列表、搜索、已归档区都不再出现；若正在浏览其中一个会话，选择被清空回到「新会话」页。文件夹与会话日志本身不删。
 4. 再次添加同一目录为工作区：Host 自动把该目录下所有历史会话重新记入这个工作区，侧栏原样回来（含归档状态）。目录已经登记时也刷新历史索引并接纳后来导入的未归属会话，保留工作区 ID、标题与原成员顺序；启动时不可用、后来恢复的原目录会重新校验。
 5. 冷启动没有任何会话时仍是「选择工作区」占位 + 惰性输入框；被删工作区遗留的空白会话也保持惰性，不会伪装成无工作目录任务。
+6. 启动时为仍登记的工作区补全遗漏的历史成员（包括已归档会话），保留工作区身份、标题与原成员相对顺序；只读会话 header，不重建已删除的工作区，不修改归档集合。
 
 ## Invariants
 
@@ -26,7 +27,7 @@
 
 ## Allowed touch
 
-- `vendor/deepseek-harness/packages/workspace/workspace/src/index.ts`（`readoptableSessionIds`）
+- `vendor/deepseek-harness/packages/workspace/workspace/src/index.ts`（启动成员补全、`readoptableSessionIds`）
 - `vendor/deepseek-harness/packages/api/workspace-controller/{src/types.ts,src/feed.ts,src/index.ts,src/client/model.ts,package.json,tsconfig.host.json}`
 - `vendor/deepseek-harness/packages/client/ui-workspace/src/client/{navigation.ts,tree.ts,WorkspacePicker.tsx,rows/WorkspaceBrowser.tsx,rows/Rows.tsx,locales.ts,index.ts,contract/slots.ts}`
 - `vendor/deepseek-harness/packages/client/ui-conversation/src/client/{apply.ts,contract/slots.ts,locales.ts,skeleton/ConversationRoot.tsx}`

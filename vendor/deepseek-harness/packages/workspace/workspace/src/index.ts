@@ -117,7 +117,7 @@ export class WorkspaceRegistry extends Service {
     super(ctx, 'workspaceRegistry')
   }
 
-  /** Open the domain, finish bootstrap when required, and rebuild the ordered cache. */
+  /** Open the domain, bootstrap when required, and repair surviving registrations from headers. */
   protected async [Service.init](): Promise<void> {
     const domain = await this.ctx.storageDomain.open(workspaceDomainSpec)
     this.ctx.effect(() => () => domain.close(), 'workspace.domainClose')
@@ -138,6 +138,10 @@ export class WorkspaceRegistry extends Service {
     await this.indexLiveSessions()
     this.validateStoredState(this.requireState())
     this.rebuildEntities()
+    for (const entity of this.entities.values()) {
+      const imported = this.indexedReadoptableSessionIds(entity.path)
+      for (const id of imported.reverse()) await entity.attachSession(id)
+    }
     this.reportFilteredCandidates()
   }
 
@@ -400,6 +404,11 @@ export class WorkspaceRegistry extends Service {
     const fresh = await this.ctx.sessionPersistence.list()
     await this.indexHeaders(fresh)
     await this.indexLiveSessions()
+    return this.indexedReadoptableSessionIds(canonical)
+  }
+
+  /** Reuse the startup header index when repairing existing Workspace membership. */
+  private indexedReadoptableSessionIds(canonical: string): SessionId[] {
     const accounted = new Set<SessionId>()
     for (const [, record] of this.requireTable().entries()) {
       for (const sessionId of record.sessionIds) accounted.add(sessionId)

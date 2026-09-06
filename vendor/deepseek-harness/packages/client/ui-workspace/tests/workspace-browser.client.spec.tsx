@@ -13,6 +13,7 @@ import type { WorkspaceBrowserProps } from '../src/client/contract/slots.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
 import { UNGROUPED_KEY } from '../src/client/tree.ts'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
+import { ShowArchivedListRow } from '../src/client/ShowArchivedListRow.tsx'
 import { zh } from '../src/client/locales.ts'
 
 afterEach(cleanup)
@@ -107,6 +108,31 @@ function rerender(b: ReturnType<typeof mount>, overrides: Partial<WorkspaceBrows
 }
 
 describe('WorkspaceBrowser', () => {
+  it.each(['workspace', 'flat'] as const)('toggles the archived section from Interface Settings in %s mode', (mode) => {
+    const b = mount({
+      useSessions: hook(sessionState([summary('archived-history', 1)])),
+      useWorkspaces: hook(workspaceState([workspace('project', ['archived-history'])], [sid('archived-history')])),
+    })
+    act(() => { b.store.actions.setGroupBy(mode) })
+    render(<ShowArchivedListRow {...b.props} />)
+    const toggle = screen.getByRole('switch', { name: '显示已归档列表' })
+    expect(screen.getByText('已归档')).toBeTruthy()
+    expect(screen.queryByText('archived-history')).toBeNull()
+    fireEvent.click(screen.getByText('已归档'))
+    expect(screen.getByText('archived-history')).toBeTruthy()
+    fireEvent.click(screen.getByText('archived-history'))
+    expect(b.props.open).not.toHaveBeenCalled()
+    fireEvent.click(toggle)
+    expect(screen.queryByText('已归档')).toBeNull()
+    expect(screen.queryByText('archived-history')).toBeNull()
+    fireEvent.click(toggle)
+    expect(screen.getByText('已归档')).toBeTruthy()
+    expect(screen.getByText('archived-history')).toBeTruthy()
+    expect(b.props.archiveSession).not.toHaveBeenCalled()
+    expect(b.props.unarchiveSession).not.toHaveBeenCalled()
+    expect(b.props.deleteSession).not.toHaveBeenCalled()
+  })
+
   it('workspace hover card shows a POSIX home descendant as ~', () => {
     vi.useFakeTimers()
     try {

@@ -108,6 +108,8 @@ The registry opens the `workspace` domain (version 2): a `workspaces` table keye
 
 On start, the registry opens the domain, completes a marked mutation if one is pending, validates stored state — duplicate paths, duplicate session accounts, and order drift all fail loud — and, when not yet initialized, bootstraps history from persisted headers before writing the initialized marker last, so an interrupted bootstrap resumes safely. A fresh empty registry is real once initialized; it never re-bootstraps.
 
+Every startup also repairs missing history membership for surviving registrations using the same header index. Unaccounted sessions at each registered canonical directory are prepended newest-first, including archived sessions; existing member order, workspace identity, and the archive set remain intact. Deleted registrations are never recreated. Repair writes use the entity mutation path; a failed write rejects startup and the next start retries the remaining members.
+
 ### Failure and recovery
 
 A create or delete whose second write fails rolls the cache and the prior order back; when both the operation and its rollback fail, the durable marker still names the interrupted operation and the next startup completes or rolls it back. A committed delete whose marker cleanup fails still reports success, and the next startup clears the marker idempotently.
