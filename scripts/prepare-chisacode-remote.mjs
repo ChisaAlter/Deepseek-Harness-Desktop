@@ -10,6 +10,8 @@ const buildRuntime = process.argv.includes('--runtime');
 const serverExport = path.join(vendor, 'packages', 'server', 'dist', 'server', 'server', 'exports.js');
 const mobileBundle = path.join(root, 'mobile', 'web', 'chisacode', 'daemon-client.bundle.js');
 const runtimeRoot = path.join(vendor, '.tmp', 'desktop-runtime');
+const electronPackage = path.join(root, 'node_modules', 'electron', 'package.json');
+const electronRebuildCli = path.join(root, 'node_modules', '@electron', 'rebuild', 'lib', 'cli.js');
 
 function run(command, args, cwd, { shell = process.platform === 'win32' } = {}) {
   // Absolute node paths with spaces break under shell:true on Windows.
@@ -21,6 +23,62 @@ function run(command, args, cwd, { shell = process.platform === 'win32' } = {}) 
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }
+}
+
+function electronExecutable() {
+  const dist = path.join(root, 'node_modules', 'electron', 'dist');
+  if (process.platform === 'win32') return path.join(dist, 'electron.exe');
+  if (process.platform === 'darwin') {
+    return path.join(dist, 'Electron.app', 'Contents', 'MacOS', 'Electron');
+  }
+  return path.join(dist, 'electron');
+}
+
+function prepareElectronSqliteRuntime() {
+  if (!fs.existsSync(electronPackage) || !fs.existsSync(electronRebuildCli)) {
+    throw new Error('[chisacode] Electron or @electron/rebuild is missing; run npm ci first');
+  }
+  const electronVersion = JSON.parse(fs.readFileSync(electronPackage, 'utf8')).version;
+  console.log(`[chisacode] rebuilding better-sqlite3 for Electron ${electronVersion}`);
+  run(
+    process.execPath,
+    [
+      electronRebuildCli,
+      '--version', electronVersion,
+      '--module-dir', runtimeRoot,
+      '--only', 'better-sqlite3',
+      '--force',
+      ...(process.platform === 'win32' ? ['--sequential'] : []),
+    ],
+    root,
+    { shell: false },
+  );
+
+  const sqlitePackage = path.join(runtimeRoot, 'node_modules', 'better-sqlite3');
+  const executable = electronExecutable();
+  if (!fs.existsSync(executable)) {
+    throw new Error(`[chisacode] Electron binary is missing at ${executable}`);
+  }
+  const probe = [
+    'const Database = require(process.argv[1]);',
+    "const db = new Database(':memory:');",
+    "db.exec('create table qa(v integer); insert into qa values (29)');",
+    "const value = db.prepare('select v from qa').get().v;",
+    'db.close();',
+    'process.stdout.write(String(value));',
+  ].join('');
+  const result = spawnSync(executable, ['-e', probe, sqlitePackage], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    shell: false,
+    windowsHide: true,
+  });
+  if (result.status !== 0 || result.stdout.trim() !== '29') {
+    const detail = (result.stderr || result.stdout || result.error?.message || 'unknown error').trim();
+    throw new Error(`[chisacode] Electron better-sqlite3 ABI probe failed: ${detail}`);
+  }
+  console.log('[chisacode] Electron better-sqlite3 ABI probe passed');
 }
 
 function newestMtime(target) {
@@ -91,6 +149,7 @@ if (buildRuntime) {
     ['install', '--install-links', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'],
     runtimeRoot,
   );
+  prepareElectronSqliteRuntime();
 }
 
 console.log('[chisacode] ready');

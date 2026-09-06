@@ -46,6 +46,11 @@ test('desktop start and packaging prepare and ship the ChisaCode runtime', () =>
   assert.match(manifest.scripts.start, /prestart-ensure/);
   assert.match(manifest.scripts.pack, /prepare-chisacode-remote\.mjs --force --runtime/);
   assert.match(prepareScript, /--install-links/);
+  assert.match(prepareScript, /@electron['"], 'rebuild'/);
+  assert.match(prepareScript, /'--only', 'better-sqlite3'/);
+  assert.doesNotMatch(prepareScript, /'--which-module', 'better-sqlite3'/);
+  assert.match(prepareScript, /ELECTRON_RUN_AS_NODE: '1'/);
+  assert.match(prepareScript, /Electron better-sqlite3 ABI probe passed/);
   const resources = manifest.build.extraResources;
   assert.ok(resources.some((entry) => (
     entry.from === 'vendor/chisacode-remote'

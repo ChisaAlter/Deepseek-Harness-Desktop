@@ -1,7 +1,13 @@
 name: Build installers
 
 on:
-  workflow_dispatch: # 手动触发，产出安装包 artifacts
+  workflow_dispatch:
+    inputs:
+      include_macos:
+        description: Build the optional macOS artifact
+        required: false
+        type: boolean
+        default: false
   push:
     tags: ['v*'] # 打 tag 时构建并发布 GitHub Release
 
@@ -69,6 +75,9 @@ jobs:
           if-no-files-found: error
 
   macos:
+    # Manual candidate builds are Windows-only unless explicitly requested.
+    # Tag builds keep the historical best-effort macOS behavior.
+    if: ${{ github.event_name == 'push' || inputs.include_macos }}
     runs-on: macos-latest
     timeout-minutes: 120
     env:
