@@ -128,6 +128,14 @@ test('release job requires a green same-SHA Desktop tests run before publishing'
   assert.ok(publishAt > gateAt, 'the CI gate must run before gh release create');
 });
 
+test('manual release candidates default to Windows-only', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(yml, /workflow_dispatch:\r?\n\s+inputs:\r?\n\s+include_macos:/);
+  assert.match(yml, /include_macos:[\s\S]*?type: boolean[\s\S]*?default: false/);
+  const macos = yml.slice(yml.indexOf('\n  macos:'), yml.indexOf('\n  release:'));
+  assert.match(macos, /if: \$\{\{ github\.event_name == 'push' \|\| inputs\.include_macos \}\}/);
+});
+
 test('release.yml still publishes when Windows succeeds and macOS fails (documented policy)', () => {
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
   assert.match(yml, /always\(\)/);
