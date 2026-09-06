@@ -1,5 +1,7 @@
 ## Deepseek-Harness-Desktop 0.2.9
 
+发布日期：2026-09-06。平台：Windows x64。
+
 相对 [0.2.7](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7)：Harness 升级到 `0.1.2-rc.1`，修复识图路由、历史工作区关联和非法工具调用保护，并带来内置用量统计、内置市场、透明主题与服务器默认远程连接。`0.2.8` 未对外发布。
 
 ### 升级注意（必读）
@@ -37,6 +39,7 @@ if (Test-Path "$old\attachments") {
 | Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.9.exe` |
 
 - 校验：同页的 `SHA512SUMS.txt`（Windows Setup / blockmap）
+- 安装器未做 Authenticode 签名；请从本仓库下载并核对校验文件。
 
 ### 本版变化
 
@@ -47,7 +50,7 @@ if (Test-Path "$old\attachments") {
 - 注册或重新添加工作区时重新关联后来导入的历史会话，保留原有归属和排序
 - 启动时自动补回仍登记工作区遗漏的历史和已归档会话，保留原成员顺序与归档状态，不恢复已删除的工作区
 - 修复插件 Git 安装失败被误报为构建授权的问题
-
+- 文件搜索先按查询过滤再限制结果，避免目标文件被截断漏检
 - 修复旧版 `session_projcache` 记录可能让 Harness 陷入启动崩溃循环的问题；旧格式记录会备份并冷重建，不再阻塞进入应用
 - 修复已重建的 Web UI 组合仍命中旧 `index.html` 缓存的问题
 - 恢复侧栏分组折叠动画，并补齐输入卡四角连续边光与静止态边缘层级
@@ -83,4 +86,12 @@ if (Test-Path "$old\attachments") {
 - 手机目录只传列表必需信息，保留全部会话；模型、权限与计划详情在打开会话时获取，降低弱网下目录同步超时的风险
 - 首次连接失败恢复重试入口，配对成功后自动重连改用保存凭据；新配对链接可取消未完成的旧连接
 - 内置消息渠道适配新版 Harness 鉴权、事件与审批协议，修复 Windows 飞书 SDK 构建兼容问题
-- Android 壳层同步连接与前后台恢复修复；本次桌面候选包不包含 Android APK，Android 实机验收尚未完成
+- 精简远程运行时并统一 DSHD 命名，补齐与 Electron 匹配的 SQLite 原生绑定
+- Android 壳层同步连接与前后台恢复修复；本次发布不包含 Android APK，Android 实机验收尚未完成
+
+### 发布验证与已知边界
+
+- 固定源码：`583b6fa92d93df2ee56363e96e2891b356af75b9`；[Desktop tests](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/34015974835) 和 [Windows 构建及打包冒烟](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/34015983516) 已通过。
+- 发布的是同一批 CI 原始产物，Setup SHA256：`1eb5bd7c3769e1d09a6e863f8948706359f255a91608f0989e7982d19c380117`。
+- 本次经维护者在获知验收缺口后明确授权发布；完整新包实机 P0 验收仍未完成，未测项不计 Pass，历史候选结果不沿用。
+- Web 第二客户端、Android 与 macOS 实机验收不在本次放行范围；全库文档检查仍有既有问题，不宣称所有检查通过。

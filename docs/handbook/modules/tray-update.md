@@ -22,7 +22,7 @@
 ## 不变量
 
 - 关闭行为可配置且重启后保持（验收表有持久化相关条）。  
-- 更新来源为项目 Releases；`/releases/latest` 忽略 draft（0.2.7 已正式发布，启动器随 Setup）。  
+- 更新来源为项目 Releases；`/releases/latest` 忽略 draft。启动器自 0.2.7 起随 Setup 提供，当前版本与发布状态以 [构建、钉版与发版](build-release.md) 为准。
 - 冷启动更新询问/下载挂在可见启动器上；下载失败（含正文断流、字节数与 content-length 不符）删除半成品并回启动器首页，不留无窗进程（`TC-LAUNCH-008`）。  
 - 桌面在跑时关启动器 ≠ `app.quit()`；桌面未启动时关启动器 = 退出应用。
 

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `windows-installer` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — merge commit `e11fb52a44557967998e45fae1f14292598ca716` 的 Desktop tests run `34003209987`（attempt 2）成功；Windows-only candidate run `34003885770` 成功，packaged smoke 与 artifact 上传通过。CI Setup SHA256 `01f1f94e9ad3134da4732bd5bf7a93888a4b495adeb9805f0ffcecbd1e681e50`，已 `/S` 覆盖安装：应用 `0.2.9`、bundled Node `v22.22.2`、Electron `43.4.0` / ABI `148`，`better-sqlite3` 内存读写探针返回 `29`；安装版稳定运行 60 秒，Harness `127.0.0.1:3080` 与远程 daemon `127.0.0.1:6767` 均监听，未出现 native binding 启动错误。Web 第二客户端、Android 与 macOS 按产品负责人要求排除，本版未创建公开 Release；Setup 未做 Authenticode 签名。 |
+| **last verified** | 2026-09-06 — Windows `v0.2.9` 已按维护者明确授权公开为 Latest。固定源码 `583b6fa92d93df2ee56363e96e2891b356af75b9` 的 Desktop tests `34015974835` attempt 2 与 Windows build/packaged smoke `34015983516` 均成功；Setup SHA256 `1eb5bd7c3769e1d09a6e863f8948706359f255a91608f0989e7982d19c380117`，版本资源 `0.2.9`，未做 Authenticode 签名。三个发布资产与本机已校验 CI 文件逐项匹配；自动触发的重复构建 `34018917540` 已取消。新包完整实机 P0 未完成，不继承 [旧 e11fb52 安装验证](../qa/results/2026-09-06/candidate-e11fb52/WINDOWS-CANDIDATE.md)。授权与发布证明见 [发布记录](../qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md)。 |
 
 ## User paths
 

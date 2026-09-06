@@ -6,30 +6,37 @@ Community desktop client that wraps the official DeepSeek Harness Web UI — dow
 
 ## Install
 
-Grab a build from [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest). No local Node required. Current release is **[0.2.7](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7)**.
+Grab a build from [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest). No local Node required. The current release is **[0.2.9](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9)**, released on **September 6, 2026**, for Windows x64 only. `0.2.8` was not publicly released.
 
 | | |
 | --- | --- |
-| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.7.exe` |
-| macOS Apple Silicon | `Deepseek-Harness-Desktop-0.2.7-mac-arm64.dmg` |
-| Intel Mac, Linux | [Run from source](#run-from-source) |
+| Windows x64 | [Deepseek-Harness-Desktop-Setup-0.2.9.exe](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/download/v0.2.9/Deepseek-Harness-Desktop-Setup-0.2.9.exe) |
+| macOS, Linux, Android | No installer in this release; desktop source requirements are [below](#run-from-source) |
 
-The macOS build is unsigned: right-click → Open, or run `xattr -cr /Applications/Deepseek-Harness-Desktop.app`. Checksums are in `SHA512SUMS.txt` on the release page.
+The Windows installer is not Authenticode-signed. Download from this repository and verify it against [SHA512SUMS.txt](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/download/v0.2.9/SHA512SUMS.txt). Older macOS binaries remain in historical releases and do not include the 0.2.9 fixes.
 
 After install, the launcher opens first and usually starts the desktop. If the desktop has no sessions yet and `~/.dsh` already has data, it stops on Import. Then pick a workspace and add an API key in Settings.
 
-## What's new in 0.2.7
+## What's new in 0.2.9
 
-- **Cold-start launcher** — opens before the desktop: update check, official-home import, versions, plugin Recovery Board; “Stop desktop” keeps the app running.
-- **Separate home** — sessions, settings, and marketplace plugins live in `dsh-home` under app data. The app does not read, migrate, or change the official CLI `~/.dsh`.
-- **Harness `0.1.1-rc.1`** — installer pins official `dsh-v0.1.1-rc.1`.
-- **Terminal assets** — Ghostty wasm and fonts ship in the installer; a source launch with missing assets refuses to start.
-- **Vision / gateway** — custom gateways are not written into official `DEEPSEEK_*`; vision fallback uses the official route when the main model cannot see images.
+- **Harness `0.1.2-rc.1`**: source and installers share the official baseline, restoring archive, inline message editing, and workspace integrations.
+- **History and startup recovery**: startup restores missing active and archived history for registered directories while preserving previous member order and archive state. Compatible old projection caches are backed up and cold-rebuilt.
+- **Vision and tool calls**: repair fallback request handling and description reuse, malformed tool-call validation, retries, and old-history projection recovery.
+- **Built-in settings modules**: Usage Stats and Market ship with the desktop, alongside transparent themes, cumulative session costs, and consistent settings controls.
+- **Files and UI**: fix truncated file-search results, stale Web UI page caching, sidebar fold animation, and composer edge lighting.
+- **Remote connections**: Server is the default when unconfigured, with LAN selectable manually; pairing retry, reconnection, catalog synchronization, and remote SQLite runtime compatibility are repaired.
+- **Standalone dshbot**: no longer bundled or recommended by the desktop. Existing user installations and data remain managed through ordinary plugin disable/recovery controls.
 
-Full notes: [Release Notes](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7).
+Full notes: [Release Notes](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9) ([English source](.github/release-notes.en.md) / [中文](.github/release-notes.md)). CI and packaged smoke passed. This release proceeds under explicit maintainer authorization; full installed-package P0 acceptance remains incomplete, and untested cases are not marked Pass. See the [release record](docs/qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md).
+
+## Upgrade notes
+
+**Older dshbot versions may be incompatible with the new Harness.** If dshbot blocks startup, disable only that plugin in the launcher's recovery tools. Do not delete plugin files, bot settings, memories, or sessions.
 
 > [!CAUTION]
-> **Old chats are not imported automatically.** Quit completely (including the tray). Prefer **launcher → Import**. Do not copy `profiles`. Do not force-open an older rc SQLite session store.
+> **Migration from the official CLI or a version older than 0.2.7 does not import old chats automatically.** Quit completely, including the tray, then use **launcher → Import**. Do not copy `profiles` or overwrite desktop data with an older SQLite session store.
+>
+> Users already on the 0.2.7 desktop `dsh-home` can install 0.2.9 over it while retaining desktop data. After import, reopen the original workspace path; directory-free sessions appear under the ungrouped workspace section.
 
 Windows PowerShell fallback if the launcher is unavailable:
 
@@ -42,20 +49,21 @@ if (Test-Path "$old\attachments") {
 }
 ```
 
-On macOS copy `$HOME/.dsh/sessions` to `~/Library/Application Support/Deepseek-Harness-Desktop/dsh-home/sessions` (same for `attachments`). Then reopen the **original workspace path**.
+For source runs on macOS, copy `$HOME/.dsh/sessions` to `~/Library/Application Support/Deepseek-Harness-Desktop/dsh-home/sessions` (same for `attachments`), then reopen the **original workspace path**. This release has no macOS installer.
 
-If the terminal still shows `Unable to load libghostty-vt (404)`, or you installed 0.2.4 / 0.2.5, install 0.2.7.
+Windows users still seeing `Unable to load libghostty-vt (404)`, or running 0.2.4 / 0.2.5, should install 0.2.9.
 
 ## Features
 
 - **Official UI** — chat, tool calls, and approvals are `dsh web`. There is no custom chat page.
 - **Launcher** — cold start opens the launcher (update prompt, import, versions, plugin forensics); tray can reopen it anytime.
 - **Git** — switch branches, commit, push, and open a pull request from the title bar.
-- **Remote** — open Remote at the bottom of the sidebar and scan the QR with a phone browser to join the same session (off by default).
+- **Remote**: enable it manually and scan to connect to the same session. Server is the default when unconfigured; LAN remains a manual choice. Mobile Web and Android are outside this release's device-acceptance scope, and no APK is shipped.
 - **Files and terminal** — `Ctrl+\` opens the right column (Files / Diff / Browser / Agents); `` Ctrl+` `` opens the bottom terminal. A selection can join chat.
 - **Models** — thinking intensity for third-party models, vision fallback; the latest user message can be edited and resent.
-- **Appearance** — light / dark themes. Pick a wallpaper or Browse the gallery (categories, search, favorites; confirm crops to the window). Frost and pixelate stay on Appearance.
+- **Appearance**: light, dark, and transparent themes. Pick a wallpaper or Browse the gallery (categories, search, favorites; confirm crops to the window). Frost and pixelate stay on Appearance.
 - **Extensions** — MCP, Skills, and plugins in Settings. The marketplace is a desktop-owned settings section (built-in curated catalog and install engine, product shape derived from [dsh-market](https://github.com/dsh-market/dsh-market) but detached from that upstream). There is no standalone marketplace window.
+- **Usage Stats**: built-in cross-session token statistics, heatmaps, and export in Settings; no separate statistics plugin is required.
 - **Desktop shell** — minimize to tray, auto-update; if Harness dies, the window returns to a failure page and restarts. If a user plugin blocks startup, the launcher can disable that package or skip user plugins.
 
 `Ctrl+,` opens Settings.
@@ -110,7 +118,9 @@ npm run dist          # Windows installer
 npm run dist:mac      # macOS installer (must run on macOS)
 ```
 
-Push a `v*` tag that matches `package.json`; GitHub Actions builds the Windows and macOS installers. Before publishing, walk the [production acceptance table](docs/qa/production-acceptance-test-cases.md) on the **CI windows artifact** (same SHA as the Setup you will upload). A local `npm run dist` must not count as Pass on that table.
+Use `workflow_dispatch` to build a candidate first; Windows-only is the default. Require Desktop tests for the same source SHA and packaged smoke, then complete [production acceptance and any necessary written waivers](docs/qa/production-acceptance-test-cases.md) under repository policy before promoting the same files. Do not push a `v*` tag as a substitute: the existing tag-push workflow rebuilds and automatically publishes, and may build macOS. A local `npm run dist` is not an installed-app acceptance Pass. The release-specific maintainer authorization for 0.2.9, fixed source SHA, CI runs, and file digests are in the [release record](docs/qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md). That one-time authorization does not change the general acceptance gate or turn untested cases into Pass.
+
+Publishing a draft can create its tag and trigger the same tag-push workflow. When promoting fixed artifacts, check for and cancel the duplicate build, then verify that the public release assets are unchanged. This was completed for 0.2.9.
 
 ## Community
 

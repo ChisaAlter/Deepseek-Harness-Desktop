@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `core-regression-gates` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — 候选 `583b6fa92d93df2ee56363e96e2891b356af75b9` 的 Desktop tests run `34015974835` attempt 2 全绿；首轮核心集合 3673 通过、1 个旧缓存夹具 5 秒超时，定向 6 项通过后只重跑失败 job，未改超时或跳过测试。客户端目录与第三方声明分开检查后均通过；Windows run `34015983516` 构建和 packaged smoke 通过，完整产物已校验并附到未公开草稿。全库 doc-sync 不标全绿；新包实机 P0 签字仍待完成。见 [候选记录](../qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md)。 |
+| **last verified** | 2026-09-06 — `583b6fa92d93df2ee56363e96e2891b356af75b9` 的 Desktop tests run `34015974835` attempt 2 全绿，Windows run `34015983516` 构建和 packaged smoke 通过；26 项发布相关本地测试通过。首轮旧缓存夹具 5 秒超时保留记录，未改超时或跳过测试；独立目录/声明检查均通过。相同产物已按维护者明确授权公开为 `v0.2.9` Latest，资产摘要及标签核验一致。全库 doc-sync 和新包完整实机 P0 不宣称通过，通用门槛不修改。见 [发布记录](../qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md)。 |
 
 ## User paths
 

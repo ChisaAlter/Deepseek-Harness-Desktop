@@ -2,9 +2,11 @@
 
 中文 · 扫桌面 **远程** 弹窗里的二维码。浏览器与 Android 都运行 `mobile/web` 的 dshd 远程 SPA；Android 原生层只负责扫码、粘贴和安全承载 APK 内置资产。它们都不是官方四栏 `dsh web`。
 
+**0.2.9 发布范围（2026-09-06）：** 本次仅交付 Windows x64 桌面安装包，不发布 Android APK。本文是源码能力说明，Web 第二客户端与 Android 未纳入本次实机放行范围，不能据此视为手机全流程验收通过。见[中英文发布说明](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9)。
+
 ## Web
 
-1. 桌面打开远程，选择局域网或外出。桌面总是在本机 `:3180` 提供 SPA；offer 内的中继端点只承载 dshd WebSocket。
+1. 手动开启桌面远程。未配置时默认「服务器」，「局域网」可手动选择；已保存的模式和地址保持不变。页面地址以桌面生成的配对链接为准，offer 内的中继端点只承载 dshd WebSocket，不是 SPA 页面。
 2. 用系统相机扫码，或在 SPA 内用 `BarcodeDetector` + `getUserMedia` 扫码/粘贴完整 `#offer=` URL。
 3. SPA 解析 offer v2 后创建浏览器版 `DaemonClient`，通过中继与桌面 daemon 端到端加密通信。首次配对取得的 `deviceSecret` 保存在该 SPA origin 的 localStorage；没有 hash 的后续启动会 sticky 重连。
 4. 会话列表/时间线/发送/停止/审批，以及手机“新会话”，都直接走 daemon RPC。新会话复用已有 agent 的 `provider`/`cwd`；空目录时从最近工作区与 ready provider 发现默认值。
@@ -18,7 +20,7 @@
 - 相机权限被拒（`NotAllowedError`）→ 权限说明屏，指引浏览器站点设置，可改用粘贴。
 - 扫到异 origin 的配对码 → `location.replace` 整页跳转到二维码里的本机 SPA 地址，token 留在 `#offer=`，不进查询串。
 
-中继能看到连接元数据，但会话内容由 daemon/client 密钥端到端加密。不要把任何公共服务当作产品默认中继或 SPA 地址。
+中继能看到连接元数据，但会话内容由 daemon/client 密钥端到端加密。服务器模式使用应用配置的默认地址或用户显式保存的地址；不要把任意公共服务当成可信替代端点。
 
 ## Android
 
