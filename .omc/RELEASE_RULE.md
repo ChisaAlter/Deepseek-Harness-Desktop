@@ -1,5 +1,5 @@
 # Release Rules
-<!-- last-analyzed: 2026-09-05T04:00:00Z -->
+<!-- last-analyzed: 2026-09-06T02:21:34Z -->
 
 ## Version Sources
 - `package.json` `"version"` (electron-builder artifact names use `${version}`)
@@ -8,8 +8,8 @@
 - Tag must be `v${package.json.version}` (`scripts/check-release-version.mjs`)
 
 ## Release Trigger
-- Push tag `v*` → `.github/workflows/release.yml` builds Windows NSIS + macOS arm64 DMG, then `gh release create`
-- `workflow_dispatch` builds the same artifacts but does **not** publish a GitHub Release
+- Push tag `v*` → `.github/workflows/release.yml` builds Windows NSIS and follows the historical automatic publication path; it can also schedule the existing macOS job, so it is not the promotion path for the Windows-only 0.2.9 release.
+- `workflow_dispatch` defaults `include_macos=false`, builds the Windows candidate only, and does **not** publish a GitHub Release. macOS is scheduled only when explicitly requested.
 - Repository policy requires `workflow_dispatch` first, production acceptance on that exact Windows artifact SHA, then publishing those same files; directly pushing a tag publishes too early for that manual gate
 
 ## Test Gate
