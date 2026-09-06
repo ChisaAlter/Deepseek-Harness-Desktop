@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `windows-installer` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — Windows 0.2.9 本地候选已完成 `npm test`（1402 pass / 2 skip）、NSIS 构建、Electron 43 / ABI 148 SQLite 读写探针与 packaged smoke；Setup SHA256 `fe3d16de40981980f9d03ac607cb7f385c6ccc74c8b18bed2ee928eaffee62ed`。产品负责人明确本版不发布 macOS，手动候选工作流默认只构建 Windows；Web 第二客户端与 Android 同样不计入本版验收。CI 同 SHA 候选仍待生成，未发布。 |
+| **last verified** | 2026-09-06 — merge commit `e11fb52a44557967998e45fae1f14292598ca716` 的 Desktop tests run `34003209987`（attempt 2）成功；Windows-only candidate run `34003885770` 成功，packaged smoke 与 artifact 上传通过。CI Setup SHA256 `01f1f94e9ad3134da4732bd5bf7a93888a4b495adeb9805f0ffcecbd1e681e50`，已 `/S` 覆盖安装：应用 `0.2.9`、bundled Node `v22.22.2`、Electron `43.4.0` / ABI `148`，`better-sqlite3` 内存读写探针返回 `29`；安装版稳定运行 60 秒，Harness `127.0.0.1:3080` 与远程 daemon `127.0.0.1:6767` 均监听，未出现 native binding 启动错误。Web 第二客户端、Android 与 macOS 按产品负责人要求排除，本版未创建公开 Release；Setup 未做 Authenticode 签名。 |
 
 ## User paths
 
