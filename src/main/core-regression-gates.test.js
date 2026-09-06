@@ -20,3 +20,10 @@ test('CI runs blocking core regression suites after building vendor libraries', 
   assert.ok(workflow.indexOf('run build:lib') < workflow.indexOf(step[0]));
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
 });
+
+test('CI checks generated catalogs in separate steps so a later success cannot mask a failure', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '../../.github/workflows/test.yml'), 'utf8');
+  for (const generator of ['gen-client-catalog', 'gen-third-party-notices']) {
+    assert.match(workflow, new RegExp(`- name: [^\\r\\n]+\\r?\\n\\s+run: node node_modules/pnpm/bin/pnpm\\.cjs --dir vendor/deepseek-harness run ${generator} --check(?:\\r?\\n|$)`));
+  }
+});

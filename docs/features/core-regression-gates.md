@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `core-regression-gates` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — 核心集合 173 文件 / 3672 通过 / 3 跳过；GUI 411 文件 / 5337 通过 / 1 跳过；CI 隔离、核心门禁和插件归因 29 项通过。本机 electron-builder 依赖阻塞已解决；远端 CI 与最终安装包验收仍待验证。 |
+| **last verified** | 2026-09-06 — 本轮桌面 1403 通过 / 2 跳过、workspace / workspace-controller / ui-workspace 262 通过；旧 CI run 34003209987 的目录检查失败被后续命令成功覆盖，改为两个独立步骤阻断失败，并从已提交源码刷新客户端目录。全库 doc-sync 有既有失败，不标全绿；新提交 CI 与安装包验收待完成。 |
 
 ## User paths
 
@@ -16,6 +16,7 @@
 - 复用既有 Desktop tests workflow，不修改发布或权限策略。
 - 使用真实关键链路测试，不以源码字符串存在代替行为验证。
 - 冷历史测试夹具必须提供生产控制器声明的 agents 依赖。
+- 客户端目录与第三方声明各用独立 CI 步骤检查，后续成功不得覆盖前一个失败退出码。
 
 ## Allowed touch
 
