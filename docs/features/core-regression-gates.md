@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `core-regression-gates` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — 本轮桌面 1403 通过 / 2 跳过、workspace / workspace-controller / ui-workspace 262 通过；旧 CI run 34003209987 的目录检查失败被后续命令成功覆盖，改为两个独立步骤阻断失败，并从已提交源码刷新客户端目录。全库 doc-sync 有既有失败，不标全绿；新提交 CI 与安装包验收待完成。 |
+| **last verified** | 2026-09-06 — 候选 `583b6fa92d93df2ee56363e96e2891b356af75b9` 的 Desktop tests run `34015974835` attempt 2 全绿；首轮核心集合 3673 通过、1 个旧缓存夹具 5 秒超时，定向 6 项通过后只重跑失败 job，未改超时或跳过测试。客户端目录与第三方声明分开检查后均通过；Windows run `34015983516` 构建和 packaged smoke 通过，完整产物已校验并附到未公开草稿。全库 doc-sync 不标全绿；新包实机 P0 签字仍待完成。见 [候选记录](../qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md)。 |
 
 ## User paths
 
