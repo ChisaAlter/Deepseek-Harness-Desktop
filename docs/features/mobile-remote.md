@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — 本地 Web + host tunnel/mux 304/304；假 host 浏览器 30/30；Android JVM 测试和 Debug APK 构建此前通过。用户授权后仅启用本机目录模块并重启远程：217 条会话约 62.6KB，公网直连及系统代理各新配对 + 5 次重连，共 12 次目录加载成功，4955–13476ms，无目录超时。公网页面另有一次导航超时，不能宣称任意弱网稳定。无正式发布、无公网前端追加部署、无 APK 安装；ADB 无设备，Android 实机 Blocked。入口已开放但最终 CI 安装包全量验收待完成，**不得写「实机全量通过」**。 |
+| **last verified** | 2026-09-06 — Windows 0.2.9 候选发现生产 runtime 漏装 `better-sqlite3.node`；`prepare-chisacode-remote.mjs --runtime` 现仅重建 `better-sqlite3` 到 Electron 43.4.0 / Node ABI 148，并立即执行内存 SQLite 读写探针，失败即阻断 `npm run dist`。本地从空 runtime 重建、`npm test` 1402 pass / 2 skip、NSIS 构建、产物 ABI 探针和 packaged smoke 均通过。产品负责人明确本次 Windows 发布忽略 Web 第二客户端与 Android 验收；相关轨道记范围外/豁免，**不记 Pass，也不宣称实机全量通过**。此前：2026-09-05 — 本地 Web + host tunnel/mux 304/304；假 host 浏览器 30/30；Android JVM 测试和 Debug APK 构建此前通过。 |
 
 ## User paths
 
