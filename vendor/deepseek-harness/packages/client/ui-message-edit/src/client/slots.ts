@@ -5,7 +5,7 @@
  * the entries, so no SlotMap merge lives here. The edit surface is the
  * session's own resident composer: `beginEdit` starts a composer edit
  * session (stash + seed + redirected submit) whose sink is the
- * fork-before/open/handoff transaction, and `endEdit` cancels it. The pencil
+ * same-session edit transaction, and `endEdit` cancels it. The pencil
  * only calls the owner `startEdit` callback. Both entries declare the shared
  * interaction store (the focus-return handshake after a cancelled edit).
  * @module @deepseek-ai/dsh-client-ui-message-edit/client/slots
@@ -27,10 +27,10 @@ export interface MessageEditInjected {
   /**
    * Begin the composer edit session for the addressed message: the resident
    * composer stashes its draft, seeds the message text, and redirects its
-   * submit to the fork-before/open/handoff transaction. A refusal (another
+   * submit to the same-session edit transaction. A refusal (another
    * edit live, or an admission transaction in flight) notifies on the
    * composer and returns false — the caller restores the static bubble.
-   * @param seq - the user message to replace (the fork cuts before its turn).
+   * @param seq - the user message whose turn is replaced in this Session.
    * @param text - the message's plain text, verbatim (the draft seed).
    */
   beginEdit: (seq: number, text: string) => boolean

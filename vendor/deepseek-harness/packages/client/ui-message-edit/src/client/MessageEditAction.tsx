@@ -2,7 +2,7 @@
  * Latest-user-message edit control: a pencil in the user message's IconActions
  * row that asks the owning bubble to enter inline-edit mode. Only the newest
  * user message in the transcript arms the button; historical messages render
- * nothing here. The fork/resend transaction lives on the editor, not here.
+ * nothing here. The edit/resend transaction lives on the editor, not here.
  * After a cancelled edit the pencil consumes the store's focus-return request
  * so keyboard focus lands back on the control that opened the editor.
  * @module @deepseek-ai/dsh-client-ui-message-edit/client/MessageEditAction

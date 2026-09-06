@@ -2,7 +2,7 @@
 // chain, AND the composer bar (session-maybe slot) stay mounted across
 // no-session/session transitions — the bar renders inert via owner props.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
@@ -285,6 +285,53 @@ export function ConversationRoot({
   )
   const hero = sessionId === undefined
     || (shellPhase === 'blank' && (openState === 'open' || summaryBlank === true))
+  const stackRef = useRef<HTMLDivElement>(null)
+  const previousComposer = useRef<{ sessionId: typeof sessionId; hero: boolean; top: number } | null>(null)
+  useLayoutEffect(() => {
+    const previous = previousComposer.current
+    if (!hero && (previous?.hero !== true || previous.sessionId !== sessionId || !session?.promptAttempted)) {
+      previousComposer.current = null
+      return
+    }
+    const stack = stackRef.current
+    const card = stack?.querySelector<HTMLElement>('[data-composer-card]')
+    if (stack === null || card === undefined || card === null) return
+    const top = card.getBoundingClientRect().top
+    if (!hero && previous !== null) {
+      stack.style.setProperty('--dsh-composer-enter-offset', `${previous.top - top}px`)
+      stack.dataset.composerEntering = ''
+    }
+    previousComposer.current = { sessionId, hero, top }
+  })
+  useLayoutEffect(() => {
+    const stack = stackRef.current
+    if (stack === null) return
+    const finish = () => {
+      delete stack.dataset.composerEntering
+      stack.style.removeProperty('--dsh-composer-enter-offset')
+    }
+    const onEnd = (event: AnimationEvent) => {
+      if (event.target === stack) finish()
+    }
+    stack.addEventListener('animationend', onEnd)
+    stack.addEventListener('animationcancel', onEnd)
+    // Keep the starting rectangle current through window and draft resizing.
+    const observer = hero ? new ResizeObserver(() => {
+      const card = stack.querySelector<HTMLElement>('[data-composer-card]')
+      if (card !== null) previousComposer.current = { sessionId, hero, top: card.getBoundingClientRect().top }
+    }) : null
+    if (observer !== null) {
+      observer.observe(stack)
+      const scroller = stack.closest('[data-conversation-scroll]')
+      if (scroller !== null) observer.observe(scroller)
+    }
+    return () => {
+      observer?.disconnect()
+      stack.removeEventListener('animationend', onEnd)
+      stack.removeEventListener('animationcancel', onEnd)
+      finish()
+    }
+  }, [hero, sessionId])
   const zone: InputZone | undefined =
     session === undefined || inputState === undefined ? undefined : { session, input: inputState }
 
@@ -371,7 +418,7 @@ export function ConversationRoot({
   })
 
   const composerBar = (
-    <div className={clsx(css.composerStack, hero && css.composerHero)}>
+    <div ref={stackRef} className={clsx(css.composerStack, hero && css.composerHero)}>
       {hero && <HeroShell t={t} renderSlot={renderSlot} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}

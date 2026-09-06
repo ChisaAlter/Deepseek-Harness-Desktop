@@ -102,6 +102,8 @@ Details: the [sequence diagram](agent-lifecycle.md), the [tool pipeline](tool-ex
 
 ## Session log
 
+Pre-step consumers may provide per-message `surfaceIntents` for admitted input. The loop commits those placements through the existing Session surface validator; unlisted messages append normally. Same-session message editing uses this path without rewriting stored events or changing Session identity.
+
 Before dispatch, the optional vision-fallback service substitutes images for text-only routes and logs each description. Request reconstruction uses only those logged descriptions; it never invokes an auxiliary model. Completed tool-call identities are validated before `assistant/message` or execution; malformed responses enter request recovery while raw chunks remain available for diagnosis.
 
 The session log is the source of the context the model sees. `deriveMessages()` projects model history from it, and raw `assistant/chunk` events preserve replay and UI fidelity. Fork, resume, transcripts, telemetry, and persistence all derive from this stream.

@@ -39,6 +39,12 @@
   padding: 0 var(--dsh-composer-side-clearance);
 }
 
+/* Keep the statistics line's space through admission and projection updates. */
+.footer {
+  width: 100%;
+  min-height: calc(24px + var(--dsh-content-font-delta-secondary, 0px));
+}
+
 .notice {
   width: 100%;
   max-width: var(--dsh-composer-card-max-width);

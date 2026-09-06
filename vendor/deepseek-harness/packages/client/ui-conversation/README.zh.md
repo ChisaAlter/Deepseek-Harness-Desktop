@@ -9,6 +9,8 @@ kind: "package-reference"
 
 ## 概述
 
+作用域内的 `conversation.edit` 将修订文本和草稿图片连同编辑目标送入同一 Session 的附件准入路径。准入结果返回常驻 composer 编辑会话，不调用 fork 或导航；准入成功后恢复收起的草稿。
+
 `ui-conversation` 拥有与 target 无关的 Conversation 组装和共享浏览器 shell。它消费 Session Controller 的 `SessionEventLikeEntry` feed，通过 `ctx.uiConversation` 暴露不依赖 React 的 registry 与逐 Session binding，并通过 `ctx.uiSession` 提供 `useConversation`、`useInput` 和 `inputActions` 标准 props。它还拥有按会话的持久化图片 URL 缓存：`ctx.uiConversation.imageUrl(sessionId, attachment)` 为每个附件解析一个经会话授权的浏览器 URL，并随 Session binding 释放而撤销，因此所有 Conversation target 共享一次 `session.attachment` 读取。Chat 等具体 target 位于独立 package，由各自 package 注册 Definition、snapshot builder、View 和 renderer。
 
 ## 目录
@@ -45,6 +47,8 @@ Session 首次绑定或缓存的 Session 成为 current 时，shell 会在渲染
 常驻 composer 在无 Session 与有 Session 之间保持挂载。无 Session 时，同一个编辑器表面保持 inert，Workspace picker 连接 blank Session。该表面是 shell 所有的 Lexical 编辑器：引用 chip 是携带 owner 序列化身份的原子 decorator 节点（提交时经 owner codec 展开），已认领的 slash command 保持为带样式的行首文本，文件夹文本引用以图标前缀携带文件夹图形，草稿的剪贴板投影镜像到逐 Session Conversation store。Queue 操作通过 scoped `ctx.conversation` service 寻址准确的 queue occurrence；queue 预览经 `ui-primitives` 的共享行内引用投影渲染已发送文本（wire 会话形式折叠为其标签），并把本地图片预览或持久化图片部分显示为缩略图，编辑态则展示字面发送文本。持久化缩略图通过会话图片 URL 缓存解析。繁忙时 Enter 行为保存在 Host-backed `ui-conversation` settings namespace。
 
 空会话 Hero 的 workspace 与 agent-preset 行跟随输入卡的实际宽度。有已保存宽度时，其上限读取 `--dsh-composer-resized-width`，否则读取 `--dsh-composer-card-max-width`；整行在更宽的 Hero stack 内居中，因此恢复窄卡时这些控件不会留在 stack 左缘。
+
+首次发送保留编辑器，使用共享慢速动效 token 将输入框从实测 Hero 位置移入会话位置。相对定位保持 fixed 菜单和对话框的坐标；减少动态效果时直接落位，切换会话取消移动。普通 composer 的底部为统计行预留高度，覆盖准入、投影更新和统计数字尚未出现的阶段。
 
 运行态边光位于卡片正文后方的未滤镜、pointer-inert 包装层内。4px 圆角裁切壳把 bloom 限制在 6px composer stack 间距内；stroke 与 inner light 对齐 22px 卡边，外层滤镜容器模糊内部 masked 光源且不覆盖 dock 内容。参照 Libraries.dev Rotate，2px stroke 以 0.6 透明度经过旋转 conic 强度窗口，inner light 共享同方向双 conic 窗口，`blur(8px)` bloom 使用 0.36 透明度。静态 rim 始终定义完整胶囊；彩色 beam 自身带透明尾迹，但亮峰必须无重复 stroke `clip-path` 地完整扫过每个圆角。
 

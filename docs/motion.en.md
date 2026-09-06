@@ -130,6 +130,7 @@ These transitions consume `--ds-transition-*` / `--ds-ease-in-out` without `data
 | Surface | Behavior |
 | --- | --- |
 | Sidebar / column collapse | `AppFrame` transitions `grid-template-columns` / `rows`, handle `left`, and icon offset; pauses while dragging; stops under reduced motion |
+| First draft submission | `ConversationRoot` measures the card displacement and animates relative `top` into its conversation position with `--ds-transition-duration-slow` and `--ds-ease-in-out`; reduced motion settles immediately and session switches cancel it; no transform containing block for floating controls |
 | Switch | `Switch` thumb `transform` over `--ds-transition-duration-fast` |
 | Button, field, and row hover | Interactive color tokens, not an enter/exit recipe |
 | Micro-interactions | Icon-button press, card press offset, and other `transform` feedback over `--ds-transition-duration-fast`; card-level hover (border / fill) uses `--ds-motion-duration-popover` |

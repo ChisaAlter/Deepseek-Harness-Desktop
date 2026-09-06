@@ -64,6 +64,7 @@
     "tests/code-mode-round.e2e.ts",
     "tests/ptc-round.e2e.ts",
     "tests/composer-draft-scroll.e2e.ts",
+    "tests/composer-draft-transition.e2e.ts",
     "tests/cordis-tool-round.e2e.ts",
     "tests/web-search-round.e2e.ts",
     "tests/message-actions.e2e.ts",

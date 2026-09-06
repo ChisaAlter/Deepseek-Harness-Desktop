@@ -15,6 +15,7 @@ import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
 import { sessionRecallLabels } from './event-projection.ts'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
 import { ChatTurnProcessProjector } from './turn-process-presentation.ts'
+import { EditedTurnProjector } from './edited-turns.ts'
 
 const EMPTY_KEYS: readonly string[] = []
 const EMPTY_TURNS: readonly number[] = []
@@ -521,6 +522,7 @@ const EMPTY_CONTRIBUTION: LegacyContribution = {
 }
 
 function legacyContribution(raw: ChatConversationViewNode): LegacyContribution {
+  if (raw.superseded === true) return EMPTY_CONTRIBUTION
   const node = raw as ChatNode
   // Content-free settled Assistants remain in the finalized compatibility
   // stream so StatsLine preserves its pre-assembly step counts; hidden running
@@ -756,6 +758,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
   private readonly navigation = new MutableTurnNavigationIndex()
   private readonly legacy = new LegacySliceBuilder()
   private readonly referenceLabels = new ReferenceLabelProjector()
+  private readonly editedTurns = new EditedTurnProjector()
   private order: readonly string[] = EMPTY_KEYS
   /** Last published timeline: a Turn boundary can land without a new node. */
   private timeline: ConversationTimelineSnapshot | null = null
@@ -769,7 +772,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly nodes: readonly ChatConversationViewNode[]
     readonly timeline: ConversationTimelineSnapshot
   }): ChatSnapshot {
-    const nodes = this.referenceLabels.replace(input.nodes)
+    const nodes = this.editedTurns.replace(this.referenceLabels.replace(input.nodes))
     this.store.replace(nodes)
     this.order = orderedVisibleChatNodes(nodes).map(node => node.key)
     this.locations.rebuild(this.order, this.store)
@@ -785,7 +788,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly upserts: readonly ChatConversationViewNode[]
     readonly timeline: ConversationTimelineSnapshot
   }): ChatSnapshot {
-    const upserts = this.referenceLabels.apply(input.upserts, this.store)
+    const upserts = this.editedTurns.apply(this.referenceLabels.apply(input.upserts, this.store), this.store)
     const processTurns = new Set<number>()
     let structural = false
     const contentOnly: ChatConversationViewNode[] = []

@@ -52,6 +52,8 @@ interface AgentHandle {
 
 ## The agent handle
 
+An `enter` decision from `agent/pre-step` may carry `surfaceIntents`, a readonly map from admitted message id to `SurfaceIntent`. Unlisted messages append. The loop validates and logs each placement when the message enters the step, so model reconstruction replays the same replacement. Consumers rebuilding an enter decision preserve this map together with `startsRequestSeries`.
+
 `Agent` is the surface every plugin (UI, hooks, orchestrators) programs against; `ctx.agents.get(id)` returns it, and the [initiator scope](#initiating-agent) carries it. The concrete implementation is package-internal to dsh-agent-loop; nothing outside the loop depends on it. The unified `send` method exposes target and wakeup routing directly; `followup`, `steer`, and `inject` are fixed-preset aliases.
 
 Source: [`packages/core/agent/src/types.ts`](../../packages/core/agent/src/types.ts)
@@ -227,6 +229,8 @@ type PreStepDecision =
   | {
     kind: 'enter'
     messages: UserMessage[]
+    /** Explicit surface placement keyed by admitted message id; omitted messages append. */
+    surfaceIntents?: Readonly<Record<string, SurfaceIntent>>
     /** Start a distinct model-message series before this step's admitted messages. */
     startsRequestSeries?: true
   }

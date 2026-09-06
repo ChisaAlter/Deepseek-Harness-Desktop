@@ -183,6 +183,58 @@ function toolResult(callId: string, text: string, isError = false) {
 }
 
 describe('built-in conversation node Definitions', () => {
+  it('replaces an edited turn in live chat, replay, and paginated history without hiding earlier turns', () => {
+    const entries = [
+      at(0, 'turn/start', { turn: 1 }),
+      at(1, 'step/start', { turn: 1, step: 1 }),
+      at(2, 'user/message', textMessage('first', 'first prompt'), { surfaceOp: 'append' }),
+      at(3, 'assistant/message', { turn: 1, step: 1, message: assistantMessage('a1', 'first reply') }, { surfaceOp: 'append' }),
+      at(4, 'step/end', { turn: 1, step: 1 }),
+      at(5, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      at(6, 'turn/start', { turn: 2 }),
+      at(7, 'step/start', { turn: 2, step: 1 }),
+      at(8, 'user/message', textMessage('second', 'old prompt'), { surfaceOp: 'append' }),
+      at(9, 'assistant/message', { turn: 2, step: 1, message: assistantMessage('a2', 'old reply') }, { surfaceOp: 'append' }),
+      at(10, 'step/end', { turn: 2, step: 1 }),
+      at(11, 'turn/end', { turn: 2, reason: { kind: 'completed' } }),
+      at(12, 'turn/start', { turn: 3 }),
+      at(13, 'step/start', { turn: 3, step: 1 }),
+      at(14, 'user/message', {
+        ...textMessage('revision', 'revised prompt'),
+        source: { kind: 'user', rpcId: 'edit-1', edit: { messageSeq: 8, turn: 2 } },
+      }, { surfaceOp: { op: 'replace', start: 8, end: 9 }, sourceEventSeqs: [8, 9] }),
+      at(15, 'assistant/message', { turn: 3, step: 1, message: assistantMessage('a3', 'revised reply') }, { surfaceOp: 'append' }),
+      at(16, 'step/end', { turn: 3, step: 1 }),
+      at(17, 'turn/end', { turn: 3, reason: { kind: 'completed' } }),
+    ]
+    const live = assembler(entries.slice(0, 12))
+    for (const entry of entries.slice(12)) {
+      live.append(entry)
+      live.flush()
+    }
+    const replay = assembler(entries)
+    const paged = assembler(entries.slice(12), true)
+    paged.prepend(entries.slice(0, 12), false)
+    paged.flush()
+    for (const value of [live, replay, paged]) {
+      const current = snapshot(value)
+      const visible = current.order.map(key => current.nodes.get(key)!)
+      expect(visible.some(row => (row.location.kind === 'turn' || row.location.kind === 'step') && row.location.turn.turn === 2)).toBe(false)
+      expect(visible.filter(row => row.kind === 'user').map(row => (row.data as { seq: number }).seq)).toEqual([2, 14])
+      expect(current.legacy.nodes.some(row => row.seq === 8 || row.seq === 9)).toBe(false)
+      expect(current.navigation.items().map(item => item.turn)).not.toContain(2)
+    }
+    const visibleSnapshot = (value: ConversationNodeAssembler) => {
+      const current = comparableSnapshot(snapshot(value))
+      return {
+        ...current,
+        nodes: current.nodes.toSorted((a, b) => a.key.localeCompare(b.key)),
+        processes: current.processes.toSorted((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      }
+    }
+    expect(visibleSnapshot(live)).toEqual(visibleSnapshot(replay))
+    expect(visibleSnapshot(paged)).toEqual(visibleSnapshot(replay))
+  })
   it('rejects an unrelated event passed directly to the request-prompt start', () => {
     const input = at(1, 'turn/start', { turn: 1 })
     const invalidStart = {

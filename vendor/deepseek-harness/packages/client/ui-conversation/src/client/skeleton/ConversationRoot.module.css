@@ -360,6 +360,17 @@
   gap: var(--dsh-composer-stack-gap);
 }
 
+/* Relative top preserves viewport positioning for fixed menus and dialogs. */
+.composerStack[data-composer-entering] {
+  position: relative;
+  animation: composer-enter var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+@keyframes composer-enter {
+  from { top: var(--dsh-composer-enter-offset); }
+  to { top: 0; }
+}
+
 /* Common seat for the composer chain (fallback + elected overlay siblings). */
 .composerSeat {
   display: flex;

@@ -220,6 +220,7 @@ export class Session implements SessionFace {
    * @param mode - queue appends after the current turn; steer interrupts it.
    * @param signal - optional caller cancellation for the complete admission round-trip.
    * @param requestId - identity from {@link beginSubmission}; a failed identified prompt retires its echo.
+   * @param editMessageSeq - latest user message to replace in the same idle Session.
    * @returns the prompt result (also mirrored into promptError on failure).
    */
   async prompt(
@@ -227,6 +228,7 @@ export class Session implements SessionFace {
     mode: 'queue' | 'steer',
     signal?: AbortSignal,
     requestId?: SessionRequestId,
+    editMessageSeq?: number,
   ): Promise<RemoteResult<{ accepted: true }>> {
     this.promptError = null
     this.lastAgentError = null
@@ -245,6 +247,7 @@ export class Session implements SessionFace {
         mode,
         content,
         clientTimeZone,
+        ...(editMessageSeq === undefined ? {} : { editMessageSeq }),
       }, signal)
     } else {
       const routed = await this.remote.subagents.prompt({

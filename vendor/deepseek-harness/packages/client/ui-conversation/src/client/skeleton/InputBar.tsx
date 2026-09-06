@@ -608,7 +608,7 @@ export function InputBar({
         </div>
       </div>
       {variant === 'composer' && !hideRoomChrome && input !== undefined && sessionId !== undefined
-        ? renderSlot('conversation.composer.dock', {})
+        ? <div className={css.footer}>{renderSlot('conversation.composer.dock', {})}</div>
         : null}
     </div>
   )

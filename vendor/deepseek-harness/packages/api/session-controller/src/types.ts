@@ -332,6 +332,8 @@ export interface SessionPromptRequest {
   readonly mode: 'queue' | 'steer'
   readonly content: readonly PromptContentPart[]
   readonly clientTimeZone?: string
+  /** Replace the latest turn-opening user message in this same Session, while idle. */
+  readonly editMessageSeq?: number
 }
 
 /** Receipt after one prompt enters the target Agent inbox. */
@@ -390,7 +392,13 @@ export type SessionRequestId = Branded<'session-request-id'>
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     /** Browser prompt correlation and optional Host-validated time zone. */
-    'user-rpc': { kind: 'user'; rpcId: SessionRequestId; clientTimeZone?: string }
+    'user-rpc': {
+      kind: 'user'
+      rpcId: SessionRequestId
+      clientTimeZone?: string
+      /** Host-validated edit target; the replacement stays in the original Session. */
+      edit?: { messageSeq: number; turn: number }
+    }
   }
 }
 

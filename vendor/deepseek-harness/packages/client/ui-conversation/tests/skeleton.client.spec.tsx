@@ -567,6 +567,55 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.getByTestId('view-chat')).toBeTruthy()
   })
 
+  it('starts first-send motion from the measured hero card and clears it on completion', () => {
+    const b = mount(sessionSnapshotOf({ blank: true }))
+    const input = b.view.getByRole('textbox')
+    const card = b.view.container.querySelector<HTMLElement>('[data-composer-card]')!
+    const scroller = b.view.container.querySelector<HTMLElement>('[data-conversation-scroll]')!
+    let top = 400
+    vi.spyOn(card, 'getBoundingClientRect').mockImplementation(() => ({
+      top, bottom: top + 100, left: 0, right: 600, width: 600, height: 100,
+      x: 0, y: top, toJSON: () => ({}),
+    }))
+    fireResize(scroller)
+    top = 700
+    act(() => { b.session.set(sessionSnapshotOf({ blank: true, promptAttempted: true })) })
+    const entering = b.view.container.querySelector<HTMLElement>('[data-composer-entering]')!
+    expect(entering.style.getPropertyValue('--dsh-composer-enter-offset')).toBe('-300px')
+    expect(b.view.getByRole('textbox')).toBe(input)
+    fireEvent.animationEnd(card)
+    expect(entering.hasAttribute('data-composer-entering')).toBe(true)
+    fireEvent.animationEnd(entering)
+    expect(entering.hasAttribute('data-composer-entering')).toBe(false)
+    expect(entering.style.getPropertyValue('--dsh-composer-enter-offset')).toBe('')
+    act(() => { b.session.set(sessionSnapshotOf({ blank: false, promptAttempted: true, running: true })) })
+    expect(b.view.container.querySelector('[data-composer-entering]')).toBeNull()
+  })
+
+  it('does not animate when loaded history replaces an empty shell', () => {
+    const b = mount(sessionSnapshotOf({ blank: true }))
+    act(() => { b.session.set(sessionSnapshotOf({ blank: false })) })
+    expect(b.view.container.querySelector('[data-composer-entering]')).toBeNull()
+  })
+
+  it('clears canceled motion so an overlay cannot replay it when dismissed', () => {
+    const b = mount(sessionSnapshotOf({ blank: true }))
+    act(() => { b.session.set(sessionSnapshotOf({ blank: true, promptAttempted: true })) })
+    const entering = b.view.container.querySelector<HTMLElement>('[data-composer-entering]')!
+    fireEvent(entering, new Event('animationcancel', { bubbles: true }))
+    expect(entering.hasAttribute('data-composer-entering')).toBe(false)
+    expect(entering.style.getPropertyValue('--dsh-composer-enter-offset')).toBe('')
+  })
+
+  it('cancels first-send motion when the composer returns to a blank session', () => {
+    const b = mount(sessionSnapshotOf({ blank: true }))
+    act(() => { b.session.set(sessionSnapshotOf({ blank: true, promptAttempted: true })) })
+    const entering = b.view.container.querySelector<HTMLElement>('[data-composer-entering]')!
+    act(() => { b.session.set(sessionSnapshotOf({ blank: true })) })
+    expect(entering.hasAttribute('data-composer-entering')).toBe(false)
+    expect(entering.style.getPropertyValue('--dsh-composer-enter-offset')).toBe('')
+  })
+
   it('keeps the Chat fallback selected by id when a view is inserted before it', () => {
     const viewTabs: ViewTab[] = [
       { id: 'chat', label: 'Chat' },

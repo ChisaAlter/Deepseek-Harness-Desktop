@@ -4,28 +4,10 @@
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
-- navigation "Turn navigation":
-  - button "Jump to turn 1"
-  - button "Jump to turn 2"
-- text: Original prompt 1 {{clock}}
-- button "Copy":
-  - img
-- paragraph: Original reply 1
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- button "Ran for {{duration}}":
-  - img
-  - text: Ran for {{duration}}
-- text: {{clock}} Original prompt 2
+- text: Original prompt 1
 - status: Re-editing in the input box below
 - button "Cancel"
-- paragraph: Original reply 2
+- paragraph: Original reply 1
 - button "Copy":
   - img
 - button "Good response":
@@ -43,7 +25,7 @@
   - button "Cancel re-edit":
     - img
 - textbox "Message or run a task... / commands, @ files or sessions":
-  - paragraph: Original prompt 2
+  - paragraph: Original prompt 1
 - button "Commands":
   - img
 - 'button "Access mode, current: Workspace Write"': Workspace Write
@@ -51,4 +33,4 @@
   - text: Select model
   - img
 - button "Send message"
-- text: 2 turns · 2 steps LLM {{duration}}
+- text: 1 turns · 1 steps LLM {{duration}}

@@ -11,7 +11,7 @@ export const zh = {
   'editor.hint.running': '当前回复尚未结束，结束后可发送',
   'editor.hint.stale': '会话已有更新的消息，此条不能再重新发送',
   'error.busy': '输入框正忙，暂时无法编辑',
-  'error.generic': '无法创建编辑分支，请重试',
+  'error.generic': '无法重新发送编辑后的消息，请重试',
 } satisfies Record<string, string>
 
 /** The messageEdit namespace key union. */
@@ -35,5 +35,5 @@ export const en = {
   'editor.hint.running': 'The current response has not finished; send once it settles',
   'editor.hint.stale': 'Newer messages arrived, so this one can no longer be resent',
   'error.busy': 'The input box is busy; editing is unavailable right now',
-  'error.generic': 'Could not create an editable branch. Try again.',
+  'error.generic': 'Could not resend the edited message. Try again.',
 } satisfies Record<MessageEditKey, string>

@@ -3,9 +3,8 @@
  * action strip that promotes the session's resident composer — the full
  * input, not a lookalike — into an edit session for that bubble. Confirm
  * rides the composer's own submit: the redirected sink re-checks the
- * latest-and-idle preconditions, forks a child session cut before the
- * message, opens it, and hands the revision (text and any attached images)
- * to the child's input. Failures return error outcomes, so the composer
+ * latest-and-idle preconditions and sends the revision (text and any
+ * attached images) within the same Session. Failures return error outcomes, so the composer
  * keeps the draft armed and announces the reason on its own channel. Both
  * entries share one interaction store carrying the focus-return handshake
  * after a bubble-side cancel.
@@ -15,7 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the ui-chat SlotMap merge (user-actions / user-editor).
 import type { SessionInput } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -35,12 +34,12 @@ export type { MessageEditKey } from './locales.ts'
 /** Dictionary namespace owned by this plugin. */
 const NS = 'messageEdit'
 
-/** Required services: the slot registry, sessions (fork/open/scope), the conversation input face, and the copy. */
+/** Required services: slots, Session bindings, the conversation input face, and locale. */
 export const inject = ['slots', 'sessions', 'conversation', 'locale']
 
 /**
  * Client plugin body: the latest-user-message edit action and the composer
- * edit session driving the fork-resend transaction.
+ * edit session driving the same-session resend transaction.
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
@@ -78,43 +77,32 @@ export function apply(ctx: Context): void {
           key: editKey(seq),
           label: t('editor.banner'),
           seed: text,
-          submit: async (revised, imageIds) => {
-            // The entry preconditions must still hold at confirm: a cut
-            // before an older seq silently drops the newer turns, and a
-            // running source may still admit queued messages.
+          submit: async (revised, imageIds, signal) => {
+            // Host admission repeats these checks against complete history.
             const binding = ctx.sessions.binding(sessionId)
-            const snapshot = binding?.session.getSnapshot()
-            if (snapshot !== undefined) {
-              if (snapshot.running) return { kind: 'error', text: t('editor.hint.running') }
-              const entries = binding?.eventSource.getSnapshot().entries ?? []
-              let lastUserSeq: number | undefined
-              for (let i = 0; i < entries.length; i += 1) {
-                const row = entries[i]
-                if (row?.type !== 'event') continue
-                if (row.event.type === 'user/message') lastUserSeq = row.event.seq
-              }
-              if (lastUserSeq !== seq) {
-                return { kind: 'error', text: t('editor.hint.stale') }
+            if (binding === undefined) return { kind: 'error', text: t('error.generic') }
+            if (binding.session.getSnapshot().running) return { kind: 'error', text: t('editor.hint.running') }
+            const entries = binding.eventSource.getSnapshot().entries
+            let lastUserSeq: number | undefined
+            let opening = true
+            for (const row of entries) {
+              if (row.type !== 'event') continue
+              if (row.event.type === 'turn/start') opening = true
+              if (row.event.type === 'user/message' && row.event.data.source.kind === 'user' && opening) {
+                lastUserSeq = row.event.seq
+                opening = false
               }
             }
+            if (lastUserSeq !== seq) return { kind: 'error', text: t('editor.hint.stale') }
             try {
-              const childId = await ctx.sessions.fork({
-                sessionId,
-                beforeSeq: seq,
-                increaseTitle: true,
-              })
-              const childScope = ctx.sessions.scope(childId)
-              if (childScope === undefined) throw new Error(`message edit child scope unavailable: ${childId}`)
-              ctx.sessions.open(childId)
-              const child = ctx.conversation.input.for(childScope)
-              // Browser-owned draft images survive the session move (the
-              // carry-draft pattern); the child's own send consumes them.
-              if (imageIds.length > 0) child.addImages(imageIds)
-              child.setDraft(revised)
-              child.submit()
-              return { kind: 'success' }
+              const scope = ctx.sessions.scope(sessionId)
+              if (scope === undefined) return { kind: 'error', text: t('error.generic') }
+              const conversation = scope.get('conversation')
+              if (conversation === undefined) return { kind: 'error', text: t('error.generic') }
+              const result = await conversation.edit(seq, revised, imageIds, signal)
+              return result.kind === 'success' ? result : { kind: 'error', text: result.text ?? t('error.generic') }
             } catch {
-              // Fork/open failure keeps the edit armed with the draft; the
+              // Admission failure keeps the edit armed with the draft; the
               // localized reason rides the composer's notice channel.
               return { kind: 'error', text: t('error.generic') }
             }

@@ -25,6 +25,8 @@ With `dsh-agent` you can create or resume an agent, send a follow-up prompt, ste
 <a id="use-this-package"></a>
 ## Use this package
 
+`PreStepDecision` supports message-id-keyed `surfaceIntents` on an `enter` result. A consumer can choose an existing Session surface replacement for an admitted message; absent entries retain ordinary append behavior. Wrappers preserve downstream intents when rebuilding the decision.
+
 Mount `dsh-agent` wherever live agents exist: it provides `ctx.agents` and the `Agent` handle that plugins, UI, hooks, and orchestrators work against. The service is inert until a driver registers a factory — the shipped driver is `dsh-agent-loop`, so the smallest useful composition loads both.
 
 ### Create or resume an agent

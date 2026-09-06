@@ -56,6 +56,8 @@ interface AgentHandle {
 
 ## Agent 句柄
 
+`agent/pre-step` 的 `enter` 决策可携带 `surfaceIntents`：以准入消息 ID 为键、`SurfaceIntent` 为值的只读表。未列出的消息正常追加。loop 在消息进入步骤时校验并记录其位置，模型重建因此会回放同一替换。重建 enter 决策的消费方须同时保留该表和 `startsRequestSeries`。
+
 `Agent` 是每个插件（UI、钩子、orchestrator）面向编程的 surface；`ctx.agents.get(id)` 返回它，[发起者作用域](#initiating-agent)携带它。具体实现为 dsh-agent-loop 包内部细节；循环外没有任何组件依赖它。统一的 `send` 方法直接暴露 target 与 wakeup 路由；`followup`、`steer` 与 `inject` 是固定预设的别名方法。
 
 源码：[`packages/core/agent/src/types.ts`](../../packages/core/agent/src/types.ts)
@@ -235,6 +237,8 @@ type PreStepDecision =
   | {
     kind: 'enter'
     messages: UserMessage[]
+    /** Explicit surface placement keyed by admitted message id; omitted messages append. */
+    surfaceIntents?: Readonly<Record<string, SurfaceIntent>>
     /** Start a distinct model-message series before this step's admitted messages. */
     startsRequestSeries?: true
   }

@@ -61,6 +61,19 @@ function hungTriggers(overrides: Partial<InputTriggerController> = {}): () => In
 }
 
 describe('composer edit session', () => {
+  it('publishes edit entry and cancellation even when the seed and stash equal the current draft', () => {
+    const { shell, spec } = bench()
+    shell.setDraft(spec.seed)
+    const changed = vi.fn()
+    shell.state.subscribe(changed)
+    expect(shell.beginEdit(spec)).toBe(true)
+    expect(shell.snapshot.edit?.key).toBe(spec.key)
+    expect(changed).toHaveBeenCalled()
+    changed.mockClear()
+    shell.cancelEdit()
+    expect(shell.snapshot.edit).toBeUndefined()
+    expect(changed).toHaveBeenCalled()
+  })
   it('stashes draft and images, seeds the message text, and publishes the edit state', () => {
     const { shell, spec } = bench()
     shell.setDraft('half-typed next prompt')

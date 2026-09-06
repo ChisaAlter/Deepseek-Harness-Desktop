@@ -4,9 +4,8 @@
  * decorations, attachments, IME, keyboard policy) — promoted into the edit
  * transaction through the composer edit session; this occupant only marks
  * the addressed bubble, arms the session on mount, and offers the in-place
- * cancel. Confirm rides the composer's own submit: the redirected sink forks
- * a child session cut before this message, opens it, and hands the revision
- * to the child's input. The composer's banner cancel / Escape and this
+ * cancel. Confirm rides the composer's own submit: the redirected sink
+ * replaces this turn within the current Session. The composer's banner cancel / Escape and this
  * bubble's cancel both end the session; only the bubble's cancel returns
  * focus to the pencil (the composer paths keep focus in the composer).
  * @module @deepseek-ai/dsh-client-ui-message-edit/client/MessageEditEditor
@@ -48,7 +47,7 @@ export function MessageEditEditor({
   }, [])
 
   // The composer side ended the edit — banner cancel, Escape, or a
-  // successful fork-resend: restore the static bubble without stealing the
+  // successful resend: restore the static bubble without stealing the
   // composer's focus.
   useEffect(() => {
     if (live) {

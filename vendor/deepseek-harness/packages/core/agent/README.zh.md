@@ -25,6 +25,8 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
+`PreStepDecision` 的 `enter` 结果支持以消息 ID 为键的 `surfaceIntents`。消费方可为准入消息选择现有 Session surface replacement；未指定的消息正常追加。包装监听器重建决策时保留下游 intents。
+
 在存在实时 agent 的任何地方挂载 `dsh-agent`：它提供 `ctx.agents` 以及插件、UI、钩子和编排器所面向编程的 `Agent` 句柄。在没有驱动器注册工厂之前，该服务保持惰性——随附驱动器是 `dsh-agent-loop`，因此最小的可用组合需要同时加载两者。
 
 ### 创建或恢复 agent

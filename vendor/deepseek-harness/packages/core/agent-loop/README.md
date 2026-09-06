@@ -27,6 +27,8 @@ Configured vision fallback runs before primary dispatch; the reconstruction inva
 <a id="use-this-package"></a>
 ## Use this package
 
+The driver commits each admitted message using its pre-step `surfaceIntents` entry, defaulting to append. Replacement validation and provenance remain owned by Session; request reconstruction reads the resulting surface, and replacement generations start a fresh request series.
+
 Mount `dsh-agent-loop` in any composition that should run agents. It supplies the driver behind `ctx.agents` and starts any agents you declare in its config; both [`dsh-base`](../../bundle/base/README.md) and [`dsh-sdk-minimal`](../../bundle/sdk-minimal/README.md) mount it as an explicit row.
 
 ### Configure declarative agents

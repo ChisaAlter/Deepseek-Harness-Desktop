@@ -23,6 +23,7 @@ import { ApiSessionList, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './list.ts'
 import { buildModelCatalog } from './catalog.ts'
 import { installModelSelectionProjection } from './model-selection-projection.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
+import { installMessageEdits } from './message-edit.ts'
 import type {
   ModelCatalog,
   SessionAttachmentRequest,
@@ -121,6 +122,7 @@ export class SessionController extends TypertRemoteService {
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
     installModelSelectionProjection(ctx)
+    installMessageEdits(ctx)
     this.lifecycle = new SessionLifecycle(ctx)
     this.archivedDelete = new ArchivedSessionDelete(ctx, this.lifecycle)
     this.agents = new ApiSessionAgentController(ctx)

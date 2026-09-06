@@ -57,12 +57,7 @@ interface VisionMessageRewriter {
 
 type PreparedStep =
   | { kind: 'reject' }
-  | {
-    kind: 'enter'
-    messages: UserMessage[]
-    startsRequestSeries?: true
-    assembly: PromptAssembly
-  }
+  | (Extract<PreStepDecision, { kind: 'enter' }> & { assembly: PromptAssembly })
 
 /** Remove adapter-derived values before plugins propose the next request config. */
 function requestProposal(header: EpochHeader): LlmCallConfig {
@@ -296,7 +291,7 @@ export class ReactLoopAgent implements Agent {
         phase.step = step
         try {
           for (const message of decision.messages) {
-            this.session.append('user/message', message, { surfaceOp: 'append' })
+            this.session.append('user/message', message, decision.surfaceIntents?.[message.id] ?? { surfaceOp: 'append' })
           }
           // max-tokens is sticky: once any step hits the ceiling, later steps
           // that complete normally must not downgrade the turn outcome.

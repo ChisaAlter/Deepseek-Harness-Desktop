@@ -40,6 +40,13 @@ async function bench() {
 }
 
 describe('ConversationController', () => {
+  it('routes a revision through the same scoped session and preserves its edit target', async () => {
+    const b = await bench()
+    const signal = new AbortController().signal
+    await expect(b.scoped.edit(7, 'revised', [], signal)).resolves.toEqual({ kind: 'success' })
+    expect(b.prompt).toHaveBeenCalledWith([{ type: 'text', text: 'revised' }], 'queue', signal, expect.any(String), 7)
+    await b.runtime.dispose()
+  })
   it('routes operations through the public Session binding', async () => {
     const b = await bench()
     await b.scoped.send('hello')

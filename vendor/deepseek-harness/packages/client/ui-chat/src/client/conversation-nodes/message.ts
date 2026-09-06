@@ -7,6 +7,8 @@ import { chatNode } from './common.ts'
 import { contextForm, contextProvenance } from './event-projection.ts'
 
 interface ReferencedUserMessageNode extends UserMessageNode {
+  /** Original turn hidden when this same-session revision is committed. */
+  readonly replacesTurn?: number
   /** Labels cited by the immediately following session-reference context. */
   readonly referenceLabels?: readonly string[]
 }
@@ -40,7 +42,7 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
   kind: 'input-message',
   target: 'chat',
   match: event => event.type === 'user/message'
-    && isAppendSurfaceEvent(event)
+    && (isAppendSurfaceEvent(event) || (isReplacementSurfaceEvent(event) && event.data.source.kind === 'user' && 'edit' in event.data.source))
     && !isCompactionCheckpoint(event)
     ? { id: String(event.data.id), role: 'start' }
     : null,
@@ -71,6 +73,9 @@ export const messageDefinition: ConversationNodeDefinition<MessageNode> = {
       }
       : {
         kind: 'user',
+        ...('edit' in event.data.source
+          ? { replacesTurn: event.data.source.edit.turn }
+          : {}),
         seq: event.seq,
         time: event.time,
         content: event.data.content,

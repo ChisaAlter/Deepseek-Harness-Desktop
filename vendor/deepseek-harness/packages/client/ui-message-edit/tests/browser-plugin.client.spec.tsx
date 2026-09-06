@@ -5,8 +5,8 @@
  * conversation.chat.user-actions and the editor at conversation.chat.user-editor;
  * the inject beginEdit verb starts a composer edit session on the source
  * Session's input facade whose redirected sink re-checks latest-and-idle,
- * forks with beforeSeq, opens the child, and hands text plus images to the
- * child's input; a beginEdit refusal notifies on the source composer; endEdit
+ * sends text plus images through the same scoped conversation service;
+ * a beginEdit refusal notifies on the source composer; endEdit
  * cancels only its own live session; registration rides the plugin fiber
  * (HMR safety). The node half is exercised over the same Context.
  */
@@ -63,7 +63,10 @@ async function bench(options: {
         getSnapshot: () => ({
           entries: snapshot.nodes
             .filter((node) => node.kind === 'user')
-            .map((node) => ({ type: 'event' as const, event: { type: 'user/message' as const, seq: node.seq } })),
+            .flatMap((node) => [
+              { type: 'event' as const, event: { type: 'turn/start', seq: node.seq - 1 } },
+              { type: 'event' as const, event: { type: 'user/message', seq: node.seq, data: { source: { kind: 'user' } } } },
+            ]),
         }),
       },
     })),
@@ -71,6 +74,10 @@ async function bench(options: {
   ctx.provide('sessions', sessions)
 
   const conversation = {
+    edit: vi.fn(async (...args: unknown[]) => {
+      calls.push({ method: 'edit', args })
+      return { kind: 'success' as const }
+    }),
     input: {
       for: vi.fn((scope: { sessionId: SessionId }) => ({
         beginEdit: (spec: InputEditSpec) => {
@@ -98,6 +105,11 @@ async function bench(options: {
     },
   }
   ctx.provide('conversation', conversation)
+  sessions.scope.mockImplementation((id: SessionId) => ({
+    sessionId: id,
+    get: (name: string) => name === 'conversation' ? conversation : undefined,
+    get conversation(): never { throw new Error('cannot get property "conversation" without inject') },
+  }))
 
   await ctx.plugin(SlotRegistry).await()
   ctx.slots.register({
@@ -177,7 +189,7 @@ describe('ui-message-edit browser plugin', () => {
     expect(b.sessions.fork).not.toHaveBeenCalled()
   })
 
-  it('the redirected sink forks with beforeSeq, opens the child, and hands text plus images to its input', async () => {
+  it('the redirected sink edits in the current session without forking or switching', async () => {
     const b = await bench()
     await b.fiber.await()
 
@@ -187,12 +199,20 @@ describe('ui-message-edit browser plugin', () => {
 
     expect(outcome).toEqual({ kind: 'success' })
     expect(b.calls).toEqual([
-      { method: 'fork', args: [{ sessionId: 's1', beforeSeq: 7, increaseTitle: true }] },
-      { method: 'open', args: ['child-1'] },
+      { method: 'edit', args: [7, 'revised prompt', ['img-1'], SIGNAL] },
     ])
-    expect(b.images).toEqual([{ sessionId: 'child-1', ids: ['img-1'] }])
-    expect(b.drafts).toEqual([{ sessionId: 'child-1', text: 'revised prompt' }])
-    expect(b.submits).toEqual(['child-1'])
+    expect(b.sessions.fork).not.toHaveBeenCalled()
+    expect(b.sessions.open).not.toHaveBeenCalled()
+  })
+
+  it('also keeps the session when editing its first message', async () => {
+    const b = await bench({ snapshot: { nodes: [{ kind: 'user', seq: 1 }], running: false } })
+    await b.fiber.await()
+    b.editor()!.inject!(sid('s1')).beginEdit(1, 'first prompt')
+    expect(await b.edits.get('s1')!.submit('revised first', [], SIGNAL)).toEqual({ kind: 'success' })
+    expect(b.conversation.edit).toHaveBeenCalledWith(1, 'revised first', [], SIGNAL)
+    expect(b.sessions.fork).not.toHaveBeenCalled()
+    expect(b.sessions.open).not.toHaveBeenCalled()
   })
 
   it('skips the image handoff when the revision carries none', async () => {
@@ -204,7 +224,7 @@ describe('ui-message-edit browser plugin', () => {
     await b.edits.get('s1')!.submit('revised prompt', [], SIGNAL)
 
     expect(b.images).toHaveLength(0)
-    expect(b.submits).toEqual(['child-1'])
+    expect(b.conversation.edit).toHaveBeenCalledWith(7, 'revised prompt', [], SIGNAL)
   })
 
   it('refuses the confirm when a newer user message arrived, without forking', async () => {
@@ -231,10 +251,10 @@ describe('ui-message-edit browser plugin', () => {
     expect(b.sessions.fork).not.toHaveBeenCalled()
   })
 
-  it('returns the generic error when fork rejects, keeping the edit armed', async () => {
+  it('returns the generic error when edit rejects, keeping the edit armed', async () => {
     const b = await bench()
     await b.fiber.await()
-    b.sessions.fork.mockRejectedValue(new Error('fork-unavailable'))
+    b.conversation.edit.mockRejectedValue(new Error('edit-unavailable'))
 
     const face = b.editor()!.inject!(sid('s1'))
     face.beginEdit(7, 'original prompt')
@@ -248,7 +268,7 @@ describe('ui-message-edit browser plugin', () => {
     expect(b.edits.has('s1')).toBe(true)
   })
 
-  it('returns the generic error when the child scope cannot be resolved', async () => {
+  it('returns the generic error when the current scope cannot be resolved', async () => {
     const b = await bench()
     await b.fiber.await()
 
@@ -262,19 +282,18 @@ describe('ui-message-edit browser plugin', () => {
     expect(b.submits).toHaveLength(0)
   })
 
-  it('confirms without the transcript guards when the source binding is gone', async () => {
+  it('refuses to send when the current binding is gone', async () => {
     const b = await bench()
     await b.fiber.await()
 
     const face = b.editor()!.inject!(sid('s1'))
     face.beginEdit(7, 'original prompt')
-    // A dropped binding (source closing mid-confirm) cannot prove staleness
-    // either way; the fork itself stays the authoritative cut.
+    // A dropped binding must not redirect the revision into another session.
     b.sessions.binding.mockReturnValue(undefined as never)
     const outcome = await b.edits.get('s1')!.submit('revised', [], SIGNAL)
 
-    expect(outcome).toEqual({ kind: 'success' })
-    expect(b.sessions.fork).toHaveBeenCalledTimes(1)
+    expect(outcome).toEqual({ kind: 'error', text: en['error.generic'] })
+    expect(b.conversation.edit).not.toHaveBeenCalled()
   })
 
   it('beginEdit fails loud when the source session scope cannot be resolved', async () => {

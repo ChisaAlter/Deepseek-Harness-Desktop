@@ -48,6 +48,7 @@
     "apps/web/tests/conversation-column-overflow.e2e.ts",
     "apps/web/tests/ptc-round.e2e.ts",
     "apps/web/tests/composer-draft-scroll.e2e.ts",
+    "apps/web/tests/composer-draft-transition.e2e.ts",
     "apps/web/tests/cordis-tool-round.e2e.ts",
     "apps/web/tests/web-search-round.e2e.ts",
     "apps/web/tests/message-actions.e2e.ts",

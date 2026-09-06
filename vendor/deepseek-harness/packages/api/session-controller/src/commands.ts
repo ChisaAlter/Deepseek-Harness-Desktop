@@ -17,6 +17,7 @@ import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
 import type { Workspace } from '@deepseek-ai/dsh-workspace'
+import { resolveMessageEdit } from './message-edit.ts'
 import {
   ApiSessionAgentController,
   ApiSessionCwdConflict,
@@ -349,7 +350,15 @@ export class SessionCommandController {
           }
         }
         const content = await admitPromptContent(this.ctx.attachments, request.content)
-        const message: UserMessage = createUserMessage({ content, source })
+        let admittedSource = source
+        if (request.editMessageSeq !== undefined) {
+          if (request.mode !== 'queue' || agent.status !== 'idle' || agent.inbox.hasPending) {
+            throw new RemoteError('session/agent-busy', 'editing requires an idle session with no pending messages', { reason: 'EDIT_RUNNING' })
+          }
+          const edit = resolveMessageEdit(agent.session, request.editMessageSeq)
+          admittedSource = { ...source, edit: { messageSeq: request.editMessageSeq, turn: edit.turn } }
+        }
+        const message: UserMessage = createUserMessage({ content, source: admittedSource })
         if (request.mode === 'steer') agent.steer(message)
         else agent.followup(message)
       } catch (error) {

@@ -30,6 +30,10 @@ Terminal, diff, and code blocks keep the baseline monospace / no-wrap rules. Tha
 
 ## Hard rules
 
+Message editing reuses the resident composer, edit banner, and bubble marker. Confirm always regenerates within the current conversation, including its first message; the sidebar neither adds nor switches conversations, and Chat hides the superseded turn. Cancel and failure retain the existing draft restoration and notice styling.
+
+Submitting a draft moves the resident composer continuously into its conversation position without a bottom flash or rebound. Transcript, statistics, and input-size updates must not expose intermediate layouts. Reuse existing motion duration and easing; reduced motion settles immediately. Decoration and final geometry remain unchanged.
+
 The mobile remote connect screen reuses its device status and error lines: pairing and saved-device reconnect show a connecting state; failure shows a failed state and restores connection controls without deleting saved devices. Never leave the waiting-for-pairing label during a connection or disable controls indefinitely. Automatic recovery after an established connection remains unchanged.
 
 Web and Android share recovery states: indicate catalog synchronization after authentication and offer Retry beneath the existing drawer error, never a false empty catalog. A new offer supersedes an older attempt; successful pairing removes the one-time fragment. Foreground recovery retains drafts and checks the connection before resynchronizing the catalog and open conversation. Reuse existing controls and status bars.

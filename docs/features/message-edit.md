@@ -1,25 +1,26 @@
-# Feature: 最新用户消息「撤回重编辑」（composer 编辑会话 + fork 重发）
+# Feature: 最新用户消息「撤回重编辑」（当前会话重发）
 
 | Field | Value |
 | --- | --- |
 | **id** | `message-edit` |
 | **status** | `active` |
-| **last verified** | 2026-09-02 — 修复两处卡死：① 确认时的 stale 守卫改为只看「开启轮次的用户消息」（`latestTurnOpeningUserSeq`）；插件注入的上下文（time-context／instructions／文件变更提醒等以 `user/message` 落日志但 `source.kind !== 'user'`）和同轮 steering 不再误报「会话已有更新的消息」；② `SessionInputShell.beginEdit/finishEdit` 显式 `publish()`，种子文本或恢复文本与当前草稿相同时不再漏发编辑态变化（此前横幅与气泡会停留在编辑态、取消无响应）。先前 2026-08-31：pin `dsh-v0.1.2-alpha.2`；确认汇调用 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })`。 |；本次 alpha.4：SessionSeq/snapshotEvents 迁移后 vendor GUI 与桌面回归通过。
+| **last verified** | 2026-09-06：当前会话重发。`build:official`、Host/Client `tsc -b` 通过；GUI 411 文件、5346 项通过（1 跳过）；最终定向回归 123 项通过；真实 Web 首条/第二条、连续编辑、两侧取消、点击/Enter 发送、刷新与侧栏数量的 2 项 keyless e2e 在 refresh 和只读 replay 均通过。 |
 
 ## User paths
 
 1. 会话空闲时，最新一条用户消息的操作条出现铅笔（历史消息没有）；点击**不 fork**，而是把**底部常驻 composer** 晋升为编辑会话：composer 收起当前草稿与图片、播种原文、聚焦且光标在末尾、卡片上出现「正在重新编辑此消息」横幅（带取消）；该气泡就地换成编辑态标记（原文变暗 +「正在下方输入框中重新编辑」+ 取消）。
 2. 编辑面就是真 composer：装饰／引用、图片附件、词表、Enter/Shift+Enter/IME 策略、提示通道、尺寸调整全部原生可用。编辑期间斜杠不触发命令裁决（修订就是普通消息），命令认领被拒绝，草稿持久化镜像被抑制。
 3. 取消有方向：composer 横幅取消或 IME 安全的 Escape 结束会话、焦点留在 composer；气泡侧取消结束会话并把焦点交还铅笔。两侧都恢复收起的草稿与图片。
-4. composer 发送即确认：确认时刻复查「仍是最新 + 源会话空闲」，通过后 `sessions.fork({ sessionId, beforeSeq: seq, increaseTitle: true })` → 打开子会话 → `addImages`／`setDraft` → `submit`；源会话日志不变，子会话切在被编辑消息之前。
-5. fork 失败／子作用域缺失／守卫不再成立：composer 出本地化错误提示，编辑会话带草稿继续待命，可重试或取消。
+4. composer 发送即确认：Client 与 Host 复查「仍是最新 + 当前会话空闲」，通过后在同一 Session ID 内提交修订；首条及后续消息走同一路径，侧栏不新增、不切换会话。模型上下文替换被编辑轮次，聊天隐藏该轮旧问答；更早轮次保持不变。
+5. 发送失败／当前作用域缺失／守卫不再成立：composer 出本地化错误提示，编辑会话带草稿继续待命，可重试或取消。
 6. 会话运行中或消息含非文本块：铅笔可见但禁用，tooltip 说明原因。
 
 ## Invariants
 
-- 铅笔只出现在**最新**已定稿用户消息上；点击铅笔不产生任何 Host 写入（首次写入是确认时的 fork）。
+- 铅笔只出现在**最新**已定稿用户消息上；点击铅笔不产生任何 Host 写入，确认编辑不调用 fork。
 - 编辑面必须是 `conversation.composer.bar` 路径上的真 composer（`SessionInput.beginEdit` 编辑会话）；**禁止**在气泡里再造第二个简化编辑器。
-- 源会话日志不可变；子会话切点在被编辑轮次之前，模型不会重复看到旧提示词。
+- Session ID、工作区及模型选择不因编辑改变；编辑不主动重命名或增加分支标题后缀。原始日志保持追加式，修订使用既有 surface replacement；旧提示词与其回答不进入后续模型上下文，刷新后聊天仍显示修订结果。旧轮次已执行的工具副作用不回滚。
+- 从 Session scope 获取 conversation 使用 `scope.get('conversation')`，不得直接读取该作用域未声明 inject 的属性；测试替身须保留此限制。
 - 失败路径不丢草稿、不留 pending 锁死；「仅限最新 + 空闲」在确认时刻仍然成立（stale/running 守卫）。「最新」与铅笔一致：指最后一条**开启轮次**的用户消息；同轮内后到的插件注入上下文与 steering 不构成「更新的消息」。
 - 编辑会话的开始／结束必须到达订阅者（composer 横幅、编辑态气泡），不得依赖草稿文本恰好发生变化。
 - 编辑会话存续期间：submit 改道到编辑汇、斜杠裁决跳过、命令认领拒绝、持久化镜像抑制；结束（成功或取消）恢复收起的草稿与图片。
@@ -27,6 +28,14 @@
 - 文案中英齐备（`messageEdit` 命名空间 + ui-conversation 的 `input.editCancel`）；产品文案中文、代码注释英文。
 
 ## Allowed touch
+
+2026-09-06 用户确认扩权：编辑始终保留当前会话。允许以下必要跨层修改，不涉及无关会话功能。
+
+- `vendor/deepseek-harness/packages/api/session-controller/` — 编辑发送准入、Client prompt 参数、Host 校验与测试
+- `vendor/deepseek-harness/packages/core/agent/`、`vendor/deepseek-harness/packages/core/agent-loop/` — pre-step 的逐消息 surface intent 与测试
+- `vendor/deepseek-harness/packages/client/ui-chat/` — 修订消息投影、旧轮次隐藏与测试
+- `vendor/deepseek-harness/packages/client/ui-conversation/src/client/service.ts` 与 `contract/` — 编辑发送沿用图片准入与草稿生命周期
+- 以上模块的 README、架构参考、生成的 Remote 类型及编辑 e2e fixtures — 契约同步
 
 - `vendor/deepseek-harness/packages/client/ui-message-edit/` — 插件本体（铅笔、编辑态气泡、store、文案、样式、测试）
 - `vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/`（contract/facade 的编辑会话）、`skeleton/InputBar.tsx|.module.css`（编辑横幅）、`locales.ts`、`src/client/index.ts` 导出与相应测试
@@ -36,8 +45,8 @@
 
 ## Do not touch
 
-- 不发明改写已定稿 `user/message` 的 Host API；不改会话日志格式。
-- 不改 fork-beforeSeq 语义（撤回重编辑 = 子会话分支，不是原地改写）。
+- 不物理改写或删除已定稿事件；不改会话日志格式。
+- 不改独立 fork 操作的语义；编辑不再走 fork。
 - 不回退到气泡内 textarea／独立编辑器（产品明令否决）。
 - 历史消息编辑、多模态（图片入口）编辑、trajectory/waterfall 视图 — 除非用户明确扩权。
 - `MessageIconActions` 内不得出现编辑存根（已被 2026-07-31 简化记录移除）。
@@ -46,8 +55,10 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `pnpm vitest run packages/client/ui-message-edit`；`packages/client/ui-conversation/tests/input-edit-session.client.spec.ts` 与 `input-bar.client.spec.tsx`；`pnpm run test:gui`；`DSH_SNAPSHOT=replay pnpm run test:web` 中的 `apps/web/tests/message-edit.e2e.ts`（keyless 端到端：铅笔晋升 composer 不 fork、Escape 留焦、气泡取消归还焦点、composer 发送 fork-重发、源会话不变）；触碰文件受 `test:coverage` per-file 100% 门槛 |
-| Manual / QA | 发消息→等空闲→点铅笔→底部 composer 出横幅并回填→改字→发送：子会话出现并从新文本继续；Escape/横幅取消恢复原气泡且草稿复原；运行中铅笔禁用 |
+| Automated | `pnpm vitest run packages/client/ui-message-edit`；Host `message-edit.host.spec.ts`、Chat `conversation-node-definitions.client.spec.ts`、composer `input-edit-session.client.spec.ts` / `service-orchestration.client.spec.ts` / `input-bar.client.spec.tsx`；`pnpm run test:gui`；`pnpm run build:official` 后 `DSH_SNAPSHOT=replay pnpm exec vitest run --config vitest.web.config.ts apps/web/tests/message-edit.e2e.ts`（首条及后续消息同会话重发、连续编辑、两侧取消、草稿恢复、刷新、原日志保留）；CI 保持 `test:coverage` per-file 100% 门槛 |
+| Manual / QA | 首条及后续消息→等空闲→点铅笔→composer 回填→改字→发送：同一会话继续、侧栏数量不变、旧轮问答隐藏、刷新仍显示新结果；Escape/横幅取消恢复原气泡且草稿复原；运行中铅笔禁用 |
+
+本次附加检查未全绿：Oxlint 类型感知检查对 `ui-message-edit` 的 `ctx.sessions` 报 `error typed`，独立 TypeScript 检查通过；`verify-type-equiv` 的阻断为未改动的 `docs/subsystems/llm-streaming.md` 中 `GenerateOptions.purpose` 与源码不一致。本次未运行全量覆盖率和 CI 安装包实机验收，未生成新安装包。
 
 ## Sources
 

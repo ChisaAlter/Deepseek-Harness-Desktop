@@ -59,6 +59,15 @@ export interface IConversation {
    */
   send(text: string): Promise<void>
   /**
+   * Revise the latest user turn without changing the scoped Session identity.
+   * @param messageSeq - finalized user message being replaced.
+   * @param text - revised prompt text.
+   * @param imageIds - draft-local images attached during editing.
+   * @param signal - cancellation of Host admission.
+   * @returns admission outcome; failures leave the edit draft available.
+   */
+  edit(messageSeq: number, text: string, imageIds: readonly DraftAttachmentId[], signal: AbortSignal): Promise<SubmitOutcome>
+  /**
    * Apply one edit, remove, or strict steer operation to a pending queue occurrence.
    * @param itemId - agent-owned inbox occurrence identity.
    * @param action - requested queue operation.
@@ -209,6 +218,12 @@ export class ConversationController extends Service implements IConversation {
     if (!result.ok) throw new Error(`conversation.send failed: ${result.error.code}: ${result.error.message}`)
   }
 
+  async edit(messageSeq: number, text: string, imageIds: readonly DraftAttachmentId[], signal: AbortSignal): Promise<SubmitOutcome> {
+    const session = this.scopedSession('edit')
+    if (session.getSnapshot().subagent !== null) return { kind: 'error' }
+    return this.sendSession(session, text, imageIds, 'queue', signal, messageSeq)
+  }
+
   /**
    * Submit ordered draft images with text through one host admission. A local
    * submission echo enters the session snapshot synchronously; serialization
@@ -221,6 +236,7 @@ export class ConversationController extends Service implements IConversation {
    * @param imageIds - ordered draft-local attachment ids.
    * @param mode - queue or steer delivery selected by composer policy.
    * @param signal - optional cancellation for the complete Host admission.
+   * @param editMessageSeq - latest user message to replace within this Session.
    * @returns the Host admission outcome; local attachment preparation failures reject.
    */
   async sendSession(
@@ -229,6 +245,7 @@ export class ConversationController extends Service implements IConversation {
     imageIds: readonly DraftAttachmentId[],
     mode: InputSubmitMode,
     signal?: AbortSignal,
+    editMessageSeq?: number,
   ): Promise<SubmitOutcome> {
     const attachments = this.draftImages(imageIds)
     if (attachments.length !== imageIds.length) {
@@ -268,7 +285,9 @@ export class ConversationController extends Service implements IConversation {
       submission.abandon()
       throw error
     }
-    const result = await session.prompt(content, mode, signal, submission.requestId)
+    const result = editMessageSeq === undefined
+      ? await session.prompt(content, mode, signal, submission.requestId)
+      : await session.prompt(content, mode, signal, submission.requestId, editMessageSeq)
     if (!result.ok) return { kind: 'error' }
     if (retirement !== undefined && (await retirement).reason !== 'observed') return { kind: 'error' }
     return { kind: 'success' }

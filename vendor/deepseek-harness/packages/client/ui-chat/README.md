@@ -8,6 +8,8 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+User-authored surface replacements with Host edit metadata remain visible as revised user messages. Chat accumulates their replaced turn ids, hiding old turn rows from its order, navigation, and legacy summary on live updates, full replay, and pagination. Compaction replacements remain model-only.
+
 The browser Chat target for Conversation assembly. It registers Chat event definitions and snapshot construction, supplies `useChat`, renders transcript nodes and details, and owns Chat-specific stores, actions, localization, and scroll restoration; historical image URLs resolve through the Conversation-owned per-session cache (`ctx.uiConversation.imageUrl`). Its Assistant and Turn Tail definitions fold packed historical Assistant runs without expanding their members. Steering classification retains only next-step Inbox IDs through persistent splice state; next-turn splices create no Chat Context. Local submission echoes (`SessionSnapshot.pendingSubmissions`) retain the surface selected when the submit begins: transcript echoes render at the flow tail, steering echoes render with the pending-steering marker, and queued echoes stay out of Chat. Each echo is hidden per render once a user/steering node or queue occurrence carries its prompt `rpcId`, so the handoff is atomic.
 
 ## Table of Contents

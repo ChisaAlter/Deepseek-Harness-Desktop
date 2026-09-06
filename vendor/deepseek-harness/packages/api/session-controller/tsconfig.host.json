@@ -18,6 +18,7 @@
     "src/history.ts",
     "src/lifecycle.ts",
     "src/list.ts",
+    "src/message-edit.ts",
     "src/model-selection-projection.ts",
     "src/skill-catalog.ts"
   ],

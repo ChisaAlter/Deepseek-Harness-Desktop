@@ -106,6 +106,8 @@ turn/end
 
 ## 会话日志
 
+Pre-step 消费方可为准入消息提供逐消息 `surfaceIntents`。loop 通过现有 Session surface 校验器提交其位置；未指定的消息正常追加。同会话消息编辑使用这条路径，不改写已存事件，也不改变 Session 身份。
+
 派发前，可选的 vision-fallback 服务为纯文本路由替换图片并记录每条描述。请求重建只使用已记录的描述，不调用辅助模型。完整工具调用的标识在 `assistant/message` 或执行之前校验；畸形响应进入请求恢复流程，原始 chunk 则保留用于诊断。
 
 会话日志是模型所见上下文的来源。`deriveMessages()` 从中投影出模型历史，原始 `assistant/chunk` 事件则保证回放和 UI 保真。fork、恢复、transcript（文本记录）、遥测和持久化都派生自该事件流。
