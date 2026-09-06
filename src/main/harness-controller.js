@@ -735,7 +735,7 @@ class HarnessController extends EventEmitter {
     const currentRestart = this.restartOperation;
     await Promise.allSettled([
       this.dsh.stop(),
-      // ChisaCodeRemote's teardown face is stopDaemon() — a bare stop() call
+      // DshdRemote's teardown face is stopDaemon() — a bare stop() call
       // would optional-chain into a silent no-op and leak the daemon + :3180.
       this.remote?.stopDaemon?.(),
       currentOperation,

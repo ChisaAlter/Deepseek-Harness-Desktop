@@ -141,9 +141,9 @@ function assertVendoredPluginRuntimeDeps(resources, packageName) {
   }
 }
 
-async function assertChisaCodeRuntime(resources) {
-  const root = path.join(resources, 'vendor', 'chisacode-remote');
-  const serverExport = path.join(root, 'packages', 'server', 'dist', 'server', 'server', 'exports.js');
+async function assertDshdRemoteRuntime(resources) {
+  const root = path.join(resources, 'vendor', 'dshd-remote');
+  const serverExport = path.join(root, 'node_modules', '@chisacode', 'server', 'dist', 'server', 'server', 'exports.js');
   const required = [
     serverExport,
     path.join(root, 'node_modules', '@chisacode', 'protocol', 'dist', 'connection-offer.js'),
@@ -154,7 +154,20 @@ async function assertChisaCodeRuntime(resources) {
   const missing = required.filter((file) => !fs.existsSync(file));
   if (missing.length > 0) {
     throw new Error(
-      `安装包缺少 ChisaCode 远程运行时：${missing.map((file) => path.relative(root, file)).join(', ')}`,
+      `安装包缺少 DSHD 远程运行时：${missing.map((file) => path.relative(root, file)).join(', ')}`,
+    );
+  }
+  const forbidden = [
+    path.join(root, 'packages'),
+    path.join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk-win32-x64'),
+    path.join(root, 'node_modules', 'sherpa-onnx-win-x64'),
+    path.join(root, 'node_modules', 'node-pty', 'prebuilds', 'win32-arm64'),
+    path.join(root, 'node_modules', 'node-pty', 'third_party'),
+    path.join(root, 'node_modules', 'node-pty', 'prebuilds', 'win32-x64', 'conpty.pdb'),
+  ].filter((file) => fs.existsSync(file));
+  if (forbidden.length > 0) {
+    throw new Error(
+      `安装包混入非 DSHD 远程运行时：${forbidden.map((file) => path.relative(root, file)).join(', ')}`,
     );
   }
   const api = await import(pathToFileURL(serverExport).href);
@@ -165,7 +178,7 @@ async function assertChisaCodeRuntime(resources) {
     'RelayDeviceCredentialStore',
   ]) {
     if (typeof api[name] !== 'function') {
-      throw new Error(`安装包 ChisaCode server 缺少导出：${name}`);
+      throw new Error(`安装包 DSHD 远程 server 缺少导出：${name}`);
     }
   }
 }
@@ -899,7 +912,7 @@ module.exports = async function afterPack(context) {
   // a half-broken tree that silently drops Settings → Remote → Channels).
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-im'), { skipIfComplete: false });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-im');
-  await assertChisaCodeRuntime(resources);
+  await assertDshdRemoteRuntime(resources);
   const harnessDest = path.join(resources, 'vendor', 'deepseek-harness');
   const deployDir = resolveDeployDir(process.env.DSH_DEPLOY_DIR);
   const started = Date.now();
@@ -965,7 +978,7 @@ module.exports.assertHarnessRuntime = assertHarnessRuntime;
 module.exports.assertHarnessVersions = assertHarnessVersions;
 module.exports.assertNodePtyPrebuild = assertNodePtyPrebuild;
 module.exports.assertVendoredPluginRuntimeDeps = assertVendoredPluginRuntimeDeps;
-module.exports.assertChisaCodeRuntime = assertChisaCodeRuntime;
+module.exports.assertDshdRemoteRuntime = assertDshdRemoteRuntime;
 module.exports.installPluginRuntimeDeps = installPluginRuntimeDeps;
 module.exports.nodePtyPrebuildRelative = nodePtyPrebuildRelative;
 module.exports.restoreVendoredPluginNodeModules = restoreVendoredPluginNodeModules;

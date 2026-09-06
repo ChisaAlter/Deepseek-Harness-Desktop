@@ -90,7 +90,7 @@ test('live gateway snapshot marks the remote face available', () => {
 test('main process constructs the ChisaCode remote face instead of the disabled stub', () => {
   const index = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
   // 产品配对面 = ChisaCode v2 daemon；HTTP RemoteGateway 已从主进程接线退役。
-  assert.match(index, /new ChisaCodeRemote/);
+  assert.match(index, /new DshdRemote/);
   assert.doesNotMatch(index, /new RemoteGateway/);
   assert.doesNotMatch(index, /createDisabledRemote/);
   assert.match(index, /getTarget:/);

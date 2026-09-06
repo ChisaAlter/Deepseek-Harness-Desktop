@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  ChisaCodeRemote,
+  DshdRemote,
   buildDaemonChildEnv,
   desktopDshVendorDir,
   dshVendorDirForChild,
@@ -18,12 +18,21 @@ const {
   relayUseTls,
   resolveDesktopChisaCodeHome,
   VENDOR_ROOT,
-} = require('./chisacode-remote');
+} = require('./dshd-remote');
 
 // dist/ 是构建产物（vendor 内嵌 .gitignore 挡住了提交），fresh clone / CI 没有。
 // 打包机通过 build:server-deps 产出后随 extraResources 发货；这里只在有产物时验证。
-const VENDOR_BUILT = fs.existsSync(path.join(VENDOR_ROOT, 'packages', 'server', 'dist', 'server', 'server', 'exports.js'));
-const VENDOR_BUILD_HINT = 'vendor/chisacode-remote dist 缺失（npm run build:server-deps && build:server @ vendor/chisacode-remote）';
+const VENDOR_BUILT = fs.existsSync(path.join(
+  VENDOR_ROOT,
+  'node_modules',
+  '@chisacode',
+  'server',
+  'dist',
+  'server',
+  'server',
+  'exports.js',
+));
+const VENDOR_BUILD_HINT = 'vendored server dist 缺失（npm run prepare:dshd-remote 会构建）';
 
 test('vendor tree includes full daemon sources and AGPL shipping docs', () => {
   assert.ok(fs.existsSync(path.join(VENDOR_ROOT, 'packages', 'server', 'src', 'server', 'exports.ts')));
@@ -37,15 +46,21 @@ test('vendor tree includes full daemon sources and AGPL shipping docs', () => {
   assert.doesNotMatch(wrangler, /chisacode\.sh/);
 });
 
-test('desktop start and packaging prepare and ship the ChisaCode runtime', () => {
+test('desktop start and packaging prepare and ship the trimmed DSHD remote runtime', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(VENDOR_ROOT, '..', '..', 'package.json'), 'utf8'));
   const prepareScript = fs.readFileSync(
-    path.join(VENDOR_ROOT, '..', '..', 'scripts', 'prepare-chisacode-remote.mjs'),
+    path.join(VENDOR_ROOT, '..', '..', 'scripts', 'prepare-dshd-remote.mjs'),
     'utf8',
   );
   assert.match(manifest.scripts.start, /prestart-ensure/);
-  assert.match(manifest.scripts.pack, /prepare-chisacode-remote\.mjs --force --runtime/);
+  assert.match(manifest.scripts.pack, /prepare-dshd-remote\.mjs --force --runtime/);
   assert.match(prepareScript, /--install-links/);
+  assert.match(prepareScript, /--omit=optional/);
+  assert.match(prepareScript, /'better-sqlite3': sqliteVersion/);
+  assert.match(prepareScript, /runtimeBudgetBytes = 96 \* 1024 \* 1024/);
+  assert.match(prepareScript, /function pruneNodePtyRuntime/);
+  assert.match(prepareScript, /daemon start\/stop probe passed/);
+  assert.doesNotMatch(prepareScript, /'@chisacode\/client': 'file:/);
   assert.match(prepareScript, /@electron['"], 'rebuild'/);
   assert.match(prepareScript, /'--only', 'better-sqlite3'/);
   assert.doesNotMatch(prepareScript, /'--which-module', 'better-sqlite3'/);
@@ -54,11 +69,12 @@ test('desktop start and packaging prepare and ship the ChisaCode runtime', () =>
   const resources = manifest.build.extraResources;
   assert.ok(resources.some((entry) => (
     entry.from === 'vendor/chisacode-remote'
-    && entry.to === 'vendor/chisacode-remote'
+    && entry.to === 'vendor/dshd-remote'
+    && !entry.filter.some((pattern) => pattern.startsWith('packages/'))
   )));
   assert.ok(resources.some((entry) => (
     entry.from === 'vendor/chisacode-remote/.tmp/desktop-runtime/node_modules'
-    && entry.to === 'vendor/chisacode-remote/node_modules'
+    && entry.to === 'vendor/dshd-remote/node_modules'
   )));
 });
 
@@ -80,7 +96,7 @@ test('defaults bake in desktop Away relay from lan.js constants (packaged path)'
 
 test('pairingAppBaseUrl in LAN mode is :3180 never the relay host', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: false, remoteMode: 'lan', remoteBindAddress: '127.0.0.1' }),
     getHomeDir: () => home,
   });
@@ -90,14 +106,14 @@ test('pairingAppBaseUrl in LAN mode is :3180 never the relay host', () => {
 });
 
 test('pairingAppBaseUrl defaults to the server landing page without a saved mode', () => {
-  const remote = new ChisaCodeRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
+  const remote = new DshdRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
   const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../shared/lan');
   assert.equal(remote.pairingAppBaseUrl(), DEFAULT_PUBLIC_APP_BASE_URL);
 });
 
 test('pairingAppBaseUrl in away mode is the public SPA path not LAN or :8411', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: true, remoteMode: 'relay' }),
     getHomeDir: () => home,
   });
@@ -107,7 +123,7 @@ test('pairingAppBaseUrl in away mode is the public SPA path not LAN or :8411', (
 });
 
 test('runtimeConfigKey changes when remoteMode or public app base changes', () => {
-  const remote = new ChisaCodeRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
+  const remote = new DshdRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
   const lan = remote.runtimeConfigKey({ remoteMode: 'lan', remoteRelayEndpoint: '125.124.85.212:8411' });
   const away = remote.runtimeConfigKey({ remoteMode: 'relay', remoteRelayEndpoint: '125.124.85.212:8411' });
   assert.notEqual(lan, away);
@@ -188,7 +204,7 @@ test('renameDevice writes through the re-opened device store and stays a no-op w
       renamed.push([id, label]);
     },
   };
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: true }),
     getHomeDir: () => fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-')),
   });
@@ -213,7 +229,7 @@ test('relay TLS follows the persisted endpoint transport setting', () => {
 test('refreshPairing passes LAN appBaseUrl and includeQr false', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   const calls = [];
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({
       remoteEnabled: true,
       remoteMode: 'lan',
@@ -239,7 +255,7 @@ test('refreshPairing in away mode passes public SPA appBaseUrl', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   const calls = [];
   const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../shared/lan');
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({
       remoteEnabled: true,
       remoteMode: 'relay',
@@ -262,7 +278,7 @@ test('refreshPairing in away mode passes public SPA appBaseUrl', async () => {
 test('ensurePairing mints when daemon up and url empty', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   let refreshCalls = 0;
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: true }),
     getHomeDir: () => home,
   });
@@ -282,7 +298,7 @@ test('ensurePairing mints when daemon up and url empty', async () => {
 test('ensurePairing no-ops when url present', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   let refreshCalls = 0;
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: true }),
     getHomeDir: () => home,
   });
@@ -299,7 +315,7 @@ test('ensurePairing no-ops when url present', async () => {
 test('ensurePairing suppresses after failure until rotateToken clears it', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   let refreshCalls = 0;
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: true }),
     getHomeDir: () => home,
   });
@@ -326,7 +342,7 @@ test('ensurePairing suppresses after failure until rotateToken clears it', async
 test('ensurePairing unblocks after sync succeeds', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   let refreshCalls = 0;
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => ({ remoteEnabled: true }),
     getHomeDir: () => home,
   });
@@ -354,7 +370,7 @@ test('ensurePairing unblocks after sync succeeds', async () => {
 
 /**
  * Write a fake runner script (same stdout/stdin protocol as
- * chisacode-daemon-runner.mjs) into a tmp dir and return its path.
+ * dshd-daemon-runner.mjs) into a tmp dir and return its path.
  * @param {string} body - script body appended after the launch-file preamble
  */
 function writeFakeRunner(body) {
@@ -397,7 +413,7 @@ function fakeRemote({ home, runnerBody = READY_RUNNER_BODY, config, options = {}
     remoteRelayEndpoint: '125.124.85.212:8411',
     remoteRelayUseTls: false,
   };
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => current,
     getHomeDir: () => home,
     runnerPath: writeFakeRunner(runnerBody),
@@ -557,7 +573,7 @@ test('stopDaemon force-kills a child that ignores the stdin stop line', async ()
   }
 });
 
-test('ChisaCodeRemote never uses lan.pairingUrl for product QR', async () => {
+test('DshdRemote never uses lan.pairingUrl for product QR', async () => {
   const lan = require('../shared/lan');
   const original = lan.pairingUrl;
   let called = false;
@@ -567,7 +583,7 @@ test('ChisaCodeRemote never uses lan.pairingUrl for product QR', async () => {
   };
   try {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
-    const remote = new ChisaCodeRemote({
+    const remote = new DshdRemote({
       getConfig: () => ({ remoteEnabled: true, remoteRelayEndpoint: '125.124.85.212:8411' }),
       getHomeDir: () => home,
     });
@@ -742,10 +758,10 @@ test('ensureDshAcpShim materializes PATH shims only when the bundled ACP entry i
   assert.ok(cmd.includes(`"/opt/My App/electron" "${entry}" %*`));
 });
 
-test('ChisaCodeRemote snapshot is chisacode-v2 and has no host-token wall', () => {
+test('DshdRemote snapshot is chisacode-v2 and has no host-token wall', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
   let config = { remoteEnabled: false, remoteMode: 'lan', remoteRelayEndpoint: 'relay.example.com:443' };
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => config,
     saveConfig: (patch) => { config = { ...config, ...patch }; return config; },
     getHomeDir: () => home,

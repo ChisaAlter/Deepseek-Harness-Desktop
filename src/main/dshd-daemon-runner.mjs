@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * ChisaCode daemon runner — child-process host for createChisaCodeDaemon
+ * DSHD remote daemon runner — child-process host for createChisaCodeDaemon
  * (Touching: remote-settings).
  *
  * Mirrors upstream chisacode desktop's daemon-manager shape: the Electron main

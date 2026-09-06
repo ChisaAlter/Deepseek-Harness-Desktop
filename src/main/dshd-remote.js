@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * ChisaCode remote face — full createChisaCodeDaemon + offer v2 pairing.
+ * DSHD remote face — full createChisaCodeDaemon + offer v2 pairing.
  * Replaces HTTP RemoteGateway as the product pairing path (Touching: remote-settings).
  */
 
@@ -24,12 +24,12 @@ const { createMobileWebServer, listenMobileWebServer, MOBILE_WEB_PORT } = requir
 const { startGitTunnelServer } = require('./dshd-git-tunnel');
 
 function resolveVendorRoot() {
-  // Packaged: extraResources → resources/vendor/chisacode-remote
-  // Dev: repo vendor/chisacode-remote
+  // Packaged: extraResources -> resources/vendor/dshd-remote
+  // Dev: upstream source tree remains vendor/chisacode-remote.
   try {
     const { app } = require('electron');
     if (app && app.isPackaged) {
-      return path.join(process.resourcesPath, 'vendor', 'chisacode-remote');
+      return path.join(process.resourcesPath, 'vendor', 'dshd-remote');
     }
   } catch {
     // electron unavailable in plain node tests
@@ -40,7 +40,8 @@ function resolveVendorRoot() {
 const VENDOR_ROOT = resolveVendorRoot();
 const SERVER_EXPORT = path.join(
   VENDOR_ROOT,
-  'packages',
+  'node_modules',
+  '@chisacode',
   'server',
   'dist',
   'server',
@@ -57,7 +58,7 @@ function unpackedPath(file) {
   return file.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
 }
 
-const RUNNER_PATH = unpackedPath(path.join(__dirname, 'chisacode-daemon-runner.mjs'));
+const RUNNER_PATH = unpackedPath(path.join(__dirname, 'dshd-daemon-runner.mjs'));
 
 /** Ready wait for the daemon child (cold dist import + port bind). */
 const DAEMON_READY_TIMEOUT_MS = 30_000;
@@ -350,13 +351,13 @@ function buildDaemonChildEnv({
 }
 
 /**
- * Product remote controller — process manager for the ChisaCode daemon child
- * (createChisaCodeDaemon runs in `chisacode-daemon-runner.mjs`, never in the
+ * Product remote controller — process manager for the vendored daemon child
+ * (createChisaCodeDaemon runs in `dshd-daemon-runner.mjs`, never in the
  * Electron main process). Pairing offers and device snapshots stay in-process:
  * they are file-backed against the same chisacode home, exactly like the
  * upstream CLI `daemon pair` running beside the daemon.
  */
-class ChisaCodeRemote extends EventEmitter {
+class DshdRemote extends EventEmitter {
   /**
    * @param {object} options
    * @param {() => object} options.getConfig
@@ -613,7 +614,7 @@ class ChisaCodeRemote extends EventEmitter {
       const relayEndpoint = (config.remoteRelayEndpoint || config.remoteRelayUrl || defaults.relayEndpoint || '').trim();
       const useTls = relayUseTls(config, relayEndpoint);
       const listen = config.remoteListen || defaults.listen || '127.0.0.1:6767';
-      const staticDir = path.join(VENDOR_ROOT, 'packages', 'server', 'dist', 'server');
+      const staticDir = path.join(VENDOR_ROOT, 'node_modules', '@chisacode', 'server', 'dist', 'server');
       const agentStoragePath = path.join(home, 'agents');
       fs.mkdirSync(agentStoragePath, { recursive: true });
 
@@ -926,7 +927,7 @@ class ChisaCodeRemote extends EventEmitter {
 }
 
 module.exports = {
-  ChisaCodeRemote,
+  DshdRemote,
   loadServerApi,
   VENDOR_ROOT,
   RUNNER_PATH,

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — Windows 0.2.9 候选发现生产 runtime 漏装 `better-sqlite3.node`；`prepare-chisacode-remote.mjs --runtime` 现仅重建 `better-sqlite3` 到 Electron 43.4.0 / Node ABI 148，并立即执行内存 SQLite 读写探针，失败即阻断 `npm run dist`。本地从空 runtime 重建、`npm test` 1402 pass / 2 skip、NSIS 构建、产物 ABI 探针和 packaged smoke 均通过。产品负责人明确本次 Windows 发布忽略 Web 第二客户端与 Android 验收；相关轨道记范围外/豁免，**不记 Pass，也不宣称实机全量通过**。此前：2026-09-05 — 本地 Web + host tunnel/mux 304/304；假 host 浏览器 30/30；Android JVM 测试和 Debug APK 构建此前通过。 |
+| **last verified** | 2026-09-06 — 桌面集成与安装资源统一改名 `dshd-remote`（上游源码目录和 `@chisacode/*` 协议包名保留）；生产 runtime 使用 `--omit=optional` 并显式保留 Electron ABI 148 的 `better-sqlite3`，删除 Claude 平台 CLI、Sherpa 平台包、重复 workspace dist、非 x64 PTY、PDB 与 SQLite 构建残留。运行时从约 412.6 MiB / 14692 文件降至 80.4 MiB / 12254 文件；本地 NSIS 从旧候选 637925131 bytes 降至 562061203 bytes。SQLite 双探针、完整 daemon 启停、107 pass / 2 skip 的聚焦测试、afterPack 与 packaged smoke 均通过。按产品负责人要求，本轮不执行 Web、Android 或 macOS 验收，相关轨道不记 Pass。 |
 
 ## User paths
 
@@ -129,8 +129,8 @@
 
 ## Allowed touch
 
-- `mobile/web/`（含 `host/`、`chisacode/`、`conversation/`、`git/`）、`scripts/bundle-chisacode-mobile-client.mjs`、`scripts/prepare-chisacode-remote.mjs`
-- `src/main/chisacode-remote.js`、`src/main/chisacode-daemon-runner.mjs`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/main/dshd-git-tunnel.js`、`src/main/mobile-web-server.js`、`src/shared/dshd-host-tunnel.js`、`src/shared/dshd-mux-sse.js`、`src/shared/lan.js`
+- `mobile/web/`（含 `host/`、`chisacode/`、`conversation/`、`git/`）、`scripts/bundle-chisacode-mobile-client.mjs`、`scripts/prepare-dshd-remote.mjs`
+- `src/main/dshd-remote.js`、`src/main/dshd-daemon-runner.mjs`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/main/dshd-git-tunnel.js`、`src/main/mobile-web-server.js`、`src/shared/dshd-host-tunnel.js`、`src/shared/dshd-mux-sse.js`、`src/shared/lan.js`
 - `vendor/chisacode-remote/`（线协议 `dshd.host.rpc.*` / `dshd.git.rpc.*` / `dshd.host.mux.*`）、`ui-settings-remote`、本卡、QA 远程条
 - `tools/mobile-web-qa/`、`tools/remote-web-qa/`
 - `mobile/android/`（扫码 handoff、同源 WebView 生命周期、内置 SPA 打包与回归；2026-09-05 用户明确要求同步 Android 修复）
@@ -147,11 +147,13 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `mobile/web/**/*.test.js`（含 `app-cutover.test.js` 零 `fetchAgents`/`createAgent`；`host/*.test.js`；`git/stack.test.js` 的 `commit_push` 顺序；`git/bridge.test.js` 的 `gitCreateBranch`）；`src/shared/dshd-host-tunnel.test.js`（白名单外 403、非 loopback 拒转发）；`src/main/dshd-git-dispatch.test.js`（不转发 stage/pty/writeFile）；`src/main/chisacode-remote.test.js`（`DSHD_HARNESS_ORIGIN`、不设 `DSH_HOME`）；Android JVM tests（`:protocol:test` PairingIntent；`:app:testDebugUnitTest` VIEW handoff） |
+| Automated | `mobile/web/**/*.test.js`（含 `app-cutover.test.js` 零 `fetchAgents`/`createAgent`；`host/*.test.js`；`git/stack.test.js` 的 `commit_push` 顺序；`git/bridge.test.js` 的 `gitCreateBranch`）；`src/shared/dshd-host-tunnel.test.js`（白名单外 403、非 loopback 拒转发）；`src/main/dshd-git-dispatch.test.js`（不转发 stage/pty/writeFile）；`src/main/dshd-remote.test.js`（运行时裁剪、`DSHD_HARNESS_ORIGIN`、不设 `DSH_HOME`）；Android JVM tests（`:protocol:test` PairingIntent；`:app:testDebugUnitTest` VIEW handoff） |
 | Browser | `node tools/mobile-web-qa/run-qa.mjs`（fake **host** 会话，不单靠 fake ACP agents）；`node tools/remote-web-qa/run-e2e.mjs --relay <endpoint>`；`npm run qa:remote` |
 | Manual | **全功能执行表：** [docs/qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)（P0 缺一行未填 = 未测完）。细则：[docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。Android App 本轮不签。 |
 
 ## Sources
+
+- 2026-09-06 目录一致性复核：公网旧版模块的成员筛选缺失已定向部署修复，缓存版本 `20260906T034605Z`；本地与公网浏览器目录 fixture 均 Pass，三个发布文件的公网哈希一致。未替换桌面安装版，不记双端会话实机全量 Pass。证据见 [归档与目录差异](../../tools/mobile-web-qa/results/2026-09-06-session-catalog.md)；复测命令为 `node tools/mobile-web-qa/run-catalog-parity-qa.mjs <公网 SPA 根 URL>`。
 
 - 首连失败回归：`mobile/web/chisacode/connect-lifecycle.test.js`（真实 bundle + 不响应 transport）；`node tools/mobile-web-qa/run-connect-qa.mjs`（受控连接失败与点选重试，390px / 1280px）。
 - 公网定向验收：`node tools/mobile-web-qa/run-connect-public-qa.mjs`（使用正在运行的桌面，创建并在 finally 撤销专用 QA 设备）；[部署与现场证据](../../tools/mobile-web-qa/results/2026-09-05-connect.md)。

@@ -42,14 +42,14 @@ sequenceDiagram
 
 ## 门槛
 
-- 自动门槛：`node --test "mobile/web/**/*.test.js"`、`src/shared/dshd-host-tunnel.test.js`、`src/main/dshd-git-dispatch.test.js`、`src/main/chisacode-remote.test.js`。
+- 自动门槛：`node --test "mobile/web/**/*.test.js"`、`src/shared/dshd-host-tunnel.test.js`、`src/main/dshd-git-dispatch.test.js`、`src/main/dshd-remote.test.js`。
 - 浏览器集成：`node tools/mobile-web-qa/run-qa.mjs`（fake **host** 会话 + 真实 SPA 栈，需 `npm i --no-save puppeteer-core` 与本机 Chrome）。
 - Android：有 SDK 时运行 `mobile/android/gradlew test` 与 `assembleDebug`。配对后 WebView 功能集必须与公网 SPA 相同。
 - 真机门（本轮 Web）：[docs/qa/mobile-remote-live-acceptance.md](../../qa/mobile-remote-live-acceptance.md) T1。T3 Android Deferred。缺一条 P0、或列表 `D ≠ P`、或用非法证据顶替，都不算完成。
 
 ## 入口
 
-- `src/main/chisacode-remote.js`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/shared/dshd-host-tunnel.js`、`src/main/mobile-web-server.js`
+- `src/main/dshd-remote.js`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/shared/dshd-host-tunnel.js`、`src/main/mobile-web-server.js`
 - `mobile/web/host/`（backend / catalog / history / models / mux / freeze）、`mobile/web/app.js`、`mobile/web/git/`
 - `mobile/web/chisacode/session.js`、`controller.js`、`directory.js`、`timeline.js`、`approvals.js`、`commands.js`、`mobile/web/conversation/markdown.js`
 - `tools/mobile-web-qa/`（fake-daemon 浏览器集成 harness）

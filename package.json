@@ -13,8 +13,8 @@
     "test": "node --test \"src/**/*.test.js\" \"mobile/web/**/*.test.js\"",
     "setup:harness": "node scripts/setup-harness.js",
     "sync:harness": "node scripts/sync-upstream.js",
-    "prepare:chisacode-remote": "node scripts/prepare-chisacode-remote.mjs",
-    "pack": "node scripts/prepare-chisacode-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --dir --publish never",
+    "prepare:dshd-remote": "node scripts/prepare-dshd-remote.mjs",
+    "pack": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --dir --publish never",
     "installer:assets": "node scripts/run-render-installer-assets.js",
     "smoke:source": "node scripts/run-source-smoke.mjs",
     "qa:source": "node scripts/run-source-qa.mjs",
@@ -29,8 +29,8 @@
     "check:remote-flag": "node scripts/check-remote-flag-not-committed.mjs",
     "qa:remote:v2": "node tools/remote-web-qa/full-web-v2/run.mjs",
     "refresh:marketplace-snapshot": "node scripts/refresh-marketplace-snapshot.mjs",
-    "dist": "node scripts/prepare-chisacode-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never",
-    "dist:mac": "node scripts/prepare-chisacode-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never"
+    "dist": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never",
+    "dist:mac": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
@@ -66,7 +66,7 @@
       "package.json"
     ],
     "asarUnpack": [
-      "src/main/chisacode-daemon-runner.mjs",
+      "src/main/dshd-daemon-runner.mjs",
       "src/main/dshd-daemon-hooks.mjs",
       "src/shared/dshd-host-tunnel.js",
       "src/shared/dshd-mux-sse.js"
@@ -82,19 +82,17 @@
       },
       {
         "from": "vendor/chisacode-remote",
-        "to": "vendor/chisacode-remote",
+        "to": "vendor/dshd-remote",
         "filter": [
-          "package.json",
           "LICENSE",
           "NOTICE",
           "AGPL-SHIPPING.md",
-          "WORKER-CHECKLIST.md",
-          "packages/{client,highlight,protocol,relay,server}/{package.json,dist/**/*}"
+          "WORKER-CHECKLIST.md"
         ]
       },
       {
         "from": "vendor/chisacode-remote/.tmp/desktop-runtime/node_modules",
-        "to": "vendor/chisacode-remote/node_modules",
+        "to": "vendor/dshd-remote/node_modules",
         "filter": [
           "**/*"
         ]

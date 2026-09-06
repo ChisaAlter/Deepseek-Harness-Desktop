@@ -14,7 +14,7 @@ const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
 const { registerIpc } = require('./ipc');
 const { safeStorage } = require('electron');
-const { ChisaCodeRemote, resolveDesktopChisaCodeHome } = require('./chisacode-remote');
+const { DshdRemote, resolveDesktopChisaCodeHome } = require('./dshd-remote');
 const { invokeDesktopShell } = require('./remote-shell');
 const git = require('./git');
 const { listDir } = require('./workspace-fs');
@@ -76,7 +76,7 @@ const { installStdioGuard, installUncaughtBrokenPipeGuard } = require('./stdio-g
 installStdioGuard({ log: (message) => dsh.log(message, 'app') });
 installUncaughtBrokenPipeGuard({ log: (message) => dsh.log(message, 'app') });
 // Product remote = full ChisaCode daemon + offer v2 (not HTTP RemoteGateway).
-const remote = new ChisaCodeRemote({
+const remote = new DshdRemote({
   getConfig: loadConfig,
   saveConfig,
   // Desktop-facing override is DSHD_CHISACODE_HOME (debug; packaged builds

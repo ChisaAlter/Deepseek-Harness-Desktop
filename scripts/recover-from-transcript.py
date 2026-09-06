@@ -13,9 +13,9 @@ TRANSCRIPT = Path(
 
 # Only recover pairing-related paths (avoid overwriting unrelated work).
 ALLOW = re.compile(
-    r"(chisacode-remote|mobile-web-server|mobile/web/chisacode|mobile/web/app\.js|"
+    r"(dshd-remote|chisacode-remote|mobile-web-server|mobile/web/chisacode|mobile/web/app\.js|"
     r"mobile/web/pair/scan|shared/lan\.js|shared/lan\.test|config\.js|config\.test|"
-    r"chisacode-remote\.test|session\.js|session\.test|DshViewModel\.kt|"
+    r"dshd-remote\.test|session\.js|session\.test|DshViewModel\.kt|"
     r"RemoteSection\.tsx|locales\.ts|mobile-remote\.md|remote-settings\.md|"
     r"_kill-http-remote|prestart-ensure|bundle-chisacode|link-chisacode|defaults\.json)",
     re.I,

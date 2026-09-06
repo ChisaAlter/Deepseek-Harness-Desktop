@@ -20,7 +20,7 @@
 
 ## 实现入口
 
-- `src/main/chisacode-remote.js`、`chisacode-daemon-runner.mjs`、`dshd-daemon-hooks.mjs`、`dshd-git-tunnel.js`、`mobile-web-server.js`
+- `src/main/dshd-remote.js`、`dshd-daemon-runner.mjs`、`dshd-daemon-hooks.mjs`、`dshd-git-tunnel.js`、`mobile-web-server.js`
 - `src/shared/dshd-host-tunnel.js`、`src/main/dshd-git-dispatch.js`
 - `mobile/web/app.js`、`mobile/web/host/`、`mobile/web/git/`
 - 全量启动内容搜索 overlay：`src/main/session-search-overlay.js`（`--patch`，产品契约见 desktop-launcher）

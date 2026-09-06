@@ -6,11 +6,11 @@ const { spawn } = require('node:child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { ChisaCodeRemote, RUNNER_PATH, VENDOR_ROOT } = require('./chisacode-remote');
+const { DshdRemote, RUNNER_PATH, VENDOR_ROOT } = require('./dshd-remote');
 
-const VENDOR_RUNNABLE = fs.existsSync(path.join(VENDOR_ROOT, 'packages', 'server', 'dist', 'server', 'server', 'exports.js'))
+const VENDOR_RUNNABLE = fs.existsSync(path.join(VENDOR_ROOT, 'node_modules', '@chisacode', 'server', 'dist', 'server', 'server', 'exports.js'))
   && fs.existsSync(path.join(VENDOR_ROOT, 'node_modules'));
-const VENDOR_HINT = 'vendor/chisacode-remote dist/依赖缺失（scripts/prepare-chisacode-remote.mjs 会构建）';
+const VENDOR_HINT = 'dshd remote dist/依赖缺失（scripts/prepare-dshd-remote.mjs 会构建）';
 
 /**
  * Stub server export implementing the two faces the runner consumes
@@ -139,11 +139,11 @@ test(
 );
 
 // ---------------------------------------------------------------------------
-// Real vendored daemon through the full ChisaCodeRemote face (dist-gated)
+// Real vendored daemon through the full DshdRemote face (dist-gated)
 // ---------------------------------------------------------------------------
 
 test(
-  'ChisaCodeRemote runs the real vendored daemon in a child process end to end',
+  'DshdRemote runs the real vendored daemon in a child process end to end',
   { skip: VENDOR_RUNNABLE ? false : VENDOR_HINT, timeout: 120_000 },
   async () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-real-'));
@@ -156,7 +156,7 @@ test(
       remoteRelayUseTls: false,
       remoteListen: `127.0.0.1:${port}`,
     };
-    const remote = new ChisaCodeRemote({
+    const remote = new DshdRemote({
       getConfig: () => config,
       getHomeDir: () => home,
       readyTimeoutMs: 90_000,

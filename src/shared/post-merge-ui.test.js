@@ -216,7 +216,7 @@ test('desktop path and local $ trigger modules stay deleted', () => {
 
 test('main process boots the ChisaCode remote face (RemoteGateway retired)', () => {
   const index = readRel(ROOT, 'src/main/index.js');
-  assert.match(index, /new ChisaCodeRemote/);
+  assert.match(index, /new DshdRemote/);
   assert.doesNotMatch(index, /new RemoteGateway/);
   assert.doesNotMatch(index, /createDisabledRemote/);
 });

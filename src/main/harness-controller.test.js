@@ -151,7 +151,7 @@ function fixture(overrides = {}) {
       this.syncCalls += 1;
       events.push('remote:sync');
     },
-    // Real face is ChisaCodeRemote: teardown is stopDaemon(), not stop().
+    // Real face is DshdRemote: teardown is stopDaemon(), not stop().
     async stopDaemon() {
       this.stopCalls += 1;
       events.push('remote:stop');

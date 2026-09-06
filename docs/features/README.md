@@ -47,7 +47,7 @@ Gate: <卡上 gates>
 | [boot-page](boot-page.md) | 仪器启动画布 + 插件进度/恢复 | `boot.*` / harness-controller | TC-INST-003…007、012、013 |
 | [terminal-drawer](terminal-drawer.md) | 底栏 PTY 工作环 | `pty.js` / ui-user-terminal | TC-TERM-001…004（TC-WS-006 仓） |
 | [settings-select](settings-select.md) | 设置内值选择统一为官方胶囊 + Menu | `SettingsSelect` | vendor client spec |
-| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；**停放**（`REMOTE_FEATURE_ENABLED=false`） | `ChisaCodeRemote` / `ui-settings-remote` | 停放期 TC-REM N/A；TC-NEG-001 默认不听 |
+| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；**停放**（`REMOTE_FEATURE_ENABLED=false`） | `DshdRemote` / `ui-settings-remote` | 停放期 TC-REM N/A；TC-NEG-001 默认不听 |
 | [remote-settings](remote-settings.md) | 设置→远程双标签（网关 + dsh-im）；**停放** | `ui-settings-remote` / `dsh-im-desktop` | 停放期无入口 |
 | [dshbot](dshbot.md) | 已从本体剥离；只保留旧预置脱离和用户插件恢复 | `legacy-dshbot-preset` | 升级 / 用户数据保留 |
 | [dsh-home](dsh-home.md) | 桌面 `userData/dsh-home`；Harness 不读官方 `~/.dsh` | `dsh-home.js` / spawnEnv | TC-INST-009、011；TC-WS-006 |

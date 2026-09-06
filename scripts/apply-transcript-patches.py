@@ -18,10 +18,10 @@ TARGETS = [
     "mobile/web/app.js",
     "mobile/android/app/src/main/java/ai/deepseek/harness/mobile/DshViewModel.kt",
     "vendor/deepseek-harness/packages/client/ui-settings-remote/src/client/RemoteSection.tsx",
-    "src/main/chisacode-remote.js",
+    "src/main/dshd-remote.js",
     "mobile/web/chisacode/session.js",
     "mobile/web/chisacode/session.test.js",
-    "src/main/chisacode-remote.test.js",
+    "src/main/dshd-remote.test.js",
     "docs/features/mobile-remote.md",
 ]
 

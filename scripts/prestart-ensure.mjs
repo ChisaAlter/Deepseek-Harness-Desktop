@@ -36,7 +36,7 @@ function run(command, args, cwd = root, { shell = process.platform === 'win32' }
 }
 
 // Absolute node paths with spaces break under shell:true on Windows.
-run(process.execPath, ['scripts/prepare-chisacode-remote.mjs'], root, { shell: false });
+run(process.execPath, ['scripts/prepare-dshd-remote.mjs'], root, { shell: false });
 
 const remotePkg = path.join(root, 'vendor', 'deepseek-harness', 'packages', 'client', 'ui-settings-remote');
 const remoteSrc = path.join(remotePkg, 'src');

@@ -20,7 +20,7 @@ const { spawn } = require('node:child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { VENDOR_ROOT } = require('./chisacode-remote');
+const { VENDOR_ROOT } = require('./dshd-remote');
 
 const DSH_AGENT_SRC = path.join(
   VENDOR_ROOT, 'packages', 'server', 'src', 'server', 'agent', 'providers', 'dsh-agent.ts',
@@ -30,7 +30,7 @@ const DSH_AGENT_DIST = path.join(
 );
 const DIST_RUNNABLE = fs.existsSync(DSH_AGENT_DIST)
   && fs.existsSync(path.join(VENDOR_ROOT, 'packages', 'server', 'node_modules'));
-const DIST_HINT = 'vendor/chisacode-remote server dist/依赖缺失（prepare-chisacode-remote.mjs 会构建）';
+const DIST_HINT = 'vendored server dist/依赖缺失（prepare-dshd-remote.mjs 会构建）';
 
 test('vendored resolveDshVendorDir keeps explicit stdio on execSync (EPIPE tripwire)', () => {
   const src = fs.readFileSync(DSH_AGENT_SRC, 'utf8');
