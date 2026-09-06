@@ -41,13 +41,18 @@ async function connectionResult(page) {
 }
 
 try {
+  const executablePath = process.env.CHROME_PATH || [
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+  ].find(existsSync);
   browser = await puppeteer.launch({
-    executablePath: process.env.CHROME_PATH || [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ].find(existsSync),
+    executablePath,
     headless: true,
-    args: direct ? ['--no-proxy-server'] : [],
+    // Edge can relaunch itself and exit 0 before Puppeteer sees its endpoint.
+    args: [
+      ...(direct ? ['--no-proxy-server'] : []),
+      ...(/msedge\.exe$/i.test(executablePath || '') ? ['--edge-skip-compat-layer-relaunch'] : []),
+    ],
   });
   const page = await browser.newPage();
   {

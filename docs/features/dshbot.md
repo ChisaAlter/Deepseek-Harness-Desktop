@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `dshbot` |
 | **status** | `removed-from-desktop` |
-| **last verified** | 2026-09-05 — 源码和未提交测试已校验备份；预置迁移、用户安装保留和通用禁用恢复已通过定向回归；补齐旧插件 import loader 失败归因。新 CI 安装包构建与升级验收待完成。 |
+| **last verified** | 2026-09-05 — 本体剥离与通用归因回归通过；CI run 33942243475 的 Windows 包已覆盖安装并两次成功启动。dshbot 保持单独禁用；配置、凭据明文和会话原始字节保留。完整生产验收尚未完成，未发布。证据：docs/qa/results/2026-09-05/dshbot-detachment-release-status.md。 |
 
 ## User paths
 

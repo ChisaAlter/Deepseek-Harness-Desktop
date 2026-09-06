@@ -28,18 +28,15 @@ if (Test-Path "$old\attachments") {
 }
 ```
 
-**macOS：** 把 `$HOME/.dsh/sessions` 拷到 `~/Library/Application Support/Deepseek-Harness-Desktop/dsh-home/sessions`（`attachments` 同理）。
-
 ### 安装包
+
+本次 `0.2.9` 仅发布 Windows x64 安装包，不提供 macOS 新版安装包。
 
 | 平台 | 文件 |
 | --- | --- |
 | Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.9.exe` |
-| macOS Apple Silicon（arm64） | `Deepseek-Harness-Desktop-0.2.9-mac-arm64.dmg` |
 
-- macOS 包**未签名**：下载后右键 → 打开；或执行 `xattr -cr /Applications/Deepseek-Harness-Desktop.app`
-- Intel Mac 与 Linux 请从源码运行
-- 校验：同页的 `SHA512SUMS.txt`（Setup / blockmap / DMG）
+- 校验：同页的 `SHA512SUMS.txt`（Windows Setup / blockmap）
 
 ### 本版变化
 
@@ -48,6 +45,7 @@ if (Test-Path "$old\attachments") {
 - 恢复识图模型设置的请求消费，上传图片和工具读取图片可交由识图模型生成描述；后续请求复用已记录描述，取消和超时不再伪装为成功
 - 恢复工具调用标识校验、畸形响应重试和旧历史投影修复，原始会话日志保持不变
 - 注册或重新添加工作区时重新关联后来导入的历史会话，保留原有归属和排序
+- 启动时自动补回仍登记工作区遗漏的历史和已归档会话，保留原成员顺序与归档状态，不恢复已删除的工作区
 - 修复插件 Git 安装失败被误报为构建授权的问题
 
 - 修复旧版 `session_projcache` 记录可能让 Harness 陷入启动崩溃循环的问题；旧格式记录会备份并冷重建，不再阻塞进入应用
