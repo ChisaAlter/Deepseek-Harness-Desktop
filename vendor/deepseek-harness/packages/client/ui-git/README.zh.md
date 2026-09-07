@@ -26,3 +26,5 @@
 - **变更请求在 GitHub 远程上走 `gh`**：已打开的 PR 通过 `gh pr list --head` 复用；fork 创建会传 `--head owner:branch`。非 GitHub 远程 fail-closed（不交付 GitLab `glab` 等）。commit+push 之后缺少 `gh` 会让整单在 toast 上失败。
 - **打开文件走系统默认应用**：提交对话框用 `shell.openPath`，没有首选编辑器选择器。
 - **Pull 只快进**：`git pull --ff-only`；stash 与 rebase 只出现在禁用菜单提示里。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

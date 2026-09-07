@@ -80,7 +80,7 @@ function groupSessionRows(rows) {
   const childrenByParent = new Map();
   const top = [];
   for (const row of list) {
-    const parentId = parentSessionIdOf(row);
+    const parentId = isSubagentRow(row) ? parentSessionIdOf(row) : '';
     if (parentId && byId.has(parentId) && parentId !== row.sessionId) {
       const bucket = childrenByParent.get(parentId) || [];
       bucket.push(row);
@@ -104,7 +104,9 @@ function sessionRowForest(rows) {
   const groups = groupSessionRows(list);
   function descendants(parentId) {
     return list.filter((row) => (
-      parentSessionIdOf(row) === parentId && row.sessionId !== parentId
+      isSubagentRow(row)
+      && parentSessionIdOf(row) === parentId
+      && row.sessionId !== parentId
     ));
   }
   function expand(row, orphanSubagent, seen) {
@@ -125,10 +127,9 @@ function sessionRowForest(rows) {
 /** True when this row must open read-only (subagent track or archived). */
 function isReadOnlyRow(row) {
   if (row?.archived === true) return true;
-  if (row?.origin === 'subagent' || parentSessionIdOf(row)) return true;
+  if (isSubagentRow(row)) return true;
   const agent = row?.chisacodeAgent;
   if (!agent) return false;
-  if (relationOf(row)?.kind === 'subagent') return true;
   return typeof agent.archivedAt === 'string' && agent.archivedAt.length > 0;
 }
 

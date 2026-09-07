@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-19-conversation-surface-links.md
-2026-08-19-conversation-surface-links.md: acdb9f5c70abcfab6c5025df02580a31dab33b3e
-2026-08-19-conversation-surface-links.zh.md: 88e3d22f8851bf1b4700b944e46c7e2fd6acdd8d
+2026-08-19-conversation-surface-links.md: 2f252c4570191227ed2d14351c4538bc550601d4
+2026-08-19-conversation-surface-links.zh.md: 88788b075d69458a201d45db30e9fa102625737c

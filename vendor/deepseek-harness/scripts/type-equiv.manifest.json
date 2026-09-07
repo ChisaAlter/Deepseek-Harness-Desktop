@@ -547,6 +547,11 @@
     },
     {
       "doc": "docs/subsystems/persistence.md",
+      "symbol": "SessionHandle",
+      "source": "packages/session/session-persistence/src/handle.ts"
+    },
+    {
+      "doc": "docs/subsystems/persistence.md",
       "symbol": "SessionHeader",
       "source": "packages/core/session/src/types.ts"
     },
@@ -578,28 +583,8 @@
     },
     {
       "doc": "docs/subsystems/persistence.md",
-      "symbol": "SessionStorageMetadata",
-      "source": "packages/session/session-persistence/src/index.ts"
-    },
-    {
-      "doc": "docs/subsystems/persistence.md",
-      "symbol": "SessionInspection",
-      "source": "packages/session/session-persistence/src/index.ts"
-    },
-    {
-      "doc": "docs/subsystems/persistence.md",
-      "symbol": "SessionEventSuffix",
-      "source": "packages/session/session-persistence/src/index.ts"
-    },
-    {
-      "doc": "docs/subsystems/persistence.md",
       "symbol": "SessionLocation",
-      "source": "packages/session/session-persistence/src/index.ts"
-    },
-    {
-      "doc": "docs/subsystems/persistence.md",
-      "symbol": "SessionRawArtifact",
-      "source": "packages/session/session-persistence/src/index.ts"
+      "source": "packages/session/session-persistence/src/errors.ts"
     },
     {
       "doc": "docs/subsystems/session-query.md",
@@ -749,6 +734,11 @@
     {
       "doc": "docs/subsystems/session-reference.md",
       "symbol": "SessionReferenceMentionCandidate",
+      "source": "packages/context/session-reference/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session-reference.md",
+      "symbol": "SessionReferenceSource",
       "source": "packages/context/session-reference/src/types.ts"
     },
     {
@@ -959,6 +949,21 @@
     {
       "doc": "docs/subsystems/attachment.md",
       "symbol": "ImageAttachmentLimits",
+      "source": "packages/attachment/attachment/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/attachment.md",
+      "symbol": "PromptContentPart",
+      "source": "packages/attachment/attachment/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/attachment.md",
+      "symbol": "AttachmentAdmissionPart",
+      "source": "packages/attachment/attachment/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/attachment.md",
+      "symbol": "AdmittedPromptContentPart",
       "source": "packages/attachment/attachment/src/types.ts"
     },
     {
@@ -1919,6 +1924,11 @@
     {
       "doc": "docs/subsystems/core.md",
       "symbol": "AgentStatus",
+      "source": "packages/core/agent/src/runtime-types.ts"
+    },
+    {
+      "doc": "docs/subsystems/core.md",
+      "symbol": "AssistantStreamFrame",
       "source": "packages/core/agent/src/runtime-types.ts"
     },
     {

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `message-edit` |
 | **status** | `active` |
-| **last verified** | 2026-09-06：当前会话重发。`build:official`、Host/Client `tsc -b` 通过；GUI 411 文件、5346 项通过（1 跳过）；最终定向回归 123 项通过；真实 Web 首条/第二条、连续编辑、两侧取消、点击/Enter 发送、刷新与侧栏数量的 2 项 keyless e2e 在 refresh 和只读 replay 均通过。 |
+| **last verified** | 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 并迁移 Session v2 嵌入式 assistant stream 后，当前会话重发语义保留；Host / Client build、含 ui-message-edit、ui-chat 与 ui-conversation 的重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前 2026-09-06 的 keyless edit e2e 证据仍有效，本次未重跑。 |
 
 ## User paths
 

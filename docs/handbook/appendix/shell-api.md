@@ -70,9 +70,9 @@
 
 `ptyCreate`、`ptyWrite`、`ptyResize`、`ptyKill`、`onPtyData`、`onPtyExit`。
 
-### Preview（Browser surface）
+### Preview（Browser surface / Files 悬浮预览）
 
-`previewOpen` … `previewClose`、订阅 `onPreviewStateChange` / `onOpenPreviewUrl` / `onPreviewRecordingFrame` — 详见 preload 同文件列表。曾有的 `previewAutomation*`（含 evaluate / CDP 输入注入）因零消费者、暴露面过大已整链删除（2026-08-25）；恢复须新 feature 卡 + 权限模型。
+`previewOpen` … `previewClose`、`previewOpenFileWindow`、订阅 `onPreviewStateChange` / `onOpenPreviewUrl` / `onPreviewRecordingFrame` — 详见 preload 同文件列表。`previewOpenFileWindow` 只接收 `cwd + relativePath`，由 main 复用 workspace authority 与 token URL 打开单实例只读置顶窗。曾有的 `previewAutomation*`（含 evaluate / CDP 输入注入）因零消费者、暴露面过大已整链删除（2026-08-25）；恢复须新 feature 卡 + 权限模型。
 
 ## 维护
 

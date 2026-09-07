@@ -4,6 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, desktopListingAvailable, inject } from '../src/client/index.ts'
 import type { SurfacesRootInjected } from '../src/client/SurfacesRoot.tsx'
 import { SurfacesRoot } from '../src/client/SurfacesRoot.tsx'
@@ -37,25 +38,31 @@ async function bench(opts: { current?: string; cwd?: string } = {}) {
   const declaration = declare(slots)
   const layout = { openSurfaces: vi.fn() }
   const originalOpen = vi.fn(async (_path: string, _options?: { line?: number }) => {})
+  const hostOpenPath = vi.fn(async () => ({ ok: true as const, value: { opened: true as const } }))
   const workspaces = { openPath: originalOpen }
   ctx.provide('layout', layout)
   ctx.provide('locale', new LocaleRuntime(ctx))
   ctx.provide('workspaces', workspaces)
   ctx.provide('sessions', sessionsStub(opts))
+  new TestRemote(ctx, { session: { openWorkspacePath: hostOpenPath } })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, layout, workspaces, originalOpen }
+  return { ctx, slots, declaration, fiber, layout, workspaces, originalOpen, hostOpenPath }
 }
 
 function bindOpenFile(
   slots: SlotRegistry,
   openFile = vi.fn(),
+  open = vi.fn(),
 ): ReturnType<typeof vi.fn> {
   const entry = slots.entries('surfaces')[0]
   ;(entry?.inject as unknown as (
     sessionId: string,
-    actions: { openFile: (sessionId: string, relativePath: string) => void },
-  ) => SurfacesRootInjected)('sess-1', { openFile })
+    actions: {
+      open: (sessionId: string, kind: 'files') => void
+      openFile: (sessionId: string, relativePath: string) => void
+    },
+  ) => SurfacesRootInjected)('sess-1', { open, openFile })
   return openFile
 }
 
@@ -65,7 +72,9 @@ afterEach(() => {
 
 describe('ui-surfaces apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'layout', 'locale', 'workspaces', 'sessions'])
+    expect(inject).toEqual([
+      'slots', 'layout', 'locale', 'workspaces', 'sessions', 'remote', 'remote.session',
+    ])
   })
 
   it('occupies surfaces and declares six single session-maybe children', async () => {
@@ -86,8 +95,11 @@ describe('ui-surfaces apply', () => {
     attached()
     const injected = (entry?.inject as unknown as (
       sessionId: undefined,
-      actions: { openFile: (sessionId: string, relativePath: string) => void } | undefined,
-    ) => SurfacesRootInjected)(undefined, { openFile: vi.fn() })
+      actions: {
+        open: (sessionId: string, kind: 'files') => void
+        openFile: (sessionId: string, relativePath: string) => void
+      } | undefined,
+    ) => SurfacesRootInjected)(undefined, { open: vi.fn(), openFile: vi.fn() })
     expect(injected.openSurfaces).toBeDefined()
     injected.openSurfaces()
     expect(b.layout.openSurfaces).toHaveBeenCalledOnce()
@@ -103,8 +115,11 @@ describe('ui-surfaces apply', () => {
     }
     const withShell = (entry?.inject as unknown as (
       sessionId: undefined,
-      actions: { openFile: (sessionId: string, relativePath: string) => void },
-    ) => SurfacesRootInjected)(undefined, { openFile: vi.fn() })
+      actions: {
+        open: (sessionId: string, kind: 'files') => void
+        openFile: (sessionId: string, relativePath: string) => void
+      },
+    ) => SurfacesRootInjected)(undefined, { open: vi.fn(), openFile: vi.fn() })
     expect(withShell.previewAvailable).toBe(true)
     await expect(withShell.gitStatus('/tmp')).resolves.toEqual({ refName: 'main' })
     await b.fiber.dispose()
@@ -181,10 +196,21 @@ describe('ui-surfaces apply', () => {
     expect(openFile).not.toHaveBeenCalled()
     expect(b.originalOpen).toHaveBeenCalledWith('/tmp/other/a.ts')
 
-    b.originalOpen.mockClear()
-    await b.workspaces.openPath('/tmp/proj')
+    await b.fiber.dispose()
+  })
+
+  it('opens the Files explorer for the workspace root', async () => {
+    const b = await bench({ current: 'sess-1' })
+    const open = vi.fn()
+    const openFile = bindOpenFile(b.slots, vi.fn(), open)
+    ;(window as Window & { shell?: { listDir: () => Promise<unknown> } }).shell = {
+      listDir: async () => ({ ok: true }),
+    }
+
+    await b.workspaces.openPath('/tmp/proj/.')
+    expect(open).toHaveBeenCalledWith('sess-1', 'files')
     expect(openFile).not.toHaveBeenCalled()
-    expect(b.originalOpen).toHaveBeenCalledWith('/tmp/proj')
+    expect(b.originalOpen).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
@@ -269,7 +295,7 @@ describe('ui-surfaces apply', () => {
     }
   })
 
-  it('does not preview a non-browser file', async () => {
+  it('keeps text, extensionless files, and SVG in Files', async () => {
     const b = await bench({ current: 'sess-1' })
     const openFile = bindOpenFile(b.slots)
     const previewWorkspaceFile = vi.fn(async () => ({ ok: true as const, url: 'http://127.0.0.1:9/tok/a.ts' }))
@@ -281,6 +307,8 @@ describe('ui-surfaces apply', () => {
     expect(openFile).toHaveBeenCalledWith('sess-1', 'src/a.ts')
     await b.workspaces.openPath('/tmp/proj/LICENSE')
     expect(openFile).toHaveBeenCalledWith('sess-1', 'LICENSE')
+    await b.workspaces.openPath('/tmp/proj/page.svg')
+    expect(openFile).toHaveBeenCalledWith('sess-1', 'page.svg')
     expect(previewWorkspaceFile).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
@@ -306,11 +334,6 @@ describe('ui-surfaces apply', () => {
     const onOpen = (event: Event) => { events.push((event as CustomEvent).detail) }
     window.addEventListener('dshd-open-surface', onOpen)
     try {
-      await b.workspaces.openPath('/tmp/proj/page.svg')
-      expect(previewWorkspaceFile).toHaveBeenCalled()
-      expect(events).toEqual([])
-      expect(b.originalOpen).not.toHaveBeenCalled()
-
       previewWorkspaceFile.mockImplementation(async () => { throw new Error('ipc') })
       await expect(b.workspaces.openPath('/tmp/proj/index.htm')).resolves.toBeUndefined()
       expect(events).toEqual([])

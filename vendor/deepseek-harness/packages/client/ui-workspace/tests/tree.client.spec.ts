@@ -6,7 +6,8 @@ import type { ScheduleId, ScheduleRecord } from '@deepseek-ai/dsh-schedule/clien
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   currentGroupKey, deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, isNoDirectorySession,
-  workspaceLabel, UNGROUPED_KEY,
+  owningGroupKey, workspaceLabel,
+  UNGROUPED_KEY,
 } from '../src/client/tree.ts'
 import { createWorkspaceViewStore } from '../src/client/stores.ts'
 
@@ -43,6 +44,14 @@ const schedule = (id: string, scheduledAt: string): ScheduleRecord => ({
   scheduledAt,
 })
 const noContent = { items: [], hasMore: false }
+
+describe('owningGroupKey', () => {
+  it('returns the owning Workspace id or the Ungrouped key', () => {
+    const workspaces = [workspace('first', ['owned'])]
+    expect(owningGroupKey(workspaces, sid('owned'))).toBe('first')
+    expect(owningGroupKey(workspaces, sid('loose'))).toBe(UNGROUPED_KEY)
+  })
+})
 
 describe('deriveGroups', () => {
   it('keeps Host Workspace and sessionIds order without Client recency sorting', () => {

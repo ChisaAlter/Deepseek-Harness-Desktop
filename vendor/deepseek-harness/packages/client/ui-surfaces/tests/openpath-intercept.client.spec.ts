@@ -2,13 +2,39 @@
  * wrapOpenPath: takeover, fallthrough, disposer restore, wrapper chain.
  */
 import { describe, expect, it, vi } from 'vitest'
-import { wrapOpenPath, type OpenPathService } from '../src/client/openpath-intercept.ts'
+import {
+  ensureBaseOpenPath, wrapOpenPath, type OpenPathService,
+} from '../src/client/openpath-intercept.ts'
 
 function service(openPath: OpenPathService['openPath']): OpenPathService {
   return { openPath }
 }
 
 describe('wrapOpenPath', () => {
+  it('installs and removes a Host-backed base method when Workspace lacks one', async () => {
+    const workspaces: Partial<OpenPathService> = {}
+    const openHostPath = vi.fn(async (_path: string) => {})
+    const dispose = ensureBaseOpenPath(workspaces, openHostPath)
+
+    await workspaces.openPath?.('/tmp/proj/a.ts', { line: 10 })
+    expect(openHostPath).toHaveBeenCalledWith('/tmp/proj/a.ts')
+    dispose()
+    expect(workspaces.openPath).toBeUndefined()
+  })
+
+  it('preserves an existing base method', async () => {
+    const original = vi.fn(async () => {})
+    const workspaces = service(original)
+    const openHostPath = vi.fn(async (_path: string) => {})
+    const dispose = ensureBaseOpenPath(workspaces, openHostPath)
+
+    expect(workspaces.openPath).toBe(original)
+    dispose()
+    await workspaces.openPath('/tmp/proj/a.ts')
+    expect(original).toHaveBeenCalledOnce()
+    expect(openHostPath).not.toHaveBeenCalled()
+  })
+
   it('takes over when enabled with a current session and openInSurfaces accepts', async () => {
     const original = vi.fn(async () => {})
     const openInSurfaces = vi.fn(() => true)

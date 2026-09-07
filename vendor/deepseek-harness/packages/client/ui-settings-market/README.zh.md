@@ -19,3 +19,5 @@
 - **市场仅桌面可用** —— 目录拉取、安装锁与 CLI 都在 Electron 主进程。
 - **桌面自有市场的第一切片** —— 上游 dshmarket 的主题商店、备份 / Gist、诊断、热更新、多源管理未移植；deferred 清单见桌面 feature card `marketplace-settings`。
 - **已装检测按名称 / 规格匹配** —— `packageName` 精确命中优先；否则按 `owner/repo` 整段路径边界匹配存储的 spec（`spec-match.ts`），改名的 github 安装仍能匹配，而更长的仓库名（`owner/repo-extra`）不会误配。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

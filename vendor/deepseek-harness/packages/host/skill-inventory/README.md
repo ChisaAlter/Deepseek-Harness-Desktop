@@ -20,3 +20,5 @@ None; this package never assembles model input.
 
 - **No skill marketplace** — create writes local files; install-from-catalog is out of scope.
 - **Name is immutable after create** — rename is a delete plus create.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

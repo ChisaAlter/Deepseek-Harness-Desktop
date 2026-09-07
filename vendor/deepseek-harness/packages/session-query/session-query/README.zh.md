@@ -52,12 +52,13 @@ kind: "package-reference"
 
 ### 配置
 
-两个继承的旋钮通过挂载后端的配置设置：
+继承的旋钮通过挂载后端的配置设置：
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `readWindowMax` | `50` | `readEvent` 接受的 `before`/`after` 原始事件数上限 |
-| `persistedInspectConcurrency` | `4` | 一次批量标题读取中的并发持久化日志检查数 |
+| `persistedReadConcurrency` | `4` | 一次批量标题读取中的并发持久化日志读取数 |
+| `preparedSessionCacheSize` | `5` | 为跨 `observeSession` 读取复用而保留的冷 prepared-Session 观察数 |
 
 ### 失败与恢复
 
@@ -90,6 +91,8 @@ kind: "package-reference"
 |---|---|
 | [`src/index.ts`](src/index.ts) | 服务定义：抽象 `SessionQueryEngine`、具体读取、配置校验 |
 | [`src/corpus.ts`](src/corpus.ts) | 实时优先的语料库解析、可选持久化绑定、批量投影 |
+| [`src/observation.ts`](src/observation.ts) | 实时优先的定点观察，带按修订键控的有界 prepared-Session 缓存 |
+| [`src/cold-read.ts`](src/cold-read.ts) | 基于 handle 的冷日志读取，附内存中的中断轮次闭合事件 |
 | [`src/types.ts`](src/types.ts) | 公共记录、过滤器、请求与分页类型 |
 | [`src/config.ts`](src/config.ts) | 继承配置与封闭的 `SessionQueryError` 分类体系 |
 | [`src/filters.ts`](src/filters.ts) | 提供方无关谓词与字面文本扫描 |
@@ -101,7 +104,11 @@ kind: "package-reference"
 
 ### 语料库解析
 
-`SessionCorpus` 通过 fiber 绑定可选的 `ctx.sessionPersistence`，并实时优先解析每次读取：已知实时目标直接快照，不查询持久化；否则先列出会话，再以不修改日志的方式检查，并在克隆前重新检查是否出现实时挂载。列表与加载观察之间会断言 header 兼容性。批量标题读取执行一次元数据列表与有界并发检查，把逐会话失败隔离，而取消会拒绝整个批次。
+`SessionCorpus` 通过 fiber 绑定可选的 `ctx.sessionPersistence`，并实时优先解析每次读取：已知实时目标直接快照，不查询持久化；否则先列出会话，再通过短生命周期的读取 handle 完整读出日志，并在克隆前重新检查是否出现实时挂载。写入者在轮次中途崩溃的冷日志用 `interruptedTurnClosers` 在内存中补齐 —— 读取从不修改持久化。列表与加载观察之间会断言 header 兼容性。批量标题读取执行一次元数据列表与有界并发读取，把逐会话失败隔离，而取消会拒绝整个批次。
+
+### 观察缓存
+
+`observeSession` 不经过列表预检直接构建定点观察。冷路径先对存储会话执行 `stat`，再查询自有的有界缓存，缓存键为持久化实例加 `stat` 修订：修订未变则复用已恢复的未发布 Session，不再重读日志；修订变化或持久化实例被替换则经 handle 缝重新加载并替换条目。缓存保留 `preparedSessionCacheSize` 个条目并按最久未用淘汰，被活跃观察租约钉住的条目从不被淘汰；读取中途转为实时的会话会重试实时路径。
 
 ### 读取与追踪
 

@@ -1,5 +1,7 @@
 import type { StreamChunk } from '@deepseek-ai/dsh-llm/types'
-import type { AssistantBlock, PartialAssistant } from '../contract/snapshot.ts'
+import type {
+  AssistantBlock, PartialAssistant,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { emptyAssistantBlock, toAssistantBlock } from './event-projection.ts'
 
 /**
@@ -15,7 +17,7 @@ export function isVisibleAssistantChunk(type: string): boolean {
     || type === 'block-end'
 }
 
-/** assistant/chunk accumulator: folds StreamChunks into AssistantBlock[] with block-level immutability. */
+/** Live Assistant-frame accumulator: folds StreamChunks into AssistantBlock[] with block-level immutability. */
 export class PartialAccumulator {
   // Sparse on purpose: block-start may arrive out of order, leaving holes until compaction.
   private blocks: (AssistantBlock | undefined)[] = []

@@ -47,6 +47,10 @@ function sessionFakeFor() {
 
 async function bench() {
   const runtime = await SlotTestRuntime.create()
+  const openPath = vi.fn(async (_path: string) => {})
+  ;(runtime.ctx.workspaces as typeof runtime.ctx.workspaces & {
+    openPath: (path: string) => Promise<void>
+  }).openPath = openPath
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const layout = { openDetails: vi.fn(), closeDetails: vi.fn() }
   runtime.ctx.provide('layout', layout as never)
@@ -83,7 +87,7 @@ async function bench() {
     ) => ChatViewInjected)(id, instance.actions)
     return { instance, injected }
   }
-  return { runtime, layout, openWorkspacePath, session, chatViewApi }
+  return { runtime, layout, openPath, openWorkspacePath, session, chatViewApi }
 }
 
 describe('Chat inject API', () => {
@@ -123,17 +127,17 @@ describe('Chat inject API', () => {
     await b.runtime.dispose()
   })
 
-  it('resolves file paths against the Session cwd and preserves failures', async () => {
+  it('resolves file paths through the shared Workspace opener and preserves failures', async () => {
     const b = await bench()
     const { injected } = b.chatViewApi(ROOT)
     await injected.openFile('src/a.ts')
-    expect(b.openWorkspacePath).toHaveBeenCalledWith({ path: '/proj/src/a.ts' })
+    expect(b.openPath).toHaveBeenCalledWith('/proj/src/a.ts')
+    expect(b.openWorkspacePath).not.toHaveBeenCalled()
 
-    b.openWorkspacePath.mockResolvedValueOnce({
-      ok: false,
-      error: new RemoteError('gateway/internal', 'xdg-open is not available', {}),
-    })
-    await expect(injected.openFile('src/b.ts')).rejects.toThrow('path open failed: xdg-open is not available')
+    b.openPath.mockRejectedValueOnce(new RemoteError(
+      'gateway/internal', 'workspace preview is not available', {},
+    ))
+    await expect(injected.openFile('src/b.ts')).rejects.toThrow('workspace preview is not available')
     await b.runtime.dispose()
   })
 

@@ -72,6 +72,18 @@ test('groupSessionRows keeps orphan forks top-level (desktop shows them ungroupe
   assert.equal(groups[0].orphanSubagent, false);
 });
 
+test('groupSessionRows keeps forks top-level when their parent is still loaded', () => {
+  const parent = { sessionId: 'p1', projections: { values: { title: '原会话' } } };
+  const fork = {
+    sessionId: 'f1',
+    parentSessionId: 'p1',
+    projections: { values: { title: '原会话 (1)' } },
+  };
+  const groups = groupSessionRows([parent, fork]);
+  assert.deepEqual(groups.map((group) => group.row.sessionId), ['p1', 'f1']);
+  assert.deepEqual(groups[0].children, []);
+});
+
 test('groupSessionRows leaves non-subagent relations top-level', () => {
   const parent = row('p1');
   const handoff = row('h1', { relation: { kind: 'handoff', parentAgentId: 'p1' } });
@@ -92,8 +104,8 @@ test('groupSessionRows folds host parentSessionId under the parent', () => {
 test('sessionRowForest keeps grandchild subagents instead of dropping them', () => {
   const forest = sessionRowForest([
     { sessionId: 'root', projections: { values: { title: '糖果最少取数保证匹配' } } },
-    { sessionId: 'mid', parentSessionId: 'root', projections: { values: { title: '不使用任何外部工具回答以下' } } },
-    { sessionId: 'leaf', parentSessionId: 'mid', projections: { values: { title: '最少取糖保证苹果桃子' } } },
+    { sessionId: 'mid', parentSessionId: 'root', origin: 'subagent', projections: { values: { title: '不使用任何外部工具回答以下' } } },
+    { sessionId: 'leaf', parentSessionId: 'mid', origin: 'subagent', projections: { values: { title: '最少取糖保证苹果桃子' } } },
   ]);
   assert.equal(forest.length, 1);
   assert.equal(forest[0].row.sessionId, 'root');
@@ -105,6 +117,10 @@ test('sessionRowForest keeps grandchild subagents instead of dropping them', () 
 test('isReadOnlyRow marks host subagents and archived rows', () => {
   assert.equal(isReadOnlyRow({ sessionId: 'a', origin: 'subagent', parentSessionId: 'p' }), true);
   assert.equal(isReadOnlyRow({ sessionId: 'a', archived: true }), true);
+});
+
+test('isReadOnlyRow keeps forked sessions writable', () => {
+  assert.equal(isReadOnlyRow({ sessionId: 'fork', parentSessionId: 'parent' }), false);
 });
 
 test('isReadOnlyRow marks subagents and archived agents read-only', () => {

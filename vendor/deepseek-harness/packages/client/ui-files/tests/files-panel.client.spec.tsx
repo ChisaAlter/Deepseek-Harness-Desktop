@@ -2607,6 +2607,43 @@ describe('FilePreview', () => {
     }
   })
 
+  it('opens the current file in the desktop floating preview', async () => {
+    const previewOpenFileWindow = vi.fn(async () => ({ ok: true as const }))
+    ;(window as Window & { shell?: unknown }).shell = { previewOpenFileWindow }
+    render(
+      <FilePreview
+        sessionId={SID}
+        relativePath="src/a.ts"
+        active
+        onDirtyChange={() => {}}
+        registerSave={() => {}}
+        readBuffer={() => undefined}
+        writeBuffer={() => {}}
+        useSession={neverHook}
+        useSessions={sel => sel(sessionList('/tmp/proj'))}
+        useWorkspaces={neverHook}
+        useProjection={neverHook}
+        useConversation={neverHook}
+        useSessionPendingInteraction={neverHook}
+        useInput={neverHook}
+        inputActions={undefined}
+        listDir={async () => ({ ok: false })}
+        readFile={async () => ({ ok: true, text: 'x', binary: false })}
+        readFileMedia={async () => ({ ok: false })}
+        mentionFile={() => {}}
+        writeFile={async () => ({ ok: true })}
+        t={t}
+      />,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Floating preview' }))
+    await waitFor(() => {
+      expect(previewOpenFileWindow).toHaveBeenCalledWith({
+        cwd: '/tmp/proj',
+        relativePath: 'src/a.ts',
+      })
+    })
+  })
+
   it('opens a pdf file in the preview browser from the toolbar', async () => {
     const previewWorkspaceFile = vi.fn(async () => ({
       ok: true as const,

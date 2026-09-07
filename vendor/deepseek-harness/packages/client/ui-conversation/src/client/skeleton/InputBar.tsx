@@ -13,11 +13,11 @@
  * trigger instead of a parallel tree.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconCloseOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
+  IconCloseOutline16, IconPaperclipOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -29,6 +29,7 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // api-remotes import already places it in every client program.
 import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ComposerBarProps } from '../contract/slots.ts'
+import { ComposerBeam } from '../ComposerBeam.tsx'
 import { ComposerContentEditable } from '../input/editor/ComposerContentEditable.tsx'
 import { DecoratorPortals } from '../input/editor/DecoratorPortals.tsx'
 import { registerComposerKeymap } from '../input/editor/keymap.ts'
@@ -43,11 +44,12 @@ const COMPOSER_MENTION_DRAG_TYPE = 'application/x-dshd-composer-mention'
 
 export type InputBarProps = ComposerBarProps
 
-export function InputBar({
-  useSession, useSessions, useInput, inputActions, keyboard, addImages, removeImage, draftImages,
+export const InputBar = memo(function InputBar({
+  useSession, useSessions, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
+  retryFileUpload,
   resolveSubmitMode, toggleCommandMenu, stop, command, t,
-  renderSlot, useNotices, useLexicon, useMenuLauncher,
-  useComposerBeam, useComposerResize, useComposerResizeHeight, useComposerResizeWidth,
+  renderSlot, useFileUploads, useNotices, useLexicon, useMenuLauncher,
+  useComposerBeam, useComposerBeamStyle, useComposerResize, useComposerResizeHeight, useComposerResizeWidth,
   setComposerResizeSize,
   useProjection, sessionId, variant, disabled: inert = false, blocked,
   workspacePickerOpen = false, onRequestWorkspace,
@@ -58,6 +60,7 @@ export function InputBar({
   void useLexicon // hook seat stays bound by the inject compartment; text-ref decoration rides the shell's editor transforms
   const commandMenuOpen = useMenuLauncher(source => source === 'command')
   const composerBeam = useComposerBeam(value => value)
+  const composerBeamStyle = useComposerBeamStyle(value => value)
   const composerResize = useComposerResize(value => value)
   const composerResizeHeight = useComposerResizeHeight(value => value)
   const composerResizeWidth = useComposerResizeWidth(value => value)
@@ -81,10 +84,16 @@ export function InputBar({
   const edit = input?.edit ?? null
   const editor = keyboard?.editor ?? null
   const attachments = useMemo(
-    () => input === undefined || draftImages === undefined ? [] : draftImages(input.imageIds),
-    [draftImages, input?.imageIds],
+    () => input === undefined || resolveDraftAttachments === undefined ? [] : resolveDraftAttachments(input.attachmentIds),
+    [resolveDraftAttachments, input?.attachmentIds],
   )
   const empty = draft.trim() === '' && attachments.length === 0
+  const uploads = useFileUploads(snapshot => snapshot)
+  // Send waits for every picked file: uploading and failed drafts both hold
+  // the gate (a failed upload is retried or removed, never silently dropped).
+  const uploadsPending = attachments.some(
+    attachment => attachment.kind === 'file' && uploads[attachment.id]?.status !== 'ready',
+  )
   // Transient error banner (machine notices, image-intake rejections, and
   // prompt failures): the seq keys the Toast so an identical repeated message
   // restarts the hold-then-fade cycle instead of reusing the faded one.
@@ -162,10 +171,10 @@ export function InputBar({
 
   useEffect(() => {
     if (input === undefined || inputActions === undefined) return
-    if (attachments.length !== input.imageIds.length) {
-      inputActions.pruneImages(attachments.map(attachment => attachment.id))
+    if (attachments.length !== input.attachmentIds.length) {
+      inputActions.pruneAttachments(attachments.map(attachment => attachment.id))
     }
-  }, [attachments, input?.imageIds, inputActions])
+  }, [attachments, input?.attachmentIds, inputActions])
 
   // Scroll the draft scrollport the minimum that brings the selection focus
   // into view — the browser's own behavior for typing, performed for the
@@ -238,39 +247,45 @@ export function InputBar({
     return () => { el.removeEventListener('wheel', onWheel) }
   }, [])
 
-  // Intake pre-check: an addition that would break
-  // a projected limit is refused as a whole batch, announced immediately, and
-  // never enters the rail — no more submit-time failure rolling the rail
-  // back. The host enforces the same limits at submit for callers that bypass
+  // Intake pre-check: an addition that would break a projected image limit is
+  // refused as a whole batch, announced immediately, and never enters the
+  // rail. Only the image subset is limit-checked: generic files carry no
+  // client-side size or count limit and upload as soon as they are picked.
+  // The host enforces the same image limits at submit for callers that bypass
   // this composer.
-  const intakeImages = useCallback((files: readonly File[]): void => {
-    if (addImages === undefined || files.length === 0) return
+  const intakeFiles = useCallback((files: readonly File[]): void => {
+    if (subagent !== null || addFiles === undefined || files.length === 0) return
     const rejected = ((): string | null => {
       if (imageLimits !== undefined) {
-        // Format precedes limits: a batch with
-        // a non-image must announce the format problem, not a count or size
-        // it could never pass anyway — addImages rejects it authoritatively.
-        if (files.some(file => !(imageLimits.mediaTypes as readonly string[]).includes(file.type))) {
-          return addImages(files)
-        }
-        if (attachments.length + files.length > imageLimits.maxImagesPerMessage) {
+        const mediaTypes = imageLimits.mediaTypes as readonly string[]
+        const images = files.filter(file => mediaTypes.includes(file.type))
+        const imageAttachments = attachments.filter(attachment => attachment.kind === 'image')
+        if (imageAttachments.length + images.length > imageLimits.maxImagesPerMessage) {
           return t('image.tooMany', { count: imageLimits.maxImagesPerMessage })
         }
-        if (files.some(file => file.size > imageLimits.maxImageBytes)) {
+        if (images.some(file => file.size > imageLimits.maxImageBytes)) {
           return t('image.fileTooLarge', { size: imageSizeText(imageLimits.maxImageBytes) })
         }
-        const total = attachments.reduce((sum, attachment) => sum + attachment.file.size, 0)
-          + files.reduce((sum, file) => sum + file.size, 0)
+        const total = imageAttachments.reduce((sum, attachment) => sum + attachment.file.size, 0)
+          + images.reduce((sum, file) => sum + file.size, 0)
         if (total > imageLimits.maxMessageImageBytes) {
           return t('image.totalTooLarge', { size: imageSizeText(imageLimits.maxMessageImageBytes) })
         }
       }
-      return addImages(files)
+      return addFiles(files)
     })()
     if (rejected !== null) showToast(rejected)
-  }, [addImages, attachments, imageLimits, showToast, t])
+  }, [subagent, addFiles, attachments, imageLimits, showToast, t])
 
-  const canAcceptDrop = !locked && !machineBusy && addImages !== undefined
+  const canAcceptDrop = subagent === null && !locked && !machineBusy && addFiles !== undefined
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const onPickFiles = (e: ChangeEvent<HTMLInputElement>): void => {
+    const picked = e.target.files === null ? [] : [...e.target.files]
+    // Reset so picking the same file again re-fires the change event.
+    e.target.value = ''
+    if (picked.length > 0) intakeFiles(picked)
+  }
 
   // File-image drops live on `conversation.input.attachments`. Mention payloads
   // (`application/x-dshd-composer-mention`) are claimed here so a file-tree
@@ -301,9 +316,13 @@ export function InputBar({
   // The keymap handlers read live bar state through this ref so the editor
   // registration survives re-renders without re-arming per keystroke.
   const gate = useRef({
-    locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode, intakeImages,
+    locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode,
+    intakeFiles, uploadsPending, showToast, t,
   })
-  gate.current = { locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode, intakeImages }
+  gate.current = {
+    locked, machineBusy, canSteerQueue, running, subagent, resolveSubmitMode,
+    intakeFiles, uploadsPending, showToast, t,
+  }
 
   useEffect(() => {
     if (editor === null || keyboard === undefined) return
@@ -324,13 +343,17 @@ export function InputBar({
           keyboard.steerQueue()
           return
         }
+        if (g.uploadsPending) {
+          g.showToast(g.t('file.stillUploading'))
+          return
+        }
         keyboard.submit(g.resolveSubmitMode(
           g.running,
           accelerated ? 'accelerated' : 'enter',
           g.subagent === null,
         ))
       },
-      intakeFiles: (files) => { gate.current.intakeImages(files) },
+      intakeFiles: (files) => { gate.current.intakeFiles(files) },
       pasteText: (text) => {
         if (gate.current.machineBusy || gate.current.locked) return
         keyboard.paste(text)
@@ -379,8 +402,8 @@ export function InputBar({
       return
     }
     if (inputActions === undefined) return // absent machine: the button is disabled
-    /* v8 ignore next -- defensive: the primary button is disabled while empty||disabled, so a click cannot reach the false arm. */
-    if (!empty && !disabled && !machineBusy) inputActions.submit()
+    /* v8 ignore next -- defensive: the primary button is disabled for empty, disabled, and pending-upload states. */
+    if (!empty && !disabled && !machineBusy && !uploadsPending) inputActions.submit()
   }
 
   // The Access seat: the projection-fed permission chip (renders nothing
@@ -447,7 +470,6 @@ export function InputBar({
         className={clsx(
           css.card,
           workspaceTrigger && css.cardWorkspaceTrigger,
-          showBeam && css.cardBeam,
         )}
         data-composer-card
         data-beam={showBeam || undefined}
@@ -466,11 +488,7 @@ export function InputBar({
             hit-testing ignores that declaration on the filtered bloom child, so
             a sibling wrapper is what keeps the toolbar reachable while the
             send/think beam is live. */}
-        <div className={css.beamLayer} data-composer-beam="" aria-hidden>
-          <span className={css.beamInner} />
-          <span className={css.beamStroke} />
-          <span className={css.beamBloom} />
-        </div>
+        <ComposerBeam active={showBeam} appearance={composerBeamStyle} />
         <div className={css.cardBody}>
         {!hideRoomChrome && sessionId !== undefined && (
           <div className={css.overlayAnchor}>{renderSlot('conversation.input.overlay', {})}</div>
@@ -497,8 +515,10 @@ export function InputBar({
         {renderSlot('conversation.input.attachments', {
           attachments,
           canAcceptDrop,
-          onAddImages: intakeImages,
-          onRemoveImage: (id) => { removeImage?.(id) },
+          onAddFiles: intakeFiles,
+          onRemoveAttachment: (id) => { removeAttachment?.(id) },
+          uploads,
+          onRetryFile: (id) => { retryFileUpload?.(id) },
           dropLimits: imageLimits === undefined ? undefined : {
             count: imageLimits.maxImagesPerMessage,
             size: imageSizeText(imageLimits.maxImageBytes),
@@ -538,21 +558,43 @@ export function InputBar({
         <div className={css.row}>
           <div className={css.tools}>
             {!hideRoomChrome && (
-              <Tooltip label={t('input.commands')} side="top" delayMs={500}>
-                <button
-                  type="button"
-                  className={css.add}
-                  aria-label={t('input.commands')}
-                  aria-haspopup="listbox"
-                  aria-expanded={commandMenuOpen}
-                  disabled={locked || toggleCommandMenu === undefined}
-                  onMouseDown={keepFocus}
-                  onClick={onToggleCommandMenu}
-                >
-                  <IconPlusOutline16 size={14} />
-                </button>
-              </Tooltip>
+              <>
+                <Tooltip label={t('input.commands')} side="top" delayMs={500}>
+                  <button
+                    type="button"
+                    className={css.add}
+                    aria-label={t('input.commands')}
+                    aria-haspopup="listbox"
+                    aria-expanded={commandMenuOpen}
+                    disabled={locked || toggleCommandMenu === undefined}
+                    onMouseDown={keepFocus}
+                    onClick={onToggleCommandMenu}
+                  >
+                    <IconPlusOutline16 size={14} />
+                  </button>
+                </Tooltip>
+                <Tooltip label={t('file.attach')} side="top" delayMs={500}>
+                  <button
+                    type="button"
+                    className={css.add}
+                    aria-label={t('file.attach')}
+                    disabled={subagent !== null || locked || machineBusy || addFiles === undefined}
+                    onMouseDown={keepFocus}
+                    onClick={() => { fileInputRef.current?.click() }}
+                  >
+                    <IconPaperclipOutline16 size={14} />
+                  </button>
+                </Tooltip>
+              </>
             )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              disabled={subagent !== null}
+              hidden
+              onChange={onPickFiles}
+            />
             <div className={css.modes}>
               {accessSelect}
               {!hideRoomChrome && (sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked }))}
@@ -588,7 +630,7 @@ export function InputBar({
                 type="button"
                 className={css.primary}
                 aria-label={primaryLabel}
-                disabled={primaryStops ? stop === undefined : empty || disabled || machineBusy}
+                disabled={primaryStops ? stop === undefined : empty || disabled || machineBusy || uploadsPending}
                 onMouseDown={keepFocus}
                 onClick={onPrimary}
               >
@@ -612,4 +654,4 @@ export function InputBar({
         : null}
     </div>
   )
-}
+})

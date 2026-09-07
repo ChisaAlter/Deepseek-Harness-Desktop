@@ -74,6 +74,27 @@ test('fileUrl serves an authorized pdf as application/pdf', async () => {
   }
 });
 
+test('media responses support one byte range for Chromium playback', async () => {
+  const cwd = makeTempDir();
+  const preview = controllerFor(cwd);
+  try {
+    fs.writeFileSync(path.join(cwd, 'clip.mp4'), Buffer.from('0123456789'));
+    const opened = await preview.fileUrl({ cwd, relativePath: 'clip.mp4' });
+    const partial = await request(opened.url, { headers: { Range: 'bytes=2-5' } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.body, '2345');
+    assert.equal(partial.headers['content-type'], 'video/mp4');
+    assert.equal(partial.headers['content-range'], 'bytes 2-5/10');
+    assert.equal(partial.headers['accept-ranges'], 'bytes');
+    const invalid = await request(opened.url, { headers: { Range: 'bytes=20-30' } });
+    assert.equal(invalid.status, 416);
+    assert.equal(invalid.headers['content-range'], 'bytes */10');
+  } finally {
+    await preview.close();
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test('serves a large binary with Content-Length and rejects an oversized text document with 413', async () => {
   const cwd = makeTempDir();
   const preview = controllerFor(cwd);

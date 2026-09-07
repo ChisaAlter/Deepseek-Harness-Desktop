@@ -1,5 +1,7 @@
 # 手机远程 Web 全功能实机用例（生产交付执行表 v2）
 
+> **2026-09-06 新轮次提示：** 下文 Android/T3 Deferred 与旧「本轮」范围仅作历史保留，不豁免[已批准的 Web/Android 交互改造](../superpowers/plans/2026-09-06-mobile-web-android-interaction.md)：本轮 T1、适用 T2 与 T3 分轨验收，新增门槛以设计语言和批准计划为准。60/60 六尺寸受控 DOM 检查仅属早期候选；最新源复测因 T3 Code preview evaluate/snapshot/navigate 超时未完成，不继承为最新修订 Pass。snap 状态不是动效/真机证据；当前 debug 候选已构建，公网/物理设备未验收。历史结果不改写。
+
 Touching: `mobile-remote`。公约、视口阈值、非法证据沿用 [mobile-remote-live-acceptance.md](mobile-remote-live-acceptance.md)；本表是**关门清单与执行细则**。发版安装包桌面四栏走 [production-acceptance-test-cases.md](production-acceptance-test-cases.md)。
 
 对照源（每条都要回答「与桌面是否一样」）：桌面 BrowserView `dsh web` 项目侧栏 / ModelSelect / PermissionSelect / Plan / ApprovalPanel / `git-titlebar` + `resolveGitQuick` / 已归档分区。禁止对照 ACP `fetchAgents` 或任何 mock。

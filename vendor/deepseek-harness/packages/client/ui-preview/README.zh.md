@@ -21,3 +21,5 @@
 - **同一时间只有一个访客页**：surfaces store 只持有一个 preview；occupant 内没有标签条。
 - **设备工具栏不模拟 CSS 视口**：`previewResize` 把 `BrowserView` 收到缩放后的可见矩形。预设放不进宿主时，页面按该较小视图排版；没有 CDP `Emulation.setDeviceMetricsOverride`。
 - **发现芯片没有进程名**：每条结果在所有平台都是 `{ url, port }`；Unix `lsof` 也未接入。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

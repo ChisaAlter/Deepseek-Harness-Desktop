@@ -44,16 +44,6 @@ describe('web e2e: agent-preset authoring is a host-side copy', () => {
     return page.getByRole('dialog', { name: '设置' })
   }
 
-  /** Tokenize the lane-owned preset root after general aria normalization. */
-  function withPresetRoot(snapshot: string): string {
-    // The revealed path uses native separators, so the token rides both
-    // spellings: split the raw root out, then fold any remaining separator
-    // (Win32) into the canonical forward slash the golden commits.
-    return snapshot
-      .split(userRoot).join('{{presetRoot}}')
-      .replace(/\\/g, '/')
-  }
-
   beforeAll(async () => {
     userRoot = await realpath(await mkdtemp(join(tmpdir(), 'dsh-web-e2e-presets-')))
     scaffold = await launchWebScaffold({
@@ -75,6 +65,7 @@ describe('web e2e: agent-preset authoring is a host-side copy', () => {
   afterAll(async () => {
     await browser?.close()
     await scaffold?.close()
+    await rm(userRoot, { recursive: true, force: true })
   })
 
   it('offers the roster with copy as the only way to create', async () => {
@@ -145,8 +136,9 @@ describe('web e2e: agent-preset authoring is a host-side copy', () => {
     // The copy dialog is detached, so the settings dialog is the only one
     // left (it names itself via aria-labelledby, which a CSS attribute
     // selector cannot address).
-    const snapshot = withPresetRoot(
-      await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd))
+    const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd, {
+      replacements: [[userRoot, '{{presetRoot}}']],
+    })
     await compareOrRefreshGolden(CREATED_EXPECTED, snapshot, MODE)
     expect(snapshot).toContain('{{presetRoot}}/my-agent')
 
@@ -195,8 +187,9 @@ describe('web e2e: agent-preset authoring is a host-side copy', () => {
     await dialog.getByRole('button', { name: 'Agent 预设' }).click()
     await dialog.getByText('加载失败').first().waitFor({ timeout: 10_000 })
 
-    const snapshot = withPresetRoot(
-      await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd))
+    const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd, {
+      replacements: [[userRoot, '{{presetRoot}}']],
+    })
     await compareOrRefreshGolden(DAMAGED_EXPECTED, snapshot, MODE)
     // Both damage shapes surface as marked, unselectable, uncopyable cards
     // that still carry their metadata and the discovery-reported reason.

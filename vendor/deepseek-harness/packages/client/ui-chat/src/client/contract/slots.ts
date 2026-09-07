@@ -1,9 +1,10 @@
 /** Chat-owned Slot declarations and composed component props. */
+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type {
-  ConversationLocationDataStore, ConversationTurnDataMap,
-  MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
+  CommandNode, CompactionSummaryNode, ConversationLocationDataStore, ConversationTurnDataMap,
+  MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, ToolCallBlock, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
   InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
@@ -16,8 +17,7 @@ import type { createChatStore } from '../stores.ts'
 import type { ToolCallId, SelectionTarget } from './store.ts'
 import type { ChatConversationViewNode, ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type {
-  ChatNodeProcessSource, ChatNodeSource, ChatSnapshot, ChatTurnProcessPresentation, CommandNode,
-  CompactionSummaryNode, ToolCallBlock, UserMessageNode,
+  ChatNodeProcessSource, ChatNodeSource, ChatSnapshot, ChatTurnProcessPresentation,
 } from './snapshot.ts'
 import type { TurnProcessSpec } from './turn-process.ts'
 import type { TranscriptViewMode } from '../../chat-settings.ts'
@@ -44,7 +44,7 @@ export interface AssistantActionOwnerProps {
 }
 
 /** Content blocks on a finalized user message (the user-actions / user-editor payload). */
-export type UserActionContentBlock = UserMessageNode['content'][number]
+export type UserActionContentBlock = ContentBlock
 
 /**
  * Owner currency of the user-message action strip: durable seq, frozen content,
@@ -106,6 +106,13 @@ export interface ChatNodeOwnerProps {
   openFile: (path: string) => void
   inspectCall: (callId: ToolCallId) => void
   forkAt: (seq: number) => void
+  /**
+   * Session-authorized image loader, down-threaded from the Chat view so a
+   * chat-node renderer can render the attachment presentation slot directly
+   * with only the durable references plus this loader, instead of receiving a
+   * rendering closure.
+   */
+  loadImage: MessageImageLoader
   renderMessageImages: RenderMessageImages
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
   /** Turn-process state when this Node belongs to a projected Turn. */

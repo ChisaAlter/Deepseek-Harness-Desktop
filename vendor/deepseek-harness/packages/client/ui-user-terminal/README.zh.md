@@ -22,3 +22,5 @@ store 保存 `sessions[]`、`activeId`、每会话的 `cols`／`rows`／`buffer`
 
 - **右边栏壳不由本包拥有**：本包注入 `surfaces.terminal`，不声明 surfaces 列或其空态卡片。
 - **最大化只属于会话底栏抽屉**：`surfaces.terminal` 没有单独的最大化控件。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

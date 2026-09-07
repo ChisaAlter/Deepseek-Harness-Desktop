@@ -10,6 +10,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.DshMobile"
         android:usesCleartextTraffic="true">
+        <provider
+            android:name=".WebCaptureProvider"
+            android:authorities="${applicationId}.web-capture"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/web_capture_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true"

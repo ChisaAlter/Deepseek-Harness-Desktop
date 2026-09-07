@@ -20,3 +20,5 @@
 
 - **没有 turn diff、左右分栏、忽略空白或折行**：分支范围只做 `baseRef...HEAD`；没有 checkpoint 回合范围。不分栏／折行／忽略空白开关。
 - **标题栏 Commit 不变**：Diff 上的暂存／取消暂存／还原不替代 `git add -A`。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

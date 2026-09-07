@@ -77,7 +77,7 @@ export function apply(ctx: Context): void {
           key: editKey(seq),
           label: t('editor.banner'),
           seed: text,
-          submit: async (revised, imageIds, signal) => {
+          submit: async (revised, attachmentIds, signal) => {
             // Host admission repeats these checks against complete history.
             const binding = ctx.sessions.binding(sessionId)
             if (binding === undefined) return { kind: 'error', text: t('error.generic') }
@@ -99,7 +99,7 @@ export function apply(ctx: Context): void {
               if (scope === undefined) return { kind: 'error', text: t('error.generic') }
               const conversation = scope.get('conversation')
               if (conversation === undefined) return { kind: 'error', text: t('error.generic') }
-              const result = await conversation.edit(seq, revised, imageIds, signal)
+              const result = await conversation.edit(seq, revised, attachmentIds, signal)
               return result.kind === 'success' ? result : { kind: 'error', text: result.text ?? t('error.generic') }
             } catch {
               // Admission failure keeps the edit armed with the draft; the

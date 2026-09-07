@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { createMessage } from '@deepseek-ai/dsh-llm'
 import type { TokenUsage } from '@deepseek-ai/dsh-llm'
+import { RetryId } from '@deepseek-ai/dsh-llm-retry'
 import SessionStore, { SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -37,11 +38,11 @@ const stepStart = (seq: number, time: number, turn: number, step: number): Sessi
   data: { turn, step },
 })
 
-const usageChunk = (seq: number, time: number, usage: TokenUsage, turn = 1, step = 1): SessionEvent => ({
-  type: 'assistant/chunk',
+const usageAttempt = (seq: number, time: number, usage: TokenUsage, turn = 1, step = 1): SessionEvent => ({
+  type: 'assistant/attempt',
   seq: SessionSeq(seq),
   time,
-  data: { turn, step, chunk: { type: 'usage', usage } },
+  data: { turn, step, stream: [{ type: 'chunk', time, chunk: { type: 'usage', usage } }] },
 })
 
 const finalMessage = (seq: number, time: number, usage: TokenUsage, turn = 1, step = 1): SessionEvent => ({
@@ -51,11 +52,11 @@ const finalMessage = (seq: number, time: number, usage: TokenUsage, turn = 1, st
   data: {
     turn,
     step,
+    stream: [{ type: 'chunk', time, chunk: { type: 'usage', usage } }],
     message: createMessage({ role: 'assistant', content: [], source: { kind: 'model', provider: 'mock', model: 'mock' } }),
     usage,
   },
   surfaceOp: 'append',
-  sourceEventSeqs: [],
 })
 
 const MISS: TokenUsage = { inputTokens: 300, outputTokens: 90 }
@@ -81,7 +82,7 @@ describe('billed-usage fold — phase classification', () => {
   it('buckets a peak-window sample at the peak rates shape', () => {
     const view = foldAll([
       stepStart(0, PEAK_MS, 1, 1),
-      usageChunk(1, PEAK_LATER_MS, MISS),
+      usageAttempt(1, PEAK_LATER_MS, MISS),
     ])
     expect(view.peak).toEqual({ missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 })
     expect(view.offPeak).toEqual(ZERO)
@@ -90,7 +91,7 @@ describe('billed-usage fold — phase classification', () => {
   it('splits cache reads from uncached input and bills cache writes as uncached', () => {
     const view = foldAll([
       stepStart(0, PEAK_MS, 1, 1),
-      usageChunk(1, PEAK_LATER_MS, MIXED),
+      usageAttempt(1, PEAK_LATER_MS, MIXED),
     ])
     expect(view.peak).toEqual({ missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 })
   })
@@ -98,7 +99,7 @@ describe('billed-usage fold — phase classification', () => {
   it('bills a request that straddles a boundary at its start instant', () => {
     const view = foldAll([
       stepStart(0, BOUNDARY_BEFORE_MS, 1, 1),
-      usageChunk(1, BOUNDARY_AFTER_MS, MISS),
+      usageAttempt(1, BOUNDARY_AFTER_MS, MISS),
     ])
     // The usage event's own time is already off-peak; the step started peak.
     expect(view.peak.missInputTokens).toBe(300)
@@ -106,7 +107,7 @@ describe('billed-usage fold — phase classification', () => {
   })
 
   it('falls back to the sample event time when no step/start is in the log', () => {
-    const view = foldAll([usageChunk(0, OFF_PEAK_MS, MISS, 3, 1)])
+    const view = foldAll([usageAttempt(0, OFF_PEAK_MS, MISS, 3, 1)])
     expect(view.offPeak.missInputTokens).toBe(300)
     expect(view.peak).toEqual(ZERO)
   })
@@ -114,7 +115,7 @@ describe('billed-usage fold — phase classification', () => {
   it('buckets weekend samples off-peak', () => {
     const view = foldAll([
       stepStart(0, WEEKEND_MS, 1, 1),
-      usageChunk(1, WEEKEND_MS, MISS),
+      usageAttempt(1, WEEKEND_MS, MISS),
     ])
     expect(view.offPeak.missInputTokens).toBe(300)
     expect(view.peak).toEqual(ZERO)
@@ -123,9 +124,9 @@ describe('billed-usage fold — phase classification', () => {
   it('keeps peak and off-peak samples in disjoint buckets across steps', () => {
     const view = foldAll([
       stepStart(0, PEAK_MS, 1, 1),
-      usageChunk(1, PEAK_LATER_MS, MISS),
+      usageAttempt(1, PEAK_LATER_MS, MISS),
       stepStart(2, OFF_PEAK_MS, 1, 2),
-      usageChunk(3, OFF_PEAK_MS, MIXED, 1, 2),
+      usageAttempt(3, OFF_PEAK_MS, MIXED, 1, 2),
     ])
     expect(view.peak).toEqual({ missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 })
     expect(view.offPeak).toEqual({ missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 })
@@ -133,10 +134,10 @@ describe('billed-usage fold — phase classification', () => {
 })
 
 describe('billed-usage fold — replace and identity rules', () => {
-  it('replaces a same-step usage chunk with the final message instead of double-counting', () => {
+  it('replaces a same-attempt usage sample with the final message instead of double-counting', () => {
     const view = foldAll([
       stepStart(0, PEAK_MS, 1, 1),
-      usageChunk(1, PEAK_LATER_MS, { inputTokens: 10, outputTokens: 2, cacheReadTokens: 3 }),
+      usageAttempt(1, PEAK_LATER_MS, { inputTokens: 10, outputTokens: 2, cacheReadTokens: 3 }),
       finalMessage(2, PEAK_LATER_MS, MIXED),
     ])
     expect(view.peak).toEqual({ missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 })
@@ -147,7 +148,7 @@ describe('billed-usage fold — replace and identity rules', () => {
     // with a start-time phase flip. The subtraction targets the phase the
     // superseded sample was filed under.
     const view = foldAll([
-      usageChunk(0, OFF_PEAK_MS, { inputTokens: 10, outputTokens: 2 }, 1, 1),
+      usageAttempt(0, OFF_PEAK_MS, { inputTokens: 10, outputTokens: 2 }, 1, 1),
       finalMessage(1, OFF_PEAK_MS, MISS, 1, 1),
     ])
     expect(view.offPeak).toEqual({ missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 })
@@ -166,8 +167,8 @@ describe('billed-usage fold — replace and identity rules', () => {
     const afterUnrelated = definition.apply(state, stepEnd)
     expect(afterUnrelated).toBe(state)
     state = definition.apply(state, stepStart(1, PEAK_MS, 1, 1))
-    const withSample = definition.apply(state, usageChunk(2, PEAK_LATER_MS, MISS))
-    expect(definition.apply(withSample, usageChunk(3, PEAK_LATER_MS, MISS))).toBe(withSample)
+    const withSample = definition.apply(state, usageAttempt(2, PEAK_LATER_MS, MISS))
+    expect(definition.apply(withSample, usageAttempt(3, PEAK_LATER_MS, MISS))).toBe(withSample)
   })
 
   it('projects the wire view through the validated schema shape', () => {
@@ -176,12 +177,29 @@ describe('billed-usage fold — replace and identity rules', () => {
         billedUsageProjectionDefinition.init(),
         stepStart(0, PEAK_MS, 1, 1),
       ),
-      usageChunk(1, PEAK_LATER_MS, MIXED),
+      usageAttempt(1, PEAK_LATER_MS, MIXED),
     )
     expect(billedUsageProjectionDefinition.wire.viewSchema.parse(viewOf(state))).toEqual({
       peak: { missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 },
       offPeak: ZERO,
     })
+  })
+
+  it('counts a retried attempt independently after the retry boundary', () => {
+    const retryStarted: SessionEvent = {
+      type: 'llm/retry-started',
+      seq: SessionSeq(2),
+      time: PEAK_LATER_MS,
+      data: { retryId: RetryId('billed-usage-retry'), turn: 1, step: 1, retry: 1 },
+    }
+    const view = foldAll([
+      stepStart(0, PEAK_MS, 1, 1),
+      usageAttempt(1, PEAK_LATER_MS, MISS),
+      retryStarted,
+      usageAttempt(3, PEAK_LATER_MS, MIXED),
+      finalMessage(4, PEAK_LATER_MS, MIXED),
+    ])
+    expect(view.peak).toEqual({ missInputTokens: 525, cacheReadTokens: 1_000, outputTokens: 130 })
   })
 })
 
@@ -196,23 +214,33 @@ describe('billedUsage session projection — registry integration', () => {
       await ctx.plugin(TokenMeter)
       const session: Session = ctx.sessions.create()
       session.append('step/start', { turn: 1, step: 1 })
-      session.append('assistant/chunk', { turn: 1, step: 1, chunk: { type: 'usage', usage: MISS } })
+      session.append('assistant/attempt', {
+        turn: 1,
+        step: 1,
+        stream: [{ type: 'chunk', time: PEAK_MS, chunk: { type: 'usage', usage: MISS } }],
+      })
       session.append('assistant/message', {
         turn: 1,
         step: 1,
+        stream: [{ type: 'chunk', time: PEAK_MS, chunk: { type: 'usage', usage: MISS } }],
         message: createMessage({ role: 'assistant', content: [], source: { kind: 'model', provider: 'mock', model: 'mock' } }),
         usage: MISS,
-      }, { surfaceOp: 'append', sourceEventSeqs: [] })
+      }, { surfaceOp: 'append' })
       session.append('step/end', { turn: 1, step: 1 })
       vi.setSystemTime(OFF_PEAK_MS)
       session.append('step/start', { turn: 2, step: 1 })
-      session.append('assistant/chunk', { turn: 2, step: 1, chunk: { type: 'usage', usage: MIXED } })
+      session.append('assistant/attempt', {
+        turn: 2,
+        step: 1,
+        stream: [{ type: 'chunk', time: OFF_PEAK_MS, chunk: { type: 'usage', usage: MIXED } }],
+      })
       session.append('assistant/message', {
         turn: 2,
         step: 1,
+        stream: [{ type: 'chunk', time: OFF_PEAK_MS, chunk: { type: 'usage', usage: MIXED } }],
         message: createMessage({ role: 'assistant', content: [], source: { kind: 'model', provider: 'mock', model: 'mock' } }),
         usage: MIXED,
-      }, { surfaceOp: 'append', sourceEventSeqs: [] })
+      }, { surfaceOp: 'append' })
       session.append('step/end', { turn: 2, step: 1 })
 
       const value = ctx.sessionProjections.snapshot(session).values.billedUsage as BilledUsageProjection | undefined

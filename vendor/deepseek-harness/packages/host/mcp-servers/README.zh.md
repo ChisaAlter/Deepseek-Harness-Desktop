@@ -17,3 +17,5 @@
 ## 已知限制与暂缓事项
 
 - **不导入 Cursor/Claude 配置** — Settings 只写 `$DSH_HOME/mcp-servers.yaml`。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

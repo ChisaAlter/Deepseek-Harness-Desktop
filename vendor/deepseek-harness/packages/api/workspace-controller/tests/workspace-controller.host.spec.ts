@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -22,9 +22,13 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 
 const roots: Context[] = []
 
+/** Workspace roots created per test, removed after their context settles. */
+const tempDirs: string[] = []
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map(ctx => ctx.fiber.dispose()))
   vi.unstubAllEnvs()
+  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true })
 })
 
 interface Deferred<T> {
@@ -43,6 +47,7 @@ async function harness() {
   // The scratch cwd derives from the Harness home; pin it to the fixture so
   // the real account home is never touched or asserted against.
   vi.stubEnv('DSH_HOME', join(root, 'dsh-home'))
+  tempDirs.push(root)
   const ctx = new Context()
   roots.push(ctx)
   await ctx.plugin(SessionStore)

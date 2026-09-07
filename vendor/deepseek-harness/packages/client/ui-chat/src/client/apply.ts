@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { IWorkspaces } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { BoundActions, ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
@@ -35,6 +36,10 @@ import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
 import { useTurnDataValue } from './chat/use-turn-data.ts'
 
+interface WorkspacePathOpener {
+  openPath?: (path: string, options?: { line?: number }) => Promise<void>
+}
+
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
   hooks: {
     turnData: (_standard, data) => function useTurnData(key) {
@@ -46,7 +51,7 @@ const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
 /** Services required by the Chat target and its presentation registrations. */
 export const inject = [
   'slots', 'sessions', 'uiSession', 'uiConversation', 'layout', 'locale',
-  'settingsScope', 'remote', 'remote.session',
+  'settingsScope', 'remote', 'remote.session', 'workspaces',
 ]
 
 /**
@@ -123,10 +128,10 @@ export function apply(ctx: Context): void {
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
           openFile: async (path) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
-            const result = await ctx.remote.session.openWorkspacePath({
-              path: resolveWorkspacePath(cwd, path),
-            })
-            if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
+            const workspaces = ctx.workspaces as IWorkspaces & WorkspacePathOpener
+            const openPath = workspaces.openPath
+            if (typeof openPath !== 'function') throw new Error('workspace path opener is unavailable')
+            await openPath.call(workspaces, resolveWorkspacePath(cwd, path))
           },
           loadOlder: () => { void session.loadOlder() },
           loadThrough: seq => session.loadThrough(seq),

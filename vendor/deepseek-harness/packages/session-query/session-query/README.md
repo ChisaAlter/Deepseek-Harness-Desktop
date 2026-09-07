@@ -52,12 +52,13 @@ The text clause is a literal, case-insensitive, whitespace-flexible scan of extr
 
 ### Configuration
 
-The two inherited knobs are set through the mounted backend's config:
+The inherited knobs are set through the mounted backend's config:
 
 | Field | Default | Meaning |
 |---|---|---|
 | `readWindowMax` | `50` | Maximum `before`/`after` raw events accepted by `readEvent` |
-| `persistedInspectConcurrency` | `4` | Concurrent persisted-log inspections in one batch title read |
+| `persistedReadConcurrency` | `4` | Concurrent persisted-log reads in one batch title read |
+| `preparedSessionCacheSize` | `5` | Cold prepared-Session observations retained for reuse across `observeSession` reads |
 
 ### Failures and recovery
 
@@ -90,6 +91,8 @@ The decision history lives in the [unified service decision](../../../.agents/no
 |---|---|
 | [`src/index.ts`](src/index.ts) | Service definition: the abstract `SessionQueryEngine`, concrete reads, config validation |
 | [`src/corpus.ts`](src/corpus.ts) | Live-preferred corpus resolution, optional persistence binding, batch projections |
+| [`src/observation.ts`](src/observation.ts) | Live-preferred point observations with a bounded revision-keyed prepared-Session cache |
+| [`src/cold-read.ts`](src/cold-read.ts) | Handle-based cold log read with in-memory interrupted-turn closers |
 | [`src/types.ts`](src/types.ts) | Public records, filters, requests, and page types |
 | [`src/config.ts`](src/config.ts) | Inherited config and the closed `SessionQueryError` taxonomy |
 | [`src/filters.ts`](src/filters.ts) | Provider-independent predicates and the literal text scan |
@@ -101,7 +104,11 @@ The decision history lives in the [unified service decision](../../../.agents/no
 
 ### Corpus resolution
 
-`SessionCorpus` binds optional `ctx.sessionPersistence` through a fiber and resolves each read live-first: a known live target is snapshotted without consulting persistence; otherwise the session is listed, inspected non-mutatingly, and re-checked for a live attachment before cloning. Header compatibility is asserted between listed and loaded observations. Batch title reads run one metadata listing and bounded-concurrency inspections, isolating per-session failures while cancellation rejects the whole batch.
+`SessionCorpus` binds optional `ctx.sessionPersistence` through a fiber and resolves each read live-first: a known live target is snapshotted without consulting persistence; otherwise the session is listed, read completely through a short-lived read handle, and re-checked for a live attachment before cloning. A cold log whose writer crashed mid-turn is balanced in memory with `interruptedTurnClosers` — persistence is never mutated by a read. Header compatibility is asserted between listed and loaded observations. Batch title reads run one metadata listing and bounded-concurrency reads, isolating per-session failures while cancellation rejects the whole batch.
+
+### Observation cache
+
+`observeSession` builds point observations without a listing preflight. The cold path stats the stored session first and consults an own bounded cache keyed by the persistence instance and the `stat` revision: an unchanged revision reuses the restored unpublished Session without re-reading the log; a changed revision, or a replaced persistence instance, reloads through the handle seam and replaces the entry. The cache holds `preparedSessionCacheSize` entries with least-recently-used eviction, entries pinned by active observation leases are never evicted, and a session that goes live mid-read retries the live path.
 
 ### Reads and traces
 

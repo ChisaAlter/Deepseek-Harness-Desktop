@@ -23,11 +23,11 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SubagentPromptRequestId } from '@deepseek-ai/dsh-subagent'
 import {
   acknowledgeReloadConnectionLoss, assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
-  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, readPersistedEvents, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
-const BASE_FIXTURE = fileURLToPath(new URL('../../../snapshots/web/live-interactions/session.jsonl', import.meta.url))
+const BASE_FIXTURE = fileURLToPath(new URL('../../../snapshots/web/live-interactions/session.v2.jsonl', import.meta.url))
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/subagent-interrupt', import.meta.url))
 const OFFLINE_COMPOSER_EXPECTED = join(SNAPSHOT_DIR, 'offline-composer.expected.md')
@@ -305,15 +305,17 @@ describe.skipIf(MODE === 'record')('web e2e: composer interrupt for a running co
     await expect.poll(() => page.getByText(WAKING_ANSWER, { exact: true }).count(), { timeout: 30_000 }).toBe(1)
     await expect.poll(() => scaffold.ctx.agents.get(childId), { timeout: 60_000 }).toBeUndefined()
 
-    const loaded = await scaffold.ctx.sessionPersistence.load(childId)
-    const userTexts = loaded.events.flatMap(event => event.type === 'user/message'
+    // The settled child's loop appended every turn's closing events durably,
+    // so the physical log carries the complete record asserted here.
+    const events = await readPersistedEvents(scaffold, childId)
+    const userTexts = events.flatMap(event => event.type === 'user/message'
       && event.data.source.kind === 'user'
       ? event.data.content.flatMap(block => block.type === 'text' ? [block.text] : [])
       : [])
     expect(userTexts[0]).toBe(INITIAL)
     expect(userTexts[1]).toMatch(/^Your parent agent id is .+send_message\(\{ agent_id: /)
     expect(userTexts.slice(2)).toEqual([REARM, REARM_WAKE, FOLLOWUP, WAKING])
-    const turnEndKinds = loaded.events
+    const turnEndKinds = events
       .filter(event => event.type === 'turn/end')
       .map(event => event.data.reason.kind)
     expect(turnEndKinds).toEqual(['aborted', 'aborted', 'completed', 'completed', 'completed'])

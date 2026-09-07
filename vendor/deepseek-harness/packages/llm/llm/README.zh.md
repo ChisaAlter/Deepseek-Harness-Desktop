@@ -11,7 +11,7 @@ kind: "package-reference"
 
 完整工具调用要求非空 id，名称符合 `[A-Za-z0-9_-]{1,64}`。组装器以 `MALFORMED_RESPONSE` 报告缺失标识，不自行编造；因输出截断而丢弃的工具调用不会成为可执行内容。
 
-`@deepseek-ai/dsh-llm` 是位于 harness LLM 能力核心的提供方无关模型调用服务。任何向模型提供方发起流式请求的组合都会经过它，它拥有 agent loop（智能体循环）、会话日志和所有插件共同使用的共享词汇——消息、内容块与原始流式分片。借助它，你可以注册提供方适配器、流式发起一次模型调用、列出与发现模型、解析精确模型元数据与调用默认值，并捕获每个提供方的重试策略；每个请求都会被记录，因此始终可以从会话日志重建。它不执行重试，也不拥有任何提供方协议逻辑：适配器翻译各自提供方的格式，可选包 `dsh-llm-retry` 在持久步骤边界上重跑失败的请求。请求在分发前会被深度冻结，因此 middleware 与适配器只能读取，绝不能改写。
+`@deepseek-ai/dsh-llm` 是位于 harness LLM 能力核心的提供方无关模型调用服务。任何向模型提供方发起流式请求的组合都会经过它，它拥有 agent loop（智能体循环）、会话日志和所有插件共同使用的共享词汇——消息、内容块、原始流式分片与紧凑 Assistant stream record。借助它，你可以注册提供方适配器、流式发起一次模型调用、列出与发现模型、解析精确模型元数据与调用默认值，并捕获每个提供方的重试策略；每个请求都会被记录，因此始终可以从会话日志重建。它不执行重试，也不拥有任何提供方协议逻辑：适配器翻译各自提供方的格式，可选包 `dsh-llm-retry` 在持久步骤边界上重跑失败的请求。请求在分发前会被深度冻结，因此 middleware 与适配器只能读取，绝不能改写。
 
 ## 目录
 
@@ -44,7 +44,7 @@ kind: "package-reference"
     apiKeyEnv: DEEPSEEK_API_KEY
 ```
 
-流会返回 token 级分片，并始终以一个终止 `finish` 分片结束；`BlockAssembler` 把分片组装为内容块与消息，loop 记录每个分片以供回放：
+流会返回 token 级分片，并始终以一个终止 `finish` 分片结束。`BlockAssembler` 把分片组装为内容块与消息；`AssistantStreamAccumulator` 在紧凑表示中保留其精确时间戳与 token 边界，loop 再把它嵌入一个持久 attempt settlement：
 
 ```text
 for await (const chunk of ctx.llm.stream({
@@ -92,6 +92,7 @@ for await (const chunk of ctx.llm.stream({
 | [`src/types.ts`](src/types.ts) | `StreamChunk` 协议、内容块映射、结束原因与共享词汇 |
 | [`src/message.ts`](src/message.ts) | 投递、历史与请求共享的不可变消息构造函数 |
 | [`src/assembler.ts`](src/assembler.ts) | `BlockAssembler`：分片到块的增量组装 |
+| [`src/assistant-stream.ts`](src/assistant-stream.ts) | 紧凑带时间 Assistant stream 的累积、严格校验与精确展开 |
 | [`src/call-config.ts`](src/call-config.ts) | 调用配置校验、适配器默认值填入与请求冻结 |
 | [`src/retry-policy.ts`](src/retry-policy.ts) | 提供方自有重试策略解析（normal 与 always 模式） |
 | [`src/error.ts`](src/error.ts) | `HarnessError`/`LlmError` 分类体系与提供方无关失败 code |
@@ -101,7 +102,7 @@ for await (const chunk of ctx.llm.stream({
 
 ### 主流程
 
-请求会对照其精确模型的能力——上下文窗口、输出默认值、推理强度与输入模态——校验，填入任何适配器配置的默认值，然后整个请求被深度冻结。`prepareCall()` 把这些事实、分离的上下文与重试策略绑定到执行最终分发的精确适配器代次，因此 HMR 或动态设置无法把一个代次的图片能力与另一代次的端点混用。支持图片的适配器把持久引用投影为路由专用请求版本；`resolveImageAttachmentAccess()` 会单独把附件提供方的可选宿主对象映射进当前工具执行世界，而不改变请求图片或其 `variantId`。纯文本路由接收确定性的逐图片占位符，包括嵌套工具结果图片，而不会改写仅追加会话历史。`offloadRequestImagesWithPolicy()` 按原始字节或 base64 大小以及图片数或字节步长，确定性地从最旧图片开始移除；纯函数 `offloadedImagePrefixCount()` 公开同一决策，使路由所属的请求定价无需构建投影即可复现它。对视觉 token 收费的适配器声明按路由的 `imageRequestPricing`，`ctx.llm.imageRequestPricing(provider, model)` 为 token meter 同步解析它。分发经过 `llm/stream` waterfall，随后分片以 token 级增量返回，每个适配器结果都以唯一一个终止 `finish` 分片到达消费方。
+请求会对照其精确模型的能力——上下文窗口、输出默认值、推理强度与输入模态——校验，填入任何适配器配置的默认值，然后整个请求被深度冻结。`prepareCall()` 把这些事实、分离的上下文与重试策略绑定到执行最终分发的精确适配器代次，因此 HMR 或动态设置无法把一个代次的图片能力与另一代次的端点混用。支持图片的适配器把持久引用投影为路由专用请求版本；`resolveImageAttachmentAccess()` 会单独把附件提供方的可选宿主对象映射进当前工具执行世界，而不改变请求图片或其 `variantId`。纯文本路由接收确定性的逐图片占位符，包括嵌套工具结果图片，而不会改写仅追加会话历史。持久 `FileBlock` 引用永远不会到达任何适配器：请求组装把每个引用（包括嵌套工具结果中的出现）替换为确定性 handle 文本，指出文件与其只读保存路径，路径经由挂载的附件与文件系统提供方解析。`ctx.llm.fileRequestText(ref)` 向请求计量公开相同的同步投影。`offloadRequestImagesWithPolicy()` 按原始字节或 base64 大小以及图片数或字节步长，确定性地从最旧图片开始移除；纯函数 `offloadedImagePrefixCount()` 公开同一决策，使路由所属的请求定价无需构建投影即可复现它。对视觉 token 收费的适配器声明按路由的 `imageRequestPricing`，`ctx.llm.imageRequestPricing(provider, model)` 为 token meter 同步解析它。分发经过 `llm/stream` waterfall，随后分片以 token 级增量返回，每个适配器结果都以唯一一个终止 `finish` 分片到达消费方。
 
 ### 不变式
 
@@ -109,6 +110,7 @@ for await (const chunk of ctx.llm.stream({
 - **回放状态只在同一适配器内流动**——仅当同一适配器实例同时拥有历史路由与目标路由时，assistant 回放状态才会随行；否则在分发前被丢弃。
 - **已准备调用是一次性的**——已准备调用只能分发一次，且其调用配置字段必须与准备好的配置一致。
 - **图片投影遵循捕获的路由**——只有支持图片的模型会把持久 `ImageBlock` 引用转换为路由专用请求版本；纯文本模型接收稳定占位符。
+- **文件投影无条件进行**——没有任何提供方会收到文件字节；每条路由对每个 `FileBlock` 都得到一行确定性 handle 文本，模型在需要时用文件工具读取保存的副本。
 - **协议顺序**——`usage` 先于 `finish`，工具参数保持原始 JSON 字符串，终止 `finish` 之后不再有任何内容。
 - **注册表变更具有原子性**——路由与目录注册会在任何变动前整体校验候选集合，因此被拒绝的变更会让此前状态继续服务。
 
@@ -121,7 +123,7 @@ for await (const chunk of ctx.llm.stream({
 
 当包级约定不够用时阅读以下页面。它们从共享类型逐步进入具体适配器、重试执行器与计量服务。
 
-- [LLM 流式子系统](../../../docs/subsystems/llm-streaming.zh.md)——消息与块类型、组装后的模型请求、`StreamChunk` 协议与适配器约定。
+- [LLM 流式子系统](../../../docs/subsystems/llm-streaming.zh.md)——消息与块类型、紧凑 Assistant stream record、`StreamChunk` 协议与适配器约定。
 - [llm-deepseek 适配器](../llm-deepseek/README.zh.md)——DeepSeek chat-completions 直连实现。
 - [llm-pi-ai 适配器](../llm-pi-ai/README.zh.md)——基于 pi-ai 的多提供方实现。
 - [llm-retry](../llm-retry/README.zh.md)——重跑失败模型请求的重试执行器。

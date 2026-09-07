@@ -25,7 +25,7 @@ This package provides model selection in the Web GUI: the `/model` popup command
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin alongside `ui-conversation` and the commands package; the composer then shows the model seat next to the pending indicator, and `/model` opens the same directory as a popup. Both surfaces show the host-reported current selection when the exact provider/model pair remains in the advertised groups; a missing catalog row leaves the routable selection intact while the trigger prompts `Select model`.
+Mount this plugin alongside `ui-conversation` and the commands package; the composer then shows the model seat next to the pending indicator, and `/model` opens the same directory as a popup. The composer loads its directory on mount and when its session binding changes, without opening the menu or submitting a selection. Both surfaces use the durable session selection and the shared Host catalog; while the first synchronization is pending the trigger shows its loading label, and a missing catalog display name falls back to the provider/model id.
 
 ### Model and effort
 

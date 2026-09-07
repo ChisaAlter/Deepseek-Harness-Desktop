@@ -96,6 +96,6 @@ class DshViewModel(private val store: DeviceStore) : ViewModel() {
 
     companion object {
         internal const val WEB_APP_URL =
-            "https://appassets.androidplatform.net/assets/index.html"
+            "https://appassets.androidplatform.net/assets/index.html?v=20260907-session-fork"
     }
 }

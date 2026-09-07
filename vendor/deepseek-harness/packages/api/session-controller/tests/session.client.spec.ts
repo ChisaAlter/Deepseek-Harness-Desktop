@@ -15,7 +15,6 @@ const PARENT = 'fk-parent' as SessionId
 afterEach(() => {
   vi.unstubAllGlobals()
 })
-
 function makeSession(
   api = new FakeApiClient(),
   options: SessionOptions = {},
@@ -97,29 +96,6 @@ describe('Session open', () => {
       code: 'gateway/internal', message: 'history carrier down',
     })
     expect(api.followStarts).toHaveLength(2)
-  })
-
-  it('lands a packed live record in openState=error instead of crashing the stream loop', async () => {
-    const { api, session } = makeSession()
-    api.onHistory = () => histResponse(plainTurn(SessionSeq(0), 0, 'a', 'b'))
-    await session.open()
-    expect(session.getSnapshot().openState).toBe('open')
-
-    // The live tail may carry only events; a packed record breaks that contract.
-    await api.pushFollow(SID, {
-      type: 'chunks',
-      event: {
-        type: 'chunkrow/text-chunks',
-        seq: 6,
-        time: 6,
-        data: { turn: 1, step: 1, index: 0, texts: ['a'], dt: [] },
-      },
-    } as never)
-
-    await vi.waitFor(() => { expect(session.getSnapshot().openState).toBe('error') })
-    expect(session.getSnapshot().openError).toMatchObject({
-      code: 'gateway/internal', message: 'session live stream emitted a packed history record',
-    })
   })
 
   it('lands a Gateway-marked stream failure in openState=error', async () => {
@@ -433,6 +409,7 @@ describe('prompt and cancel errors', () => {
         address: {
           kind: 'subagent', parentSessionId: PARENT, childSessionId: SID, mode: 'continuable',
         },
+        assistantStream: true,
         maxMessages: 50,
       },
     ])
@@ -501,6 +478,29 @@ describe('prompt and cancel errors', () => {
     })
   })
 
+  it('rejects staged files instead of dropping them from subagent continuations', async () => {
+    const api = new FakeApiClient()
+    const session = new Session(SID, fakeRemote(api), {
+      address: { parentSessionId: PARENT, childSessionId: SID, mode: 'continuable' },
+      parentAvailable: true,
+    })
+    await session.open()
+
+    const prompted = await session.prompt([
+      { type: 'file', receiptId: 'receipt' as never },
+      { type: 'text', text: '继续' },
+    ], 'queue')
+
+    expect(prompted).toMatchObject({
+      ok: false,
+      error: {
+        code: 'subagent/attachment-invalid',
+        details: { reason: 'SUBAGENT_FILE_UNSUPPORTED' },
+      },
+    })
+    expect(api.callsOf('subagents.prompt')).toEqual([])
+  })
+
   it('sends a one-shot address to the Host under the continuable marker', async () => {
     const api = new FakeApiClient()
     api.onSubagentPrompt = () => Promise.resolve(err(new RemoteError(
@@ -527,6 +527,7 @@ describe('prompt and cancel errors', () => {
         address: {
           kind: 'subagent', parentSessionId: PARENT, childSessionId: SID, mode: 'one-shot',
         },
+        assistantStream: true,
         maxMessages: 50,
       },
     ])

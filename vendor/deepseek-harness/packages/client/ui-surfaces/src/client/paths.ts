@@ -19,5 +19,5 @@ export function relativeTo(cwd: string, absolute: string): string | undefined {
 }
 
 function normalize(path: string): string {
-  return path.replaceAll('\\', '/').replace(/\/+$/, '')
+  return path.replaceAll('\\', '/').replace(/\/+$/, '').replace(/\/\.$/, '')
 }

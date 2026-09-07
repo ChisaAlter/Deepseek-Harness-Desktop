@@ -10,7 +10,7 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { composeEntries, loadOverlayPatches } from '@deepseek-ai/dsh-app-boot'
 import { ToolCallId, createUserMessage, LlmAdapter } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { SessionId, SessionLogOffset, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   ScheduleId,
   createEveryScheduleRecord,
@@ -58,7 +58,7 @@ const EVERY_REPLY = 'Reminders: Check primary metrics; Check secondary metrics.'
 const EVERY_INTERVAL_SECONDS = 60 * 60
 const EVERY_FIXTURE_AGE_MS = 90 * 60 * 1_000
 const CATALOG_SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/schedule-catalog', import.meta.url))
-const CATALOG_FIXTURE = join(CATALOG_SNAPSHOT_DIR, 'session.jsonl')
+const CATALOG_FIXTURE = join(CATALOG_SNAPSHOT_DIR, 'session.v2.jsonl')
 const CATALOG_EXPECTED = join(CATALOG_SNAPSHOT_DIR, 'catalog.expected.md')
 const BASE_PATCH = fileURLToPath(new URL('../../../packages/bundle/base/cordis.patch.yml', import.meta.url))
 const WEB_PATCH = fileURLToPath(new URL('../../../packages/bundle/web-app/cordis.patch.yml', import.meta.url))
@@ -607,20 +607,19 @@ describe.skipIf(MODE === 'record')('web e2e: active Schedule catalog', () => {
     const fixture = await readFile(CATALOG_FIXTURE, 'utf8')
     scaffold = await launchWebScaffold({
       extraOverlayPath: OVERLAY,
-      replayFixture: CATALOG_FIXTURE,
-      replayProvidersOnly: true,
     })
     await seedSession(scaffold, fixture, CATALOG_SESSION_ID, 'standard')
     const workspace = await scaffold.ctx.workspaceRegistry.create(scaffold.workspaceCwd)
     await workspace.attachSession(CATALOG_SESSION_ID)
 
     // Seed the zero-I/O list view before the Session is opened.
-    const catalog = await scaffold.ctx.sessionPersistence.readFrom(CATALOG_SESSION_ID, SessionLogOffset(0))
-    scaffold.ctx.sessionProjectionCache.coldSnapshot(
-      catalog.meta,
-      catalog.inheritedEventCount,
-      catalog.events,
-    )
+    const catalogReader = await scaffold.ctx.sessionPersistence.open(CATALOG_SESSION_ID, 'read')
+    try {
+      const catalogEvents = [...await catalogReader.read()]
+      scaffold.ctx.sessionProjectionCache.coldSnapshot(catalogReader.header, catalogReader.inheritedEventCount, catalogEvents)
+    } finally {
+      await catalogReader.close()
+    }
 
     browser = await chromium.launch()
     page = await browser.newPage({
@@ -817,7 +816,7 @@ describe.skipIf(MODE === 'record')('web e2e: active Schedule catalog', () => {
     }).toBe(0)
     await assertFixtureInventory(CATALOG_SNAPSHOT_DIR, [
       'catalog.expected.md',
-      'session.jsonl',
+      'session.v2.jsonl',
       'system-prompt.expected.md',
       'tool-schemas.expected.json',
     ])

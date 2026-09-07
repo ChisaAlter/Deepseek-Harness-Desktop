@@ -1,0 +1,23 @@
+[
+  {
+    "id": "codely-core",
+    "pass": true,
+    "response": "图片中包含两个图形，均为纯色填充、白色背景：\n\n左边的图形：形状为正方形，颜色为红色。\n右边的图形：形状为圆形，颜色为蓝色。\n\n两个图形大致处于同一水平线上，大小相近，左右并列排列。",
+    "failure": "",
+    "evidence": "gateway-vision-1.json"
+  },
+  {
+    "id": "GLM-5.3-FLASH",
+    "pass": true,
+    "response": "图片中包含两个图形，左右并排排列在白色背景上：\n\n左侧：一个正方形，颜色为红色。\n右侧：一个圆形，颜色为蓝色。\n\n两个图形大小相近，中间留有明显间隔。",
+    "failure": "",
+    "evidence": "gateway-vision-2.json"
+  },
+  {
+    "id": "KIMI-K3",
+    "pass": true,
+    "response": "图片中有两个图形：\n\n左侧：一个红色的正方形（实心填充），位于画面偏左的位置。\n右侧：一个蓝色的圆形（实心填充），位于画面偏右的位置。\n\n两个图形大致处于同一水平高度，中间留有明显的白色间距，背景为纯白色。",
+    "failure": "",
+    "evidence": "gateway-vision-3.json"
+  }
+]

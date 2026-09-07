@@ -126,6 +126,7 @@ function harnessApi(renderer, remoteFeature) {
     onPtyExit: subscribe(renderer, 'shell:pty-exit'),
     previewOpen: invoke(renderer, 'shell:preview-open'),
     previewWorkspaceFile: invoke(renderer, 'shell:preview-workspace-file'),
+    previewOpenFileWindow: invoke(renderer, 'shell:preview-open-file-window'),
     previewNavigate: invoke(renderer, 'shell:preview-navigate'),
     previewBack: invoke(renderer, 'shell:preview-back'),
     previewForward: invoke(renderer, 'shell:preview-forward'),

@@ -212,7 +212,7 @@ function officialShellBackground(theme = {}) {
 }
 
 function usesOfficialShellChrome(role, url) {
-  return role === 'launcher' || /launcher\.html(?:[?#]|$)/i.test(String(url || ''));
+  return role === 'launcher' || /(?:launcher|file-preview)\.html(?:[?#]|$)/i.test(String(url || ''));
 }
 
 function windowBackgroundForShell(theme = {}, { role, url } = {}) {

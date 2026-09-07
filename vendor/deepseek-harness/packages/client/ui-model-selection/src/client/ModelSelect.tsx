@@ -64,6 +64,10 @@ export function ModelSelect(
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
 
+  useEffect(() => {
+    if (available) load()
+  }, [available, load])
+
   const choices = useMemo(() => state.groups.flatMap(group =>
     group.models.map(model => ({
       group,

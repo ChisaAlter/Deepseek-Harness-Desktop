@@ -100,6 +100,7 @@ test('harness preload keeps work loops and remote controls', () => {
   assert.equal(typeof api.ptyCreate, 'function');
   assert.equal(typeof api.previewOpen, 'function');
   assert.equal(typeof api.previewWorkspaceFile, 'function');
+  assert.equal(typeof api.previewOpenFileWindow, 'function');
   assert.equal(typeof api.onOpenPreviewUrl, 'function');
   assert.equal(typeof api.gitCommit, 'function');
   assert.equal(typeof api.listWallpaperCatalog, 'function');

@@ -279,6 +279,7 @@ export class VisionFallback extends Service {
       system: DESCRIBE_SYSTEM,
       maxTokens: this.config.maxOutputTokens,
       sessionId: session.id,
+      purpose: 'vision-describe',
       signal: callDeadline.signal,
     })
     const assembler = new BlockAssembler()

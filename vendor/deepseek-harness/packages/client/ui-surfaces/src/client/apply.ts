@@ -1,10 +1,11 @@
 /** Registers the right-panel surfaces shell into the layout-owned column. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { en, NS, zh, type SurfacesKey } from './locales.ts'
-import { wrapOpenPath, type OpenPathService } from './openpath-intercept.ts'
+import { ensureBaseOpenPath, wrapOpenPath, type OpenPathService } from './openpath-intercept.ts'
 import { relativeTo } from './paths.ts'
 import { createSurfacesStore } from './stores.ts'
 import type { SurfacesRootInjected } from './SurfacesRoot.tsx'
@@ -86,7 +87,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
-const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.svg', '.pdf'])
+const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.pdf'])
 
 interface DesktopShell {
   gitStatus?: (cwd: string) => Promise<unknown>
@@ -100,6 +101,7 @@ interface DesktopShell {
 }
 
 interface SurfacesStoreActions {
+  open: (sessionId: string, kind: 'files') => void
   openFile: (sessionId: string, relativePath: string, options?: { revealLine?: number }) => void
 }
 
@@ -192,11 +194,13 @@ export function desktopListingAvailable(): boolean {
 }
 
 /** Services required by the surfaces plugin. */
-export const inject = ['slots', 'layout', 'locale', 'workspaces', 'sessions']
+export const inject = [
+  'slots', 'layout', 'locale', 'workspaces', 'sessions', 'remote', 'remote.session',
+]
 
 /**
  * Register dictionaries, occupy the layout `surfaces` column, and intercept
- * `workspaces.openPath` into Files (and Browser for html/htm/xhtml/svg/pdf)
+ * `workspaces.openPath` into Files (and Browser for html/htm/xhtml/pdf)
  * on desktop.
  * @param ctx - Client root context.
  */
@@ -204,7 +208,10 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-surfaces: dictionaries')
   ctx.effect(() => subscribeOpenPreviewUrl(), 'ui-surfaces: open-preview-url')
 
-  const live: { openFile?: SurfacesStoreActions['openFile'] } = {}
+  const live: {
+    open?: SurfacesStoreActions['open']
+    openFile?: SurfacesStoreActions['openFile']
+  } = {}
 
   ctx.slots.inject('surfaces', () => ctx.slots.register({
     name: 'surfaces',
@@ -220,6 +227,7 @@ export function apply(ctx: Context): void {
     },
     inject: (_sessionId, actions): SurfacesRootInjected => {
       if (actions !== undefined) {
+        live.open = (sessionId, kind) => { actions.open(sessionId, kind) }
         live.openFile = (sessionId, relativePath, options) => {
           if (options === undefined) actions.openFile(sessionId, relativePath)
           else actions.openFile(sessionId, relativePath, options)
@@ -232,20 +240,37 @@ export function apply(ctx: Context): void {
     },
   }, SurfacesRoot))
 
-  ctx.effect(() => wrapOpenPath(ctx.workspaces as Partial<OpenPathService>, {
-    takeoverEnabled: desktopListingAvailable,
-    currentSessionId: () => ctx.sessions.list.getSnapshot().current,
-    openInSurfaces: async (path, sessionId, options) => {
-      const cwd = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd
-      if (typeof cwd !== 'string' || cwd.length === 0) return false
-      const relative = relativeTo(cwd, path)
-      if (relative === undefined || relative === '') return false
-      if (live.openFile === undefined) return false
-      if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
-      else live.openFile(sessionId, relative)
-      ctx.layout.openSurfaces()
-      await previewBrowserDocument(cwd, relative)
-      return true
-    },
-  }), 'ui-surfaces: openPath intercept')
+  ctx.effect(() => {
+    const workspaces = ctx.workspaces as Partial<OpenPathService>
+    const disposeBase = ensureBaseOpenPath(workspaces, async (path) => {
+      const result = await ctx.remote.session.openWorkspacePath({ path })
+      if (!result.ok) throw new Error(`path open failed: ${result.error.message}`)
+    })
+    const disposeIntercept = wrapOpenPath(workspaces, {
+      takeoverEnabled: desktopListingAvailable,
+      currentSessionId: () => ctx.sessions.list.getSnapshot().current,
+      openInSurfaces: async (path, sessionId, options) => {
+        const cwd = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]?.cwd
+        if (typeof cwd !== 'string' || cwd.length === 0) return false
+        const relative = relativeTo(cwd, path)
+        if (relative === undefined) return false
+        if (relative === '') {
+          if (live.open === undefined) return false
+          live.open(sessionId, 'files')
+          ctx.layout.openSurfaces()
+          return true
+        }
+        if (live.openFile === undefined) return false
+        if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
+        else live.openFile(sessionId, relative)
+        ctx.layout.openSurfaces()
+        await previewBrowserDocument(cwd, relative)
+        return true
+      },
+    })
+    return () => {
+      disposeIntercept()
+      disposeBase()
+    }
+  }, 'ui-surfaces: openPath intercept')
 }

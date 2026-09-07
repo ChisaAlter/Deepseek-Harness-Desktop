@@ -4,6 +4,7 @@ import {
   Button,
   IconChevronRightOutline14,
   IconGlobeOutline14,
+  IconRightUpOutline16,
   MarkdownText,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -34,13 +35,16 @@ const FILE_WORD_WRAP_KEY = 'dshd.fileWordWrap'
 const FILE_SAVE_DEBOUNCE_MS = 500
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
 const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
-const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.svg', '.pdf'])
 
 interface DesktopPreviewShell {
   previewWorkspaceFile?: (input: {
     cwd: string
     relativePath: string
   }) => Promise<{ ok?: boolean, url?: string } | null | undefined>
+  previewOpenFileWindow?: (input: {
+    cwd: string
+    relativePath: string
+  }) => Promise<{ ok?: boolean, message?: string } | null | undefined>
 }
 
 function currentCwd(useSessions: FilePreviewProps['useSessions']): string | undefined {
@@ -61,18 +65,6 @@ function basenameOf(cwd: string): string {
   const trimmed = normalized.endsWith('/') ? normalized.slice(0, -1) : normalized
   const slash = trimmed.lastIndexOf('/')
   return slash < 0 ? trimmed : trimmed.slice(slash + 1)
-}
-
-/**
- * @param relative - workspace-relative path using `/` separators.
- * @returns the lowercased extension including the leading dot, or empty.
- */
-function documentExtension(relative: string): string {
-  const slash = relative.lastIndexOf('/')
-  const base = slash >= 0 ? relative.slice(slash + 1) : relative
-  const dot = base.lastIndexOf('.')
-  if (dot <= 0) return ''
-  return base.slice(dot).toLowerCase()
 }
 
 /**
@@ -130,7 +122,7 @@ function openPreviewSurface(url: string): void {
  */
 async function previewBrowserDocument(cwd: string, relative: string): Promise<void> {
   const preview = readPreviewShell()?.previewWorkspaceFile
-  if (typeof preview !== 'function' || !BROWSER_DOCUMENTS.has(documentExtension(relative))) return
+  if (typeof preview !== 'function' || !isWorkspaceBrowserPreviewPath(relative)) return
   try {
     const result = await preview({ cwd, relativePath: relative })
     if (result?.ok === true && typeof result.url === 'string' && result.url.length > 0) {
@@ -138,6 +130,17 @@ async function previewBrowserDocument(cwd: string, relative: string): Promise<vo
     }
   } catch {
     // Files already open; preview is optional.
+  }
+}
+
+/** Open a workspace file in the desktop's single always-on-top viewer. */
+async function previewFloatingFile(cwd: string, relative: string): Promise<void> {
+  const preview = readPreviewShell()?.previewOpenFileWindow
+  if (typeof preview !== 'function') return
+  try {
+    await preview({ cwd, relativePath: relative })
+  } catch {
+    // Files remains usable when the optional desktop viewer cannot open.
   }
 }
 
@@ -204,7 +207,8 @@ export function FilePreview({
   const isMarkdown = isMarkdownPreviewFile(relativePath)
   const canOpenInBrowser = cwd !== undefined
     && isWorkspaceBrowserPreviewPath(relativePath)
-    && BROWSER_DOCUMENTS.has(documentExtension(relativePath))
+  const canOpenFloating = cwd !== undefined
+    && typeof readPreviewShell()?.previewOpenFileWindow === 'function'
   const projectName = cwd === undefined ? '' : basenameOf(cwd)
   const crumbs = fileBreadcrumbs(projectName, relativePath)
   const seed = readBuffer()
@@ -582,6 +586,21 @@ export function FilePreview({
               }}
             >
               <IconGlobeOutline14 />
+            </button>
+          </Tooltip>
+        ) : null}
+        {canOpenFloating ? (
+          <Tooltip label={t('preview.floating')} side="bottom">
+            <button
+              type="button"
+              className={css.iconButton}
+              aria-label={t('preview.floating')}
+              onClick={() => {
+                if (cwd === undefined) return
+                void previewFloatingFile(cwd, relativePath)
+              }}
+            >
+              <IconRightUpOutline16 size={14} />
             </button>
           </Tooltip>
         ) : null}

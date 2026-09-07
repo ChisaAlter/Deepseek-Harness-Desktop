@@ -61,10 +61,11 @@ test('officialShellBackground follows the official dsh web canvas, not wallpaper
   assert.equal(officialShellBackground({ scheme: 'dark', bg: '#14100b' }), '#151517');
 });
 
-test('usesOfficialShellChrome is true for launcher role or launcher.html URL', () => {
+test('usesOfficialShellChrome is true for launcher and the floating file preview', () => {
   assert.equal(usesOfficialShellChrome('launcher', ''), true);
   assert.equal(usesOfficialShellChrome(undefined, 'file:///app/src/renderer/launcher.html'), true);
   assert.equal(usesOfficialShellChrome(undefined, 'file:///app/src/renderer/launcher.html?x=1'), true);
+  assert.equal(usesOfficialShellChrome(undefined, 'file:///app/src/renderer/file-preview.html'), true);
   assert.equal(usesOfficialShellChrome(undefined, 'file:///app/src/renderer/boot.html'), false);
   assert.equal(usesOfficialShellChrome('main', 'https://127.0.0.1:8080/'), false);
 });

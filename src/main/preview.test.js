@@ -546,6 +546,8 @@ test('registerPreviewIpc exposes workspace-file and closeAll closes that server'
   const handlers = new Map();
   const ipcMain = { handle(channel, fn) { handlers.set(channel, fn); } };
   let closed = 0;
+  let fileWindowClosed = 0;
+  const fileWindowCalls = [];
   const workspacePreview = {
     fileUrl(input) {
       return { ok: true, url: `http://127.0.0.1:9/token/${input.relativePath}` };
@@ -559,6 +561,10 @@ test('registerPreviewIpc exposes workspace-file and closeAll closes that server'
   }, {
     authorize() {},
     workspacePreview,
+    filePreviewWindow: {
+      open(input) { fileWindowCalls.push(input); return { ok: true }; },
+      close() { fileWindowClosed += 1; },
+    },
   });
   assert.deepEqual(
     await handlers.get('shell:preview-workspace-file')(
@@ -567,7 +573,16 @@ test('registerPreviewIpc exposes workspace-file and closeAll closes that server'
     ),
     { ok: true, url: 'http://127.0.0.1:9/token/index.html' },
   );
+  assert.deepEqual(
+    await handlers.get('shell:preview-open-file-window')(
+      { sender: { id: 1 } },
+      { cwd: '/tmp', relativePath: 'image.png' },
+    ),
+    { ok: true },
+  );
+  assert.deepEqual(fileWindowCalls, [{ cwd: '/tmp', relativePath: 'image.png' }]);
   await live.closeAll();
+  assert.equal(fileWindowClosed, 1);
   assert.equal(closed, 1);
 });
 

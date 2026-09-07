@@ -11,6 +11,9 @@ export const BUSY_ENTER_FIELD = 'busyEnter'
 /** Field carrying whether the composer plays the send/think border beam. */
 export const COMPOSER_BEAM_FIELD = 'composerBeam'
 
+/** Field carrying the configurable visual treatment for the composer beam. */
+export const COMPOSER_BEAM_STYLE_FIELD = 'composerBeamStyle'
+
 /** Field carrying whether the composer text box can be drag-resized. */
 export const COMPOSER_RESIZE_FIELD = 'composerResize'
 
@@ -46,6 +49,44 @@ export const DEFAULT_BUSY_ENTER_BEHAVIOR: BusyEnterBehavior = 'queue'
 
 /** Default keeps the composer border beam while a turn is in flight. */
 export const DEFAULT_COMPOSER_BEAM = true
+
+/** Directions accepted by the running composer beam. */
+export const COMPOSER_BEAM_DIRECTIONS = ['clockwise', 'counterclockwise'] as const
+
+/** Direction of the rotating beam window. */
+export type ComposerBeamDirection = typeof COMPOSER_BEAM_DIRECTIONS[number]
+
+/** User-tunable beam values; geometry and masks remain fixed in CSS. */
+export interface ComposerBeamStyle {
+  /** Rotation direction for the conic intensity window. */
+  direction: ComposerBeamDirection
+  /** Seconds for one complete rotation. */
+  period: number
+  /** Percent scale applied to stroke, inner light, and bloom. */
+  intensity: number
+  /** Additional percent scale applied only to bloom. */
+  bloom: number
+  /** Global hue offset in degrees. */
+  hue: number
+}
+
+export const MIN_COMPOSER_BEAM_PERIOD = 0.8
+export const MAX_COMPOSER_BEAM_PERIOD = 6
+export const MIN_COMPOSER_BEAM_INTENSITY = 40
+export const MAX_COMPOSER_BEAM_INTENSITY = 140
+export const MIN_COMPOSER_BEAM_BLOOM = 0
+export const MAX_COMPOSER_BEAM_BLOOM = 160
+export const MIN_COMPOSER_BEAM_HUE = -180
+export const MAX_COMPOSER_BEAM_HUE = 180
+
+/** Defaults reproduce the beam that shipped before customization. */
+export const DEFAULT_COMPOSER_BEAM_STYLE: ComposerBeamStyle = Object.freeze({
+  direction: 'clockwise',
+  period: 1.96,
+  intensity: 100,
+  bloom: 100,
+  hue: 0,
+})
 
 /** Default keeps auto-grow only; drag-resize is an explicit opt-in. */
 export const DEFAULT_COMPOSER_RESIZE = false
@@ -116,6 +157,8 @@ export interface ConversationSettings {
   busyEnter: BusyEnterBehavior
   /** Whether InputBar paints `.cardBeam` while a turn is sending or thinking. */
   composerBeam: boolean
+  /** Optional visual tuning for the same running beam. */
+  composerBeamStyle?: ComposerBeamStyle
   /** Whether InputBar shows a top-edge handle that sets the draft scrollport height. */
   composerResize: boolean
   /** Last drag-committed scrollport height in CSS pixels; absent/undefined restores auto-grow height. */
@@ -138,6 +181,13 @@ export interface ConversationSettings {
 export const ConversationSettingsSchema: z<ConversationSettings> = z.object({
   [BUSY_ENTER_FIELD]: z.union([...BUSY_ENTER_BEHAVIORS]).default(DEFAULT_BUSY_ENTER_BEHAVIOR),
   [COMPOSER_BEAM_FIELD]: z.boolean().default(DEFAULT_COMPOSER_BEAM),
+  [COMPOSER_BEAM_STYLE_FIELD]: z.object({
+    direction: z.union([...COMPOSER_BEAM_DIRECTIONS]),
+    period: z.number().min(MIN_COMPOSER_BEAM_PERIOD).max(MAX_COMPOSER_BEAM_PERIOD),
+    intensity: z.number().min(MIN_COMPOSER_BEAM_INTENSITY).max(MAX_COMPOSER_BEAM_INTENSITY),
+    bloom: z.number().min(MIN_COMPOSER_BEAM_BLOOM).max(MAX_COMPOSER_BEAM_BLOOM),
+    hue: z.number().min(MIN_COMPOSER_BEAM_HUE).max(MAX_COMPOSER_BEAM_HUE),
+  }).default(DEFAULT_COMPOSER_BEAM_STYLE),
   [COMPOSER_RESIZE_FIELD]: z.boolean().default(DEFAULT_COMPOSER_RESIZE),
   [COMPOSER_RESIZE_HEIGHT_FIELD]: z.number().min(1).required(false),
   [COMPOSER_RESIZE_WIDTH_FIELD]: z.number().min(1).required(false),

@@ -1,7 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ContextMessageNode, ConversationNodeDefinition, SteeringMessageNode, UserMessageNode,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
-import type { ContextMessageNode, SteeringMessageNode, UserMessageNode } from '../contract/snapshot.ts'
 import type { InboxState } from './inbox.ts'
 import { chatNode } from './common.ts'
 import { contextForm, contextProvenance } from './event-projection.ts'
@@ -11,11 +12,15 @@ interface ReferencedUserMessageNode extends UserMessageNode {
   readonly replacesTurn?: number
   /** Labels cited by the immediately following session-reference context. */
   readonly referenceLabels?: readonly string[]
+  /** Skill names the same step's `skill-invocation` injections loaded. */
+  readonly skillNames?: readonly string[]
 }
 
 interface ReferencedSteeringMessageNode extends SteeringMessageNode {
   /** Labels cited by the immediately following session-reference context. */
   readonly referenceLabels?: readonly string[]
+  /** Skill names the same step's `skill-invocation` injections loaded. */
+  readonly skillNames?: readonly string[]
 }
 
 type MessageNode = ReferencedUserMessageNode | ReferencedSteeringMessageNode | ContextMessageNode

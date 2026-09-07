@@ -9,6 +9,7 @@ describe('relativeTo', () => {
     expect(relativeTo('/tmp/proj', '/tmp/proj/src/app.ts')).toBe('src/app.ts')
     expect(relativeTo('/tmp/proj/', '/tmp/proj/README.md')).toBe('README.md')
     expect(relativeTo('/tmp/proj', '/tmp/proj')).toBe('')
+    expect(relativeTo('/tmp/proj', '/tmp/proj/.')).toBe('')
   })
 
   it('matches a Windows cwd case-insensitively and emits forward slashes', () => {

@@ -8,9 +8,11 @@
  * Beijing-time window: the matching `step/start` instant when the sample's
  * step has one (a request straddling a boundary bills at the instant it
  * started), otherwise the sample event's own time. Samples follow the same
- * replace-per-step rule as the `tokenUsage` unit: a finalized
- * `assistant/message` usage replaces an earlier usage chunk for the same
- * `(turn, step)` instead of double-counting it.
+ * replace-per-attempt rule as the `tokenUsage` unit: a finalized
+ * `assistant/message` usage replaces an earlier `assistant/attempt` sample
+ * for the same `(turn, step)` instead of double-counting it. A
+ * `llm/retry-started` boundary closes that replacement slot so a retried
+ * request is billed independently.
  *
  * @module @deepseek-ai/dsh-token-meter/billed-usage-projection
  */
@@ -75,7 +77,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
  */
 export const billedUsageProjectionDefinition = {
   key: 'billedUsage',
-  stateVersion: 1,
+  stateVersion: 2,
   stateSchema: billedUsageStateSchema,
   init: (): BilledUsageState => ({ peak: zeroBuckets(), offPeak: zeroBuckets(), stepStart: null, last: null }),
   apply: (state: BilledUsageState, event: SessionEvent): BilledUsageState => {
@@ -85,6 +87,12 @@ export const billedUsageProjectionDefinition = {
       if (current !== null && current.turn === stepStart.turn
         && current.step === stepStart.step && current.ms === stepStart.ms) return state
       return { ...state, stepStart }
+    }
+
+    if (event.type === 'llm/retry-started') {
+      return state.last?.turn === event.data.turn && state.last.step === event.data.step
+        ? { ...state, last: null }
+        : state
     }
 
     const sample = usageSampleOf(event)

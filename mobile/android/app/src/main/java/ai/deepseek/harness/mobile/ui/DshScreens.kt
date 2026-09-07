@@ -8,16 +8,20 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,11 +31,40 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val Capsule = RoundedCornerShape(18.dp)
 private val FieldShape = RoundedCornerShape(8.dp)
+
+@Composable
+internal fun NavigationRecoveryBanner(
+    waiting: Boolean,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val palette = dsh()
+    Column(
+        modifier.fillMaxWidth().background(palette.bgLayer1)
+            .verticalScroll(rememberScrollState()).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            if (waiting) "正在重试返回" else "暂时无法返回，当前页面已保留",
+            color = palette.labelPrimary, fontSize = 14.sp, lineHeight = 22.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) {
+                DshButton("重试返回", primary = true, enabled = !waiting, onClick = onRetry)
+            }
+            Box(Modifier.weight(1f)) {
+                DshButton("继续使用", onClick = onDismiss)
+            }
+        }
+    }
+}
 
 @Composable
 fun DshRoot(vm: DshViewModel, onRequestScan: () -> Unit, onOpenAppSettings: () -> Unit) {
@@ -52,7 +85,8 @@ private fun ConnectScreen(vm: DshViewModel, onRequestScan: () -> Unit) {
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 24.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         Text("手机远程", color = palette.labelTertiary, fontSize = 13.sp, lineHeight = 20.sp)
@@ -66,7 +100,7 @@ private fun ConnectScreen(vm: DshViewModel, onRequestScan: () -> Unit) {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "扫描桌面侧栏远程弹窗里的二维码。应用会在内部打开桌面提供的手机页，配对、重连与消息都走 dshd 远程。",
+            "扫描桌面远程二维码，或粘贴完整配对链接。",
             color = palette.labelSecondary,
             fontSize = 14.sp,
             lineHeight = 22.sp,
@@ -99,6 +133,7 @@ private fun PermissionScreen(vm: DshViewModel, onOpenAppSettings: () -> Unit) {
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
@@ -131,13 +166,13 @@ private fun DshButton(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .heightIn(min = 40.dp)
             .alpha(if (enabled) 1f else 0.45f)
             .clip(Capsule)
             .background(if (primary) palette.buttonPrimaryFill else palette.bgLayer1)
             .border(1.dp, if (primary) palette.buttonPrimaryFill else palette.borderL2, Capsule)
             .then(dshClickable(enabled = enabled, onClick = onClick))
-            .padding(horizontal = 18.dp),
+            .padding(horizontal = 18.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -160,27 +195,32 @@ private fun DshField(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .heightIn(min = 40.dp)
             .clip(FieldShape)
             .border(1.dp, palette.borderL2, FieldShape)
-            .background(palette.bgLayer1)
-            .padding(horizontal = 14.dp),
+            .background(palette.bgLayer1),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (value.isEmpty()) {
-            Text(placeholder, color = palette.labelCaption, fontSize = 14.sp, lineHeight = 22.sp)
-        }
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
             textStyle = TextStyle(
                 color = palette.labelPrimary,
-                fontSize = 14.sp,
-                lineHeight = 22.sp,
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
             ),
             cursorBrush = SolidColor(palette.labelPrimary),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp),
+            decorationBox = { field ->
+                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text(placeholder, color = palette.labelCaption, fontSize = 16.sp, lineHeight = 24.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    field()
+                }
+            },
         )
     }
 }

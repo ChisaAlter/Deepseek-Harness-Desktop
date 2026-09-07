@@ -102,9 +102,9 @@ export function serializeRecord(version: number, value: unknown): string {
  * Parse one per-record document, validating its version stamp. A document
  * that is malformed or stamped with an unaccepted version is FOREIGN and
  * reads as absent — the per-record contract: one bad or stale record file
- * must not brick the whole unit, and a version bump discards stale records
- * instead of migrating them (the whole-unit format rejects instead, because
- * there is exactly one document).
+ * must not brick the whole unit, and an unaccepted version stamp discards the
+ * record instead of migrating it (the whole-unit format rejects instead,
+ * because there is exactly one document).
  * @param text - Raw per-record document content.
  * @param versions - Accepted unit versions (the current one plus the
  * descriptor's compatibleVersions); any other stamp discards the

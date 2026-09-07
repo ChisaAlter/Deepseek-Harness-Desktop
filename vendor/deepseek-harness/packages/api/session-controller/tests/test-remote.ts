@@ -1,15 +1,25 @@
 /** Test-only direct Remote face over the Session Controller's internal controllers. */
 
+import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
-import { SessionLogOffset } from '@deepseek-ai/dsh-session'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type {
+  AdmittedPromptContentPart,
+  AttachmentAdmissionPart,
+  ImageAttachmentLimits,
+} from '@deepseek-ai/dsh-attachment'
+import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import {
-  SessionPersistenceCorruptionError,
   SessionPersistenceNotFoundError,
   SessionPersistenceRevision,
-  type BorrowedSessionSource,
-  type SessionInspection,
+  SessionReadOnlyError,
+  type SessionAccess,
+  type SessionHandle,
+  type SessionHandleReadOptions,
+  type SessionPersistenceListOptions,
+  type SessionPersistenceOpenOptions,
+  type SessionPersistenceSnapshot,
+  type SessionPersistenceStatOptions,
 } from '@deepseek-ai/dsh-session-persistence'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
@@ -81,7 +91,6 @@ export interface TestSessionRemote {
 export interface TestSessionRemoteDefaults {
   readonly defaultModelSelection: () => AgentModelSelection
   readonly cwd: string
-  readonly coldBlankProbeMaxBytes?: number
   readonly nativeOpen?: boolean
   readonly saveDefaultModelSelection?: (selection: AgentModelSelection) => void | Promise<void>
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
@@ -90,61 +99,108 @@ export interface TestSessionRemoteDefaults {
 
 const installed = new WeakMap<Context, SessionController>()
 
+const TEST_IMAGE_LIMITS: ImageAttachmentLimits = Object.freeze({
+  maxImageBytes: 5 * 1024 * 1024,
+  maxImagesPerMessage: 20,
+  maxMessageImageBytes: 100 * 1024 * 1024,
+  maxImagePixels: 40_000_000,
+  maxImageDimension: 2000,
+  mediaTypes: Object.freeze(['image/png'] as const),
+})
+
+/** Compact header-and-events point read a persistence double declares per session. */
+interface TestSessionInspection {
+  readonly meta: SessionHeader
+  readonly events: readonly SessionEvent[]
+}
+
 type LegacyTestPersistence = Record<string, unknown> & {
+  readonly list?: (signal?: AbortSignal) => Promise<readonly SessionHeader[]>
   readonly inspect?: (
     sessionId: SessionId,
     signal?: AbortSignal,
-  ) => Promise<SessionInspection | undefined>
-  readonly borrowSession?: (
+  ) => Promise<TestSessionInspection | undefined>
+  readonly stat?: (
     sessionId: SessionId,
-    signal?: AbortSignal,
-  ) => Promise<BorrowedSessionSource>
+    options?: SessionPersistenceStatOptions,
+  ) => Promise<SessionPersistenceSnapshot | undefined>
+  readonly open?: (
+    sessionId: SessionId,
+    access: SessionAccess,
+    options?: SessionPersistenceOpenOptions,
+  ) => Promise<SessionHandle>
 }
 
-/** Add the preparation-backed point-read contract to compact persistence doubles. */
-export function testSessionPersistence(
-  ctx: Context,
-  persistence: LegacyTestPersistence,
-): LegacyTestPersistence {
-  if (persistence.borrowSession !== undefined) return persistence
+/** One immutable read handle over a double's inspected header and events. */
+function testReadHandle(
+  sessionId: SessionId,
+  inspection: TestSessionInspection,
+): SessionHandle {
+  const events = Object.freeze([...inspection.events])
   return {
-    ...persistence,
-    borrowSession: async (sessionId, signal) => {
-      signal?.throwIfAborted()
-      const inspection = await persistence.inspect?.(sessionId, signal)
-      signal?.throwIfAborted()
-      if (inspection === undefined) throw new SessionPersistenceNotFoundError(sessionId)
-      try {
-        const inheritedEventCount = (inspection as Partial<SessionInspection>).inheritedEventCount
-        if (inspection.meta.isSeeded && inheritedEventCount === undefined) {
-          throw new Error('seeded test persistence must provide inheritedEventCount')
-        }
-        const cut = SessionLogOffset(inheritedEventCount ?? 0)
-        const preparedSession = ctx.sessions.prepare(inspection.meta.id, {
-          seed: [...inspection.events],
-          meta: inspection.meta,
-          inheritedEventCount: cut,
-          seedSource: 'persistence',
-        })
-        return {
-          source: 'prepared',
-          inspection: {
-            meta: preparedSession.header,
-            inheritedEventCount: preparedSession.inheritedEventCount,
-            events: Object.freeze([...inspection.events]),
-          },
-          revision: SessionPersistenceRevision(`test:${sessionId}:${String(preparedSession.seq)}`),
-          preparedSession,
-          [Symbol.dispose]: () => {},
-        }
-      } catch (error: unknown) {
-        throw new SessionPersistenceCorruptionError(
-          `test session "${sessionId}" failed validation: ${String(error)}`,
-          { cause: error },
-        )
-      }
+    id: sessionId,
+    header: inspection.meta,
+    inheritedEventCount: SessionLogOffset(0),
+    access: 'read',
+    read: (offset = 0, length?: number, options?: SessionHandleReadOptions) => {
+      options?.signal?.throwIfAborted()
+      return Promise.resolve(events.slice(offset, length === undefined ? undefined : offset + length))
     },
+    append: () => Promise.reject(new SessionReadOnlyError(sessionId, 'append')),
+    flush: () => Promise.reject(new SessionReadOnlyError(sessionId, 'flush')),
+    close: () => Promise.resolve(),
+    [Symbol.asyncDispose]: () => Promise.resolve(),
   }
+}
+
+/**
+ * Adapt a compact header/inspect persistence double onto the handle-based
+ * abstract the production readers consume: `list` snapshots wrap the double's
+ * headers, `stat` derives a metadata-less snapshot from the listing, and
+ * `open` serves immutable read handles over the double's `inspect` result.
+ */
+export function testSessionPersistence(
+  _ctx: Context,
+  persistence: LegacyTestPersistence,
+): Record<string, unknown> {
+  const listHeaders = async (signal?: AbortSignal): Promise<readonly SessionHeader[]> =>
+    await persistence.list?.(signal) ?? []
+  const adapted: Record<string, unknown> = {
+    ...persistence,
+    list: async (options?: SessionPersistenceListOptions) =>
+      (await listHeaders(options?.signal)).map(header => ({
+        header,
+        revision: SessionPersistenceRevision(`test:${header.id}:list`),
+      })),
+  }
+  if (persistence.stat === undefined) {
+    adapted.stat = async (
+      sessionId: SessionId,
+      options?: SessionPersistenceStatOptions,
+    ): Promise<SessionPersistenceSnapshot | undefined> => {
+      options?.signal?.throwIfAborted()
+      const header = (await listHeaders(options?.signal)).find(listed => listed.id === sessionId)
+      return header === undefined
+        ? undefined
+        : { header, revision: SessionPersistenceRevision(`test:${sessionId}:stat`) }
+    }
+  }
+  if (persistence.open === undefined) {
+    adapted.open = async (
+      sessionId: SessionId,
+      access: SessionAccess,
+      options?: SessionPersistenceOpenOptions,
+    ): Promise<SessionHandle> => {
+      options?.signal?.throwIfAborted()
+      if (access !== 'read') {
+        throw new Error(`test persistence double only serves read handles (requested "${access}")`)
+      }
+      const inspection = await persistence.inspect?.(sessionId, options?.signal)
+      if (inspection === undefined) throw new SessionPersistenceNotFoundError(sessionId)
+      return testReadHandle(sessionId, inspection)
+    }
+  }
+  return adapted
 }
 
 /** Concrete point-read query used by Session Controller tests that do not exercise search. */
@@ -194,6 +250,29 @@ function installControllers(
       },
     } as never)
   }
+  if (ctx.get('attachments') === undefined) {
+    ctx.provide('attachments', {
+      imageLimits: TEST_IMAGE_LIMITS,
+      admitPromptContent: async (
+        content: readonly AttachmentAdmissionPart[],
+      ): Promise<AdmittedPromptContentPart[]> => {
+        const admitted: AdmittedPromptContentPart[] = []
+        for (const part of content) {
+          if (part.type === 'image') throw new Error('test did not configure image persistence')
+          admitted.push(part)
+        }
+        return admitted
+      },
+    } as never)
+  }
+  if (ctx.get('fileUploads') === undefined) {
+    ctx.provide('fileUploads', {
+      registerAgentResolver: () => () => {},
+      resolve: () => undefined,
+      bindPrompt: () => ({ commit: () => {}, [Symbol.dispose]: () => {} }),
+      retirePrompt: () => {},
+    } as never)
+  }
   installSessionReadTestServices(ctx)
   const cwd = vi.spyOn(process, 'cwd').mockReturnValue(defaults.cwd)
   let controller: SessionController
@@ -201,9 +280,6 @@ function installControllers(
     controller = new SessionController(
       ctx,
       {
-        ...defaults.coldBlankProbeMaxBytes === undefined
-          ? {}
-          : { coldBlankProbeMaxBytes: defaults.coldBlankProbeMaxBytes },
         ...defaults.nativeOpen === undefined ? {} : { nativeOpen: defaults.nativeOpen },
       },
       {

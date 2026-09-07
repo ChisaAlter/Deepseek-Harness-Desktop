@@ -21,3 +21,5 @@ None; this package neither assembles nor sends a provider request.
 - **One guest at a time** — the surfaces store holds a single preview; there is no tab strip inside the occupant.
 - **Device toolbar does not emulate a CSS viewport** — `previewResize` sizes the `BrowserView` to the scaled visible rectangle. When the preset does not fit the host, the page lays out to that smaller view; there is no CDP `Emulation.setDeviceMetricsOverride`.
 - **Discovered chips have no process name** — each row is `{ url, port }` on every platform; Unix `lsof` is omitted.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

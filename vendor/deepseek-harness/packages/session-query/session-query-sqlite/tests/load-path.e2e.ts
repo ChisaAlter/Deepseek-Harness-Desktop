@@ -8,7 +8,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
+import SessionStore, { SessionSeq, SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SqliteSessionQueryEngine, * as queryModule from '@deepseek-ai/dsh-session-query-sqlite'
@@ -48,13 +48,8 @@ describe('dsh-session-query-sqlite real Loader path', () => {
     const query = await ctx.plugin(unwrapped, { path: searchPath })
 
     const id = SessionId('loader-path')
-    await ctx.sessionPersistence.create({
-      version: SESSION_FORMAT_VERSION,
-      id,
-      createdAt: 10,
-      isSeeded: false,
-    })
-    await ctx.sessionPersistence.append(id, [{
+    const writer = await ctx.sessionPersistence.create({ version: SESSION_FORMAT_VERSION, id, createdAt: 10, isSeeded: false })
+    await writer.append([{
       type: 'user/message',
       seq: SessionSeq(0),
       time: 10,
@@ -63,6 +58,7 @@ describe('dsh-session-query-sqlite real Loader path', () => {
       }),
       surfaceOp: 'append',
     }])
+    await writer.close()
 
     await expect(ctx.sessionQuery.searchSessions({ query: 'Loader needle' }))
       .resolves.toMatchObject({ items: [{ header: { id }, persisted: true, live: false }] })

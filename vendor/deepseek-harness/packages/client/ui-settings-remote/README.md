@@ -12,3 +12,5 @@ Connection choices are LAN / Server. Server (`relay`) is selected when no mode i
 Registration requires Electron `window.shell` `getRemote` / `saveRemote` / `rotateRemoteToken` / `unbindRemoteDevice` / `renameRemoteDevice`. Plain `dsh web` has neither surface.
 
 See desktop feature cards `remote-settings` and `mobile-remote`.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

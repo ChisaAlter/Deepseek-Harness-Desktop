@@ -59,6 +59,10 @@ const LAYOUT_CHILDREN = {
  */
 async function bench(nodes: ToolResultNode[]) {
   const runtime = await SlotTestRuntime.create()
+  const openPath = vi.fn(async (_path: string) => {})
+  ;(runtime.ctx.workspaces as typeof runtime.ctx.workspaces & {
+    openPath: (path: string) => Promise<void>
+  }).openPath = openPath
   const openWorkspacePath = vi.fn(async () => ({ ok: true, value: { opened: true } }))
   new TestRemote(runtime.ctx, { session: { openWorkspacePath } })
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
@@ -83,7 +87,7 @@ async function bench(nodes: ToolResultNode[]) {
   await runtime.mount({ inject: [...injectConversation], apply: applyConversation })
   await runtime.mount({ inject: [...injectChat], apply: applyChat })
   await runtime.mount({ inject: [...injectTool], apply: applyTool })
-  return { runtime, slots: runtime.slots, layout, openWorkspacePath }
+  return { runtime, slots: runtime.slots, layout, openPath, openWorkspacePath }
 }
 
 describe('keyed toolview hole through the real machinery', () => {
@@ -126,14 +130,15 @@ describe('keyed toolview hole through the real machinery', () => {
     await b.runtime.dispose()
   })
 
-  it('file-path clicks travel owner openFile → chat inject → session.openWorkspacePath', async () => {
+  it('file-path clicks travel owner openFile → chat inject → workspaces.openPath', async () => {
     const b = await bench([toolResult(3, 'c1', 'read', '{"path":"src/a.ts"}')])
     const view = b.runtime.renderRoot()
     view.getByText('src/a.ts').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      expect(b.openWorkspacePath).toHaveBeenCalledWith({ path: 'src/a.ts' })
+      expect(b.openPath).toHaveBeenCalledWith('src/a.ts')
     })
+    expect(b.openWorkspacePath).not.toHaveBeenCalled()
     await b.runtime.dispose()
   })
 
@@ -142,7 +147,7 @@ describe('keyed toolview hole through the real machinery', () => {
     const view = b.runtime.renderRoot()
     view.getByText('Build').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
-    expect(b.openWorkspacePath).not.toHaveBeenCalled()
+    expect(b.openPath).not.toHaveBeenCalled()
     await b.runtime.dispose()
   })
 

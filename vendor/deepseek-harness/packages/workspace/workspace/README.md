@@ -50,7 +50,7 @@ With these rows mounted, creating a project shows up in the list immediately and
 
 ### Creating and ordering projects
 
-Create a project from any directory that exists: give its path and an optional title, and the project appears in the list, newest first. A path that does not exist, or a file instead of a directory, is rejected. Re-adding an existing directory preserves the project's identity and title while refreshing its headers and adopting unaccounted sessions, including later imports. Existing member order is preserved; newly adopted sessions are prepended newest-first. Rename a project at any time, and move it to any position in the list:
+Create a project from any fully qualified directory that exists: filesystem roots such as `C:\` and ordinary directories are valid. Relative paths, Windows drive-relative paths such as `C:work`, missing paths, and files are rejected without creating a project. Re-adding an existing directory preserves the project's identity and title while refreshing its headers and adopting unaccounted sessions, including later imports. Existing member order is preserved; newly adopted sessions are prepended newest-first. Rename a project at any time, and move it to any position in the list:
 
 ```text
 // Host consumer code, after the composition above is loaded:

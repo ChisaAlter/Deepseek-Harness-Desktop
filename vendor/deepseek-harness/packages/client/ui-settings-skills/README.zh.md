@@ -18,3 +18,5 @@ Web Settings 栏目 `skills`（order 16）。页面把 `ctx.remote.skillInventor
 
 - **没有 skill 市场** — 添加写入 `$DSH_HOME/skills/<name>/SKILL.md`。
 - **preset 目录需要存活 session** — 没有当前 session 时页面既不发送 `sessionId` 也不发送 `cwd`，Host 回退到全局 skill 层，standard preset 的项目/捆绑根不会出现。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

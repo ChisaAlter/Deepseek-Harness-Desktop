@@ -6,10 +6,12 @@ import { fileURLToPath } from 'node:url'
 import {
   normalizeSessionLog,
   normalizeSessionSnapshot,
+  normalizeSessionSnapshots,
   normalizeStdout,
   scrubRequestHeaders,
   type NormalizeContext,
 } from '@deepseek-ai/dsh-session-snapshot'
+import { prepareSessionEventNotificationsForComparison } from '@deepseek-ai/dsh-llm-replay'
 import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-loader-smoke'
 import {
   decompressZstdFrame,
@@ -59,6 +61,24 @@ interface DeepSeekDefaultsServer {
   readonly url: string
   readonly requests: JsonObject[]
   close(): Promise<void>
+}
+
+/** Compare one current Session with an older committed generation in memory. */
+async function expectSessionSnapshot(
+  actual: string,
+  context: NormalizeContext,
+  expectedPath: string,
+): Promise<void> {
+  const [normalizedActual] = normalizeSessionSnapshots([actual], context)
+  const expected = await readFile(expectedPath, 'utf8')
+  const [normalizedExpected] = normalizeSessionSnapshots([expected], context)
+  expect(parseJsonl(normalizedActual ?? '')).toEqual(parseJsonl(normalizedExpected ?? ''))
+}
+
+/** Compare current headless session-event wrappers with a committed v1 stream. */
+async function expectHeadlessStream(normalized: string, expectedPath: string): Promise<void> {
+  const expected = prepareSessionEventNotificationsForComparison(await readFile(expectedPath, 'utf8'))
+  expect(parseJsonl(normalized)).toEqual(parseJsonl(expected))
 }
 
 /** Serve one deterministic DeepSeek-compatible response while retaining its request body. */
@@ -218,7 +238,7 @@ describe('headless stream-json snapshots', () => {
         const context = contextFromLogs([actual.content])
         const session = normalizeSessionSnapshot(actual.content, context)
         if (refreshing) await writeFile(headlessSessionExpected, session)
-        await expect(session).toMatchFileSnapshot(headlessSessionExpected)
+        await expectSessionSnapshot(session, context, headlessSessionExpected)
         expect(session).toContain(task)
         expect(session).toContain('CLI tool round trip complete: CLI_TOOL_ROUND_TRIP')
       },
@@ -303,7 +323,7 @@ describe('headless stream-json snapshots', () => {
     expect(result.stderr).toBe('')
     const normalized = normalizeHeadlessStream(result.stdout, runCwd)
     if (refreshing) await writeFile(streamExpected, normalized)
-    expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+    await expectHeadlessStream(normalized, streamExpected)
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
   it('logs actionable missing-credential guidance through the one-shot app', async () => {
@@ -332,7 +352,7 @@ describe('headless stream-json snapshots', () => {
     expect(result.stderr).toBe('')
     const normalized = normalizeHeadlessStream(result.stdout, runCwd)
     if (refreshing) await writeFile(streamExpected, normalized)
-    expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+    await expectHeadlessStream(normalized, streamExpected)
     // The durable failure leads with the credential store — the path that
     // keeps the secret out of configuration files — then names the launching
     // environment, and stops there: configuration carries the reference, so
@@ -369,7 +389,7 @@ describe('headless stream-json snapshots', () => {
     expect(result.stderr).toBe('')
     const normalized = normalizeHeadlessStream(result.stdout, runCwd)
     if (refreshing) await writeFile(streamExpected, normalized)
-    expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+    await expectHeadlessStream(normalized, streamExpected)
     // The durable failure names the reference to correct and the writer that
     // usually owns it, and stays true in a composition that mounts no Models
     // page at all.
@@ -558,6 +578,49 @@ describe('headless stream-json snapshots', () => {
         const tasks = rows.filter(row => row.type === 'team/task')
           .map(row => ((row.data as JsonObject).task as JsonObject))
         const latestTasks = Object.values(Object.fromEntries(tasks.map(task => [String(task.subject), task])))
+        const implementer = logs.find(log => typeof log.header.parentSession === 'string'
+          && parseJsonl(log.content).some((row) => {
+            if (row.type !== 'user/message') return false
+            const content: unknown = (row.data as JsonObject).content
+            return Array.isArray(content) && content.some((block: unknown) => (
+              typeof block === 'object' && block !== null && !Array.isArray(block)
+              && (block as JsonObject).type === 'text'
+              && typeof (block as JsonObject).text === 'string'
+              && ((block as JsonObject).text as string).includes('IMPLEMENTER_MARK')
+            ))
+          }))
+        if (implementer === undefined) throw new Error('Agent Teams snapshot did not persist the implementer')
+        const implementerRows = parseJsonl(implementer.content)
+        const steeredInboxIndex = implementerRows.findIndex((row) => {
+          if (row.type !== 'agent/inbox/spliced') return false
+          const data = row.data as JsonObject
+          const inserted: unknown = data.inserted
+          return data.target === 'next-step' && Array.isArray(inserted)
+            && inserted.some((message: unknown) => {
+              if (typeof message !== 'object' || message === null || Array.isArray(message)) return false
+              const source = (message as JsonObject).source
+              return typeof source === 'object' && source !== null && !Array.isArray(source)
+                && (source as JsonObject).kind === 'team-message'
+            })
+        })
+        const steeredMessageIndex = implementerRows.findIndex((row) => {
+          if (row.type !== 'user/message') return false
+          const source = (row.data as JsonObject).source
+          return typeof source === 'object' && source !== null && !Array.isArray(source)
+            && (source as JsonObject).kind === 'team-message'
+        })
+        const openTurnStart = implementerRows.findLastIndex((row, index) => (
+          index < steeredMessageIndex && row.type === 'turn/start'
+        ))
+        const openTurnEnd = implementerRows.findLastIndex((row, index) => (
+          index < steeredMessageIndex && row.type === 'turn/end'
+        ))
+        const completionAfterSteer = implementerRows.some((row, index) => {
+          if (index <= steeredMessageIndex || row.type !== 'tool/call') return false
+          const data = row.data as JsonObject
+          if (data.name !== 'team_task_update' || typeof data.arguments !== 'string') return false
+          return (JSON.parse(data.arguments) as JsonObject).action === 'complete'
+        })
         projection = {
           sessions: logs.length,
           memberEdges: members.length,
@@ -573,6 +636,12 @@ describe('headless stream-json snapshots', () => {
             && (row.data as JsonObject).name === 'wait_agent'),
           checkedRoster: rows.some(row => row.type === 'tool/call'
             && (row.data as JsonObject).name === 'list_agents'),
+          steerEvidence: {
+            nextStepInbox: steeredInboxIndex >= 0,
+            messageEntered: steeredMessageIndex > steeredInboxIndex,
+            enteredOpenTurn: openTurnStart > openTurnEnd,
+            completedAfterMessage: completionAfterSteer,
+          },
         }
       },
     })
@@ -592,6 +661,12 @@ describe('headless stream-json snapshots', () => {
         "memberEdges": 4,
         "queuedMessages": 2,
         "sessions": 3,
+        "steerEvidence": {
+          "completedAfterMessage": true,
+          "enteredOpenTurn": true,
+          "messageEntered": true,
+          "nextStepInbox": true,
+        },
         "tasks": [
           {
             "revision": 3,
@@ -663,7 +738,7 @@ describe('headless stream-json snapshots', () => {
     expect(result.stderr).toBe('')
     const normalized = normalizeGoalStream(result.stdout, runCwd)
     if (refreshing) await writeFile(streamExpected, normalized)
-    expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+    await expectHeadlessStream(normalized, streamExpected)
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
   it('delivers a continuable child result without parent polling', async () => {
@@ -720,7 +795,7 @@ describe('headless stream-json snapshots', () => {
         const context = contextFromLogs([parent.content, child.content])
         const normalizedChild = normalizeSessionSnapshot(child.content, context)
         if (refreshing) await writeFile(childExpected, normalizedChild)
-        await expect(normalizedChild).toMatchFileSnapshot(childExpected)
+        await expectSessionSnapshot(normalizedChild, context, childExpected)
         expect(normalizedChild).toContain('CHILD_RESULT')
         expect(normalizedChild).not.toContain('"name":"report"')
       },
@@ -734,6 +809,6 @@ describe('headless stream-json snapshots', () => {
     })
     const normalized = normalizeHeadlessStream(result.stdout, runCwd)
     if (refreshing) await writeFile(streamExpected, normalized)
-    expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+    await expectHeadlessStream(normalized, streamExpected)
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 })

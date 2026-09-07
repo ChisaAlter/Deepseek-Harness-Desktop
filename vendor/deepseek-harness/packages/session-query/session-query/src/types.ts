@@ -29,7 +29,7 @@ export interface SessionRecord {
   header: SessionHeader
   /** Whether the id currently exists in `ctx.sessions`. */
   live: boolean
-  /** Whether the active persistence backend currently materializes the id. */
+  /** Whether the active persistence backend currently lists the id, including a created-but-unmaterialized session it already observes. */
   persisted: boolean
 }
 
@@ -51,7 +51,7 @@ export interface SessionLogSnapshot {
   session: SessionHeader
   /** Exact number of fork-inherited events in the observed log. */
   inheritedEventCount: SessionLogOffset
-  /** Cloned contiguous raw events after persistence repair and replay validation. */
+  /** Cloned contiguous raw events after in-memory interrupted-turn balancing and replay validation. */
   events: SessionEvent[]
 }
 

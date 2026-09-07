@@ -35,14 +35,14 @@ export interface DomainTableSpec<K extends string = string, V = unknown> {
 export interface DomainSpec {
   /** Domain name; must match `UNIT_NAME_RE` (doubles as the backend unit name). */
   readonly name: string
-  /** Domain format version; a medium stamped with a different version rejects at open. */
+  /** Current domain format version; reads enforce it according to the selected layout. */
   readonly version: number
   /**
    * Medium layout for the backend unit: `single` (the default) stores the
    * whole unit as one document; `per-record` stores each record as its own
    * document, for units whose records are large, sparse, or individually
-   * disposable — the projection cache — and scopes version bumps per record
-   * (a stale record document is discarded, never migrated).
+   * disposable — the projection cache — and scopes version checks per record
+   * (an unaccepted record document is discarded, never migrated).
    */
   readonly layout?: 'single' | 'per-record'
   /**

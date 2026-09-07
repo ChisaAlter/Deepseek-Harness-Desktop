@@ -17,3 +17,5 @@ None; this package never assembles model input.
 - **No import from Cursor or Claude `.mcp.json`** — the document format is reserved for a later importer; this package only reads its own YAML.
 - **Composition-owned mcp-client rows stay outside this file** — hand-written `cordis.patch.yml` instances are not rewritten here.
 - **OAuth access tokens expire** — there is no refresh-token renewal; sign in again from Settings when the server returns 401.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

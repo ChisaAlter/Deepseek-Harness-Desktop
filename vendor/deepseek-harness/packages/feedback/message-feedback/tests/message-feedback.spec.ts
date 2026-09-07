@@ -62,13 +62,9 @@ describe('MessageFeedbackService public contract', () => {
     })
 
     const fixture = messageFixture('corrupt-session')
-    persistence.setDurable({
-      meta: fixture.session.header,
-      inheritedEventCount: fixture.session.inheritedEventCount,
-      events: fixture.session.snapshotEvents(),
-    })
+    persistence.setDurable({ meta: fixture.session.header, events: fixture.session.snapshotEvents() })
     const corruption = new Error('stored log checksum mismatch')
-    persistence.inspectFailure = corruption
+    persistence.readFailure = corruption
     await expect(ctx.messageFeedback.list({ sessionId: fixture.session.id })).rejects.toBe(corruption)
   })
 
@@ -77,7 +73,7 @@ describe('MessageFeedbackService public contract', () => {
     const sessionId = SessionId('catalog-live-race')
     const listed = Promise.withResolvers<undefined>()
     const release = Promise.withResolvers<undefined>()
-    persistence.onListSnapshots = async () => {
+    persistence.onStat = async () => {
       listed.resolve(undefined)
       await release.promise
     }
@@ -88,7 +84,8 @@ describe('MessageFeedbackService public contract', () => {
     release.resolve(undefined)
 
     await expect(pending).resolves.toEqual({ ok: true, value: { items: [] } })
-    expect(persistence.inspectCalls).toBe(1)
+    expect(persistence.statCalls).toBe(1)
+    expect(persistence.readCalls).toBe(0)
   })
 
   it('returns session-not-found from mutations and conflicts on an observed version for an absent item', async () => {
@@ -189,7 +186,7 @@ describe('MessageFeedbackService public contract', () => {
     const fixture = messageFixture('note-limits')
     persistence.persist(fixture.session)
     const messageId = fixture.assistantMessageIds[0]
-    const before = persistence.inspectCalls
+    const before = persistence.statCalls + persistence.readCalls
 
     await expect(ctx.messageFeedback.put({
       sessionId: fixture.session.id,
@@ -208,7 +205,7 @@ describe('MessageFeedbackService public contract', () => {
       ok: false,
       error: { code: 'note-too-large', maxBytes: 4, actualBytes: 6 },
     })
-    expect(persistence.inspectCalls).toBe(before)
+    expect(persistence.statCalls + persistence.readCalls).toBe(before)
 
     expectItem(await ctx.messageFeedback.put({
       sessionId: fixture.session.id,
@@ -219,14 +216,13 @@ describe('MessageFeedbackService public contract', () => {
     }))
   })
 
-  it('accepts only non-empty append-origin assistant projections as targets', async () => {
+  it('accepts only non-empty assistant projections as targets', async () => {
     const { ctx, persistence } = await harness()
     const fixture = messageFixture('targets')
     persistence.persist(fixture.session)
     const rejectedTargets: MessageId[] = [
       fixture.userMessageId,
       fixture.emptyAssistantMessageId,
-      fixture.replacementAssistantMessageId,
     ]
     for (const messageId of rejectedTargets) {
       await expect(ctx.messageFeedback.put({
@@ -261,8 +257,12 @@ describe('MessageFeedbackService public contract', () => {
     const rawCtx = new Context()
     rawCtx.provide('sessions', { get: () => undefined } as never)
     rawCtx.provide('sessionPersistence', {
-      listSnapshots: () => Promise.resolve([{ header: fixture.session.header, revision: 'test' }]),
-      inspect: () => Promise.resolve({ meta: fixture.session.header, events: fixture.session.snapshotEvents() }),
+      stat: () => Promise.resolve({ header: fixture.session.header, revision: 'test' }),
+      open: () => Promise.resolve({
+        header: fixture.session.header,
+        read: () => Promise.resolve(fixture.session.snapshotEvents()),
+        close: () => Promise.resolve(),
+      }),
     } as never)
     const raw = new MessageFeedbackService(rawCtx, { maxNoteBytes: 1 })
     await expect(raw.list({ sessionId: fixture.session.id }))
@@ -475,7 +475,7 @@ describe('MessageFeedbackService item concurrency', () => {
     const release = Promise.withResolvers<undefined>()
     let physicalReads = 0
     let committed = 0
-    persistence.onReadFrom = async () => {
+    persistence.onRead = async () => {
       physicalReads += 1
       if (physicalReads !== 1) return
       started.resolve(undefined)
@@ -511,28 +511,24 @@ describe('MessageFeedbackService item concurrency', () => {
     expectItem(await first)
     expectItem(await second)
     await disposal
-    expect(physicalReads).toBe(2)
+    expect(physicalReads).toBe(4)
     expect(committed).toBe(2)
   })
 })
 
 describe('MessageFeedbackService durability ordering', () => {
-  it('rejects a logical target missing from the cold physical durable prefix', async () => {
+  it('rejects a live target missing from the re-read physical durable prefix', async () => {
     const { ctx, persistence } = await harness()
-    const fixture = messageFixture('cold-prefix')
-    persistence.logical.set(fixture.session.id, {
-      meta: fixture.session.header,
-      inheritedEventCount: fixture.session.inheritedEventCount,
-      events: fixture.session.snapshotEvents(),
+    const session = ctx.sessions.create(SessionId('live-prefix'), {
+      meta: { createdAt: 50, cwd: '/prefix' },
     })
-    persistence.setDurable({
-      meta: fixture.session.header,
-      inheritedEventCount: fixture.session.inheritedEventCount,
-      events: [],
+    const fixture = appendMessageFixture(session)
+    ctx.on('session/flush', () => {
+      persistence.setDurable({ meta: session.header, events: [] })
     })
 
     await expect(ctx.messageFeedback.put({
-      sessionId: fixture.session.id,
+      sessionId: session.id,
       messageId: fixture.assistantMessageIds[0],
       rating: 'positive',
       ifVersion: null,
@@ -540,12 +536,12 @@ describe('MessageFeedbackService durability ordering', () => {
       ok: false,
       error: {
         code: 'target-not-found',
-        sessionId: fixture.session.id,
+        sessionId: session.id,
         messageId: fixture.assistantMessageIds[0],
       },
     })
-    expect(persistence.readFromCalls).toBe(1)
-    await expect(ctx.messageFeedback.list({ sessionId: fixture.session.id })).resolves.toEqual({
+    expect(persistence.readCalls).toBe(1)
+    await expect(ctx.messageFeedback.list({ sessionId: session.id })).resolves.toEqual({
       ok: true,
       value: { items: [] },
     })
@@ -565,7 +561,7 @@ describe('MessageFeedbackService durability ordering', () => {
     ctx.on('domain/changed', (change) => {
       if (change.domain === 'message_feedback') order.push('sidecar:durable')
     })
-    persistence.onReadFrom = () => { order.push('session:verified') }
+    persistence.onRead = () => { order.push('session:verified') }
 
     expectItem(await ctx.messageFeedback.put({
       sessionId: session.id,
@@ -574,7 +570,7 @@ describe('MessageFeedbackService durability ordering', () => {
       ifVersion: null,
     }))
     expect(order).toEqual(['session:durable', 'session:verified', 'sidecar:durable'])
-    expect(persistence.readFromCalls).toBe(1)
+    expect(persistence.readCalls).toBe(1)
     expect(persistence.durable.get(session.id)?.events).toContainEqual(
       expect.objectContaining({ type: 'assistant/message' }),
     )
@@ -655,7 +651,7 @@ describe('MessageFeedbackService durability ordering', () => {
     expect(ctx.sessions.get(session.id)).toBeUndefined()
     release.resolve(undefined)
     expectItem(await pending)
-    expect(persistence.readFromCalls).toBe(1)
+    expect(persistence.readCalls).toBe(1)
     await expect(ctx.messageFeedback.list({ sessionId: session.id })).resolves.toMatchObject({
       ok: true,
       value: { items: [{ messageId: fixture.assistantMessageIds[0] }] },

@@ -4,7 +4,7 @@ import type { Agent, ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { createAssistantMessage, createUserMessage, MessageId } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import { describe, expect, it, vi } from 'vitest'
 import { ApiSessionAgentController } from '../src/agent.ts'
@@ -112,6 +112,23 @@ describe('Session queue commands', () => {
     })).toEqual({ accepted: true })
     expect(steer).toHaveBeenCalledWith(steered)
 
+    const queuedFile = createUserMessage({
+      content: [{
+        type: 'file',
+        attachment: { attachmentId: AttachmentId('file-queued'), name: 'queued.txt', bytes: 6 },
+      }],
+      source: { kind: 'user', rpcId: 'file-rpc' as never },
+    })
+    inbox.append('next-turn', queuedFile)
+    expect(controller.updateQueue({
+      sessionId: agent.id, itemId: queuedFile.id, action: { kind: 'steer' },
+    })).toEqual({ accepted: true })
+    expect(steer).toHaveBeenLastCalledWith(queuedFile)
+    expect(queuedFile).toMatchObject({
+      source: { kind: 'user', rpcId: 'file-rpc' },
+      content: [{ type: 'file', attachment: { name: 'queued.txt', bytes: 6 } }],
+    })
+
     await expectFailure(Promise.resolve().then(() => controller.cancel({
       sessionId: SessionId('missing'),
     })), 'session/not-found')
@@ -143,7 +160,7 @@ async function persistedController(
   await ctx.plugin(SessionStore)
   const sessionId = SessionId('cold-attachment')
   const meta: SessionHeader = {
-    version: 0,
+    version: SESSION_FORMAT_VERSION,
     id: sessionId,
     createdAt: 1,
     cwd: '/workspace',
@@ -178,6 +195,7 @@ describe('Session attachment authorization', () => {
       { ...event('assistant/message', SessionSeq(1), {
         turn: 1,
         step: 1,
+        stream: [],
         message: createAssistantMessage({
           content: [{ type: 'image', attachment: message }],
           source: { provider: 'fixture', model: 'fixture' },
@@ -191,10 +209,30 @@ describe('Session attachment authorization', () => {
           source: { kind: 'user' },
         })],
       }),
-      event('assistant/chunk', SessionSeq(3), {
+      event('assistant/attempt', SessionSeq(3), {
         turn: 1,
         step: 1,
-        chunk: { type: 'block-end', index: 0, block: { type: 'image', attachment: streamed } },
+        stream: [
+          {
+            type: 'chunk',
+            time: 3,
+            chunk: { type: 'block-start', index: 0, blockType: 'text' },
+          },
+          {
+            type: 'chunk',
+            time: 3,
+            chunk: { type: 'block-end', index: 0, block: { type: 'text', text: '' } },
+          },
+        ],
+      }),
+      event('assistant/attempt', SessionSeq(4), {
+        turn: 1,
+        step: 1,
+        stream: [{
+          type: 'chunk',
+          time: 4,
+          chunk: { type: 'block-end', index: 0, block: { type: 'image', attachment: streamed } },
+        }],
       }),
     ]
     const readImage = vi.fn((ref: ImageAttachmentRef) => Promise.resolve({ ref, data: Uint8Array.of(1) }))

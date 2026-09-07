@@ -1,13 +1,14 @@
 import { Context } from '@deepseek-ai/cordis'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import type { BrowserAuth } from '@deepseek-ai/dsh-client-connection/src/browser-auth.ts'
-import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionRawArtifact } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandle } from '@deepseek-ai/dsh-session-persistence'
 import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import {
   Config,
+  SESSION_LOG_FILENAME,
   SESSION_LOG_EXPORT_PATH,
   apply,
   inject,
@@ -15,28 +16,22 @@ import {
 
 const sid = (value: string): SessionId => value as SessionId
 
-function artifact(id: string): SessionRawArtifact {
+function readHandle(id: string): SessionHandle {
   const header: SessionHeader = {
-    version: 0,
+    version: SESSION_FORMAT_VERSION,
     id: sid(id),
     createdAt: 1,
-    cwd: '/workspace',
     isSeeded: false,
+    cwd: '/workspace',
     delegationDepth: 0,
   }
   return {
-    meta: header,
-    inheritedEventCount: SessionLogOffset(0),
-    filename: 'session.jsonl',
-    content: `${JSON.stringify({
-      type: 'session',
-      version: header.version,
-      id: header.id,
-      createdAt: header.createdAt,
-      cwd: header.cwd,
-      delegationDepth: header.delegationDepth,
-    })}\n`,
-  }
+    id: header.id,
+    header,
+    access: 'read',
+    read: async () => [],
+    close: async () => {},
+  } as unknown as SessionHandle
 }
 
 async function mounted(withServices: boolean): Promise<{
@@ -50,8 +45,8 @@ async function mounted(withServices: boolean): Promise<{
       traceSession: async () => ({ descendants: [] }),
     } as never)
     ctx.provide('sessionPersistence', {
-      supportsRawArtifacts: true,
-      readRaw: async (id: SessionId) => artifact(String(id)),
+      stat: async (id: SessionId) => ({ header: readHandle(String(id)).header }),
+      open: async (id: SessionId) => readHandle(String(id)),
     } as never)
     ctx.provide('attachments', {
       readImage: async () => { throw new Error('fixture has no images') },
@@ -74,9 +69,7 @@ describe('Session log export Fetch route', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('content-type')).toBe('application/zip')
     const files = unzipSync(new Uint8Array(await response.arrayBuffer()))
-    const exported = strFromU8(files['session.jsonl'] as Uint8Array)
-    expect(exported).toContain('"id":"session-1"')
-    expect(exported).not.toContain('isSeeded')
+    expect(strFromU8(files[SESSION_LOG_FILENAME] as Uint8Array)).toContain('"id":"session-1"')
 
     const head = await shared.fetch(new Request(
       `http://host${SESSION_LOG_EXPORT_PATH}?sessionId=session-1`, { method: 'HEAD' },

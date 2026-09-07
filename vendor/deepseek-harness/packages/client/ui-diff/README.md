@@ -20,3 +20,5 @@ None; this package neither assembles nor sends a provider request.
 
 - **No turn-diff, split view, ignore-whitespace, or word-wrap** — branch scope is `baseRef...HEAD` only; there is no checkpoint turn range. Split / wrap / ignore-whitespace toggles are not shipped.
 - **Titlebar Commit is unchanged** — Diff stage/unstage/discard does not replace `git add -A`.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

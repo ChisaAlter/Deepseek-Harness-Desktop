@@ -100,6 +100,10 @@ async function bench(snapshot: ChatSnapshot) {
   const runtime = await SlotTestRuntime.create()
   runtimes.push(runtime)
   const ctx = runtime.ctx
+  const openPath = vi.fn(async (_path: string) => {})
+  ;(ctx.workspaces as typeof ctx.workspaces & {
+    openPath: (path: string) => Promise<void>
+  }).openPath = openPath
   const chat = createSnapshotStore(snapshot)
   const events = new ConversationEventRegistry(ctx)
   const views = new ConversationViewRegistry(ctx)
@@ -128,7 +132,7 @@ async function bench(snapshot: ChatSnapshot) {
   await runtime.root.declare(ROOT_CHILDREN, AppRoot)
   await runtime.mount({ inject: [...injectChat], apply: applyChat })
   await runtime.mount({ inject: [...injectTool], apply: applyTool })
-  return { runtime, layout, openWorkspacePath }
+  return { runtime, layout, openPath, openWorkspacePath }
 }
 
 function mountApp(runtime: SlotTestRuntime) {
@@ -207,7 +211,7 @@ describe('run_code sub-calls through the real chat machinery', () => {
     expect(nested).not.toBeNull()
   })
 
-  it('a file sub-row click opens the host path; bash sub-rows do not open details', async () => {
+  it('a file sub-row click opens the shared Workspace path; bash sub-rows do not open details', async () => {
     const parent = 'call-64'
     const subCalls = [
       subCall(11, parent, 1, 'read', { path: 'notes/demo.txt' }, 'ok'),
@@ -218,8 +222,9 @@ describe('run_code sub-calls through the real chat machinery', () => {
     view.getByText('notes/demo.txt').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      expect(b.openWorkspacePath).toHaveBeenCalledWith({ path: 'notes/demo.txt' })
+      expect(b.openPath).toHaveBeenCalledWith('notes/demo.txt')
     })
+    expect(b.openWorkspacePath).not.toHaveBeenCalled()
     view.getByText('List notes').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
   })

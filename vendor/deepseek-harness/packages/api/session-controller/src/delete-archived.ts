@@ -12,6 +12,7 @@ import type { SessionDeleteRequest, SessionDeleteValue } from './types.ts'
  * whose `parentSession` is already in the set.
  * @param root - archived request root.
  * @param headers - live and persisted headers.
+ * @returns the root and its nested subagent descendants.
  */
 export function collectDeletable(root: SessionId, headers: Iterable<SessionHeader>): Set<SessionId> {
   const deletable = new Set<SessionId>([root])
@@ -35,6 +36,7 @@ export function collectDeletable(root: SessionId, headers: Iterable<SessionHeade
  * other remaining id names it as `parentSession`.
  * @param ids - deletable set.
  * @param headers - header lookup for parent links.
+ * @returns session ids ordered children before parents.
  */
 export function persistDeleteOrder(
   ids: ReadonlySet<SessionId>,
@@ -44,7 +46,7 @@ export function persistDeleteOrder(
   const ordered: SessionId[] = []
   while (remaining.size > 0) {
     const leaves = [...remaining].filter(id => ![...remaining].some(other => headers.get(other)?.parentSession === id))
-    const batch = leaves.length > 0 ? leaves : [[...remaining][0]!]
+    const batch = leaves.length > 0 ? leaves : [...remaining].slice(0, 1)
     for (const id of batch) {
       remaining.delete(id)
       ordered.push(id)
@@ -66,7 +68,7 @@ async function persistDeleteOrResume(
   } catch (error) {
     let remaining = true
     try {
-      remaining = (await persist.list()).some(header => header.id === id)
+      remaining = (await persist.list()).some(snapshot => snapshot.header.id === id)
     } catch {
       // Listing also failed: the durable log may still be present.
     }
@@ -77,16 +79,17 @@ async function persistDeleteOrResume(
 /**
  * Drop archive-set membership for ids with no durable log and no live session.
  * Persistence list faults fail closed (zero writes). Never calls persist.delete.
+ * @param ctx - host context carrying persistence, sessions, and workspaces.
  */
 export async function pruneMissingArchived(ctx: Context): Promise<void> {
   const persist = ctx.get('sessionPersistence')
-  let listed: SessionHeader[]
+  let listed: readonly { readonly header: SessionHeader }[]
   try {
     listed = persist === undefined ? [] : await persist.list()
   } catch {
     return
   }
-  const known = new Set<SessionId>(listed.map(header => header.id))
+  const known = new Set<SessionId>(listed.map(snapshot => snapshot.header.id))
   for (const session of ctx.sessions.list()) known.add(session.id)
   for (const id of [...ctx.workspaceRegistry.archivedSessionIds]) {
     if (known.has(id)) continue
@@ -108,13 +111,14 @@ export class ArchivedSessionDelete {
   /**
    * Destroy one archived root and its `origin === 'subagent'` descendants.
    * @param request - archived root identity.
+   * @returns deleted identities and the resulting archive set.
    */
   async delete(request: SessionDeleteRequest): Promise<SessionDeleteValue> {
     const { sessionId } = request
     const persist = this.ctx.get('sessionPersistence')
     const headers = new Map<SessionId, SessionHeader>()
     if (persist !== undefined) {
-      for (const header of await persist.list()) headers.set(header.id, header)
+      for (const snapshot of await persist.list()) headers.set(snapshot.header.id, snapshot.header)
     }
     for (const session of this.ctx.sessions.list()) headers.set(session.id, session.header)
     const archived = this.ctx.workspaceRegistry.archivedSessionIds

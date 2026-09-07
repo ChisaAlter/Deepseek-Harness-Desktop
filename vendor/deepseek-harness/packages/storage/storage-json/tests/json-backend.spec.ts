@@ -329,10 +329,10 @@ describe('per-record layout', () => {
 
   it('bootstraps an empty per-record tree from a legacy whole-unit file and preserves it', async () => {
     const root = await freshRoot()
-    // A legacy single-layout file for the same unit, stamped with the current
-    // version; the extra table is not declared and must be skipped.
+    // A legacy single-layout file for the same unit and version; the extra
+    // table is not declared and must be skipped.
     const legacy = JSON.stringify({
-      unit: { name: 'recs', version: 2 },
+      unit: { name: 'recs', version: descriptor.version },
       global: null,
       tables: { t: { old1: { v: 1 }, old2: { v: 2 } }, undeclared: { k: { v: 0 } } },
     })
@@ -362,6 +362,7 @@ describe('per-record layout', () => {
     const backend = new JsonStorageBackend(root)
     const unit = await backend.kv.open(descriptor)
     expect(await unit.loadAll()).toEqual({ tables: { t: {} }, global: null })
+    await expect(readFile(recordPath(root, 'old'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(readFile(join(root, 'recs.json'), 'utf8')).resolves.toBe(legacy)
     await unit.close()
     await backend.close()
@@ -419,7 +420,7 @@ describe('per-record layout', () => {
   it('ignores the legacy whole-unit file when any new document path exists', async () => {
     const root = await freshRoot()
     const legacy = JSON.stringify({
-      unit: { name: 'recs', version: 1 },
+      unit: { name: 'recs', version: descriptor.version },
       global: null,
       tables: { t: { old: { v: 1 } } },
     })
@@ -470,11 +471,25 @@ describe('per-record layout', () => {
 
     const root5 = await freshRoot()
     // A current-version stamp so the shapeless `tables` is what stops the bootstrap.
-    await writeFile(join(root5, 'recs.json'), JSON.stringify({ unit: { name: 'recs', version: 2 }, tables: 'not an object' }), 'utf8')
+    await writeFile(
+      join(root5, 'recs.json'),
+      JSON.stringify({ unit: { name: 'recs', version: descriptor.version }, tables: 'not an object' }),
+      'utf8',
+    )
     const backend5 = new JsonStorageBackend(root5)
     const unit5 = await backend5.kv.open(descriptor)
     expect(await unit5.loadAll()).toEqual({ tables: { t: {} }, global: null })
     await expect(readFile(join(root5, 'recs.json'), 'utf8')).resolves.toContain('not an object')
     await backend5.close()
+
+    await writeFile(
+      join(root5, 'recs.json'),
+      JSON.stringify({ unit: { name: 'recs', version: descriptor.version }, tables: null }),
+      'utf8',
+    )
+    const backend6 = new JsonStorageBackend(root5)
+    const unit6 = await backend6.kv.open(descriptor)
+    expect(await unit6.loadAll()).toEqual({ tables: { t: {} }, global: null })
+    await backend6.close()
   })
 })

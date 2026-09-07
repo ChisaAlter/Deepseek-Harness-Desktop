@@ -20,3 +20,5 @@ None; this package neither assembles nor sends a provider request.
 
 - **No workflow grouping** — the panel lists direct children; it does not fold workflow batches.
 - **Jobs are read-only** — the panel lists `jobsBySession` and does not kill tasks.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

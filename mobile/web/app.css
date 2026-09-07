@@ -1,4 +1,72 @@
 * { box-sizing: border-box; }
+button, input, textarea { letter-spacing: 0; }
+[inert] { pointer-events: none; }
+.surface-panel { min-width: 0; padding: 0 !important; gap: 0 !important; }
+.surface-panel[data-refreshed] { animation: none !important; }
+.surface-head, .drawer-head {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+.surface-head { padding: 14px 14px 12px 24px; }
+.surface-title, .drawer-head h2 {
+  flex: 1; min-width: 0; margin: 0; font-size: 16px; line-height: 24px;
+  font-weight: 600; overflow-wrap: anywhere;
+}
+.surface-title:focus, .drawer-head h2:focus { outline: none; }
+.surface-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.surface-content > .lead { margin: 4px 0 16px; }
+.surface-content > .error { padding: 8px 0; }
+.surface-panel > .dialog-foot, .task-actions {
+  flex: none; padding: 12px 24px 24px; display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: flex-end; gap: 8px;
+}
+.task-layer { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) !important; }
+.task-layer > .surface-panel {
+  flex: 1; width: 100%; height: 100%; max-height: 100%; margin: 0;
+  border-radius: 0; box-shadow: none; background: var(--dsw-alias-bg-base);
+}
+.task-layer > .surface-panel > .surface-content { flex: 1; padding: 16px; }
+.task-layer > .sheet-mask, .task-layer > .dialog-mask { display: none; }
+.task-layer .surface-head { padding: 8px 12px; }
+.task-layer .surface-panel > .dialog-foot, .task-layer .task-actions {
+  padding: 12px 16px; border-top: 1px solid var(--dsw-alias-border-l2);
+}
+.model-current { margin: 0 0 8px; overflow-wrap: anywhere; color: var(--dsw-alias-label-tertiary); }
+.model-results { min-width: 0; }
+.picker-controls { padding: 8px 12px 4px; flex: none; min-width: 0; }
+.phone .picker-controls .effort-segment { margin: 4px 0; flex-wrap: nowrap; }
+.phone .picker-controls .effort-option { flex: 1 1 56px; padding: 0 8px; }
+.model-search { margin-bottom: 8px; }
+.sheet-item-main, .sheet-hint { overflow-wrap: anywhere; }
+.file-choice { display: flex; align-items: center; gap: 8px; min-height: 40px; overflow-wrap: anywhere; }
+.file-choice input { flex: none; width: 20px; height: 20px; }
+.composer[data-reading] textarea { height: 28px !important; min-height: 28px !important; }
+.phone input:not([type=checkbox]):not([type=radio]), .phone textarea { font-size: 16px; line-height: 24px; }
+.phone .chip-shrink { flex-shrink: 1; }
+.phone .set-head { flex: none; padding: 8px 12px; border-bottom: 1px solid var(--dsw-alias-border-l1); }
+.phone .options { min-height: 0; }
+.phone .commit-card { border: 0; padding: 0; border-radius: 0; }
+.phone .approval-body { max-height: min(30dvh, 240px); overflow: auto; overscroll-behavior: contain; }
+.phone .action-row { flex-wrap: wrap; }
+.phone .attach-thumb { width: 72px; height: 72px; }
+.phone .composer textarea { max-height: min(30dvh, 240px); }
+.phone .settings { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+/* Visible controls keep desktop geometry; the pseudo hit area supplies a
+   comfortable phone target without stretching the layout. */
+.phone :is(.icon-btn, .surface-control, .phone-menu, .send, .chip, .git-pill, .session-more, .attach-remove) {
+  position: relative;
+}
+.phone :is(.icon-btn, .surface-control, .phone-menu, .send, .chip, .git-pill, .session-more, .attach-remove)::before {
+  content: ""; position: absolute; inset: -6px; border-radius: 12px;
+}
+@media (max-width: 480px) {
+  .phone .composer-root { padding: 0 8px 8px; }
+  .phone .meta { flex-wrap: nowrap; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .surface-panel { animation: mobile-surface-in var(--ds-motion-duration-overlay, var(--ds-transition-duration)) var(--ds-ease-in-out); }
+}
+@keyframes mobile-surface-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 html, body { margin: 0; height: 100%; }
 body {
   font-family: var(--dsw-font-family);
@@ -97,41 +165,46 @@ button { cursor: pointer; }
 .saved-forget[disabled] { color: var(--dsw-alias-label-caption); cursor: default; }
 .chat { position: relative; }
 .phone-menu {
-  position: absolute; top: 12px; left: 10px; z-index: 12;
+  position: absolute; top: 10px; left: 10px; z-index: 12;
   display: grid; place-items: center;
-  width: 36px; height: 36px; padding: 0; border: 0; border-radius: 12px;
-  background: var(--dsw-alias-button-floating-fill);
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
+  background: var(--dsw-alias-bg-module-platform);
   color: var(--dsw-alias-label-primary);
-  box-shadow: var(--dsw-shadow-lv2);
 }
 .phone-menu:hover { background: var(--dsw-alias-button-floating-hover); }
 .header {
   position: relative; flex: none;
-  padding: 16px 16px 10px 56px;
+  min-height: 58px; padding: 8px 12px 7px 56px;
 }
 .header::after {
   content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 1px;
   background: var(--dsw-alias-border-l2);
 }
 .title {
-  margin: 0; font-size: 16px; line-height: 24px; font-weight: 500;
+  margin: 0; font-size: 16px; line-height: 22px; font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .meta {
-  margin: 0; font-size: 12px; line-height: 18px;
+  margin: 0; font-size: 12px; line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
-  display: flex; gap: 8px; align-items: center; min-width: 0;
+  display: flex; gap: 6px; align-items: center; min-width: 0;
 }
-.meta-host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meta-host { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run { flex: none; color: var(--dsw-alias-state-business-primary); }
 .git-pill {
-  flex: none; height: 22px; padding: 0 8px;
-  border: 1px solid var(--dsw-alias-border-l2); border-radius: 11px;
+  flex: none; display: inline-flex; align-items: center; min-width: 0; height: 24px; padding: 0;
+  border: 1px solid var(--dsw-alias-border-l2); border-radius: 13px;
   background: transparent; color: var(--dsw-alias-label-secondary);
   font-size: 12px; line-height: 18px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%;
+  overflow: hidden; white-space: nowrap; max-width: 48%;
 }
 .git-pill:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.git-pill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding: 0 7px; }
+.git-pill-count { flex: none; color: var(--dsw-alias-label-tertiary); }
+.git-pill-chevron {
+  flex: none; align-self: stretch; width: 24px; display: grid; place-items: center;
+  margin-left: 4px; border-left: 1px solid var(--dsw-alias-border-l1);
+}
 .banner {
   margin: 8px 16px 0; padding: 8px 12px; border-radius: 8px;
   background: var(--dsw-alias-state-warn-tertiary);
@@ -147,11 +220,6 @@ button { cursor: pointer; }
 .conn-banner[data-phase="offline"] { color: var(--dsw-alias-state-error-primary); }
 .sheet-error { color: var(--dsw-alias-state-error-primary); }
 .mode-row { border: 0; }
-.mode-row[aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-hover); }
-.mode-current {
-  flex: none; font-size: 12px; line-height: 18px;
-  color: var(--dsw-alias-label-tertiary);
-}
 .log {
   flex: 1; min-height: 0; overflow: auto;
   display: flex; flex-direction: column; gap: 16px;
@@ -326,10 +394,10 @@ button { cursor: pointer; }
 .composer-root { flex: none; padding: 0 16px 12px; }
 .composer, .approval {
   display: flex; flex-direction: column; width: 100%;
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
+  border: 0;
   border-radius: 22px;
   background: var(--dsw-specific-input-major);
-  box-shadow: var(--dsw-shadow-lv2);
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2-darkmode-thin), var(--dsw-shadow-lv2);
 }
 /* —— 输入框边缘流光（对应桌面 InputBar 的 Border beam）：运行中一条彩色
    光带沿胶囊边缘旋转，内侧带一层柔光晕。三层都不接收指针事件，正文层叠在其上。 —— */
@@ -406,14 +474,14 @@ button { cursor: pointer; }
   .assistant[data-streaming] > p:last-child::after { animation: none; }
 }
 .composer textarea {
-  width: 100%; min-height: 48px; max-height: 120px;
-  padding: 10px 16px 0; border: 0; resize: none;
+  width: 100%; min-height: 42px; max-height: 120px;
+  padding: 10px 12px 0; border: 0; resize: none;
   background: transparent; font-size: 16px; line-height: 24px; outline: none;
 }
 .composer textarea::placeholder { color: var(--dsw-alias-label-caption); }
 .composer-row {
   display: flex; justify-content: flex-start; align-items: center;
-  padding: 4px 8px 8px; gap: 8px;
+  min-height: 40px; padding: 2px 6px 6px; gap: 4px;
   /* One tool row, always: chips never wrap onto a second line on a narrow phone. */
   flex-wrap: nowrap;
 }
@@ -427,7 +495,7 @@ button { cursor: pointer; }
 .composer-row #model-chip { margin-left: auto; }
 .send {
   display: grid; place-items: center; flex: none;
-  width: 34px; height: 34px; border: 0; border-radius: 999px;
+  width: 32px; height: 32px; border: 0; border-radius: 999px;
   background: var(--dsw-alias-button-info-fill);
   color: var(--dsw-static-neutral-bluish-00);
 }
@@ -440,7 +508,7 @@ button { cursor: pointer; }
 .send.stop:hover { background: var(--dsw-alias-button-primary-hover); }
 .chip {
   display: inline-flex; align-items: center; gap: 4px;
-  height: 28px; padding: 0 8px; border: 0; border-radius: 8px;
+  height: 28px; padding: 0 7px; border: 0; border-radius: 24px;
   background: transparent; color: var(--dsw-alias-label-secondary);
   font-size: 13px; line-height: 20px; font-weight: 500;
   white-space: nowrap; flex: none;
@@ -450,7 +518,7 @@ button { cursor: pointer; }
 /* "model · effort" / the access preset can outgrow a phone row: these chips
    give way with an ellipsis on their label span instead of wrapping (full
    text stays in title). The floor keeps a readable stub on both. */
-.chip-shrink { flex: 0 1 auto; min-width: 72px; }
+.chip-shrink { flex: 0 1 auto; min-width: 60px; }
 .chip-shrink .chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attach-rail {
   display: flex; gap: 10px; overflow-x: auto; padding: 0 12px;
@@ -490,39 +558,44 @@ button { cursor: pointer; }
 }
 .drawer {
   position: absolute; inset: 0 auto 0 0; z-index: 11;
-  width: min(320px, calc(100% - 48px));
+  width: min(326px, calc(100% - 48px));
   display: flex; flex-direction: column;
-  /* Top padding matches .phone-menu's top (12px) so the menu button and the
-     search field share one 36px row instead of the button sitting on top
-     of the field. */
-  padding: 12px 8px 8px;
-  background-color: var(--dsw-alias-bg-base);
-  background-image: linear-gradient(var(--dsw-specific-sidebar-fill), var(--dsw-specific-sidebar-fill));
+  padding: 8px;
+  background: var(--dsw-specific-sidebar-fill);
   transform: translateX(-100%);
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 .phone[data-drawer] .drawer { transform: none; }
-.search, .new-session {
-  height: 36px; margin: 0 2px 8px; padding: 0 12px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
+.drawer-head { min-height: 40px; padding: 0 4px 8px; margin-bottom: 8px; border-bottom: 0; }
+.drawer-head h2 {
+  display: flex; align-items: baseline; gap: 8px; padding: 0;
+  font-size: 16px; line-height: 24px; letter-spacing: 0;
 }
-/* Leave the menu button's column (left 10 + 36 wide, in .phone coordinates)
-   free: the drawer's 8px padding puts the field at x=10, so 46px of margin
-   starts it 8px right of the button. */
-.drawer .search { margin-left: 46px; }
+.drawer-head h2 span { font-weight: 500; }
+.drawer-brand-mark {
+  position: relative; flex: none; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--dsw-alias-label-primary); border: 1px solid var(--dsw-alias-label-primary);
+}
+.drawer-brand-mark::after { content: ""; position: absolute; right: -1px; left: -1px; top: 9px; height: 2px; background: var(--dsw-specific-sidebar-fill); }
+.search, .new-session {
+  height: 36px; margin: 0 4px 8px; padding: 0 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 18px; background: transparent;
+}
+.drawer .search { flex: none; }
 .phone[data-drawer] .phone-menu { box-shadow: none; background: transparent; }
 .phone[data-drawer] .phone-menu:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .new-session {
   display: flex; align-items: center; justify-content: center;
-  background: var(--dsw-alias-button-elevated-fill); font-weight: 500;
+  background: var(--dsw-alias-bg-module-platform); font-weight: 500;
 }
+.new-session::before { content: "+"; margin-right: 8px; font-size: 20px; line-height: 1; font-weight: 300; }
 .new-session:hover { background: var(--dsw-alias-button-floating-hover); }
 .ws { margin: 4px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
 .session-list { flex: 1; overflow: auto; }
 .session {
   display: flex; flex-direction: column; width: 100%;
-  padding: 8px 12px; border: 0; border-radius: 12px;
+  min-height: 40px; padding: 6px 10px; border: 0; border-radius: 8px;
   background: transparent; text-align: left;
 }
 .session:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
@@ -575,10 +648,11 @@ button { cursor: pointer; }
 .session-row.in-workspace.session-child { padding-left: 24px; }
 .session-row.in-workspace .session { padding-top: 6px; padding-bottom: 6px; }
 .drawer-foot {
-  margin-top: auto; display: flex; align-items: center; gap: 8px;
-  height: 42px; border: 0; border-radius: 12px;
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; border: 0; border-radius: 8px;
   background: transparent; text-align: left; padding: 0 10px;
 }
+#open-workspace { margin-top: auto; }
 .drawer-foot:hover { background: var(--dsw-alias-interactive-bg-hover); }
 /* —— 设置屏：灰底 + 白卡（分组设置的经典对比），一套节奏：
    section 之间 24px，section 内标题→控件 8px，卡内行高 ≥ 44px。 —— */
@@ -589,7 +663,7 @@ button { cursor: pointer; }
      glass sheet. A translucent (or, on WebViews without color-mix(),
      transparent) background let the chat header / hero / composer bleed
      through and read as one overlapping mess. */
-  background: var(--dsw-specific-sidebar-fill);
+  background: var(--dsw-alias-bg-base);
 }
 .set-head {
   display: flex; align-items: center; gap: 8px;
@@ -683,14 +757,14 @@ button { cursor: pointer; }
 .group > .hair:last-child { border-bottom: 0; }
 .group > .hair .paste { width: auto; flex: 1; min-width: 0; max-width: 60%; height: 32px; padding: 0 10px; }
 .tag { font-size: 12px; color: var(--dsw-alias-label-tertiary); }
-/* —— 扫码屏（对应 Android ScanScreen：深底、角标取景框、取消/手电筒） —— */
+/* Camera is an instrument inside the Harness canvas, not a separate dark app. */
 .scan {
-  background: rgb(21, 21, 23); color: rgb(249, 250, 251);
-  padding: 16px 24px 12px; gap: 8px;
+  background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
+  padding: 28px 24px 16px; gap: 12px;
 }
 .scan-stage {
-  position: relative; flex: 1; min-height: 0;
-  border-radius: 16px; overflow: hidden; background: rgb(27, 27, 28);
+  position: relative; flex: none; width: 100%; aspect-ratio: 0.8;
+  max-height: min(62dvh, 480px); border-radius: 12px; overflow: hidden; background: rgb(31, 33, 36);
 }
 .scan-stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .scan-frame { position: absolute; inset: 18%; pointer-events: none; }
@@ -699,58 +773,63 @@ button { cursor: pointer; }
 .scan-frame i:nth-child(2) { top: 0; right: 0; border-top-width: 2px; border-right-width: 2px; }
 .scan-frame i:nth-child(3) { bottom: 0; left: 0; border-bottom-width: 2px; border-left-width: 2px; }
 .scan-frame i:nth-child(4) { bottom: 0; right: 0; border-bottom-width: 2px; border-right-width: 2px; }
-.scan-tip {
-  margin: 0; text-align: center;
-  font-size: 13px; line-height: 20px; color: rgb(173, 178, 184);
-}
-.scan-actions { display: flex; gap: 12px; }
+.scan-tip { margin: 0; text-align: center; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+.scan-actions { display: flex; justify-content: center; gap: 8px; }
 .scan-actions .ghost-btn {
-  flex: 1; color: rgb(249, 250, 251); border-color: rgba(255, 255, 255, 0.16);
+  min-width: 140px; color: var(--dsw-alias-label-primary); border-color: var(--dsw-alias-border-l2);
 }
-.scan-actions .ghost-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.scan-actions .ghost-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .scan-actions .primary-btn {
-  flex: 1; background: rgb(249, 250, 251); color: rgb(15, 17, 21);
+  min-width: 140px;
 }
 
-/* —— 底部 sheet / 对话框 / toast / lightbox —— */
+/* Desktop Menu / Modal / full-screen task roles, reflowed for a phone. */
 .sheet-mask, .dialog-mask, .lightbox-mask {
   position: absolute; inset: 0; border: 0; padding: 0;
   background: var(--dsw-alias-bg-mask-1);
   backdrop-filter: var(--dsw-mask-blur);
 }
-.sheet-layer { position: absolute; inset: 0; z-index: 31; display: flex; flex-direction: column; justify-content: flex-end; }
+.sheet-layer { position: absolute; inset: 0; z-index: 31; }
+.menu-layer > .sheet-mask { background: transparent; backdrop-filter: none; }
 .sheet {
-  position: relative; margin: 12px; padding: 8px;
-  border-radius: 16px; background: var(--dsw-alias-bg-layer-1);
+  position: absolute; right: 12px; left: 12px; margin: 0; padding: 4px;
+  border-radius: 20px; background: var(--dsw-specific-menu);
   box-shadow: var(--dsw-shadow-lv3);
-  max-height: 70%; overflow: auto;
+  max-height: min(58%, 480px); overflow: hidden;
   display: flex; flex-direction: column;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
 }
+.menu-layer[data-anchor="viewport"] > .sheet { bottom: calc(12px + env(safe-area-inset-bottom)); }
+.menu-layer[data-anchor="composer"] > .sheet { bottom: calc(112px + env(safe-area-inset-bottom)); }
+.menu-layer[data-anchor="header"] > .sheet { top: calc(98px + env(safe-area-inset-top)); bottom: auto; }
+.menu-layer > .sheet > .surface-content { padding: 0; overflow-y: auto; }
 .sheet-title {
-  margin: 0; padding: 8px 12px;
-  font-size: 13px; line-height: 20px; font-weight: 500;
+  margin: 0; padding: 8px 10px 4px;
+  font-size: 12px; line-height: 18px; font-weight: 500;
   color: var(--dsw-alias-label-tertiary);
 }
 .sheet-item {
   display: flex; align-items: center; gap: 8px; width: 100%;
-  min-height: 44px; padding: 8px 12px; border: 0; border-radius: 12px;
+  min-height: 40px; padding: 8px 10px; border: 0; border-radius: 10px;
   background: transparent; text-align: left;
+  font-size: 14px; line-height: 22px;
 }
 .sheet-item:hover:not([disabled]) { background: var(--dsw-alias-interactive-bg-hover); }
 .sheet-item[disabled] { color: var(--dsw-alias-label-caption); cursor: default; }
 .sheet-item .sheet-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .sheet-item .sheet-hint { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
-.sheet-note { margin: 0; padding: 8px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+.sheet-note { margin: 0; padding: 8px 10px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
 .sheet-group { padding-top: 12px; }
-.sheet-divider { height: 1px; margin: 4px 12px; background: var(--dsw-alias-border-l1); }
-/* Picker sheets (权限 / 模型): pressed row = the current choice. */
-.sheet .mode-row[aria-pressed="true"] { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+.sheet-divider { height: 1px; margin: 4px 10px; background: var(--dsw-alias-border-l1); }
+.sheet .mode-row[aria-pressed="true"] { background: transparent; }
+.sheet .mode-row[aria-pressed="true"]:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.mode-current { flex: none; width: 18px; color: var(--dsw-alias-state-business-primary); font-size: 14px; line-height: 18px; text-align: center; }
 .effort-segment {
-  display: flex; gap: 4px; margin: 4px 12px 8px; padding: 2px; border-radius: 12px;
+  display: flex; gap: 4px; margin: 4px 10px 8px; padding: 2px; border-radius: 10px;
   background: var(--dsw-alias-bg-module-platform);
 }
 .effort-option {
-  flex: 1; min-width: 0; height: 32px; border: 0; border-radius: 10px;
+  flex: 1; min-width: 0; height: 28px; border: 0; border-radius: 8px;
   background: transparent; color: var(--dsw-alias-label-secondary);
   font-size: 13px; line-height: 20px; font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -765,18 +844,17 @@ button { cursor: pointer; }
   position: absolute; inset: 0; z-index: 33;
   display: flex; flex-direction: column; justify-content: center; padding: 12px;
 }
-.dialog-layer[data-compact] { justify-content: flex-end; }
 .dialog {
-  position: relative; display: flex; flex-direction: column; gap: 8px;
-  max-height: 100%; overflow: auto;
-  border-radius: 16px; background: var(--dsw-alias-bg-layer-1);
+  position: relative; display: flex; flex-direction: column;
+  width: min(380px, 100%); max-height: min(80%, 640px); margin: auto; overflow: hidden;
+  border-radius: 24px; background: var(--dsw-alias-bg-layer-1);
   box-shadow: var(--dsw-shadow-lv3);
-  padding: 16px;
 }
+.modal-layer .surface-content { padding: 0 24px 12px; }
 .dialog h3 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
 .dialog .lead { font-size: 12px; line-height: 18px; }
 .dialog-body { display: flex; flex-direction: column; gap: 10px; }
-.dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .dialog-foot .primary-btn, .dialog-foot .ghost-btn { flex: none; }
 .commit-card {
   display: flex; flex-direction: column; gap: 10px;

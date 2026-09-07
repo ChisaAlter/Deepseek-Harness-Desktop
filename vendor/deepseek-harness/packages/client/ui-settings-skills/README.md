@@ -18,3 +18,5 @@ None; this package never assembles model input.
 
 - **No skill marketplace** — add writes `$DSH_HOME/skills/<name>/SKILL.md`.
 - **Live session required for the preset catalog** — without a current session the page sends neither `sessionId` nor `cwd`, so the Host falls back to the global skill layer and project/bundled roots from the standard preset stay out of view.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

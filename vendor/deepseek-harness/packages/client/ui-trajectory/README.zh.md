@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-trajectory` 是 dsh Web 客户端的 Trajectory 视图：它渲染按轮次组织的事件记录表，其中可选择用户、助手、工具与嵌套子工具记录，并带交互式时间概览。较粗的分割线标示轮次边界，紧凑的行内标记标识步骤；选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时，以及用户、助手或工具内容中的持久图片。该视图是纯消费方：它注册 target 专属 Event Definition、Trajectory view builder 以及对话 `conversation.view` slot 环中的一个视图标签页，不提供 service，也不声明 Context 合并。带类型的 `trajectory` locale namespace 拥有所有产品编写的 ledger、timeline、inspector、tooltip 与无障碍文案；事件内容、工具名称、标识符与 provider 诊断保持原始数据。长记录表打开时定位于当前尾部、按需加载更早历史，并且只挂载可见行窗口。
+`dsh-client-ui-trajectory` 是 dsh Web 客户端的 Trajectory 视图：它渲染按轮次组织的事件记录表，其中可选择用户、助手、工具与嵌套子工具记录，并带交互式时间概览。较粗的分割线标示轮次边界，紧凑的行内标记标识步骤；选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时，以及用户、助手或工具内容中的持久图片与文件附件摘要。该视图是纯消费方：它注册 target 专属 Event Definition、Trajectory view builder 以及对话 `conversation.view` slot 环中的一个视图标签页，不提供 service，也不声明 Context 合并。带类型的 `trajectory` locale namespace 拥有所有产品编写的 ledger、timeline、inspector、tooltip 与无障碍文案；事件内容、工具名称、标识符与 provider 诊断保持原始数据。长记录表打开时定位于当前尾部、按需加载更早历史，并且只挂载可见行窗口。
 
 ## 目录
 
@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 检查记录
 
-选择、时间线导航、折叠与搜索只覆盖 React 可见窗口。请求编号与累计用量覆盖完整的驻留 snapshot。选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时与持久图片。图片 URL 使用 Conversation 拥有的逐会话缓存，因此 Chat 与 Trajectory 对每个附件共享一次已授权读取。没有文本的记录会用图片数量标记其行。独立运行的压缩请求会按时间顺序显示在自己的 `Between turns` 区段中，而带编号的压缩仍位于其所属轮次内。
+选择、时间线导航、折叠与搜索只覆盖 React 可见窗口。请求编号与累计用量覆盖完整的驻留 snapshot。选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时与持久图片。图片 URL 使用 Conversation 拥有的逐会话缓存，因此 Chat 与 Trajectory 对每个附件共享一次已授权读取。用户记录会在文本旁显示通用文件数量；记录没有文本时，则显示图片与文件数量。独立运行的压缩请求会按时间顺序显示在自己的 `Between turns` 区段中，而带编号的压缩仍位于其所属轮次内。
 
 ### 时间概览
 
@@ -47,7 +47,7 @@ kind: "package-reference"
 
 ### 虚拟行
 
-长记录表最初只从挂载时尾部结束的 50 个 target Node 派生 React 数据。后续 Node 会扩展这个固定起点的窗口而不会逐出其前缀；现有加载控件会先显露更早的驻留 Node，再请求下一个 Session 页面。虚拟化只挂载可见行窗口加少量缓冲；仅含请求的分隔行并入下一个具备可测高度的虚拟项，语义行键与 ARIA 索引在向前补页后保持不变。仅含内容更新的流式帧会保持虚拟行的键与高度、复用测量结果，并且不会重复写入末尾滚动位置。已完成的回复会在 Trajectory target State 中保留组装后的 blocks、计时与用量，共享 Session 窗口则保留原始 Event。
+长记录表最初只从挂载时尾部结束的 50 个 target Node 派生 React 数据。后续 Node 会扩展这个固定起点的窗口而不会逐出其前缀；现有加载控件会先显露更早的驻留 Node，再请求下一个 Session 页面。虚拟化只挂载可见行窗口加少量缓冲；仅含请求的分隔行并入下一个具备可测高度的虚拟项，语义行键与 ARIA 索引在向前补页后保持不变。虚拟化器负责结构性追加后的底部跟随；非虚拟记录表会直接写入末尾位置。仅含内容更新的流式帧会保持虚拟行的键与高度、复用测量结果，并且不会重复写入末尾滚动位置。已完成的回复会在 Trajectory target State 中保留组装后的 blocks、计时与用量，共享 Session 窗口则保留原始 Event。
 
 ### 布局
 

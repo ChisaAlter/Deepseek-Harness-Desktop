@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `no-directory-sessions` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — 启动补全历史成员与归档回归：workspace / workspace-controller / ui-workspace 262 项通过；远程目录、隧道与桌面 marker 114 项通过；Workspace TypeScript 构建通过。保留原成员顺序与归档集合，部分写入失败可在重启后继续。未替换安装版或执行升级实测。 |
+| **last verified** | 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后保留无目录会话、Workspace 成员补全与已删工作区语义；Host / Client build、含 ui-workspace 的重点 Client 101 文件 / 1279 项、Desktop fork marker 与全套 Desktop tests 1425 passed / 2 skipped。未执行安装版升级实测。 |
 
 ## User paths
 

@@ -104,6 +104,7 @@ export interface ISessions {
    * Destroy one archived Session log. On resolution the deleted ids are gone
    * from the list store and the returned archive echo is the Host set.
    * @param sessionId - archived root to delete.
+   * @returns deleted identities and the resulting archive set.
    */
   delete(sessionId: SessionId): Promise<{
     deletedSessionIds: readonly SessionId[]

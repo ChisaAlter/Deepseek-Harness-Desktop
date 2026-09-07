@@ -22,3 +22,5 @@ A surface replacement starts a new request series. Provider reuse depends on the
 - A target removed from the model surface by compaction cannot be edited.
 - Chat displays the revision; diagnostic views retain the original log.
 - Cancellation discards the revision and restores the pre-edit draft.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

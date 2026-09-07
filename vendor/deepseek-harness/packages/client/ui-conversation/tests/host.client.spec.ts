@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import {
   CONVERSATION_SETTINGS_NAMESPACE, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM,
-  DEFAULT_COMPOSER_RESIZE, DEFAULT_OFFICIAL_PEAK_VALLEY, DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS, apply,
+  DEFAULT_COMPOSER_BEAM_STYLE, DEFAULT_COMPOSER_RESIZE, DEFAULT_OFFICIAL_PEAK_VALLEY,
+  DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS, apply,
 } from '@deepseek-ai/dsh-client-ui-conversation'
 
 class MemorySettings extends SettingsProvider {
@@ -24,6 +25,7 @@ describe('ui-conversation host', () => {
     expect(ctx.settings.get(ns)).toEqual({
       busyEnter: DEFAULT_BUSY_ENTER_BEHAVIOR,
       composerBeam: DEFAULT_COMPOSER_BEAM,
+      composerBeamStyle: DEFAULT_COMPOSER_BEAM_STYLE,
       composerResize: DEFAULT_COMPOSER_RESIZE,
       statsLine: DEFAULT_STATS_LINE,
       officialPeakValley: DEFAULT_OFFICIAL_PEAK_VALLEY,
@@ -31,16 +33,20 @@ describe('ui-conversation host', () => {
     })
     await ctx.settings.update(ns, {
       busyEnter: 'steer', composerBeam: false, composerResize: true,
+      composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, period: 3, hue: 45 },
       composerResizeHeight: 160, composerResizeWidth: 480,
       statsLine: false, officialPeakValley: true, viewTabs: false,
     })
     expect(ctx.settings.get(ns)).toEqual({
       busyEnter: 'steer', composerBeam: false, composerResize: true,
+      composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, period: 3, hue: 45 },
       composerResizeHeight: 160, composerResizeWidth: 480,
       statsLine: false, officialPeakValley: true, viewTabs: false,
     })
     await expect(ctx.settings.update(ns, { busyEnter: 'invalid' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerBeam: 'yes' })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, { composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, period: 99 } })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, { composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, direction: 'sideways' } })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerResize: 'yes' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerResizeHeight: 'tall' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerResizeWidth: 'wide' })).rejects.toThrow()

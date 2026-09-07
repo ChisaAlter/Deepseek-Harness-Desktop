@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent, type AgentHandle, type CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { Session, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { Workspace } from '@deepseek-ai/dsh-workspace'
@@ -34,7 +34,7 @@ function header(
   id: string,
   extra: Partial<Pick<SessionHeader, 'parentSession' | 'origin'>> = {},
 ): SessionHeader {
-  return { version: 0, id: sid(id), createdAt: 1, isSeeded: false, ...extra }
+  return { version: SESSION_FORMAT_VERSION, id: sid(id), createdAt: 1, isSeeded: false, ...extra }
 }
 
 /**

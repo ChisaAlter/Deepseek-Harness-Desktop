@@ -12,6 +12,10 @@ import { isUntitledBlank, sessionTitle } from './conversation/title.js';
 import { switchDraft } from './conversation/draft-switch.js';
 import { muxPatch, titleFromProjection } from './conversation/live.js';
 import { visibleScreen } from './ui/chrome.js';
+import { backTarget, createNavigation } from './ui/navigation.js?v=20260906-interaction';
+import { createSurface, createFocusScope } from './ui/surfaces.js?v=20260907-desktop-mobile';
+import { sessionOwner } from './ui/session-owner.js?v=20260906-interaction';
+import { installComposerBehavior } from './ui/composer-behavior.js?v=20260906-interaction';
 import {
   channelLabel,
   gitStatusLine,
@@ -22,7 +26,7 @@ import {
 import { callShell, UnauthorizedError } from './shell/remote-shell.js';
 import { parseVcsStatus, parseBranchList } from './git/vcs-parse.js';
 import { resolveGitQuick } from './git/quick.js';
-import { runStackedGit } from './git/stack.js';
+import { runStackedGit } from './git/stack.js?v=20260906-interaction';
 import { gitCommitPayload, gitTunnelAction } from './git/bridge.js';
 import { gitCall, hostCall } from './host/backend.js';
 import { deliverApprovalRespond } from './host/approval-respond.js';
@@ -79,7 +83,7 @@ import {
 import {
   isReadOnlyRow,
   sessionRowForest,
-} from './chisacode/directory.js';
+} from './chisacode/directory.js?v=20260907-session-fork';
 import {
   resolveLogAnchor,
 } from './chisacode/timeline.js';
@@ -138,6 +142,8 @@ const scanTorch = el('scan-torch');
 const chatTitle = el('chat-title');
 const hostLine = el('host-line');
 const gitPill = el('git-pill');
+const gitPillLabel = el('git-pill-label');
+const gitPillCount = el('git-pill-count');
 const runFlag = el('run-flag');
 const connBanner = el('conn-banner');
 const bannerEl = el('banner');
@@ -206,6 +212,17 @@ const state = {
   connected: false,
   settingsOpen: false,
   settingsPane: '',
+  drawerOpen: false,
+  sessionEpoch: 0,
+  sendBusy: false,
+  modelQuery: '',
+  pickerError: '',
+  gitError: '',
+  gitRetry: null,
+  commitFiles: null,
+  gitProgress: '',
+  branchLoading: false,
+  branchRequest: 0,
   sessions: [],
   catalogSessions: null,
   heldSession: null,
@@ -256,6 +273,7 @@ const state = {
   gitDialog: '',
   pickerSheet: '',
   gitConfirmAction: '',
+  gitConfirmExtra: {},
   branches: [],
   branchQuery: '',
   newBranchName: '',
@@ -263,6 +281,7 @@ const state = {
   commitOnNewBranch: false,
   pendingStacked: '',
   publishName: '',
+  publishRemoteUrl: '',
   publishVisibility: 'private',
   expandedWorkspaces: {},
   wsTab: 'changes',
@@ -286,6 +305,109 @@ let torchOn = false;
 let toastTimer = 0;
 let historyPollTimer = 0;
 let muxUnsub = null;
+
+let navigationQueued = false;
+let lastSurfaceKey = '';
+const focusScope = createFocusScope(document);
+const composerBehavior = installComposerBehavior({ document, composer, input: draft, readingArea: logEl });
+let fileSelectionOwner = null;
+const settingsScroll = new Map();
+const navigation = createNavigation({
+  history: window.history,
+  listen: (handler) => window.addEventListener('popstate', handler),
+  hasSurface: () => backTarget(state) !== 'root',
+  getSurfaceKey: () => `${state.sessionEpoch}:${surfaceIdentity()}`,
+  canTrack: () => !hasOfferFragment(location.hash),
+  isBlocked: navigationBusy,
+  onBack: backOneSurface,
+});
+window.__dshdNavigation = Object.freeze({ back: () => navigation.back() });
+
+function navigationBusy() {
+  const target = backTarget(state);
+  if (['sessionConfirm', 'workspaceRename', 'folderCreate', 'sessionRename'].includes(target)) return Boolean(state[target]?.busy);
+  return (target === 'git' && state.gitBusy) || Boolean(state.newSession?.creating);
+}
+
+function backOneSurface() {
+  const target = backTarget(state);
+  if (target === 'lightbox') state.lightbox = null;
+  else if (['sessionConfirm', 'workspaceRename', 'folderCreate', 'sessionRename'].includes(target)) state[target] = null;
+  else if (target === 'git') {
+    state.gitError = '';
+    if (state.gitDialog === 'create-branch') state.gitDialog = state.gitConfirmAction ? 'confirm' : 'branch';
+    else {
+      state.gitDialog = state.gitDialog === 'menu' ? '' : 'menu';
+      state.gitConfirmAction = '';
+      state.gitConfirmExtra = {};
+    }
+  } else if (target === 'directory') updateNewSession({ step: 'workspace', loading: false, error: '' });
+  else if (target === 'newSession') state.newSession = null;
+  else if (target === 'history') state.history = null;
+  else if (target === 'picker') state.pickerSheet = '';
+  else if (target === 'attachment') state.attachOpen = false;
+  else if (target === 'settingsPane') state.settingsPane = '';
+  else if (target === 'settings') state.settingsOpen = false;
+  else if (target === 'drawer') setDrawerOpen(false);
+  else if (target === 'scan') { closeScan(); return; }
+  else if (target === 'sessionMenu' || target === 'workspaceMenu') state[target] = '';
+  renderSheet(); renderDialog(); renderLightbox(); renderScreen();
+  if (state.settingsOpen) renderSettings();
+}
+
+function scheduleNavigation() {
+  if (navigationQueued) return;
+  navigationQueued = true;
+  queueMicrotask(() => {
+    navigationQueued = false;
+    const active = lightboxRoot.firstElementChild || dialogRoot.firstElementChild || sheetRoot.firstElementChild
+      || (state.settingsOpen ? settings : state.drawerOpen ? el('drawer') : null);
+    for (const child of phone.children) {
+      child.inert = Boolean(active && child !== active && !child.contains(active));
+    }
+    if (active === el('drawer')) backdrop.inert = false;
+    if (!state.drawerOpen) el('drawer').inert = true;
+    const target = backTarget(state);
+    if (active?.querySelector('.surface-panel') && lastSurfaceKey === surfaceIdentity()) active.querySelector('.surface-panel').dataset.refreshed = '';
+    lastSurfaceKey = active ? surfaceIdentity() : '';
+    focusScope.sync(active, active ? surfaceIdentity() : '');
+    navigation.sync();
+  });
+}
+
+function surfaceIdentity() {
+  return `${backTarget(state)}:${state.gitDialog}:${state.settingsPane}:${state.pickerSheet}:${state.newSession?.step || ''}`;
+}
+
+function preserveSurfaceInput(root) {
+  const identity = surfaceIdentity();
+  const active = document.activeElement;
+  const editing = root.contains(active) && active.matches('input:not([type=checkbox]),textarea');
+  const focused = root.contains(active);
+  const label = focused ? active.getAttribute('aria-label') : null;
+  const text = focused ? active.textContent : '';
+  const placeholder = editing ? active.getAttribute('placeholder') : null;
+  const selection = editing ? [active.selectionStart, active.selectionEnd] : null;
+  const scroll = root.querySelector('.surface-content')?.scrollTop || 0;
+  queueMicrotask(() => {
+    if (surfaceIdentity() !== identity) return;
+    const content = root.querySelector('.surface-content');
+    if (content) content.scrollTop = scroll;
+    if (!focused || active.isConnected) return;
+    const next = editing
+      ? [...root.querySelectorAll('input,textarea')].find((node) => node.getAttribute('placeholder') === placeholder)
+      : [...(root.querySelector('.surface-panel') || root).querySelectorAll('button,[tabindex]')].find((node) => node.tabIndex >= 0 && !node.disabled && node.getAttribute('aria-label') === label && node.textContent === text) || root.querySelector('.surface-title');
+    if (!next || next.disabled || next.closest('[inert]')) return;
+    next.focus({ preventScroll: true });
+    if (selection && selection[0] !== null) next.setSelectionRange(...selection);
+  });
+}
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && backTarget(state) !== 'root') {
+    event.preventDefault(); navigation.back();
+  }
+});
 
 function applyAppearance() {
   const dark = schemeIsDark(store.scheme, darkQuery.matches);
@@ -430,6 +552,7 @@ function openPullRequest() {
 }
 
 function renderScreen() {
+  scheduleNavigation();
   const name = visibleScreen(state);
   if (name === 'connect') renderSavedComputers();
   screenConnect.classList.toggle('hidden', name !== 'connect');
@@ -453,7 +576,8 @@ function promoteHeldLive() {
 function syncRunning() {
   state.running = currentRow()?.running === true;
   runFlag.classList.toggle('hidden', !state.running);
-  sendBtn.classList.toggle('hidden', state.running);
+  sendBtn.classList.remove('hidden');
+  sendBtn.setAttribute('aria-label', state.running ? '加入队列' : '发送消息');
   stopBtn.classList.toggle('hidden', !state.running);
   // Border beam on the composer capsule while the agent is thinking/streaming
   // (desktop InputBar `cardBeam`).
@@ -494,8 +618,9 @@ function currentReadOnlyReason() {
 }
 
 function renderComposer() {
+  composerBehavior.refresh();
   const canSend = Boolean(draft.value.trim()) || state.attachments.length > 0;
-  sendBtn.disabled = !canSend || composerOffline();
+  sendBtn.disabled = !canSend || composerOffline() || state.sendBusy;
   const accessLabel = currentModeState().currentLabel || '权限';
   accessChip.firstChild.textContent = accessLabel;
   accessChip.title = accessLabel;
@@ -554,9 +679,9 @@ function renderHeader() {
   const showPill = store.gitTitle && (state.gitStatus.refName != null || state.gitStatus.isRepo === false);
   gitPill.classList.toggle('hidden', !showPill);
   if (showPill) {
-    gitPill.textContent = state.gitStatus.refName != null
-      ? `${state.gitStatus.refName} · ${state.gitStatus.aheadCount}`
-      : 'Initialize Git';
+    const hasRef = state.gitStatus.refName != null;
+    gitPillLabel.textContent = hasRef ? state.gitStatus.refName : 'Initialize Git';
+    gitPillCount.textContent = hasRef && state.gitStatus.aheadCount > 0 ? `↑${state.gitStatus.aheadCount}` : '';
   }
   syncRunning();
 }
@@ -1412,6 +1537,7 @@ function renderApproval() {
   if (!pending) return;
   approvalTitle.textContent = pending.title || '需要审批';
   approvalCommand.textContent = pending.command || '';
+  el('approval-error').textContent = pending.error || '';
   const buttons = [];
   if (pending.legacy) {
     buttons.push(
@@ -1445,6 +1571,7 @@ function renderApproval() {
       }),
     );
   }
+  for (const button of buttons) button.disabled = Boolean(pending.responding);
   approvalActions.replaceChildren(...buttons);
 }
 
@@ -1771,6 +1898,16 @@ function forceLogout(message, { forget = true } = {}) {
   sockets?.close();
   sockets = null;
   state.connected = false;
+  state.sessionEpoch++;
+  state.sendBusy = false;
+  state.gitBusy = false;
+  state.gitRetry = null;
+  state.commitFiles = null;
+  state.pickerSheet = '';
+  state.attachOpen = false;
+  state.lightbox = null;
+  clearExclusiveDialogs();
+  setDrawerOpen(false);
   state.transport = '';
   state.chisacode = null;
   state.route = 'connect';
@@ -1785,6 +1922,7 @@ function forceLogout(message, { forget = true } = {}) {
   state.sessionMenu = '';
   state.sessionConfirm = null;
   state.sessionRename = null;
+  state.workspaceMenu = '';
   state.history = null;
   state.modelPane = null;
   state.modelBusy = false;
@@ -1807,6 +1945,7 @@ function forceLogout(message, { forget = true } = {}) {
   renderConnBanner();
   renderSheet();
   renderDialog();
+  renderLightbox();
   renderScreen();
   showError(message || '');
 }
@@ -2042,6 +2181,20 @@ async function connect(offerUrl) {
 }
 
 async function openSession(sessionId) {
+  state.sessionEpoch++;
+  state.sendBusy = false;
+  state.modelBusy = false;
+  state.gitRetry = null;
+  state.commitFiles = null;
+  state.gitError = '';
+  state.modeBusy = false;
+  state.modelPane = null;
+  state.modelCatalogRaw = null;
+  state.modelCatalog = { current: null, rows: [], failures: [] };
+  state.pickerSheet = '';
+  state.attachOpen = false;
+  clearExclusiveDialogs();
+  renderSheet(); renderDialog();
   const previousSessionId = state.sessionId;
   const restored = state.transport === 'chisacode'
     ? switchDraft({
@@ -2057,9 +2210,9 @@ async function openSession(sessionId) {
   if (state.catalogSessions) {
     applyHostCatalog({ sessions: state.catalogSessions, workspaces: state.workspaces });
   }
-  phone.removeAttribute('data-drawer');
-  backdrop.classList.add('hidden');
+  setDrawerOpen(false);
   draft.value = restored.text;
+  composerBehavior.reset();
   state.attachments = restored.attachments;
   state.timelinePage = { hasOlder: false, beforeSeq: null };
   state.timelineLoadingOlder = false;
@@ -2115,16 +2268,19 @@ function renderBlankHero() {
 
 async function loadSessionModels() {
   if (!state.sessionId || !state.chisacode?.client) return;
+  const owner = sessionOwner(state);
   try {
     const catalog = await hostCall(state.chisacode.client, 'session.models', {
       sessionId: state.sessionId,
     });
+    if (!owner.owns()) return;
     state.modelCatalogRaw = catalog;
     state.modelCatalog = flattenModels(catalog, currentModelSelectionProjection());
     renderComposer();
     if (state.settingsOpen && state.settingsPane === '模型') renderSettings();
     if (state.pickerSheet === 'model') renderSheet();
   } catch (error) {
+    if (!owner.owns()) return;
     showBanner(`读取模型失败：${error?.message || '电脑没有响应'}`);
   }
 }
@@ -2151,15 +2307,18 @@ function syncModelSelection() {
 
 function updateNewSession(patch) {
   if (!state.newSession) return;
-  state.newSession = { ...state.newSession, ...patch };
+  Object.assign(state.newSession, patch);
   renderSheet();
 }
 
 function startNewSessionChooser() {
+  state.pickerSheet = '';
+  state.history = null;
+  state.sessionMenu = '';
+  state.workspaceMenu = '';
   state.attachOpen = false;
   state.gitDialog = '';
-  phone.removeAttribute('data-drawer');
-  backdrop.classList.add('hidden');
+  setDrawerOpen(false);
   const { choices, noFolder } = workspaceChoices(state.workspaces);
   state.newSession = {
     step: 'workspace',
@@ -2204,22 +2363,53 @@ async function createWorkspaceSession(workspaceId, extra = {}) {
   }
 }
 
-async function chooseNewSessionWorkspace(workspace) {
+async function finishNewSession(owner, task, created) {
+  if (!owner.owns() || state.newSession !== task) return;
+  task.createdSessionId = created.sessionId;
+  await refreshHostCatalog();
+  if (!owner.owns() || state.newSession !== task) return;
+  state.newSession = null;
+  renderSheet(); renderSessions();
+  if (task.createdSessionId) await openSession(task.createdSessionId);
+}
+
+async function retryCreatedSession() {
+  const owner = sessionOwner(state);
+  const task = state.newSession;
+  if (!task?.createdSessionId || task.creating) return;
+  updateNewSession({ creating: true, loading: true, error: '' });
+  try { await finishNewSession(owner, task, { sessionId: task.createdSessionId }); }
+  catch (error) {
+    if (owner.owns() && state.newSession === task) updateNewSession({ creating: false, loading: false, error: error.message });
+  }
+}
+
+async function chooseNewSessionWorkspace(workspace, options = {}) {
   if (workspace?.browse) {
     await openDirectoryBrowse();
     return;
   }
-  state.newSession = null;
-  renderSheet();
-  // No folder: create in the Host scratch cwd so the desktop lists it as a
-  // no-directory task instead of dropping it as an unaccounted Session.
+  if (state.newSession?.creating) return;
+  const owner = sessionOwner(state);
+  updateNewSession({ creating: true, loading: true, error: '' });
+  const task = state.newSession;
   const extra = !workspace?.id && workspace?.cwd ? { cwd: workspace.cwd } : {};
-  await createWorkspaceSession(workspace?.id || '', extra);
+  try {
+    const created = await hostCall(owner.client, 'session.create', { ...(workspace?.id ? { workspaceId: workspace.id } : {}), ...extra, ...options });
+    await finishNewSession(owner, task, created);
+  } catch (error) {
+    if (!owner.owns() || state.newSession !== task) return;
+    updateNewSession({ creating: false, loading: false, error: error?.message || '无法创建会话' });
+  }
 }
 
 async function openDirectoryBrowse() {
   const client = state.chisacode?.client;
   if (!client) return;
+  if (state.newSession?.browse) {
+    updateNewSession({ step: 'browse', loading: false, error: '' });
+    return;
+  }
   updateNewSession({ step: 'browse', loading: true, error: '', browse: null });
   const session = state.newSession;
   const start = browseStartPath(state.workspaces);
@@ -2238,12 +2428,13 @@ async function browseDirectory(path) {
   if (!client || !state.newSession) return;
   updateNewSession({ loading: true, error: '' });
   const session = state.newSession;
+  const request = session.browseRequest = (session.browseRequest || 0) + 1;
   try {
     const listed = await hostCall(client, 'host.listDirectory', { path });
-    if (state.newSession !== session) return;
+    if (state.newSession !== session || session.browseRequest !== request) return;
     updateNewSession({ loading: false, browse: listed });
   } catch (error) {
-    if (state.newSession !== session) return;
+    if (state.newSession !== session || session.browseRequest !== request) return;
     updateNewSession({ loading: false, error: error?.message || '电脑没有响应' });
   }
 }
@@ -2251,20 +2442,20 @@ async function browseDirectory(path) {
 async function createBrowsedWorkspace() {
   const client = state.chisacode?.client;
   const path = state.newSession?.browse?.path;
-  if (!client || !path) return;
+  if (!client || !path || state.newSession.creating) return;
+  const owner = sessionOwner(state);
   updateNewSession({ loading: true, creating: true, error: '' });
   const active = state.newSession;
   try {
-    const created = await hostCall(client, 'workspace.create', { path });
-    const workspaceId = workspaceIdFromCreate(created);
+    const cachedWorkspaceId = active.createdWorkspacePath === path ? active.createdWorkspaceId : null;
+    const created = cachedWorkspaceId ? null : await hostCall(client, 'workspace.create', { path });
+    if (!owner.owns() || state.newSession !== active) return;
+    const workspaceId = cachedWorkspaceId || workspaceIdFromCreate(created);
     if (!workspaceId) throw new Error('工作区创建失败');
+    active.createdWorkspaceId = workspaceId;
+    active.createdWorkspacePath = path;
     const session = await hostCall(client, 'session.create', { workspaceId });
-    if (state.newSession !== active) return;
-    state.newSession = null;
-    renderSheet();
-    await refreshHostCatalog();
-    renderSessions();
-    if (session.sessionId) await openSession(session.sessionId);
+    await finishNewSession(owner, active, session);
   } catch (error) {
     if (state.newSession !== active) return;
     updateNewSession({ loading: false, creating: false, error: error?.message || '电脑没有响应' });
@@ -2507,8 +2698,7 @@ async function runSessionConfirm() {
 }
 
 function openHistorySheet() {
-  phone.removeAttribute('data-drawer');
-  backdrop.classList.add('hidden');
+  setDrawerOpen(false);
   state.history = {
     rows: state.archivedRows.slice(),
     nextCursor: null,
@@ -2564,13 +2754,16 @@ async function createSession() {
 }
 
 async function runHostCommand(line, images = []) {
+  const owner = sessionOwner(state);
   const value = await hostCall(
-    state.chisacode.client,
+    owner.client,
     'commands/execute',
-    commandExecutePayload(state.sessionId, line, images),
+    commandExecutePayload(owner.sessionId, line, images),
   );
   admitCommandResult(value, line);
-  const history = await hostCall(state.chisacode.client, 'session.history', historyQuery(state.sessionId));
+  if (!owner.owns()) return;
+  const history = await hostCall(owner.client, 'session.history', historyQuery(owner.sessionId));
+  if (!owner.owns()) return;
   applyHistoryPayload(history);
   renderLog();
   renderComposer();
@@ -2578,6 +2771,9 @@ async function runHostCommand(line, images = []) {
 }
 
 async function sendPrompt() {
+  if (state.sendBusy) return;
+  const owner = sessionOwner(state);
+  const submittedText = draft.value;
   const text = draft.value.trim();
   const images = state.attachments.slice();
   if (!state.sessionId || (!text && !images.length)) return;
@@ -2591,13 +2787,14 @@ async function sendPrompt() {
     return;
   }
   if (isSlashSubmitLine(text)) {
-    await runHostCommand(text, images);
-    draft.value = '';
-    draftStore?.clear(state.sessionId);
-    state.attachments = [];
+    state.sendBusy = true;
     renderComposer();
-    renderSlashPop();
-    renderHeader();
+    try {
+      await runHostCommand(text, images);
+      if (owner.owns()) finishSubmittedDraft(submittedText, images);
+    } finally {
+      if (owner.owns()) { state.sendBusy = false; renderComposer(); }
+    }
     return;
   }
   const guard = attachmentGuard({ current: currentModelState().current, attachments: images });
@@ -2610,10 +2807,15 @@ async function sendPrompt() {
   for (const image of images) {
     blocks.push({ type: 'image', mediaType: image.mediaType, data: image.data });
   }
-  await call('session.prompt', { sessionId: state.sessionId, ...promptPayload(blocks) });
-  draft.value = '';
-  draftStore?.clear(state.sessionId);
-  state.attachments = [];
+  state.sendBusy = true;
+  renderComposer();
+  try {
+    await call('session.prompt', { sessionId: owner.sessionId, ...promptPayload(blocks) });
+  } finally {
+    if (owner.owns()) { state.sendBusy = false; renderComposer(); }
+  }
+  if (!owner.owns()) return;
+  finishSubmittedDraft(submittedText, images);
   const row = currentRow();
   if (row) {
     row.running = true;
@@ -2629,6 +2831,14 @@ async function sendPrompt() {
   renderHeader();
 }
 
+function finishSubmittedDraft(submittedText, images) {
+  if (draft.value === submittedText) draft.value = '';
+  state.attachments = state.attachments.filter((image) => !images.includes(image));
+  draftStore?.save(state.sessionId, draft.value);
+  draftStore?.saveAttachments(state.sessionId, state.attachments);
+  renderComposer(); renderSlashPop(); renderHeader();
+}
+
 async function cancelRun() {
   if (!state.sessionId) return;
   try {
@@ -2639,30 +2849,39 @@ async function cancelRun() {
 }
 
 async function respondToPendingApproval(pending, response) {
+  if (pending.responding) return;
+  const owner = sessionOwner(state);
+  pending.responding = true;
+  pending.error = '';
+  renderApproval();
   const outcome = response?.selectedActionId === 'rejected'
     || response?.behavior === 'deny'
     ? 'rejected'
     : (pending.actions?.find((action) => action.id === response?.selectedActionId)?.outcome || 'allowed-once');
-  const client = state.chisacode.client;
-  // Dismiss first: host may settle before the E2EE respond ack arrives.
-  clearApproval(pending.rpcId);
-  clearApproval(pending.approvalId);
-  const result = await deliverApprovalRespond({
+  const client = owner.client;
+  try {
+    const result = await deliverApprovalRespond({
     hostCall,
     client,
     pending: {
       ...pending,
-      sessionId: pending.sessionId || state.sessionId,
+      sessionId: pending.sessionId || owner.sessionId,
     },
     outcome,
     loadHistory: (sessionId) => hostCall(client, 'session.history', historyQuery(sessionId)),
-  });
-  if (result.ok) return;
-  if (!state.pendingApprovals.some((item) => item.rpcId === pending.rpcId || item.approvalId === pending.approvalId)) {
-    state.pendingApprovals = [...state.pendingApprovals, pending];
-    renderApproval();
+    });
+    if (!owner.owns()) return;
+    if (result.ok) {
+      clearApproval(pending.rpcId); clearApproval(pending.approvalId);
+    } else {
+      pending.error = result.error?.message || '审批未能送达电脑';
+    }
+  } catch (error) {
+    if (owner.owns()) pending.error = error?.message || '审批未能送达电脑';
+  } finally {
+    pending.responding = false;
+    if (owner.owns()) renderApproval();
   }
-  showBanner(result.error?.message || '审批未能送达电脑');
 }
 
 async function answerLegacyApproval(outcome) {
@@ -2928,11 +3147,15 @@ async function attachmentFromFile(file) {
   return compressImage(file);
 }
 
-async function addFiles(fileList) {
+async function addFiles(fileList, owner = sessionOwner(state)) {
+  if (!owner.owns()) return;
   for (const file of Array.from(fileList || [])) {
     try {
-      state.attachments.push(await attachmentFromFile(file));
+      const attachment = await attachmentFromFile(file);
+      if (!owner.owns()) return;
+      state.attachments.push(attachment);
     } catch (error) {
+      if (!owner.owns()) return;
       showBanner(error.message || '无法读取图片');
     }
   }
@@ -3001,54 +3224,84 @@ function setToast(message) {
 }
 
 async function gitAction(name, extra = {}) {
-  if (!state.cwd) return;
+  if (!state.cwd || state.gitBusy) return false;
+  const owner = sessionOwner(state);
+  const cwd = state.cwd;
+  const retry = extra.retry === true ? state.gitRetry : null;
+  if (retry && (retry.cwd !== cwd || retry.client !== owner.client)) return;
   state.gitBusy = true;
+  state.gitError = '';
   renderToast();
   renderSettings();
+  renderDialog();
+  let stacked = '';
+  let payload;
+  let succeeded = false;
   try {
     const action = gitTunnelAction(name);
-    const stacked = extra.stacked || state.pendingStacked || '';
-    const payload = action === 'git-commit'
+    stacked = retry?.action || extra.stacked || (action === 'git-commit' ? state.pendingStacked || 'commit' : '');
+    payload = retry?.payload || (action === 'git-commit'
       ? gitCommitPayload({
         message: extra.message || state.commitMessage,
-        filePaths: extra.filePaths,
+        filePaths: extra.filePaths || (state.commitFiles?.entries.length ? [...state.commitFiles.selected] : undefined),
         featureBranch: extra.featureBranch === true || state.commitOnNewBranch,
       })
-      : extra;
-    if (action === 'git-commit' && stacked && stacked !== 'commit') {
+      : extra);
+    if (stacked && stacked !== 'commit') {
       await runStackedGit(
         (step, body) => gitCall(
-          state.chisacode.client,
+          owner.client,
           step,
-          state.cwd,
-          step === 'git-commit' ? payload : body || {},
+          cwd,
+          step === 'git-commit' ? payload : step === 'git-create-branch' ? { name: payload.name } : body || {},
         ),
         stacked,
-        extra,
+        {},
+        { completed: retry?.completed || [], onProgress: (step) => {
+          if (owner.owns()) { state.gitProgress = step.replace('git-', ''); renderToast(); }
+        } },
       );
-      state.pendingStacked = '';
     } else {
-      await gitCall(state.chisacode.client, action, state.cwd, payload);
+      await gitCall(owner.client, action, cwd, payload);
     }
+    if (!owner.owns()) return;
+    state.pendingStacked = '';
+    state.gitRetry = null;
+    state.gitProgress = '';
+    state.commitFiles = null;
     state.gitDialog = '';
     state.gitConfirmAction = '';
+    state.gitConfirmExtra = {};
     state.commitOnNewBranch = false;
     renderSheet();
     renderDialog();
     state.gitBusy = false;
     setToast('完成');
+    succeeded = true;
     await refreshGit();
   } catch (error) {
+    if (!owner.owns()) return;
     state.gitBusy = false;
-    setToast(error.message || 'Git 失败');
+    state.gitProgress = '';
+    state.gitError = error.message || 'Git 失败';
+    if (error.completedSteps?.length) {
+      state.gitRetry = { action: stacked, completed: error.completedSteps, payload, cwd, client: owner.client };
+      state.gitError = `已完成 ${error.completedSteps.map((step) => step.replace('git-', '')).join('、')}；${state.gitError}`;
+    }
+    setToast(state.gitError);
   }
+  if (!owner.owns()) return;
+  renderSheet(); renderDialog();
   renderToast();
   renderSettings();
+  return succeeded;
 }
 
 function maybeConfirm(name, extra = {}) {
+  if (name === 'gitCreateChangeRequest') extra = { stacked: 'create_pr', ...extra };
   if (state.gitStatus.isDefaultRef && (name === 'gitPush' || name === 'gitCreateChangeRequest')) {
     state.gitConfirmAction = name;
+    state.gitConfirmExtra = extra;
     state.gitDialog = 'confirm';
     renderSheet();
     renderDialog();
@@ -3082,7 +3335,7 @@ function runGitPrimary() {
     return;
   }
   if (quick.action === 'create_pr') {
-    maybeConfirm('gitCreateChangeRequest');
+    maybeConfirm('gitCreateChangeRequest', { stacked: 'create_pr' });
     return;
   }
   if (quick.kind === 'open_publish') {
@@ -3100,14 +3353,23 @@ function runGitPrimary() {
 
 async function loadBranches() {
   if (!state.cwd) return;
+  const owner = sessionOwner(state);
+  const request = ++state.branchRequest;
+  state.gitDialog = 'branch';
+  state.branchLoading = true;
+  state.gitError = '';
+  renderSheet();
   try {
-    const result = await gitCall(state.chisacode.client, 'git-branch-list', state.cwd, {});
+    const result = await gitCall(owner.client, 'git-branch-list', state.cwd, {});
+    if (!owner.owns() || request !== state.branchRequest || state.gitDialog !== 'branch') return;
     state.branches = parseBranchList(result);
-    state.branchQuery = '';
-    state.gitDialog = 'branch';
+    state.branchLoading = false;
     renderSheet();
   } catch (error) {
-    setToast(error.message || '无法列出分支');
+    if (!owner.owns() || request !== state.branchRequest || state.gitDialog !== 'branch') return;
+    state.branchLoading = false;
+    state.gitError = error.message || '无法列出分支';
+    renderSheet();
   }
 }
 
@@ -3115,11 +3377,33 @@ function switchBranch(ref) {
   gitAction('gitSwitchBranch', { ref });
 }
 
-function createBranch() {
+async function createBranch() {
+  if (state.gitRetry?.action.startsWith('create_branch_')) {
+    await gitAction('gitCreateBranch', { retry: true });
+    return;
+  }
   const name = state.newBranchName.trim();
   if (!name) return;
-  gitAction('gitCreateBranch', { name });
-  state.newBranchName = '';
+  const continuation = state.gitConfirmAction;
+  const stacked = continuation === 'gitCreateChangeRequest' ? 'create_branch_pr' : continuation === 'gitPush' ? 'create_branch_push' : '';
+  await gitAction('gitCreateBranch', { name, ...(stacked ? { stacked } : {}) });
+}
+
+async function loadCommitFiles() {
+  const owner = sessionOwner(state);
+  const files = { entries: [], selected: new Set(), loading: true, error: '' };
+  state.commitFiles = files;
+  try {
+    const result = await gitCall(owner.client, 'git-status-entries', state.cwd, {});
+    if (!owner.owns() || state.commitFiles !== files) return;
+    files.entries = result?.entries || [];
+    files.selected = new Set(files.entries.map((entry) => entry.path));
+  } catch (error) {
+    if (!owner.owns() || state.commitFiles !== files) return;
+    files.error = error.message || '读取更改失败';
+  }
+  files.loading = false;
+  if (state.gitDialog === 'commit') renderDialog();
 }
 
 /** Legacy HTTP-host flat root listing. The chisacode path uses the Files work loop. */
@@ -3424,11 +3708,20 @@ async function logoutDevice() {
 // —— 设置 overlay（M4 Hub 钻取 + M5 工作区/文件 pane）—— //
 
 function openSettings(pane = '') {
+  if (navigationBusy()) return;
+  state.pickerSheet = '';
+  state.attachOpen = false;
+  state.newSession = null;
+  state.history = null;
+  state.sessionMenu = '';
+  state.workspaceMenu = '';
+  state.gitDialog = '';
+  clearExclusiveDialogs();
+  renderSheet(); renderDialog();
   state.settingsOpen = true;
   state.settingsPane = pane;
   if (pane === '模型') state.modelPane = null;
-  phone.removeAttribute('data-drawer');
-  backdrop.classList.add('hidden');
+  setDrawerOpen(false);
   renderSettings();
   renderScreen();
 }
@@ -3962,6 +4255,8 @@ function renderExtensionsPane(kind) {
 
 async function changeAgentMode(modeId) {
   if (!state.sessionId || state.modeBusy) return;
+  const owner = sessionOwner(state);
+  state.pickerError = '';
   const before = state.permission.current;
   if (before === modeId) return;
   state.modeBusy = true;
@@ -3970,14 +4265,19 @@ async function changeAgentMode(modeId) {
   renderSettings();
   try {
     await runHostCommand(permissionCommand(modeId));
+    if (!owner.owns()) return;
     showBanner('');
   } catch (error) {
+    if (!owner.owns()) return;
     state.permission = { ...state.permission, current: before, planOn: before === 'plan' };
+    state.pickerError = error?.message || '切换权限失败';
     showBanner(`切换权限模式失败：${error?.message || '电脑没有响应'}`);
   } finally {
+    if (!owner.owns()) return;
     state.modeBusy = false;
     renderComposer();
     renderSettings();
+    if (state.pickerSheet === 'mode') renderSheet();
   }
 }
 
@@ -4014,6 +4314,8 @@ function renderModePane() {
 
 async function changeAgentModel(provider, model, reasoningEffort) {
   if (!state.sessionId || state.modelBusy) return;
+  const owner = sessionOwner(state);
+  state.pickerError = '';
   const before = state.modelCatalog.current;
   state.modelBusy = true;
   state.modelCatalog = {
@@ -4023,21 +4325,25 @@ async function changeAgentModel(provider, model, reasoningEffort) {
   renderComposer();
   renderSettings();
   try {
-    const selected = await hostCall(state.chisacode.client, 'session.selectModel', {
-      sessionId: state.sessionId,
+    const selected = await hostCall(owner.client, 'session.selectModel', {
+      sessionId: owner.sessionId,
       provider,
       model,
       ...(reasoningEffort ? { reasoningEffort } : {}),
     });
+    if (!owner.owns()) return;
     state.modelCatalog = {
       ...state.modelCatalog,
       current: selected?.selected || { provider, model, reasoningEffort },
     };
     showBanner('');
   } catch (error) {
+    if (!owner.owns()) return;
     state.modelCatalog = { ...state.modelCatalog, current: before };
+    state.pickerError = error?.message || '切换模型失败';
     showBanner(`切换模型失败：${error?.message || '电脑没有响应'}`);
   } finally {
+    if (!owner.owns()) return;
     state.modelBusy = false;
     renderComposer();
     renderSettings();
@@ -4047,11 +4353,12 @@ async function changeAgentModel(provider, model, reasoningEffort) {
 
 function loadModelPane() {
   if (!state.sessionId) return;
+  const owner = sessionOwner(state);
   const pane = { loading: true, error: '', rows: [] };
   state.modelPane = pane;
   hostCall(state.chisacode.client, 'session.models', { sessionId: state.sessionId })
     .then((catalog) => {
-      if (state.modelPane !== pane) return;
+      if (state.modelPane !== pane || !owner.owns()) return;
       state.modelCatalogRaw = catalog;
       state.modelCatalog = flattenModels(catalog, currentModelSelectionProjection());
       state.modelPane = { loading: false, error: '', rows: state.modelCatalog.rows };
@@ -4059,7 +4366,7 @@ function loadModelPane() {
       if (state.pickerSheet === 'model') renderSheet();
     })
     .catch((error) => {
-      if (state.modelPane !== pane) return;
+      if (state.modelPane !== pane || !owner.owns()) return;
       state.modelPane = { loading: false, error: error?.message || '电脑没有响应', rows: [] };
       renderSettings();
       if (state.pickerSheet === 'model') renderSheet();
@@ -4207,6 +4514,9 @@ function renderHostRequestPane(pane) {
 
 
 function renderSettings() {
+  scheduleNavigation();
+  const savedScroll = settingsScroll.get(state.settingsPane) || 0;
+  queueMicrotask(() => { options.scrollTop = savedScroll; });
   if (!state.settingsOpen) return;
   const pane = state.settingsPane;
   settingsTitle.textContent = pane || '设置';
@@ -4327,26 +4637,26 @@ function sheetItem({ label, hint = '', enabled = true, onClick }) {
 }
 
 function sheetLayer(title, closeSheet) {
-  const layer = document.createElement('div');
-  layer.className = 'sheet-layer';
-  const mask = document.createElement('button');
-  mask.type = 'button';
-  mask.className = 'sheet-mask';
-  mask.setAttribute('aria-label', '关闭');
-  mask.addEventListener('click', closeSheet);
-  const sheet = document.createElement('div');
-  sheet.className = 'sheet';
-  const heading = document.createElement('p');
-  heading.className = 'sheet-title';
-  heading.textContent = title;
-  sheet.append(heading);
-  layer.append(mask, sheet);
-  return { layer, sheet };
+  const task = Boolean(state.newSession || state.history || state.gitDialog === 'branch');
+  const anchor = state.pickerSheet ? 'composer' : state.gitDialog === 'menu' ? 'header' : 'viewport';
+  const result = createSurface(document, {
+    title, task, variant: task ? 'task' : 'menu', anchor,
+    onClose: () => { if (!navigationBusy()) closeSheet(); },
+    onBack: task ? () => navigation.back() : null,
+  });
+  result.panel.setAttribute('aria-label', title);
+  if (state.gitDialog && state.gitError) {
+    result.content.append(descNode(state.gitError, 'error'));
+    result.content.append(ghostButton('复制错误', copyGitError));
+  }
+  return { layer: result.layer, sheet: result.content };
 }
 
 function closeGitLayer() {
+  if (state.gitBusy) return;
   state.gitDialog = '';
   state.gitConfirmAction = '';
+  state.gitConfirmExtra = {};
   renderSheet();
   renderDialog();
 }
@@ -4362,13 +4672,6 @@ function renderNewSessionSheet() {
     state.newSession = null;
     renderSheet();
   });
-  if (session.step === 'browse') {
-    sheet.append(sheetItem({
-      label: '‹ 返回',
-      enabled: !session.loading,
-      onClick: () => startNewSessionChooser(),
-    }));
-  }
   if (session.error) {
     const error = document.createElement('p');
     error.className = 'sheet-note sheet-error';
@@ -4383,16 +4686,17 @@ function renderNewSessionSheet() {
     sheetRoot.append(layer);
     return;
   }
+  if (session.createdSessionId) {
+    sheet.append(primaryButton('打开已创建会话', retryCreatedSession));
+    sheetRoot.append(layer);
+    return;
+  }
   if (session.step === 'workspace') {
     for (const preset of session.presets || []) {
       sheet.append(sheetItem({
         label: `预设 · ${preset.name}`,
         hint: '用此智能体预设开新会话',
-        onClick: () => {
-          state.newSession = null;
-          renderSheet();
-          void createWorkspaceSession('', { agentPreset: preset.id });
-        },
+        onClick: () => chooseNewSessionWorkspace(null, { agentPreset: preset.id }),
       }));
     }
     for (const workspace of session.workspaces) {
@@ -4421,15 +4725,10 @@ function renderNewSessionSheet() {
         onClick: () => browseDirectory(entry.path),
       }));
     }
-    sheet.append(sheetItem({
-      label: '新建文件夹',
-      onClick: () => startFolderCreate(),
-    }));
-    sheet.append(sheetItem({
-      label: '使用此目录作为工作区',
-      hint: browse.path,
-      onClick: () => createBrowsedWorkspace(),
-    }));
+    const actions = document.createElement('footer');
+    actions.className = 'task-actions';
+    actions.append(ghostButton('新建文件夹', startFolderCreate), primaryButton('使用此目录作为工作区', createBrowsedWorkspace));
+    sheet.parentElement.append(actions);
   }
   sheetRoot.append(layer);
 }
@@ -4537,7 +4836,7 @@ function pickerRow({ label, hint = '', current = false, enabled = true, onClick 
   if (current) {
     const mark = document.createElement('span');
     mark.className = 'mode-current';
-    mark.textContent = '当前';
+    mark.textContent = '✓';
     button.append(mark);
   }
   if (enabled) button.addEventListener('click', onClick);
@@ -4560,15 +4859,11 @@ function renderModePickerSheet() {
       current: mode.id === currentModeId,
       enabled: !state.modeBusy,
       onClick: () => {
-        closePicker();
         changeAgentMode(mode.id);
       },
     }));
   }
-  const note = document.createElement('p');
-  note.className = 'sheet-note';
-  note.textContent = '切换会发送 /permission <id>，失败会回滚。';
-  sheet.append(note);
+  if (state.pickerError) sheet.append(descNode(state.pickerError, 'error'));
   sheetRoot.append(layer);
 }
 
@@ -4578,6 +4873,60 @@ function renderModelPickerSheet() {
   if (!state.modelPane) loadModelPane();
   const pane = state.modelPane;
   const { current, rows } = state.modelCatalog;
+  const controls = document.createElement('div');
+  controls.className = 'picker-controls';
+  controls.append(descNode(modelChipLabel(current, rows), 'model-current'));
+  const searchInput = fieldInput(state.modelQuery, '搜索模型或提供方', (value) => {
+    state.modelQuery = value;
+    renderRows();
+  });
+  searchInput.setAttribute('aria-label', '搜索模型');
+  searchInput.classList.add('model-search');
+  controls.append(searchInput);
+  const efforts = effortsFor(current, rows);
+  if (efforts.length) {
+    const segment = document.createElement('div');
+    segment.className = 'effort-segment';
+    segment.setAttribute('aria-label', '思考强度');
+    for (const effort of efforts) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'effort-option';
+      button.disabled = state.modelBusy;
+      button.setAttribute('aria-pressed', String(current?.reasoningEffort === effort.id));
+      button.textContent = effort.name || effort.id;
+      button.addEventListener('click', () => {
+        if (current) changeAgentModel(current.provider, current.model, effort.id);
+      });
+      segment.append(button);
+    }
+    controls.append(segment);
+  }
+  if (state.pickerError) controls.append(descNode(state.pickerError, 'error'));
+  sheet.parentElement.insertBefore(controls, sheet);
+  const list = document.createElement('div');
+  list.className = 'model-results';
+  function renderRows() {
+    list.replaceChildren();
+    const query = state.modelQuery.trim().toLocaleLowerCase();
+    const matches = rows.filter((row) => !query || `${row.name} ${row.id} ${row.providerName}`.toLocaleLowerCase().includes(query));
+    let provider = null;
+    for (const row of matches) {
+      if (row.providerName !== provider) {
+        provider = row.providerName;
+        list.append(descNode(provider || '模型', 'sheet-title sheet-group'));
+      }
+      const routable = isRoutable(row);
+      list.append(pickerRow({
+        label: row.name,
+        hint: !routable ? '尚未配置，请在电脑端配置此模型' : (row.reasoning ? '可调整思考强度' : ''),
+        current: current?.provider === row.provider && current?.model === row.id,
+        enabled: !state.modelBusy && routable,
+        onClick: () => changeAgentModel(row.provider, row.id),
+      }));
+    }
+    if (!matches.length && !pane?.loading) list.append(descNode('没有匹配的模型', 'sheet-note'));
+  }
   if (pane?.loading && !rows.length) {
     const note = document.createElement('p');
     note.className = 'sheet-note';
@@ -4589,50 +4938,8 @@ function renderModelPickerSheet() {
     note.textContent = `读取模型失败：${pane.error}`;
     sheet.append(note, sheetItem({ label: '重试', onClick: () => { loadModelPane(); renderSheet(); } }));
   } else {
-    let provider = null;
-    for (const row of rows) {
-      if (row.providerName !== provider) {
-        provider = row.providerName;
-        const group = document.createElement('p');
-        group.className = 'sheet-title sheet-group';
-        group.textContent = provider || '模型';
-        sheet.append(group);
-      }
-      const routable = isRoutable(row);
-      sheet.append(pickerRow({
-        label: row.name,
-        hint: !routable
-          ? '未配置 API Key，请在电脑端 设置 → 模型 里填写'
-          : (row.reasoning ? '含思考档' : ''),
-        current: current?.provider === row.provider && current?.model === row.id,
-        enabled: !state.modelBusy && routable,
-        onClick: () => {
-          closePicker();
-          changeAgentModel(row.provider, row.id);
-        },
-      }));
-    }
-    const efforts = effortsFor(current, rows);
-    if (efforts.length) {
-      const group = document.createElement('p');
-      group.className = 'sheet-title sheet-group';
-      group.textContent = '思考强度';
-      sheet.append(group);
-      const segment = document.createElement('div');
-      segment.className = 'effort-segment';
-      for (const effort of efforts) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'effort-option';
-        button.setAttribute('aria-pressed', String(current?.reasoningEffort === effort.id));
-        button.textContent = effort.name || effort.id;
-        button.addEventListener('click', () => {
-          if (current) changeAgentModel(current.provider, current.model, effort.id);
-        });
-        segment.append(button);
-      }
-      sheet.append(segment);
-    }
+    renderRows();
+    sheet.append(list);
   }
   sheetRoot.append(layer);
 }
@@ -4643,6 +4950,14 @@ function openPicker(kind) {
     return;
   }
   if (currentReadOnlyReason()) return;
+  if (navigationBusy()) return;
+  state.newSession = null;
+  state.history = null;
+  state.sessionMenu = '';
+  state.workspaceMenu = '';
+  state.pickerError = '';
+  state.modelQuery = '';
+  setDrawerOpen(false);
   clearExclusiveDialogs();
   state.attachOpen = false;
   state.gitDialog = '';
@@ -4651,6 +4966,8 @@ function openPicker(kind) {
 }
 
 function renderSheet() {
+  scheduleNavigation();
+  preserveSurfaceInput(sheetRoot);
   sheetRoot.replaceChildren();
   if (state.newSession) {
     renderNewSessionSheet();
@@ -4750,19 +5067,19 @@ function renderSheet() {
       sheet.append(divider);
     }
     sheet.append(
-      sheetItem({ label: 'Fetch', enabled: !state.gitBusy, onClick: () => gitAction('gitFetchForStatus') }),
+      sheetItem({ label: state.gitRetry ? '继续未完成操作' : quick.label, enabled: !state.gitBusy && (!quick.disabled || Boolean(state.gitRetry)), onClick: () => state.gitRetry ? gitAction('gitCommit', { retry: true }) : runGitPrimary() }),
       sheetItem({ label: 'Pull', enabled: !state.gitBusy, onClick: () => gitAction('gitPull') }),
       sheetItem({
         label: 'Commit',
         enabled: !state.gitBusy && status.hasWorkingTreeChanges,
         hint: status.hasWorkingTreeChanges ? '' : '工作区是干净的。请先改文件再提交。',
-        onClick: () => { state.gitDialog = 'commit'; renderSheet(); renderDialog(); },
+        onClick: () => { state.pendingStacked = 'commit'; state.gitDialog = 'commit'; renderSheet(); renderDialog(); },
       }),
       sheetItem({
         label: 'Push',
         enabled: !state.gitBusy && status.aheadCount > 0 && !status.hasWorkingTreeChanges && status.behindCount === 0,
         hint: status.hasWorkingTreeChanges ? '请先提交或贮藏本地改动再推送。' : '',
-        onClick: () => { state.gitDialog = ''; renderSheet(); maybeConfirm('gitPush'); },
+        onClick: () => maybeConfirm('gitPush'),
       }),
       sheetItem({
         label: hasOpenPr ? 'View PR' : 'Create PR',
@@ -4772,8 +5089,6 @@ function renderSheet() {
             closeGitLayer();
             openPullRequest();
           } else {
-            state.gitDialog = '';
-            renderSheet();
             maybeConfirm('gitCreateChangeRequest');
           }
         },
@@ -4807,6 +5122,10 @@ function renderSheet() {
   }
   if (state.gitDialog === 'branch') {
     const { layer, sheet } = sheetLayer('切换分支', closeGitLayer);
+    if (state.branchLoading) {
+      sheet.append(descNode('正在读取分支…', 'sheet-note')); sheetRoot.append(layer); return;
+    }
+    if (state.gitError) sheet.append(ghostButton('重试', loadBranches));
     const list = document.createElement('div');
     const renderRows = () => {
       const query = state.branchQuery.trim();
@@ -4823,7 +5142,7 @@ function renderSheet() {
         const switchable = branch.switchable !== false;
         nodes.push(sheetItem({
           label: branch.name,
-          enabled: !current && switchable,
+          enabled: !state.gitBusy && !current && switchable,
           hint: !switchable
             ? '名称含桌面无法安全传给 git 的字符'
             : (branch.isRemote ? '远程' : current ? '当前' : ''),
@@ -4855,31 +5174,42 @@ function renderSheet() {
 }
 
 function dialogLayer(compact, onClose = closeGitLayer) {
-  const layer = document.createElement('div');
-  layer.className = 'dialog-layer';
-  if (compact) layer.dataset.compact = '';
-  const mask = document.createElement('button');
-  mask.type = 'button';
-  mask.className = 'dialog-mask';
-  mask.setAttribute('aria-label', '关闭');
-  mask.addEventListener('click', onClose);
-  const dialog = document.createElement('div');
-  dialog.className = 'dialog';
-  layer.append(mask, dialog);
-  return { layer, dialog };
+  const task = !compact;
+  const result = createSurface(document, {
+    task, variant: task ? 'task' : 'modal', family: 'dialog',
+    onClose: () => { if (!navigationBusy()) onClose(); },
+    onBack: task ? () => navigation.back() : null,
+  });
+  return { layer: result.layer, dialog: result.content };
 }
 
 function dialogHead(dialog, title, lead) {
-  const heading = document.createElement('h3');
-  heading.textContent = title;
-  dialog.append(heading, descNode(lead, 'lead'));
+  dialog.parentElement.querySelector('.surface-title').textContent = title;
+  dialog.parentElement.setAttribute('aria-label', title);
+  if (lead) dialog.append(descNode(lead, 'lead'));
+  if (state.gitError && state.gitDialog) dialog.append(descNode(state.gitError, 'error'), ghostButton('复制错误', copyGitError));
+}
+
+async function copyGitError() {
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(state.gitError);
+    else {
+      const field = document.createElement('textarea');
+      field.value = state.gitError;
+      const parent = dialogRoot.querySelector('.surface-content') || sheetRoot.querySelector('.surface-content') || phone;
+      parent.append(field); field.select();
+      const copied = document.execCommand('copy'); field.remove();
+      if (!copied) throw new Error('请选择错误文字复制');
+    }
+    setToast('已复制');
+  } catch { setToast('无法访问剪贴板，请选择错误文字复制'); }
 }
 
 function dialogFoot(dialog, buttons) {
   const foot = document.createElement('div');
   foot.className = 'dialog-foot';
   foot.append(...buttons);
-  dialog.append(foot);
+  dialog.parentElement.append(foot);
 }
 
 function renderNamedDialog({ title, hint, field, placeholder, busyLabel, saveLabel, error, busy, onClose, onSave }) {
@@ -5024,6 +5354,8 @@ function renderSessionConfirmDialog() {
 }
 
 function renderDialog() {
+  scheduleNavigation();
+  preserveSurfaceInput(dialogRoot);
   dialogRoot.replaceChildren();
   if (state.sessionConfirm) {
     renderSessionConfirmDialog();
@@ -5044,6 +5376,7 @@ function renderDialog() {
   const kind = state.gitDialog;
   if (kind !== 'commit' && kind !== 'create-branch' && kind !== 'confirm' && kind !== 'publish') return;
   if (kind === 'commit') {
+    if (!state.commitFiles) void loadCommitFiles();
     const { layer, dialog } = dialogLayer(false);
     dialogHead(dialog, '提交更改', '确认本次提交内容。提交信息留空将自动生成。');
     const body = document.createElement('div');
@@ -5067,23 +5400,45 @@ function renderDialog() {
     card.append(refRow, descNode(state.gitStatus.hasWorkingTreeChanges ? '有未提交更改' : '无'));
     body.append(card);
     body.append(descNode('提交信息（可选）', 'field-label'));
-    body.append(fieldInput(state.commitMessage, '留空则自动生成', (value) => {
+    const messageInput = fieldInput(state.commitMessage, '留空则自动生成', (value) => {
       state.commitMessage = value;
-    }));
+    });
+    messageInput.disabled = state.gitBusy || Boolean(state.gitRetry);
+    body.append(messageInput);
     const onBranch = document.createElement('label');
     onBranch.className = 'row-desc';
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = state.commitOnNewBranch;
+    check.disabled = state.gitBusy || Boolean(state.gitRetry);
     check.addEventListener('change', () => {
       state.commitOnNewBranch = check.checked;
     });
     onBranch.append(check, document.createTextNode(' Commit on new branch'));
     body.append(onBranch);
+    const files = state.commitFiles;
+    const submit = primaryButton(state.gitBusy ? '正在执行…' : state.gitRetry ? '继续未完成操作' : state.pendingStacked === 'commit_push_pr' ? 'Commit, push & PR' : state.pendingStacked === 'commit_push' ? 'Commit & push' : '提交',
+      () => gitAction('gitCommit', state.gitRetry ? { retry: true } : { message: state.commitMessage }));
+    const updateSubmit = () => {
+      submit.disabled = state.gitBusy || Boolean(!state.gitRetry && (files?.loading || files?.error || (files?.entries.length && !files.selected.size)));
+    };
+    if (files?.loading) body.append(descNode('正在读取更改…'));
+    else if (files?.error) body.append(descNode(files.error, 'error'), ghostButton('重新读取更改', () => { void loadCommitFiles(); renderDialog(); }));
+    else if (files?.entries.length) {
+      body.append(descNode('包含的文件', 'field-label'));
+      for (const entry of files.entries) {
+        const label = document.createElement('label'); label.className = 'file-choice';
+        const input = document.createElement('input'); input.type = 'checkbox';
+        input.checked = files.selected.has(entry.path); input.disabled = state.gitBusy || Boolean(state.gitRetry);
+        input.addEventListener('change', () => { if (input.checked) files.selected.add(entry.path); else files.selected.delete(entry.path); updateSubmit(); });
+        label.append(input, document.createTextNode(entry.path)); body.append(label);
+      }
+    }
+    updateSubmit();
     dialog.append(body);
     dialogFoot(dialog, [
       ghostButton('取消', closeGitLayer),
-      primaryButton('提交', () => gitAction('gitCommit', { message: state.commitMessage })),
+      submit,
     ]);
     dialogRoot.append(layer);
     return;
@@ -5098,10 +5453,11 @@ function renderDialog() {
       state.newBranchName = value;
       createBtn.disabled = !value.trim();
     });
+    input.disabled = state.gitBusy || Boolean(state.gitRetry);
     body.append(input);
     dialog.append(body);
-    const createBtn = primaryButton('Create branch', () => createBranch());
-    createBtn.disabled = !state.newBranchName.trim();
+    const createBtn = primaryButton(state.gitRetry ? '继续未完成操作' : 'Create branch', () => createBranch());
+    createBtn.disabled = state.gitBusy || !state.newBranchName.trim();
     dialogFoot(dialog, [ghostButton('取消', closeGitLayer), createBtn]);
     dialogRoot.append(layer);
     return;
@@ -5115,15 +5471,26 @@ function renderDialog() {
     body.append(fieldInput(state.publishName, '留空则用目录名', (value) => {
       state.publishName = value;
     }));
+    body.append(descNode('已有远程地址（可选）', 'field-label'));
+    body.append(fieldInput(state.publishRemoteUrl, 'https://… 或 git@…', (value) => { state.publishRemoteUrl = value; }));
+    const visibility = document.createElement('div'); visibility.className = 'effort-segment';
+    for (const [value, label] of [['private', 'Private'], ['public', 'Public']]) {
+      const choice = ghostButton(label, () => {
+        state.publishVisibility = value;
+        for (const button of visibility.children) button.setAttribute('aria-pressed', String(button.dataset.value === value));
+      });
+      choice.dataset.value = value; choice.setAttribute('aria-pressed', String(state.publishVisibility === value));
+      visibility.append(choice);
+    }
+    body.append(visibility);
     dialog.append(body);
+    const publish = primaryButton(state.gitBusy ? '正在发布…' : 'Publish repository', () => {
+      gitAction('gitPublishRepository', { input: { name: state.publishName, visibility: state.publishVisibility, remoteUrl: state.publishRemoteUrl } });
+    });
+    publish.disabled = state.gitBusy;
     dialogFoot(dialog, [
       ghostButton('取消', closeGitLayer),
-      ghostButton('Private', () => {
-        gitAction('gitPublishRepository', { input: { name: state.publishName, visibility: 'private' } });
-      }),
-      primaryButton('Public', () => {
-        gitAction('gitPublishRepository', { input: { name: state.publishName, visibility: 'public' } });
-      }),
+      publish,
     ]);
     dialogRoot.append(layer);
     return;
@@ -5143,10 +5510,12 @@ function renderDialog() {
     }),
     primaryButton(isPr ? '推送并创建 pull request' : `推送到 ${state.gitStatus.refName ?? ''}`, () => {
       const name = state.gitConfirmAction;
+      const extra = state.gitConfirmExtra;
       state.gitConfirmAction = '';
-      state.gitDialog = '';
+      state.gitConfirmExtra = {};
+      state.gitDialog = 'menu';
       renderDialog();
-      if (name) gitAction(name);
+      if (name) gitAction(name, extra);
     }),
   ]);
   dialogRoot.append(layer);
@@ -5173,7 +5542,7 @@ function renderToast() {
   const main = document.createElement('span');
   main.className = 'toast-main';
   const title = document.createElement('b');
-  title.textContent = state.gitBusy ? 'Git 操作进行中' : (state.gitToast || '完成');
+  title.textContent = state.gitBusy ? (state.gitProgress ? `Git: ${state.gitProgress}` : 'Git 操作进行中') : (state.gitToast || '完成');
   main.append(title);
   if (state.gitStatus.refName != null && !state.gitBusy) {
     const ref = document.createElement('span');
@@ -5195,10 +5564,15 @@ function renderToast() {
 }
 
 function renderLightbox() {
+  scheduleNavigation();
   lightboxRoot.replaceChildren();
   if (!state.lightbox) return;
   const layer = document.createElement('div');
   layer.className = 'lightbox-layer';
+  layer.setAttribute('role', 'dialog');
+  layer.setAttribute('aria-modal', 'true');
+  layer.setAttribute('aria-label', '图片预览');
+  layer.tabIndex = -1;
   const mask = document.createElement('button');
   mask.type = 'button';
   mask.className = 'lightbox-mask';
@@ -5248,14 +5622,17 @@ el('paste-enter').addEventListener('click', () => {
 // The menu button stays above the open drawer and doubles as its close
 // control; the drawer's search field is inset so the two never overlap.
 function setDrawerOpen(open) {
+  state.drawerOpen = open;
   phone.toggleAttribute('data-drawer', open);
   backdrop.classList.toggle('hidden', !open);
   el('menu').setAttribute('aria-expanded', open ? 'true' : 'false');
+  scheduleNavigation();
 }
 el('menu').addEventListener('click', () => {
   setDrawerOpen(!phone.hasAttribute('data-drawer'));
 });
 backdrop.addEventListener('click', () => setDrawerOpen(false));
+el('drawer-close').addEventListener('click', () => setDrawerOpen(false));
 el('new-session').addEventListener('click', () => {
   createSession().catch((error) => showBanner(error.message));
 });
@@ -5267,8 +5644,7 @@ el('open-workspace').addEventListener('click', () => {
 });
 el('open-settings').addEventListener('click', () => openSettings(''));
 settingsBack.addEventListener('click', () => {
-  state.settingsPane = '';
-  renderSettings();
+  navigation.back();
 });
 el('close-settings').addEventListener('click', () => closeSettings());
 let searchTimer = 0;
@@ -5302,6 +5678,9 @@ composer.addEventListener('submit', (event) => {
 });
 stopBtn.addEventListener('click', () => cancelRun());
 el('attach-toggle').addEventListener('click', () => {
+  if (navigationBusy()) return;
+  state.pickerSheet = '';
+  state.newSession = null;
   state.attachOpen = !state.attachOpen;
   state.gitDialog = '';
   renderSheet();
@@ -5316,11 +5695,13 @@ planChip.addEventListener('click', () => {
 el('model-chip').addEventListener('click', () => openPicker('model'));
 blankWorkspaceChip?.addEventListener('click', () => startNewSessionChooser());
 fileCamera.addEventListener('change', () => {
-  addFiles(fileCamera.files);
+  addFiles(fileCamera.files, fileSelectionOwner || sessionOwner(state));
+  fileSelectionOwner = null;
   fileCamera.value = '';
 });
 fileGallery.addEventListener('change', () => {
-  addFiles(fileGallery.files);
+  addFiles(fileGallery.files, fileSelectionOwner || sessionOwner(state));
+  fileSelectionOwner = null;
   fileGallery.value = '';
 });
 gitPill.addEventListener('click', () => {
@@ -5341,6 +5722,12 @@ gitPill.addEventListener('click', () => {
 window.addEventListener('hashchange', () => {
   if (hasOfferFragment(location.hash)) void connect(location.href);
 });
+
+for (const input of [fileCamera, fileGallery]) {
+  input.addEventListener('click', () => { fileSelectionOwner = sessionOwner(state); });
+  input.addEventListener('cancel', () => { fileSelectionOwner = null; });
+}
+options.addEventListener('scroll', () => { settingsScroll.set(state.settingsPane, options.scrollTop); });
 window.addEventListener('online', () => { void resumeRemoteConnection(); });
 window.addEventListener('dshd-resume', () => { void resumeRemoteConnection(); });
 window.addEventListener('pageshow', (event) => {

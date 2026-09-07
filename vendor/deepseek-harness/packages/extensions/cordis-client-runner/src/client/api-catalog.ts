@@ -101,31 +101,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Close the details panel.',
         parameters: [],
       },
-      {
-        signature: 'toggleSurfaces(): void',
-        description: 'Toggle the surfaces column (closed ⟷ contract default width).',
-        parameters: [],
-      },
-      {
-        signature: 'openSurfaces(): void',
-        description: 'Open the surfaces column (no-op when already open).',
-        parameters: [],
-      },
-      {
-        signature: 'closeSurfaces(): void',
-        description: 'Close the surfaces column.',
-        parameters: [],
-      },
-      {
-        signature: 'toggleTerminalDrawer(): void',
-        description: 'Toggle the terminal drawer (closed ⟷ contract default height).',
-        parameters: [],
-      },
-      {
-        signature: 'setTerminalDrawer(px: number): void',
-        description: 'Set the terminal drawer height in px. Clamps to the contract floor and never writes closed; use toggleTerminalDrawer to close.',
-        parameters: [{ name: 'px', description: 'requested height.' }],
-      },
     ],
   },
   {
@@ -223,7 +198,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'bounded results, or a business/transport error.',
       },
       {
-        signature: 'fork(opts: { sessionId: SessionId; atSeq?: number; increaseTitle?: boolean }): Promise<SessionId>',
+        signature: 'fork(opts: { sessionId: SessionId atSeq?: number beforeSeq?: number increaseTitle?: boolean }): Promise<SessionId>',
         description: 'Fork a session from a completed-turn prefix of the source; on resolution the child is in the list store and `open()` can target it.',
         parameters: [{ name: 'opts', description: 'source session id, the optional event seq anchoring the cut (the boundary is the first turn/end at or after it; an in-log anchor in an open turn is unavailable rather than clipped backward), and whether to increment an inherited durable title before resolving.' }],
         returns: 'the child session id.',
@@ -265,7 +240,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'theme',
     summary: 'Theme registry and preference owner.',
-    description: 'Theme registry and preference owner. `light`/`dark` are built in (the base stylesheets carry both palettes); third-party themes register alias-layer overrides. Reads go through getTheme; preference writes only through setTheme; continuous sync only through the `theme/change` event. overrideTokens stacks partial token layers over the active theme without touching the registry. The service holds the `prefers-color-scheme` media query (environment sensing, not presentation) and re-emits when the OS scheme flips while the preference is `system`.',
+    description: 'Theme registry and preference owner. `light`/`dark` are built in (the base stylesheets carry both palettes); product families derive alias-layer overrides. Reads go through getTheme; color-scheme writes through setTheme; half writes through setThemeHalf; continuous sync only through the `theme/change` event.',
     methods: [
       {
         signature: 'getTheme(): ThemeSnapshot',
@@ -275,7 +250,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'setTheme(id: string): void',
-        description: 'Switch the theme preference — the only user preference write entry. Built-in preferences are written through the settings scope and every accepted value emits `theme/change`.',
+        description: 'Switch the color-scheme preference — or select a registered extension theme id. Built-in preferences are written through the settings scope.',
         parameters: [{ name: 'id', description: 'a registered theme id or `system`; unknown ids throw.' }],
       },
       {
@@ -291,9 +266,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'overrideTokens(source: string, tokens: ThemeTokenOverrides): () => void',
-        description: 'Stack a token override layer on top of the active theme — the token-level analogue of slot shading: the base theme stays untouched, layers compose in seq order with later layers winning per-token, and removing a layer restores whatever it covered. Calling again with the same source replaces that source\'s whole layer and restacks it on top (effect re-registration semantics). Emits `theme/change` with the recomposed snapshot.',
-        parameters: [{ name: 'source', description: 'layer identity; one layer per source (dynamic packages pass their package id — the façade pins it, so it also names the layer\'s origin for inspection).' }, { name: 'tokens', description: 'token-name → `{ light, dark }` value pairs. Validated at runtime (model-authored callers reach this boundary with untyped JS); a bare string value throws a teaching error.' }],
-        returns: 'disposer removing exactly the layer this call created; a no-op once the source has re-overridden (the newer layer is not torn down).',
+        description: 'Stack a token override layer on top of the active theme.',
+        parameters: [{ name: 'source', description: 'layer identity.' }, { name: 'tokens', description: 'token-name → `{ light, dark }` value pairs.' }],
+        returns: 'disposer removing exactly the layer this call created.',
       },
     ],
   },
@@ -344,12 +319,6 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Resolve the reusable or newly created blank Session for a Workspace.',
         parameters: [{ name: 'workspaceId', description: 'target Workspace.' }],
         returns: 'a Session already addressable through the Session Controller.',
-      },
-      {
-        signature: 'connectNoDirectory(): Promise<SessionId>',
-        description: 'Connect a Session that is not a Workspace member: reuse a blank Session whose cwd is the Host scratch directory and whose id is in no Workspace index, else create one with that cwd.',
-        parameters: [],
-        returns: 'the connected session id.',
       },
       {
         signature: 'startSession(workspaceId?: WorkspaceId): void',
@@ -465,12 +434,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AgentContext = Omit<Context, \'remote\'> & {\n    readonly remote: ClientRemote & TypertRemoteScopeApi<\'agent\'>;\n};',
   },
   {
+    name: 'AssistantLiveChunkEvent',
+    declaration: 'export interface AssistantLiveChunkEvent {\n    readonly type: \'assistant/live-chunk\';\n    readonly seq: number;\n    readonly time: number;\n    readonly data: {\n        readonly attemptId: LlmAttemptId;\n        readonly turn: number;\n        readonly step: number;\n        readonly chunk: StreamChunk;\n    };\n}',
+  },
+  {
     name: 'BakedActions',
     declaration: 'export type BakedActions<T, A extends ActionsDecl<T>> = {\n    [K in keyof A]: A[K] extends (draft: T, ...params: infer P) => void ? (...params: P) => void : never;\n};',
   },
   {
     name: 'BeginSubmissionInput',
-    declaration: 'export interface BeginSubmissionInput {\n    readonly mode: \'queue\' | \'steer\';\n    readonly text: string;\n    readonly images: readonly PendingSubmissionImage[];\n    readonly onRetire?: (retirement: PendingSubmissionRetirement) => void;\n}',
+    declaration: 'export interface BeginSubmissionInput {\n    readonly mode: \'queue\' | \'steer\';\n    readonly text: string;\n    readonly attachments: readonly PendingSubmissionAttachment[];\n    readonly onRetire?: (retirement: PendingSubmissionRetirement) => void;\n}',
   },
   {
     name: 'BoundActions',
@@ -491,10 +464,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ChildrenDecl',
     declaration: 'export type ChildrenDecl = {\n    [P in keyof SlotMap & string]?: SlotSpec<SlotMap[P]>;\n};',
-  },
-  {
-    name: 'ChunkRowEvent',
-    declaration: 'export type ChunkRowEvent = {\n    [Kind in ChunkRow[\'type\']]: {\n        readonly type: `chunkrow/${Kind}`;\n        readonly seq: number;\n        readonly time: number;\n        readonly data: Extract<ChunkRow, {\n            readonly type: Kind;\n        }>[\'data\'];\n    };\n}[ChunkRow[\'type\']];',
   },
   {
     name: 'ClientConnectionRpc',
@@ -590,7 +559,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ISession',
-    declaration: 'export interface ISession {\n    readonly sessionId: SessionId;\n    readonly projections: ProjectionsFace;\n    beginSubmission(input: BeginSubmissionInput): SubmissionHandle;\n    prompt(content: PromptContentPart[], mode: \'queue\' | \'steer\', signal?: AbortSignal, requestId?: SessionRequestId): Promise<RemoteResult<{\n        accepted: true;\n    }>>;\n    readAttachment(attachmentId: AttachmentIdType): Promise<RemoteResult<{\n        attachment: ImageAttachmentRef;\n        data: Uint8Array;\n    }>>;\n    updateQueue(itemId: MessageId, action: QueueAction): Promise<RemoteResult<{\n        accepted: true;\n    }>>;\n    cancel(): Promise<RemoteResult<{\n        accepted: true;\n    }>>;\n    rename(title: string): Promise<RemoteResult<{\n        title: string;\n        seq: SessionSeq;\n    }>>;\n    loadOlder(): Promise<void>;\n    loadThrough(seq: SessionSeq): Promise<void>;\n    command(line: string): Promise<RemoteResult<{\n        matched: boolean;\n    }>>;\n}',
+    declaration: 'export interface ISession {\n    readonly sessionId: SessionId;\n    readonly projections: ProjectionsFace;\n    beginSubmission(input: BeginSubmissionInput): SubmissionHandle;\n    prompt(content: PromptContentPart[], mode: \'queue\' | \'steer\', signal?: AbortSignal, requestId?: SessionRequestId, editMessageSeq?: number): Promise<RemoteResult<{\n        accepted: true;\n    }>>;\n    readAttachment(attachmentId: AttachmentIdType): Promise<RemoteResult<{\n        attachment: ImageAttachmentRef;\n        data: Uint8Array;\n    }>>;\n    updateQueue(itemId: MessageId, action: QueueAction): Promise<RemoteResult<{\n        accepted: true;\n    }>>;\n    cancel(): Promise<RemoteResult<{\n        accepted: true;\n    }>>;\n    rename(title: string): Promise<RemoteResult<{\n        title: string;\n        seq: SessionSeq;\n    }>>;\n    loadOlder(): Promise<void>;\n    loadThrough(seq: SessionSeq): Promise<void>;\n    command(line: string): Promise<RemoteResult<{\n        matched: boolean;\n    }>>;\n}',
   },
   {
     name: 'KeyedHooksSources',
@@ -658,11 +627,23 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PendingSubmission',
-    declaration: 'export interface PendingSubmission {\n    readonly requestId: SessionRequestId;\n    readonly placement: PendingSubmissionPlacement;\n    readonly time: number;\n    readonly text: string;\n    readonly images: readonly PendingSubmissionImage[];\n}',
+    declaration: 'export interface PendingSubmission {\n    readonly requestId: SessionRequestId;\n    readonly placement: PendingSubmissionPlacement;\n    readonly time: number;\n    readonly text: string;\n    readonly attachments: readonly PendingSubmissionAttachment[];\n}',
+  },
+  {
+    name: 'PendingSubmissionAttachment',
+    declaration: 'export type PendingSubmissionAttachment = PendingSubmissionImageAttachment | PendingSubmissionFileAttachment;',
+  },
+  {
+    name: 'PendingSubmissionFileAttachment',
+    declaration: 'export interface PendingSubmissionFileAttachment {\n    readonly type: \'file\';\n    readonly value: FileAttachmentRef;\n}',
   },
   {
     name: 'PendingSubmissionImage',
     declaration: 'export interface PendingSubmissionImage {\n    readonly previewUrl: string;\n    readonly name?: string;\n    readonly width?: number;\n    readonly height?: number;\n}',
+  },
+  {
+    name: 'PendingSubmissionImageAttachment',
+    declaration: 'export interface PendingSubmissionImageAttachment {\n    readonly type: \'image\';\n    readonly value: PendingSubmissionImage;\n}',
   },
   {
     name: 'PendingSubmissionPlacement',
@@ -670,7 +651,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PendingSubmissionRetirement',
-    declaration: 'export type PendingSubmissionRetirement = {\n    readonly reason: \'observed\';\n    readonly attachments: readonly ImageAttachmentRef[];\n} | {\n    readonly reason: \'failed\';\n};',
+    declaration: 'export type PendingSubmissionRetirement = {\n    readonly reason: \'observed\';\n    readonly attachments: readonly (ImageAttachmentRef | FileAttachmentRef)[];\n} | {\n    readonly reason: \'failed\';\n};',
   },
   {
     name: 'ProjectionsFace',
@@ -678,7 +659,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PromptContentPart',
-    declaration: 'export type PromptContentPart = {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'image\';\n    readonly mediaType: ImageMediaType;\n    readonly data: string;\n    readonly name?: string;\n};',
+    declaration: 'export type PromptContentPart = {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'image\';\n    readonly mediaType: ImageMediaType;\n    readonly data: string;\n    readonly name?: string;\n} | {\n    readonly type: \'file\';\n    readonly receiptId: Branded<\'file-upload-receipt-id\'>;\n};',
   },
   {
     name: 'PromptError',
@@ -741,16 +722,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionAreaProps {\n    empty?: (() => ReactNode) | undefined;\n    children: ReactNode;\n}',
   },
   {
+    name: 'SessionAssistantSettlementEntry',
+    declaration: 'export interface SessionAssistantSettlementEntry {\n    readonly type: \'event\';\n    readonly event: SessionEvent<\'assistant/message\'> | SessionEvent<\'assistant/attempt\'>;\n}',
+  },
+  {
     name: 'SessionBinding',
     declaration: 'export interface SessionBinding {\n    readonly sessionId: SessionId;\n    readonly session: SessionFace;\n    readonly eventSource: SessionEventSource;\n    readonly ctx: AgentContext;\n}',
   },
   {
     name: 'SessionEventChange',
-    declaration: 'export type SessionEventChange = {\n    readonly kind: \'replace\';\n    readonly entries: readonly SessionEventLikeEntry[];\n} | {\n    readonly kind: \'prepend\';\n    readonly entries: readonly SessionEventLikeEntry[];\n} | {\n    readonly kind: \'append\';\n    readonly entries: readonly SessionLiveEventEntry[];\n};',
+    declaration: 'export type SessionEventChange = {\n    readonly kind: \'replace\';\n    readonly entries: readonly SessionEventLikeEntry[];\n} | {\n    readonly kind: \'prepend\';\n    readonly entries: readonly SessionEventLikeEntry[];\n} | {\n    readonly kind: \'append\';\n    readonly entries: readonly SessionEventLikeEntry[];\n} | {\n    readonly kind: \'settle-assistant\';\n    readonly attemptId: LlmAttemptId;\n    readonly entry?: SessionAssistantSettlementEntry;\n};',
   },
   {
     name: 'SessionEventLikeEntry',
-    declaration: 'export type SessionEventLikeEntry = {\n    readonly type: \'event\';\n    readonly event: SessionEvent;\n} | {\n    readonly type: \'chunks\';\n    readonly event: ChunkRowEvent;\n};',
+    declaration: 'export type SessionEventLikeEntry = {\n    readonly type: \'event\';\n    readonly event: SessionEvent;\n} | {\n    readonly type: \'transient\';\n    readonly event: AssistantLiveChunkEvent;\n};',
   },
   {
     name: 'SessionEventSource',
@@ -767,10 +752,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionIdOf',
     declaration: 'export type SessionIdOf = SessionStandardProps extends {\n    sessionId: infer S;\n} ? S : string;',
-  },
-  {
-    name: 'SessionLiveEventEntry',
-    declaration: 'export type SessionLiveEventEntry = Extract<SessionEventLikeEntry, {\n    readonly type: \'event\';\n}>;',
   },
   {
     name: 'SessionMaybeStandardProps',
@@ -873,12 +854,20 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ThemeDefinition {\n    id: string;\n    colorScheme: \'light\' | \'dark\';\n    tokens: ThemeTokens;\n}',
   },
   {
+    name: 'ThemeFamily',
+    declaration: 'export interface ThemeFamily {\n    id: string;\n    name: string;\n    origin: \'builtin\' | \'custom\';\n    light: ThemeSeeds;\n    dark: ThemeSeeds;\n}',
+  },
+  {
     name: 'ThemePreference',
     declaration: 'export type ThemePreference = typeof THEME_PREFERENCES[number];',
   },
   {
+    name: 'ThemeSeeds',
+    declaration: 'export interface ThemeSeeds {\n    accent: string;\n    background: string;\n    foreground: string;\n    contrast: number;\n    overrides?: Record<string, string>;\n}',
+  },
+  {
     name: 'ThemeSnapshot',
-    declaration: 'export interface ThemeSnapshot {\n    preference: ThemePreference;\n    fontSize: number;\n    active: ThemeDefinition;\n    themes: readonly ThemeDefinition[];\n    revision: number;\n}',
+    declaration: 'export interface ThemeSnapshot {\n    preference: ThemePreference;\n    fontSize: number;\n    active: ThemeDefinition;\n    themes: readonly ThemeDefinition[];\n    families: readonly ThemeFamily[];\n    activeLightThemeId: string;\n    activeDarkThemeId: string;\n    customThemes: readonly ThemeFamily[];\n    glassOpacity: number;\n    transparentTheme: boolean;\n    wallpaperImage: string;\n    wallpaperBlur: number;\n    wallpaperPixelate: number;\n    wallpaperBingEnabled: boolean;\n    wallpaperCatalogUrls: readonly string[];\n    wallpaperSources: readonly WallpaperSource[];\n    wallpaperFavorites: readonly WallpaperFavorite[];\n    fontFamilySans: string;\n    fontFamilyCode: string;\n    fontSizeInterface: number;\n    fontSizeCode: number;\n    fontFamilyComposer: string;\n    fontFamilyTerminal: string;\n    revision: number;\n}',
   },
   {
     name: 'ThemeTokenModes',
@@ -889,16 +878,24 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ThemeTokenOverrides = Record<string, ThemeTokenModes>;',
   },
   {
-    name: 'ThemeTokens',
-    declaration: 'export type ThemeTokens = Record<string, string>;',
-  },
-  {
     name: 'Translate',
     declaration: 'export type Translate<K extends string = string> = (key: K, params?: Record<string, unknown>) => string;',
   },
   {
     name: 'TranslateNS',
     declaration: 'export type TranslateNS<N extends keyof LocaleNamespaceMap & string> = Translate<LocaleKeysOf<N>>;',
+  },
+  {
+    name: 'WallpaperFavorite',
+    declaration: 'export type WallpaperFavorite = {\n    id: string;\n    sourceId: string;\n    title: string;\n    thumbUrl: string;\n    imageUrl: string;\n};',
+  },
+  {
+    name: 'WallpaperSource',
+    declaration: 'export type WallpaperSource = {\n    id: string;\n    kind: WallpaperSourceKind;\n    name: string;\n    url?: string;\n};',
+  },
+  {
+    name: 'WallpaperSourceKind',
+    declaration: 'export type WallpaperSourceKind = \'bing\' | \'wallhaven\' | \'catalog\';',
   },
   {
     name: 'WorkspaceView',

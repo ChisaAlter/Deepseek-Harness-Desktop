@@ -5,9 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const css = fs.readFileSync(path.join(
+const inputCss = fs.readFileSync(path.join(
   root,
   'vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css',
+), 'utf8');
+const beamCss = fs.readFileSync(path.join(
+  root,
+  'vendor/deepseek-harness/packages/client/ui-conversation/src/client/ComposerBeam.module.css',
 ), 'utf8');
 const angles = Array.from({ length: 24 }, (_, index) => index * 15);
 const cornerCss = fs.readFileSync(path.join(root,
@@ -141,7 +145,8 @@ app.whenReady().then(async () => {
           body { display: grid; place-items: center; }
           ${cornerCss}
           ${elevationCss}
-          ${css}
+          ${inputCss}
+          ${beamCss}
           .card { width: ${cardWidth}px; max-width: ${cardWidth}px; }
           .cardBody { height: ${cardHeight - 10}px; }
           .cardBeam { animation: none !important; --dsh-composer-beam-angle: var(--test-angle); }
@@ -152,8 +157,8 @@ app.whenReady().then(async () => {
         </style>
       </head>
       <body>
-        <div class="card cardBeam">
-          <div class="beamLayer">
+        <div class="card">
+          <div class="beamLayer cardBeam" data-beam-direction="clockwise">
             <span class="beamInner"></span>
             <span class="beamStroke"></span>
             <span class="beamBloom"></span>

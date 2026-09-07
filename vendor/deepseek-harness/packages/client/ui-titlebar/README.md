@@ -21,3 +21,5 @@ None; this package neither assembles nor sends a provider request.
 ## Known Limitations and Deferred Work
 
 - **Git is a sibling titlebar entry** — this package does not render Git actions; a later `ui-git` entry occupies `order: 20`.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

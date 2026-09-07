@@ -95,7 +95,7 @@ async function bench(options: {
             return { edit: spec === undefined ? undefined : { key: spec.key, label: spec.label } }
           },
         },
-        addImages: (ids: readonly string[]) => { images.push({ sessionId: scope.sessionId, ids }) },
+        addAttachments: (ids: readonly string[]) => { images.push({ sessionId: scope.sessionId, ids }) },
         setDraft: (text: string) => { drafts.push({ sessionId: scope.sessionId, text }) },
         submit: () => { submits.push(scope.sessionId) },
         notify: (level: 'info' | 'error', message: string) => {

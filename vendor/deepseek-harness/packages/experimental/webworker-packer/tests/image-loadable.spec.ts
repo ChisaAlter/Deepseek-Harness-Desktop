@@ -50,7 +50,7 @@ describe('preview example overlays', () => {
       .toContain("previewStatus = 'ready'")
     expect(new TextDecoder().decode(result.files['workspace/.agents/skills/preview-tour/SKILL.md']))
       .toContain('name: preview-tour')
-    expect(Object.keys(result.files).filter(path => path.endsWith('/session.jsonl'))).toHaveLength(3)
+    expect(Object.keys(result.files).filter(path => path.endsWith('/session.v2.jsonl'))).toHaveLength(3)
   })
 
   it('fails loud when a declared seed tree is absent', () => {
@@ -73,7 +73,23 @@ describe('preview example overlays', () => {
  * reference routes this suite through its post-build uninstrumented gate, and
  * preview builds exercise the same path against complete real artifacts.
  */
-const subjectBuilt = existsSync(join(repoRoot, 'packages/util/timeout/lib/index.js'))
+// The subject is zero-dep, but its peer/dependency closure (cordis, loader,
+// include, cosmokit, invariants) must also be built: on the complete lane
+// build and coverage run concurrently, so checking only the subject lets the
+// pack start before its real workspace dependencies exist.
+const subjectBuilt = [
+  'packages/util/timeout/lib/index.js',
+  'packages/runtime-diagnostics/invariants/lib/index.js',
+  'vendor/cordis/lib/index.js',
+  'vendor/cosmokit/lib/index.js',
+  'vendor/include/lib/index.js',
+  'vendor/loader/lib/index.js',
+  'packages/host/webserver/lib/index.js',
+  'packages/llm/plugin-package-inventory-deepseek/lib/index.js',
+  'native/landlock-run/packages/entry/lib/index.js',
+  'packages/preset/agent-presets/lib/typert.host.js',
+  'packages/preset/agent-presets/lib/typert.remote-client.js',
+].every(path => existsSync(join(repoRoot, path)))
 
 let memo: ReturnType<typeof packVfsImage> | undefined
 const packed = (): ReturnType<typeof packVfsImage> => memo ??= packVfsImage({

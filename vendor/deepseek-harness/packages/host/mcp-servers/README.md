@@ -17,3 +17,5 @@ None; this package never assembles model input.
 ## Known Limitations and Deferred Work
 
 - **No Cursor/Claude config import** — Settings writes only `$DSH_HOME/mcp-servers.yaml`.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

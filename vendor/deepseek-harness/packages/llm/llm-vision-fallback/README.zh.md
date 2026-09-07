@@ -33,3 +33,5 @@
 - 描述是整体替换的；除 `maxOutputTokens` 外没有按图片的大小上限。
 - 视觉调用失败会让主请求以 `LlmError`（提供方错误码，或 `INVALID_REQUEST`）显式失败，而不是压成 `UNKNOWN` 或降级为占位文本。
 - 模型页下拉框只列出 `inputModalities` 含 `'image'` 的目录行。不在该列表中的已存指定仍保持选中。手写 `settings.yaml` 仍可点名纯文本路由，且无论该路由宣称何种模态，`configured()` 都为真。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

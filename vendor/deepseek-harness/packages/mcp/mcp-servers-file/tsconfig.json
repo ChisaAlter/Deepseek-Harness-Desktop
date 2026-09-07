@@ -10,7 +10,6 @@
     { "path": "../../../vendor/schemastery" },
     { "path": "../../util/atomic-write" },
     { "path": "../../util/home-paths" },
-    { "path": "../../runtime-diagnostics/invariants" },
     { "path": "../mcp-client" }
   ]
 }

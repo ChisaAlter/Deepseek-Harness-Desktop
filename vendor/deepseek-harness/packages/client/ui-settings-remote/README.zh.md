@@ -12,3 +12,5 @@
 注册要求 Electron `window.shell` 提供 `getRemote`／`saveRemote`／`rotateRemoteToken`／`unbindRemoteDevice`／`renameRemoteDevice`。普通浏览器里的 `dsh web` 没有这些面。
 
 详见桌面 Feature Card `remote-settings` 与 `mobile-remote`。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

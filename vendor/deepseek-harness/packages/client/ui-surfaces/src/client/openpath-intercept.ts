@@ -29,6 +29,25 @@ export interface OpenPathInterceptDeps {
 }
 
 /**
+ * Install the Host opener on a Workspace service version that does not own it.
+ * Existing implementations retain their identity and behavior.
+ * @param workspaces - the live workspaces service object.
+ * @param openHostPath - Host operation used only when the method is absent.
+ * @returns a disposer that removes only the installed method.
+ */
+export function ensureBaseOpenPath(
+  workspaces: Partial<OpenPathService>,
+  openHostPath: (path: string) => Promise<void>,
+): () => void {
+  if (typeof workspaces.openPath === 'function') return () => {}
+  const installed = async (path: string): Promise<void> => { await openHostPath(path) }
+  workspaces.openPath = installed
+  return () => {
+    if (workspaces.openPath === installed) delete workspaces.openPath
+  }
+}
+
+/**
  * Replace `workspaces.openPath` with a wrapper that takes over on desktop
  * when a current session exists and `openInSurfaces` accepts the path.
  * The disposer writes back the same function reference that was installed

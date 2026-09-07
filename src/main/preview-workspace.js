@@ -36,6 +36,18 @@ const MIME = {
   otf: 'font/otf',
   wasm: 'application/wasm',
   pdf: 'application/pdf',
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  ogv: 'video/ogg',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  wav: 'audio/wav',
+  oga: 'audio/ogg',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
 };
 
 function mimeFor(filePath) {
@@ -63,6 +75,29 @@ function send(res, status, body, headers = {}) {
     ...headers,
   });
   res.end(body);
+}
+
+function parseByteRange(header, size) {
+  if (typeof header !== 'string' || header.trim() === '') return null;
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(header.trim());
+  if (!match || (match[1] === '' && match[2] === '')) return false;
+  let start;
+  let end;
+  if (match[1] === '') {
+    const suffix = Number(match[2]);
+    if (!Number.isSafeInteger(suffix) || suffix <= 0) return false;
+    start = Math.max(0, size - suffix);
+    end = size - 1;
+  } else {
+    start = Number(match[1]);
+    end = match[2] === '' ? size - 1 : Number(match[2]);
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start) {
+      return false;
+    }
+    if (start >= size) return false;
+    end = Math.min(end, size - 1);
+  }
+  return { start, end };
 }
 
 /**
@@ -125,17 +160,18 @@ function createWorkspacePreviewController(options = {}) {
       send(res, 404, 'Not Found');
       return;
     }
-    void serveFile(res, target);
+    void serveFile(req, res, target);
   }
 
   /**
    * Stream one resolved workspace file. Async stat + `pipeline` keep large
    * reads off the main-process event loop; per-MIME byte caps reject
    * oversized documents with 413 before any bytes are read.
+   * @param {import('node:http').IncomingMessage} req
    * @param {import('node:http').ServerResponse} res
    * @param {string} target - absolute path already confined to the cwd.
    */
-  async function serveFile(res, target) {
+  async function serveFile(req, res, target) {
     let stat;
     try {
       stat = await fs.promises.stat(target);
@@ -152,12 +188,26 @@ function createWorkspacePreviewController(options = {}) {
       send(res, 413, 'Payload Too Large');
       return;
     }
-    res.writeHead(200, {
+    const range = parseByteRange(req.headers.range, stat.size);
+    if (range === false) {
+      send(res, 416, 'Range Not Satisfiable', { 'Content-Range': `bytes */${stat.size}` });
+      return;
+    }
+    const start = range?.start ?? 0;
+    const end = range?.end ?? Math.max(0, stat.size - 1);
+    const length = stat.size === 0 ? 0 : end - start + 1;
+    res.writeHead(range ? 206 : 200, {
       'X-Content-Type-Options': 'nosniff',
       'Content-Type': mime,
-      'Content-Length': String(stat.size),
+      'Content-Length': String(length),
+      'Accept-Ranges': 'bytes',
+      ...(range ? { 'Content-Range': `bytes ${start}-${end}/${stat.size}` } : {}),
     });
-    pipeline(fs.createReadStream(target), res, (error) => {
+    if (stat.size === 0) {
+      res.end();
+      return;
+    }
+    pipeline(fs.createReadStream(target, { start, end }), res, (error) => {
       // A mid-stream read error cannot switch to an error status after the
       // 200 header; dropping the socket signals the truncated transfer.
       if (error) res.destroy();
@@ -212,4 +262,4 @@ function createWorkspacePreviewController(options = {}) {
   return { fileUrl, close };
 }
 
-module.exports = { createWorkspacePreviewController };
+module.exports = { createWorkspacePreviewController, parseByteRange };

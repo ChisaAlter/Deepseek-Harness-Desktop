@@ -1,0 +1,255 @@
+/* Shared composer beam. Geometry is pinned by the composer-beam feature card. */
+
+@property --dsh-composer-beam-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+
+.beamLayer {
+  position: absolute;
+  inset: -4px;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 26px;
+  corner-shape: round;
+  pointer-events: none;
+}
+
+.beamInner,
+.beamStroke,
+.beamBloom {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.beamInner,
+.beamStroke {
+  inset: 4px;
+  border-radius: 22px;
+  corner-shape: round;
+}
+
+.cardBeam {
+  animation: dsh-composer-beam-spin var(--dsh-composer-beam-period, 1.96s) linear infinite;
+}
+
+.cardBeam[data-beam-direction='counterclockwise'] {
+  animation-direction: reverse;
+}
+
+.cardBeam .beamStroke {
+  opacity: var(--dsh-composer-beam-stroke-opacity, 0.6);
+  animation: dsh-composer-beam-hue 12s ease-in-out infinite;
+}
+
+.beamStroke {
+  z-index: 3;
+  padding: 2px;
+  background:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 54%,
+      rgba(255, 255, 255, 0.06) 58%,
+      rgba(255, 255, 255, 0.5) 64%,
+      rgba(255, 255, 255, 0.15) 70%,
+      transparent 76%,
+      transparent 100%
+    ),
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      rgb(255, 50, 100),
+      rgb(40, 140, 255),
+      rgb(50, 200, 80),
+      rgb(30, 185, 170),
+      rgb(100, 70, 255),
+      rgb(255, 120, 40),
+      rgb(240, 50, 180),
+      rgb(255, 50, 100)
+    );
+  -webkit-mask:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 30%,
+      rgba(255, 255, 255, 0.1) 36%,
+      rgba(255, 255, 255, 0.35) 44%,
+      #fff 52%,
+      #fff 80%,
+      rgba(255, 255, 255, 0.35) 86%,
+      rgba(255, 255, 255, 0.1) 92%,
+      transparent 96%,
+      transparent 100%
+    ),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 30%,
+      rgba(255, 255, 255, 0.1) 36%,
+      rgba(255, 255, 255, 0.35) 44%,
+      #fff 52%,
+      #fff 80%,
+      rgba(255, 255, 255, 0.35) 86%,
+      rgba(255, 255, 255, 0.1) 92%,
+      transparent 96%,
+      transparent 100%
+    ),
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: intersect, exclude;
+}
+
+.beamInner {
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 180px 32px at 74% 100%, rgba(100, 70, 255, 0.42), transparent),
+    radial-gradient(ellipse 74px 32px at 94% 0%, rgba(255, 120, 40, 0.38), transparent),
+    radial-gradient(ellipse 80px 40px at 6% 0%, rgba(40, 140, 255, 0.4), transparent),
+    radial-gradient(ellipse 90px 45px at 20% 0%, rgba(255, 50, 100, 0.36), transparent);
+  box-shadow:
+    inset 0 0 18px 3px rgba(100, 70, 255, 0.28),
+    inset 0 0 42px 10px rgba(255, 50, 100, 0.1);
+  clip-path: inset(0 round 22px);
+  -webkit-mask:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 10%,
+      rgba(255, 255, 255, 0.08) 18%,
+      rgba(255, 255, 255, 0.25) 30%,
+      rgba(255, 255, 255, 0.7) 44%,
+      #fff 56%,
+      #fff 72%,
+      rgba(255, 255, 255, 0.65) 80%,
+      rgba(255, 255, 255, 0.2) 84%,
+      transparent 88%,
+      transparent 100%
+    ),
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0.5) 62%,
+      #fff 72%,
+      #fff 82%,
+      rgba(255, 255, 255, 0.3) 88%,
+      transparent 94%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-over;
+  mask:
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 10%,
+      rgba(255, 255, 255, 0.08) 18%,
+      rgba(255, 255, 255, 0.25) 30%,
+      rgba(255, 255, 255, 0.7) 44%,
+      #fff 56%,
+      #fff 72%,
+      rgba(255, 255, 255, 0.65) 80%,
+      rgba(255, 255, 255, 0.2) 84%,
+      transparent 88%,
+      transparent 100%
+    ),
+    conic-gradient(
+      from var(--dsh-composer-beam-angle),
+      transparent 0%,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 50%,
+      rgba(255, 255, 255, 0.5) 62%,
+      #fff 72%,
+      #fff 82%,
+      rgba(255, 255, 255, 0.3) 88%,
+      transparent 94%,
+      transparent 100%
+    );
+  mask-composite: add;
+}
+
+.cardBeam .beamInner {
+  opacity: var(--dsh-composer-beam-inner-opacity, 0.42);
+  animation: dsh-composer-beam-hue 12s ease-in-out infinite;
+}
+
+.beamBloom {
+  inset: 0;
+  z-index: 2;
+  filter: blur(8px) brightness(1.3) saturate(1.2);
+}
+
+.beamBloom::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  padding: 1.5px;
+  border-radius: 22px;
+  corner-shape: round;
+  background: conic-gradient(
+    from var(--dsh-composer-beam-angle),
+    transparent 0%,
+    transparent 58%,
+    rgba(255, 255, 255, 0.08) 64%,
+    rgba(255, 80, 180, 0.55) 69%,
+    rgba(80, 180, 255, 0.7) 70.5%,
+    rgba(255, 80, 180, 0.45) 73%,
+    transparent 82%,
+    transparent 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.cardBeam .beamBloom {
+  opacity: var(--dsh-composer-beam-bloom-opacity, 0.36);
+  animation: dsh-composer-beam-hue-bloom 12s ease-in-out infinite;
+}
+
+@keyframes dsh-composer-beam-spin {
+  to {
+    --dsh-composer-beam-angle: 360deg;
+  }
+}
+
+@keyframes dsh-composer-beam-hue {
+  0%,
+  100% {
+    filter: hue-rotate(calc(var(--dsh-composer-beam-hue-offset, 0deg) - 30deg)) brightness(1.3) saturate(1.2);
+  }
+  50% {
+    filter: hue-rotate(calc(var(--dsh-composer-beam-hue-offset, 0deg) + 30deg)) brightness(1.3) saturate(1.2);
+  }
+}
+
+@keyframes dsh-composer-beam-hue-bloom {
+  0%,
+  100% {
+    filter: blur(8px) hue-rotate(calc(var(--dsh-composer-beam-hue-offset, 0deg) - 30deg)) brightness(1.3) saturate(1.2);
+  }
+  50% {
+    filter: blur(8px) hue-rotate(calc(var(--dsh-composer-beam-hue-offset, 0deg) + 30deg)) brightness(1.3) saturate(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardBeam {
+    animation: none;
+  }
+
+  .beamLayer,
+  .beamInner,
+  .beamStroke,
+  .beamBloom {
+    display: none;
+  }
+}

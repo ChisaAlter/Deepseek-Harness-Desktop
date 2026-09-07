@@ -1,0 +1,21 @@
+{
+  "prompt": "描述图片中的两个图形：分别给出左右位置、形状和颜色。不要读取文件或调用工具。",
+  "beforeAssistantCount": 0,
+  "observedAt": "2026-09-05T06:58:50.543Z",
+  "assistantCount": 1,
+  "text": "图片中包含两个图形，左右并排排列在白色背景上：\n\n左侧：一个正方形，颜色为红色。\n右侧：一个圆形，颜色为蓝色。\n\n两个图形大小相近，中间留有明显间隔。",
+  "kinds": [
+    "system-prompt",
+    "user",
+    "turn-process",
+    "context",
+    "context",
+    "assistant-step",
+    "turn-tail"
+  ],
+  "busy": false,
+  "approval": "",
+  "errors": [],
+  "failure": "",
+  "composer": ""
+}

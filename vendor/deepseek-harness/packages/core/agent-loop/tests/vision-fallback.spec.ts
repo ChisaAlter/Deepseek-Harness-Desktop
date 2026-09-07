@@ -71,7 +71,7 @@ async function setup(model = 'text', timeoutMs = 1000) {
   const adapter = new Adapter()
   ctx.llm.registerAdapter(['mock'], adapter)
   await ctx.settings.update('vision-fallback', { provider: 'mock', model: 'vision' })
-  const agent = ctx.agentLoop.create(SessionId('vision-integration'), { provider: 'mock', model })
+  const agent = await ctx.agentLoop.create(SessionId('vision-integration'), { provider: 'mock', model })
   return { ctx, adapter, agent }
 }
 
@@ -88,6 +88,7 @@ describe('vision fallback request integration', () => {
     await agent.whenIdle()
     expect(agent.session.snapshotEvents().findLast(event => event.type === 'turn/end')?.data).toEqual({ turn: 1, reason: { kind: 'completed' } })
     expect(adapter.requests.map(request => request.model)).toEqual(['vision', 'text'])
+    expect(adapter.requests[0]?.purpose).toBe('vision-describe')
     expect(adapter.requests[1]?.messages.some(message => contentHasImage(message.content))).toBe(false)
     expect(JSON.stringify(adapter.requests[1]?.messages)).toContain('Visible text: example')
     expect(agent.session.snapshotEvents().filter(event => event.type === 'vision/describe')).toHaveLength(1)

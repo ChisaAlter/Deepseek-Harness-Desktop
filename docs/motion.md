@@ -138,6 +138,21 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 侧栏轨道收合编排 | `SidebarRoot`：收合相位 150ms + 回宽 200ms（`wide-in`），跟随 AppFrame 300ms 轨道；减弱动效停 |
 | 空会话 Hero 小鱼 | 悬停且未减弱动效时，1.6s 轻摆循环 |
 
+### 手机交互 inventory
+
+`mobile/web` 是[设计语言的手机承载面](design-language.md#手机远程交互)，Android WebView 加载同一份源码；不引入另一套主题或动画库。下表记录当前实现，不把共享 token 等同于已接入官方 React `usePresence`。
+
+| 产品面 | 当前行为与源码 |
+| --- | --- |
+| 权限、模型/思考、附件来源、行菜单短面板；目录与 Git 全屏任务、确认层 | `ui/surfaces.js` 生成 `.surface-panel`；`app.css` 的 `mobile-surface-in` 仅在 `prefers-reduced-motion: no-preference` 下入场：opacity + translateY(8px)，使用 `--ds-motion-duration-overlay`（回退 `--ds-transition-duration`）和 `--ds-ease-in-out`。全屏任务无浮卡边框，头部与操作区不参与正文滚动 |
+| 同一表面刷新/异步结果 | `app.js` 保持 surface identity，设置 `data-refreshed`；CSS 禁止重复入场，避免模型选中、查询结果等更新使整个面板重播。焦点与滚动恢复不是动效 |
+| 关闭与返回 | `ui/navigation.js` 与 `app.js` 按当前层处理按钮、浏览器及 Android 返回；当前树直接隐藏/移除，没有官方 Presence 的 200ms 退场挂载，不声称已具备完整 overlay 退场 recipe。返回不能借动画完成事件重放业务写请求 |
+| 会话抽屉 | `.drawer` 使用 transform 与 `--ds-transition-duration-slow` / `--ds-ease-in-out`；减弱动效关闭 transition。此项不代表已接入或验收拖动手势 |
+| 设置目录/详情、草稿阅读/编辑、灯箱 | 当前为内容/可见状态切换；不登记未实现的 `swap` / `flip` 或高度动画。键盘、viewport 与焦点恢复另行验收 |
+| Android 系统返回/IME、媒体选择和前后台恢复 | `RemoteWebScreen.kt` / `RemoteWebBack.kt` / `WebFileChooser.kt` 负责原生承载，不新增网页 motion recipe；系统键盘和活动切换需真机证据 |
+
+减弱动效由 `mobile/web/tokens.css` 将 duration token 归零，并由 `app.css` 的媒体查询关闭入场、抽屉与持续指示。入场/刷新抑制和减弱动效均须在实际动画模式复测。截至 2026-09-06，**早期候选的 60/60 受控 DOM 检查覆盖六种尺寸，不认证最新修订**；snap 动画状态只证明当时的 DOM/几何，不能当作播放时序、退场、焦点时序或真机键盘/手势证据。之后源码已修改，最终源复测因 T3 Code preview 的 evaluate/snapshot/navigate 工具超时未完成。当前 debug APK 已构建，但公网与物理设备尚未验收，不等于 T3 Pass；详见[本轮证据](../tools/mobile-web-qa/results/2026-09-06-interaction/README.md)。
+
 ### 指示器家族
 
 无限循环的忙碌 / 加载指示是产品语言，不是 recipe；循环周期是设计值，**不进 token 表**。规则：每个使用处必须自带 `prefers-reduced-motion` 停止；新忙碌指示优先复用家族图形，不要另造一种新旋转。
@@ -145,7 +160,7 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 家族 | 实例（周期） |
 | --- | --- |
 | 骨架扫光 | ReasoningRow / ToolRow / SkillRow / GenericCommandCard / bash-sample 的行扫光 2.6s；`MenuView` 菜单骨架 2s |
-| Composer 光束 | `InputBar`：`beam-spin` 1.96s、`beam-hue` 12s、`beam-hue-bloom` 12s、光束层淡入 420ms；参照 Libraries.dev Rotate，2px / 0.6 stroke 与双 conic inner 形成移动亮峰和透明尾迹，不做重复 `clip-path`；bloom 为 4px 圆角裁切壳内的 `blur(8px)` / 0.36；`mobile/web` 手机端复刻时间值 |
+| Composer 光束 | `InputBar`：`beam-spin` 默认 1.96s（设置可调方向与周期）、`beam-hue` 12s、`beam-hue-bloom` 12s、光束层淡入 420ms；设置弹窗只缩放 stroke / inner / bloom 强度并施加整体 hue offset，不改变窗口、宽度、blur 或裁切几何；参照 Libraries.dev Rotate，2px / 0.6 stroke 与双 conic inner 形成移动亮峰和透明尾迹，不做重复 `clip-path`；bloom 为 4px 圆角裁切壳内的 `blur(8px)` / 0.36；`mobile/web` 手机端仍复刻默认时间值，不跟随桌面自定义 |
 | Spinner | `TodoPanel` 1s、`GitProgressToast` 0.7s、`AppearanceSection` 图库 0.7s、`TrajectoryTable` 历史加载 700ms、`TurnNavigator` busy 1s、`ChatView` 回合状态 1.8s、`MessageItem` 重试 1.6s、`InputBar` 待发 1s |
 | 指示灯 | `StateDot` 追逐 1s（行内 `-125ms` 错相）、`ConnectionIndicator` 点阵 1.5s step-end |
 | 手机 flow | `mobile/web`：`flow-dot-spin` 0.9s、`flow-sweep` 2.6s、`flow-caret` 1s steps(2) |

@@ -17,3 +17,5 @@
 - **不从 Cursor 或 Claude 的 `.mcp.json` 导入** — 文档格式留给后续导入器；本包只读自己的 YAML。
 - **组成配置里的 mcp-client 行不写入此文件** — 手写的 `cordis.patch.yml` 实例不会被改写。
 - **OAuth 访问令牌会过期** — 没有 refresh token 续期；服务器再返回 401 时从 Settings 重新登录。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

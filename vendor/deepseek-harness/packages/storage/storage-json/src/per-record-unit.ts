@@ -12,8 +12,8 @@
  * Per-record contract: a record document that is malformed or stamped with a
  * version outside the accepted set (the descriptor's current version plus
  * its `compatibleVersions`) reads as an absent record — one bad or stale
- * file never bricks the whole unit, and a version bump discards stale
- * records instead of migrating them. Record keys become path segments, so
+ * file never bricks the whole unit, and an unaccepted version stamp discards
+ * the record instead of migrating it. Record keys become path segments, so
  * they must be path-safe (`[a-zA-Z0-9_-]+`); an unsafe key rejects at write.
  *
  * Legacy bootstrap: when the new tree has no document path, a legacy
@@ -60,7 +60,7 @@ export async function openPerRecordUnit(
  * Read every record document under the unit directory: each declared table's
  * `<key>.json` files plus `global.json`. A missing directory is the empty
  * unit (materialization defers to the first write); a foreign document
- * (missing, malformed, or stamped with another version) reads as an absent
+ * (missing, malformed, or stamped with an unaccepted version) reads as an absent
  * record, per the per-record contract.
  * @param descriptor - Static identity and shape of the unit.
  * @param dir - Absolute unit directory path.

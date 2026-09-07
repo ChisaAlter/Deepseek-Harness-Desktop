@@ -19,12 +19,13 @@ export class SessionLifecycle {
 
   /** @param ctx - Host context whose Agent registry is wrapped. */
   constructor(ctx: Context) {
-    const registry = ctx.agents
+    const registry = ctx.get('agents')
+    ctx.provide('sessionLifecycle', this)
+    if (registry === undefined) return
     const create = registry.create.bind(registry)
     const resume = registry.resume.bind(registry)
-    registry.create = async (options) => this.retainHandle(await create(options))
-    registry.resume = async (options) => this.retainHandle(await resume(options))
-    ctx.provide('sessionLifecycle', this)
+    registry.create = async options => this.retainHandle(await create(options))
+    registry.resume = async options => this.retainHandle(await resume(options))
   }
 
   /**
@@ -55,6 +56,7 @@ export class SessionLifecycle {
   /**
    * The retained handle for one Session, if this process created or resumed it.
    * @param id - Session identity.
+   * @returns the retained handle, when this controller owns one.
    */
   handleOf(id: SessionId): AgentHandle | undefined {
     return this.handles.get(id)

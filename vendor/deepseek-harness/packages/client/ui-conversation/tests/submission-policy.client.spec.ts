@@ -2,7 +2,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import {
-  ComposerSubmissionPolicy, DEFAULT_BUSY_ENTER_BEHAVIOR,
+  ComposerSubmissionPolicy, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM_STYLE,
+  normalizeComposerBeamStyle,
 } from '../src/client/input/submission-policy.ts'
 import type { ConversationSettings } from '../src/submission-settings.ts'
 
@@ -112,6 +113,35 @@ describe('ComposerSubmissionPolicy', () => {
       writable: true,
     })
     expect(policy.composerBeam.getSnapshot()).toBe(true)
+  })
+
+  it('publishes normalized beam tuning before persisting it and adopts legacy absence', () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    expect(policy.composerBeamStyle.getSnapshot()).toBe(DEFAULT_COMPOSER_BEAM_STYLE)
+
+    const observed: number[] = []
+    policy.composerBeamStyle.subscribe(() => { observed.push(policy.composerBeamStyle.getSnapshot().period) })
+    policy.setComposerBeamStyle({
+      direction: 'counterclockwise', period: 3, intensity: 120, bloom: 80, hue: 45,
+    })
+    expect(observed).toEqual([3])
+    expect(host.set).toHaveBeenCalledWith('composerBeamStyle', {
+      direction: 'counterclockwise', period: 3, intensity: 120, bloom: 80, hue: 45,
+    })
+
+    host.publish({
+      status: 'ready', value: chrome(), revision: 1, writable: true,
+    })
+    expect(policy.composerBeamStyle.getSnapshot()).toEqual(DEFAULT_COMPOSER_BEAM_STYLE)
+  })
+
+  it('normalizes malformed or out-of-range beam tuning at the adoption boundary', () => {
+    expect(normalizeComposerBeamStyle({
+      direction: 'sideways', period: 99, intensity: -1, bloom: 999, hue: Number.NaN,
+    })).toEqual({
+      direction: 'clockwise', period: 6, intensity: 40, bloom: 160, hue: 0,
+    })
   })
 
   it('keeps composer resize off while the Host section is missing and adopts true independently', () => {

@@ -15,3 +15,5 @@ None; this package never assembles model input.
 ## Known Limitations and Deferred Work
 
 - **No marketplace or `.mcp.json` import** — add is a local form or JSON object only.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

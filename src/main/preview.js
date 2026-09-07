@@ -6,6 +6,7 @@ const path = require('node:path');
 const { rewriteLoopbackLoadUrl } = require('./local-url');
 const { isHttpOrHttpsUrl } = require('./preview-url');
 const { createWorkspacePreviewController } = require('./preview-workspace');
+const { createFilePreviewWindowController } = require('./preview-file-window');
 const {
   previewGuestWebPreferences,
   previewPartitionForScope,
@@ -1060,6 +1061,17 @@ function createPreviewController(options = {}) {
 function registerPreviewIpc(ipcMain, controller, options = {}) {
   const authorize = typeof options.authorize === 'function' ? options.authorize : () => {};
   const workspacePreview = options.workspacePreview ?? createWorkspacePreviewController();
+  const filePreviewWindow = options.filePreviewWindow ?? createFilePreviewWindowController({
+    ipcMain,
+    workspacePreview,
+    createWindow: options.createFilePreviewWindow,
+    readFile: options.readFile,
+    getTheme: options.getTheme,
+    getLocale: options.getLocale,
+    preloadPath: options.filePreviewPreloadPath,
+    htmlPath: options.filePreviewHtmlPath,
+    platform: options.platform,
+  });
   let host = null;
   const remember = (event) => {
     authorize(event);
@@ -1214,9 +1226,14 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
     remember(event);
     return workspacePreview.fileUrl(input);
   });
+  ipcMain.handle('shell:preview-open-file-window', (event, input) => {
+    remember(event);
+    return asResult(() => filePreviewWindow.open(input));
+  });
   const closeAll = typeof live.closeAll === 'function' ? live.closeAll.bind(live) : async () => {};
   live.closeAll = async () => {
     await closeAll();
+    await filePreviewWindow.close();
     await workspacePreview.close();
   };
   return live;

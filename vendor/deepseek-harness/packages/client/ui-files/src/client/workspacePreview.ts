@@ -1,5 +1,5 @@
-/** Single source with the openPath BROWSER_DOCUMENTS sets in ui-surfaces / ui-files apply paths. */
-export const WORKSPACE_BROWSER_PREVIEW_EXTENSIONS = ['.htm', '.html', '.pdf', '.svg', '.xhtml'] as const
+/** Browser documents open in the integrated Browser; images remain in Files. */
+export const WORKSPACE_BROWSER_PREVIEW_EXTENSIONS = ['.htm', '.html', '.pdf', '.xhtml'] as const
 
 export const WORKSPACE_IMAGE_PREVIEW_EXTENSIONS = [
   '.avif',

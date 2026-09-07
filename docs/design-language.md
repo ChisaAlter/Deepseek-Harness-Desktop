@@ -2,7 +2,7 @@
 
 中文 · [English](design-language.en.md)
 
-DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.2-rc.1`（`a66e4702047846cdaa10c66c9d3df3951f5ea70d`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
+DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.3-alpha.1`（`d347e703908d0406b7a7ef80e3a0e594d86b2215`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
 
 「与基线一致」不靠主观印象，按三条硬标准判定，全部落在实物上：
 
@@ -29,6 +29,8 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 终端、diff、代码块按基线约定保留等宽、不换行；那是内容排版，不是另做一套 chrome。
 
 ## 强制规则
+
+已有会话的模型控件在进入或返回会话时自动加载当前选择，不要求先打开模型菜单。发送消息与控件重新挂载不得把已保存的模型显示为「选择模型」；首次同步沿用既有加载文案，目录缺少显示名时沿用 provider/model 标识，不新增控件或改变样式。草稿页行为不变。
 
 消息编辑复用常驻 composer、现有编辑横幅与气泡标记。确认后始终在当前会话重新生成，包括首条消息；侧栏不新增或切换会话，被替换轮次的旧问答从聊天视图移除。取消和失败保留既有草稿恢复与提示样式。
 
@@ -73,7 +75,7 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 | 选中行 | `--dsw-specific-sidebar-nav-item-active`（强调用 `*-accent`） |
 | 字体栈 | `--dsw-font-family`（系统 UI + 苹方 / 雅黑）；代码 `--ds-font-family-code` |
 
-布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。右边栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。右栏空态的面板选择卡（`ui-surfaces` 的 `EmptyState`）是居中**方块瓷砖**：两列、内宽上限 320、`aspect-ratio: 1 / 1`、间距 8、圆角 12，图标 / 标题 / 描述垂直堆叠居中；不是横向长条卡。
+布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。右边栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。右栏空态的面板选择卡（`ui-surfaces` 的 `EmptyState`）是居中**方块瓷砖**：两列、内宽上限 320、`aspect-ratio: 1 / 1`、间距 8、圆角 12，图标 / 标题 / 描述垂直堆叠居中；不是横向长条卡。工作区文件与产物的主点击留在应用工作环内：HTML / HTM / XHTML / PDF 进入右栏 Browser，其余可读文件进入 Files；Files 工具栏的悬浮预览是显式次级动作，系统默认程序仅用于右键命令或工作区权威之外的回退。Files 的悬浮文件预览是单实例、只读、置顶的原生子窗口：保留系统标题栏与关闭命中区，内容面直接使用官方 Web UI canvas / `--dsw-alias-*` token，不套卡片、不引入第二套壳层皮肤；图片、音视频按 contain 居中，文本 / HTML / PDF 占满可滚动内容区，打开下一文件原位替换。
 
 输入条：`InputBar` 胶囊卡（22 圆角）静止态自带整圈轮廓光——`inset 0 0 12px 1px rgba(255, 255, 255, 0.25)`，四条边与四个圆角均匀包裹（inset 光天然跟随 `border-radius`；浅色主题白上加白自然隐形，不写主题分支）。卡片不带外投影（elevation-soft 不上输入条），分离由轮廓光 + 发丝描边承担；壁纸亮部透过玻璃只做环境叠加，轮廓光才是自有合同。运行态思考炫光（beam）参照 Libraries.dev Border Beam 的 Rotate / Large / Colorful 层次叠加在这圈轮廓光之上：未滤镜的命中壳在卡边外扩 4px 并继续 `overflow: hidden`，22px stroke / inner 内缩回原卡边，stroke 以 0.6 透明度、inner 以旋转窗口共同形成移动亮区，masked bloom 光源由外层容器以 `blur(8px)` 模糊并以 0.36 透明度进入这圈圆角光晕；4px 小于 composer stack 的 6px 间距，因此不盖住 dock。空会话 Hero 的 workspace / agent-preset 行与输入卡共享实际宽轴：有已保存宽度时读取 `--dsh-composer-resized-width`，否则回退 `--dsh-composer-card-max-width`，整行在 composer stack 内居中，不能留在外层满宽左缘。静止/运行的层级靠流光对比，不加新色板。壁纸模式下输入条背后不铺座位暗带：输入卡与统计行直接坐在壁纸上，任何带状填充都会读成输入框投下的阴影。
 
@@ -81,12 +83,28 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 输入卡及其 beam 裁切壳、stroke、inner、bloom 光源明确使用 `corner-shape: round`，不跟随全局 superellipse。各层共用圆弧几何，保证 inset 静止轮廓光可见，并与 inner 的圆弧裁切一致。stroke 升至 2px 以覆盖 100% 缩放下的圆角抗锯齿像素；bloom 光源仍为 1.5px。像素验收必须加载产品全局圆角样式、归一化系统缩放，并额外检查静止轮廓的四角覆盖，不能只检查动态亮峰。
 
+界面设置里的「发送消息时的思考炫光」保留即时开关，并在开关右侧提供 28px 齿轮图标按钮打开官方 `Modal`。弹窗只配置这一条运行态 beam：顺/逆时针、单圈周期、整体强度、bloom 强度与整体色相；弹窗内用同一套 beam 图层实时预览，保存后写入 `ui-conversation` 设置命名空间，取消不改当前值，恢复默认回到现有 1.96s / 原方向 / 原强度 / 原色相。配置不得改变 2px stroke、1.5px bloom 光源、4px 裁切壳、8px blur、22px 圆角或强度窗口，不得扩展为聚焦、输入、完成、失败等第二套状态灯。减弱动效下预览与实际 beam 都隐藏，但设置值保留。
+
 ## 允许的例外
 
 - **xterm / diff / 代码**：等宽、ANSI、字符网格，不套胶囊按钮。
 - **原生窗口控件**：最小化 / 最大化 / 关闭保持系统命中区；颜色仍跟随当前主题 token。
 - **无法 import 主题包的壳层**（远程登录页、手机 Web SPA、Android Compose）：复用同一套语义色和几何。手机 SPA 把 `--dsw-alias-*` 抄进 `mobile/web/tokens.css`；Android 抄进 `mobile/android` 的 Compose `DshTokens` / `Color` 表。都不挂官方 CSS Modules，也不把启动页 `--boot-*` 带过去。禁止再开 `--bg` / `--accent` 平行色板，禁止 Material 默认紫或动态取色覆盖语义表。Git 胶囊上的 Commit / Push / Pull 等 action 标签保持英文。
 - **桌面启动页**：整页仪器画布与独立 `--boot-*` 表，详见 [桌面启动页](#桌面启动页)。
+
+## 手机远程交互
+
+远程 Web 与 Android 内置 SPA 是桌面 Harness 的窄屏重排，不是第二套移动设计系统。会话画布、侧栏层级、用户气泡、InputBar、权限/模型触发器、Menu 行、Modal 标题与动作、Git split control 必须直接继承桌面端的角色、token、字号、圆角和选中规则；只允许因宽度改变排列方向、可见标签与滚动容器。不得套用 Material、iOS 或通用移动 App 的大标题栏、贴底大圆角 sheet、等宽双按钮、胶囊底栏等外观。
+
+权限、模型、附件来源、Git 操作与行菜单在手机上仍读作桌面 popover/Menu：菜单面使用 `--dsw-specific-menu`、20px 圆角、4px 内垫、40px 行和尾部勾选，靠近触发器优先；空间不足时才贴近视口边缘并内部滚动，不能变成带独立 52px 标题栏的原生底部面板。设置、目录浏览和 Git 表单使用全屏任务，但其标题、28px 图标按钮、字段、分段控件和 36px 胶囊动作仍沿用桌面原语。破坏性确认沿用桌面 Modal 的 24px 圆角、标题/正文间距与右对齐动作；窄屏只缩小外边距，不改成另一套底部确认栏。
+
+手机会话头部是桌面 conversation header 的压缩版：标题与元信息占主轴，Git 保持 32px split-control / pill 语义，菜单图标只扩透明命中区。常驻 composer 继续使用桌面 InputBar 的 22px 圆角、内轮廓光、28px 附件圆钮、28px 权限/模型触发器和圆形发送钮；窄屏优先省略次要文字并允许桌面既有的两组工具换行，不得把触发器填成大块灰胶囊或另做移动工具栏。
+
+Web 独立操作命中区至少 44 CSS px，Android 至少 48dp；图标仍用既有 16px 图标，允许透明命中区扩大。手机编辑控件字号 16px、行高 24px；其他排版继续基线。长模型名省略但不能只剩箭头，完整现值与思考档在选择面板中可见。保留用户缩放和选区，代码/表格横滚优先于抽屉手势。
+
+屏幕返回、浏览器返回和 Android 返回使用同一导航层级；软键盘出现时系统返回先收键盘，再退当前层。关闭恢复触发器但不强制唤起编辑键盘；背景层不可点击或聚焦。history 不写入凭证或草稿，不在返回时重放业务写请求。普通成功原位反馈，失败原位可重试；审批关闭详情不等于拒绝请求。长草稿阅读时可收起，恢复编辑保留草稿与选区。动画只使用已有 transform/opacity token，减弱动效直接落位。
+
+Android 保持稳定 asset origin 与同一 Web 源码，不平行实现聊天；原生只补返回、扫码、拍照/选择、键盘和生命周期。新一轮 Web 与 Android 分轨验收，不继承历史未测结论为 Pass。
 
 ## 桌面启动页
 

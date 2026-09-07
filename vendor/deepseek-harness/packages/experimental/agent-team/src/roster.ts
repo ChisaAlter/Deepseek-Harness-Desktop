@@ -11,6 +11,7 @@ import type { ContinuableStart } from '@deepseek-ai/dsh-subagent'
 import { errorMessage, TeamError } from './error.ts'
 import type { TeamJournal } from './journal.ts'
 import type { TeamRuntimeLifecycle } from './lifecycle.ts'
+import { readPersistedSession } from './persisted.ts'
 import type { TeamState } from './projection.ts'
 import { messageAccepted } from './session-message.ts'
 import { TeamId } from './types.ts'
@@ -273,7 +274,7 @@ export class TeamRoster {
       if (state.members.length >= this.maxMembers) {
         throw new TeamError(`Team member limit ${this.maxMembers} reached`, 'TEAM_MEMBER_LIMIT')
       }
-      await this.journal.appendAndFlush(root, 'team/member', { version: 1, teamId: TeamId(root.id), member })
+      await this.journal.appendAndFlush(root, 'team/member', { version: 2, teamId: TeamId(root.id), member })
     })
 
     let started: ContinuableStart
@@ -345,7 +346,7 @@ export class TeamRoster {
       signal.throwIfAborted()
       const session = this.ctx.sessions.get(childId)
       if (session === undefined) {
-        const stored = await this.ctx.sessionPersistence.inspect(childId, signal)
+        const stored = await readPersistedSession(this.ctx.sessionPersistence, childId, signal)
         const suffix = stored.events.slice(stored.inheritedEventCount)
         if (messageAccepted(suffix, message => message.id === messageId)) return
         throw new TeamError(
@@ -374,7 +375,7 @@ export class TeamRoster {
       try {
         signal.throwIfAborted()
         await this.ctx.sessions.flush(session)
-        const suffix = session.ownEvents()
+        const suffix = session.snapshotEvents(session.inheritedEventCount)
         if (messageAccepted(suffix, message => message.id === messageId)) return
         if (this.ctx.sessions.get(childId) !== session) continue
         await progress.promise
@@ -397,11 +398,11 @@ export class TeamRoster {
       let phase: 'active' | 'failed' = 'failed'
       let failure = 'provisioning did not leave a resumable child Session'
       try {
-        const loaded = await this.ctx.sessionPersistence.inspect(member.id, signal)
+        const loaded = await readPersistedSession(this.ctx.sessionPersistence, member.id, signal)
         const suffix = loaded.events.slice(loaded.inheritedEventCount)
         const descriptor = foldSubagentDescriptor(suffix)
         const acceptedInitialPrompt = messageAccepted(suffix, message => message.source.kind === 'user')
-        if (loaded.meta.parentSession === root.id
+        if (loaded.header.parentSession === root.id
           && descriptor?.mode === 'continuable'
           && descriptor.provider === member.provider
           && acceptedInitialPrompt) {
@@ -423,7 +424,7 @@ export class TeamRoster {
           ...phase === 'failed' ? { error: failure } : {},
         }
         await this.journal.appendAndFlush(root, 'team/member', {
-          version: 1,
+          version: 2,
           teamId: TeamId(root.id),
           member: settled,
         })
@@ -471,7 +472,7 @@ export class TeamRoster {
       }
       if (current.phase !== 'provisioning') return current.phase
       await this.journal.appendAndFlush(root, 'team/member', {
-        version: 1,
+        version: 2,
         teamId: TeamId(root.id),
         member: terminal,
       })
@@ -481,6 +482,6 @@ export class TeamRoster {
 
   /** Whether a Session's own suffix identifies a provider-owned subagent child. */
   private subagentDescriptor(agent: Agent): boolean {
-    return foldSubagentDescriptor(agent.session.ownEvents()) !== undefined
+    return foldSubagentDescriptor(agent.session.snapshotEvents(agent.session.inheritedEventCount)) !== undefined
   }
 }

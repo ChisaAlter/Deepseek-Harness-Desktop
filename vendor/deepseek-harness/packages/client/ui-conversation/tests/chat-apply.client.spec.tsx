@@ -13,6 +13,7 @@ import type { StatsLineRowInjected } from '../src/client/settings/StatsLineRow.t
 import type { PeakValleySettingsRowInjected } from '../src/client/settings/PeakValleyRow.tsx'
 import type { PeakValleyRowInjected } from '../src/client/chat/PeakValleyRow.tsx'
 import type { ViewTabsRowInjected } from '../src/client/settings/ViewTabsRow.tsx'
+import { DEFAULT_COMPOSER_BEAM_STYLE } from '../src/submission-settings.ts'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -62,8 +63,11 @@ describe('conversation apply wiring (desktop peak/valley + session cost)', () =>
     const beam = b.slots.entries('settings.interface.item')[0]
     const beamInjected = (beam?.inject as unknown as () => BeamRowInjected)()
     expect(beamInjected.hooks.composerBeam.getSnapshot()).toBe(true)
+    expect(beamInjected.hooks.composerBeamStyle.getSnapshot()).toEqual(DEFAULT_COMPOSER_BEAM_STYLE)
     beamInjected.setComposerBeam(false)
     expect(beamInjected.hooks.composerBeam.getSnapshot()).toBe(false)
+    beamInjected.setComposerBeamStyle({ ...DEFAULT_COMPOSER_BEAM_STYLE, hue: 90 })
+    expect(beamInjected.hooks.composerBeamStyle.getSnapshot().hue).toBe(90)
     const resize = b.slots.entries('settings.interface.item')[1]
     const resizeInjected = (resize?.inject as unknown as () => ResizeRowInjected)()
     expect(resizeInjected.hooks.composerResize.getSnapshot()).toBe(false)

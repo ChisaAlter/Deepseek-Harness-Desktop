@@ -24,9 +24,6 @@
       "path": "../locale"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../store"
     },
     {

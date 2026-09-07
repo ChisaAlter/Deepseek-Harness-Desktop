@@ -15,3 +15,5 @@ Web Settings 栏目 `mcp`（order 18）。页面把 `ctx.remote.mcpServers` 中�
 ## 已知限制与暂缓事项
 
 - **没有市场或 `.mcp.json` 导入** — 添加只是本地表单或 JSON 对象。
+
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

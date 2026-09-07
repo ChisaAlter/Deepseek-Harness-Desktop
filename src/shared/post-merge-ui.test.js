@@ -75,7 +75,7 @@ const UI_FEATURES = [
   },
   {
     name: 'composer beam layer',
-    file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
+    file: 'packages/client/ui-conversation/src/client/ComposerBeam.tsx',
     includes: ['data-composer-beam'],
   },
   {

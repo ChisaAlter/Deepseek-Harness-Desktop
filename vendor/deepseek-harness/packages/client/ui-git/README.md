@@ -26,3 +26,5 @@ None; this package neither assembles nor sends a provider request.
 - **Change requests go through `gh` on GitHub remotes** — an already-open PR is reused via `gh pr list --head`; fork creates pass `--head owner:branch`. Non-GitHub remotes fail closed (GitLab `glab` / other CLIs are not shipped). A missing `gh` after commit+push fails the stacked action on the toast.
 - **Open file uses the OS default app** — the commit dialog opens paths with `shell.openPath`, not a preferred-editor picker.
 - **Pull is fast-forward only** — `git pull --ff-only`; stash and rebase appear only as disabled menu hints.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -40,6 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -48,13 +51,14 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import ai.deepseek.harness.mobile.ui.theme.dsh
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @SuppressLint("UnsafeOptInUsageError")
 @Composable
-fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit) {
+fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit, onPaste: () -> Unit) {
     val context = LocalContext.current
     val owner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context) }
@@ -102,28 +106,61 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit) {
         }
     }
     androidx.activity.compose.BackHandler(onBack = onClose)
+    val palette = dsh()
     val ink = Color(249, 250, 251)
     val inkMuted = Color(173, 178, 184)
     Column(
         Modifier
             .fillMaxSize()
-            .background(Color(21, 21, 23))
+            .background(palette.bgBase)
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(bottom = 12.dp),
+            .padding(bottom = 16.dp),
     ) {
+        Row(
+            Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.width(36.dp).height(36.dp).clip(RoundedCornerShape(8.dp)).then(dshClickable(onClick = onClose)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("‹", color = palette.labelSecondary, fontSize = 28.sp, lineHeight = 28.sp)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "连接 DeepSeek Harness",
+                    color = palette.labelPrimary,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    "扫描桌面侧栏中的远程二维码",
+                    color = palette.labelTertiary,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                )
+            }
+            Box(
+                Modifier.height(36.dp).clip(RoundedCornerShape(8.dp)).then(dshClickable(onClick = onPaste)).padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("粘贴", color = palette.buttonInfoFill, fontSize = 13.sp, lineHeight = 20.sp)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(palette.borderL1))
         Box(
             Modifier
-                .weight(1f)
                 .fillMaxWidth()
-                .padding(start = 24.dp, end = 24.dp, top = 16.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 28.dp),
             contentAlignment = Alignment.Center,
         ) {
             Box(
                 Modifier
-                    .aspectRatio(1f)
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(27, 27, 28)),
+                    .fillMaxWidth()
+                    .aspectRatio(0.8f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(31, 33, 36)),
             ) {
                 AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                 if (torch) {
@@ -146,52 +183,52 @@ fun ScanScreen(onFound: (String) -> Unit, onClose: () -> Unit) {
                     drawLine(ink, Offset(right, bottom), Offset(right - arm, bottom), stroke.width, StrokeCap.Square)
                     drawLine(ink, Offset(right, bottom), Offset(right, bottom - arm), stroke.width, StrokeCap.Square)
                 }
-            }
-        }
-        Text(
-            "将二维码放入框内",
-            color = inkMuted,
-            fontSize = 13.sp,
-            lineHeight = 20.sp,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .border(1.dp, Color(255, 255, 255, 0x29), RoundedCornerShape(18.dp))
-                    .then(dshClickable(onClick = onClose)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("取消", color = ink, fontSize = 14.sp, lineHeight = 22.sp)
-            }
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(if (torch) ink else Color(249, 250, 251))
-                    .then(
-                        dshClickable {
-                            torch = !torch
-                            control.get()?.enableTorch(torch)
-                        },
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(12.dp).height(32.dp)
+                        .clip(RoundedCornerShape(16.dp)).background(Color(15, 17, 21, 0xB8))
+                        .then(
+                            dshClickable {
+                                torch = !torch
+                                control.get()?.enableTorch(torch)
+                            },
+                        ).padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(if (torch) "关闭手电" else "手电筒", color = ink, fontSize = 12.sp, lineHeight = 18.sp)
+                }
                 Text(
-                    if (torch) "关闭手电" else "手电筒",
-                    color = Color(15, 17, 21),
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp,
+                    "将二维码完整放入取景框",
+                    color = inkMuted,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 86.dp),
                 )
             }
         }
+        Box(
+            Modifier.fillMaxWidth().padding(top = 20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier
+                    .width(180.dp)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .border(1.dp, palette.borderL2, RoundedCornerShape(18.dp))
+                    .then(dshClickable(onClick = onPaste)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("粘贴配对链接", color = palette.labelPrimary, fontSize = 14.sp, lineHeight = 22.sp)
+            }
+        }
+        Text(
+            "配对密钥仅用于连接这台电脑",
+            color = palette.labelTertiary,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+        )
+        Spacer(Modifier.weight(1f))
     }
 }

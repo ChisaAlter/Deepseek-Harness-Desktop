@@ -1,0 +1,22 @@
+{
+  "prompt": "这是桌面模型连通性验收。不要调用工具，不要解释。请只回复：DSHD_QA_OK_33942243475",
+  "beforeAssistantCount": 0,
+  "observedAt": "2026-09-05T06:53:30.515Z",
+  "assistantCount": 1,
+  "text": "DSHD_QA_OK_33942243475",
+  "kinds": [
+    "system-prompt",
+    "user",
+    "turn-process",
+    "context",
+    "context",
+    "model-retry",
+    "assistant-step",
+    "turn-tail"
+  ],
+  "busy": false,
+  "approval": "",
+  "errors": [],
+  "failure": "",
+  "composer": ""
+}

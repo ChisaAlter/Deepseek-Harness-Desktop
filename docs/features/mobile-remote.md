@@ -4,7 +4,11 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-06 — 桌面集成与安装资源统一改名 `dshd-remote`（上游源码目录和 `@chisacode/*` 协议包名保留）；生产 runtime 使用 `--omit=optional` 并显式保留 Electron ABI 148 的 `better-sqlite3`，删除 Claude 平台 CLI、Sherpa 平台包、重复 workspace dist、非 x64 PTY、PDB 与 SQLite 构建残留。运行时从约 412.6 MiB / 14692 文件降至 80.4 MiB / 12254 文件；本地 NSIS 从旧候选 637925131 bytes 降至 562061203 bytes。SQLite 双探针、完整 daemon 启停、107 pass / 2 skip 的聚焦测试、afterPack 与 packaged smoke 均通过。按产品负责人要求，本轮不执行 Web、Android 或 macOS 验收，相关轨道不记 Pass。 |
+| **last verified** | 2026-09-07 — Ardot `Desktop-aligned v2` 已落到共享 Web SPA 与 Android 原生扫码壳层：会话头/侧栏/InputBar/Git 控件按桌面窄屏重排，权限/模型/附件/Git 菜单恢复桌面 Menu 角色，确认框恢复居中 Modal，目录与分支长流程保留全屏任务；普通 Fork 仍可写。Web 292 项、资源/QA 20 项、Android `test assembleDebug` 和最终 APK 资源审计通过；T3 预览在 390/360 宽完成 DOM 几何门（头部 61px、输入区 96px、菜单 r20/无标题栏/透明遮罩、Modal r24 居中），截图接口超时。最终 debug APK 已于 2026-09-07 15:35:08 覆盖安装到设备 `9TUCYX8TBI6DLRMZ` 并启动，安装包 `versionCode=2`、`versionName=0.1.1`；T1/T2/完整 T3/正式签名结论不变。 |
+
+## 当前改造轮次（2026-09-06）
+
+用户已批准[Web 与 Android 交互改造计划](../superpowers/plans/2026-09-06-mobile-web-android-interaction.md)。本轮已生成 Web 与 Android 本地候选，T1 公网 Web、适用 T2 LAN、T3 真机整体验收未完成；历史“Android 不签 / Deferred”不作为本轮豁免。[分轨证据](../../tools/mobile-web-qa/results/2026-09-06-interaction/README.md)不继承历史 Pass。短面板、全屏任务、统一返回与触控命中区按设计语言手机节执行；共享网页仍为唯一聊天实现。
 
 ## User paths
 
@@ -124,7 +128,7 @@
 - Android WebView 用显式请求序号识别新扫码或重试，不因重组重新插入已消费的 offer；返回前台触发共享 SPA 的连接探测与目录同步。内置资源缺失或主页面加载失败必须可见，不能回落公网下载同名资源。
 - 手机目录转发保留全部 `session.list` 行和原始会话字段，投影只传 `title` / `sessionListMetadata`。模型、权限、计划与用量详情通过打开会话时的 history 按需获取，不能为每次首屏同步重复传输所有会话的详情；history、创建与搜索响应不受目录裁剪影响。目录失败必须可重试，不能假空列表。
 - **非 secure context 兼容**：`http://<LAN-IP>:3180` 禁止裸用 `crypto.randomUUID` / `crypto.subtle`；uuid 走 `getRandomValues` fallback；E2EE 保持 tweetnacl。
-- 设计语言仍抄 `--dsw-alias-*`。
+- 设计语言仍抄 `--dsw-alias-*`；手机 Web 与 Android SPA 是桌面 Harness 的窄屏重排，不得另做 Material/iOS/通用移动皮肤。Sidebar、Menu、Modal、InputBar、PermissionSelect、ModelSelect 与 Git split control 的角色、token、字号、圆角和选中规则以 vendored 桌面组件为母版，手机只改排列、标签显隐与滚动容器。
 - 全量启动才启用内容搜索：`--patch` `desktop-session-search.patch.yml` 覆写 `session-query-sqlite` 为 `openAt: first-search` 与 `dsh-home/session-query.sqlite`。禁止把这次 opt-in 写进用户 `cordis.patch.yml`。skip 启动保持发版 `openAt: never`。
 
 ## Allowed touch

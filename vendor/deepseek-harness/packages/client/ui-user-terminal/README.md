@@ -22,3 +22,5 @@ None; this package neither assembles nor sends a provider request.
 
 - **Right-panel shell is not owned here** — this package injects `surfaces.terminal` and does not declare the surfaces column or its empty-state cards.
 - **Maximize is the conversation drawer only** — `surfaces.terminal` has no separate maximize control.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

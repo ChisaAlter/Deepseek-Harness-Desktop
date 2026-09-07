@@ -30,7 +30,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import { admitPromptContent } from '@deepseek-ai/dsh-attachment'
+import type {} from '@deepseek-ai/dsh-attachment'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import { assertObjectJsonSchema } from '@deepseek-ai/dsh-tools'
@@ -75,7 +75,7 @@ import { listChildren as listSubagentChildren, listDescendants as listSubagentDe
 import type { SubagentDescendantListEntry, SubagentListEntry } from './list-children.ts'
 import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
-import { queueSubagentPrompt } from './internal.ts'
+import { deliverSubagentPrompt, type HostPromptDeliveryMode } from './internal.ts'
 
 export * from './out-of-process.ts'
 export { AssistantOutputFold, finalAssistantOutput } from './assistant-output.ts'
@@ -105,7 +105,6 @@ export type {
   SubagentDescriptorData,
   SubagentDescriptorInput,
 } from './descriptor.ts'
-export { seedDescriptorTurn } from './descriptor-seed.ts'
 export { SubagentError } from './error.ts'
 export { settleRun } from './run-settlement.ts'
 export { assertSubagentMaxDepth, delegationDepthOf } from './depth.ts'
@@ -255,7 +254,7 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Queue one host-protocol message as a distinct direct-child turn.
+   * Deliver one host-protocol message to a direct continuable child.
    * Symbol-keyed so host adapters can preserve their own provenance without
    * widening the public Service Definition or impersonating an Agent sender.
    * @param parent - exact live direct parent authorizing delivery.
@@ -263,16 +262,20 @@ export class SubagentRuntime extends TypertRemoteService {
    * @param content - host-authored content to deliver.
    * @param source - durable host-protocol provenance.
    * @param signal - caller cancellation before inbox acceptance.
+   * @param delivery - Queue as a distinct turn or Steer at the nearest step.
    * @returns the accepted message's inbox id.
    */
-  private [queueSubagentPrompt](
+  private [deliverSubagentPrompt](
     parent: Agent,
     childId: SessionId,
     content: ContentBlock[],
     source: MessageSource,
     signal: AbortSignal,
+    delivery: HostPromptDeliveryMode,
   ): Promise<MessageId> {
-    return this.requireContinuations().queuePrompt(parent, childId, content, source, signal)
+    return delivery === 'steer'
+      ? this.requireContinuations().steerPrompt(parent, childId, content, source, signal)
+      : this.requireContinuations().queuePrompt(parent, childId, content, source, signal)
   }
 
   /**
@@ -442,15 +445,16 @@ export class SubagentRuntime extends TypertRemoteService {
       } else {
         const attachments = this.ctx.get('attachments')
         if (attachments === undefined) throw new Error('subagent image prompt requires an attachment store')
-        content = await admitPromptContent(attachments, request.content)
+        content = await attachments.admitPromptContent(request.content)
       }
       return {
-        messageId: await this[queueSubagentPrompt](
+        messageId: await this[deliverSubagentPrompt](
           parent,
           childSessionId,
           content,
           source,
           signal,
+          'queue',
         ),
       }
     } catch (error: unknown) {

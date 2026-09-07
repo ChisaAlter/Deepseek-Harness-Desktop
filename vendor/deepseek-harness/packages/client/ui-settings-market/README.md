@@ -19,3 +19,5 @@ None; this package neither assembles nor sends a provider request.
 - **Marketplace is desktop-only** — the catalog fetch, install lock, and CLI live in the Electron main process.
 - **First slice of the desktop-owned market** — upstream dshmarket's theme shop, backup/Gist, diagnostics, hot updates, and multi-source management are not ported; the deferred list lives on the desktop feature card `marketplace-settings`.
 - **Installed detection is name/spec based** — an exact `packageName` hit wins; otherwise the stored spec is matched as a whole `owner/repo` path segment (`spec-match.ts`), so a renamed github install still matches while longer repo names (`owner/repo-extra`) do not.
+
+No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

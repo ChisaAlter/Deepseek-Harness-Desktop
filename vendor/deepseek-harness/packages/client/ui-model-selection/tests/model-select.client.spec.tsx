@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelSelection, SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ModelSelectionProjection } from '@deepseek-ai/dsh-api-session-controller/types'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ComponentProps } from 'react'
 import type { ModelDirectoryState } from '../src/client/directory.ts'
+import { ModelDirectory } from '../src/client/directory.ts'
+import { ModelCatalogDirectory } from '../src/client/catalog.ts'
 import { ModelSelect } from '../src/client/ModelSelect.tsx'
 import { zh } from '../src/client/locales.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
@@ -53,6 +56,66 @@ function state(overrides: Partial<ModelDirectoryState> = {}): ModelDirectoryStat
 afterEach(cleanup)
 
 describe('ModelSelect reasoning effort', () => {
+  it.each([false, true])('restores the saved model across prompt updates and remounts (delayed projection: %s)', async (delayed) => {
+    const saved = { provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'max' }
+    const projected = createSnapshotStore<ModelSelectionProjection | undefined>(
+      delayed ? undefined : { lastUsed: null, next: saved },
+    )
+    const modelCatalog = vi.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        default: { provider: 'deepseek-official', model: 'another-default' },
+        routableProviders: ['deepseek-official'],
+        groups: state().groups,
+        failures: [],
+      },
+    })
+    const catalog = new ModelCatalogDirectory({ remote: { session: { modelCatalog } } } as never)
+    await catalog.load()
+    const selectModel = vi.fn()
+    const mount = () => {
+      const directory = new ModelDirectory(
+        { selectModel }, 'saved-session' as SessionId, () => true, catalog, projected,
+      )
+      const load = vi.fn(() => { void directory.load() })
+      const props = {
+        locked: false, available: true, directory: directory.store,
+        load, select: vi.fn().mockResolvedValue(true), t,
+      }
+      const view = render(<ModelSelect {...props} />)
+      return { directory, load, view, props }
+    }
+    const assertSavedModel = async () => {
+      await waitFor(() => {
+        expect(screen.getByRole('button', {
+          name: '选择模型，当前 DeepSeek-V4-Flash，推理等级 Max',
+        })).toBeTruthy()
+      })
+      expect(screen.queryByRole('menu')).toBeNull()
+    }
+
+    const first = mount()
+    if (delayed) {
+      expect(screen.getByRole('button', { name: '正在加载模型…' })).toBeTruthy()
+      act(() => { projected.set({ lastUsed: null, next: saved }) })
+    }
+    await assertSavedModel()
+    first.view.rerender(<ModelSelect {...first.props} locked />)
+    act(() => { projected.set({ lastUsed: saved, next: saved }) })
+    first.view.rerender(<ModelSelect {...first.props} />)
+    await assertSavedModel()
+    expect(first.load).toHaveBeenCalledTimes(1)
+    first.view.unmount()
+    first.directory.dispose()
+    const returned = mount()
+    await assertSavedModel()
+    expect(returned.load).toHaveBeenCalledTimes(1)
+    expect(modelCatalog).toHaveBeenCalledTimes(1)
+    expect(selectModel).not.toHaveBeenCalled()
+    returned.view.unmount()
+    returned.directory.dispose()
+  })
+
   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
     const select = vi.fn(async (selection: ModelSelection) => {

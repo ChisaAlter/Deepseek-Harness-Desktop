@@ -2,7 +2,7 @@
 
 [中文](design-language.md) · English
 
-DSHD (Deepseek-Harness-Desktop — the desktop application in this repository; distinct from the `dsh` CLI and from the dshd daemon in `src/main`) defines its design language in this document: it is the sole visual authority for every visible surface of DSHD. The language's baseline is pinned to the vendored `vendor/deepseek-harness` Web UI — currently `dsh-v0.1.2-rc.1` (`a66e4702047846cdaa10c66c9d3df3951f5ea70d`), recorded in [`vendor/harness-upstream.json`](../vendor/harness-upstream.json) and updated by `npm run sync:harness`. The desktop chrome, closing overlay, title-bar injection, right-hand surfaces, the Web UI page opened by phone remote, and any new frontend all implement the same language. Do not invent a second skin.
+DSHD (Deepseek-Harness-Desktop — the desktop application in this repository; distinct from the `dsh` CLI and from the dshd daemon in `src/main`) defines its design language in this document: it is the sole visual authority for every visible surface of DSHD. The language's baseline is pinned to the vendored `vendor/deepseek-harness` Web UI — currently `dsh-v0.1.3-alpha.1` (`d347e703908d0406b7a7ef80e3a0e594d86b2215`), recorded in [`vendor/harness-upstream.json`](../vendor/harness-upstream.json) and updated by `npm run sync:harness`. The desktop chrome, closing overlay, title-bar injection, right-hand surfaces, the Web UI page opened by phone remote, and any new frontend all implement the same language. Do not invent a second skin.
 
 "Matching the baseline" is not a judgement call. It is three hard criteria, all anchored in real artifacts:
 
@@ -29,6 +29,8 @@ Any change to a visible surface is in scope, including:
 Terminal, diff, and code blocks keep the baseline monospace / no-wrap rules. That is content typography, not a second chrome language.
 
 ## Hard rules
+
+The model control automatically loads the current selection when entering or returning to an existing conversation, without requiring the model menu to open. Sending a message or remounting the control must not turn a saved model into "Select model". Initial synchronization reuses the loading label; a missing catalog display name uses the provider/model id. Controls, styling, and draft-page behavior stay unchanged.
 
 Message editing reuses the resident composer, edit banner, and bubble marker. Confirm always regenerates within the current conversation, including its first message; the sidebar neither adds nor switches conversations, and Chat hides the superseded turn. Cancel and failure retain the existing draft restoration and notice styling.
 
@@ -73,7 +75,7 @@ Check against the baseline — the baseline is the pinned Web UI served by a loc
 | Selected row | `--dsw-specific-sidebar-nav-item-active` (accent variant `*-accent`) |
 | Font stack | `--dsw-font-family` (system UI + PingFang / YaHei); code `--ds-font-family-code` |
 
-Layout: `AppFrame` is columns, not a card grid. A closed column is width 0 and paints no divider. The title-bar trailing cluster is 28×28 icon buttons with measured window-control inset — do not draw a second window skin. A surfaces tab keeps its close control **to the right of the title**; do not move it unless the user explicitly asks. The right-column empty-state picker cards (`EmptyState` in `ui-surfaces`) are centered **square tiles**: two columns, inner max-width 320, `aspect-ratio: 1 / 1`, 8px gaps, radius 12, with icon / title / description stacked and centered — not horizontal strips.
+Layout: `AppFrame` is columns, not a card grid. A closed column is width 0 and paints no divider. The title-bar trailing cluster is 28×28 icon buttons with measured window-control inset — do not draw a second window skin. A surfaces tab keeps its close control **to the right of the title**; do not move it unless the user explicitly asks. The right-column empty-state picker cards (`EmptyState` in `ui-surfaces`) are centered **square tiles**: two columns, inner max-width 320, `aspect-ratio: 1 / 1`, 8px gaps, radius 12, with icon / title / description stacked and centered — not horizontal strips. Primary clicks on workspace files and artifacts stay inside the application work loop: HTML / HTM / XHTML / PDF open in the right-column Browser and other readable files open in Files. The Files toolbar floating preview is an explicit secondary action; the system default application is reserved for context-menu commands or paths outside workspace authority. The Files floating preview is one read-only, always-on-top native child window: keep the system title bar and close hit target, paint the content directly with the official Web UI canvas / `--dsw-alias-*` tokens, and add neither a card wrapper nor a second shell skin. Images and audio/video stay centered with contain sizing; text, HTML, and PDF fill a scrollable content area; opening another file replaces the current occupant in place.
 
 Composer: the `InputBar` capsule (radius 22) carries a resting rim light of its own — `inset 0 0 12px 1px rgba(255, 255, 255, 0.25)`, wrapping all four edges and corners evenly (an inset light follows `border-radius` natively; on the light theme white-on-white simply disappears, so no theme branch is written). The card carries no outset shadow — elevation-soft stays off the input bar, and the rim plus the hairline carry the separation; bright wallpaper areas showing through the glass are ambient additions only. The running composer beam follows the Libraries.dev Border Beam Rotate / Large / Colorful hierarchy on top of this rim: its unfiltered hit-test shell expands 4px beyond the card and keeps `overflow: hidden`; the 22px stroke and inner layer inset back to the card edge, the stroke runs at 0.6 opacity while the inner layer shares the rotating window, and an outer container applies `blur(8px)` to the masked bloom source at 0.36 opacity. Four pixels stays inside the composer stack's 6px gap, so the effect does not paint over the dock. The blank-session Hero workspace / agent-preset row shares the input card's effective width axis: it reads `--dsh-composer-resized-width` when a saved width exists, falls back to `--dsh-composer-card-max-width`, and stays centered inside the composer stack instead of remaining on the full-width wrapper's left edge. The resting/running hierarchy comes from the traveling filament, not a new palette. Wallpaper mode paints no seat band behind the composer: the input card and stats strip sit directly on the wallpaper — any banded fill reads as a cast shadow cast by the box.
 
@@ -81,12 +83,63 @@ The composer beam is not a permanently colored perimeter: its 2px stroke uses th
 
 The composer card and its beam clip shell, stroke, inner light, and bloom source explicitly use `corner-shape: round`, opting out of the global superellipse. Shared circular geometry preserves the inset resting rim and matches the inner light's circular clip. The stroke increases to 2px to cover antialiased corner pixels at 100% display scaling; the bloom source stays 1.5px. Pixel acceptance must load the production corner stylesheet, normalize display scaling, and check resting corner coverage as well as the moving peak.
 
+The Interface setting "Thinking glow when sending" keeps its immediate Switch and adds a 28px settings-icon button to its right that opens the official `Modal`. The dialog configures only this running beam: clockwise/counterclockwise direction, rotation period, overall intensity, bloom intensity, and global hue offset. It previews the same beam layers live, persists Save into the `ui-conversation` settings namespace, leaves the current value untouched on Cancel, and restores the existing 1.96s / direction / intensity / hue values on Reset. Configuration must not change the 2px stroke, 1.5px bloom source, 4px clip shell, 8px blur, 22px corners, or intensity windows, and must not grow into separate focus, typing, completion, or error lighting states. Reduced motion hides both preview and live beam while retaining the saved values.
+
 ## Allowed exceptions
 
 - **xterm / diff / code**: monospace, ANSI, character grid — not capsules.
 - **Native window controls**: min / max / close keep system hit targets; paint still follows theme tokens.
 - **Shells that cannot import the theme package** (remote login page, mobile Web SPA, Android Compose): reuse the same semantic colors and geometry. The mobile SPA copies `--dsw-alias-*` into `mobile/web/tokens.css`; Android copies it into the Compose `DshTokens` / `Color` tables under `mobile/android`. None of them mount official CSS Modules or carry the boot `--boot-*` canvas. Do not open a parallel `--bg` / `--accent` palette, and do not let Material default purple or dynamic color override the semantic tables. Action labels on the Git capsule (Commit / Push / Pull …) stay in English.
 - **Desktop boot page**: a full-window instrument canvas and a dedicated `--boot-*` table; see [Desktop boot page](#desktop-boot-page).
+
+## Mobile remote interaction
+
+Remote Web and the Android bundled SPA are a narrow-screen reflow of desktop
+Harness, not a second mobile design system. The conversation canvas, sidebar
+hierarchy, user bubble, InputBar, permission/model triggers, Menu rows, Modal
+heading/actions and Git split control inherit the desktop roles, tokens,
+typography, radius and selection treatment. Width may change direction,
+visible labels and scroll containers only. Do not apply Material, iOS or generic
+mobile-app chrome such as oversized app bars, large attached sheets, equal-width
+action pairs or pill tab bars.
+
+Permissions, models, attachment sources, Git actions and row actions must still
+read as desktop popovers/Menus on a phone: use `--dsw-specific-menu`, 20px radius,
+4px inset padding, 40px rows and trailing checks, anchored near the trigger when
+possible. When space is constrained, fit against the viewport and scroll inside;
+do not turn them into native bottom sheets with a separate 52px title bar.
+Settings, directory browsing and Git forms are full-screen tasks, while their
+titles, 28px icon buttons, fields, segments and 36px capsule actions remain the
+desktop primitives. Destructive confirmation retains the desktop Modal's 24px
+radius, title/body spacing and right-aligned actions; narrow screens only reduce
+the outer margin.
+
+The mobile conversation header compresses the desktop conversation header: title
+and metadata own the main axis, Git retains its 32px split-control/pill semantics,
+and only the menu icon receives a transparent larger hit area. The resident
+composer retains desktop InputBar's 22px radius, inset rim, 28px attachment circle,
+28px permission/model triggers and circular send control. Narrow layouts first
+hide secondary copy and may use the desktop tool groups' existing wrap behavior;
+do not fill triggers into large grey pills or introduce a separate mobile toolbar.
+
+Independent touch targets are at least 44 CSS px on Web and 48dp on Android,
+while icons retain the baseline 16px geometry. Mobile editing controls use
+16px/24px typography. Long model labels may ellipsize but must not become only
+an arrow; the picker exposes the full current choice and reasoning effort.
+Preserve user zoom, text selection and horizontal code/table scrolling.
+
+Screen, browser and Android Back share one navigation hierarchy. System Back
+first dismisses an open keyboard. Restore focus without reopening the editor
+keyboard, and make covered content inert. History contains no credentials or
+draft text and never replays writes. Keep success and retryable errors in their
+task; dismissing approval details is not a rejection. Reading may collapse a
+long draft without losing its contents or selection. Use baseline transform and
+opacity motion tokens, with no animation under reduced motion.
+
+Android keeps the stable asset origin and shared Web sources. Native code owns
+only navigation hosting, scanning/media capture, keyboard and lifecycle duties.
+Web and Android have separate acceptance evidence; historical exclusions are not
+passing results for the new delivery.
 
 ## Desktop boot page
 

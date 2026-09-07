@@ -138,6 +138,21 @@ These transitions consume `--ds-transition-*` / `--ds-ease-in-out` without `data
 | Sidebar rail choreography | `SidebarRoot`: 150ms collapse phase + 200ms `wide-in`, riding AppFrame’s 300ms track; stopped under reduced motion |
 | Empty-session Hero fish | On hover when motion is not reduced, a 1.6s gentle sway loop |
 
+### Mobile Interaction Inventory
+
+`mobile/web` is the [mobile hosting surface defined by the design language](design-language.en.md); Android WebView loads the same source. It introduces neither a second theme nor an animation library. This table records the implementation, not an assertion that sharing tokens means adopting React `usePresence`.
+
+| Surface | Current behavior and source |
+| --- | --- |
+| Short permission, model/effort, attachment-source and row-menu panels; full-screen directory/Git tasks and confirmations | `ui/surfaces.js` creates `.surface-panel`. In `app.css`, `mobile-surface-in` runs only under `prefers-reduced-motion: no-preference`: opacity + translateY(8px), using `--ds-motion-duration-overlay` (falling back to `--ds-transition-duration`) and `--ds-ease-in-out`. Full-screen tasks have no floating-card border; headers and action areas stay outside body scrolling |
+| Same-surface refresh and asynchronous results | `app.js` retains surface identity and sets `data-refreshed`; CSS suppresses repeated entrance on model selection or query updates. Focus and scroll restoration are not animations |
+| Close and Back | `ui/navigation.js` and `app.js` handle button, browser and Android Back against the current layer. Trees currently hide/unmount directly, without the official Presence 200ms exit hold; a complete overlay exit recipe is not claimed. Animation completion must not replay business writes |
+| Session drawer | `.drawer` uses transform with `--ds-transition-duration-slow` and `--ds-ease-in-out`; reduced motion disables the transition. This does not establish implementation or acceptance of drag gestures |
+| Settings index/detail, draft reading/editing and lightbox | Content/visibility changes currently apply directly. Do not inventory unimplemented `swap`, `flip` or height animations. Keyboard, viewport and focus recovery have separate acceptance gates |
+| Android system Back/IME, media selection and foreground recovery | `RemoteWebScreen.kt`, `RemoteWebBack.kt` and `WebFileChooser.kt` provide native hosting, not new Web motion recipes. System keyboard and activity transitions require physical-device evidence |
+
+Reduced motion zeros duration tokens in `mobile/web/tokens.css`; media queries in `app.css` disable entrance, drawer and persistent-indicator motion. Entrance/refresh suppression and reduced motion still need checks with actual animation playback. As of 2026-09-06, **the earlier candidate passed 60/60 controlled DOM checks across six viewport sizes; those checks do not certify the final revision**. Snapped animation states establish only that candidate's DOM/geometry, not playback timing, exit behavior, focus timing or physical keyboard/gesture evidence. Source changed afterward, and final-source reruns remained incomplete because T3 Code preview evaluate/snapshot/navigate tools timed out. The current debug APK has been built, but public-origin and physical-device acceptance remain untested; it is not a T3 Pass. See the [current evidence](../tools/mobile-web-qa/results/2026-09-06-interaction/README.md).
+
 ### Indicator families
 
 Infinite busy / loading indicators are product language, not recipes; their loop periods are design values that stay **out of the token table**. Rules: every usage ships its own `prefers-reduced-motion` stop; a new busy indicator joins an existing family instead of inventing another kind of spin.
@@ -145,7 +160,7 @@ Infinite busy / loading indicators are product language, not recipes; their loop
 | Family | Instances (period) |
 | --- | --- |
 | Skeleton sweep | ReasoningRow / ToolRow / SkillRow / GenericCommandCard / bash-sample row sweeps 2.6s; `MenuView` menu skeleton 2s |
-| Composer beam | `InputBar`: `beam-spin` 1.96s, `beam-hue` 12s, `beam-hue-bloom` 12s, beam layer fade-in 420ms; following Libraries.dev Rotate, the 2px / 0.6 stroke and dual-conic inner layer form a moving peak and transparent trail without a duplicate `clip-path`; bloom uses `blur(8px)` / 0.36 inside the 4px rounded clip shell; `mobile/web` mirrors the timing values |
+| Composer beam | `InputBar`: `beam-spin` defaults to 1.96s (Settings may change direction and period), `beam-hue` 12s, `beam-hue-bloom` 12s, beam layer fade-in 420ms; the settings dialog only scales stroke / inner / bloom intensity and applies a global hue offset, without changing windows, widths, blur, or clip geometry; following Libraries.dev Rotate, the 2px / 0.6 stroke and dual-conic inner layer form a moving peak and transparent trail without a duplicate `clip-path`; bloom uses `blur(8px)` / 0.36 inside the 4px rounded clip shell; `mobile/web` keeps the default timing and does not inherit desktop customization |
 | Spinner | `TodoPanel` 1s, `GitProgressToast` 0.7s, `AppearanceSection` gallery 0.7s, `TrajectoryTable` history loading 700ms, `TurnNavigator` busy 1s, `ChatView` turn status 1.8s, `MessageItem` retry 1.6s, `InputBar` pending 1s |
 | Status dots | `StateDot` chase 1s (inline `-125ms` stagger), `ConnectionIndicator` dot matrix 1.5s step-end |
 | Phone flow | `mobile/web`: `flow-dot-spin` 0.9s, `flow-sweep` 2.6s, `flow-caret` 1s steps(2) |

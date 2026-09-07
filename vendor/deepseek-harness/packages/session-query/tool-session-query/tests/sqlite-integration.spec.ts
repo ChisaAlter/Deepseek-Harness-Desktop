@@ -53,14 +53,14 @@ describe('tool-session-query with the real SQLite provider', () => {
     await ctx.plugin(ToolSessionQuery)
 
     const persisted = SessionId('persisted')
-    await ctx.sessionPersistence.create({
+    const writer = await ctx.sessionPersistence.create({
       version: SESSION_FORMAT_VERSION,
       id: persisted,
       createdAt: 1,
       cwd: '/work',
       isSeeded: false,
     })
-    await ctx.sessionPersistence.append(persisted, [{
+    await writer.append([{
       type: 'user/message',
       seq: SessionSeq(0),
       time: 2,
@@ -70,6 +70,7 @@ describe('tool-session-query with the real SQLite provider', () => {
       }),
       surfaceOp: 'append',
     }])
+    await writer.close()
 
     const caller = ctx.sessions.create(SessionId('caller'), {
       meta: { createdAt: 10, cwd: '/work' },
@@ -126,14 +127,14 @@ describe('tool-session-query with the real SQLite provider', () => {
 
     const base = Date.parse('2026-07-24T00:00:00.000Z')
     const persisted = SessionId('fractional-persisted')
-    await ctx.sessionPersistence.create({
+    const writer = await ctx.sessionPersistence.create({
       version: SESSION_FORMAT_VERSION,
       id: persisted,
       createdAt: base,
       cwd: '/work',
       isSeeded: false,
     })
-    await ctx.sessionPersistence.append(persisted, [
+    await writer.append([
       {
         type: 'user/message',
         seq: SessionSeq(0),
@@ -175,6 +176,7 @@ describe('tool-session-query with the real SQLite provider', () => {
         surfaceOp: 'append',
       },
     ])
+    await writer.close()
 
     const caller = ctx.sessions.create(SessionId('fractional-caller'), {
       meta: { createdAt: base + 1_000, cwd: '/work' },

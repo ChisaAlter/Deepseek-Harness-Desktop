@@ -22,7 +22,7 @@ export interface DeepSeekLlmApiExtensionRequest {
   /** Session identity carried by the model request, when present. */
   readonly sessionId?: string
   /** Auxiliary request classification, when present. */
-  readonly purpose?: 'compaction' | 'session-title'
+  readonly purpose?: 'compaction' | 'session-title' | 'vision-describe'
   /** Cancellation for request preparation; providers must stop promptly after abort. */
   readonly signal: AbortSignal
 }

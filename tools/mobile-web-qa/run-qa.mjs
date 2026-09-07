@@ -2,7 +2,7 @@
  * Browser integration QA for the paired mobile/web SPA against the fake
  * host-tunnel DaemonClient (session.list / gitRpc / mux — not ACP agents).
  *
- * Usage: node tools/mobile-web-qa/run-qa.mjs [--screenshots <dir>]
+ * Usage: node tools/mobile-web-qa/run-qa.mjs [--screenshots <dir>] [--port 0] [--prefix /dshd/]
  * Requires puppeteer-core (dev-only): npm i --no-save puppeteer-core
  */
 
@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import puppeteer from 'puppeteer-core';
-import { startQaServer } from './server.mjs';
+import { startQaServer, qaServerOptions, qaServerUrl } from './server.mjs';
 
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
@@ -27,11 +27,8 @@ function chromePath() {
 }
 
 const CHROME = chromePath();
-const BASE = 'http://127.0.0.1:3180';
-const shotDirArg = process.argv.indexOf('--screenshots');
-const SHOT_DIR = shotDirArg > -1
-  ? process.argv[shotDirArg + 1]
-  : 'docs/qa/results/2026-08-30';
+const serverOptions = qaServerOptions();
+const SHOT_DIR = serverOptions.screenshots || 'docs/qa/results/2026-08-30';
 
 const results = [];
 let failures = 0;
@@ -109,8 +106,11 @@ async function clickId(page, id) {
 }
 
 async function main() {
-  const server = await startQaServer();
-  const browser = await puppeteer.launch({
+  const server = await startQaServer(serverOptions);
+  const BASE = qaServerUrl(server).replace(/\/$/, '');
+  let browser;
+  try {
+  browser = await puppeteer.launch({
     executablePath: CHROME,
     headless: 'new',
     args: ['--no-sandbox', '--disable-dev-shm-usage'],
@@ -692,7 +692,7 @@ async function main() {
     await page.evaluate(() => localStorage.clear());
     await page.goto(`${BASE}/?qa=${Date.now()}`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
-      await import('/chisacode/daemon-client.bundle.js');
+      await import(new URL('./chisacode/daemon-client.bundle.js', location.href).href);
     });
     await waitFor(page, () => Boolean(window.__qa), 'fake host world loaded');
     await page.evaluate(() => window.__qa.setFail('session.list', '桌面端未启动'));
@@ -726,12 +726,13 @@ async function main() {
     assert(!(await page.$eval('#banner', (node) => node.textContent)), 'sync error did not clear');
   });
 
-  await browser.close();
-  server.close();
-
   console.log(results.join('\n'));
   console.log(`\n${results.length - failures}/${results.length} checks passed`);
-  if (failures > 0) process.exit(1);
+  if (failures > 0) process.exitCode = 1;
+  } finally {
+    try { await browser?.close(); }
+    finally { await new Promise((resolve) => server.close(resolve)); }
+  }
 }
 
 main().catch((error) => {

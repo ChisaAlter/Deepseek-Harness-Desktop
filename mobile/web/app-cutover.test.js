@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const app = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'app.js'), 'utf8');
+const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'app.css'), 'utf8');
+const surfaces = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'ui', 'surfaces.js'), 'utf8');
 
 test('paired SPA path does not call ACP fetchAgents or createAgent', () => {
   assert.equal(app.includes('fetchAgents'), false, 'app.js still mentions fetchAgents');
@@ -19,17 +21,39 @@ test('paired SPA path does not tell users to create branches on the desktop', ()
 });
 
 test('composer and drawer gaps follow the 4px spacing grid', () => {
-  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'app.css'), 'utf8');
   assert.match(css, /\.composer-side \{ display: flex; align-items: center; gap: 8px; \}/);
   assert.match(css, /\.session-row \{ display: flex; align-items: center; gap: 4px; \}/);
   assert.equal(css.includes('.composer-side { display: flex; align-items: center; gap: 2px; }'), false);
 });
 
 test('Android WebView receives a measured viewport-height fallback for the app shell', () => {
-  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'app.css'), 'utf8');
   assert.match(css, /height: var\(--dsh-viewport-height, 100dvh\)/);
   assert.match(app, /syncViewportHeight/);
   assert.match(app, /--dsh-viewport-height/);
+});
+
+test('mobile surfaces keep the desktop Menu, Modal, and task roles', () => {
+  assert.match(surfaces, /surfaceVariant === 'menu' \? 'menu' : 'dialog'/);
+  assert.match(surfaces, /if \(surfaceVariant === 'menu'\) panel\.append\(content\)/);
+  assert.match(app, /const task = Boolean\(state\.newSession \|\| state\.history \|\| state\.gitDialog === 'branch'\)/);
+  assert.match(app, /const task = !compact/);
+  assert.match(css, /\.menu-layer > \.sheet-mask \{ background: transparent; backdrop-filter: none; \}/);
+  assert.match(css, /border-radius: 20px; background: var\(--dsw-specific-menu\)/);
+  assert.match(css, /width: min\(380px, 100%\)/);
+  assert.equal(css.includes('.dialog-layer[data-compact]'), false);
+});
+
+test('narrow composer remains one desktop-style tool row', () => {
+  assert.match(css, /\.composer-row \{[\s\S]*?flex-wrap: nowrap;/);
+  assert.match(css, /\.chip \{[\s\S]*?height: 28px;[\s\S]*?border-radius: 24px;/);
+  assert.match(css, /\.send \{[\s\S]*?width: 32px; height: 32px;/);
+  assert.equal(css.includes('grid-template-columns: minmax(64px, 1fr)'), false);
+  assert.equal(css.includes('.phone .icon-btn, .phone .surface-control, .phone .phone-menu, .phone .send {\n  width: 44px'), false);
+});
+
+test('picker selection follows desktop trailing-check semantics', () => {
+  assert.match(app, /mark\.textContent = '✓'/);
+  assert.match(css, /\.sheet \.mode-row\[aria-pressed="true"\] \{ background: transparent; \}/);
 });
 
 test('paired SPA executes host slash commands, not session.prompt as /permission chat', () => {

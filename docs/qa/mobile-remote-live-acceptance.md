@@ -1,5 +1,7 @@
 # 手机远程 · 生产交付实机全量用例
 
+> **2026-09-06 新轮次提示：** 下文「本轮」及 Android/T3 Deferred 保留为旧轮次范围，不豁免[已批准的 Web/Android 交互改造](../superpowers/plans/2026-09-06-mobile-web-android-interaction.md)：本轮 T1、适用 T2 与 T3 分轨验收，新增门槛以设计语言和批准计划为准。60/60 六尺寸受控 DOM 检查仅属早期候选；最新源复测因 T3 Code preview evaluate/snapshot/navigate 超时未完成，不继承为最新修订 Pass。snap 状态不是动效/真机证据；当前 debug 候选已构建，公网/物理设备未验收。历史结果不改写。
+
 对照源：[docs/features/mobile-remote.md](../features/mobile-remote.md) MUST 矩阵。桌面真相是正在跑的 `dsh web` 项目侧栏 + 同一进程 `session.list` / `workspace.list`，不是 ACP `fetchAgents`，不是本机另起的 SPA。
 
 本表是 **即将生产交付** 的第二客户端门禁（公约与步骤细则）。**执行关门清单**见 [mobile-remote-full-web-cases.md](mobile-remote-full-web-cases.md)（每功能多条：主路径 / 反向桌面先操作 / 空态 / 失败 / 边界；每条必须答与桌面是否一样）。缺一行 P0 未填就不算测过全功能；附录 A 五轮只覆盖 CHAT-S04 / CHAT-S09。发版表 [production-acceptance-test-cases.md](production-acceptance-test-cases.md) 的 `TC-REM-002` / `TC-REM-003` **以本表为细则**；本表任一条 **P0 Fail** ⇒ 发版表对应格不得 Pass，卡片 `last verified` 不得写「实机全量通过」。
