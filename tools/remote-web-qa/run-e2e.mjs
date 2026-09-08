@@ -25,7 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { ChisaCodeRemote } = require('../../src/main/chisacode-remote.js');
+const { DshdRemote } = require('../../src/main/dshd-remote.js');
 const { DEFAULT_PUBLIC_APP_BASE_URL } = require('../../src/shared/lan.js');
 const puppeteer = require('puppeteer-core');
 
@@ -81,7 +81,7 @@ async function main() {
     remoteListen: `127.0.0.1:${listenPort}`,
     ...(RELAY_OVERRIDE ? { remoteRelayEndpoint: RELAY_OVERRIDE, remoteRelayUseTls: false } : {}),
   };
-  const remote = new ChisaCodeRemote({
+  const remote = new DshdRemote({
     getConfig: () => config,
     getHomeDir: () => home,
     readyTimeoutMs: 90_000,

@@ -13,11 +13,15 @@ test('normalizeRemotePatch persists relay TLS beside the normalized endpoint inp
     },
   );
   assert.deepEqual(
-    normalizeRemotePatch({ remoteRelayUrl: '125.124.85.212:8411' }),
+    normalizeRemotePatch({ remoteRelayUrl: 'ayase.cn:443' }),
     {
-      remoteRelayUrl: '125.124.85.212:8411',
-      remoteRelayUseTls: false,
+      remoteRelayUrl: 'ayase.cn:443',
+      remoteRelayUseTls: true,
     },
+  );
+  assert.deepEqual(
+    normalizeRemotePatch({ remoteRelayUrl: 'relay.example.com:8411' }),
+    { remoteRelayUrl: 'relay.example.com:8411', remoteRelayUseTls: false },
   );
 });
 

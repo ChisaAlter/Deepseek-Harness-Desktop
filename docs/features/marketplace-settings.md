@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `marketplace-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — 修复 Git 安装失败被误报为 `needsAllowBuilds` 的问题：只有解析到真实 `allowBuilds` key 才进入授权重试；市场 UI 对空 key 的异常结果不再显示无效的「允许并重试」。桌面安装链路 60/60、市场 UI 30/30 通过。此前：v0.2.9 候选 run `33932288931` 证明仅增加拍平 `node_modules` fallback 仍不够：市场 overlay 在 `dsh.start()` 解压 packaged Harness 之前生成，因此默认 runtime 路径当时必然不存在。新增 pre-extract 生命周期红测，overlay 生成不再要求默认 sourceDir 已落盘；显式传入错误 sourceDir 仍 fail closed，解压后的统一 `missingDesktopForkPackages` 与 after-pack 门禁继续校验市场包及声明入口。相关市场 / controller / dsh / after-pack / packaged P0 测试 118/118 通过。 |
+| **last verified** | 2026-09-08 — 迁移 dshmarket 1.45.0 的收藏、排序 / 时间过滤、截图 / README / manifest 声明详情、安装卸载确认、批量更新和持久脱敏操作记录，保留桌面 IPC / profile / HarnessController / DSHD 视觉。来源一致性与模糊 lock commit 判定 fail closed，回滚失败停止批次。桌面 / IPC / preload 141 项、市场 52 项、完整 GUI 5483 项（1 跳过）、市场与滚动条聚焦 73 项、client typecheck、官方 Web 构建及 Electron 源码 smoke 通过。全仓 Web 回放在聊天滚动、设置、PTC 等场景出现失败和长时间超时后主动中止，未通过，未与基线对照确认归因；国际化全仓剩余 25 条其他模块违规，市场无违规。 |
 
 ## User paths
 
@@ -12,7 +12,12 @@
 2. 按 catalog id 安装 → 见进度行 → 成功则卡片标「已安装」；失败有 `role="alert"` 反馈。
 3. `needsAllowBuilds` 时出现内联确认（列出 allowBuilds key），允许后自动重试。
 4. 「已安装」页签（标签带数量）按目录分类分组列出 profile 插件行（目录外归「未分组」），逐行卸载后列表更新且应用仍可用；空态指回「发现」页。
-5. 托盘 / 菜单「插件市场」进入设置市场分区，不出现独立 BrowserWindow。
+5. 已安装且仍在目录中的插件自动检查更新：npm 显示已装版本 → `latest`，GitHub 显示锁定 commit → HEAD；可逐项更新。更新成功后 Harness 自动重启，失败保留原版本并显示回滚结果。
+6. 托盘 / 菜单「插件市场」进入设置市场分区，不出现独立 BrowserWindow。
+7. 发现页支持星标 / 收录时间排序、7 / 30 天时间过滤；收藏通过桌面 userData 持久化，收藏页复用目录筛选。
+8. 详情弹窗显示来源、目录截图、按需获取的仓库 README 和 npm 作者依赖声明；声明不构成兼容性保证。
+9. 安装 / 卸载须确认来源和重启影响；已安装页可筛选可更新 / 检查失败，批量更新前列出目录 id 并确认。
+10. 操作记录显示最近 30 项操作及脱敏日志，离开市场和 Harness 重启不丢失；桌面进程中断的操作标为已中断。
 
 ## Invariants
 
@@ -31,6 +36,18 @@
   （已装行不受影响，仍显示「已安装」标记 + 卸载）。
 - 已安装 ↔ 目录行的规格匹配走 `spec-match.ts` 的 owner/repo 整段边界匹配
   （`packageName` 精确匹配优先），不做子串 `includes`。
+- 更新检查只覆盖已安装且仍在精选目录中的行。npm 仅当 registry `latest` 的 semver
+  严格高于已装版本时标记更新，无法判定或较低版本不提供更新；GitHub 用 profile
+  `pnpm-lock.yaml` 的锁定 commit（或 manifest 中的 commit pin）与远端 HEAD 比较；
+  任一远端版本查询失败必须显示检查失败，不得误报为全部最新。
+- 更新入口只上传 catalog id，主进程重新校验目录、退役状态、已装身份和目标版本 / commit。
+  更新前快照 profile `package.json`、`pnpm-lock.yaml` 与 `pnpm-workspace.yaml`；CLI 失败、无实际版本变化、插件入口
+  不可加载或 loader id 冲突时恢复快照并执行 profile install，失败反馈必须说明回滚是否成功。
+- npm 更新须验证已安装依赖确实来自 registry，不得用同名 npm 包替换 Git / URL / 本地依赖。
+- 批量更新最多 100 个目录 id，全程持有共用安装锁；逐项失败可继续，但回滚失败立即停止。
+  有成功写入且无回滚失败时只重启一次；授权项不自动放行，回滚失败不能被授权确认 UI 遮蔽。
+- 收藏 / 操作记录归主进程 `marketplace-state.js`；日志持久化前脱敏且逐条封顶 16,000 字符。
+  详情只接受目录 id，固定公共 GitHub / npm 端点，不转发用户 token；每响应 256 KiB、最多 4 个详情并发。
 - 退役判定按**家族**而非精确名：`isDroppedPluginName`（`plugins.js`）对 `DROPPED`
   精确名之外再按去 scope 的 basename 整段匹配（`DROPPED_BASENAMES`），目录隐藏与
   两条安装入口（catalog id / 直接 spec）一致执行；换 scope、换 GitHub owner 或
@@ -75,10 +92,11 @@ Harness 解析，解析失败只跳过注册、不拖垮 Host。
 Gate：`src/host/install-dsh-plugin-client.test.js`、`src/main/desktop-install-control.test.js`、
 `marketplace-install.test.js` 的 `installPlugin` 拒绝面。
 
-## Deferred（v1 明确不移植 — 产品裁剪）
+## Deferred（明确不移植 — 产品裁剪）
 
-主题商店、备份 / Gist、诊断面板、插件热更新、多 registry 源管理、试用通道：
-**won't port**，不是待办。桌面自有市场 v1 的范围就是精选目录浏览 / 搜索 / 安装 / 卸载。
+主题商店、备份 / Gist、诊断面板、无需重启的插件热替换、多 registry 源管理、试用通道：
+**won't port**，不是待办。桌面自有市场提供精选目录浏览 / 搜索 / 安装 / 版本更新 / 卸载；
+版本更新完成后统一重启 Harness，不恢复旧 `dshmarket` 的 HMR / 热禁用运行时。
 `vendor/dshmarket` 的源码快照已删除（只剩 attribution stub）；若未来某项能力重新立项，
 从上游仓库取参考、按 `ui-settings-market` 第一切片的模式新写 desktop fork 包 + 桌面 IPC，
 先开新 feature card，不回退到预置插件。
@@ -87,6 +105,7 @@ Gate：`src/host/install-dsh-plugin-client.test.js`、`src/main/desktop-install-
 
 - `src/main/dsh-market-desktop.js`（桌面内置市场 overlay 与源码/打包 runtime 包解析）及对应测试
 - `src/main/marketplace-*.js`、`dshmarket-preset.js`（清理模块）、`desktop-install-control.js`、`plugins.js`（DROPPED 行）
+- `src/main/ipc.js`、`src/preload/index.js`（市场更新 IPC / preload 暴露）
 - `scripts/after-pack.js` 的 `assertDesktopForkRuntime` 打包门禁（只加断言，不动装配逻辑）
 - `src/host/install-dsh-plugin-client.js`
 - `vendor/deepseek-harness/packages/client/ui-settings-market/`（桌面自有市场 UI）

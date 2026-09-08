@@ -12,8 +12,8 @@
 
 **本决定反转 2026-08-19 的预置决定。** 设置市场两侧均为桌面自有：
 
-- **UI**：`packages/client/ui-settings-market`（`@deepseek-ai/dsh-client-ui-settings-market`），桌面 fork 包，注册进 web-app bundle（patch 行 `ui-settings-market`、依赖、`tsconfig.client.json` 引用），并由桌面 `harness-desktop-forks.js` 登记表钉住。仅当桌面 preload 暴露 `listMarketplace` / `listInstalledPlugins` / `installMarketplacePlugin` / `uninstallPlugin` / `onPluginProgress` 时注册 `settings.section` id `market`；纯 `dsh web` 浏览器无此分区。第一切片：目录浏览 / 搜索 / 分类 chips、按 registry id 安装（进度行 + 内联 `needsAllowBuilds` 确认）、卸载、失败可见（含「已写入 profile 但 Harness 未起」）。
-- **引擎**：既有桌面主进程精选目录与安装锁（`marketplace-catalog.js` / `marketplace-install.js`）不变，是唯一安装路径；Harness 重启经 `restartAfterProfileWrite` 归 HarnessController。
+- **UI**：`packages/client/ui-settings-market`（`@deepseek-ai/dsh-client-ui-settings-market`），桌面 fork 包，注册进 web-app bundle（patch 行 `ui-settings-market`、依赖、`tsconfig.client.json` 引用），并由桌面 `harness-desktop-forks.js` 登记表固定。仅当桌面 preload 暴露目录、已安装列表、更新检查、安装、更新、卸载与进度方法时注册 `settings.section` id `market`；纯 `dsh web` 浏览器无此分区。该分区提供目录浏览 / 搜索 / 分类 chips、按 registry id 安装（进度行 + 内联 `needsAllowBuilds` 确认）、版本 / commit 更新、卸载与失败可见反馈（含「已写入 profile 但 Harness 未起」）。
+- **引擎**：桌面主进程精选目录、更新检测器与共享变更锁（`marketplace-catalog.js` / `marketplace-updates.js` / `marketplace-install.js`）是唯一安装和更新路径；Harness 重启经 `restartAfterProfileWrite` 归 HarnessController。后续的 [Desktop marketplace version updates](2026-09-07-desktop-marketplace-version-updates.zh.md) 决定恢复版本 / commit 更新，但不恢复第三方运行时或 HMR 系统。
 - **预置拆除**：`ensureDshMarketPlugin` 移除。每次启动运行 `removeDshMarketPreset`（受管 patch 块、`desktop-plugins/dshmarket` 副本、预置 symlink；用户自装文件保留）。`dshmarket` 进入桌面 `DROPPED` 名单：Loader 不再挂载它（含用户旧副本），以此保证只有一个 `market` 分区；目录隐藏该行、拒绝再安装。打包移除 `extraResources` 过滤项、`afterPack` dshmarket 步骤与 `setup:harness` 安装；仓库删除跟踪的 `vendor/dshmarket/node_modules`，`vendor/dshmarket` 仅作打标的 MIT 参考树（`DESKTOP-FORK.md`）。
 
 ## 曾考虑的替代方案
@@ -34,3 +34,4 @@
 
 - 反转：[Desktop presets dshmarket](2026-08-19-desktop-dshmarket-preset.zh.md)
 - 引擎：[Desktop marketplace curated catalog](2026-08-18-desktop-marketplace-curated-catalog.zh.md)
+- 部分反转：[Desktop marketplace version updates](2026-09-07-desktop-marketplace-version-updates.zh.md)

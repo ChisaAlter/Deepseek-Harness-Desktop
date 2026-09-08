@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { loadServerApi } = require('../../../src/main/chisacode-remote.js');
+const { loadServerApi } = require('../../../src/main/dshd-remote.js');
 const { DEFAULT_RELAY_ENDPOINT } = require('../../../src/shared/lan.js');
 const puppeteer = require('puppeteer-core');
 

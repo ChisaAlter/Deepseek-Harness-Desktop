@@ -2,7 +2,7 @@
  * Dev-tree SPA on loopback :3180. This is NOT the Away QR path.
  *
  * Away-mode cameras open DEFAULT_PUBLIC_APP_BASE_URL
- * (http://125.124.85.212:3389/dshd/). Claiming 实机 against this script
+ * (https://ayase.cn/dshd/). Claiming 实机 against this script
  * while the product QR still points at public nginx is invalid.
  *
  * Product-path live check: node tools/mobile-web-qa/run-public-live.mjs
@@ -33,7 +33,7 @@ const {
   dshVendorDirForChild,
   ensureDshAcpShim,
   RUNNER_PATH,
-} = require('../../src/main/chisacode-remote.js');
+} = require('../../src/main/dshd-remote.js');
 const {
   createMobileWebServer,
   listenMobileWebServer,

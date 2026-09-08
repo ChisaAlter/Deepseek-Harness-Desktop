@@ -45,7 +45,7 @@ try {
     return { status: 'Pass', note: `pairingToken 刷新变化（${ta.slice(0, 6)}…→${tb.slice(0, 6)}…；产品弹窗刷新走同一 generate 路径）` };
   });
 
-  record('PAIR-003', 'Blocked', '中继由公网 125.124.85.212:8411 提供且本场依赖它保持连接；断中继造障放全场末尾（PAIR-019 一并）');
+  record('PAIR-003', 'Blocked', '中继由公网 ayase.cn:443（TLS）提供且本场依赖它保持连接；断中继造障放全场末尾（PAIR-019 一并）');
   record('PAIR-005', 'Blocked', '切外出模式会停 :3180 打断全场；模式切换 origin 断言与 PAIR-001 同批补');
 
   await runCase('PAIR-008', async () => {

@@ -128,18 +128,32 @@ function normalizeRemoteConfig(config) {
   const next = { ...config };
   next.remoteEnabled = REMOTE_FEATURE_ENABLED && next.remoteEnabled === true;
   // ChisaCode Away uses host:port endpoints. Empty → desktop built-in relay.
-  const { normalizeRelayEndpoint, DEFAULT_RELAY_ENDPOINT, normalizePublicAppBaseUrl } = require('../shared/lan');
+  const {
+    DEFAULT_PUBLIC_APP_BASE_URL,
+    DEFAULT_RELAY_ENDPOINT,
+    DEFAULT_RELAY_USE_TLS,
+    LEGACY_DEFAULT_PUBLIC_APP_BASE_URL,
+    LEGACY_DEFAULT_RELAY_ENDPOINT,
+    normalizePublicAppBaseUrl,
+    normalizeRelayEndpoint,
+  } = require('../shared/lan');
   const relayCandidate = typeof next.remoteRelayUrl === 'string'
     ? next.remoteRelayUrl
     : (next.remoteRelayEndpoint || '');
-  const endpoint = normalizeRelayEndpoint(relayCandidate) || DEFAULT_RELAY_ENDPOINT;
+  const normalizedEndpoint = normalizeRelayEndpoint(relayCandidate);
+  const useBuiltInRelay = !normalizedEndpoint || normalizedEndpoint === LEGACY_DEFAULT_RELAY_ENDPOINT;
+  const endpoint = useBuiltInRelay ? DEFAULT_RELAY_ENDPOINT : normalizedEndpoint;
   next.remoteRelayEndpoint = endpoint;
   next.remoteRelayUrl = endpoint;
-  next.remoteRelayUseTls = next.remoteRelayUseTls === true;
+  next.remoteRelayUseTls = useBuiltInRelay ? DEFAULT_RELAY_USE_TLS : next.remoteRelayUseTls === true;
   // Empty stays empty — never backfill the relay origin as an SPA landing host.
-  next.remoteAppBaseUrl = normalizePublicAppBaseUrl(next.remoteAppBaseUrl, {
+  const appBaseUrl = normalizePublicAppBaseUrl(next.remoteAppBaseUrl, {
     relayEndpoint: endpoint,
   });
+  next.remoteAppBaseUrl = appBaseUrl === LEGACY_DEFAULT_PUBLIC_APP_BASE_URL
+    || appBaseUrl === DEFAULT_PUBLIC_APP_BASE_URL
+    ? ''
+    : appBaseUrl;
   // Legacy host token is ignored for product pairing; keep field for migration clears.
   next.remoteRelayToken = normalizeRelayHostToken(next.remoteRelayToken);
   next.remoteMode = next.remoteMode === 'lan' ? 'lan' : 'relay';

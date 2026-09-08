@@ -32,6 +32,10 @@ function declare(slots: SlotRegistry): () => void {
 
 function marketShell() {
   return {
+    getMarketplaceDetails: vi.fn(async () => ({ ok: true, partial: false, readme: '', version: '', requirements: [] })),
+    getMarketplaceState: vi.fn(async () => ({ ok: true, favorites: [], operations: [] })),
+    setMarketplaceFavorite: vi.fn(async () => ({ ok: true, favorites: [], operations: [] })),
+    updateMarketplacePlugins: vi.fn(async () => ({ ok: true })),
     listMarketplace: vi.fn(async () => ({
       ok: true,
       items: [],
@@ -41,7 +45,9 @@ function marketShell() {
       warning: '',
     })),
     listInstalledPlugins: vi.fn(async () => ({ ok: true, plugins: [{ name: 'demo', spec: '1.0.0' }] })),
+    checkMarketplaceUpdates: vi.fn(async () => ({ ok: true, updates: {}, checkedAt: Date.now() })),
     installMarketplacePlugin: vi.fn(async () => ({ ok: true, harnessStarted: true })),
+    updateMarketplacePlugin: vi.fn(async () => ({ ok: true, harnessStarted: true })),
     uninstallPlugin: vi.fn(async () => ({ ok: true, harnessStarted: true })),
     onPluginProgress: vi.fn(() => () => {}),
   }
@@ -74,7 +80,9 @@ describe('ui-settings-market browser plugin', () => {
     // The main process localizes the payload from the active UI language.
     expect(shell.listMarketplace).toHaveBeenCalledWith({ locale: 'zh' })
     await expect(injected.listInstalled()).resolves.toEqual([{ name: 'demo', spec: '1.0.0' }])
+    await expect(injected.checkUpdates()).resolves.toMatchObject({ ok: true, updates: {} })
     await expect(injected.install('acme/demo')).resolves.toMatchObject({ ok: true })
+    await expect(injected.update('acme/demo')).resolves.toMatchObject({ ok: true })
     await expect(injected.uninstall('demo')).resolves.toMatchObject({ ok: true })
     await b.ctx.fiber.dispose()
   })

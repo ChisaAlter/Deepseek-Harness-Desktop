@@ -9,6 +9,17 @@
 5. 成功后主进程 `restartAfterProfileWrite` 重启 Harness（HarnessController 所有）。
 6. 卸载：`uninstallPlugin`；与「装完在 Composer 里塞草稿」的旧路径无关。
 
+## 更新步骤
+
+1. 分区加载已安装列表后调用 `checkMarketplaceUpdates`；手动刷新目录时强制重查。
+2. npm 行读取实际安装版本并与 registry `latest` 做前向 semver 比较；GitHub 行读取 lockfile
+   commit 并与远端 HEAD 比较。无法证明目标更高 / 不同则不显示更新入口；远端查询失败
+   进入检查失败状态，不显示“全部最新”。
+3. 用户按 catalog id 调用 `updateMarketplacePlugin`。主进程固定目标版本 / commit，快照 profile
+   manifest、lockfile 与承载 allowBuilds 的 workspace 文件，再执行 `dsh plugin --profile web add <target>`。
+4. CLI 失败、目标未变化、入口不可加载或 loader id 冲突时恢复快照并运行 profile install；
+   UI 在错误行报告回滚成功或失败。成功后由 `restartAfterProfileWrite` 重启 Harness。
+
 ```mermaid
 sequenceDiagram
   participant User

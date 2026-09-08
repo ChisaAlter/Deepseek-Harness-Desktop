@@ -15,6 +15,8 @@ export type {
   MarketCatalog,
   MarketCategory,
   MarketItem,
+  MarketplaceUpdateStatus,
+  MarketplaceUpdatesPayload,
   PluginOpResult,
   PluginProgress,
 } from './desktop-shell.ts'
@@ -48,12 +50,18 @@ export function apply(ctx: Context): void {
   const t = ctx.locale.bind(NS)
   const activeLocale = (): string => ctx.locale.getLocale().active
   const injected = (): MarketSectionInjected => ({
+    getDetails: (id, options) => shell.getMarketplaceDetails(id, options),
+    getMarketState: () => shell.getMarketplaceState(),
+    setFavorite: (id, favorite) => shell.setMarketplaceFavorite(id, favorite),
+    updateMany: ids => shell.updateMarketplacePlugins(ids),
     listCatalog: async options => shell.listMarketplace({ ...options, locale: activeLocale() }),
     listInstalled: async () => {
       const payload = await shell.listInstalledPlugins()
       return payload.plugins ?? []
     },
+    checkUpdates: options => shell.checkMarketplaceUpdates(options),
     install: (id, options) => shell.installMarketplacePlugin(id, options),
+    update: (id, options) => shell.updateMarketplacePlugin(id, options),
     uninstall: name => shell.uninstallPlugin(name),
     onProgress: listener => shell.onPluginProgress(listener),
   })

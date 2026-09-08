@@ -7,8 +7,8 @@
 1. 设置 → 远程 → 网关选择局域网或外出；侧栏底部手机图标打开配对弹窗并开启远程。两种模式的协议相同，传输都经过配置的 dshd 中继。
 2. 桌面生成包含 dshd offer 的 `#offer=` 二维码，包装纸按模式不同：
    - **局域网**：`appBaseUrl` = `preferredLanIp():3180`，本机 `mobile/web` SPA。
-   - **外出**：`appBaseUrl` = `DEFAULT_PUBLIC_APP_BASE_URL`（公网 nginx `http://125.124.85.212:3389/dshd/`；`:80` 已部署但安全组未放行），系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。
-   中继地址只在 offer 内用作传输端点（`:8411`），不充当页面地址。配对链接为 HTTP 明文，MITM 可读 `#offer=` hash。sticky 三 origin（公网 `/dshd`、LAN `:3180`、`appassets.androidplatform.net`）不互通。
+   - **外出**：`appBaseUrl` = `DEFAULT_PUBLIC_APP_BASE_URL`（公网 nginx `https://ayase.cn/dshd/`），系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。
+   中继地址只在 offer 内用作 TLS 传输端点（`ayase.cn:443` 的 `/ws`），不充当页面地址。公网配对页为 HTTPS；`#offer=` hash 不随 HTTP 请求发送到服务器。sticky 三 origin（公网 `/dshd`、LAN `:3180`、`appassets.androidplatform.net`）不互通。
 3. 浏览器用系统相机、SPA 内扫码或粘贴完整链接；Android 原生扫码/粘贴后由 APK 内的同一份 SPA 在 `https://appassets.androidplatform.net` WebView origin 打开 offer。
 4. SPA 用 `parseConnectionOfferFromUrl` 校验 offer，创建 `DaemonClient`，以 `role=client` 连中继，并用桌面 daemon 公钥建立端到端加密会话。首次配对用短期 pairing token 换取 `deviceSecret`；后续从稳定 origin 的 localStorage sticky 重连。
 5. 配对之后 SPA 是正在跑的 `dsh web` 第二客户端。ChisaCode 只负责配对 / E2EE / sticky。之后两条已配对通道：host RPC（白名单 unary + `respond`）进 loopback `dsh web`；Git 进 Electron `git.js`。禁止 `fetchAgents` / `createAgent`。Harness 未就绪时抽屉明示「桌面端未启动」。

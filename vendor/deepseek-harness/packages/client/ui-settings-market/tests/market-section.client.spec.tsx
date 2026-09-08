@@ -47,11 +47,17 @@ function catalog(items: MarketItem[], overrides: Partial<MarketCatalog> = {}): M
 
 function renderMarket(overrides: Partial<MarketSectionProps> = {}) {
   const props = {
+    getDetails: vi.fn(async () => ({ ok: true, partial: false, readme: '', version: '', requirements: [] })),
+    getMarketState: vi.fn(async () => ({ ok: true, favorites: [], operations: [] })),
+    setFavorite: vi.fn(async () => ({ ok: true, favorites: ['acme/demo'], operations: [] })),
+    updateMany: vi.fn(async () => ({ ok: true, harnessStarted: true })),
     close: vi.fn(),
     t,
     listCatalog: vi.fn(async () => catalog([item()])),
     listInstalled: vi.fn(async () => []),
+    checkUpdates: vi.fn(async () => ({ ok: true, updates: {}, checkedAt: Date.now() })),
     install: vi.fn(async () => ({ ok: true, harnessStarted: true })),
+    update: vi.fn(async () => ({ ok: true, harnessStarted: true })),
     uninstall: vi.fn(async () => ({ ok: true, harnessStarted: true })),
     onProgress: vi.fn(() => () => {}),
     ...overrides,
@@ -60,7 +66,86 @@ function renderMarket(overrides: Partial<MarketSectionProps> = {}) {
   return props
 }
 
+async function clickMutation(button: HTMLElement) {
+  fireEvent.click(button)
+  fireEvent.click(await screen.findByRole('button', { name: en.confirmAction }))
+}
+
 describe('MarketSection', () => {
+  it('does not install before confirmation and cancellation performs no mutation', async () => {
+    const props = renderMarket()
+    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    expect(props.install).not.toHaveBeenCalled()
+    expect(await screen.findByRole('dialog', { name: en.confirmInstall })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.allowBuildsCancel }))
+    expect(props.install).not.toHaveBeenCalled()
+  })
+
+  it('persists favorites through the desktop API and filters the favorites tab', async () => {
+    const props = renderMarket({ listCatalog: vi.fn(async () => catalog([item(), item({ id: 'acme/other', repo: 'other' })])) })
+    fireEvent.click((await screen.findAllByRole('button', { name: en.favorite }))[0]!)
+    await waitFor(() => { expect(props.setFavorite).toHaveBeenCalledWith('acme/demo', true) })
+    fireEvent.click(screen.getByRole('tab', { name: en.tabFavorites }))
+    await waitFor(() => { expect(screen.queryByText('other')).toBeNull() })
+    expect(screen.getByText('demo')).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.unfavorite }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('sorts by stars and closes the selection menu', async () => {
+    renderMarket({ listCatalog: vi.fn(async () => catalog([item(), item({ id: 'acme/other', repo: 'other', stars: 99 })])) })
+    fireEvent.click(await screen.findByRole('button', { name: en.sort }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.sortStars }))
+    await waitFor(() => { expect(document.querySelector('[data-market-item]')?.getAttribute('data-market-item')).toBe('acme/other') })
+    expect(screen.getByRole('button', { name: en.sort }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('shows safe screenshots and README without executing remote HTML', async () => {
+    renderMarket({
+      listCatalog: vi.fn(async () => catalog([item({ screenshots: ['javascript:alert(1)', 'https://example.com/one.png', 'https://example.com/two.png'] })])),
+      getDetails: vi.fn(async () => ({ ok: true, partial: false, readme: '# Documentation\n<script>alert(1)</script>', version: '1.2.0', requirements: ['dsh: >=0.1.0'] })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.details }))
+    expect(await screen.findByRole('heading', { name: 'Documentation' })).toBeTruthy()
+    expect(screen.getByText('dsh: >=0.1.0')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Plugin screenshot 1' }).getAttribute('src')).toBe('https://example.com/one.png')
+    fireEvent.click(screen.getByRole('button', { name: en.nextImage }))
+    expect(screen.getByRole('img', { name: 'Plugin screenshot 2' }).getAttribute('src')).toBe('https://example.com/two.png')
+    expect(document.querySelector('script')).toBeNull()
+  })
+
+  it('reloads persisted operations when reopening the market', async () => {
+    renderMarket({ getMarketState: vi.fn(async () => ({ ok: true, favorites: [], operations: [{ id: 'one', kind: 'update' as const,
+      target: 'acme/demo', status: 'failed' as const, startedAt: 1788800000000, log: 'diagnostic output', error: 'network failed' }] })) })
+    fireEvent.click(await screen.findByRole('tab', { name: en.tabHistory }))
+    expect(await screen.findByText('Update: acme/demo')).toBeTruthy()
+    expect(screen.getByText('diagnostic output')).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.exportLog })).not.toHaveProperty('disabled', true)
+  })
+
+  it('confirms batch ids and sends one batch call', async () => {
+    const props = renderMarket({ listInstalled: vi.fn(async () => [{ name: 'demo', spec: '1.0.0' }]),
+      checkUpdates: vi.fn(async () => ({ ok: true, checkedAt: Date.now(), updates: { 'acme/demo': {
+        id: 'acme/demo', packageName: 'demo', kind: 'npm' as const, current: '1.0.0', latest: '2.0.0', updateAvailable: true,
+      } } })) })
+    fireEvent.click(await screen.findByRole('tab', { name: `${en.tabInstalled} (1)` }))
+    fireEvent.click(screen.getByRole('button', { name: en.updateAll }))
+    expect(props.updateMany).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: en.confirmAction }))
+    await waitFor(() => { expect(props.updateMany).toHaveBeenCalledWith(['acme/demo']) })
+  })
+
+  it('never hides a rollback failure behind build approval', async () => {
+    renderMarket({ listInstalled: vi.fn(async () => [{ name: 'demo', spec: '1.0.0' }]),
+      checkUpdates: vi.fn(async () => ({ ok: true, checkedAt: Date.now(), updates: { 'acme/demo': {
+        id: 'acme/demo', packageName: 'demo', kind: 'npm' as const, current: '1.0.0', latest: '2.0.0', updateAvailable: true,
+      } } })),
+      update: vi.fn(async () => ({ ok: false, needsAllowBuilds: true, allowBuilds: ['demo'], rolledBack: false, error: 'rollback failed' })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.update }))
+    expect(await screen.findByText('Operation failed: rollback failed')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: en.allowBuildsConfirm })).toBeNull()
+  })
+
   it('renders the catalog with search, categories, and install actions', async () => {
     renderMarket({
       listCatalog: vi.fn(async () => catalog([
@@ -69,6 +154,14 @@ describe('MarketSection', () => {
       ])),
     })
     await screen.findByText('demo')
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toMatchInlineSnapshot(`
+      [
+        "Discover",
+        "Installed",
+        "Favorites",
+        "Operations",
+      ]
+    `)
     expect(screen.getByText('other')).toBeTruthy()
     expect(screen.getAllByRole('button', { name: en.install })).toHaveLength(2)
     fireEvent.change(screen.getByRole('searchbox', { name: en.search }), { target: { value: 'second' } })
@@ -102,17 +195,91 @@ describe('MarketSection', () => {
 
   it('installs by catalog id and reports success', async () => {
     const props = renderMarket()
-    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    await clickMutation(await screen.findByRole('button', { name: en.install }))
     await waitFor(() => { expect(props.install).toHaveBeenCalledWith('acme/demo', undefined) })
     await screen.findByText(en.installDone)
     expect(props.listInstalled).toHaveBeenCalled()
+  })
+
+  it('shows a version difference and updates by catalog id', async () => {
+    const props = renderMarket({
+      listInstalled: vi.fn(async () => [{ name: 'demo', spec: '1.0.0' }]),
+      checkUpdates: vi.fn(async () => ({
+        ok: true,
+        checkedAt: Date.now(),
+        updates: {
+          'acme/demo': {
+            id: 'acme/demo',
+            packageName: 'demo',
+            kind: 'npm' as const,
+            current: '1.0.0',
+            latest: '2.0.0',
+            updateAvailable: true,
+          },
+        },
+      })),
+    })
+    expect(await screen.findByText('1.0.0 → 2.0.0')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: en.update }))
+    await waitFor(() => { expect(props.update).toHaveBeenCalledWith('acme/demo', undefined) })
+    await screen.findByText(en.updateDone)
+  })
+
+  it('shows short GitHub commits in the installed tab', async () => {
+    renderMarket({
+      listInstalled: vi.fn(async () => [{ name: 'demo', spec: 'github:acme/demo' }]),
+      checkUpdates: vi.fn(async () => ({
+        ok: true,
+        checkedAt: Date.now(),
+        updates: {
+          'acme/demo': {
+            id: 'acme/demo',
+            packageName: 'demo',
+            kind: 'github' as const,
+            current: '1111111111111111111111111111111111111111',
+            latest: '2222222222222222222222222222222222222222',
+            updateAvailable: true,
+          },
+        },
+      })),
+    })
+    await screen.findByText('1111111 → 2222222')
+    fireEvent.click(screen.getByRole('tab', { name: `${en.tabInstalled} (1)` }))
+    expect(await screen.findByText('1111111 → 2222222')).toBeTruthy()
+  })
+
+  it('retries an update after build-script approval', async () => {
+    const update = vi.fn()
+      .mockResolvedValueOnce({ ok: false, needsAllowBuilds: true, allowBuilds: ['demo'] })
+      .mockResolvedValueOnce({ ok: true, harnessStarted: true })
+    const props = renderMarket({
+      listInstalled: vi.fn(async () => [{ name: 'demo', spec: '1.0.0' }]),
+      checkUpdates: vi.fn(async () => ({
+        ok: true,
+        checkedAt: Date.now(),
+        updates: {
+          'acme/demo': {
+            id: 'acme/demo', packageName: 'demo', kind: 'npm' as const,
+            current: '1.0.0', latest: '2.0.0', updateAvailable: true,
+          },
+        },
+      })),
+      update: update as unknown as MarketSectionProps['update'],
+    })
+    fireEvent.click(await screen.findByRole('button', { name: en.update }))
+    await screen.findByRole('alertdialog')
+    fireEvent.click(screen.getByRole('button', { name: en.allowBuildsConfirm }))
+    await waitFor(() => {
+      expect(props.update).toHaveBeenLastCalledWith('acme/demo', { allowBuilds: ['demo'] })
+    })
+    await screen.findByText(en.updateDone)
   })
 
   it('surfaces install failures instead of staying silent', async () => {
     renderMarket({
       install: vi.fn(async () => ({ ok: false, error: '安装失败' })) as unknown as MarketSectionProps['install'],
     })
-    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    await clickMutation(await screen.findByRole('button', { name: en.install }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('安装失败')
   })
@@ -122,7 +289,7 @@ describe('MarketSection', () => {
       .mockResolvedValueOnce({ ok: false, needsAllowBuilds: true, allowBuilds: ['demo@git+https://github.com/acme/demo.git'] })
       .mockResolvedValueOnce({ ok: true, harnessStarted: true })
     const props = renderMarket({ install: install as unknown as MarketSectionProps['install'] })
-    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    await clickMutation(await screen.findByRole('button', { name: en.install }))
     await screen.findByRole('alertdialog')
     fireEvent.click(screen.getByRole('button', { name: en.allowBuildsConfirm }))
     await waitFor(() => {
@@ -136,7 +303,7 @@ describe('MarketSection', () => {
   it('does not offer a no-op approval when the failure has no allowBuilds key', async () => {
     const install = vi.fn(async () => ({ ok: false, needsAllowBuilds: true, allowBuilds: [] }))
     renderMarket({ install: install as unknown as MarketSectionProps['install'] })
-    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    await clickMutation(await screen.findByRole('button', { name: en.install }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('allowBuilds')
     expect(screen.queryByRole('alertdialog')).toBeNull()
@@ -147,7 +314,7 @@ describe('MarketSection', () => {
     const install = vi.fn()
       .mockResolvedValueOnce({ ok: false, needsAllowBuilds: true, allowBuilds: ['demo'] })
     const props = renderMarket({ install: install as unknown as MarketSectionProps['install'] })
-    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    await clickMutation(await screen.findByRole('button', { name: en.install }))
     await screen.findByRole('alertdialog')
     fireEvent.click(screen.getByRole('button', { name: en.allowBuildsCancel }))
     expect(screen.queryByRole('alertdialog')).toBeNull()
@@ -159,7 +326,7 @@ describe('MarketSection', () => {
       listInstalled: vi.fn(async () => [{ name: 'demo', spec: '1.0.0' }]),
       uninstall: vi.fn(async () => ({ ok: true, harnessStarted: false, error: en.harnessDown })) as unknown as MarketSectionProps['uninstall'],
     })
-    fireEvent.click(await screen.findByRole('button', { name: en.uninstall }))
+    await clickMutation(await screen.findByRole('button', { name: en.uninstall }))
     await waitFor(() => { expect(props.uninstall).toHaveBeenCalledWith('demo') })
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe(en.harnessDown)
@@ -244,7 +411,7 @@ describe('MarketSection', () => {
     await screen.findByText('demo')
     fireEvent.click(screen.getByRole('tab', { name: `${en.tabInstalled} (1)` }))
     expect(screen.getByText(en.dropped)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: en.uninstall }))
+    await clickMutation(screen.getByRole('button', { name: en.uninstall }))
     await waitFor(() => { expect(props.uninstall).toHaveBeenCalledWith('mystery') })
     await screen.findByText(en.uninstallDone)
   })
@@ -295,7 +462,7 @@ describe('MarketSection', () => {
     await screen.findByText('demo')
     expect(screen.getByText(en.installed)).toBeTruthy()
     expect(screen.queryByRole('button', { name: en.install })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: en.uninstall }))
+    await clickMutation(screen.getByRole('button', { name: en.uninstall }))
     await waitFor(() => { expect(props.uninstall).toHaveBeenCalledWith('demo') })
   })
 
@@ -384,7 +551,7 @@ describe('MarketSection', () => {
     })
     await screen.findByText('demo')
     expect(screen.getByText(en.installed)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: en.uninstall }))
+    await clickMutation(screen.getByRole('button', { name: en.uninstall }))
     await waitFor(() => { expect(props.uninstall).toHaveBeenCalledWith('demo-pkg') })
   })
 
@@ -451,7 +618,7 @@ describe('MarketSection', () => {
       }) as unknown as MarketSectionProps['onProgress'],
       install: vi.fn(() => new Promise((resolve) => { resolveInstall = resolve })) as unknown as MarketSectionProps['install'],
     })
-    fireEvent.click(await screen.findByRole('button', { name: en.install }))
+    await clickMutation(await screen.findByRole('button', { name: en.install }))
     await waitFor(() => { expect(publish).not.toBeNull() })
     publish!({ phase: 'log', line: 'resolving demo' })
     publish!({ phase: 'restart' })

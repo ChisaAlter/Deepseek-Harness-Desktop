@@ -7,26 +7,46 @@ import {
   IconWarningOutline16,
   Input,
   Pill,
+  Modal,
+  Tooltip,
+  IconInfoOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   InstalledPlugin,
   MarketCatalog,
   MarketItem,
+  MarketplaceUpdateStatus,
+  MarketplaceUpdatesPayload,
   PluginOpResult,
   PluginProgress,
+  MarketplaceState,
+  MarketplaceDetails,
 } from './desktop-shell.ts'
+import { MarketChoice, MarketDetails, MarketHistory, marketHttpsUrl } from './MarketExtras.tsx'
 import { specMatchesOwnerRepo } from './spec-match.ts'
 import css from './MarketSection.module.css'
 
 /** Registration-side desktop callbacks used by the marketplace section. */
 export interface MarketSectionInjected {
+  /** Load bounded public documentation and manifest requirements by curated id. */
+  getDetails: (id: string, options?: { force?: boolean }) => Promise<MarketplaceDetails>
+  /** Read durable desktop favorites and operation history. */
+  getMarketState: () => Promise<MarketplaceState>
+  /** Persist one favorite without replacing other tabs' preferences. */
+  setFavorite: (id: string, favorite: boolean) => Promise<MarketplaceState>
+  /** Sequential updates with one desktop-owned restart. */
+  updateMany: (ids: string[]) => Promise<PluginOpResult>
   /** Read the curated catalog (localized main-process payload). */
   listCatalog: (options?: { refresh?: boolean }) => Promise<MarketCatalog>
   /** Read the profile's installed-plugin rows. */
   listInstalled: () => Promise<InstalledPlugin[]>
+  /** Compare installed versions/commits with curated upstream sources. */
+  checkUpdates: (options?: { force?: boolean }) => Promise<MarketplaceUpdatesPayload>
   /** Install one catalog row by registry id; the engine restarts Harness. */
   install: (id: string, options?: { allowBuilds?: string[] }) => Promise<PluginOpResult>
+  /** Update one installed catalog row; the engine rolls back failures. */
+  update: (id: string, options?: { allowBuilds?: string[] }) => Promise<PluginOpResult>
   /** Uninstall one installed package by name; the engine restarts Harness. */
   uninstall: (name: string) => Promise<PluginOpResult>
   /** Subscribe to install/uninstall/restart progress lines. */
@@ -45,13 +65,16 @@ type CatalogState =
   /** `refreshFailed` keeps the shown catalog when a later reload throws. */
   | { readonly status: 'ready'; readonly catalog: MarketCatalog; readonly refreshFailed?: boolean }
 
-type Tab = 'discover' | 'installed'
+type Tab = 'discover' | 'installed' | 'favorites' | 'history'
 
-type BusyOp = { kind: 'install' | 'uninstall'; id: string } | null
+type BusyOp = { kind: 'install' | 'update' | 'uninstall' | 'batch'; id: string } | null
+type Confirmation = { kind: 'install'; item: MarketItem }
+  | { kind: 'uninstall'; id: string; name: string }
+  | { kind: 'batch'; ids: string[] }
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null
 
-type AllowBuildsAsk = { item: MarketItem; keys: string[] } | null
+type AllowBuildsAsk = { kind: 'install' | 'update'; item: MarketItem; keys: string[] } | null
 
 const PROGRESS_LINES = 6
 
@@ -86,6 +109,11 @@ function catalogItemFor(plugin: InstalledPlugin, items: MarketItem[]): MarketIte
  */
 function installable(item: MarketItem): boolean {
   return item.deprecated !== true && item.installSpec.trim().length > 0
+}
+
+/** Compact display value: full semver, short Git commit. */
+function updateValue(status: MarketplaceUpdateStatus, value: string): string {
+  return status.kind === 'github' ? value.slice(0, 7) : value
 }
 
 /** Whether one catalog row matches the local search query. */
@@ -164,13 +192,23 @@ export function MarketSection({
   t,
   listCatalog,
   listInstalled,
+  getMarketState,
+  getDetails,
+  setFavorite,
+  updateMany,
+  checkUpdates,
   install,
+  update,
   uninstall,
   onProgress,
 }: MarketSectionProps): ReactNode {
   const [state, setState] = useState<CatalogState>({ status: 'loading' })
   const [reloading, setReloading] = useState(false)
   const [installed, setInstalled] = useState<InstalledPlugin[]>([])
+  const [updates, setUpdates] = useState<Record<string, MarketplaceUpdateStatus>>({})
+  const [updatesChecked, setUpdatesChecked] = useState(false)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
+  const [updateCheckFailed, setUpdateCheckFailed] = useState(false)
   const [tab, setTab] = useState<Tab>('discover')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
@@ -179,9 +217,47 @@ export function MarketSection({
   const [progress, setProgress] = useState<string[]>([])
   const [notice, setNotice] = useState<Notice>(null)
   const [ask, setAsk] = useState<AllowBuildsAsk>(null)
+  const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
+  const [details, setDetails] = useState<MarketItem | null>(null)
+  const [marketState, setMarketState] = useState<MarketplaceState>({ ok: true, favorites: [], operations: [] })
+  const [favoriteBusy, setFavoriteBusy] = useState(false)
+  const [sort, setSort] = useState('catalog')
+  const [period, setPeriod] = useState('all')
+  const [installedFilter, setInstalledFilter] = useState('all')
+  const operationLock = useRef(false)
   const alive = useRef(true)
 
-  useEffect(() => () => { alive.current = false }, [])
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false }
+  }, [])
+
+  const reloadMarketState = useCallback(async () => {
+    try {
+      const next = await getMarketState()
+      if (alive.current) setMarketState(next)
+    } catch {
+      if (alive.current) setNotice({ kind: 'error', text: t('stateFailed') })
+    }
+  }, [getMarketState, t])
+
+  useEffect(() => {
+    void reloadMarketState()
+    const timer = setInterval(() => { void reloadMarketState() }, 3000)
+    return () => { clearInterval(timer) }
+  }, [reloadMarketState])
+
+  const toggleFavorite = async (id: string) => {
+    setFavoriteBusy(true)
+    try {
+      const next = await setFavorite(id, !marketState.favorites.includes(id))
+      if (alive.current) setMarketState(next)
+    } catch {
+      if (alive.current) setNotice({ kind: 'error', text: t('stateFailed') })
+    } finally {
+      if (alive.current) setFavoriteBusy(false)
+    }
+  }
 
   const reloadInstalled = useCallback(async () => {
     try {
@@ -192,12 +268,34 @@ export function MarketSection({
     }
   }, [listInstalled])
 
+  const reloadUpdates = useCallback(async (force: boolean) => {
+    setCheckingUpdates(true)
+    setUpdateCheckFailed(false)
+    try {
+      const payload = await checkUpdates(force ? { force: true } : undefined)
+      if (!alive.current) return
+      setUpdates(payload.updates ?? {})
+      setUpdatesChecked(true)
+      setUpdateCheckFailed(payload.ok === false)
+    } catch {
+      if (alive.current) {
+        setUpdatesChecked(true)
+        setUpdateCheckFailed(true)
+      }
+    } finally {
+      if (alive.current) setCheckingUpdates(false)
+    }
+  }, [checkUpdates])
+
   const load = useCallback(async (refresh: boolean) => {
     setReloading(true)
     setState(current => (current.status === 'ready' ? current : { status: 'loading' }))
     try {
       const catalog = await listCatalog(refresh ? { refresh: true } : undefined)
-      if (alive.current) setState({ status: 'ready', catalog })
+      if (alive.current) {
+        setState({ status: 'ready', catalog })
+        await Promise.all([reloadInstalled(), reloadUpdates(refresh)])
+      }
     } catch {
       // A failed reload keeps the shown catalog (per the marketplace failure
       // conventions); only the first load may land on the bare error state.
@@ -209,8 +307,7 @@ export function MarketSection({
     } finally {
       if (alive.current) setReloading(false)
     }
-    void reloadInstalled()
-  }, [listCatalog, reloadInstalled])
+  }, [listCatalog, reloadInstalled, reloadUpdates])
 
   useEffect(() => { void load(false) }, [load])
 
@@ -219,6 +316,8 @@ export function MarketSection({
     work: () => Promise<PluginOpResult>,
     doneText: string,
   ) => {
+    if (operationLock.current) return
+    operationLock.current = true
     setBusy(op)
     setNotice(null)
     setAsk(null)
@@ -235,16 +334,22 @@ export function MarketSection({
       if (result.ok) {
         setNotice(result.harnessStarted === false
           ? { kind: 'error', text: result.error || t('harnessDown') }
+          : result.historyWarning
+            ? { kind: 'error', text: result.historyWarning }
           : { kind: 'ok', text: doneText })
-      } else if (result.needsAllowBuilds && op.kind === 'install') {
+      } else if (result.needsAllowBuilds && (op.kind === 'install' || op.kind === 'update')) {
         const item = state.status === 'ready'
           ? state.catalog.items.find(row => row.id === op.id) ?? null
           : null
         const keys = result.allowBuilds ?? []
-        if (item && keys.length > 0) setAsk({ item, keys })
-        else setNotice({ kind: 'error', text: t('opFailed', { message: result.error || 'allowBuilds' }) })
+        if (item && keys.length > 0) setAsk({ kind: op.kind, item, keys })
+        else setNotice({ kind: 'error', text: t('opFailed', { message: result.error || t('buildApprovalMissing') }) })
+        if (result.rolledBack === false) {
+          setAsk(null)
+          setNotice({ kind: 'error', text: t('opFailed', { message: result.error || result.rollbackError || t('operationFailed') }) })
+        }
       } else {
-        setNotice({ kind: 'error', text: t('opFailed', { message: result.error || 'unknown' }) })
+        setNotice({ kind: 'error', text: t('opFailed', { message: result.error || t('unknown') }) })
       }
     } catch (caught) {
       if (alive.current) {
@@ -252,13 +357,16 @@ export function MarketSection({
       }
     } finally {
       off()
+      operationLock.current = false
       if (alive.current) {
         setBusy(null)
         setProgress([])
         void reloadInstalled()
+        void reloadUpdates(true)
+        void reloadMarketState()
       }
     }
-  }, [onProgress, reloadInstalled, state, t])
+  }, [onProgress, reloadInstalled, reloadUpdates, reloadMarketState, state, t])
 
   const startInstall = useCallback((item: MarketItem, allowBuilds?: string[]) => {
     void runOp(
@@ -268,6 +376,14 @@ export function MarketSection({
     )
   }, [install, runOp, t])
 
+  const startUpdate = useCallback((item: MarketItem, allowBuilds?: string[]) => {
+    void runOp(
+      { kind: 'update', id: item.id },
+      () => update(item.id, allowBuilds && allowBuilds.length > 0 ? { allowBuilds } : undefined),
+      t('updateDone'),
+    )
+  }, [runOp, t, update])
+
   const startUninstall = useCallback((opId: string, name: string) => {
     void runOp({ kind: 'uninstall', id: opId }, () => uninstall(name), t('uninstallDone'))
   }, [runOp, t, uninstall])
@@ -275,15 +391,21 @@ export function MarketSection({
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const items = useMemo(() => {
     if (state.status !== 'ready') return []
-    return state.catalog.items.filter(item => (
+    const cutoff = period === 'all' ? 0 : Date.now() - Number(period) * 86400000
+    const filtered = state.catalog.items.filter(item => (
       (category === 'all' || item.category === category) && matches(item, normalizedQuery)
+      && (tab !== 'favorites' || marketState.favorites.includes(item.id))
+      && (cutoff === 0 || Date.parse(item.added || '') >= cutoff)
     ))
-  }, [category, normalizedQuery, state])
+    if (sort === 'stars') filtered.sort((a, b) => b.stars - a.stars || a.id.localeCompare(b.id))
+    if (sort === 'newest') filtered.sort((a, b) => (Date.parse(b.added || '') || 0) - (Date.parse(a.added || '') || 0) || a.id.localeCompare(b.id))
+    return filtered
+  }, [category, normalizedQuery, state, sort, period, tab, marketState.favorites])
 
   // A new search or category always starts back at the first page.
   useEffect(() => {
     setVisibleCount(DISCOVER_PAGE_SIZE)
-  }, [category, normalizedQuery])
+  }, [category, normalizedQuery, sort, period, tab])
 
   const visibleItems = items.length > visibleCount ? items.slice(0, visibleCount) : items
   const hiddenCount = items.length - visibleItems.length
@@ -294,16 +416,36 @@ export function MarketSection({
   }, [state])
 
   const groups = useMemo(() => (
-    state.status === 'ready' ? installedGroups(installed, state.catalog, t('ungrouped')) : []
-  ), [installed, state, t])
+    state.status === 'ready' ? installedGroups(installed, state.catalog, t('ungrouped'))
+      .map(group => ({ ...group, rows: group.rows.filter(({ item }) => installedFilter === 'all'
+        || (item && (installedFilter === 'updates' ? updates[item.id]?.updateAvailable : updates[item.id]?.checkFailed))) }))
+      .filter(group => group.rows.length > 0) : []
+  ), [installed, state, t, installedFilter, updates])
 
-  const isBusy = busy !== null
+  const isBusy = busy !== null || marketState.operations.some(row => row.status === 'running')
+  const updateCount = Object.values(updates).filter(status => status.updateAvailable).length
   const installedTabLabel = installed.length > 0
     ? `${t('tabInstalled')} (${installed.length})`
     : t('tabInstalled')
 
   return (
     <div className={css.section} aria-busy={state.status === 'loading'}>
+      {details ? <MarketDetails key={details.id} item={details} getDetails={getDetails} t={t} onClose={() => { setDetails(null) }} /> : null}
+      {confirmation ? <Modal open title={t(confirmation.kind === 'install' ? 'confirmInstall' : confirmation.kind === 'batch' ? 'confirmBatch' : 'confirmUninstall')}
+        className={css.confirmModal} contentClassName={css.dialogContent}
+        closeLabel={t('close')} onClose={() => { setConfirmation(null) }}
+        footer={<><Button size="sm" variant="ghost" onClick={() => { setConfirmation(null) }}>{t('allowBuildsCancel')}</Button>
+          <Button size="sm" variant="primary" disabled={isBusy} onClick={() => {
+            const action = confirmation
+            setConfirmation(null)
+            if (action.kind === 'install') startInstall(action.item)
+            else if (action.kind === 'uninstall') startUninstall(action.id, action.name)
+            else void runOp({ kind: 'batch', id: 'batch' }, () => updateMany(action.ids), t('updateDone'))
+          }}>{t('confirmAction')}</Button></>}>
+        <p className={css.detailsCopy}>{t(confirmation.kind === 'install' ? 'installWarning' : confirmation.kind === 'batch' ? 'batchWarning' : 'uninstallWarning')}</p>
+        <pre className={css.confirmTarget}>{confirmation.kind === 'install' ? confirmation.item.installSpec
+          : confirmation.kind === 'batch' ? confirmation.ids.join('\n') : confirmation.name}</pre>
+      </Modal> : null}
       <header className={css.heading}>
         <div className={css.headingText}>
           <h2 className={css.title}>{t('heading')}</h2>
@@ -358,6 +500,9 @@ export function MarketSection({
             >
               {installedTabLabel}
             </Pill>
+            {(['favorites', 'history'] as const).map(value => <Pill key={value} role="tab" id={`market-tab-${value}`}
+              aria-selected={tab === value} aria-controls={`market-panel-${value}`} active={tab === value}
+              onClick={() => { setTab(value) }}>{t(value === 'favorites' ? 'tabFavorites' : 'tabHistory')}</Pill>)}
           </div>
           {notice ? (
             <p
@@ -373,7 +518,14 @@ export function MarketSection({
               <p>{t('allowBuildsAsk', { name: ask.item.repo })}</p>
               {ask.keys.length > 0 ? <code>{t('allowBuildsKeys', { keys: ask.keys.join(', ') })}</code> : null}
               <div className={css.allowBuildsActions}>
-                <Button size="sm" variant="primary" onClick={() => { startInstall(ask.item, ask.keys) }}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    if (ask.kind === 'update') startUpdate(ask.item, ask.keys)
+                    else startInstall(ask.item, ask.keys)
+                  }}
+                >
                   {t('allowBuildsConfirm')}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => { setAsk(null) }}>
@@ -395,7 +547,7 @@ export function MarketSection({
             data-dsh-motion="swap"
             className={css.pane}
           >
-            {tab === 'discover' ? (
+            {tab === 'history' ? <MarketHistory operations={marketState.operations} t={t} /> : tab !== 'installed' ? (
               <>
                 <div className={css.toolbar}>
                   <Input
@@ -407,6 +559,10 @@ export function MarketSection({
                     aria-label={t('search')}
                     onChange={(event) => { setQuery(event.currentTarget.value) }}
                   />
+                  <MarketChoice labelKey="sort" value={sort} onChange={setSort} t={t}
+                    options={[{ id: 'catalog', labelKey: 'sortCatalog' }, { id: 'stars', labelKey: 'sortStars' }, { id: 'newest', labelKey: 'sortNewest' }]} />
+                  <MarketChoice labelKey="period" value={period} onChange={setPeriod} t={t}
+                    options={[{ id: 'all', labelKey: 'periodAll' }, { id: '7', labelKey: 'periodWeek' }, { id: '30', labelKey: 'periodMonth' }]} />
                 </div>
                 {state.catalog.categories.length > 1 ? (
                   <div className={css.categories} role="radiogroup" aria-label={t('categories')}>
@@ -441,6 +597,7 @@ export function MarketSection({
                   <ul className={css.cards}>
                     {visibleItems.map((item) => {
                       const installedName = installedNameFor(item, installed)
+                      const updateStatus = updates[item.id]
                       const busyKind = busy !== null && busy.id === item.id ? busy.kind : null
                       return (
                         <li className={css.card} key={item.id} data-market-item={item.id}>
@@ -460,10 +617,19 @@ export function MarketSection({
                                 ) : null}
                               </span>
                             </div>
-                            {item.homepage ? (
+                            <Tooltip label={t(marketState.favorites.includes(item.id) ? 'unfavorite' : 'favorite')}>
+                              <span className={css.toolAnchor}><Button size="sm" variant="ghost" className={css.iconAction}
+                                aria-label={t(marketState.favorites.includes(item.id) ? 'unfavorite' : 'favorite')}
+                                aria-pressed={marketState.favorites.includes(item.id)} disabled={favoriteBusy}
+                                icon={<span aria-hidden="true">{marketState.favorites.includes(item.id) ? '★' : '☆'}</span>}
+                                onClick={() => { void toggleFavorite(item.id) }} /></span>
+                            </Tooltip>
+                            <Tooltip label={t('details')}><span className={css.toolAnchor}><Button size="sm" variant="ghost" className={css.iconAction}
+                              icon={<IconInfoOutline16 />} aria-label={t('details')} onClick={() => { setDetails(item) }} /></span></Tooltip>
+                            {marketHttpsUrl(item.homepage) ? (
                               <a
                                 className={css.cardLink}
-                                href={item.homepage}
+                                href={marketHttpsUrl(item.homepage)!}
                                 target="_blank"
                                 rel="noreferrer"
                                 aria-label={t('homepage')}
@@ -482,23 +648,47 @@ export function MarketSection({
                             ) : null}
                             <span className={css.grow} />
                             {installedName ? (
-                              <>
+                              <div className={css.cardActions}>
                                 <span className={css.installedTag}>{t('installed')}</span>
+                                {updateStatus?.updateAvailable && updateStatus.current && updateStatus.latest ? (
+                                  <span
+                                    className={css.updateMeta}
+                                    title={t('updateFromTo', {
+                                      current: updateStatus.current,
+                                      latest: updateStatus.latest,
+                                    })}
+                                  >
+                                    {t('updateFromTo', {
+                                      current: updateValue(updateStatus, updateStatus.current),
+                                      latest: updateValue(updateStatus, updateStatus.latest),
+                                    })}
+                                  </span>
+                                ) : null}
+                                {updateStatus?.updateAvailable ? (
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    disabled={isBusy}
+                                    onClick={() => { startUpdate(item) }}
+                                  >
+                                    {busyKind === 'update' ? t('updating') : t('update')}
+                                  </Button>
+                                ) : null}
                                 <Button
                                   size="sm"
                                   variant="ghost"
                                   disabled={isBusy}
-                                  onClick={() => { startUninstall(item.id, installedName) }}
+                                  onClick={() => { setConfirmation({ kind: 'uninstall', id: item.id, name: installedName }) }}
                                 >
                                   {busyKind === 'uninstall' ? t('uninstalling') : t('uninstall')}
                                 </Button>
-                              </>
+                              </div>
                             ) : installable(item) ? (
                               <Button
                                 size="sm"
                                 variant="primary"
                                 disabled={isBusy}
-                                onClick={() => { startInstall(item) }}
+                                onClick={() => { setConfirmation({ kind: 'install', item }) }}
                               >
                                 {busyKind === 'install' ? t('installing') : t('install')}
                               </Button>
@@ -523,6 +713,23 @@ export function MarketSection({
               </>
             ) : (
               <>
+                <div className={css.toolbar}>
+                  <MarketChoice labelKey="installedFilter" value={installedFilter} onChange={setInstalledFilter} t={t}
+                    options={[{ id: 'all', labelKey: 'filterAll' }, { id: 'updates', labelKey: 'filterUpdates' }, { id: 'failed', labelKey: 'filterFailed' }]} />
+                  <Button size="sm" variant="primary" disabled={isBusy || checkingUpdates || updateCount === 0 || updateCount > 100}
+                    onClick={() => { setConfirmation({ kind: 'batch', ids: Object.values(updates).filter(row => row.updateAvailable).map(row => row.id) }) }}>{t('updateAll')}</Button>
+                </div>
+                <p className={css.updateSummary} role="status">
+                  {checkingUpdates
+                    ? t('checkingUpdates')
+                    : updateCheckFailed
+                      ? t('updateCheckFailed')
+                      : updatesChecked && updateCount > 0
+                        ? t('updatesAvailable', { count: String(updateCount) })
+                        : updatesChecked
+                          ? t('updatesCurrent')
+                          : t('checkingUpdates')}
+                </p>
                 {installed.length === 0 ? (
                   <p className={css.empty}>{t('installedEmpty')}</p>
                 ) : (
@@ -532,6 +739,7 @@ export function MarketSection({
                       <ul className={css.installedRows}>
                         {group.rows.map(({ plugin, item }) => {
                           const opId = item ? item.id : plugin.name
+                          const updateStatus = item ? updates[item.id] : undefined
                           return (
                             <li className={css.installedRow} key={plugin.name}>
                               <div className={css.installedIdentity}>
@@ -540,15 +748,50 @@ export function MarketSection({
                                   {plugin.dropped ? <span className={css.deprecatedTag}>{t('dropped')}</span> : null}
                                 </span>
                                 <code className={css.installedSpec}>{plugin.spec}</code>
+                                {updateStatus?.checkFailed ? <span className={css.notice} data-kind="error">{t('updateCheckFailed')}</span> : null}
+                                {updateStatus?.current ? (
+                                  <span
+                                    className={css.updateMeta}
+                                    title={updateStatus.updateAvailable && updateStatus.latest
+                                      ? t('updateFromTo', {
+                                          current: updateStatus.current,
+                                          latest: updateStatus.latest,
+                                        })
+                                      : t('currentVersion', {
+                                          current: updateStatus.current,
+                                        })}
+                                  >
+                                    {updateStatus.updateAvailable && updateStatus.latest
+                                      ? t('updateFromTo', {
+                                          current: updateValue(updateStatus, updateStatus.current),
+                                          latest: updateValue(updateStatus, updateStatus.latest),
+                                        })
+                                      : t('currentVersion', {
+                                          current: updateValue(updateStatus, updateStatus.current),
+                                        })}
+                                  </span>
+                                ) : null}
                               </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={isBusy}
-                                onClick={() => { startUninstall(opId, plugin.name) }}
-                              >
-                                {busy?.kind === 'uninstall' && busy.id === opId ? t('uninstalling') : t('uninstall')}
-                              </Button>
+                              <div className={css.installedActions}>
+                                {item && updateStatus?.updateAvailable ? (
+                                  <Button
+                                    size="sm"
+                                    variant="primary"
+                                    disabled={isBusy}
+                                    onClick={() => { startUpdate(item) }}
+                                  >
+                                    {busy?.kind === 'update' && busy.id === opId ? t('updating') : t('update')}
+                                  </Button>
+                                ) : null}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={isBusy}
+                                  onClick={() => { setConfirmation({ kind: 'uninstall', id: opId, name: plugin.name }) }}
+                                >
+                                  {busy?.kind === 'uninstall' && busy.id === opId ? t('uninstalling') : t('uninstall')}
+                                </Button>
+                              </div>
                             </li>
                           )
                         })}

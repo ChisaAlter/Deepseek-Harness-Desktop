@@ -9,9 +9,9 @@ import { randomUUID } from 'node:crypto';
 import puppeteer from 'puppeteer-core';
 
 const require = createRequire(import.meta.url);
-const { loadServerApi } = require('../../src/main/chisacode-remote.js');
+const { loadServerApi } = require('../../src/main/dshd-remote.js');
 const home = join(process.env.APPDATA, 'Deepseek-Harness-Desktop', 'chisacode-home');
-const base = 'http://125.124.85.212:3389/dshd/';
+const base = 'https://ayase.cn/dshd/';
 const storageKey = 'dsh-chisacode-device-secrets';
 const serverId = readFileSync(join(home, 'server-id'), 'utf8').trim();
 const publicKey = JSON.parse(readFileSync(join(home, 'daemon-keypair.json'), 'utf8')).publicKeyB64;
@@ -133,8 +133,8 @@ DaemonClient.prototype.hostRpc = async function(method, ...args) {
       localStorage.setItem(key, JSON.stringify(record));
     }, storageKey, { [serverId]: {
       deviceId: revoked.deviceId, deviceSecret: revoked.secret,
-      daemonPublicKeyB64: publicKey, relayEndpoint: '125.124.85.212:8411',
-      useTls: false, savedAt: Date.now(),
+      daemonPublicKeyB64: publicKey, relayEndpoint: 'ayase.cn:443',
+      useTls: true, savedAt: Date.now(),
     } });
     await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 45000 });
     const rejected = await connectionResult(page);
@@ -153,8 +153,8 @@ DaemonClient.prototype.hostRpc = async function(method, ...args) {
   }, storageKey, serverId, qaId);
   const pairing = await api.generateLocalPairingOffer({
     chisacodeHome: home, relayEnabled: true,
-    relayEndpoint: '125.124.85.212:8411', relayPublicEndpoint: '125.124.85.212:8411',
-    relayUseTls: false, relayPublicUseTls: false, appBaseUrl: base, includeQr: false,
+    relayEndpoint: 'ayase.cn:443', relayPublicEndpoint: 'ayase.cn:443',
+    relayUseTls: true, relayPublicUseTls: true, appBaseUrl: base, includeQr: false,
   });
   const offer = JSON.parse(Buffer.from(new URL(pairing.url).hash.slice(7), 'base64url'));
   pairingToken = offer.authBootstrap.pairingToken;

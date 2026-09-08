@@ -20,7 +20,7 @@
 
 | 轨 | 本轮 | 客户端 | 落地 origin（必须与桌面二维码一致） | 说明 |
 | --- | --- | --- | --- | --- |
-| **T1 外出 Web** | **必测** | 真机系统相机 → **手机浏览器** | `http://125.124.85.212:3389/dshd/` | 桌面远程 = 外出 / relay。nginx `app.js` 必须是本交付切面。 |
+| **T1 外出 Web** | **必测** | 真机系统相机 → **手机浏览器** | `https://ayase.cn/dshd/` | 桌面远程 = 外出 / relay。nginx `app.js` 必须是本交付切面。 |
 | **T2 局域网 Web** | 桌面为局域网时必测；外出模式 **禁止** 用本轨顶替 T1 | 真机系统相机 → 手机浏览器 | `http://<LAN>:3180/` | 外出模式不听 3180。 |
 | **T3 Android** | **Deferred** | APK 应用内扫码 | `https://appassets.androidplatform.net` | Web UI 稳定后再开。本轮不得用旧 APK 或 T3 截图给 T1 打 Pass。 |
 
@@ -321,7 +321,7 @@ S05 的 M2：若列表里另有可选模型可切走再切回 `grok-4.6`；若�
 2. 只记录 `origin + pathname`。  
 3. 对该 origin 拉取 `app.js`（及 `index.html` 的 script src）。
 
-**期望：** origin+path 为 `http://125.124.85.212:3389/dshd`（允许尾斜杠）。`app.js` **不含** `fetchAgents`，**含** `session.list` 的 host 调用。链接 **不含** `:3180`、`:8411` 当页面。弹窗在中继未连接时 **没有** 二维码 / 复制 / 刷新。
+**期望：** origin+path 为 `https://ayase.cn/dshd`（允许尾斜杠）。`app.js` **不含** `fetchAgents`，**含** `session.list` 的 host 调用。链接 **不含** `:3180`、`:8411` 当页面。弹窗在中继未连接时 **没有** 二维码 / 复制 / 刷新。
 
 **Fail：** 二维码指向本机 `:3180` 却声称外出；公网页仍是 ACP 目录。
 

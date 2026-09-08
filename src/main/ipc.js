@@ -18,7 +18,18 @@ const { listThemes, resolveTheme } = require('../shared/themes');
 const { applyAppTheme } = require('./chrome');
 const { checkUpdate, installUpdate, listReleases, installRelease, launchUninstaller, currentVersion, REPO_URL, RELEASES_PAGE } = require('./update');
 const { listMarketplace } = require('./marketplace-catalog');
-const { listInstalledPlugins, installPlugin, installImportPlugin, installMarketplacePlugin, uninstallPlugin } = require('./marketplace-install');
+const { checkMarketplaceUpdates } = require('./marketplace-updates');
+const { getMarketplaceDetails } = require('./marketplace-details');
+const { listMarketplaceState, setMarketplaceFavorite, recordMarketplaceOperation, redactMarketLog } = require('./marketplace-state');
+const {
+  listInstalledPlugins,
+  installPlugin,
+  installImportPlugin,
+  installMarketplacePlugin,
+  updateMarketplacePlugin,
+  updateMarketplacePlugins,
+  uninstallPlugin,
+} = require('./marketplace-install');
 const {
   listInstalledPlugins: listProfilePlugins,
   applyDisabledBundles,
@@ -87,11 +98,12 @@ function configPayload(config) {
 
 function sendPluginProgress(event, payload) {
   if (event?.sender && !event.sender.isDestroyed()) {
-    event.sender.send('shell:plugin-progress', payload);
+    event.sender.send('shell:plugin-progress', { ...payload, line: redactMarketLog(payload.line) });
   }
 }
 
 const HARNESS_DOWN_AFTER_ADD = '插件已写入 web profile，但 Harness 没有起来。请从现有入口重启，不要再安装一次。';
+const HARNESS_DOWN_AFTER_UPDATE = '插件已更新，但 Harness 没有起来。请从现有入口重启，不要再次更新。';
 const HARNESS_DOWN_AFTER_REMOVE = '插件已从 web profile 移除，但 Harness 没有起来。请从现有入口重启，不要再卸载一次。';
 const HARNESS_DOWN_AFTER_DISABLE = '插件禁用名单已写入，但 Harness 没有重新起来。请从现有入口重启。';
 const HARNESS_DOWN_AFTER_ENABLE = '插件启用已写入，但 Harness 没有重新起来。请从现有入口重启。';
@@ -305,6 +317,18 @@ function registerIpc({
   });
 
   handle('shell:list-installed-plugins', HARNESS_ONLY, () => listInstalledPlugins());
+  handle('shell:marketplace-state', HARNESS_ONLY, () => listMarketplaceState());
+  handle('shell:marketplace-details', HARNESS_ONLY, (_event, id, options = {}) => getMarketplaceDetails(id, { force: options?.force === true }));
+  handle('shell:marketplace-favorite', HARNESS_ONLY, (_event, id, favorite) => setMarketplaceFavorite(id, favorite));
+
+  handle('shell:check-marketplace-updates', HARNESS_ONLY, (_event, options = {}) => {
+    const config = loadConfig();
+    return checkMarketplaceUpdates({
+      force: Boolean(options?.force),
+      refresh: Boolean(options?.refresh),
+      token: config.githubToken,
+    });
+  });
 
   handle('shell:install-plugin', HARNESS_ONLY, async (event, spec, options = {}) => {
     const config = loadConfig();
@@ -318,19 +342,48 @@ function registerIpc({
 
   handle('shell:install-marketplace-plugin', HARNESS_ONLY, async (event, id, options = {}) => {
     const config = loadConfig();
-    const result = await installMarketplacePlugin(id, {
-      token: config.githubToken,
-      allowBuilds: Array.isArray(options?.allowBuilds) ? options.allowBuilds : [],
-      onProgress: (payload) => sendPluginProgress(event, payload),
+    return recordMarketplaceOperation('install', id, async record => {
+      const result = await installMarketplacePlugin(id, {
+        token: config.githubToken,
+        allowBuilds: Array.isArray(options?.allowBuilds) ? options.allowBuilds : [],
+        onProgress: payload => { record(payload); sendPluginProgress(event, payload); },
+      });
+      return restartAfterProfileWrite(event, result, startHarness, HARNESS_DOWN_AFTER_ADD);
     });
-    return restartAfterProfileWrite(event, result, startHarness, HARNESS_DOWN_AFTER_ADD);
+  });
+
+  handle('shell:update-marketplace-plugin', HARNESS_ONLY, async (event, id, options = {}) => {
+    const config = loadConfig();
+    return recordMarketplaceOperation('update', id, async record => {
+      const result = await updateMarketplacePlugin(id, {
+        token: config.githubToken,
+        allowBuilds: Array.isArray(options?.allowBuilds) ? options.allowBuilds : [],
+        onProgress: payload => { record(payload); sendPluginProgress(event, payload); },
+      });
+      return restartAfterProfileWrite(event, result, startHarness, HARNESS_DOWN_AFTER_UPDATE);
+    });
+  });
+
+  handle('shell:update-marketplace-plugins', HARNESS_ONLY, async (event, ids) => {
+    const config = loadConfig();
+    return recordMarketplaceOperation('batch', Array.isArray(ids) ? ids.join(', ') : '', async record => {
+      const result = await updateMarketplacePlugins(ids, {
+        token: config.githubToken,
+        onProgress: payload => { record(payload); sendPluginProgress(event, payload); },
+      });
+      if (!result.changed || result.rollbackFailed) return result;
+      const restarted = await restartAfterProfileWrite(event, { ok: true }, startHarness, HARNESS_DOWN_AFTER_UPDATE);
+      return { ...result, harnessStarted: restarted.harnessStarted, error: restarted.harnessStarted === false ? restarted.error : result.error };
+    });
   });
 
   handle('shell:uninstall-plugin', HARNESS_ONLY, async (event, name) => {
-    const result = await uninstallPlugin(name, {
-      onProgress: (payload) => sendPluginProgress(event, payload),
+    return recordMarketplaceOperation('uninstall', name, async record => {
+      const result = await uninstallPlugin(name, {
+        onProgress: payload => { record(payload); sendPluginProgress(event, payload); },
+      });
+      return restartAfterProfileWrite(event, result, startHarness, HARNESS_DOWN_AFTER_REMOVE, harness, true);
     });
-    return restartAfterProfileWrite(event, result, startHarness, HARNESS_DOWN_AFTER_REMOVE, harness, true);
   });
 
   handle('shell:open-marketplace', HARNESS_ONLY, () => openMarketplace());

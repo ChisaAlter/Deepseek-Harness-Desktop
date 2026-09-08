@@ -16,8 +16,8 @@ Product pairing is **dshd offer (vendored ChisaCode offer v2) + createChisaCodeD
 | --- | --- |
 | `RemoteGateway` HTTP listener / `#offer=` v1 | Class may remain for legacy unit tests; **not** constructed in `index.js` |
 | `src/shared/offer.js` v1 encode | Desktop QR now from `generateLocalPairingOffer` |
-| Default HTTP relay `http://125.124.85.212:8411` | Allowed as **transport** default only. **Never** as QR / `appBaseUrl` SPA landing |
-| Public nginx SPA `http://125.124.85.212:3389/dshd` | Away-mode QR landing — `:80/dshd` is also on the VPS but the cloud security group does not expose 80; never relay `:8411` |
+| Legacy HTTP relay `http://125.124.85.212:8411` | Retired default; exact saved built-in values migrate to `ayase.cn:443` TLS. Never restore as QR / `appBaseUrl` |
+| Public nginx SPA `https://ayase.cn/dshd/` | Away-mode QR landing on the same TLS origin; relay traffic uses exact `/ws`, never the SPA path |
 | Host token / `remoteRelayToken` wall in gateway UI | Removed; field may linger for migration clear |
 | `mobile/web` HTTP Host SPA login + mux over `:3180` | Replaced by `chisacode/daemon-client.bundle.js` + `session.js` |
 | Android Offer v1 JSON login | Must move to same protocol client (tracked; web done first) |

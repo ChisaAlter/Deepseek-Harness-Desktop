@@ -82,7 +82,7 @@ function normalizeRemotePatch(patch) {
       } else if (/^http:\/\//i.test(relayUrl)) {
         next.remoteRelayUseTls = false;
       } else {
-        next.remoteRelayUseTls = relayUrl !== '125.124.85.212:8411' && /:443(?:\/|$)/.test(relayUrl);
+        next.remoteRelayUseTls = /:443(?:\/|$)/.test(relayUrl);
       }
       continue;
     }

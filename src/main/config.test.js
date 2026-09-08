@@ -202,14 +202,16 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
     remoteRelayUrl: 'http://125.124.85.212:8411/x',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(defaultRelay.remoteRelayUrl, '125.124.85.212:8411');
+  assert.equal(defaultRelay.remoteRelayUrl, 'ayase.cn:443');
+  assert.equal(defaultRelay.remoteRelayUseTls, true);
   const blockedRelay = saveConfig({
     remoteEnabled: true,
     remoteMode: 'relay',
     remoteRelayUrl: 'https://app.chisacode.sh/x',
     remoteRelayToken: 'a'.repeat(32),
   });
-  assert.equal(blockedRelay.remoteRelayUrl, '125.124.85.212:8411');
+  assert.equal(blockedRelay.remoteRelayUrl, 'ayase.cn:443');
+  assert.equal(blockedRelay.remoteRelayUseTls, true);
   const httpsRelay = saveConfig({
     remoteEnabled: true,
     remoteMode: 'relay',
@@ -224,7 +226,8 @@ test('remote relay endpoint normalizes to host:port for ChisaCode transport', ()
     remoteRelayToken: 'a'.repeat(32),
   });
   assert.equal(lanMode.remoteMode, 'lan');
-  assert.equal(lanMode.remoteRelayUrl, '125.124.85.212:8411');
+  assert.equal(lanMode.remoteRelayUrl, 'ayase.cn:443');
+  assert.equal(lanMode.remoteRelayUseTls, true);
   const pub = publicConfig(httpsRelay);
   assert.equal(pub.remoteAvailable, true);
   assert.equal(pub.remoteEnabled, true);
@@ -235,7 +238,7 @@ test('remoteAppBaseUrl never backfills relay origin as SPA landing', () => {
   const { normalizeRemoteConfig } = require('./config');
   const { DEFAULT_APP_BASE_URL } = require('../shared/lan');
 
-  assert.equal(DEFAULT_APP_BASE_URL, 'http://125.124.85.212:8411');
+  assert.equal(DEFAULT_APP_BASE_URL, 'https://ayase.cn');
 
   assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: '' }).remoteAppBaseUrl, '');
   assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: '  ' }).remoteAppBaseUrl, '');
@@ -250,7 +253,26 @@ test('remoteAppBaseUrl override rejects relay port', () => {
   const { normalizeRemoteConfig } = require('./config');
   assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:8411' }).remoteAppBaseUrl, '');
   assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212/dshd' }).remoteAppBaseUrl, 'http://125.124.85.212/dshd');
-  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:3389/dshd' }).remoteAppBaseUrl, 'http://125.124.85.212:3389/dshd');
+  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'http://125.124.85.212:3389/dshd' }).remoteAppBaseUrl, '');
+  assert.equal(normalizeRemoteConfig({ remoteAppBaseUrl: 'https://ayase.cn/dshd' }).remoteAppBaseUrl, '');
+});
+
+test('remote migration changes only the retired built-in relay', () => {
+  const { normalizeRemoteConfig } = require('./config');
+  const migrated = normalizeRemoteConfig({
+    remoteRelayUrl: '125.124.85.212:8411',
+    remoteRelayUseTls: false,
+  });
+  assert.equal(migrated.remoteRelayUrl, 'ayase.cn:443');
+  assert.equal(migrated.remoteRelayEndpoint, 'ayase.cn:443');
+  assert.equal(migrated.remoteRelayUseTls, true);
+
+  const custom = normalizeRemoteConfig({
+    remoteRelayUrl: 'relay.example.com:443',
+    remoteRelayUseTls: false,
+  });
+  assert.equal(custom.remoteRelayUrl, 'relay.example.com:443');
+  assert.equal(custom.remoteRelayUseTls, false);
 });
 
 test('parkRemoteSnapshot forces unavailable shape for IPC park path', () => {

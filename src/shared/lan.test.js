@@ -5,6 +5,10 @@ const assert = require('node:assert/strict');
 const {
   DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_ENDPOINT,
+  DEFAULT_RELAY_ORIGIN,
+  DEFAULT_RELAY_USE_TLS,
+  LEGACY_DEFAULT_PUBLIC_APP_BASE_URL,
+  LEGACY_DEFAULT_RELAY_ENDPOINT,
   normalizePublicAppBaseUrl,
   preferredLanIp,
   isVirtualOrLinkLocalIpv4,
@@ -48,10 +52,15 @@ test('isVirtualOrLinkLocalIpv4 covers APIPA and CGNAT', () => {
   assert.equal(isVirtualOrLinkLocalIpv4('192.168.0.1'), false);
 });
 
-test('DEFAULT_PUBLIC_APP_BASE_URL is nginx SPA path not the relay port', () => {
-  assert.equal(DEFAULT_PUBLIC_APP_BASE_URL, 'http://125.124.85.212:3389/dshd');
+test('server defaults use the ayase.cn TLS relay and nginx SPA path', () => {
+  assert.equal(DEFAULT_RELAY_ENDPOINT, 'ayase.cn:443');
+  assert.equal(DEFAULT_RELAY_ORIGIN, 'https://ayase.cn');
+  assert.equal(DEFAULT_RELAY_USE_TLS, true);
+  assert.equal(DEFAULT_PUBLIC_APP_BASE_URL, 'https://ayase.cn/dshd');
   assert.doesNotMatch(DEFAULT_PUBLIC_APP_BASE_URL, /:8411/);
   assert.match(DEFAULT_PUBLIC_APP_BASE_URL, /\/dshd$/);
+  assert.equal(LEGACY_DEFAULT_RELAY_ENDPOINT, '125.124.85.212:8411');
+  assert.equal(LEGACY_DEFAULT_PUBLIC_APP_BASE_URL, 'http://125.124.85.212:3389/dshd');
 });
 
 test('normalizePublicAppBaseUrl keeps empty and rejects relay port / RFC1918', () => {
@@ -75,4 +84,5 @@ test('normalizePublicAppBaseUrl keeps empty and rejects relay port / RFC1918', (
     normalizePublicAppBaseUrl('http://125.124.85.212:3389/dshd/'),
     'http://125.124.85.212:3389/dshd',
   );
+  assert.equal(normalizePublicAppBaseUrl('https://ayase.cn/dshd/'), 'https://ayase.cn/dshd');
 });

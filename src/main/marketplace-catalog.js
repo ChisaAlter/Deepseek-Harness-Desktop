@@ -154,10 +154,10 @@ function mapPlugin(plugin, locale) {
     installSpec: resolveInstallSpec(plugin),
     isBundle: !deprecated,
     category: plugin.category || '',
-    added: plugin.added,
+    added: typeof plugin.added === 'string' ? plugin.added.slice(0, 40) : '',
     deprecated: plugin.deprecated,
     replacement: plugin.replacement,
-    screenshots: Array.isArray(plugin.screenshots) ? plugin.screenshots : [],
+    screenshots: Array.isArray(plugin.screenshots) ? plugin.screenshots.filter(value => typeof value === 'string').slice(0, 12) : [],
     npm,
   };
 }
@@ -419,12 +419,12 @@ function getMarketplacePlugin(id) {
   return plugin ? mapPlugin(plugin, locale) : null;
 }
 
-async function resolveCommitSha(owner, repo, ref, token) {
+async function resolveCommitSha(owner, repo, ref, token, fetchImpl = globalThis.fetch) {
   const url = `https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(ref)}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const response = await fetch(url, {
+    const response = await fetchImpl(url, {
       headers: {
         ...githubHeaders(token),
         Accept: 'application/vnd.github.sha',
@@ -445,6 +445,7 @@ async function resolveCommitSha(owner, repo, ref, token) {
 }
 
 module.exports = {
+  readBodyCapped,
   MAX_REGISTRY_BYTES,
   listMarketplace,
   getMarketplacePlugin,

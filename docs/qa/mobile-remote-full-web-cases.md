@@ -46,7 +46,7 @@ Touching: `mobile-remote`。公约、视口阈值、非法证据沿用 [mobile-r
 
 | 轨 | 可交付 | 客户端 |
 | --- | --- | --- |
-| T1 | 是 | 真机相机 → 公网 `http://125.124.85.212:3389/dshd/` |
+| T1 | 是 | 真机相机 → 公网 `https://ayase.cn/dshd/` |
 | T2 | 桌面=局域网时是 | 真机相机 → `http://<LAN>:3180/` |
 | T2 rehearsal | 否（只能写 Rehearsal） | Puppeteer / 本机粘贴 `127.0.0.1:3180` |
 | T3 | Deferred | APK |
@@ -78,7 +78,7 @@ Touching: `mobile-remote`。公约、视口阈值、非法证据沿用 [mobile-r
 ### PAIR-001 · 外出二维码 origin 与切面 · P0 · T1 · 主
 - **前置：** 桌面远程=外出；中继已连接。
 - **步骤：** ① 弹窗复制链接，只抄 origin+path；② 手机拉该 origin 的 `index.html`+`app.js`。
-- **期望：** `http://125.124.85.212:3389/dshd`；`app.js` 无 `fetchAgents`/`createAgent`，含 host `session.list`；链接不含 `:3180`/`:8411`。
+- **期望：** `https://ayase.cn/dshd`；`app.js` 无 `fetchAgents`/`createAgent`，含 host `session.list`；链接不含 `:3180`/`:8411`。
 - **桌面抄录：** 弹窗 origin=____。必须一样。
 
 ### PAIR-002 · 局域网 origin 与停听 · P0 · T2 · 主

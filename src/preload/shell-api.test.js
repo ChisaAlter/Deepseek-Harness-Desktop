@@ -202,6 +202,12 @@ test('harness preload omits remote controls when the feature flag is off', () =>
 test('harness preload exposes installMarketplacePlugin and omits seed install draft', () => {
   const api = buildShellApi('harness', fakeRenderer());
   assert.equal(typeof api.installMarketplacePlugin, 'function');
+  assert.equal(typeof api.checkMarketplaceUpdates, 'function');
+  assert.equal(typeof api.updateMarketplacePlugin, 'function');
+  assert.equal(typeof api.updateMarketplacePlugins, 'function');
+  assert.equal(typeof api.getMarketplaceState, 'function');
+  assert.equal(typeof api.getMarketplaceDetails, 'function');
+  assert.equal(typeof api.setMarketplaceFavorite, 'function');
   assert.equal(typeof api.installPlugin, 'function');
   assert.equal(api.seedInstallDraft, undefined);
   assert.equal(api.onSeedInstallDraft, undefined);

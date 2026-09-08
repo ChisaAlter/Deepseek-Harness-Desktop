@@ -59,7 +59,7 @@ if (!text.includes('copyLink') || !text.includes('data-dsh-remote-copy-link')) {
   console.error('[prestart] ui-settings-remote/lib is stale (missing copyLink / data-dsh-remote-copy-link). Run: pnpm --filter @deepseek-ai/dsh-client-ui-settings-remote run bundle');
   process.exit(1);
 }
-if (text.includes('保存宿主令牌') && !text.includes('125.124.85.212:8411')) {
+if (text.includes('保存宿主令牌') && !text.includes('ayase.cn:443')) {
   console.error('[prestart] ui-settings-remote/lib is stale (host-token wall). Run: npm run bundle --prefix vendor/deepseek-harness/packages/client/ui-settings-remote');
   process.exit(1);
 }

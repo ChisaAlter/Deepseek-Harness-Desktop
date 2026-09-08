@@ -20,7 +20,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
-const { loadServerApi } = require('../../src/main/chisacode-remote.js');
+const { loadServerApi } = require('../../src/main/dshd-remote.js');
 const {
   DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_ENDPOINT,

@@ -40,7 +40,7 @@ test('vendor tree includes full daemon sources and AGPL shipping docs', () => {
   assert.ok(fs.existsSync(path.join(VENDOR_ROOT, 'WORKER-CHECKLIST.md')));
   assert.ok(fs.existsSync(path.join(VENDOR_ROOT, 'AGPL-SHIPPING.md')));
   const { DEFAULT_RELAY_ENDPOINT } = require('../shared/lan');
-  assert.equal(DEFAULT_RELAY_ENDPOINT, '125.124.85.212:8411');
+  assert.equal(DEFAULT_RELAY_ENDPOINT, 'ayase.cn:443');
   const wrangler = fs.readFileSync(path.join(VENDOR_ROOT, 'packages', 'relay', 'wrangler.toml'), 'utf8');
   assert.doesNotMatch(wrangler, /10ed39a1dbf316e30abd0c409bed40d6/);
   assert.doesNotMatch(wrangler, /chisacode\.sh/);
@@ -86,9 +86,9 @@ test('built vendor tree includes daemon dist packages (not a hello slice)', { sk
 
 test('defaults bake in desktop Away relay from lan.js constants (packaged path)', () => {
   const defaults = readDefaults();
-  assert.equal(defaults.relayEndpoint, '125.124.85.212:8411');
+  assert.equal(defaults.relayEndpoint, 'ayase.cn:443');
   assert.equal(defaults.appBaseUrl, '');
-  assert.equal(defaults.relayUseTls, false);
+  assert.equal(defaults.relayUseTls, true);
   const { DEFAULT_RELAY_ENDPOINT, DEFAULT_RELAY_USE_TLS } = require('../shared/lan');
   assert.equal(defaults.relayEndpoint, DEFAULT_RELAY_ENDPOINT);
   assert.equal(defaults.relayUseTls, DEFAULT_RELAY_USE_TLS);
@@ -102,7 +102,7 @@ test('pairingAppBaseUrl in LAN mode is :3180 never the relay host', () => {
   });
   const base = remote.pairingAppBaseUrl();
   assert.match(base, /^http:\/\/.+:3180$/);
-  assert.doesNotMatch(base, /125\.124\.85\.212/);
+  assert.doesNotMatch(base, /ayase\.cn/);
 });
 
 test('pairingAppBaseUrl defaults to the server landing page without a saved mode', () => {
@@ -124,8 +124,8 @@ test('pairingAppBaseUrl in away mode is the public SPA path not LAN or :8411', (
 
 test('runtimeConfigKey changes when remoteMode or public app base changes', () => {
   const remote = new DshdRemote({ getConfig: () => ({}), getHomeDir: () => os.tmpdir() });
-  const lan = remote.runtimeConfigKey({ remoteMode: 'lan', remoteRelayEndpoint: '125.124.85.212:8411' });
-  const away = remote.runtimeConfigKey({ remoteMode: 'relay', remoteRelayEndpoint: '125.124.85.212:8411' });
+  const lan = remote.runtimeConfigKey({ remoteMode: 'lan', remoteRelayEndpoint: 'ayase.cn:443' });
+  const away = remote.runtimeConfigKey({ remoteMode: 'relay', remoteRelayEndpoint: 'ayase.cn:443' });
   assert.notEqual(lan, away);
 });
 
@@ -222,6 +222,7 @@ test('renameDevice writes through the re-opened device store and stays a no-op w
 test('relay TLS follows the persisted endpoint transport setting', () => {
   assert.equal(relayUseTls({ remoteRelayUseTls: false }, '125.124.85.212:8411'), false);
   assert.equal(relayUseTls({ remoteRelayUseTls: true }, 'relay.example.com:443'), true);
+  assert.equal(relayUseTls({}, 'ayase.cn:443'), true);
   assert.equal(relayUseTls({}, 'relay.example.com:443'), true);
   assert.equal(relayUseTls({}, 'relay.example.com:8411'), false);
 });
@@ -233,7 +234,8 @@ test('refreshPairing passes LAN appBaseUrl and includeQr false', async () => {
     getConfig: () => ({
       remoteEnabled: true,
       remoteMode: 'lan',
-      remoteRelayEndpoint: '125.124.85.212:8411',
+      remoteRelayEndpoint: 'ayase.cn:443',
+      remoteRelayUseTls: true,
     }),
     getHomeDir: () => home,
   });
@@ -247,8 +249,8 @@ test('refreshPairing passes LAN appBaseUrl and includeQr false', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0].includeQr, false);
   assert.match(calls[0].appBaseUrl, /:3180$/);
-  assert.doesNotMatch(calls[0].appBaseUrl, /125\.124\.85\.212/);
-  assert.equal(calls[0].relayUseTls, false);
+  assert.doesNotMatch(calls[0].appBaseUrl, /ayase\.cn/);
+  assert.equal(calls[0].relayUseTls, true);
 });
 
 test('refreshPairing in away mode passes public SPA appBaseUrl', async () => {
@@ -259,7 +261,8 @@ test('refreshPairing in away mode passes public SPA appBaseUrl', async () => {
     getConfig: () => ({
       remoteEnabled: true,
       remoteMode: 'relay',
-      remoteRelayEndpoint: '125.124.85.212:8411',
+      remoteRelayEndpoint: 'ayase.cn:443',
+      remoteRelayUseTls: true,
     }),
     getHomeDir: () => home,
   });
@@ -410,8 +413,8 @@ const READY_RUNNER_BODY = [
 function fakeRemote({ home, runnerBody = READY_RUNNER_BODY, config, options = {} }) {
   let current = config || {
     remoteEnabled: true,
-    remoteRelayEndpoint: '125.124.85.212:8411',
-    remoteRelayUseTls: false,
+    remoteRelayEndpoint: 'ayase.cn:443',
+    remoteRelayUseTls: true,
   };
   const remote = new DshdRemote({
     getConfig: () => current,
@@ -444,8 +447,8 @@ test('startDaemon spawns the runner child and restarts it when relay config chan
   assert.equal(f.remote.snapshot().listening, true);
   const firstPid = f.remote.daemon.child.pid;
   const launch1 = JSON.parse(fs.readFileSync(path.join(home, 'daemon-launch.json'), 'utf8'));
-  assert.equal(launch1.daemonConfig.relayEndpoint, '125.124.85.212:8411');
-  assert.equal(launch1.daemonConfig.relayUseTls, false);
+  assert.equal(launch1.daemonConfig.relayEndpoint, 'ayase.cn:443');
+  assert.equal(launch1.daemonConfig.relayUseTls, true);
   // No credentials may ever land in the launch file.
   assert.doesNotMatch(JSON.stringify(launch1), /apiKey|DEEPSEEK/);
 
@@ -584,7 +587,7 @@ test('DshdRemote never uses lan.pairingUrl for product QR', async () => {
   try {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cc-'));
     const remote = new DshdRemote({
-      getConfig: () => ({ remoteEnabled: true, remoteRelayEndpoint: '125.124.85.212:8411' }),
+      getConfig: () => ({ remoteEnabled: true, remoteRelayEndpoint: 'ayase.cn:443', remoteRelayUseTls: true }),
       getHomeDir: () => home,
     });
     remote.serverApi = {

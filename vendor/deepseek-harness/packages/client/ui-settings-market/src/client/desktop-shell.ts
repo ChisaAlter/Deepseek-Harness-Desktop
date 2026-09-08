@@ -1,8 +1,8 @@
 /**
  * Desktop shell bridge used by the marketplace settings section.
  * Absent outside the desktop app, so registration branches on it.
- * The section is desktop-owned: the curated catalog, install, and
- * uninstall all run in the Electron main process; this file only
+ * The section is desktop-owned: the curated catalog, install, update,
+ * and uninstall all run in the Electron main process; this file only
  * types that preload face.
  */
 
@@ -22,7 +22,27 @@ export type MarketItem = {
   category: string
   deprecated?: boolean
   npm?: string | null
+  screenshots?: string[]
+  added?: string
 }
+
+/** Durable desktop operation summary; logs are redacted in the main process. */
+export type MarketOperation = {
+  id: string
+  kind: 'install' | 'update' | 'uninstall' | 'batch'
+  target: string
+  status: 'running' | 'succeeded' | 'failed' | 'interrupted'
+  startedAt: number
+  finishedAt?: number
+  log: string
+  error?: string
+}
+
+/** Preferences and recent operations owned by the desktop user-data directory. */
+export type MarketplaceState = { ok: boolean; favorites: string[]; operations: MarketOperation[] }
+
+/** Bounded public README and manifest facts; requirements are declarations, not a verdict. */
+export type MarketplaceDetails = { ok: boolean; partial: boolean; readme: string; version: string; requirements: string[] }
 
 /** One catalog category chip with its localized label. */
 export type MarketCategory = {
@@ -56,7 +76,26 @@ export type InstalledPayload = {
   plugins?: InstalledPlugin[]
 }
 
-/** Result of an install or uninstall (profile write + Harness restart). */
+/** One installed catalog row's current-to-latest comparison. */
+export type MarketplaceUpdateStatus = {
+  id: string
+  packageName: string
+  kind: 'npm' | 'github' | 'linked' | 'unknown'
+  current: string | null
+  latest: string | null
+  updateAvailable: boolean
+  checkFailed?: boolean
+}
+
+/** Update-check payload keyed by catalog id. */
+export type MarketplaceUpdatesPayload = {
+  ok: boolean
+  updates: Record<string, MarketplaceUpdateStatus>
+  checkedAt: number
+  warning?: string
+}
+
+/** Result of an install, update, or uninstall (profile write + Harness restart). */
 export type PluginOpResult = {
   ok: boolean
   error?: string
@@ -67,6 +106,9 @@ export type PluginOpResult = {
   log?: string
   /** False when the profile write landed but Harness did not come back. */
   harnessStarted?: boolean
+  rolledBack?: boolean
+  rollbackError?: string
+  historyWarning?: string
 }
 
 /** One `shell:plugin-progress` line during install/uninstall/restart. */
@@ -77,9 +119,15 @@ export type PluginProgress = {
 
 /** The preload-exposed desktop API used by the marketplace section. */
 export type DesktopShell = {
+  getMarketplaceDetails?: (id: string, options?: { force?: boolean }) => Promise<MarketplaceDetails>
+  getMarketplaceState?: () => Promise<MarketplaceState>
+  setMarketplaceFavorite?: (id: string, favorite: boolean) => Promise<MarketplaceState>
+  updateMarketplacePlugins?: (ids: string[]) => Promise<PluginOpResult>
   listMarketplace?: (options?: { refresh?: boolean; locale?: string }) => Promise<MarketCatalog>
   listInstalledPlugins?: () => Promise<InstalledPayload>
+  checkMarketplaceUpdates?: (options?: { force?: boolean }) => Promise<MarketplaceUpdatesPayload>
   installMarketplacePlugin?: (id: string, options?: { allowBuilds?: string[] }) => Promise<PluginOpResult>
+  updateMarketplacePlugin?: (id: string, options?: { allowBuilds?: string[] }) => Promise<PluginOpResult>
   uninstallPlugin?: (name: string) => Promise<PluginOpResult>
   onPluginProgress?: (listener: (payload: PluginProgress) => void) => () => void
 }
@@ -98,19 +146,28 @@ export function desktopShell(): DesktopShell | null {
 /** Desktop shell object that actually implements the marketplace IPC methods. */
 type MarketDesktopApi = Required<Pick<
   DesktopShell,
-  'listMarketplace' | 'listInstalledPlugins' | 'installMarketplacePlugin' | 'uninstallPlugin' | 'onPluginProgress'
+  'listMarketplace' | 'listInstalledPlugins' | 'checkMarketplaceUpdates'
+  | 'getMarketplaceState' | 'setMarketplaceFavorite' | 'updateMarketplacePlugins'
+  | 'getMarketplaceDetails'
+  | 'installMarketplacePlugin' | 'updateMarketplacePlugin' | 'uninstallPlugin' | 'onPluginProgress'
 >>
 
 /**
  * Whether the preload object can drive the marketplace section.
  * @param shell - `window.shell`, or null in a plain browser.
- * @returns true only when catalog, install, uninstall, and progress are all functions.
+ * @returns true only when catalog, update, mutation, and progress APIs are functions.
  */
 export function hasMarketApi(shell: DesktopShell | null): shell is MarketDesktopApi {
   return Boolean(
     shell?.listMarketplace
     && shell.listInstalledPlugins
+    && shell.checkMarketplaceUpdates
     && shell.installMarketplacePlugin
+    && shell.updateMarketplacePlugin
+    && shell.getMarketplaceState
+    && shell.getMarketplaceDetails
+    && shell.setMarketplaceFavorite
+    && shell.updateMarketplacePlugins
     && shell.uninstallPlugin
     && shell.onPluginProgress,
   )

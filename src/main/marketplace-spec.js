@@ -28,6 +28,34 @@ function parseGithubSpec(spec) {
   return { owner: match[1], repo: match[2], ref: match[3] || '' };
 }
 
+/**
+ * Normalize a marketplace or installed dependency spec to a GitHub identity.
+ * `#path:` remains part of the identity so two packages in one monorepo do
+ * not match each other accidentally.
+ * @param {string} spec
+ * @returns {string}
+ */
+function githubIdentity(spec) {
+  const value = String(spec || '').trim();
+  const pathMatch = GITHUB_PATH_SPEC.exec(value);
+  if (pathMatch) {
+    return `${pathMatch[1]}/${pathMatch[2]}#path:/${pathMatch[3]}`.toLowerCase();
+  }
+  const parsed = parseGithubSpec(value);
+  if (parsed) {
+    return `${parsed.owner}/${parsed.repo}`.toLowerCase();
+  }
+  const url = value.match(/github\.com[:/]([^/#]+)\/([^/#]+?)(?:\.git)?(?:#path:\/([^#]+))?(?:#.*)?$/i);
+  if (!url) {
+    return '';
+  }
+  const owner = url[1];
+  const repo = String(url[2]).replace(/\.git$/i, '');
+  return url[3]
+    ? `${owner}/${repo}#path:/${url[3]}`.toLowerCase()
+    : `${owner}/${repo}`.toLowerCase();
+}
+
 function githubOwnerRepoFromHomepage(url) {
   const match = String(url || '').match(GITHUB_URL_OWNER_REPO);
   if (!match) {
@@ -95,6 +123,7 @@ function isAllowedMarketplaceSpec(spec, plugin) {
 module.exports = {
   GITHUB_PATH_SPEC,
   parseGithubSpec,
+  githubIdentity,
   ownerRepoMatches,
   isValidMarketplacePathSpec,
   isAllowedMarketplaceSpec,

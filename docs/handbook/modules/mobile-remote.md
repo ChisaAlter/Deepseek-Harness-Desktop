@@ -12,7 +12,7 @@
 
 ## 架构要点
 
-- 配对：vendored ChisaCode offer v2 / sticky / 中继 E2EE。QR 落地页局域网 `:3180`、外出 `:3389/dshd/`，传输中继 `:8411` 不当页面。
+- 配对：vendored ChisaCode offer v2 / sticky / 中继 E2EE。QR 落地页局域网 `:3180`、外出 `https://ayase.cn/dshd/`；传输走 `ayase.cn:443` 的 `/ws`，不把中继路由当页面。
 - 已配对 host：daemon 白名单 unary 转发 loopback `dsh web`（剥 Origin / sec-fetch，Host 钉 loopback）。审批走 `/api/respond`。
 - 会话与工作区：`session.list` / `workspace.list` 是目录真相，`session.history` 供时间线；新会话走 `session.create`，目录浏览/创建/登记走 `host.listDirectory` / `host.createDirectory` / `workspace.create`。模型/思考走 `session.models` / `session.selectModel`，权限、Plan 和斜杠走 Typert `commands/execute`，不回退 ACP agents。
 - 已配对 Git：daemon 回调 Electron `git.js`（`dshd-git-dispatch.js`），同一套 `workspace-authority.js`。不在 daemon 里再实现一套 git CLI。

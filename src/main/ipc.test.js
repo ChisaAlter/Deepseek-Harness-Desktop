@@ -229,6 +229,14 @@ function loadIpc(options = {}) {
       return { ok: true, items: [] };
     },
   });
+  stub('./marketplace-state', {
+    listMarketplaceState: () => ({ ok: true, favorites: [], operations: [] }),
+    setMarketplaceFavorite: (id, favorite) => ({ ok: true, favorites: favorite ? [id] : [], operations: [] }),
+    recordMarketplaceOperation: async (_kind, _target, work) => work(() => {}),
+    redactMarketLog: value => String(value || ''),
+  });
+  stub('./marketplace-details', { getMarketplaceDetails: async () => ({ ok: true, readme: '', requirements: [] }) });
+  stub('./marketplace-updates', { checkMarketplaceUpdates: async () => ({ ok: true, updates: {} }) });
   stub('./wallpaper-catalog', {
     listWallpaperCatalog: async (query) => {
       listWallpaperCatalogCalls.push(query);
@@ -237,6 +245,8 @@ function loadIpc(options = {}) {
     downloadWallpaper: async () => ({}),
   });
   stub('./marketplace-install', {
+    updateMarketplacePlugin: async () => options.updateResult || { ok: true },
+    updateMarketplacePlugins: async () => options.batchResult || { ok: true, changed: true, results: [] },
     listInstalledPlugins: () => ({ plugins: [] }),
     installPlugin: async (spec, opts) => {
       installPluginCalls.push({ spec, options: opts });
@@ -358,6 +368,40 @@ test('shell:git-branch-list resolves the guard failure payload when the handler 
   } finally {
     ipc.restore();
   }
+});
+
+test('batch marketplace IPC restarts exactly once after committed writes, even with partial failures', async () => {
+  for (const ok of [true, false]) {
+    const ipc = loadIpc({ batchResult: { ok, changed: true, results: [{ id: 'a', ok: true }, { id: 'b', ok }] } });
+    try {
+      const result = await ipc.invoke('shell:update-marketplace-plugins', harnessEvent(), ['a', 'b']);
+      assert.equal(ipc.startHarness(), 1);
+      assert.equal(result.ok, ok);
+      assert.equal(result.harnessStarted, true);
+    } finally { ipc.restore(); }
+  }
+});
+
+test('batch marketplace IPC never restarts after rollback failure or no writes', async () => {
+  for (const batchResult of [{ ok: false, changed: false }, { ok: false, changed: true, rollbackFailed: true }]) {
+    const ipc = loadIpc({ batchResult });
+    try {
+      const result = await ipc.invoke('shell:update-marketplace-plugins', harnessEvent(), ['a']);
+      assert.equal(result.ok, false);
+      assert.equal(ipc.startHarness(), 0);
+    } finally { ipc.restore(); }
+  }
+});
+
+test('marketplace state, details, favorites and batch IPC are unavailable to boot and launcher renderers', async () => {
+  const ipc = loadIpc();
+  try {
+    for (const channel of ['shell:marketplace-state', 'shell:marketplace-details', 'shell:marketplace-favorite', 'shell:update-marketplace-plugins']) {
+      for (const event of [bootEvent(), launcherEvent()]) {
+        await assert.rejects(() => ipc.invoke(channel, event, 'acme/demo'), error => error.code === 'ERR_DSH_IPC_SENDER');
+      }
+    }
+  } finally { ipc.restore(); }
 });
 
 test('shell:git-status resolves null instead of rejecting when the handler throws', async () => {

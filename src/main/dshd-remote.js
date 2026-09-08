@@ -142,7 +142,10 @@ function relayUseTls(config, endpoint) {
   if (typeof config.remoteRelayUseTls === 'boolean') {
     return config.remoteRelayUseTls;
   }
-  return endpoint !== DEFAULT_RELAY_ENDPOINT && /:443$/.test(endpoint);
+  if (endpoint === DEFAULT_RELAY_ENDPOINT) {
+    return DEFAULT_RELAY_USE_TLS;
+  }
+  return /:443$/.test(endpoint);
 }
 
 function publicDevicesFromStore(store) {

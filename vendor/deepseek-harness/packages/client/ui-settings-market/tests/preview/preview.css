@@ -1,0 +1,4 @@
+body { margin: 0; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font-family: var(--dsw-font-family); }
+#root { max-width: 800px; margin: 0 auto; padding: 24px; }
+* { box-sizing: border-box; }
+@media (max-width: 480px) { #root { padding: 16px; } }

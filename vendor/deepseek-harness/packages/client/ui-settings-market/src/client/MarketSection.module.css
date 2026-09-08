@@ -50,6 +50,13 @@
   border-radius: 8px;
 }
 
+.toolAnchor {
+  display: inline-flex;
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
 .status,
 .loadFailure p {
   margin: 0;
@@ -70,6 +77,7 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
@@ -82,6 +90,7 @@
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -89,7 +98,7 @@
 .search {
   box-sizing: border-box;
   flex: 1;
-  min-width: 0;
+  min-width: min(240px, 100%);
   height: 36px;
 }
 
@@ -383,6 +392,156 @@
   white-space: nowrap;
 }
 
+.cardActions,
+.installedActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cardActions {
+  flex-wrap: wrap;
+}
+
+.detailsModal {
+  width: 680px;
+  max-width: calc(100vw - 32px);
+}
+
+.detailsModal,
+.confirmModal {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  max-height: calc(100dvh - 48px);
+}
+
+.detailsModal h2,
+.confirmModal h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dialogContent {
+  min-height: 0;
+  overflow: auto;
+}
+
+.readme {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.readme h3 {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.readme img {
+  max-width: 100%;
+  height: auto;
+}
+
+.detailsCopy,
+.confirmTarget {
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.confirmTarget {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.metadata {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(0, 3fr);
+  gap: 8px 16px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.metadata dt {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.screenshots {
+  margin: 16px 0;
+}
+
+.screenshot {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  background: var(--dsw-alias-bg-module-platform);
+  border-radius: 8px;
+}
+
+.imageActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.historyRow {
+  padding: 12px 0;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.historyRow summary {
+  cursor: pointer;
+}
+
+.historyRow summary span + span {
+  margin-left: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.historyRow pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+.historyRow time {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.updateMeta,
+.updateSummary {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.updateMeta {
+  overflow: hidden;
+  max-width: 180px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.updateSummary {
+  margin: 0;
+}
+
 .showMore {
   display: flex;
   justify-content: center;
@@ -464,5 +623,14 @@
 
   .headingActions {
     align-self: flex-start;
+  }
+
+  .installedRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .installedActions {
+    align-self: flex-end;
   }
 }

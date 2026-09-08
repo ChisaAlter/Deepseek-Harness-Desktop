@@ -33,8 +33,16 @@ const {
   isDroppedInstallSpec,
   uninstallPlugin,
   installMarketplacePlugin,
+  updateMarketplacePlugin,
+  updateMarketplacePlugins,
   isBuildApprovalFailure,
 } = require('./marketplace-install');
+const {
+  compareVersions,
+  isUpgrade,
+  checkMarketplacePluginUpdate,
+} = require('./marketplace-updates');
+const { getMarketplaceDetails } = require('./marketplace-details');
 
 const NPM_ID = '13071301808/dsh-composer-expand';
 const GITHUB_ID = '01Virex/dsh-status-rotator';
@@ -84,6 +92,24 @@ function writeBundlePlugin(packageName) {
   }, {
     'cordis.patch.yml': `- insert:\n    - id: ${id}\n      name: ${packageName}\n`,
   });
+}
+
+function writeVersionedBundlePlugin(packageName, version) {
+  const id = `bundle-${String(packageName).replace(/[^A-Za-z0-9]+/g, '-')}`.slice(0, 48);
+  writePlugin(packageName, {
+    version,
+    dsh: { bundle: { patch: './cordis.patch.yml' } },
+  }, {
+    'cordis.patch.yml': `- insert:\n    - id: ${id}\n      name: ${packageName}\n`,
+  });
+}
+
+function writeLockCommit(owner, repo, commit) {
+  fs.mkdirSync(profileDir(), { recursive: true });
+  fs.writeFileSync(
+    path.join(profileDir(), 'pnpm-lock.yaml'),
+    `resolution: https://codeload.github.com/${owner}/${repo}/tar.gz/${commit}\n`,
+  );
 }
 
 function writeClientPlugin(packageName) {
@@ -208,6 +234,160 @@ dsh: add the exact key pnpm printed above under allowBuilds in C:/profile/web/pn
   assert.equal(isBuildApprovalFailure(1, []), false);
   assert.equal(isBuildApprovalFailure(1, ['dshbot@git+https://github.com/ChisaAlter/dshbot.git']), true);
   assert.equal(isBuildApprovalFailure(0, ['dshbot']), false);
+});
+
+test('marketplace update semver comparison is forwards-only', () => {
+  assert.ok(compareVersions('2.0.0', '1.9.9') > 0);
+  assert.ok(compareVersions('1.0.0', '1.0.0-beta.2') > 0);
+  assert.ok(compareVersions('1.0.0-beta.10', '1.0.0-beta.9') > 0);
+  assert.equal(compareVersions('latest', '1.0.0'), null);
+  assert.equal(isUpgrade('2.0.0', '1.9.9'), false);
+  assert.equal(isUpgrade('1.0.0', '2.0.0'), true);
+});
+
+test('marketplace update detection compares npm versions and GitHub commits', async () => {
+  writeProfileDep('demo', '1.0.0');
+  writeVersionedBundlePlugin('demo', '1.0.0');
+  const npmStatus = await checkMarketplacePluginUpdate({
+    id: 'acme/demo',
+    owner: 'acme',
+    repo: 'demo',
+    packageName: 'demo',
+    installSpec: 'demo',
+  }, [{ name: 'demo', spec: '1.0.0' }], {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ version: '1.2.0' }) }),
+  });
+  assert.deepEqual(npmStatus, {
+    id: 'acme/demo',
+    packageName: 'demo',
+    kind: 'npm',
+    current: '1.0.0',
+    latest: '1.2.0',
+    updateAvailable: true,
+    checkFailed: false,
+  });
+
+  const current = '1111111111111111111111111111111111111111';
+  const latest = '2222222222222222222222222222222222222222';
+  const githubStatus = await checkMarketplacePluginUpdate({
+    id: 'acme/git-demo',
+    owner: 'acme',
+    repo: 'git-demo',
+    packageName: '',
+    installSpec: 'github:acme/git-demo',
+  }, [{ name: 'git-demo', spec: `github:acme/git-demo#${current}` }], {
+    lockCommits: new Map([['acme/git-demo', current]]),
+    fetchImpl: async () => ({ ok: true, text: async () => latest }),
+  });
+  assert.equal(githubStatus.current, current);
+  assert.equal(githubStatus.latest, latest);
+  assert.equal(githubStatus.updateAvailable, true);
+  assert.equal(githubStatus.checkFailed, false);
+
+  const failedStatus = await checkMarketplacePluginUpdate({
+    id: 'acme/demo',
+    owner: 'acme',
+    repo: 'demo',
+    packageName: 'demo',
+    installSpec: 'demo',
+  }, [{ name: 'demo', spec: '1.0.0' }], {
+    fetchImpl: async () => { throw new Error('offline'); },
+  });
+  assert.equal(failedStatus.checkFailed, true);
+  assert.equal(failedStatus.updateAvailable, false);
+});
+
+test('update detection never substitutes npm for a same-named private git dependency', async () => {
+  const fetchImpl = async () => { throw new Error('must not probe'); };
+  for (const spec of ['git+https://private.example/demo.git', 'git@private.example:demo', 'https://private.example/demo', 'file:../demo']) {
+    const status = await checkMarketplacePluginUpdate({ id: 'acme/demo', packageName: 'demo', installSpec: 'demo' },
+      [{ name: 'demo', spec }], { fetchImpl });
+    assert.equal(status, null);
+  }
+});
+
+test('GitHub root package does not match a different monorepo subpackage', async () => {
+  assert.equal(await checkMarketplacePluginUpdate({ id: 'acme/demo', installSpec: 'github:acme/demo' },
+    [{ name: 'sub', spec: 'github:acme/demo#path:/packages/sub' }]), null);
+});
+
+test('ambiguous lock commits never select an arbitrary version for a repository', async () => {
+  const previous = '1'.repeat(40);
+  const other = '2'.repeat(40);
+  writeLockCommit('acme', 'demo', previous);
+  fs.appendFileSync(path.join(profileDir(), 'pnpm-lock.yaml'), `other: https://codeload.github.com/acme/demo/tar.gz/${other}\n`);
+  const result = await checkMarketplacePluginUpdate({ id: 'acme/demo', installSpec: 'github:acme/demo' },
+    [{ name: 'demo', spec: `github:acme/demo#${previous}` }], {
+      fetchImpl: async () => ({ ok: true, text: async () => other }),
+    });
+  assert.equal(result.current, null);
+  assert.equal(result.updateAvailable, false);
+});
+
+test('batch updates validate ids and keep the mutation lock across the whole batch', async () => {
+  assert.equal((await updateMarketplacePlugins([])).ok, false);
+  assert.equal((await updateMarketplacePlugins([{}])).ok, false);
+  assert.equal((await updateMarketplacePlugins(Array(101).fill('a'))).ok, false);
+  const result = await updateMarketplacePlugins(['missing/one', 'missing/one', 'missing/two']);
+  assert.equal(result.ok, false);
+  assert.equal(result.changed, false);
+  assert.equal(result.results.length, 2);
+});
+
+test('batch updates deduplicate successful writes and serialize against uninstall', async () => {
+  writeDiskRegistry([{ ...githubRow('13071301808', NPM_SPEC, `https://github.com/13071301808/${NPM_SPEC}`, NPM_SPEC), npm: NPM_SPEC }]);
+  writeProfileDep(NPM_SPEC, '1.0.0');
+  writeVersionedBundlePlugin(NPM_SPEC, '1.0.0');
+  let adds = 0;
+  const result = await updateMarketplacePlugins([NPM_ID, NPM_ID], {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ version: '2.0.0' }) }),
+    runPlugin: async args => {
+      assert.equal((await uninstallPlugin(NPM_SPEC, { runPlugin: async () => { throw new Error('interleaved'); } })).ok, false);
+      if (args[0] === 'add') {
+        adds++;
+        writeProfileDep(NPM_SPEC, '2.0.0');
+        writeVersionedBundlePlugin(NPM_SPEC, '2.0.0');
+      }
+      return { ok: true };
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(adds, 1);
+});
+
+test('batch stops after rollback failure and reports thrown CLI errors', async () => {
+  writeDiskRegistry([{ ...githubRow('13071301808', NPM_SPEC, `https://github.com/13071301808/${NPM_SPEC}`, NPM_SPEC), npm: NPM_SPEC }]);
+  writeProfileDep(NPM_SPEC, '1.0.0');
+  writeVersionedBundlePlugin(NPM_SPEC, '1.0.0');
+  const result = await updateMarketplacePlugins([NPM_ID, 'missing/second'], {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ version: '2.0.0' }) }),
+    runPlugin: async () => { throw new Error('disk unavailable'); },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.rollbackFailed, true);
+  assert.equal(result.results.length, 1);
+  assert.match(result.results[0].error, /回滚失败/);
+});
+
+test('details fetch only curated public endpoints and cap oversized README bodies', async () => {
+  writeDiskRegistry([{ ...githubRow('13071301808', NPM_SPEC, `https://github.com/13071301808/${NPM_SPEC}`, NPM_SPEC), npm: NPM_SPEC }]);
+  await assert.rejects(() => getMarketplaceDetails('https://private.example/token'));
+  const urls = [];
+  const details = await getMarketplaceDetails(NPM_ID, { force: true, fetchImpl: async (url, options) => {
+    urls.push(url);
+    assert.equal(options.redirect, 'error');
+    assert.equal(options.headers.Authorization, undefined);
+    return { ok: true, text: async () => url.includes('registry.npmjs.org')
+      ? JSON.stringify({ name: NPM_SPEC, version: '2.0.0', engines: { dsh: '>=0.1.0' } })
+      : '# README' };
+  } });
+  assert.equal(urls.length, 2);
+  assert.equal(details.readme, '# README');
+  assert.deepEqual(details.requirements, ['dsh: >=0.1.0']);
+  const oversized = await getMarketplaceDetails(NPM_ID, { force: true, fetchImpl: async () => ({ ok: true, text: async () => 'x'.repeat(300000) }) });
+  assert.equal(oversized.partial, true);
+  assert.equal(oversized.readme, '');
 });
 
 test('installPlugin rejects non-github specs before invoking the CLI', async () => {
@@ -616,6 +796,125 @@ test('installMarketplacePlugin removes a package that inserts a duplicate loader
   assert.equal(result.ok, false);
   assert.match(result.error, /storage/);
   assert.deepEqual(calls, [['add', NPM_SPEC], ['remove', NPM_SPEC]]);
+});
+
+test('updateMarketplacePlugin installs the checked npm version', async () => {
+  writeDiskRegistry([{
+    ...githubRow(
+      '13071301808',
+      NPM_SPEC,
+      `https://github.com/13071301808/${NPM_SPEC}`,
+      NPM_SPEC,
+    ),
+    npm: NPM_SPEC,
+  }]);
+  writeProfileDep(NPM_SPEC, '1.0.0');
+  writeVersionedBundlePlugin(NPM_SPEC, '1.0.0');
+  const calls = [];
+  const result = await updateMarketplacePlugin(NPM_ID, {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ version: '2.0.0' }) }),
+    runPlugin: async (args) => {
+      calls.push(args.slice());
+      if (args[0] === 'add') {
+        writeProfileDep(NPM_SPEC, '2.0.0');
+        writeVersionedBundlePlugin(NPM_SPEC, '2.0.0');
+      }
+      return { ok: true, code: 0, log: '', needsAllowBuilds: false, allowBuilds: [] };
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.update.current, '2.0.0');
+  assert.deepEqual(calls, [['add', `${NPM_SPEC}@2.0.0`]]);
+});
+
+test('updateMarketplacePlugin compares and pins GitHub commits', async () => {
+  const previous = '1111111111111111111111111111111111111111';
+  const latest = '2222222222222222222222222222222222222222';
+  writeGithubOnlyStatusRotatorRegistry();
+  writeProfileDep('@virex/dsh-status-rotator', `${GITHUB_SPEC}#${previous}`);
+  writeClientPlugin('@virex/dsh-status-rotator');
+  writeLockCommit('01Virex', 'dsh-status-rotator', previous);
+  const calls = [];
+  const result = await updateMarketplacePlugin(GITHUB_ID, {
+    fetchImpl: async () => ({ ok: true, text: async () => latest }),
+    runPlugin: async (args) => {
+      calls.push(args.slice());
+      if (args[0] === 'add') {
+        writeProfileDep('@virex/dsh-status-rotator', args[1]);
+        writeClientPlugin('@virex/dsh-status-rotator');
+        writeLockCommit('01Virex', 'dsh-status-rotator', latest);
+      }
+      return { ok: true, code: 0, log: '', needsAllowBuilds: false, allowBuilds: [] };
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.update.current, latest);
+  assert.deepEqual(calls, [['add', `${GITHUB_SPEC}#${latest}`]]);
+});
+
+test('updateMarketplacePlugin restores the profile after a failed add', async () => {
+  writeDiskRegistry([{
+    ...githubRow(
+      '13071301808',
+      NPM_SPEC,
+      `https://github.com/13071301808/${NPM_SPEC}`,
+      NPM_SPEC,
+    ),
+    npm: NPM_SPEC,
+  }]);
+  writeProfileDep(NPM_SPEC, '1.0.0');
+  writeVersionedBundlePlugin(NPM_SPEC, '1.0.0');
+  const workspace = 'packages: []\n';
+  fs.writeFileSync(path.join(profileDir(), 'pnpm-workspace.yaml'), workspace);
+  const calls = [];
+  const result = await updateMarketplacePlugin(NPM_ID, {
+    allowBuilds: [NPM_SPEC],
+    fetchImpl: async () => ({ ok: true, json: async () => ({ version: '2.0.0' }) }),
+    runPlugin: async (args) => {
+      calls.push(args.slice());
+      if (args[0] === 'add') {
+        writeProfileDep(NPM_SPEC, '2.0.0');
+        writeVersionedBundlePlugin(NPM_SPEC, '2.0.0');
+        return { ok: false, code: 1, log: 'registry failed', needsAllowBuilds: false, allowBuilds: [] };
+      }
+      if (args[0] === 'install') writeVersionedBundlePlugin(NPM_SPEC, '1.0.0');
+      return { ok: true, code: 0, log: '', needsAllowBuilds: false, allowBuilds: [] };
+    },
+  });
+  const manifest = JSON.parse(fs.readFileSync(path.join(profileDir(), 'package.json'), 'utf8'));
+  assert.equal(result.ok, false);
+  assert.equal(result.rolledBack, true);
+  assert.match(result.error, /已恢复原版本/);
+  assert.equal(manifest.dependencies[NPM_SPEC], '1.0.0');
+  assert.equal(fs.readFileSync(path.join(profileDir(), 'pnpm-workspace.yaml'), 'utf8'), workspace);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(profileDir(), 'node_modules', NPM_SPEC, 'package.json'), 'utf8')).version, '1.0.0');
+  assert.deepEqual(calls, [['add', `${NPM_SPEC}@2.0.0`], ['install']]);
+});
+
+test('updateMarketplacePlugin rolls back a successful command that did not change the version', async () => {
+  writeDiskRegistry([{
+    ...githubRow(
+      '13071301808',
+      NPM_SPEC,
+      `https://github.com/13071301808/${NPM_SPEC}`,
+      NPM_SPEC,
+    ),
+    npm: NPM_SPEC,
+  }]);
+  writeProfileDep(NPM_SPEC, '1.0.0');
+  writeVersionedBundlePlugin(NPM_SPEC, '1.0.0');
+  const calls = [];
+  const result = await updateMarketplacePlugin(NPM_ID, {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ version: '2.0.0' }) }),
+    runPlugin: async (args) => {
+      calls.push(args.slice());
+      return { ok: true, code: 0, log: '', needsAllowBuilds: false, allowBuilds: [] };
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.rolledBack, true);
+  assert.match(result.error, /没有变化/);
+  assert.deepEqual(calls, [['add', `${NPM_SPEC}@2.0.0`], ['install']]);
 });
 
 test('parseAllowBuilds reads ndjson-escaped prepare-not-allowed package names', () => {

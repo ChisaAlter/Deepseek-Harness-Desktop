@@ -36,7 +36,7 @@ const SNAP = {
   lanTls: false,
   addresses: ['10.0.0.4'],
   relayUrl: 'https://relay.example',
-  defaultRelayUrl: 'http://125.124.85.212:8411',
+  defaultRelayUrl: 'ayase.cn:443',
   relayTokenSet: true,
   relayConfigured: true,
   urls: [],

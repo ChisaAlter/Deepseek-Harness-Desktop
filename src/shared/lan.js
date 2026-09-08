@@ -5,16 +5,18 @@ const { encodeOffer } = require('./offer');
  * Desktop built-in public Away relay — hardcoded for packaged Setup.exe.
  * Do not move these behind env/config files; empty user config falls back here.
  */
-const DEFAULT_RELAY_HOST = '125.124.85.212';
-const DEFAULT_RELAY_PORT = 8411;
+const DEFAULT_RELAY_HOST = 'ayase.cn';
+const DEFAULT_RELAY_PORT = 443;
 const DEFAULT_RELAY_ENDPOINT = `${DEFAULT_RELAY_HOST}:${DEFAULT_RELAY_PORT}`;
-/** Product default public relay origin (HTTP). Only this origin may skip HTTPS for legacy URL fields. */
-const DEFAULT_RELAY_ORIGIN = `http://${DEFAULT_RELAY_ENDPOINT}`;
+const LEGACY_DEFAULT_RELAY_ENDPOINT = '125.124.85.212:8411';
+const LEGACY_DEFAULT_PUBLIC_APP_BASE_URL = 'http://125.124.85.212:3389/dshd';
+/** Product default public relay origin. */
+const DEFAULT_RELAY_ORIGIN = `https://${DEFAULT_RELAY_HOST}`;
 /** Transport default origin only — not a product SPA landing host (QR uses LAN :3180). */
 const DEFAULT_APP_BASE_URL = DEFAULT_RELAY_ORIGIN;
-/** Public nginx SPA for Away-mode QR. Port 3389 is the cloud-open HTTP port; :80 is also deployed but not in the security group. Never :8411. */
-const DEFAULT_PUBLIC_APP_BASE_URL = `http://${DEFAULT_RELAY_HOST}:3389/dshd`;
-const DEFAULT_RELAY_USE_TLS = false;
+/** Public nginx SPA for Away-mode QR. Relay transport uses the same origin's exact /ws route. */
+const DEFAULT_PUBLIC_APP_BASE_URL = `https://${DEFAULT_RELAY_HOST}/dshd`;
+const DEFAULT_RELAY_USE_TLS = true;
 
 function isIpv4(address, family) {
   return family === 'IPv4' || family === 4 || /^\d{1,3}(\.\d{1,3}){3}$/.test(address);
@@ -97,6 +99,14 @@ function isLoopbackHostname(hostname) {
   return host === 'localhost' || host === '127.0.0.1' || host === '::1';
 }
 
+function isIpv4Hostname(hostname) {
+  const parts = String(hostname || '').split('.');
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) {
+    return false;
+  }
+  return parts.every((part) => Number(part) >= 0 && Number(part) <= 255);
+}
+
 /**
  * Normalize a public SPA base URL for Away-mode QR (nginx path, not relay :8411).
  * @param {string} value
@@ -119,7 +129,11 @@ function normalizePublicAppBaseUrl(value, options = {}) {
     return '';
   }
   const hostname = url.hostname;
-  if (isLoopbackHostname(hostname) || isVirtualOrLinkLocalIpv4(hostname) || isPrivateLanIpv4(hostname)) {
+  if (
+    isLoopbackHostname(hostname)
+    || (isIpv4Hostname(hostname)
+      && (isVirtualOrLinkLocalIpv4(hostname) || isPrivateLanIpv4(hostname)))
+  ) {
     return '';
   }
   const hostPort = url.port ? `${hostname}:${url.port}` : hostname;
@@ -181,7 +195,7 @@ function preferredLanIp(addresses = listLanCandidates()) {
 }
 
 /**
- * Normalize a relay origin: HTTPS always; HTTP only for the desktop default relay.
+ * Normalize a legacy relay origin. Product defaults use HTTPS.
  * @param {string} value - user-entered relay URL.
  * @returns {string} origin or empty string.
  */
@@ -193,9 +207,6 @@ function normalizeRelayOrigin(value) {
   try {
     const url = new URL(raw);
     if (url.protocol === 'https:') {
-      return url.origin;
-    }
-    if (url.protocol === 'http:' && url.origin === DEFAULT_RELAY_ORIGIN) {
       return url.origin;
     }
     return '';
@@ -280,6 +291,8 @@ module.exports = {
   DEFAULT_RELAY_PORT,
   DEFAULT_RELAY_ORIGIN,
   DEFAULT_RELAY_ENDPOINT,
+  LEGACY_DEFAULT_RELAY_ENDPOINT,
+  LEGACY_DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_APP_BASE_URL,
   DEFAULT_PUBLIC_APP_BASE_URL,
   DEFAULT_RELAY_USE_TLS,

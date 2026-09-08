@@ -19,8 +19,15 @@ const {
 const {
   GITHUB_PATH_SPEC,
   parseGithubSpec,
+  githubIdentity,
   isAllowedMarketplaceSpec,
 } = require('./marketplace-spec');
+const {
+  resolveMarketplaceUpdate,
+  marketplaceUpdateTarget,
+  readMarketplaceCurrent,
+  invalidateMarketplaceUpdates,
+} = require('./marketplace-updates');
 
 /**
  * The dsh CLI prints the pnpm-workspace.yaml remediation for every failed
@@ -380,27 +387,6 @@ function listProfileDependencyNames() {
   ])];
 }
 
-function githubIdentity(spec) {
-  const value = String(spec || '');
-  const pathMatch = GITHUB_PATH_SPEC.exec(value);
-  if (pathMatch) {
-    return `${pathMatch[1]}/${pathMatch[2]}#path:/${pathMatch[3]}`.toLowerCase();
-  }
-  const parsed = parseGithubSpec(value);
-  if (parsed) {
-    return `${parsed.owner}/${parsed.repo}`.toLowerCase();
-  }
-  const url = value.match(/github\.com[:/]([^/#]+)\/([^/#]+?)(?:\.git)?(?:#path:\/([^#]+))?/i);
-  if (!url) {
-    return '';
-  }
-  const owner = url[1];
-  const repo = String(url[2]).replace(/\.git$/i, '');
-  return url[3]
-    ? `${owner}/${repo}#path:/${url[3]}`.toLowerCase()
-    : `${owner}/${repo}`.toLowerCase();
-}
-
 function specMatchesInstall(installedSpec, installSpec) {
   const left = githubIdentity(installedSpec);
   const right = githubIdentity(installSpec);
@@ -546,10 +532,18 @@ async function pinInstallSpec(spec, token) {
 }
 
 function failedInstall(result, pinned) {
+  const log = String(result.log || '');
+  const failure = /ERR_PNPM_UNEXPECTED_(?:STORE|VIRTUAL_STORE)|ERR_PNPM_MODULES_BREAKING_CHANGE/.test(log)
+    ? '依赖目录与当前 pnpm 版本不兼容；请保留日志后修复 profile，未自动删除依赖'
+    : /ERR_PNPM_NO_MATCHING_VERSION|ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE/.test(log)
+      ? '目标包版本不可用或被发布时间保护限制；未绕过保护，请稍后重试'
+      : /ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|fetch failed/i.test(log)
+        ? '下载失败：请检查网络、代理及仓库访问权限后重试'
+        : '安装失败';
   return {
     ...result,
     spec: pinned,
-    error: result.needsAllowBuilds ? '需要允许该插件在本机执行构建脚本' : '安装失败',
+    error: result.needsAllowBuilds ? '需要允许该插件在本机执行构建脚本' : failure,
   };
 }
 
@@ -559,7 +553,8 @@ async function addPluginSpec(spec, options) {
     return { ok: false, error: 'allowBuilds 包含非法包名' };
   }
   if (typeof options.onProgress === 'function') {
-    options.onProgress({ phase: 'start', line: `正在安装 ${spec}` });
+    const verb = options.progressVerb || '正在安装';
+    options.onProgress({ phase: 'start', line: `${verb} ${spec}` });
   }
   const pinned = await pinInstallSpec(spec, options.token);
   if (allowBuilds.length) {
@@ -654,6 +649,7 @@ async function uninstallPlugin(packageName, options = {}) {
     }
     const result = await pluginCommand(options)(['remove', name], options.onProgress);
     if (result.ok) {
+      invalidateMarketplaceUpdates();
       return { ...result, installed: listInstalledPlugins() };
     }
     return { ...result, error: '卸载失败' };
@@ -723,10 +719,172 @@ async function installMarketplacePlugin(id, options = {}) {
       return loadableInstallFailure(added, `插件会与已装包冲突（loader id: ${clashes[0].id}）`);
     }
     if (names.every(hasLoadableEntry)) {
+      invalidateMarketplaceUpdates();
       return added;
     }
     await removeNames();
     return loadableInstallFailure(added);
+  });
+}
+
+function captureProfileFile(name) {
+  const file = path.join(webProfileDir(), name);
+  const existed = fs.existsSync(file);
+  return {
+    file,
+    existed,
+    contents: existed ? fs.readFileSync(file) : null,
+  };
+}
+
+function captureUpdateSnapshot() {
+  return [
+    captureProfileFile('package.json'),
+    captureProfileFile('pnpm-lock.yaml'),
+    captureProfileFile('pnpm-workspace.yaml'),
+  ];
+}
+
+function restoreUpdateSnapshot(snapshot) {
+  for (const entry of snapshot) {
+    if (!entry.existed) {
+      if (fs.existsSync(entry.file)) fs.unlinkSync(entry.file);
+      continue;
+    }
+    fs.mkdirSync(path.dirname(entry.file), { recursive: true });
+    const tmp = `${entry.file}.update-rollback.tmp`;
+    fs.writeFileSync(tmp, entry.contents);
+    fs.renameSync(tmp, entry.file);
+  }
+}
+
+async function rollbackMarketplaceUpdate(snapshot, options) {
+  if (typeof options.onProgress === 'function') {
+    options.onProgress({ phase: 'rollback', line: '更新失败，正在恢复原版本' });
+  }
+  try {
+    restoreUpdateSnapshot(snapshot);
+  } catch (error) {
+    return { ok: false, error: `无法恢复 profile 快照：${error.message}` };
+  }
+  let restored;
+  try {
+    restored = await pluginCommand(options)(['install'], options.onProgress);
+  } catch (error) {
+    restored = { ok: false, log: error.message };
+  }
+  invalidateMarketplaceUpdates();
+  return restored.ok
+    ? { ok: true, log: restored.log || '' }
+    : { ok: false, error: 'profile 快照已恢复，但重新安装原版本失败', log: restored.log || '' };
+}
+
+async function failedMarketplaceUpdate(result, snapshot, options, error) {
+  const rollback = await rollbackMarketplaceUpdate(snapshot, options);
+  const suffix = rollback.ok ? '；已恢复原版本' : `；自动回滚失败：${rollback.error}`;
+  return {
+    ...result,
+    ok: false,
+    error: `${error}${suffix}`,
+    rolledBack: rollback.ok,
+    rollbackError: rollback.ok ? undefined : rollback.error,
+    log: [result?.log, rollback.log].filter(Boolean).join('\n'),
+  };
+}
+
+/** Update one installed curated plugin to the checked version or commit. */
+async function updateMarketplacePlugin(id, options = {}) {
+  return withPluginLock(() => updateMarketplacePluginLocked(id, options));
+}
+
+async function updateMarketplacePluginLocked(id, options = {}) {
+  if (typeof id !== 'string' || !id.trim()) {
+    return { ok: false, error: '缺少插件 id' };
+  }
+  {
+    const resolved = await resolveMarketplaceUpdate(id.trim(), {
+      token: options.token,
+      fetchImpl: options.fetchImpl,
+    });
+    const plugin = resolved.plugin;
+    const status = resolved.status;
+    if (!plugin) return { ok: false, error: '未收录该插件' };
+    if (plugin.deprecated === true) return { ok: false, error: '该插件已弃用，不再提供更新' };
+    if (isDroppedInstall(plugin, plugin.installSpec)) return { ok: false, error: '该插件已退役，不再提供更新' };
+    if (!status) return { ok: false, error: '该插件尚未安装或安装来源无法匹配' };
+    if (status.checkFailed) return { ok: false, error: '无法检查远端版本，请稍后重试' };
+    if (!status.updateAvailable) return { ok: false, error: '未发现可用更新' };
+    if (!isValidPackageName(status.packageName)) return { ok: false, error: '已安装包名格式非法' };
+    const target = marketplaceUpdateTarget(plugin, status);
+    if (!target) return { ok: false, error: '无法解析更新目标' };
+
+    let snapshot;
+    try {
+      snapshot = captureUpdateSnapshot();
+    } catch (error) {
+      return { ok: false, error: `无法创建更新回滚点：${error.message}` };
+    }
+    const before = listInstalledPlugins();
+    let added;
+    try {
+      added = await addPluginSpec(target, { ...options, progressVerb: '正在更新' });
+    } catch (error) {
+      return failedMarketplaceUpdate({ log: error.message }, snapshot, options, '更新异常');
+    }
+    if (!added.ok) {
+      return failedMarketplaceUpdate(added, snapshot, options, added.error || '更新失败');
+    }
+    const current = readMarketplaceCurrent(plugin, status);
+    const expected = String(status.latest || '').toLowerCase();
+    if (!current || String(current).toLowerCase() !== expected) {
+      return failedMarketplaceUpdate(added, snapshot, options, '更新命令完成，但版本或提交没有变化');
+    }
+    if (!hasLoadableEntry(status.packageName)) {
+      return failedMarketplaceUpdate(added, snapshot, options, '更新后的插件缺少可加载入口');
+    }
+    const clashes = conflictingEntryIds(status.packageName, pluginNames(before));
+    if (clashes.length > 0) {
+      return failedMarketplaceUpdate(
+        added,
+        snapshot,
+        options,
+        `更新后的插件会与已装包冲突（loader id: ${clashes[0].id}）`,
+      );
+    }
+    invalidateMarketplaceUpdates();
+    return {
+      ...added,
+      updated: true,
+      update: { ...status, current, updateAvailable: false },
+      installed: listInstalledPlugins(),
+    };
+  }
+}
+
+/** Hold the shared mutation lock across the whole batch, without intermediate restarts. */
+async function updateMarketplacePlugins(ids, options = {}) {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100
+      || ids.some(id => typeof id !== 'string' || !id.trim() || id.length > 300)) {
+    return { ok: false, error: '批量更新需要 1 到 100 个有效目录 id' };
+  }
+  return withPluginLock(async () => {
+    const results = [];
+    for (const id of [...new Set(ids.map(value => value.trim()))]) {
+      options.onProgress?.({ phase: 'start', line: `更新 ${results.length + 1}/${ids.length}: ${id}` });
+      const result = await updateMarketplacePluginLocked(id, options);
+      results.push({ id, ...result });
+      // A damaged profile must be repaired before any further mutation or restart.
+      if (result.rolledBack === false) break;
+    }
+    const changed = results.some(result => result.ok);
+    const rollbackFailed = results.some(result => result.rolledBack === false);
+    return {
+      ok: results.every(result => result.ok),
+      changed,
+      rollbackFailed,
+      results,
+      error: results.every(result => result.ok) ? undefined : '部分插件更新失败，请查看操作记录；构建授权需逐项确认',
+    };
   });
 }
 
@@ -740,6 +898,8 @@ module.exports = {
   isDroppedInstallSpec,
   uninstallPlugin,
   installMarketplacePlugin,
+  updateMarketplacePlugin,
+  updateMarketplacePlugins,
   resolveCli,
   runPlugin,
   isBuildApprovalFailure,

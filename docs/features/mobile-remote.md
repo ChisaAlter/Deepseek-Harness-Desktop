@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-07 — Ardot `Desktop-aligned v2` 已落到共享 Web SPA 与 Android 原生扫码壳层：会话头/侧栏/InputBar/Git 控件按桌面窄屏重排，权限/模型/附件/Git 菜单恢复桌面 Menu 角色，确认框恢复居中 Modal，目录与分支长流程保留全屏任务；普通 Fork 仍可写。Web 292 项、资源/QA 20 项、Android `test assembleDebug` 和最终 APK 资源审计通过；T3 预览在 390/360 宽完成 DOM 几何门（头部 61px、输入区 96px、菜单 r20/无标题栏/透明遮罩、Modal r24 居中），截图接口超时。最终 debug APK 已于 2026-09-07 15:35:08 覆盖安装到设备 `9TUCYX8TBI6DLRMZ` 并启动，安装包 `versionCode=2`、`versionName=0.1.1`；T1/T2/完整 T3/正式签名结论不变。 |
+| **last verified** | 2026-09-08 — 外出默认链路已迁移并部署为 `https://ayase.cn/dshd/` + `ayase.cn:443` TLS relay；公网资源目录与本地 fixture 一致，真实 daemon + 公网 relay + 公网 SPA 的配对、进入会话、坏 offer、无 hash、断线与清理 E2E 10/10。服务器容器 `healthy` / 0 restart。此前 2026-09-07 Ardot `Desktop-aligned v2` 的 Web 292 项、资源/QA 20 项、Android `test assembleDebug`、APK 资源审计及 debug 覆盖安装结论不变；本轮未执行真机相机、Android WebView、正式签名或安装包保留数据升级。 |
 
 ## 当前改造轮次（2026-09-06）
 
@@ -14,7 +14,7 @@
 
 **入口已开放，默认关闭配对：** `REMOTE_FEATURE_ENABLED=true`；远程服务只在用户开启后启动，未配置时默认服务器模式。以下路径仍须针对最终 CI 安装包验收，不能继承历史停放期的 N/A。
 
-1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `http://125.124.85.212:3389/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经中继 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
+1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `https://ayase.cn/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经 `ayase.cn:443` TLS 中继完成 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
 2. 再次打开手机 SPA（无 hash）：用最近一台已存 `deviceSecret` sticky 重连。「已保存的电脑」点选 / 忘记。跨 origin（公网 `/dshd`、LAN `:3180`、APK asset）不互通 sticky。
 3. Android：原生扫码或粘贴完整配对 URL → 应用内 WebView 打开 **同一份** SPA。聊天 / 会话列表 / Git / composer **不得**再做一套 Compose。
 4. 配对之后 SPA 是正在跑的 `dsh web` 第二客户端（与桌面 BrowserView 同一进程）。LAN 与外出都走隧道（公网页碰不到 loopback）。Harness 未就绪：抽屉明示「桌面端未启动」，禁止画空的「新会话」假装已对齐。
@@ -114,8 +114,8 @@
 - Git 白名单（进 main）：`git-status`、`git-fetch-status`、`git-pull-request`、`git-init`、`git-diff`、`git-commit`、`git-push`、`git-pull`、`git-create-change-request`、`git-publish`、`git-status-entries`、`git-branch-list`、`git-switch-branch`、`git-create-branch`。本轮不转发 stage/unstage/discard。
 - 转发剥 Origin / Referer / 手机 Cookie / sec-fetch-*；Host = `127.0.0.1:<port>`；JSON 不 gzip；URL 必须仍是该 harness loopback。0.1.2 Host API：daemon 带桌面兑到的 `dsh.sessionCookie`（stdin `harness-cookie`），不得把手机 Cookie 转给 loopback；SPA 点名 `session.list` 落到 `/api/session/list`，payload 为 `{ args: { _request } }`。`workspace.list` 在 unary 404 时从 `/api/remote.mux` 的 `workspace/follow` 首帧 baseline 合成 `{ items, archivedSessionIds }`，禁止空目录冒充「没有工作区」。未配对拒绝。`getHarnessOrigin()` 随端口热更新。
 - SPA 不得从 `host/offer.js` / `host/login.js` 进入 v1 Cookie 登录；扫描结果保留完整 `#offer=` URL。
-- QR **落地页**：局域网 = `preferredLanIp():3180`；外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`:3389/dshd/`），**不是**中继 `:8411`。
-- **sticky 三 origin 不互通**。配对链接为 HTTP 明文；MITM 可读 `#offer=` hash。
+- QR **落地页**：局域网 = `preferredLanIp():3180`；外出 = `DEFAULT_PUBLIC_APP_BASE_URL`（`https://ayase.cn/dshd/`），**不是**中继 `/ws`。
+- **sticky 三 origin 不互通**。外出配对页使用 HTTPS，fragment 不发送到服务器；LAN `http://<LAN>:3180` 仍是明文，同网段 MITM 可读完整导航链接中的 `#offer=`。
 - **一码两入口**：同一张 QR——Android App 内扫＝链接设备；相机 / 浏览器扫＝打开落地页自动连入 web 端。
 - Offer v1 / `POST /__remote__/login` / RemoteGateway 配对 **退役**。
 - 侧栏弹窗 QR 闸门只认 `[data-dsh-remote-qr]`；仅 `enabled && relayConnected && pairingUrl` 时提供二维码、复制与刷新。
@@ -156,6 +156,8 @@
 | Manual | **全功能执行表：** [docs/qa/mobile-remote-full-web-cases.md](../qa/mobile-remote-full-web-cases.md)（P0 缺一行未填 = 未测完）。细则：[docs/qa/mobile-remote-live-acceptance.md](../qa/mobile-remote-live-acceptance.md) **§S + §0.10（T1，T3 Deferred）**。Android App 本轮不签。 |
 
 ## Sources
+
+- 2026-09-08 新域名部署与公网 E2E：[远程服务器迁移记录](../qa/results/2026-09-08/remote-ayase-deployment.md)。
 
 - 2026-09-06 目录一致性复核：公网旧版模块的成员筛选缺失已定向部署修复，缓存版本 `20260906T034605Z`；本地与公网浏览器目录 fixture 均 Pass，三个发布文件的公网哈希一致。未替换桌面安装版，不记双端会话实机全量 Pass。证据见 [归档与目录差异](../../tools/mobile-web-qa/results/2026-09-06-session-catalog.md)；复测命令为 `node tools/mobile-web-qa/run-catalog-parity-qa.mjs <公网 SPA 根 URL>`。
 
