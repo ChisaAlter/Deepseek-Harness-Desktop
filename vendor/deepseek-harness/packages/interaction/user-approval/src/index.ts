@@ -40,9 +40,11 @@ declare module '@deepseek-ai/dsh-session/types' {
 
 import { ApprovalRequestId } from './types.ts'
 import type { ApprovalOutcome, ApprovalRequestEvent } from './types.ts'
+import type { ApprovalClaimResult } from './types.ts'
 
 export { ApprovalRequestId } from './types.ts'
 export type { ApprovalOutcome } from './types.ts'
+export type { ApprovalClaimResult } from './types.ts'
 
 /** Every {@link ApprovalOutcome}, for runtime normalization of answerer returns. */
 const OUTCOMES: readonly ApprovalOutcome[] = ['allowed-once', 'rejected', 'cancelled', 'unavailable']
@@ -123,6 +125,41 @@ export interface ApprovalRequest extends ApprovalRequestEvent {
   readonly signal?: AbortSignal
 }
 
+/** One approval request folded from the durable Session log. */
+export interface PendingApprovalRecord {
+  readonly id: ApprovalRequestId
+  readonly toolName: string
+  readonly callId?: ToolCallId
+  readonly reason?: string
+  readonly outcome?: ApprovalOutcome
+}
+
+interface ApprovalWaiter {
+  promise: Promise<ApprovalOutcome>
+  resolve(outcome: ApprovalOutcome): void
+  reject(error: unknown): void
+}
+
+function approvalRecords(session: Session): PendingApprovalRecord[] {
+  const records = new Map<string, PendingApprovalRecord>()
+  for (let seq = 0; seq < session.seq; seq += 1) {
+    const event = session.eventAt(SessionSeq(seq))
+    if (event === undefined) continue
+    if (event.type === 'approval/asked') {
+      records.set(String(event.data.id), {
+        id: event.data.id,
+        toolName: event.data.toolName,
+        ...(event.data.callId === undefined ? {} : { callId: event.data.callId }),
+        ...(event.data.reason === undefined ? {} : { reason: event.data.reason }),
+      })
+    } else if (event.type === 'approval/decided') {
+      const record = records.get(String(event.data.id))
+      if (record !== undefined) records.set(String(event.data.id), { ...record, outcome: event.data.outcome })
+    }
+  }
+  return [...records.values()]
+}
+
 /** Plugin config. All optional — `static Config` supplies the defaults. */
 export interface Config {
   /**
@@ -143,6 +180,8 @@ export class ApprovalService extends Service {
   static Config: z<Config> = z.object({
     policy: z.union(['ask', 'never'] as const).default('ask'),
   })
+
+  private readonly waiters = new Map<string, ApprovalWaiter>()
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'approval')
@@ -213,16 +252,66 @@ export class ApprovalService extends Service {
         + 'Ask from inside the turn that needs the decision.',
       )
     }
-    const id = ApprovalRequestId(randomUUID())
-    session.append('approval/asked', {
-      id,
-      toolName: req.toolName,
-      ...req.callId !== undefined ? { callId: req.callId } : {},
-      ...req.reason !== undefined ? { reason: req.reason } : {},
-    })
-    const outcome = await this.decide(req, session)
-    session.append('approval/decided', { id, outcome })
-    return outcome
+    let record = req.callId === undefined
+      ? undefined
+      : approvalRecords(session).find(candidate => candidate.callId === req.callId)
+    if (record?.outcome !== undefined) return record.outcome
+    if (record === undefined) {
+      const id = ApprovalRequestId(randomUUID())
+      session.append('approval/asked', {
+        id,
+        toolName: req.toolName,
+        ...req.callId !== undefined ? { callId: req.callId } : {},
+        ...req.reason !== undefined ? { reason: req.reason } : {},
+      })
+      record = {
+        id,
+        toolName: req.toolName,
+        ...(req.callId === undefined ? {} : { callId: req.callId }),
+        ...(req.reason === undefined ? {} : { reason: req.reason }),
+      }
+    }
+    const key = this.waiterKey(req.agent, record.id)
+    const existing = this.waiters.get(key)
+    if (existing !== undefined) return existing.promise
+    const completion = Promise.withResolvers<ApprovalOutcome>()
+    const waiter: ApprovalWaiter = {
+      promise: completion.promise.finally(() => { this.waiters.delete(key) }),
+      resolve: completion.resolve,
+      reject: completion.reject,
+    }
+    this.waiters.set(key, waiter)
+    const request = { ...req, requestId: record.id }
+    void this.decide(request, session).then(
+      (outcome) => {
+        try {
+          this.respond(req.agent, record.id, outcome)
+        } catch (error: unknown) {
+          waiter.reject(error)
+        }
+      },
+      waiter.reject,
+    )
+    return waiter.promise
+  }
+
+  /** Return unresolved approval requests from one Session log. */
+  pending(session: Session): readonly PendingApprovalRecord[] {
+    return approvalRecords(session).filter(record => record.outcome === undefined)
+  }
+
+  /** Commit one approval decision at most once, then release its live waiter. */
+  respond(agent: Agent, requestId: ApprovalRequestId, outcome: ApprovalOutcome): ApprovalClaimResult {
+    const record = approvalRecords(agent.session).find(candidate => candidate.id === requestId)
+    if (record === undefined) return { status: 'not-pending' }
+    if (record.outcome !== undefined) return { status: 'already-resolved', outcome: record.outcome }
+    agent.session.append('approval/decided', { id: requestId, outcome })
+    this.waiters.get(this.waiterKey(agent, requestId))?.resolve(outcome)
+    return { status: 'accepted', outcome }
+  }
+
+  private waiterKey(agent: Agent, requestId: ApprovalRequestId): string {
+    return `${String(agent.session.id)}\0${String(requestId)}`
   }
 
   /**

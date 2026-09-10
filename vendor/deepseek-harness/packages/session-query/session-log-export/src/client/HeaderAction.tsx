@@ -16,6 +16,7 @@ export function SessionLogDownloadHeaderAction(props: SessionLogDownloadDialogPr
     useSessionLogDownload,
     request,
     t,
+    managedSession,
   } = props
   const listedId = useSessions(state => state.current)
   const sessionId = listedId ?? props.sessionId
@@ -27,7 +28,7 @@ export function SessionLogDownloadHeaderAction(props: SessionLogDownloadDialogPr
   const compact = density === 'cozy' || density === 'compact'
   const className = compact ? `${css.sessionLogButton} ${css.iconOnly}` : css.sessionLogButton
 
-  return (
+  return managedSession ? null : (
     <>
       {showChrome && (
         <button

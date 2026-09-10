@@ -48,9 +48,22 @@ async function setup() {
 
 function stubAgent(id: string, delegationDepth = 0): Agent {
   const agentId = id as Agent['id']
+  const events: Array<{ type: string; data: unknown }> = [
+    { type: 'turn/start', data: { turn: 1 } },
+  ]
   return {
     id: agentId,
-    session: { id: agentId, header: { delegationDepth } },
+    session: {
+      id: agentId,
+      header: { delegationDepth },
+      get seq() { return events.length },
+      eventAt(seq: number) { return events[seq] },
+      append(type: string, data: unknown) {
+        const event = { type, data }
+        events.push(event)
+        return event
+      },
+    },
   } as unknown as Agent
 }
 

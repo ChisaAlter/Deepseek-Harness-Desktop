@@ -2,6 +2,7 @@
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 // The client module declares the conversation.composer SlotMap entry required by PropsRuntime.
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { UserQuestionRequestId } from '@deepseek-ai/dsh-user-questions/types'
 import type {
   AskUserQuestionAnswer, AskUserQuestionItem,
 } from '@deepseek-ai/dsh-user-questions'
@@ -115,6 +116,8 @@ export class PendingQuestion {
   readonly questions: readonly AskUserQuestionItem[]
   /** Result returned by the Remote Event listener to the Host waterfall. */
   readonly result: Promise<QuestionAnswer>
+  /** Durable request identity, when this question belongs to a persisted tool call. */
+  readonly requestId: UserQuestionRequestId | undefined
 
   readonly #resolve: (answer: QuestionAnswer) => void
   readonly #reject: (reason: unknown) => void
@@ -132,9 +135,13 @@ export class PendingQuestion {
     readonly sessionId: SessionId,
     questions: readonly AskUserQuestionItem[],
     signal?: AbortSignal,
+    requestId?: UserQuestionRequestId,
   ) {
     nextQuestionKey += 1
-    this.key = `question:${String(nextQuestionKey)}`
+    this.requestId = requestId
+    this.key = requestId === undefined
+      ? `question:${String(nextQuestionKey)}`
+      : `question:${String(requestId)}`
     this.questions = questions
     this.kind = planReviewOf(questions) === undefined ? 'question' : 'plan-review'
     const completion = Promise.withResolvers<QuestionAnswer>()

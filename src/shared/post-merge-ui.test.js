@@ -54,9 +54,10 @@ const UI_FEATURES = [
     includes: ['application/x-dshd-composer-mention'],
   },
   {
-    name: 'dshbot composer chrome hide',
+    name: 'generic managed composer chrome',
     file: 'packages/client/ui-conversation/src/client/skeleton/InputBar.tsx',
-    includes: ["agentPreset === 'dshbot-room'", "origin === 'dshbot'"],
+    includes: ["presentation?.composer === 'managed'", "conversation.input.managed", '!managed && <ContextMeter'],
+    excludes: ["agentPreset === 'dshbot-room'", "origin === 'dshbot'"],
   },
   {
     name: 'transparent theme attr',

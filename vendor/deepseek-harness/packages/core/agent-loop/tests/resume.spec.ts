@@ -8,7 +8,7 @@ import LlmRuntime from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionLogOffset, SessionSeq, Session, SessionId, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionHandle } from '@deepseek-ai/dsh-session-persistence'
 
@@ -530,6 +530,64 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
       data: { error: { code: TOOL_OUTCOME_UNKNOWN } },
     })
     expect(stored[6]).toMatchObject({ data: { reason: { kind: 'interrupted' } } })
+    await ctx2.fiber.dispose()
+  })
+
+  it('resume re-enters one durable question call without duplicating its tool/call', async () => {
+    const sessionId = SessionId('pending-question-resume')
+    const callId = ToolCallId('question-call')
+    const { ctx: ctx1, root } = await persistentHarness(new MockAdapter([]))
+    await seedStoredSession(ctx1, sessionId, [
+      { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
+      { type: 'step/start', seq: SessionSeq(1), time: 2, data: { turn: 1, step: 1 } },
+      { type: 'assistant/message', seq: SessionSeq(2), time: 3, surfaceOp: 'append', data: {
+        turn: 1, step: 1, stream: [],
+        message: createMessage({
+          role: 'assistant',
+          content: [{ type: 'tool-call', id: callId, name: 'recover_question', arguments: '{"value":7}' }],
+          source: { kind: 'model', provider: 'mock', model: 'mock' },
+        }),
+      } },
+      { type: 'tool/call', seq: SessionSeq(3), time: 4, data: {
+        turn: 1, step: 1, callId, name: 'recover_question', arguments: '{"value":7}',
+      } },
+      { type: 'user-questions/asked', seq: SessionSeq(4), time: 5, data: {
+        id: 'question-request', callId, questions: [{ id: 'confirm', question: 'Continue?' }],
+      } },
+    ] as SessionEvent[])
+    await ctx1.fiber.dispose()
+
+    let executions = 0
+    const ctx2 = await mountPersistentHarness(root, new MockAdapter([textResponse('continued')]))
+    ctx2.tools.register(defineContentToolFixture({
+      name: 'recover_question',
+      description: 'recover one durable interaction',
+      parameters: { value: { type: 'number', required: true } },
+      async execute(args) {
+        executions += 1
+        return [{ type: 'text', text: `answered-${args.value}` }]
+      },
+    }))
+    const handle = await ctx2.agents.resume({
+      resumeSessionId: sessionId,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    await handle.agent.whenIdle()
+
+    const events = handle.agent.session.snapshotEvents()
+    expect(executions).toBe(1)
+    expect(events.filter(event => event.type === 'tool/call')).toHaveLength(1)
+    const result = events.find(event => event.type === 'tool/result')
+    expect(result).toMatchObject({ sourceEventSeqs: [3], data: {
+      turn: 1,
+      step: 1,
+      message: { source: { callId }, content: [{ content: [{ text: 'answered-7' }] }] },
+    } })
+    expect(events.some(event => event.type === 'turn/end'
+      && event.data.turn === 1 && event.data.reason.kind === 'completed')).toBe(true)
+    expect(events.some(event => event.type === 'tool/result'
+      && event.data.error?.code === TOOL_OUTCOME_UNKNOWN)).toBe(false)
+    await handle.dispose()
     await ctx2.fiber.dispose()
   })
 

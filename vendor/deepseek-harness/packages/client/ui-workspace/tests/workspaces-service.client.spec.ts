@@ -290,18 +290,39 @@ describe('UiWorkspaceService', () => {
       .rejects.toThrow('uiWorkspace.connectWorkspace: unknown workspace ghost')
   })
 
+  it('does not reuse a presentation-owned blank Workspace Session', async () => {
+    const ownedBlank = summary('owned-blank', {
+      blank: true,
+      cwd: '/w/plugin-only',
+      presentation: { owner: 'dshbot', title: 'Bot room' },
+    })
+    const b = bench({
+      sessions: sessionState([ownedBlank]),
+      workspaces: workspaceState([workspace('plugin-only', [ownedBlank.id])]),
+    })
+    const connected = await b.uiWorkspace.connectWorkspace(wid('plugin-only'))
+    expect(connected).not.toBe(ownedBlank.id)
+    expect(b.sessions.create).toHaveBeenCalledWith({ workspaceId: wid('plugin-only') })
+  })
+
   it('connects a no-directory task by reusing the scratch blank or creating one in the scratch cwd', async () => {
     const memberBlank = summary('member-blank', { blank: true, cwd: SCRATCH })
     const orphanBlank = summary('orphan-blank', { blank: true, cwd: '/w/deleted' })
+    const ownedBlank = summary('owned-blank', {
+      blank: true,
+      cwd: SCRATCH,
+      presentation: { owner: 'dshbot', title: 'Bot room' },
+    })
     const archivedTask = summary('archived-task', { blank: true, cwd: SCRATCH })
     const usedTask = summary('used-task', { cwd: SCRATCH })
     const b = bench({
-      sessions: sessionState([memberBlank, orphanBlank, archivedTask, usedTask], usedTask.id),
+      sessions: sessionState([memberBlank, orphanBlank, ownedBlank, archivedTask, usedTask], usedTask.id),
       workspaces: workspaceState([workspace('alpha', [memberBlank.id])], [archivedTask.id]),
     })
 
-    // A Workspace member, a blank from an unregistered Workspace, an archived
-    // scratch blank, and a used scratch task never count as the reusable blank.
+    // A Workspace member, a blank from an unregistered Workspace, a
+    // presentation-owned blank, an archived scratch blank, and a used scratch
+    // task never count as the reusable blank.
     const creation = Promise.withResolvers<SessionId>()
     b.sessions.create.mockImplementation(() => creation.promise)
     const first = b.uiWorkspace.connectNoDirectory()
@@ -346,11 +367,17 @@ describe('UiWorkspaceService', () => {
   it('targets an explicit, current-session, then recent Workspace and reports failed starts', async () => {
     const current = summary('current', { cwd: '/w/current-home', updatedAt: 1 })
     const recent = summary('recent', { cwd: '/w/recent-home', updatedAt: 2 })
+    const pluginOnly = summary('plugin-only', {
+      cwd: '/w/plugin-only',
+      updatedAt: 100,
+      presentation: { owner: 'dshbot', title: 'Bot room' },
+    })
     const b = bench({
-      sessions: sessionState([current, recent], current.id),
+      sessions: sessionState([current, recent, pluginOnly], current.id),
       workspaces: workspaceState([
         workspace('current-home', [current.id]),
         workspace('recent-home', [recent.id]),
+        workspace('plugin-only', [pluginOnly.id], '1970-01-01T00:00:00.000Z'),
       ]),
     })
     b.sessions.create.mockImplementation(async options => sid(`opened-${String(options?.workspaceId)}`))

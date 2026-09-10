@@ -83,7 +83,7 @@ describe('ApprovalService.request', () => {
     expect(Object.keys(appended[0]?.data ?? {}).sort()).toEqual(['id', 'toolName'])
   })
 
-  it('borrows the exact readonly request for scoped dispatch and audit', async () => {
+  it('preserves the readonly request fields and adds the durable request identity', async () => {
     const ctx = await mounted()
     const { agent, appended } = fakeAgent()
     let scope!: Scope
@@ -105,7 +105,9 @@ describe('ApprovalService.request', () => {
 
     await expect(ctx.approval.request(request)).resolves.toBe('allowed-once')
     expect(carrier).toBe(agent)
-    expect(received).toBe(request)
+    expect(received).toMatchObject(request)
+    expect(received).not.toBe(request)
+    expect(received?.requestId).toBe(appended[0]?.data.id)
     expect(appended).toHaveLength(2)
     expect(appended[0]?.data).toMatchObject({
       toolName: 'scoped-tool',

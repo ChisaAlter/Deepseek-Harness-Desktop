@@ -2,6 +2,17 @@
 
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Agent } from '@deepseek-ai/dsh-agent/types'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm/brand'
+
+declare const userQuestionRequestIdBrand: unique symbol
+
+/** Stable identity of one durable user-question request. */
+export type UserQuestionRequestId = string & { readonly [userQuestionRequestIdBrand]: true }
+
+/** Brand a persisted request identity. */
+export function UserQuestionRequestId(id: string): UserQuestionRequestId {
+  return id as UserQuestionRequestId
+}
 
 /** One selectable answer offered to the user. */
 export interface AskUserQuestionOption {
@@ -69,8 +80,39 @@ export interface AskUserQuestionRequestEvent {
   questions: AskUserQuestionItem[]
   /** Agent identity projected to the corresponding Client Context in transit. */
   agent?: Agent
+  /** Durable request identity when the question belongs to a tool call. */
+  requestId?: UserQuestionRequestId
+  /** Exact tool call blocked on this question. */
+  callId?: ToolCallId
   /** Cancellation lifetime of the pending request. */
   signal?: AbortSignal
+}
+
+/** Durable terminal state of one question request. */
+export type UserQuestionOutcome = 'answered' | 'cancelled' | 'unavailable'
+
+/** Result of one idempotent durable response attempt. */
+export type UserQuestionClaimResult =
+  | { status: 'accepted'; outcome: UserQuestionOutcome; answer?: AskUserQuestionAnswer }
+  | { status: 'already-resolved'; outcome: UserQuestionOutcome; answer?: AskUserQuestionAnswer }
+  | { status: 'not-pending' }
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    /** A tool call began waiting for a human answer. */
+    'user-questions/asked': {
+      id: UserQuestionRequestId
+      callId: ToolCallId
+      questions: AskUserQuestionItem[]
+    }
+    /** The durable terminal answer, cancellation, or unavailable-provider result. */
+    'user-questions/answered': {
+      id: UserQuestionRequestId
+      outcome: UserQuestionOutcome
+      answer?: AskUserQuestionAnswer
+      error?: { name: string; code: string; message: string }
+    }
+  }
 }
 
 declare module '@deepseek-ai/cordis' {

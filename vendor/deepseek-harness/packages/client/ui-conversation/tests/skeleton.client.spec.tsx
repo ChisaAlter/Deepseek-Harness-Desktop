@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { ComponentProps, ReactNode } from 'react'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { Context } from '@deepseek-ai/cordis'
-import type { SessionListState, SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionListState, SessionSnapshot, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { WorkspaceSnapshot, WorkspaceView } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
@@ -32,6 +34,8 @@ import type {
 } from '../src/client/contract/slots.ts'
 import type { ViewTab } from '../src/client/contract/views.ts'
 import { DEFAULT_COMPOSER_BEAM_STYLE } from '../src/submission-settings.ts'
+
+const rootCss = readFileSync(resolve(process.cwd(), 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css'), 'utf8')
 
 // jsdom implements no Range geometry (Lexical's scroll-into-view measures the
 // caret with one once the surface is genuinely contenteditable).
@@ -114,6 +118,8 @@ function mount(
     overlayTakeover?: boolean
     /** The session list summary's `blank` flag — independent of the snapshot's. */
     summaryBlank?: boolean
+    /** Persistent plugin-owned presentation metadata from the session list. */
+    summaryPresentation?: SessionSummary['presentation']
     /** Drop the session's summary row entirely (a session the list has not caught up with). */
     omitSummaryRow?: boolean
     /** Classify the selected child as a subagent. */
@@ -139,10 +145,15 @@ function mount(
     id: parent, displayTitle: 'Parent', parentId: root, origin: 'subagent' as const,
     running: false, blank: false, updatedAt: 2,
   }
+  const summaryTitle = options.summaryPresentation?.title ?? 'Child'
   const childRow = {
-    id: SID, displayTitle: 'Child', parentId: options.nestedSubagent === true ? parent : root,
+    id: SID, displayTitle: summaryTitle, parentId: options.nestedSubagent === true ? parent : root,
     cwd: options.summaryCwd ?? '/projects/one', running: false, blank: options.summaryBlank ?? false, updatedAt: 3,
     ...(options.summaryOrigin === undefined ? {} : { origin: options.summaryOrigin }),
+    ...(options.summaryPresentation === undefined ? {} : {
+      title: summaryTitle,
+      presentation: options.summaryPresentation,
+    }),
   }
   const listed = options.omitSummaryRow !== true
   const sessions = createSnapshotStore<SessionListState>({
@@ -173,7 +184,9 @@ function mount(
   const stop = vi.fn()
   const open = vi.fn()
   const slotCalls: string[] = []
+  const composerSlotCalls: string[] = []
   const lineageOwners: ConversationHeaderLineageOwnerProps[] = []
+  let sessionBodyChainOwner: unknown
   const viewTabs = options.viewTabs ?? [
     { id: 'chat', label: 'Chat' },
     { id: 'trajectory', label: 'Trajectory' },
@@ -184,7 +197,8 @@ function mount(
   let pickerOwner: unknown
   const renderSlot = ((key: string, owner: object, opts?: { only?: string; fallback?: ReactNode }) => {
     slotCalls.push(key)
-    if (key === 'conversation.input.model' || key === 'conversation.input.plan') {
+    if (key === 'conversation.input.model' || key === 'conversation.input.plan'
+      || key === 'conversation.input.managed') {
       seatOwners.push({ key, owner })
     }
     if (key === 'conversation.hero.workspace') { pickerOwner = owner; return null }
@@ -237,6 +251,7 @@ function mount(
           useStore={bindSnapshotSelector(store)}
           actions={store.actions}
           renderSlot={renderSlot as never}
+          renderSlotChain={renderSessionSlotChain}
           bindDraftMirror={write => wiring.bindMirror(write)}
           openView={(view, focus) => { store.actions.openView(view, focus) }}
         />
@@ -279,6 +294,7 @@ function mount(
           command={() => Promise.resolve(true)}
           t={t}
           renderSlot={((key: string, seatOwner: object) => {
+            composerSlotCalls.push(key)
             // The bar's own seats: recorded so a case can assert what share
             // each tool-row control received.
             seatOwners.push({ key, owner: seatOwner })
@@ -290,6 +306,12 @@ function mount(
     }
     return <div data-testid={`view-${opts?.only ?? key}`} />
   }) as ConversationRootProps['renderSlot']
+  const renderSessionSlotChain: ComponentProps<typeof ConversationSession>['renderSlotChain'] = (
+    _key, owner, opts,
+  ) => {
+    sessionBodyChainOwner = owner
+    return opts?.fallback ?? null
+  }
   const renderSlotChain = ((_key, _owner, opts) => (
     options.overlayTakeover === true
       ? (
@@ -322,9 +344,10 @@ function mount(
   }
   const view = render(<ConversationRoot {...props} />)
   return {
-    view, store, wiring, sink, retargetWorkspace, session, conversation, slotCalls, lineageOwners, seatOwners, open,
+    view, store, wiring, sink, retargetWorkspace, session, conversation, slotCalls, composerSlotCalls, lineageOwners, seatOwners, open,
     workspaces,
     pickerOwner: () => pickerOwner,
+    sessionBodyChainOwner: () => sessionBodyChainOwner,
     rerender: () => { view.rerender(<ConversationRoot {...props} />) },
   }
 }
@@ -385,6 +408,49 @@ describe('ConversationRoot resident composer', () => {
     const seat = (key: string) => b.seatOwners.filter(call => call.key === key).at(-1)?.owner
     expect(seat('conversation.input.model')).toEqual({ locked: false })
     expect(seat('conversation.input.plan')).toEqual({ locked: true })
+  })
+
+  it('uses explicit managed presentation for the profile seat and hides independent chrome', () => {
+    const b = mount(sessionSnapshotOf(), undefined, undefined, {
+      summaryPresentation: { owner: 'plugin', title: 'Managed room', composer: 'managed' },
+    })
+    const seat = (key: string) => b.seatOwners.filter(call => call.key === key).at(-1)?.owner
+
+    expect(b.view.getByRole('textbox').getAttribute('data-placeholder')).toBe('发送消息')
+    expect(b.composerSlotCalls).toContain('conversation.input.managed')
+    expect(b.seatOwners.some(call => call.key === 'conversation.input.model')).toBe(false)
+    expect(b.seatOwners.some(call => call.key === 'conversation.input.plan')).toBe(false)
+    expect(b.composerSlotCalls).not.toContain('conversation.composer.dock')
+    expect(b.slotCalls).not.toContain('conversation.session.header.lineage')
+    expect(b.slotCalls).not.toContain('conversation.session.header.actions')
+    expect(b.slotCalls).not.toContain('conversation.session.header.utilities')
+    expect(b.view.getByRole('button', { name: 'Managed room' })).toBeTruthy()
+    expect(b.view.queryByRole('tablist')).toBeNull()
+    expect(b.view.queryByRole('tab', { name: 'Trajectory' })).toBeNull()
+    expect(b.view.getByRole('button', { name: '指令' })).toBeTruthy()
+    expect(b.view.getByRole('button', { name: '添加附件' })).toBeTruthy()
+    expect(seat('conversation.input.managed')).toEqual({ locked: false })
+  })
+
+  it('managed presentation ignores stale trajectory selection and renders the default view', () => {
+    const b = mount(sessionSnapshotOf(), undefined, undefined, {
+      summaryPresentation: { owner: 'plugin', title: 'Managed room', composer: 'managed' },
+    })
+    act(() => { b.store.actions.setView('trajectory') })
+
+    expect(b.view.getByRole('button', { name: 'Managed room' })).toBeTruthy()
+    expect(b.view.getByTestId('view-chat')).toBeTruthy()
+    expect(b.view.queryByTestId('view-trajectory')).toBeNull()
+    expect(b.view.queryByRole('tab', { name: 'Trajectory' })).toBeNull()
+  })
+
+  it('keeps the managed profile seat actionable while a model block is raised', () => {
+    const b = mount(sessionSnapshotOf(), undefined, undefined, {
+      composerBlock: { reason: 'select a model first' },
+      summaryPresentation: { owner: 'plugin', title: 'Managed room', composer: 'managed' },
+    })
+    const seat = b.seatOwners.filter(call => call.key === 'conversation.input.managed').at(-1)?.owner
+    expect(seat).toEqual({ locked: false })
   })
 
   it('lets the no-workspace posture win over a block', () => {
@@ -450,6 +516,10 @@ describe('ConversationRoot resident composer', () => {
     expect(header).not.toBeNull()
     expect(header?.querySelector('[data-dshd-caption="title"]')).not.toBeNull()
     expect(header?.querySelector('[data-dshd-caption="blank"]')).toBeNull()
+    expect(b.sessionBodyChainOwner()).toMatchObject({
+      sessionId: SID,
+      presentation: undefined,
+    })
     // Header is column chrome above the scrollport; the seat sticks inside it.
     expect(host?.contains(header)).toBe(false)
     expect(host?.contains(seat)).toBe(true)
@@ -457,6 +527,9 @@ describe('ConversationRoot resident composer', () => {
     expect(b.slotCalls).toContain('conversation.session.header.lineage')
     expect(b.slotCalls).toContain('conversation.session.header.actions')
     expect(b.slotCalls).toContain('conversation.session.header.utilities')
+    expect(b.view.getByRole('tablist')).toBeTruthy()
+    expect(b.view.getByRole('tab', { name: 'Chat' })).toBeTruthy()
+    expect(b.view.getByRole('tab', { name: 'Trajectory' })).toBeTruthy()
   })
 
   it('sticky composer seat wraps the whole overlay chain, not only the fallback stack', () => {
@@ -525,6 +598,38 @@ describe('ConversationRoot resident composer', () => {
     const root = b.view.container.querySelector('[data-phase]')
     expect(root?.getAttribute('data-phase')).toBe('settling')
     expect(b.view.queryByTestId('hero-headline')).toBeNull()
+  })
+
+  it('keeps a presentation-owned blank Session docked without changing blank lifecycle state', () => {
+    const b = mount(
+      sessionSnapshotOf({ blank: true }),
+      undefined,
+      undefined,
+      {
+        summaryBlank: true,
+        summaryPresentation: { owner: 'dshbot', title: 'Bot room' },
+      },
+    )
+    const root = b.view.container.querySelector('[data-phase]')
+    expect(root?.getAttribute('data-phase')).toBe('active')
+    expect(b.view.queryByTestId('hero-headline')).toBeNull()
+    expect(b.slotCalls).not.toContain('conversation.hero.workspace')
+    expect(b.view.getByRole('textbox').getAttribute('aria-haspopup')).toBeNull()
+    const header = b.view.container.querySelector('header')
+    expect(header?.getAttribute('aria-hidden')).toBeNull()
+    expect(header?.querySelector('[data-dshd-caption="title"]')).not.toBeNull()
+    expect(b.view.getByRole('button', { name: 'Bot room' })).toBeTruthy()
+    expect(header?.querySelector('[data-dshd-caption="blank"]')).toBeNull()
+    // Presentation ownership changes navigation chrome only; with no elected
+    // body-chain occupant, the resident Conversation fallback remains visible.
+    expect(b.view.queryByTestId('view-chat')).not.toBeNull()
+    expect(b.view.container.querySelector('[data-plugin-session-canvas]')).not.toBeNull()
+  })
+
+  it('removes the ordinary blank canvas from flex layout when a plugin body owns the composer overlay', () => {
+    expect(rootCss).toMatch(
+      /\.scrollBody:has\(\[data-conversation-composer-overlay\]\)\s*>\s*:global\(\[data-plugin-session-canvas\]\)\s*\{\s*display:\s*none;/,
+    )
   })
 
   it('settling phase: a session the list has no row for settles conservatively', () => {

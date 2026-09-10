@@ -232,6 +232,8 @@ export class FakeApiClient {
           return this.record('session.search', payload, this.onSearch(payload))
         },
         create: payload => this.record('session.create', payload, this.onCreate(payload)),
+        setPresentation: payload => this.record('session.setPresentation', payload,
+          Promise.resolve(ok({ presentation: payload.presentation, seq: 0 }))),
         selectModel: payload => this.record(
           'session.selectModel',
           payload,

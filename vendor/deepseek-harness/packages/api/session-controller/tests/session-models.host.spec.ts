@@ -577,7 +577,7 @@ describe('Web session model selection', () => {
   })
 
   it('saves an accepted selection as the default and survives a storage failure', async () => {
-    const { ctx, sessionId } = await harness()
+    const { ctx, agent, sessionId } = await harness()
     const saved: unknown[] = []
     let reject = false
     const remote = createSessionTestRemote(ctx, {
@@ -596,9 +596,28 @@ describe('Web session model selection', () => {
       { provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max' },
     ])
 
+    expectValue(await remote.selectModel(request({
+      sessionId, provider: 'deepseek-official', model: 'deepseek-chat', saveAsDefault: false,
+    })))
+    expect(saved).toHaveLength(1)
+
+    agent.session.append('session/presentation', {
+      owner: 'plugin', title: 'Managed session', composer: 'managed',
+    })
+    expectValue(await remote.selectModel(request({
+      sessionId, provider: 'deepseek-official', model: 'deepseek-reasoner', reasoningEffort: 'max',
+    })))
+    expect(saved).toHaveLength(1)
+
+    agent.session.append('session/presentation', null)
+    expectValue(await remote.selectModel(request({
+      sessionId, provider: 'deepseek-official', model: 'deepseek-chat',
+    })))
+    expect(saved).toHaveLength(2)
+
     // A refused selection never becomes anyone's default.
     await remote.selectModel(request({ sessionId, provider: 'missing', model: 'model' }))
-    expect(saved).toHaveLength(1)
+    expect(saved).toHaveLength(2)
 
     // Storage failing is not the selection failing: the switch already applies
     // to this session, so the call still succeeds.

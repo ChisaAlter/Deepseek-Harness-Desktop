@@ -41,6 +41,7 @@ interface BenchOptions {
   execute?: (payload: { sessionId: SessionId; line: string }) => Promise<ExecuteValue>
   addressed?: SessionId
   roomSessionIds?: SessionId[]
+  managedSessionIds?: SessionId[]
 }
 
 /**
@@ -112,7 +113,12 @@ async function bench(opts: BenchOptions = {}) {
     list: {
       getSnapshot: () => ({
         byId: Object.fromEntries(
-          (opts.roomSessionIds ?? []).map(id => [id, { agentPreset: 'dshbot-room' }]),
+          [
+            ...(opts.roomSessionIds ?? []).map(id => [id, { agentPreset: 'dshbot-room' }]),
+            ...(opts.managedSessionIds ?? []).map(id => [id, {
+              presentation: { owner: 'fixture', title: 'Managed Bot', composer: 'managed' },
+            }]),
+          ],
         ),
       }),
     },
@@ -337,6 +343,14 @@ describe('decorations (bare-invocation UI on host commands)', () => {
 })
 
 describe('dispatch (menu column)', () => {
+  it('managed conversations reroute /new and /reset menu picks to /compact', async () => {
+    const { source, executeCalls } = await bench({ managedSessionIds: [sid('s1')] })
+    expect(menuPick(source, 'new', proj('s1'))).toBe('handled')
+    expect(menuPick(source, 'reset', proj('s1'))).toBe('handled')
+    await Promise.resolve()
+    expect(executeCalls.map(call => call.line)).toEqual(['/compact', '/compact'])
+  })
+
   it('contribution → opens the session popup with the open-time projection, no execute', async () => {
     const { command, source, mint, warm, executeCalls } = await bench()
     const options = vi.fn((_s: ClientSessionContext) => Promise.resolve([{ id: 'dark', label: 'Dark' }]))
@@ -432,6 +446,37 @@ describe('matchSpace (space column)', () => {
 
 describe('matchEnter (enter column)', () => {
   const signal = () => new AbortController().signal
+
+  it('managed conversations reroute bare /new and /reset to same-session compact', async () => {
+    const { source, mint, executeCalls, executions } = await bench({ managedSessionIds: [sid('s1')] })
+    const scope = mint('s1')
+    const consumes: ConsumeTokenRequest[] = []
+    scope.ctx.on('slash/input-consume-token', (request) => {
+      consumes.push(request)
+      return true
+    })
+    await expect(source.matchEnter!(proj('s1'), '/new', signal(), { attachments: 0 })).resolves.toBe('handled')
+    await expect(source.matchEnter!(proj('s1'), '/reset', signal(), { attachments: 0 })).resolves.toBe('handled')
+    expect(executeCalls.map(call => [call.sessionId, call.line])).toEqual([
+      [sid('s1'), '/compact'],
+      [sid('s1'), '/compact'],
+    ])
+    expect(executions.map(row => row.name)).toEqual(['compact', 'compact'])
+    expect(consumes).toEqual([
+      { guard: { kind: 'bare-token', token: '/new' } },
+      { guard: { kind: 'bare-token', token: '/reset' } },
+    ])
+  })
+
+  it('ordinary conversations keep the host /new behavior', async () => {
+    const { source, warm, executeCalls } = await bench({
+      commands: () => Promise.resolve({ commands: [{ name: 'new', description: 'new session' }] }),
+    })
+    await warm(proj('s1'))
+    await expect(source.matchEnter!(proj('s1'), '/new', signal(), { attachments: 0 })).resolves.toBe('handled')
+    await Promise.resolve()
+    expect(executeCalls.map(call => call.line)).toEqual(['/new'])
+  })
 
   it('strong-waits a cold key before adjudicating', async () => {
     let release!: (value: { commands: CommandDescriptor[] }) => void

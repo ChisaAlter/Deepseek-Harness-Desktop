@@ -38,6 +38,8 @@ declare module '@deepseek-ai/dsh-session/types' {
      * assembly. Log-only: it never enters derived model history.
      */
     'model/selection': ModelSelection
+    /** Log-only navigation metadata; never enters model history or changes permissions. */
+    'session/presentation': SessionPresentation | null
   }
 }
 
@@ -47,6 +49,28 @@ export interface SessionListMetadata {
   readonly blank: boolean
   /** Latest human-authored prompt time in the folded prefix. */
   readonly lastPromptAt: number | null
+  /** Persistent plugin navigation owner, absent for ordinary conversations. */
+  readonly presentation?: SessionPresentation | undefined
+}
+
+/** Plugin-owned conversation presentation, not an execution authority. */
+export interface SessionPresentation {
+  readonly owner: string
+  readonly title: string
+  /** Selects the shared composer with plugin-owned trailing controls. */
+  readonly composer?: 'managed' | undefined
+}
+
+/** Set or release persistent presentation on an existing Session. */
+export interface SessionPresentationRequest {
+  readonly sessionId: SessionId
+  readonly presentation: SessionPresentation | null
+}
+
+/** Accepted presentation and the event position that owns it. */
+export interface SessionPresentationValue {
+  readonly presentation: SessionPresentation | null
+  readonly seq: number
 }
 
 /** Every available cached wire value used as partial, possibly stale Session-list hints. */
@@ -275,6 +299,7 @@ export interface SessionCreateRequest {
   readonly cwd?: string
   readonly sessionId?: SessionId
   readonly agentPreset?: string
+  readonly presentation?: SessionPresentation
 }
 
 /** Session creation response value. */
@@ -286,6 +311,8 @@ export interface SessionCreateValue {
 /** Session model-selection request. */
 export interface SessionSelectModelRequest extends ModelSelection {
   readonly sessionId: SessionId
+  /** Keep this Session-local selection out of the application default when false; managed presentations always opt out. */
+  readonly saveAsDefault?: boolean
 }
 
 /** Accepted model selection after Host resolution. */

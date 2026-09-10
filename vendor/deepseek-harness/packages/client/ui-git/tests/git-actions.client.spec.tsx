@@ -97,6 +97,7 @@ function mount(opts: {
   onGitProgress?: GitActionsProps['onGitProgress']
   onWorkspacesChanged?: GitActionsProps['onWorkspacesChanged']
   density?: GitActionsProps['density']
+  managedSession?: boolean
   titlebarGit?: boolean
   useTitlebarGit?: GitActionsProps['useTitlebarGit']
 } = {}) {
@@ -123,6 +124,7 @@ function mount(opts: {
     <GitActionsControl
       surfaces={0}
       terminalDrawer={0}
+      managedSession={opts.managedSession ?? false}
       {...(opts.density === undefined ? {} : { density: opts.density })}
       useSessions={useSessionsStub(sessionList(opts.cwd))}
       useSessionPendingInteraction={sel => sel(new Map())}
@@ -157,6 +159,17 @@ function mount(opts: {
 afterEach(cleanup)
 
 describe('GitActionsControl', () => {
+  it('renders no visible UI for managed sessions', () => {
+    mount({ cwd: '/work', git: status(), managedSession: true })
+    expect(document.body.querySelector('button')).toBeNull()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+  })
+
+  it('keeps the titlebar control for ordinary sessions', async () => {
+    mount({ cwd: '/work', git: status(), managedSession: false })
+    expect(await screen.findByRole('button', { name: 'Commit' })).toBeTruthy()
+  })
+
   it('disables the main button when the current session has no cwd', () => {
     const b = mount({ cwd: undefined })
     const main = screen.getByRole<HTMLButtonElement>('button', { name: 'Commit' })
@@ -284,6 +297,7 @@ describe('GitActionsControl', () => {
     const shared = {
       surfaces: 0,
       terminalDrawer: 0,
+      managedSession: false,
       useWorkspaces: neverWorkspaces,
       useSessionPendingInteraction: sel => sel(new Map()),
       gitStatus,
@@ -416,6 +430,7 @@ describe('GitActionsControl', () => {
       <GitActionsControl
         surfaces={0}
         terminalDrawer={0}
+        managedSession={false}
         useSessions={useSessionsStub(sessionList(undefined))}
         useSessionPendingInteraction={sel => sel(new Map())}
         useWorkspaces={neverWorkspaces}

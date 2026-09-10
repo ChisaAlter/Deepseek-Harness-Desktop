@@ -384,6 +384,8 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
       />
     )
   }
+  const renderSlotChain: ConversationSessionProps['renderSlotChain'] = (_key, _owner, opts) =>
+    opts?.fallback ?? null
   return render(
     <>
       <ConversationSessionHeader
@@ -402,6 +404,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
         useStore={bindSnapshotSelector(conversation)}
         actions={conversation.actions}
         renderSlot={renderSlot}
+        renderSlotChain={renderSlotChain}
         bindDraftMirror={() => () => {}}
         openView={conversation.actions.openView}
       />

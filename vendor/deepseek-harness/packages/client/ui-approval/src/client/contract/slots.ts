@@ -1,6 +1,7 @@
 /** Approval composer and optional correlated-detail contracts. */
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { ApprovalRequestId } from '@deepseek-ai/dsh-user-approval/types'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
@@ -50,6 +51,8 @@ export interface ApprovalDetailOwnerProps {
 
 /** Client-visible fields of an approval request projected through Remote Events. */
 export interface ApprovalPresentationRequest {
+  /** Durable request identity reused when the Host resumes the blocked call. */
+  readonly requestId?: ApprovalRequestId
   /** Tool requesting the decision. */
   readonly toolName: string
   /** Tool call correlated with the request. */
@@ -77,6 +80,8 @@ export class PendingApproval {
   readonly callId: ToolCallId | undefined
   /** Human-readable reason supplied by the asker. */
   readonly reason: string | undefined
+  /** Durable request identity, when this approval belongs to a persisted tool call. */
+  readonly requestId: ApprovalRequestId | undefined
   /** Result returned by the Remote Event listener to the Host waterfall. */
   readonly result: Promise<ApprovalDecision>
 
@@ -94,7 +99,10 @@ export class PendingApproval {
   constructor(readonly sessionId: SessionId, request: ApprovalPresentationRequest) {
     this.kind = 'approval'
     nextApprovalKey += 1
-    this.key = `approval:${String(nextApprovalKey)}`
+    this.requestId = request.requestId
+    this.key = request.requestId === undefined
+      ? `approval:${String(nextApprovalKey)}`
+      : `approval:${String(request.requestId)}`
     this.toolName = request.toolName
     this.callId = request.callId
     this.reason = request.reason

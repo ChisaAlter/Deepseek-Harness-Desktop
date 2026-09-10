@@ -65,6 +65,13 @@ describe('SidebarRoot.module.css', () => {
     expect(declarations('.collapsed .newSession')?.get('width')).toBe('36px')
   })
 
+  it('fills the expanded region switch with equal-width tabs without changing the rail', () => {
+    expect(declarations('.tab')?.get('flex')).toBe('1 1 0')
+    expect(declarations('.tab')?.get('min-width')).toBe('0')
+    expect(declarations('.collapsed .tab')?.get('flex')).toBe('none')
+    expect(declarations('.collapsed .tab')?.get('width')).toBe('36px')
+  })
+
   it('shrinks the wordmark hole so the logo-row gap stays in the caption band', () => {
     const row = declarations('.logoRow')
     expect(row?.get('justify-content')).toBe('space-between')

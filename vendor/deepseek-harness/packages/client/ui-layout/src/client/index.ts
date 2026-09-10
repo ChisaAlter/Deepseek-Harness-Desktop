@@ -151,6 +151,8 @@ export interface TitlebarTrailingOwnerProps {
   surfaces: number
   /** Terminal drawer height in px (0 when closed). */
   terminalDrawer: number
+  /** True when the current Session uses plugin-managed presentation. */
+  managedSession: boolean
   /**
    * Label collapse while the cluster shares the conversation column.
    * Omitted means full labels; AppFrame always writes it.

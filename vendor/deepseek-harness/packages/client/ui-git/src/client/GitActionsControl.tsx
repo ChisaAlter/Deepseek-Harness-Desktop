@@ -177,6 +177,7 @@ function foldPr(result: GitResult): NonNullable<StackedActionResult['pr']> {
  */
 export function GitActionsControl({
   density = 'full',
+  managedSession,
   useSessions,
   useTitlebarGit,
   gitStatus,
@@ -753,7 +754,7 @@ export function GitActionsControl({
     </button>
   )
 
-  return (
+  return managedSession ? null : (
     <>
       {showChrome ? (showInit ? initButton : (
         <div className={css.split}>

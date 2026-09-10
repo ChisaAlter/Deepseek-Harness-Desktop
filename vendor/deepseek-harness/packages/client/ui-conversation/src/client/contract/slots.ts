@@ -1,7 +1,7 @@
 /** Target-neutral Conversation slot declarations and composed component props. */
 import type { ReactNode, RefObject } from 'react'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import type { SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionSnapshot, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { FileUploadReceiptId } from '@deepseek-ai/dsh-client-file-upload/client'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type {
@@ -120,6 +120,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Strict per-Session Conversation body. */
     'conversation.session': { kind: 'single'; scope: 'session' }
+    /** Selector-routed replacement for one Session's resident Conversation body. */
+    'conversation.session.body': { kind: 'chain'; scope: 'session'; owner: ConversationBodyChainProps }
     /** Strict per-Session title, actions, and View navigation. */
     'conversation.session.header': { kind: 'single'; scope: 'session' }
     /** Optional replacement for one Session breadcrumb title. */
@@ -172,6 +174,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.input.plan': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
     /** Model selector inside the composer tool row. */
     'conversation.input.model': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
+    /** Plugin-owned profile/configuration control inside the composer tool row. */
+    'conversation.input.managed': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
   }
 
   interface GlobalStandardProps {
@@ -339,7 +343,7 @@ export type ComposerBarProps =
   & PropsRenderSlots<
     | 'conversation.input.attachments' | 'conversation.input.overlay'
     | 'conversation.input.left' | 'conversation.input.plan'
-    | 'conversation.input.right' | 'conversation.input.model'
+    | 'conversation.input.right' | 'conversation.input.model' | 'conversation.input.managed'
     | 'conversation.composer.dock'
   >
   & InjectFace<ComposerBarInjected>
@@ -353,6 +357,16 @@ export interface ComposerChainProps {
   session: SessionSnapshot | undefined
   /** Effective business-owned interaction awaiting the user in this Session. */
   pendingInteraction: SessionPendingInteraction | undefined
+}
+
+/** Owner values used to elect a Session-specific Conversation body. */
+export interface ConversationBodyChainProps {
+  /** Current Session identity. */
+  sessionId: SessionId
+  /** Current Session lifecycle state. */
+  session: SessionSnapshot
+  /** Stable list projection used for pure presentation-owner routing. */
+  presentation: SessionSummary['presentation']
 }
 
 /** Presentation props supplied to the blank-session brand mark. */
@@ -383,7 +397,7 @@ export type ConversationStore = ReturnType<typeof createConversationStore>
 /** Full props of the strict Session body. */
 export type ConversationSessionSlotProps =
   PropsRuntime<'conversation.session'>
-  & PropsRenderSlots<'conversation.view'>
+  & PropsRenderSlots<'conversation.session.body' | 'conversation.view'>
   & PropsStore<ConversationStore>
   & InjectFace<ConversationSessionInjected>
 

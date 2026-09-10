@@ -34,6 +34,8 @@ import type {
   SessionControlFrame,
   SessionCreateRequest,
   SessionCreateValue,
+  SessionPresentationRequest,
+  SessionPresentationValue,
   SessionDeleteRequest,
   SessionDeleteValue,
   SessionFollowFrame,
@@ -247,6 +249,16 @@ export class SessionController extends TypertRemoteService {
   @Remote('create')
   create(request: SessionCreateRequest): Promise<SessionCreateValue> {
     return this.commands.create(request)
+  }
+
+  /**
+   * Set or release plugin-owned navigation metadata on an existing Session.
+   * @param request - Session identity and the presentation or null.
+   * @returns accepted metadata and its durable event sequence.
+   */
+  @Remote('setPresentation')
+  setPresentation(request: SessionPresentationRequest): Promise<SessionPresentationValue> {
+    return this.commands.setPresentation(request)
   }
 
   /**

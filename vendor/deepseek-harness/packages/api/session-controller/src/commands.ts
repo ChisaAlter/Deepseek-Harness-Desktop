@@ -39,6 +39,9 @@ import type {
   SessionCancelValue,
   SessionCreateRequest,
   SessionCreateValue,
+  SessionPresentation,
+  SessionPresentationRequest,
+  SessionPresentationValue,
   SessionForkRequest,
   SessionForkValue,
   SessionPromptRequest,
@@ -77,6 +80,7 @@ export class SessionCommandController {
    * @returns the Session identity and resolved preset when configured.
    */
   async create(request: SessionCreateRequest): Promise<SessionCreateValue> {
+    if (request.presentation !== undefined) this.validatePresentation(request.presentation)
     if (request.workspaceId !== undefined && request.cwd !== undefined) {
       throw new RemoteError('gateway/bad-request', 'session.create accepts workspaceId or cwd, not both', {})
     }
@@ -113,13 +117,43 @@ export class SessionCommandController {
         )
       }
     }
+    if (request.presentation !== undefined) this.writePresentation(adopted.session, request.presentation)
     const agentPreset = this.agents.presetForSession(adopted.session)
     return { sessionId, ...(agentPreset === undefined ? {} : { agentPreset }) }
+  }
+
+  /** Set navigation metadata without changing the Session identity or its turns. */
+  async setPresentation(request: SessionPresentationRequest): Promise<SessionPresentationValue> {
+    if (request.presentation !== null) this.validatePresentation(request.presentation)
+    const agent = await this.resolveAgent(request.sessionId)
+    return this.writePresentation(agent.session, request.presentation)
+  }
+
+  private validatePresentation(value: SessionPresentation): void {
+    if (!value.owner.trim() || value.owner.length > 240 || !value.title.trim() || value.title.length > 240) {
+      throw new RemoteError('gateway/bad-request', 'presentation owner and title must contain 1-240 characters', {})
+    }
+    if (value.composer !== undefined && value.composer !== 'managed') {
+      throw new RemoteError('gateway/bad-request', 'presentation composer must be "managed" when provided', {})
+    }
+  }
+
+  private writePresentation(session: Agent['session'], presentation: SessionPresentation | null): SessionPresentationValue {
+    const previous = session.snapshotEvents().findLast(event => event.type === 'session/presentation')
+    if (previous?.type === 'session/presentation' &&
+      previous.data?.owner === presentation?.owner && previous.data?.title === presentation?.title
+      && previous.data?.composer === presentation?.composer) {
+      return { presentation, seq: previous.seq }
+    }
+    const event = session.append('session/presentation', presentation)
+    return { presentation, seq: event.seq }
   }
 
   /**
    * Validate and install one Session-local model selection.
    * @param request - Session identity and requested model selection.
+   * Managed presentations never write the application default; ordinary Sessions
+   * retain the default-saving behavior unless the request opts out explicitly.
    * @returns the normalized selection installed for the Session.
    */
   async selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue> {
@@ -141,12 +175,17 @@ export class SessionCommandController {
             : { reasoningEffort: resolved.reasoningEffort }),
         }
         this.agents.selectForNextRequest(agent, selected)
-        try {
-          await this.ctx.agentDefaultModel.saveSelection(selected)
-        } catch (error) {
-          this.ctx.logger.warn(
-            `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,
-          )
+        const latestPresentation = agent.session.snapshotEvents().findLast(event => event.type === 'session/presentation')
+        const managedPresentation = latestPresentation?.type === 'session/presentation'
+          && latestPresentation.data?.composer === 'managed'
+        if (request.saveAsDefault !== false && !managedPresentation) {
+          try {
+            await this.ctx.agentDefaultModel.saveSelection(selected)
+          } catch (error) {
+            this.ctx.logger.warn(
+              `session-controller: model selection changed for the Session but the default was not saved: ${String(error)}`,
+            )
+          }
         }
         return { selected: { ...selected } }
       } catch (error) {
@@ -273,7 +312,7 @@ export class SessionCommandController {
     const composition = await this.agents.composeAgent(this.agents.presetForObservation(source))
     try {
       const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
-      await this.ctx.agents.create({
+      const forked = await this.ctx.agents.create({
         sessionId: childId,
         seed: source.events.slice(0, cut),
         inheritedEventCount: cut,
@@ -288,6 +327,10 @@ export class SessionCommandController {
         agentOptions: { provider, model },
         setup: composition.setup,
       })
+      const inheritedPresentation = source.events.slice(0, cut).findLast(event => event.type === 'session/presentation')
+      if (inheritedPresentation?.type === 'session/presentation' && inheritedPresentation.data !== null) {
+        this.writePresentation(forked.agent.session, null)
+      }
     } catch (error) {
       throw new RemoteError(
         'gateway/internal',

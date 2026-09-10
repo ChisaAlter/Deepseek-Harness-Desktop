@@ -243,6 +243,43 @@ describe('deriveGroups', () => {
     ).items[0]).toMatchObject({ id: parent.id, runningSubagentCount: 2 })
   })
 
+  it('excludes presentation-owned rows and descendant activity from browser projections', () => {
+    const ordinary = summary('ordinary', 10, '/projects/first')
+    const owned = {
+      ...summary('owned', 30, '/projects/first'),
+      displayTitle: 'Owned conversation',
+      presentation: { owner: 'dshbot', title: 'Owned conversation' },
+    }
+    const ownedDescendant = {
+      ...summary('owned-descendant', 40, '/projects/first'),
+      parentId: ordinary.id,
+      origin: 'subagent' as const,
+      presentation: { owner: 'dshbot', title: 'Owned child' },
+      running: true,
+    }
+    const sessions = list(ordinary, owned, ownedDescendant)
+    const workspaces = [workspace('first', ['ordinary', 'owned', 'owned-descendant'])]
+
+    expect(deriveGroups(
+      sessions, workspaces, noArchive, noAttention, view(['first']), SCRATCH,
+    )[0]!.sessions.map(node => node.id)).toEqual([ordinary.id])
+    expect(deriveFlat(sessions, workspaces, noArchive, noAttention, SCRATCH))
+      .toMatchObject([{ id: ordinary.id, runningSubagentCount: 0 }])
+    expect(deriveArchived(
+      sessions, workspaces, archived('owned', 'owned-descendant'), SCRATCH,
+    )).toEqual([])
+    expect(deriveSearchResults(
+      sessions,
+      workspaces,
+      'owned',
+      noArchive,
+      noAttention,
+      { items: [{ sessionId: owned.id, snippet: 'owned content' }], hasMore: false },
+      10,
+      SCRATCH,
+    )).toEqual({ items: [], hasMore: false })
+  })
+
   it('ignores fork lineage and sorts every no-directory session as a top-level row', () => {
     const parent = summary('parent', 1)
     const oldChild = { ...summary('old-child', 10), parentId: parent.id }
@@ -330,6 +367,9 @@ describe('currentGroupKey / isNoDirectorySession', () => {
     expect(currentGroupKey({ ...sessions, current: orphan.id }, [ws], SCRATCH)).toBeUndefined()
     expect(currentGroupKey({ ...sessions, current: task.id }, [ws], undefined)).toBeUndefined()
     expect(currentGroupKey(sessions, [ws], SCRATCH)).toBeUndefined()
+
+    const plugin = { ...summary('plugin', 4, '/projects/project'), presentation: { owner: 'dshbot', title: 'Bot' } }
+    expect(currentGroupKey({ ...list(plugin), current: plugin.id }, [ws], SCRATCH)).toBeUndefined()
   })
 
   it('never treats an accounted Session as a no-directory task even in the scratch cwd', () => {

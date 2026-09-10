@@ -178,6 +178,10 @@ export function AppFrame({
     const current = s.current
     return current === undefined ? undefined : s.byId[current]?.title
   })
+  const managedSession = useSessions((s) => {
+    const current = s.current
+    return current !== undefined && s.byId[current]?.presentation?.composer === 'managed'
+  })
   const frameRef = useRef<HTMLDivElement | null>(null)
   const trailingRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
@@ -416,6 +420,7 @@ export function AppFrame({
         {renderSlot('shell.titlebar.trailing', {
           surfaces: panels.surfaces,
           terminalDrawer: panels.terminalDrawer,
+          managedSession,
           density: titlebarDensity,
         })}
       </div>

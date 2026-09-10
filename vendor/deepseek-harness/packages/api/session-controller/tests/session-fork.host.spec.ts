@@ -88,6 +88,27 @@ const remote = (ctx: Context) => createSessionTestRemote(ctx, {
 })
 
 describe('sessions.fork', () => {
+  it('releases plugin presentation on a user fork without changing its source', async () => {
+    const ctx = await composed()
+    try {
+      const source = liveAgent(ctx, 'plugin-source', 0)
+      const presentation = { owner: 'plugin:bot', title: 'Bot' }
+      source.append('session/presentation', presentation)
+      source.append('turn/start', { turn: 1 })
+      source.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+      const response = await remote(ctx).fork({ sessionId: source.id })
+      expect(response.ok ? null : response.error).toBeNull()
+      if (!response.ok) return
+      const child = ctx.sessions.get(response.value.sessionId)
+      expect(child?.snapshotEvents().filter(event => event.type === 'session/presentation')
+        .map(event => event.data)).toEqual([presentation, null])
+      expect(source.snapshotEvents().filter(event => event.type === 'session/presentation')
+        .map(event => event.data)).toEqual([presentation])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('cuts at the anchored completed turn and records lineage and cwd', async () => {
     const ctx = await composed()
     const source = liveAgent(ctx, 'session-source', 2)

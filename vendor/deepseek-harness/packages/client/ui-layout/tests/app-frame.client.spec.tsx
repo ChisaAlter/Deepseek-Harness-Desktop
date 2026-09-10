@@ -25,6 +25,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 const selectedSession = { current: 's-test' as SessionId | undefined }
 const selectedSessionBlank = { current: false }
 const selectedSessionTitle = { current: undefined as string | undefined }
+const selectedSessionManaged = { current: false }
 const workspacesReady = { current: true }
 type AttentionSnapshot = Parameters<Parameters<AppFrameProps['useSessionPendingInteraction']>[0]>[0]
 const noAttention: AttentionSnapshot = new Map()
@@ -104,6 +105,9 @@ function mountFrame() {
             blank: selectedSessionBlank.current,
             updatedAt: 1,
             ...(selectedSessionTitle.current === undefined ? {} : { title: selectedSessionTitle.current }),
+            ...(selectedSessionManaged.current
+              ? { presentation: { owner: 'plugin', title: 'Managed session', composer: 'managed' as const } }
+              : {}),
           },
         },
       current,
@@ -171,6 +175,7 @@ beforeEach(() => {
   selectedSession.current = 's-test' as SessionId
   selectedSessionBlank.current = false
   selectedSessionTitle.current = undefined
+  selectedSessionManaged.current = false
   workspacesReady.current = true
   vi.useFakeTimers()
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)
@@ -408,7 +413,15 @@ describe('AppFrame', () => {
     expect(frame.querySelector('[data-titlebar-row]')).toBeTruthy()
     expect(frame.querySelector('#dshd-shell-titlebar-trailing')).toBeTruthy()
     expect(slotCalls.find(c => c.key === 'shell.titlebar.trailing')?.props).toEqual({
-      surfaces: 0, terminalDrawer: 0, density: 'full',
+      surfaces: 0, terminalDrawer: 0, managedSession: false, density: 'full',
+    })
+  })
+
+  it('passes managed presentation state to the titlebar trailing slot', () => {
+    selectedSessionManaged.current = true
+    const { slotCalls } = mountFrame()
+    expect(slotCalls.find(c => c.key === 'shell.titlebar.trailing')?.props).toEqual({
+      surfaces: 0, terminalDrawer: 0, managedSession: true, density: 'full',
     })
   })
 
@@ -488,7 +501,7 @@ describe('AppFrame — titlebar density and conversation reserve', () => {
     act(() => { instance.actions.openSurfaces() })
     expect(frame.getAttribute('data-titlebar-density')).toBe('cozy')
     expect(slotCalls.filter(c => c.key === 'shell.titlebar.trailing').at(-1)?.props).toEqual({
-      surfaces: 540, terminalDrawer: 0, density: 'cozy',
+      surfaces: 540, terminalDrawer: 0, managedSession: false, density: 'cozy',
     })
   })
 

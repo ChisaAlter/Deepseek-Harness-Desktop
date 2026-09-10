@@ -128,6 +128,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       const summary = sessions.byId[id]
       if (summary !== undefined && summary.blank && summary.cwd === workspace.path
         && workspace.sessionIds.includes(summary.id)
+        && summary.presentation === undefined
         && !archived.includes(summary.id)) return summary.id
     }
 
@@ -185,6 +186,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       const summary = sessions.byId[id]
       if (summary !== undefined && summary.blank && summary.cwd === scratchCwd
         && summary.origin === undefined
+        && summary.presentation === undefined
         && !workspace.items.some(item => item.sessionIds.includes(summary.id))
         && !archived.includes(summary.id)) return summary.id
     }
@@ -290,7 +292,9 @@ function recentWorkspace(
     let latest = Number.NEGATIVE_INFINITY
     for (const sessionId of workspace.sessionIds) {
       const session = sessions[sessionId]
-      if (session !== undefined) latest = Math.max(latest, session.updatedAt)
+      if (session !== undefined && session.presentation === undefined) {
+        latest = Math.max(latest, session.updatedAt)
+      }
     }
     if (latest === Number.NEGATIVE_INFINITY) latest = Date.parse(workspace.createdAt)
     if (selected === undefined || latest > selectedTime) {

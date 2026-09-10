@@ -101,6 +101,53 @@ export async function executeToolCalls(
   return { concluded }
 }
 
+/**
+ * Re-enter one durable interactive call without appending a second tool/call.
+ * The caller has already proved that this is the only unresolved call in the
+ * open step and supplies the original event sequence for result attribution.
+ */
+export async function resumeRecordedToolCall(
+  ctx: Context,
+  turn: number,
+  step: number,
+  block: ToolCallBlock,
+  callSeq: SessionSeq,
+  signal: AbortSignal,
+  acceptContext: (context: UserMessage) => void,
+): Promise<{ concluded: boolean }> {
+  const agent = ctx.agents.requireInitiator()
+  const exec: ToolExecutionInput = {
+    callId: block.id,
+    name: block.name,
+    arguments: parseArguments(block.arguments),
+    agent,
+    signal,
+  }
+  const prepared = await ctx.tools[TOOL_RUNTIME_SCHEDULER].prepare(exec)
+  let slot: Slot
+  switch (prepared.kind) {
+    case 'dispatch': {
+      const outcome = await ctx.tools[TOOL_RUNTIME_SCHEDULER].dispatch(prepared.exec)
+      slot = { exec: prepared.exec, result: outcome.result, needsPost: outcome.kind === 'post-result' }
+      break
+    }
+    case 'post-result':
+      slot = { exec: prepared.exec, result: prepared.result, needsPost: true }
+      break
+    case 'final-result':
+      slot = { exec: prepared.exec, result: prepared.result, needsPost: false }
+      break
+    default:
+      return assertNever(prepared, 'recorded tool-call preparation')
+  }
+  const result = slot.needsPost
+    ? await ctx.tools[TOOL_RUNTIME_SCHEDULER].finalize(slot.exec, slot.result)
+    : ctx.tools[TOOL_RUNTIME_SCHEDULER].finish(slot.exec, slot.result)
+  appendToolResult(agent.session, turn, step, block, result, callSeq)
+  for (const context of result.additionalContexts ?? []) acceptContext(context)
+  return { concluded: result.concludesTurn === true }
+}
+
 /** Parse model arguments, preserving invalid JSON as text and mapping empty input to `{}`. */
 function parseArguments(raw: string): unknown {
   try {

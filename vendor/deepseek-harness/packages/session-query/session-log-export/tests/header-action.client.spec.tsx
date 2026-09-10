@@ -19,7 +19,7 @@ function bindSessionExport(controller: SessionLogDownloadController) {
   }
 }
 
-function bench(sessionId: SessionId | undefined = SID) {
+function bench(sessionId: SessionId | undefined = SID, managedSession = false) {
   const controller = new SessionLogDownloadController(async () => new Response('zip'), vi.fn())
   const request = vi.fn((next: SessionId) => controller.download(next))
   const dismiss = vi.fn((next: SessionId) => { controller.dismiss(next) })
@@ -30,6 +30,7 @@ function bench(sessionId: SessionId | undefined = SID) {
     useSessionLogDownload,
     request,
     dismiss,
+    managedSession,
     t: (key: keyof typeof en): string => en[key],
   } as unknown as SessionLogDownloadDialogProps
   const view = render(<SessionLogDownloadHeaderAction {...props} />)
@@ -39,6 +40,16 @@ function bench(sessionId: SessionId | undefined = SID) {
 afterEach(cleanup)
 
 describe('Session export Header action', () => {
+  it('renders no visible UI for managed sessions', () => {
+    const b = bench(SID, true)
+    expect(b.view.container.firstChild).toBeNull()
+  })
+
+  it('keeps the visible action for ordinary sessions', () => {
+    const b = bench(SID, false)
+    expect(b.view.getByRole('button', { name: 'Session log' })).toBeTruthy()
+  })
+
   it('renders the 111×32 text capsule and downloads through the shared controller', async () => {
     const b = bench()
     const button = b.view.getByRole('button', { name: 'Session log' })

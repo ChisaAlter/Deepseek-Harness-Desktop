@@ -667,6 +667,17 @@ Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/sch
 
 Source: [`packages/core/session/src/types.ts:375`](../packages/core/session/src/types.ts)
 
+<a id="sessionpresentation--log-only"></a>
+
+#### `session/presentation` — log-only
+
+```ts persistence-catalog
+/** Log-only navigation metadata; never enters model history or changes permissions. */
+'session/presentation': SessionPresentation | null
+```
+
+Source: [`packages/api/session-controller/src/types.ts:42`](../packages/api/session-controller/src/types.ts)
+
 <a id="sessiontitle--log-only"></a>
 
 #### `session/title` — log-only
@@ -1060,6 +1071,41 @@ Source: [`packages/core/session/src/types.ts:267`](../packages/core/session/src/
 ```
 
 Source: [`packages/core/session/src/types.ts:288`](../packages/core/session/src/types.ts)
+
+### `user-questions/*`
+
+<a id="user-questionsanswered--log-only"></a>
+
+#### `user-questions/answered` — log-only
+
+```ts persistence-catalog
+/** The durable terminal answer, cancellation, or unavailable-provider result. */
+'user-questions/answered': {
+  id: UserQuestionRequestId
+  outcome: UserQuestionOutcome
+  answer?: AskUserQuestionAnswer
+  error?: { name: string; code: string; message: string }
+}
+```
+
+Source: [`packages/interaction/user-questions/src/types.ts:109`](../packages/interaction/user-questions/src/types.ts)
+
+<a id="user-questionsasked--log-only"></a>
+
+#### `user-questions/asked` — log-only
+
+```ts persistence-catalog
+/** A tool call began waiting for a human answer. */
+'user-questions/asked': {
+  id: UserQuestionRequestId
+  callId: ToolCallId
+  questions: AskUserQuestionItem[]
+}
+```
+
+Types: [ToolCallId](subsystems/core.md)
+
+Source: [`packages/interaction/user-questions/src/types.ts:103`](../packages/interaction/user-questions/src/types.ts)
 
 ### `vision/*`
 

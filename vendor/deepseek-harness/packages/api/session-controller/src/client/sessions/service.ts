@@ -21,6 +21,7 @@ import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import { SESSION_SEARCH_RESULT_LIMIT } from '../../types.ts'
 import type { SessionJob as JobView } from '../../types.ts'
+import type { SessionPresentation } from '../../types.ts'
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import {
   createSnapshotStore, type SnapshotStore,
@@ -42,6 +43,8 @@ export interface SessionSummary {
   title?: string
   /** Human-facing label: durable title, project basename, then session id. */
   displayTitle: string
+  /** Persistent plugin-owned navigation metadata, not a permission. */
+  presentation?: SessionPresentation
   cwd?: string
   parentId?: SessionId
   /** Coarse durable origin for navigation filtering; not a continuation capability. */
@@ -624,10 +627,12 @@ export class ClientSessions implements ISessions {
     const ids: SessionId[] = []
     const byId: Record<SessionId, SessionSummary> = {}
     for (const entry of items) {
+      const presentation = entry.projectionValues?.sessionListMetadata?.presentation
       ids.push(entry.sessionId)
       byId[entry.sessionId] = {
         id: entry.sessionId,
-        displayTitle: displayTitleOf(entry.title, entry.cwd, entry.sessionId),
+        displayTitle: presentation?.title ?? displayTitleOf(entry.title, entry.cwd, entry.sessionId),
+        ...(presentation === undefined ? {} : { presentation }),
         running: entry.running,
         ...(entry.completed ? { completed: true } : {}),
         blank: entry.blank,
@@ -635,7 +640,7 @@ export class ClientSessions implements ISessions {
         ...(entry.projectionValues === undefined
           ? {}
           : { projectionValues: entry.projectionValues }),
-        ...(entry.title !== undefined ? { title: entry.title } : {}),
+        ...(presentation !== undefined ? { title: presentation.title } : entry.title !== undefined ? { title: entry.title } : {}),
         ...(entry.cwd !== undefined ? { cwd: entry.cwd } : {}),
         ...(entry.parentSessionId !== undefined ? { parentId: entry.parentSessionId } : {}),
         ...(entry.origin !== undefined ? { origin: entry.origin } : {}),

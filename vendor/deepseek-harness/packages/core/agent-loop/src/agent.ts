@@ -36,7 +36,8 @@ import type {} from '@deepseek-ai/dsh-session-projection'
 import type { Context } from '@deepseek-ai/cordis'
 import { RuntimeContextProjection } from './runtime-context.ts'
 import { AssistantStreamAttempt } from './assistant-stream.ts'
-import { executeToolCalls } from './tool-calls.ts'
+import type { PendingInteractionResumePlan } from './pending-interaction-recovery.ts'
+import { executeToolCalls, resumeRecordedToolCall } from './tool-calls.ts'
 
 type Phase =
   | { kind: 'idle'; lastTurn: number }
@@ -236,6 +237,69 @@ export class ReactLoopAgent implements Agent {
     }
   }
 
+  /** Continue one crash-recovered interactive call inside its original turn. */
+  resumePendingInteraction(plan: PendingInteractionResumePlan): void {
+    if (this.phase.kind !== 'idle') throw new Error(`agent "${this.id}" already has active work`)
+    const driver = Promise.withResolvers<void>()
+    this.activityDone = driver.promise
+    this.setPhase({
+      kind: 'running',
+      abort: new AbortController(),
+      turn: plan.turn,
+      step: plan.step,
+      wakeRequested: false,
+    })
+    this.loopCtx.agents.withInitiator(this, () => this.resumePendingInteractionDriver(plan))
+      .then(driver.resolve, driver.reject)
+  }
+
+  private async resumePendingInteractionDriver(plan: PendingInteractionResumePlan): Promise<void> {
+    try {
+      if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": recovery without driver reservation`)
+      const signal = this.phase.abort.signal
+      let turnEnds: StepEndReason | null = null
+      let recoveryError: unknown
+      try {
+        const { concluded } = await resumeRecordedToolCall(
+          this.loopCtx,
+          plan.turn,
+          plan.step,
+          plan.block,
+          plan.callSeq,
+          signal,
+          context => this.inbox.splice('next-step', this.inbox.nextStep.length, 0, [context]),
+        )
+        turnEnds = concluded ? { kind: 'completed' } : null
+      } catch (error: unknown) {
+        recoveryError = error
+      } finally {
+        this.session.append('step/end', { turn: plan.turn, step: plan.step })
+      }
+      if (recoveryError !== undefined) {
+        const reason: TurnEndReason = signal.aborted
+          ? { kind: 'aborted', reason: signal.reason as AgentCancelCause }
+          : {
+            kind: 'error',
+            error: recoveryError instanceof LlmError
+              ? recoveryError.failure
+              : { message: errorChain(recoveryError), code: 'UNKNOWN' },
+          }
+        this.session.append('turn/end', { turn: plan.turn, reason })
+        this.throwError(recoveryError)
+      }
+      let continueDriver = await this.driveTurn(plan.turn, 'next-step', turnEnds)
+      while (continueDriver) continueDriver = await this.turn()
+    } catch (_error) {
+      // driveTurn and the ordinary error boundary have already reported it.
+    } finally {
+      if (this.phase.kind === 'running') {
+        const { turn, wakeRequested } = this.phase
+        this.setPhase({ kind: 'idle', lastTurn: turn })
+        if (wakeRequested && this.inbox.hasPending) this.wakeDriver()
+      }
+    }
+  }
+
   private async preStep(target: InboxTarget, position: { turn: number; step: number }): Promise<PreparedStep> {
     /* v8 ignore next -- private callers establish the running phase before proposing a step */
     if (this.phase.kind !== 'running') throw new Error(`agent "${this.id}": pre-step outside running phase`)
@@ -271,8 +335,22 @@ export class ReactLoopAgent implements Agent {
       this.throwError(error)
     }
     phase.turn = turn
-    let turnEnds: TurnEndReason | null = null
-    let target: InboxTarget = 'next-turn'
+    return this.driveTurn(turn, 'next-turn', null)
+  }
+
+  /** Drive the remainder of one already-open turn from the requested inbox target. */
+  private async driveTurn(
+    turn: number,
+    initialTarget: InboxTarget,
+    initialTurnEnds: TurnEndReason | null,
+  ): Promise<boolean> {
+    if (this.phase.kind !== 'running') {
+      this.throwError(new Error(`agent "${this.id}": open turn without driver reservation`))
+    }
+    const phase = this.phase
+    const { signal } = phase.abort
+    let turnEnds: TurnEndReason | null = initialTurnEnds
+    let target: InboxTarget = initialTarget
     try {
       while (true) {
         signal.throwIfAborted()

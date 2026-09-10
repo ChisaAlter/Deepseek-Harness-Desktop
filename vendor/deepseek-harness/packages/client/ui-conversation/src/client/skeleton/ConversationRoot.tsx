@@ -144,6 +144,9 @@ export function ConversationRoot({
   const inputState = useInput(s => s)
   const cwd = useSessions(s => sessionId === undefined ? undefined : s.byId[sessionId]?.cwd)
   const summaryBlank = useSessions(s => sessionId === undefined ? undefined : s.byId[sessionId]?.blank)
+  const presentationOwned = useSessions(
+    s => sessionId === undefined ? undefined : s.byId[sessionId]?.presentation,
+  ) !== undefined
   const workspaces = useWorkspaces(s => s)
   // A plugin this package cannot import (ui-model-selection) says this session cannot
   // send; its reason is already localized by whoever raised it.
@@ -246,6 +249,7 @@ export function ConversationRoot({
   // whose Workspace was deleted from the sidebar is also unaccounted, and that
   // one must fall back to "Choose workspace", never unlock the composer.
   const noDirectorySession = sessionId !== undefined
+    && !presentationOwned
     && workspaces.phase === 'ready'
     && sessionWorkspace === undefined
     && workspaces.scratchCwd !== undefined
@@ -279,12 +283,12 @@ export function ConversationRoot({
   // hidden instead of briefly rendering the parent-offline takeover.
   const parentAvailabilityPending = session?.subagent?.address.mode === 'continuable'
     && session.subagent.parentAvailable === undefined
-  const settling = sessionId !== undefined && (
+  const settling = sessionId !== undefined && !presentationOwned && (
     (shellPhase === 'blank' && openState === 'loading' && summaryBlank !== true)
     || parentAvailabilityPending
   )
   const hero = sessionId === undefined
-    || (shellPhase === 'blank' && (openState === 'open' || summaryBlank === true))
+    || (!presentationOwned && shellPhase === 'blank' && (openState === 'open' || summaryBlank === true))
   const stackRef = useRef<HTMLDivElement>(null)
   const previousComposer = useRef<{ sessionId: typeof sessionId; hero: boolean; top: number } | null>(null)
   useLayoutEffect(() => {
@@ -355,7 +359,7 @@ export function ConversationRoot({
           ? undefined
           : workspaceLabel(cwd)))
 
-  const heroWorkspaceRow = (
+  const heroWorkspaceRow = hero ? (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
         buttonRef={pickerAnchor}
@@ -387,7 +391,7 @@ export function ConversationRoot({
       })}
       {renderSlot('conversation.hero.agentPreset', {})}
     </div>
-  )
+  ) : null
 
   // The placeholder chip ("Choose workspace") and the Workspace-trigger input travel
   // together: no workspace picked yet (cold start, no session at all), or a
@@ -448,6 +452,9 @@ export function ConversationRoot({
       {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
       <div className={css.body}>
         <div className={css.scrollBody} data-conversation-scroll="">
+          {presentationOwned && shellPhase === 'blank' && (
+            <div className={css.viewArea} data-plugin-session-canvas="" aria-hidden="true" />
+          )}
           {sessionId === undefined ? null : renderSlot('conversation.session', {})}
           {composerSeat}
         </div>

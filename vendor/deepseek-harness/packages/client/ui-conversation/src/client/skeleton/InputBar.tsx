@@ -65,9 +65,8 @@ export const InputBar = memo(function InputBar({
   const composerResizeHeight = useComposerResizeHeight(value => value)
   const composerResizeWidth = useComposerResizeWidth(value => value)
   const sessionRow = useSessions(s => (sessionId === undefined ? undefined : s.byId[sessionId])) as
-    { origin?: string; agentPreset?: string } | undefined
-  const hideModelSeat = sessionRow?.origin === 'dshbot' || sessionRow?.agentPreset === 'dshbot-room'
-  const hideRoomChrome = sessionRow?.agentPreset === 'dshbot-room'
+    { presentation?: { composer?: 'managed' } } | undefined
+  const managed = sessionRow?.presentation?.composer === 'managed'
   const promptError = useSession(s => s.promptError) ?? null
   const running = useSession(s => s.running) ?? false
   const subagent = useSession(s => s.subagent) ?? null
@@ -409,7 +408,7 @@ export const InputBar = memo(function InputBar({
   // The Access seat: the projection-fed permission chip (renders nothing
   // while the permissions key is absent — permission-less host or Draft —
   // or while the command face is absent with the session).
-  const accessSelect: ReactNode = command === undefined
+  const accessSelect: ReactNode = managed || command === undefined
     ? null
     : <PermissionSelect key={sessionId} value={permissions} locked={locked} command={command} t={t} />
 
@@ -437,6 +436,8 @@ export const InputBar = memo(function InputBar({
     ? t('placeholder.parentOffline')
     : disabled
       ? t('placeholder.unavailable')
+      : managed
+        ? t('placeholder.managed')
       // The steer hint deliberately outranks the plan placeholder:
       // while it shows, the whole-queue gesture is genuinely available
       // (the gate never consults plan mode), so the actionable hint wins.
@@ -490,7 +491,7 @@ export const InputBar = memo(function InputBar({
             send/think beam is live. */}
         <ComposerBeam active={showBeam} appearance={composerBeamStyle} />
         <div className={css.cardBody}>
-        {!hideRoomChrome && sessionId !== undefined && (
+        {sessionId !== undefined && (
           <div className={css.overlayAnchor}>{renderSlot('conversation.input.overlay', {})}</div>
         )}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
@@ -557,36 +558,32 @@ export const InputBar = memo(function InputBar({
         </div>
         <div className={css.row}>
           <div className={css.tools}>
-            {!hideRoomChrome && (
-              <>
-                <Tooltip label={t('input.commands')} side="top" delayMs={500}>
-                  <button
-                    type="button"
-                    className={css.add}
-                    aria-label={t('input.commands')}
-                    aria-haspopup="listbox"
-                    aria-expanded={commandMenuOpen}
-                    disabled={locked || toggleCommandMenu === undefined}
-                    onMouseDown={keepFocus}
-                    onClick={onToggleCommandMenu}
-                  >
-                    <IconPlusOutline16 size={14} />
-                  </button>
-                </Tooltip>
-                <Tooltip label={t('file.attach')} side="top" delayMs={500}>
-                  <button
-                    type="button"
-                    className={css.add}
-                    aria-label={t('file.attach')}
-                    disabled={subagent !== null || locked || machineBusy || addFiles === undefined}
-                    onMouseDown={keepFocus}
-                    onClick={() => { fileInputRef.current?.click() }}
-                  >
-                    <IconPaperclipOutline16 size={14} />
-                  </button>
-                </Tooltip>
-              </>
-            )}
+            <Tooltip label={t('input.commands')} side="top" delayMs={500}>
+              <button
+                type="button"
+                className={css.add}
+                aria-label={t('input.commands')}
+                aria-haspopup="listbox"
+                aria-expanded={commandMenuOpen}
+                disabled={locked || toggleCommandMenu === undefined}
+                onMouseDown={keepFocus}
+                onClick={onToggleCommandMenu}
+              >
+                <IconPlusOutline16 size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip label={t('file.attach')} side="top" delayMs={500}>
+              <button
+                type="button"
+                className={css.add}
+                aria-label={t('file.attach')}
+                disabled={subagent !== null || locked || machineBusy || addFiles === undefined}
+                onMouseDown={keepFocus}
+                onClick={() => { fileInputRef.current?.click() }}
+              >
+                <IconPaperclipOutline16 size={14} />
+              </button>
+            </Tooltip>
             <input
               ref={fileInputRef}
               type="file"
@@ -597,18 +594,20 @@ export const InputBar = memo(function InputBar({
             />
             <div className={css.modes}>
               {accessSelect}
-              {!hideRoomChrome && (sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked }))}
+              {!managed && (sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked }))}
             </div>
-            {hideRoomChrome || input === undefined || sessionId === undefined
+            {input === undefined || sessionId === undefined
               ? null
               : renderSlot('conversation.input.left', {})}
           </div>
           <div className={css.trailing}>
-            {hideRoomChrome || input === undefined || sessionId === undefined
+            {input === undefined || sessionId === undefined
               ? null
               : renderSlot('conversation.input.right', {})}
-            {!hideModelSeat && (sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked }))}
-            {!hideRoomChrome && <ContextMeter useProjection={useProjection} t={t} />}
+            {managed
+              ? (sessionId === undefined ? null : renderSlot('conversation.input.managed', { locked: modelSeatLocked }))
+              : (sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked }))}
+            {!managed && <ContextMeter useProjection={useProjection} t={t} />}
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500}>
                 <button
@@ -649,8 +648,12 @@ export const InputBar = memo(function InputBar({
         </div>
         </div>
       </div>
-      {variant === 'composer' && !hideRoomChrome && input !== undefined && sessionId !== undefined
-        ? <div className={css.footer}>{renderSlot('conversation.composer.dock', {})}</div>
+      {variant === 'composer' && input !== undefined && sessionId !== undefined
+        ? (
+            <div className={css.footer} data-composer-footer="">
+              {managed ? null : renderSlot('conversation.composer.dock', {})}
+            </div>
+          )
         : null}
     </div>
   )

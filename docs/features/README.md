@@ -50,6 +50,7 @@ Gate: <卡上 gates>
 | [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；入口开放，配对默认关闭 | `DshdRemote` / `ui-settings-remote` | 以卡内实机矩阵为准；0.2.9 不将 Web/Android 排除项记为 Pass |
 | [remote-settings](remote-settings.md) | 设置→远程双标签（网关 + dsh-im）；未配置时默认服务器模式 | `ui-settings-remote` / `dsh-im-desktop` | 桌面装配回归；真实账号绑定/收发按卡内门槛验收 |
 | [dshbot](dshbot.md) | 已从本体剥离；只保留旧预置脱离和用户插件恢复 | `legacy-dshbot-preset` | 升级 / 用户数据保留 |
+| [plugin-session-navigation](plugin-session-navigation.md) | 插件固定会话的持久化标题、普通列表隔离与空会话聊天布局 | vendor session-controller / ui-workspace / ui-conversation | 投影、导航与真实插件桌面链路 |
 | [dsh-home](dsh-home.md) | 桌面 `userData/dsh-home`；Harness 不读官方 `~/.dsh` | `dsh-home.js` / spawnEnv | TC-INST-009、011；TC-WS-006 |
 | [desktop-launcher](desktop-launcher.md) | 冷启动闸门：更新询问、启停桌面、版本、插件问诊 | `launcher.*` / launcher-gate | TC-LAUNCH-001…007 |
 | [data-import](data-import.md) | 启动器只读导入官方会话/插件名单 | `data-import.js` | TC-LAUNCH-004 |

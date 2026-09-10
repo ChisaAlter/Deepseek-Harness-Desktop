@@ -61,6 +61,8 @@ declare module '@deepseek-ai/dsh-session/types' {
 
 /** Client-safe payload declared for the approval answerer waterfall. */
 export interface ApprovalRequestEvent {
+  /** Durable identity of this request when projected to an answerer. */
+  readonly requestId?: ApprovalRequestId
   /** Agent identity projected to the corresponding Client Context in transit. */
   readonly agent: Agent
   /** Tool whose operation requires a decision. */
@@ -72,6 +74,12 @@ export interface ApprovalRequestEvent {
   /** Cancellation lifetime of the pending request. */
   readonly signal?: AbortSignal
 }
+
+/** Result of an idempotent approval response attempt. */
+export type ApprovalClaimResult =
+  | { status: 'accepted'; outcome: ApprovalOutcome }
+  | { status: 'already-resolved'; outcome: ApprovalOutcome }
+  | { status: 'not-pending' }
 
 declare module '@deepseek-ai/cordis' {
   interface Events {

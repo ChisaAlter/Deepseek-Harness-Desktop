@@ -26,6 +26,11 @@ const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 const sessionListMetadataSchema: z.ZodType<SessionListMetadata> = z.object({
   blank: z.boolean(),
   lastPromptAt: z.number().nullable(),
+  presentation: z.object({
+    owner: z.string().min(1).max(240),
+    title: z.string().min(1).max(240),
+    composer: z.literal('managed').optional(),
+  }).optional(),
 })
 
 const imageLimitsSchema = z.object({
@@ -47,13 +52,17 @@ export function applySessionListMetadata(
   state: SessionListMetadata,
   event: SessionEvent,
 ): SessionListMetadata {
+  if (event.type === 'session/presentation') {
+    const { presentation: _previous, ...rest } = state
+    return event.data === null ? rest : { ...rest, presentation: event.data }
+  }
   const blank = state.blank && event.type !== 'turn/start'
   const lastPromptAt = event.type === 'user/message' && event.data.source.kind === 'user'
     ? event.time
     : state.lastPromptAt
   return blank === state.blank && lastPromptAt === state.lastPromptAt
     ? state
-    : { blank, lastPromptAt }
+    : { ...state, blank, lastPromptAt }
 }
 
 /**
@@ -83,7 +92,7 @@ export class ApiSessionList {
       init: () => ({ blank: true, lastPromptAt: null }),
       apply: applySessionListMetadata,
       wire: { viewSchema: sessionListMetadataSchema, view: state => state },
-      stateVersion: 1,
+      stateVersion: 3,
     })
     ctx.inject(['attachments'], (attachmentCtx) => {
       ctx.sessionProjections.register<'imageLimits', null>({
@@ -179,6 +188,8 @@ export class ApiSessionList {
       signal.throwIfAborted()
       const visibleIds = new Set(visible
         .filter(record => record.header.cwd !== undefined)
+        .filter(record => this.projectionsFor(record.header, this.ctx.sessions.get(record.header.id))
+          ?.values.sessionListMetadata?.presentation === undefined)
         .map(record => record.header.id))
       if (visibleIds.size === 0) return { items: [], hasMore: false }
       const authorized: SessionSearchItem[] = []

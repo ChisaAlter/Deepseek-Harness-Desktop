@@ -211,6 +211,11 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
   /** Decision table, menu column: contribution/decorated-host → popup; host input → claim; host bare → detached execute. */
   private dispatch(pick: InputTriggerPick): PickOutcome {
     const name = pick.candidate.name
+    if (this.isManagedReset(name, pick.session)) {
+      this.consumeVia(pick.session.sessionId, { via: 'menu', span: pick.span })
+      this.runManagedCompact(pick.session)
+      return 'handled'
+    }
     const contribution = this.live.contributions.get(name)
     if (contribution !== undefined && contribution.available(pick.session)) {
       this.openPopup(name, contribution.ui, pick.session, { via: 'menu', span: pick.span })
@@ -273,6 +278,13 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     if (name === '') return undefined
     const refuseAttachments = (): never => {
       throw new Error(this.t('notice.attachmentsUnsupported', { command: name }))
+    }
+    if (bare && this.isManagedReset(name, session)) {
+      if (envelope.attachments > 0) refuseAttachments()
+      const outcome = await this.execute(session, '/compact')
+      if (outcome.kind === 'error') throw new Error(outcome.text ?? '/compact failed')
+      this.consumeVia(session.sessionId, { via: 'enter', token })
+      return 'handled'
     }
     const contribution = this.live.contributions.get(name)
     if (contribution !== undefined && contribution.available(session)) {
@@ -392,6 +404,24 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
       (outcome) => {
         // matched:false maps to an error outcome with no logged lifecycle.
         if (outcome.kind === 'error') this.noticeFor(session.sessionId, 'error', outcome.text ?? `/${desc.name} failed`)
+      },
+      (error: unknown) => {
+        this.noticeFor(session.sessionId, 'error', error instanceof Error ? error.message : String(error))
+      },
+    )
+  }
+
+  /** Fixed-identity managed conversations compact instead of forking/resetting. */
+  private isManagedReset(name: string, session: ClientSessionContext): boolean {
+    if (name !== 'new' && name !== 'reset') return false
+    const row = this.sessions().list.getSnapshot().byId[session.sessionId]
+    return row?.presentation?.composer === 'managed'
+  }
+
+  private runManagedCompact(session: ClientSessionContext): void {
+    void this.execute(session, '/compact').then(
+      (outcome) => {
+        if (outcome.kind === 'error') this.noticeFor(session.sessionId, 'error', outcome.text ?? '/compact failed')
       },
       (error: unknown) => {
         this.noticeFor(session.sessionId, 'error', error instanceof Error ? error.message : String(error))

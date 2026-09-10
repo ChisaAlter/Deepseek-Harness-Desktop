@@ -483,6 +483,13 @@
   scrollbar-gutter: auto;
 }
 
+/* A presentation-owned blank Session carries an ordinary empty canvas until
+   its body chain is elected. An overlay body is that elected canvas; keeping
+   both flex children would split the conversation height in half. */
+.scrollBody:has([data-conversation-composer-overlay]) > :global([data-plugin-session-canvas]) {
+  display: none;
+}
+
 .scrollBody:has([data-conversation-composer-overlay]) > :global([data-slot='conversation.session']) > .viewArea {
   flex: 1 1 0;
   min-height: 0;

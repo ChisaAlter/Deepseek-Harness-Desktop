@@ -21,6 +21,7 @@ interface Breadcrumb {
   readonly id: SessionId
   readonly displayTitle: string
   readonly subagent: boolean
+  readonly managed: boolean
 }
 
 function deriveAncestry(list: SessionListState, id: SessionId): readonly Breadcrumb[] {
@@ -36,6 +37,7 @@ function deriveAncestry(list: SessionListState, id: SessionId): readonly Breadcr
       id: summary.id,
       displayTitle: summary.displayTitle,
       subagent: summary.origin === 'subagent',
+      managed: summary.presentation?.composer === 'managed',
     })
     if (summary.origin !== 'subagent') break
     cursor = summary.parentId
@@ -48,6 +50,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
     && left.every((item, index) => {
       const other = right.at(index)
       return other !== undefined && item.id === other.id && item.displayTitle === other.displayTitle
+        && item.managed === other.managed
     })
 }
 
@@ -65,9 +68,13 @@ export function ConversationSessionHeader({
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
+  const managed = ancestry.at(-1)?.managed === true
+  const presentationOwned = useSessions(s => s.byId[sessionId]?.presentation !== undefined)
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
-  const hideChrome = session.blank && conversationPhase(session, conversation) === 'blank'
+  const hideChrome = !presentationOwned
+    && session.blank
+    && conversationPhase(session, conversation) === 'blank'
 
   return (
     <header
@@ -98,6 +105,7 @@ export function ConversationSessionHeader({
                     </button>
                   )
                   const lineage = last || summary.subagent
+                  const hideManagedLineage = last && summary.managed
                   const lineageOwner = {
                     lineageSessionId: summary.id,
                     displayTitle: summary.displayTitle,
@@ -106,7 +114,9 @@ export function ConversationSessionHeader({
                   return (
                     <span key={summary.id} className={css.crumbSeg}>
                       {index > 0 && <span className={css.crumbSep}>/</span>}
-                      {lineage
+                      {hideManagedLineage
+                        ? title
+                        : lineage
                         ? summary.subagent
                           ? renderSlot(
                             'conversation.session.header.lineage',
@@ -129,15 +139,19 @@ export function ConversationSessionHeader({
                 })}
                 {ancestry.length === 0 && <span className={css.crumbCurrent}>{sessionId}</span>}
               </nav>
-              <div className={css.headerActions}>
-                {renderSlot('conversation.session.header.actions', {})}
+              {!managed && (
+                <div className={css.headerActions}>
+                  {renderSlot('conversation.session.header.actions', {})}
+                </div>
+              )}
+            </div>
+            {!managed && (
+              <div className={css.headerUtilities}>
+                {renderSlot('conversation.session.header.utilities', {})}
               </div>
-            </div>
-            <div className={css.headerUtilities}>
-              {renderSlot('conversation.session.header.utilities', {})}
-            </div>
+            )}
           </div>
-          {showTabs && tabs.length > 1 && (
+          {!managed && showTabs && tabs.length > 1 && (
             <div className={css.tabs} role="tablist">
               {tabs.map(viewTab => (
                 <button
@@ -166,13 +180,15 @@ export function ConversationSessionHeader({
  * @returns the active view area, or null while the Session remains blank.
  */
 export function ConversationSession({
-  useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, bindDraftMirror, openView,
+  useSession, useSessions, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
+  renderSlot, renderSlotChain, bindDraftMirror, openView, sessionId,
 }: ConversationSessionProps) {
   const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
-  const active = resolveActiveView(tabs, selectedId)
   const session = useSession(s => s)
+  const presentation = useSessions(s => s.byId[sessionId]?.presentation)
+  const managed = presentation?.composer === 'managed'
+  const active = resolveActiveView(tabs, managed ? null : selectedId)
   const conversation = useConversation(s => s)
   const inputState = useInput(s => s)
   const storedDraft = useStore(s => s.draft)
@@ -186,14 +202,19 @@ export function ConversationSession({
     // the machine mirror, not this seed effect.
   }, [inputActions])
 
-  if (session.blank && conversationPhase(session, conversation) === 'blank') return null
+  if (presentation === undefined
+    && session.blank
+    && conversationPhase(session, conversation) === 'blank') return null
+  const resident = active !== undefined
+    ? renderSlot('conversation.view', {
+      viewRequest,
+      openView,
+      completeViewRequest: actions.completeViewRequest,
+    }, { only: active.id })
+    : null
   return (
     <div className={css.viewArea}>
-      {active !== undefined && renderSlot('conversation.view', {
-        viewRequest,
-        openView,
-        completeViewRequest: actions.completeViewRequest,
-      }, { only: active.id })}
+      {renderSlotChain('conversation.session.body', { sessionId, session, presentation }, { fallback: resident })}
     </div>
   )
 }

@@ -16,7 +16,9 @@ import {
   sessionSnapshot as sessionFixture,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SessionListState, SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
+import type {
+  SessionListState, SessionSnapshot, SessionSummary,
+} from '@deepseek-ai/dsh-api-session-controller/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -64,6 +66,7 @@ interface BenchOptions {
   /** The `goal` projection value used only to prove attachment intake remains ordinary. */
   goal?: { phase: 'active'; objective: string }
   modelEntry?: React.ReactNode
+  managedEntry?: React.ReactNode
   /** Hot text-ref lexicon (injects a minimal slash stub exposing only lexicon()). */
   lexicon?: ReadonlyMap<'/' | '@', readonly string[]>
   permissions?: { options: { value: string; name: string; description?: string }[]; currentValue: string }
@@ -106,7 +109,8 @@ interface BenchOptions {
   composerBeam?: boolean
   composerBeamStyle?: ComposerBeamStyle
   composerResize?: boolean
-  agentPreset?: string
+  presentation?: SessionSummary['presentation']
+  contextPressure?: { pressureTokens?: number; projectedTokens?: number; contextWindow?: number }
 }
 
 /** One pending queue row (the runtime snapshot shape, as the dock tests build it). */
@@ -168,6 +172,7 @@ function bench(over?: BenchOptions) {
     if (key === 'conversation.composer.dock') return over?.footer ?? null
     if (key === 'conversation.input.plan') return over?.planEntry ?? null
     if (key === 'conversation.input.model') return over?.modelEntry ?? null
+    if (key === 'conversation.input.managed') return over?.managedEntry ?? null
     return null
   }) as never
   const props: InputBarProps = {
@@ -185,7 +190,7 @@ function bench(over?: BenchOptions) {
           running: over?.running ?? false,
           blank: false,
           updatedAt: 1,
-          ...(over?.agentPreset === undefined ? {} : { agentPreset: over.agentPreset }),
+          ...(over?.presentation === undefined ? {} : { presentation: over.presentation }),
         },
       },
       current: SID, phase: 'ready',
@@ -199,7 +204,8 @@ function bench(over?: BenchOptions) {
         ? over?.permissions
         : key === 'plan' ? over?.plan
           : key === 'goal' ? over?.goal
-            : key === 'imageLimits' ? over?.imageLimits : undefined)),
+             : key === 'imageLimits' ? over?.imageLimits
+               : key === 'contextPressure' ? over?.contextPressure : undefined)),
     useInput: bindSnapshotSelector(shell.state),
     inputActions: shell.actions,
     keyboard: shell,
@@ -1551,6 +1557,7 @@ describe('command launcher chrome and control seats', () => {
       running: true,
       composerBeam: true,
       composerBeamStyle: {
+        ...DEFAULT_COMPOSER_BEAM_STYLE,
         direction: 'counterclockwise', period: 3.25, intensity: 120, bloom: 80, hue: 45,
       },
       permissions,
@@ -1575,15 +1582,32 @@ describe('command launcher chrome and control seats', () => {
     expect(toggleCommandMenu).toHaveBeenCalledOnce()
   })
 
-  it('skips the model seat when the session agent preset is dshbot-room', () => {
+  it('uses only explicit managed presentation to replace independent composer chrome', () => {
     const { view, slotCalls } = bench({
-      agentPreset: 'dshbot-room',
+      presentation: { owner: 'plugin', title: 'Managed room', composer: 'managed' },
       planEntry: <i data-testid="plan-entry" />,
       modelEntry: <i data-testid="model-entry" />,
+      managedEntry: <i data-testid="managed-entry" />,
+      permissions: { options: [{ value: 'workspace-write', name: 'workspace-write' }], currentValue: 'workspace-write' },
+      command: () => Promise.resolve(true),
+      contextPressure: { pressureTokens: 32_000, contextWindow: 128_000 },
+      footer: <i data-testid="footer-entry" />,
     })
-    expect(slotCalls.map(call => call.key)).toEqual(['conversation.input.attachments'])
+    expect(slotCalls.map(call => call.key)).toEqual([
+      'conversation.input.overlay', 'conversation.input.attachments',
+      'conversation.input.left', 'conversation.input.right', 'conversation.input.managed',
+    ])
+    expect(view.getByTestId('managed-entry')).toBeTruthy()
     expect(view.queryByTestId('plan-entry')).toBeNull()
     expect(view.queryByTestId('model-entry')).toBeNull()
-    expect(view.queryByLabelText('指令')).toBeNull()
+    expect(view.queryByTestId('footer-entry')).toBeNull()
+    expect(view.container.querySelector('[data-composer-footer]')).not.toBeNull()
+    expect(view.container.querySelector('[data-composer-footer]')?.childElementCount).toBe(0)
+    expect(view.queryByLabelText(/^访问模式/)).toBeNull()
+    expect(view.queryByLabelText('上下文已用 25%')).toBeNull()
+    expect(view.getByLabelText('指令')).toBeTruthy()
+    expect(view.getByLabelText('添加附件')).toBeTruthy()
+    expect(view.queryByText('发消息或做任务… / 调用指令 @ 文件或对话')).toBeNull()
+    expect(view.getByRole('textbox').getAttribute('data-placeholder')).toBe('发送消息')
   })
 })

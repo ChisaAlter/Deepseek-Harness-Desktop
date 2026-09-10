@@ -35,6 +35,7 @@ function mount(opts: {
     <PanelToggles
       surfaces={opts.surfaces ?? 0}
       terminalDrawer={opts.terminalDrawer ?? 0}
+      managedSession={false}
       useSessions={neverHook}
       useSessionPendingInteraction={sel => sel(new Map())}
       useWorkspaces={workspaces(opts.workspaceCount ?? 1)}

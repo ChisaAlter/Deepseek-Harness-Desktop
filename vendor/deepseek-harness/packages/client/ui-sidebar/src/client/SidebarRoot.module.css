@@ -318,7 +318,8 @@
 }
 
 .tab {
-  flex: none;
+  flex: 1 1 0;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -352,6 +353,7 @@
 }
 
 .collapsed .tab {
+  flex: none;
   width: 36px;
   height: 36px;
   padding: 0;

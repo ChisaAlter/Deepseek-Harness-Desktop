@@ -34,6 +34,7 @@ import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persis
 import type { SessionHandle, SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import { ReactLoopAgent } from './agent.ts'
 import { DEFAULT_MAX_PARALLEL_TOOL_CALLS } from './constants.ts'
+import { pendingInteractionResumePlan } from './pending-interaction-recovery.ts'
 
 /** Fiber states that cannot own or serve a new lifecycle. */
 const INACTIVE_STATES: ReadonlySet<FiberState> = new Set([
@@ -799,6 +800,7 @@ export class AgentLoop extends Service implements AgentFactory {
     signal: AbortSignal | undefined,
     source: SessionStartSource,
     stored?: StoredSession,
+    pendingInteraction?: ReturnType<typeof pendingInteractionResumePlan>,
   ): Promise<AgentHandle> {
     using ownedPreparation = preparation
     const session = ownedPreparation.session
@@ -813,7 +815,9 @@ export class AgentLoop extends Service implements AgentFactory {
       const setupCommit = await raceAbort(setup?.(prepared.agent.ctx), prepared.signal, id)
       setupCommit?.commit()
       await this.appendUnstoredSuffix(stored, session)
-      return prepared.publish(source)
+      const published = prepared.publish(source)
+      if (pendingInteraction !== undefined) prepared.agent.resumePendingInteraction(pendingInteraction)
+      return published
     } catch (error: unknown) {
       // Rollback swallows a disposal rejection (a failing final handle close):
       // the setup failure is the primary error the caller must see.
@@ -859,6 +863,7 @@ export class AgentLoop extends Service implements AgentFactory {
       let handle: SessionHandle | undefined
       let stored: StoredSession | undefined
       let preparation: SessionPreparation | undefined
+      let pendingInteraction: ReturnType<typeof pendingInteractionResumePlan>
       try {
         try {
           // Taking write ownership FIRST excludes a concurrent resume of the
@@ -875,7 +880,8 @@ export class AgentLoop extends Service implements AgentFactory {
           // are appended through the same handle as an ordinary batch.
           const persisted = await handle.read(0, undefined, { signal: fused })
           fused.throwIfAborted()
-          const closers = interruptedTurnClosers(persisted)
+          pendingInteraction = pendingInteractionResumePlan(persisted)
+          const closers = pendingInteraction === undefined ? interruptedTurnClosers(persisted) : []
           if (closers.length > 0) await handle.append(closers)
           preparation = SessionPreparation.create(this.runtime.ctx.sessions.prepare(id, {
             seed: [...persisted, ...closers],
@@ -901,6 +907,7 @@ export class AgentLoop extends Service implements AgentFactory {
           options.signal,
           'resume',
           owned,
+          pendingInteraction,
         )
       } finally {
         preparation?.[Symbol.dispose]()

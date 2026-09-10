@@ -51,6 +51,8 @@ import type {
   SessionOpenWorkspacePathValue,
   SessionPage,
   SessionPageRequest,
+  SessionPresentationRequest,
+  SessionPresentationValue,
   SessionPromptRequest,
   SessionPromptValue,
   SessionRenameRequest,
@@ -69,6 +71,7 @@ export interface TestSessionRemote {
   list(request: SessionListRequest, signal?: AbortSignal): Promise<RemoteResult<SessionListValue>>
   search(request: SessionSearchRequest, signal?: AbortSignal): Promise<RemoteResult<SessionSearchValue>>
   create(request: SessionCreateRequest): Promise<RemoteResult<SessionCreateValue>>
+  setPresentation(request: SessionPresentationRequest): Promise<RemoteResult<SessionPresentationValue>>
   selectModel(request: SessionSelectModelRequest): Promise<RemoteResult<SessionSelectModelValue>>
   modelCatalog(): Promise<RemoteResult<ModelCatalog>>
   rename(request: SessionRenameRequest): Promise<RemoteResult<SessionRenameValue>>
@@ -339,6 +342,7 @@ export function createSessionTestRemote(
       signal,
     ),
     create: request => remoteResult(() => direct.create(request)),
+    setPresentation: request => remoteResult(() => direct.setPresentation(request)),
     selectModel: request => remoteResult(() => direct.selectModel(request)),
     modelCatalog: () => remoteResult(() => direct.modelCatalog()),
     rename: request => remoteResult(() => direct.rename(request)),

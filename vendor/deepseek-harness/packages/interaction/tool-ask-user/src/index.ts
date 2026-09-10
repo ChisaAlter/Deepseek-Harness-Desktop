@@ -16,6 +16,17 @@ export const inject = ['tools', 'userQuestions']
 const description = 'Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding. '
   + 'Send one or more questions, each with a stable id that will be echoed in the answer.'
 
+/** Preserve the provider-neutral answer as the tool's JSON result. */
+export function answerToToolResult(result: { answers: readonly { id: string; selected: readonly string[]; custom?: string }[] }) {
+  return {
+    answers: result.answers.map(answer => ({
+      id: answer.id,
+      selected: [...answer.selected],
+      ...answer.custom !== undefined ? { custom: answer.custom } : {},
+    })),
+  }
+}
+
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'ask_user_question',
@@ -87,15 +98,10 @@ export function apply(ctx: Context): void {
           ...question.multi_select !== undefined ? { multiSelect: question.multi_select } : {},
         })),
         ...exec.agent !== undefined ? { agent: exec.agent } : {},
+        callId: exec.callId,
         signal: exec.signal,
       })
-      return {
-        answers: result.answers.map(answer => ({
-          id: answer.id,
-          selected: [...answer.selected],
-          ...answer.custom !== undefined ? { custom: answer.custom } : {},
-        })),
-      }
+      return answerToToolResult(result)
     },
   }))
 }

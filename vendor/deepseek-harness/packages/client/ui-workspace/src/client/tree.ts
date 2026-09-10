@@ -39,7 +39,10 @@ export function isNoDirectorySession(
   accounted: ReadonlySet<SessionId>,
   scratchCwd: string | undefined,
 ): boolean {
-  return scratchCwd !== undefined && session.cwd === scratchCwd && !accounted.has(session.id)
+  return session.presentation === undefined
+    && scratchCwd !== undefined
+    && session.cwd === scratchCwd
+    && !accounted.has(session.id)
 }
 
 /** Ids accounted by the registered Workspaces (membership, never cwd). */
@@ -53,7 +56,19 @@ function accountedIds(workspaces: readonly WorkspaceView[]): Set<SessionId> {
 
 /** A Session the browser may list at all: Workspace member or no-directory task. */
 function listed(session: SessionSummary, accounted: ReadonlySet<SessionId>, scratchCwd: string | undefined): boolean {
-  return accounted.has(session.id) || isNoDirectorySession(session, accounted, scratchCwd)
+  return session.presentation === undefined
+    && (accounted.has(session.id) || isNoDirectorySession(session, accounted, scratchCwd))
+}
+
+/** Keep plugin-owned Sessions out of descendant activity projected on ordinary rows. */
+function unownedSummaries(
+  summaries: Readonly<Record<SessionId, SessionSummary>>,
+): Readonly<Record<SessionId, SessionSummary>> {
+  const result: Record<SessionId, SessionSummary> = {}
+  for (const [id, summary] of Object.entries(summaries)) {
+    if (summary.presentation === undefined) result[id as SessionId] = summary
+  }
+  return result
 }
 
 /**
@@ -179,7 +194,8 @@ function byRecency(a: SessionSummary, b: SessionSummary): number {
  * unarchiving restores position.
  */
 function sessionVisible(session: SessionSummary, current: SessionId | undefined, archived: ReadonlySet<SessionId>): boolean {
-  return session.origin !== 'subagent'
+  return session.presentation === undefined
+    && session.origin !== 'subagent'
     && !archived.has(session.id)
     && (!session.blank || session.id === current)
 }
@@ -296,6 +312,7 @@ export function currentGroupKey(
 ): string | undefined {
   const current = list.current
   if (current === undefined) return undefined
+  if (list.byId[current]?.presentation !== undefined) return undefined
   const owner = workspaces.find(w => w.sessionIds.includes(current))
   if (owner !== undefined) return owner.workspaceId
   const summary = list.byId[current]
@@ -361,7 +378,7 @@ export function deriveGroups(
 ): GroupNode[] {
   const archived = new Set(archivedSessionIds)
   const expandedGroups = new Set(view.expandedGroups)
-  const descendants = indexSubagentDescendants(list.byId)
+  const descendants = indexSubagentDescendants(unownedSummaries(list.byId))
   const currentGroup = currentGroupKey(list, workspaces, scratchCwd)
   const groups: GroupNode[] = []
   for (const g of groupByWorkspace(list, workspaces, archived, view.ungroupedOrder, scratchCwd)) {
@@ -404,7 +421,7 @@ export function deriveFlat(
 ): SessionNode[] {
   const archived = new Set(archivedSessionIds)
   const accounted = accountedIds(workspaces)
-  const descendants = indexSubagentDescendants(list.byId)
+  const descendants = indexSubagentDescendants(unownedSummaries(list.byId))
   const rows: SessionSummary[] = []
   for (const id of list.ids) {
     const s = list.byId[id]
@@ -434,7 +451,7 @@ export function deriveArchived(
   scratchCwd: string | undefined,
   missingTitle = 'Missing session',
 ): SessionNode[] {
-  const descendants = indexSubagentDescendants(list.byId)
+  const descendants = indexSubagentDescendants(unownedSummaries(list.byId))
   const accounted = accountedIds(workspaces)
   const pendingInteractions: SessionPendingInteractions = new Map()
   const rows: SessionSummary[] = []
@@ -485,7 +502,7 @@ export function deriveSearchResults(
   if (q === '') return { items: [], hasMore: false }
   const archived = new Set(archivedSessionIds)
   const accounted = accountedIds(workspaces)
-  const descendants = indexSubagentDescendants(list.byId)
+  const descendants = indexSubagentDescendants(unownedSummaries(list.byId))
 
   const workspaceBySession = new Map<SessionId, string>()
   for (const workspace of workspaces) {
