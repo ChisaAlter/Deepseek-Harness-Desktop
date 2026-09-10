@@ -160,6 +160,13 @@
   line-height: 18px;
 }
 
+.testResult {
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .tools {
   border: 0;
   padding: 0;

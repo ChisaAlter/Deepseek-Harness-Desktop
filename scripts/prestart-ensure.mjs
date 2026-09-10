@@ -8,6 +8,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const harness = path.join(root, 'vendor', 'deepseek-harness');
+const clientBuildRecord = path.join(harness, '.dsh-build', 'client-build-environment.json');
 
 function newestMtime(dir, filter) {
   let newest = 0;
@@ -16,7 +18,7 @@ function newestMtime(dir, filter) {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const full = path.join(current, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === 'lib') continue;
+        if (['node_modules', 'lib', 'dist', '.dsh-build', '.git', 'coverage', '.artifacts'].includes(entry.name)) continue;
         walk(full);
         continue;
       }
@@ -28,11 +30,53 @@ function newestMtime(dir, filter) {
   return newest;
 }
 
+function currentCommit() {
+  const result = spawnSync('git', ['rev-parse', '--short=7', 'HEAD'], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+  });
+  return result.status === 0 ? result.stdout.trim() : '';
+}
+
+function clientSourceMtime() {
+  return newestMtime(harness, (file) => {
+    const normalized = file.replaceAll(path.sep, '/');
+    if (!/(\/packages\/client\/|\/apps\/web\/|\/scripts\/)/.test(normalized)) return false;
+    return /\.(?:tsx?|css|html|json|ya?ml)$/i.test(file);
+  });
+}
+
+function officialBuildReason() {
+  if (!fs.existsSync(clientBuildRecord)) return 'official client build record is missing';
+  let record;
+  try {
+    record = JSON.parse(fs.readFileSync(clientBuildRecord, 'utf8'));
+  } catch {
+    return 'official client build record is invalid';
+  }
+  const environment = record?.environment;
+  if (environment?.DSH_CLIENT_BUILD_PROFILE !== 'official') return 'client build is not official';
+  if (environment?.DSH_CLIENT_TITLE !== 'DeepSeek Harness') return 'client build title is not official';
+  const commit = currentCommit();
+  if (commit && environment?.DSH_CLIENT_COMMIT_HASH !== commit) return 'client build belongs to an older desktop commit';
+  const recordMtime = fs.statSync(clientBuildRecord).mtimeMs;
+  if (clientSourceMtime() > recordMtime + 500) return 'client sources are newer than the official build';
+  return '';
+}
+
 function run(command, args, cwd = root, { shell = process.platform === 'win32' } = {}) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', shell });
   if (result.status !== 0) {
     process.exit(result.status || 1);
   }
+}
+
+const buildReason = officialBuildReason();
+if (buildReason) {
+  console.log(`[prestart] ${buildReason}; rebuilding official client`);
+  const pnpm = path.join(root, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs');
+  run(process.execPath, [pnpm, '--dir', harness, 'run', 'build:official'], root, { shell: false });
 }
 
 // Absolute node paths with spaces break under shell:true on Windows.

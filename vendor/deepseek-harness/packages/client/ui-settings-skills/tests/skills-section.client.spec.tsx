@@ -87,6 +87,8 @@ function props(partial: SkillsOverrides = {}): SkillsSectionProps {
     update: async () => {},
     remove: async () => {},
     setInvocation: async () => {},
+    searchHub: async () => [],
+    installHub: async () => {},
     openDirectory: async () => {},
     ...partial,
   } as SkillsSectionProps
@@ -985,6 +987,90 @@ describe('SkillsSection', () => {
     expect(list).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: en.refresh }))
     await waitFor(() => { expect(list).toHaveBeenCalledTimes(2) })
+  })
+
+  it('searches GitHub skills and installs an exact result after confirmation', async () => {
+    const result = {
+      description: 'Automates browser work',
+      namespace: '',
+      path: 'browser/SKILL.md',
+      repo: 'owner/skills',
+      skillName: 'browser',
+      stars: 42,
+    }
+    const list = vi.fn(async () => ({ skills: [] }))
+    const searchHub = vi.fn(async () => [result])
+    const installHub = vi.fn(async () => {})
+    render(<SkillsSection {...props({ list, searchHub, installHub })} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: en.hubOpen }))
+    let dialog = screen.getByRole('dialog', { name: en.hubTitle })
+    fireEvent.change(within(dialog).getByRole('searchbox', { name: en.hubSearchLabel }), { target: { value: 'browser' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: en.hubSearch }))
+    expect(await within(dialog).findByText(result.skillName)).toBeTruthy()
+    expect(searchHub).toHaveBeenCalledWith('browser', 15, 'user-dsh', {})
+    expect(within(dialog).getByText(/owner\/skills/)).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: en.hubInstall }))
+    dialog = screen.getByRole('dialog', { name: en.hubConfirmTitle })
+    expect(within(dialog).getByText(result.repo)).toBeTruthy()
+    expect(within(dialog).getByText(result.path)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: en.hubInstallConfirm }))
+
+    await waitFor(() => {
+      expect(installHub).toHaveBeenCalledWith(result, 'user-dsh', {})
+      expect(list).toHaveBeenCalledTimes(2)
+    })
+    expect(screen.getByRole('dialog', { name: en.hubTitle })).toBeTruthy()
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: en.hubInstalled }).disabled).toBe(true)
+  })
+
+  it('renders durable installed and local-name conflict search states without an install action', async () => {
+    const installed = {
+      description: 'Installed', namespace: '', path: 'browser/SKILL.md', repo: 'owner/skills',
+      skillName: 'browser', stars: 4, installationStatus: 'installed' as const,
+    }
+    const conflict = {
+      description: 'Conflict', namespace: '', path: 'review/SKILL.md', repo: 'owner/skills',
+      skillName: 'review', stars: 3, installationStatus: 'conflict' as const,
+    }
+    render(<SkillsSection {...props({ searchHub: async () => [installed, conflict] })} />)
+    fireEvent.click(await screen.findByRole('button', { name: en.hubOpen }))
+    const dialog = screen.getByRole('dialog', { name: en.hubTitle })
+    fireEvent.change(within(dialog).getByRole('searchbox', { name: en.hubSearchLabel }), { target: { value: 'skill' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: en.hubSearch }))
+    expect(await within(dialog).findByText(installed.skillName)).toBeTruthy()
+    expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: en.hubInstalled }).disabled).toBe(true)
+    expect(within(dialog).getByRole<HTMLButtonElement>('button', { name: en.hubConflict }).disabled).toBe(true)
+  })
+
+  it('installs GitHub skills into the current project and preserves a failed confirmation', async () => {
+    const result = {
+      description: '', namespace: '', path: '.github/skills/review/SKILL.md',
+      repo: 'owner/project', skillName: 'review', stars: 1,
+    }
+    const installHub = vi.fn(async () => { throw new Error('skill already exists') })
+    render(<SkillsSection {...props({
+      searchHub: async () => [result],
+      installHub,
+      useSessions: sessionHook(sessionState('/work/project')),
+    })} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: en.hubOpen }))
+    let dialog = screen.getByRole('dialog', { name: en.hubTitle })
+    fireEvent.click(within(dialog).getByRole('button', { name: en.scopeProject }))
+    expect(within(dialog).getByText(en.hubProjectScope.replace('{cwd}', '/work/project'))).toBeTruthy()
+    fireEvent.change(within(dialog).getByRole('searchbox', { name: en.hubSearchLabel }), { target: { value: 'review' } })
+    fireEvent.keyDown(within(dialog).getByRole('searchbox', { name: en.hubSearchLabel }), { key: 'Enter' })
+    fireEvent.click(await within(dialog).findByRole('button', { name: en.hubInstall }))
+    dialog = screen.getByRole('dialog', { name: en.hubConfirmTitle })
+    fireEvent.click(within(dialog).getByRole('button', { name: en.hubInstallConfirm }))
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('skill already exists')
+    expect(installHub).toHaveBeenCalledWith(result, 'project-dsh', {
+      sessionId: 'session-1',
+      cwd: '/work/project',
+    })
+    expect(screen.getByRole('dialog', { name: en.hubConfirmTitle })).toBeTruthy()
   })
 
   it('shows the no-results empty state when every row is filtered out', async () => {

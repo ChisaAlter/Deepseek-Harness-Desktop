@@ -5,7 +5,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import {
   IconSettingsOutline16, Switch, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ComposerBeamStyle } from '../../submission-settings.ts'
+import type { ComposerBeamPresets, ComposerBeamStyle } from '../../submission-settings.ts'
 import type { ConversationKey } from '../locales.ts'
 import { BeamSettingsModal } from './BeamSettingsModal.tsx'
 import css from './BeamRow.module.css'
@@ -17,12 +17,16 @@ export interface BeamRowInjected {
     composerBeam: SnapshotStore<boolean>
     /** Persisted composer-beam visual tuning bound as useComposerBeamStyle. */
     composerBeamStyle: SnapshotStore<ComposerBeamStyle>
+    /** Persisted user presets bound as useComposerBeamPresets. */
+    composerBeamPresets: SnapshotStore<ComposerBeamPresets>
     /** Host writability bound as useWritable. */
     writable: SnapshotStore<boolean>
   }
   /** Change whether the composer plays the send/think border beam. */
   setComposerBeam: (value: boolean) => void
-  /** Persist visual tuning for the running composer beam. */
+  /** Persist the active profile and user presets as one namespace mutation. */
+  saveComposerBeamConfiguration: (value: ComposerBeamStyle, presets: ComposerBeamPresets) => Promise<void>
+  /** Backward-compatible single-style setter for existing composition tests and callers. */
   setComposerBeamStyle: (value: ComposerBeamStyle) => void
 }
 
@@ -39,10 +43,12 @@ export type BeamRowProps =
  */
 /* jscpd:ignore-start */
 export function BeamRow({
-  useComposerBeam, useComposerBeamStyle, useWritable, setComposerBeam, setComposerBeamStyle, t,
+  useComposerBeam, useComposerBeamStyle, useComposerBeamPresets, useWritable,
+  setComposerBeam, saveComposerBeamConfiguration, t,
 }: BeamRowProps) {
   const enabled = useComposerBeam(value => value)
   const appearance = useComposerBeamStyle(value => value)
+  const presets = useComposerBeamPresets(value => value)
   const writable = useWritable(value => value)
   const [panelOpen, setPanelOpen] = useState(false)
   const titleId = useId()
@@ -79,8 +85,9 @@ export function BeamRow({
       <BeamSettingsModal
         open={panelOpen}
         value={appearance}
+        presets={presets}
         onClose={() => { setPanelOpen(false) }}
-        onSave={setComposerBeamStyle}
+        onSave={saveComposerBeamConfiguration}
         t={t}
       />
     </div>

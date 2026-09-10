@@ -16,6 +16,7 @@
 
 - `whenReady` 只 `showLauncher()`；`HarnessController.start()` 由启动器在更新检查之后触发。  
 - `HarnessController` 拥有子进程与揭示时机；boot 只消费事件。  
+- 恢复与手动重启共享未完成的 boot 导航；新 Harness 揭示前必须等待旧导航完成，避免迟到的启动页覆盖新界面。
 - 插件装载进度留在 boot，不切官方加载页。  
 - 流程详述：[../flows/boot-to-ready.md](../flows/boot-to-ready.md)
 

@@ -6,6 +6,45 @@
 /** Discovery root a Settings create may write. */
 export type SkillCreateRoot = 'user-dsh' | 'project-dsh'
 
+/** GitHub Skill Hub installation root. */
+export type SkillHubInstallRoot = SkillCreateRoot
+
+/** Search public GitHub skill repositories. */
+export interface SkillHubSearchRequest extends SkillInventoryScope {
+  readonly query: string
+  readonly limit?: number
+  readonly root: SkillHubInstallRoot
+}
+
+/** One exact GitHub Skill Hub search hit. */
+export interface SkillHubSearchResult {
+  readonly description: string
+  readonly namespace: string
+  readonly path: string
+  readonly repo: string
+  readonly skillName: string
+  readonly stars: number
+  readonly installationStatus?: 'available' | 'installed' | 'conflict'
+}
+
+/** Install one exact GitHub search hit into a user or project root. */
+export interface SkillHubInstallRequest extends SkillInventoryScope {
+  readonly repo: string
+  readonly path: string
+  readonly skillName: string
+  readonly root: SkillHubInstallRoot
+}
+
+/** Result of one idempotent, source-pinned GitHub skill installation. */
+export interface SkillHubInstallResult {
+  readonly status: 'installed' | 'already-installed'
+  readonly repo: string
+  readonly path: string
+  readonly skillName: string
+  readonly commit: string
+  readonly directory: string
+}
+
 /** One catalog row for Settings. */
 export interface SkillInventoryEntry {
   readonly name: string

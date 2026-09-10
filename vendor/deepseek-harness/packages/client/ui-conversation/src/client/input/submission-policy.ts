@@ -7,60 +7,41 @@ import {
   createSnapshotStore, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
   BusyEnterBehavior, ComposerSubmitGesture, InputSubmitMode,
 } from '../contract/composer-submission.ts'
 import {
-  BUSY_ENTER_FIELD, COMPOSER_BEAM_DIRECTIONS, COMPOSER_BEAM_FIELD, COMPOSER_BEAM_STYLE_FIELD,
+  BUSY_ENTER_FIELD, COMPOSER_BEAM_FIELD, COMPOSER_BEAM_PRESETS_FIELD, COMPOSER_BEAM_STYLE_FIELD,
   COMPOSER_RESIZE_FIELD,
   COMPOSER_RESIZE_HEIGHT_FIELD, COMPOSER_RESIZE_WIDTH_FIELD,
-  DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM, DEFAULT_COMPOSER_BEAM_STYLE, DEFAULT_COMPOSER_RESIZE,
+  DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM, DEFAULT_COMPOSER_BEAM_PRESETS, DEFAULT_COMPOSER_BEAM_STYLE,
+  DEFAULT_COMPOSER_RESIZE,
   DEFAULT_COMPOSER_RESIZE_HEIGHT, DEFAULT_COMPOSER_RESIZE_WIDTH,
   DEFAULT_OFFICIAL_PEAK_VALLEY, DEFAULT_SESSION_COST, DEFAULT_SESSION_COST_PRICES,
   DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS,
-  MAX_COMPOSER_BEAM_BLOOM, MAX_COMPOSER_BEAM_HUE, MAX_COMPOSER_BEAM_INTENSITY,
-  MAX_COMPOSER_BEAM_PERIOD, MIN_COMPOSER_BEAM_BLOOM, MIN_COMPOSER_BEAM_HUE,
-  MIN_COMPOSER_BEAM_INTENSITY, MIN_COMPOSER_BEAM_PERIOD,
+  normalizeComposerBeamPresets, normalizeComposerBeamStyle,
   OFFICIAL_PEAK_VALLEY_FIELD, SESSION_COST_FIELD, SESSION_COST_PRICES_FIELD,
   STATS_LINE_FIELD, VIEW_TABS_FIELD,
 } from '../../submission-settings.ts'
-import type { ComposerBeamStyle, ConversationSettings, SessionCostPrices } from '../../submission-settings.ts'
+import type { ComposerBeamPresets, ComposerBeamStyle, ConversationSettings, SessionCostPrices } from '../../submission-settings.ts'
 
 export {
-  DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM, DEFAULT_COMPOSER_BEAM_STYLE, DEFAULT_COMPOSER_RESIZE,
+  DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM, DEFAULT_COMPOSER_BEAM_PRESETS, DEFAULT_COMPOSER_BEAM_STYLE,
+  DEFAULT_COMPOSER_RESIZE,
   DEFAULT_COMPOSER_RESIZE_HEIGHT, DEFAULT_COMPOSER_RESIZE_WIDTH,
   DEFAULT_OFFICIAL_PEAK_VALLEY, DEFAULT_SESSION_COST, DEFAULT_SESSION_COST_PRICES,
   DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS,
 } from '../../submission-settings.ts'
 export type { SessionCostModelPrice, SessionCostPrices } from '../../submission-settings.ts'
-
-const clampNumber = (value: unknown, fallback: number, min: number, max: number): number => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
-  return Math.min(max, Math.max(min, value))
-}
-
-/** Normalize a settings-document value before publishing it to render code. */
-export function normalizeComposerBeamStyle(value: unknown): ComposerBeamStyle {
-  const raw = value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Partial<ComposerBeamStyle>
-    : {}
-  return {
-    direction: COMPOSER_BEAM_DIRECTIONS.includes(raw.direction as never)
-      ? raw.direction as ComposerBeamStyle['direction']
-      : DEFAULT_COMPOSER_BEAM_STYLE.direction,
-    period: clampNumber(raw.period, DEFAULT_COMPOSER_BEAM_STYLE.period, MIN_COMPOSER_BEAM_PERIOD, MAX_COMPOSER_BEAM_PERIOD),
-    intensity: clampNumber(raw.intensity, DEFAULT_COMPOSER_BEAM_STYLE.intensity, MIN_COMPOSER_BEAM_INTENSITY, MAX_COMPOSER_BEAM_INTENSITY),
-    bloom: clampNumber(raw.bloom, DEFAULT_COMPOSER_BEAM_STYLE.bloom, MIN_COMPOSER_BEAM_BLOOM, MAX_COMPOSER_BEAM_BLOOM),
-    hue: clampNumber(raw.hue, DEFAULT_COMPOSER_BEAM_STYLE.hue, MIN_COMPOSER_BEAM_HUE, MAX_COMPOSER_BEAM_HUE),
-  }
-}
+export { normalizeComposerBeamPresets, normalizeComposerBeamStyle } from '../../submission-settings.ts'
 
 const sameBeamStyle = (left: ComposerBeamStyle, right: ComposerBeamStyle): boolean =>
-  left.direction === right.direction
-  && left.period === right.period
-  && left.intensity === right.intensity
-  && left.bloom === right.bloom
-  && left.hue === right.hue
+  JSON.stringify(left) === JSON.stringify(right)
+
+const sameBeamPresets = (left: ComposerBeamPresets, right: ComposerBeamPresets): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
 
 /** Last drag-committed composer box size (null = that axis is not customized). */
 export interface ComposerResizeSize {
@@ -80,6 +61,8 @@ export class ComposerSubmissionPolicy {
   readonly composerBeam: SnapshotStore<boolean> = createSnapshotStore(DEFAULT_COMPOSER_BEAM)
   /** Reactive beam-style source shared by Settings and every InputBar. */
   readonly composerBeamStyle: SnapshotStore<ComposerBeamStyle> = createSnapshotStore(DEFAULT_COMPOSER_BEAM_STYLE)
+  /** Reactive user-preset source shared by the beam Settings modal. */
+  readonly composerBeamPresets: SnapshotStore<ComposerBeamPresets> = createSnapshotStore(DEFAULT_COMPOSER_BEAM_PRESETS)
   /** Reactive composer drag-resize source for the Settings row and InputBar. */
   readonly composerResize: SnapshotStore<boolean> = createSnapshotStore(DEFAULT_COMPOSER_RESIZE)
   /** Reactive last-dragged scrollport height for InputBar / ApprovalPanel remounts. */
@@ -161,6 +144,32 @@ export class ComposerSubmissionPolicy {
     if (sameBeamStyle(this.composerBeamStyle.getSnapshot(), next)) return
     this.composerBeamStyle.set(next)
     void this.host?.set(COMPOSER_BEAM_STYLE_FIELD, next)
+  }
+
+  /** Persist the active beam profile and its preset library as one namespace mutation. */
+  async setComposerBeamConfiguration(value: ComposerBeamStyle, presets: ComposerBeamPresets): Promise<void> {
+    const nextStyle = normalizeComposerBeamStyle(value)
+    const nextPresets = normalizeComposerBeamPresets(presets)
+    const styleChanged = !sameBeamStyle(this.composerBeamStyle.getSnapshot(), nextStyle)
+    const presetsChanged = !sameBeamPresets(this.composerBeamPresets.getSnapshot(), nextPresets)
+    if (!styleChanged && !presetsChanged) return
+    if (this.host !== undefined && !this.host.getSnapshot().writable) {
+      throw new Error('composer-beam settings are not writable')
+    }
+    this.composerBeamStyle.set(nextStyle)
+    this.composerBeamPresets.set(nextPresets)
+    if (this.host === undefined) return
+    const ops: SettingsPathOpView[] = [
+      { op: 'set', path: [COMPOSER_BEAM_STYLE_FIELD], value: nextStyle as unknown as JsonValue },
+      { op: 'set', path: [COMPOSER_BEAM_PRESETS_FIELD], value: nextPresets as unknown as JsonValue },
+    ]
+    await this.host.mutate(ops, this.host.getSnapshot().revision)
+    const accepted = this.host.getSnapshot().value
+    if (accepted === undefined
+      || !sameBeamStyle(normalizeComposerBeamStyle(accepted.composerBeamStyle), nextStyle)
+      || !sameBeamPresets(normalizeComposerBeamPresets(accepted.composerBeamPresets), nextPresets)) {
+      throw new Error('composer-beam settings were rejected by the Host')
+    }
   }
 
   /**
@@ -266,6 +275,10 @@ export class ComposerSubmissionPolicy {
     const nextBeamStyle = normalizeComposerBeamStyle(section.composerBeamStyle)
     if (!sameBeamStyle(this.composerBeamStyle.getSnapshot(), nextBeamStyle)) {
       this.composerBeamStyle.set(nextBeamStyle)
+    }
+    const nextBeamPresets = normalizeComposerBeamPresets(section.composerBeamPresets)
+    if (!sameBeamPresets(this.composerBeamPresets.getSnapshot(), nextBeamPresets)) {
+      this.composerBeamPresets.set(nextBeamPresets)
     }
     const nextResize = section.composerResize === true
     if (this.composerResize.getSnapshot() !== nextResize) this.composerResize.set(nextResize)

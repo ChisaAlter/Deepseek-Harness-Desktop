@@ -588,7 +588,7 @@ Notes for using the `str_replace` command:
     },
     "path": {
       "type": "string",
-      "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`."
+      "description": "Absolute path to a file or directory. On Windows, use a drive-letter path such as `C:\\repo\\file.py` or a UNC path such as `\\\\server\\share\\file.py`; on POSIX, use a path such as `/repo/file.py`."
     },
     "file_text": {
       "oneOf": [

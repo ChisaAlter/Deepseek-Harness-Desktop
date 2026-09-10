@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import {
   CONVERSATION_SETTINGS_NAMESPACE, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM,
-  DEFAULT_COMPOSER_BEAM_STYLE, DEFAULT_COMPOSER_RESIZE, DEFAULT_OFFICIAL_PEAK_VALLEY,
+  DEFAULT_COMPOSER_BEAM_PRESETS, DEFAULT_COMPOSER_BEAM_STYLE, DEFAULT_COMPOSER_RESIZE, DEFAULT_OFFICIAL_PEAK_VALLEY,
   DEFAULT_STATS_LINE, DEFAULT_VIEW_TABS, apply,
 } from '@deepseek-ai/dsh-client-ui-conversation'
 
@@ -25,6 +25,7 @@ describe('ui-conversation host', () => {
     expect(ctx.settings.get(ns)).toEqual({
       busyEnter: DEFAULT_BUSY_ENTER_BEHAVIOR,
       composerBeam: DEFAULT_COMPOSER_BEAM,
+      composerBeamPresets: DEFAULT_COMPOSER_BEAM_PRESETS,
       composerBeamStyle: DEFAULT_COMPOSER_BEAM_STYLE,
       composerResize: DEFAULT_COMPOSER_RESIZE,
       statsLine: DEFAULT_STATS_LINE,
@@ -34,19 +35,40 @@ describe('ui-conversation host', () => {
     await ctx.settings.update(ns, {
       busyEnter: 'steer', composerBeam: false, composerResize: true,
       composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, period: 3, hue: 45 },
+      composerBeamPresets: {
+        calm: { ...DEFAULT_COMPOSER_BEAM_STYLE, mode: 'lounge' },
+      },
       composerResizeHeight: 160, composerResizeWidth: 480,
       statsLine: false, officialPeakValley: true, viewTabs: false,
     })
     expect(ctx.settings.get(ns)).toEqual({
       busyEnter: 'steer', composerBeam: false, composerResize: true,
       composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, period: 3, hue: 45 },
+      composerBeamPresets: {
+        calm: { ...DEFAULT_COMPOSER_BEAM_STYLE, mode: 'lounge' },
+      },
       composerResizeHeight: 160, composerResizeWidth: 480,
       statsLine: false, officialPeakValley: true, viewTabs: false,
+    })
+    await ctx.settings.update(ns, {
+      composerBeamStyle: {
+        direction: 'clockwise', period: 1.96, intensity: 100, bloom: 100, hue: 0,
+      } as never,
+    })
+    expect(ctx.settings.get(ns)).toMatchObject({
+      composerBeamStyle: {
+        ...DEFAULT_COMPOSER_BEAM_STYLE,
+        direction: 'clockwise', period: 1.96, intensity: 100, bloom: 100, hue: 0,
+      },
     })
     await expect(ctx.settings.update(ns, { busyEnter: 'invalid' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerBeam: 'yes' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, period: 99 } })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, direction: 'sideways' } })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, { composerBeamStyle: { ...DEFAULT_COMPOSER_BEAM_STYLE, trackWidth: 9 } })).rejects.toThrow()
+    await expect(ctx.settings.update(ns, {
+      composerBeamPresets: { broken: { ...DEFAULT_COMPOSER_BEAM_STYLE, palette: { kind: 'custom', colors: ['#fff'] } } },
+    })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerResize: 'yes' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerResizeHeight: 'tall' })).rejects.toThrow()
     await expect(ctx.settings.update(ns, { composerResizeWidth: 'wide' })).rejects.toThrow()

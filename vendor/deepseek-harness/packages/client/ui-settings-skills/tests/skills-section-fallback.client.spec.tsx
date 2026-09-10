@@ -65,6 +65,8 @@ function props(partial: Partial<SkillsSectionInjected> & Partial<Pick<SkillsSect
     update: async () => {},
     remove: async () => {},
     setInvocation: async () => {},
+    searchHub: async () => [],
+    installHub: async () => {},
     openDirectory: async () => {},
     ...partial,
   } as SkillsSectionProps

@@ -51,7 +51,7 @@ describe('ComposerBeam.module.css thinking beam hit testing', () => {
     const bloom = declarations(beamCss, '.beamBloom')
     const source = declarations(beamCss, '.beamBloom::before')
     expect(bloom?.get('inset')).toBe('0')
-    expect(bloom?.get('filter')).toBe('blur(8px) brightness(1.3) saturate(1.2)')
+    expect(bloom?.get('filter')).toBe('blur(var(--dsh-composer-beam-glow-blur, 8px)) brightness(1.3) saturate(1.2)')
     expect(bloom?.has('clip-path')).toBe(false)
     expect(bloom?.has('mask')).toBe(false)
     expect(source?.get('content')).toBe("''")
@@ -60,12 +60,12 @@ describe('ComposerBeam.module.css thinking beam hit testing', () => {
     expect(source?.get('border-radius')).toBe('22px')
     expect(source?.get('mask-composite')).toBe('exclude')
     expect(declarations(beamCss, '.cardBeam .beamBloom')?.get('opacity'))
-      .toBe('var(--dsh-composer-beam-bloom-opacity, 0.36)')
+      .toContain('var(--dsh-composer-beam-bloom-opacity, 0.36)')
   })
 
   it('uses the reference rotating intensity window without clipping the corner arcs twice', () => {
     const stroke = declarations(beamCss, '.beamStroke')
-    expect(stroke?.get('padding')).toBe('2px')
+    expect(stroke?.get('padding')).toBe('var(--dsh-composer-beam-track-width, 2px)')
     for (const property of ['-webkit-mask', 'mask']) {
       const mask = stroke?.get(property)
       expect(mask).toBeDefined()
@@ -79,7 +79,7 @@ describe('ComposerBeam.module.css thinking beam hit testing', () => {
     expect(stroke?.get('-webkit-mask-composite')).toBe('source-in, xor')
     expect(stroke?.get('mask-composite')).toBe('intersect, exclude')
     expect(declarations(beamCss, '.cardBeam .beamStroke')?.get('opacity'))
-      .toBe('var(--dsh-composer-beam-stroke-opacity, 0.6)')
+      .toContain('var(--dsh-composer-beam-stroke-opacity, 0.6)')
 
     const inner = declarations(beamCss, '.beamInner')
     for (const property of ['-webkit-mask', 'mask']) {
@@ -98,11 +98,17 @@ describe('ComposerBeam.module.css thinking beam hit testing', () => {
   })
 
   it('keeps customization on variables without changing beam geometry', () => {
-    expect(beamCss).toContain(
-      'animation: dsh-composer-beam-spin var(--dsh-composer-beam-period, 1.96s) linear infinite;',
-    )
+    expect(declarations(beamCss, '.cardBeam')?.get('animation-name')).toBe('dsh-composer-beam-spin')
+    expect(declarations(beamCss, '.cardBeam')?.get('animation-duration'))
+      .toBe('var(--dsh-composer-beam-period, 1.96s)')
+    expect(declarations(beamCss, '.cardBeam')?.get('animation-timing-function'))
+      .toBe('var(--dsh-composer-beam-easing, linear)')
     expect(declarations(beamCss, ".cardBeam[data-beam-direction='counterclockwise']")?.get('animation-direction'))
       .toBe('reverse')
+    expect(declarations(beamCss, ".cardBeam[data-beam-direction='pingPong']")?.get('animation-direction'))
+      .toBe('alternate')
     expect(beamCss).toContain('var(--dsh-composer-beam-hue-offset, 0deg)')
+    expect(beamCss).toContain('data-beam-breathing')
+    expect(beamCss).toContain('dsh-composer-beam-breathe')
   })
 })

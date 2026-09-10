@@ -7,6 +7,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply as settingsApply, inject as settingsInject } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-general/client'
+import type { SettingsNavigation } from '@deepseek-ai/dsh-client-ui-settings-general/client'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
 import { InterfaceSection } from '../src/client/InterfaceSection.tsx'
@@ -97,6 +98,12 @@ describe('ui-settings-general apply', () => {
       expect(before.slots.entries(name)[0]!.component).toBe(component)
     }
     const entry = generalEntry(before.slots)!
+    const navigation = before.ctx.get('settingsNavigation') as SettingsNavigation
+    expect(navigation).toBeDefined()
+    navigation.open('skills')
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: 'skills' })
+    navigation.close()
+    expect(navigation.getSnapshot()).toEqual({ open: false, sectionId: undefined })
     expect(entry.options).toMatchObject({ id: 'general', order: 0 })
     // The nav label is a locale-following thunk; owners resolve at read time.
     expect(resolveSlotLabel(entry.options.label)).toBe('通用设置')
@@ -151,6 +158,7 @@ describe('ui-settings-general apply', () => {
     expect(b.locale.bind('settings')('connection.reconnect')).toBe('Disconnected, reconnect now')
     b.locale.setLocale('zh')
     await fiber.dispose()
+    expect(b.ctx.get('settingsNavigation')).toBeUndefined()
     // The (ns, locale) seats are free again — the dictionary disposer ran.
     expect(() => b.locale.register('settings', 'zh', {})).not.toThrow()
     expect(() => b.locale.register('settings', 'en', {})).not.toThrow()

@@ -69,6 +69,7 @@ class HarnessController extends EventEmitter {
     this.operation = null;
     this.operationGeneration = 0;
     this.restartOperation = null;
+    this.bootOperation = null;
     this.recoveryTimer = null;
     this.stableTimer = null;
     this.recoveryTask = null;
@@ -157,7 +158,15 @@ class HarnessController extends EventEmitter {
   }
 
   async ensureBootVisible() {
-    await this.showBoot();
+    if (!this.bootOperation) {
+      // A stale recovery navigation must settle before a new restart reveals
+      // Harness; otherwise it can cover the newly ready BrowserView afterward.
+      const task = Promise.resolve().then(() => this.showBoot()).finally(() => {
+        if (this.bootOperation === task) this.bootOperation = null;
+      });
+      this.bootOperation = task;
+    }
+    await this.bootOperation;
   }
 
   async beginRuntimeRecovery() {
@@ -406,7 +415,7 @@ class HarnessController extends EventEmitter {
   async performStartOnce({ showBoot, generation, skipUserPlugins }) {
     const win = this.createMainWindow();
     if (showBoot) {
-      await this.showBoot();
+      await this.ensureBootVisible();
     }
     this.assertOperationCurrent(generation);
     this.dsh.setState('starting', { error: '', failure: null });

@@ -594,7 +594,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
     },
     "path": {
       "type": "string",
-      "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`."
+      "description": "Absolute path to a file or directory. On Windows, use a drive-letter path such as `C:\\repo\\file.py` or a UNC path such as `\\\\server\\share\\file.py`; on POSIX, use a path such as `/repo/file.py`."
     },
     "file_text": {
       "oneOf": [

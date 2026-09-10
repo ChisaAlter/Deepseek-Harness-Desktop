@@ -323,6 +323,35 @@ describe('the shipped Web composition', () => {
     }
   })
 
+  it('keeps native absolute editor paths usable in the minimal preset', async () => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId(`preset-minimal-editor-paths-${randomUUID()}`),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'minimal').then(() => undefined),
+    })
+    const execute = (path: string) => ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId(`minimal-editor-path-${randomUUID()}`),
+      name: 'str_replace_editor',
+      arguments: { command: 'view', path },
+      agent: handle.agent,
+    })
+    try {
+      const absolute = await execute(join(REPO_ROOT, 'package.json'))
+      expect(absolute.isError).toBe(false)
+      expect(JSON.stringify(absolute.content)).toContain('@deepseek-ai/dsh-root')
+      const relative = await execute('package.json')
+      expect(relative.isError).toBe(true)
+      expect(JSON.stringify(relative.content)).toContain('is not an absolute path')
+      expect(JSON.stringify(relative.content)).not.toContain('should start with')
+      expect(JSON.stringify(relative.content)).not.toContain('Maybe you meant /package.json')
+      const missing = await execute(join(REPO_ROOT, `missing-${randomUUID()}`, 'package.json'))
+      expect(missing.isError).toBe(true)
+      expect(JSON.stringify(missing.content)).toContain('does not exist')
+    } finally {
+      await handle.dispose()
+    }
+  })
+
   it('keeps two differently composed sessions independent', async () => {
     const full = await ctx.agents.create({
       sessionId: SessionId('preset-both-full'),

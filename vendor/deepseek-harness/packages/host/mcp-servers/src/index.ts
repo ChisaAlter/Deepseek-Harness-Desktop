@@ -9,11 +9,13 @@ import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from 'zod'
 import type { McpServerRecord } from '@deepseek-ai/dsh-mcp-servers-file'
 import { maskRecordSecrets } from '@deepseek-ai/dsh-mcp-servers-file'
+import { testMcpServer } from './test-connection.ts'
 import type {
   McpServerEnableRequest,
   McpServerEntry,
   McpServerIdRequest,
   McpServerSnapshot,
+  McpServerTestResult,
   McpServerUpsertRequest,
 } from './types.ts'
 
@@ -132,6 +134,19 @@ export class McpServersGateway extends TypertRemoteService {
   }
 
   /**
+   * Make one isolated MCP connection and discover its tools without changing
+   * the managed document or the live Loader child.
+   * @param request - record id from the managed or composition catalog.
+   * @param signal - Remote invocation cancellation signal.
+   * @returns the one-shot connection result.
+   */
+  @Remote('test')
+  async test(request: McpServerIdRequest, signal: AbortSignal): Promise<McpServerTestResult> {
+    const record = this.recordForTest(request.id)
+    return testMcpServer(record, signal)
+  }
+
+  /**
    * Open a browser OAuth login for one managed HTTP server, persist the bearer
    * token, and remount the child so its tools are live.
    * @param request - record id.
@@ -148,6 +163,20 @@ export class McpServersGateway extends TypertRemoteService {
     if (match !== undefined && match.origin === 'composition') {
       throw new Error(`mcpServers: server "${id}" comes from composition and is read-only`)
     }
+  }
+
+  private recordForTest(id: string): McpServerRecord {
+    const managed = this.ctx.mcpServersFile.listManagedRaw().find(entry => entry.id === id)
+    if (managed !== undefined) return managed
+    const composition = [...this.ctx.loader.entries()].find(entry => {
+      if (entry.options.group || !isMcpClientName(entry.options.name)) return false
+      return entry.id === id
+    })
+    const record = composition === undefined ? undefined : compositionSpec(composition.id, composition.options.config)
+    if (record === undefined) {
+      throw new Error(`mcpServers: server "${id}" is not present in the managed or composition catalog`)
+    }
+    return record
   }
 }
 

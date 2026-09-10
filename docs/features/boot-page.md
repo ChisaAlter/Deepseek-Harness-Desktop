@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `boot-page` |
 | **status** | `active` |
+| **last verified (restart)** | 2026-09-08 — 105 项 controller/window/IPC 检查通过；延迟 boot 导航回归及隔离 Electron 内置重启恢复可见 Bot 界面通过 |
 | **last verified** | 2026-09-01 — `window-harness-cover` 的 showBoot 用例按 `REMOTE_FEATURE_ENABLED` 断言 `--dshd-remote-feature`（停放为 `0`），不再因旧 `=1` 断言在 `showBoot()` 前失败而挂死插件 boot watch。此前 2026-08-26 — D3 双恢复面收敛：错误态新增「回启动器排查」跳板（`shell:open-launcher` 放开 BOOT 角色、boot 发起附带 show-tab home 直达 Recovery Board）；boot 页动作固定为瞬时三件（重试 / 取消自动重启 / 下载日志）+ 跳板，插件级恢复只在 Recovery Board。此前 2026-08-23 — 验收合同改为 CI 安装包全表；`qa:packaged` 仅 rehearsal |
 
 ## User paths
@@ -17,6 +18,7 @@
 - 启动页是整窗仪器画布例外；`--boot-*` **不得**扩散到启动器、设置、关闭遮罩、标题栏或官方 Web UI。
 - 禁止 NERV / MAGI / SEELE / EVA 等商标或官方标志挪用。
 - 插件装载进度留在 boot 画布。
+- 未完成的 boot 导航由恢复与手动重启共享等待；旧导航不得在新的 Harness 揭示后覆盖主界面。
 - 恢复动作与 [plugin-recovery 流程](../handbook/flows/plugin-recovery.md) 一致。
 - boot 页动作面 = 瞬时动作（重试 / 取消自动重启 / 下载日志）+「回启动器排查」跳板，仅此四件；插件级恢复操作**只**存在于启动器 Recovery Board，boot 页不得长出自己的副本（`boot-recovery.test.js` 钉死动作行内容）。跳板仅在 settled `error` 态出现（自动重启排程/进行中不出现），经 `shell:open-launcher`（BOOT 角色 → 启动器 home tab）。
 - 覆盖安装同一桌面版本时，`userData/runtime/<version>` 必须与安装包 Harness pin + 归档大小一致；无戳或戳不匹配则重新解压。不得只因 `bin.js` 存在而沿用旧 runtime。

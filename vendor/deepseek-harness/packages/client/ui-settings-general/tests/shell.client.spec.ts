@@ -127,6 +127,12 @@ describe('ui-settings apply', () => {
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const injected = injectedOf(b.slots)
     expect(injected.hooks.connectionState).toBe(b.connectionState)
+    const navigation = b.ctx.get('settingsNavigation')!
+    injected.openSettings('skills')
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: 'skills' })
+    expect(injected.hooks.navigation.getSnapshot() === navigation.getSnapshot()).toBe(true)
+    injected.closeSettings()
+    expect(navigation.getSnapshot()).toEqual({ open: false, sectionId: undefined })
     injected.reconnect()
     expect(b.reconnect).toHaveBeenCalledOnce()
   })

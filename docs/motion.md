@@ -160,7 +160,7 @@ composer 上四个浮层共用此时长：加号斜杠菜单、权限 `Menu`、�
 | 家族 | 实例（周期） |
 | --- | --- |
 | 骨架扫光 | ReasoningRow / ToolRow / SkillRow / GenericCommandCard / bash-sample 的行扫光 2.6s；`MenuView` 菜单骨架 2s |
-| Composer 光束 | `InputBar`：`beam-spin` 默认 1.96s（设置可调方向与周期）、`beam-hue` 12s、`beam-hue-bloom` 12s、光束层淡入 420ms；设置弹窗只缩放 stroke / inner / bloom 强度并施加整体 hue offset，不改变窗口、宽度、blur 或裁切几何；参照 Libraries.dev Rotate，2px / 0.6 stroke 与双 conic inner 形成移动亮峰和透明尾迹，不做重复 `clip-path`；bloom 为 4px 圆角裁切壳内的 `blur(8px)` / 0.36；`mobile/web` 手机端仍复刻默认时间值，不跟随桌面自定义 |
+| Composer 光束 | `InputBar`：`beam-spin` 默认 1.96s（设置可调顺/逆/往返方向与 0.8～60s 周期）、`beam-hue` 默认 12s（可关闭并调整范围/周期）、呼吸可独立开关；模式、色板、色相、夜间时段和缓动只作用于运行态视觉 profile。stroke track width 可调 0.5～4px，bloom blur 可调 0～12px；1.5px bloom 光源、4px 圆角裁切壳、22px 圆角、两层 ring mask 与强度窗口保持固定；不做重复 `clip-path`。`mobile/web` 手机端仍复刻默认时间值，不跟随桌面自定义 |
 | Spinner | `TodoPanel` 1s、`GitProgressToast` 0.7s、`AppearanceSection` 图库 0.7s、`TrajectoryTable` 历史加载 700ms、`TurnNavigator` busy 1s、`ChatView` 回合状态 1.8s、`MessageItem` 重试 1.6s、`InputBar` 待发 1s |
 | 指示灯 | `StateDot` 追逐 1s（行内 `-125ms` 错相）、`ConnectionIndicator` 点阵 1.5s step-end |
 | 手机 flow | `mobile/web`：`flow-dot-spin` 0.9s、`flow-sweep` 2.6s、`flow-caret` 1s steps(2) |

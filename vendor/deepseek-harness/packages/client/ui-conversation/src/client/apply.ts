@@ -168,9 +168,12 @@ export function apply(ctx: Context, config: Config = Config({})): void {
       hooks: {
         composerBeam: submissionPolicy.composerBeam,
         composerBeamStyle: submissionPolicy.composerBeamStyle,
+        composerBeamPresets: submissionPolicy.composerBeamPresets,
         writable: submissionPolicy.writable,
       },
       setComposerBeam: (value) => { submissionPolicy.setComposerBeam(value) },
+      saveComposerBeamConfiguration: (value, presets) =>
+        submissionPolicy.setComposerBeamConfiguration(value, presets),
       setComposerBeamStyle: (value) => { submissionPolicy.setComposerBeamStyle(value) },
     }),
   }, BeamRow))

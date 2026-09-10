@@ -4,11 +4,12 @@
  * a pure composition face — every piece of text (trigger label, panel title,
  * close label, sections) arrives from registrants through slots; accessible
  * names resolve to that content (trigger: its own text; dialog:
- * aria-labelledby the title node; close: visually-hidden slot text). Modal
- * open state and the active section id are component-local viewing state;
+ * aria-labelledby the title node; close: visually-hidden slot text). The
+ * SettingsNavigation service owns modal visibility and requested section state;
  * the onboarding coordinator mounts exactly one ordered registrant while the
  * sessions-derived empty-Hero fact is active. Visible dialog chrome belongs
- * to the step, so a mounted-but-deciding step paints nothing here.
+ * to the step, so a mounted-but-deciding step paints nothing here. Callers can
+ * open the shell before this component mounts.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -140,28 +141,25 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
  */
 export function SettingsRoot(props: SettingsRootComponentProps) {
   const {
-    wide, reconnect, useConnectionState, useSections, useOnboardingSteps, useSessions, renderSlot, t,
+    wide, reconnect, openSettings, closeSettings, useConnectionState, useNavigation,
+    useSections, useOnboardingSteps, useSessions, renderSlot, t,
   } = props
-  const [open, setOpen] = useState(false)
-  const [activeId, setActiveId] = useState<string | undefined>(undefined)
   const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set())
   const [showRecovery, setShowRecovery] = useState(false)
   const triggerButton = useRef<HTMLButtonElement | null>(null)
+  const navigation = useNavigation(state => state)
+  const { open, sectionId: activeId } = navigation
   const wasOpen = useRef(open)
   const { mounted, state } = usePresence(open)
-  const close = useCallback(() => {
-    setOpen(false)
-    setActiveId(undefined)
-  }, [])
+  const close = useCallback(() => { closeSettings() }, [closeSettings])
   // Restore after the close commit, when the dialog can no longer own focus.
   useEffect(() => {
     if (wasOpen.current && !open) triggerButton.current?.focus()
     wasOpen.current = open
   }, [open])
   const openSection = useCallback((id: string) => {
-    setActiveId(id)
-    setOpen(true)
-  }, [])
+    openSettings(id)
+  }, [openSettings])
 
   // The ledger tick keeps the nav rows fresh: registrants re-register with
   // freshly localized text on locale change, and the trigger/header/close
@@ -221,7 +219,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           data-dsh-settings-trigger
           aria-haspopup="dialog"
           aria-expanded={open}
-          onClick={() => { setOpen(true) }}
+          onClick={() => { openSettings() }}
         >
           {renderSlot('settings.trigger', { wide })}
         </button>
@@ -244,7 +242,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           activeId={activeId}
           motionState={state}
           open={open}
-          onSelect={setActiveId}
+          onSelect={openSection}
           onClose={close}
         />
       )}

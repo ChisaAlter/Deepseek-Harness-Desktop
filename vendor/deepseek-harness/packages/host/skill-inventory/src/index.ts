@@ -13,7 +13,13 @@ import type {} from '@deepseek-ai/dsh-skill'
 import { RemoteError, TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from 'zod'
 import { parseSkillMarkdown, renderSkillInvocationMarkdown, renderSkillMarkdown } from './frontmatter.ts'
+import { installGithubSkill, searchGithubSkills } from './hub.ts'
 import type {
+  SkillHubInstallRequest,
+  SkillHubInstallResult,
+  SkillHubInstallRoot,
+  SkillHubSearchRequest,
+  SkillHubSearchResult,
   SkillInventoryCreateRequest,
   SkillInventoryDetail,
   SkillInventoryEntry,
@@ -30,6 +36,13 @@ export { parseSkillMarkdown, renderSkillMarkdown } from './frontmatter.ts'
 
 const WRITABLE_ALWAYS = new Set(['user-dsh', 'user-agents'])
 const WRITABLE_WITH_CWD = new Set(['project-dsh', 'project-agents'])
+const HUB_SOURCE_FILE = '.dsh-github-source.json'
+
+interface HubSourceRecord {
+  readonly repo: string
+  readonly path: string
+  readonly commit: string
+}
 
 interface ResolvedSkillView {
   readonly registry: SkillRegistry
@@ -169,6 +182,46 @@ export class SkillInventoryGateway extends TypertRemoteService {
     view.registry.invalidate()
   }
 
+  /** Search the public GitHub Agent Skills catalog through GitHub CLI. */
+  @Remote('searchHub')
+  async searchHub(request: SkillHubSearchRequest): Promise<readonly SkillHubSearchResult[]> {
+    const target = await hubTarget(request.root, request.cwd)
+    const results = await searchGithubSkills(request.query, request.limit ?? 15)
+    return Promise.all(results.map(async result => ({
+      ...result,
+      installationStatus: await hubInstallationStatus(target, result),
+    })))
+  }
+
+  /** Install one exact GitHub skill result into a writable DSH root. */
+  @Remote('installHub')
+  async installHub(request: SkillHubInstallRequest): Promise<SkillHubInstallResult> {
+    if (!isSkillName(request.skillName)) {
+      throw new Error(`skillInventory: GitHub skill name "${request.skillName}" is not kebab-case`)
+    }
+    const view = this.resolveView(request)
+    const target = await hubTarget(request.root, request.cwd)
+    const status = await hubInstallationStatus(target, request)
+    const directory = join(target, request.skillName)
+    const previous = await readHubSource(directory)
+    if (status === 'installed' && previous !== undefined) {
+      return { status: 'already-installed', ...request, commit: previous.commit, directory }
+    }
+    if (status === 'conflict') {
+      throw new Error(`skillInventory: skill "${request.skillName}" already exists from an unknown or different source`)
+    }
+    await mkdir(target, { recursive: true, mode: 0o700 })
+    const commit = await installGithubSkill(request.repo, request.path, target)
+    await access(join(directory, 'SKILL.md'))
+    await writeFile(join(directory, HUB_SOURCE_FILE), JSON.stringify({
+      repo: request.repo,
+      path: request.path,
+      commit,
+    } satisfies HubSourceRecord, null, 2), { encoding: 'utf8', mode: 0o600 })
+    view.registry.invalidate()
+    return { status: 'installed', ...request, commit, directory }
+  }
+
   private resolveView(request: SkillInventoryScope): ResolvedSkillView {
     const cwd = emptyToUndefined(request.cwd)
     const agent = this.sessionAgent(request.sessionId)
@@ -210,6 +263,43 @@ export class SkillInventoryGateway extends TypertRemoteService {
       throw new Error(`skillInventory: skill "${name}" is read-only`)
     }
     return definition as SkillDefinition & { path: string }
+  }
+}
+
+async function hubTarget(root: SkillHubInstallRoot, cwd: string | undefined): Promise<string> {
+  return root === 'user-dsh'
+    ? join(resolveDshHome(), 'skills')
+    : join(await requireProjectRoot(cwd), '.dsh', 'skills')
+}
+
+export async function hubInstallationStatus(
+  target: string,
+  result: Pick<SkillHubSearchResult, 'repo' | 'path' | 'skillName'>,
+): Promise<'available' | 'installed' | 'conflict'> {
+  if (!isSkillName(result.skillName)) return 'conflict'
+  const directory = join(target, result.skillName)
+  const source = await readHubSource(directory)
+  if (source !== undefined) {
+    return source.repo === result.repo && source.path === result.path ? 'installed' : 'conflict'
+  }
+  try {
+    await access(join(directory, 'SKILL.md'))
+    return 'conflict'
+  } catch {
+    return 'available'
+  }
+}
+
+async function readHubSource(directory: string): Promise<HubSourceRecord | undefined> {
+  try {
+    const value: unknown = JSON.parse(await readFile(join(directory, HUB_SOURCE_FILE), 'utf8'))
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined
+    const row = value as Record<string, unknown>
+    if (typeof row.repo !== 'string' || typeof row.path !== 'string' || typeof row.commit !== 'string') return undefined
+    if (!/^[0-9a-f]{40}$/i.test(row.commit)) return undefined
+    return { repo: row.repo, path: row.path, commit: row.commit.toLowerCase() }
+  } catch {
+    return undefined
   }
 }
 
@@ -290,6 +380,13 @@ async function findProjectRoot(cwd: string): Promise<string> {
       current = parent
     }
   }
+}
+
+async function requireProjectRoot(cwd: string | undefined): Promise<string> {
+  if (cwd === undefined || cwd.trim().length === 0) {
+    throw new Error('skillInventory: installing a project skill requires cwd')
+  }
+  return findProjectRoot(cwd)
 }
 
 function bundleRoot(path: string): string {

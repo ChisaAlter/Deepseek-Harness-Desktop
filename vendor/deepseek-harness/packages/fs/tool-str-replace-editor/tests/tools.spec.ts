@@ -101,9 +101,11 @@ describe('tool-str-replace-editor', () => {
         type?: string
         items?: { type?: string }
         oneOf?: { type?: string; items?: { type?: string } }[]
+        description?: string
       }>
     }).properties
     expect(properties).not.toHaveProperty('replace_all')
+    expect(properties.path?.description).toBe('Absolute path to a file or directory. On Windows, use a drive-letter path such as `C:\\repo\\file.py` or a UNC path such as `\\\\server\\share\\file.py`; on POSIX, use a path such as `/repo/file.py`.')
     expect(properties.file_text?.oneOf?.map(option => option.type)).toEqual(['string', 'null'])
     expect(properties.insert_line?.oneOf?.map(option => option.type)).toEqual(['integer', 'null'])
     expect(properties.new_str?.oneOf?.map(option => option.type)).toEqual(['string', 'null'])
@@ -265,6 +267,7 @@ describe('tool-str-replace-editor', () => {
     const missing = await call(ctx, owner, { command: 'view', path: sample })
     expect(missing.isError).toBe(true)
     expect(missing.error).toMatchObject({ info: { code: 'FS_NOT_FOUND' } })
+    expect(text(missing)).toContain('Use the shell to list the parent directory and confirm the exact filename')
 
     const edit = await call(ctx, owner, {
       command: 'str_replace',
@@ -440,7 +443,32 @@ describe('tool-str-replace-editor', () => {
     const relative = await call(ctx, owner, { command: 'view', path: 'ambiguous.txt' })
     expect(relative.isError).toBe(true)
     expect(text(relative)).toContain('is not an absolute path')
+    if (process.platform === 'win32') {
+      expect(text(relative)).toContain('Use a Windows drive-letter path such as `C:\\repo\\file.py` or a UNC path such as `\\\\server\\share\\file.py`.')
+    } else {
+      expect(text(relative)).toContain('Use a POSIX path such as `/repo/file.py`.')
+    }
+    expect(text(relative)).not.toContain('Maybe you meant')
     expect(await readFile(ambiguous, 'utf8')).toBe('alpha\nbeta\nmiddle\nalpha\nbeta')
+  })
+
+  it('keeps platform-specific path acceptance without relaxing POSIX validation', async () => {
+    const { ctx, root, owner } = await setup()
+    const path = join(root, 'platform-path.txt')
+    await writeFile(path, 'platform')
+
+    expect((await call(ctx, owner, { command: 'view', path })).isError).toBe(false)
+    if (process.platform === 'win32') {
+      const forwardSlashPath = path.replaceAll('\\', '/')
+      expect(forwardSlashPath).toContain('/')
+      expect(forwardSlashPath).not.toContain('\\')
+      expect((await call(ctx, owner, { command: 'view', path: forwardSlashPath })).isError).toBe(false)
+    } else {
+      const windowsPath = String.raw`C:\workspace\platform-path.txt`
+      const rejected = await call(ctx, owner, { command: 'view', path: windowsPath })
+      expect(rejected.isError).toBe(true)
+      expect(text(rejected)).toContain('Use a POSIX path such as `/repo/file.py`.')
+    }
   })
 
   it('reports invalid commands or arguments without mutating files', async () => {

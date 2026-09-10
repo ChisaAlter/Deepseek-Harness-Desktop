@@ -61,7 +61,130 @@ The plugin marketplace does not inject a first-party dshbot recommendation card.
 15. **Product copy is Chinese; code comments are English.** Do not import VS Code / Material / iOS density or decoration over the baseline Web UI.
 16. **Sidebar brand follows the baseline build.** `setup:harness` runs the vendor tree's own `pnpm run build:official` (`DSH_CLIENT_BUILD_PROFILE=official`). The sidebar shows the baseline whale mark and DeepSeek Harness wordmark, not the local-build fallback “DSH Local Build”. Rebuild client changes with that same command; a lone `build:lib:client` bakes the local-build brand back in.
 
+## Standalone dshbot workflows
+
+Plugin-owned persistent sessions do not use the generic New Session brand hero.
+Managed Bot and room sessions keep the real Bot/room title, composer and message
+canvas. Their top chrome retains only that title plus desktop window and
+sidebar/workbench panel controls; it omits the generic preset label, trajectory
+switch, Session-log download, Git branch and Commit actions. Plugin bodies may
+provide their own member, settings and disband controls as Hermes Bots rooms do,
+without mixing development-session tools into the Bot workflow. Ordinary
+session lists, search and blank-session reuse exclude plugin-owned sessions;
+the plugin entry can still open every bound session.
+
+Bot and room conversations reuse the editor, attachment, send/stop and theme
+primitives. An explicit generic managed-composer presentation flag removes the
+independent model picker, workspace permission shortcut, plan controls, developer
+statistics and preset label. A plugin control shows the Bot profile model and
+opens its editor; rooms open room settings without a fictitious shared model.
+The Bot profile owns model selection, with an unset value following the current
+application default. Opening a contact never changes that default. Presentation
+does not bypass capability restrictions or tool approvals. Hermes provides the
+shared-editor and profile-following precedent; the single profile entry point
+is this product's adaptation, not a claim that Hermes removed its model picker.
+
+When a managed composer hides the developer statistics row, it still reserves
+the same footer height as an ordinary conversation so the input card keeps the
+same breathing room from the viewport edge in chats, Bot conversations, and
+rooms. The expanded sidebar's primary region switch fills the available width
+and divides it equally between options. The Bot page's Contacts / Tasks /
+Routines switch uses that same 32px-high, 8px-radius region-tab contract with a
+transparent resting surface and the shared hover/selected tokens; it also fills
+the available width with equal items instead of using content-width Pills. The
+collapsed sidebar keeps its existing vertical circular navigation.
+
+Room content follows the Hermes Bots thread structure instead of the ordinary
+DSH transcript. Sending from the resident bottom composer creates a new thread.
+The Reply action inside an expanded thread reuses that composer, attachment
+upload, and submission state while continuing the target thread; cancelling
+restores the prior draft and attachments. Every user/member message durably
+belongs to one stable thread. Legacy unmarked records are assigned
+deterministically at read time without rewriting their log. The newest thread
+opens by default and does not show a redundant collapse command. Older threads
+collapse to a first-message summary, reply count, and latest time; only after
+opening one does its Collapse this conversation action appear. Users can expand
+or collapse those historical threads independently, and every open thread shows
+full member identity, attachments, failures, stopped
+state, and pending interaction state. Responder selection, rounds, delivery
+caps, watermarks, mention handoffs, and late-result admission are isolated to
+the target thread; room-level holds persist across threads. A new thread cannot
+hide a completed result from an older thread, and a thread reply cannot import
+another thread or private DM history. Host/client restart resumes the original
+thread, member call, and approval/question without duplicating user messages,
+member messages, or tool calls. The room body integrates through a generic
+Session-selectable Conversation body extension; ordinary Sessions keep the
+original Chat View and the Host contains no dshbot-specific branch.
+
+Room information hierarchy follows OpenBot's multi-Bot conversation without
+copying its skin. The Host conversation header is the room's only title; the
+body must not repeat the room name and member count. A compact, unframed
+participant strip uses avatars for members and exposes identity and live state
+through tooltips and accessible names, with settings and disband remaining as
+trailing icon actions. The newest thread reads as one continuous multi-Bot
+transcript without a left thread rail; only an explicitly opened historical
+thread uses an indented rail to mark its boundary. Do not render an idle-status
+row when every member is idle, or an Activity / No activity placeholder when
+there is no runtime activity. Show the compact status/activity entry only for
+running, waiting, passed, failed, stopped, or runtime-load failure states, while
+keeping stop and error actions visible. Member execution outcomes without body
+text, including passed, failed, timed out, held, stopped, and capped, belong in
+the current thread's activity disclosure and must not masquerade as avatar-led
+chat messages. Only actual user and member speech enters the transcript. OpenBot AgentGroup broadcast creates separate
+background work per member and must not be presented as, or replace, this
+Hermes-style shared room contract.
+
+The room body opts into Conversation's existing composer-overlay presentation
+marker. Its height is constrained between the title bar and composer, its own
+scrollport owns scrolling, and the final message, thread actions, and activity
+region cannot sit underneath the composer or grow the extension view beyond the
+viewport. Once a plugin body owns a blank Session, the Host's ordinary blank
+canvas placeholder must stop participating in flex layout and cannot take half
+of the body height. A room with members but no messages uses the Hermes Bots
+empty-state copy, "Say something - every bot in this group hears the room,"
+rather than contact-creation or member-count guidance. The sidebar does not keep a duplicate group-runtime panel open for
+normal, loading, or empty runtime data; those states remain on the group contact
+row and in the room status strip. A sidebar action region appears only for a
+pending approval/question, member error, or missing member Session that requires
+attention.
+
+Complete workflows add a Routines Pill with scrollable rows and the existing
+Modal. Fields are name, bot, prompt, interval minutes and enabled; actions run,
+enable/pause, edit and delete. Queue acceptance is not execution success.
+Profile capability groups (tools, Skills, MCP tools) use SettingsSelect inherited/
+selected modes and checkboxes over discovered capabilities, with unavailable and
+stale selections explicit. Management links open the real Harness Skills install/
+invocation, tool credential, and MCP add/enable/test/login surfaces. Skill install
+shows the public repository and exact path, distinguishes user/current-project
+scope, confirms before execution, never silently overwrites, and keeps missing or
+outdated GitHub CLI and conflict errors in context. Search results distinguish available,
+installed from the same GitHub source, and conflicting local-name states. Installed state
+survives restart through durable source metadata inside the skill directory; an existing
+skill with unknown provenance is never overwritten. When the Host has no Bot-scoped
+resource isolation, label the scope as application-wide and confirm it instead of
+drawing controls that cannot take effect. Group limits use bounded numeric inputs. Task actions
+follow actual states: queued pause, paused resume, nonterminal cancellation and
+new-attempt retry after failure/cancellation. Confirm cancellation/retry and whole
+Bot conversation stop; stopping does not undo external side effects. All form
+groups and lists fit and scroll at 320px without horizontal overflow.
+
+Member approvals and clarification requests appear on that member's row in the Bot page group runtime instead of forcing the user to find a hidden member Session. Approval offers reject and allow once. Questions retain the complete batch, single and multi-select choices, custom answers, skip and cancel, and settle the original Harness pending interaction through its own `answer()` / `cancel()`. The stable request id in the Session log owns pending state. After a Host or desktop restart, the same request is rehydrated and an idempotent response continues the original turn, step, and tool call without resending the user message or duplicating tool execution. External tool execution that may already have started but has no durable result fails closed instead of repeating a side effect. The UI never duplicates a request, preselects an answer the user did not choose, or marks an interaction complete while it is still waiting. Only when the real pending carrier is unavailable may the UI offer an explicit fallback that opens the exact member Session and states the error.
+
+An independently installed dshbot follows this language without changing desktop defaults or marketplace recommendations. Its page switches Contacts / Tasks / Routines with the same primary region-tab contract. Tasks use compact scrollable rows, Input search and SettingsSelect status filtering, not metric cards. A centered Modal shows status, participants, task, constraints, success criteria, result/error, timestamps and event history. Explicit buttons open participant conversations; the right-side surfaces remain unchanged. Long names, IDs and content wrap on narrow screens. Status maps exactly to queued / delivered / completed / failed / expired; delivered never means running. Do not show cancellation, retry or pause without an executor operation.
+
+The bot editor uses SettingsSelect for message/task sources: Default rules or Selected bots, with checkboxes for existing contacts. Default rules allow messages and restrict delegation to shared-room peers. A nonempty selected list restricts both messages and delegation, including shared-room peers. An empty list cannot mean deny-all. Loading, unavailable, read-only, save errors and revision conflicts use ordinary status/error rows, never false emptiness or success. Reuse existing avatars, semantic tokens, primitives and motion; no new palette or sidebar skin.
+
+Deterministic Bot shape avatars follow Hermes Bots' stateful live-face behavior: idle uses only low-amplitude breathing, sway, and natural blinking; a running bound Session or room member switches to a stronger pose, gaze, and three-dot work rhythm. The currently selected contact adds a two-layer ring using existing border and business-color tokens. All shape avatars share one visibility-aware clock capped at 15fps and stop updating while the window is hidden, offscreen, or no faces are mounted; `prefers-reduced-motion` keeps them static. User-uploaded image avatars must not stretch or deform and retain only the selection ring and existing status dot. This does not restore avatar generation.
+
+Tool, Skill, and MCP capability groups stay compact in the bot profile: the main form shows only the mode, authorization scope, selection summary, and a Select command; individual checkboxes are edited in the shared `Modal` surface. The picker must scroll without horizontal overflow at 320px. Cancel discards picker changes, Done writes only to the profile draft, and the profile Save action remains the persistence boundary.
+
 ## Visual anchors
+
+Plugin-owned persistent conversations keep the existing session header, transcript
+canvas and docked composer even before the first message. Show the actual owner
+title, never the generic New Session brand hero or a workspace-selection gate.
+Ordinary lists/search and blank-session reuse exclude plugin-owned conversations;
+their plugin entry still opens the same Session. No second chat engine or cards.
 
 Check against the baseline — the baseline is the pinned Web UI served by a local `npm start`, not some version from memory or screenshots: bluish-neutral sidebar, clean conversation canvas, pale-blue user bubble, hairline dividers, capsule primary, 16px outline icons, menu radius 12 with a light shadow. A new block dropped onto any DSHD surface must not read as a different product.
 
@@ -83,7 +206,9 @@ The composer beam is not a permanently colored perimeter: its 2px stroke uses th
 
 The composer card and its beam clip shell, stroke, inner light, and bloom source explicitly use `corner-shape: round`, opting out of the global superellipse. Shared circular geometry preserves the inset resting rim and matches the inner light's circular clip. The stroke increases to 2px to cover antialiased corner pixels at 100% display scaling; the bloom source stays 1.5px. Pixel acceptance must load the production corner stylesheet, normalize display scaling, and check resting corner coverage as well as the moving peak.
 
-The Interface setting "Thinking glow when sending" keeps its immediate Switch and adds a 28px settings-icon button to its right that opens the official `Modal`. The dialog configures only this running beam: clockwise/counterclockwise direction, rotation period, overall intensity, bloom intensity, and global hue offset. It previews the same beam layers live, persists Save into the `ui-conversation` settings namespace, leaves the current value untouched on Cancel, and restores the existing 1.96s / direction / intensity / hue values on Reset. Configuration must not change the 2px stroke, 1.5px bloom source, 4px clip shell, 8px blur, 22px corners, or intensity windows, and must not grow into separate focus, typing, completion, or error lighting states. Reduced motion hides both preview and live beam while retaining the saved values.
+The Interface setting "Thinking glow when sending" keeps its immediate Switch and adds a 28px settings-icon button immediately before it to open the official `Modal`; the Switch right edge must share the same alignment line as the other settings rows and must not move left when the gear is present. The first batch exposes clockwise/counterclockwise/ping-pong direction, a 0.8–60s rotation period, overall intensity, bloom intensity, global hue offset, breathing, and hue cycling. The second batch adds lounge / aurora / reactive / custom modes, eight built-in palettes or 2–6 custom colors, a 0.5–4px stroke track width, 0–12px bloom blur, a night window and dim amount, easing, up to five user presets, and v1 JSON clipboard import/export. The dialog previews the same beam layers live; Save persists the active style and preset library through one `ui-conversation` namespace mutation, Cancel leaves the current value untouched, and Reset restores the historical 1.96s / direction / intensity / hue legacy baseline. Modes are visual / motion profiles only: they do not read focus, typing, send, completion, error, or other business states and do not grow into a second state-light system.
+
+Track width and bloom blur are configurable, but the 1.5px bloom light source, 4px clip shell, 22px corners, two-layer ring mask, pointer-events contract, and intensity windows remain fixed; the legacy defaults must remain equivalent to the previous rendering. Reduced motion hides both preview and live beam while retaining the saved values; mobile continues to use the default timing values and does not inherit desktop customization.
 
 ## Allowed exceptions
 

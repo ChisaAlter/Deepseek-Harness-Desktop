@@ -11,6 +11,8 @@ kind: "package-reference"
 
 `dsh-client-ui-settings-general` 是 dsh Web 客户端的设置外壳：Settings 面板从侧边栏底部的控件打开，该控件旁的连接故障指示器提供即时恢复操作；导航由各功能贡献的分区构建；首次运行的用户一次只走一个引导步骤。它还注册设置页面上所有不属于单一功能的内容：触发器、标题栏与关闭控件界面框架、「本地配置文件」操作、「通用」分区及其 `settings.general.item` slot，以及 `settings` 字典。归具体功能所有的行（「权限」、「语言」、「外观」）、分区（「模型」）与条件式首次使用引导步骤仍由各自的功能包提供；外壳本身不自带任何引导文案。
 
+浏览器服务 `ctx.settingsNavigation` 让普通客户端插件可以打开这个既有外壳。`open(sectionId?)` 会在已注册分区上打开它；省略、空值或未知 id 都回退到首个分区；`close()` 与外壳消费同一状态，因此侧边栏、遮罩、Escape 和标题栏关闭路径保持同步。Settings 尚未挂载时发出的请求会留在服务快照中，并在外壳出现后生效。
+
 ## 目录
 
 - [使用本包](#use-this-package)
@@ -30,6 +32,10 @@ kind: "package-reference"
 ### 「通用」分区
 
 「通用」分区承载由功能包注册进 `settings.general.item` 的行——它没有内置行。功能插件拥有行文案与行为；外壳只提供分区及其 slot。例如「外观」行位于 ui-theme。
+
+### 从客户端插件打开分区
+
+客户端代码可以调用 `ctx.settingsNavigation.open('skills')`，让既有 Settings modal 打开并选中 Skills 分区；也可以调用 `ctx.settingsNavigation.open()`，让外壳打开到当前注册的首个分区。该服务不会创建第二个 modal，也不要求模拟侧边栏点击。调用 `ctx.settingsNavigation.close()` 会关闭侧边栏触发器使用的同一个外壳；遮罩、Escape 与标题栏关闭按钮也会发布同一个关闭状态。
 
 ### 打开配置文件
 
@@ -52,6 +58,8 @@ kind: "package-reference"
 ### 账本投影
 
 导航是 `settings.section` 账本的投影；导航 label 可以是跟随语言的 thunk，经 `resolveSlotLabel` 解析，并在分区账本更新或 locale revision 变化时重新渲染（`ctx.get('locale')` 可选读取，无硬 locale 依赖）。引导账本按升序投影；当前注册方会收到该条目的 id、`complete()` 与 `openSection(id)` 回调，完成或跳过当前步骤后，所有权转交给下一项。
+
+Settings 的可见状态与请求分区由本包提供的可观察服务 `ctx.settingsNavigation` 持有。`SettingsRoot` 消费同一份快照；它在渲染时针对当前 ledger 解析缺失的分区 id，因此早期、空值和未知请求都会沿用现有的首分区回退，不会改变 modal 实现。
 
 ### 连接恢复
 

@@ -21,9 +21,10 @@ import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 export type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type {
-  McpServerEntry, McpServerOrigin, McpServerRecord, McpServerSnapshot,
+  McpServerEntry, McpServerOrigin, McpServerRecord, McpServerSnapshot, McpServerTestResult,
 } from '@deepseek-ai/dsh-host-mcp-servers/types'
 export type {
+  SkillHubInstallResult, SkillHubInstallRoot, SkillHubSearchResult,
   SkillInventoryDetail, SkillInventoryEntry, SkillInventorySnapshot,
 } from '@deepseek-ai/dsh-host-skill-inventory/types'
 export type {} from '@deepseek-ai/dsh-agent-presets/remote'

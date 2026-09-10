@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpSection } from '../src/client/McpSection.tsx'
 import type { McpSectionInjected, McpSectionProps } from '../src/client/McpSection.tsx'
 import { en, type McpSettingsKey } from '../src/client/locales.ts'
+import type { McpServerTestResult } from '@deepseek-ai/dsh-api-remotes/client'
 
 afterEach(() => {
   cleanup()
@@ -69,6 +70,14 @@ function props(partial: Partial<McpSectionInjected> = {}): McpSectionProps {
     remove: async () => {},
     setEnabled: async () => {},
     retry: async () => {},
+    test: async () => ({
+      ok: true,
+      serverName: 'fixture',
+      transport: 'stdio',
+      toolNames: [],
+      toolCount: 0,
+      elapsedMs: 1,
+    } satisfies McpServerTestResult),
     authorize: async () => {},
     ...partial,
   } as McpSectionProps
@@ -295,6 +304,44 @@ describe('McpSection', () => {
       expect(screen.queryByText('mcp__github__create_issue')).toBeNull()
       expect(screen.queryByText('mcp__github__list')).toBeNull()
     })
+  })
+
+  it('tests managed and composition rows once, then shows discovered tools', async () => {
+    const pending = deferred<McpServerTestResult>()
+    const test = vi.fn((id: string) => id === managedStdio.id ? pending.promise : Promise.resolve({
+      ok: true as const,
+      serverName: 'remote-tools',
+      transport: 'streamable-http' as const,
+      toolNames: ['fetch'],
+      toolCount: 1,
+      elapsedMs: 7,
+    }))
+    render(<McpSection {...props({ list: async () => ({ servers: [managedStdio, compositionHttp] }), test })} />)
+    const managedButton = await screen.findByRole('button', { name: en.testFor.replace('{name}', 'github') })
+    fireEvent.click(managedButton)
+    fireEvent.click(managedButton)
+    expect(test).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(en.testing)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: en.testFor.replace('{name}', 'remote-tools') }))
+    expect(await screen.findByText(en.testSuccess.replace('{count}', '1').replace('{tools}', 'fetch'))).toBeTruthy()
+    pending.resolve({
+      ok: true,
+      serverName: 'github',
+      transport: 'stdio',
+      toolNames: ['search', 'open'],
+      toolCount: 2,
+      elapsedMs: 12,
+    })
+    expect(await screen.findByText(en.testSuccess.replace('{count}', '2').replace('{tools}', 'search, open'))).toBeTruthy()
+  })
+
+  it('shows a test failure without changing row or retry behavior', async () => {
+    const test = vi.fn(async () => { throw new Error('connection refused') })
+    render(<McpSection {...props({ list: async () => ({ servers: [managedStdio] }), test })} />)
+    fireEvent.click(await screen.findByRole('button', { name: en.testFor.replace('{name}', 'github') }))
+    expect((await screen.findAllByRole('alert')).some(item => item.textContent?.includes('connection refused'))).toBe(true)
+    expect(screen.getByRole('button', { name: en.refresh })).toBeTruthy()
   })
 
   it('remounts failed managed rows when refresh is clicked', async () => {

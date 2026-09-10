@@ -8,6 +8,8 @@ The grouping labels live in frontmatter as `metadata.group` (`create`/`update` a
 
 The service is Remote-only. Client packages consume it through [`api-remotes`](../../api/remotes/README.md). The composer `skill.list` RPC is unchanged.
 
+`searchHub` and `installHub` bridge the official GitHub CLI Agent Skills commands. Search requests structured JSON from `gh skill search`; installation resolves the repository's current default-branch HEAD SHA and uses it with the exact `OWNER/REPO` and path returned by search, avoiding `gh skill install`'s older-tag preference. It calls `gh skill install --dir` without a shell and without `--force`, and writes only to `$DSH_HOME/skills` or the current project's `.dsh/skills`. Inputs are bounded and validated before process launch, subprocess output and runtime are bounded, and successful installs invalidate the same layered registry used by Settings. An absent or old `gh` executable produces an actionable error instead of falling back to an unverified downloader.
+
 ## Model Experience
 
 None, as this Host Remote registers no prompt, tool, message, or provider request.
@@ -18,7 +20,7 @@ None; this package never assembles model input.
 
 ## Known Limitations and Deferred Work
 
-- **No skill marketplace** — create writes local files; install-from-catalog is out of scope.
+- **Public GitHub search only** — the Hub follows the authenticated GitHub CLI context and does not add a second private-registry or credential store.
 - **Name is immutable after create** — rename is a delete plus create.
 
 No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its UI or service behavior.

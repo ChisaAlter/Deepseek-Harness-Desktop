@@ -43,6 +43,7 @@ export function apply(ctx: Context): void {
       unwrap(await ctx.remote.mcpServers.setEnabled({ id, enabled }), 'mcpServers.setEnabled')
     },
     retry: async (id) => { unwrap(await ctx.remote.mcpServers.retry({ id }), 'mcpServers.retry') },
+    test: async (id) => unwrap(await ctx.remote.mcpServers.test({ id }), 'mcpServers.test'),
     authorize: async (id) => { unwrap(await ctx.remote.mcpServers.authorize({ id }), 'mcpServers.authorize') },
   })
   ctx.slots.inject('settings.section', () => ctx.slots.register({

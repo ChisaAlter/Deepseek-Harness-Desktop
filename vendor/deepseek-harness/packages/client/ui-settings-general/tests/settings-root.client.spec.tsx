@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SettingsRootComponentProps } from '../src/client/shell-contract.ts'
+import type { SettingsNavigation, SettingsNavigationSnapshot } from '../src/client/settings-navigation.ts'
 import { SettingsRoot } from '../src/client/SettingsRoot.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -14,6 +15,29 @@ afterEach(() => {
 
 type Row = { id: string; order: number; label: string }
 type Step = { id: string; order: number }
+type TestNavigation = SettingsNavigation & { listeners: Set<() => void> }
+
+function createNavigation(initial: SettingsNavigationSnapshot = { open: false, sectionId: undefined }): TestNavigation {
+  let snapshot = initial
+  const listeners = new Set<() => void>()
+  const notify = () => { for (const listener of [...listeners]) listener() }
+  return {
+    getSnapshot: () => snapshot,
+    listeners,
+    subscribe: listener => {
+      listeners.add(listener)
+      return () => { listeners.delete(listener) }
+    },
+    open: sectionId => {
+      snapshot = { open: true, sectionId: sectionId === '' ? undefined : sectionId }
+      notify()
+    },
+    close: () => {
+      snapshot = { open: false, sectionId: undefined }
+      notify()
+    },
+  }
+}
 
 /** Slot-content stand-ins: the shell renders whatever the seats contribute. */
 const SEAT_CONTENT: Record<string, string> = {
@@ -32,6 +56,7 @@ function mount({
   wide = true,
   connectionState = 'connected',
   onboardingActive = true,
+  navigation = createNavigation(),
   rows = [
     { id: 'general', order: 0, label: 'General' },
     { id: 'models', order: 10, label: 'Models' },
@@ -45,6 +70,7 @@ function mount({
   wide?: boolean
   connectionState?: ConnectionSnapshot
   onboardingActive?: boolean
+  navigation?: TestNavigation
   rows?: Row[]
   steps?: Step[]
 } = {}) {
@@ -75,6 +101,16 @@ function mount({
     useWorkspaces: unusedHook,
     wide,
     reconnect,
+    openSettings: sectionId => { navigation.open(sectionId) },
+    closeSettings: () => { navigation.close() },
+    useNavigation: select => {
+      const [, force] = useState(0)
+      useEffect(() => {
+        const listener = () => { force(n => n + 1) }
+        return navigation.subscribe(listener)
+      }, [navigation])
+      return select(navigation.getSnapshot())
+    },
     t: makeTranslate(en),
     useConnectionState: (select) => {
       const [, force] = useState(0)
@@ -110,7 +146,7 @@ function mount({
       for (const fn of [...connectionListeners]) fn()
     })
   }
-  return { view, renderSlot, bump, listeners, reconnect, setConnectionState }
+  return { view, renderSlot, bump, listeners, reconnect, setConnectionState, navigation }
 }
 
 function openPanel() {
@@ -122,12 +158,13 @@ function openPanel() {
 
 describe('SettingsRoot trigger', () => {
   it('renders the trigger seat content as the accessible name (no aria-label of its own)', () => {
-    const { renderSlot } = mount()
+    const { renderSlot, navigation } = mount()
     const trigger = screen.getByRole('button', { name: 'Settings' })
     expect(trigger.hasAttribute('aria-label')).toBe(false)
     expect(renderSlot).toHaveBeenCalledWith('settings.trigger', { wide: true })
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(trigger)
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: undefined })
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Settings', expanded: true })).toBeTruthy()
   })
@@ -198,27 +235,30 @@ describe('SettingsPanel chrome seats', () => {
 
 describe('SettingsPanel close paths', () => {
   it('closes via the header button and restores trigger focus', async () => {
-    mount()
+    const { navigation } = mount()
     const trigger = openPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(navigation.getSnapshot()).toEqual({ open: false, sectionId: undefined })
     await vi.waitFor(() => { expect(document.activeElement).toBe(trigger) })
   })
 
   it('closes via a mask click and restores trigger focus', async () => {
-    mount()
+    const { navigation } = mount()
     const trigger = openPanel()
     const dialog = screen.getByRole('dialog')
     fireEvent.click(dialog.parentElement!.firstElementChild!)
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(navigation.getSnapshot()).toEqual({ open: false, sectionId: undefined })
     await vi.waitFor(() => { expect(document.activeElement).toBe(trigger) })
   })
 
   it('closes via document-level Escape, restores trigger focus, and unhooks the listener', async () => {
-    mount()
+    const { navigation } = mount()
     const trigger = openPanel()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(navigation.getSnapshot()).toEqual({ open: false, sectionId: undefined })
     await vi.waitFor(() => { expect(document.activeElement).toBe(trigger) })
     // Ignored while closed (listener removed with the panel) and non-Escape
     // keys are ignored while open.
@@ -236,6 +276,26 @@ describe('SettingsPanel close paths', () => {
 })
 
 describe('SettingsPanel navigation', () => {
+  it('honors a service open request issued before mount and falls back for unknown or empty ids', () => {
+    const navigation = createNavigation()
+    navigation.open('skills')
+    mount({
+      navigation,
+      rows: [
+        { id: 'general', order: 0, label: 'General' },
+        { id: 'skills', order: 10, label: 'Skills' },
+      ],
+    })
+    expect(screen.getByRole('button', { name: 'Skills' }).getAttribute('aria-current')).toBe('true')
+    expect(screen.getByTestId('section-skills')).toBeTruthy()
+
+    act(() => { navigation.open('missing') })
+    expect(screen.getByRole('button', { name: 'General' }).getAttribute('aria-current')).toBe('true')
+    expect(screen.getByTestId('section-general')).toBeTruthy()
+    act(() => { navigation.open('') })
+    expect(screen.getByRole('button', { name: 'General' }).getAttribute('aria-current')).toBe('true')
+  })
+
   it('projects rows, marks the first active, and renders only that section', () => {
     mount()
     openPanel()
@@ -267,9 +327,10 @@ describe('SettingsPanel navigation', () => {
   })
 
   it('switches the rendered section on nav click', () => {
-    mount()
+    const { navigation } = mount()
     openPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Models' }))
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: 'models' })
     expect(screen.getByRole('button', { name: 'Models' }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByTestId('section-models')).toBeTruthy()
     expect(screen.queryByTestId('section-general')).toBeNull()
@@ -339,5 +400,12 @@ describe('SettingsPanel navigation', () => {
     expect(listeners.size).toBe(1)
     view.unmount()
     expect(listeners.size).toBe(0)
+  })
+
+  it('drops the Settings navigation subscription on unmount', () => {
+    const { view, navigation } = mount()
+    expect(navigation.listeners.size).toBe(1)
+    view.unmount()
+    expect(navigation.listeners.size).toBe(0)
   })
 })

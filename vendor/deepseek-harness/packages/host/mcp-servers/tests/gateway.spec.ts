@@ -1,9 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import type { McpServerRecord } from '@deepseek-ai/dsh-mcp-servers-file'
 import McpServersGateway from '../src/index.ts'
+
+const { mockTestMcpServer } = vi.hoisted(() => ({ mockTestMcpServer: vi.fn() }))
+
+vi.mock('../src/test-connection.ts', () => ({ testMcpServer: mockTestMcpServer }))
 
 const contexts: Context[] = []
 
@@ -31,6 +35,7 @@ async function harness(managed: McpServerRecord[] = [], health: {
   const authorized: string[] = []
   ctx.provide('mcpServersFile', {
     listManaged: () => managed,
+    listManagedRaw: () => managed,
     childPhase: () => 'active' as const,
     childHealth: () => health.managed,
     connectionStatus: () => health.composition,
@@ -51,10 +56,12 @@ async function harness(managed: McpServerRecord[] = [], health: {
 }
 
 describe('McpServersGateway', () => {
+  afterEach(() => { mockTestMcpServer.mockReset() })
+
   it('publishes list, upsert, delete, retry, authorize, and setEnabled remotes', async () => {
     const { gateway } = await harness()
     expect(remoteMethods(gateway).map(item => item.method).sort()).toEqual([
-      'authorize', 'delete', 'list', 'retry', 'setEnabled', 'upsert',
+      'authorize', 'delete', 'list', 'retry', 'setEnabled', 'test', 'upsert',
     ])
   })
 
@@ -189,6 +196,54 @@ describe('McpServersGateway', () => {
     }])
     await gateway.retry({ id: 'github' })
     expect(remounted).toEqual(['github'])
+  })
+
+  it('tests a managed row without remounting, writing, or registering tools', async () => {
+    const result = {
+      ok: true as const,
+      serverName: 'github',
+      transport: 'stdio' as const,
+      toolNames: ['search', 'open'],
+      toolCount: 2,
+      elapsedMs: 4,
+    }
+    mockTestMcpServer.mockResolvedValue(result)
+    const { gateway, remounted, managed } = await harness([{
+      id: 'github',
+      enabled: true,
+      transport: 'stdio',
+      serverName: 'github',
+      command: 'npx',
+    }])
+    const before = structuredClone(managed)
+    await expect(gateway.test({ id: 'github' }, new AbortController().signal)).resolves.toEqual(result)
+    expect(mockTestMcpServer).toHaveBeenCalledWith(managed[0], expect.any(AbortSignal))
+    expect(remounted).toEqual([])
+    expect(managed).toEqual(before)
+  })
+
+  it('tests a composition row in isolation and rejects unknown ids', async () => {
+    const result = {
+      ok: true as const,
+      serverName: 'remote',
+      transport: 'streamable-http' as const,
+      toolNames: ['fetch'],
+      toolCount: 1,
+      elapsedMs: 3,
+    }
+    mockTestMcpServer.mockResolvedValue(result)
+    const { ctx, gateway } = await harness()
+    const entryId = await ctx.loader.create({
+      name: 'cordis:mcp-client',
+      config: { serverName: 'remote', transport: 'streamable-http', url: 'https://mcp.example.test/mcp' },
+    })
+    await expect(gateway.test({ id: entryId }, new AbortController().signal)).resolves.toEqual(result)
+    expect(mockTestMcpServer).toHaveBeenCalledWith(expect.objectContaining({
+      id: entryId,
+      serverName: 'remote',
+      transport: 'streamable-http',
+    }), expect.any(AbortSignal))
+    await expect(gateway.test({ id: 'missing' }, new AbortController().signal)).rejects.toThrow(/not present/)
   })
 
   it('authorizes a managed HTTP row through the file service', async () => {

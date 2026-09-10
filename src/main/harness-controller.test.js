@@ -712,6 +712,63 @@ test('manual restart invalidates a recovery task that is still waiting for boot 
   assert.equal(f.dsh.state, 'ready');
 });
 
+test('manual restart waits for an already-pending boot navigation before revealing Harness', async () => {
+  const order = [];
+  let bootCalls = 0;
+  let markFirstBootStarted;
+  let releaseFirstBoot;
+  const firstBootStarted = new Promise((resolve) => {
+    markFirstBootStarted = resolve;
+  });
+  const firstBoot = new Promise((resolve) => {
+    releaseFirstBoot = resolve;
+  });
+  let f;
+  f = fixture({
+    showBoot: async () => {
+      const call = ++bootCalls;
+      order.push(`boot:${call}:start`);
+      if (call === 1) {
+        markFirstBootStarted();
+        await firstBoot;
+      }
+      order.push(`boot:${call}:done`);
+    },
+    showHarness: async (url) => {
+      f.window.url = url;
+      order.push('harness');
+    },
+  });
+  f.window.url = 'http://127.0.0.1:3080';
+  f.dsh.state = 'ready';
+  f.dsh.baseUrl = f.window.url;
+  f.dsh.crash('runtime before manual restart');
+  await firstBootStarted;
+  await settle();
+
+  const oldRecovery = f.controller.recoveryTask;
+  assert.ok(oldRecovery, 'runtime recovery should be waiting on the deferred boot navigation');
+  let restartSettled = false;
+  const restart = f.controller.restart().then(() => {
+    restartSettled = true;
+  });
+  await settle();
+  const blockedBeforeRelease = !restartSettled && !order.includes('harness');
+
+  releaseFirstBoot();
+  await restart;
+  await oldRecovery;
+
+  assert.equal(blockedBeforeRelease, true, `restart ordering before release: ${JSON.stringify(order)}`);
+  const bootDone = order.indexOf('boot:1:done');
+  const harness = order.indexOf('harness');
+  assert.ok(bootDone >= 0 && harness > bootDone, `unexpected restart ordering: ${JSON.stringify(order)}`);
+  assert.equal(f.controller.snapshot().recovery.status, 'inactive');
+  assert.equal(f.clock.timers.size, 0, 'the stale recovery generation must not schedule a new failure');
+  assert.equal(f.dsh.failure, null);
+  assert.equal(f.dsh.state, 'ready');
+});
+
 test('restart during startup cancels the old operation and starts a fresh generation', async () => {
   let releaseStart;
   const f = fixture();

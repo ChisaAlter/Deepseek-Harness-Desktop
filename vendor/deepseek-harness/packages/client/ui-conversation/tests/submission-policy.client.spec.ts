@@ -2,8 +2,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
 import {
-  ComposerSubmissionPolicy, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM_STYLE,
-  normalizeComposerBeamStyle,
+  ComposerSubmissionPolicy, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM_PRESETS,
+  DEFAULT_COMPOSER_BEAM_STYLE, normalizeComposerBeamPresets, normalizeComposerBeamStyle,
 } from '../src/client/input/submission-policy.ts'
 import type { ConversationSettings } from '../src/submission-settings.ts'
 
@@ -123,10 +123,12 @@ describe('ComposerSubmissionPolicy', () => {
     const observed: number[] = []
     policy.composerBeamStyle.subscribe(() => { observed.push(policy.composerBeamStyle.getSnapshot().period) })
     policy.setComposerBeamStyle({
+      ...DEFAULT_COMPOSER_BEAM_STYLE,
       direction: 'counterclockwise', period: 3, intensity: 120, bloom: 80, hue: 45,
     })
     expect(observed).toEqual([3])
     expect(host.set).toHaveBeenCalledWith('composerBeamStyle', {
+      ...DEFAULT_COMPOSER_BEAM_STYLE,
       direction: 'counterclockwise', period: 3, intensity: 120, bloom: 80, hue: 45,
     })
 
@@ -140,8 +142,74 @@ describe('ComposerSubmissionPolicy', () => {
     expect(normalizeComposerBeamStyle({
       direction: 'sideways', period: 99, intensity: -1, bloom: 999, hue: Number.NaN,
     })).toEqual({
-      direction: 'clockwise', period: 6, intensity: 40, bloom: 160, hue: 0,
+      ...DEFAULT_COMPOSER_BEAM_STYLE,
+      direction: 'clockwise', period: 60, intensity: 40, bloom: 160, hue: 0,
     })
+  })
+
+  it('publishes active style and presets in one atomic mutation', async () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    host.publish({ status: 'ready', value: chrome(), revision: 7, writable: true })
+    const style = {
+      ...DEFAULT_COMPOSER_BEAM_STYLE,
+      direction: 'pingPong' as const,
+      period: 60,
+      trackWidth: 4,
+      glowBlur: 0,
+      breathing: { enabled: true, amplitude: 0.5, period: 9 },
+      hueCycle: { enabled: false, range: 180, period: 20 },
+      night: { enabled: true, fromMinute: 1320, toMinute: 360, dim: 50 },
+      palette: { kind: 'custom' as const, colors: ['#112233', '#aabbcc'] },
+    }
+    const presets = { Focus: style }
+    host.mutate.mockImplementation(async (ops: readonly { path: string[]; value?: unknown }[]) => {
+      host.publish({
+        status: 'ready',
+        value: chrome({
+          composerBeamStyle: ops[0]?.value as never,
+          composerBeamPresets: ops[1]?.value as never,
+        }),
+        revision: 8,
+        writable: true,
+      })
+    })
+    await policy.setComposerBeamConfiguration(style, presets)
+    expect(policy.composerBeamStyle.getSnapshot()).toEqual(style)
+    expect(policy.composerBeamPresets.getSnapshot()).toEqual({ Focus: style })
+    expect(host.mutate).toHaveBeenCalledWith([
+      { op: 'set', path: ['composerBeamStyle'], value: style },
+      { op: 'set', path: ['composerBeamPresets'], value: { Focus: style } },
+    ], 7)
+    expect(host.set).not.toHaveBeenCalled()
+  })
+
+  it('caps and sanitizes the preset library without mutating the caller', () => {
+    const source: Record<string, unknown> = {
+      '  one  ': DEFAULT_COMPOSER_BEAM_STYLE,
+      two: DEFAULT_COMPOSER_BEAM_STYLE,
+      three: DEFAULT_COMPOSER_BEAM_STYLE,
+      four: DEFAULT_COMPOSER_BEAM_STYLE,
+      five: DEFAULT_COMPOSER_BEAM_STYLE,
+      six: DEFAULT_COMPOSER_BEAM_STYLE,
+      __proto__: DEFAULT_COMPOSER_BEAM_STYLE,
+    }
+    expect(normalizeComposerBeamPresets(source)).toEqual({
+      one: DEFAULT_COMPOSER_BEAM_STYLE,
+      two: DEFAULT_COMPOSER_BEAM_STYLE,
+      three: DEFAULT_COMPOSER_BEAM_STYLE,
+      four: DEFAULT_COMPOSER_BEAM_STYLE,
+      five: DEFAULT_COMPOSER_BEAM_STYLE,
+    })
+    expect(DEFAULT_COMPOSER_BEAM_PRESETS).toEqual({})
+  })
+
+  it('reports a rejected atomic mutation instead of claiming that the save succeeded', async () => {
+    const host = stubSettingsScope<ConversationSettings>()
+    const policy = new ComposerSubmissionPolicy(host.scope)
+    host.publish({ status: 'ready', value: chrome(), revision: 2, writable: true })
+    await expect(policy.setComposerBeamConfiguration({ ...DEFAULT_COMPOSER_BEAM_STYLE, hue: 90 }, {})).rejects.toThrow()
+    expect(host.mutate).toHaveBeenCalledOnce()
   })
 
   it('keeps composer resize off while the Host section is missing and adopts true independently', () => {

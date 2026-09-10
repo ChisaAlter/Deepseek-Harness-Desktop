@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-07-composer-beam-settings.md
-2026-09-07-composer-beam-settings.md: 69ec222b7a12180375c91ebc62112509a5e9394a
-2026-09-07-composer-beam-settings.zh.md: 2678e3e03e8ab57191a9ce873b1ac8b122bf717a
+2026-09-07-composer-beam-settings.md: faf3a19c2689f2f848e177f265f919bdec64f205
+2026-09-07-composer-beam-settings.zh.md: 22a232bf93de8002b5664e968d7f8af6906eb988

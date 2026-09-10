@@ -43,7 +43,7 @@ describe('SkillInventoryGateway', () => {
     await ctx.plugin(SkillInventoryGateway)
     const gateway = ctx.get('skillInventory') as SkillInventoryGateway
     expect(remoteMethods(gateway).map(item => item.method).sort()).toEqual([
-      'create', 'delete', 'get', 'list', 'setInvocation', 'update',
+      'create', 'delete', 'get', 'installHub', 'list', 'searchHub', 'setInvocation', 'update',
     ])
   })
 

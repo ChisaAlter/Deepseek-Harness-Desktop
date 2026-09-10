@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-08-composer-beam-settings-expansion.md
+2026-09-08-composer-beam-settings-expansion.md: b32d90454af65050b5f88d57bc16b40044a48363
+2026-09-08-composer-beam-settings-expansion.zh.md: 7b87ac5f347244672e9b4a9b17445886e48fb8aa

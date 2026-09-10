@@ -8,6 +8,8 @@
 
 该服务仅供 Remote 使用。Client 包通过 [`api-remotes`](../../api/remotes/README.zh.md) 消费。composer 的 `skill.list` RPC 不变。
 
+`searchHub` 与 `installHub` 对接 GitHub CLI 官方 Agent Skills 命令。搜索从 `gh skill search` 请求结构化 JSON；安装先解析仓库当前默认分支的 HEAD SHA，再把它与搜索结果中的精确 `OWNER/REPO` 和路径一起使用，避免 `gh skill install` 优先旧 tag。安装通过不经 shell、且不带 `--force` 的 `gh skill install --dir`，只写入 `$DSH_HOME/skills` 或当前项目的 `.dsh/skills`。输入在启动进程前完成有界校验，子进程输出和运行时间有上限；成功安装会使 Settings 使用的同一个分层 registry 失效并刷新。`gh` 缺失或过旧时返回可操作错误，不会回退到未经验证的下载器。
+
 ## 模型体验
 
 无，因为这个 Host Remote 不注册提示词、工具、消息或提供方请求。
@@ -18,7 +20,7 @@
 
 ## 已知限制与暂缓事项
 
-- **没有 skill 市场** — 创建只写本地文件；从目录安装不在范围内。
+- **仅搜索公开 GitHub 技能** — Hub 沿用已认证的 GitHub CLI 上下文，不增加第二套私有 registry 或凭据存储。
 - **创建后不可改名** — 重命名等于删除再创建。
 
 不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。

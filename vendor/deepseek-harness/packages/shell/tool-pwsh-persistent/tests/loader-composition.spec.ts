@@ -155,6 +155,11 @@ describe.skipIf(!hasPwsh)('persistent pwsh through a real cordis.yml Loader comp
     expect(observed).toContain(`cwd=${join(root, 'nested')} keep=loader`)
     expect(observed).not.toContain('DSH_PERSISTENT_PWSH')
 
+    const directoryTable = text(await execute('directory-table', 'Get-Location; Get-ChildItem ..'))
+    expect(directoryTable).toContain('Mode')
+    expect(directoryTable).toContain(`${join(root, 'nested')}\n`)
+    expect(directoryTable).not.toContain(`${join(root, 'nested')}Mode`)
+
     const multiline = text(await execute(
       'multiline',
       '$value = "line one"\nWrite-Output "${value}:it\'s fine"',

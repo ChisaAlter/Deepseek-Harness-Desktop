@@ -3,7 +3,12 @@
  */
 
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import type { McpServerEntry, McpServerRecord, McpServerSnapshot } from '@deepseek-ai/dsh-api-remotes/client'
+import type {
+  McpServerEntry,
+  McpServerRecord,
+  McpServerSnapshot,
+  McpServerTestResult,
+} from '@deepseek-ai/dsh-api-remotes/client'
 import {
   Button,
   IconCloseOutline16,
@@ -40,6 +45,7 @@ export interface McpSectionInjected {
   remove: (id: string) => Promise<void>
   setEnabled: (id: string, enabled: boolean) => Promise<void>
   retry: (id: string) => Promise<void>
+  test: (id: string) => Promise<McpServerTestResult>
   authorize: (id: string) => Promise<void>
   t: (key: McpSettingsKey) => string
 }
@@ -56,6 +62,9 @@ type View =
   | { status: 'ready'; snapshot: McpServerSnapshot }
 
 type EditorTarget = { readonly creating: boolean; readonly draft: McpServerRecord }
+type TestState =
+  | { readonly status: 'success'; readonly result: McpServerTestResult }
+  | { readonly status: 'error'; readonly message: string }
 
 const PHASE: Record<Exclude<McpServerEntry['fiberPhase'], null>, McpSettingsKey> = {
   pending: 'pending',
@@ -105,7 +114,9 @@ export function McpSection(props: McpSectionProps) {
   const [deletePending, setDeletePending] = useState(false)
   const [deleteFailure, setDeleteFailure] = useState<string | undefined>()
   const [togglePending, setTogglePending] = useState<ReadonlySet<string>>(new Set())
+  const [testPending, setTestPending] = useState<ReadonlySet<string>>(new Set())
   const [signInPending, setSignInPending] = useState<ReadonlySet<string>>(new Set())
+  const [testResults, setTestResults] = useState<Readonly<Record<string, TestState>>>({})
   const [rowFailures, setRowFailures] = useState<Readonly<Record<string, string>>>({})
   const [refreshFailure, setRefreshFailure] = useState(false)
 
@@ -137,6 +148,8 @@ export function McpSection(props: McpSectionProps) {
   togglePendingRef.current = togglePending
   const signInPendingRef = useRef(signInPending)
   signInPendingRef.current = signInPending
+  const testPendingRef = useRef(testPending)
+  testPendingRef.current = testPending
 
   const servers = view.status === 'ready' ? view.snapshot.servers : []
   const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -171,7 +184,7 @@ export function McpSection(props: McpSectionProps) {
     // composition rows, a child that finished its initial tool sync between
     // polls) still shows its health and tool count without an app restart.
     const id = window.setInterval(() => {
-      if (togglePendingRef.current.size > 0 || signInPendingRef.current.size > 0) return
+      if (togglePendingRef.current.size > 0 || testPendingRef.current.size > 0 || signInPendingRef.current.size > 0) return
       void reloadReady().catch(() => {
         // reloadReady already recorded refreshFailure for this tick.
       })
@@ -271,6 +284,29 @@ export function McpSection(props: McpSectionProps) {
     })
   }
 
+  const test = (entry: McpServerEntry): void => {
+    if (testPending.has(entry.id)) return
+    setTestPending(current => new Set(current).add(entry.id))
+    setTestResults(current => omitTestResult(current, entry.id))
+    const clearPending = (): void => {
+      setTestPending(current => {
+        const next = new Set(current)
+        next.delete(entry.id)
+        return next
+      })
+    }
+    void props.test(entry.id).then((result) => {
+      if (!mountedRef.current) return
+      setTestResults(current => ({ ...current, [entry.id]: { status: 'success', result } }))
+    }).catch((error: unknown) => {
+      if (!mountedRef.current) return
+      setTestResults(current => ({
+        ...current,
+        [entry.id]: { status: 'error', message: messageOf(error, t('testFailed')) },
+      }))
+    }).finally(clearPending)
+  }
+
   const filterOptions = [
     ['all', t('filterAll')],
     ['enabled', t('filterEnabledOnly')],
@@ -356,9 +392,12 @@ export function McpSection(props: McpSectionProps) {
                     key={entry.id}
                     entry={entry}
                     pending={togglePending.has(entry.id)}
+                    testing={testPending.has(entry.id)}
+                    testResult={testResults[entry.id]}
                     failure={rowFailures[entry.id]}
                     t={t}
                     onToggleEnabled={(enabled) => { toggle(entry, enabled) }}
+                    onTest={() => { test(entry) }}
                     onEdit={() => { setEditor({ creating: false, draft: entry.spec }) }}
                     onDelete={() => {
                       setDeleting(entry)
@@ -382,9 +421,12 @@ export function McpSection(props: McpSectionProps) {
                     key={entry.id}
                     entry={entry}
                     pending={false}
+                    testing={testPending.has(entry.id)}
+                    testResult={testResults[entry.id]}
                     failure={rowFailures[entry.id]}
                     t={t}
                     onToggleEnabled={() => {}}
+                    onTest={() => { test(entry) }}
                     onEdit={() => {}}
                     onDelete={() => {}}
                   />
@@ -489,13 +531,16 @@ function ToolsDialog({
 }
 
 function ServerRow({
-  entry, pending, failure, t, onToggleEnabled, onEdit, onDelete, signingIn, onSignIn,
+  entry, pending, testing, testResult, failure, t, onToggleEnabled, onTest, onEdit, onDelete, signingIn, onSignIn,
 }: {
   entry: McpServerEntry
   pending: boolean
+  testing: boolean
+  testResult: TestState | undefined
   failure: string | undefined
   t: McpSectionInjected['t']
   onToggleEnabled: (enabled: boolean) => void
+  onTest: () => void
   onEdit: () => void
   onDelete: () => void
   signingIn?: boolean
@@ -540,10 +585,27 @@ function ServerRow({
               />
             </>
           )}
+          {testResult?.status === 'success' ? (
+            <span className={styles.testResult}>
+              {format(t('testSuccess'), {
+                count: String(testResult.result.toolCount),
+                tools: toolSummary(testResult.result.toolNames, t),
+              })}
+            </span>
+          ) : null}
         </span>
         <Pill>{entry.origin === 'managed' ? t('managed') : t('composition')}</Pill>
       </div>
       <div className={styles.rowActions}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={testing || pending}
+          aria-label={format(t('testFor'), { name })}
+          onClick={onTest}
+        >
+          {testing ? t('testing') : t('test')}
+        </Button>
         {entry.writable ? (
           <Switch
             checked={entry.enabled}
@@ -585,6 +647,7 @@ function ServerRow({
         ) : null}
       </div>
       {failure === undefined ? null : <p className={styles.rowError} role="alert">{failure}</p>}
+      {testResult?.status === 'error' ? <p className={styles.rowError} role="alert">{testResult.message}</p> : null}
     </li>
   )
 }
@@ -1224,6 +1287,16 @@ function parsePairs(text: string): Record<string, string> {
 
 function omitKey(values: Readonly<Record<string, string>>, key: string): Readonly<Record<string, string>> {
   return Object.fromEntries(Object.entries(values).filter(([entryKey]) => entryKey !== key))
+}
+
+function omitTestResult(values: Readonly<Record<string, TestState>>, key: string): Readonly<Record<string, TestState>> {
+  return Object.fromEntries(Object.entries(values).filter(([entryKey]) => entryKey !== key))
+}
+
+function toolSummary(names: readonly string[], t: McpSectionInjected['t']): string {
+  if (names.length === 0) return t('testNoTools')
+  const visible = names.slice(0, 3).join(', ')
+  return names.length <= 3 ? visible : format(t('testMoreTools'), { names: visible, count: String(names.length - 3) })
 }
 
 function format(template: string, vars: Record<string, string>): string {

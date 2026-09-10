@@ -5,6 +5,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type {
+  SkillHubInstallRoot,
+  SkillHubSearchResult,
   SkillInventoryDetail,
   SkillInventoryEntry,
   SkillInventorySnapshot,
@@ -87,6 +89,17 @@ export interface SkillsSectionInjected {
     userInvocable: boolean,
     scope: SkillInventoryClientScope,
   ) => Promise<void>
+  searchHub: (
+    query: string,
+    limit: number,
+    root: SkillHubInstallRoot,
+    scope: SkillInventoryClientScope,
+  ) => Promise<readonly SkillHubSearchResult[]>
+  installHub: (
+    result: Pick<SkillHubSearchResult, 'repo' | 'path' | 'skillName'>,
+    root: SkillHubInstallRoot,
+    scope: SkillInventoryClientScope,
+  ) => Promise<void>
   /** Open a host directory with the OS default handler. */
   openDirectory: (directory: string) => Promise<void>
   t: (key: SkillsSettingsKey) => string
@@ -151,6 +164,15 @@ export function SkillsSection(props: SkillsSectionProps) {
   const [scopeFallback, setScopeFallback] = useState(false)
   const [expanded, setExpanded] = useState<Readonly<Record<string, boolean>>>(() => readTreeState())
   const [groupPending, setGroupPending] = useState<Readonly<Record<string, boolean>>>({})
+  const [hubOpen, setHubOpen] = useState(false)
+  const [hubQuery, setHubQuery] = useState('')
+  const [hubRoot, setHubRoot] = useState<SkillHubInstallRoot>('user-dsh')
+  const [hubResults, setHubResults] = useState<readonly SkillHubSearchResult[]>([])
+  const [hubSearching, setHubSearching] = useState(false)
+  const [hubError, setHubError] = useState<string | undefined>()
+  const [hubConfirm, setHubConfirm] = useState<SkillHubSearchResult | undefined>()
+  const [hubInstalling, setHubInstalling] = useState(false)
+  const [hubInstalled, setHubInstalled] = useState<ReadonlySet<string>>(() => new Set())
 
   const load = (replace: boolean): void => {
     const sequence = loadSequence.current + 1
@@ -190,6 +212,9 @@ export function SkillsSection(props: SkillsSectionProps) {
     setDeleteError(undefined)
     setRefreshFailure(false)
     setScopeFallback(false)
+    setHubConfirm(undefined)
+    setHubInstalling(false)
+    setHubError(undefined)
     scopeGeneration.current += 1
     load(true)
     return () => {
@@ -428,6 +453,14 @@ export function SkillsSection(props: SkillsSectionProps) {
           <Button
             size="sm"
             variant="outline"
+            icon={<IconSearchOutline16 />}
+            onClick={() => { setHubOpen(true); setHubError(undefined) }}
+          >
+            {t('hubOpen')}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             className={styles.iconAction}
             icon={<IconPlusOutline16 />}
             aria-label={t('add')}
@@ -619,6 +652,75 @@ export function SkillsSection(props: SkillsSectionProps) {
         }}
       />
 
+      <SkillHub
+        open={hubOpen}
+        query={hubQuery}
+        root={hubRoot}
+        cwd={cwd}
+        results={hubResults}
+        searching={hubSearching}
+        error={hubError}
+        confirming={hubConfirm}
+        installing={hubInstalling}
+        installed={hubInstalled}
+        t={t}
+        onQueryChange={setHubQuery}
+        onRootChange={(root) => {
+          setHubRoot(root)
+          setHubResults([])
+          setHubInstalled(new Set())
+          setHubError(undefined)
+        }}
+        onClose={() => {
+          if (hubSearching || hubInstalling) return
+          setHubOpen(false)
+          setHubConfirm(undefined)
+          setHubError(undefined)
+        }}
+        onSearch={() => {
+          if (hubQuery.trim().length === 0 || hubSearching || hubInstalling) return
+          const generation = scopeGeneration.current
+          setHubSearching(true)
+          setHubError(undefined)
+          void props.searchHub(hubQuery, 15, hubRoot, scope)
+            .then((results) => {
+              if (scopeGeneration.current !== generation) return
+              setHubResults(results)
+              setHubSearching(false)
+            })
+            .catch((error: unknown) => {
+              if (scopeGeneration.current !== generation) return
+              setHubError(messageOf(error, t('hubSearchFailed')))
+              setHubSearching(false)
+            })
+        }}
+        onRequestInstall={(result) => { setHubConfirm(result); setHubError(undefined) }}
+        onCancelInstall={() => { if (!hubInstalling) setHubConfirm(undefined) }}
+        onConfirmInstall={() => {
+          if (hubConfirm === undefined || hubInstalling) return
+          const target = hubConfirm
+          const generation = scopeGeneration.current
+          setHubInstalling(true)
+          setHubError(undefined)
+          void props.installHub(target, hubRoot, scope)
+            .then(() => {
+              if (scopeGeneration.current !== generation) return
+              setHubInstalled(current => new Set(current).add(hubKey(target)))
+              setHubResults(current => current.map(result => hubKey(result) === hubKey(target)
+                ? { ...result, installationStatus: 'installed' }
+                : result))
+              setHubConfirm(undefined)
+              setHubInstalling(false)
+              load(false)
+            })
+            .catch((error: unknown) => {
+              if (scopeGeneration.current !== generation) return
+              setHubError(messageOf(error, t('hubInstallFailed')))
+              setHubInstalling(false)
+            })
+        }}
+      />
+
       <Modal
         open={deleting !== undefined}
         onClose={() => { if (!deletePending) setDeleting(undefined) }}
@@ -668,6 +770,145 @@ export function SkillsSection(props: SkillsSectionProps) {
         {deleteError !== undefined && <p className={styles.modalError} role="alert">{deleteError}</p>}
       </Modal>
     </div>
+  )
+}
+
+function SkillHub({
+  open,
+  query,
+  root,
+  cwd,
+  results,
+  searching,
+  error,
+  confirming,
+  installing,
+  installed,
+  t,
+  onQueryChange,
+  onRootChange,
+  onClose,
+  onSearch,
+  onRequestInstall,
+  onCancelInstall,
+  onConfirmInstall,
+}: {
+  open: boolean
+  query: string
+  root: SkillHubInstallRoot
+  cwd: string | undefined
+  results: readonly SkillHubSearchResult[]
+  searching: boolean
+  error: string | undefined
+  confirming: SkillHubSearchResult | undefined
+  installing: boolean
+  installed: ReadonlySet<string>
+  t: SkillsSectionInjected['t']
+  onQueryChange: (value: string) => void
+  onRootChange: (root: SkillHubInstallRoot) => void
+  onClose: () => void
+  onSearch: () => void
+  onRequestInstall: (result: SkillHubSearchResult) => void
+  onCancelInstall: () => void
+  onConfirmInstall: () => void
+}) {
+  const footer = confirming === undefined
+    ? <Button disabled={searching} onClick={onClose}>{t('close')}</Button>
+    : (
+      <>
+        <Button disabled={installing} onClick={onCancelInstall}>{t('cancel')}</Button>
+        <Button variant="primary" disabled={installing} onClick={onConfirmInstall}>
+          {installing ? t('hubInstalling') : t('hubInstallConfirm')}
+        </Button>
+      </>
+    )
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={confirming === undefined ? t('hubTitle') : t('hubConfirmTitle')}
+      closeLabel={t('close')}
+      {...styles.hubModal === undefined ? {} : { className: styles.hubModal }}
+      {...styles.hubContent === undefined ? {} : { contentClassName: styles.hubContent }}
+      footer={footer}
+    >
+      {confirming === undefined ? (
+        <div className={styles.hubBody}>
+          <p className={styles.intro}>{t('hubIntro')}</p>
+          <fieldset className={styles.scopeField} disabled={searching}>
+            <legend className={styles.label}>{t('hubScope')}</legend>
+            <div className={styles.scopeOptions}>
+              <Pill active={root === 'user-dsh'} aria-pressed={root === 'user-dsh'} onClick={() => { onRootChange('user-dsh') }}>
+                {t('scopeUser')}
+              </Pill>
+              <Pill
+                active={root === 'project-dsh'}
+                aria-pressed={root === 'project-dsh'}
+                disabled={cwd === undefined}
+                onClick={() => { onRootChange('project-dsh') }}
+              >
+                {t('scopeProject')}
+              </Pill>
+            </div>
+            <span className={styles.fieldHint}>
+              {root === 'project-dsh' && cwd !== undefined
+                ? format(t('hubProjectScope'), { cwd })
+                : t('hubUserScope')}
+            </span>
+          </fieldset>
+          <div className={styles.hubSearchRow}>
+            <Input
+              type="search"
+              value={query}
+              icon={<IconSearchOutline16 />}
+              aria-label={t('hubSearchLabel')}
+              placeholder={t('hubSearchPlaceholder')}
+              disabled={searching}
+              onChange={(event) => { onQueryChange(event.target.value) }}
+              onKeyDown={(event) => { if (event.key === 'Enter') onSearch() }}
+            />
+            <Button variant="primary" disabled={searching || query.trim().length === 0} onClick={onSearch}>
+              {searching ? t('hubSearching') : t('hubSearch')}
+            </Button>
+          </div>
+          {error !== undefined && <p className={styles.modalError} role="alert">{error}</p>}
+          {results.length === 0 && !searching
+            ? <p className={styles.empty}>{query.trim().length === 0 ? t('hubSearchHint') : t('hubNoResults')}</p>
+            : (
+              <ul className={styles.hubResults}>
+                {results.map(result => {
+                  const isInstalled = result.installationStatus === 'installed' || installed.has(hubKey(result))
+                  const conflicts = result.installationStatus === 'conflict'
+                  return (
+                    <li key={hubKey(result)} className={styles.hubResult}>
+                      <div className={styles.hubResultCopy}>
+                        <span className={styles.hubResultTitle}>{result.skillName}</span>
+                        <span className={styles.hubResultSource}>{result.repo} · {result.path} · ★ {result.stars}</span>
+                        {result.description.length > 0 && <span className={styles.hubResultDescription}>{result.description}</span>}
+                      </div>
+                      <Button size="sm" variant="outline" disabled={isInstalled || conflicts} onClick={() => { onRequestInstall(result) }}>
+                        {isInstalled ? t('hubInstalled') : conflicts ? t('hubConflict') : t('hubInstall')}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+        </div>
+      ) : (
+        <div className={styles.hubBody}>
+          <p className={styles.intro}>{t('hubConfirmBody')}</p>
+          <dl className={styles.hubConfirmDetails}>
+            <dt>{t('hubSkill')}</dt><dd>{confirming.skillName}</dd>
+            <dt>{t('hubRepository')}</dt><dd>{confirming.repo}</dd>
+            <dt>{t('hubPath')}</dt><dd>{confirming.path}</dd>
+            <dt>{t('hubScope')}</dt><dd>{root === 'project-dsh' ? t('scopeProject') : t('scopeUser')}</dd>
+          </dl>
+          <p className={styles.scopeNotice}>{t('hubNoOverwrite')}</p>
+          {error !== undefined && <p className={styles.modalError} role="alert">{error}</p>}
+        </div>
+      )}
+    </Modal>
   )
 }
 
@@ -1069,6 +1310,10 @@ function persistTreeState(state: Readonly<Record<string, boolean>>): void {
 
 function skillKey(skill: Pick<SkillInventoryEntry, 'source' | 'name'>): string {
   return `${skill.source}:${skill.name}`
+}
+
+function hubKey(result: Pick<SkillHubSearchResult, 'repo' | 'path'>): string {
+  return `${result.repo}:${result.path}`
 }
 
 function sourceBucket(source: string): Exclude<SourceFilter, 'all'> {

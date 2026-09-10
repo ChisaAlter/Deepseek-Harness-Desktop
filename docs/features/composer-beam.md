@@ -4,13 +4,13 @@
 | --- | --- |
 | **id** | `composer-beam` |
 | **status** | `active` |
-| **last verified** | 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后设置弹窗、持久化、同源预览与 beam fork markers 保留；Host / Client build、重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前同日 focused 130/130、GUI 5361 passed / 1 skipped 与 Chromium 四角像素门禁证据仍有效，本次未重跑像素门禁。 |
+| **last verified** | 2026-09-08 — 第一批与第二批设置扩展已实现；补充修复 Interface 设置行操作区：齿轮置于 Switch 左侧，Switch 与同组设置行共用右侧对齐线。focused 3 文件 89/89、GUI 420 文件 / 5496 tests passed / 1 skipped、official build、client package verification、桌面 1447 passed / 2 skipped、fork markers 10/10 与 Electron Chromium 四角/8 套配色门禁通过。全局 i18n 与 web replay 的既有环境问题记录在 Agent Note。 |
 
 ## User paths
 
 1. 智能体发送、思考或流式输出时，输入卡四边与四个圆角播放连续彩色边光；界面设置关闭「发送消息时的思考炫光」后不绘制。
 2. 运行态仍可点击草稿、附件、权限、模型与 Stop；边光不覆盖输入框上方 dock、下方留白或相邻内容。
-3. 设置 → 界面中，用户可从开关右侧的齿轮打开思考炫光弹窗，预览并保存方向、周期、强度、光晕和色相；取消不写入，恢复默认回到当前基线效果。
+3. 设置 → 界面中，用户可从开关左侧的齿轮打开思考炫光弹窗；开关右边界与其他设置行保持一致。用户可使用同源预览配置方向（顺/逆/往返）、周期、强度、bloom、色相、呼吸、色相循环、模式、色板 / 自定义颜色、track width、blur、夜间调暗、缓动与最多 5 个预设；可通过 v1 JSON 剪贴板导入导出。取消不写入，恢复默认回到当前 legacy 基线效果。
 
 ## Invariants
 
@@ -21,9 +21,10 @@
 - 运行态 stroke 固定为 2px，并使用 Libraries.dev Rotate 参考的 conic 强度窗口；透明尾迹是动效的一部分，静态 rim 才负责常驻整圈。stroke 只使用 `border-radius + 两层 ring mask`，不叠加重复 `clip-path`。
 - 24 个冻结角度内，四个 22px 圆角弧都必须至少有一帧达到高可见覆盖，同时各角至少有一帧回落为暗态；这同时防止圆角被几何切断和动效退化成整圈等亮。
 - `prefers-reduced-motion: reduce` 隐藏完整 beam；开关和运行状态语义不变。
-- 自定义只通过 CSS 变量缩放现有 beam：2px stroke、1.5px bloom 光源、4px 裁切壳、8px blur、22px 圆角和 conic 强度窗口固定不变；默认配置必须与改动前逐像素等价。
-- 设置行使用 `Switch` + `Tooltip` + 28px `IconSettingsOutline16` 图标按钮；设置面使用 `Modal`，含同源实时预览、方向选项、四个数值 slider、恢复默认、取消与保存。
-- 偏好持久化在 `ui-conversation.composerBeamStyle`；旧设置缺字段时采用默认值，错误或越界数据在采用边界被归一化。
+- 自定义只通过 CSS 变量调整现有 beam profile：track width 允许 0.5～4px，bloom blur 允许 0～12px；1.5px bloom 光源、4px 裁切壳、22px 圆角、两层 ring mask 和 conic 强度窗口固定不变；默认 legacy 配置必须与改动前逐像素等价。
+- 设置行使用 `Tooltip` + 28px `IconSettingsOutline16` 图标按钮 + `Switch`；齿轮紧邻 Switch 左侧，Switch 的右边界与同组其他设置行对齐。设置面使用可滚动 `Modal`，含同源实时预览、分组 profile 控件、颜色输入、恢复默认、取消、保存、预设管理与 JSON 剪贴板导入导出。
+- active 偏好持久化在 `ui-conversation.composerBeamStyle`，用户预设持久化在 `ui-conversation.composerBeamPresets`，保存时两者通过一次 namespace mutation 一起提交；旧设置缺字段时采用默认值，错误或越界数据在采用边界被归一化，预设库最多 5 项。
+- 模式只描述视觉 / 运动 profile；不读取聚焦、输入、发送、完成、失败等业务状态，也不新增状态灯。
 
 ## Allowed touch
 
@@ -35,10 +36,11 @@
 - `vendor/deepseek-harness/packages/client/ui-conversation/src/client/apply.ts`
 - `vendor/deepseek-harness/packages/client/ui-conversation/src/client/settings/BeamRow.tsx`、`BeamRow.module.css`、`BeamSettingsModal.tsx`、`BeamSettingsModal.module.css`
 - `vendor/deepseek-harness/packages/client/ui-conversation/src/client/locales.ts`
-- `vendor/deepseek-harness/packages/client/ui-conversation/tests/input-bar-beam.client.spec.ts`、`input-bar.client.spec.tsx`
+- `vendor/deepseek-harness/packages/client/ui-conversation/tests/input-bar-beam.client.spec.ts`、`composer-beam-settings.client.spec.ts`、`input-bar.client.spec.tsx`
 - `vendor/deepseek-harness/packages/client/ui-conversation/tests/beam-row.client.spec.tsx`、`submission-policy.client.spec.ts`、`host.client.spec.ts`、`chat-apply.client.spec.tsx`
 - `vendor/deepseek-harness/packages/client/ui-conversation/README*.md`
 - `vendor/deepseek-harness/.agents/notes/implemented/feature/2026-09-07-composer-beam-settings.*`
+- `vendor/deepseek-harness/.agents/notes/implemented/feature/2026-09-08-composer-beam-settings-expansion.*`
 - `vendor/deepseek-harness/.agents/notes/implemented/bug-fix/2026-08-28-composer-beam-pointer-events.*`
 - `src/shared/harness-desktop-forks.js`、`harness-desktop-forks.test.js`
 - `scripts/run-composer-beam-corners.cjs`、`package.json`（Chromium 像素门禁）
@@ -62,5 +64,6 @@
 - Design: [设计语言](../design-language.md) / [动效规范](../motion.md)
 - Agent Note: [Composer thinking beam must not capture toolbar clicks](../../vendor/deepseek-harness/.agents/notes/implemented/bug-fix/2026-08-28-composer-beam-pointer-events.md)
 - Agent Note: [Composer beam settings](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-09-07-composer-beam-settings.md)
+- Agent Note: [Composer beam settings expansion](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-09-08-composer-beam-settings-expansion.md)
 - Implementation entry: `ui-conversation/src/client/skeleton/InputBar.tsx` / `ui-conversation/src/client/ComposerBeam.tsx`
 - Visual reference: [Libraries.dev Border Beam](https://libraries.dev/beam)

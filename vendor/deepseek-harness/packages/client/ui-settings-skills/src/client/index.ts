@@ -49,6 +49,13 @@ export function apply(ctx: Context): void {
     setInvocation: async (name, modelInvocable, userInvocable, scope) => {
       unwrap(await ctx.remote.skillInventory.setInvocation({ name, modelInvocable, userInvocable, ...scope }), 'skillInventory.setInvocation')
     },
+    searchHub: async (query, limit, root, scope) => unwrap(
+      await ctx.remote.skillInventory.searchHub({ query, limit, root, ...scope }),
+      'skillInventory.searchHub',
+    ),
+    installHub: async (result, root, scope) => {
+      unwrap(await ctx.remote.skillInventory.installHub({ ...result, root, ...scope }), 'skillInventory.installHub')
+    },
     openDirectory: directory => {
       const openPath = (ctx.workspaces as { openPath?: (path: string) => Promise<void> }).openPath
       if (openPath === undefined) {

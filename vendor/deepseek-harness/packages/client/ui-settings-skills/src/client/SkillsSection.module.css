@@ -426,6 +426,104 @@
   max-height: min(820px, calc(100vh - 32px));
 }
 
+.hubModal {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+  max-height: min(820px, calc(100vh - 32px));
+}
+
+.hubContent {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hubBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.hubSearchRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hubResults {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
+}
+
+.hubResult {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 8px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+}
+
+.hubResultCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hubResultTitle {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hubResultSource,
+.hubResultDescription {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.hubResultDescription {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.hubConfirmDetails {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.hubConfirmDetails dt {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.hubConfirmDetails dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-primary);
+}
+
 .editorContent {
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
@@ -540,5 +638,27 @@
     width: 100%;
     justify-content: flex-end;
     padding-left: 36px;
+  }
+
+  .hubSearchRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hubResult {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hubResult > :last-child {
+    align-self: flex-start;
+  }
+
+  .hubConfirmDetails {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .hubConfirmDetails dd + dt {
+    margin-top: 8px;
   }
 }

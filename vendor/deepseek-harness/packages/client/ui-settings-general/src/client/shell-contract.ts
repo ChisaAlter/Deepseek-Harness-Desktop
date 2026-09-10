@@ -10,6 +10,7 @@ import type { ConnectionState } from '@deepseek-ai/dsh-client-connection/client'
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SettingsNavigationSnapshot } from './settings-navigation.ts'
 // Type-only: pulls ui-sidebar's SlotMap merge (the 'sidebar.settings' entry)
 // into every program that sees this contract.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
@@ -32,14 +33,20 @@ export interface SettingsOnboardingStep {
 /**
  * Registrant-private injected share of the settings shell (assembled in
  * apply): connection state and ledger projections arrive as hook-compartment
- * sources, while the reconnect command remains a plain callback.
+ * sources, while service commands remain plain callbacks.
  */
 export type SettingsRootInjected = {
   /** Request a fresh logical generation and physical WebSocket immediately. */
   reconnect: () => void
+  /** Open the Settings shell at an optional requested section. */
+  openSettings: (sectionId?: string) => void
+  /** Close the Settings shell and clear its requested section. */
+  closeSettings: () => void
   hooks: {
     /** Connection-owned state for the current Host connection. */
     connectionState: HostObservable<ConnectionState | undefined>
+    /** Shared Settings shell visibility and requested section state. */
+    navigation: HostObservable<SettingsNavigationSnapshot>
     /** settings.section ledger projected into ordered nav rows. */
     sections: HostObservable<readonly SettingsSectionRow[]>
     /** settings.onboarding ledger projected into coordinator order. */
@@ -50,8 +57,9 @@ export type SettingsRootInjected = {
 /**
  * Full component props of the settings shell root: the sidebar owner share
  * (wide/rail state) plus the declared render shares and the injected face
- * (hooks compartment bound to useSections). No store is registered — modal
- * open state and active section id are component-local viewing state.
+ * (hooks compartment bound to useSections and useNavigation). Navigation
+ * state is owned by the SettingsNavigation service rather than by React
+ * component state, so callers can issue requests before the shell mounts.
  */
 export type SettingsRootComponentProps =
   PropsRuntime<'sidebar.settings'>

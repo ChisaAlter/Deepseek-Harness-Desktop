@@ -53,3 +53,14 @@ export interface McpServerEnableRequest {
   readonly id: string
   readonly enabled: boolean
 }
+
+/** Successful result from a one-shot MCP connection test. */
+export interface McpServerTestResult {
+  readonly ok: true
+  readonly serverName: string
+  readonly transport: McpServerRecord['transport']
+  /** Raw names returned by the server's `tools/list` response. */
+  readonly toolNames: readonly string[]
+  readonly toolCount: number
+  readonly elapsedMs: number
+}

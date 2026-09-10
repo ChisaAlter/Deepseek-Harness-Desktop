@@ -46,11 +46,11 @@ kind: "package-reference"
 
 ### 命令
 
-`view` 返回从 1 开始编号的文件内容（保留制表符，因此显示的文本仍可作为有效的字面量替换输入）或忽略隐藏、依赖与 Python 缓存条目的两层目录列表。`create` 创建新文件，并拒绝覆盖现有文件。选定命令不使用的专用字段可以包含 `null` 占位符；必填字段仍保持必填，`view_range: null` 选择完整视图，`str_replace.new_str: null` 会被拒绝，因此删除内容必须省略该字段。`str_replace` 要求字面量唯一匹配，错误只使用公开的 `old_str` 词汇；`insert` 遵循所选的零基插入边界，不会隐式补尾换行。修改操作会保留请求编辑范围之外的制表符。
+`view` 返回从 1 开始编号的文件内容（保留制表符，因此显示的文本仍可作为有效的字面量替换输入）或忽略隐藏、依赖与 Python 缓存条目的两层目录列表。`create` 创建新文件，并拒绝覆盖现有文件。选定命令不使用的专用字段可以包含 `null` 占位符；必填字段仍保持必填，`view_range: null` 选择完整视图，`str_replace.new_str: null` 会被拒绝，因此删除内容必须省略该字段。`str_replace` 要求字面量唯一匹配，错误只使用公开的 `old_str` 词汇；`insert` 遵循所选的零基插入边界，不会隐式补尾换行。修改操作会保留请求编辑范围之外的制表符。`path` 参数必须是绝对路径：Windows 使用盘符路径或 UNC 路径，POSIX 使用以 `/` 开头的路径。
 
 ### 失败与恢复
 
-`view`、`str_replace` 或 `insert` 发生元数据未命中时，工具会在返回 `FS_NOT_FOUND` 前记录确认缺失，因此后续 `create` 可以通过已挂载策略的防护创建流程恢复外部删除的路径；缺失状态绝不会授权 `str_replace` 或 `insert`。防护变更继承策略插件的错误码与恢复指令——`FS_NOT_OBSERVED`（先读取文件再重试）、`FS_STALE_VERSION`（先重新读取再重试）——沙箱拒绝则表现为 `[sandbox: file access denied under <mode> mode]` 标记。路径必须是绝对路径；相对路径会被拒绝并给出提示。
+`view`、`str_replace` 或 `insert` 发生元数据未命中时，工具会在返回 `FS_NOT_FOUND` 前记录确认缺失，因此后续 `create` 可以通过已挂载策略的防护创建流程恢复外部删除的路径；缺失状态绝不会授权 `str_replace` 或 `insert`。缺失路径的错误会要求模型先使用 shell 列出父目录并确认准确文件名，再重试；缺失文件不会被视为成功编辑。防护变更继承策略插件的错误码与恢复指令——`FS_NOT_OBSERVED`（先读取文件再重试）、`FS_STALE_VERSION`（先重新读取文件再重试）——沙箱拒绝则表现为 `[sandbox: file access denied under <mode> mode]` 标记。路径必须是绝对路径；相对路径会按主机给出 Windows 盘符/UNC 语法或 POSIX `/` 根路径语法的提示。
 
 -----
 

@@ -14,6 +14,10 @@ Keep the existing Switch and add a settings icon that opens the shared `Modal`. 
 
 Customization is deliberately limited to CSS variables. The 2px stroke, 1.5px bloom source, 4px clip shell, 8px blur, 22px circular corners, masks, and conic intensity windows remain fixed. The feature does not introduce focus, typing, completion, or error lighting states from the external reference implementation.
 
+## Scope update (2026-09-08)
+
+The [settings expansion note](2026-09-08-composer-beam-settings-expansion.md) supersedes this note's temporary rejection of arbitrary palette stops and night dimming. Those capabilities are now bounded, validated visual settings; the rejection of focus, typing, completion, and error state lights remains in force.
+
 ## Alternatives considered
 
 **Port the reference implementation's complete ambient-light state machine.** Rejected because focus, typing, completion, error, night mode, and arbitrary color stops create new product states and a second visual palette beyond the existing thinking beam.

@@ -24,6 +24,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
+import { SettingsNavigationService } from './settings-navigation.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
@@ -52,7 +53,15 @@ export type { AboutSectionProps } from './AboutSection.tsx'
 export type { SettingsDocumentActionInjected, SettingsDocumentActionProps } from './SettingsDocumentAction.tsx'
 export type { SettingsDocumentState } from './settings-document-store.ts'
 export { SettingsDocumentStore } from './settings-document-store.ts'
+export type { SettingsNavigation, SettingsNavigationSnapshot } from './settings-navigation.ts'
 export type { SettingsKey } from './locales.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Shared client service for opening and closing the existing Settings shell. */
+    settingsNavigation: import('./settings-navigation.ts').SettingsNavigation
+  }
+}
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -77,6 +86,7 @@ export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settin
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
+  const settingsNavigation = new SettingsNavigationService(ctx)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-general: dictionaries')
   const connection = ctx.get('connection') as ConnectionHandle
 
@@ -107,8 +117,11 @@ export function apply(ctx: ClientContext): void {
   let onboardingSteps: readonly SettingsOnboardingStep[] = []
   const shellInjected = (): SettingsRootInjected => ({
     reconnect: () => { connection.reconnect() },
+    openSettings: sectionId => { settingsNavigation.open(sectionId) },
+    closeSettings: () => { settingsNavigation.close() },
     hooks: {
       connectionState: connection.state,
+      navigation: settingsNavigation,
       sections: {
         getSnapshot: () => {
           const version = ctx.slots.getVersion('settings.section')

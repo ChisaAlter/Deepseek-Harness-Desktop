@@ -30,6 +30,8 @@ Notes for using the \`str_replace\` command:
 * The \`new_str\` parameter should contain the edited lines that should replace the \`old_str\`
 `.trim()
 
+const ABSOLUTE_PATH_DESCRIPTION = 'Absolute path to a file or directory. On Windows, use a drive-letter path such as `C:\\repo\\file.py` or a UNC path such as `\\\\server\\share\\file.py`; on POSIX, use a path such as `/repo/file.py`.'
+
 function maybeTruncate(content: string, maxOutputChars: number): string {
   return content.length <= maxOutputChars
     ? content
@@ -63,6 +65,12 @@ function lineNumbersAt(content: string, offsets: readonly number[]): number[] {
   })
 }
 
+function absolutePathHint(): string {
+  return process.platform === 'win32'
+    ? 'a Windows drive-letter path such as `C:\\repo\\file.py` or a UNC path such as `\\\\server\\share\\file.py`'
+    : 'a POSIX path such as `/repo/file.py`'
+}
+
 class MutationPolicy {
   private readonly policy: SandboxPolicyService | undefined
 
@@ -93,7 +101,7 @@ async function resolveTarget(
 ): Promise<FsTarget> {
   if (path.trim().length === 0) throw new Error('path must be a non-empty string')
   if (!isAbsolute(path)) {
-    throw new Error(`The path ${path} is not an absolute path, it should start with \`/\`. Maybe you meant /${path}?`)
+    throw new Error(`The path ${path} is not an absolute path. Use ${absolutePathHint()}.`)
   }
   return ctx.fs.resolve(path, { signal })
 }
@@ -108,7 +116,7 @@ async function statExisting(
   if (info === undefined) {
     ctx.emit('fs/observed', target, { kind: 'absent' }, exec)
     throw new FsError(
-      `The path ${target.displayPath} does not exist. Please provide a valid path.`,
+      `The path ${target.displayPath} does not exist. Use the shell to list the parent directory and confirm the exact filename, then retry with an existing absolute path.`,
       'FS_NOT_FOUND',
     )
   }
@@ -438,7 +446,7 @@ function registerStrReplaceEditor(ctx: Context, config: ResolvedConfig): void {
       path: {
         type: 'string',
         required: true,
-        description: 'Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`.',
+        description: ABSOLUTE_PATH_DESCRIPTION,
       },
       file_text: {
         oneOf: [{ type: 'string' }, { type: 'null' }],

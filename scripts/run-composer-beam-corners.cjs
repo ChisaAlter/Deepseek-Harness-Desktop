@@ -28,6 +28,55 @@ const cardHeight = Number(app.commandLine.getSwitchValue('card-height') || 193);
 const viewportWidth = Number(app.commandLine.getSwitchValue('viewport-width') || 1000);
 let pixelScale = 1;
 
+const paletteColors = {
+  legacy: ['#ff3264', '#288cff', '#32c850', '#1eb9aa', '#6446ff', '#ff7828', '#f032b4'],
+  warm: ['#ff4d6d', '#ff8c42', '#ffd166', '#ef476f', '#ff4d6d'],
+  aurora: ['#42e8c8', '#3f8cff', '#8a5cf6', '#e45bff', '#42e8c8'],
+  rose: ['#ff4f81', '#ff79c6', '#c77dff', '#7b61ff', '#ff4f81'],
+  glacier: ['#d9f7ff', '#6edff6', '#328bff', '#5b6dff', '#d9f7ff'],
+  cyber: ['#00f0ff', '#00ff8f', '#b6ff00', '#ffed00', '#00f0ff'],
+  sunset: ['#ff5f6d', '#ffc371', '#ff9a8b', '#ff6a88', '#ff5f6d'],
+  cyan: ['#31d7ff', '#1eb9aa', '#64a8ff', '#31d7ff'],
+};
+
+const beamVariableNames = [
+  '--dsh-composer-beam-palette-gradient',
+  '--dsh-composer-beam-inner-shadow',
+  '--dsh-composer-beam-track-width',
+  '--dsh-composer-beam-glow-blur',
+  '--dsh-composer-beam-hue-cycle-range',
+  '--dsh-composer-beam-hue-cycle-period',
+  '--dsh-composer-beam-breathing-amplitude',
+  '--dsh-composer-beam-breathing-period',
+  '--dsh-composer-beam-night-factor',
+  '--dsh-composer-beam-easing',
+];
+
+function paletteGradient(colors) {
+  const stops = colors.map((color, index) => `${color} ${(index / (colors.length - 1) * 100).toFixed(2)}%`).join(', ');
+  return `conic-gradient(from var(--dsh-composer-beam-angle), ${stops})`;
+}
+
+function customBeamOptions(colors) {
+  return {
+    direction: 'pingPong',
+    breathing: 'on',
+    hueCycle: 'off',
+    variables: {
+      '--dsh-composer-beam-palette-gradient': paletteGradient(colors),
+      '--dsh-composer-beam-inner-shadow': `inset 0 0 18px 3px ${colors[0]}66, inset 0 0 42px 10px ${colors[colors.length - 1]}33`,
+      '--dsh-composer-beam-track-width': '4px',
+      '--dsh-composer-beam-glow-blur': '0px',
+      '--dsh-composer-beam-hue-cycle-range': '0deg',
+      '--dsh-composer-beam-hue-cycle-period': '1s',
+      '--dsh-composer-beam-breathing-amplitude': '0.3',
+      '--dsh-composer-beam-breathing-period': '1s',
+      '--dsh-composer-beam-night-factor': '0.5',
+      '--dsh-composer-beam-easing': 'ease-in-out',
+    },
+  };
+}
+
 app.disableHardwareAcceleration();
 
 function pixel(buffer, width, x, y) {
@@ -100,12 +149,30 @@ async function capturePage(window) {
   throw lastError;
 }
 
-async function capture(window, angle, active, mode) {
-  await window.webContents.executeJavaScript(`
-    document.documentElement.style.setProperty('--test-angle', '${angle}deg');
-    document.body.dataset.mode = '${mode}';
-    document.querySelector('.card').classList.toggle('cardBeam', ${active});
+async function capture(window, angle, active, mode, options = {}) {
+  const styleReset = beamVariableNames.map((name) => `beam.style.removeProperty(${JSON.stringify(name)});`).join('');
+  const styleSet = Object.entries(options.variables || {})
+    .map(([name, value]) => `beam.style.setProperty(${JSON.stringify(name)}, ${JSON.stringify(value)});`)
+    .join('');
+  const failure = await window.webContents.executeJavaScript(`
+    (() => {
+      try {
+        document.documentElement.style.setProperty('--test-angle', '${angle}deg');
+        document.body.dataset.mode = '${mode}';
+        const beam = document.querySelector('.beamLayer');
+        ${styleReset}
+        ${styleSet}
+        beam.dataset.beamDirection = ${JSON.stringify(options.direction || 'clockwise')};
+        beam.dataset.beamBreathing = ${JSON.stringify(options.breathing || 'off')};
+        beam.dataset.beamHueCycle = ${JSON.stringify(options.hueCycle || 'on')};
+        document.querySelector('.card').classList.toggle('cardBeam', ${active});
+        return null;
+      } catch (error) {
+        return { message: String(error), stack: error instanceof Error ? error.stack : '' };
+      }
+    })()
   `);
+  if (failure !== null) throw new Error(`capture fixture failed: ${failure.message}\n${failure.stack || ''}`);
   await new Promise((resolve) => setTimeout(resolve, 80));
   return capturePage(window);
 }
@@ -257,7 +324,23 @@ app.whenReady().then(async () => {
   const strokePeakFailures = cornerNames.filter((name) => maximumCoverage[name] < strokePeakCoverageThreshold);
   const strokeMotionFailures = cornerNames.filter((name) => minimumCoverage[name] > strokeDarkCoverageThreshold);
   const bloomFailures = cornerNames.filter((name) => bloomMaxima[name] < bloomPixelThreshold);
-  console.log(JSON.stringify({
+  const paletteVisibility = {};
+  for (const [name, colors] of Object.entries(paletteColors)) {
+    const paletteImage = await capture(window, 135, true, 'palette', customBeamOptions(colors));
+    const palette = paletteImage.toBitmap({ scaleFactor: 1 });
+    let maximumDelta = 0;
+    for (let y = Math.max(0, Math.floor(rect.y - 5)); y < Math.min(captureSize.height, Math.ceil(rect.y + rect.height + 5)); y += 2) {
+      for (let x = Math.max(0, Math.floor(rect.x - 5)); x < Math.min(captureSize.width, Math.ceil(rect.x + rect.width + 5)); x += 2) {
+        maximumDelta = Math.max(maximumDelta, difference(
+          pixel(palette, captureSize.width, x, y),
+          pixel(strokeBaseline, captureSize.width, x, y),
+        ));
+      }
+    }
+    paletteVisibility[name] = maximumDelta;
+  }
+  const paletteFailures = Object.keys(paletteVisibility).filter((name) => paletteVisibility[name] < strokePixelThreshold);
+  const report = {
     card: rect,
     pixelScale,
     geometry: { layers: geometry, failures: geometryFailures },
@@ -274,13 +357,17 @@ app.whenReady().then(async () => {
       motionFailures: strokeMotionFailures,
     },
     bloom: { pixelThreshold: bloomPixelThreshold, maxima: bloomMaxima, failures: bloomFailures },
-  }, null, 2));
+    palettes: { visibility: paletteVisibility, failures: paletteFailures },
+  };
+  fs.writeFileSync(path.join(root, '.tmp', 'composer-beam-corners.json'), JSON.stringify(report, null, 2));
+  console.log(JSON.stringify(report, null, 2));
   app.exit(
     geometryFailures.length === 0
       && rimFailures.length === 0
       && strokePeakFailures.length === 0
       && strokeMotionFailures.length === 0
       && bloomFailures.length === 0
+      && paletteFailures.length === 0
       ? 0
       : 1,
   );
