@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `surfaces-work-loops` |
 | **status** | `active` |
-| **last verified** | 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后 Files / Browser / Diff / Agents 工作循环及 tab 关闭控件位置保留；Host / Client build、含 ui-surfaces 与 ui-chat 的重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前同日 `test:gui` 411 文件 / 5360 pass / 1 skip 与 official client artifacts 证据仍有效；本次未重跑 `qa:source`。 |
+| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：右栏新接入上游 ui-sidebar-right / ui-dockkit（Trajectory 停靠面），其 fixed 覆盖层（dock 菜单/浮板/全屏面板）按 caption band no-drag 契约补洞并连同全部 27 处分叉登记进 post-merge-ui no-drag 清单；chat 文件路径点击随上游 `resolveWorkspacePath` 改为工作区绝对路径 + options 直达原生打开（ui-tool 双 spec 16/16 按新契约更新）；Desktop tests 1450 全绿。web e2e 回放：rc.1 新增 auth 门已适配 post-merge 组装 e2e 导航（`scaffold.authenticatedUrl`），settings/preset 配方与金样漂移及 hero 连接流重构记录为合并后道债。此前 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后 Files / Browser / Diff / Agents 工作循环及 tab 关闭控件位置保留；Host / Client build、含 ui-surfaces 与 ui-chat 的重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前同日 `test:gui` 411 文件 / 5360 pass / 1 skip 与 official client artifacts 证据仍有效；本次未重跑 `qa:source`。 |
 
 ## User paths
 

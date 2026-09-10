@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-lsp` gives the model a single read-only `lsp` tool for precise code navigation over the LSP seam: go to a symbol's definition, find its references, jump to its implementations, or read hover documentation. The tool owns everything the model sees — name, schema, prompt guidance, result formatting, and UI presentation — and never depends on which language server backs a query. Positions are one-based UTF-16 cursor coordinates, which the tool converts to the seam's zero-based convention. Results are bounded location lists or normalized hover text with explicit no-result and truncation markers. Compose it with a provider such as `dsh-lsp-stdio` and the `dsh-lsp` seam to activate navigation.
+`dsh-tool-lsp` lets a model navigate code through one read-only `lsp` tool: open a symbol's definition, find references and implementations, or read hover documentation. Requests use one-based UTF-16 line and character positions. Navigation results are bounded, grouped by file, and labeled when locations are omitted or text is truncated; hover results are normalized and distinguish missing information from errors. The package requires a configured LSP provider and a session workspace root. Choose it when textual search is ambiguous or a change needs precise symbol relationships; ordinary navigation should continue to use `search` and `read`.
 
 ## Table of Contents
 
@@ -84,10 +84,9 @@ This section explains the design decisions behind the tool and where the code re
 <a id="further-exploration"></a>
 ## Further Exploration
 
-Read these pages when the package-level contract is not enough. They move from the model-facing surface to the seam, the provider, and the decision evidence.
+Read these pages when the package-level contract is not enough. They move from the model-facing surface to the seam and the provider.
 
 - [LSP navigation subsystem](../../../docs/subsystems/lsp.md) — operations, coordinates, requests and results, and `LspError` codes.
-- [LSP capability seam Agent Note](../../../.agents/notes/implemented/architecture/2026-07-15-lsp-capability-seam.md) — design rationale, alternatives, and deliberately deferred API.
 - [dsh-lsp](../lsp/README.md) — the seam this tool queries.
 - [dsh-lsp-stdio](../lsp-stdio/README.md) — the stdio provider that answers these queries.
 - [lsp group map](../README.md) — the three-package family and its related documentation.
@@ -166,7 +165,7 @@ None; UI presentation is outside the model request.
 
 These limits define when the tool is a poor fit. They are current package constraints, not a task backlog.
 
-- **UTF-16 cursor coordinates** — columns are exact for the protocol but hard for a model to count around non-BMP characters; an off-symbol position may return empty results, so the prompt explains the convention without encouraging broad LSP use ([seam Agent Note](../../../.agents/notes/implemented/architecture/2026-07-15-lsp-capability-seam.md)).
+- **UTF-16 cursor coordinates** — columns are exact for the protocol but hard for a model to count around non-BMP characters; an off-symbol position may return empty results, so the prompt explains the convention without encouraging broad LSP use.
 - **No cross-server completeness promise** — supported servers may return empty or partial results depending on indexing readiness; the tool promises no completeness across languages or servers.
 
 <a id="dev-note"></a>

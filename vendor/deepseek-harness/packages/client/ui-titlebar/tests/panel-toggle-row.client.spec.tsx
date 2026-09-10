@@ -6,6 +6,9 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SurfacesToggleRow, TerminalToggleRow } from '../src/client/PanelToggleRow.tsx'
 import type { PanelToggleRowProps } from '../src/client/PanelToggleRow.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(cleanup)
 
@@ -19,6 +22,8 @@ function props(opts: { visible?: boolean; writable?: boolean } = {}): {
   return {
     setVisible,
     value: {
+      usePanelInfo: panelInfoStub,
+      useResource: resourceStub,
       useSessions: unused,
       useSessionPendingInteraction: unused,
       useWorkspaces: unused,

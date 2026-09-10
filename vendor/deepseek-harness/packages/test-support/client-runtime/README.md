@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-test-runtime` gives a browser feature spec a real jsdom test bench: it assembles a Cordis context, the renderer-owned slot registry, and the production `UiSession` adapter around typed Session and Workspace Controller doubles. A default file-upload stub satisfies features that declare the service and rejects if a test starts an upload without replacing it. Feature suites exercise declaration, registration, scoping, stores, injection, rendering, updates, and disposal without copying production renderer or adapter logic. Suites publish Session lifecycle state, Workspace state, projection values, and Conversation events through typed fixtures, then use local DOM snapshot roots, scoped Testing Library queries, and fail-loud service checks. It is not part of the product plugin graph (no `dsh.client`); feature packages depend on it in `devDependencies` only.
+`dsh-client-test-runtime` lets browser feature specs exercise production slot, store, rendering, update, and disposal behavior in jsdom without reimplementing the UI runtime. Test authors can publish typed Session, Workspace, projection, and Conversation fixtures, query slot-local DOM roots, and script Remote replies or failures. Missing services, unstubbed session behavior, and unexpected file uploads fail at the call site, while disposal is idempotent. Use it only from in-repository browser-oriented Vitest suites through `devDependencies`; it is not a product plugin or general Node test harness.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ This package gives a browser feature spec a real runtime to mount against: creat
 
 ### Setting up a feature spec
 
-`SlotTestRuntime.create()` assembles the runtime, `declare(children)` registers an auto frame whose per-key `<div data-slot>` wrappers become snapshot roots, `mount(plugin)` runs the feature on a real fiber, and `renderSlot(key, owner)` returns the slot-local view with scoped queries and in-place updates:
+`SlotTestRuntime.create()` assembles the runtime, `declare(children)` registers an auto frame whose per-key `<div data-slot>` wrappers become snapshot roots, `mount(plugin)` runs the feature on a real fiber, and `renderSlot(key, owner, opts?)` returns the slot-local view with scoped queries and in-place updates:
 
 ```text
 const runtime = await SlotTestRuntime.create()
@@ -41,6 +41,8 @@ await runtime.dispose()
 ```
 
 `mount` prechecks required services and fails loud when one is missing — `provide(name, value)` supplies an extra service first. The runtime provides an unavailable `fileUpload` stub so assemblies can mount; replace `runtime.fileUpload.upload` before mounting when a test exercises upload behavior. `storeOf(key, scopeKey)` returns the live store instance the renderer hands a slot's component for identity and action-driven-write assertions.
+
+The optional render options select a keyed entry with `entryKey` or a list item with `only`; `view.update(owner)` retains that selection. `runtime.panelInfo` supplies the default `usePanelInfo` source with no global panel selected. Release it with `releasePanelInfoSource()` before mounting the production Layout owner. `dispose()` releases both default Workspace and panel-info root sources; early release is idempotent and does not remove replacement owners.
 
 ### Local DOM snapshots
 

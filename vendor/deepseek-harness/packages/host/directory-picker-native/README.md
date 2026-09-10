@@ -53,7 +53,7 @@ The backend is a thin service over a platform chooser: `NativeDirectoryPicker` r
 
 ### Platform mechanics
 
-Platform tools run without a shell: `osascript` on macOS, and Zenity with a KDialog fallback on Linux; the caller's abort terminates the native process. Windows opens the modern `IFileOpenDialog` in a spawned child process — a koffi-driven COM conversation on the child's main thread with the best thread DPI awareness the host accepts (per-monitor-v2 first), aborted by posting `WM_CLOSE` to the dialog thread.
+Platform tools run without a shell: `osascript` on macOS, and Zenity with a KDialog fallback on Linux; the caller's abort terminates the native process. Windows opens the modern `IFileOpenDialog` in a spawned child process — a koffi-driven COM conversation on the child's main thread with the best thread DPI awareness the host accepts (per-monitor-v2 first), aborted by posting `WM_CLOSE` to the dialog thread. Immediately before `Show`, the child synthesizes one Alt press through `keybd_event`, which lets the dialog activate as the foreground window even when a background host process spawned the child.
 
 ### Source map
 
@@ -73,7 +73,7 @@ Platform tools run without a shell: `osascript` on macOS, and Zenity with a KDia
 Read these when the backend contract is not enough: the seam definition first, then the alternative backend and the chooser that selects between them.
 
 - [Directory-picker seam](../directory-picker/README.md) — the `native` capability contract and the typed error vocabulary.
-- [Directory-picker capability seam decision](../../../.agents/notes/implemented/architecture/2026-07-28-directory-picker-capability-seam.md) — why backends differ in interaction shape.
+- [Directory-picker capability seam decision](../../../.agents/notes/archived/architecture/2026-07-28-directory-picker-capability-seam.md) — why backends differ in interaction shape.
 - [Browse backend](../directory-picker-browse/README.md) — the in-app alternative for remote clients.
 - [Adaptive chooser](../directory-picker-auto/README.md) — boot-time resolution between native and browse.
 - [No-shell subprocess runner](../../util/native-command/README.md) — the shared subprocess primitive the chooser runs on.
@@ -98,6 +98,7 @@ These limits define when the native interaction is unavailable or fragile. They 
 
 - **Linux requires desktop tooling** — with neither Zenity nor KDialog installed, `pick` rejects with an actionable error; it does not fall back to a typed-path prompt (the browse backend is that fallback at the composition level).
 - **Windows has no mechanism fallback** — the child-process picker through packaged koffi is the only native tier, so a COM refusal or dialog crash surfaces the failure; the browse backend remains the fallback at the composition level.
+- **Windows foreground grant relies on injected input** — the child synthesizes an Alt press before `Show` so the dialog can take the foreground from a background host; where synthesized input is suppressed (secure desktops, restricted remote sessions, an elevated foreground window), the dialog may still open behind other windows. The technique is validated on Windows 11 only.
 
 <a id="dev-note"></a>
 ### Dev Note

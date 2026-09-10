@@ -51,8 +51,9 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
     }
     if (vision === undefined) checkMessages(derived)
 
+    // The system prompt travels inside `messages` as surface node 0, never as `system`.
     const headerMatches = options.model === header.config.model
-      && options.system === header.system
+      && options.system === undefined
       && options.temperature === header.config.temperature
       && options.maxTokens === header.config.maxTokens
       && JSON.stringify(options.stop) === JSON.stringify(header.config.stop)

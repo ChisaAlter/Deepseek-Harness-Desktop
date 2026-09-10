@@ -10,6 +10,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { LocaleSnapshot } from '@deepseek-ai/dsh-client-locale/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { InputTriggerController, InputTriggerService } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type {
@@ -224,6 +225,43 @@ describe('sessionOf', () => {
     await tick()
     expect(ca.menu.getSnapshot().groups[0]!.items).toEqual([{ name: 'goal' }])
     expect(cb.menu.getSnapshot().open).toBe(false)
+  })
+
+  it('re-fetches every open menu when the active locale changes', async () => {
+    const { root, inputTriggers, mint } = await serviceBench()
+    let locale = 'en'
+    const candidates = vi.fn(() => Promise.resolve([{ name: 'compact', description: locale }]))
+    inputTriggers.registerSource({
+      trigger: '/',
+      name: 'command',
+      candidates,
+      onPick: () => undefined,
+    })
+    const first = inputTriggers.sessionOf(mint('a').actx)
+    const second = inputTriggers.sessionOf(mint('b').actx)
+    const closed = inputTriggers.sessionOf(mint('c').actx)
+    first.track('/c', 2, { tier: 'plain' }, 1)
+    second.track('/c', 2, { tier: 'plain' }, 1)
+    await tick()
+    expect(first.menu.getSnapshot()).toMatchObject({
+      open: true,
+      hit: { query: 'c' },
+      groups: [{ source: 'command', status: 'ready', items: [{ name: 'compact', description: 'en' }] }],
+    })
+
+    locale = 'zh'
+    root.emit('locale/change', { active: 'zh', locales: [], revision: 1 } as LocaleSnapshot)
+    expect(first.menu.getSnapshot().open).toBe(true)
+    expect(second.menu.getSnapshot().open).toBe(true)
+    await tick()
+    expect(candidates).toHaveBeenCalledTimes(4)
+    expect(first.menu.getSnapshot()).toMatchObject({
+      open: true,
+      hit: { query: 'c' },
+      groups: [{ source: 'command', status: 'ready', items: [{ name: 'compact', description: 'zh' }] }],
+    })
+    expect(second.menu.getSnapshot().groups[0]!.items).toEqual([{ name: 'compact', description: 'zh' }])
+    expect(closed.menu.getSnapshot().open).toBe(false)
   })
 })
 

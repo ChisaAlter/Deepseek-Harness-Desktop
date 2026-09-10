@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-core 分组提供 DeepSeek Harness 的产品 API 主干：仅追加的会话日志、系统提示词组装、工具注册表、`Agent` 句柄，以及驱动它们的具体循环。每个组合都会启动这些包，插件与消费方构建所依赖的正是它们稳定的约定。一个轮次会流经其中全部环节——循环领取提示词，在会话日志上打开轮次，通过 system-prompt 组装请求，流式接收模型响应，通过注册表分发工具调用，并把每个模型可见的事实追加回日志。构建或扩展 agent 时请选择本分组；默认产品组合是 [`dsh-base`](../bundle/base/README.zh.md)。
+使用 core 包可以构建或扩展能够记录持久会话历史、组装系统提示词、提供工具、选择默认模型并运行模型轮次的 agent。这些包定义每个组合都会使用的共享 API，而可执行的产品组合位于 [`packages/bundle`](../bundle/README.zh.md)。开发 agent 行为或替换其中一项能力时请选择本分组；需要默认可运行组合时，请从 [`dsh-base`](../bundle/base/README.zh.md) 开始。
 
 ## 目录
 

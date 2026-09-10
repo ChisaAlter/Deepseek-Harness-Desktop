@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-agent（智能体）可以在会话期间发现并加载 skill（技能）：在首次请求前，它们会收到一份持久目录，列出每个可用 skill 的名称与有长度上限的描述，并可通过 `skill` 加载工具按名称加载任一列出 skill 的完整指令。用户也可以用 `/name` token 直接调用某个 skill，把该 skill 的指令注入当轮次。目录保持最新：成员关系、描述或可见性变化会追加完整的替换目录，被删除的 skill 会被显式停用。当 agent 需要加载 skill 时，请把它与 skill 注册表（以及至少一个提供方）一起挂载；它唯一的配置项限制目录描述长度。
+agent（智能体）可以在会话期间发现并加载 skill（技能）。在首次请求前，它们会收到一份持久目录，列出可用 skill 的名称与有长度上限的描述，并可用 `skill` 工具加载完整指令。用户可以用 `/name` 调用某个 skill，把相同的指令注入该步骤。目录变更会追加一份完整替换，其中空目录会停用旧名称；可配置 `catalogDescriptionMaxLength` 来限制每条描述的长度。
 
 ## 目录
 
@@ -99,8 +99,7 @@ agent（智能体）可以在会话期间发现并加载 skill（技能）：在
 - [skill 子系统参考](../../../docs/subsystems/skills.zh.md)——目录背后的注册表与提供方词汇。
 - [skill 包](../skill/README.zh.md)——注册表与共享的 `renderSkillContent` 渲染。
 - [生成工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-skill)——模型接收的精确 `skill` schema。
-- [skill 目录热刷新 Agent Note](../../../.agents/notes/implemented/feature/2026-07-27-skill-catalog-hot-refresh.zh.md)——持久初始目录与替换生命周期。
-- [用户显式 skill 调用 Agent Note](../../../.agents/notes/implemented/feature/2026-08-08-user-explicit-skill-invocation.zh.md)——`/name` 手势设计。
+- [用户显式 skill 调用 Agent Note](../../../.agents/notes/archived/feature/2026-08-08-user-explicit-skill-invocation.md)——`/name` 手势设计。
 
 -----
 

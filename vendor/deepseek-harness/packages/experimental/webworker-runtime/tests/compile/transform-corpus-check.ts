@@ -23,6 +23,8 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url))
+const DOCKKIT_BUNDLE = 'packages/client/ui-dockkit/lib/index.js'
+const DOCKKIT_CSS = join(repositoryRoot, 'packages/client/ui-dockkit/lib/components/dockkit.module.css')
 
 /**
  * Files Node's ESM loader cannot import in this repository. None is a finding:
@@ -34,6 +36,7 @@ const repositoryRoot = fileURLToPath(new URL('../../../../../', import.meta.url)
  * import re-registers koffi's type names and fails as the second load.
  */
 const BASELINE_EXEMPT: ReadonlyMap<string, string> = new Map([
+  [DOCKKIT_BUNDLE, 'imports .css, which bare Node cannot load'],
   ['packages/client/ui-primitives/lib/index.js', 'imports .css, which bare Node cannot load'],
   ['packages/client/web/lib/index.js', 'imports .css, which bare Node cannot load'],
   ['packages/subprocess/win32-process/lib/index.js', 'koffi type-name collision on a second load'],
@@ -108,7 +111,10 @@ if (files.length === 0) {
     try {
       await import(pathToFileURL(file).href)
     } catch (reason) {
-      if (exemption === undefined) {
+      const expectedDockkitCss = reason instanceof Error
+        && 'code' in reason && reason.code === 'ERR_UNKNOWN_FILE_EXTENSION'
+        && reason.message === `Unknown file extension ".css" for ${DOCKKIT_CSS}`
+      if (exemption === undefined || (key === DOCKKIT_BUNDLE && !expectedDockkitCss)) {
         // A bundle that stopped being importable is a real finding, so it
         // fails rather than joining a tolerated total.
         fail(`- UNEXPECTED BASELINE FAILURE ${key}: ${(reason as Error).message.split('\n')[0]}`)

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `composer-stats-peak-valley` |
 | **status** | `active` |
-| **last verified** | 2026-09-01 — 「会话累计费用」关闭时整条峰谷行（含空闲/高峰时段）隐藏；官方峰谷时只在费用开启后决定始终显示 vs DeepSeek 检测。此前同日：峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册。 |
+| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：峰谷 dock/settings 行与注入保持（chat-apply host spec 4/4，其 bench 需按 rc.1 keyed `'main'` 槽声明）；统计行引用随 StatsPills 更名更新。Desktop tests 1450 全绿。此前 2026-09-01 — 「会话累计费用」关闭时整条峰谷行（含空闲/高峰时段）隐藏；官方峰谷时只在费用开启后决定始终显示 vs DeepSeek 检测。此前同日：峰谷/费用 dock 改在 `slots.inject('conversation')` 内注册。 |
 
 ## User paths
 
@@ -27,7 +27,7 @@
 ## Allowed touch
 
 - `vendor/deepseek-harness/packages/client/ui-conversation/`（PeakValley 行、settings 行、submission-settings、policy、apply、locales、service、model-facts）
-- `vendor/deepseek-harness/packages/client/ui-chat/src/client/chat/StatsLine.tsx`（会话统计条；alpha.2 起 Chat 从 conversation 拆到 ui-chat）
+- `vendor/deepseek-harness/packages/client/ui-chat/src/client/chat/StatsPills.tsx`（会话统计药丸行；rc.1 由 StatsLine 重构而来，桌面契约随迁移）
 - `vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts`（推送事实）
 - `vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-peak-valley-status.*`
 - 两包相关测试与本卡、README 双语段
@@ -48,5 +48,5 @@
 ## Sources
 
 - Agent Note：[vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-peak-valley-status.md](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-29-composer-peak-valley-status.md)
-- Implementation entry：`ui-conversation/src/client/chat/PeakValleyRow.tsx`、`chat/peak-valley.ts`、`input/model-facts.ts`、`apply.ts`（settings 行 order 75 / dock 条目 order 1）；`ui-chat/src/client/chat/StatsLine.tsx`
+- Implementation entry：`ui-conversation/src/client/chat/PeakValleyRow.tsx`、`chat/peak-valley.ts`、`input/model-facts.ts`、`apply.ts`（settings 行 order 75 / dock 条目 order 1）；`ui-chat/src/client/chat/StatsPills.tsx`
 - 相关决策：[interface-settings-chrome-visibility](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-19-interface-settings-chrome-visibility.md)、[projected-token-usage](../../vendor/deepseek-harness/.agents/notes/implemented/architecture/2026-07-29-projected-token-usage-and-request-context.md)

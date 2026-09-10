@@ -39,6 +39,9 @@
       "path": "../../client/ui-conversation"
     },
     {
+      "path": "../../client/ui-layout"
+    },
+    {
       "path": "../../client/ui-slots"
     },
     {

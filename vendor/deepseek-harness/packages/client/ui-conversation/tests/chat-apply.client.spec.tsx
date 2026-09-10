@@ -37,7 +37,7 @@ async function bench() {
   runtime.slots.installLocale(locale)
 
   await runtime.root.declare({
-    'conversation': { kind: 'single', scope: 'session-maybe' },
+    'main': { kind: 'keyed', scope: 'root' },
     'settings.general.item': { kind: 'list', scope: 'root' },
     'settings.interface.item': { kind: 'list', scope: 'root' },
   }, (_p: { renderSlot?: unknown }) => null)
@@ -106,7 +106,7 @@ describe('conversation apply wiring (desktop peak/valley + session cost)', () =>
   it('plugin fiber disposal collects conversation registrations', async () => {
     const b = await bench()
     await b.feature.dispose()
-    expect(b.slots.entries('conversation')).toHaveLength(0)
+    expect(b.slots.entries('conversation.view')).toHaveLength(0)
     expect(b.slots.entries('settings.general.item')).toHaveLength(0)
     expect(b.slots.entries('settings.interface.item')).toHaveLength(0)
     expect(b.runtime.ctx.get('conversation')).toBeUndefined()

@@ -150,6 +150,16 @@ export interface AssistantMessage extends Message {
   readonly source: ModelMessageSource
 }
 
+/**
+ * A system-role specialization of the shared message representation: one
+ * rendered system prompt attributed to the plugin that assembled it. Empty
+ * `content` means "no system prompt" and projects to no wire message.
+ */
+export interface SystemMessage extends Message {
+  readonly role: 'system'
+  readonly source: MessageSourceMap['plugin']
+}
+
 /** A tool-result specialization whose model-facing block retains call correlation. */
 export interface ToolResultMessage extends Message {
   readonly role: 'user'
@@ -215,6 +225,21 @@ export function createAssistantMessage(
       kind: 'model',
       ...input.source,
     },
+  })
+}
+
+/**
+ * Create and freeze one identified system-role message holding a rendered
+ * system prompt.
+ * @param text - the complete rendered prompt; `''` records "no system prompt".
+ * @param plugin - the plugin that assembled the prompt.
+ * @returns an immutable system message with a fresh stable identity.
+ */
+export function createSystemMessage(text: string, plugin: string): SystemMessage {
+  return createMessage({
+    role: 'system',
+    content: text.length === 0 ? [] : [{ type: 'text', text }],
+    source: { kind: 'plugin', plugin },
   })
 }
 

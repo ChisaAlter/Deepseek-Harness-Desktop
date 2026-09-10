@@ -44,7 +44,7 @@ Mounting it does not copy or mirror your local files — the sandbox's working d
 
 ### Reading files
 
-The agent can read a file's whole contents, stream large files, or read raw bytes up to a size cap. Binary files and files that are not valid UTF-8 text are refused with a clear message instead of being garbled; reads past the size cap fail with a message naming the limit.
+The agent can read a file's whole contents, stream large files, or read raw bytes up to a size cap or as one byte window. Binary files and files that are not valid UTF-8 text are refused with a clear message instead of being garbled; reads past the size cap fail with a message naming the limit.
 
 ### Writing and editing files
 

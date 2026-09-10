@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `message-edit` |
 | **status** | `active` |
-| **last verified** | 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 并迁移 Session v2 嵌入式 assistant stream 后，当前会话重发语义保留；Host / Client build、含 ui-message-edit、ui-chat 与 ui-conversation 的重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前 2026-09-06 的 keyless edit e2e 证据仍有效，本次未重跑。 |
+| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1` 后保留同会话编辑语义并修复一处合并引入的静默失败：surface replace op 随上游改 `startSeq/endSeq`、busy guard 改 `inbox.nextTurn/nextStep`；rc.1 把系统提示词移上表面节点 0 且受保护（仅 system/message 单节点事件可改写），编辑走影回溯曾把节点 0 卷入替换范围导致 turn 静默中止 → 回溯遇 `system/message` 即停。message-edit.host.spec 6/6（含身份行容忍断言）、official build、Desktop tests 全过。此前 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 并迁移 Session v2 嵌入式 assistant stream 后，当前会话重发语义保留；Host / Client build、含 ui-message-edit、ui-chat 与 ui-conversation 的重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前 2026-09-06 的 keyless edit e2e 证据仍有效，本次未重跑。 |
 
 ## User paths
 

@@ -43,7 +43,7 @@ async function makeCoreContext(): Promise<Context> {
 async function readStoredEvents(ctx: Context, sessionId: SessionId): Promise<readonly SessionEvent[]> {
   const handle = await ctx.sessionPersistence.open(sessionId, 'read')
   try {
-    return await handle.read()
+    return (await handle.read()).events
   } finally {
     await handle.close()
   }
@@ -445,7 +445,7 @@ describe('config-driven session id', () => {
     await ctx1.plugin(JsonlSessionPersistence, { root })
     await ctx1.plugin(AgentLoop, { agents: [] })
     ctx1.llm.registerAdapter(['mock'], new MockAdapter([textResponse('first')]))
-    const h1 = await ctx1.agents.create({ sessionId: SessionId('sticky-1') })
+    const h1 = await ctx1.agents.create({ sessionId: SessionId('sticky-1'), agentOptions: { provider: 'mock', model: 'mock' } })
     h1.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'remember me' }], source: { kind: 'user' } }))
     await waitForIdle(ctx1, h1.agent)
     await h1.dispose()

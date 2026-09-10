@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-workflow-run` 是浏览器插件，把持久化的顶层工作流运行重建为 dsh Web 客户端中的独立 Chat 节点。它消费由 `dsh-tool-workflow` 拥有的四类 `tool-workflow/*` Session 事件，注册一个 `ConversationNodeDefinition`，并通过 keyed `conversation.chat.node` slot 渲染，不改变现有工作流工具卡。运行与每个阶段都是受控 disclosure：挂载时运行中、失败、已取消与已中断层级默认展开，全部完成的层级默认折叠，用户可以点击整行或按 Enter、Space 切换任一层级。只有当所有实时事实同时成立时，成员才可打开子 Session；节点只显示运行、阶段、成员身份与状态。
+使用 `dsh-client-ui-workflow-run` 可以把每个持久化的顶层工作流运行作为独立 Chat 节点查看。展开运行可查看阶段，展开阶段可查看成员；运行中、失败、已取消与已中断的层级默认展开，已完成层级保持折叠。只有当运行中的成员属于当前 Session 且可在本地访问时，才能打开其子 Session。节点只显示身份与状态；脚本、输出、错误、日志、用量、拓扑与控制操作不属于本界面。
 
 ## 目录
 

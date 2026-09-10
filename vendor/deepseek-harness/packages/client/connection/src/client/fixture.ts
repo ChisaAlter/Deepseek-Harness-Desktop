@@ -2,6 +2,7 @@
 
 import {
   createAssistantMessage,
+  createSystemMessage,
   createToolResultMessage,
   createUserMessage,
 } from '@deepseek-ai/dsh-llm/message'
@@ -686,6 +687,9 @@ function fixtureSettledStream(
   return stream
 }
 
+/** Rendered system prompt of the fx-alpha history: surface node 0. */
+const FIXTURE_SYSTEM_PROMPT = '你是 DeepSeek Harness 的 fixture 助手。用简洁的中文回答，并在需要时调用工具。'
+
 /** fx-alpha history script: 75 turns (~150+ messages -> 4 pages at PAGE_MESSAGES=50),
  *  mixing reasoning blocks / tool call+result / context. */
 function buildAlphaLog(): SessionEvent[] {
@@ -719,6 +723,13 @@ function buildAlphaLog(): SessionEvent[] {
   })
   for (let turn = 0; turn < 60; turn++) {
     push({ type: 'turn/start', data: { turn } })
+    // The rendered system prompt is surface node 0, ahead of the first user message.
+    if (turn === 0) {
+      push({
+        type: 'system/message', surfaceOp: 'append',
+        data: { turn, step: 0, message: createSystemMessage(FIXTURE_SYSTEM_PROMPT, '@deepseek-ai/dsh-system-prompt') },
+      })
+    }
     const userSeq = push({
       type: 'user/message', surfaceOp: 'append',
       data: userMessage(text(turn === 59 ? USER_MARKDOWN_LITERAL : `问题 ${turn}：fixture 历史消息，用于翻页与渲染验收。`)),
@@ -855,13 +866,13 @@ function buildAlphaLog(): SessionEvent[] {
     push({ type: 'tool/call', data: { turn, step: 0, callId, name: 'run_code', arguments: args } })
     const dispatchPair = (n: number, name: string, dispatchArgs: Record<string, unknown>, resultText: string, isError = false): void => {
       push({
-        type: 'tool/code-dispatch-start',
-        data: { rootCallId: callId, parentCallId: callId, subCallId: `${callId}:code:${n}`, name, arguments: dispatchArgs },
+        type: 'tool/ptc-dispatch-start',
+        data: { rootCallId: callId, parentCallId: callId, subCallId: `${callId}:ptc:${n}`, name, arguments: dispatchArgs },
       })
       push({
-        type: 'tool/code-dispatch',
+        type: 'tool/ptc-dispatch',
         data: {
-          rootCallId: callId, parentCallId: callId, subCallId: `${callId}:code:${n}`, name,
+          rootCallId: callId, parentCallId: callId, subCallId: `${callId}:ptc:${n}`, name,
           arguments: dispatchArgs, isError, content: [{ type: 'text', text: resultText }],
         },
       })
@@ -1255,23 +1266,35 @@ function estimateFixtureContent(blocks: readonly ContentBlock[]): number {
   }, 0)
 }
 
-/** Fixture parallel of token-meter's heuristic context-composition projection. */
+/**
+ * Fixture parallel of token-meter's heuristic context-composition projection.
+ * The system prompt is the system-role surface node; it prices as text plus
+ * role framing with no block overhead and stays out of the message figure.
+ */
 function contextBreakdownOf(log: readonly SessionEvent[]): FixtureContextBreakdownProjection {
   const headerEvent = log.findLast(event => event.type === 'request/header')
   const header = headerEvent === undefined
     ? undefined
     : headerEvent.data.header
+  let systemTokens = 0
   let messageTokens = 0
   for (const seq of foldSurface(log).nodes) {
     const event = log[seq]
     if (event === undefined) continue
     const message = deriveEventMessage(event)
-    if (message !== null) messageTokens += estimateFixtureContent(message.content) + ROLE_OVERHEAD
+    if (message === null) continue
+    if (message.role === 'system') {
+      const characters = message.content.reduce(
+        (total, block) => total + (block.type === 'text' ? block.text.length : JSON.stringify(block).length),
+        0,
+      )
+      systemTokens = Math.ceil(characters / CHARS_PER_TOKEN) + ROLE_OVERHEAD
+      continue
+    }
+    messageTokens += estimateFixtureContent(message.content) + ROLE_OVERHEAD
   }
   return {
-    systemTokens: header?.system === undefined
-      ? 0
-      : Math.ceil(header.system.length / CHARS_PER_TOKEN) + ROLE_OVERHEAD,
+    systemTokens,
     toolsTokens: header?.tools === undefined || header.tools.length === 0
       ? 0
       : Math.ceil(JSON.stringify(header.tools).length / CHARS_PER_TOKEN) + BLOCK_OVERHEAD,
@@ -1420,6 +1443,7 @@ function projectionFramesOf(
     })
   }
   if (type === 'request/header'
+    || type === 'system/message'
     || type === 'user/message'
     || type === 'assistant/message'
     || type === 'tool/result') {
@@ -1750,7 +1774,19 @@ export interface FixtureOptions {
   dropSessionCreateResponse?: boolean
   /** Order of the two successful create frames. */
   createFrameOrder?: 'session-first' | 'workspace-first'
+  /** Announce one Agent write to `notes/demo.txt` shortly after a `workspaceFiles/changes` stream opens. */
+  fileChanges?: boolean
 }
+
+/** File observation payload, mirrored so this Client fixture names no Host package. */
+type FixtureWorkspaceFileChange =
+  | { readonly absolutePath: string; readonly version: string }
+  | { readonly absolutePath: string; readonly absent: true }
+
+/** Host subscription acknowledgement followed by file observations. */
+type FixtureWorkspaceFileWatchFrame =
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'change'; readonly change: FixtureWorkspaceFileChange }
 
 /** Inbox pump shared by both stream generators (FrameQueue pattern: ONE abort listener hung
  *  outside the loop — a per-iteration {once:true} listener never fires for non-final rounds and
@@ -1818,6 +1854,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     { sessionId: sid('fx-gamma'), updatedAt: Date.now() - 120_000, running: false, blank: false, cwd: '/tmp/fixture' },
   ]
   const logs = new Map<SessionId, SessionEvent[]>([[sid('fx-alpha'), buildAlphaLog()]])
+  const goalActivations = new Map<SessionId, 'armed' | 'disarmed'>()
   const modelSelections = new Map<SessionId, ModelSelection>(sessions.map(session => [
     session.sessionId,
     { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
@@ -2179,6 +2216,23 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     return backscanGoal(log) as FxGoalProjection
   }
 
+  /** Update process-local goal activation and publish the forwarded edge. */
+  const setGoalActivation = (id: SessionId, activation: 'armed' | 'disarmed'): void => {
+    const current = backscanGoal(logOf(id))
+    if (current === null) {
+      if (!goalActivations.delete(id)) return
+      emitRemote('goal/activation-changed', [{ sessionId: id }])
+      return
+    }
+    const previous = goalActivations.get(id)
+    goalActivations.set(id, activation)
+    if (previous === activation) return
+    emitRemote('goal/activation-changed', [{
+      sessionId: id,
+      goal: { id: current.goal.id, revision: current.goal.revision, activation },
+    }])
+  }
+
   type FxGoalRef = { id: string; revision: number }
   type FxGoalView = FxGoalProjection['goal'] & {
     roundsStarted: number
@@ -2281,6 +2335,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             goal: { id: `fx-goal-${logOf(id).length}`, revision: 1, objective, phase: 'active', maxGoalRounds: 256 },
             roundsStarted: 0, createdAt: Date.now(), updatedAt: Date.now(),
           })
+          setGoalActivation(id, 'armed')
           text = `Goal created: ${created.goal.objective}`
         }
         const result: CommandResult = { kind: 'success', text }
@@ -2313,12 +2368,12 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     },
   }
 
-  const goalView = (projection: FxGoalProjection): FxGoalView => ({
+  const goalView = (id: SessionId, projection: FxGoalProjection): FxGoalView => ({
     ...projection.goal,
     roundsStarted: projection.roundsStarted,
     createdAt: projection.createdAt,
     updatedAt: projection.updatedAt,
-    activation: projection.goal.phase === 'active' ? 'armed' : 'disarmed',
+    activation: goalActivations.get(id) ?? (projection.goal.phase === 'active' ? 'armed' : 'disarmed'),
   })
 
   /** Canonical fixture implementation of the generated Goal Remote contract. */
@@ -2364,6 +2419,157 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           }
         })
       return { ok: true, value }
+    },
+  }
+
+  /**
+   * Workspace text reads under `?fixture`.
+   *
+   * The sample content is deliberately more than one shape: the panel's states
+   * (text, oversized, unreadable) are only demonstrable if the fixture can
+   * produce each of them, and a preview that can only ever succeed hides its
+   * own failure rendering.
+   */
+  // The Session workspace the replayed conversation writes into: `list` walks a
+  // fixed tree under it so the file-tree tab has directories, files, one entry
+  // of neither kind, and one cut listing to draw.
+  const WORKSPACE_FILES_ROOT = '/tmp/fixture'
+  type FixtureWorkspaceEntry = { name: string; type: 'file' | 'directory' | 'other'; size?: number }
+  const workspaceFileTree = new Map<string, FixtureWorkspaceEntry[]>([
+    ['', [
+      { name: '.gitignore', type: 'file', size: 24 },
+      { name: 'dev.sock', type: 'other' },
+      { name: 'notes', type: 'directory' },
+      { name: 'package.json', type: 'file', size: 512 },
+      { name: 'README.md', type: 'file', size: 640 },
+      { name: 'src', type: 'directory' },
+    ]],
+    ['notes', [
+      { name: 'demo.txt', type: 'file', size: 14 },
+      { name: 'new-demo.txt', type: 'file', size: 14 },
+    ]],
+    ['src', [
+      { name: 'config.ts', type: 'file', size: 211 },
+      { name: 'index.ts', type: 'file', size: 88 },
+      { name: 'lib', type: 'directory' },
+    ]],
+    ['src/lib', Array.from({ length: 24 }, (_, index) => ({
+      name: `module-${String(index + 1).padStart(2, '0')}.ts`,
+      type: 'file' as const,
+      size: 96 + index,
+    }))],
+  ])
+  /** Resolve a `list` argument to its workspace-relative path, or undefined when it leaves the root. */
+  const workspaceFilePath = (path: string): string | undefined => {
+    const segments: string[] = []
+    for (const segment of (path.startsWith('/') ? path : `${WORKSPACE_FILES_ROOT}/${path}`).split('/')) {
+      if (segment === '' || segment === '.') continue
+      if (segment === '..') {
+        segments.pop()
+        continue
+      }
+      segments.push(segment)
+    }
+    const absolute = `/${segments.join('/')}`
+    if (absolute !== WORKSPACE_FILES_ROOT && !absolute.startsWith(`${WORKSPACE_FILES_ROOT}/`)) return undefined
+    return absolute.slice(WORKSPACE_FILES_ROOT.length + 1)
+  }
+  // Page cap mirrored from the Host default so an over-limit request fails here too.
+  const WORKSPACE_FILE_PAGE_LINES = 5000
+  /**
+   * Sample text for any readable path: a heading plus two lines of copy. The
+   * replayed conversation's `demo` files, and any `huge` path, run past two
+   * default pages so paging can be exercised without a real workspace.
+   */
+  const workspaceFileLines = (path: string): string[] => {
+    const name = path.slice(path.lastIndexOf('/') + 1)
+    const head = [`# ${name}`, '', 'fixture 模式下的示例文本，用于验收侧栏的文本预览。', '真实构建从工作区读取同名文件。']
+    return path.includes('demo') || path.includes('huge')
+      ? [...head, ...Array.from({ length: 12_000 }, (_, index) => `第 ${index + 5} 行：用于验收分页与滚动的长文本样本。`)]
+      : head
+  }
+  const workspaceFileRemotes = {
+    list(path: string): ConnectionRpcResult<{
+      path: string
+      entries: readonly FixtureWorkspaceEntry[]
+      truncated: boolean
+    }> {
+      if (path.length === 0) {
+        return { ok: false, error: { code: 'gateway/bad-request', message: 'path is required', details: {} } }
+      }
+      const relative = workspaceFilePath(path)
+      if (relative === undefined) {
+        return {
+          ok: false,
+          error: { code: 'workspace-file/outside-workspace', message: `${path} is outside the workspace`, details: { path } },
+        }
+      }
+      const entries = workspaceFileTree.get(relative)
+      if (entries === undefined) {
+        const cut = relative.lastIndexOf('/')
+        const name = relative.slice(cut + 1)
+        const sibling = workspaceFileTree.get(cut === -1 ? '' : relative.slice(0, cut))?.find(entry => entry.name === name)
+        if (sibling === undefined) {
+          return { ok: false, error: { code: 'workspace-file/not-found', message: `no entry at ${path}`, details: { path } } }
+        }
+        return {
+          ok: false,
+          error: {
+            code: 'workspace-file/not-directory',
+            message: `${path} is a ${sibling.type}`,
+            details: { path, kind: sibling.type === 'file' ? 'file' : 'other' },
+          },
+        }
+      }
+      return { ok: true, value: { path: relative, entries, truncated: relative === 'src/lib' } }
+    },
+    read(path: string, range: { offset?: number; limit?: number }): ConnectionRpcResult<{
+      absolutePath: string
+      version: string
+      bytes: number
+      offset: number
+      text: string
+      lines: number
+      eof: boolean
+    }> {
+      const located = workspaceFileRemotes.stat(path)
+      if (!located.ok) return located
+      const offset = range.offset ?? 1
+      const limit = range.limit ?? WORKSPACE_FILE_PAGE_LINES
+      if (!Number.isInteger(offset) || offset < 1 || !Number.isInteger(limit) || limit < 1 || limit > WORKSPACE_FILE_PAGE_LINES) {
+        return { ok: false, error: { code: 'gateway/bad-request', message: 'offset and limit must be positive integers within the page cap', details: {} } }
+      }
+      const lines = workspaceFileLines(path)
+      const page = lines.slice(offset - 1, offset - 1 + limit)
+      return {
+        ok: true,
+        value: {
+          ...located.value,
+          offset,
+          text: page.join('\n'),
+          lines: page.length,
+          eof: offset - 1 + limit >= lines.length,
+        },
+      }
+    },
+    stat(path: string): ConnectionRpcResult<{ absolutePath: string; version: string; bytes: number }> {
+      if (path.length === 0) {
+        return { ok: false, error: { code: 'gateway/bad-request', message: 'path is required', details: {} } }
+      }
+      if (path.endsWith('.png') || path.endsWith('.bin')) {
+        return {
+          ok: false,
+          error: { code: 'workspace-file/not-text', message: `${path} is not UTF-8 text`, details: { path } },
+        }
+      }
+      return {
+        ok: true,
+        value: {
+          absolutePath: path.startsWith('/') ? path : `/${path}`,
+          version: 'fx-v1',
+          bytes: new TextEncoder().encode(workspaceFileLines(path).join('\n')).byteLength,
+        },
+      }
     },
   }
 
@@ -2417,6 +2623,12 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
   }
 
   const goalRemotes = {
+    get(id: SessionId): RpcResult<FxGoalView | undefined> {
+      const missing = requireGoalSession(id)
+      if (missing !== undefined) return missing
+      const current = backscanGoal(logOf(id))
+      return { ok: true, value: current === null ? undefined : goalView(id, current) }
+    },
     create(id: SessionId, request: { objective: string; maxGoalRounds?: number }): RpcResult<{ ref: FxGoalRef }> {
       const missing = requireGoalSession(id)
       if (missing !== undefined) return missing
@@ -2436,6 +2648,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         },
         roundsStarted: 0, createdAt: now, updatedAt: now,
       })
+      setGoalActivation(id, 'armed')
       return { ok: true, value: { ref: { id: projection.goal.id, revision: projection.goal.revision } } }
     },
     edit(id: SessionId, ref: FxGoalRef, request: { objective?: string; maxGoalRounds?: number }): RpcResult<FxGoalView> {
@@ -2475,6 +2688,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       appendGoalChange(id, {
         kind: 'goal/change', version: 1, operation: 'clear', cleared: tombstone, clearedAt: Date.now(),
       })
+      setGoalActivation(id, 'disarmed')
       return { ok: true, value: tombstone }
     },
   }
@@ -2503,12 +2717,18 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     if (goal === undefined) {
       return goalFailure(`invalid goal transition from "${current.goal.phase}"`)
     }
+    const currentActivation = goalActivations.get(id)
+      ?? (current.goal.phase === 'active' ? 'armed' : 'disarmed')
+    const activation = goal.phase === 'active'
+      ? current.goal.phase === 'active' ? currentActivation : 'armed'
+      : 'disarmed'
     const projection = appendGoalChange(id, {
       kind: 'goal/change', version: 1,
       operation: goal.phase === current.goal.phase ? 'edit' : goal.phase === 'paused' ? 'pause' : goal.phase === 'active' ? 'resume' : 'complete',
       goal, roundsStarted: current.roundsStarted, createdAt: current.createdAt, updatedAt: Date.now(),
     })
-    return { ok: true, value: goalView(projection) }
+    setGoalActivation(id, activation)
+    return { ok: true, value: goalView(id, projection) }
   }
 
   /** Canonical fixture implementation of the generated AgentPresets Remote contract. */
@@ -2619,6 +2839,19 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       const log = logOf(sid(id))
       const messageSeqs = log.filter(event => event.type === 'user/message').map(event => event.seq)
       append(sid(id), { type: 'session/title', data: { title, messageSeqs, source: { kind: 'provider', provider: 'fixture' } } })
+    },
+    /** Disarm the single active goal without a durable phase change. */
+    disarmOnlyGoal(): void {
+      const active = [...logs.entries()].filter(([, log]) => {
+        const current = backscanGoal(log)
+        return current?.goal.phase === 'active'
+      })
+      if (active.length !== 1) {
+        throw new Error(`fixture: expected one active goal, found ${String(active.length)}`)
+      }
+      const [session] = active
+      if (session === undefined) return
+      setGoalActivation(session[0], 'disarmed')
     },
     /** Start an externally paced reasoning stream for the opt-in browser stress lane. */
     startReasoningChunkStorm(
@@ -3274,6 +3507,27 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     }
   }
 
+  async function* openWorkspaceFileChanges(signal: AbortSignal): AsyncGenerator<FixtureWorkspaceFileWatchFrame> {
+    signal.throwIfAborted()
+    const conn = new FxInbox<FixtureWorkspaceFileWatchFrame>()
+    const breakNow = (): void => { conn.breakNow() }
+    streamBreakers.add(breakNow)
+    // Opt-in only: an unprompted frame would age every preview of demo.txt
+    // into its changed state on a timer the assembled snapshots cannot see.
+    const announce = options.fileChanges
+      ? setTimeout(() => {
+        conn.push({ kind: 'change', change: { absolutePath: `${WORKSPACE_FILES_ROOT}/notes/demo.txt`, version: 'fx-demo-v2' } })
+      }, 1000)
+      : undefined
+    try {
+      yield { kind: 'ready' }
+      yield* conn.drain(signal)
+    } finally {
+      if (announce !== undefined) clearTimeout(announce)
+      streamBreakers.delete(breakNow)
+    }
+  }
+
   async function* openRemoteEvents(
     signal: AbortSignal,
   ): AsyncGenerator<FixtureRemoteEventReadyFrame | FixtureRemoteEventFrame> {
@@ -3557,6 +3811,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
           line?: string
           query?: string
           path?: string
+          range?: { offset?: number; limit?: number }
           name?: string
           images?: readonly unknown[]
           // A goal ref and a credential reference name share this wire field name.
@@ -3584,6 +3839,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         case 'directoryPicker/list': return Promise.resolve(directoryPickerRemotes.list(args.path))
         case 'directoryPicker/createDirectory':
           return Promise.resolve(directoryPickerRemotes.createDirectory(args.path ?? '', args.name ?? ''))
+        case 'goals/get': return Promise.resolve(goalRemotes.get(sessionId))
         case 'goals/create': return Promise.resolve(goalRemotes.create(sessionId, {
           objective: (request as { objective?: string } | undefined)?.objective as string,
           ...(request as { maxGoalRounds?: number } | undefined)?.maxGoalRounds === undefined
@@ -3637,6 +3893,15 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         }
         case 'session/openWorkspacePath': {
           return sessionOk({ opened: true as const })
+        }
+        case 'workspaceFiles/read': {
+          return Promise.resolve(workspaceFileRemotes.read(args.path ?? '', args.range ?? {}))
+        }
+        case 'workspaceFiles/stat': {
+          return Promise.resolve(workspaceFileRemotes.stat(args.path ?? ''))
+        }
+        case 'workspaceFiles/list': {
+          return Promise.resolve(workspaceFileRemotes.list(args.path ?? ''))
         }
         case 'session/canOpenWorkspacePath': return Promise.resolve({ ok: true, value: true })
         case 'session/modelCatalog': return Promise.resolve({
@@ -3740,6 +4005,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         case 'session/control': return openControl(signal)
         case 'session/follow': return openFollow(args.request as FixtureFollowRequest, signal)
         case 'workspace/follow': return openWorkspace(signal)
+        case 'workspaceFiles/changes': return openWorkspaceFileChanges(signal)
         default:
           throw new Error(`fixture connection stream endpoint ${JSON.stringify(endpoint)} is unavailable`)
       }
@@ -3766,5 +4032,6 @@ function fixtureOptionsFromLocation(): FixtureOptions {
     failWorkspaceAttach: query.get('fixtureAttach') === 'fail',
     dropSessionCreateResponse: query.get('fixtureSessionCreate') === 'drop-response',
     createFrameOrder: query.get('fixtureFrames') === 'workspace-first' ? 'workspace-first' : 'session-first',
+    fileChanges: query.get('fixtureFileChanges') === 'demo',
   }
 }

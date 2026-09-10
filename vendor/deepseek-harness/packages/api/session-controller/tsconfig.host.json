@@ -19,6 +19,7 @@
     "src/history.ts",
     "src/lifecycle.ts",
     "src/list.ts",
+    "src/media-references.ts",
     "src/message-edit.ts",
     "src/model-selection-projection.ts",
     "src/skill-catalog.ts"
@@ -33,8 +34,10 @@
     { "path": "../../context/file-reference" },
     { "path": "../../attachment/attachment" },
     { "path": "../../client/file-upload/tsconfig.host.json" },
+    { "path": "../../client/connection/tsconfig.host.json" },
     { "path": "../../interaction/permission-presets" },
     { "path": "../../jobs/jobs" },
+    { "path": "../../fs/fs" },
     { "path": "../../llm/llm" },
     { "path": "../../util/deque" },
     { "path": "../../util/native-command" },
@@ -47,6 +50,7 @@
     { "path": "../../skill/skill" },
     { "path": "../../subagent/subagent" },
     { "path": "../../util/time" },
+    { "path": "../../util/values" },
     { "path": "../../typert/protocol" },
     { "path": "../../typert/registry" },
     { "path": "../../workspace/workspace" }

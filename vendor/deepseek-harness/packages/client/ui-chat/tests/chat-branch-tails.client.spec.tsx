@@ -17,18 +17,10 @@ import {
   SteeringMessageNodeView,
 } from '../src/client/chat/MessageItem.tsx'
 import { AssistantMarkdown, type AssistantMarkdownProps } from '../src/client/chat/AssistantMarkdown.tsx'
-import { StatsLine } from '../src/client/chat/StatsLine.tsx'
+import { StatsPills } from '../src/client/chat/StatsPills.tsx'
 import { zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 
-/** jsdom has no ResizeObserver; StatsLine watches its row for ellipsis truncation through one. */
-class ResizeObserverStub {
-  observe(): void {}
-  unobserve(): void {}
-  disconnect(): void {}
-}
-
-beforeEach(() => { vi.stubGlobal('ResizeObserver', ResizeObserverStub) })
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
@@ -1050,7 +1042,7 @@ describe('small branch tails', () => {
     expect(view.getByText('one-liner')).toBeTruthy()
   })
 
-  it('StatsLine omits the cache-hit segment when no input accounting exists at all', () => {
+  it('StatsPills omits the cache-hit segment when no input accounting exists at all', () => {
     // Cache hit is null only when all three prompt buckets are zero (pure
     // output accounting) — any billed input makes it a real 0%.
     const nodes = [{
@@ -1059,7 +1051,7 @@ describe('small branch tails', () => {
     const snap = chatSnapshotFixture({ nodes })
     const source = { getSnapshot: () => snap, subscribe: () => () => {} }
     const view = render(
-      <StatsLine
+      <StatsPills
         t={t}
         useChat={bindSnapshotSelector(source)}
         useSession={sel => sel({ running: false })}
@@ -1069,7 +1061,15 @@ describe('small branch tails', () => {
           : undefined}
       />,
     )
-    expect(view.container.textContent).toBe('1 轮 · 1 步| 输入 0 tok · 输出 10 tok')
+    // The untimed counts pill renders static, so the usage pill is the only button.
+    const [usagePill] = [...view.getAllByRole('button')] as [HTMLElement]
+    expect(view.getByText('1 轮 1 步').closest('button')).toBeNull()
+    expect(usagePill.textContent).toBe('10 tok')
+    // Pure output accounting still reaches the usage pill's click-open dialog rows.
+    fireEvent.click(usagePill)
+    const dialog = view.getByRole('dialog')
+    expect(dialog.textContent).toContain('输出10 tok')
+    expect(dialog.textContent).not.toContain('缓存命中')
   })
 })
 
@@ -1095,6 +1095,10 @@ describe('user file attachments', () => {
     expect(view.getByTitle('notes.pdf').textContent).toContain('3.2MB')
     expect(view.getByTitle('tiny.txt').textContent).toContain('12B')
     expect(view.getByTitle('mid.csv').textContent).toContain('500KB')
+    const icons = ['notes.pdf', 'tiny.txt', 'mid.csv'].map(name =>
+      view.getByTitle(name).querySelector('svg')?.innerHTML,
+    )
+    expect(new Set(icons).size).toBe(icons.length)
     expect(view.getByText('summarize these')).toBeTruthy()
   })
 })

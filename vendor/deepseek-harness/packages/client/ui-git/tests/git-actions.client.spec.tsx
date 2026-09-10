@@ -9,6 +9,9 @@ import type { GitActionsProps } from '../src/client/GitActionsControl.tsx'
 import { GitActionsControl } from '../src/client/GitActionsControl.tsx'
 import type { VcsStatus } from '../src/client/git-logic.ts'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 const SID = 'session-git' as SessionId
 const t: GitActionsProps['t'] = (key, params) => {
@@ -122,6 +125,8 @@ function mount(opts: {
   const openExternal = vi.fn(async () => true)
   const view = render(
     <GitActionsControl
+      usePanelInfo={panelInfoStub}
+      useResource={resourceStub}
       surfaces={0}
       terminalDrawer={0}
       managedSession={opts.managedSession ?? false}
@@ -298,6 +303,8 @@ describe('GitActionsControl', () => {
       surfaces: 0,
       terminalDrawer: 0,
       managedSession: false,
+      usePanelInfo: panelInfoStub,
+      useResource: resourceStub,
       useWorkspaces: neverWorkspaces,
       useSessionPendingInteraction: sel => sel(new Map()),
       gitStatus,
@@ -428,6 +435,8 @@ describe('GitActionsControl', () => {
     expect(onWorkspacesChanged).toHaveBeenCalledTimes(1)
     b.rerender(
       <GitActionsControl
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         surfaces={0}
         terminalDrawer={0}
         managedSession={false}

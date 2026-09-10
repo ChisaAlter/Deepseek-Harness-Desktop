@@ -67,6 +67,9 @@
     },
     {
       "path": "../../runtime-diagnostics/invariants"
+    },
+    {
+      "path": "../../util/chunked-list"
     }
   ]
 }

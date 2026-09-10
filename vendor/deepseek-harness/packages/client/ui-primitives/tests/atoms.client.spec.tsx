@@ -112,6 +112,27 @@ describe('Menu', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('window blur closes only when focus moved into an iframe', () => {
+    const onClose = vi.fn()
+    render(
+      <Menu open anchor={<span>trigger</span>} items={items} onSelect={() => {}} onClose={onClose} />)
+    // An app or tab switch blurs the window without focusing an iframe: stays open.
+    fireEvent.blur(window)
+    expect(onClose).not.toHaveBeenCalled()
+    // A pointerdown inside a cross-origin iframe never reaches this document;
+    // the focus move it causes is the one signal left, and it closes.
+    const iframe = document.createElement('iframe')
+    document.body.appendChild(iframe)
+    try {
+      iframe.focus()
+      expect(document.activeElement).toBe(iframe)
+      fireEvent.blur(window)
+      expect(onClose).toHaveBeenCalledTimes(1)
+    } finally {
+      iframe.remove()
+    }
+  })
+
   it('selected item shows the trailing check; align=end, side=top, and className apply', () => {
     const { container } = render(
       <Menu
@@ -133,6 +154,24 @@ describe('Menu', () => {
     const other = screen.getByRole('menuitem', { name: 'Beta' })
     expect(other.querySelector('svg')).toBeNull()
     fireEvent.keyDown(document, { key: 'a' })
+  })
+
+  it('fill selection holds the row fill instead of a trailing check', () => {
+    render(
+      <Menu
+        open
+        selection="fill"
+        anchor={<span>trigger</span>}
+        items={items}
+        selectedId="a"
+        onSelect={() => {}}
+        onClose={() => {}}
+      />)
+    const selected = screen.getByRole('menuitem', { name: 'Alpha' })
+    expect(selected.querySelector('svg')).toBeNull()
+    expect(selected.className).toMatch(/selectedFill/)
+    const other = screen.getByRole('menuitem', { name: 'Beta' })
+    expect(other.className).not.toMatch(/selectedFill/)
   })
 
   it('renders a leading icon and a separator between groups', () => {

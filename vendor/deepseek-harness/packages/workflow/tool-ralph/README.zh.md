@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-ralph` 把 `ralph` 工具交给模型：一个固定的前台工作流，把一个不可变目标依次交给多个全新子 agent（智能体），每个子 agent 都没有对话种子，只携带上一份有界报告。它是构建在工作流与 subagent 能力之上的专用编排策略——不会向 agent loop 添加 Ralph 模式，同会话的 goal 领域也保持独立。调用在 worker 报告完成或具体阻塞、或达到 Round 上限时返回；完成与阻塞都是 worker 报告，不是独立认证。仅当直接用户明确要求 Ralph 循环或全新 agent 迭代执行时使用它；普通的长期同会话目标属于 goal 工具，有界委派属于 subagent 或工作流。
+`ralph` 针对一个不可变目标运行由多个全新子 agent（智能体）组成的前台序列，每个 Round 只接收上一份有界报告与共享工作区状态。它会在 worker 报告完成或具体阻塞，或达到配置的 Round 上限时返回；这些报告不会得到独立验证。父级对话与先前子 agent 会话绝不会复制到新的 Round。仅当直接用户明确要求 Ralph 式全新 agent 迭代时使用它；普通的长期工作请使用 goal 工具，有界委派请使用 subagent 或工作流。
 
 ## 目录
 
@@ -58,7 +58,7 @@ kind: "package-reference"
 
 ### 设计理念
 
-循环是部署方拥有的固定脚本：模型只提供数据，无法改变循环、提供方路由、schema 或交接校验。该工具是基于 `ctx.workflowEngine` 与 `ctx.subagents` 的普通插件——不会向 `agent-loop` 添加 Ralph 模式或全新 agent loop，同会话的 goal 领域也保持独立。[Ralph Agent Note](../../../.agents/notes/implemented/feature/2026-07-19-fresh-agent-ralph-workflow-tool.zh.md)拥有策略与暂缓事项。
+循环是部署方拥有的固定脚本：模型只提供数据，无法改变循环、提供方路由、schema 或交接校验。该工具是基于 `ctx.workflowEngine` 与 `ctx.subagents` 的普通插件——不会向 `agent-loop` 添加 Ralph 模式或全新 agent loop，同会话的 goal 领域也保持独立。[Harness 层目标式执行 Agent Note](../../../.agents/notes/implemented/feature/2026-07-16-harness-level-loop.zh.md)拥有策略与暂缓事项。
 
 ### 固定脚本与路由
 
@@ -97,7 +97,7 @@ kind: "package-reference"
 - [worker-thread 引擎](../workflow-worker-thread/README.zh.md)——执行固定脚本的引擎。
 - [subagent seam](../../subagent/subagent/README.zh.md)——全新子 agent 的提供方契约。
 - [goal 组](../../goal/goal/README.zh.md)——面向普通长期目标的同会话 goal 工具。
-- [Ralph 工具 Agent Note](../../../.agents/notes/implemented/feature/2026-07-19-fresh-agent-ralph-workflow-tool.zh.md)——策略、提供方要求与暂缓事项。
+- [Harness 层目标式执行 Agent Note](../../../.agents/notes/implemented/feature/2026-07-16-harness-level-loop.zh.md)——策略、提供方要求与暂缓事项。
 
 -----
 

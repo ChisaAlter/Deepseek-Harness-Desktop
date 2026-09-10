@@ -22,11 +22,10 @@ python python/sdk/examples/minimal.py \
 随附的 [`@deepseek-ai/dsh-sdk-minimal` 组合包](../../../packages/bundle/sdk-minimal/README.zh.md)是该模式完整且显式的 Cordis 配置树。它只暴露：
 
 - Linux／macOS 上 agent 所有的持久 `bash`，或 Windows 上的 `pwsh`
-- 支持 `view`、`create`、`str_replace` 与 `insert` 的 `str_replace_editor`
 
-该组合包不包含 `dsh-base`，因此每一个新增配置项都是显式 profile 变更。运行时上下文、本地指令发现、compaction、settings、托管凭据、遥测、Web 工具、subagent 与完整默认工具清单均不存在。配置树保留 SDK 启动与 JSON-RPC 服务、一个由环境配置的 DeepSeek 适配器、本地执行和 JSONL 持久化。
+该组合包不包含 `dsh-base`，因此每一个新增配置项都是显式 profile 变更。运行时上下文、文件系统工具、本地指令发现、compaction、settings、托管凭据、遥测、Web 工具、subagent 与完整默认工具清单均不存在。配置树保留 SDK 启动与 JSON-RPC 服务、一个由环境配置的 DeepSeek 适配器、本地执行和 JSONL 持久化。
 
-持久 PTY 与 editor 可以修改运行时进程可访问的任何路径，因此只应在一次性 checkout 或容器中使用。
+持久 PTY 可以修改运行时进程可访问的任何路径，因此只应在一次性 checkout 或容器中使用。
 
 ## 添加插件
 

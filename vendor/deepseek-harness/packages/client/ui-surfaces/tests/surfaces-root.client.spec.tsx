@@ -9,6 +9,9 @@ import { createSurfacesStore } from '../src/client/stores.ts'
 import { loadPersistedDrafts, SURFACES_PERSIST_PREFIX } from '../src/client/persist.ts'
 import type { SurfacesRootProps } from '../src/client/SurfacesRoot.tsx'
 import { SurfacesRoot } from '../src/client/SurfacesRoot.tsx'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 const t: SurfacesRootProps['t'] = key => (en as Record<string, string>)[key] ?? key
 const neverHook = (() => { throw new Error('surfaces must not read this hook') }) as never
@@ -63,6 +66,8 @@ function mount(opts: {
   const gitStatus = opts.gitStatus ?? vi.fn(async () => null)
   render(
     <SurfacesRoot
+      usePanelInfo={panelInfoStub}
+      useResource={resourceStub}
       sessionId={'session-1' as SessionId}
       useSession={neverHook}
       useSessions={sessions(opts.cwd)}
@@ -180,6 +185,8 @@ describe('SurfacesRoot', () => {
     const openSurfaces = vi.fn()
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -300,6 +307,8 @@ describe('SurfacesRoot', () => {
     }
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -348,6 +357,8 @@ describe('SurfacesRoot', () => {
     }
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -406,6 +417,8 @@ describe('SurfacesRoot', () => {
     }
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -521,6 +534,8 @@ describe('SurfacesRoot', () => {
     }
     const view = render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={current}
         useSession={neverHook}
         useSessions={listFor(current)}
@@ -544,6 +559,8 @@ describe('SurfacesRoot', () => {
     expect((screen.getByLabelText('file draft') as HTMLTextAreaElement).value).toBe('unsaved edit')
     view.rerender(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={other}
         useSession={neverHook}
         useSessions={listFor(other)}
@@ -564,6 +581,8 @@ describe('SurfacesRoot', () => {
     expect(screen.queryByLabelText('file draft')).toBeNull()
     view.rerender(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={current}
         useSession={neverHook}
         useSessions={listFor(current)}
@@ -593,6 +612,8 @@ describe('SurfacesRoot', () => {
     const renderSlot = vi.fn(() => <div data-occupant="stub" />)
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={undefined}
         useSession={neverHook}
         useSessions={sessions()}
@@ -621,6 +642,8 @@ describe('SurfacesRoot', () => {
     const instance = createSurfacesStore().create()
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={undefined}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -664,6 +687,8 @@ describe('SurfacesRoot', () => {
     } as SessionListState
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={current}
         useSession={neverHook}
         useSessions={sel => sel(emptyCwd)}
@@ -696,6 +721,8 @@ describe('SurfacesRoot', () => {
     } as SessionListState
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sel => sel(state)}
@@ -819,6 +846,8 @@ describe('SurfacesRoot', () => {
     }
     const view = render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={current}
         useSession={neverHook}
         useSessions={listFor(current)}
@@ -841,6 +870,8 @@ describe('SurfacesRoot', () => {
     fireEvent.change(await screen.findByLabelText('file draft'), { target: { value: 'session-one' } })
     view.rerender(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={other}
         useSession={neverHook}
         useSessions={listFor(other)}
@@ -863,6 +894,8 @@ describe('SurfacesRoot', () => {
     fireEvent.change(await screen.findByLabelText('file draft'), { target: { value: 'session-two' } })
     view.rerender(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={current}
         useSession={neverHook}
         useSessions={listFor(current)}
@@ -883,6 +916,8 @@ describe('SurfacesRoot', () => {
     expect((await screen.findByLabelText('file draft') as HTMLTextAreaElement).value).toBe('session-one')
     view.rerender(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={other}
         useSession={neverHook}
         useSessions={listFor(other)}
@@ -955,6 +990,8 @@ describe('SurfacesRoot', () => {
     }
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -1021,6 +1058,8 @@ describe('SurfacesRoot', () => {
     }
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -1097,6 +1136,8 @@ describe('SurfacesRoot', () => {
     const instance = createSurfacesStore().create()
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -1126,6 +1167,8 @@ describe('SurfacesRoot', () => {
     const restored = createSurfacesStore().create()
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}
@@ -1181,6 +1224,8 @@ describe('SurfacesRoot', () => {
     }
     render(
       <SurfacesRoot
+        usePanelInfo={panelInfoStub}
+        useResource={resourceStub}
         sessionId={'session-1' as SessionId}
         useSession={neverHook}
         useSessions={sessions('/tmp/proj')}

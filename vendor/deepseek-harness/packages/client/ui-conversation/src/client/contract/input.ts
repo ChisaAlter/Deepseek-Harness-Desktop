@@ -297,7 +297,7 @@ export interface ComposerKeyboard {
   readonly snapshot: InputState
   /** The shell-owned Lexical editor the composer binds its contenteditable to. */
   readonly editor: LexicalEditor
-  /** Submit with an explicit delivery mode resolved by the keyboard policy. */
+  /** Submit with an explicit delivery mode resolved by the submission policy (Enter gestures and the primary Send button). */
   submit(mode: InputSubmitMode): void
   /**
    * Steer every still-pending queued message into the running turn (the

@@ -24,6 +24,7 @@ function event(
 ): SessionEvent<'user/message'> {
   return {
     type: 'user/message',
+    surfaceOp: 'append',
     seq: SessionSeq(0),
     time,
     data: createUserMessage({

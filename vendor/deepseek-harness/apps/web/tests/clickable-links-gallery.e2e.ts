@@ -242,6 +242,7 @@ function galleryFixture(imageUrl: string): string {
       ...(call.meta === undefined ? {} : { meta: call.meta }),
     }, { surfaceOp: 'append', sourceEventSeqs: [source.seq] })
   }
+  session.append('step/end', { turn: 1, step: 1 })
   session.append('step/start', { turn: 1, step: 2 })
   session.append('assistant/message', {
     stream: [],
@@ -347,7 +348,7 @@ describe('web e2e: clickable links gallery', () => {
     const mentions = markdown.locator('code button')
     expect(await mentions.count()).toBe(1)
     expect(await mentions.first().getAttribute('title')).toBe('site/report.html')
-    expect(await page.getByText('Produced', { exact: true }).count()).toBe(1)
+    expect(await page.getByText('Files changed', { exact: true }).count()).toBe(1)
     expect(await page.locator('[class*="centerCol"] button[aria-label^="Open "]').count()).toBeGreaterThanOrEqual(5)
     expect(await page.locator('button[aria-label="Open c/broken.css"]').count()).toBe(0)
 

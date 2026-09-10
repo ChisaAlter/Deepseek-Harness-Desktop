@@ -9,6 +9,9 @@
   ],
   "references": [
     {
+      "path": "../../../native/system/packages/entry"
+    },
+    {
       "path": "../../../vendor/cosmokit"
     },
     {
@@ -16,6 +19,9 @@
     },
     {
       "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../llm/llm"
     },
     {
       "path": "../../core/session"
@@ -28,6 +34,9 @@
     },
     {
       "path": "../session-format-catalog"
+    },
+    {
+      "path": "../session-format-v2-to-v3"
     }
   ]
 }

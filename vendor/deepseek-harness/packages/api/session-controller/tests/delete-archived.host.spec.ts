@@ -77,7 +77,7 @@ async function composed(workspaces: readonly Workspace[] = []): Promise<{
 }> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
-  await ctx.plugin(SystemPrompt, { persona: '' })
+  await ctx.plugin(SystemPrompt, { personaPrefix: '' })
   await ctx.plugin(AgentRegistry)
   installSessionReadTestServices(ctx)
   const registry = testWorkspaceRegistry(workspaces)
@@ -91,7 +91,7 @@ async function composed(workspaces: readonly Workspace[] = []): Promise<{
       const agent = {} as Agent
       const agentCtx = ownerCtx.extend({ agent })
       Object.assign(agent, { id: session.id, session, status: 'idle', ctx: agentCtx })
-      await options.setup?.(agentCtx)
+      await options.setup?.(agentCtx, agent)
       ctx.agents.register(agent)
       return { agent, dispose: () => Promise.resolve() }
     },

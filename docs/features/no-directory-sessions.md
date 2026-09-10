@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `no-directory-sessions` |
 | **status** | `active` |
-| **last verified** | 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后保留无目录会话、Workspace 成员补全与已删工作区语义；Host / Client build、含 ui-workspace 的重点 Client 101 文件 / 1279 项、Desktop fork marker 与全套 Desktop tests 1425 passed / 2 skipped。未执行安装版升级实测。 |
+| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1` 后无目录会话、Workspace 成员补全与已删工作区语义保留；delete-archived host spec 随上游 API 适配（`personaPrefix`、`AgentSetup` 双参）通过；fork marker 与 Desktop tests 1450 全绿。此前 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后保留无目录会话、Workspace 成员补全与已删工作区语义；Host / Client build、含 ui-workspace 的重点 Client 101 文件 / 1279 项、Desktop fork marker 与全套 Desktop tests 1425 passed / 2 skipped。未执行安装版升级实测。 |
 
 ## User paths
 

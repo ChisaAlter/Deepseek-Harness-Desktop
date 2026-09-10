@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-`credentials/` 组管理你的配置按名引用的机密值：API 密钥只存一次，在 settings 或 `cordis.yml` 中按名引用，轮换时无需编辑任何配置文件。它提供产品中负责存储与查询机密的运行时部分（`credentials/`）、默认的本机凭据文件（`credentials-local/`），以及授权 flow 注册表（`authorization/`）——用于获取无法配置、只能开口去要的凭据。轮换后的密钥会作用于紧随其后的下一次模型请求，而按次运行的环境覆盖（`DEEPSEEK_API_KEY=… dsh`）始终优先于存储值。机密值绝不进入你同步或渲染的配置文件——进去的只有它们的名字，而且本地文件只有同一 OS 用户可读，其他用户读不到。
+`credentials/` 组让配置引用机密的名字，而不嵌入机密值。使用 `credentials/` 存储、查询和移除凭据；使用 `credentials-local/` 将凭据私密地存储在本机，并支持按次运行的环境覆盖；当获取凭据需要询问人时，使用 `authorization/`。轮换后的存储值会作用于下一次模型请求，而 `DEEPSEEK_API_KEY=… dsh` 在该次运行中优先。配置文件只包含凭据名称；本地机密值只有同一 OS 用户可读。
 
 ## 目录
 

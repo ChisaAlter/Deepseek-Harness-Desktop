@@ -6,6 +6,9 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { GitChromeRow } from '../src/client/GitChromeRow.tsx'
 import type { GitChromeRowProps } from '../src/client/GitChromeRow.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(cleanup)
 
@@ -14,6 +17,8 @@ const unused = (() => { throw new Error('unused by GitChromeRow') }) as never
 function mount(opts: { visible?: boolean; writable?: boolean } = {}) {
   const setTitlebarGit = vi.fn()
   const props: GitChromeRowProps = {
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     useSessions: unused,
     useSessionPendingInteraction: unused,
     useWorkspaces: unused,

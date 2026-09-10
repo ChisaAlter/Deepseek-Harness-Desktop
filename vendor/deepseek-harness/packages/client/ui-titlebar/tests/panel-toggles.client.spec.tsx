@@ -5,6 +5,9 @@ import type { WorkspaceSnapshot as WorkspaceListState } from '@deepseek-ai/dsh-a
 import type { PanelTogglesProps } from '../src/client/PanelToggles.tsx'
 import { PanelToggles } from '../src/client/PanelToggles.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 const t: PanelTogglesProps['t'] = key => (en as Record<string, string>)[key] ?? key
 const neverHook = (() => { throw new Error('panel toggles must not read useSessions') }) as never
@@ -33,6 +36,8 @@ function mount(opts: {
   const toggleTerminalDrawer = vi.fn()
   render(
     <PanelToggles
+      usePanelInfo={panelInfoStub}
+      useResource={resourceStub}
       surfaces={opts.surfaces ?? 0}
       terminalDrawer={opts.terminalDrawer ?? 0}
       managedSession={false}

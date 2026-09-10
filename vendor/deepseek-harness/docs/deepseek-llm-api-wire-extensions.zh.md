@@ -73,7 +73,7 @@
 
 ## `dsh_session_log`
 
-[`@deepseek-ai/dsh-session-log-deepseek`](../packages/session/session-log-deepseek/README.zh.md) 贡献权威会话日志的一段连续后缀。该字段默认禁用。启用后，它适用于携带存活会话且至少存在一个事件的请求；直接请求、陈旧会话 id 或空日志会省略该字段。
+[`@deepseek-ai/dsh-session-log-deepseek`](../packages/session/session-log-deepseek/README.zh.md) 贡献权威会话日志的一段连续后缀。该字段默认禁用。启用后，它适用于携带存活会话且至少存在一个事件的请求；直接请求、陈旧会话 id 或空日志会省略该字段。下方示例使用逻辑 Session 格式 2 仅为说明协议字段，并不标识[当前写入格式](session-format-status.zh.md)。
 
 ```json
 {
@@ -119,7 +119,7 @@
 
 | 成员 | 出现条件 | 含义 |
 |---|---|---|
-| `version` | 必需 | 逻辑 Session 格式版本；当前为 `2` |
+| `version` | 必需 | 来自 `Session.header` 的逻辑 Session 格式版本；见[格式状态](session-format-status.zh.md) |
 | `id` | 必需 | 确切的会话 id |
 | `createdAt` | 必需 | 非负安全整数 Unix epoch 毫秒数 |
 | `cwd` | 可选 | 创建会话时记录的绝对工作目录 |

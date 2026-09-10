@@ -22,6 +22,8 @@ export interface DumpConfigOptions {
   defaultOnly: boolean
   patches: readonly string[]
   skipUserPlugins?: boolean
+  /** Shipped template used once to initialize a missing profile. */
+  fromDefaultProfile?: string | undefined
 }
 
 /** Build the same labeled layers that runDumpConfig prints, without I/O to stdout. */
@@ -33,6 +35,7 @@ export function dumpConfigLayers(profile: string, options: DumpConfigOptions): {
   const loaded = prepareProfile(profile, {
     userLayer: !options.defaultOnly && !skipUserPlugins,
     bundles: skipUserPlugins ? 'template' : 'manifest',
+    fromDefaultProfile: options.fromDefaultProfile,
   })
   const layers: ConfigDumpLayer[] = loaded.layers.map(layer => ({
     label: layer.packageName,
@@ -65,14 +68,17 @@ export function dumpConfigLayers(profile: string, options: DumpConfigOptions): {
  * (the recovery diagnostic for a broken `cordis.patch.yml`, which is then
  * never parsed).
  * @param patches - `--patch` overlay paths, in argv order.
+ * @param skipUserPlugins - list template bundles and `--patch` files only, never user layers.
+ * @param fromDefaultProfile - shipped template used once to initialize a missing profile.
  */
 export function runDumpConfig(
   profile: string,
   defaultOnly: boolean,
   patches: readonly string[],
   skipUserPlugins = false,
+  fromDefaultProfile?: string,
 ): void {
-  const composed = dumpConfigLayers(profile, { defaultOnly, patches, skipUserPlugins })
+  const composed = dumpConfigLayers(profile, { defaultOnly, patches, skipUserPlugins, fromDefaultProfile })
   process.stdout.write(renderConfigDump(NAME, composed.root, composed.layers))
 }
 /* v8 ignore stop */

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-lsp` 为 harness 提供语言服务器代码导航：agent 可以转到符号的定义、查找其引用、跳转到其实现或阅读悬停文档，代码导航服务（`ctx.lsp`）会把每个查询路由到拥有该文件扩展名的语言服务器提供方。提供方按品牌化 id 与文件扩展名注册，因此更换提供方绝不会改变请求导航的方式，也不会改变模型看到的内容。该服务恰好暴露四种只读操作，没有通用 JSON-RPC 逃生口；它自身不贡献提示词或工具 schema——面向模型的 `lsp` 工具位于 `dsh-tool-lsp`。与 `dsh-lsp-stdio` 之类的提供方及该工具组合，即可为 agent 提供精确导航；本包单独加载时什么也不做。
+使用 `dsh-lsp` 为 agent 提供语言服务器导航，包括定义、引用、实现与悬停文档。查询按文件扩展名选择已配置的提供方，并返回规范化结果与结构化错误，因此更换后端不会改变导航请求或模型可见的响应。导航只读，并刻意排除通用 JSON-RPC 访问、重命名、格式化、诊断与符号列表。本包必须与 `dsh-lsp-stdio` 等提供方及面向模型的 `dsh-tool-lsp` 组合；单独使用时不提供导航。
 
 ## 目录
 
@@ -100,10 +100,9 @@ seam 需要提供方与消费方才能发挥作用。最小组合挂载服务、
 <a id="further-exploration"></a>
 ## 进一步探索
 
-当包级约定不够用时阅读以下页面。它们从共享的导航模型逐步进入提供方、工具与决策证据。
+当包级约定不够用时阅读以下页面。它们从共享的导航模型逐步进入提供方与工具。
 
 - [LSP 导航子系统](../../../docs/subsystems/lsp.zh.md)——操作、坐标、请求与结果，以及 `LspError` code。
-- [LSP 能力 seam Agent Note](../../../.agents/notes/implemented/architecture/2026-07-15-lsp-capability-seam.zh.md)——设计原理、备选方案与刻意推迟的 API。
 - [dsh-lsp-stdio](../lsp-stdio/README.zh.md)——注册到该 seam 的 stdio 提供方。
 - [dsh-tool-lsp](../tool-lsp/README.zh.md)——基于该 seam 的面向模型工具。
 - [lsp 组地图](../README.zh.md)——三个包的家族及其相关文档。
@@ -126,7 +125,7 @@ seam 需要提供方与消费方才能发挥作用。最小组合挂载服务、
 
 这些限制定义 seam 当前的范围。它们是包约束，不是任务积压。
 
-- **同一运行时内扩展名归属互斥**——两个提供方不能同时声明 `.ts`，即使 language id 不同；重叠会使注册失败。预期扩展是在注册之上增加部署配置的 selector，它可以在不把提供方选择加入模型输入的前提下放宽互斥保留（见 [seam Agent Note](../../../.agents/notes/implemented/architecture/2026-07-15-lsp-capability-seam.zh.md)）。
+- **同一运行时内扩展名归属互斥**——两个提供方不能同时声明 `.ts`，即使 language id 不同；重叠会使注册失败。预期扩展是在注册之上增加部署配置的 selector，它可以在不把提供方选择加入模型输入的前提下放宽互斥保留。
 - **仅四种只读操作**——symbol 与 call hierarchy 因需要不同 schema 而推迟；diagnostics 需要独立的新鲜度与累积规则；修改（重命名、code action、格式化）需要独立工具，并集成预览、权限与写入策略。
 - **没有观测表层**——可用性只能通过运行 `query()` 并按抛出的 `LspError` code 路由来观测；没有提供方变更事件或能力状态查询。
 

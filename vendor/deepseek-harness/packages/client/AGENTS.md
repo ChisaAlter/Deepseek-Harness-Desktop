@@ -23,7 +23,7 @@ How live data reaches render code, and what UI domains may share:
 1. **Everything a render reads that can change outside React arrives through a framework hook** (rule 4 above). Event-handler code may read live snapshots (e.g. `keyboard.snapshot`); render code subscribes.
 2. **Business components contain no subscription machinery** — no `useSyncExternalStore`, no manual subscribe wiring, no mirroring an external snapshot into local state or a second store. Give each reactive fact its owning channel instead: registrant-private → the inject `hooks` compartment; cross-entry or remount-surviving → a declared store; per-session standard → `sessions.provide`.
 3. **Data-access ladder** — resolve needs in this order: framework hooks (standing seats + provide/inject-bound `use<Name>`) → a declared store (`useStore`/`actions`) → inject callbacks → anything else is a new framework extension point and needs main-thread arbitration.
-4. **UI domains share only JSON-compatible data and callbacks.** Owner props, injected values, store state, and provide contributions are plain serializable data or callbacks over such data. The injected `hooks` compartment is the only place for bare observables, and components never receive those sources directly. Route ReactNode content through a slot; do not add ReactNode-valued owner props or injected members (the composer's existing `accessory`/`overlay`/`leftItems`/`rightItems` fields remain until they move to slots).
+4. **UI domains share JSON-compatible data and callbacks.** Owner props, injected values, store state, and provide contributions use these values. Transient file-read and document-preview content may also carry `Uint8Array`: published buffers are borrowed read-only, copied before Worker transfer, and never persisted in layout or Session JSON. The injected `hooks` compartment is the only place for bare observables, and components never receive those sources directly. Route ReactNode content through a slot; do not add ReactNode-valued owner props or injected members (the composer's existing `accessory`/`overlay`/`leftItems`/`rightItems` fields remain until they move to slots).
 5. **An observable source keeps two identities stable**: the source object itself (hook binding is cached per source), and its snapshot between changes (`getSnapshot` returns the same reference until the fact moves).
 6. **Whoever rebuilds a published value republishes it through the same source in the same step**, and a registration path that can run after consumers exist notifies the live consumers as part of registering.
 
@@ -50,7 +50,7 @@ The stack has one-way knowledge, documented in the [Web Client architecture](../
 Non-negotiables across the layers:
 
 - **Business data lives in the object layer, never a store.** Entry-declared stores carry shared viewing/interaction state (selection, drafts, panel widths); sessions, frames, and connections stay in the object layer.
-- **rpcId is strictly bidirectional**: the initiator mints, the responder echoes, and minting stays in Connection ([unary Remote migration](../../.agents/notes/implemented/architecture/2026-08-10-unary-apiproxy-remote-migration.md)).
+- **rpcId is strictly bidirectional**: the initiator mints, the responder echoes, and minting stays in Connection ([Typert Gateway method calls](../../.agents/notes/implemented/architecture/2026-08-02-typert-remote-method-calls.md)).
 - **Notifier publication discipline**: `notifyNow` is only the direct echo of a user gesture; structural updates use microtask-batched `markDirty`, while visible streaming chunks use cumulative `markFrameDirty`. See `../api/session-controller/src/client/sessions/notifier.ts`.
 - **The web layer is pure presentation.** Nothing that is only "how to draw" enters the session log. Tool cards derive in the Client from raw call/result events and persisted result metadata; process-local control state uses its own snapshots and frames. Unknown or malformed tool data falls back to the generic form. A new *model-visible* input still requires a session event (repo-wide rule).
 
@@ -60,9 +60,9 @@ Npm sections describe installation and development relationships; each build fac
 
 1. **Every client package keeps Cordis in matching `peerDependencies` and `devDependencies`.** This includes the static packages because their Node face participates in the same Cordis plugin contract.
 2. **A package under `packages/client/` is always covered; `dsh.client` marks a Client/Host package outside that directory.** Explicit include/exclude entries handle exceptions. Every covered package's Host entry is scanned, while a `./client` export alone does not select dependency policy.
-3. **Browser and type relationships are development-only.** Client imports, type-only imports, module augmentations, TypeScript project references, `dsh.client.inject`, invariant companions, and metadata-only peers belong only in `devDependencies`. Configuration-only entries that Knip cannot infer from imports are listed in the dependency policy and projected into `knip.json` by `--fix`.
+3. **Browser and type relationships are development-only.** Workspace and third-party Client imports, type-only imports, module augmentations, TypeScript project references, `dsh.client.inject`, and metadata-only peers belong only in `devDependencies`. Configuration-only entries absent from imports are listed in the dependency policy; Node companion value imports follow the Host rules below.
 4. **Host value imports require classified exports.** A workspace value reached from the package's Host entry belongs only in `dependencies` when its exact module specifier and runtime export appear in `safeHostDependencyExports`. Exports whose identity or module state must be shared appear in `peerRequiredHostExports` and keep the whole package edge in matching `peerDependencies` and `devDependencies`. The verifier rejects unclassified exports before `--fix` writes manifests.
-5. **Ordinary installed libraries stay in `dependencies`.** This includes private implementation libraries bundled into `lib/client.js` and bare imports left in a statically linked `lib/index.js`; the final Vite host, not the library build, merges and splits the latter.
+5. **Only Host runtime libraries require installation dependencies.** Browser-only third-party implementations belong in `devDependencies`, whether inlined into `lib/client.js` or retained as bare imports in a static browser library. Static libraries are Web-shell build inputs; the final Vite build merges their imports and styles. Distributed browser code remains subject to runtime license disclosure ([decision](../../.agents/notes/implemented/process/2026-09-08-browser-third-party-build-inputs.md)).
 6. **Browser and Node build faces declare externality independently.** A dynamic browser half uses the baseline plus `dsh.client.external`; a statically linked face externalizes every bare specifier; a Node face externalizes its production dependencies ([`tsdown.client.ts`](tsdown.client.ts)). Moving a name between npm sections must not silently change bundle contents.
 7. **Keep the published payload closed.** Every relative runtime import and emitted asset must be covered by `files`; the repository publint pass checks the exact publication view.
 
@@ -74,7 +74,7 @@ Client business code may statically read `process.env.DSH_CLIENT_*`; every refer
 
 A dynamic browser half either carries a module privately or requests the shared module-table identity. The client baseline is centralized in [`web/src/platform.ts`](web/src/platform.ts): `PLATFORM_MODULES` names shell-seeded React, Cordis, and static Client libraries; `PRELOADED_CLIENT_EXTERNALS` is reserved for dynamic rows whose factories must arrive before shell boot and is empty when no such row exists.
 
-1. **Baseline externals are implicit for every dynamic bundle.** Do not repeat React, Cordis, `client/store`, `ui-primitives`, or `ui-slots` in package manifests.
+1. **Baseline externals are implicit for every dynamic bundle.** Do not repeat React, Cordis, `client/store`, `ui-primitives`, `ui-slots`, or `ui-dockkit` in package manifests.
 2. **`dsh.client.external` is not a feature-plugin dependency mechanism.** Only infrastructure, transport, or generated assembly may add a package-specific non-baseline value request whose dynamic row must be materialized through the module table. Declare the exact import specifier; only a trailing `/client` aliases the package row.
 3. **Silence means a private copy.** Ordinary third-party implementation libraries may be bundled independently. A value reached only through `import type` is erased and creates no request.
 4. **A request has two possible suppliers.** A dynamic package supplies its own row; `PLATFORM_MODULES` supplies an exact static-table key. There is no `dsh.client.provide` alias protocol.
@@ -144,9 +144,11 @@ Bringing up a new `packages/client/<name>` plugin package (ui-workspace is a com
 
 ## New component checklist
 
-1. Compose through register: add the slot to `SlotMap`, declare it in its parent entry's `children`, and register your component — see the [Slots reference](../../docs/subsystems/slots.md). No other composition route exists.
-2. Type the props as the four shares (`PropsRuntime` & `PropsRenderSlots` & `PropsStore` & inject face) — derive, don't hand-write. Shared/surviving state goes in a `createXXXStore()` factory declared at register; component-private state stays local.
-3. Component tests feed props directly (`createXXXStore().create()` for the store data; plain stubs for framework hooks) and assert behavior without render machinery.
-4. Tokens only in CSS; product copy follows the localization rule above; English comments.
-5. `pnpm run test:gui` green; if the component changes visible assembled output, also run `DSH_SNAPSHOT=replay pnpm run test:web`.
-6. Non-trivial change? It needs an Agent Note in the same PR (repo-wide rule) — the GUI notes above are the precedents to extend.
+1. **Check the [ui-primitives catalog](ui-primitives/README.md#component-catalog) before writing a control.** A plugin cannot import another plugin's component, so `ui-primitives` is the only place a control can be shared; the catalog states when to reuse, when to promote, and when your own package is the right home.
+
+2. Compose through register: add the slot to `SlotMap`, declare it in its parent entry's `children`, and register your component — see the [Slots reference](../../docs/subsystems/slots.md). No other composition route exists.
+3. Type the props as the four shares (`PropsRuntime` & `PropsRenderSlots` & `PropsStore` & inject face) — derive, don't hand-write. Shared/surviving state goes in a `createXXXStore()` factory declared at register; component-private state stays local.
+4. Component tests feed props directly (`createXXXStore().create()` for the store data; plain stubs for framework hooks) and assert behavior without render machinery.
+5. Tokens only in CSS; product copy follows the localization rule above; English comments.
+6. `pnpm run test:gui` green; if the component changes visible assembled output, also run `DSH_SNAPSHOT=replay pnpm run test:web`.
+7. Non-trivial change? It needs an Agent Note in the same PR (repo-wide rule) — the GUI notes above are the precedents to extend.

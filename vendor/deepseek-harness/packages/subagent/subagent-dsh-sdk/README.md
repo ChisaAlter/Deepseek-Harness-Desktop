@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-subagent-dsh-sdk` runs each delegated child as a complete DeepSeek Harness runtime in a fresh subprocess, driven over stdio JSON-RPC through the TypeScript SDK client. It is the second out-of-process backend beside the ACP provider, differing in the wire and the child contract: the child is a full peer harness with its own `cordis.yml`-decided composition, session persistence, model route, and tools. Each run spawns the child runtime (the resolved `@deepseek-ai/dsh` CLI under Node, or the configured `dshBin`), completes an `initialize` handshake with the configured provider and model route, submits the task, and reads the answer from the child's session events. The parent receives only the child's final assistant text or a safe error — no intermediate messages or tool traffic crosses the boundary. Choose it when the child should be a genuine Harness runtime, fully isolated from the parent harness.
+`dsh-subagent-dsh-sdk` runs each delegated task in a fresh DeepSeek Harness subprocess with its own profile, session, model route, and tools. The parent provides the task and working directory, while each child uses its configured runtime and remains isolated from the parent conversation. The parent receives the child's final assistant text or a safe error; intermediate messages and tool traffic stay inside the child process. Choose this backend when delegation needs a complete Harness runtime rather than shared in-process state, and accept the cost of starting a new process for every run.
 
 ## Table of Contents
 

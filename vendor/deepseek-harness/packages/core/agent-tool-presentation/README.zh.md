@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-[agent preset](../../preset/agent-presets/README.zh.md) 携带 `dsh-agent-tool-presentation`，用来声明「模型看到其工具的哪一种形态」：`native`（每个可见 schema）、`ptc`（只有 `run_code` 加一份生成的 SDK）或 `both`。工具注册表本身仍在宿主平面——这一行只声明挂载 agent 的呈现方式，因此一个 PTC mode 会话可以与多个 native 会话同进程并存，各自看到各自的目录。PTC 模式在挂载前会等待代码运行时，因此针对未组装运行时的部署选择 PTC mode 的 preset 会在挂载时失败，而不是在第一次请求时失败。`mode` 字段是必填的：不带这一行的 preset 本来就会拿到部署默认值。当 agent preset 需要固定其 agent 的模型所看到的工具形态时，请选择本包。
+在 [agent preset](../../preset/agent-presets/README.zh.md) 中使用 `dsh-agent-tool-presentation`，可固定模型看到全部原生工具 schema、只有带生成 SDK 的 `run_code`，还是同时看到两种形态。每个 preset 可独立选择，因此 native 与 PTC agent 可以共享同一进程，而不共享工具目录。选择 `ptc` 或 `both` 需要兼容的代码运行时；没有该运行时的部署会在挂载时拒绝 preset，不会等到第一次请求。使用本包时 `mode` 字段为必填；省略本包则沿用部署默认值。
 
 ## 目录
 

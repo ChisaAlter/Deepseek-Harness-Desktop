@@ -32,11 +32,11 @@ Status: implemented
 
 ## 后果
 
-恢复、fork、subagent、ACP、webhook 与 SDK 会话全部经由一个显式获取点持久化，且 dispose 可证明地释放写所有权（teardown 之后重新以写模式打开可以成功）。代价：在有活跃会话时重载后端插件会使它们的句柄失效——写入会响亮地失败，直到会话重启，而以前接管会静默重连；测试中 `ctx.sessions.create` + `flush` 在没有句柄时什么也不持久化（测试通过 `create`/`append`/`close` 播种）；只有当紧邻其前没有观察读解析过同一产物时，恢复才重新读取冷日志——一个有界的 provider 内部 memo（按会话 id + stat 修订号，任何本地修改都使其失效）服务观察后提升与授权后恢复这两类交接，而不恢复已删除的 borrow/reservation 生命周期；session-query reader 自己的已准备缓存仍是其上方具备 pin 能力的一层（后续可考虑二者收敛）；空的已创建会话在显式 flush 之前对其他进程不可见（ACP 为其可恢复空会话承诺强制执行一次 flush）。`SESSION_FORMAT_VERSION` 保持为 0。
+恢复、fork、subagent、ACP、webhook 与 SDK 会话全部经由一个显式获取点持久化，且 dispose 可证明地释放写所有权（teardown 之后重新以写模式打开可以成功）。代价：在有活跃会话时重载后端插件会使它们的句柄失效——写入会响亮地失败，直到会话重启，而以前接管会静默重连；测试中 `ctx.sessions.create` + `flush` 在没有句柄时什么也不持久化（测试通过 `create`/`append`/`close` 播种）；只有当紧邻其前没有观察读解析过同一产物时，恢复才重新读取冷日志——一个有界的 provider 内部 memo（按会话 id + stat 修订号，任何本地修改都使其失效）服务观察后提升与授权后恢复这两类交接，而不恢复已删除的 borrow/reservation 生命周期；session-query reader 自己的已准备缓存仍是其上方具备 pin 能力的一层（后续可考虑二者收敛）；空的已创建会话在显式 flush 之前对其他进程不可见（ACP 为其可恢复空会话承诺强制执行一次 flush）。句柄所有权不改变序列化的 Session 表示。
 
 ## 相关
 
 - [作为抽象服务的会话持久化](2026-06-14-session-persistence.zh.md)——本 Note 重塑的 seam；其接口列表已反映句柄 API。
-- [持久化 export() 与预发布读取路径精简](../simplification/2026-08-27-persistence-export-and-pre-release-trims.zh.md)——预备性的移除，包括已退役的冷空白探测。
+- [持久化 export() 与预发布读取路径精简](../../archived/simplification/2026-08-27-persistence-export-and-pre-release-trims.md)——预备性的移除，包括已退役的冷空白探测。
 - [保留可忽略的外部会话事件](2026-08-30-retain-ignorable-external-session-events.zh.md)——读取侧的拒绝约定，现经由 `storage-contract` 辅助函数共享。
-- [为会话持久化写入批处理设定上界](2026-08-08-bounded-session-persistence-write-batching.zh.md)——被路由写路径作为内部调度策略保留的批处理语义。
+- [为会话持久化写入批处理设定上界](../../archived/architecture/2026-08-08-bounded-session-persistence-write-batching.md)——被路由写路径作为内部调度策略保留的批处理语义。

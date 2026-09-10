@@ -6,7 +6,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import type { ComponentProps } from 'react'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { TrajectoryTable as LocalizedTrajectoryTable } from '../src/client/TrajectoryTable.tsx'
-import type { TrajectoryTurnModel } from '../src/client/layout.ts'
+import { deriveTrajectoryLayout, type TrajectoryTurnModel } from '../src/client/layout.ts'
 import { trajectoryRecordId } from '../src/client/trajectory-record.ts'
 import { t, tZh } from './locale.client.ts'
 
@@ -124,6 +124,20 @@ const FOLD_PROPS = {
 }
 
 describe('TrajectoryTable', () => {
+  it('shows known standalone prompt text without a fabricated tool catalog or request options', () => {
+    const turns = deriveTrajectoryLayout({
+      nodes: [], partial: null, runningCalls: [],
+      systemPrompts: [{ seq: 10, time: 10, turn: 2, step: 1, text: '# Known instructions', update: false }],
+    }, t)
+    expect(turns.flatMap(turn => turn.groups.flatMap(group => group.cells))).toMatchObject([
+      { kind: 'system', text: 'Initial System Prompt', systemPromptDetail: '# Known instructions' },
+    ])
+    render(<TrajectoryTable turns={turns} {...FOLD_PROPS} />)
+    fireEvent.click(screen.getByRole('row', { name: /SYSTEM/ }))
+    expect(screen.getByRole('heading', { name: 'Known instructions' })).toBeTruthy()
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['System Prompt'])
+  })
+
   it('shows a muted placeholder for an assistant response containing only tool calls', () => {
     const turns: readonly TrajectoryTurnModel[] = [{
       turn: 1,

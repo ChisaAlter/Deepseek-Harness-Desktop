@@ -4,7 +4,7 @@ import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { IWorkspaces } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import type { BoundActions, ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 // Type-only service and declaration merges used by the apply world.
@@ -16,7 +16,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {
-  ChatNodeTurnDataInjected, ChatScrollPosition, ChatViewInjected, DetailsInjected,
+  ChatNodeTurnDataInjected, ChatScrollPosition, ChatViewInjected, OpenFileOptions,
   TurnTailOwnerProps,
 } from './contract/slots.ts'
 import type { ChatSnapshot } from './contract/snapshot.ts'
@@ -24,20 +24,19 @@ import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
 import { ApprovalCommand } from './chat/ApprovalCommand.tsx'
 import { ChatView } from './chat/ChatView.tsx'
 import { registerChatNodeRenderers } from './chat/register-node-renderers.ts'
-import { StatsLine } from './chat/StatsLine.tsx'
+import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
-import { DetailsPanel } from './details/DetailsPanel.tsx'
 import { en, NS, zh } from './locale.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createChatStore } from './stores.ts'
-import type { StatsLineInjected } from './chat/StatsLine.tsx'
+import type { StatsPillsInjected } from './chat/StatsPills.tsx'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
 import { useTurnDataValue } from './chat/use-turn-data.ts'
 
 interface WorkspacePathOpener {
-  openPath?: (path: string, options?: { line?: number }) => Promise<void>
+  openPath?: (path: string, options?: OpenFileOptions) => Promise<void>
 }
 
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
@@ -50,7 +49,7 @@ const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
 
 /** Services required by the Chat target and its presentation registrations. */
 export const inject = [
-  'slots', 'sessions', 'uiSession', 'uiConversation', 'layout', 'locale',
+  'slots', 'sessions', 'uiSession', 'uiConversation', 'locale',
   'settingsScope', 'remote', 'remote.session', 'workspaces',
 ]
 
@@ -110,7 +109,7 @@ export function apply(ctx: Context): void {
         'conversation.message.images': { kind: 'single', scope: 'session' },
       },
       store: chatStore,
-      inject: (sessionId: SessionId, actions: BoundActions<typeof chatStore>): ChatViewInjected => {
+      inject: (sessionId: SessionId): ChatViewInjected => {
         const binding = ctx.sessions.binding(sessionId)
         if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
         const session = binding.session
@@ -121,17 +120,18 @@ export function apply(ctx: Context): void {
             chatNode: key => chat.getSnapshot().nodes.source(key),
             chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
           },
-          openDetails: (target) => {
-            actions.select(target)
-            ctx.layout.openDetails()
-          },
-          fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner),
-          openFile: async (path) => {
+          fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner, sessionId),
+          // Every chat file open funnels through the shared `workspaces.openPath`
+          // seam, so the desktop surfaces intercept (Files tab, Browser for
+          // html/pdf) sees tool rows and mentions alike; a relative path is
+          // resolved against the Session's workspace root first, and a line
+          // travels as an option so the opened file can reveal it.
+          openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
             const workspaces = ctx.workspaces as IWorkspaces & WorkspacePathOpener
             const openPath = workspaces.openPath
             if (typeof openPath !== 'function') throw new Error('workspace path opener is unavailable')
-            await openPath.call(workspaces, resolveWorkspacePath(cwd, path))
+            await openPath.call(workspaces, resolveWorkspacePath(cwd, path), options)
           },
           loadOlder: () => { void session.loadOlder() },
           loadThrough: seq => session.loadThrough(seq),
@@ -173,17 +173,10 @@ export function apply(ctx: Context): void {
   ctx.slots.inject('conversation.composer.dock', () =>
     ctx.slots.register({
       name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,
-      inject: (): StatsLineInjected => ({ hooks: { statsLine } }),
-    }, StatsLine))
+      inject: (): StatsPillsInjected => ({ hooks: { statsLine } }),
+    }, StatsPills))
 
   ctx.slots.inject('conversation.approval.detail', () =>
     ctx.slots.register({ name: 'conversation.approval.detail' }, ApprovalCommand))
 
-  ctx.slots.inject('details', () => ctx.slots.register({
-    name: 'details',
-    locale: NS,
-    children: { 'conversation.details.tool': { kind: 'single', scope: 'session' } },
-    store: chatStore,
-    inject: (): DetailsInjected => ({ closeDetails: () => { ctx.layout.closeDetails() } }),
-  }, DetailsPanel))
 }

@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-cmdline` 让你的应用持有自己的命令行：启动器只保留属于自己的 flag（`--profile`、`--patch`、配置 dump），并把**其后的一切**原样交给你的应用，因此 flag、`--help` 文本与解析错误都由你的应用决定。你从这些参数解析出的值会胜过配置中写下的任何默认值，且无需写回任何内容。你的应用还获得一个有边界的进程退出请求，接到启动器的关停上。当你编写接受自有 flag 的应用 bin 时使用它；它本身不增加任何提示词、schema 或面向模型的表面。
+`dsh-cmdline` 让应用从启动器 flag 之后原样留下的参数中解析自己的 flag、`--help` 与错误。解析值可以覆盖配置默认值，而无需改写配置。应用还可以通过启动器的关停路径请求进程退出。适用于拥有自有命令行界面的应用 bin。它不增加提示词、schema 或模型可见内容。
 
 ## 目录
 
@@ -106,10 +106,8 @@ kind: "package-library"
 <a id="further-exploration"></a>
 ## 进一步探索
 
-当包级约定不够用时阅读以下页面。它们从交接机制逐步进入消费它的应用及其背后的决策。
+当包级约定不够用时阅读以下页面。它们从交接机制逐步进入消费它的应用。
 
-- [应用持有命令行决策](../../../.agents/notes/implemented/architecture/2026-08-06-app-owned-command-line.zh.md)——为什么 flag 家族由应用持有，以及交接如何运作。
-- [命令行 seam 精简](../../../.agents/notes/implemented/architecture/2026-08-11-cmdline-seam-trim.zh.md)——缩减到既有接口的各 seam。
 - [dsh-app-boot](../app-boot/README.zh.md)——提供这些启动器值的启动序列。
 - [dsh-web-app 组合包](../../bundle/web-app/README.zh.md)——通过此包持有 Web flag 家族的应用。
 - [dsh-headless 组合包](../../bundle/headless/README.zh.md)——从命令行读取任务的一次性 runner。

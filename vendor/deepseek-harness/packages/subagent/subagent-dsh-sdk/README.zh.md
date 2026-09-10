@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-subagent-dsh-sdk` 在全新的子进程中把每个被委派的子 agent（智能体）作为完整的 DeepSeek Harness 运行时运行，并经由 TypeScript SDK 客户端通过 stdio JSON-RPC 驱动。它是 ACP 提供方之外的第二个进程外后端，差异在协议格式（wire format）与子进程约定：子进程是完整的对等 harness，拥有由 `cordis.yml` 决定的组合、会话持久化、模型路由与工具。每次运行都会 spawn 子运行时（Node 下解析出的 `@deepseek-ai/dsh` CLI，或配置的 `dshBin`），以配置的提供方与模型路由完成 `initialize` 握手、提交任务，并从子进程的会话事件中读取答案。父级只收到子进程最终的 assistant 文本或安全错误——中间消息与工具流量不会跨越边界。当子进程应该是与父 harness 完全隔离的真实 Harness 运行时时，选择它。
+`dsh-subagent-dsh-sdk` 在全新的 DeepSeek Harness 子进程中运行每个委派任务，子进程拥有自己的 profile、会话、模型路由与工具。父级提供任务与工作目录，每个子进程使用其已配置的运行时，并与父级对话保持隔离。父级只会收到子进程最终的 assistant 文本或安全错误；中间消息与工具流量保留在子进程内。当委派需要完整的 Harness 运行时而不是共享进程内状态时，选择此后端，并接受每次运行都要启动新进程的成本。
 
 ## 目录
 

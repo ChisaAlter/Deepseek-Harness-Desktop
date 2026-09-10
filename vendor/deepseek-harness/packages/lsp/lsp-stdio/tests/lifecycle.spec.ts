@@ -11,6 +11,7 @@ import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import * as LspLocal from '@deepseek-ai/dsh-lsp-stdio'
 import type { LspLocalServerConfig } from '@deepseek-ai/dsh-lsp-stdio'
+import { LspConnection } from '../src/connection.ts'
 
 const fixtureServer = fileURLToPath(new URL('./fixture-server.ts', import.meta.url))
 
@@ -44,10 +45,12 @@ async function mount(
   fakeEnv: Record<string, string> = {},
   overrides: Partial<LspLocalServerConfig> = {},
   captureProvider?: (provider: LspProvider) => void,
+  configureSubprocess?: (ctx: Context) => void,
 ): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(Lsp)
   await ctx.plugin(LocalSubprocessRuntime)
+  configureSubprocess?.(ctx)
   await ctx.plugin(LocalFileSystem, { cwd: process.cwd() })
   const register = ctx.lsp.registerProvider.bind(ctx.lsp)
   const registrationSpy = captureProvider === undefined
@@ -165,6 +168,98 @@ describe('lsp-stdio end to end over a fake server', () => {
     await ctx.fiber.dispose()
   })
 
+  it('preserves a query failure with final disposal failure and evicts the instance', async () => {
+    const teardownFailure = new Error('managed range observation failed')
+    let provider: LspProvider | undefined
+    let firstSpawn = true
+    let restoreFirstWait: (() => void) | undefined
+    const ctx = await mount(
+      { LSP_FAKE_ENCODING: 'utf-8', LSP_FAKE_DEF: 'null' },
+      { shutdownTimeoutMs: 100, killGraceMs: 100 },
+      (registered) => { provider = registered },
+      (mounted) => {
+        const spawn = mounted.subprocess.spawn.bind(mounted.subprocess)
+        vi.spyOn(mounted.subprocess, 'spawn').mockImplementation((spec) => {
+          const handle = spawn(spec)
+          if (!firstSpawn) return handle
+          firstSpawn = false
+          const waitForExit = handle.waitForExit.bind(handle)
+          const waitSpy = vi.spyOn(handle, 'waitForExit')
+            .mockImplementation(async (signal) => {
+              await waitForExit(signal)
+              throw teardownFailure
+            })
+          restoreFirstWait = () => { waitSpy.mockRestore() }
+          return handle
+        })
+      },
+    )
+    const failure = await ctx.lsp.query(query('goToDefinition')).then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    expect(failure).toBeInstanceOf(AggregateError)
+    const errors = (failure as AggregateError).errors as unknown[]
+    expect(errors).toHaveLength(2)
+    expect(errors[0]).toBeInstanceOf(Error)
+    expect((errors[0] as Error).message).toContain('unsupported position encoding')
+    expect(errors[1]).toBe(teardownFailure)
+    expect((failure as AggregateError).message).toBe('LSP operation and teardown failed')
+    restoreFirstWait?.()
+    if (provider === undefined) throw new Error('expected lsp-stdio to register a provider')
+    const instances = (provider as unknown as { readonly instances: ReadonlyMap<string, unknown> }).instances
+    expect(instances.size).toBe(0)
+    await expect(ctx.lsp.query(query('goToDefinition'))).rejects.toThrow(/unsupported position encoding/)
+    expect(instances.size).toBe(0)
+    await ctx.fiber.dispose()
+  })
+
+  it('reports final disposal failure after a settled query and evicts the instance', async () => {
+    const closeFailure = new Error('fixture textDocument/didClose failure')
+    const teardownFailure = new Error('managed range observation failed')
+    const notify = Object.getOwnPropertyDescriptor(LspConnection.prototype, 'notify')?.value as LspConnection['notify']
+    const notifySpy = vi.spyOn(LspConnection.prototype, 'notify').mockImplementation(function (this: LspConnection, method, params) {
+      if (method === 'textDocument/didClose') return Promise.reject(closeFailure)
+      return notify.call(this, method, params)
+    })
+    let provider: LspProvider | undefined
+    let restoreFirstWait: (() => void) | undefined
+    const ctx = await mount(
+      { LSP_FAKE_DEF: 'null' },
+      { shutdownTimeoutMs: 100, killGraceMs: 100 },
+      (registered) => { provider = registered },
+      (mounted) => {
+        const spawn = mounted.subprocess.spawn.bind(mounted.subprocess)
+        let firstSpawn = true
+        vi.spyOn(mounted.subprocess, 'spawn').mockImplementation((spec) => {
+          const handle = spawn(spec)
+          if (!firstSpawn) return handle
+          firstSpawn = false
+          const waitForExit = handle.waitForExit.bind(handle)
+          const waitSpy = vi.spyOn(handle, 'waitForExit').mockImplementation(async (signal) => {
+            await waitForExit(signal)
+            throw teardownFailure
+          })
+          restoreFirstWait = () => { waitSpy.mockRestore() }
+          return handle
+        })
+      },
+    )
+    try {
+      await expect(ctx.lsp.query(query('goToDefinition'))).rejects.toBe(teardownFailure)
+      if (provider === undefined) throw new Error('expected lsp-stdio to register a provider')
+      const instances = (provider as unknown as { readonly instances: ReadonlyMap<string, unknown> }).instances
+      expect(instances.size).toBe(0)
+      restoreFirstWait?.()
+      notifySpy.mockRestore()
+      await expect(ctx.lsp.query(query('goToDefinition'))).resolves.toMatchObject({ kind: 'locations' })
+    } finally {
+      restoreFirstWait?.()
+      notifySpy.mockRestore()
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('rejects a server without transient-open sync (None)', async () => {
     const ctx = await mount({ LSP_FAKE_SYNC: '0', LSP_FAKE_DEF: 'null' })
     await expect(ctx.lsp.query(query('goToDefinition'))).rejects.toThrow(/transient textDocument\/didOpen/)
@@ -204,21 +299,51 @@ describe('lsp-stdio end to end over a fake server', () => {
 
   it('reads a queued query source only when its lifecycle starts', async () => {
     const marker = join(root, 'opened.jsonl')
+    let provider: LspProvider | undefined
     const ctx = await mount({
       LSP_FAKE_DEF: 'null',
-      LSP_FAKE_REPLY_DELAY_MS: '300',
       LSP_FAKE_OPEN_MARKER: marker,
+    }, {}, (registered) => { provider = registered })
+    const firstReply = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const request = Object.getOwnPropertyDescriptor(LspConnection.prototype, 'request')?.value as LspConnection['request']
+    let holdFirst = true
+    const requestSpy = vi.spyOn(LspConnection.prototype, 'request').mockImplementation(async function (this: LspConnection, method, params) {
+      const hold = method === 'textDocument/definition' && holdFirst
+      if (hold) holdFirst = false
+      const result = await request.call(this, method, params)
+      if (hold) {
+        firstReply.resolve(undefined)
+        await release.promise
+      }
+      return result
     })
-    const first = ctx.lsp.query(query('goToDefinition'))
-    await waitFor(async () => (await markerLines(marker)).length === 1)
-    const second = ctx.lsp.query(query('goToDefinition'))
-    await writeFile(join(ws, 'a.ts'), 'const changed = 2\n')
-    await Promise.all([first, second])
-    expect(await markerLines(marker)).toEqual([
-      'const x = 1\nconst y = x\n',
-      'const changed = 2\n',
-    ])
-    await ctx.fiber.dispose()
+    const pending: Promise<unknown>[] = []
+    try {
+      const first = ctx.lsp.query(query('goToDefinition'))
+      pending.push(Promise.allSettled([first]))
+      await Promise.race([firstReply.promise, first])
+      // The changed tail proves the second query entered the provider queue
+      // while the first response is held, before the source rewrite starts.
+      const queues = (provider as unknown as { queues: ReadonlyMap<unknown, Promise<void>> }).queues
+      const firstTail = [...queues.values()][0]
+      expect(firstTail).toBeDefined()
+      const second = ctx.lsp.query(query('goToDefinition'))
+      pending.push(Promise.allSettled([second]))
+      await vi.waitFor(() => { expect([...queues.values()][0]).not.toBe(firstTail) }, { timeout: 3000 })
+      await writeFile(join(ws, 'a.ts'), 'const changed = 2\n')
+      release.resolve(undefined)
+      await Promise.all([first, second])
+      expect(await markerLines(marker)).toEqual([
+        'const x = 1\nconst y = x\n',
+        'const changed = 2\n',
+      ])
+    } finally {
+      release.resolve(undefined)
+      await Promise.all(pending)
+      requestSpy.mockRestore()
+      await ctx.fiber.dispose()
+    }
   })
 
   it('aborts an in-flight query when the signal fires', async () => {

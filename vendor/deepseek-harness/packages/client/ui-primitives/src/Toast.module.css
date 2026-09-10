@@ -6,6 +6,9 @@
 .toast {
   position: fixed;
   -webkit-app-region: no-drag;
+  /* The desktop shell keeps its own titlebar and surface tabs at the top of the
+     window, so the banner keeps the 120px offset it shipped with; upstream's
+     40px assumes the slimmed upstream chrome. */
   top: 120px;
   left: 50%;
   /* Above the 1000 the image lightbox backdrop uses: a failure reported while
@@ -16,7 +19,12 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: min(560px, calc(100vw - 48px));
+  /* Fixed boxes with `left` set shrink-to-fit against the space RIGHT of
+     `left` (the -50% translate happens after sizing), so an anchored banner
+     near the window edge would wrap early. max-content sizes the box from
+     its text alone, capped by the max-width below. */
+  width: max-content;
+  max-width: min(640px, calc(100vw - 48px));
   padding: 12px 16px;
   border-radius: 14px;
   background: var(--dsw-alias-button-contrast-fill);

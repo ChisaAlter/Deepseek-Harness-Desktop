@@ -732,7 +732,7 @@ function legacyContribution(raw: ChatConversationViewNode): LegacyContribution {
   if (raw.superseded === true) return EMPTY_CONTRIBUTION
   const node = raw as ChatNode
   // Content-free settled Assistants remain in the finalized compatibility
-  // stream so StatsLine preserves its pre-assembly step counts; hidden running
+  // stream so StatsPills preserves its pre-assembly step counts; hidden running
   // attempts have no final Node to contribute.
   if (raw.visibility !== 'visible' && node.kind !== 'assistant-step') return EMPTY_CONTRIBUTION
   switch (node.kind) {
@@ -804,7 +804,7 @@ function sameContribution(left: LegacyContribution | undefined, right: LegacyCon
     && sameReferences(left.nodes, right.nodes)
 }
 
-/** Incremental compatibility projection for StatsLine and legacy top-level snapshot fields. */
+/** Incremental compatibility projection for StatsPills and legacy top-level snapshot fields. */
 class LegacySliceBuilder {
   private readonly contributions = new Map<string, LegacyContribution>()
   private readonly finalizedContributions = new Map<string, LegacyContribution>()

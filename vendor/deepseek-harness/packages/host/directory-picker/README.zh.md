@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-web GUI 宿主通过一份约定让操作者选择工作区目录：一个只提供一个方法的服务，该方法报告所组合后端提供的是哪种交互。后端之间的差异在于交互形态，而不仅仅是机制——原生后端在宿主屏幕上打开一个 OS 选择器，浏览后端则为应用内浏览器提供列举与创建原语，也能服务于远程客户端。消费方按报告的能力类型分支；新后端无需修改本包即可扩展能力词汇。该 seam 只服务 GUI 宿主，绝不进入 agent loop；后端与协议映射就在它旁边。
+web GUI 让操作者通过 OS 选择器或应用内浏览器选择工作区目录。操作者能接触宿主屏幕时使用原生选项；远程客户端或需要在应用内列举和创建目录时使用浏览选项。消费方会获得交互类型，并能呈现匹配的工作流程。目录选择仅限 GUI 宿主，不会影响 agent loop。浏览流程一次只公开一棵目录树；不支持多根目录。
 
 ## 目录
 
@@ -74,7 +74,7 @@ web GUI 宿主通过一份约定让操作者选择工作区目录：一个只提
 
 当 seam 约定不够用时阅读以下内容：先看决策记录，再看组合它的两个后端与自适应选择器。
 
-- [目录选择能力 seam 决策](../../../.agents/notes/implemented/architecture/2026-07-28-directory-picker-capability-seam.zh.md)——设计依据、`ctx.fs` 切分与策略裁决。
+- [目录选择能力 seam 决策](../../../.agents/notes/archived/architecture/2026-07-28-directory-picker-capability-seam.md)——设计依据、`ctx.fs` 切分与策略裁决。
 - [原生后端](../directory-picker-native/README.zh.md)——OS 选择器交互及其平台工具。
 - [浏览后端](../directory-picker-browse/README.zh.md)——面向远程客户端的应用内列举与创建交互。
 - [自适应选择器](../directory-picker-auto/README.zh.md)——两个后端之间的启动时判定。

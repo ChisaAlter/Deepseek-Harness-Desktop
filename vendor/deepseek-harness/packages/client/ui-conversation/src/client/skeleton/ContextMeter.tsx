@@ -148,6 +148,8 @@ function ContextMeterControl({ context, breakdown, t }: ContextMeterControlProps
             <span className={css.headline}>{headBefore}</span>
             <span className={css.percent}>{reading}</span>
             <span className={css.headline}>{headAfter}</span>
+            {/* `~`: usedTokens prefers projectedTokens, whose surface delta is
+                heuristically repriced on top of the provider-anchored sample. */}
             <span className={css.figures}>
               {`~${formatTokens(context.usedTokens, t)} / ${formatTokens(context.contextWindow, t)}`}
             </span>

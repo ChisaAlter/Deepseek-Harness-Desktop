@@ -542,9 +542,9 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     if (result.isError) throw new Error('expected success')
     expect(result.value).toMatchObject({ result: 'safe_read:a,safe_read:b,safe_read:c' })
     // One start per dispatch, paired with its settle by subCallId, starts in submission order.
-    const starts = events.filter(event => event.type === 'tool/code-dispatch-start').map(event => event.data as { subCallId: string })
-    const settles = events.filter(event => event.type === 'tool/code-dispatch').map(event => event.data as { subCallId: string })
-    expect(starts.map(start => start.subCallId)).toEqual(['call-1:code:1', 'call-1:code:2', 'call-1:code:3'])
+    const starts = events.filter(event => event.type === 'tool/ptc-dispatch-start').map(event => event.data as { subCallId: string })
+    const settles = events.filter(event => event.type === 'tool/ptc-dispatch').map(event => event.data as { subCallId: string })
+    expect(starts.map(start => start.subCallId)).toEqual(['call-1:ptc:1', 'call-1:ptc:2', 'call-1:ptc:3'])
     expect(new Set(settles.map(settle => settle.subCallId))).toEqual(new Set(starts.map(start => start.subCallId)))
   })
 
@@ -656,7 +656,7 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
       // Both submissions are in; the second pre-execute must NOT have entered
       // while the first is still awaiting its policy decision.
       await expect.poll(() => stages.length).toBeGreaterThanOrEqual(1)
-      expect(stages).toEqual(['pre-enter:call-1:code:1'])
+      expect(stages).toEqual(['pre-enter:call-1:ptc:1'])
       releaseGate!()
       await expect.poll(() => gated.pending()).toBe(2)
       gated.releaseAll()
@@ -666,8 +666,8 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     const result = await runCode(ctx, 'program')
     expect(result.isError).toBe(false)
     expect(stages).toEqual([
-      'pre-enter:call-1:code:1', 'pre-exit:call-1:code:1',
-      'pre-enter:call-1:code:2', 'pre-exit:call-1:code:2',
+      'pre-enter:call-1:ptc:1', 'pre-exit:call-1:ptc:1',
+      'pre-enter:call-1:ptc:2', 'pre-exit:call-1:ptc:2',
     ])
   })
 
@@ -737,7 +737,7 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     // its post-execute was mid-flight, so the native cancellation contract
     // replaces the successful outcome with the aborted result — the event is
     // still durable and in-turn, which is the invariant under test.
-    const settles = events.filter(event => event.type === 'tool/code-dispatch')
+    const settles = events.filter(event => event.type === 'tool/ptc-dispatch')
     expect(settles).toHaveLength(1)
     expect(settles[0]?.data).toMatchObject({ name: 'safe_read', isError: true })
   })
@@ -772,10 +772,10 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     const result = await runCode(ctx, 'program')
     expect(result.isError).toBe(false)
     // Post-execute observed submission order regardless of completion interleave.
-    expect(postOrder).toEqual(['call-1:code:1', 'call-1:code:2'])
+    expect(postOrder).toEqual(['call-1:ptc:1', 'call-1:ptc:2'])
     // Deferred contexts reach the outer result in the same order.
     expect(result.additionalContexts?.map(c => (c.content[0] as { text: string }).text))
-      .toEqual(['ctx:call-1:code:1', 'ctx:call-1:code:2'])
+      .toEqual(['ctx:call-1:ptc:1', 'ctx:call-1:ptc:2'])
   })
 
   it('a queued-unstarted call abandoned by run settlement logs no start event', async () => {
@@ -798,13 +798,13 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     }
     const result = await runCode(ctx, 'program', { agent })
     expect(result.isError).toBe(true)
-    const starts = events.filter(event => event.type === 'tool/code-dispatch-start').map(event => (event.data as { subCallId: string }).subCallId)
-    const settles = events.filter(event => event.type === 'tool/code-dispatch').map(event => (event.data as { subCallId: string }).subCallId)
+    const starts = events.filter(event => event.type === 'tool/ptc-dispatch-start').map(event => (event.data as { subCallId: string }).subCallId)
+    const settles = events.filter(event => event.type === 'tool/ptc-dispatch').map(event => (event.data as { subCallId: string }).subCallId)
     // w1 started and settled under the abort; w2 never started and never
     // settled — no start event, no settle event, binding rejected with the
     // abandonment message at drain time.
-    expect(starts).toEqual(['call-1:code:1'])
-    expect(settles).toEqual(['call-1:code:1'])
+    expect(starts).toEqual(['call-1:ptc:1'])
+    expect(settles).toEqual(['call-1:ptc:1'])
     expect(abandoned).toEqual(['run_code run is over (run_code settled); writer tool call abandoned'])
   })
 })
@@ -827,14 +827,14 @@ describe('the run_code dispatch bridge', () => {
     expect(result.value).toEqual({ logs: ['saw echo:one'], result: 'echo:two' })
     expect(result.content).toEqual([{ type: 'text', text: 'saw echo:one\necho:two' }])
     expect(calls).toEqual([{ value: 'one' }, { value: 'two' }])
-    const dispatches = events.filter(event => event.type === 'tool/code-dispatch')
+    const dispatches = events.filter(event => event.type === 'tool/ptc-dispatch')
     expect(dispatches.map(event => event.data)).toEqual([
       {
-        rootCallId: 'call-1', parentCallId: 'call-1', subCallId: 'call-1:code:1', name: 'echo',
+        rootCallId: 'call-1', parentCallId: 'call-1', subCallId: 'call-1:ptc:1', name: 'echo',
         arguments: { value: 'one' }, isError: false, content: [{ type: 'text', text: 'echo:one' }],
       },
       {
-        rootCallId: 'call-1', parentCallId: 'call-1', subCallId: 'call-1:code:2', name: 'echo',
+        rootCallId: 'call-1', parentCallId: 'call-1', subCallId: 'call-1:ptc:2', name: 'echo',
         arguments: { value: 'two' }, isError: false, content: [{ type: 'text', text: 'echo:two' }],
       },
     ])
@@ -977,7 +977,7 @@ describe('the run_code dispatch bridge', () => {
     }
     const result = await runCode(ctx, 'program', { agent })
     expect(result.isError).toBe(false)
-    const settle = events.find(event => event.type === 'tool/code-dispatch')
+    const settle = events.find(event => event.type === 'tool/ptc-dispatch')
     expect(settle?.data).toMatchObject({ name: 'echo', isError: false, content: [{ type: 'text', text: 'echo:x' }] })
   })
 
@@ -1007,7 +1007,7 @@ describe('the run_code dispatch bridge', () => {
     // skipped, yet the settle event still carries the error outcome.
     expect(calls).toEqual([])
     expect(postExecuted).toEqual([])
-    const settles = events.filter(event => event.type === 'tool/code-dispatch')
+    const settles = events.filter(event => event.type === 'tool/ptc-dispatch')
     expect(settles).toHaveLength(1)
     expect(settles[0]?.data).toMatchObject({ name: 'echo', isError: true })
   })
@@ -1047,7 +1047,7 @@ describe('the run_code dispatch bridge', () => {
     const result = await runCode(ctx, 'program', { agent })
     expect((result.content[0] as { text: string }).text).toContain('lossless JSON')
     expect(calls).toEqual([])
-    expect(events.filter(event => event.type === 'tool/code-dispatch')).toEqual([])
+    expect(events.filter(event => event.type === 'tool/ptc-dispatch')).toEqual([])
   })
 
   it('dispatches and logs independent snapshots of the same lossless JSON value', async () => {
@@ -1061,7 +1061,7 @@ describe('the run_code dispatch bridge', () => {
     }
     await runCode(ctx, 'program', { agent })
     expect(calls).toEqual([{ value: 'x', nested: ['same'] }])
-    const dispatch = events.find(event => event.type === 'tool/code-dispatch')?.data as SessionEventMap['tool/code-dispatch']
+    const dispatch = events.find(event => event.type === 'tool/ptc-dispatch')?.data as SessionEventMap['tool/ptc-dispatch']
     expect(dispatch.arguments).toEqual({ value: 'x', nested: ['same'] })
   })
 
@@ -1090,12 +1090,12 @@ describe('the run_code dispatch bridge', () => {
     expect(result.additionalContexts).toMatchObject([
       {
         role: 'user',
-        content: [{ type: 'text', text: 'context for call-1:code:1' }],
+        content: [{ type: 'text', text: 'context for call-1:ptc:1' }],
         source: { kind: 'plugin', plugin: 'test' },
       },
       {
         role: 'user',
-        content: [{ type: 'text', text: 'context for call-1:code:2' }],
+        content: [{ type: 'text', text: 'context for call-1:ptc:2' }],
         source: { kind: 'plugin', plugin: 'test' },
       },
     ])
@@ -1127,7 +1127,7 @@ describe('the run_code dispatch bridge', () => {
 
     expect(result.additionalContexts).toMatchObject([{
       role: 'user',
-      source: { kind: 'plugin', plugin: 'tools-code-mode' },
+      source: { kind: 'plugin', plugin: 'tools-ptc' },
       content: [
         { type: 'text', text: 'image result' },
         { type: 'image', attachment: { mediaType: 'image/png', bytes: 1, width: 1, height: 1 } },
@@ -1284,7 +1284,7 @@ describe('the run_code dispatch bridge', () => {
     // Quiescence held: the in-flight sub-dispatch was aborted and its event
     // logged INSIDE the run_code execution, not after it returned.
     expect(sawAbort).toBe(true)
-    expect(events.filter(event => event.type === 'tool/code-dispatch').map(event => (event.data as { name: string }).name)).toEqual(['slow'])
+    expect(events.filter(event => event.type === 'tool/ptc-dispatch').map(event => (event.data as { name: string }).name)).toEqual(['slow'])
   })
 
   it('runs without an owning agent: dispatches work, event logging is skipped', async () => {
@@ -1407,7 +1407,7 @@ describe('the run_code dispatch bridge', () => {
     const result = await runCode(ctx, 'program', { agent })
     expect(result.isError).toBe(false)
     expect((result.content[0] as { text: string }).text).toBe('mixed-value')
-    const dispatch = events.find(event => event.type === 'tool/code-dispatch')?.data as SessionEventMap['tool/code-dispatch']
+    const dispatch = events.find(event => event.type === 'tool/ptc-dispatch')?.data as SessionEventMap['tool/ptc-dispatch']
     expect(dispatch.content).toEqual([
       { type: 'text', text: long },
       { type: 'reasoning', text: 'hidden' },
@@ -1443,7 +1443,7 @@ describe('the run_code dispatch bridge', () => {
     expect(text.match(/tool arguments must be lossless JSON/g)).toHaveLength(5)
     // None dispatched or logged.
     expect(calls).toEqual([])
-    expect(events.filter(event => event.type === 'tool/code-dispatch')).toEqual([])
+    expect(events.filter(event => event.type === 'tool/ptc-dispatch')).toEqual([])
   })
 
   it('dispatches and durably logs binding arguments deeper than the structured-clone call stack', async () => {
@@ -1484,8 +1484,8 @@ describe('the run_code dispatch bridge', () => {
     expect(result.isError).toBe(false)
     expect(result.isError ? undefined : result.value).toEqual({ logs: [], result: depth })
     expect({ observedDepth, observedLeaf }).toEqual({ observedDepth: depth, observedLeaf: 'leaf' })
-    const dispatch = session.snapshotEvents().find(event => event.type === 'tool/code-dispatch')
-    if (dispatch === undefined) throw new Error('expected a durable tool/code-dispatch event')
+    const dispatch = session.snapshotEvents().find(event => event.type === 'tool/ptc-dispatch')
+    if (dispatch === undefined) throw new Error('expected a durable tool/ptc-dispatch event')
     const logged = dispatch.data.arguments as { nested: JsonValue }
     let loggedDepth = 0
     let loggedCursor = logged.nested
@@ -1517,7 +1517,7 @@ describe('the run_code dispatch bridge', () => {
     const result = await runCode(ctx, 'program', { agent })
     expect(result.isError).toBe(false)
     expect(mutationSucceeded).toBe(false)
-    const dispatch = events.find(event => event.type === 'tool/code-dispatch')?.data as SessionEventMap['tool/code-dispatch']
+    const dispatch = events.find(event => event.type === 'tool/ptc-dispatch')?.data as SessionEventMap['tool/ptc-dispatch']
     expect(dispatch.arguments).toEqual({ list: ['original'] })
   })
 
@@ -1632,15 +1632,15 @@ describe('the run_code dispatch bridge', () => {
     expect(calls).toEqual([])
   })
 
-  it('a tool/code-dispatch event never derives a model message', () => {
+  it('a tool/ptc-dispatch event never derives a model message', () => {
     const session = Session.create(SessionId('ptc-derive'))
     session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'hi' }], source: { kind: 'user' },
     }), { surfaceOp: 'append' })
-    session.append('tool/code-dispatch', {
+    session.append('tool/ptc-dispatch', {
       rootCallId: ToolCallId('p1'),
       parentCallId: ToolCallId('p1'),
-      subCallId: ToolCallId('p1:code:1'),
+      subCallId: ToolCallId('p1:ptc:1'),
       name: 'echo',
       arguments: { value: 'x' },
       isError: false,

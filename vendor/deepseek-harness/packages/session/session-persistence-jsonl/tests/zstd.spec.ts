@@ -5,7 +5,7 @@ import type { FileHandle } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { SESSION_FORMAT_VERSION, SessionSeq, SessionId } from '@deepseek-ai/dsh-session'
+import { SessionSeq, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -68,7 +68,7 @@ async function writeLog(persistence: SessionPersistence, m: SessionHeader, event
 async function readAll(persistence: SessionPersistence, id: SessionId): Promise<{ meta: SessionHeader; events: readonly SessionEvent[] }> {
   const handle = await persistence.open(id, 'read')
   try {
-    return { meta: handle.header, events: await handle.read() }
+    return { meta: handle.header, events: (await handle.read()).events }
   } finally {
     await handle.close()
   }
@@ -411,30 +411,45 @@ describe('JsonlSessionPersistence: default Zstandard encoding', () => {
     expect((await readAll(ctx.sessionPersistence, header.id)).events).toEqual(oneTurnLog())
   })
 
-  it('publishes v2 beside an unchanged compressed v0 source before returning a read handle', async () => {
+  it('serves a migrated compressed v0 read without publishing a successor', async () => {
     const root = await freshRoot()
     const ctx = await mount(root)
     const header = meta('zstd-v0-read', '/work')
     const sourcePath = generationLogPath(root, header.cwd, header.id, 0, 'zstd')
     const currentPath = logPath(root, header.cwd, header.id, 'zstd')
+    const [turn, user, step, ...tail] = releasedV1OneTurnLog()
+    // Synthetic historical input opens its step before any surface so V3 can reserve the system head.
+    const historical = [turn!, step!, user!, ...tail].map((event, seq) => ({
+      ...event, seq: SessionSeq(seq), time: seq < 3 ? seq + 1 : event.time,
+    }))
     const source = Buffer.concat([
       await compressZstdFrame(`${JSON.stringify(releasedV0Header(header))}\n`),
-      await compressZstdFrame(`${releasedV1OneTurnLog().map(event => JSON.stringify(event)).join('\n')}\n`),
+      await compressZstdFrame(`${historical.map(event => JSON.stringify(event)).join('\n')}\n`),
     ])
     await mkdir(sessionDir(root, header.cwd, header.id), { recursive: true })
     await writeFile(sourcePath, source)
 
     await expect(readAll(ctx.sessionPersistence, header.id)).resolves.toEqual({
       meta: { ...header, delegationDepth: 0 },
-      events: oneTurnLog(),
+      events: [
+        historical[0],
+        historical[1],
+        {
+          type: 'system/message', seq: 2, time: 2, surfaceOp: 'append',
+          data: {
+            turn: 1, step: 1,
+            message: {
+              id: 'v2-to-v3-system-fc06c3f7720f3bc94ea7a2b7fadde6a5b100c6ab6ca342d2222bd017184a0b67',
+              role: 'system', source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' }, content: [],
+            },
+          },
+        },
+        { ...historical[2], seq: 3 },
+        ...oneTurnLog().slice(3).map(event => ({ ...event, seq: event.seq + 1 })),
+      ],
     })
-
     expect(await readFile(sourcePath)).toEqual(source)
-    const current = (await decodeCompleteFrames(await readFile(currentPath))).toString().split('\n')
-    expect(JSON.parse(current[0] as string)).toMatchObject({
-      id: header.id,
-      version: SESSION_FORMAT_VERSION,
-    })
+    await expect(readFile(currentPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
 

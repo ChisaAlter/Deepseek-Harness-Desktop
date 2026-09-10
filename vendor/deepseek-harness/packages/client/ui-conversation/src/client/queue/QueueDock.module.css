@@ -134,6 +134,10 @@
   overflow: hidden;
 }
 
+.pendingRow .attachments {
+  flex-shrink: 1;
+}
+
 .file {
   display: inline-flex;
   flex: 0 1 180px;
@@ -217,6 +221,13 @@
   flex: none;
   align-items: center;
   gap: 10px;
+}
+
+.status {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xs-13);
+  white-space: nowrap;
 }
 
 .action {

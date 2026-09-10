@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-sandbox-windows-acl` confines Windows processes by write restriction: a child runs under a restricted token whose write access is limited to the workspace and a private temp directory, so `workspace-write` allows those writes and `read-only` allows none. It ships as the win32 rung of `dsh-sandbox-local`: mounting the local provider on Windows gives every confined bash or pwsh call this backend automatically. It can also be embedded directly through the `AclSandbox` API to spawn confined children with captured stdio. Every Win32 call is checked and failures throw, so a child is never spawned unrestricted. Enforcement is partial by design — the restricted token must retain Everyone for process initialization, and NTFS hard links can alias one file object across paths — so the backend reports `partial` and callers that need the absolute boundary can surface it.
+On Windows, this package confines child-process writes to the workspace and a private temporary directory. `workspace-write` grants both locations, while `read-only` grants neither. Mounting `dsh-sandbox-local` selects this behavior automatically for confined bash and PowerShell commands, or callers can use the public `AclSandbox` API directly with captured standard streams. Any failed Win32 operation prevents the child from starting unrestricted. The guarantee is intentionally partial because process startup retains Everyone access and NTFS hard links can expose the same file through another path; callers can detect this limitation through the reported `partial` enforcement level.
 
 ## Table of Contents
 

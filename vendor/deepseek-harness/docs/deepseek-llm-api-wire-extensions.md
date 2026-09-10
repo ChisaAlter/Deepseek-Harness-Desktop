@@ -73,7 +73,7 @@ An enabled inventory with no qualifying entries sends `packages: []`; disabling 
 
 ## `dsh_session_log`
 
-[`@deepseek-ai/dsh-session-log-deepseek`](../packages/session/session-log-deepseek/README.md) contributes one contiguous suffix of the canonical Session log. The field is disabled by default. When enabled, it applies to a request with a live Session and at least one event; a direct request, a stale Session id, or an empty log omits the field.
+[`@deepseek-ai/dsh-session-log-deepseek`](../packages/session/session-log-deepseek/README.md) contributes one contiguous suffix of the canonical Session log. The field is disabled by default. When enabled, it applies to a request with a live Session and at least one event; a direct request, a stale Session id, or an empty log omits the field. The examples below use logical Session format 2 only to illustrate the wire fields; they do not identify the [current writer format](session-format-status.md).
 
 ```json
 {
@@ -119,7 +119,7 @@ The `session` member projects `Session.header`, not a complete runtime Session o
 
 | Member | Presence | Meaning |
 |---|---|---|
-| `version` | required | Logical Session format version; currently `2` |
+| `version` | required | Logical Session format version from `Session.header`; see [format status](session-format-status.md) |
 | `id` | required | Exact Session id |
 | `createdAt` | required | Non-negative safe-integer Unix epoch milliseconds |
 | `cwd` | optional | Absolute working directory recorded at Session creation |

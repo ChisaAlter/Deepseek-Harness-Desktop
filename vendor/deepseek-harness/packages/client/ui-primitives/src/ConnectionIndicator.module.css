@@ -90,13 +90,13 @@
 }
 
 @keyframes reveal-second-dot {
-  0%, 33.32% { visibility: hidden; }
-  33.33%, 100% { visibility: visible; }
+  0%, 33.32% { opacity: 0; }
+  33.33%, 100% { opacity: 1; }
 }
 
 @keyframes reveal-third-dot {
-  0%, 66.65% { visibility: hidden; }
-  66.66%, 100% { visibility: visible; }
+  0%, 66.65% { opacity: 0; }
+  66.66%, 100% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

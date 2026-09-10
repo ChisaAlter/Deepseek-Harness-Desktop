@@ -292,6 +292,52 @@ export class E2BFileSystem extends FileSystem {
     return whole
   }
 
+  override async readByteRange(target: FsTarget, range: { offset: number; length: number }, signal?: AbortSignal): Promise<Uint8Array> {
+    const sandbox = await this.ctx.e2b.getSandbox()
+    await this.requireRegular(target, signal)
+    if (range.length === 0) return new Uint8Array(0)
+    // The SDK streams only from the file's start: skip to `offset`, keep
+    // `length` bytes, and cancel the stream there, so no more than the window
+    // beyond the skipped prefix is ever transferred.
+    const stream = await openReadStream(sandbox, target, signal)
+    const reader = stream.getReader()
+    const window = new Uint8Array(range.length)
+    const end = range.offset + range.length
+    let position = 0
+    let filled = 0
+    let drained = false
+    try {
+      while (filled < range.length) {
+        assertNotAborted(signal, 'read')
+        const next = await reader.read()
+        if (next.done) {
+          drained = true
+          break
+        }
+        const from = Math.max(range.offset, position)
+        const to = Math.min(end, position + next.value.byteLength)
+        if (to > from) {
+          window.set(next.value.subarray(from - position, to - position), filled)
+          filled += to - from
+        }
+        position += next.value.byteLength
+      }
+    } catch (error: unknown) {
+      throw mapError(error, 'read', target.displayPath, signal)
+    } finally {
+      if (!drained) {
+        try {
+          await reader.cancel()
+        } catch (_streamCancellationFailure) {
+          // The window is complete or the read already failed; a cancellation
+          // failure on the abandoned remote stream adds nothing actionable.
+        }
+      }
+      reader.releaseLock()
+    }
+    return filled === range.length ? window : window.subarray(0, filled)
+  }
+
   override async streamText(target: FsTarget, signal?: AbortSignal): Promise<AsyncIterable<string>> {
     const sandbox = await this.ctx.e2b.getSandbox()
     await this.requireRegular(target, signal)

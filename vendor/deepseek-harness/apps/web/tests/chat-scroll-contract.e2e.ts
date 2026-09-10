@@ -16,6 +16,7 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { createChatScrollFixture, type ChatScrollFixture } from './chat-scroll-fixture.ts'
 import {
   launchWebScaffold,
+  parseSeedFixture,
   seedSession,
   watchConsole,
   webSnapshotMode,
@@ -471,6 +472,29 @@ function assertClean(world: ScrollWorld): void {
   expect(world.tripwire.warnings).toEqual([])
 }
 
+it('generates a native V3 scroll seed with a protected system head and intact references', () => {
+  const { header, events } = parseSeedFixture(HISTORY_FIXTURE.log)
+  expect(header.version).toBe(3)
+  expect(events.slice(0, 5).map(event => event.type)).toEqual([
+    'turn/start', 'step/start', 'system/message', 'user/message', 'session/title',
+  ])
+  expect(events.filter(event => event.type === 'system/message')).toHaveLength(1)
+  const firstUser = events.find(event => event.type === 'user/message')!
+  const title = events.find(event => event.type === 'session/title')!
+  expect(title.data.messageSeqs).toEqual([firstUser.seq])
+  const calls = events.filter(event => event.type === 'tool/call')
+  const results = events.filter(event => event.type === 'tool/result')
+  expect(calls).toHaveLength(22)
+  expect(results).toHaveLength(calls.length)
+  for (const result of results) {
+    const call = calls.find(event => event.data.callId === result.data.message.source.callId)!
+    expect(result.sourceEventSeqs).toEqual([call.seq])
+    expect(call.seq).toBeLessThan(result.seq)
+  }
+  expect(events.filter(event => event.type === 'turn/end')).toHaveLength(HISTORY_FIXTURE.turns)
+  expect(events.at(-1)?.type).toBe('turn/end')
+})
+
 let browser: Browser
 
 describe('web e2e: long Chat scroll contract', () => {
@@ -660,6 +684,7 @@ describe('web e2e: long Chat scroll contract', () => {
         await liveRow.waitFor({ timeout: 15_000 })
         expect(await liveRow.getAttribute('data-state')).toBe('running')
         await expectBottom(world.page)
+        expect(await world.page.getByRole('button', { name: 'Back to bottom', exact: true }).count()).toBe(0)
 
         await wheelTranscript(world.page, -1_200)
         await world.page.getByRole('button', { name: 'Back to bottom', exact: true }).waitFor({ timeout: 10_000 })

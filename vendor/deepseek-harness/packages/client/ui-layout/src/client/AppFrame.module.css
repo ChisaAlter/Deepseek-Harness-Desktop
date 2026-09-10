@@ -20,6 +20,14 @@
   transition: none;
 }
 
+/* Fullscreen covers the frame while its underlying columns enter or exit. */
+.frame[data-rightbar-fullscreen],
+.frame[data-rightbar-fullscreen] .handle,
+.frame[data-rightbar-instant],
+.frame[data-rightbar-instant] .handle {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .frame {
     transition: none;
@@ -58,12 +66,21 @@
   border-top: 0.5px solid var(--dsw-alias-border-l2);
 }
 
+/*
+ * The right column (the dockable rightbar seat) never clips: its occupant
+ * anchors a fixed-width panel to the column's right edge (which never moves)
+ * and lets the track decide whether the centre makes room. With no track the
+ * panel hangs over the centre from a zero-width column, and while the track
+ * animates the panel stays where it is. The occupant draws its own left border,
+ * so the column paints none; the class name is the desktop chrome contract
+ * name for column 3 (caption holes, phone drawer).
+ */
 .detailsCol {
   grid-column: 3;
   grid-row: 2 / -1;
+  position: relative;
   min-width: 0;
-  overflow: hidden;
-  border-left: 0.5px solid var(--dsw-alias-border-l3);
+  overflow: visible;
 }
 
 .surfacesCol {
@@ -74,12 +91,9 @@
   border-left: 0.5px solid var(--dsw-alias-border-l3);
 }
 
-/* The details subtree stays mounted at zero width, so its border must not paint
-   a 1px seam. The collapsed sidebar instead retains a bordered compact rail. */
-.frame[data-details-collapsed] .detailsCol {
-  border-left: none;
-}
-
+/* No seam while the third column has no track: the column paints no border at
+   all (the occupant draws its own left edge), so `data-details-collapsed` only
+   records the state for chrome consumers (phone drawer, apps/web e2e). */
 .frame[data-surfaces-collapsed] .surfacesCol {
   border-left: none;
 }
@@ -90,7 +104,9 @@
 
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
    centered on the column border via inline left, above column content. Details
-   adds a visible 12x32 pill at vertical center; sidebar keeps only the hit strip. */
+   and surfaces add a visible 12x32 pill at vertical center; sidebar keeps only
+   the hit strip. The right handle sits above the right panel (which states
+   z-index 10) so it stays grabbable when the panel hangs over the centre. */
 .handle {
   position: absolute;
   top: 0;
@@ -98,7 +114,7 @@
   width: 8px;
   margin-left: -4px;
   cursor: col-resize;
-  z-index: 2;
+  z-index: 11;
   touch-action: none;
   /* The strip crosses the caption band's top 48px; without the hole that
      segment would drag the window instead of resizing the column. */
@@ -118,7 +134,7 @@
   }
 }
 
-.handle[data-side='details']::after,
+.handle[data-side='rightbar']::after,
 .handle[data-side='surfaces']::after {
   content: '';
   position: absolute;
@@ -131,25 +147,25 @@
   box-sizing: border-box;
   background: var(--dsw-alias-button-floating-fill);
   border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
-  /* Hover affordance: the details pill hides until the pointer is over its
-     column, the strip itself, or a drag. */
+  /* Hover affordance: the pill hides until the pointer is over its column,
+     the strip itself, or a drag. */
   opacity: 0;
   transition:
     opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
     background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-.detailsCol:hover ~ .handle[data-side='details']::after,
-.handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after,
+.detailsCol:hover ~ .handle[data-side='rightbar']::after,
+.handle[data-side='rightbar']:hover::after,
+.handle[data-side='rightbar'][data-dragging='true']::after,
 .surfacesCol:hover ~ .handle[data-side='surfaces']::after,
 .handle[data-side='surfaces']:hover::after,
 .handle[data-side='surfaces'][data-dragging='true']::after {
   opacity: 1;
 }
 
-.handle[data-side='details']:hover::after,
-.handle[data-side='details'][data-dragging='true']::after,
+.handle[data-side='rightbar']:hover::after,
+.handle[data-side='rightbar'][data-dragging='true']::after,
 .handle[data-side='surfaces']:hover::after,
 .handle[data-side='surfaces'][data-dragging='true']::after {
   background: var(--dsw-alias-button-floating-hover);
@@ -183,7 +199,7 @@
   -webkit-app-region: no-drag;
 }
 
-/* Shared titlebar band over the details column only. Height comes from the
+/* Shared titlebar band over the rightbar column only. Height comes from the
    conversation header via centerCol subgrid (row 1 = auto). Hairline matches
    conversation header::after (1px up from the row bottom). Surfaces spans
    row 1 itself; its tab bar is the right-column top edge. */
@@ -239,7 +255,7 @@
   display: none;
 }
 
-/* Phone overlay shell: conversation owns the grid; sidebar and details leave
+/* Phone overlay shell: conversation owns the grid; sidebar and rightbar leave
    the tracks and paint as drawers. Handles stay unmounted (AppFrame.tsx). */
 .phoneMenu {
   position: absolute;

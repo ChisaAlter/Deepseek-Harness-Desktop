@@ -14,6 +14,7 @@ import type {
   SessionAccess,
   SessionHandle,
   SessionHandleReadOptions,
+  SessionHandleReadResult,
   SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
 import SessionQueryEngine, {
@@ -51,7 +52,7 @@ class TestHandle implements SessionHandle {
     readonly access: SessionAccess,
   ) {}
 
-  read(offset = 0, length?: number, options?: SessionHandleReadOptions): Promise<readonly SessionEvent[]> {
+  read(offset = 0, length?: number, options?: SessionHandleReadOptions): Promise<SessionHandleReadResult> {
     TestPersistence.readCalls.push(this.id)
     TestPersistence.readSignals.push(options?.signal)
     const slice = (events: SessionEvent[]): SessionEvent[] => {
@@ -59,7 +60,9 @@ class TestHandle implements SessionHandle {
       return length === undefined ? from : from.slice(0, length)
     }
     if (TestPersistence.readOverride !== undefined) {
-      return TestPersistence.readOverride(this.id, options?.signal).then(loaded => slice(loaded.events))
+      return TestPersistence.readOverride(this.id, options?.signal).then(loaded => ({
+        eventState: 'detached', events: structuredClone(slice(loaded.events)),
+      } as const))
     }
     if (TestPersistence.readFailure !== undefined) return rejectUnknown(TestPersistence.readFailure)
     const entry = TestPersistence.entries.get(this.id)
@@ -67,7 +70,7 @@ class TestHandle implements SessionHandle {
     const result = structuredClone(entry.events)
     TestPersistence.readEffect?.()
     TestPersistence.readEffect = undefined
-    return Promise.resolve(slice(result))
+    return Promise.resolve({ eventState: 'detached', events: slice(result) })
   }
 
   append(events: readonly SessionEvent[]): Promise<void> {
@@ -958,7 +961,7 @@ describe('session-query exact reads', () => {
         content: [{ type: 'text', text: 'replacement' }],
         source: { kind: 'plugin', plugin: 'test' },
       }),
-      { surfaceOp: { op: 'replace', start: first.seq, end: first.seq }, sourceEventSeqs: [first.seq] },
+      { surfaceOp: { op: 'replace', startSeq: first.seq, endSeq: first.seq }, sourceEventSeqs: [first.seq] },
     )
 
     expect((await ctx.sessionQuery.listEvents(session.id)).slice(2).map(record => record.surface))
@@ -985,7 +988,7 @@ describe('session-query exact reads', () => {
       createUserMessage({
         content: [{ type: 'text', text: 'checkpoint' }], source: { kind: 'plugin', plugin: 'compact' },
       }),
-      { surfaceOp: { op: 'replace', start: first.seq, end: first.seq }, sourceEventSeqs: [first.seq] },
+      { surfaceOp: { op: 'replace', startSeq: first.seq, endSeq: first.seq }, sourceEventSeqs: [first.seq] },
     )
     const retained = session.append(
       'user/message',
@@ -999,7 +1002,7 @@ describe('session-query exact reads', () => {
       createUserMessage({
         content: [{ type: 'text', text: 'latest checkpoint' }], source: { kind: 'plugin', plugin: 'compact' },
       }),
-      { surfaceOp: { op: 'replace', start: SessionSeq(2), end: retained.seq }, sourceEventSeqs: [SessionSeq(2), retained.seq] },
+      { surfaceOp: { op: 'replace', startSeq: SessionSeq(2), endSeq: retained.seq }, sourceEventSeqs: [SessionSeq(2), retained.seq] },
     )
     session.append(
       'assistant/message',
@@ -1209,7 +1212,7 @@ describe('session-query exact reads', () => {
         data: createUserMessage({
           content: [{ type: 'text', text: 'hidden' }], source: { kind: 'user' },
         }),
-      }],
+      }] as unknown as SessionEvent[],
     }])
     const persistence = await ctx.plugin(TestPersistence)
     await expect(ctx.sessionQuery.listEvents(persisted.id))

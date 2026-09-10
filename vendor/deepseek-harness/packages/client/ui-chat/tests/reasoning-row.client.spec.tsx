@@ -70,6 +70,34 @@ describe('ReasoningRow', () => {
     expect(row.getAttribute('aria-expanded')).toBe('false')
   })
 
+  it.each([
+    {
+      label: 'settled',
+      text: '**Comparing checkout and merge bases**\nKeep **reviewing**',
+      streaming: false,
+    },
+    {
+      label: 'streaming',
+      text: 'Inspect the session\n**Comparing checkout and merge bases**',
+      streaming: true,
+    },
+  ])('strips double-asterisk markers from the $label summary without changing the reasoning body', ({ text, streaming }) => {
+    const view = render(
+      <AssistantMarkdown
+        t={t}
+        blocks={[{ kind: 'reasoning', text }]}
+        streaming={streaming}
+        renderMessageImages={renderMessageImages}
+      />,
+    )
+
+    expect(view.getByText('Comparing checkout and merge bases')).toBeTruthy()
+    expect(view.queryByText('**Comparing checkout and merge bases**')).toBeNull()
+
+    fireEvent.click(view.getByText('思考'))
+    expect(view.container.querySelector('[class*="thinkBody"]')?.textContent).toBe(text)
+  })
+
   it('expanded Think drops the inline summary and renders plain prose, no IN card', () => {
     const view = render(
       <AssistantMarkdown

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -8,6 +9,7 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { WorkspaceBrowserProps } from '../src/client/contract/slots.ts'
 import { createWorkspaceViewStore, FLAT_SESSION_ORDER_KEY } from '../src/client/stores.ts'
@@ -15,6 +17,10 @@ import { UNGROUPED_KEY } from '../src/client/tree.ts'
 import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
 import { ShowArchivedListRow } from '../src/client/ShowArchivedListRow.tsx'
 import { zh } from '../src/client/locales.ts'
+
+// Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
 afterEach(cleanup)
 const scrollIntoView = vi.fn()
@@ -79,6 +85,7 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     expandSidebar: vi.fn(),
     useSessions: hook(sessionState([])),
     useSessionPendingInteraction: hook(noPendingInteraction),
+    usePanelInfo, useResource,
     useWorkspaces: hook(workspaceState([])),
     useStore: bindSnapshotSelector(store),
     actions: store.actions,
@@ -137,6 +144,30 @@ describe('WorkspaceBrowser', () => {
     expect(b.props.archiveSession).not.toHaveBeenCalled()
     expect(b.props.unarchiveSession).not.toHaveBeenCalled()
     expect(b.props.deleteSession).not.toHaveBeenCalled()
+  })
+
+  it('moves focus into Workspace controls without selecting a Session while a main panel is active', () => {
+    const panelInfo = { activePanelId: 'panel-a' as MainPanelId }
+    const b = mount({
+      usePanelInfo: hook(panelInfo),
+      useSessions: hook(sessionState([summary('current', 1)], { current: sid('current') })),
+      useWorkspaces: hook(workspaceState([workspace('alpha', ['current'])])),
+    })
+    fireEvent.click(screen.getByText('alpha'))
+    const current = screen.getByText('current').closest('[role="treeitem"]')
+    expect(current?.getAttribute('aria-selected')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: '搜索会话' }))
+    const input = screen.getByPlaceholderText('搜索会话…')
+    expect(document.activeElement).toBe(input)
+    fireEvent.click(screen.getByRole('button', { name: '清除搜索' }))
+    const add = screen.getByRole('button', { name: '添加工作区' })
+    add.focus()
+    fireEvent.click(add)
+    expect(document.activeElement).toBe(add)
+    expect(screen.getByTestId('directory-flow')).toBeTruthy()
+    expect(panelInfo.activePanelId).toBe('panel-a')
+    expect(b.props.open).not.toHaveBeenCalled()
+    expect(b.props.startSession).not.toHaveBeenCalled()
   })
 
   it('workspace hover card shows a POSIX home descendant as ~', () => {

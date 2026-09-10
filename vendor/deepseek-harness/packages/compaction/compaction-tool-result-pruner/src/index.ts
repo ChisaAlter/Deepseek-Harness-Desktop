@@ -168,7 +168,7 @@ export class ToolResultPruner extends Service {
         ...event.data,
         message,
       }, {
-        surfaceOp: { op: 'replace', start: seq, end: seq },
+        surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
         sourceEventSeqs: [seq],
       })
       pruned.push({

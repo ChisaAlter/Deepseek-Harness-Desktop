@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-experimental-code-runtime-python` 提供私有的源码 checkout `PythonCodeRuntime`，即 [`dsh-code-runtime`](../../code-runtime/code-runtime/README.zh.md) seam 的 CPython 子进程实现。它以 `language: 'python'`、`isolation: 'process'` 注册为 `codeRuntime`，每次 `run()` 启动一个全新的 CPython 3.10+ 子进程，把程序作为 async 函数体执行，通过子进程 fd 3 上的无版本 JSON-lines 协议通信（stdout/stderr 留给程序自己的输出）。宿主侧（`src/protocol.ts`）把每条入站帧都视为敌意并逐字段重建后才读取；Python 侧（`py/protocol.py`）镜像消息词汇。隔离（不是安全边界——模型代码与 bash 同等的信任）来自仅含临时目录的环境、`RLIMIT_CPU`/`RLIMIT_AS`、墙钟上限与 `SIGTERM`→宽限→`SIGKILL` 进程组拆卸，所有上限都在插件加载期校验。
+这个私有实验包可让源码检出组合在每次请求时都用全新的 CPython 3.10+ 子进程运行模型生成的 Python。程序可以使用顶层 `await` 和 `return`、调用已配置的 binding、正常写入 stdout/stderr，并获得明确的完成或失败结果。资源预算和进程组拆卸会约束失控的工作，但子进程不是安全边界：模型代码具有与 bash 同等的信任，运行之间不保留状态，且没有已发布 profile 启用此 runtime。
 
 ## 目录
 
@@ -88,7 +88,7 @@ kind: "package-reference"
 
 - [Code runtime seam](../../code-runtime/code-runtime/README.zh.md) — 本后端实现的抽象契约。
 - [fd-3 协议 Agent Note](../../../.agents/notes/implemented/architecture/2026-07-31-code-runtime-python-fd3-protocol.zh.md) — 设计理由与 wire 契约。
-- [结算修复 Agent Note](../../../.agents/notes/implemented/bug-fix/2026-07-31-code-runtime-python-settlement-fixes.zh.md) — 结算、计量与隔离修复及其回归用例。
+- [结算修复 Agent Note](../../../.agents/notes/archived/bug-fix/2026-07-31-code-runtime-python-settlement-fixes.md) — 结算、计量与隔离修复及其回归用例。
 - [Worker 线程后端](../../code-runtime/code-runtime-worker-thread/README.zh.md) — 已发布的 TypeScript 兄弟。
 - [Code runtime 子系统参考](../../../docs/subsystems/code-runtime.zh.md) — 请求／结果词汇、binding 与失败分类。
 

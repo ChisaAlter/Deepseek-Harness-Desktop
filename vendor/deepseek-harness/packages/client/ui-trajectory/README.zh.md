@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-trajectory` 是 dsh Web 客户端的 Trajectory 视图：它渲染按轮次组织的事件记录表，其中可选择用户、助手、工具与嵌套子工具记录，并带交互式时间概览。较粗的分割线标示轮次边界，紧凑的行内标记标识步骤；选择记录会打开局部检查器，查看 token 用量、耗时、输入、输出、计时，以及用户、助手或工具内容中的持久图片与文件附件摘要。该视图是纯消费方：它注册 target 专属 Event Definition、Trajectory view builder 以及对话 `conversation.view` slot 环中的一个视图标签页，不提供 service，也不声明 Context 合并。带类型的 `trajectory` locale namespace 拥有所有产品编写的 ledger、timeline、inspector、tooltip 与无障碍文案；事件内容、工具名称、标识符与 provider 诊断保持原始数据。长记录表打开时定位于当前尾部、按需加载更早历史，并且只挂载可见行窗口。
+Trajectory 标签页让你以按轮次组织的事件记录表和交互式时间概览检查 agent 活动。它对用户、助手、工具、嵌套子工具和压缩记录分组，标示轮次与步骤边界，并为所选记录打开检查器，显示 token 用量、耗时、输入、输出、计时、图片和附件摘要。较长历史打开时定位于当前尾部，按需加载更早页面，并且只渲染可见行。流式输出期间，视图会跟随尾部，直到你向上滚动；进行中的记录只显示开始标记，不会虚构耗时。
 
 ## 目录
 
@@ -44,6 +44,8 @@ kind: "package-reference"
 <summary>实现细节——点击展开</summary>
 
 视图是纯投影：Trajectory 自有的 Definition 从共享 Session 窗口组装业务记录——包括持久化的取消定稿前缀、只能从分片恢复的打断前缀与被打断的工具记录——因此 Trajectory 既不读取也不改变 Chat 会话快照。其 steering 分类器通过持久 splice state 只保留 next-step Inbox ID，并让后续 Context 共享当前 claimed batch。
+
+完整的追加提示词在请求头未加载时显示为独立系统行；仅提供已知文本，不推断请求选项或工具目录。补入其请求历史后，该独立展示被替代而不重复提示词。历史中的系统提示词变更与最近的请求状态比较，包括没有新请求头的先前提示词更新。每个请求保留其所在位置生效的提示词与变更。包括压缩在内的 surface 替换会恢复最后一个非空的存活系统提示词，即使没有新的系统事件；未加载的提示词在对应分页到达前仍不可用。
 
 ### 虚拟行
 

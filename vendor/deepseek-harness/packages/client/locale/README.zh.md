@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-locale` 为 web GUI 提供本地化：用户在“设置 → 常规”中从已注册语言中选择，UI 文案会立即切换。本包内置 `zh` 与 `en`，外部 client 插件可以增加语言及其命名空间字典。在 loopback 页面上，该选择以 `locale.preference` 存储在 `$DSH_HOME/settings.yaml` 中；非 loopback 页面即使由 Connection 认证所有 API 方法，也只在进程内保留选择。全新浏览器会先临时使用 `navigator` 请求的第一个已注册语言，直到允许读取的 Host 偏好到达并实时替换。插件作者使用内置字典形式时会获得完整类型检查，并通过框架 `t` 席位翻译；经 slot 渲染的文案会随语言切换即时更新。
+使用 `dsh-client-locale` 可在 web GUI 中切换内置的 English、中文 locale，或 client 插件添加的语言。用户选择会立即生效；loopback 页面把选择持久化到 `$DSH_HOME/settings.yaml`，非 loopback 页面则只为当前进程保留选择。全新浏览器会使用浏览器请求的第一个受支持语言，直到允许读取的已存储偏好到达。插件作者可添加类型化命名空间字典，并通过公开 locale API 翻译；经 slot 渲染的文案无需重新加载即可随语言切换更新。
 
 ## 目录
 

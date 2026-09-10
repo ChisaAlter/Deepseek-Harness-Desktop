@@ -31,11 +31,29 @@ export interface SelectOption {
  * The shell component is owned by ui-commands; business never sees it. Both
  * callbacks receive the ClientSessionContext captured at popup open.
  */
-export type CommandUiSpec = {
+export interface PopupSelectSpec {
   readonly kind: 'popupSelect'
   options(session: ClientSessionContext, signal: AbortSignal): Promise<readonly SelectOption[]>
   onSelect(option: SelectOption, session: ClientSessionContext): void | Promise<void>
 }
+
+/**
+ * Business registration for the action command kind: a bare invocation
+ * consumes the trigger token and runs one client-side callback (the Feedback
+ * row opens the feedback dialog). It submits nothing, so an
+ * attachment-carrying draft never refuses it.
+ */
+export interface ActionSpec {
+  readonly kind: 'action'
+  /**
+   * Run the action for one session.
+   * @param session - the ClientSessionContext captured at invocation.
+   */
+  run(session: ClientSessionContext): void
+}
+
+/** The UI behavior of a contribution or decoration. */
+export type CommandUiSpec = PopupSelectSpec | ActionSpec
 
 /**
  * One client-owned command contribution: a slash-menu entry whose behavior
@@ -46,11 +64,11 @@ export type CommandUiSpec = {
 export interface CommandContribution {
   /** Command name without the leading slash (unique across contributions). */
   readonly name: string
-  /** Menu row description. */
-  readonly description: string
+  /** Resolve the localized menu row description when candidates are requested. */
+  readonly description: () => string
   /** Capability filter, called with a fresh projection per candidate pass. */
   available(session: ClientSessionContext): boolean
-  /** The command's UI behavior (this phase: popupSelect only). */
+  /** The command's UI behavior. */
   readonly ui: CommandUiSpec
 }
 
@@ -68,7 +86,7 @@ export interface CommandDecoration {
   readonly name: string
   /** Capability filter, called with a fresh projection per bare invocation. */
   available(session: ClientSessionContext): boolean
-  /** The bare-invocation UI (this phase: popupSelect only). */
+  /** The bare-invocation UI. */
   readonly ui: CommandUiSpec
 }
 

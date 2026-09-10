@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-工具调用可能会长时间挂起——缓慢的网页抓取、永不返回的搜索——没有上限时模型会无限期等待，拖住整个会话。`dsh-tool-call-timeout-policy` 为声明了限时的调用设置协作式截止时间：它通过 `exec.signal` 请求工具停止，再把已经完成的取消映射为清晰的 `Error: tool call timed out after <ms>ms` 结果。忽略或缓慢处理取消的工具会让调用方继续等待，直到自身完成；本插件绝不会硬性停止下游工作。限时来自每个工具自身的配置，因此插件本身零配置，并随 `dsh` base 组合默认启用。
+使用本包可为工具调用执行其配置的协作式时间上限，并在取消完成后向模型返回清晰的超时错误。按时完成的调用保持不变。忽略或缓慢处理取消的工具仍可能让调用方继续等待，因为本包无法硬性停止下游工作。每个工具分别提供自己的限时；本包无需配置，并随 `dsh` base 组合默认启用。
 
 ## 目录
 
@@ -130,6 +130,6 @@ kind: "package-reference"
 
 本开发备注是维护者的工作上下文：开放问题与尚未决定的探索方向。它明确不具权威性——已交付的行为、限制与既定理由以上文、包代码和相关 Agent Note 为准。
 
-`src/index.ts` 中的 FIXME 要求确定 `@deepseek-ai/dsh-timeout-guard` 改名；[改名台账](../../../.agents/notes/implemented/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.zh.md) 已把 `@deepseek-ai/dsh-tool-call-timeout-policy` 记录为既定名称，因此该 FIXME 已陈旧，待代码清理。
+`src/index.ts` 中的 FIXME 要求确定 `@deepseek-ai/dsh-timeout-guard` 改名；[改名台账](../../../.agents/notes/archived/architecture/2026-08-11-repository-naming-contract-and-rename-ledger.md) 已把 `@deepseek-ai/dsh-tool-call-timeout-policy` 记录为既定名称，因此该 FIXME 已陈旧，待代码清理。
 
 </details>

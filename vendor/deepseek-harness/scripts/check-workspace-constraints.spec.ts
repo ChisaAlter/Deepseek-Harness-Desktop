@@ -14,6 +14,14 @@ const experimental: WorkspaceManifest = {
   manifest: { name: '@deepseek-ai/dsh-experimental-prototype', private: true },
 }
 
+const publicExperimental: WorkspaceManifest = {
+  dir: 'packages/experimental/agent-team',
+  manifest: {
+    name: '@deepseek-ai/dsh-experimental-agent-team',
+    publishConfig: { access: 'public' },
+  },
+}
+
 describe('experimental workspace constraints', () => {
   it('requires the experimental package-name prefix', () => {
     expect(checkExperimentalManifest({
@@ -32,6 +40,20 @@ describe('experimental workspace constraints', () => {
     })).toEqual([
       '@deepseek-ai/dsh-experimental-prototype: experimental package must set "private": true',
       '@deepseek-ai/dsh-experimental-prototype: experimental package must omit publishConfig',
+    ])
+  })
+
+  it('requires public metadata only for the Agent Teams exceptions', () => {
+    expect(checkExperimentalManifest(publicExperimental)).toEqual([])
+    expect(checkExperimentalManifest({
+      ...publicExperimental,
+      manifest: {
+        name: '@deepseek-ai/dsh-experimental-agent-team',
+        private: true,
+      },
+    })).toEqual([
+      '@deepseek-ai/dsh-experimental-agent-team: public experimental package must not set "private": true',
+      '@deepseek-ai/dsh-experimental-agent-team: public experimental package must set publishConfig.access to "public"',
     ])
   })
 
@@ -102,7 +124,7 @@ describe('dsh family version coherence', () => {
   it('leaves other sequences to their own version lines', () => {
     expect(checkDshFamilyVersion({ name: '@deepseek-ai/cordis', version: '4.0.1' }, '0.1.2-rc.1')).toBeUndefined()
     expect(checkDshFamilyVersion(
-      { name: '@deepseek-ai/node-addon-landlock-run', version: '0.1.1' },
+      { name: '@deepseek-ai/node-addon-system', version: '0.1.1' },
       '0.1.2-rc.1',
     )).toBeUndefined()
     expect(checkDshFamilyVersion({ version: '0.1.2-alpha.5' }, '0.1.2-rc.1')).toBeUndefined()

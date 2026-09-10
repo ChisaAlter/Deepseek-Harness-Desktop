@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@deepseek-ai/dsh-llm-retry` 是失败模型请求的重试执行器：它在 agent loop 的打开步骤 `agent/request-error` 扩展点上应用各提供方解析后的重试策略，因此每次重试都会在同一个打开的轮次内重跑同一个步骤（基于同一份持久历史）。它不包装流式调用本身——每次适配器调用仍是一次提供方尝试，直接 `ctx.llm.stream()` 消费方仍是单次尝试。重试调度是持久的：插件在等待之前就把 `llm/retry` 事件追加进会话日志，退避期间取消会让日志保持一致。normal mode 以指数退避重试一组有界的失败 code，最多 `maxRetries` 次；always mode 先询问下游恢复，然后无尝试上限地重试每个失败。
+挂载 `@deepseek-ai/dsh-llm-retry`，可在持久 agent 步骤边界重试失败的模型请求。提供方的 `retryPolicy` 设置可选择有界的 normal mode 重试或无上限的 always mode 重试；计划的尝试会在退避前写入会话日志，取消后历史仍保持一致。重试会在同一个打开的轮次内重跑失败步骤，而直接 `ctx.llm.stream()` 调用仍只尝试一次。每次重试都会产生另一次提供方请求计费，always mode 会持续到成功、取消或释放。
 
 ## 目录
 

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-terminal` 基于持久终端会话为模型提供 6 个工具：`terminal_open`、`terminal_send`、`terminal_read`、`terminal_signal`、`terminal_close` 与 `terminal_list`。每次调用都被限制在打开该会话的那个确切 agent（智能体）内，因此即使模型获知另一个 agent 的 id，也无法操作其终端。发送可以前台运行（返回带等待原因的有界输出），也可以通过任务服务后台运行（返回 job id，用 `job_output` 收集、用 `job_kill` 停止）。结果受 `maxResultBytes` 限制，并保留在会话历史中直到压缩（compaction）。一段简短指引会告诉模型：除非确实需要终端的持久状态或交互式 stdin，否则优先使用单次工具。
+当 agent 需要跨调用保留终端状态或提供交互式输入时，使用 `dsh-tool-terminal`。它可以打开、发送、读取、传递信号、关闭和列出终端会话，同时防止一个 agent 操作其他 agent 的会话。发送可以等待有界的前台输出，也可以返回供后续收集或中断的后台 job id。`maxResultBytes` 限制每个结果的大小，而结果会保留在会话历史中直到压缩（compaction）。指引会让模型对有界工作优先使用单次工具。
 
 ## 目录
 

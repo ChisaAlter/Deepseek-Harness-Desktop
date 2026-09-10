@@ -90,11 +90,8 @@ function reportRollbackFailure(ctx: Context, subject: string, error: unknown): v
 
 /** Apply the creation-time selection until its first durable request header exists. */
 function installInitialModelSelection(agentCtx: Context, selection: ModelSelection): void {
-  agentCtx.on('agent/request', async (_payload, next): Promise<LlmCallConfig> => {
+  agentCtx.on('agent/request', async ({ agent }, next): Promise<LlmCallConfig> => {
     const resolved = await next()
-    const agent = agentCtx.agent
-    /* v8 ignore next -- AgentRegistry setup always provides the unpublished scoped Agent. */
-    if (agent === undefined) throw new Error('webhook Session setup has no scoped Agent')
     if (agent.session.requestHeader() !== undefined
       || resolved.provider !== selection.provider
       || resolved.model !== selection.model) return resolved

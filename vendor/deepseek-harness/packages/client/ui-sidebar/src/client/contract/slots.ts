@@ -1,21 +1,23 @@
 /**
  * Sidebar slot contract: the registrant-side props composition for the
  * layout-owned `sidebar` slot, plus the holes this shell declares. The shell
- * owns column geometry (fold state machine, brand row, New Session) and,
- * when plugins occupy `sidebar.nav.tab`, a region tab strip. Everything
- * between the section header and the list bottom is the `sidebar.workspaces`
- * registrant (ui-workspace) while the sessions tab is selected; a plugin tab
- * swaps that region for `sidebar.page`. The foot is the `sidebar.settings`
- * registrant (ui-settings), followed by optional footer actions in
- * `sidebar.footer.action`.
+ * owns column geometry (fold state machine, brand row, New Session), the
+ * region tab strip when plugins occupy `sidebar.nav.tab`, and global panel
+ * rows. Everything between the workspace section header and the list bottom is
+ * the `sidebar.workspaces` registrant's (ui-workspace) while the sessions tab
+ * is selected; a plugin tab swaps that region for `sidebar.page`. The foot is
+ * the `sidebar.settings` registrant's (ui-settings), followed by optional
+ * footer actions in `sidebar.footer.action`.
  */
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/client'
-// Type-only: pulls ui-layout's SlotMap merge (the 'sidebar' entry) into every
-// program that sees this contract, so PropsRuntime<'sidebar'> resolves.
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls ui-layout's SlotMap merge (the 'sidebar' entry) and its
+// main-panel ids into every program that sees this contract, so
+// PropsRuntime<'sidebar'> resolves.
+import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { createSidebarNavStore, SidebarNavTabRow } from '../stores.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -31,6 +33,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * package's `sidebar` entry; the shell supplies a generic text fallback.
      */
     'sidebar.brand.name': { kind: 'single'; scope: 'root'; owner: SidebarBrandNameOwnerProps }
+    /**
+     * Global panel icons. Each list id addresses the matching main panel;
+     * the sidebar owns the button and resolves its label from list metadata.
+     */
+    'sidebar.panellist': { kind: 'list'; scope: 'root'; owner: SidebarPanelIconOwnerProps }
     /**
      * The workspace/session browsing region: section header, search, the
      * grouped/flat session list, and every workspace dialog. Declared by this
@@ -74,6 +81,24 @@ export interface SidebarBrandMarkOwnerProps {
 export interface SidebarBrandNameOwnerProps {
   /** Marker field: the occupant owns its own content and width. */
   children?: never
+}
+
+/** Icon presentation supplied by the global panel row. */
+export interface SidebarPanelIconOwnerProps {
+  /** Requested square edge in pixels. */
+  size: number
+  /** Whether this panel is selected in the main column. */
+  active: boolean
+}
+
+/** Serializable metadata for one active global panel list registration. */
+export interface SidebarPanelMetadata {
+  /** List id and matching main panel key. */
+  id: MainPanelId
+  /** Ascending row order; ties retain registration order. */
+  order: number
+  /** Row title and accessible name: resolved label, or the id when omitted. */
+  label: string
 }
 
 /**
@@ -124,8 +149,9 @@ export interface SidebarFooterActionOwnerProps {
 
 /**
  * Registrant-private injected share (arrives via the register inject
- * factory). The shell keeps starting a Session, toggling the column, and
- * the projected plugin-tab occupancy source.
+ * factory). The shell keeps starting a Session, toggling the column, and the
+ * projected plugin-tab occupancy source; the renderer binds the panel
+ * metadata source to usePanels.
  */
 export type SidebarRootInjected = {
   /**
@@ -136,21 +162,28 @@ export type SidebarRootInjected = {
   startSession: (workspaceId?: WorkspaceId) => void
   /** Toggle the sidebar column through the layout service. */
   toggleSidebar: () => void
+  /** Select the global panel addressed by a sidebar row. */
+  selectPanel: (id: MainPanelId) => void
+  /** Private reactive sources bound to framework selector hooks. */
   hooks: {
     /** `sidebar.nav.tab` ledger projected into ordered strip rows. */
     navTabs: HostObservable<readonly SidebarNavTabRow[]>
+    /** Global panel metadata rows bound to usePanels. */
+    panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>
   }
 }
 
 /**
  * Full component props: layout owner state/actions, the declared holes'
- * render shares, the region-tab store, injected callbacks, and the locale seat.
+ * render shares, the region-tab store, injected callbacks, and the locale
+ * seat. Panel metadata arrives through an injected observable.
  */
 export type SidebarRootComponentProps =
   PropsRuntime<'sidebar'>
   & PropsRenderSlots<
     | 'sidebar.brand.mark'
     | 'sidebar.brand.name'
+    | 'sidebar.panellist'
     | 'sidebar.workspaces'
     | 'sidebar.nav.tab'
     | 'sidebar.page'

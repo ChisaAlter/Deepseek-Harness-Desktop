@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-agent-default-model` 提供部署的默认模型选择——提供方、模型与可选的推理（reasoning）强度——agent 入口在全新会话没有自己的选择时应用它。`dsh --profile headless` 这类直接入口与 Host 支撑的入口读取 `ctx.agentDefaultModel`，而不是各自持有平行默认值，因此一个组合配置项就能控制新 agent 从哪个模型开始。挂载的设置提供方会把用户选择叠加在组合配置项之上，保存的更改在下一次读取时可见。它是单一的进程级默认值：按会话的模型选择仍由入口负责。想要为新建 agent 所用模型设置单一位置时，请选择本包。
+`dsh-agent-default-model` 在会话未指定模型时，为新创建的 agent 提供共享的默认提供方与模型。使用它可以为所有受支持的 agent 入口统一选择起始模型，其中包括 `dsh --profile headless`。设置可用时，用户可以覆盖已配置的选择（包括推理强度），保存的更改会在后续读取中生效。该默认值作用于整个进程；按会话选择模型仍由创建 agent 的入口负责。
 
 ## 目录
 

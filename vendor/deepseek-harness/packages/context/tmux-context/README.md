@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tmux-context` tells the model where its agent process runs: on each turn whose tmux state changed, it appends a durable, source-attributed reading naming the tmux session, window, and pane plus the window's pane-tree layout. It is sampled once per turn during request preparation and only when the process genuinely lives inside the named pane — a terminal that merely inherited `$TMUX`/`$TMUX_PANE` from a tmux ancestor reads as not in tmux and adds nothing. An unchanged location adds nothing, and a failed query is a no-op, never a turn failure. The plugin is opt-in and not part of the shipped Web/headless composition.
+`dsh-tmux-context` lets the model identify the tmux session, window, pane, and pane-tree layout containing its agent process. It adds a durable, source-attributed reading on the first step of a turn only when that location changed. Terminals that merely inherit tmux environment variables without running in the named pane add nothing; failed queries also add nothing and do not fail the turn. This package is opt-in and is not included in the shipped Web or headless profiles.
 
 ## Table of Contents
 
@@ -85,7 +85,7 @@ At the first step of a turn, the listener checks whether an injection is due, qu
 
 Read these pages when the package-level contract is not enough. They move from the design decision to the executor the query runs through and the exhaustive configuration.
 
-- [Tmux location context decision record](../../../.agents/notes/implemented/feature/2026-07-27-tmux-location-context.md) — design rationale for the tty-based detection and reading shape.
+- [Tmux location context decision record](../../../.agents/notes/archived/feature/2026-07-27-tmux-location-context.md) — design rationale for the tty-based detection and reading shape.
 - [Shell subsystem](../../../docs/subsystems/shell.md) — the executor service the read-only query runs through.
 - [Context group map](../README.md) — sibling request-context packages.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tmux-context) — every accepted config field and its source declaration.

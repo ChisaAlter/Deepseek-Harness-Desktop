@@ -113,16 +113,37 @@ describe('MessageFeedbackController', () => {
     expect(controller.getSnapshot().items.get(MSG)).toEqual(second)
   })
 
-  it('forwards an optional note and omits the field when absent', async () => {
+  it('forwards the entry as note and category and omits absent members', async () => {
     const { ctx, calls } = fakeRemote()
     const controller = new MessageFeedbackController(ctx, SESSION)
 
-    await controller.rate(MSG, 'positive', 'helpful')
+    await controller.rate(MSG, 'negative', { text: 'helpful', category: 'task-result' })
     await controller.rate(OTHER, 'negative')
 
     const puts = calls.filter(call => call.method === 'put').map(call => call.request as Record<string, unknown>)
-    expect(puts[0]?.note).toBe('helpful')
+    expect(puts[0]).toMatchObject({ note: 'helpful', category: 'task-result' })
     expect(puts[1]).not.toHaveProperty('note')
+    expect(puts[1]).not.toHaveProperty('category')
+  })
+
+  it('toggle retracts a matching rating, records an absent one, and reports the committed rating', async () => {
+    const { ctx, calls } = fakeRemote({
+      list: () => Promise.resolve({ ok: true, value: { items: [item({ note: 'stored', category: 'other' })] } }),
+      put: () => Promise.resolve({ ok: true, value: item({ rating: 'negative', version: version('v2') }) }),
+    })
+    const controller = new MessageFeedbackController(ctx, SESSION)
+
+    expect(await controller.toggle(MSG, 'positive')).toEqual({ ok: true, rating: null })
+    expect(await controller.toggle(MSG, 'negative')).toEqual({ ok: true, rating: 'negative' })
+
+    expect(calls.filter(call => call.method === 'delete')[0]?.request)
+      .toEqual({ sessionId: SESSION, messageId: MSG, ifVersion: version('v1') })
+    // A replacement stores the bare judgment: the retracted item's note and
+    // category do not carry over.
+    const put = calls.filter(call => call.method === 'put')[0]?.request as Record<string, unknown>
+    expect(put).toMatchObject({ rating: 'negative', ifVersion: null })
+    expect(put).not.toHaveProperty('note')
+    expect(put).not.toHaveProperty('category')
   })
 
   it('reconciles a version conflict from the authoritative item without refetching', async () => {
@@ -155,7 +176,7 @@ describe('MessageFeedbackController', () => {
     const controller = new MessageFeedbackController(ctx, SESSION)
     await controller.ensure()
 
-    expect(await controller.clear(MSG)).toMatchObject({ ok: false, error: { code: 'version-conflict' } })
+    expect(await controller.toggle(MSG, 'positive')).toMatchObject({ ok: false, error: { code: 'version-conflict' } })
     expect(controller.getSnapshot().items.has(MSG)).toBe(false)
   })
 
@@ -166,19 +187,11 @@ describe('MessageFeedbackController', () => {
     const controller = new MessageFeedbackController(ctx, SESSION)
     await controller.ensure()
 
-    expect(await controller.clear(MSG)).toEqual({ ok: true })
+    expect(await controller.toggle(MSG, 'positive')).toEqual({ ok: true, rating: null })
 
     expect(calls.filter(call => call.method === 'delete')[0]?.request)
       .toEqual({ sessionId: SESSION, messageId: MSG, ifVersion: version('v7') })
     expect(controller.getSnapshot().items.has(MSG)).toBe(false)
-  })
-
-  it('treats clearing an unrated message as already satisfied without a call', async () => {
-    const { ctx, calls } = fakeRemote()
-    const controller = new MessageFeedbackController(ctx, SESSION)
-
-    expect(await controller.clear(MSG)).toEqual({ ok: true })
-    expect(calls.filter(call => call.method === 'delete')).toHaveLength(0)
   })
 
   it('serializes mutations so each one compares against the committed version', async () => {
@@ -389,7 +402,7 @@ describe('MessageFeedbackController', () => {
     })
     const controller = new MessageFeedbackController(ctx, SESSION)
     await controller.ensure()
-    const pending = controller.clear(MSG)
+    const pending = controller.toggle(MSG, 'positive')
 
     const listener = vi.fn()
     controller.subscribe(listener)
@@ -410,7 +423,7 @@ describe('MessageFeedbackController', () => {
     const controller = new MessageFeedbackController(ctx, SESSION)
     await controller.ensure()
 
-    expect(await controller.rate(MSG, 'negative', 'far too long')).toMatchObject({
+    expect(await controller.rate(MSG, 'negative', { text: 'far too long' })).toMatchObject({
       ok: false,
       error: { code: 'note-too-large' },
     })
@@ -426,93 +439,11 @@ describe('MessageFeedbackController', () => {
     const controller = new MessageFeedbackController(ctx, SESSION)
     await controller.ensure()
 
-    expect(await controller.clear(MSG)).toMatchObject({
+    expect(await controller.toggle(MSG, 'positive')).toMatchObject({
       ok: false,
       error: { code: 'session-not-found' },
     })
     expect(controller.getSnapshot().items.get(MSG)).toEqual(existing)
-  })
-
-  it('preserves a stored note when a rating switch omits one', async () => {
-    // Regression: a control that rendered before the first list read holds no
-    // item, so it passes note=undefined; that must not erase the stored note.
-    const stored = item({ version: version('v1'), rating: 'positive', note: 'keep me' })
-    const { ctx, calls } = fakeRemote({
-      list: () => Promise.resolve({ ok: true, value: { items: [stored] } }),
-    })
-    const controller = new MessageFeedbackController(ctx, SESSION)
-
-    expect(await controller.rate(MSG, 'negative')).toEqual({ ok: true })
-
-    const put = calls.filter(c => c.method === 'put')[0]?.request as Record<string, unknown>
-    expect(put.note).toBe('keep me')
-    expect(put.rating).toBe('negative')
-  })
-
-  it('toggle retracts when the committed rating already matches', async () => {
-    const stored = item({ version: version('v1'), rating: 'positive' })
-    const { ctx, calls } = fakeRemote({
-      list: () => Promise.resolve({ ok: true, value: { items: [stored] } }),
-    })
-    const controller = new MessageFeedbackController(ctx, SESSION)
-
-    expect(await controller.toggle(MSG, 'positive')).toEqual({ ok: true })
-
-    expect(calls.filter(c => c.method === 'delete')).toHaveLength(1)
-    expect(calls.filter(c => c.method === 'put')).toHaveLength(0)
-    expect(controller.getSnapshot().items.has(MSG)).toBe(false)
-  })
-
-  it('toggle decides from the committed item, not a cold view', async () => {
-    // The click lands before any list read: the cold view knows no item, yet the
-    // stored rating matches, so the toggle must retract rather than re-put.
-    const stored = item({ version: version('v1'), rating: 'positive', note: 'kept' })
-    const { ctx, calls } = fakeRemote({
-      list: () => Promise.resolve({ ok: true, value: { items: [stored] } }),
-    })
-    const controller = new MessageFeedbackController(ctx, SESSION)
-    expect(controller.getSnapshot().status).toBe('cold')
-
-    expect(await controller.toggle(MSG, 'positive')).toEqual({ ok: true })
-
-    expect(calls.filter(c => c.method === 'delete')).toHaveLength(1)
-  })
-
-  it('toggle replaces the opposite rating and carries the note forward', async () => {
-    const stored = item({ version: version('v1'), rating: 'positive', note: 'kept' })
-    const { ctx, calls } = fakeRemote({
-      list: () => Promise.resolve({ ok: true, value: { items: [stored] } }),
-    })
-    const controller = new MessageFeedbackController(ctx, SESSION)
-
-    expect(await controller.toggle(MSG, 'negative')).toEqual({ ok: true })
-
-    const put = calls.filter(c => c.method === 'put')[0]?.request as Record<string, unknown>
-    expect(put).toMatchObject({ rating: 'negative', note: 'kept', ifVersion: version('v1') })
-  })
-
-  it('clearNote drops the note and keeps the rating', async () => {
-    const stored = item({ version: version('v1'), rating: 'negative', note: 'remove me' })
-    const { ctx, calls } = fakeRemote({
-      list: () => Promise.resolve({ ok: true, value: { items: [stored] } }),
-    })
-    const controller = new MessageFeedbackController(ctx, SESSION)
-
-    expect(await controller.clearNote(MSG)).toEqual({ ok: true })
-
-    const put = calls.filter(c => c.method === 'put')[0]?.request as Record<string, unknown>
-    expect(put.rating).toBe('negative')
-    expect(put).not.toHaveProperty('note')
-  })
-
-  it('clearNote is a no-op when there is no note to drop', async () => {
-    const { ctx, calls } = fakeRemote({
-      list: () => Promise.resolve({ ok: true, value: { items: [item()] } }),
-    })
-    const controller = new MessageFeedbackController(ctx, SESSION)
-
-    expect(await controller.clearNote(MSG)).toEqual({ ok: true })
-    expect(calls.filter(c => c.method === 'put')).toHaveLength(0)
   })
 
   it('resync serializes behind an in-flight mutation', async () => {
@@ -616,7 +547,7 @@ describe('MessageFeedbackController', () => {
     const controller = new MessageFeedbackController(ctx, SESSION)
     await controller.ensure()
 
-    expect(await controller.clear(MSG)).toMatchObject({ ok: false, error: { code: 'gateway/internal' } })
+    expect(await controller.toggle(MSG, 'positive')).toMatchObject({ ok: false, error: { code: 'gateway/internal' } })
     expect(controller.getSnapshot().items.has(MSG)).toBe(true)
   })
 })

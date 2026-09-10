@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-cordis` 给 web 客户端提供动态 Cordis 包的浏览器面：一个覆盖整个框架的面板，操作 host 持有的全部定义；会话里渲染 `cordis_define`、`cordis_run`、`cordis_stop` 与 `cordis_undefine` 调用的工具卡片；以及一个补全本会话已定义插件的 `@pluginId` 输入源。面板做成全局是刻意的——模型驱动的 run 阻塞在人的审批上，而无论当前在看哪个会话，这个审批都必须可达。本包不撰写任何模型可见的内容：它所操作的一切都来自浏览器 runner 与 host 的清单，卡片渲染的是会话已经记录下的 call 与 result 内容。
+`dsh-client-ui-cordis` 为 web 客户端中的动态 Cordis 包提供框架级控制面板、会话工具卡片与 `@pluginId` 补全。人可以从任意会话批准或拒绝阻塞模型的请求、运行、停止或移除定义，并查看其实时状态。会话卡片会回放已记录的调用与结果。本包不增加模型可见内容或会话事件；页面刷新后，定义必须重新运行。
 
 ## 目录
 
@@ -89,7 +89,7 @@ kind: "package-reference"
 - [Host runner](../cordis-host-runner/README.zh.md)——面板背后的清单与生命周期动词。
 - [工具包](../tool-cordis/README.zh.md)——调用被这些卡片渲染的模型侧工具。
 - [extensions 子系统](../../../docs/subsystems/extensions.zh.md)——生成的 `ctx.dynamicCordisRunner` API 与转发的 `cordis/*` 事件。
-- [动态客户端渲染与附件归属 Agent Note](../../../.agents/notes/implemented/architecture/2026-08-17-dynamic-client-render-and-attachment-ownership.zh.md)——槽位注册的浏览器 UI 如何归其包所有。
+- [slots 子系统](../../../docs/subsystems/slots.zh.md)——槽位注册的浏览器 UI 如何归其包所有。
 
 -----
 

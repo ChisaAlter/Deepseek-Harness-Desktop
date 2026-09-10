@@ -29,7 +29,7 @@
   - img
   - text: Standard mode
   - img
-- textbox "Describe what you want to build... / commands, @ files or sessions":
+- textbox "Describe what you want to build, / commands, @ files or sessions":
   - paragraph
 - button "Commands":
   - img
@@ -53,9 +53,6 @@
   - button "Close terminal" [disabled]:
     - img
   - paragraph: No terminal sessions yet
-- text: Details
-- button "Close details"
-- text: Click a tool row in the message flow to view its details
 - heading "Open a surface" [level=3]
 - paragraph: Choose what to show in the right panel.
 - button "Browser Open a local app or URL." [disabled]:

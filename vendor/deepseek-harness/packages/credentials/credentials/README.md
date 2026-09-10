@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-credentials` keeps secret values out of configuration: you store an API key once and reference it by name (`DEEPSEEK_API_KEY`) from settings or `cordis.yml`, and the product supplies the value when a provider request needs it. Beside those references it also keeps durable credential records — per-plugin entries such as an authorization grant or provider environment values — so a plugin holds what it manages for its own ids across restarts. A rotated key takes effect on the very next request — no restart, no configuration edit. Configuration UIs can tell you whether a key or record is set, where it comes from, and whether you can change it, without ever showing a value. Storing an empty value counts as "no key", so a blank can never masquerade as a configured secret; a record's presence is the whole fact, so an entry carrying no value is a deliberate statement, not a blank.
+`dsh-credentials` keeps secret values out of configuration by letting settings and `cordis.yml` refer to key names such as `DEEPSEEK_API_KEY`. It also stores durable per-plugin credential records, including authorization grants and provider environment values. A rotated stored key applies to the next request without a restart or configuration edit. Configuration UIs can report whether a key or record is set, its source, and whether it is writable without exposing values. Empty key values count as absent, while an empty record remains a deliberate stored credential.
 
 ## Table of Contents
 

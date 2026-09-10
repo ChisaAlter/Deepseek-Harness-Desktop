@@ -72,7 +72,9 @@ const FORK_FILE_MARKERS = [
   // --dsh-composer-resized-width on the seat AND the conversation column (so
   // the transcript sees it); the session stats line, the chat flow column,
   // and the dock cards (queue / todo / goal) consume it so they follow.
-  { file: 'packages/client/ui-chat/src/client/chat/StatsLine.module.css', includes: ['dsh-composer-resized-width'] },
+  // rc.1 renamed the stats row to StatsPills (stat-dialog pair); the follow
+  // contract moved with it.
+  { file: 'packages/client/ui-chat/src/client/chat/StatsPills.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-chat/src/client/chat/ChatView.module.css', includes: ['dsh-composer-resized-width'] },
   { file: 'packages/client/ui-conversation/src/client/skeleton/ComposerResizeHandles.tsx', includes: ['data-conversation-scroll'] },
   { file: 'packages/client/ui-conversation/src/client/queue/QueueDock.module.css', includes: ['dsh-composer-resized-width'] },
@@ -83,7 +85,7 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css', includes: [':not([data-dsh-transparent])', '.heroWorkspaceRow', 'max-width: var(--dsh-composer-resized-width', 'align-self: center'] },
   { file: 'packages/client/ui-conversation/src/client/ComposerBeam.tsx', includes: ['data-composer-beam', '--dsh-composer-beam-period', '--dsh-composer-beam-bloom-opacity', '--dsh-composer-beam-track-width', 'data-beam-breathing'] },
   { file: 'packages/client/ui-conversation/src/client/ComposerBeam.module.css', includes: ['.beamBloom::before', 'inset: -4px', 'blur(var(--dsh-composer-beam-glow-blur', '.beamStroke {', 'padding: var(--dsh-composer-beam-track-width', 'transparent 30%', '-webkit-mask-composite: source-in, xor', 'mask-composite: intersect, exclude', 'mask-composite: add', 'corner-shape: round'] },
-  { file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx', includes: ['data-stats-line'] },
+  { file: 'packages/client/ui-chat/src/client/chat/StatsPills.tsx', includes: ['data-stats-line'] },
   // No-directory sessions (docs/features/no-directory-sessions.md): the Host
   // advertises the scratch cwd on the Workspace baseline, registering a
   // directory re-adopts its sessions, the hero picker offers "No workspace

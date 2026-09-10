@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import type { ISession } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import {
   apply as applyChat, inject as injectChat, type ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -13,7 +14,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply as applyConversation, inject as injectConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { apply as applyTool, inject as injectTool } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
-import { toolSessionEvents } from './tool-details-render.client.tsx'
+import { toolSessionEvents } from './tool-fixtures.client.ts'
 
 const SID = 's1' as SessionId
 
@@ -42,14 +43,13 @@ const toolResult = (seq: number, callId: string, name: string, args = '{"command
 })
 
 /** Test-owned AppFrame role: declares and renders the resident conversation area. */
-type AppRootProps = PropsRenderSlots<'conversation' | 'details'>
+type AppRootProps = PropsRenderSlots<'main'>
 function AppRoot({ renderSlot }: AppRootProps) {
-  return <>{renderSlot('conversation', {})}</>
+  return <>{renderSlot('main', {}, { entryKey: 'conversation' })}</>
 }
 
 const LAYOUT_CHILDREN = {
-  'conversation': { kind: 'single', scope: 'session-maybe' },
-  'details': { kind: 'single', scope: 'session' },
+  'main': { kind: 'keyed', scope: 'root' },
 } as const
 
 /**
@@ -68,15 +68,21 @@ async function bench(nodes: ToolResultNode[]) {
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const layout = { openDetails: vi.fn(), closeDetails: vi.fn() }
   runtime.ctx.provide('layout', layout)
+  const sidebarRight = { openResource: vi.fn<(address: string) => void>() }
+  runtime.ctx.provide('sidebarRight', sidebarRight as never)
   runtime.ctx.provide('uiWorkspace', {
-    connectWorkspace: vi.fn(async () => SID),
+    openWorkspace: vi.fn(async (_workspaceId: WorkspaceId, beforeOpen: (id: SessionId) => void) => {
+      beforeOpen(SID)
+      runtime.sessions.open(SID)
+    }),
+    openSession: (id: SessionId) => { runtime.sessions.open(id) },
   } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
   await runtime.sessions.add({
     id: SID,
-    summary: { title: 'S', displayTitle: 'S' },
+    summary: { title: 'S', displayTitle: 'S', cwd: '/w' },
     events: toolSessionEvents(nodes),
     session: {
       loadOlder: vi.fn<ISession['loadOlder']>(),
@@ -87,7 +93,7 @@ async function bench(nodes: ToolResultNode[]) {
   await runtime.mount({ inject: [...injectConversation], apply: applyConversation })
   await runtime.mount({ inject: [...injectChat], apply: applyChat })
   await runtime.mount({ inject: [...injectTool], apply: applyTool })
-  return { runtime, slots: runtime.slots, layout, openPath, openWorkspacePath }
+  return { runtime, slots: runtime.slots, layout, openPath, openWorkspacePath, sidebarRight }
 }
 
 describe('keyed toolview hole through the real machinery', () => {
@@ -136,7 +142,10 @@ describe('keyed toolview hole through the real machinery', () => {
     view.getByText('src/a.ts').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      expect(b.openPath).toHaveBeenCalledWith('src/a.ts')
+      // rc.1 funnels chat file opens through resolveWorkspacePath before the
+      // native handoff: the workspace-rooted absolute path plus the (unset)
+      // open options reach workspaces.openPath.
+      expect(b.openPath).toHaveBeenCalledWith('/w/src/a.ts', undefined)
     })
     expect(b.openWorkspacePath).not.toHaveBeenCalled()
     await b.runtime.dispose()
@@ -213,8 +222,13 @@ describe('registrant declaration injection', () => {
     })
     runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
     runtime.ctx.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
+    runtime.ctx.provide('sidebarRight', { openResource: vi.fn() } as never)
     runtime.ctx.provide('uiWorkspace', {
-      connectWorkspace: vi.fn(async () => SID),
+      openWorkspace: vi.fn(async (_workspaceId: WorkspaceId, beforeOpen: (id: SessionId) => void) => {
+        beforeOpen(SID)
+        runtime.sessions.open(SID)
+      }),
+      openSession: (id: SessionId) => { runtime.sessions.open(id) },
     } as never)
     const locale = new LocaleRuntime(runtime.ctx)
     runtime.ctx.provide('locale', locale)

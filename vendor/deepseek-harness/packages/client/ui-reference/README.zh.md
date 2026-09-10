@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-reference` 是统一的 Web `@file` 与 `@session` 引用 source：它把 `reference` 条目注册进编辑器的行内建议机制，让用户在输入 `@` 时于同一个列表中看到文件与会话候选。文件排在会话之前，分组标题使用注册在 locale 字典中的标签，任一候选领域失败都会独立降级、不阻塞另一领域。每一行只承载能区分它的信息：文件显示其父目录、位于工作区根目录时不显示；会话仅在其工作区不是当前工作区时显示该工作区；下钻后的目录列表不显示位置，因为面包屑已经承载了它。选择一项会插入原子行内引用——文件、文件夹与会话皆然——其隐藏的序列化与剪贴板形式就是共享 `@path` 语法所定义的自然文本；目录行额外携带一个钻取动词（Tab 或行尾 chevron），保持可编辑的路径纯文本并让菜单在尾部斜杠处保持活跃，用户可以继续进入下一层。选择会话会经 session-reference 服务路由，该服务校验 mention 并在 pre-step 边界捕获模型上下文；本包自身不注册任何提示词或工具。
+Web 用户需要从同一个 `@` 补全菜单提及文件、文件夹或会话时，可以使用 `dsh-client-ui-reference`。菜单先列出文件，再列出会话；其中一组无法加载时，另一组仍然可用。选择文件、文件夹或会话会插入带稳定剪贴板形式的原子引用；文件夹行还允许用户在不关闭补全的情况下继续下钻。文件行省略多余的根目录位置，会话行仅在工作区与当前工作区不同时显示该工作区。会话 mention 会在捕获模型上下文前接受校验，而浏览候选项不会影响模型。
 
 ## 目录
 
@@ -67,7 +67,7 @@ kind: "package-reference"
 - [ui-input-trigger](../ui-input-trigger/README.zh.md)——该 source 注册进的行内建议机制。
 - [file-reference](../../context/file-reference/README.zh.md)——`@file` seam 及其提供方约定。
 - [session-reference](../../context/session-reference/README.zh.md)——`@session` seam 与准备后快照的语义。
-- [Web 输入机器与 slash 流水线](../../../.agents/notes/implemented/architecture/2026-07-25-web-input-machine-and-slash-pipeline.zh.md)——引用与命令如何共享输入机器。
+- [Web 输入机器与 slash 流水线](../../../.agents/notes/archived/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md)——引用与命令如何共享输入机器。
 
 -----
 

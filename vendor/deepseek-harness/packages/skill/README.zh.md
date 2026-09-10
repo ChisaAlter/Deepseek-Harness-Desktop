@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-skill 组让 agent（智能体）和用户按需使用可复用的任务专项指令。提供方贡献 skill——来自本地项目或用户目录、随包分发或远程服务——注册表合并它们的目录，并为每个名称解析出胜出的 skill。一个消费方把可用 skill 发布为持久的会话目录，并提供面向模型的 `skill` 加载工具，因此模型看到排序后的 skill 名称与简短描述，并能加载任一列出 skill 的完整指令；用户也可以用 `/name` 直接调用 skill。提供方类型不会改变模型看到的内容，因为所有面向模型的渲染都集中在一个消费方包中。按需挂载各包：注册表加至少一个提供方，再加消费方以获得模型访问。
+skill 家族让 agent（智能体）和用户仅在需要时发现并加载可复用的任务指令。使用 `skill/` 合并目录并为每个名称提供一组指令；需要从项目、自定义或用户目录发现 skill 时选择 `skill-filesystem`，需要可选的官方徽章时选择 `skill-badge`。需要让模型获得排序且持久的会话目录、通过 `skill` 工具加载完整指令，或接受 `/name` 直接调用时，请添加 `tool-skill`。不同来源生成相同的模型可见格式，启用模型访问前必须配置至少一个来源。
 
 ## 目录
 
@@ -37,8 +37,6 @@ skill 组让 agent（智能体）和用户按需使用可复用的任务专项�
 先从子系统参考了解共享词汇，再阅读 Agent Note 了解设计依据。
 
 - [skill 子系统参考](../../docs/subsystems/skills.zh.md)——注册表、提供方约定、本地发现优先级，以及目录与工具。
-- [skill 系统 Agent Note](../../.agents/notes/implemented/feature/2026-07-05-skill-system.zh.md)——家族如何拆分与分层注册表设计。
-- [skill 目录热刷新 Agent Note](../../.agents/notes/implemented/feature/2026-07-27-skill-catalog-hot-refresh.zh.md)——持久初始目录与替换生命周期。
 - [skill 调用策略 Agent Note](../../.agents/notes/implemented/feature/2026-07-28-skill-invocation-policy.zh.md)——模型与用户调用控制。
 
 -----

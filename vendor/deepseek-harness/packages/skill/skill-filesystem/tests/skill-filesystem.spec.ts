@@ -108,6 +108,10 @@ class TestFileSystem extends FileSystem {
     throw new Error('not needed in skill tests')
   }
 
+  override async readByteRange(_target: FsTarget, _range: { offset: number; length: number }, _signal?: AbortSignal): Promise<Uint8Array> {
+    throw new Error('not needed in skill tests')
+  }
+
   override async listDir(target: FsTarget): Promise<FsDirEntry[]> {
     this.listDirCalls += 1
     if (this.failListDirPaths.has(target.displayPath)) throw new Error('list temporarily failed')

@@ -61,7 +61,12 @@ describe('same-session message editing', () => {
     expect(b.texts()).not.toContain(`prompt-${count - 1}`)
     expect(b.texts()).not.toContain(`reply-${count - 1}`)
     expect(b.texts()).toContain('revised')
-    if (count === 2) expect(b.texts()).toEqual(['prompt-0', 'reply-0', 'revised', 'reply-2'])
+    // rc.1 surfaces the harness identity as node 0; tolerate that one leading
+    // system line and pin everything after it.
+    if (count === 2) {
+      expect(b.texts()).toHaveLength(5)
+      expect(b.texts().slice(1)).toEqual(['prompt-0', 'reply-0', 'revised', 'reply-2'])
+    }
     expect((await b.send('revised-again', b.latest())).ok).toBe(true)
     expect(b.texts()).not.toContain('revised')
     expect(b.texts()).toContain('revised-again')
@@ -109,7 +114,7 @@ describe('same-session message editing', () => {
         mode: 'queue', content: [{ type: 'text', text: 'must not queue' }], editMessageSeq: target,
       })
       expect(result).toMatchObject({ ok: false, error: { code: 'session/agent-busy' } })
-      expect(b.agent.inbox.hasPending).toBe(false)
+      expect([...b.agent.inbox.nextTurn, ...b.agent.inbox.nextStep]).toHaveLength(0)
     } finally {
       release.resolve(undefined)
       await ongoing

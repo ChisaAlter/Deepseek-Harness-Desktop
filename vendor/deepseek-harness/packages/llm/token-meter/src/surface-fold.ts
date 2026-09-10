@@ -1,10 +1,8 @@
 /**
- * The measurement service's positional surface fold: the per-node priced
- * surface `measure()` serves and compaction plans against. The projection
- * units do NOT share this fold — their state must stay O(1) for the
- * persisted checkpoint, so they ride `surface-projection.ts`'s shadow-price
- * protocol; the two agree because both price through `estimate.ts` and every
- * logged shadow price derives from this fold's fixed-heuristic node prices.
+ * Positional pricing shared by measurement and the context-breakdown fold:
+ * measurement retains attachment details for route pricing; breakdown keeps
+ * only retained node identities, heuristic prices, and system classification.
+ * The occupancy projection uses the scalar shadow-price protocol instead.
  *
  * The fold is a plan/commit pair: {@link planSurfaceTokens} runs every
  * fallible step read-only and {@link commitSurfaceTokens} mutates in place,
@@ -41,13 +39,13 @@ export interface MeterSurfaceNode {
 }
 
 /** One validated surface transition that has not mutated the priced surface yet. */
-export interface SurfaceTokenPlan {
+export interface SurfaceTokenPlan<Node = MeterSurfaceNode> {
   /** Heuristic price of the event's own message; 0 when it derives none. */
   readonly tokens: number
   /** Signed change in the surface total: `tokens` minus anything shadowed. */
   readonly deltaTokens: number
   /** The priced node the commit inserts for this event. */
-  readonly node: MeterSurfaceNode
+  readonly node: Node
   /** Commit position: `append`, or the inclusive replaced index range. */
   readonly target: 'append' | { readonly startIdx: number; readonly endIdx: number }
 }
@@ -112,7 +110,7 @@ function analyzeNode(seq: SessionSeq, message: Message | null): MeterSurfaceNode
  *   corruption and must fail loud rather than skip the event.
  */
 export function planSurfaceTokens(
-  nodes: readonly MeterSurfaceNode[],
+  nodes: readonly Pick<MeterSurfaceNode, 'seq' | 'heuristicTokens'>[],
   event: SurfaceEvent,
 ): SurfaceTokenPlan {
   const node = analyzeNode(event.seq, deriveEventMessage(event))
@@ -121,11 +119,11 @@ export function planSurfaceTokens(
   if (op === 'append') {
     return { tokens, deltaTokens: tokens, node, target: 'append' }
   }
-  const startIdx = nodes.findIndex(candidate => candidate.seq === op.start)
-  const endIdx = nodes.findIndex(candidate => candidate.seq === op.end)
+  const startIdx = nodes.findIndex(candidate => candidate.seq === op.startSeq)
+  const endIdx = nodes.findIndex(candidate => candidate.seq === op.endSeq)
   if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) {
     throw new Error(
-      `token surface: replace at seq ${event.seq} has invalid current range ${op.start}-${op.end}`,
+      `token surface: replace at seq ${event.seq} has invalid current range ${op.startSeq}-${op.endSeq}`,
     )
   }
   const removed = nodes
@@ -140,7 +138,7 @@ export function planSurfaceTokens(
  * @param nodes - the exact priced surface the plan was built against.
  * @param plan - the transition returned by {@link planSurfaceTokens}.
  */
-export function commitSurfaceTokens(nodes: MeterSurfaceNode[], plan: SurfaceTokenPlan): void {
+export function commitSurfaceTokens<Node>(nodes: Node[], plan: SurfaceTokenPlan<Node>): void {
   if (plan.target === 'append') {
     nodes.push(plan.node)
     return

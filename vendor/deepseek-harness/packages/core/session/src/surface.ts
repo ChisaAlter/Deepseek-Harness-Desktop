@@ -10,16 +10,17 @@
 
 import type { Message } from '@deepseek-ai/dsh-llm'
 import { SessionLogOffset, SessionSeq } from './types.ts'
+import { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
 import type {
   SessionEvent,
   SessionSeqCursor,
   SurfaceEvent,
-  SurfaceEventType,
   SurfaceOp,
 } from './types.ts'
 
 /** Runtime counterpart of the message-producing event union. */
 const SURFACE_EVENT_TYPES = new Set<string>([
+  'system/message',
   'user/message',
   'assistant/message',
   'tool/result',
@@ -28,7 +29,7 @@ const SURFACE_EVENT_TYPES = new Set<string>([
 /**
  * Whether an event type can join the model-visible surface.
  * @param type - event type to test.
- * @returns true for one of the three message-producing event types.
+ * @returns true for one of the four message-producing event types.
  */
 export function isSurfaceEligibleType(type: string): boolean {
   return SURFACE_EVENT_TYPES.has(type)
@@ -41,7 +42,8 @@ export function isSurfaceEligibleType(type: string): boolean {
  */
 export function isSurfaceEvent(event: SessionEvent): event is SurfaceEvent {
   if (!SURFACE_EVENT_TYPES.has(event.type)) return false
-  return (event as SessionEvent<SurfaceEventType>).surfaceOp !== undefined
+  const candidate: { surfaceOp?: unknown } = event
+  return candidate.surfaceOp !== undefined
 }
 
 /**
@@ -103,10 +105,13 @@ export function deriveEventMessage(event: SessionEvent): Message | null {
     case 'user/message': {
       return event.data
     }
+    // An empty-content message projects to no wire message. For
+    // system/message the node records "no system prompt" while keeping its
+    // surface position; for assistant/message the event exists only to host a
+    // max-tokens step's usage and must not inject a content-less assistant
+    // turn into the provider transcript.
+    case 'system/message':
     case 'assistant/message': {
-      // Skip an empty-content assistant/message: it exists only to host a
-      // max-tokens step's usage and must not inject a content-less assistant
-      // turn into the provider transcript.
       if (event.data.message.content.length === 0) return null
       return event.data.message
     }
@@ -117,6 +122,47 @@ export function deriveEventMessage(event: SessionEvent): Message | null {
       // A non-surface event (boundary, attempt, log-only record) projects to
       // no message. Merge-extensible union: no assertNever here.
       return null
+  }
+}
+
+/** Whether a payload field is a JSON object rather than an array or scalar. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Reject noncanonical request-header fields and contradictory tool failure metadata.
+ * This does not validate complete event payloads or embedded provider streams.
+ * @param event - event whose locally related payload fields are inspected.
+ * @param subject - event location to include in validation errors.
+ * @throws when request data/header is not an object, optional header fields are empty, or tool failure metadata contradicts its message.
+ */
+export function validateSessionEventData(
+  event: Pick<SessionEvent, 'type' | 'data'>,
+  subject: string,
+): void {
+  const data: unknown = event.data
+  if (event.type === 'request/header') {
+    if (!isRecord(data)) throw new Error(`${subject} data must be an object`)
+    const header = data['header']
+    if (!isRecord(header)) throw new Error(`${subject} header must be an object`)
+    if (Object.hasOwn(header, 'system')) throw new Error(`${subject} must omit header.system; use system/message`)
+    if (Array.isArray(header['tools']) && header['tools'].length === 0) {
+      throw new Error(`${subject} must omit empty tools`)
+    }
+    const defaults = header['adapterDefaults']
+    if (isRecord(defaults) && Object.keys(defaults).length === 0) {
+      throw new Error(`${subject} must omit empty adapterDefaults`)
+    }
+  } else if (event.type === 'tool/result') {
+    if (!isRecord(data)) throw new Error(`${subject} data must be an object`)
+    if (data['error'] === undefined) return
+    const message = data['message']
+    const content = isRecord(message) ? message['content'] : undefined
+    const block: unknown = Array.isArray(content) ? content[0] : undefined
+    if (!isRecord(block) || block['isError'] !== true) {
+      throw new Error(`${subject} error requires message content[0].isError === true`)
+    }
   }
 }
 
@@ -184,17 +230,19 @@ function isReplaceOp(value: object): value is Extract<SurfaceOp, { op: 'replace'
   const op = value as Record<string, unknown>
   return Object.keys(op).length === 3
     && Object.hasOwn(op, 'op')
-    && Object.hasOwn(op, 'start')
-    && Object.hasOwn(op, 'end')
+    && Object.hasOwn(op, 'startSeq')
+    && Object.hasOwn(op, 'endSeq')
     && op['op'] === 'replace'
-    && isEventSeq(op['start'])
-    && isEventSeq(op['end'])
+    && isEventSeq(op['startSeq'])
+    && isEventSeq(op['endSeq'])
 }
 
 /** Validate event-local surface eligibility and return its operation. */
 function surfaceOpOf(event: SessionEvent): SurfaceOp | undefined {
-  const raw = event as SessionEvent & { surfaceOp?: unknown; sourceEventSeqs?: unknown }
+  const raw: { surfaceOp?: unknown; sourceEventSeqs?: unknown } = event
   if (!isSurfaceEligibleType(event.type)) {
+    // Unknown ignorable records retain opaque metadata without affecting history.
+    if (!KNOWN_SESSION_EVENT_TYPES.has(event.type) && event.ignorable === true) return
     if (raw.surfaceOp !== undefined) {
       throw new Error(`session event "${event.type}" is not surface-eligible and cannot carry surfaceOp`)
     }
@@ -222,7 +270,7 @@ function assertProvenance(
   event: SessionEvent,
   shadowedSeqs: readonly SessionSeq[],
 ): void {
-  const raw = (event as SessionEvent & { sourceEventSeqs?: unknown }).sourceEventSeqs
+  const raw: unknown = event.sourceEventSeqs
   if (event.type === 'assistant/message' && raw !== undefined) {
     throw new Error('assistant/message embeds its source stream and cannot carry sourceEventSeqs')
   }
@@ -255,21 +303,38 @@ function assertProvenance(
   }
 }
 
+/**
+ * Validate one event's surface metadata without checking membership in a log or surface.
+ * @param event - event whose marker and source sequence values are inspected.
+ * Unknown ignorable records retain opaque metadata and never change the surface.
+ * @returns the validated operation, or undefined for a log-only or unknown ignorable event.
+ * @throws when metadata violates event-local eligibility, marker, or source-sequence rules.
+ */
+export function validateSurfaceMetadata(event: SessionEvent): SurfaceOp | undefined {
+  const op = surfaceOpOf(event)
+  if (op !== undefined && op !== 'append'
+    && (op.startSeq >= event.seq || op.endSeq >= event.seq)) {
+    throw new Error(`surface replace at seq ${event.seq}: startSeq and endSeq must reference earlier events`)
+  }
+  if (op !== undefined) assertProvenance(event, [])
+  return op
+}
+
 /** Locate one replacement range without mutating the current fold state. */
 function replacementRange(
   state: SurfaceFoldState,
   op: Extract<SurfaceOp, { op: 'replace' }>,
 ): Pick<SurfaceReplacePlan, 'startIdx' | 'endIdx' | 'shadowedSeqs'> {
-  const startIdx = state.nodes.indexOf(op.start)
+  const startIdx = state.nodes.indexOf(op.startSeq)
   if (startIdx === -1) {
-    throw new Error(`surface replace: start seq ${op.start} not found in surface`)
+    throw new Error(`surface replace: start seq ${op.startSeq} not found in surface`)
   }
-  const endIdx = state.nodes.indexOf(op.end)
+  const endIdx = state.nodes.indexOf(op.endSeq)
   if (endIdx === -1) {
-    throw new Error(`surface replace: end seq ${op.end} not found in surface`)
+    throw new Error(`surface replace: end seq ${op.endSeq} not found in surface`)
   }
   if (startIdx > endIdx) {
-    throw new Error(`surface replace: start seq ${op.start} (index ${startIdx}) is after end seq ${op.end} (index ${endIdx})`)
+    throw new Error(`surface replace: start seq ${op.startSeq} (index ${startIdx}) is after end seq ${op.endSeq} (index ${endIdx})`)
   }
   return {
     startIdx,
@@ -330,6 +395,28 @@ function assertToolResultRewrite(
   }
 }
 
+/**
+ * Protect the system prompt at surface node 0. A replacement covering node 0
+ * while that node is a `system/message` must itself be a `system/message` over
+ * exactly that node; later system nodes carry no protection and a compaction
+ * range may shadow them.
+ */
+function assertSystemHeadRewrite(
+  event: SessionEvent,
+  state: SurfaceFoldState,
+  startIdx: number,
+  shadowedSeqs: readonly SessionSeq[],
+  events: readonly SessionEvent[],
+  baseSeq: SessionLogOffset,
+): void {
+  if (startIdx !== 0) return
+  const head = events[state.nodes[0] as number - baseSeq]
+  if (head?.type !== 'system/message') return
+  if (event.type !== 'system/message' || shadowedSeqs.length !== 1) {
+    throw new Error('surface replace: node 0 holds the system prompt and may be rewritten only by a system/message over exactly that node')
+  }
+}
+
 /** Validate one event at its replay boundary and prepare its atomic fold transition. */
 function planSurfaceEvent(
   state: SurfaceFoldState,
@@ -341,20 +428,20 @@ function planSurfaceEvent(
   if (event.seq !== expectedSeq) {
     throw new Error(`session event seq ${event.seq} is not contiguous; expected ${expectedSeq}`)
   }
-  const surfaceOp = surfaceOpOf(event)
+  const surfaceOp = validateSurfaceMetadata(event)
   if (surfaceOp === undefined) return
   if (surfaceOp === 'append') {
-    assertProvenance(event, [])
     return { kind: 'append', seq: event.seq }
   }
   const range = replacementRange(state, surfaceOp)
   assertProvenance(event, range.shadowedSeqs)
   assertToolResultRewrite(event, range.shadowedSeqs, events, baseSeq)
+  assertSystemHeadRewrite(event, state, range.startIdx, range.shadowedSeqs, events, baseSeq)
   return {
     kind: 'replace',
     seq: event.seq,
-    start: surfaceOp.start,
-    end: surfaceOp.end,
+    start: surfaceOp.startSeq,
+    end: surfaceOp.endSeq,
     ...range,
   }
 }

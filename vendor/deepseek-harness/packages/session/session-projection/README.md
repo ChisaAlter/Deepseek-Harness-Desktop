@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-projection` serves whole current values of log-derived per-session state to client carriers — the history tail page and the `session/projection` push frame — through a registry (`ctx.sessionProjections`) that folds every committed session event through registered projection units. A domain registers a pure computation unit (initial state, a fold over events, and an optional client view); the framework owns the subscription, the drive, and change notification, so domains hold no subscriptions and clients receive finished values, never fold events themselves. Every served value is plain JSON validated against a schema, and a per-unit `stateVersion` anchors persisted-cache invalidation. Choose it when a client needs derived per-session state — a todo list, a goal snapshot, conversation stats — without folding the raw log itself.
+Use `dsh-session-projection` when clients need current per-session state—such as todos, goals, or conversation statistics—without replaying the raw event log. Domains define synchronous projections from committed session events, and clients receive complete, schema-validated JSON values through snapshots and change notifications. Snapshots identify the last event reflected by every returned value, so carriers can pair state with the matching history cut. Projection state can be checkpointed for faster cold reads, while host-only projections remain private to the host.
 
 ## Table of Contents
 
@@ -55,12 +55,14 @@ const definition = {
 
 ### Register and read
 
-`register(definition)` installs the unit; the registration is an effect on the calling fiber, so unloading the domain removes its key. Carriers read a consistent synchronous cut over every client-visible unit with `snapshot(session)` — `{ asOfSeq, values }`, where `asOfSeq` is the seq of the last event every value reflects — and subscribe to per-change notifications with `onChanged(listener)`. `stateOf(session, key)` reads one unit's host state without computing unrelated views.
+`register(definition)` installs the unit; registrants with the same key and `stateVersion` share its cells, while an incompatible version or invalid `stateVersion` throws. Registration is an effect on the calling fiber, so the last unload removes the key and its cached cells. Carriers read a consistent synchronous cut over every client-visible unit with `snapshot(session)` — `{ asOfSeq, values }`, where `asOfSeq` is the seq of the last event every value reflects — and subscribe to per-change notifications with `onChanged(listener)`. `stateOf(session, key)` reads one unit's live read-only host state without computing unrelated views.
 
 ```text
 const dispose = ctx.sessionProjections.register(definition)
 const { asOfSeq, values } = ctx.sessionProjections.snapshot(session)
 ```
+
+A domain that requires projected state declares `sessionProjections` as a Cordis service dependency; optional contributors may register under `ctx.inject(['sessionProjections'], …)`. Carriers use `ctx.get('sessionProjections')` and omit their block or frames when the registry is absent.
 
 ### Persisted checkpoints
 

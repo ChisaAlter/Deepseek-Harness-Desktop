@@ -90,7 +90,7 @@ describe('pendingInteractionResumePlan', () => {
       { type: 'tool/call', seq: SessionSeq(4), time: 4, data: {
         turn: 4, step: 2, callId: ToolCallId('sibling-call'), name: 'read_only_tool', arguments: '{}',
       } },
-      { type: 'tool/result', seq: SessionSeq(5), time: 4, sourceEventSeqs: [SessionSeq(4)], data: {
+      { type: 'tool/result', seq: SessionSeq(5), time: 4, surfaceOp: 'append', sourceEventSeqs: [SessionSeq(4)], data: {
         turn: 4,
         step: 2,
         message: createToolResultMessage({

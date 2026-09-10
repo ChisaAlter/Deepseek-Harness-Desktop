@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-sandbox-policy` resolves the file-effect mode and workspace root for every confined capability call from one shared policy home, and tells the model the current policy before each request. A deployment sets a default mode and a fallback workspace root; a session can switch its own mode, and the switch survives restart because it lives in the session log. Every enforcing capability — bash, filesystem, terminal — reads the same resolved policy, so the mode a call runs under never depends on which family resolved it. The model sees one concise `sandbox:policy` contribution naming the mode and workspace, without a separate inventory of mounted capabilities.
+Use this package to apply one file-effect policy to every confined bash, filesystem, and terminal call. Deployments choose a default mode and fallback workspace root, while each session can switch modes independently. Session choices survive restart, and all enforcing capabilities use the same mode and workspace for a call. Before each model request, the model receives the effective policy and workspace without an inventory of mounted capabilities.
 
 ## Table of Contents
 
@@ -94,13 +94,11 @@ The `sandbox:policy` contribution states the mode's capability-neutral file-effe
 <a id="further-exploration"></a>
 ## Further Exploration
 
-Start with the subsystem reference for the shared vocabulary, then the seam contract, the cross-family decision, and the model-context decision.
+Start with the subsystem reference for the shared vocabulary, then the seam contract and the cross-family decision.
 
 - [Process sandbox subsystem](../../../docs/subsystems/sandbox.md) — modes, per-call policy, and enforcement semantics.
 - [Sandbox seam package](../sandbox/README.md) — the confinement contract every enforcing capability implements.
 - [Cross-family file sandbox decision](../../../.agents/notes/implemented/feature/2026-07-14-cross-family-fs-sandbox.md) — why one shared policy home exists.
-- [Current sandbox policy context decision](../../../.agents/notes/implemented/feature/2026-07-30-current-sandbox-policy-context.md) — how the policy reaches the model before each request.
-- [Capability-neutral policy context decision](../../../.agents/notes/implemented/simplification/2026-07-31-capability-neutral-sandbox-policy-context.md) — why the contribution names no mounted capabilities.
 
 -----
 

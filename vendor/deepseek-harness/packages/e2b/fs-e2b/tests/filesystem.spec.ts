@@ -171,6 +171,8 @@ class FakeRemote {
           start: (controller) => {
             for (const chunk of chunks) controller.enqueue(chunk)
             if (!this.streamKeepOpen) controller.close()
+            // SDK fidelity: an abort of the request signal fails the open stream.
+            options.signal?.addEventListener('abort', () => { controller.error(new DOMException('aborted', 'AbortError')) }, { once: true })
           },
           cancel: () => { this.streamCancel() },
         })
@@ -506,6 +508,57 @@ describe('E2BFileSystem identity, metadata, and reads', () => {
     remote.streamChunks = undefined
     remote.streamKeepOpen = false
     expect((await fs.readBytes(await fs.resolve('empty.bin'), undefined, 4)).byteLength).toBe(0)
+  })
+
+  it('readByteRange skips to the offset, keeps the window, and cancels the stream there', async () => {
+    const remote = new FakeRemote()
+    remote.file('/workspace/ramp.bin', [1, 2, 3, 4, 5, 6, 7, 8, 9])
+    const { fs } = await setup(remote)
+    const target = await fs.resolve('ramp.bin')
+    remote.streamChunks = [bytes([1, 2, 3]), bytes([4, 5, 6]), bytes([7, 8, 9])]
+    remote.streamKeepOpen = true
+    expect(Array.from(await fs.readByteRange(target, { offset: 4, length: 3 }))).toEqual([5, 6, 7])
+    expect(remote.reads).toEqual([{ path: '/workspace/ramp.bin', format: 'stream' }])
+    expect(remote.streamCancel).toHaveBeenCalledOnce()
+  })
+
+  it('readByteRange shortens at the end, empties past it, and skips the read for length 0', async () => {
+    const remote = new FakeRemote()
+    remote.file('/workspace/ramp.bin', [1, 2, 3, 4, 5, 6, 7, 8, 9])
+    remote.dir('/workspace/directory')
+    const { fs } = await setup(remote)
+    const target = await fs.resolve('ramp.bin')
+    remote.streamChunks = [bytes([1, 2, 3]), bytes([4, 5, 6]), bytes([7, 8, 9])]
+    expect(Array.from(await fs.readByteRange(target, { offset: 7, length: 10 }))).toEqual([8, 9])
+    expect(remote.streamCancel).not.toHaveBeenCalled()
+    expect((await fs.readByteRange(target, { offset: 9, length: 2 })).byteLength).toBe(0)
+    remote.reads.length = 0
+    expect((await fs.readByteRange(target, { offset: 0, length: 0 })).byteLength).toBe(0)
+    expect(remote.reads).toEqual([])
+    await expectCode(fs.readByteRange(await fs.resolve('missing'), { offset: 0, length: 1 }), 'FS_NOT_FOUND')
+    await expectCode(fs.readByteRange(await fs.resolve('directory'), { offset: 0, length: 1 }), 'FS_NOT_REGULAR_FILE')
+  })
+
+  it('readByteRange maps a failing open, an abort mid-stream, and tolerates a failing cancel', async () => {
+    const remote = new FakeRemote()
+    remote.file('/workspace/ramp.bin', [1, 2, 3, 4])
+    const { fs } = await setup(remote)
+    const target = await fs.resolve('ramp.bin')
+    remote.nextReadError = new DOMException('aborted', 'AbortError')
+    await expectCode(fs.readByteRange(target, { offset: 0, length: 2 }), 'FS_ABORTED')
+
+    // The window wants more than the one chunk delivered; the abort fails the open stream.
+    remote.streamChunks = [bytes([1])]
+    remote.streamKeepOpen = true
+    const controller = new AbortController()
+    const pending = fs.readByteRange(target, { offset: 0, length: 4 }, controller.signal)
+    await new Promise<void>((resolve) => { setTimeout(resolve, 0) })
+    controller.abort()
+    await expectCode(pending, 'FS_ABORTED')
+
+    remote.streamChunks = [bytes([1, 2, 3, 4])]
+    remote.streamCancel.mockRejectedValueOnce(new Error('cancel failed'))
+    expect(Array.from(await fs.readByteRange(target, { offset: 1, length: 2 }))).toEqual([2, 3])
   })
 
   it('honors aborts before and during remote reads', async () => {

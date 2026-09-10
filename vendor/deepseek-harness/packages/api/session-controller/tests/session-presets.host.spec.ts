@@ -66,9 +66,8 @@ async function harness(presets?: readonly string[]) {
         options.meta === undefined ? {} : { meta: options.meta },
       )
       const agent = stubAgent(session)
-      const agentCtx = ctx.extend({ agent })
-      ;(agent as { ctx?: Context }).ctx = agentCtx
-      await options.setup?.(agentCtx)
+      ;(agent as { ctx?: Context }).ctx = ctx
+      await options.setup?.(ctx, agent)
       const unregister = ctx.agents.register(agent)
       return { agent, dispose: () => { unregister(); return Promise.resolve() } }
     },

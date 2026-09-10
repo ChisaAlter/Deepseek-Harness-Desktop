@@ -9,9 +9,9 @@ kind: "package-reference"
 
 ## 概述
 
-历史投影移除标识畸形的工具调用及其关联工具结果，保留其他内容和原始追加日志。被修改的模型消息不再携带不透明重放状态；有效但尚未完成的工具组保持不变。
+`dsh-session` 在仅追加的会话日志中记录每个模型可见事实，并从该记录派生模型历史。消费方可以检查、回放、派生和刷新会话，同时保留历史事件；压缩会在活跃对话中隐藏被取代的条目，但不会删除它们。除非添加持久化后端，否则会话仅保留在内存中；持久性检查点会等待配置的后端。agent 需要可重建的会话记录时请选择本包；它本身不调用模型。
 
-`dsh-session` 提供仅追加的会话日志，记录 agent（智能体）的完整交互历史——每个模型可见事实都流经的单一真源。LLM（大语言模型）消息历史由日志*派生*（`deriveMessages()`），从不另行存储，因此回放就是对同一批事件重新派生，压缩（compaction）也可以遮蔽较旧的表层条目而不删除历史。该包还提供内存存储（`ctx.sessions`）、插件通过声明合并扩展的类型化 `SessionEvent` 词汇，以及为产生消息的事件排序的 surface 层。持久化刻意是独立关注点：后端订阅 `session/event` 并在 `session/flush` 时刷新。作为任何 agent 会话的基础时请选择本包；它本身不运行模型调用。
+历史投影移除标识畸形的工具调用及其关联工具结果，保留其他内容和原始追加日志。被修改的模型消息不再携带不透明重放状态；有效但尚未完成的工具组保持不变。
 
 ## 目录
 
@@ -49,7 +49,11 @@ session.append('user/message', { role: 'user', content: [{ type: 'text', text: '
 session.deriveMessages()         // the derived model history
 ```
 
-表层事件（`user/message`、`assistant/message`、`tool/result`）必须声明如何进入有序 surface。Assistant message 会嵌入产生它的精确紧凑 provider stream；`assistant/attempt`、边界与其他仅日志事件从不产生消息。
+表层事件（`system/message`、`user/message`、`assistant/message`、`tool/result`）在类型化事件与追加输入中都必须带有 `surfaceOp`。替换操作仅接受 `{ op: 'replace', startSeq, endSeq }`，端点为包含边界的 `SessionSeq`，按当前 surface 顺序解释。Assistant message 嵌入其精确紧凑 provider stream，并禁止 `sourceEventSeqs`。已知仅日志事件禁止这两个元数据字段，且从不产生消息。
+
+追加、seed/restore 与事件 adoption/snapshot 会拒绝任何 `header.system` 及恰好为空的可选请求头字段（`tools: []`、`adapterDefaults: {}`），而不规范化输入。工具结果的 `data.error` 仅在 `message.content[0].isError === true` 时允许存在；失败标识仍是可选的。被拒绝的追加不会改变日志、派生状态或事件流。Adoption 校验事件局部元数据，但不校验所引用的历史或替换端点是否属于 surface。
+
+`system/message` 承载渲染后的系统提示词：第一条是 surface 第 0 号节点，准入依据已准备调用的能力，不具备能力的路由将非空渲染文本归并到首个系统节点，延续中的 `in-history` 序列则在缓存历史之后追加；空系统节点不投影为消息，因此清除提示词必须为所有生效的系统节点记录空内容替换，而非仅替换最新节点；当第 0 号节点是 `system/message` 时，surface 折叠拒绝覆盖它的替换，除非替换事件本身是恰好覆盖该节点的 `system/message`，而后续系统节点不受保护，压缩范围可以遮蔽它们（[决策](../../../.agents/notes/implemented/architecture/2026-09-02-system-prompt-as-surface-node.zh.md)）。
 
 ### 读取日志
 
@@ -103,11 +107,11 @@ session.deriveMessages()         // the derived model history
 
 ### 派生历史
 
-`deriveMessages()` 把每个 surface 节点的投影缓存一次，每次调用都返回共享、深度冻结消息之上的新数组；三种 surface 事件类型（`user/message`、`assistant/message`、`tool/result`）各自投影自己的消息种类——user 内容原样、带提供方与模型的组装 assistant 消息，或 user 角色的工具结果。嵌入式 Assistant stream 与 `assistant/attempt` 事件只保留重放和诊断数据。surface 重写会重建投影——不存在原始日志回退，因此 surface 是派生历史的唯一来源。
+`deriveMessages()` 把每个 surface 节点的投影缓存一次，每次调用都返回共享、深度冻结消息之上的新数组；四种 surface 事件类型（`system/message`、`user/message`、`assistant/message`、`tool/result`）各自投影自己的消息种类——system 角色的提示词（空内容的系统节点投影为无消息）、user 内容原样、带提供方与模型的组装 assistant 消息，或 user 角色的工具结果。嵌入式 Assistant stream 与 `assistant/attempt` 事件只保留重放和诊断数据。surface 重写会重建投影——不存在原始日志回退，因此 surface 是派生历史的唯一来源。
 
 ### 请求头
 
-循环在每个循环实例边界及变更时记录完整规范 `request/header` 快照（调用配置、适配器默认值、渲染后的系统提示词、组装后的工具 schema）；`foldRequestHeader(events)` 通过选择最新快照来重建它，使每个对话请求都成为日志的纯函数。路由元数据（`request/context`）是独立的已记录状态，仅在提供方、模型或容量变化时追加。
+循环在每个循环实例边界及变更时记录完整规范 `request/header` 快照（调用配置、适配器默认值、组装后的工具 schema——渲染后的系统提示词是 `system/message` surface 节点，不是 header 状态）；`foldRequestHeader(events)` 通过选择最新快照来重建它，使每个对话请求都成为日志的纯函数。路由元数据（`request/context`）是独立的已记录状态，仅在提供方、模型、容量或 `systemPromptUpdate` 模式变化时追加；它在提示词与用户消息准入之后记录实际已准备调用的模式，而非提供准入决策。
 
 </details>
 
@@ -133,7 +137,7 @@ session.deriveMessages()         // the derived model history
 
 #### 模型看到什么
 
-模型会原样接收 `user/message`、`assistant/message` 与 `tool/result` surface 条目中的完整消息——标识、角色、来源与内容块都与创建时确定的值相同，投影从不生成标识。直接提示词与注入上下文仍是彼此独立的 `user/message` 事件，各事件的来源会保留其出处。嵌入式 stream、`assistant/attempt`、边界与其他仅日志事实不会添加消息。
+模型会原样接收 `system/message`、`user/message`、`assistant/message` 与 `tool/result` surface 条目中的完整消息，系统提示词在先——标识、角色、来源与内容块都与创建时确定的值相同，投影从不生成标识。直接提示词与注入上下文仍是彼此独立的 `user/message` 事件，各事件的来源会保留其出处。嵌入式 stream、`assistant/attempt`、边界与其他仅日志事实不会添加消息。
 
 #### Token 影响
 
@@ -161,15 +165,15 @@ session.deriveMessages()         // the derived model history
 
 #### 模型看到什么
 
-会话会重建循环实际发送的系统提示词、工具 schema、调用配置与会话前缀。请求头事件不会向消息历史加入第二份副本；前缀在 `deriveMessages()` 外部前置。
+会话会重建循环实际发送的工具 schema 与调用配置；系统提示词作为 surface 第 0 号节点、并在历史内更新之后作为最新的系统节点，属于 `deriveMessages()` 的一部分。请求头事件不向历史加入任何消息，也不持有提示词的副本。
 
 #### Token 影响
 
-日志记录不产生重复 token。重建的前缀、系统文本与 schema 仍会产生正常的逐请求开销。
+日志记录不产生重复 token。各系统节点与 schema 仍会产生正常的逐请求开销。
 
 #### KV Cache 影响
 
-记录日志不会导致失效，精确重建会保持请求前缀一致。后续请求头若更改前缀、提示词或 schema，可能从第一处差异开始使复用失效。
+记录日志不会导致失效，精确重建会保持请求前缀一致。后续请求头若更改配置或 schema，可能从第一处差异开始使复用失效；替换 surface 第 0 号节点的提示词变更会从第一个 token 起使复用失效，而历史内追加则保持直到已缓存历史末尾的前缀可复用。
 
 ## 已知限制与延期工作
 
@@ -178,8 +182,8 @@ session.deriveMessages()         // the derived model history
 
 这些限制说明会话存储何时需要特别留意。它们是当前包约束，不是任务积压。
 
-- **`fork()` 仅在实时会话的稳定边界处切分**：所选前缀结束时不得有开放轮次，且源会话必须位于存储中；[fork API](../../../.agents/notes/implemented/feature/2026-06-30-session-store-fork-api.zh.md) 不支持对已持久化但未加载的会话进行 fork。
-- **`SESSION_FORMAT_VERSION` 只命名当前逻辑表示**——历史 header 与事件位于相邻格式包中，持久化会在构造 `Session` 前发布完整受支持链；同版本未知事件仍要求信封显式带有 `ignorable` 标记（[机制](../../../.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.zh.md)）。
+- **`fork()` 仅在实时会话的稳定边界处切分**：所选前缀结束时不得有开放轮次，且源会话必须位于存储中；fork API 不支持对已持久化但未加载的会话进行 fork。
+- **`SESSION_FORMAT_VERSION` 命名[当前逻辑表示](../../../docs/session-format-status.zh.md)**——当前读取器拒绝已退役的 `header.system`，并校验 `system/message` 载荷与受保护头节点的重写。历史 header 与事件归相邻格式包所有；相邻迁移链在构造 `Session` 前转换受支持的历史，写打开只发布当前格式的后继代际。同版本未知事件要求信封显式带有 `ignorable` 标记，但这不保证结构迁移的安全性（[机制](../../../.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.zh.md)）。
 - **`TurnEndReasonMap` 不含 ACP（Agent Client Protocol）命名的 `refusal`／`max_turn_requests` 变体**：受生产方约束；只有当适配器或循环首次产生这些变体时才加入。
 - **fork 之外没有会话树**：基于分支会话的 pi 风格条目树被推迟，除非消费方需要超越基于边界的 forking 的能力。
 

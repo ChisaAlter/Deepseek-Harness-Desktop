@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-reference` is the unified Web `@file` and `@session` reference source: it registers the `reference` entry in the composer's inline-suggestion machinery so a user typing `@` sees file and session candidates in one list. Files order before sessions, sections are labelled with locale-registered terms, and either candidate domain can fail independently without blocking the other. Each row carries only what distinguishes it: a file names its parent directory and nothing at the workspace root, a session names its workspace only when that workspace is not the current one, and a drilled directory listing names none because its breadcrumb already does. A pick inserts an atomic inline reference — file, folder, and session alike — whose hidden serialized and clipboard form is the natural text the shared `@path` grammar defines; a directory row additionally carries a drill verb (Tab or the row's chevron) that keeps plain editable path text and the menu active at its trailing slash so the user can descend another level. Selecting a session routes through the session-reference service, which validates the mention and captures model context at the pre-step boundary; this package itself registers no prompt or tool.
+Use `dsh-client-ui-reference` when Web users need to mention files, folders, or sessions from one `@` completion menu. It lists files before sessions and keeps either group available when the other cannot load. Picking a file, folder, or session inserts an atomic reference with a stable clipboard form; folder rows also let users descend without closing completion. File rows omit redundant root locations, and session rows show a workspace only when it differs from the current one. Session mentions are validated before model context is captured, while browsing candidates has no model effect.
 
 ## Table of Contents
 
@@ -67,7 +67,7 @@ These pages cover the suggestion machinery, the reference seams, and the input p
 - [ui-input-trigger](../ui-input-trigger/README.md) — the inline suggestion machinery the source registers into.
 - [file-reference](../../context/file-reference/README.md) — the `@file` seam and its provider contract.
 - [session-reference](../../context/session-reference/README.md) — the `@session` seam and prepared snapshot semantics.
-- [Web input machine and slash pipeline](../../../.agents/notes/implemented/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md) — how references and commands share the input machine.
+- [Web input machine and slash pipeline](../../../.agents/notes/archived/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md) — how references and commands share the input machine.
 
 -----
 

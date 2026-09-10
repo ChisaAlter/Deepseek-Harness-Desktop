@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-code-runtime` defines what a code runtime does: run one model-written program against a set of host-provided async functions and report `{ value, logs, error? }` — without dictating how any backend implements it. Load it in a composition with a backend and the service is available as `ctx.codeRuntime`; PTC mode in `dsh-tools` then runs model-written programs that compose tools. Every request runs once with no state carried between runs, and every program outcome — including failures — resolves as a result field rather than a rejection. The runtime knows nothing about tools or sessions: it is handed a program and named bindings, and everything tool-shaped stays with the consumer.
+Use `dsh-code-runtime` to run one model-written program against host-provided asynchronous functions through a configured backend. A request returns a lossless-JSON value, ordered per-channel logs, or a structured error; program failures resolve in the result, while rejected promises indicate caller misuse. Each run is isolated from prior runs, and the runtime has no knowledge of tools or sessions. Choose an execution backend separately; its language and isolation descriptors identify the required source language and execution substrate but do not themselves promise a security boundary.
 
 ## Table of Contents
 

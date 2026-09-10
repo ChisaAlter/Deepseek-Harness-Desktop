@@ -163,12 +163,16 @@ export function contentHasImage(content: readonly ContentBlock[]): boolean {
 /**
  * True when typed model content contains a file block, walking nested
  * tool-result content on the same recursion every file policy shares.
+ * Reads current content on every call without retaining scan results.
  * @param content - typed model content blocks.
  * @returns whether any nested block is a file.
  */
 export function contentHasFile(content: readonly ContentBlock[]): boolean {
-  return content.some(block => block.type === 'file'
-    || (block.type === 'tool-result' && contentHasFile(block.content)))
+  for (const block of content) {
+    if (block.type === 'file'
+      || (block.type === 'tool-result' && contentHasFile(block.content))) return true
+  }
+  return false
 }
 
 /**

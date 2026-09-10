@@ -11,6 +11,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -32,9 +33,8 @@ CODE_PROMPT = "Use run_code to compute the packaged worker smoke value."
 CODE_WORKER_TEXT = "code worker smoke ok"
 WORKFLOW_PROMPT = "Use workflow to compute the packaged worker smoke value without agents."
 WORKFLOW_WORKER_TEXT = "workflow worker smoke ok"
-MINIMAL_PROMPT = "Exercise the packaged minimal agent's persistent shell and string-replacement editor."
+MINIMAL_PROMPT = "Exercise the packaged minimal agent's persistent shell."
 MINIMAL_TEXT = "minimal agent smoke ok"
-MINIMAL_EDITOR_PATH_PREFIX = "Editor path: "
 FS_SEARCH_PROMPT = "Exercise the packaged filesystem search tools."
 FS_SEARCH_TEXT = "filesystem search smoke ok"
 FS_SEARCH_MARKER = "PACKAGED_FS_SEARCH_OK"
@@ -126,7 +126,7 @@ ADVANCED_SNAPSHOT_DIRECTORY = (
     Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "advanced"
 )
 ADVANCED_SNAPSHOT_FILENAMES = (
-    "result.json", "session.v2.jsonl", "session.1.v2.jsonl", "session.2.v2.jsonl",
+    "result.json", "session.v3.jsonl", "session.1.v3.jsonl", "session.2.v3.jsonl",
 )
 MINIMAL_SNAPSHOT_DIRECTORY = (
     Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "minimal"
@@ -134,11 +134,15 @@ MINIMAL_SNAPSHOT_DIRECTORY = (
 if IS_WINDOWS:
     MINIMAL_SNAPSHOT_DIRECTORY /= "win-x64"
 MINIMAL_SNAPSHOT_FILENAMES = ("model-visible.json",)
+IN_HISTORY_SNAPSHOT_DIRECTORY = (
+    Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "minimal-in-history"
+)
+IN_HISTORY_SNAPSHOT_FILENAMES = ("prompt-history.json",)
 RESTART_SNAPSHOT_DIRECTORY = (
     Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "restart"
 )
 RESTART_SNAPSHOT_FILENAMES = (
-    "result.json", "requests.json", "session.1.v2.jsonl", "session.2.v2.jsonl",
+    "result.json", "requests.json", "session.1.v3.jsonl", "session.2.v3.jsonl",
 )
 MCP_SERVER_SCRIPT = """\
 import json
@@ -313,7 +317,8 @@ def completion_chunks(body: dict[str, object]) -> list[dict[str, object]]:
     messages = body.get("messages")
     if not isinstance(messages, list) or not messages:
         raise AssertionError(f"model request has no messages: {body}")
-    latest = messages[-1]
+    # A system prompt update may follow the tool result without replacing it.
+    latest = next(message for message in reversed(messages) if message.get("role") != "system")
     if not isinstance(latest, dict):
         raise AssertionError(f"model request has an invalid latest message: {body}")
 
@@ -329,7 +334,7 @@ def completion_chunks(body: dict[str, object]) -> list[dict[str, object]]:
         spawn_node = spawn_node_tool_followup(call_id, tool_name, tool_text)
         if spawn_node is not None:
             return spawn_node
-        minimal = minimal_tool_followup(body, call_id, tool_name, tool_text)
+        minimal = minimal_tool_followup(call_id, tool_name, tool_text)
         if minimal is not None:
             return minimal
         advanced = advanced_tool_followup(body, call_id, tool_name, tool_text)
@@ -348,14 +353,7 @@ def completion_chunks(body: dict[str, object]) -> list[dict[str, object]]:
         for message in reversed(messages)
         if isinstance(message, dict) and message.get("role") == "user"
     ]
-    minimal_prompt = next(
-        (
-            prompt
-            for prompt in user_prompts
-            if prompt.startswith(f"{MINIMAL_PROMPT}\n{MINIMAL_EDITOR_PATH_PREFIX}")
-        ),
-        None,
-    )
+    minimal_prompt = next((prompt for prompt in user_prompts if prompt == MINIMAL_PROMPT), None)
     # The minimal composition's assembled system prompt, advertised tool schemas, and
     # model-visible messages are pinned by its snapshot, not asserted here.
     if minimal_prompt is not None:
@@ -528,12 +526,11 @@ def spawn_node_tool_followup(
 
 
 def minimal_tool_followup(
-    body: dict[str, object],
     call_id: str,
     tool_name: str,
     tool_text: str,
 ) -> list[dict[str, object]] | None:
-    """Verify the checked-in minimal composition's PTY and editor."""
+    """Verify the checked-in minimal composition's persistent PTY."""
     if not call_id.startswith("minimal-"):
         return None
     if call_id == "minimal-bash-1" and tool_name == MINIMAL_SHELL_TOOL:
@@ -548,33 +545,6 @@ def minimal_tool_followup(
         expected = f"COUNT=2 CWD={MINIMAL_SHELL_SECOND_CWD}"
         if expected.lower() not in tool_text.lower():
             raise AssertionError(f"persistent shell did not retain state: {tool_text}")
-        messages = body.get("messages")
-        if not isinstance(messages, list):
-            raise AssertionError("persistent editor smoke request has no messages")
-        editor_path = next(
-            (
-                text.split(MINIMAL_EDITOR_PATH_PREFIX, 1)[1].strip()
-                for message in messages
-                if isinstance(message, dict) and message.get("role") == "user"
-                for text in [message_text(message.get("content"))]
-                if MINIMAL_EDITOR_PATH_PREFIX in text
-            ),
-            None,
-        )
-        if editor_path is None:
-            raise AssertionError("persistent editor smoke prompt has no editor path")
-        return tool_call_chunks(
-            "minimal-editor",
-            "str_replace_editor",
-            {
-                "command": "create",
-                "path": editor_path,
-                "file_text": "created by packaged editor\n",
-            },
-        )
-    if call_id == "minimal-editor" and tool_name == "str_replace_editor":
-        if "New file created successfully" not in tool_text:
-            raise AssertionError(f"packaged editor did not create its file: {tool_text}")
         return text_chunks(MINIMAL_TEXT)
     raise AssertionError(f"unexpected minimal-agent follow-up: {call_id} {tool_name}: {tool_text}")
 
@@ -769,7 +739,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--scenario",
-        choices=("all", "sdk-default", "sdk-custom", "sdk-minimal", "sdk-fs-search", "sdk-spawn-node", "sdk-mcp", "sdk-snapshot", "sdk-restart", "sdk-profile-plugin", "sdk-live", "direct"),
+        choices=("all", "sdk-default", "sdk-custom", "sdk-minimal", "sdk-minimal-in-history", "sdk-fs-search", "sdk-spawn-node", "sdk-mcp", "sdk-snapshot", "sdk-restart", "sdk-profile-plugin", "sdk-live", "runner", "direct"),
         default="all",
     )
     parser.add_argument("--exe", type=Path)
@@ -788,12 +758,19 @@ def main() -> None:
         parser.error("--scenario sdk-profile-plugin requires --installed-wheel")
     if args.installed_wheel:
         args.exe = assert_installed_wheel_environment()
-    if args.scenario in {"all", "sdk-custom", "sdk-minimal", "sdk-fs-search", "sdk-spawn-node", "sdk-snapshot", "sdk-restart", "direct"} and args.exe is None:
-        parser.error("--exe is required for custom, minimal, snapshot, and direct scenarios")
-    if args.update_snapshots and args.scenario not in {"all", "sdk-minimal", "sdk-snapshot", "sdk-restart"}:
-        parser.error("--update-snapshots requires --scenario sdk-minimal, sdk-snapshot, sdk-restart, or all")
+    if args.scenario in {"all", "sdk-custom", "sdk-minimal", "sdk-minimal-in-history", "sdk-fs-search", "sdk-spawn-node", "sdk-snapshot", "sdk-restart", "runner", "direct"} and args.exe is None:
+        parser.error("--exe is required for custom, minimal, fs-search, spawn-node, snapshot, restart, runner, and direct scenarios")
+    if args.update_snapshots and args.scenario not in {"all", "sdk-minimal", "sdk-minimal-in-history", "sdk-snapshot", "sdk-restart"}:
+        parser.error("--update-snapshots requires --scenario sdk-minimal, sdk-minimal-in-history, sdk-snapshot, sdk-restart, or all")
     if args.exe is not None and not args.exe.is_file():
         parser.error(f"runtime executable does not exist: {args.exe}")
+
+    if args.scenario in {"all", "runner"}:
+        assert args.exe is not None
+        smoke_packaged_runner(args.exe.resolve())
+    if args.scenario == "runner":
+        print("smoke-python-runtime: runner passed")
+        return
 
     if args.scenario == "sdk-live":
         smoke_sdk_live()
@@ -809,6 +786,9 @@ def main() -> None:
         if args.scenario in {"all", "sdk-minimal"}:
             assert args.exe is not None
             smoke_sdk_minimal(model.url, args.exe.resolve(), args.update_snapshots)
+        if args.scenario in {"all", "sdk-minimal-in-history"}:
+            assert args.exe is not None
+            smoke_sdk_minimal(model.url, args.exe.resolve(), args.update_snapshots, in_history=True)
         if args.scenario in {"all", "sdk-fs-search"}:
             assert args.exe is not None
             smoke_sdk_fs_search(model.url, args.exe.resolve())
@@ -904,12 +884,9 @@ def smoke_sdk_live() -> None:
         session_id = "installed-wheel-live-api"
         shell_tool = "pwsh" if IS_WINDOWS else "bash"
         create_prompt = (
-            f"Use the {shell_tool} tool to create the file at the absolute path below with exactly one line "
-            f"containing {LIVE_API_SENTINEL}. Then reply with exactly {LIVE_API_SENTINEL}.\n{marker}"
-        )
-        verify_prompt = (
-            "Use a tool to read the file created in the previous turn. "
-            f"If its only line is {LIVE_API_SENTINEL}, reply with exactly {LIVE_API_SENTINEL}."
+            f"Use the {shell_tool} tool to create the file at the absolute path below with exact UTF-8 "
+            f"content {LIVE_API_SENTINEL}, with no newline or byte-order mark. "
+            f"Then reply with exactly {LIVE_API_SENTINEL}.\n{marker}"
         )
         with DeepSeekHarness(
             provider="deepseek-official",
@@ -925,33 +902,55 @@ def smoke_sdk_live() -> None:
             request_timeout_seconds=180,
         ) as harness:
             created = harness.run(create_prompt, session_id=session_id)
-            verified = harness.run(verify_prompt, session_id=session_id)
+            assert_live_turn("create", created)
+            if not marker.is_file():
+                raise AssertionError(f"create turn did not create {marker}")
+            if marker.read_bytes() != LIVE_API_SENTINEL.encode("utf-8"):
+                raise AssertionError(f"create turn wrote unexpected bytes to {marker}")
 
-        for label, result in (("create", created), ("verify", verified)):
-            if result.finish_reason != "completed":
-                event_types = [event.get("type") for event in result.events]
-                turn_end_data = next(
-                    (event.get("data") for event in reversed(result.events) if event.get("type") == "turn/end"),
-                    None,
+            # The challenge is absent from the prior turn and the verification prompt.
+            challenge = secrets.token_hex(32).encode("ascii")
+            marker.write_bytes(challenge)
+            with tempfile.TemporaryDirectory(prefix="receipt-", dir=root) as receipt_directory:
+                receipt = Path(receipt_directory) / "receipt.txt"
+                verify_prompt = (
+                    "The file created in the previous turn has changed externally. "
+                    "Use a tool to read that same file and copy its exact current content to the "
+                    "new receipt path below, without changing the source file. "
+                    "Preserve every byte; do not add a newline or byte-order mark. "
+                    f"Then reply with exactly {LIVE_API_SENTINEL}.\n{receipt}"
                 )
-                turn_end = safe_turn_end(turn_end_data)
-                raise AssertionError(
-                    f"{label} turn ended with {result.finish_reason!r}; "
-                    f"final={result.final_response!r}; turn_end={turn_end!r}; events={event_types}"
-                )
-            if not any(event.get("type") == "tool/call" for event in result.events):
-                raise AssertionError(
-                    f"{label} turn made no model-requested tool call; "
-                    f"final={result.final_response!r}"
-                )
-            if result.final_response.strip() != LIVE_API_SENTINEL:
-                raise AssertionError(f"{label} turn returned {result.final_response!r}")
-        if not marker.is_file():
-            raise AssertionError(f"real-model tool turn did not create {marker}")
-        if marker.read_text(encoding="utf-8").splitlines() != [LIVE_API_SENTINEL]:
-            raise AssertionError(f"real-model tool turn wrote unexpected text to {marker}")
+                verified = harness.run(verify_prompt, session_id=session_id)
+                assert_live_turn("verify", verified)
+                if not receipt.is_file():
+                    raise AssertionError(f"verify turn did not create receipt {receipt}")
+                if receipt.read_bytes() != challenge:
+                    raise AssertionError(f"verify turn wrote unexpected bytes to receipt {receipt}")
+                if not marker.is_file() or marker.read_bytes() != challenge:
+                    raise AssertionError(f"verify turn changed source file {marker}")
         assert_zstd_session_log(sessions)
 
+
+def assert_live_turn(label: str, result: RunResult) -> None:
+    """Require completed model tool use and the exact smoke answer for each live turn."""
+    if result.finish_reason != "completed":
+        event_types = [event.get("type") for event in result.events]
+        turn_end_data = next(
+            (event.get("data") for event in reversed(result.events) if event.get("type") == "turn/end"),
+            None,
+        )
+        turn_end = safe_turn_end(turn_end_data)
+        raise AssertionError(
+            f"{label} turn ended with {result.finish_reason!r}; "
+            f"final={result.final_response!r}; turn_end={turn_end!r}; events={event_types}"
+        )
+    if not any(event.get("type") == "tool/call" for event in result.events):
+        raise AssertionError(
+            f"{label} turn made no model-requested tool call; "
+            f"final={result.final_response!r}"
+        )
+    if result.final_response.strip() != LIVE_API_SENTINEL:
+        raise AssertionError(f"{label} turn returned {result.final_response!r}")
 
 def safe_turn_end(value: object) -> object:
     """Project a live-provider failure without retaining credential-bearing text."""
@@ -1038,7 +1037,9 @@ def smoke_sdk_custom(base_url: str, executable: Path) -> None:
         assert_session_log(sessions, root, EXPECTED_TEXT, CODE_WORKER_TEXT, WORKFLOW_WORKER_TEXT)
 
 
-def smoke_sdk_minimal(base_url: str, executable: Path, update_snapshots: bool) -> None:
+def smoke_sdk_minimal(
+    base_url: str, executable: Path, update_snapshots: bool, *, in_history: bool = False,
+) -> None:
     """Exercise the shipped standalone minimal profile through the packaged executable."""
     from deepseek_harness import DeepSeekHarness
 
@@ -1046,10 +1047,21 @@ def smoke_sdk_minimal(base_url: str, executable: Path, update_snapshots: bool) -
     first_request = len(MockModelHandler.requests)
     with tempfile.TemporaryDirectory(prefix="dsh-sdk-minimal-") as temporary:
         root = Path(temporary).resolve()
-        editor_path = root / "created.txt"
-        prompt = f"{MINIMAL_PROMPT}\n{MINIMAL_EDITOR_PATH_PREFIX}{editor_path}"
         dsh_home = root / "home"
         sessions = dsh_home / "sessions"
+        patches = ()
+        if in_history:
+            patch = root / "in-history.patch.yml"
+            patch.write_text(json.dumps([
+                {"id": "llm-deepseek", "config": {"models": [
+                    {"id": "smoke-model", "systemPromptUpdate": "in-history"},
+                ]}},
+                {"insert": [{
+                    "id": "in-history-prompt",
+                    "name": (Path(__file__).resolve().parent / "fixtures/python-sdk-in-history-prompt.mjs").as_uri(),
+                }]},
+            ]))
+            patches = (str(patch),)
         with DeepSeekHarness(
             provider="deepseek-official",
             model="smoke-model",
@@ -1057,23 +1069,30 @@ def smoke_sdk_minimal(base_url: str, executable: Path, update_snapshots: bool) -
             dsh_bin=str(executable),
             dsh_home=str(dsh_home),
             profile="sdk-minimal",
+            patches=patches,
             api_key="sk-keyless-smoke",
             base_url=base_url,
             request_timeout_seconds=60,
         ) as harness:
-            result = harness.run(prompt, session_id="minimal-agent-smoke")
+            result = harness.run(MINIMAL_PROMPT, session_id="minimal-agent-smoke")
 
         event_text = json.dumps(result.events)
         if MINIMAL_TEXT not in event_text:
             raise AssertionError(f"minimal agent run emitted no final response: {result.events}")
-        if editor_path.read_text() != "created by packaged editor\n":
-            raise AssertionError(f"packaged editor wrote unexpected content: {editor_path.read_text()!r}")
         assert_session_log(sessions, root, MINIMAL_TEXT, "COUNT=1", "COUNT=2")
 
-        files = build_minimal_snapshot_files(MockModelHandler.requests[first_request:], root)
-        compare_snapshot_files(
-            files, update_snapshots, MINIMAL_SNAPSHOT_DIRECTORY, MINIMAL_SNAPSHOT_FILENAMES,
-        )
+        requests = MockModelHandler.requests[first_request:]
+        if in_history:
+            logs = read_session_logs(sessions)
+            files = build_in_history_snapshot_files(result, requests, logs[result.session_id])
+            compare_snapshot_files(
+                files, update_snapshots, IN_HISTORY_SNAPSHOT_DIRECTORY, IN_HISTORY_SNAPSHOT_FILENAMES,
+            )
+        else:
+            files = build_minimal_snapshot_files(requests, root)
+            compare_snapshot_files(
+                files, update_snapshots, MINIMAL_SNAPSHOT_DIRECTORY, MINIMAL_SNAPSHOT_FILENAMES,
+            )
 
 
 def smoke_sdk_fs_search(base_url: str, executable: Path) -> None:
@@ -1227,6 +1246,7 @@ def smoke_sdk_profile_plugin(base_url: str) -> None:
         if installed.returncode != 0:
             raise AssertionError(
                 f"Python-installed dsh could not add the external profile plugin: "
+                f"returncode={installed.returncode} (0x{installed.returncode & 0xffffffff:08x}) "
                 f"stdout={installed.stdout!r} stderr={installed.stderr!r}"
             )
         manifest = json.loads((dsh_home / "profiles" / "sdk" / "package.json").read_text())
@@ -1269,13 +1289,25 @@ def smoke_sdk_snapshot(base_url: str, executable: Path, update_snapshots: bool) 
         dsh_home = root / "home"
         sessions = dsh_home / "sessions"
         patch = write_advanced_profile_patch(root, "snapshot.patch.yml", sessions)
+        feedback_patch = write_profile_patch(root, "feedback.patch.yml", sessions, [{"insert": [
+            {"id": "snapshot-workflow-order", "name": (
+                Path(__file__).resolve().parent / "fixtures/python-snapshot-workflow-order.mjs"
+            ).as_uri(), "config": {
+                "parentSessionId": SNAPSHOT_SESSION_ID, "prompt": SNAPSHOT_WORKFLOW_CHILD_PROMPT,
+            }},
+            {"id": "snapshot-message-feedback", "name": "@deepseek-ai/dsh-message-feedback",
+             "config": {"maxNoteBytes": 1024}},
+            {"id": "snapshot-feedback-producer", "name": (
+                Path(__file__).resolve().parent.parent / "snapshots/sdk/text-turn/feedback-producer.mjs"
+            ).as_uri()},
+        ]}])
         with DeepSeekHarness(
             provider="deepseek-official",
             model="smoke-model",
             cwd=str(root),
             dsh_bin=str(executable),
             dsh_home=str(dsh_home),
-            patches=(str(patch),),
+            patches=(str(patch), str(feedback_patch)),
             env={
                 "DSH_PERMISSION_MODE": "danger-full-access",
                 "DSH_TELEMETRY_DISABLED": "1",
@@ -1287,11 +1319,22 @@ def smoke_sdk_snapshot(base_url: str, executable: Path, update_snapshots: bool) 
             result = harness.run(SNAPSHOT_PROMPT, session_id=SNAPSHOT_SESSION_ID)
 
         assert result.final_response == SNAPSHOT_FINAL_TEXT, result.final_response
+        feedback_types = [event.get("type") for event in result.events
+                          if str(event.get("type")).startswith("feedback/")]
+        if feedback_types != ["feedback/record", "feedback/record", "feedback/message-put", "feedback/message-put", "feedback/message-delete"]:
+            raise AssertionError(f"advanced snapshot did not exercise all feedback mutations: {feedback_types}")
         methods = [notification.method for notification in result.notifications]
         if methods.count("subagent.started") != 2 or methods.count("subagent.finished") != 2:
             raise AssertionError(f"advanced snapshot emitted unexpected subagent lifecycle: {methods}")
-        if not any(event.get("type") == "tool/code-dispatch" for event in result.events):
-            raise AssertionError("advanced snapshot emitted no tool/code-dispatch event")
+        ptc_events = [event for event in result.events
+                      if event.get("type") in ("tool/ptc-dispatch-start", "tool/ptc-dispatch")]
+        if [event["type"] for event in ptc_events] != ["tool/ptc-dispatch-start", "tool/ptc-dispatch"]:
+            raise AssertionError(f"advanced snapshot emitted unexpected PTC dispatch events: {ptc_events}")
+        for event in ptc_events:
+            data = event["data"]
+            identity = (data.get("rootCallId"), data.get("parentCallId"), data.get("subCallId"))
+            if identity != ("advanced-code", "advanced-code", "advanced-code:ptc:1"):
+                raise AssertionError(f"advanced snapshot emitted unexpected PTC dispatch identity: {identity}")
 
         logs = read_session_logs(sessions)
         child_ids = snapshot_child_ids(result)
@@ -1416,6 +1459,104 @@ def smoke_direct(base_url: str, executable: Path) -> None:
         assert_session_log(sessions, root, EXPECTED_TEXT)
 
 
+def smoke_packaged_runner(executable: Path) -> None:
+    """Exercise the private subprocess runner through the single-file entry."""
+    with tempfile.TemporaryDirectory(prefix="dsh-packaged-runner-") as temporary:
+        root = Path(temporary).resolve()
+        target_script = (
+            "import os,sys; "
+            "ok = (os.getcwd() == os.environ['PACKAGED_RUNNER_EXPECTED_CWD'] "
+            "and os.environ.get('DSH_SUBPROCESS_RUNNER') == 'target-collision-restored'); "
+            "sys.exit(7 if ok else 9)"
+        )
+        if not IS_WINDOWS:
+            request_path = root / "launch-request.json"
+            target_env = dict(os.environ)
+            target_env["DSH_SUBPROCESS_RUNNER"] = "target-collision-restored"
+            target_env["PACKAGED_RUNNER_EXPECTED_CWD"] = str(root)
+            request_path.write_text(
+                json.dumps({"cwd": str(root), "env": target_env}),
+                encoding="utf-8",
+            )
+            request_path.chmod(0o600)
+            environment = dict(os.environ)
+            environment["DSH_SUBPROCESS_RUNNER"] = str(request_path)
+            result = subprocess.run(
+                [str(executable), "--", sys.executable, "-c", target_script],
+                cwd=root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            if result.returncode != 7 or request_path.exists() or (root / "startup-error.json").exists():
+                raise AssertionError(
+                    "packaged POSIX runner failed: "
+                    f"exit={result.returncode}; stdout={result.stdout!r}; stderr={result.stderr!r}"
+                )
+            return
+
+        node = shutil.which("node")
+        if node is None:
+            raise AssertionError("packaged Windows runner smoke requires node on PATH")
+        helper = root / "windows-runner-smoke.mjs"
+        helper.write_text(
+            """import { spawn } from 'node:child_process'
+const [runtime, target, cwd, targetScript] = process.argv.slice(2)
+const child = spawn(runtime, ['--', target, '-c', targetScript], {
+  cwd,
+  env: { ...process.env, DSH_SUBPROCESS_RUNNER: 'windows' },
+  stdio: ['ignore', 'ignore', 'ignore', 'ipc', 'pipe', 'pipe', 'pipe'],
+})
+const messages = []
+let stdout = ''
+let stderr = ''
+child.stdio[4].destroy()
+child.stdio[5].on('data', chunk => { stdout += chunk.toString() })
+child.stdio[6].on('data', chunk => { stderr += chunk.toString() })
+child.on('message', message => { messages.push(message) })
+const result = await new Promise((resolve, reject) => {
+  child.once('error', reject)
+  child.once('spawn', () => {
+    child.send({
+      type: 'start',
+      cwd,
+      env: {
+        ...process.env,
+        DSH_SUBPROCESS_RUNNER: 'target-collision-restored',
+        PACKAGED_RUNNER_EXPECTED_CWD: cwd,
+      },
+    }, error => { if (error) reject(error) })
+  })
+  child.once('close', (exitCode, signal) => { resolve({ exitCode, signal }) })
+})
+process.stdout.write(JSON.stringify({ ...result, messages, stdout, stderr }))
+""",
+            encoding="utf-8",
+        )
+        helper_result = subprocess.run(
+            [node, str(helper), str(executable), sys.executable, str(root), target_script],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if helper_result.returncode != 0:
+            raise AssertionError(f"packaged Windows runner helper failed: {helper_result.stderr}")
+        observed = json.loads(helper_result.stdout)
+        expected = {
+            "exitCode": 0,
+            "signal": None,
+            "messages": [{"type": "target-exit", "exitCode": 7}],
+            "stdout": "",
+            "stderr": "",
+        }
+        if observed != expected:
+            raise AssertionError(f"packaged Windows runner returned unexpected facts: {observed}")
+
+
 def is_idle_notification(message: dict[str, object]) -> bool:
     """Return whether a JSON-RPC notification marks a session idle."""
     params = message.get("params")
@@ -1531,8 +1672,25 @@ def session_header_version(content: str, label: str) -> int:
     return version
 
 
+def assert_current_session_version(version: int, label: str) -> None:
+    """Require generated logs to use the source writer generation, independent of goldens."""
+    source = Path(__file__).resolve().parents[1] / "packages/core/session/src/types.ts"
+    declarations = re.findall(
+        r"^export const SESSION_FORMAT_VERSION = ([0-9]+)$",
+        source.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if len(declarations) != 1:
+        raise AssertionError(f"{source}: expected one literal SESSION_FORMAT_VERSION declaration")
+    current_version = int(declarations[0])
+    if version != current_version:
+        raise AssertionError(
+            f"{label}: expected current Session format v{current_version}, got v{version}",
+        )
+
+
 def assert_persisted_session_version(path: Path, content: str) -> int:
-    """Require a raw persistence basename and header to name the same generation."""
+    """Require generated persistence filenames and headers to use the current generation."""
     filename_version = persisted_session_filename_version(path)
     if filename_version is None:
         raise AssertionError(f"non-canonical Session persistence filename: {path.name}")
@@ -1542,6 +1700,7 @@ def assert_persisted_session_version(path: Path, content: str) -> int:
             f"{path.name}: filename declares Session format v{filename_version}, "
             f"header declares v{header_version}",
         )
+    assert_current_session_version(header_version, path.name)
     return header_version
 
 
@@ -1649,6 +1808,56 @@ def snapshot_child_ids(result: "RunResult") -> list[str]:
     return child_ids
 
 
+def build_in_history_snapshot_files(
+    result: "RunResult",
+    requests: list[dict[str, object]],
+    log: list[dict[str, object]],
+) -> dict[str, str]:
+    """Assert live requests, SDK subscriptions, and persistence retain both prompts."""
+    systems = [event for event in result.events if event.get("type") == "system/message"]
+    assert len(systems) == 2, systems
+    assert [event.get("surfaceOp") for event in systems] == ["append", "append"], systems
+    prompts = [message_text(event["data"]["message"]["content"]) for event in systems]
+    assert "Python SDK prompt version 1." in prompts[0], prompts
+    assert "Python SDK prompt version 2." not in prompts[0], prompts
+    assert "Python SDK prompt version 2." in prompts[1], prompts
+    assert "Python SDK prompt version 1." not in prompts[1], prompts
+    assert prompts[0] != prompts[1], prompts
+    assert [event for event in log if event.get("type") == "system/message"] == systems
+    subscribed = [
+        notification.payload["event"]
+        for notification in result.notifications
+        if notification.method == "session.event"
+        and notification.payload.get("event", {}).get("type") == "system/message"
+    ]
+    assert subscribed == systems, subscribed
+    contexts = [event["data"] for event in result.events if event.get("type") == "request/context"]
+    assert contexts and all(context.get("systemPromptUpdate") == "in-history" for context in contexts), contexts
+    assert len([event for event in result.events if event.get("type") == "request/header"]) == 1
+    assert all(event.get("surfaceOp") in (None, "append") for event in result.events)
+    first_tool = next(index for index, event in enumerate(result.events) if event.get("type") == "tool/result")
+    assert result.events.index(systems[1]) > first_tool
+    assert len(requests) == 3, requests
+    request_prompts = []
+    for index, request in enumerate(requests):
+        messages = request["messages"]
+        assert messages[0]["role"] == "system" and message_text(messages[0]["content"]) == prompts[0]
+        assert request["tools"] == requests[0]["tools"], "prompt update changed tool schemas"
+        positions = [position for position, message in enumerate(messages) if message["role"] == "system"]
+        texts = [message_text(messages[position]["content"]) for position in positions]
+        assert texts == (prompts[:1] if index == 0 else prompts), texts
+        if index > 0:
+            assert messages[positions[1] - 1]["role"] == "tool", messages
+        request_prompts.append(texts)
+    evidence = {
+        "requestSystemPrompts": request_prompts,
+        "systemMessageOperations": [event["surfaceOp"] for event in systems],
+        "subscribedSystemPrompts": prompts,
+        "requestContexts": contexts,
+    }
+    return {"prompt-history.json": json.dumps(evidence, indent=2, ensure_ascii=False) + "\n"}
+
+
 def build_minimal_snapshot_files(
     requests: list[dict[str, object]],
     cwd: Path,
@@ -1725,6 +1934,30 @@ def build_snapshot_files(
         replacements.append((child_id, f"{{{{child-{index}}}}}"))
         agent_id = snapshot_agent_id(result, child_id)
         replacements.append((agent_id, f"{{{{agent-{index}}}}}"))
+    command_index = 0
+    for record in logs[SNAPSHOT_SESSION_ID]:
+        data = record.get("data")
+        if record.get("type") == "command/run" and isinstance(data, dict):
+            command_index += 1
+            replacements.append((data["commandId"], f"{{{{command:{command_index}}}}}"))
+        if record.get("type") == "command/done" and isinstance(data, dict):
+            anonymous = re.search(r"Anonymous user: ([0-9a-f-]{36})", str(data.get("text")))
+            if anonymous is not None:
+                replacements.append((anonymous.group(1), "{{anonymous-user}}"))
+    feedback_targets = dict.fromkeys(
+        record["data"]["item"]["messageId"]
+        for record in logs[SNAPSHOT_SESSION_ID]
+        if record.get("type") == "feedback/message-put"
+    )
+    for index, message_id in enumerate(feedback_targets, start=1):
+        replacements.append((message_id, f"{{{{message:{index}}}}}"))
+    feedback_versions = dict.fromkeys(
+        record["data"]["item"]["version"]
+        for record in logs[SNAPSHOT_SESSION_ID]
+        if record.get("type") == "feedback/message-put"
+    )
+    for index, version in enumerate(feedback_versions, start=1):
+        replacements.append((version, f"{{{{feedback-version:{index}}}}}"))
     replacements.sort(key=lambda pair: len(pair[0]), reverse=True)
 
     result_value = {
@@ -1885,6 +2118,10 @@ def normalize_snapshot_value(
     }
     if normalized.get("type") == "session" and "createdAt" in normalized:
         normalized["createdAt"] = 0
+    if normalized.get("type") == "subagent/catalog":
+        data = normalized.get("data")
+        if isinstance(data, dict) and "childCreatedAt" in data:
+            data["childCreatedAt"] = 0
     if "seq" in normalized and "time" in normalized:
         normalized["time"] = 0
     if normalized.get("type") in ("assistant/message", "assistant/attempt"):
@@ -1901,14 +2138,24 @@ def normalize_snapshot_value(
                 dt = member.get("dt")
                 if isinstance(dt, list):
                     member["dt"] = [0] * len(dt)
-    if isinstance(normalized.get("id"), str) and normalized.get("role") in ("assistant", "user"):
-        normalized["id"] = "{{messageId}}"
+    if isinstance(normalized.get("id"), str) and normalized.get("role") in ("assistant", "system", "user"):
+        if not normalized["id"].startswith("{{message:"):
+            normalized["id"] = "{{messageId}}"
+    if normalized.get("type") in ("feedback/message-put", "feedback/message-delete"):
+        data = normalized.get("data")
+        if isinstance(data, dict):
+            item = data.get("item") if normalized["type"] == "feedback/message-put" else data
+            if isinstance(item, dict):
+                if normalized["type"] == "feedback/message-put":
+                    item["createdAt"] = 0
+                    item["updatedAt"] = 0
     scrub_snapshot_header(normalized)
+    scrub_snapshot_system_message(normalized)
     return normalized
 
 
 def scrub_snapshot_header(value: dict[object, object]) -> None:
-    """Tokenize full request-header bulk while retaining tool names."""
+    """Tokenize full request-header tool schemas while retaining tool names."""
     data = value.get("data")
     if not isinstance(data, dict):
         return
@@ -1916,14 +2163,26 @@ def scrub_snapshot_header(value: dict[object, object]) -> None:
         header = data.get("header")
         if not isinstance(header, dict):
             return
-        if "system" in header:
-            header["system"] = "{{system}}"
         tools = header.get("tools")
         if isinstance(tools, list):
             header["tools"] = [
                 tool.get("name") if isinstance(tool, dict) else "{{tools}}"
                 for tool in tools
             ]
+
+
+def scrub_snapshot_system_message(value: dict[object, object]) -> None:
+    """Tokenize the rendered prompt text of a `system/message` surface node."""
+    if value.get("type") != "system/message":
+        return
+    data = value.get("data")
+    message = data.get("message") if isinstance(data, dict) else None
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "text":
+            block["text"] = "{{system}}"
 
 
 def render_jsonl(records: list[object]) -> str:
@@ -2063,19 +2322,6 @@ def normalize_session_format_comparison(
         normalized.pop("time", None)
     if source_session_version == 1 and normalized.get("type") == "assistant/message":
         normalized.pop("sourceEventSeqs", None)
-    if normalized.get("type") == "session-log-deepseek/delivery-accepted":
-        data = normalized.get("data")
-        if isinstance(data, dict):
-            data.pop("throughSeq", None)
-            data.pop("sessionFormatVersion", None)
-            data["sessionFormatVersion"] = SESSION_FORMAT_PROVENANCE
-    if normalized.get("kind") == "session-reference":
-        references = normalized.get("references")
-        if isinstance(references, list):
-            for reference in references:
-                if isinstance(reference, dict):
-                    reference.pop("capturedFormatVersion", None)
-                    reference["capturedFormatVersion"] = SESSION_FORMAT_PROVENANCE
     return normalized
 
 
@@ -2108,10 +2354,18 @@ def compare_snapshot_files(
     directory: Path,
     filenames: tuple[str, ...],
 ) -> None:
-    """Write or exactly compare one scenario's expected snapshot files."""
+    """Compare ordered artifact roles and Session content across generations, or write generated filenames."""
     scenario = directory.name
-    if tuple(files) != filenames:
+
+    def role_name(name: str) -> str:
+        parsed = parse_snapshot_session_filename(name)
+        return name if parsed is None else snapshot_session_filename(parsed[0], 0)
+
+    if tuple(map(role_name, files)) != tuple(map(role_name, filenames)):
         raise AssertionError(f"{scenario} snapshot builder produced {tuple(files)}, expected {filenames}")
+    for name, content in files.items():
+        if parse_snapshot_session_filename(name) is not None:
+            assert_current_session_version(session_header_version(content, name), name)
     if update:
         directory.mkdir(parents=True, exist_ok=True)
         for name, content in files.items():

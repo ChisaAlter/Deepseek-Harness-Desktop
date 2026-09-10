@@ -206,6 +206,28 @@ describe('coverage file inventory', () => {
     expect(inventory.projectOf.get('packages/b/tests/b.spec.ts')).toBe('process-bound')
   })
 
+  it('removes every Typert package from instrumented files and project assignments', async () => {
+    const root = await temporaryRoot()
+    const typertFiles = [
+      'packages/typert/generator/tests/type-model.spec.ts',
+      'packages/typert/loader/tests/loader.spec.ts',
+      'packages/typert/protocol/tests/protocol.spec.ts',
+      'packages/typert/registry/tests/typert.spec.ts',
+      'packages/typert/future/tests/nested/client.spec.tsx',
+    ]
+    for (const file of typertFiles) {
+      await mkdir(dirname(join(root, file)), { recursive: true })
+      await writeFile(join(root, file), '')
+    }
+    const retained = 'packages/api/gateway/tests/rpc.spec.ts'
+    const inventory = parseListOutput(
+      [...typertFiles, retained].map(file => `[thread-safe] ${file}`).join('\n'),
+      root,
+    )
+    expect(inventory.files).toEqual([retained])
+    expect([...inventory.projectOf]).toEqual([[retained, 'thread-safe']])
+  })
+
   it('averages recorded durations per file from the results cache', async () => {
     const root = await temporaryRoot()
     await writeVitestCache(root, [

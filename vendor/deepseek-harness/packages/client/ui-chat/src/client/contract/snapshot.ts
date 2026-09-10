@@ -79,7 +79,7 @@ export interface ChatTurnProcessPresentation {
   readonly compactAnswer: boolean
 }
 
-/** Compatibility projection backing StatsLine and the legacy top-level snapshot fields. */
+/** Compatibility projection backing StatsPills and the legacy top-level snapshot fields. */
 export interface LegacyConversationSlice {
   readonly nodes: readonly ConversationNode[]
   readonly turnTimings: ReadonlyMap<number, { readonly startTime: number; readonly endTime?: number }>

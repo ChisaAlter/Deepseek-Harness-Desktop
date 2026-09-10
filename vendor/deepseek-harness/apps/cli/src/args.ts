@@ -21,6 +21,8 @@ import { Command, CommanderError } from 'commander'
 interface ProfileInvocation {
   mode: 'profile'
   profile: string
+  /** Shipped template used once to initialize a missing profile. */
+  fromDefaultProfile?: string | undefined
   /** Extra patch-list overlays applied after the profile's own layer, in argv order. */
   patches: string[]
   /** Omit profile/home user layers and use the shipped bundle template. */
@@ -33,6 +35,8 @@ interface ProfileInvocation {
 interface DumpConfigInvocation {
   mode: 'dump-config'
   profile: string
+  /** Shipped template used once to initialize a missing profile. */
+  fromDefaultProfile?: string | undefined
   /** Omit the profile's user layer and --patch overlays; print bundle layers only. */
   defaultOnly: boolean
   patches: string[]
@@ -56,6 +60,7 @@ interface BootOptions {
   patch?: string[]
   dumpConfig?: boolean
   dumpDefaultConfig?: boolean
+  fromDefaultProfile?: string
   skipUserPlugins?: boolean
 }
 
@@ -65,10 +70,18 @@ interface BootOptions {
  */
 const collect = (value: string, previous: string[] = []): string[] => [...previous, value]
 
+function rejectElectronProfile(program: Command, profile: string): void {
+  if (profile.toLowerCase() === 'desktop') {
+    program.error('error: profile "desktop" is managed exclusively by the Electron application')
+  }
+}
+
 /** The launcher's own help text; each app prints its own. */
 const HELP_EXAMPLES = `
 Examples:
   dsh --profile web                          boot the web profile (same as: dsh web)
+  dsh --profile rescue --from-default-profile web
+                                             create rescue from the shipped web template, then boot it
   dsh --profile headless "run the tests"     answer one task, print the result, and exit
   dsh --profile tui --patch ./extra.yml      boot a custom profile with one extra overlay
   dsh --profile tui --resume <session>       arguments after the launcher flags reach the app
@@ -89,12 +102,13 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
   const patches = options.patch ?? []
   const skipUserPlugins = options.skipUserPlugins === true
   if (patches.includes('')) program.error('error: --patch needs a path')
+  if (options.fromDefaultProfile === '') program.error('error: --from-default-profile needs a name')
   if (options.dumpConfig !== true && options.dumpDefaultConfig !== true) {
-    // Desktop fork: omit the field unless the flag was given, so the shape
-    // matches the upstream spec's exact-equality expectations.
+    // Desktop fork: omit skipUserPlugins unless the flag was given, so the
+    // shape matches the upstream spec's exact-equality expectations.
     return skipUserPlugins
-      ? { mode: 'profile', profile, patches, args, skipUserPlugins }
-      : { mode: 'profile', profile, patches, args }
+      ? { mode: 'profile', profile, fromDefaultProfile: options.fromDefaultProfile, patches, args, skipUserPlugins }
+      : { mode: 'profile', profile, fromDefaultProfile: options.fromDefaultProfile, patches, args }
   }
   if (options.dumpConfig === true && options.dumpDefaultConfig === true) {
     program.error('error: --dump-config and --dump-default-config are mutually exclusive')
@@ -113,8 +127,8 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
     program.error('error: --dump-default-config and --skip-user-plugins are mutually exclusive')
   }
   return skipUserPlugins
-    ? { mode: 'dump-config', profile, defaultOnly, patches, skipUserPlugins }
-    : { mode: 'dump-config', profile, defaultOnly, patches }
+    ? { mode: 'dump-config', profile, fromDefaultProfile: options.fromDefaultProfile, defaultOnly, patches, skipUserPlugins }
+    : { mode: 'dump-config', profile, fromDefaultProfile: options.fromDefaultProfile, defaultOnly, patches }
 }
 
 /**
@@ -144,6 +158,7 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .enablePositionalOptions()
     .argument('[args...]', 'arguments for the booted profile\'s app (see: dsh --profile <name> --help)')
     .option('--profile <name>', 'the profile under $DSH_HOME/profiles to boot')
+    .option('--from-default-profile <name>', 'initialize a new custom profile from a shipped profile template')
     .option('--patch <path>', 'extra patch-list overlay applied after the profile layer (repeatable)', collect)
     .option('--dump-config', 'print the composed profile tree and exit')
     .option('--dump-default-config', 'print the profile tree without its user layer or --patch overlays and exit')
@@ -157,6 +172,7 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
       }
       const profile = options.profile
       if (profile === '') program.error('error: --profile needs a name')
+      rejectElectronProfile(program, profile)
       resolved = resolveBoot(program, profile, options, args)
     })
 
@@ -165,8 +181,11 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     const parent = program.opts<BootOptions & { profile?: string }>()
     if (parent.profile !== undefined || parent.patch !== undefined
       || parent.dumpConfig !== undefined || parent.dumpDefaultConfig !== undefined
+      || parent.fromDefaultProfile !== undefined
       || parent.skipUserPlugins !== undefined) {
-      program.error(`error: ${command} takes none of parent --profile, --patch, --dump-config, --dump-default-config, or --skip-user-plugins`)
+      program.error(
+        `error: ${command} takes none of parent --profile, --from-default-profile, --patch, --dump-config, --dump-default-config, or --skip-user-plugins`,
+      )
     }
   }
 
@@ -194,6 +213,7 @@ export function parseDshArgs(argv: readonly string[], version: string): DshInvoc
     .action((args: string[], options: { profile: string }) => {
       rejectParentOptions('plugin')
       if (options.profile === '') program.error('error: --profile needs a name')
+      rejectElectronProfile(plugin, options.profile)
       if (args.length === 0) program.error('error: plugin needs pnpm arguments to forward (e.g. add <package>)')
       resolved = { mode: 'plugin', profile: options.profile, args }
     })

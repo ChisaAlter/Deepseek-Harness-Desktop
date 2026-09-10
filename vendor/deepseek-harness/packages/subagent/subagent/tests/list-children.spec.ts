@@ -35,9 +35,11 @@ import { seedStoredSession } from './persistence-helpers.ts'
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
 const roots: string[] = []
+const persistenceDisposers: Array<() => Promise<void>> = []
 const projCacheRoots: string[] = []
 
-afterEach(() => {
+afterEach(async () => {
+  await Promise.all(persistenceDisposers.splice(0).map(dispose => dispose()))
   for (const root of projCacheRoots.splice(0)) rmSync(root, { recursive: true, force: true })
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
@@ -45,15 +47,15 @@ afterEach(() => {
 /** Boot the continuable stack with real JSONL session persistence. */
 async function setup(
   script: Script,
-  options: { sessionProjections?: boolean; projectionCache?: boolean } = {},
+  options: { projectionCache?: boolean } = {},
 ) {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   const root = mkdtempSync(join(tmpdir(), 'dsh-subagent-list-'))
   roots.push(root)
-  await ctx.plugin(JsonlSessionPersistence, { root })
+  const persistence = await ctx.plugin(JsonlSessionPersistence, { root })
+  persistenceDisposers.push(() => persistence.dispose())
   await ctx.plugin(AgentLoop, { agents: [] })
-  if (options.sessionProjections !== false) await ctx.plugin(SessionProjectionRegistry)
   if (options.projectionCache === true) {
     const root = mkdtempSync(join(tmpdir(), 'dsh-subagent-projcache-'))
     projCacheRoots.push(root)
@@ -77,6 +79,13 @@ async function setup(
     })()
     : await loop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
   return { ctx, parent }
+}
+
+async function setupWithoutProjections(): Promise<Context> {
+  const ctx = new Context()
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(SubagentRuntime)
+  return ctx
 }
 
 const testSignal = new AbortController().signal
@@ -243,8 +252,8 @@ describe('SubagentRuntime.listChildren', () => {
   })
 
   it('fails loud when the projection registry is not mounted, even with no children', async () => {
-    const { ctx, parent } = await setup([], { sessionProjections: false })
-    await expect(ctx.subagents.listChildren(parent.id)).rejects.toThrow(
+    const ctx = await setupWithoutProjections()
+    await expect(ctx.subagents.listChildren(SessionId('no-projections-parent'))).rejects.toThrow(
       expect.objectContaining({ code: 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE' }) as Error,
     )
   })
@@ -547,7 +556,7 @@ describe('SubagentRuntime.listChildren', () => {
       seq: SessionSeq(3),
       time: 3,
       data: { version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 7 },
-    } as SessionEvent)
+    } as unknown as SessionEvent)
     events[4] = { ...events[4]!, seq: SessionSeq(4) }
     const invalidated = await authorChild(ctx, '00000000-0000-4000-8000-00000000ad01', {
       parentSession: parent.id,
@@ -650,8 +659,8 @@ describe('SubagentRuntime.listChildren', () => {
 
   it('maps a child rejected by persistence validation to corrupt', async () => {
     const { ctx, parent } = await setup([])
-    // The surface-eligible user/message lacks its required surfaceOp, so the
-    // first-party inspection rejects before any projection fold can run.
+    // The canonical envelope contains a message without an id; persistence
+    // adoption rejects it before any projection fold can run.
     const invalid = await authorChild(ctx, '00000000-0000-4000-8000-0000000000ee', {
       parentSession: parent.id,
       origin: 'subagent',
@@ -661,9 +670,10 @@ describe('SubagentRuntime.listChildren', () => {
         type: 'user/message',
         seq: SessionSeq(1),
         time: 2,
-        data: createUserMessage({ content: [{ type: 'text', text: 'work' }], source: { kind: 'user' } }),
+        data: { role: 'user', content: [{ type: 'text', text: 'work' }], source: { kind: 'user' } },
+        surfaceOp: 'append',
       },
-      { type: 'subagent/descriptor', seq: SessionSeq(2), time: 3, data: descriptorPayload('broken surface') },
+      { type: 'subagent/descriptor', seq: SessionSeq(2), time: 3, data: descriptorPayload('broken message') },
     ] as SessionEvent[])
     const entries = await ctx.subagents.listChildren(parent.id)
     expect(entries).toEqual([{ kind: 'diagnostic', id: invalid, reason: 'corrupt' }])
@@ -827,7 +837,7 @@ describe('SubagentRuntime.listChildren', () => {
         content: [{ type: 'text', text: 'summary of everything' }],
         source: { kind: 'plugin', plugin: 'compact' },
       }),
-      surfaceOp: { op: 'replace', start: SessionSeq(1), end: SessionSeq(1) },
+      surfaceOp: { op: 'replace', startSeq: SessionSeq(1), endSeq: SessionSeq(1) },
       sourceEventSeqs: [SessionSeq(1)],
     })
     const compacted = await authorChild(ctx, '00000000-0000-4000-8000-00000000c1de', {
@@ -1105,8 +1115,9 @@ describe('SubagentRuntime.listChildren', () => {
   })
 
   it('SubagentError from listChildren is typed with its stable code', async () => {
-    const { ctx, parent } = await setup([], { sessionProjections: false })
-    const caught: unknown = await ctx.subagents.listChildren(parent.id).catch((error: unknown) => error)
+    const ctx = await setupWithoutProjections()
+    const caught: unknown = await ctx.subagents.listChildren(SessionId('typed-no-projections-parent'))
+      .catch((error: unknown) => error)
     expect(caught).toBeInstanceOf(SubagentError)
     expect((caught as SubagentError).code).toBe('SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE')
   })
@@ -1341,8 +1352,8 @@ describe('SubagentRuntime.listDescendants', () => {
   })
 
   it('fails loud when the projection registry is not mounted', async () => {
-    const { ctx, parent } = await setup([], { sessionProjections: false })
-    await expect(ctx.subagents.listDescendants(parent.id)).rejects.toThrow(
+    const ctx = await setupWithoutProjections()
+    await expect(ctx.subagents.listDescendants(SessionId('no-projections-root'))).rejects.toThrow(
       expect.objectContaining({ code: 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE' }) as Error,
     )
   })

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-code-runtime-worker-thread` executes TypeScript programs for the [`dsh-code-runtime`](../code-runtime/README.md) seam: each program runs in one fresh Node worker thread with host-provided bindings callable as ordinary async functions, and the run returns `{ value, logs, error? }`. It is the shipped backend for PTC mode in `dsh-tools`, so mounting it is what makes model-written TypeScript execution work in a composition. The runtime contains a program without isolating it: the trust posture is bash-equivalent, with an empty environment, a heap cap, measured busy-time and wall-clock budgets, and hard termination. Programs run once per request with no state carried between runs, and every failure — syntax error, budget expiry, abort, OOM exit, or output overflow — comes back as a result field.
+This package lets PTC compositions execute model-written TypeScript with host-provided bindings and receive the completion value, ordered logs, or a structured failure. Each request starts with no state from earlier runs, and failures such as syntax errors, budget expiry, aborts, memory exhaustion, and output overflow are returned instead of thrown. Treat executed code as bash-equivalent: the package limits environment exposure and resource use, but does not isolate code from the host. Configurable compute, wall-clock, heap, and output limits terminate the run and bound its results.
 
 ## Table of Contents
 

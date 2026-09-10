@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-cordis` gives a web client the browser surfaces for dynamic Cordis packages: a frame-wide panel that operates every definition the host holds, tool cards that render `cordis_define`, `cordis_run`, `cordis_stop`, and `cordis_undefine` calls in the conversation, and an `@pluginId` input source that completes the session's defined plugins. The panel is global on purpose — a model-driven run blocks on a person's approval, and that approval must be reachable no matter which session is in view. The package authors nothing the model sees: everything it operates comes from the browser runner and the host's inventory, and the cards render call and result content the conversation already logged.
+`dsh-client-ui-cordis` adds a frame-wide control panel, conversation tool cards, and `@pluginId` completion for dynamic Cordis packages in a web client. A person can approve or decline a blocked model request from any session, run, stop, or remove definitions, and inspect their live status. Conversation cards replay recorded calls and results. The package adds no model-visible content or session events, and definitions must be run again after the page reloads.
 
 ## Table of Contents
 
@@ -89,7 +89,7 @@ Read these pages when the package-level contract is not enough. They move from t
 - [Host runner](../cordis-host-runner/README.md) — the inventory and lifecycle verbs behind the panel.
 - [Tool package](../tool-cordis/README.md) — the model-facing tools whose calls these cards render.
 - [Extensions subsystem](../../../docs/subsystems/extensions.md) — the generated `ctx.dynamicCordisRunner` API and forwarded `cordis/*` events.
-- [Dynamic client render and attachment ownership Agent Note](../../../.agents/notes/implemented/architecture/2026-08-17-dynamic-client-render-and-attachment-ownership.md) — how slot-registered browser UI is owned by its package.
+- [Slots subsystem](../../../docs/subsystems/slots.md) — how slot-registered browser UI is owned by its package.
 
 -----
 

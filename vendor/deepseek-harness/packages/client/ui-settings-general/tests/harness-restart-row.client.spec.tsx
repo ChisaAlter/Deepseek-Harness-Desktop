@@ -5,6 +5,9 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { HarnessRestartRow } from '../src/client/HarnessRestartRow.tsx'
 import type { HarnessRestartRowProps } from '../src/client/HarnessRestartRow.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(() => {
   cleanup()
@@ -16,6 +19,8 @@ const t = makeTranslate(en)
 
 function mount() {
   const props: HarnessRestartRowProps = {
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     useSessions: unusedHook,
     useSessionPendingInteraction: unusedHook,
     useWorkspaces: unusedHook,

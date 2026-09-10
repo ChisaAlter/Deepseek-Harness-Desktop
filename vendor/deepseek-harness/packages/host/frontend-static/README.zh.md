@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-浏览器从 `dsh-host-frontend-static` 获取已构建的 Web 壳：它占据 [webserver](../webserver/README.zh.md) 回退席位，并按锁定语义服务已构建前端目录——只有 dist 根目录与配置的 index 路径以 HTTP 200 渲染 `index.html`，其他已有文件直接提供，dist 根目录内缺失或非文件的 target（包括配置的 index 缺失）返回空 404，越出 dist 根目录的遍历返回 403，未知扩展名按 `application/octet-stream` 提供，GET／HEAD 之外的方法在没有匹配的具名路由时返回 405。每个成功的 index 响应都经 webserver 的 `renderIndex` 渲染，启动 manifest（元数据清单）就是经这条路径送达页面的。回退席位只有单一所有者：第二次占据会抛错，卸载插件即释放席位。
+从配置的发布目录向浏览器提供已构建的 Web 壳。根路径与配置的 index 路径渲染包含启动信息的 index；已有资产直接提供，而缺失或非文件路径返回 404、路径遍历返回 403、不支持的方法返回 405。访问 index 需要有效的进程 token 或浏览器 cookie，但静态资产仍可公开访问。同一时间只能有一个实例处理未匹配的路由；第二个实例启动失败，卸载活动实例后，未匹配的请求返回 404。
 
 ## 目录
 

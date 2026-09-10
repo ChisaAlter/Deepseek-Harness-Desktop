@@ -181,6 +181,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
         }}
         align="start"
         portal
+        className={css.menuAnchor}
         anchor={(
           <button
             type="button"
@@ -192,7 +193,7 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
             onClick={() => { setOpen(value => !value) }}
           >
             <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
-            {shownLabel}
+            <span className={css.seatLabel}>{shownLabel}</span>
             <IconChevronDownOutline14 className={css.chevron} />
           </button>
         )}

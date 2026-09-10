@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-bash-sandbox` 是沙箱消费型 Bash 执行器：每条命令都以全新的 `bash -c` 进程运行，经 `ctx.sandbox` 能力隔离，而不是以 harness 进程的完整文件权限运行。每个已结算的结果都携带命令运行时的模式、沙箱是否拒绝了文件操作，以及所选 runner 对请求模式的强制执行完整度。当没有 runner 能强制执行受限模式时，调用按失败关闭原则抛结构化 `SANDBOX_UNAVAILABLE` 错误，绝不无隔离地运行。它是 `dsh-bash-local` 的受限兄弟包——共享其进程机制——工具层的升权字段也只在挂载它时才出现。
+使用 `dsh-bash-sandbox` 运行每条 Bash 命令，使其文件访问受到限制，而不是使用 harness 进程的完整权限。结果会报告所选模式、被拒绝的文件操作，以及 runner 是否完整实施该模式。如果没有 runner 能实施受限模式，命令会以 `SANDBOX_UNAVAILABLE` 失败，绝不会无隔离地运行。部署需要文件隔离时选择它；网络访问和进程可见性不在其保证范围内。
 
 ## 目录
 
@@ -61,7 +61,7 @@ kind: "package-reference"
 
 ### 失败与恢复
 
-如果没有 runner 能强制执行受限模式，前台调用以 `SANDBOX_UNAVAILABLE` 失败，后台进程则记录 runner 失败事实——绝不会静默无隔离运行。可归因于 runner 的 spawn 失败以原始 spawn 错误作为详情；其他 spawn 拒绝保持本地执行器普通的命令启动语义。
+如果没有 runner 能强制执行受限模式，前台调用以 `SANDBOX_UNAVAILABLE` 失败，后台进程则记录 runner 失败事实——绝不会静默无隔离运行。只有当 provider rejection 的 `ENOENT`/`EACCES` 路径或 syscall 独立指向 `argv[0]` 时，才把它归因于 confinement runner；其他 rejection 保持本地执行器不声明阶段的 provider-failure 语义。
 
 -----
 
@@ -151,7 +151,7 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-如果没有 runner 能强制执行受限模式，前台调用会传播来自 sandbox seam 的 `SANDBOX_UNAVAILABLE` 错误。可归因于 runner 的 spawn 失败以原始 spawn 错误作为详情；没有 `ENOENT`/`EACCES` 的 `path` 或 `syscall` 证据指明 `argv[0]` 的拒绝仍是普通的命令启动错误。已结算的 runner 失败以匹配到的致命 stderr 行作为详情，并保留原始 stderr 收集结果；追加的 `Runner failure: <detail>` 是权威诊断，优先于通用的 `SANDBOX_UNAVAILABLE` 前缀。
+如果没有 runner 能强制执行受限模式，前台调用会传播来自 sandbox seam 的 `SANDBOX_UNAVAILABLE` 错误。带有 `ENOENT`/`EACCES` 路径或 syscall 证据并指向 `argv[0]` 的 provider rejection 会把原始错误作为 runner-failure 详情；其他 rejection 保持不声明阶段的 provider error。已结算的 runner 失败以匹配到的致命 stderr 行作为详情，并保留原始 stderr 收集结果；追加的 `Runner failure: <detail>` 是权威诊断，优先于通用的 `SANDBOX_UNAVAILABLE` 前缀。
 
 #### Token 影响
 

@@ -27,8 +27,10 @@ kind: "package-group"
 | 包 | 职责 |
 |---|---|
 | [`brand/`](brand/README.zh.md) | 提供名义字符串类型及其无状态构造函数 |
+| [`package-manifest/`](package-manifest/README.zh.md) | Package manifest 的共享 TypeScript 声明 |
 | [`crypto/`](crypto/README.zh.md) | 基于跨运行时 `crypto.getRandomValues` 原语生成 RFC 9562 v4 UUID |
 | [`deque/`](deque/README.zh.md) | 提供摊销常数时间的队列操作和有界空闲存储 |
+| [`chunked-list/`](chunked-list/README.zh.md) | 通过有界追加复制和检查点校验保留不可变列表版本 |
 | [`values/`](values/README.zh.md) | 校验、创建快照、比较和冻结无损 JSON 兼容值 |
 | [`home-paths/`](home-paths/README.zh.md) | 解析统一的 Harness 主目录并拼接共享的用户数据路径 |
 | [`http-proxy/`](http-proxy/README.zh.md) | 解析出唯一的出站代理策略，并为 `fetch`、SDK agent 与派生子进程安装它 |

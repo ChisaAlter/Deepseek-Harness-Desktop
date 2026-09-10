@@ -42,6 +42,8 @@ All agents share one Cordis service graph. A derived context does not clone `Too
 
 `agent.ctx` is such a derived context. Service calls still reach the shared instances, while a registration can inspect its calling context and store a contribution under the nearest scope key. Ordinary plugin contexts carry no scope key and therefore register globally.
 
+The Agent context is exactly the context returned by `createScope`; it carries no second reverse association to the Agent. Subject-bearing APIs pass the Agent explicitly, leaving one formal scope mechanism for registration ownership and routing.
+
 ### Fibers and effects make cleanup structural
 
 A Cordis fiber is the live instance created when a plugin or child context is activated. Its state records whether that lifecycle is active, unloading, failed, or disposed. `ctx.effect()` and `ctx.on()` return disposers and also attach those disposers to the registering fiber, so unloading a plugin or agent scope removes everything registered through that context without a separate inventory.
@@ -68,11 +70,11 @@ A `ScopeKey` is an opaque object compared by identity. The harness uses the live
 
 `createScope(parent, key)` returns a scope whose `ctx` shares the parent's services and whose effects are tagged with that key. `scopeOf(ctx)` reads the nearest registration key. `scopeTarget(base, key)` creates the event receiver whose filter preserves the base receiver's Cordis service filter, then admits unscoped listeners and listeners with that exact key.
 
-The receiver is a small carrier rather than a transparent proxy for the domain object. Code that needs the agent receives the explicit event argument; code that needs registration ownership receives `agent.ctx`.
+The receiver is a small carrier rather than a transparent proxy for the domain object. Code that needs the agent receives an explicit setup parameter or event argument; code that needs registration ownership receives `agent.ctx`.
 
 ### Registry reads overlay one exact layer
 
-Scope-aware registries use `ScopedLayers` to own one eager global aggregate and lazily created identity-keyed aggregates. A read resolves the global layer and at most one exact local layer; it never creates state or traverses parentage. Registration visibility and Cordis effect ownership derive from the same context, and reclamation waits until the concrete layer's complete aggregate is empty ([decision](2026-07-12-scoped-layers-store.md)).
+Scope-aware registries use `ScopedLayers` to own one eager global aggregate and lazily created identity-keyed aggregates. A read resolves the global layer and at most one exact local layer; it never creates state or traverses parentage. Registration visibility and Cordis effect ownership derive from the same context, and reclamation waits until the concrete layer's complete aggregate is empty ([decision](../../archived/architecture/2026-07-12-scoped-layers-store.md)).
 
 Each service retains its domain rule. Named command and prompt views use the shared insertion-ordered shadow merge; tools keep a richer resolver because restrictions filter globals before local tools are added and the reserved PTC mode transport is inserted separately. Prompt variables and tool guards retain live iteration, while tool-provider membership is materialized per assembly. Scope supplies storage lifecycle and named shadowing, not a universal registry view.
 
@@ -100,11 +102,11 @@ The transaction is installed under both the calling Cordis context and the concr
 
 Create prepares a new Session. Resume loads and validates the persisted Session before preparing the same live session identity. Both paths then build the scope, agent, and driver and invoke the same setup/publication algorithm.
 
-The factory stores concrete trace targets but invokes them through a caller-bound Cordis trace. This preserves dependency origin and caller ownership without stacking trace proxies.
+The factory stores concrete trace targets but invokes them through a caller-bound Cordis trace. A runtime child creator sets `parentAgent` in the create or resume options, and AgentRegistry forwards those options without deriving a parent from the caller Context. This preserves dependency origin and both ownership facts without stacking trace proxies or attaching a domain object to the Context. Scoped Remote event adapters likewise receive the Agent in the request, verify that it is the carrier key, and project its Context and wire identity directly. No scope index reconstructs an Agent from a Context. The [explicit runtime-identity decision](2026-08-31-explicit-agent-runtime-identity.md) owns this separation and the continuable-child ownership rule that follows from it.
 
 ### Setup is trusted composition inside a private world
 
-Setup receives the full child context and may await plugin activation. It can register tools, prompt sections, restrictions, listeners, and other effects, but the public contract does not support driving or publishing the in-flight agent through casts or internal registry calls.
+Setup receives the full child context and the exact unpublished Agent, and may await plugin activation. It can register tools, prompt sections, restrictions, listeners, and other effects, and consumers that need the child's Session read it from the Agent parameter. The public contract does not support driving or publishing the in-flight agent through casts or internal registry calls.
 
 The transaction races asynchronous load and setup against deactivation rather than waiting forever for a promise owned by external code. If cancellation or owner unload wins, public creation rejects after transaction-owned cleanup even when the external promise never settles.
 
@@ -266,7 +268,7 @@ Subagent startup has one ownership transfer. The provider owns unpublished resou
 
 ### The service contract has one cancellation channel
 
-`SubagentProvider.start()` and `SubagentRuntime.start()` return `Promise<SubagentRun>`. The promise fulfills after the backend crosses its publication boundary, so callers and `subagent/start` observers never need a second `run.started` promise. Provider work that fails before publication rejects `start()`; prompt, turn, cancellation, and infrastructure outcomes after publication settle through `SubagentRun.result` without hiding the child id, as required by the [durable catalog decision](../feature/2026-07-22-durable-subagent-catalog-and-list-agents.md).
+`SubagentProvider.start()` and `SubagentRuntime.start()` return `Promise<SubagentRun>`. The promise fulfills after the backend crosses its publication boundary, so callers and `subagent/start` observers never need a second `run.started` promise. Provider work that fails before publication rejects `start()`; prompt, turn, cancellation, and infrastructure outcomes after publication settle through `SubagentRun.result` without hiding the child id, as required by the [durable catalog decision](../../archived/feature/2026-07-22-durable-subagent-catalog-and-list-agents.md).
 
 `SubagentStartRequest.signal` is required. Aborting it requests cancellation during startup and across the published run's remaining readiness or turn work. `SubagentRun.dispose()` also requests cancellation and awaits quiescence. There is no separate public `run.cancel()` channel.
 
@@ -330,7 +332,7 @@ The plugin does not police trusted setup by scanning registries or reject prompt
 
 ### Generated artifacts keep public contracts aligned
 
-The event catalog, service catalog, producer/consumer matrix, configuration catalog, module graph, tool catalog, type-equivalence blocks, and scoped-event resolver map are generated or freshness-gated from source. The [TypeScript semantic-gates Agent Note](../process/2026-07-14-typescript-program-backed-semantic-gates.md) owns Program construction, semantic event discovery, and resolver-generation rules.
+The event catalog, service catalog, producer/consumer matrix, configuration catalog, module graph, tool catalog, type-equivalence blocks, and scoped-event resolver map are generated or freshness-gated from source. The [TypeScript semantic-gates Agent Note](../../archived/process/2026-07-14-typescript-program-backed-semantic-gates.md) owns Program construction, semantic event discovery, and resolver-generation rules.
 
 Behavioral tests pin scoped routing and disposal, final-entry collision cleanup, publication rollback, ordered quiescence, durable pre/post-commit behavior, live tool filtering across presentation and execution, cooperative prompt assembly, structured-output commit in native and PTC mode, async subagent startup and signal cancellation, worker terminal arbitration, ACP settlement, and process teardown.
 

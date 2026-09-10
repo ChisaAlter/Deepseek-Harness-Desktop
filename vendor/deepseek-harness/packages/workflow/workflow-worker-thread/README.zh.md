@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-workflow-worker-thread` 以每次运行一个 Node worker thread 的方式实现工作流引擎：编排脚本在一个全新 worker 内执行，其 `agent()` 调用通过带类型的宿主／worker 协议触达宿主 subagent。同步脚本循环不会阻塞 harness 事件循环，忽略取消的脚本可以连同其 worker 一起终止。这种隔离只是 containment（隔离），不是安全边界——由模型编写的脚本与模型已有的 bash 访问具有相同的信任前提，逃逸 `node:vm` 上下文即可重新取得 worker 的进程权限。挂载本引擎即为 `ctx.workflowEngine` 提供具体实现；与 `dsh-tool-workflow` 一起加载的组合会把 `workflow` 工具交给模型。
+使用 `dsh-workflow-worker-thread` 可让模型编写的工作流脚本在宿主事件循环之外运行。每次运行使用独立的 worker thread，因此同步循环不会阻塞 harness，忽略取消的脚本也可以被终止。本引擎支持已发布组合中的 `workflow` 与 `ralph` 工具，也可与 `dsh-tool-workflow` 配合，在其他组合中公开 `workflow`。这种隔离可以限制可用性故障，但不是安全边界；真正不可信的脚本需要独立进程或容器。
 
 ## 目录
 

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-workflow` 运行一段纯 JavaScript 编排脚本，并交给调用方一个活动运行，其 result 在脚本结算时以脚本的最终 JSON 值兑现。脚本可以用 `agent()` 扇出 subagent，用 `parallel()` 和 `pipeline()` 组合独立工作，用 `phase()` 和 `log()` 叙述进度；agent 通常通过 `dsh-tool-workflow` 的 `workflow` 工具驱动这一切。运行由持有方负责：其 result 绝不拒绝，取消与 dispose（资源释放）有界，每个子 agent 都归属于调用它的 agent。本包不附带执行引擎——当前引擎是 `dsh-workflow-worker-thread`——因此可以用不同的隔离策略替换它，而不改变调用方或模型看到的内容。
+运行一段纯 JavaScript 编排脚本，将工作扇出给 subagent，并返回脚本的最终 JSON 值。脚本可以使用 `agent()`、`parallel()`、`pipeline()`、`phase()` 和 `log()`；模型通常通过 `workflow` 工具访问它们。每次运行都归调用方所有，将每个子 agent 归属于调用它的 agent，在失败或取消时以结果兑现而不拒绝，并在有界宽限期内完成 dispose。调用方必须提供执行引擎，因此可以更换隔离策略而不改变可见行为。
 
 ## 目录
 

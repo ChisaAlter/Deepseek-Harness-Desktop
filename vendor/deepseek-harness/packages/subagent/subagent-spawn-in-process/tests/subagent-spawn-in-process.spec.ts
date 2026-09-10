@@ -1,4 +1,4 @@
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it } from 'vitest'
 import { Context, symbols, type EffectMeta } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -39,7 +39,6 @@ async function setup(script: Script) {
   await mountAgentLoopTestDependencies(ctx)
   await mountInvariants(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
-  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(spawn, { providerName: 'spawn' })
   ctx.llm.registerAdapter(['mock'], adapter)
@@ -64,6 +63,14 @@ function disposeChildLifecycle(parent: Agent): void {
     })
   if (lifecycle === undefined) throw new Error('child lifecycle effect not found')
   void lifecycle()
+}
+
+
+/** The system prompt a loop-built request carries as its leading system-role message ('' when none). */
+function systemPromptOf(request: GenerateOptions): string {
+  const head = request.messages[0]
+  if (head?.role !== 'system') return ''
+  return head.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
 }
 
 describe('dsh-subagent-spawn-in-process', () => {
@@ -330,7 +337,6 @@ describe('dsh-subagent-spawn-in-process', () => {
     await mountAgentLoopTestDependencies(ctx)
     await mountInvariants(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
-    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     const fiber = await ctx.plugin(spawn, { providerName: 'spawn' })
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -359,7 +365,6 @@ describe('dsh-subagent-spawn-in-process', () => {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
-    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     const fiber = await ctx.plugin(spawn, { providerName: 'spawn' })
     const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
@@ -406,9 +411,9 @@ describe('dsh-subagent-spawn-in-process', () => {
       })
       await run.result
       const childRequest = adapter.requests.at(-1)!
-      expect(childRequest.system).toContain('You are the tersest test runner.')
+      expect(systemPromptOf(childRequest)).toContain('You are the tersest test runner.')
       // The parent's earlier request carried no such persona.
-      expect(adapter.requests[0]!.system ?? '').not.toContain('tersest test runner')
+      expect(systemPromptOf(adapter.requests[0]!)).not.toContain('tersest test runner')
       await run.dispose()
     })
 

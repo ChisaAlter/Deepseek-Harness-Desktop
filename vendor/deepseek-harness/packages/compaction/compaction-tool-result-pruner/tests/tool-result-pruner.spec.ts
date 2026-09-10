@@ -69,7 +69,7 @@ function appendToolStep(
   const result = session.append('tool/result', {
     turn,
     step: 1,
-    message: createToolResultMessage({ callId, content, isError: false }),
+    message: createToolResultMessage({ callId, content, isError: extra['error'] !== undefined }),
     ...extra,
   }, { surfaceOp: 'append' })
   session.append('step/end', { turn, step: 1 })
@@ -207,12 +207,13 @@ describe('ToolResultPruner session transaction', () => {
         isError: true,
         message: {
           source: { kind: 'tool', callId: ToolCallId('one') },
+          content: [{ type: 'tool-result', isError: true }],
         },
         error: { name: 'ExitError', code: 'EXIT_1' },
         meta: { diff: ['a', 'b'] },
         futureField: { nested: true },
       },
-      surfaceOp: { op: 'replace', start: originalSeq, end: originalSeq },
+      surfaceOp: { op: 'replace', startSeq: originalSeq, endSeq: originalSeq },
       sourceEventSeqs: [originalSeq],
     })
     expect(session.surface.nodes).not.toContain(originalSeq)

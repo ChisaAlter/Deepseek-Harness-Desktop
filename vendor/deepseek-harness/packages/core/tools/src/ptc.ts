@@ -466,7 +466,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         }
         const normalized = jsonNormalizeArgs(rawArgs)
         const n = ++dispatches
-        const subCallId = brandString<ToolCallId>(`${String(exec.callId)}:code:${n}`)
+        const subCallId = brandString<ToolCallId>(`${String(exec.callId)}:ptc:${n}`)
         const input = {
           callId: subCallId,
           rootCallId: exec.rootCallId,
@@ -506,7 +506,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
                 // the log stays detached.
                 content: result.content,
               })
-              agent.session.append('tool/code-dispatch', {
+              agent.session.append('tool/ptc-dispatch', {
                 rootCallId: exec.rootCallId,
                 parentCallId: exec.callId,
                 subCallId,
@@ -531,7 +531,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               reject(new Error(`run_code run is over (${String(runController.signal.reason)}); ${name} tool call abandoned`))
             },
             async start(): Promise<void> {
-              exec.agent?.session.append('tool/code-dispatch-start', {
+              exec.agent?.session.append('tool/ptc-dispatch-start', {
                 rootCallId: exec.rootCallId,
                 parentCallId: exec.callId,
                 subCallId,
@@ -561,7 +561,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
               if (!result.isError && result.content.some(block => block.type === 'image')) {
                 exec.deferContext(createUserMessage({
                   content: result.content,
-                  source: { kind: 'plugin', plugin: 'tools-code-mode' },
+                  source: { kind: 'plugin', plugin: 'tools-ptc' },
                 }))
               }
               for (const context of result.additionalContexts ?? []) {

@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-client-ui-slots` 是 Web 客户端 slot 系统的纯核心：每个 UI 功能都经由它组合的类型级约定。一次 `register({ name, children?, store?, inject?, ...kind }, Component)` 调用会向已声明 slot 贡献一个组件，同时声明子 slot、store 席位与注册方的业务表层。组件会在调用点依据 `ComposedProps` 接受类型检查——该类型是四个 share 的交集，每个 share 都从各自的唯一真源派生——因此错误的组合在编译期就会失败。chain-kind slot 会反转键控路由：条目通过纯 selector 自行提名，而不是由分发点选择 `entryKey`。本包在运行时与 Cordis 无关（仅使用 React 类型）；`ui-renderer` 拥有引擎实现与 React 绑定。
+`dsh-client-ui-slots` 让 Web 客户端插件定义并组合带类型检查的 UI 区域。调用方可以通过一个在编译期检查的 API 添加组件、声明嵌套区域、附加作用域状态并提供业务 props。它支持单项、有序列表、键控和自行选择的 chain 组合，并会在插件加载期间报告冲突组合。需要与框架无关的 slot 组合时选择本包；客户端需要 React 渲染时与 `ui-renderer` 配合使用。
 
 ## 目录
 
@@ -66,7 +66,6 @@ register 调用可以用 `store: defineStore(...)` 声明 store 席位：`init` 
 
 以下页面覆盖引擎、渲染器与组合模型。
 
-- [Slot 声明注入决策](../../../.agents/notes/implemented/architecture/2026-08-05-slot-declaration-injection.zh.md)——`ctx.slots.inject` 背后的生命周期规则。
 - [ui-renderer](../ui-renderer/README.zh.md)——实现本包安装约定的 React slot 渲染器。
 - [slot 系统标准](../../../.agents/notes/implemented/architecture/2026-07-22-slot-type-chain-implementation.zh.md)——权威组合模型。
 - [Web 客户端架构](../../../.agents/notes/implemented/architecture/2026-07-19-gui-web-client-architecture.zh.md)——本注册表接入的加载链与对象层。

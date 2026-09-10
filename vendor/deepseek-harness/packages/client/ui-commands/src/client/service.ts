@@ -26,6 +26,7 @@ import type {
 import type { CommandContribution, CommandDecoration, CommandUiContract } from './contract.ts'
 import type { CommandDescriptor } from './directory.ts'
 import { CommandDirectory } from './directory.ts'
+import { en, type CommandKey } from './locales.ts'
 import { PopupSelectController } from './popup.ts'
 import type { TokenSegment } from './popup.ts'
 
@@ -57,6 +58,16 @@ interface LiveState {
   readonly decorations: Map<string, CommandDecoration>
   readonly popups: Map<SessionId, PopupSelectController<ClientSessionContext>>
 }
+
+/** Locale keys for the canonical first-party Host command descriptions. */
+const HOST_DESCRIPTION_KEYS = new Map<string, CommandKey>([
+  ['compact', 'description.compact'],
+  ['export', 'description.export'],
+  ['feedback', 'description.feedback'],
+  ['goal', 'description.goal'],
+  ['permission', 'description.permission'],
+  ['plan', 'description.plan'],
+])
 
 /** Command surface: session-keyed directory + '/' source + contribution registry + per-session popups. */
 export class CommandUiRuntime extends Service implements CommandUiContract {
@@ -193,14 +204,18 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     const seen = new Set<string>()
     for (const c of list) {
       seen.add(c.name)
-      rows.push({ name: c.name, description: c.description, ...(c.input !== undefined ? { hint: c.input.hint } : {}) })
+      rows.push({
+        name: c.name,
+        description: this.hostDescription(c),
+        ...(c.input !== undefined ? { hint: c.input.hint } : {}),
+      })
     }
     for (const contribution of this.live.contributions.values()) {
       if (!contribution.available(session)) continue
       if (seen.has(contribution.name)) {
         throw new Error(`ui-commands: contribution /${contribution.name} collides with a host command`)
       }
-      rows.push({ name: contribution.name, description: contribution.description })
+      rows.push({ name: contribution.name, description: contribution.description() })
     }
     return rankByName(
       rows.filter(c => req.position === 'leading' || c.hint === undefined),
@@ -208,7 +223,13 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     )
   }
 
-  /** Decision table, menu column: contribution/decorated-host → popup; host input → claim; host bare → detached execute. */
+  /** Translate exact built-in Host copy while preserving scoped or third-party descriptors verbatim. */
+  private hostDescription(command: CommandDescriptor): string {
+    const key = HOST_DESCRIPTION_KEYS.get(command.name)
+    return key !== undefined && command.description === en[key] ? this.t(key) : command.description
+  }
+
+  /** Decision table, menu column: contribution/decorated-host → popup or action; host input → claim; host bare → detached execute. */
   private dispatch(pick: InputTriggerPick): PickOutcome {
     const name = pick.candidate.name
     if (this.isManagedReset(name, pick.session)) {
@@ -218,17 +239,17 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     }
     const contribution = this.live.contributions.get(name)
     if (contribution !== undefined && contribution.available(pick.session)) {
-      this.openPopup(name, contribution.ui, pick.session, { via: 'menu', span: pick.span })
+      this.invoke(name, contribution.ui, pick.session, { via: 'menu', span: pick.span })
       return 'handled'
     }
     const desc = this.directory.resolve(pick.session.sessionId, name)
     if (desc === undefined) return undefined // snapshot swapped between menu and pick → miss
-    // A decoration replaces the HOST row's bare invocation with its popup;
-    // it decorates only a resolvable host command (checked above), never
-    // manufactures one, and never touches the argument claim below.
+    // A decoration replaces the HOST row's bare invocation with its popup or
+    // action; it decorates only a resolvable host command (checked above),
+    // never manufactures one, and never touches the argument claim below.
     const decoration = this.live.decorations.get(name)
     if (decoration !== undefined && decoration.available(pick.session)) {
-      this.openPopup(name, decoration.ui, pick.session, { via: 'menu', span: pick.span })
+      this.invoke(name, decoration.ui, pick.session, { via: 'menu', span: pick.span })
       return 'handled'
     }
     if (desc.input !== undefined) return { claim: this.leadingClaim(desc, pick.session) }
@@ -244,7 +265,7 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     if (this.isDshbotRoom(session)) return undefined
     if (!token.startsWith('/')) return undefined
     const name = token.slice(1)
-    if (this.live.contributions.has(name)) return undefined // popup kinds never claim on space
+    if (this.live.contributions.has(name)) return undefined // popup and action kinds never claim on space
     const desc = this.directory.resolve(session.sessionId, name)
     if (desc === undefined || desc.input === undefined) return undefined
     return { claim: this.leadingClaim(desc, session) }
@@ -257,10 +278,11 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
    * args-tolerant.
    *
    * Envelope policy: an enter submission carrying attachments resolves only
-   * through a command declaring attachment acceptance. Every other command route —
-   * popup, non-accepting claim, bare detached execute — throws the refusal
-   * so the machine surfaces one composer notice and the draft and attachments
-   * stay in place; nothing executes and nothing is dropped.
+   * through a command declaring attachment acceptance. Every other submitting
+   * route — popup, non-accepting claim, bare detached execute — throws the
+   * refusal so the machine surfaces one composer notice and the draft and
+   * attachments stay in place; nothing executes and nothing is dropped. An
+   * action submits nothing and runs regardless.
    */
   private async matchEnter(
     session: ClientSessionContext,
@@ -289,8 +311,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     const contribution = this.live.contributions.get(name)
     if (contribution !== undefined && contribution.available(session)) {
       if (!bare) return undefined
-      if (envelope.attachments > 0) refuseAttachments()
-      this.openPopup(name, contribution.ui, session, { via: 'enter', token })
+      if (envelope.attachments > 0 && contribution.ui.kind !== 'action') refuseAttachments()
+      this.invoke(name, contribution.ui, session, { via: 'enter', token })
       return 'handled'
     }
     await this.directory.ensureReady(session.sessionId, signal)
@@ -301,8 +323,8 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     if (bare) {
       const decoration = this.live.decorations.get(name)
       if (decoration !== undefined && decoration.available(session)) {
-        if (envelope.attachments > 0) refuseAttachments()
-        this.openPopup(name, decoration.ui, session, { via: 'enter', token })
+        if (envelope.attachments > 0 && decoration.ui.kind !== 'action') refuseAttachments()
+        this.invoke(name, decoration.ui, session, { via: 'enter', token })
         return 'handled'
       }
     }
@@ -317,13 +339,21 @@ export class CommandUiRuntime extends Service implements CommandUiContract {
     return 'handled'
   }
 
-  /** Open the session's popup for one contribution or decoration (menu pick / bare enter). */
-  private openPopup(
+  /**
+   * Invoke one contribution or decoration (menu pick / bare enter): open the
+   * session's popup, or consume the token and run the action.
+   */
+  private invoke(
     name: string,
     ui: CommandContribution['ui'],
     session: ClientSessionContext,
     segment: TokenSegment,
   ): void {
+    if (ui.kind === 'action') {
+      this.consumeVia(session.sessionId, segment)
+      ui.run(session)
+      return
+    }
     const actx = this.scopeFor(session.sessionId)
     if (actx === undefined) return
     this.popupFor(actx).open(name, ui, session, segment)

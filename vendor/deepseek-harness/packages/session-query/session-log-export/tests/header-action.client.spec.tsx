@@ -47,12 +47,12 @@ describe('Session export Header action', () => {
 
   it('keeps the visible action for ordinary sessions', () => {
     const b = bench(SID, false)
-    expect(b.view.getByRole('button', { name: 'Session log' })).toBeTruthy()
+    expect(b.view.getByRole('button', { name: 'Download session log' })).toBeTruthy()
   })
 
   it('renders the 111×32 text capsule and downloads through the shared controller', async () => {
     const b = bench()
-    const button = b.view.getByRole('button', { name: 'Session log' })
+    const button = b.view.getByRole('button', { name: 'Download session log' })
     expect(button.querySelector('svg')).not.toBeNull()
     fireEvent.click(button)
     await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
@@ -75,7 +75,7 @@ describe('Session export Header action', () => {
     } as unknown as SessionLogDownloadDialogProps)} />)
 
     const download = controller.download(SID)
-    const button = b.view.getByRole('button', { name: 'Session log' })
+    const button = b.view.getByRole('button', { name: 'Download session log' })
     await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('true') })
     expect((button as HTMLButtonElement).disabled).toBe(true)
     release(new Response('zip'))
@@ -85,13 +85,13 @@ describe('Session export Header action', () => {
 
   it('keeps the capsule mounted when the current session is empty, then enables after a session arrives', async () => {
     const b = bench(undefined)
-    expect(b.view.getByRole('button', { name: 'Session log' })).toBeTruthy()
+    expect(b.view.getByRole('button', { name: 'Download session log' })).toBeTruthy()
     b.view.rerender(<SessionLogDownloadHeaderAction {...({
       ...b.props,
       sessionId: SID,
       useSessions: (selector: (state: { current: SessionId | undefined }) => unknown) => selector({ current: SID }),
     } as unknown as SessionLogDownloadDialogProps)} />)
-    const button = b.view.getByRole('button', { name: 'Session log' })
+    const button = b.view.getByRole('button', { name: 'Download session log' })
     fireEvent.click(button)
     await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
   })
@@ -102,8 +102,8 @@ describe('Session export Header action', () => {
       ...b.props,
       density: 'cozy',
     } as unknown as SessionLogDownloadDialogProps)} />)
-    const button = b.view.getByRole('button', { name: 'Session log' })
-    expect(b.view.queryByText('Session log')).toBeNull()
+    const button = b.view.getByRole('button', { name: 'Download session log' })
+    expect(b.view.queryByText('Download session log')).toBeNull()
     expect(button.querySelector('svg')).not.toBeNull()
   })
 })

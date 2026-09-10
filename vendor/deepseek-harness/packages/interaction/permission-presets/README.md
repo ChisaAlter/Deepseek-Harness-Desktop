@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-permission-presets` gives a deployment one user-facing Permissions selector that bundles two independent enforcement knobs — the sandbox mode and the approval policy — into named presets. Selecting a preset applies the sandbox mode and approval policy together, while each knob keeps its own value, so sandbox execution, approval, prompt narration, and replay each read their own setting. The default table ships `workspace-write` (workspace-write + ask) and `danger-full-access` (danger-full-access + never); a knob combination matching no preset reads back as the derived `custom`, which clients may display but never select. The service also owns the `permission` settings namespace whose default applies only when a later session is created, and two optional children — a `permissions` session projection and the `/permission` command — expose the same surface to the Web client. Mounting it requires a confining bash executor and the approval service; it owns no enforcement itself.
+Permission presets give users one selector for applying sandbox mode and approval policy together. A deployment can configure named presets and a default for newly created sessions; changing that default does not alter existing sessions, and the shipped table includes `workspace-write` and `danger-full-access`. If the current combination matches no preset, clients show the derived `custom` state, but users cannot select or persist it; switching presets changes only settings whose effective values differ. The `/permission` command reports or changes the current preset, while sandbox execution and approval handling remain separate enforcement mechanisms.
 
 ## Table of Contents
 

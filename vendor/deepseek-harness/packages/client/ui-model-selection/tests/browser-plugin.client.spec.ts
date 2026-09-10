@@ -17,7 +17,7 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ModelSelection, ModelSelectionProjection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { ModelProviderGroup } from '@deepseek-ai/dsh-api-remotes/client'
-import type { CommandContribution, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+import type { CommandContribution, PopupSelectSpec, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { ModelSelectInjected } from '../src/client/slots.ts'
 import { ModelDirectoryResolver } from '../src/client/service.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -32,6 +32,7 @@ const GROUPS = [{
     {
       id: 'deepseek-v4-flash',
       name: 'DeepSeek-V4-Flash',
+      description: 'Fast, efficient, and economical; suited to focused, routine, or parallel tasks.',
       reasoning: {
         efforts: [
           { id: 'off', name: 'Off' },
@@ -44,6 +45,7 @@ const GROUPS = [{
     {
       id: 'deepseek-v4-pro',
       name: 'DeepSeek-V4-Pro',
+      description: 'Stronger agentic coding, knowledge, and difficult reasoning; suited to complex or quality-critical tasks at higher cost.',
       reasoning: {
         efforts: [
           { id: 'off', name: 'Off' },
@@ -54,10 +56,27 @@ const GROUPS = [{
       },
     },
   ],
+}, {
+  id: 'external',
+  name: 'External Provider',
+  models: [{
+    id: 'deepseek-v4-flash',
+    name: 'External Flash',
+    description: 'Provider-authored description.',
+  }],
 }]
 
-/** Boot the plugin over fake faces + a stateful fake host (current moves on selectModel). */
-async function bench(customGroups: ModelProviderGroup[] = GROUPS as ModelProviderGroup[], hostCatalog: ModelProviderGroup[] = []) {
+/**
+ * Boot the plugin over fake faces + a stateful fake host (current moves on selectModel).
+ * @param locale - asserted UI copy locale.
+ * @param customGroups - session catalog override.
+ * @param hostCatalog - host-scoped catalog override (wins over customGroups when non-empty).
+ */
+async function bench(
+  locale: 'zh' | 'en' = 'zh',
+  customGroups: ModelProviderGroup[] = GROUPS as ModelProviderGroup[],
+  hostCatalog: ModelProviderGroup[] = [],
+) {
   const ctx = new Context()
   let defaultSelection: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
   let selected = defaultSelection
@@ -127,10 +146,9 @@ async function bench(customGroups: ModelProviderGroup[] = GROUPS as ModelProvide
     },
   })
   const localeRuntime = new LocaleRuntime(ctx)
-  // This spec asserts the shipped Chinese copy. There is no jsdom `window` in
-  // this lane, so browser-language detection never runs and the locale comes
-  // from FALLBACK_LOCALE (en): state the asserted locale explicitly.
-  localeRuntime.setLocale('zh')
+  // There is no jsdom `window` in this lane, so browser-language detection
+  // never runs. Each bench states the locale its assertions require.
+  localeRuntime.setLocale(locale)
   ctx.provide('locale', localeRuntime)
   const scopes = new Map<SessionId, Context>()
   const addressed = new Set<SessionId>()
@@ -167,6 +185,11 @@ async function bench(customGroups: ModelProviderGroup[] = GROUPS as ModelProvide
   return {
     ctx, fiber, mint, calls, remote,
     contribution: () => contribution!,
+    popup: (): PopupSelectSpec => {
+      const ui = contribution!.ui
+      if (ui.kind !== 'popupSelect') throw new Error('expected the popupSelect kind')
+      return ui
+    },
     seat: () => seats.get('conversation.input.model')!,
     hostCurrent: () => selected,
     setHostCurrent: (selection: ModelSelection) => { defaultSelection = selection },
@@ -192,13 +215,31 @@ describe('ui-model-selection dual entry', () => {
     expect(b.seat().locale).toBe('model')
   })
 
-  it('popup options mark the host current active with the provider group in the detail', async () => {
+  it('localizes built-in descriptions and preserves external provider descriptions', async () => {
     const b = await bench()
     b.mint('s1')
-    const options = await b.contribution().ui.options(projection('s1'), new AbortController().signal)
-    expect(options.map((o: SelectOption) => o.label)).toEqual(['DeepSeek-V4-Flash', 'DeepSeek-V4-Pro'])
-    expect(options[0]).toMatchObject({ active: true, detail: 'DeepSeek' })
+    const options = await b.popup().options(projection('s1'), new AbortController().signal)
+    expect(options.map((o: SelectOption) => o.label)).toEqual([
+      'DeepSeek-V4-Flash', 'DeepSeek-V4-Pro', 'External Flash',
+    ])
+    expect(options[0]).toMatchObject({
+      active: true,
+      detail: 'DeepSeek · 快速、高效且经济；适合目标明确、常规或并行任务。',
+    })
+    expect(options[1]?.detail)
+      .toBe('DeepSeek · 更强的自主编码、知识与复杂推理能力；适合复杂或质量优先的任务，但成本更高。')
+    expect(options[2]?.detail).toBe('External Provider · Provider-authored description.')
     expect(options[1]?.active).toBeUndefined()
+  })
+
+  it('keeps built-in descriptions unchanged in English', async () => {
+    const b = await bench('en')
+    b.mint('s1')
+    const options = await b.popup().options(projection('s1'), new AbortController().signal)
+    expect(options[0]?.detail)
+      .toBe('DeepSeek · Fast, efficient, and economical; suited to focused, routine, or parallel tasks.')
+    expect(options[1]?.detail)
+      .toBe('DeepSeek · Stronger agentic coding, knowledge, and difficult reasoning; suited to complex or quality-critical tasks at higher cost.')
   })
 
   it('a seat selection is the current the popup marks active next — one shared state', async () => {
@@ -222,7 +263,7 @@ describe('ui-model-selection dual entry', () => {
       reasoningEffort: 'max',
     })
     // The POPUP's next options pass reflects it without a seat-side reload.
-    const options = await b.contribution().ui.options(projection('s1'), new AbortController().signal)
+    const options = await b.popup().options(projection('s1'), new AbortController().signal)
     expect(options.find((o: SelectOption) => o.label === 'DeepSeek-V4-Pro')).toMatchObject({ active: true })
   })
 
@@ -230,9 +271,9 @@ describe('ui-model-selection dual entry', () => {
     const b = await bench()
     b.mint('s1')
     const seatFace = b.seat().inject!(sid('s1'))
-    const options = await b.contribution().ui.options(projection('s1'), new AbortController().signal)
+    const options = await b.popup().options(projection('s1'), new AbortController().signal)
     const pro = options.find((o: SelectOption) => o.label === 'DeepSeek-V4-Pro')!
-    await b.contribution().ui.onSelect(pro, projection('s1'))
+    await b.popup().onSelect(pro, projection('s1'))
     expect(seatFace.directory.getSnapshot().current).toEqual({
       provider: 'deepseek-official',
       model: 'deepseek-v4-pro',
@@ -252,8 +293,8 @@ describe('ui-model-selection dual entry', () => {
     // The service face resolves the same instance the seat inject handed out.
     expect(b.ctx.modelDirectories.directoryFor(sid('a')).store).toBe(faceA.directory)
     await Promise.all([
-      b.contribution().ui.options(projection('a'), new AbortController().signal),
-      b.contribution().ui.options(projection('b'), new AbortController().signal),
+      b.popup().options(projection('a'), new AbortController().signal),
+      b.popup().options(projection('b'), new AbortController().signal),
     ])
     expect(b.calls.models).toBe(1)
   })
@@ -380,10 +421,12 @@ describe('ui-model-selection dual entry', () => {
     face.load()
     await Promise.resolve()
     await Promise.resolve()
-    // The session's catalog carries each advertised model with its provider.
+    // The session's catalog carries each advertised model with its provider;
+    // the shared GROUPS also advertises the external provider's same-id model.
     expect(b.catalogOf('s1')).toEqual([
       { provider: 'deepseek-official', id: 'deepseek-v4-flash' },
       { provider: 'deepseek-official', id: 'deepseek-v4-pro' },
+      { provider: 'external', id: 'deepseek-v4-flash' },
     ])
     // The resolver-level union remembers the models even after the session
     // directory goes, so the root-scope price settings row can list them.
@@ -391,6 +434,7 @@ describe('ui-model-selection dual entry', () => {
     expect(union).toEqual([
       { provider: 'deepseek-official', id: 'deepseek-v4-flash' },
       { provider: 'deepseek-official', id: 'deepseek-v4-pro' },
+      { provider: 'external', id: 'deepseek-v4-flash' },
     ])
   })
 
@@ -411,7 +455,7 @@ describe('ui-model-selection dual entry', () => {
   })
 
   it('keeps a model a custom provider serves alongside the official route in the model catalog', async () => {
-    const b = await bench([
+    const b = await bench('zh', [
       { id: 'deepseek-official', name: 'DeepSeek', models: [{ id: 'deepseek-v4-flash', name: 'Flash' }] },
       { id: 'my-gateway', name: 'My Relay', models: [{ id: 'other', name: 'Other' }] },
     ] as ModelProviderGroup[])
@@ -437,7 +481,7 @@ describe('ui-model-selection dual entry', () => {
   })
 
   it('seeds the settings-row catalog from the host-scoped llm.models without a session directory', async () => {
-    const b = await bench([], [
+    const b = await bench('zh', [], [
       { id: 'my-gateway', name: 'My Relay', models: [{ id: 'deepseek-v4-flash', name: 'Flash Relay' }] },
     ] as ModelProviderGroup[])
     // No session directory is ever minted: the host catalog alone makes a
@@ -474,7 +518,7 @@ describe('ui-model-selection dual entry', () => {
     b.address(sid('child'))
 
     expect(b.contribution().available(projection('child'))).toBe(false)
-    await expect(b.contribution().ui.options(
+    await expect(b.popup().options(
       projection('child'),
       new AbortController().signal,
     )).rejects.toThrow(/unavailable for addressed subagent/)

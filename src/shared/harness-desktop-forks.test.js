@@ -76,7 +76,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-settings-models/scripts/live-fetch-enrich-probe.ts': '// live probe\n',
       'packages/client/ui-theme/src/client/WallpaperGalleryModal.tsx': 'export const gallery = () => null\n',
       'packages/client/ui-theme/src/client/WallpaperRow.tsx': 'export const row = () => null\n',
-      'packages/client/ui-chat/src/client/chat/StatsLine.module.css': '.root { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
+      'packages/client/ui-chat/src/client/chat/StatsPills.module.css': '.root { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
       'packages/client/ui-chat/src/client/chat/ChatView.module.css': '.column { max-width: calc(var(--dsh-composer-resized-width, 100%) - 32px); }\n',
       'packages/client/ui-conversation/src/client/skeleton/ComposerResizeHandles.tsx': 'export const host = () => el?.closest("[data-conversation-scroll]")\n',
       'packages/client/ui-conversation/src/client/queue/QueueDock.module.css': '.dock { max-width: calc(var(--dsh-composer-resized-width, 100%) - 16px); }\n',
@@ -87,7 +87,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css': ':global(html[data-dsh-wallpaper]:not([data-dsh-transparent])) .composerSeat {}\n.heroWorkspaceRow { max-width: var(--dsh-composer-resized-width, var(--dsh-composer-card-max-width)); align-self: center; }\n',
       'packages/client/ui-conversation/src/client/ComposerBeam.tsx': '<div data-composer-beam="" data-beam-breathing="off" style={{ "--dsh-composer-beam-period": "1.96s", "--dsh-composer-beam-bloom-opacity": 0.36, "--dsh-composer-beam-track-width": "2px" }} />\n',
       'packages/client/ui-conversation/src/client/ComposerBeam.module.css': '.beamLayer { inset: -4px; corner-shape: round; }\n.beamStroke { padding: var(--dsh-composer-beam-track-width, 2px); mask: conic-gradient(transparent 30%); -webkit-mask-composite: source-in, xor; mask-composite: intersect, exclude; }\n.beamInner { mask-composite: add; }\n.beamBloom { filter: blur(var(--dsh-composer-beam-glow-blur, 8px)); }\n.beamBloom::before {}\n',
-      'packages/client/ui-chat/src/client/chat/StatsLine.tsx': '<div data-stats-line={rowState} />\n',
+      'packages/client/ui-chat/src/client/chat/StatsPills.tsx': '<div data-stats-line={rowState} />\n',
       'packages/api/workspace-controller/src/types.ts': 'export interface WorkspaceBaseline { readonly scratchCwd: string }\n',
       'packages/api/workspace-controller/src/index.ts': "export function scratchWorkspaceCwd() { return dshHomePath('no-workspace') }\n",
       'packages/api/workspace-controller/src/client/model.ts': 'export interface WorkspaceSnapshot { readonly scratchCwd?: string }\n',
@@ -184,7 +184,7 @@ test('assertDesktopForks throws when copy-ghostty-assets drops out of package.js
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /copy-ghostty-assets/);
 });
 
-test('assertDesktopForks accepts the current vendor tree at alpha.1', () => {
+test('assertDesktopForks accepts the current vendor tree at rc.1', () => {
   const vendor = path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');
-  assertDesktopForks(vendor, '0.1.3-alpha.1');
+  assertDesktopForks(vendor, '0.1.5-rc.1');
 });

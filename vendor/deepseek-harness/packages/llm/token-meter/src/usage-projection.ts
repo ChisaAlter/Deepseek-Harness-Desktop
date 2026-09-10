@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod'
-import { expandAssistantStream, type TokenUsage } from '@deepseek-ai/dsh-llm'
+import { lastAssistantStreamChunk, type TokenUsage } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-llm-retry/types'
 import { SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
@@ -89,12 +89,10 @@ export function usageSampleOf(
     return { turn: event.data.turn, step: event.data.step, usage: event.data.usage }
   }
   if (event.type !== 'assistant/message' && event.type !== 'assistant/attempt') return undefined
-  for (const member of expandAssistantStream(event.data.stream).toReversed()) {
-    if (member.chunk.type === 'usage') {
-      return { turn: event.data.turn, step: event.data.step, usage: member.chunk.usage }
-    }
-  }
-  return undefined
+  const chunk = lastAssistantStreamChunk(event.data.stream, 'usage')
+  return chunk === undefined
+    ? undefined
+    : { turn: event.data.turn, step: event.data.step, usage: chunk.usage }
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {

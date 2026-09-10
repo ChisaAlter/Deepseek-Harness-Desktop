@@ -133,6 +133,8 @@ import { bindPtyListeners } from '../src/client/pty-bridge.ts'
 const SID = 'session-term' as SessionId
 const t: TerminalDrawerProps['t'] = key => (en as Record<string, string>)[key] ?? key
 const neverHook = (() => { throw new Error('terminal drawer must not read this hook') }) as never
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
 
 function sessionList(cwd: string | undefined): SessionListState {
   const current = cwd === undefined ? undefined : SID
@@ -219,6 +221,8 @@ function mount(opts: {
     useConversation: neverHook,
     useSessionPendingInteraction: neverHook,
     useInput: neverHook,
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     inputActions: undefined,
     ...store,
     ptyCreate,

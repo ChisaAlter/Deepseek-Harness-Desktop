@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-workflow` runs a plain-JavaScript orchestration script and gives the caller a live run whose result resolves with the script's final JSON value. The script can fan out subagents with `agent()`, combine independent work with `parallel()` and `pipeline()`, and narrate progress with `phase()` and `log()`; agents normally drive this through the `workflow` tool from `dsh-tool-workflow`. A run is holder-owned: its result never rejects, cancellation and disposal are bounded, and every child is attributed to the invoking agent. The package ships no execution engine — `dsh-workflow-worker-thread` is the current one — so a different isolation strategy can replace it without changing what callers or the model see.
+Run a plain-JavaScript orchestration script that fans work out to subagents and returns the script's final JSON value. Scripts can use `agent()`, `parallel()`, `pipeline()`, `phase()`, and `log()`; models normally access them through the `workflow` tool. Each run belongs to its caller, attributes every child to the invoking agent, resolves failures and cancellation without rejecting its result, and stops disposal within a bounded grace period. The caller must supply an execution engine, allowing the isolation strategy to change without altering visible behavior.
 
 ## Table of Contents
 

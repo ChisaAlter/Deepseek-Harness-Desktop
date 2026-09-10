@@ -45,4 +45,22 @@ describe('SystemPromptNodeView', () => {
         ?.getAttribute('aria-hidden'),
     ).toBe('true')
   })
+
+  it('titles an in-history prompt update as an update of the same row', () => {
+    const node: ChatNode<'system-prompt'> = {
+      key: 'system-message:10',
+      kind: 'system-prompt',
+      id: '10',
+      target: 'chat',
+      anchorSeq: 10,
+      location: { kind: 'unresolved' },
+      visibility: 'visible',
+      data: { text: '# Updated rules', update: true },
+    }
+    const { container } = render(<SystemPromptNodeView node={node} t={makeTranslate(en)} />)
+
+    const disclosure = screen.getByRole('button', { name: 'System prompt update' })
+    fireEvent.click(disclosure)
+    expect(container.querySelector('[data-context-text]')?.textContent).toBe('# Updated rules')
+  })
 })

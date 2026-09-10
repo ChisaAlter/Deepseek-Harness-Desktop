@@ -6,6 +6,9 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { ResizeRow } from '../src/client/settings/ResizeRow.tsx'
 import type { ResizeRowProps } from '../src/client/settings/ResizeRow.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(cleanup)
 
@@ -14,6 +17,8 @@ const unused = (() => { throw new Error('unused by ResizeRow') }) as never
 function mount(opts: { enabled?: boolean; writable?: boolean } = {}) {
   const setComposerResize = vi.fn()
   const props: ResizeRowProps = {
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     useSessions: unused,
     useSessionPendingInteraction: unused,
     useWorkspaces: unused,

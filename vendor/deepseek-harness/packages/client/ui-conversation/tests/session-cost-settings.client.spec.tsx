@@ -12,6 +12,9 @@ import type { CostSettingsRowProps } from '../src/client/settings/CostSettingsRo
 import { ComposerSubmissionPolicy } from '../src/client/input/submission-policy.ts'
 import { ConversationSettingsSchema, DEFAULT_SESSION_COST } from '../src/submission-settings.ts'
 import type { ConversationSettings } from '../src/submission-settings.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(cleanup)
 
@@ -26,6 +29,8 @@ function mount(opts: {
   const setSessionCost = vi.fn()
   const setCostPrices = vi.fn()
   const props: CostSettingsRowProps = {
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     useSessions: unused,
     useSessionPendingInteraction: unused,
     useWorkspaces: unused,

@@ -2,7 +2,7 @@
 
 [English](feedback.md) | 中文
 
-[`@deepseek-ai/dsh-message-feedback`](../../packages/feedback/message-feedback)拥有针对单条 assistant 消息的可编辑反馈。它刻意与不可变的 Session 级 `feedback/record` 事件分离：message feedback 是本地 storage-domain 伴随记录（sidecar），不是 Session 日志内容或投影，也不执行遥测交接。
+[`@deepseek-ai/dsh-message-feedback`](../../packages/feedback/message-feedback)拥有针对单条 assistant 消息的可编辑反馈。权威 Session 日志保存 `feedback/message-put` 和 `feedback/message-delete`；不可变的 Session 级备注仍使用 `feedback/record`，由 [`@deepseek-ai/dsh-command-feedback`](../../packages/feedback/command-feedback) 连同两种反馈共用的 `FeedbackCategory` 分类表一起拥有。三者都是仅写日志的事件，绝不进入模型上下文。
 
 来源：[`packages/feedback/message-feedback/src/types.ts`](../../packages/feedback/message-feedback/src/types.ts)
 
@@ -27,6 +27,8 @@ interface MessageFeedbackItem {
   readonly rating: MessageFeedbackRating
   /** Optional explanation, preserved verbatim after validation. */
   readonly note?: string
+  /** Category the human filed a negative judgment under. */
+  readonly category?: FeedbackCategory
   /** Equality-only token replaced by every material create or update. */
   readonly version: MessageFeedbackVersion
   /** Host-assigned creation time in Unix epoch milliseconds. */
@@ -37,9 +39,29 @@ interface MessageFeedbackItem {
 ```
 
 ```ts type-equiv
+/** A material creation or edit, retaining its complete current value. */
+interface MessageFeedbackPut {
+  /** Owning Session; inherited feedback in a fork belongs to its parent. */
+  readonly sessionId: SessionId
+  /** Value after this mutation, including the original creation time. */
+  readonly item: MessageFeedbackItem
+}
+```
+
+```ts type-equiv
+/** A material deletion of one current feedback item. */
+interface MessageFeedbackDelete {
+  /** Session that owns the deleted feedback. */
+  readonly sessionId: SessionId
+  /** Message whose feedback was removed. */
+  readonly messageId: MessageId
+}
+```
+
+```ts type-equiv
 /** Read all message feedback belonging to one persisted Session lifecycle. */
 interface MessageFeedbackListRequest {
-  /** Persisted Session whose sidecar should be read. */
+  /** Session whose feedback events should be read. */
   readonly sessionId: SessionId
 }
 ```
@@ -63,6 +85,8 @@ interface MessageFeedbackPutRequest {
   readonly rating: MessageFeedbackRating
   /** Optional non-blank explanation. */
   readonly note?: string
+  /** Optional category; absent keeps the item uncategorized. */
+  readonly category?: FeedbackCategory
   /** Observed item version, or `null` to require that no item exists. */
   readonly ifVersion: MessageFeedbackVersion | null
 }
@@ -71,7 +95,7 @@ interface MessageFeedbackPutRequest {
 ```ts type-equiv
 /** Delete feedback for one message after observing its current version. */
 interface MessageFeedbackDeleteRequest {
-  /** Persisted Session that owns the sidecar. */
+  /** Session that owns the feedback. */
   readonly sessionId: SessionId
   /** Message whose feedback should be absent after this operation. */
   readonly messageId: MessageId
@@ -183,43 +207,112 @@ type MessageFeedbackDeleteResult =
   | MessageFeedbackRejected<MessageFeedbackSessionNotFound | MessageFeedbackVersionConflict>
 ```
 
+## Session 反馈类型
+
+来源：[`packages/feedback/command-feedback/src/types.ts`](../../packages/feedback/command-feedback/src/types.ts)
+
+```ts type-equiv
+/** One of the fixed feedback categories; the ids are durable log vocabulary. */
+type FeedbackCategory =
+  | 'task-result'
+  | 'instruction-following'
+  | 'product-interaction'
+  | 'service-stability'
+  | 'resource-cost'
+  | 'security-privacy-permission'
+  | 'other'
+```
+
+```ts type-equiv
+/**
+ * One recorded human remark about a Session. Both members are optional: a
+ * submission with neither still records that the human asked for the
+ * Session to be reviewed, which is what authorizes log delivery.
+ */
+interface FeedbackRecord {
+  /** Free-text remark with surrounding whitespace removed; never empty when present. */
+  readonly text?: string
+  /** Category the human filed the remark under. */
+  readonly category?: FeedbackCategory
+}
+```
+
+```ts type-equiv
+/** Record one Session-level remark through the Host Remote. */
+interface SessionFeedbackRecordRequest {
+  /** Live Session the remark describes. */
+  readonly sessionId: SessionId
+  /** Free-text remark; blank text is recorded as absent. */
+  readonly text?: string
+  /** Category the human filed the remark under. */
+  readonly category?: FeedbackCategory
+}
+```
+
+```ts type-equiv
+/** Stable postcondition of a recorded remark. */
+interface SessionFeedbackRecordValue {
+  /** The remark is appended to the Session log; flushing follows the Session's own schedule. */
+  readonly recorded: true
+}
+```
+
+```ts type-equiv
+/** No live Session carries the requested id. */
+interface SessionFeedbackSessionNotFound {
+  readonly code: 'session-not-found'
+  readonly sessionId: SessionId
+}
+```
+
+```ts type-equiv
+/** Result returned by the `sessionFeedback.record` operation. */
+type SessionFeedbackRecordResult =
+  | { readonly ok: true; readonly value: SessionFeedbackRecordValue }
+  | { readonly ok: false; readonly error: SessionFeedbackSessionNotFound }
+```
+
 ## 数据与并发
 
-每个 Session 的一条伴随记录包含 header 身份 `{createdAt, cwd}` 和以 `MessageId` 为键的反馈条目。每个条目携带好评或差评、可选备注、Host 分配的 `createdAt`/`updatedAt` 时间戳及自己的 opaque version。version 只能用于相等比较，且只与目标消息比较；调用方不能排序或自行合成它。
+当前条目由 payload 中 `sessionId` 与所属 Session 匹配的权威反馈事件归约得到。每个条目携带好评或差评、可选备注、可选分类、Host 分配的 `createdAt`/`updatedAt` 时间戳及自己的 opaque version。version 只能用于相等比较，且只与目标消息比较；调用方不能排序或自行合成它。
 
-`put` 采用严格乐观并发：已有条目的每次请求都必须匹配当前 `ifVersion`，即使请求不会改变目标值。冲突会返回权威当前条目（不存在时为 `null`），因此调用方无需额外读取，即可协调丢失响应或并发编辑。删除已经不存在的条目同样成功。按 Session 划分的队列覆盖检查、读取、冲突判断与整行写入，因此这些保证适用于单个 Host 进程中的并发调用。
+`put` 采用严格乐观并发：已有条目的每次请求都必须匹配当前 `ifVersion`，即使请求不会改变目标值（重复已存评分、备注与分类的 put）。冲突会返回权威当前条目（不存在时为 `null`），因此调用方无需额外读取，即可协调丢失响应或并发编辑。删除已经不存在的条目同样成功。按 Session 划分的队列串行执行读取与变更；cold 变更在读取、比较、追加和 flush 期间持有持久化写句柄。匹配版本的无变更操作不追加事件。
 
 ## 目标与生命周期权威
 
-live 持有者的内存日志直接提供目标 Session 的观测；cold 目标则通过 `SessionPersistence.open(id, 'read')` 句柄读取，既不会发布或恢复 Agent，也不会写入恢复内容。先由 `stat(id)` 预检明确不存在；`stat` 已确认存在的 Session 若读取失败，会按基础设施故障原样传播。`put` 只接受具有指定 `MessageId` 的非空、append-origin `assistant/message`；replacement-origin、仅承载 usage 的空记录和非 assistant 记录都不是反馈目标。
+live 持有者的内存日志直接提供目标 Session 的观测；cold 读取使用 `SessionPersistence.open(id, 'read')` 句柄，变更则使用写句柄。两条路径都不构造 Session 或 Agent。先由 `stat(id)` 预检明确不存在；`stat` 已确认存在的 Session 若读取失败，会按基础设施故障原样传播。`put` 只接受具有指定 `MessageId` 的非空、append-origin `assistant/message`；replacement-origin、仅承载 usage 的空记录和非 assistant 记录都不是反馈目标。
 
-存储的 `{createdAt, cwd}` 身份必须与检查所得 header 匹配。不匹配按不存在处理：`list` 返回空条目，`put` 则可用绑定当前 header 身份的新记录替换陈旧行。fork 使用新的 Session 身份，即使种子包含相同消息，也不获得伴随记录副本。
+fork 种子可以包含父 Session 的反馈事件，但 payload 保留父级 `sessionId`，因此不会成为子 Session 的当前反馈。删除条目会追加删除标记；早先的评分与备注仍保留在日志中。
 
 ## 持久化与 Remote 约定
 
-服务通过 `ctx.storageDomain` 在 `message_feedback` 存储域中保存完整 Session 行。`put` 提交引用目标消息的伴随记录前，身份匹配的 live 目标先经过权威 `ctx.sessions.flush` checkpoint；随后 live 与 cold 路径都会通过一个新开的读句柄从序列零做物理复读，依据该 seam 的新鲜度保证，它至少能观察到已 flush 的前缀。写入伴随记录前会再次校验所得观测，因此目标日志的持久提交始终先于其伴随记录。`maxNoteBytes` 为必填项，按 UTF-8 字节限制备注文本；Web Host 组合将其设为 `8192`。该包通过 `TypertRemoteService` 与 `@Remote` 发布 Host `messageFeedback.list`、`messageFeedback.put` 和 `messageFeedback.delete` 一元 Remote 约定；下方生成的 Cordis API 是方法级权威。
+成功的消息反馈变更会等待权威持久化完成：live 操作通过所属 Session 追加，并要求有 `ctx.sessions.flush` 监听器参与；cold 操作通过写句柄追加并 flush。持久化故障会原样传播，不会报告成功。`maxNoteBytes` 为必填项，按 UTF-8 字节限制备注文本；Web Host 组合将其设为 `8192`。该包通过 `TypertRemoteService` 与 `@Remote` 发布 Host `messageFeedback.list`、`messageFeedback.put` 和 `messageFeedback.delete` 一元 Remote 约定；`command-feedback` 以同样方式发布面向 live Session 的 Session 级备注 `sessionFeedback.record`。下方生成的 Cordis API 是方法级权威。
 
-Plugin disposal 会先关闭变更接纳，排空已进入各 Session 队列的工作，然后才关闭 storage domain。
+插件释放会关闭操作接纳，并排空已进入各 Session 队列的工作。
+
+显式启用后，[`session-log-deepseek`](../../packages/session/session-log-deepseek/README.zh.md) 会在后续符合条件的 DeepSeek 请求中，把反馈作为普通 `dsh_session_log` 后缀的一部分传送。记录反馈不会触发 LLM 请求，也不会单独上传 `dsh_feedback`。对于非 DeepSeek 路由，[OTel 后端](../../packages/session/session-telemetry-otel/README.zh.md)可以将权威日志前缀释放至已记录的反馈。命令确认文本确认记录并标识 Session 与匿名用户，不报告遥测策略或投递结果。
 
 ## Web 界面
 
-[`@deepseek-ai/dsh-client-ui-message-feedback`](../../packages/client/ui-message-feedback) 是浏览器侧消费方。`@deepseek-ai/dsh-api-remotes` 挂载生成的 `messageFeedback` 贡献，因此该插件调用 `ctx.remote.messageFeedback`，不接触传输层。
+[`@deepseek-ai/dsh-client-ui-message-feedback`](../../packages/client/ui-message-feedback) 是浏览器侧消费方。`@deepseek-ai/dsh-api-remotes` 挂载生成的 `messageFeedback` 与 `sessionFeedback` 贡献，因此该插件调用 `ctx.remote.messageFeedback` 与 `ctx.remote.sessionFeedback`，不接触传输层。
 
 控件是 `conversation.chat.assistant-actions` list slot 的 `feedback` 条目（order 10），该 slot 由 `ui-conversation` 声明，并渲染在已定稿助手消息的 IconActions 行内。`AssistantMessageNode` 携带来自 `assistant/message` 事件的可选 `messageId`。被中断冻结的部分输出没有该字段，渲染点在字段缺失时跳过该 slot。该操作栏每个 Turn 渲染一次，位于收尾的助手消息上：Host 接受每条 append-origin 步骤消息作为目标，但多步骤 Turn 中较早的步骤渲染的是工具行而非可评分正文，因此 UI 暴露的范围比 Host 约定允许的更窄。
 
 每个 Session 一个 `MessageFeedbackController`，支撑该 Session 内所有消息的控件：一次 `list` 读取即填充整段对话，且延迟到首次 hover 或 focus 才发起，而非挂载时触发。每次变更把该 controller 最后观察到的版本作为 `ifVersion` 发送；`version-conflict` 响应携带权威条目，controller 据此对账而不重新拉取。变更按 Session 串行，排队操作与已提交版本比较。`connection/reset` 只刷新已读取过的 Session。
 
+点赞立即记录不带备注的好评并显示确认 toast。点踩打开该 Session 的反馈弹窗，即 `conversation.input.overlay` 的 `feedback-dialog` 条目：共用的 Modal 卡片，里面是七个分类标签和一个详情框。提交会 put 一条差评，带上所选分类与去除首尾空白的描述，两者也可都不带。不带文本的 `/feedback`（`ui-commands` 以 `action` 路由的一个装饰）为 Session 打开同一个弹窗，随后通过 `sessionFeedback.record` 记录；`/feedback <text>` 仍走宿主命令路径。再次点击已记录的评分会撤回它。
+
 ## 边界与限制
 
-- 变更队列仅在进程内生效。storage-domain 没有跨进程条件写，因此多个 Host 写入同一存储根目录时，不提供 compare-and-swap 或防止丢失更新的保证。
-- Session persistence 没有持久删除接口。服务不把 `session/disposed` 或 `api-session/removed` 当作删除，因此不伪造级联；在带外移除日志后，孤儿伴随记录可能继续存在。
+- 操作队列仅在进程内生效；cold 写入排他性依赖所选持久化提供方。
+- 删除只移除当前条目，不会抹除 append-only 日志或已投递后缀中的早先备注。
 - 请求若恰好落在 live detach 之后、persistence catalog 物化 header 之前的极短窗口，可能收到 `session-not-found`；调用方应在 retirement materialization 后重试。
-- 由于 persistence 没有按 id 读取元数据的操作，cold 请求会扫描完整的 Session snapshot 目录。单个 Session 行也没有条目数或聚合字节上限；在具体消费方拥有行策略之前，`maxNoteBytes` 只限制每条备注。
-- 只有 `{createdAt, cwd}` 不同时，header 身份才能识别复用的 id；本约定无法区分保留相同 header 身份的克隆日志。
+- cold 请求读取完整日志；服务没有条目数或聚合字节上限。`maxNoteBytes` 只限制每条备注。
 - Host 约定不记录已认证的 actor 或审计身份，因此假设调用方边界可信。
 - Web 控件只出现在对话视图。trajectory 与 waterfall 视图不渲染反馈条目，尽管它们的助手节点携带相同的 `messageId`。
-- 该 sidecar 不发布实时帧，因此另一个标签页的评分要等到重连或下一次冲突响应才可见，不会立即出现。
-- 备注编辑器不预先校验 `maxNoteBytes`；超长备注在保存时以 `note-too-large` 失败，而不是在输入过程中。
+- Web 控制器不消费反馈日志事件，因此另一个标签页的评分要等到重连或下一次冲突响应才可见，不会立即出现。
+- 弹窗不预先校验 `maxNoteBytes`；针对消息的超长描述在提交时以 `note-too-large` 失败，而不是在输入过程中。Session 级备注没有大小上限，`/feedback` 命令从来也没有。
+- `sessionFeedback.record` 只服务 live Session，否则回答 `session-not-found`；弹窗打开期间 Session 退役时，弹窗会报告该失败。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -233,34 +326,75 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.messageFeedback` — `MessageFeedbackService`
 
-Storage-domain sidecar service. It inspects persisted Session history and never creates or resumes an Agent or Session.
+Session-log service; cold operations never construct a Session or Agent.
 
 ```ts cordis-catalog
 /**
- * Read feedback belonging to the current persisted Session lifecycle.
- * A stale row from a reused Session id is invisible.
- * @param request - Session identity to inspect and list.
- * @returns current immutable items or `session-not-found`.
+ * Read current feedback from the canonical log.
+ * @param request - Session to inspect.
+ * @returns immutable items or a definite persistence miss.
  */
-@Remote('list') async list(request: MessageFeedbackListRequest): Promise<MessageFeedbackListResult>
+@Remote('list') list(request: MessageFeedbackListRequest): Promise<MessageFeedbackListResult>
 
 /**
- * Create or replace feedback for one derived append-origin assistant
- * message. Every request must match the addressed item's current version;
- * a matching no-op returns the stored item without changing its revision.
- * @param request - target, desired value, and observed item version.
- * @returns the committed item or an explicit business failure.
+ * Create or replace feedback after checking its current version.
+ * Matching no-ops retain the version and append no event.
+ * @param request - Target, desired value, and observed item version.
+ * @returns the durable item or an explicit business failure.
  */
 @Remote('put') put(request: MessageFeedbackPutRequest): Promise<MessageFeedbackPutResult>
 
 /**
- * Delete one feedback item. Absence is successful regardless of the
- * supplied version; an existing item requires an exact version match.
+ * Delete one item after checking its version; absence succeeds without an event.
  * @param request - Session, message, and observed item version.
- * @returns the stable absent postcondition, or an explicit failure.
+ * @returns the stable absent postcondition or an explicit failure.
  */
 @Remote('delete') delete(request: MessageFeedbackDeleteRequest): Promise<MessageFeedbackDeleteResult>
 ```
+
+Source: [`packages/feedback/message-feedback/src/index.ts`](../../packages/feedback/message-feedback/src/index.ts)
+
+<a id="ctxsessionfeedback--sessionfeedbackservice"></a>
+
+### `ctx.sessionFeedback` — `SessionFeedbackService`
+
+Host Remote through which a product surface records a Session-level remark.
+
+```ts cordis-catalog
+/**
+ * Record one remark on a live Session.
+ * @param request - target Session plus the optional text and category.
+ * @returns the recorded postcondition, or `session-not-found` when no live
+ * Session carries the id.
+ */
+@Remote('record') record(request: SessionFeedbackRecordRequest): Promise<SessionFeedbackRecordResult>
+```
+
+Source: [`packages/feedback/command-feedback/src/index.ts`](../../packages/feedback/command-feedback/src/index.ts)
+
+<a id="feedback-events"></a>
+
+### `feedback/*` events
+
+<a id="feedbackcommitted--parallel"></a>
+
+#### `feedback/committed` — parallel
+
+Observe a durable cold feedback mutation without publishing a live Session. Observers run before write ownership is released and must not await another message-feedback operation for this Session. The payload is borrowed read-only; deep-clone it before transferring ownership (for example, to Session.fromRestore).
+
+```ts cordis-catalog
+/**
+ * Observe a durable cold feedback mutation without publishing a live Session.
+ * Observers run before write ownership is released and must not await
+ * another message-feedback operation for this Session. The payload is borrowed
+ * read-only; deep-clone it before transferring ownership (for example, to Session.fromRestore).
+ * @param inspection - committed canonical prefix, including the feedback as its last event.
+ * @mode parallel
+ */
+'feedback/committed'(inspection: SessionInspection): void
+```
+
+Types: [SessionInspection](persistence.zh.md)
 
 Source: [`packages/feedback/message-feedback/src/index.ts`](../../packages/feedback/message-feedback/src/index.ts)
 <!-- END GENERATED cordis-surface -->

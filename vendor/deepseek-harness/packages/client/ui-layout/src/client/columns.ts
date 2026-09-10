@@ -1,25 +1,25 @@
 /**
  * Pure concession-chain column solver for the four-column AppFrame.
  * Chain order is fixed by contract: keep center >= CENTER_MIN by shrinking
- * surfaces, then details, then auto-closing surfaces, then auto-closing
- * details (derived zero width — preferred width preferences are never
- * rewritten, so widening the window restores them). The sidebar never
- * concedes: its rendered width is always the drag preference (or the
- * collapsed rail), and center absorbs any remaining deficit as the last
- * resort. Inputs are the layout store's plain width preferences (0 = closed);
- * a closed sidebar resolves to the fixed SIDEBAR_COLLAPSED control rail
- * while closed details and closed surfaces resolve to zero width.
+ * surfaces, then the rightbar column, then auto-closing surfaces, then
+ * auto-closing rightbar (derived zero width — preferred width preferences are
+ * never rewritten, so widening the window restores them). The sidebar never
+ * concedes: its rendered width is always the drag preference (or the collapsed
+ * rail), and center absorbs any remaining deficit as the last resort. Inputs
+ * are the layout store's plain width preferences (0 = closed); a closed
+ * sidebar resolves to the fixed SIDEBAR_COLLAPSED control rail while a closed
+ * rightbar column and closed surfaces resolve to zero width.
  * The SIDEBAR_AUTO_COLLAPSE breakpoint is consumed by AppFrame, which decides
  * the effective sidebar preference before solving; the solver itself stays
  * breakpoint-free.
  */
 
 /** Resolved widths for one frame; center may drop below CENTER_MIN only at the final fallback. */
-export interface Columns { sidebar: number; center: number; details: number; surfaces: number }
+export interface Columns { sidebar: number; center: number; rightbar: number; surfaces: number }
 
 // Contract-frozen geometry: the four-column concession chain's fixed points.
 /** Center column floor; only the final fallback may go below it. */
-export const CENTER_MIN = 640
+export const CENTER_MIN = 400
 /** Sidebar drag clamp floor. */
 export const SIDEBAR_MIN = 264
 /** Sidebar drag clamp ceiling. */
@@ -36,18 +36,18 @@ export const SIDEBAR_COLLAPSED = 56
 export const SIDEBAR_AUTO_COLLAPSE = 1024
 /** Viewport width below which AppFrame uses the phone overlay shell when
  * the device is in portrait: no rail, conversation is full width, sidebar
- * and details paint as drawers. Landscape (device rotation, not a keyboard-
+ * and rightbar paint as drawers. Landscape (device rotation, not a keyboard-
  * shrunk viewport) keeps the sidebar in the grid. */
 export const PHONE_MAX = 768
 /** Phone sidebar drawer width; clamped to the frame so a 320px panel still
  * leaves a tap strip of backdrop on the right. */
 export const PHONE_DRAWER = 320
-/** Details drag clamp floor. */
-export const DETAILS_MIN = 300
-/** Details drag clamp ceiling. */
-export const DETAILS_MAX = 520
-/** Details width before any user drag. */
-export const DETAILS_DEFAULT = 360
+/** Rightbar drag clamp floor; below it the column auto-closes instead. */
+export const RIGHTBAR_MIN = 300
+/** Maximum normal rightbar width as a fraction of the frame. */
+export const RIGHTBAR_MAX_RATIO = 0.7
+/** First-open rightbar preference as a fraction of the frame. */
+export const RIGHTBAR_DEFAULT_RATIO = 0.45
 /** Surfaces drag clamp floor. */
 export const SURFACES_MIN = 360
 /** Surfaces store clamp ceiling; high enough that 70vw on a large desktop still fits. */
@@ -84,43 +84,49 @@ export function surfacesMaxForViewport(viewport: number): number {
  * the output is a function of (viewport, preferences) only, so recovery on
  * re-widening is automatic. Preferences re-clamp here because they cross the
  * store boundary and callers may still supply stale ranges.
- * An open surfaces preference also clamps to 70% of the viewport
- * (`surfacesMaxForViewport`) before the concession chain runs.
+ * An open surfaces preference clamps to 70% of the viewport
+ * (`surfacesMaxForViewport`); an open rightbar preference clamps to
+ * RIGHTBAR_MAX_RATIO of it. Only the final fallback may let center drop below
+ * CENTER_MIN, and only after both right columns have been derived closed.
  * @param viewport - available frame width in px.
  * @param sidebar - sidebar width preference in px (0 = closed).
- * @param details - details width preference in px (0 = closed).
+ * @param rightbar - rightbar width preference in px (0 = closed).
  * @param surfaces - surfaces width preference in px (0 = closed).
- * @returns resolved widths; details 0 and surfaces 0 mean visually closed (never unmounted), while a closed sidebar keeps its compact rail.
+ * @returns resolved widths; a closed sidebar keeps its compact rail while
+ *   closed rightbar and surfaces resolve to zero width (never unmounted).
  */
-export function computeColumns(viewport: number, sidebar: number, details: number, surfaces = 0): Columns {
+export function computeColumns(viewport: number, sidebar: number, rightbar: number, surfaces = 0): Columns {
   // The sidebar is fixed at its preference (or the rail) — it never concedes.
   const s = sidebar === 0 ? SIDEBAR_COLLAPSED : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
-  const d0 = details === 0 ? 0 : clampWidth(details, DETAILS_MIN, DETAILS_MAX)
+  const r0 = rightbar === 0
+    ? 0
+    : clampWidth(rightbar, RIGHTBAR_MIN, Math.max(RIGHTBAR_MIN, viewport * RIGHTBAR_MAX_RATIO))
   const surf0 = surfaces === 0 ? 0 : clampWidth(surfaces, SURFACES_MIN, surfacesMaxForViewport(viewport))
 
   // Step 1: everything fits at preferred widths.
-  if (s + d0 + surf0 + CENTER_MIN <= viewport) {
-    return { sidebar: s, center: viewport - s - d0 - surf0, details: d0, surfaces: surf0 }
+  if (s + r0 + surf0 + CENTER_MIN <= viewport) {
+    return { sidebar: s, center: viewport - s - r0 - surf0, rightbar: r0, surfaces: surf0 }
   }
 
   // Step 2: shrink surfaces toward its minimum.
-  const surf1 = surf0 === 0 ? 0 : Math.max(SURFACES_MIN, viewport - s - d0 - CENTER_MIN)
-  if (s + d0 + surf1 + CENTER_MIN <= viewport) {
-    return { sidebar: s, center: CENTER_MIN, details: d0, surfaces: surf1 }
+  const surf1 = surf0 === 0 ? 0 : Math.max(SURFACES_MIN, viewport - s - r0 - CENTER_MIN)
+  if (s + r0 + surf1 + CENTER_MIN <= viewport) {
+    return { sidebar: s, center: CENTER_MIN, rightbar: r0, surfaces: surf1 }
   }
 
-  // Step 3: shrink details toward its minimum (surfaces already at min or closed).
-  const d1 = d0 === 0 ? 0 : Math.max(DETAILS_MIN, viewport - s - surf1 - CENTER_MIN)
-  if (s + d1 + surf1 + CENTER_MIN <= viewport) {
-    return { sidebar: s, center: CENTER_MIN, details: d1, surfaces: surf1 }
+  // Step 3: shrink the rightbar column toward its minimum (surfaces already at
+  // its minimum or closed).
+  const r1 = r0 === 0 ? 0 : Math.max(RIGHTBAR_MIN, viewport - s - surf1 - CENTER_MIN)
+  if (s + r1 + surf1 + CENTER_MIN <= viewport) {
+    return { sidebar: s, center: CENTER_MIN, rightbar: r1, surfaces: surf1 }
   }
 
   // Step 4: auto-close surfaces (derived — preferences untouched).
-  if (s + d1 + CENTER_MIN <= viewport) {
-    return { sidebar: s, center: viewport - s - d1, details: d1, surfaces: 0 }
+  if (s + r1 + CENTER_MIN <= viewport) {
+    return { sidebar: s, center: viewport - s - r1, rightbar: r1, surfaces: 0 }
   }
 
-  // Step 5: auto-close details (derived — preferences untouched); center
+  // Step 5: auto-close rightbar (derived — preferences untouched); center
   // absorbs any remaining deficit (may drop below CENTER_MIN).
-  return { sidebar: s, center: Math.max(0, viewport - s), details: 0, surfaces: 0 }
+  return { sidebar: s, center: Math.max(0, viewport - s), rightbar: 0, surfaces: 0 }
 }

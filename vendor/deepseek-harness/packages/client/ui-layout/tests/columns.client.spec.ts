@@ -1,13 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   CENTER_MIN, clampWidth, computeColumns,
-  DETAILS_DEFAULT, DETAILS_MIN, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MIN,
+  RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MIN,
+  SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT,
   SURFACES_DEFAULT, SURFACES_MAX, SURFACES_MIN, surfacesMaxForViewport,
-} from '@deepseek-ai/dsh-client-ui-layout/src/client/columns.ts'
-
-// Numeric preference form (0 = closed); helpers keep the scenario names readable.
-const open = (width: number) => width
-const closed = (_width: number) => 0
+} from '../src/client/columns.ts'
 
 describe('clampWidth', () => {
   it('clamps into the range and rounds', () => {
@@ -18,81 +15,162 @@ describe('clampWidth', () => {
 })
 
 describe('computeColumns', () => {
-  it('step 1: everything fits at preferred widths', () => {
-    const cols = computeColumns(1920, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(cols).toEqual({ sidebar: 280, center: 1920 - 280 - 360, details: 360, surfaces: 0 })
+  it('gives each edge column its preference when the center has enough room', () => {
+    expect(computeColumns(1920, 280, 864)).toEqual({ sidebar: 280, center: 776, rightbar: 864, surfaces: 0 })
   })
 
-  it('closed sidebar keeps its compact rail while closed details contribute zero width', () => {
-    expect(computeColumns(1920, closed(300), closed(360)))
-      .toEqual({ sidebar: SIDEBAR_COLLAPSED, center: 1920 - SIDEBAR_COLLAPSED, details: 0, surfaces: 0 })
+  it('keeps only the left rail when both panels are closed', () => {
+    expect(computeColumns(1920, 0, 0)).toEqual({ sidebar: 56, center: 1864, rightbar: 0, surfaces: 0 })
   })
 
-  it('preferences beyond the clamp range are clamped before solving', () => {
-    const cols = computeColumns(1920, open(9999), open(1))
-    expect(cols.sidebar).toBe(420)
-    expect(cols.details).toBe(300)
-    expect(computeColumns(1920, open(1), open(DETAILS_DEFAULT)).sidebar).toBe(SIDEBAR_MIN)
+  it('clamps sidebar preferences and limits the right panel to 70% of the frame', () => {
+    expect(computeColumns(3000, 9999, 9999)).toEqual({ sidebar: 420, center: 480, rightbar: 2100, surfaces: 0 })
+    expect(computeColumns(1920, 1, 1)).toEqual({ sidebar: 264, center: 1356, rightbar: 300, surfaces: 0 })
   })
 
-  it('step 2: details shrinks first, center pinned at min', () => {
-    // 280 + 360 + 640 = 1280 > 1250; details concedes to 1250-280-640 = 330.
-    const cols = computeColumns(1250, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(cols).toEqual({ sidebar: 280, center: CENTER_MIN, details: 330, surfaces: 0 })
+  it.each([
+    [1300, 280, 620, 400],
+    [1100, 280, 420, 400],
+    [1120, 420, 300, 400],
+    [1119, 420, 0, 699],
+    [1024, 420, 0, 604],
+    [756, 0, 300, 400],
+    [755, 0, 0, 699],
+    [455, 0, 0, 399],
+    [20, 0, 0, 0],
+  ])('solves frame %i and sidebar %i to right %i and center %i', (viewport, sidebar, rightbar, center) => {
+    expect(computeColumns(viewport, sidebar, 864)).toEqual({ sidebar: sidebar || 56, center, rightbar, surfaces: 0 })
   })
 
-  it('boundary: exactly at the step-1/step-2 seam', () => {
-    const cols = computeColumns(300 + 360 + CENTER_MIN, open(300), open(360))
-    expect(cols).toEqual({ sidebar: 300, center: CENTER_MIN, details: 360, surfaces: 0 })
-    const one = computeColumns(300 + 360 + CENTER_MIN - 1, open(300), open(360))
-    expect(one).toEqual({ sidebar: 300, center: CENTER_MIN, details: 359, surfaces: 0 })
+  it('does not reduce the wide sidebar to keep a normal right panel open', () => {
+    expect(computeColumns(1024, 420, 500)).toEqual({ sidebar: 420, center: 604, rightbar: 0, surfaces: 0 })
   })
 
-  it('step 3: details auto-closes when its min still starves center — sidebar holds its preference', () => {
-    // 280 + 300 + 640 = 1220 > 1210 → details 0; sidebar untouched: center = 1210-280 = 930.
-    const cols = computeColumns(1210, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(cols).toEqual({ sidebar: 280, center: 930, details: 0, surfaces: 0 })
+  it('restores a still-open preference when the frame widens', () => {
+    expect(computeColumns(1100, 280, 864).rightbar).toBe(420)
+    expect(computeColumns(1920, 280, 864).rightbar).toBe(864)
   })
 
-  it('the sidebar never concedes: center absorbs the deficit below CENTER_MIN', () => {
-    // 700 < 280+640: sidebar keeps 280, center takes 420 < CENTER_MIN.
-    const cols = computeColumns(700, open(SIDEBAR_DEFAULT), closed(DETAILS_DEFAULT))
-    expect(cols).toEqual({ sidebar: SIDEBAR_DEFAULT, center: 420, details: 0, surfaces: 0 })
+  it('leaves a closed right track closed when the frame widens', () => {
+    expect(computeColumns(755, 0, 0).rightbar).toBe(0)
+    expect(computeColumns(1920, 0, 0).rightbar).toBe(0)
+  })
+})
+
+describe('computeColumns — four-column concession', () => {
+  const four = (viewport: number) =>
+    computeColumns(viewport, SIDEBAR_DEFAULT, 864, SURFACES_DEFAULT)
+
+  it('wide window: all four columns open at preferred widths', () => {
+    // Room for everything: center takes the remainder.
+    expect(computeColumns(2200, SIDEBAR_DEFAULT, 864, SURFACES_DEFAULT)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 2200 - SIDEBAR_DEFAULT - 864 - SURFACES_DEFAULT,
+      rightbar: 864,
+      surfaces: SURFACES_DEFAULT,
+    })
   })
 
-  it('sidebar-closed narrow window: details concedes then auto-closes', () => {
-    const fits = computeColumns(SIDEBAR_COLLAPSED + DETAILS_MIN + CENTER_MIN, closed(300), open(DETAILS_DEFAULT))
-    expect(fits).toEqual({ sidebar: SIDEBAR_COLLAPSED, center: CENTER_MIN, details: DETAILS_MIN, surfaces: 0 })
-    const starved = computeColumns(SIDEBAR_COLLAPSED + DETAILS_MIN + CENTER_MIN - 1, closed(300), open(DETAILS_DEFAULT))
-    expect(starved).toEqual({
-      sidebar: SIDEBAR_COLLAPSED,
-      center: DETAILS_MIN + CENTER_MIN - 1,
-      details: 0,
+  it('narrowing shrinks surfaces first, rightbar stays at its preferred width', () => {
+    // 2084 > 2044; surfaces concedes to 2044 - 280 - 864 - 400 = 500.
+    expect(four(2044)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: CENTER_MIN,
+      rightbar: 864,
+      surfaces: 500,
+    })
+    // 2084 > 1920; surfaces concedes to 376.
+    expect(four(1920)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: CENTER_MIN,
+      rightbar: 864,
+      surfaces: 376,
+    })
+  })
+
+  it('further narrowing shrinks the rightbar after surfaces is at its minimum', () => {
+    // surfaces already at 360; rightbar concedes to 1800 - 280 - 360 - 400 = 760.
+    expect(four(1800)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: CENTER_MIN,
+      rightbar: 760,
+      surfaces: SURFACES_MIN,
+    })
+    // Boundary: exactly at the step-2/step-3 seam.
+    const seam = SIDEBAR_DEFAULT + 864 + SURFACES_MIN + CENTER_MIN
+    expect(four(seam)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: CENTER_MIN,
+      rightbar: 864,
+      surfaces: SURFACES_MIN,
+    })
+    expect(four(seam - 1).rightbar).toBe(864 - 1)
+  })
+
+  it('derived-closes surfaces once the rightbar is at its minimum and center is still starved', () => {
+    // 280 + 300 + 360 + 400 = 1340 > 1339 → surfaces 0; rightbar holds its
+    // minimum; center = 1339 - 280 - 300 = 759.
+    expect(four(1339)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 1339 - SIDEBAR_DEFAULT - RIGHTBAR_MIN,
+      rightbar: RIGHTBAR_MIN,
       surfaces: 0,
     })
   })
 
-  it('tiny viewport: details closes, sidebar holds, center takes the remainder', () => {
-    const cols = computeColumns(400, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(cols.details).toBe(0)
-    expect(cols.sidebar).toBe(SIDEBAR_DEFAULT)
-    expect(cols.center).toBe(Math.max(0, 400 - SIDEBAR_DEFAULT))
+  it('clamps an open surfaces preference to 70% of the viewport before concession', () => {
+    // 70% of 1920 = 1344; store ceiling SURFACES_MAX = 1400.
+    expect(surfacesMaxForViewport(1920)).toBe(1344)
+    // Sidebar 280 + CENTER_MIN 400 leaves 1240 for surfaces, so concession
+    // (1240) is tighter than the 70% cap (1344) and the preference (1400).
+    expect(computeColumns(1920, SIDEBAR_DEFAULT, 0, SURFACES_MAX).surfaces).toBe(1240)
+  })
+
+  it('derived-closes the rightbar last; the sidebar never concedes', () => {
+    // 280 + 300 + 400 = 980 > 979 → rightbar 0; center = 979 - 280 = 699.
+    expect(four(979)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 979 - SIDEBAR_DEFAULT,
+      rightbar: 0,
+      surfaces: 0,
+    })
+    // 700 < 280 + 400: sidebar keeps 280, center takes 420 < CENTER_MIN.
+    expect(computeColumns(700, SIDEBAR_DEFAULT, 864, SURFACES_DEFAULT)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 420,
+      rightbar: 0,
+      surfaces: 0,
+    })
   })
 
   it('recovery is pure: re-widening restores preferred widths untouched', () => {
-    const squeezed = computeColumns(1100, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(squeezed.details).toBe(0)
-    const restored = computeColumns(1920, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT))
-    expect(restored.details).toBe(DETAILS_DEFAULT)
+    const squeezed = four(1100)
+    expect(squeezed).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 1100 - SIDEBAR_DEFAULT - RIGHTBAR_MIN,
+      rightbar: RIGHTBAR_MIN,
+      surfaces: 0,
+    })
+    const restored = four(1920)
+    expect(restored.surfaces).toBe(376)
+    expect(restored.rightbar).toBe(864)
     expect(restored.sidebar).toBe(SIDEBAR_DEFAULT)
   })
 })
 
 describe('computeColumns — degenerate viewports', () => {
-  it('sidebar closed and viewport below CENTER_MIN: details auto-closes, center takes the rest', () => {
-    // Reaches step 3's auto-close with the compact rail sidebar.
-    expect(computeColumns(500, closed(300), open(DETAILS_DEFAULT)))
-      .toEqual({ sidebar: SIDEBAR_COLLAPSED, center: 500 - SIDEBAR_COLLAPSED, details: 0, surfaces: 0 })
+  it('sidebar closed and viewport below CENTER_MIN: both right columns auto-close, center takes the rest', () => {
+    expect(computeColumns(500, 0, 864, SURFACES_DEFAULT))
+      .toEqual({ sidebar: SIDEBAR_COLLAPSED, center: 500 - SIDEBAR_COLLAPSED, rightbar: 0, surfaces: 0 })
+  })
+
+  it('a closed rightbar preference stays closed while surfaces concedes', () => {
+    expect(computeColumns(1200, SIDEBAR_DEFAULT, 0, SURFACES_DEFAULT)).toEqual({
+      sidebar: SIDEBAR_DEFAULT,
+      center: 1200 - SIDEBAR_DEFAULT - 520,
+      rightbar: 0,
+      surfaces: 520,
+    })
   })
 })
 
@@ -104,66 +182,9 @@ describe('surfacesMaxForViewport', () => {
   })
 })
 
-describe('computeColumns — four-column concession', () => {
-  const four = (viewport: number) =>
-    computeColumns(viewport, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT), open(SURFACES_DEFAULT))
-
-  it('wide window: all four columns open at preferred widths', () => {
-    // 280 + 360 + 540 + 640 = 1820 <= 1920; center takes the remainder.
-    expect(four(1920)).toEqual({
-      sidebar: SIDEBAR_DEFAULT,
-      center: 1920 - SIDEBAR_DEFAULT - DETAILS_DEFAULT - SURFACES_DEFAULT,
-      details: DETAILS_DEFAULT,
-      surfaces: SURFACES_DEFAULT,
-    })
-  })
-
-  it('narrowing shrinks surfaces first, details stays at preferred', () => {
-    // 1820 > 1700; surfaces concedes to 1700-280-360-640 = 420.
-    expect(four(1700)).toEqual({
-      sidebar: SIDEBAR_DEFAULT,
-      center: CENTER_MIN,
-      details: DETAILS_DEFAULT,
-      surfaces: 420,
-    })
-  })
-
-  it('further narrowing shrinks details after surfaces is at its minimum', () => {
-    // surfaces already at 360; details concedes to 1600-280-360-640 = 320.
-    expect(four(1600)).toEqual({
-      sidebar: SIDEBAR_DEFAULT,
-      center: CENTER_MIN,
-      details: 320,
-      surfaces: SURFACES_MIN,
-    })
-  })
-
-  it('derived-closes surfaces once details is at its minimum and center is still starved', () => {
-    // 280 + 300 + 360 + 640 = 1580 > 1500 → surfaces 0; details holds min; center = 920.
-    expect(four(1500)).toEqual({
-      sidebar: SIDEBAR_DEFAULT,
-      center: 1500 - SIDEBAR_DEFAULT - DETAILS_MIN,
-      details: DETAILS_MIN,
-      surfaces: 0,
-    })
-  })
-
-  it('clamps an open surfaces preference to 70% of the viewport before concession', () => {
-    // 70% of 1920 = 1344; store ceiling SURFACES_MAX = 1400.
-    expect(surfacesMaxForViewport(1920)).toBe(1344)
-    // Sidebar 280 + details 360 + CENTER_MIN 640 leaves 640 for surfaces,
-    // so concession (640) is tighter than the 70% cap (1344) and the preference (1400).
-    const cols = computeColumns(1920, open(SIDEBAR_DEFAULT), open(DETAILS_DEFAULT), 1400)
-    expect(cols.surfaces).toBe(640) // min(1400, 1344, 640)
-  })
-
-  it('derived-closes details last; the sidebar never concedes', () => {
-    // 280 + 300 + 640 = 1220 > 1210 → details 0; center = 930.
-    expect(four(1210)).toEqual({
-      sidebar: SIDEBAR_DEFAULT,
-      center: 1210 - SIDEBAR_DEFAULT,
-      details: 0,
-      surfaces: 0,
-    })
+describe('rightbar geometry contract', () => {
+  it('opens at the 45% first-open ratio through the caller-supplied preference', () => {
+    expect(Math.round(1920 * RIGHTBAR_DEFAULT_RATIO)).toBe(864)
+    expect(RIGHTBAR_MIN).toBe(300)
   })
 })

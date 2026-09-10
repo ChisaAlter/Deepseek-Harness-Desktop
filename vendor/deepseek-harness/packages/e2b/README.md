@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The e2b group moves the agent's file and command work into a remote Linux sandbox: file reads and writes, shell commands, and terminals all run in one remote world instead of on your machine. Three packages work together — one provides the shared sandbox, one runs file operations in it, and one runs commands and terminals in it. Existing shell, terminal, and language-server features keep working unchanged once the family is enabled, so no E2B-specific tooling is needed. The harness process, model calls, and session state never move — only the execution world is remote, and the sandbox is ephemeral. It is an experimental POC, and no shipped composition enables it by default.
+The E2B family lets agents read and edit files, run shell commands, and use terminals inside one remote Linux sandbox instead of on the host machine. It keeps filesystem work separate from command and terminal execution while both use the same sandbox. Existing shell, terminal, and language-server features continue to work without E2B-specific tools. The harness, model calls, and session state remain local; the sandbox is ephemeral, experimental, and absent from shipped compositions by default.
 
 ## Table of Contents
 

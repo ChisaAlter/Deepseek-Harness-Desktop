@@ -307,6 +307,28 @@ describe('apply (plugin lifecycle)', () => {
     expect(mockClose).toHaveBeenCalled()
   })
 
+  it('rejects strict startup on a repeated discovery cursor and closes the client', async () => {
+    mockListTools
+      .mockResolvedValueOnce({ tools: [], nextCursor: 'cursor1' })
+      .mockResolvedValueOnce({ tools: [], nextCursor: 'cursor1' })
+      .mockRejectedValue(new Error('pagination continued after the repeated cursor'))
+    try {
+      await expect(apply(ctx, {
+        ...stdioConfig,
+        failOnStartupError: true,
+        reconnect: { enabled: false },
+      })).rejects.toMatchObject({
+        message: 'mcp-client(srv): initial connection or tool synchronization failed',
+        cause: new Error('mcp-client(srv): server repeated a tools/list continuation cursor — invalid tool list'),
+      })
+      expect(mockListTools).toHaveBeenCalledTimes(2)
+      expect(mockClose).toHaveBeenCalledTimes(1)
+      expect(ctx.tools.schemas()).toEqual([])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('preserves strict startup registration when list_changed arrives before connect resolves', async () => {
     ctx.tools.register({
       name: 'mcp__srv__remote',
@@ -360,6 +382,31 @@ describe('apply (plugin lifecycle)', () => {
     await handler()
 
     expect(ctx.tools.get('mcp__srv__remote')).toBeDefined()
+  })
+
+  it('continues notification synchronization after rejecting a pagination cycle', async () => {
+    try {
+      await apply(ctx, stdioConfig)
+      const handler = mockSetNotificationHandler.mock.calls[0]![1] as () => Promise<void>
+      mockListTools
+        .mockResolvedValueOnce({ tools: [], nextCursor: 'cursor1' })
+        .mockResolvedValueOnce({ tools: [], nextCursor: 'cursor1' })
+        .mockRejectedValue(new Error('pagination continued after the repeated cursor'))
+
+      await handler()
+      expect(mockListTools).toHaveBeenCalledTimes(3)
+      expect(ctx.tools.get('mcp__srv__remote')).toBeDefined()
+
+      mockListTools
+        .mockResolvedValueOnce({ tools: [], nextCursor: 'cursor1' })
+        .mockResolvedValueOnce({ tools: [{ name: 'updated', inputSchema: { type: 'object' } }], nextCursor: undefined })
+      await handler()
+      expect(ctx.tools.get('mcp__srv__remote')).toBeUndefined()
+      expect(ctx.tools.get('mcp__srv__updated')).toBeDefined()
+    } finally {
+      await ctx.fiber.dispose()
+    }
+    expect(mockClose).toHaveBeenCalledTimes(1)
   })
 
   it('effect disposer unregisters the CURRENT generation and closes client', async () => {

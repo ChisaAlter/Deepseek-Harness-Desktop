@@ -8,14 +8,16 @@ import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq } from '@deepseek-
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore from '@deepseek-ai/dsh-session'
-import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { SessionHistoryController } from '@deepseek-ai/dsh-api-session-controller/src/history.ts'
 import { subagentIdentityProjectionDefinition } from '@deepseek-ai/dsh-subagent/src/projection.ts'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { createUserMessage, MessageId } from '@deepseek-ai/dsh-llm'
 import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import { createInboxStub } from '@deepseek-ai/dsh-agent-loop-testkit'
+import type { Agent, Inbox } from '@deepseek-ai/dsh-agent'
+import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import AttachmentStore from '@deepseek-ai/dsh-attachment'
 import type { SessionPromptRequest, SessionRequestId } from '../src/types.ts'
 import {
   SessionPersistenceRevision,
@@ -42,8 +44,8 @@ function promptRequest(
   }
 }
 
-function inboxFor(session: Session): Inbox {
-  return new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} })
+function inboxFor(): Inbox {
+  return createInboxStub()
 }
 
 function header(id: string, createdAt: number, extra: Partial<SessionHeader> = {}): SessionHeader {
@@ -545,7 +547,7 @@ describe('subagent ownership fence', () => {
     })
     const followup = vi.fn()
     const agent = {
-      id: session.id, session, inbox: inboxFor(session), status: 'idle', ctx, followup,
+      id: session.id, session, inbox: inboxFor(), status: 'idle', ctx, followup,
     } as unknown as Agent
     ctx.agents.register(agent)
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
@@ -566,7 +568,7 @@ describe('subagent ownership fence', () => {
     const session = ctx.sessions.create(sid('session-browser-zone'), { meta: { cwd: '/proj' } })
     const followup = vi.fn()
     const agent = {
-      id: session.id, session, inbox: inboxFor(session), status: 'idle', ctx, followup,
+      id: session.id, session, inbox: inboxFor(), status: 'idle', ctx, followup,
     } as unknown as Agent
     ctx.agents.register(agent)
     const remote = createSessionTestRemote(ctx, {
@@ -677,6 +679,101 @@ describe('degenerate composition (no persistence, no factory)', () => {
 })
 
 describe('sessions.prompt synchronous rejection', () => {
+  it('rejects content without non-whitespace text or an attachment before delivery or Session events', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    const session = ctx.sessions.create(sid('session-empty-prompt'))
+    const followup = vi.fn()
+    const steer = vi.fn()
+    ctx.agents.register({
+      id: session.id,
+      session,
+      inbox: inboxFor(),
+      status: 'idle',
+      ctx,
+      followup,
+      steer,
+    } as unknown as Agent)
+    const savedImage = {
+      attachmentId: 'accepted-image',
+      mediaType: 'image/png' as const,
+      bytes: 1,
+      width: 1,
+      height: 1,
+    }
+    const saveImages = vi.fn(() => Promise.resolve([savedImage]))
+    ctx.provide('attachments', Object.setPrototypeOf(
+      { saveImages },
+      AttachmentStore.prototype,
+    ) as never)
+    ctx.provide('llm', {
+      listProviders: () => [{ id: 'p', name: 'Provider' }],
+      resolveModelInfo: () => Promise.resolve({
+        provider: 'p', id: 'm', name: 'Model', inputModalities: ['text', 'image'],
+      }),
+    } as never)
+    const remote = createSessionTestRemote(ctx, {
+      defaultModelSelection: () => ({ provider: 'p', model: 'm' }),
+      cwd: '/tmp',
+    })
+    const initialEvents = session.snapshotEvents()
+    const rejectedContent: readonly SessionPromptRequest['content'][] = [
+      [],
+      [{ type: 'text', text: '' }],
+      [{ type: 'text', text: ' \t\n' }, { type: 'text', text: '' }],
+    ]
+
+    for (const [index, content] of rejectedContent.entries()) {
+      const response = await remote.prompt(promptRequest({
+        sessionId: session.id,
+        mode: index === 1 ? 'steer' : 'queue',
+        content,
+      }))
+      expect(response).toMatchObject({
+        ok: false,
+        error: {
+          code: 'gateway/bad-request',
+          message: 'prompt content must include non-whitespace text or an attachment',
+          details: {},
+        },
+      })
+    }
+    expect(followup).not.toHaveBeenCalled()
+    expect(steer).not.toHaveBeenCalled()
+    expect(session.snapshotEvents()).toEqual(initialEvents)
+
+    const queued = await remote.prompt(promptRequest({
+      sessionId: session.id,
+      mode: 'queue',
+      content: [{ type: 'text', text: ' queued ' }],
+    }))
+    const steered = await remote.prompt(promptRequest({
+      sessionId: session.id,
+      mode: 'steer',
+      content: [{ type: 'text', text: 'steered' }],
+    }))
+    const imageQueued = await remote.prompt(promptRequest({
+      sessionId: session.id,
+      mode: 'queue',
+      content: [{ type: 'image', mediaType: 'image/png', data: 'AQ==' }],
+    }))
+    expect(queued).toMatchObject({ ok: true, value: { accepted: true } })
+    expect(steered).toMatchObject({ ok: true, value: { accepted: true } })
+    expect(imageQueued).toMatchObject({ ok: true, value: { accepted: true } })
+    expect(followup).toHaveBeenCalledWith(expect.objectContaining({
+      content: [{ type: 'text', text: ' queued ' }],
+    }))
+    expect(steer).toHaveBeenCalledWith(expect.objectContaining({
+      content: [{ type: 'text', text: 'steered' }],
+    }))
+    expect(saveImages).toHaveBeenCalledOnce()
+    expect(followup).toHaveBeenCalledWith(expect.objectContaining({
+      content: [{ type: 'image', attachment: savedImage }],
+    }))
+    await ctx.fiber.dispose()
+  })
+
   it('maps a synchronous send throw (disposed/invalid input) to agent-busy with the reason attached', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
@@ -687,7 +784,7 @@ describe('sessions.prompt synchronous rejection', () => {
     ctx.agents.register({
       id: session.id,
       session,
-      inbox: inboxFor(session),
+      inbox: inboxFor(),
       status: 'idle',
       ctx,
       followup: () => { throw new Error('agent "session-throwing" lifecycle disposed') },

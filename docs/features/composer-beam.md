@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `composer-beam` |
 | **status** | `active` |
-| **last verified** | 2026-09-08 — 第一批与第二批设置扩展已实现；补充修复 Interface 设置行操作区：齿轮置于 Switch 左侧，Switch 与同组设置行共用右侧对齐线。focused 3 文件 89/89、GUI 420 文件 / 5496 tests passed / 1 skipped、official build、client package verification、桌面 1447 passed / 2 skipped、fork markers 10/10 与 Electron Chromium 四角/8 套配色门禁通过。全局 i18n 与 web replay 的既有环境问题记录在 Agent Note。 |
+| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：上游引入官方 Switch primitive（与本卡既有 Switch AA 合并），保留 `.track` 注入 API 并对上游 `.switch .thumb` 应用设计语言 motion token；beam-row spec 与 Desktop tests 1450 全绿。此前 2026-09-08 — 第一批与第二批设置扩展已实现；补充修复 Interface 设置行操作区：齿轮置于 Switch 左侧，Switch 与同组设置行共用右侧对齐线。focused 3 文件 89/89、GUI 420 文件 / 5496 tests passed / 1 skipped、official build、client package verification、桌面 1447 passed / 2 skipped、fork markers 10/10 与 Electron Chromium 四角/8 套配色门禁通过。全局 i18n 与 web replay 的既有环境问题记录在 Agent Note。 |
 
 ## User paths
 

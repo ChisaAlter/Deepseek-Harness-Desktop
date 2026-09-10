@@ -1,0 +1,9 @@
+- listbox "触发候选建议":
+  - text: 指令
+  - option "compact 压缩以上对话内容" [selected]
+  - option "export 将当前会话内容导出为 ZIP"
+  - option "feedback 发送关于当前会话的反馈"
+  - option "goal 设置或查看长期任务目标"
+  - option "permission 切换权限预设（沙箱模式与审批策略）"
+  - option "plan 进入或退出计划模式"
+  - option "model 选择本会话使用的模型"

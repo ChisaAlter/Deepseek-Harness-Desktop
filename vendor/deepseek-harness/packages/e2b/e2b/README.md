@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-e2b` provides one shared remote Linux sandbox for the E2B provider family: the agent's file operations, shell commands, and terminals all run inside this sandbox instead of on your machine. The sandbox is created when the family starts and deleted automatically when the configured lifetime expires or the app shuts down — anything it held disappears with it. You configure three things: an API key, a remote working directory, and the sandbox lifetime. Use it together with `dsh-fs-e2b` and `dsh-subprocess-e2b`; on its own it adds no user-visible features. Nothing here reaches the model, and no shipped composition enables this family by default.
+`dsh-e2b` runs the agent's file operations, shell commands, and terminals in one shared remote Linux sandbox instead of on your machine. The sandbox is created at startup and deleted when its configured lifetime expires or the app shuts down, so everything it holds is ephemeral. Configure an API key, an absolute remote working directory, and the sandbox lifetime. Use it with `dsh-fs-e2b` and `dsh-subprocess-e2b`; by itself it adds no user-visible capability. It sends nothing to the model, and no shipped composition enables E2B by default.
 
 ## Table of Contents
 

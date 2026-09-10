@@ -63,7 +63,7 @@ async function seedStoredSession(ctx: Context, sessionId: SessionId, events: rea
 async function readStoredEvents(ctx: Context, sessionId: SessionId): Promise<readonly SessionEvent[]> {
   const handle = await ctx.sessionPersistence.open(sessionId, 'read')
   try {
-    return await handle.read()
+    return (await handle.read()).events
   } finally {
     await handle.close()
   }
@@ -694,10 +694,10 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const resuming = ctx.agents.resume({
       resumeSessionId: sessionId,
       agentOptions: { provider: 'mock', model: 'mock' },
-      setup: async (agentCtx) => {
-        expect(agentCtx.agent?.id).toBe(sessionId)
+      setup: async (agentCtx, agent) => {
+        expect(agent.id).toBe(sessionId)
         // The two persisted events plus the end-seed marker.
-        expect(agentCtx.agent?.session.snapshotEvents()).toHaveLength(3)
+        expect(agent.session.snapshotEvents()).toHaveLength(3)
         agentCtx.on('session/created', () => void order.push('setup-listener:session/created'))
         agentCtx.on('agent/created', () => void order.push('setup-listener:agent/created'))
         order.push('setup:start')
@@ -1004,7 +1004,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
   it.skipIf(process.platform === 'win32')('a pending idle inject() survives persist + resume without a synthetic turn', async () => {
     const adapter1 = new MockAdapter([textResponse('answer')])
     const { ctx: ctx1, root } = await persistentHarness(adapter1)
-    const a1 = (await ctx1.agents.create({ sessionId: SessionId('inject-sess'), meta: { cwd: '/w' } })).agent
+    const a1 = (await ctx1.agents.create({ sessionId: SessionId('inject-sess'), meta: { cwd: '/w' }, agentOptions: { provider: 'mock', model: 'mock' } })).agent
     a1.followup(createUserMessage({ content: [{ type: 'text', text: 'q' }], source: { kind: 'user' } }))
     await waitForIdle(ctx1, a1)
     a1.inject(createUserMessage({ content: [{ type: 'text', text: 'background job 42 finished' }], source: { kind: 'plugin', plugin: 'tool-bash' } }))
@@ -1023,7 +1023,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     const stored = await readStoredEvents(ctx2, SessionId('inject-sess'))
     expect(stored.some(event => event.type === 'agent/inbox/spliced')).toBe(true)
     expect(JSON.stringify(stored)).toContain('background job 42 finished')
-    const a2 = (await ctx2.agents.resume({ resumeSessionId: SessionId('inject-sess') })).agent
+    const a2 = (await ctx2.agents.resume({ resumeSessionId: SessionId('inject-sess'), agentOptions: { provider: 'mock', model: 'mock' } })).agent
     expect(JSON.stringify(a2.inbox.nextStep)).toContain('background job 42 finished')
     a2.followup(createUserMessage({ content: [{ type: 'text', text: 'continue' }], source: { kind: 'user' } }))
     await waitForIdle(ctx2, a2)

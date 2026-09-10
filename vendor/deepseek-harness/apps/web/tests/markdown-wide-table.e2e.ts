@@ -197,20 +197,24 @@ interface TableStop {
 }
 
 /**
- * Close the details pane so the transcript spans the viewport. Open, it pins
- * the transcript to exactly the message column and every breakout relation
- * would go vacuous.
- * @param target - the page whose pane to close.
+ * Wait for collapsed columns, completed grid transitions, and the
+ * ConversationRoot ResizeObserver's width publication before measuring tables.
+ * @param target - the page whose frame to read.
  */
-async function closeDetailsPane(target: Page): Promise<void> {
-  await target.getByRole('button', { name: 'Close details', exact: true }).waitFor({ timeout: 10_000 })
-  await target.evaluate(() => {
-    document.querySelector<HTMLElement>('button[aria-label="Close details"]')?.click()
-  })
-  // Closed details resolve to zero width but never unmount (ui-layout
-  // columns contract), so the settled signal is the frame's collapse marker,
-  // not the button's detachment.
-  await target.waitForSelector('[data-details-collapsed]', { timeout: 5_000 })
+async function awaitTableLayout(target: Page): Promise<void> {
+  await target.evaluate(async () => { await document.fonts.ready })
+  await target.waitForFunction(() => {
+    const element = document.querySelector('[data-sidebar-collapsed][data-rightbar-collapsed]')
+    if (element === null) return false
+    const tracks = getComputedStyle(element).gridTemplateColumns.split(' ').map(Number.parseFloat)
+    const root = element.querySelector<HTMLElement>('div[data-phase]')
+    // Mirrored from ui-layout's SIDEBAR_COLLAPSED; these tests use the Host compiler face.
+    return tracks[0] === 56 && tracks.at(-1) === 0
+      && element.getAnimations().every(animation =>
+        animation.playState === 'finished' || animation.playState === 'idle')
+      && root !== null
+      && root.style.getPropertyValue('--dsh-conversation-column-width') === `${String(root.offsetWidth)}px`
+  }, undefined, { timeout: 10_000 })
 }
 
 /**
@@ -269,21 +273,17 @@ describe('web e2e: markdown tables fill the column, wide ones break out and scro
     await sessionRow.waitFor({ timeout: 10_000 })
     await sessionRow.click({ force: true })
     await page.getByText(TAIL_MARKER, { exact: true }).waitFor({ timeout: 15_000 })
-    // Collapse the sidebar and close the details pane for the whole sweep:
-    // classic-scrollbar platforms (Linux CI) lose ~15px of layout width,
-    // which shifts how much of a narrow viewport the panes leave the
+    // Collapse the sidebar and keep the right column at its rail for the whole
+    // sweep: classic-scrollbar platforms (Linux CI) lose ~15px of layout
+    // width, which shifts how much of a narrow viewport the panes leave the
     // transcript and lands the narrow stop's readings far from the macOS
-    // ones — and the details pane alone pins the transcript to exactly the
-    // message column, which would make every breakout relation vacuous.
-    // With both out of the equation the transcript follows the viewport
-    // identically on every platform, which is what keeps one committed
-    // golden true for all lanes.
+    // ones — and an expanded right column alone pins the transcript to
+    // exactly the message column, which would make every breakout relation
+    // vacuous. With both out of the equation the transcript follows the
+    // viewport identically on every platform, which is what keeps one
+    // committed golden true for all lanes.
     await page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
-    // JS click: after the transcript scrolled to its tail, the pane's close
-    // button can sit under the sticky header where a pointer click is
-    // intercepted; the pane itself is scaffolding, not the behavior under
-    // test, so actionability adds nothing here.
-    await closeDetailsPane(page)
+    await awaitTableLayout(page)
   }, 180_000)
 
   afterAll(async () => {
@@ -300,15 +300,7 @@ describe('web e2e: markdown tables fill the column, wide ones break out and scro
    */
   const settleAt = async (width: number): Promise<TableReading[]> => {
     await page.setViewportSize({ width, height: 900 })
-    // The wide wrapper follows the transcript width (the fill wrapper caps
-    // at the message column and would report "settled" mid-transition).
-    let previousWidth = -1
-    await expect.poll(async () => {
-      const current = (await readTables(page))[1]!.clientWidth
-      const settled = current === previousWidth
-      previousWidth = current
-      return settled
-    }, { timeout: 10_000 }).toBe(true)
+    await awaitTableLayout(page)
     return readTables(page)
   }
 
@@ -443,17 +435,8 @@ describe('web e2e: markdown tables fill the column, wide ones break out and scro
       await sessionRow.click({ force: true })
       await hidpiPage.getByText(TAIL_MARKER, { exact: true }).waitFor({ timeout: 15_000 })
       await hidpiPage.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
-      await closeDetailsPane(hidpiPage)
-      // The pane collapses ease over the layout transition: compare only a
-      // settled reading (two consecutive equal wide-wrapper widths).
-      let readings: TableReading[] = []
-      let previousWide = -1
-      await expect.poll(async () => {
-        readings = await readTables(hidpiPage)
-        const settled = readings[1]!.clientWidth === previousWide
-        previousWide = readings[1]!.clientWidth
-        return settled
-      }, { timeout: 10_000 }).toBe(true)
+      await awaitTableLayout(hidpiPage)
+      const readings = await readTables(hidpiPage)
       const baseline = (await sweep()).find(stop => stop.width === 1100)!
       const relations = (tables: TableReading[]) => tables.map(table => ({
         marker: table.marker,

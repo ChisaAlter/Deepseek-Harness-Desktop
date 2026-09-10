@@ -72,6 +72,7 @@ function repositoryFixture(version = '1.2.3-rc.4'): string {
   git(fixtureRoot, ['init'])
   git(fixtureRoot, ['config', 'user.name', 'DSH test'])
   git(fixtureRoot, ['config', 'user.email', 'dsh-test@example.invalid'])
+  git(fixtureRoot, ['config', 'commit.gpgsign', 'false'])
   git(fixtureRoot, ['add', 'package.json', 'tracked.txt'])
   git(fixtureRoot, ['commit', '-m', 'fixture'])
   return fixtureRoot

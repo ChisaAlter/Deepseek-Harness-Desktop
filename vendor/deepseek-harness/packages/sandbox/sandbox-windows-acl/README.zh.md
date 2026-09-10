@@ -9,7 +9,7 @@ kind: "package-library"
 
 ## 概述
 
-`dsh-sandbox-windows-acl` 通过写入限制隔离 Windows 进程：子进程在受限令牌下运行，其写访问仅限于工作区与私有临时目录，因此 `workspace-write` 允许这些写入，`read-only` 则不允许任何写入。它作为 `dsh-sandbox-local` 的 win32 档交付：在 Windows 上挂载本地提供方，就能让每次受限 bash 或 pwsh 调用自动使用此后端。也可以通过 `AclSandbox` API 直接嵌入，以捕获 stdio 的方式 spawn 受限子进程。每个 Win32 调用都有检查，失败即抛出异常，因此子进程绝不会不受限制地 spawn。强制执行按设计为部分实现——受限令牌必须为进程初始化保留 Everyone，且 NTFS 硬链接可以把同一文件对象别名为多个路径——因此后端报告 `partial`，需要绝对边界的调用方可以向上暴露它。
+在 Windows 上，本包将子进程的写入限制在工作区和私有临时目录内。`workspace-write` 授予对这两个位置的写入权限，`read-only` 则均不授予。挂载 `dsh-sandbox-local` 后，受限的 bash 和 PowerShell 命令会自动获得此行为；调用方也可以直接使用公开 `AclSandbox` API，并捕获标准流。任何 Win32 操作失败都会阻止子进程在不受限制的情况下启动。该保证特意标记为部分强制，因为进程启动会保留 Everyone 访问权限，NTFS 硬链接也可以通过其他路径暴露同一文件；调用方可通过报告的 `partial` 强制级别检测此限制。
 
 ## 目录
 

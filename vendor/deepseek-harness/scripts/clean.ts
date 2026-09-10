@@ -68,6 +68,7 @@ export class RepositoryCleaner {
     const canonicalRoot = await realpath(this.root)
 
     await this.addIfPresent(targets, join(this.root, '.dsh-build'), canonicalRoot)
+    await this.addIfPresent(targets, join(this.root, 'apps/desktop/.desktop-build'), canonicalRoot)
 
     // These checks cover legacy root-level incremental state emitted by older configs.
     await this.addIfPresent(targets, join(this.root, '.typecheck'), canonicalRoot)
@@ -76,7 +77,7 @@ export class RepositoryCleaner {
     }
     await this.addIfPresent(
       targets,
-      join(this.root, 'native/landlock-run/tsconfig.tsbuildinfo'),
+      join(this.root, 'native/system/tsconfig.tsbuildinfo'),
       canonicalRoot,
     )
 
@@ -121,7 +122,7 @@ export class RepositoryCleaner {
     const outputs = new Set<string>()
     const pending = [join(this.root, 'tsconfig.json')]
     const visited = new Set<string>()
-    const nativeEntryOutput = join(this.root, 'native/landlock-run/packages/entry/lib')
+    const nativeEntryOutput = join(this.root, 'native/system/packages/entry/lib')
 
     while (pending.length > 0) {
       const nextConfigPath = pending.pop()

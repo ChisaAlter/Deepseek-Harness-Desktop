@@ -1,5 +1,5 @@
 ---
-description: "叠加在 dsh-base 上的私有 Agent Teams profile 层，供源码 checkout 用户使用 Team-scoped 协作工具，同时保留一次性 delegation。"
+description: "叠加在 dsh-base 上公开发布的实验性 Agent Teams profile 层，提供 Team-scoped 协作工具并保留一次性 delegation。"
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-`dsh-experimental-agent-team-profile` 是在 `@deepseek-ai/dsh-base` 之上启用 [Agent Teams](../agent-team/README.zh.md) 的私有 profile 层。它的 patch 会插入 Team domain 与 Team-scoped 工具、禁用名称重叠的全局 continuable-child control，并保留普通的一次性 fresh 与 fork delegation 工具。必须将本包显式添加到已初始化的源码 checkout profile；正式发布会排除本包。
+`dsh-experimental-agent-team-profile` 是在 `@deepseek-ai/dsh-base` 之上启用 [Agent Teams](../agent-team/README.zh.md) 的公开实验性 profile 层。它的 patch 会插入 Team domain 与 Team-scoped 工具、禁用名称重叠的全局 continuable-child control，并保留普通的一次性 fresh 与 fork delegation 工具。必须将本包显式添加到已初始化的 profile；随附 profile 默认都不会启用它。
 
 ## 目录
 
@@ -27,11 +27,11 @@ kind: "package-bundle"
 
 ### 安装到 profile
 
-在本仓库 checkout 中，将本包添加到已初始化的 profile，然后运行一个要求 Lead 委派工作的任务：
+将本包添加到已初始化的 profile，然后运行一个要求 Lead 委派工作的任务：
 
 ```sh
-pnpm dsh plugin --profile headless add ./packages/experimental/agent-team-profile
-pnpm dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
+dsh plugin --profile headless add @deepseek-ai/dsh-experimental-agent-team-profile
+dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
 ```
 
 profile 必须已经包含 `@deepseek-ai/dsh-base`，本层会使用其中的 Subagent service 与 provider 配置行。执行 `dsh plugin --profile <name> remove @deepseek-ai/dsh-experimental-agent-team-profile` 移除本包时，bundle 也会从 profile 的有序层列表中移除。
@@ -63,7 +63,7 @@ profile 必须已经包含 `@deepseek-ai/dsh-base`，本层会使用其中的 Su
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [实验性包](../README.zh.md)——孵化状态与发布排除规则。
+- [实验性包](../README.zh.md)——孵化状态与发布规则。
 - [Agent Teams service](../agent-team/README.zh.md)——持久 roster、消息与任务板行为。
 - [Agent Teams 工具](../tool-agent-team/README.zh.md)——Team-scoped 模型工具表层。
 - [Base bundle](../../bundle/base/README.zh.md)——本 patch 扩展的 profile 层。
@@ -91,7 +91,7 @@ Team 策略与 schema 由 [`@deepseek-ai/dsh-experimental-tool-agent-team`](../t
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **仅限源码 checkout**——正式 npm、CLI、Web 与 Python 发布产物都不包含这个私有包。
+- **仅显式启用**——本包公开发布，但随附 CLI、Web、SDK、ACP 与 Python profile 都不会启用它。
 - **共享 checkout**——所有 teammate 都观察同一个工作目录；本 bundle 不提供 worktree 隔离或文件系统锁。
 - **需要 base profile**——本 patch 依赖 `dsh-base` 提供的配置行 id 与 Subagent provider；它不是独立 profile。
 

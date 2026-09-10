@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `settings-select` |
 | **status** | `active` |
-| **last verified** | 2026-09-03 — 触发器标签接 `FlipText`（选值翻转，flip recipe）；vendor 选择器相关 spec 全过。2026-09-01 — HarnessRestartRow optimistic Switch（无 saving flash）；PriceSettingsPanel + ModelsSection add-provider `SettingsSelect`；alpha.4：SettingsSelect、Appearance 与模型设置回归通过。 |
+| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：上游把 Add provider 原生 `<select>` 收编进选择器场景，ModelsSection 的 add 卡选择器维持本卡 `SettingsSelect` 胶囊（官方 Switch primitive 同期并入，AA 合并保留 `.track` API 并对上游 `.switch .thumb` 应用 motion token）；上游新用例（settings namespace 可开编辑器的 provider 过滤）按本卡 menu/menuitem 驱动方式适配，components.client.spec 88/88。此前 2026-09-03 — 触发器标签接 `FlipText`（选值翻转，flip recipe）；vendor 选择器相关 spec 全过。2026-09-01 — HarnessRestartRow optimistic Switch（无 saving flash）；PriceSettingsPanel + ModelsSection add-provider `SettingsSelect`；alpha.4：SettingsSelect、Appearance 与模型设置回归通过。 |
 
 ## User paths
 

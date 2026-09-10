@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-goal 组为 agent 会话提供一个持久的完成目标，在重启、resume（恢复）与 fork 后依然存在：goal 服务持久保存状态与生命周期，模型工具让 agent 创建和更新 goal，`/goal` 命令让用户无需模型轮次即可直接控制 goal，续行驱动器则把 active 的 goal 变成连续多轮的自动工作。goal 状态保存在会话日志中，组内没有任何独立存储。同一时刻只有一个当前 goal；goal 是状态而非调度器——自动续行是需要你刻意挂载的可选消费方。
+goal 组让一个 agent 会话在重启、resume（恢复）和 fork 后继续追求一个持久的完成目标。Agent 可以创建和更新该目标，用户也可以用 `/goal` 直接检查或控制它，而不消耗模型轮次。可选的续行包可以让 active（进行中）的工作连续执行多轮。每个会话只有一个当前 goal，goal 记录完成状态而不调度工作；因此，自动续行必须单独启用。
 
 ## 目录
 
@@ -38,7 +38,6 @@ goal 组为 agent 会话提供一个持久的完成目标，在重启、resume�
 - [生成的工具目录](../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-goal)——模型接收的三个 goal 工具 schema。
 - [生成的配置目录](../../docs/config-catalog.zh.md#deepseek-aidsh-goal)——goal 服务的每个受支持配置字段。
 - [goal 领域 Agent Note](../../.agents/notes/implemented/feature/2026-07-19-persisted-same-session-goal-domain.zh.md)——领域设计及其决策。
-- [同会话驱动器 Agent Note](../../.agents/notes/implemented/feature/2026-07-19-same-session-goal-round-driver.zh.md)——续行竞态与生命周期理由。
 
 -----
 

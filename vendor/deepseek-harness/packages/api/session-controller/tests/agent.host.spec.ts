@@ -443,7 +443,7 @@ describe('ApiSession create or adoption', () => {
       .rejects.toBeInstanceOf(ApiSessionCwdConflict)
   })
 
-  it('surfaces directory creation failure and rejects setup without a scoped Agent', async () => {
+  it('surfaces directory creation failure', async () => {
     const { agents } = await harness()
     const parent = mkdtempSync(join(tmpdir(), 'dsh-session-controller-file-'))
     tempDirs.push(parent)
@@ -451,8 +451,5 @@ describe('ApiSession create or adoption', () => {
     writeFileSync(file, 'not a directory')
     await expect(agents.ensureSession(SessionId('mkdir-failure'), join(file, 'child'), false))
       .rejects.toThrow('failed to ensure project directory')
-
-    const composition = await agents.composeAgent(undefined)
-    expect(() => composition.setup(new Context())).toThrow('Agent setup has no scoped Agent')
   })
 })

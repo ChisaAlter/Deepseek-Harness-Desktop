@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-sandbox-policy` 为每次受限能力调用从统一的策略归属位置解析文件效果模式与工作区根目录，并在每次请求前把当前策略告知模型。部署方设置默认模式与回退工作区根目录；会话可以切换自己的模式，切换因存在于会话日志中而跨重启保留。每个强制执行能力——bash、文件系统、终端——读取同一份解析出的策略，因此调用运行的模式绝不取决于由哪个家族解析。模型会看到一条简洁的 `sandbox:policy` 贡献，指明模式与工作区，而不会收到一份已挂载能力的清单。
+使用本包可以让每次受限的 bash、文件系统和终端调用遵循同一份文件操作策略。部署方选择默认模式和回退工作区根目录，每个会话则可以独立切换模式。会话选择可跨重启保留，所有强制执行能力在一次调用中使用相同的模式和工作区。每次模型请求前，模型都会收到有效策略和工作区说明，但不会收到已挂载能力的清单。
 
 ## 目录
 
@@ -94,13 +94,11 @@ kind: "package-reference"
 <a id="further-exploration"></a>
 ## 进一步探索
 
-先从子系统参考文档了解共享词汇，再看 seam 约定、跨家族决策与模型上下文决策。
+先从子系统参考文档了解共享词汇，再看 seam 约定与跨家族决策。
 
 - [进程沙箱子系统](../../../docs/subsystems/sandbox.zh.md)——模式、逐调用策略与强制执行语义。
 - [沙箱 seam 包](../sandbox/README.zh.md)——每个强制执行能力实现的隔离约定。
 - [跨家族文件沙箱决策](../../../.agents/notes/implemented/feature/2026-07-14-cross-family-fs-sandbox.zh.md)——为何存在统一的共享策略归属位置。
-- [当前沙箱策略上下文决策](../../../.agents/notes/implemented/feature/2026-07-30-current-sandbox-policy-context.zh.md)——策略如何在每次请求前到达模型。
-- [与具体能力无关的策略上下文决策](../../../.agents/notes/implemented/simplification/2026-07-31-capability-neutral-sandbox-policy-context.zh.md)——为何贡献不点名已挂载能力。
 
 -----
 

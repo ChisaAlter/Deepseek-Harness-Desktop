@@ -36,12 +36,12 @@ export function SessionLogDownloadHeaderAction(props: SessionLogDownloadDialogPr
           className={className}
           disabled={busy || sessionId === undefined}
           aria-busy={busy}
-          aria-label={t('header.action')}
+          aria-label={t('menu.download')}
           onClick={() => {
             if (sessionId !== undefined) void request(sessionId)
           }}
         >
-          {compact ? null : <span>{t('header.action')}</span>}
+          {compact ? null : <span>{t('menu.download')}</span>}
           <IconDownloadOutline16 size={12} />
         </button>
       )}

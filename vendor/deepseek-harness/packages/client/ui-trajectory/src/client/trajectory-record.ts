@@ -58,6 +58,8 @@ export interface TrajectoryCellProps extends HTMLAttributes<HTMLDivElement> {
   inputDetail?: string
   /** Complete system-prompt/tool-catalog state introduced by a SYSTEM record. */
   promptDetail?: ConversationPromptSnapshot
+  /** Known prompt text without a loaded request config or tool catalog. */
+  systemPromptDetail?: string
   /** System-prompt/tool-catalog state replaced by a SYSTEM update. */
   previousPromptDetail?: ConversationPromptSnapshot
   /** Full assistant/tool result content for the details panel. */

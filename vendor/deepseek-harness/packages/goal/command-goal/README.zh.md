@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-command-goal` 为用户提供基于持久 goal 服务的 `/goal` 命令：用户可以直接在 UI 中创建、编辑、暂停、恢复、清除并查看当前 goal，无需模型参与。命令在其 Cordis scope 中注册，因此读取该 scope 的命令适配器能发现并执行它；命令文本与输出都留在 UI 中，绝不进入模型请求。每项被接受的变更都会通过 goal 服务的持久 `goal/change` 事件落盘。有序的图片与文件附件可以随 create 或 edit 一起提交，并以一条普通用户消息发出，供后续 Goal Round 读取。为挂载了命令适配器的交互式部署选择它；没有适配器的无头与自动化应用不需要它。
+`dsh-command-goal` 为用户提供 `/goal` 命令，以便直接在交互式 UI 中创建、编辑、暂停、恢复、清除并查看当前 goal。命令及其直接输出留在 UI 中，不进入模型请求。接受的变更会持久化；create 或 edit 携带的有序图片或文件附件会成为一条普通用户消息，供后续 Goal Round 读取。此包适用于带命令适配器的交互式部署；没有适配器的无头与自动化应用不需要它。
 
 ## 目录
 
@@ -97,7 +97,7 @@ kind: "package-reference"
 
 - [goal 服务](../goal/README.zh.md)——命令变更的状态与生命周期。
 - [命令服务](../../interaction/commands/README.zh.md)——命令注册表约定与分发。
-- [用户 goal 命令 Agent Note](../../../.agents/notes/implemented/feature/2026-07-19-human-goal-command.zh.md)——用户体验与组合决策。
+- [Harness 层目标式执行 Agent Note](../../../.agents/notes/implemented/feature/2026-07-16-harness-level-loop.zh.md)——用户体验与组合决策。
 
 -----
 

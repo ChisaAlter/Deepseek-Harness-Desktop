@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-session-projection` 向客户端载体提供日志派生的逐会话状态的完整当前值——历史尾页与 `session/projection` 推送帧：一个注册表（`ctx.sessionProjections`）把每个已提交会话事件折叠到已注册投影单元并对外提供所得值。领域注册一个纯计算单元（初始状态、对事件的折叠与可选客户端视图）；框架负责订阅、驱动与变更通知，因此领域不持有任何订阅，客户端收到的是成品值，绝不自行折叠事件。每个被提供的值都是经 schema 校验的纯 JSON，逐单元 `stateVersion` 锚定持久缓存的失效。当客户端需要派生的逐会话状态——todo 清单、goal 快照、对话统计——而不想自己折叠原始日志时，选择本包。
+当客户端需要当前的逐会话状态（例如待办事项、目标或对话统计）而不应自行重放原始事件日志时，使用 `dsh-session-projection`。领域根据已提交的会话事件定义同步投影，客户端则通过快照与变更通知接收经过 schema 校验的完整 JSON 值。快照标明所有返回值共同反映到的最后一个事件，因此载体可以把状态与对应的历史切面配对。投影状态可以通过检查点加快冷读，而仅供 host 使用的投影不会暴露给客户端。
 
 ## 目录
 
@@ -55,12 +55,14 @@ const definition = {
 
 ### 注册与读取
 
-`register(definition)` 安装单元；注册是挂在调用方 fiber 上的 effect，因此卸载领域即移除其 key。载体用 `snapshot(session)` 对每个客户端可见单元读取一致的同步切面——`{ asOfSeq, values }`，其中 `asOfSeq` 是所有值共同反映到的最后一个事件的 seq——并用 `onChanged(listener)` 订阅逐变更通知。`stateOf(session, key)` 读取一个单元的主机状态，不计算无关视图。
+`register(definition)` 安装单元；具有相同 key 和 `stateVersion` 的注册方共享其 cell，版本不兼容或 `stateVersion` 非法时会 throw。注册是挂在调用方 fiber 上的 effect，因此最后一个注册方卸载后会移除 key 及其缓存 cell。载体用 `snapshot(session)` 对每个客户端可见单元读取一致的同步切面——`{ asOfSeq, values }`，其中 `asOfSeq` 是所有值共同反映到的最后一个事件的 seq——并用 `onChanged(listener)` 订阅逐变更通知。`stateOf(session, key)` 读取一个单元的实时只读 host 状态，不计算无关视图。
 
 ```text
 const dispose = ctx.sessionProjections.register(definition)
 const { asOfSeq, values } = ctx.sessionProjections.snapshot(session)
 ```
+
+必须使用投影状态的领域把 `sessionProjections` 声明为 Cordis 服务依赖；可选贡献方可以在 `ctx.inject(['sessionProjections'], …)` 下注册。载体使用 `ctx.get('sessionProjections')`，注册表缺席时省略自己的块或帧。
 
 ### 持久检查点
 

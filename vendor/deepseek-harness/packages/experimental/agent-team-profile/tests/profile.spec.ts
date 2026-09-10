@@ -8,16 +8,16 @@ import * as yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 
 describe('Agent Teams profile bundle', () => {
-  it('declares a private parseable layer with Team-owned controls', () => {
+  it('declares a public parseable layer with Team-owned controls', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       private?: boolean
-      publishConfig?: unknown
+      publishConfig?: { access?: string }
       dependencies?: Record<string, string>
       dsh?: { bundle?: { patch?: string } }
     }
-    expect(manifest.private).toBe(true)
-    expect(manifest.publishConfig).toBeUndefined()
+    expect(manifest.private).toBeUndefined()
+    expect(manifest.publishConfig?.access).toBe('public')
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
     expect(manifest.dependencies).toMatchObject({
       '@deepseek-ai/dsh-experimental-agent-team': 'workspace:^',

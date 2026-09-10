@@ -132,17 +132,17 @@ function acceptsEdge(state: ToolState, parent: string, child: string): boolean {
 
 function updateDispatch(state: ToolState, match: ConversationMatch): ToolState {
   const event = match.event
-  if (event.type !== 'tool/code-dispatch-start' && event.type !== 'tool/code-dispatch') return state
+  if (event.type !== 'tool/ptc-dispatch-start' && event.type !== 'tool/ptc-dispatch') return state
   const data = event.data
   const parentId = String(data.parentCallId)
   const childId = String(data.subCallId)
   const siblings = state.children.get(parentId) ?? []
   const index = siblings.indexOf(childId)
   if (index < 0 && !acceptsEdge(state, parentId, childId)) return state
-  if (event.type === 'tool/code-dispatch-start' && index >= 0) return state
+  if (event.type === 'tool/ptc-dispatch-start' && index >= 0) return state
 
   const calls = new Map(state.calls)
-  calls.set(childId, event.type === 'tool/code-dispatch-start'
+  calls.set(childId, event.type === 'tool/ptc-dispatch-start'
     ? childCall(match, data)
     : childResult(match, data, calls.get(childId)))
   if (index >= 0) return { ...state, calls }
@@ -210,7 +210,7 @@ function fallbackState(context: ConversationNodeContext<ToolState>): ToolState |
   return state
 }
 
-/** Trajectory-owned root Tool lifecycle with nested Code Dispatch calls. */
+/** Trajectory-owned root Tool lifecycle with nested PTC dispatch calls. */
 const trajectoryToolDefinition: ConversationNodeDefinition<ToolState> = {
   kind: 'trajectory-tool-call',
   target: 'trajectory',
@@ -219,7 +219,7 @@ const trajectoryToolDefinition: ConversationNodeDefinition<ToolState> = {
     if (event.type === 'tool/result') {
       return { id: String(event.data.message.source.callId), role: 'update' }
     }
-    if (event.type === 'tool/code-dispatch-start' || event.type === 'tool/code-dispatch') {
+    if (event.type === 'tool/ptc-dispatch-start' || event.type === 'tool/ptc-dispatch') {
       const rootCallId: unknown = event.data.rootCallId
       return typeof rootCallId === 'string' && rootCallId !== ''
         ? { id: rootCallId, role: 'update' }

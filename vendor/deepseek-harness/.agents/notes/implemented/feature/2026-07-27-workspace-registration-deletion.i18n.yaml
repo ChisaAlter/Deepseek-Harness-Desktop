@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-07-27-workspace-registration-deletion.md
-2026-07-27-workspace-registration-deletion.md: 47798571f3dd37bea684640283b88236120cf7b8
-2026-07-27-workspace-registration-deletion.zh.md: 035cd1d143083bff6da0e2af5b8321fd737a835c
+2026-07-27-workspace-registration-deletion.md: 878c77c58fef98905ad6a2130c0aea5628688969
+2026-07-27-workspace-registration-deletion.zh.md: b16681d0e3d3400d2b4761dc3fa0bf95d294a9ad

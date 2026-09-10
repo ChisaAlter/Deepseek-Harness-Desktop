@@ -501,6 +501,7 @@ interface TimingHooks {
   failNextHistory(): void
   appendUser(id: string, msg: string): void
   appendTitle(id: string, title: string): void
+  disarmOnlyGoal(): void
   startReasoningChunkStorm(id: string, chunkCount: number, chunksPerInterval: number, intervalMs: number): string
   reasoningChunkStormState(): {
     sessionId: string
@@ -962,7 +963,10 @@ describe('createFixtureApi', () => {
       goal: null,
       imageLimits: { maxImagesPerMessage: 20, maxImageBytes: 5 * 1024 * 1024 },
     })
-    expect((alpha?.values['contextBreakdown'] as { messageTokens: number }).messageTokens).toBeGreaterThan(0)
+    const breakdown = alpha?.values['contextBreakdown'] as { systemTokens: number; messageTokens: number }
+    expect(breakdown.messageTokens).toBeGreaterThan(0)
+    // The seeded system/message at surface node 0 prices the system figure.
+    expect(breakdown.systemTokens).toBeGreaterThan(0)
     expect((alpha?.values['sessionStats'] as { steps: number }).steps).toBeGreaterThan(0)
     expect(second.value.projections['fx-alpha']).toEqual(alpha)
 
@@ -1677,6 +1681,13 @@ describe('fixture Connection RPC', () => {
     expect(revision).toBe(1)
     const ref = (at: number) => ({ id: goalId, revision: at })
     expect((await goal('goals/edit', { ref: ref(1), request: { objective: 'ship it v2' } })).ok).toBe(true)
+    expect(await goal('goals/get', {})).toMatchObject({
+      ok: true, value: { objective: 'ship it v2', revision: 2, activation: 'armed' },
+    })
+    timing().disarmOnlyGoal()
+    expect(await goal('goals/get', {})).toMatchObject({
+      ok: true, value: { objective: 'ship it v2', revision: 2, activation: 'disarmed' },
+    })
     expect((await goal('goals/pause', { ref: ref(2) })).ok).toBe(true)
     expect((await goal('goals/resume', { ref: ref(3) })).ok).toBe(true)
     // A stale ref loses the CAS check.

@@ -80,8 +80,8 @@ const UI_FEATURES = [
     includes: ['data-composer-beam'],
   },
   {
-    name: 'StatsLine running row state',
-    file: 'packages/client/ui-chat/src/client/chat/StatsLine.tsx',
+    name: 'StatsPills running row state',
+    file: 'packages/client/ui-chat/src/client/chat/StatsPills.tsx',
     includes: ['data-stats-line'],
   },
   {
@@ -226,4 +226,47 @@ test('desktop does not carry the detached dshbot plugin', () => {
   assert.equal(fs.existsSync(path.join(ROOT, 'vendor/dshbot/package.json')), false);
   const manifest = JSON.parse(readRel(ROOT, 'package.json'));
   assert.doesNotMatch(JSON.stringify(manifest.build.extraResources), /dshbot/);
+});
+
+// Upstream ships zero -webkit-app-region (it is a web-only app), so every
+// occurrence below is desktop fork content: fixed-position overlays must punch
+// a no-drag hole or they cannot be clicked over the desktop caption band. The
+// 0.1.5-rc.1 merge deleted TurnUsagePanel .panel and MessageFeedbackActions
+// .notePanel; that contract now lives in the shared stat-dialog skin and the
+// ui-dockkit / ui-sidebar-right surfaces.
+const NO_DRAG_FILES = [
+  'packages/client/ui-attachment/src/DropOverlay.module.css',
+  'packages/client/ui-attachment/src/ImageLightbox.module.css',
+  'packages/client/ui-chat/src/client/chat/stat-dialog.module.css',
+  'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css',
+  'packages/client/ui-dockkit/src/components/dockkit.module.css',
+  'packages/client/ui-files/src/client/FileTree.module.css',
+  'packages/client/ui-git/src/client/GitActionsControl.module.css',
+  'packages/client/ui-git/src/client/GitProgressToast.module.css',
+  'packages/client/ui-layout/src/client/AppFrame.module.css',
+  'packages/client/ui-primitives/src/ConnectionBanner.module.css',
+  'packages/client/ui-primitives/src/HoverCard.module.css',
+  'packages/client/ui-primitives/src/JsonTree.module.css',
+  'packages/client/ui-primitives/src/Menu.module.css',
+  'packages/client/ui-primitives/src/Modal.module.css',
+  'packages/client/ui-primitives/src/OnboardingSurface.module.css',
+  'packages/client/ui-primitives/src/Toast.module.css',
+  'packages/client/ui-primitives/src/Tooltip.module.css',
+  'packages/client/ui-schedule/src/client/ScheduleCatalogAction.module.css',
+  'packages/client/ui-settings-general/src/client/SettingsRoot.module.css',
+  'packages/client/ui-settings-general/src/client/UpdateAction.module.css',
+  'packages/client/ui-settings-remote/src/client/RemoteSection.module.css',
+  'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css',
+  'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
+  'packages/client/ui-subagent/src/client/SubagentHeaderLineage.module.css',
+  'packages/client/ui-surfaces/src/client/SurfaceTabs.module.css',
+  'packages/client/ui-titlebar/src/client/PanelToggles.module.css',
+  'packages/extensions/ui-cordis/src/client/CordisPanel.module.css',
+];
+
+test('fixed overlays punch a no-drag hole over the caption band', () => {
+  const missing = NO_DRAG_FILES.filter(
+    (rel) => !readRel(VENDOR, rel).includes('-webkit-app-region: no-drag'),
+  );
+  assert.deepEqual(missing, []);
 });

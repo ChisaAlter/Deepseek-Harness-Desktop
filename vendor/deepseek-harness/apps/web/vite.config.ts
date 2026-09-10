@@ -46,15 +46,21 @@ function rejectStandaloneServe(): Plugin {
  */
 function emitPreviewPage(): Plugin {
   let bootstrapFile: string | undefined
+  let write = true
   return {
     name: 'dsh-emit-preview-page',
+    configResolved(config) {
+      write = config.build.write
+    },
     generateBundle(_options, bundle) {
+      if (!write) return
       for (const item of Object.values(bundle)) {
         if (item.type === 'chunk' && item.isEntry && item.name === 'bootstrap') bootstrapFile = item.fileName
       }
       if (bootstrapFile === undefined) throw new Error('vite: preview bootstrap entry missing from the bundle')
     },
     async closeBundle() {
+      if (!write) return
       // A build that failed before generateBundle has no page to splice.
       if (bootstrapFile === undefined) return
       const page = await readFile(src('./dist/index.html'), 'utf8')

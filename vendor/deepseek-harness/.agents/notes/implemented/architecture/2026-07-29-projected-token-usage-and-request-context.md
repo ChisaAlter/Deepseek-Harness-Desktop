@@ -26,7 +26,7 @@ Capacity deliberately stays out of `EpochHeader`. That type is the reconstructio
 
 Both units ride the standard projection lifecycle: history tail baselines, `session/projection` live frames, higher-seq-wins client storage, JSON checkpoints, cache recovery, and unit unload. There is no token-specific history field, mux frame, projector, revision counter, or client fence.
 
-The Web `StatsLine` reads both through the standard `useProjection` seat. Window nodes still supply turn and step counts plus LLM and tool wall times — those answer "what is on screen" and are correctly window-scoped. Durable token and context groups remain when compaction leaves no visible assistant step. Cache writes count in billed input and in the cache-hit denominator. A deployment without token-meter drops the token groups; occupancy stays hidden until both pressure and capacity are known. The exact-overflow tooltip mounts its measuring child only for a non-empty line and retains one `ResizeObserver` while values change; text changes perform one direct measurement without replacing the observer.
+The Web [`StatsPills`](../feature/2026-09-07-composer-session-stats-pills.md) reads both through the standard `useProjection` seat. Window nodes still supply turn and step counts plus LLM and tool wall times as the no-projection fallback — those answer "what is on screen" and are correctly window-scoped. The durable usage pill remains when compaction leaves no visible assistant step. Cache writes count in billed input and in the cache-hit denominator. A deployment without token-meter drops the usage pill; context occupancy lives on the composer's ContextMeter ring. Exact token figures show in the usage pill's click-open dialog rather than a hover tooltip.
 
 ## Context occupancy is approximate, and that is the decision
 
@@ -48,7 +48,7 @@ That cost bought a worse display: occupancy went blank after every reconnect and
 
 **Resolve capacity inside token-meter.** The package documents itself as independent of model routing and is otherwise a pure reader that never appends to the log. AgentLoop already holds the resolved metadata where the header is written.
 
-**Extend the `session.models` RPC with capacity.** The handler already resolves and discards it, so the field is nearly free — but `StatsLine` lives in `ui-conversation` while the model directory lives in `ui-model-selection`, and `ui-conversation` cannot depend on `ui-model-selection`. Delivering it would have required either a second dock entry splitting one text row across two plugins, or a cross-plugin store write.
+**Extend the `session.models` RPC with capacity.** The handler already resolves and discards it, so the field is nearly free — but the stats display (now `StatsPills`, ui-chat) and the model directory live in separate plugins with no dependency between them. Delivering it would have required either a second dock entry splitting one surface across two plugins, or a cross-plugin store write.
 
 **Add a context circle beside the model selector.** That placement suggests selected-model state. The stats line carries the figure without a duplicate UI or data path.
 

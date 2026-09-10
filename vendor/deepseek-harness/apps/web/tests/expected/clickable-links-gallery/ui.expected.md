@@ -1,8 +1,9 @@
 - banner:
   - navigation "Session hierarchy":
     - button "Clickable links gallery" [disabled]
-  - button "Session log":
-    - text: Session log
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
     - img
   - tablist:
     - tab "Chat" [selected]
@@ -168,7 +169,7 @@
 - list:
   - listitem:
     - paragraph: Footnote references stay inert superscripts. ↩
-- text: Produced
+- text: Files changed
 - button "Open site/report.html": report.html
 - button "Open a/style.css": style.css
 - button "Open b/style.css": style.css
@@ -176,7 +177,6 @@
 - button "Open site/app.js": app.js
 - button "Open src/tokens.css": tokens.css
 - text: + 1 file
-- button "Show in folder"
 - button "Copy":
   - img
 - button "Good response":
@@ -191,7 +191,7 @@
 - text: {{clock}}
 - button "Back to bottom":
   - img
-- textbox "Message or run a task... / commands, @ files or sessions"
+- textbox "Message or run a task, / commands, @ files or sessions"
 - button "Commands":
   - img
 - button "Add attachment":
@@ -201,4 +201,6 @@
   - text: DeepSeek-V4-Flash
   - img
 - button "Send message" [disabled]
-- text: 1 turns · 1 steps LLM {{duration}} · Tool call {{duration}}
+- button "1 turns 2 steps":
+  - img
+  - text: 1 turns 2 steps

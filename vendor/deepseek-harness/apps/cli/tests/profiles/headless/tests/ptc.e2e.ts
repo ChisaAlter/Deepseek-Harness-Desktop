@@ -30,7 +30,7 @@ import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 /**
  * With-key PTC mode proof: a real model receives only `run_code`, composes two
  * sub-calls, writes a file, and returns curated output while the log records
- * each `tool/code-dispatch`. The keyless Loader smoke is in the sibling test.
+ * each `tool/ptc-dispatch`. The keyless Loader smoke is in the sibling test.
  */
 
 const PERSONA = 'You are a coding agent. You work by writing TypeScript programs for run_code: '
@@ -55,7 +55,7 @@ async function ptcModeHarness(cwd: string): Promise<Context> {
   await harness.plugin(LlmRuntime)
   await harness.plugin(SessionStore)
   await harness.plugin(SessionProjectionRegistry)
-  await harness.plugin(SystemPrompt, { persona: PERSONA })
+  await harness.plugin(SystemPrompt, { personaPrefix: PERSONA })
   await harness.plugin(ToolRuntime, { mode: 'ptc' })
   await harness.plugin(AgentRegistry)
   await harness.plugin(AgentLoop, { agents: [] })
@@ -73,7 +73,7 @@ async function workspacePtcModeHarness(): Promise<Context> {
   await harness.plugin(LlmRuntime)
   await harness.plugin(SessionStore)
   await harness.plugin(SessionProjectionRegistry)
-  await harness.plugin(SystemPrompt, { persona: PERSONA })
+  await harness.plugin(SystemPrompt, { personaPrefix: PERSONA })
   await harness.plugin(ToolRuntime, { mode: 'ptc' })
   await harness.plugin(AgentRegistry)
   await harness.plugin(LocalFileSystem, { cwd: '/' })
@@ -380,7 +380,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('PTC mode: real model writes a pr
     expect(calls.length).toBeGreaterThan(0)
     expect(calls.every(event => event.data.name === RUN_CODE_NAME)).toBe(true)
     // …and the program's tool calls landed as dispatch events under it.
-    const dispatches = events.filter(event => event.type === 'tool/code-dispatch')
+    const dispatches = events.filter(event => event.type === 'tool/ptc-dispatch')
     expect(dispatches.length).toBeGreaterThanOrEqual(2)
     expect(dispatches.every(event => event.data.name === 'bash')).toBe(true)
     const parents = new Set(calls.map(event => event.data.callId))
@@ -419,7 +419,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('PTC mode: real model writes a pr
     await waitForIdle(ctx, handle.agent)
 
     const events: readonly SessionEvent[] = handle.agent.session.snapshotEvents()
-    const dispatch = events.find(event => event.type === 'tool/code-dispatch' && event.data.name === 'read')
+    const dispatch = events.find(event => event.type === 'tool/ptc-dispatch' && event.data.name === 'read')
     const outerResult = events.find(event => event.type === 'tool/result')
     const workspaceContext = await vi.waitFor(() => {
       const splice = handle.agent.session.snapshotEvents().findLast(event => event.type === 'agent/inbox/spliced'

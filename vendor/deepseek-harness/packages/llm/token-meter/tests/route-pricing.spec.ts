@@ -68,6 +68,7 @@ function header(model: string): EpochHeader {
 }
 
 interface Harness {
+  ctx: Context
   meter: TokenMeter
   session: Session
 }
@@ -84,7 +85,7 @@ async function harness(pricing: (model: string) => LlmImageRequestPricing | unde
   const llm = new LlmRuntime(ctx)
   llm.registerAdapter(['mock'], new PricingAdapter(pricing))
   const meter = new TokenMeter(ctx)
-  return { meter, session: Session.create(SessionId('route-priced')) }
+  return { ctx, meter, session: Session.create(SessionId('route-priced')) }
 }
 
 /** Route price of one image-bearing message under the fixed pricing double. */
@@ -131,7 +132,7 @@ describe('request projection pricing', () => {
   })
 
   it('prices a first multimodal request estimate with the routed visual tokens', async () => {
-    const { meter, session } = await harness(() => fixedPricing)
+    const { ctx, meter, session } = await harness(() => fixedPricing)
     const message = imageMessage('photo')
     session.append('user/message', message, { surfaceOp: 'append' })
     session.append('request/header', { header: header('vision'), reason: 'initial' })
@@ -146,6 +147,9 @@ describe('request projection pricing', () => {
     expect(measurement.baseline.kind).toBe('estimated')
     expect(measurement.surfaceTokens).toBe(expectedNode)
     expect(measurement.totalTokens).toBe(expectedNode)
+    const breakdown = ctx.sessionProjections.snapshot(session).values.contextBreakdown
+    expect(breakdown).toEqual({ systemTokens: 0, toolsTokens: 0, messageTokens: estimateMessage(message) })
+    expect(breakdown?.messageTokens).not.toBe(measurement.surfaceTokens)
   })
 
   it('adds a post-anchor image at its routed price on top of provider usage', async () => {

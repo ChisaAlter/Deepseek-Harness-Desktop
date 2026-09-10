@@ -427,6 +427,44 @@ export async function readWholeBytes(
 }
 
 /**
+ * Read the bytes at `[offset, offset + length)` of a regular file with no
+ * decoding or binary rejection. The window is the bound: the stream opens at
+ * `offset` and closes after `length` bytes, so no more than the window is ever
+ * buffered whatever the file's size; a window at or past the end is empty.
+ * @param target - the resolved file to read.
+ * @param range - `offset`, the 0-based first byte, and `length`, the largest byte count.
+ * @param signal - aborts the read (`FS_ABORTED`).
+ * @returns the window's bytes, at most `length` long.
+ */
+export async function readByteWindow(
+  target: LocalTarget,
+  range: { offset: number; length: number },
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  await statRegularFile(target, 'read', signal)
+  if (range.length === 0) return new Uint8Array(0)
+  const stream = createReadStream(target.targetKey, {
+    start: range.offset,
+    end: range.offset + range.length - 1,
+    ...signal ? { signal } : {},
+  })
+  const chunks: Buffer[] = []
+  let bytes = 0
+  try {
+    for await (const chunk of stream as AsyncIterable<Buffer>) {
+      chunks.push(chunk)
+      bytes += chunk.length
+    }
+  } catch (error: unknown) {
+    /* v8 ignore next 2 -- a mid-stream abort needs cancellation racing an active read; pre-abort is deterministic. */
+    if (isAbortError(error)) throw new FsError('read aborted', 'FS_ABORTED')
+    /* v8 ignore next -- any other stream failure needs an I/O fault after a successful stat. */
+    throw error
+  }
+  return Buffer.concat(chunks, bytes)
+}
+
+/**
  * Stream a whole regular UTF-8 text file as decoded text chunks. Same text
  * semantics as {@link readWholeText} (regular-file check, binary/NUL rejection,
  * cross-chunk UTF-8 decoding), but never holds the whole file in memory.

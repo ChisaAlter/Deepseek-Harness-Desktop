@@ -6,6 +6,9 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { PeakValleySettingsRow } from '../src/client/settings/PeakValleyRow.tsx'
 import type { PeakValleySettingsRowProps } from '../src/client/settings/PeakValleyRow.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(cleanup)
 
@@ -14,6 +17,8 @@ const unused = (() => { throw new Error('unused by PeakValleySettingsRow') }) as
 function mount(opts: { enabled?: boolean; writable?: boolean } = {}) {
   const setPeakValley = vi.fn()
   const props: PeakValleySettingsRowProps = {
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     useSessions: unused,
     useSessionPendingInteraction: unused,
     useWorkspaces: unused,

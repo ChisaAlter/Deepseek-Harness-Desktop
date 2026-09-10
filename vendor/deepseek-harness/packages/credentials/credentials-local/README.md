@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-credentials-local` is the product's default on-machine credential store: a private file under your harness home where API keys and other secrets live, written from a configuration UI and reloaded automatically when you edit the file yourself. The file is a versioned document with a `refs` section for key values and a `records` section for durable per-plugin credentials, so an authorization grant or provider environment survives restarts beside the keys. Keys come from four places in one fixed order: the environment you launch in wins, then the stored file, then your project's and your home `.env` files. A key you save takes effect immediately, even when an older key sits in a `.env`. Only your OS user can read the file, and the product never hands the agent the file's path.
+`dsh-credentials-local` keeps API keys and other secrets in a private file under your harness home. You can save credentials through the configuration UI or edit the file directly; changes reload automatically and saved values survive restarts. Credential lookup follows a fixed precedence: the launch environment wins, followed by the stored file, the project's `.env`, and the harness-home `.env`; a newly saved value immediately overrides older `.env` values. Only your OS user can read the file, but agent tool processes run as that same user, so this store cannot isolate secrets from the agent.
 
 ## Table of Contents
 

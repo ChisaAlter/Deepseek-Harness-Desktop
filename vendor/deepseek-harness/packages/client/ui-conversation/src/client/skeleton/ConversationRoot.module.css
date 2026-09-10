@@ -41,6 +41,12 @@
   --dsh-composer-dock-inset: 8px;
 }
 
+/* 76px with its rule: the height of the Sidebar's tab strip and header row
+   (ui-dockkit `.tabStrip` 38px + the pane header's 38px), so the two rules
+   meet at the column edge. The rows add up to it — 12px top inset, the 32px
+   title row, the tab strip's 4px margin, a 16px tab line, and its 11px bottom
+   inset, plus the 1px transparent reserve border — so no row below may grow
+   past its figure. */
 .header {
   position: relative;
   grid-row: 1;
@@ -129,6 +135,7 @@
 .crumb:not(:disabled),
 .headerActions,
 .headerUtilities,
+.headerCorner,
 .tabs {
   -webkit-app-region: no-drag;
 }
@@ -218,7 +225,24 @@
   display: none;
 }
 
-/* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned. */
+/* The far-right corner seat reaches 16px into the header's 28px right padding,
+   so its control sits past the utilities' edge; it is laid out only while its
+   occupant renders something. Its left margin equals the utilities' 8px gap so
+   the header's trailing controls space evenly. */
+.headerCorner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-left: 8px;
+  margin-right: -16px;
+}
+
+.headerCorner:empty {
+  display: none;
+}
+
+/* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned.
+   Positioned above the header's own paint, so the active bar covers the rule. */
 .tabs {
   position: relative;
   z-index: 1;
@@ -228,7 +252,9 @@
   padding-left: 8px;
 }
 
-/* figma .Tab 34:11442: 13/16 text (figma wt510, rendered 500), gap 8 to the 2px bar. */
+/* figma .Tab 34:11442: 13/16 text (figma wt510, rendered 500). The 2px bar
+   rides the header's transparent reserve border, ending flush with the
+   hairline the header paints. */
 .tab {
   position: relative;
   padding: 0 0 11px;
@@ -414,12 +440,22 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  /* The product-wide 2px scrollbar offset (ui-workspace WorkspaceBrowser
+     `.list`, ui-sidebar-files FilesBody `.body`): the bar sits 2px clear of
+     the column's edge instead of flush against it. */
+  margin-right: 2px;
   overflow-y: auto;
   /* Reserved unconditionally: the composer seat rides this box's content box in
      Chat and its padding box under a view's composer overlay, so an `auto`
      gutter moves the input card sideways by the bar's width whenever the two
-     differ ([decision](../../../../../../.agents/notes/implemented/bug-fix/2026-08-04-composer-tab-gutter-reservation.md)). */
+     differ ([decision](../../../../../../.agents/notes/archived/bug-fix/2026-08-04-composer-tab-gutter-reservation.md)). */
   scrollbar-gutter: stable;
+}
+
+/* The bar also stops 2px short of the scroller's ends, matching its 2px edge
+   offset. WebKit-only: the Firefox path has no track to inset. */
+.scrollBody::-webkit-scrollbar-track {
+  margin: 2px;
 }
 
 .root[data-phase='active'] .viewArea {
@@ -479,7 +515,7 @@
      view), so this box never scrolls here; reserving a gutter would only
      narrow the view's content by the bar's width. Chat keeps the reservation
      on the same element, so the seat below compensates with the bar's width
-     ([decision](../../../../../../.agents/notes/implemented/bug-fix/2026-08-04-composer-tab-gutter-reservation.md)). */
+     ([decision](../../../../../../.agents/notes/archived/bug-fix/2026-08-04-composer-tab-gutter-reservation.md)). */
   scrollbar-gutter: auto;
 }
 
@@ -505,7 +541,7 @@
      bar's layout width. Chat reserves the engine-resolved width, so on an
      engine where the resolved width differs from this fixed 8px the card
      drifts by half the difference — accepted residual risk, recorded in
-     ([decision](../../../../../../.agents/notes/implemented/bug-fix/2026-08-12-composer-overlay-seat-width-compensation.md)). */
+     ([decision](../../../../../../.agents/notes/archived/bug-fix/2026-08-12-composer-overlay-seat-width-compensation.md)). */
   right: var(--dsh-scrollbar-width);
   bottom: 0;
   left: 0;
@@ -540,8 +576,9 @@
   margin-top: 4px;
   /* Figma drew px 8; nudged +12 so the folder glyph aligns with the card's
      inner controls. The row cap above keeps that inset relative to the actual
-     card when a saved narrow width is restored in the Hero. */
-  padding-left: 20px;
+     card when a saved narrow width is restored in the Hero; the right inset
+     keeps the trailing preset seat off the card edge. */
+  padding: 0 16px 0 20px;
 }
 
 /* Hero: the composer sits inside the session scroll body; center there so

@@ -1,6 +1,10 @@
 - banner:
   - navigation "Session hierarchy":
     - button "Use the read tool twice" [disabled]
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
+    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -11,7 +15,7 @@
   - img
   - img
   - text: System prompt
-- text: "Use the read tool twice in one assistant message: read a.txt and b.txt. Then reply with the single word DONE and stop. 7/25 {{clock}}"
+- text: "Use the read tool twice in one assistant message: read a.txt and b.txt. Then reply with the single word DONE and stop. {{clock}}"
 - button "Copy":
   - img
 - tooltip "Copy"
@@ -32,7 +36,7 @@
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
-- text: 7/25 {{clock}}
+- text: {{clock}}
 - button "Read a.txt":
   - img
   - img
@@ -43,11 +47,11 @@
   - img
   - text: Read
   - button "b.txt"
-- button "Think This path was interrupted.":
+- button "System prompt":
   - img
   - img
-  - text: Think This path was interrupted.
-- text: Stopped Now give the final answer. 7/25 {{clock}}
+  - text: System prompt
+- text: Now give the final answer. {{clock}}
 - button "Copy":
   - img
 - button "Edit":
@@ -64,8 +68,8 @@
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
-- text: 7/25 {{clock}}
-- textbox "Message or run a task... / commands, @ files or sessions"
+- text: {{clock}}
+- textbox "Message or run a task, / commands, @ files or sessions"
 - button "Commands":
   - img
 - button "Add attachment":
@@ -75,4 +79,9 @@
   - text: DeepSeek-V4-Flash
   - img
 - button "Send message" [disabled]
-- text: 2 turns · 3 steps LLM {{duration}} · Tool call {{duration}} TTFT avg {{duration}} · {{throughput}} tok/s Cache hit 98% Input 7.8K tok · Output 103 tok
+- button "2 turns 3 steps · {{throughput}} tok/s":
+  - img
+  - text: 2 turns 3 steps{{throughput}} tok/s
+- button "7.9K tok · Cache hit 98%":
+  - img
+  - text: 7.9K tokCache hit 98%

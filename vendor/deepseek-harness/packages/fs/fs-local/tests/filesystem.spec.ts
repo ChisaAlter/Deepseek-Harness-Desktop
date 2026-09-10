@@ -308,6 +308,45 @@ describe('readBytes', () => {
   })
 })
 
+describe('readByteRange', () => {
+  /** 256 bytes, each equal to its offset. */
+  const ramp = Buffer.from(Array.from({ length: 256 }, (_, i) => i))
+
+  it('reads a window from the middle of a file larger than the window', async () => {
+    await writeFile(join(dir, 'ramp.bin'), ramp)
+    const window = await fs.readByteRange(await fs.resolve('ramp.bin'), { offset: 100, length: 4 })
+    expect([...window]).toEqual([100, 101, 102, 103])
+  })
+
+  it('shortens a window the file ends inside and empties one at or past the end', async () => {
+    await writeFile(join(dir, 'ramp.bin'), ramp)
+    const target = await fs.resolve('ramp.bin')
+    expect([...await fs.readByteRange(target, { offset: 253, length: 10 })]).toEqual([253, 254, 255])
+    expect((await fs.readByteRange(target, { offset: 256, length: 10 })).length).toBe(0)
+    expect((await fs.readByteRange(target, { offset: 1000, length: 10 })).length).toBe(0)
+  })
+
+  it('returns an empty window for length 0 without touching content', async () => {
+    await writeFile(join(dir, 'ramp.bin'), ramp)
+    expect((await fs.readByteRange(await fs.resolve('ramp.bin'), { offset: 0, length: 0 })).length).toBe(0)
+  })
+
+  it('carries NUL and invalid UTF-8 untouched', async () => {
+    const raw = Buffer.from([0x00, 0xff, 0xfe, 0x41])
+    await writeFile(join(dir, 'a.bin'), raw)
+    expect(Buffer.from(await fs.readByteRange(await fs.resolve('a.bin'), { offset: 0, length: 4 }))).toEqual(raw)
+  })
+
+  it('rejects a missing file, a directory, and an already-aborted signal', async () => {
+    await expect(fs.readByteRange(await fs.resolve('nope'), { offset: 0, length: 1 })).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
+    await expect(fs.readByteRange(await fs.resolve('.'), { offset: 0, length: 1 })).rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
+    await writeFile(join(dir, 'a.bin'), 'data')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(fs.readByteRange(await fs.resolve('a.bin'), { offset: 0, length: 1 }, controller.signal)).rejects.toMatchObject({ code: 'FS_ABORTED' })
+  })
+})
+
 describe('listDir', () => {
   it('lists files and directories in stable name order with resolved child targets', async () => {
     await mkdir(join(dir, 'skills', 'dir-skill'), { recursive: true })

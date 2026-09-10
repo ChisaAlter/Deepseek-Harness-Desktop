@@ -347,6 +347,8 @@ const subsystemGroups = [
     ['web-client.md', 'Web Client 架构', 'Web Client architecture'],
     ['client-modules.md', '客户端模块', 'Client modules'],
     ['slots.md', '客户端 Slots', 'Client slots'],
+    ['client-resources.md', '客户端资源', 'Client resources'],
+    ['sidebar-right.md', '右侧 Sidebar', 'Right Sidebar'],
     ['conversation.md', 'Conversation 组装', 'Conversation assembly'],
     ['typert.md', 'Typert', 'Typert'],
     ['storage.md', '存储', 'Storage'],

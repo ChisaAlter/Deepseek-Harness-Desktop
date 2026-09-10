@@ -82,7 +82,7 @@ describe('web e2e: post-merge assembled desktop UI', () => {
         readFile: async () => ({ ok: true, text: 'post-merge ui\n' }),
       }
     })
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     const workspaceDir = join(scaffold.workspaceCwd, 'workspace')
     await mkdir(workspaceDir, { recursive: true })

@@ -1,5 +1,5 @@
 ---
-description: "供需要不含共享 base bundle 的极简跨平台 coding agent 的用户使用的独立双工具 SDK profile。"
+description: "供需要不含共享 base bundle 的极简跨平台 coding agent 的用户使用的独立单工具 SDK profile。"
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-当 SDK 客户端需要小型、显式的 coding agent 运行时时，请使用 `dsh --profile sdk-minimal`。该 profile 只公布按平台选择的持久 shell 与 `str_replace_editor`，把会话持久化为未压缩 JSONL，并从 SDK 初始化请求选择模型。它提供完整 Cordis 配置树，并刻意排除 `dsh-base`、Web、settings、托管凭据、遥测、compaction、workspace 指令、skills、jobs 与 subagent。其 danger-full-access 策略允许 shell 与编辑器修改进程可访问的任何路径，因此只能配合隔离 workspace 使用。
+当 SDK 客户端需要小型、显式的 coding agent 运行时时，请使用 `dsh --profile sdk-minimal`。该 profile 只公布按平台选择的持久 shell，把会话持久化为未压缩 JSONL，并从 SDK 初始化请求选择模型。它提供完整 Cordis 配置树，并刻意排除 `dsh-base`、Web、settings、托管凭据、遥测、compaction、文件系统工具、workspace 指令、skills、jobs 与 subagent。其 danger-full-access 策略允许 shell 修改进程可访问的任何路径，因此只能配合隔离 workspace 使用。
 
 ## 目录
 
@@ -46,7 +46,7 @@ dsh --profile sdk-minimal
 <details>
 <summary>实现细节——点击展开</summary>
 
-该 bundle 的单个 insert 就是完整应用配置树：SDK stdio 启动与 JSON-RPC 服务、一个由环境配置的 DeepSeek 适配器、显式 agent 核心、本地子进程与不受限文件系统提供方、按平台选择的持久 shell PTY、字符串替换编辑器，以及位于 `$DSH_HOME/sessions` 的未压缩 JSONL 持久化。它不继承其他 bundle，因此每个额外配置项都是显式 profile 变更。
+该 bundle 的单个 insert 就是完整应用配置树：SDK stdio 启动与 JSON-RPC 服务、一个由环境配置的 DeepSeek 适配器、显式 agent 核心、本地子进程执行、按平台选择的持久 shell PTY，以及位于 `$DSH_HOME/sessions` 的未压缩 JSONL 持久化。它不继承其他 bundle，因此每个额外配置项都是显式 profile 变更。
 
 ### 源码地图
 
@@ -77,11 +77,11 @@ dsh --profile sdk-minimal
 
 #### 模型看到的内容
 
-系统提示词取 `DSH_SYSTEM_PROMPT`，未设置时使用 `You are a helpful software engineer assistant.`。对外公布的工具只有 Linux/macOS 上 agent 所有的持久 `bash` 或 Windows 上的 `pwsh`，外加 `str_replace_editor`；运行时上下文、workspace 指令、skills、jobs 控制、compaction 与 Harness 身份均不存在。
+系统提示词取 `DSH_SYSTEM_PROMPT`，未设置时使用 `You are a helpful software engineer assistant.`。对外公布的唯一工具是 Linux/macOS 上 agent 所有的持久 `bash` 或 Windows 上的 `pwsh`；运行时上下文、文件系统工具、workspace 指令、skills、jobs 控制、compaction 与 Harness 身份均不存在。
 
 #### Token 影响
 
-一个稳定 persona 加两个工具 schema。工具结果与普通对话历史随会话增长。
+一个稳定 persona 加一个工具 schema。工具结果与普通对话历史随会话增长。
 
 #### KV Cache 影响
 

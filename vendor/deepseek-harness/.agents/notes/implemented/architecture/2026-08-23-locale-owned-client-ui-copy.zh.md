@@ -6,11 +6,13 @@ Status: implemented
 
 ## Problem
 
-typed locale namespace 与双语字典对等性可以证明已注册字典完整，却无法证明展示代码使用了字典。JSX 文本、无障碍属性、格式化函数返回值和 zero-Cordis 原子组件默认值都可能绕过 `t`，而全部 locale 检查仍保持绿色。[最初的全量接入决策](2026-07-30-client-locale-full-rollout.zh.md)中缓做或假定为语言无关的例外逐渐形成混合语言 UI，trajectory 检查面和通用工具卡尤为明显。
+typed locale namespace 与双语字典对等性可以证明已注册字典完整，却无法证明展示代码使用了字典。JSX 文本、无障碍属性、格式化函数返回值和 zero-Cordis 原子组件默认值都可能绕过 `t`，而全部 locale 检查仍保持绿色。[最初的全量接入决策](../../archived/architecture/2026-07-30-client-locale-full-rollout.md)中缓做或假定为语言无关的例外逐渐形成混合语言 UI，trajectory 检查面和通用工具卡尤为明显。
 
 ## Decision
 
 **所有产品编写的 client UI 措辞都由 locale 字典持有。** 可见文本、无障碍名称、tooltip、placeholder、空状态、状态标签、单位和格式模板必须经 typed `t` 席位或已本地化 prop 到达展示层。由用户、模型、提供方、插件、wire 对端或操作系统编写的值仍是数据并原样渲染；协议 tag、工具名称、路径、URL、JSON/JavaScript 字面量和稳定内部 id 不翻译。
+
+产品持有的目录说明遵循同一规则。client 将完全匹配的内置提供方、模型与说明映射到 locale key；说明发生变化或来自外部提供方时，它仍是提供方数据并原样渲染。
 
 **Cordis-free 原子组件要求完整的本地化文案 prop，且自身不持有语言回落值。** `MarkdownText`、`JsonTree`、`TerminalBlock`、`DiffBlock`、`ReadBlock`、`SearchBlock`、`WebBlock`、`CodeBlock`、`JsonBlock`、`HoverCard` 与 `ConnectionIndicator` 的 chrome 均由功能渲染点传入。这样既保留原子组件包的运行时独立性，也让遗漏成为类型错误，而不是静默选择中文或英文。共享用词进入 `common` namespace；功能专属短语留在决定其语义的功能侧。
 
@@ -18,11 +20,11 @@ typed locale namespace 与双语字典对等性可以证明已注册字典完整
 
 **`verify-client-ui-i18n` 强制源码归属。** 基于 TypeScript AST 的检查会发现每个包含 TSX 的 package `src/client` 目录树、`packages/client/ui-*` 下的所有辅助 TS 文件和 web 应用源码；它拒绝自然语言 JSX 文本、承载文案的属性与组件 prop、JSX 字面量分支、label/copy 数据、具名文案辅助函数、返回字符串的展示格式化函数和解构默认值。locale 字典 owner 与不可变语言 token 是严格的语法级排除项。发现范围缩窄会直接失败，单元 fixture 固定纳入与排除形态，检查加入静态 CI 与 `hygiene` 图。字典 key 对等性仍由独立检查负责：一道门禁证明文案进入 locale 路径，另一道门禁证明两种发布语言都实现该路径。
 
-[最初接入决策](2026-07-30-client-locale-full-rollout.zh.md)中的产品自产错误与设计字面量例外、原子组件默认文案和 trajectory 缓做均由本决定取代；其 label thunk、typed 席位、浏览器 locale、日期格式化和搜索占位行决定仍有效。
+[最初接入决策](../../archived/architecture/2026-07-30-client-locale-full-rollout.md)中的产品自产错误与设计字面量例外、原子组件默认文案和 trajectory 缓做均由本决定取代；其 label thunk、typed 席位、浏览器 locale、日期格式化和搜索占位行决定仍有效。
 
 ## Verification
 
-AST 检查自身的 Vitest spec 固定直接 JSX、模板分支、语义文案 prop、label 数据、格式化函数返回值、locale key 调用、结构属性和字典 owner。locale 字典对等性固定 `zh`/`en` key 一致。client 组件测试同时覆盖直接翻译席位与 locale prop 适配器；组装 web 回放和规定的真实服务器 GIF 在实际 trajectory 界面上展示发布的语言切换。
+AST 检查自身的 Vitest spec 固定直接 JSX、模板分支、语义文案 prop、label 数据、格式化函数返回值、locale key 调用、结构属性和字典 owner。locale 字典对等性固定 `zh`/`en` key 一致。client 测试覆盖直接翻译席位、locale prop 适配器，以及不改变外部说明的内置目录说明本地化。组装 web 回放和规定的真实服务器 GIF 在实际 trajectory 界面上展示发布的语言切换。
 
 ## Alternatives considered
 

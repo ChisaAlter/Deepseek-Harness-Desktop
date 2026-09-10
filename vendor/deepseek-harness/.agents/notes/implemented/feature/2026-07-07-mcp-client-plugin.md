@@ -96,11 +96,13 @@ Every MCP tool has two names:
 
 This server-qualified shape is the de-facto standard among multi-server agent clients — every surveyed end-user product qualifies MCP tools by server ([Claude Code](https://code.claude.com/docs/en/agent-sdk/mcp#tool-naming-convention) `mcp__github__list_issues`, [Codex](https://openai.com/index/unrolling-the-codex-agent-loop/) `mcp__weather__get-forecast`, [Gemini CLI](https://geminicli.com/docs/tools/mcp-server/#3-tool-naming-and-namespaces), [VS Code](https://github.com/microsoft/vscode/blob/ab9ec62c6a61e429a9abd612ff220c3f4834c9ea/src/vs/workbench/contrib/mcp/common/mcpServer.ts#L217-L260), [Cline](https://github.com/cline/cline/blob/52fdbb1d72f7324a28142a7ba7678d4b53c902f4/sdk/packages/core/src/extensions/mcp/name-transform.ts#L20-L35), [Roo Code](https://github.com/RooCodeInc/Roo-Code/blob/b867ec9145750d0ae1ff7f02d35406e9bf2a0b16/src/utils/mcp-name.ts#L117-L140), [Goose](https://github.com/block/goose/blob/b3a012cbdde854b0fe14f95b1c48543bf6517c0a/crates/goose/src/agents/extension_manager.rs#L1391-L1441), [OpenCode](https://github.com/anomalyco/opencode/blob/d199b1bff90282a4f9cd6251b5fc7b16875a52f6/packages/opencode/src/mcp/catalog.ts#L117-L120)); the exact `mcp__<server>__<tool>` spelling follows Claude Code and Codex. The `mcp__` marker keeps MCP registrations out of the native tools' namespace and gives permission/telemetry rules a stable shape (`mcp__*`, `mcp__github__*`).
 
-1. On connect: drain `client.listTools()` pagination, derive every tool's `publicName`, then register each as a raw `ToolDefinition` via `ctx.tools.register()`. The MCP JSON Schema and description pass through unchanged (no `defineTool` DSL conversion); only the model-facing `name` is replaced.
+1. On connect: drain uncached `tools/list` pagination, derive every tool's `publicName`, then register each as a raw `ToolDefinition` via `ctx.tools.register()`. The MCP JSON Schema and description pass through unchanged (no `defineTool` DSL conversion); only the model-facing `name` is replaced.
 2. Listen for `notifications/tools/list_changed` → re-run the same sync (dispose previous generation, register new). Deterministic names mean unchanged tools keep their names across re-syncs.
 3. The executor closes over `rawName`; the public name is never sent to the server and never parsed to recover the raw name.
 4. No `presentCall`/`presentResult` — UI consumers use the provider-neutral generic-card fallback.
 5. Tools are transparent in the system prompt — no "[via MCP]" annotation beyond the name itself.
+
+Each synchronization rejects a repeated non-empty continuation cursor before requesting another page, retaining the previous tool generation. Empty pages cannot establish progress through tool-name uniqueness, so cursor history also detects cycles spanning several pages ([reported failure](https://github.com/deepseek-ai/deepseek-harness/discussions/3660)). Cursor history belongs to one synchronization: a later update may reuse the same cursors. Focused bridge and lifecycle tests cover cycle rejection, retained callable tools, strict startup failure, and notification recovery. This detects repeated cursors; it does not bound a server that continually returns distinct cursors.
 
 ### Public name normalization
 
@@ -153,7 +155,7 @@ Build the child environment from the subprocess seam's shared `scrubbedParentEnv
 
 ### Disconnection / crash
 
-A per-instance connection supervisor reconnects automatically after a lost connection with bounded exponential backoff and a per-outage attempt budget, re-running discovery on success; exhaustion unregisters the server's tools and stops until reload. The [auto-reconnect Agent Note](2026-08-06-mcp-client-auto-reconnect.md) owns that decision, including the `reconnect` config block and the `reconnect.enabled: false` opt-out that restores manual HMR/restart recovery.
+A per-instance connection supervisor reconnects automatically after a lost connection with bounded exponential backoff and a per-outage attempt budget, re-running discovery on success; exhaustion unregisters the server's tools and stops until reload. The [auto-reconnect Agent Note](../../archived/feature/2026-08-06-mcp-client-auto-reconnect.md) owns that decision, including the `reconnect` config block and the `reconnect.enabled: false` opt-out that restores manual HMR/restart recovery.
 
 ## Alternatives considered
 
@@ -167,7 +169,7 @@ Rejected. There is no foreseeable alternative MCP client implementation — MCP 
 
 ### Auto-reconnect with exponential backoff
 
-Rejected by the connect-once design: it added a partial-availability state (tools registered but temporarily non-functional), and stdio crashes often indicate configuration problems retrying cannot fix; HMR was the recovery path. Operational feedback reversed the deferral — the [auto-reconnect Agent Note](2026-08-06-mcp-client-auto-reconnect.md) implements it with a bounded per-outage budget and an opt-out.
+Rejected by the connect-once design: it added a partial-availability state (tools registered but temporarily non-functional), and stdio crashes often indicate configuration problems retrying cannot fix; HMR was the recovery path. Operational feedback reversed the deferral — the [auto-reconnect Agent Note](../../archived/feature/2026-08-06-mcp-client-auto-reconnect.md) implements it with a bounded per-outage budget and an opt-out.
 
 ### Bridge Resources and Prompts
 
@@ -217,5 +219,5 @@ Coverage is named per tier; each behavior lives at the cheapest tier that can ex
 - **MCP SDK stability**: the `@modelcontextprotocol/sdk` is still evolving; breaking changes require updating the bridge. The version is pinned, and the SDK is widely adopted (Claude Desktop, Cursor, VS Code) so breaking changes are unlikely to be silent.
 - **Tool schema quality**: MCP servers may expose poorly-described tools (vague descriptions, incomplete JSON schemas). The harness passes them through as-is — garbage-in-garbage-out; that is the server author's responsibility, not the bridge's.
 - **Stdio process management**: a misbehaving MCP server that ignores signals could wedge dispose. The Cordis fiber disposal has bounded quiescence; a stuck transport eventually times out at the framework level.
-- Crash recovery is automatic within the [reconnect budget](2026-08-06-mcp-client-auto-reconnect.md); manual reload remains the path after exhaustion or with `reconnect.enabled: false`.
+- Crash recovery is automatic within the [reconnect budget](../../archived/feature/2026-08-06-mcp-client-auto-reconnect.md); manual reload remains the path after exhaustion or with `reconnect.enabled: false`.
 - Image payloads can enter model context only through the shared durable attachment store and an exact positive route capability. Audio and embedded-resource payloads remain execution-local with explicit diagnostics.

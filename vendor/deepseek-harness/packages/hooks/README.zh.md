@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-hooks 组让 agent（智能体）运行可以使用你为 Claude Code 或 Codex 写好的 shell 钩子：挂载对应的桥接、把它指向你现有的 `hooks.json`，这些钩子就会在 agent 运行中的对应时刻触发——会话开始时、提示词提交时、工具运行前后，或运行即将停止时。钩子可以带一条模型可见的消息阻塞提示词或工具调用、向对话附加额外上下文，或强制运行继续。当你希望现有钩子配置无需改写成原生插件就能继续工作时，选择本组；每个桥接覆盖其参考工具文档中的 command hook 子集。`hook-protocol` 是两个桥接共享的钩子引擎，因此两种方言在协议一致之处行为相同。
+hooks 组让 agent（智能体）运行可以复用为 Claude Code 或 Codex 编写的 shell 钩子。把对应集成指向现有的 `hooks.json`，即可在会话开始、提示词到达、工具运行或运行停止时执行受支持的 command hook。这些钩子可以用模型可见消息阻止提示词或工具调用、向对话添加上下文，或要求运行继续。当你需要保留现有钩子配置时，选择本组；每项集成只支持其来源工具所记录的 command hook 子集。
 
 ## 目录
 
@@ -34,8 +34,8 @@ hooks 组让 agent（智能体）运行可以使用你为 Claude Code 或 Codex 
 ## 相关文档
 
 - [拦截扩展点 Agent Note](../../.agents/notes/implemented/feature/2026-06-30-interception-extension-points.zh.md)——桥接所面向的类型化 Decision 接口面。
-- [钩子桥接 Agent Note](../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.zh.md)——桥接设计及其决策映射。
-- [钩子协议库 Agent Note](../../.agents/notes/implemented/feature/2026-06-30-hook-protocol-lib.zh.md)——共享库负责的内容及其原因。
+- [钩子桥接 Agent Note](../../.agents/notes/archived/feature/2026-06-30-hook-bridges.md)——桥接设计及其决策映射。
+- [钩子协议库 Agent Note](../../.agents/notes/archived/feature/2026-06-30-hook-protocol-lib.md)——共享库负责的内容及其原因。
 
 -----
 

@@ -1,5 +1,5 @@
 ---
-description: "Private Agent Teams profile layer over dsh-base, for source-checkout users who want Team-scoped coordination tools while retaining one-shot delegation."
+description: "Published experimental Agent Teams profile layer over dsh-base with Team-scoped coordination tools and one-shot delegation."
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-agent-team-profile` is a private profile layer that enables [Agent Teams](../agent-team/README.md) over `@deepseek-ai/dsh-base`. Its patch inserts the Team domain and Team-scoped tools, disables the overlapping global continuable-child controls, and keeps the ordinary fresh and fork delegation tools as one-shot operations. Add it explicitly to an initialized source-checkout profile; official releases exclude this package.
+`dsh-experimental-agent-team-profile` is a published experimental profile layer that enables [Agent Teams](../agent-team/README.md) over `@deepseek-ai/dsh-base`. Its patch inserts the Team domain and Team-scoped tools, disables the overlapping global continuable-child controls, and keeps the ordinary fresh and fork delegation tools as one-shot operations. Add it explicitly to an initialized profile; no shipped profile enables it by default.
 
 ## Table of Contents
 
@@ -27,11 +27,11 @@ English | [中文](README.zh.md)
 
 ### Install into a profile
 
-From this repository checkout, add the package to an initialized profile, then run a task that asks the Lead to delegate work:
+Add the package to an initialized profile, then run a task that asks the Lead to delegate work:
 
 ```sh
-pnpm dsh plugin --profile headless add ./packages/experimental/agent-team-profile
-pnpm dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
+dsh plugin --profile headless add @deepseek-ai/dsh-experimental-agent-team-profile
+dsh --profile headless "Use Agent Teams to split this task between two teammates, wait, and summarize."
 ```
 
 The profile must already contain `@deepseek-ai/dsh-base`, whose Subagent services and provider rows this layer consumes. Removing the package with `dsh plugin --profile <name> remove @deepseek-ai/dsh-experimental-agent-team-profile` removes the bundle from the profile's ordered layer list.
@@ -63,7 +63,7 @@ The package's runtime content is [`cordis.patch.yml`](cordis.patch.yml). Applied
 <a id="further-exploration"></a>
 ## Further Exploration
 
-- [Experimental packages](../README.md) — incubation status and release exclusion.
+- [Experimental packages](../README.md) — incubation status and publication policy.
 - [Agent Teams service](../agent-team/README.md) — durable roster, messaging, and task-board behavior.
 - [Agent Teams tools](../tool-agent-team/README.md) — the Team-scoped model tool surface.
 - [Base bundle](../../bundle/base/README.md) — the profile layer this patch extends.
@@ -91,7 +91,7 @@ The bundle's composition is prefix-stable while its patch, Team identity, and co
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Source-checkout only** — this private package is not present in official npm, CLI, Web, or Python release payloads.
+- **Opt-in only** — the package is public, but no shipped CLI, Web, SDK, ACP, or Python profile enables it.
 - **Shared checkout** — every teammate observes the same working directory; this bundle adds no worktree isolation or filesystem locking.
 - **Base profile required** — the patch depends on row ids and Subagent providers supplied by `dsh-base`; it is not a standalone profile.
 

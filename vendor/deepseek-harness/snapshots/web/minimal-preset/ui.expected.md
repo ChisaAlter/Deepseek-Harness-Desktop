@@ -3,8 +3,9 @@
     - button "Use the bash tool to" [disabled]
   - img
   - text: Minimal mode
-  - button "Session log":
-    - text: Session log
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
     - img
   - tablist:
     - tab "Chat" [selected]
@@ -22,7 +23,7 @@
 - button "Bash printf 'MINIMAL_BASH_CARD_OK\\n'" [expanded]:
   - img
   - text: Bash printf 'MINIMAL_BASH_CARD_OK\n'
-- text: "IN { \"command\": \"printf 'MINIMAL_BASH_CARD_OK\\\\n'\" } OUT MINIMAL_BASH_CARD_OK"
+- text: "IN { \"command\": \"printf 'MINIMAL_BASH_CARD_OK\\\\n'\" } OUT MINIMAL_BASH_CARD_OK [Command finished with exit code 0]"
 - button "Inspect"
 - paragraph: MINIMAL_PRESET_REQUEST_OK
 - button "Copy":
@@ -37,7 +38,7 @@
   - img
   - text: Ran for {{duration}}
 - text: {{clock}}
-- textbox "Message or run a task... / commands, @ files or sessions"
+- textbox "Message or run a task, / commands, @ files or sessions"
 - button "Commands":
   - img
 - button "Add attachment":
@@ -48,4 +49,9 @@
   - img
 - button "0% of context used"
 - button "Send message" [disabled]
-- text: 1 turns · 2 steps LLM {{duration}} · Tool call {{duration}} TTFT avg {{duration}} · {{throughput}} tok/s Cache hit 0% Input 20 tok · Output 8 tok
+- button "1 turns 2 steps · {{throughput}} tok/s":
+  - img
+  - text: 1 turns 2 steps{{throughput}} tok/s
+- button "28 tok · Cache hit 0%":
+  - img
+  - text: 28 tokCache hit 0%

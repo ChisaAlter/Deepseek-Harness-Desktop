@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-sandbox-local` 提供 `ctx.sandbox` 背后的平台隔离后端：Linux 在 `bwrap` 可用时用其运行命令，否则使用 Landlock launcher；macOS 使用 Seatbelt（`sandbox-exec`）；Windows 使用 ACL 受限令牌 runner。它每台主机选择一个 runner，因此每条命令及其派生的所有进程都在限制下运行。没有可用 runner 时，提供方以 `SANDBOX_UNAVAILABLE` 快速失败——命令绝不会静默无限制运行。每次包装都会报告后端对模式的强制执行完整度（`full` 或 `partial`）及后端的拒绝签名，因此消费方可以区分损坏的沙箱与被拒绝的命令。在 `ctx.sandbox` 后挂载它并配一个受限执行器，即可让每次 bash 或 pwsh 调用都有受限默认值。
+`dsh-sandbox-local` 在共享宿主内核和文件系统的同时，限制 Linux、macOS 与 Windows 上的命令及其派生进程。它自动选择受支持的平台 runner；没有可用 runner 时以 `SANDBOX_UNAVAILABLE` 失败，因此命令绝不会静默无限制运行。每次执行都会报告 `full` 或 `partial` 强制执行，以及拒绝和 runner 失败签名，让调用方能区分不可用或损坏的沙箱与策略拒绝。宿主本地 bash 或 pwsh 执行适合选择它；进程需要隔离环境时应改用容器或远程执行器。
 
 ## 目录
 
@@ -74,7 +74,7 @@ kind: "package-reference"
 
 bwrap profile 组合只读宿主根目录、全新 `/dev` 与私有 PID 命名空间中的 `/proc`——命令可管理其后代，但看不到宿主进程，因此 procfs 魔法链接无法绕过挂载；`workspace-write` 另加临时的 `/tmp` 与可写工作区绑定挂载。[私有 PID 笔记](../../../.agents/notes/implemented/bug-fix/2026-08-06-bwrap-private-pid-namespace.zh.md)记录该边界。
 
-Landlock launcher 以 npm 分发的原生插件（`@deepseek-ai/node-addon-landlock-run`）提供平台 launcher、功能探测与授权词汇；此提供方只做模式到授权的映射，把路径解析与探测解析保留在带版本的 binary 中。
+`@deepseek-ai/node-addon-system/landlock-run` API 提供平台 launcher、功能探测与授权词汇；此提供方只做模式到授权的映射，把路径解析与探测解析保留在带版本的 binary 中。
 
 Seatbelt profile 默认允许，带 `(deny file-write*)` 与来自共享 `writableRoots` 辅助函数的写入 allow-list，因此恰好管辖模式承诺的文件操作；每个根目录都经过规范化，因为 Seatbelt 匹配解析后的路径（`/tmp` 就是 `/private/tmp`）。
 

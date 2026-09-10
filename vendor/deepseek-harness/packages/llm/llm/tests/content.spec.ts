@@ -327,6 +327,11 @@ describe('projectImagesForTextModel', () => {
   it('returns image-free history unchanged', () => {
     const messages = [createUserMessage({ content: [{ type: 'text', text: 'plain' }], source })]
     expect(projectImagesForTextModel(messages)).toBe(messages)
+    const nested = [createUserMessage({
+      content: [{ type: 'tool-result', toolCallId: ToolCallId('plain-result'), content: messages[0]!.content }],
+      source,
+    })]
+    expect(projectImagesForTextModel(nested)).toBe(nested)
   })
 
   it('replaces direct and nested images while retaining unaffected messages and blocks', () => {
@@ -388,6 +393,30 @@ describe('file projection', () => {
         content: [fileBlock('deep.txt')],
       }],
     }])).toBe(true)
+  })
+
+  it('scans frozen branches and observes later mutations in file-free content', () => {
+    const nested: ContentBlock[] = [{ type: 'text', text: 'plain' }]
+    const empty: ContentBlock[] = []
+    Object.freeze(empty)
+    const content: ContentBlock[] = [
+      { type: 'tool-result', toolCallId: ToolCallId('empty'), content: empty },
+      { type: 'tool-result', toolCallId: ToolCallId('nested'), content: nested },
+    ]
+    Object.freeze(content[0])
+    Object.freeze(content[1])
+    Object.freeze(content)
+    expect(contentHasFile(Object.freeze([]))).toBe(false)
+    expect(contentHasFile(content)).toBe(false)
+    nested.push(fileBlock('later.txt'))
+    expect(contentHasFile(content)).toBe(true)
+    nested.pop()
+    expect(contentHasFile(content)).toBe(false)
+    nested.push(fileBlock('frozen.txt'))
+    Object.freeze(nested[0])
+    Object.freeze(nested[1])
+    Object.freeze(nested)
+    expect(contentHasFile(content)).toBe(true)
   })
 
   it('renders the handle with the read path or the explicit no-path fallback', () => {

@@ -97,6 +97,7 @@ export interface TestSessionRemoteDefaults {
   readonly nativeOpen?: boolean
   readonly saveDefaultModelSelection?: (selection: AgentModelSelection) => void | Promise<void>
   readonly openPath?: (path: string, signal: AbortSignal) => Promise<void>
+  readonly revealPath?: (path: string, signal: AbortSignal) => Promise<void>
   readonly canOpenPath?: () => boolean
 }
 
@@ -147,7 +148,10 @@ function testReadHandle(
     access: 'read',
     read: (offset = 0, length?: number, options?: SessionHandleReadOptions) => {
       options?.signal?.throwIfAborted()
-      return Promise.resolve(events.slice(offset, length === undefined ? undefined : offset + length))
+      return Promise.resolve({
+        eventState: 'detached',
+        events: structuredClone(events.slice(offset, length === undefined ? undefined : offset + length)),
+      } as const)
     },
     append: () => Promise.reject(new SessionReadOnlyError(sessionId, 'append')),
     flush: () => Promise.reject(new SessionReadOnlyError(sessionId, 'flush')),
@@ -287,6 +291,7 @@ function installControllers(
       },
       {
         ...defaults.openPath === undefined ? {} : { openPath: defaults.openPath },
+        ...defaults.revealPath === undefined ? {} : { revealPath: defaults.revealPath },
         ...defaults.canOpenPath === undefined ? {} : { canOpenPath: defaults.canOpenPath },
       },
     )

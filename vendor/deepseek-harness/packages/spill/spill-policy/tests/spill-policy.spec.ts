@@ -134,7 +134,7 @@ describe('oversized plain-text replacement', () => {
     expect(result.isError).toBe(false)
     expect(spill?.saves).toHaveLength(1)
     expect(spill?.saves[0]?.content).toBe(body)
-    expect(spill?.saves[0]?.source.toolName).toBe('big')
+    expect(spill?.saves[0]?.source).toMatchObject({ toolName: 'big' })
     expect(spill?.saves[0]?.suggestedName).toBe('big.txt')
     expect(spill?.saves[0]?.owner.sessionId).toBe('s1')
 
@@ -216,7 +216,7 @@ describe('outer PTC mode failure capture', () => {
     expect(result.isError).toBe(true)
     const saved = (ctx.spillStore as StubStore).saves
     expect(saved).toHaveLength(1)
-    expect(saved[0]?.source.toolName).toBe('run_code')
+    expect(saved[0]?.source).toMatchObject({ toolName: 'run_code' })
     expect(saved[0]?.content).toContain('code run failed (output-limit)')
     expect(saved[0]?.content).toContain('HEAD-')
     expect(textOf(result.content)).toContain('Full formatted result stored at: /spill/run_code.txt')
@@ -263,7 +263,7 @@ describe('the durable dispatch-log arm', () => {
     return { ctx, result, events, spill: ctx.spillStore as StubStore }
   }
 
-  it('bounds the tool/code-dispatch copy of an oversized sub-result while the program value stays whole', async () => {
+  it('bounds the tool/ptc-dispatch copy of an oversized sub-result while the program value stays whole', async () => {
     const { result, events, spill } = await runCodeWith(
       'const blocks = await tools.huge_read({});\nreturn blocks[0].text.length', 200)
     expect(result.isError).toBe(false)
@@ -271,7 +271,7 @@ describe('the durable dispatch-log arm', () => {
     // The program received the COMPLETE text (length 2000), untouched by spill.
     expect(result.value).toMatchObject({ result: 2_000 })
     // The durable settle event carries the bounded projection + locator.
-    const settle = events.find(event => event.type === 'tool/code-dispatch')
+    const settle = events.find(event => event.type === 'tool/ptc-dispatch')
     expect(settle).toBeDefined()
     const logged = (settle!.data as { content: { type: string; text: string }[] }).content
     expect(logged).toHaveLength(1)
@@ -281,7 +281,7 @@ describe('the durable dispatch-log arm', () => {
     // The artifact holds the full text under the dispatch label and sub-call id.
     const save = spill.saves.find(entry => entry.source.label === 'dispatch')
     expect(save).toMatchObject({
-      source: { toolName: 'huge_read', callId: 'parent-1:code:1', label: 'dispatch' },
+      source: { kind: 'tool', toolName: 'huge_read', callId: 'parent-1:ptc:1', label: 'dispatch' },
     })
     expect(save?.content).toBe('H'.repeat(2_000))
   })
@@ -296,7 +296,7 @@ describe('the durable dispatch-log arm', () => {
           return [{ type: 'text', text: 'x'.repeat(100) }, { type: 'reasoning', text: 'why' }]
         },
       })])
-    const settle = events.find(event => event.type === 'tool/code-dispatch')
+    const settle = events.find(event => event.type === 'tool/ptc-dispatch')
     expect((settle!.data as { content: unknown[] }).content).toHaveLength(2)
     expect(spill.saves.filter(entry => entry.source.label === 'dispatch')).toHaveLength(0)
   })
@@ -304,7 +304,7 @@ describe('the durable dispatch-log arm', () => {
   it('leaves a within-cap sub-result log untouched and saves nothing for it', async () => {
     const { events, spill } = await runCodeWith(
       'return await tools.small_read({})', 200)
-    const settle = events.find(event => event.type === 'tool/code-dispatch')
+    const settle = events.find(event => event.type === 'tool/ptc-dispatch')
     expect((settle!.data as { content: { type: string; text: string }[] }).content)
       .toEqual([{ type: 'text', text: 'tiny' }])
     expect(spill.saves.filter(entry => entry.source.label === 'dispatch')).toHaveLength(0)
@@ -356,7 +356,7 @@ describe('the durable dispatch-log arm', () => {
     // the backend and observe the settle events land inside the turn.
     await vi.waitFor(() => {
       // The second dispatch STARTED while the first one's spill hung.
-      smallAfterHuge = events.some(event => event.type === 'tool/code-dispatch-start'
+      smallAfterHuge = events.some(event => event.type === 'tool/ptc-dispatch-start'
         && (event.data as { name: string }).name === 'small_read')
       if (!smallAfterHuge) throw new Error('small_read not started yet')
     })
@@ -365,7 +365,7 @@ describe('the durable dispatch-log arm', () => {
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected success')
     expect(result.value).toMatchObject({ result: 2_004 })
-    const settles = events.filter(event => event.type === 'tool/code-dispatch')
+    const settles = events.filter(event => event.type === 'tool/ptc-dispatch')
     expect(settles).toHaveLength(2)
     expect(smallAfterHuge).toBe(true)
   })
@@ -392,8 +392,8 @@ describe('the durable dispatch-log arm', () => {
       },
     }
     ctx.tools.register(textTool('huge_read', 'H'.repeat(2_000)))
-    const started = (n: number): boolean => events.some(event => event.type === 'tool/code-dispatch-start'
-      && (event.data as { subCallId: string }).subCallId.endsWith(`:code:${n}`))
+    const started = (n: number): boolean => events.some(event => event.type === 'tool/ptc-dispatch-start'
+      && (event.data as { subCallId: string }).subCallId.endsWith(`:ptc:${n}`))
     const runPromise = ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('parent-bound'),
@@ -421,7 +421,7 @@ describe('the durable dispatch-log arm', () => {
     expect(result.isError).toBe(false)
     await vi.waitFor(() => {
       if (releases.length > 0) { while (releases.length > 0) releases.shift()!() }
-      if (events.filter(event => event.type === 'tool/code-dispatch').length !== 3) {
+      if (events.filter(event => event.type === 'tool/ptc-dispatch').length !== 3) {
         throw new Error('settle events still pending')
       }
     })
@@ -452,7 +452,7 @@ describe('the durable dispatch-log arm', () => {
       agent: agent as never,
     })
     expect(result.isError).toBe(false)
-    const settle = events.find(event => event.type === 'tool/code-dispatch')
+    const settle = events.find(event => event.type === 'tool/ptc-dispatch')
     expect((settle!.data as { content: { text: string }[] }).content[0]!.text).toBe('H'.repeat(2_000))
     expect(warn).toHaveBeenCalled()
   })

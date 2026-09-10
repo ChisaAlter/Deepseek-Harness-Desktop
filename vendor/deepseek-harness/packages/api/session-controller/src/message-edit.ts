@@ -52,6 +52,11 @@ export function resolveMessageEdit(session: Session, messageSeq: number): { turn
     if (priorSeq === undefined || priorSeq < latest.startSeq) break
     const prior = session.eventAt(priorSeq)
     if (prior !== undefined && 'surfaceOp' in prior && prior.surfaceOp !== 'append') break
+    // rc.1 moved the system prompt onto the surface: node 0 may be rewritten
+    // only by a system/message over exactly that node, and the runtime-context
+    // refresher rewrites its own system nodes — a user edit must stop above
+    // either.
+    if (prior?.type === 'system/message') break
     startIndex -= 1
     start = priorSeq
   }
@@ -59,7 +64,7 @@ export function resolveMessageEdit(session: Session, messageSeq: number): { turn
   return {
     turn: latest.turn,
     intent: {
-      surfaceOp: { op: 'replace', start, end },
+      surfaceOp: { op: 'replace', startSeq: start, endSeq: end },
       sourceEventSeqs: [...shadowed],
     },
   }

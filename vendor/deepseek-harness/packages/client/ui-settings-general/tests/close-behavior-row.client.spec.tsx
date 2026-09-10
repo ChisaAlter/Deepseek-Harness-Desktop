@@ -4,6 +4,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { CloseBehaviorRow } from '../src/client/CloseBehaviorRow.tsx'
 import type { CloseBehaviorRowProps } from '../src/client/CloseBehaviorRow.tsx'
 import { en } from '../src/client/locales.ts'
+const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
+const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
+
 
 afterEach(() => {
   cleanup()
@@ -14,6 +17,8 @@ const unusedHook = (() => { throw new Error('unused by CloseBehaviorRow') }) as 
 
 function mount() {
   const props: CloseBehaviorRowProps = {
+    usePanelInfo: panelInfoStub,
+    useResource: resourceStub,
     useSessions: unusedHook,
     useSessionPendingInteraction: unusedHook,
     useWorkspaces: unusedHook,
@@ -88,6 +93,8 @@ describe('CloseBehaviorRow', () => {
   it('ignores a late config read after unmount and closes the menu outside', async () => {
     let resolveConfig: (value: { closeToTray: boolean }) => void = () => {}
     ;(window as Window & { shell?: unknown }).shell = {
+      usePanelInfo: panelInfoStub,
+      useResource: resourceStub,
       getConfig: () => new Promise<{ closeToTray: boolean }>((resolve) => { resolveConfig = resolve }),
       saveConfig: async () => ({ closeToTray: true }),
     }
@@ -95,6 +102,8 @@ describe('CloseBehaviorRow', () => {
       useSessions={unusedHook}
       useSessionPendingInteraction={unusedHook}
       useWorkspaces={unusedHook}
+      usePanelInfo={panelInfoStub}
+      useResource={resourceStub}
       t={key => (en as Record<string, string>)[key] ?? key}
     />)
     view.unmount()

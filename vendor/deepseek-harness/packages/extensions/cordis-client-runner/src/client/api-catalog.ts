@@ -83,22 +83,34 @@ export interface TypeApiEntry {
 export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'layout',
-    summary: 'The outward layout face (`ctx.layout`): the panel transitions other plugins may trigger — and exactly what a test fake must supply.',
-    description: 'The outward layout face (`ctx.layout`): the panel transitions other plugins may trigger — and exactly what a test fake must supply. The attachPanels wiring hook stays on the concrete class (root-entry assembly only).',
+    summary: 'Panel navigation and geometry actions exposed through ctx.layout.',
+    description: 'Panel navigation and geometry actions exposed through ctx.layout.',
     methods: [
+      {
+        signature: 'selectPanel(panelId: MainPanelId | null): void',
+        description: 'Select a global central panel without changing the current Session.',
+        parameters: [{ name: 'panelId', description: 'registered main key, or null to show the Conversation.' }],
+        throws: ['if the selected main key is not registered; preserves the current selection.'],
+      },
+      {
+        signature: 'beginNavigation(): AbortSignal',
+        description: 'Start an asynchronous navigation, superseding any earlier pending navigation.',
+        parameters: [],
+        returns: 'a signal aborted by the next navigation or layout disposal; check it before committing UI state.',
+      },
       {
         signature: 'toggleSidebar(): void',
         description: 'Toggle the sidebar panel (closed ⟷ contract default width).',
         parameters: [],
       },
       {
-        signature: 'openDetails(): void',
-        description: 'Open the details panel (no-op when already open).',
-        parameters: [],
+        signature: 'openRightbar(track: boolean, fullscreen: boolean): void',
+        description: 'Report the right panel\'s presentation without changing its expanded state.',
+        parameters: [{ name: 'track', description: 'whether the normal panel width reserves a grid track, including beneath a fullscreen overlay.' }, { name: 'fullscreen', description: 'whether the panel covers the frame and hides its outer resize handle; independent of the underlying grid track.' }],
       },
       {
-        signature: 'closeDetails(): void',
-        description: 'Close the details panel.',
+        signature: 'closeRightbar(): void',
+        description: 'Report the right panel as hidden: no track, no handle.',
         parameters: [],
       },
     ],
@@ -315,6 +327,23 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Workspace archive and directory operations consumed by Client UI domains.',
     methods: [
       {
+        signature: 'openSession(sessionId: SessionId): void',
+        description: 'Select a Session and show its Conversation as one UI navigation action.',
+        parameters: [{ name: 'sessionId', description: 'listed or retained Session to display.' }],
+      },
+      {
+        signature: 'openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void>',
+        description: 'Connect a Workspace and open its Session unless a later navigation supersedes it.',
+        parameters: [{ name: 'workspaceId', description: 'target Workspace.' }, { name: 'beforeOpen', description: 'optional synchronous preparation for the selected Session, skipped after supersession.' }],
+        returns: 'completion; a superseded request may create a Session but does not open it.',
+      },
+      {
+        signature: 'forkSession(sessionId: SessionId): Promise<void>',
+        description: 'Fork a Session and open the child unless a later navigation supersedes it.',
+        parameters: [{ name: 'sessionId', description: 'source Session.' }],
+        returns: 'completion; a superseded request leaves its child available without selecting it.',
+      },
+      {
         signature: 'connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId>',
         description: 'Resolve the reusable or newly created blank Session for a Workspace.',
         parameters: [{ name: 'workspaceId', description: 'target Workspace.' }],
@@ -482,10 +511,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ComposedProps<K extends keyof SlotMap & string, EntryKey extends EntryKeyOf<K>, S extends keyof SlotMap & string, H, I extends object, M = never, N = undefined> = PropsRuntime<K, EntryKey> & PropsRenderSlots<S> & PropsStore<H> & InjectFace<I> & MatchedShare<SlotMap[K], M> & PropsLocale<N>;',
   },
   {
-    name: 'ConnectionConfig',
-    declaration: 'export interface ConnectionConfig {\n    backoffBaseMs?: number;\n    backoffFactor?: number;\n    backoffMaxMs?: number;\n    generationReadyTimeoutMs?: number;\n}',
-  },
-  {
     name: 'ConnectionGeneration',
     declaration: 'export interface ConnectionGeneration {\n    readonly id: number;\n    readonly host: ConnectionHostInfo;\n}',
   },
@@ -499,7 +524,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionHandle',
-    declaration: 'export interface ConnectionHandle {\n    readonly isLoopback: boolean;\n    readonly generation: ConnectionGenerationState;\n    readonly state: ConnectionStateSource;\n    readonly rpc: ClientConnectionRpc;\n    reconnect(): void;\n    registerGenerationSource(source: ConnectionGenerationSource): () => void;\n    start(sinks: ConnectionSinks, config?: ConnectionConfig): ConnectionLoop;\n}',
+    declaration: 'export interface ConnectionHandle {\n    readonly isLoopback: boolean;\n    readonly generation: ConnectionGenerationState;\n    readonly state: ConnectionStateSource;\n    readonly rpc: ClientConnectionRpc;\n    reconnect(): void;\n    registerGenerationSource(source: ConnectionGenerationSource): () => void;\n    start(sinks: ConnectionSinks, config?: ConnectionRecoveryConfig): ConnectionLoop;\n}',
   },
   {
     name: 'ConnectionHostInfo',
@@ -508,6 +533,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ConnectionLoop',
     declaration: 'export interface ConnectionLoop {\n    stop(): void;\n}',
+  },
+  {
+    name: 'ConnectionRecoveryConfig',
+    declaration: 'export interface ConnectionRecoveryConfig {\n    backoffBaseMs?: number;\n    backoffFactor?: number;\n    backoffMaxMs?: number;\n    generationReadyWarnMs?: number;\n    generationReadyTimeoutMs?: number;\n}',
   },
   {
     name: 'ConnectionRpcFailure',
@@ -608,6 +637,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LocaleSnapshot',
     declaration: 'export interface LocaleSnapshot {\n    active: LocaleId;\n    locales: readonly LocaleDefinition[];\n    revision: number;\n}',
+  },
+  {
+    name: 'MainPanelId',
+    declaration: 'export type MainPanelId = Branded<\'MainPanelId\'>;',
   },
   {
     name: 'MatchedShare',

@@ -24,7 +24,7 @@
       "path": "../../identity/anonymous-user-id"
     },
     {
-      "path": "../../session/session-telemetry"
+      "path": "../../typert/protocol"
     }
   ]
 }

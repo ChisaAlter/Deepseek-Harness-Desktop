@@ -8,7 +8,7 @@ English | [中文](2026-08-15-product-subagent-noninteractive-permissions.zh.md)
 
 The [Claude Code and Codex product providers](2026-08-04-claude-code-and-codex-subagent-backends.md) run without a human interface. Native permission prompts, user dialogs, or MCP elicitation therefore cannot wait for a person, but relying on either product's ambient default can still select an interactive mode. A deployment also needs to choose broader native modes without giving the parent model or one tool call a way to raise its own authority.
 
-A failed product run previously reached the [subagent seam](2026-06-21-subagent-capability-seam.md) only as a stop reason. Logs could retain the product error, but the foreground parent and a [one-shot background Job](2026-08-12-product-subagent-one-shot-background-tasks.md) could not distinguish a permission refusal from another failure. Reusing assistant output for that fact would misattribute infrastructure detail to the child model.
+A failed product run previously reached the [subagent seam](2026-06-21-subagent-capability-seam.md) only as a stop reason. Logs could retain the product error, but the foreground parent and a [one-shot background Job](../../archived/feature/2026-08-12-product-subagent-one-shot-background-tasks.md) could not distinguish a permission refusal from another failure. Reusing assistant output for that fact would misattribute infrastructure detail to the child model.
 
 ## Decision
 
@@ -32,7 +32,7 @@ Every query disables `AskUserQuestion`. Non-bypass permission callbacks deny ins
 
 ### Codex
 
-Codex defaults to `never` and accepts the three native non-interactive modes exposed by Codex 0.149.1. The Provider starts the fixed app-server command, then maps the selected mode into official `thread/start` fields because CLI-global permission flags do not configure threads created later by an app-server client:
+Codex defaults to `never` and accepts the three native non-interactive modes exposed by Codex 0.153.4. The Provider starts the fixed app-server command, then maps the selected mode into official `thread/start` fields because CLI-global permission flags do not configure threads created later by an app-server client:
 
 | Value | `thread/start` fields | Native behavior |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ The Provider overrides only those permission and sandbox fields. An optional ins
 
 ### Failure diagnostic
 
-`SubagentResult` carries an optional `diagnostic` for provider-authored, non-assistant failure detail. A Provider removes tool inputs, file contents, environment values, credentials, and raw protocol payloads before producing it. The shared out-of-process result boundary limits the complete text to 4096 UTF-8 bytes and marks truncation without splitting a character. The [minimal-diagnostics decision](../simplification/2026-08-21-product-subagent-minimal-diagnostics.md) owns both products' non-permission action categories, lifecycle stages, HTTP facts, and process outcomes carried by the same field.
+`SubagentResult` carries an optional `diagnostic` for provider-authored, non-assistant failure detail. A Provider removes tool inputs, file contents, environment values, credentials, and raw protocol payloads before producing it. The shared out-of-process result boundary limits the complete text to 4096 UTF-8 bytes and marks truncation without splitting a character. The [minimal-diagnostics decision](../../archived/simplification/2026-08-21-product-subagent-minimal-diagnostics.md) owns both products' non-permission action categories, lifecycle stages, HTTP facts, and process outcomes carried by the same field.
 
 Each product's permission fact contains only the effective mode, request category, unattended decision, and a fixed safe reason. Claude Code derives those facts from SDK callbacks and `permission_denied` messages. Codex derives them from app-server requests, declined items, and structured `sandboxError` terminals. Raw stderr is forwarded to the Host but is neither classified nor copied into the diagnostic. Both Providers place their failure line before the latest contributing permission fact. A successful result returns only the strict final answer; local cancellation remains `aborted` without permission detail; an unpublished startup failure still rejects `start()`. The Provider never adds either diagnostic fact to assistant output, structured output, or `subagent/end.lastAssistantMessage`.
 
@@ -63,7 +63,7 @@ The foreground consumer presents the stop-reason headline, then the optional dia
 
 ## Verification
 
-Package tests pin every allowed and rejected Config value, the exact SDK and app-server field mappings, dangerous confirmations, unattended terminal responses, diagnostic sanitization and UTF-8 bound, successful-result omission, concurrent-run isolation, foreground ordering, Job detail, stderr observer disposal, and process cleanup. The real Claude Agent SDK 0.3.241 and Claude Code 2.1.241 fixture proves its safe default, restricted denial, explicit bypass, and whole-tree quiescence. The real Codex 0.149.1 app-server fixture proves that thread-level `never` overrides ambient `on-request`, automatic review starts, dangerous bypass writes only inside suite-owned temporary storage, a rejected escalation leaves no side effect or raw command or path in the diagnostic, stderr remains Host-only, and the wrapper/native tree exits. Loader composition proves non-default modes can be published without starting either product, and the keyless ACP snapshot records each product's failure diagnostic through foreground and Job presentation while the model-facing product tool schemas contain no permission parameter.
+Package tests pin every allowed and rejected Config value, the exact SDK and app-server field mappings, dangerous confirmations, unattended terminal responses, diagnostic sanitization and UTF-8 bound, successful-result omission, concurrent-run isolation, foreground ordering, Job detail, stderr observer disposal, and process cleanup. The real Claude Agent SDK 0.3.263 and Claude Code 2.1.263 fixture proves its safe default, restricted denial, explicit bypass, and whole-tree quiescence. The real Codex 0.153.4 app-server fixture proves that thread-level `never` overrides ambient `on-request`, automatic review starts, dangerous bypass writes only inside suite-owned temporary storage, a rejected escalation leaves no side effect or raw command or path in the diagnostic, stderr remains Host-only, and the wrapper/native tree exits. Loader composition proves non-default modes can be published without starting either product, and the keyless ACP snapshot records each product's failure diagnostic through foreground and Job presentation while the model-facing product tool schemas contain no permission parameter.
 
 ## Alternatives considered
 

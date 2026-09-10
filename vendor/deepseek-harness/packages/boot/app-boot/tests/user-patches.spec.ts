@@ -8,7 +8,8 @@ import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { FSWatcher, type ChokidarOptions } from 'chokidar'
 import { Context } from '@deepseek-ai/cordis'
 import Hmr from '@deepseek-ai/cordis-plugin-hmr'
 import Include, { type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
@@ -17,11 +18,26 @@ import Timer from '@deepseek-ai/cordis-plugin-timer'
 import {
   boot,
   loadOptionalPatches,
+  loadOverlayPatches,
   PROFILE_PATCH_FILENAME,
   watchUserPatches,
 } from '../src/index.ts'
 
 const NAME = 'dsh-test-bin'
+
+const configWatch = vi.hoisted(() => ({
+  create: undefined as ((options?: ChokidarOptions) => FSWatcher) | undefined,
+}))
+
+vi.mock('chokidar', async (importOriginal) => {
+  const native = await importOriginal<typeof import('chokidar')>()
+  return {
+    ...native,
+    watch: (paths: string | string[], options?: ChokidarOptions) => configWatch.create === undefined
+      ? native.watch(paths, options)
+      : configWatch.create(options),
+  }
+})
 
 const tempRoots: string[] = []
 afterAll(() => {
@@ -41,8 +57,6 @@ async function eventually(test: () => boolean, message: string): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 10))
   }
 }
-
-const settleChokidarChangeThrottle = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 75))
 
 describe('loadOptionalPatches', () => {
   afterEach(() => {
@@ -72,6 +86,43 @@ describe('loadOptionalPatches', () => {
       config: { model: { __jsExpr: 'process.env.DSH_SPEC_MODEL' } },
     })
     expect(patches?.[1]?.insert).toHaveLength(1)
+  })
+
+  it.each([
+    { label: 'optional', load: loadOptionalPatches },
+    { label: 'overlay', load: loadOverlayPatches },
+  ])('loads absolute plugin paths from patch files as file URLs ($label)', async ({ load }) => {
+    const dir = tmp()
+    const pluginPath = join(dir, 'absolute #100%.mjs')
+    const pluginUrl = pathToFileURL(pluginPath).href
+    writeFileSync(pluginPath, 'export function apply(ctx) { ctx.provide("absolutePatchLoaded", true) }\n')
+    const patchPath = join(dir, PROFILE_PATCH_FILENAME)
+    writeFileSync(patchPath, JSON.stringify([
+      { id: 'existing', name: pluginPath },
+      { insert: [
+        { id: 'absolute', name: pluginPath },
+        { id: 'url', name: pluginUrl },
+        { id: 'bare', name: '@deepseek-ai/dsh-system-prompt' },
+        { id: 'nested', name: 'cordis:group', group: true, config: [
+          { id: 'child', name: pluginPath },
+        ] },
+      ] },
+    ]))
+    const patches = load(NAME, patchPath)!
+    expect(patches[0]?.name).toBe(pluginPath)
+    expect(patches[1]?.insert?.map(entry => entry.name)).toEqual([
+      pluginUrl, pluginUrl, '@deepseek-ai/dsh-system-prompt', 'cordis:group',
+    ])
+    expect((patches[1]?.insert?.[3]?.config as { name: string }[])[0]?.name).toBe(pluginUrl)
+
+    const configPath = join(dir, 'cordis.yml')
+    writeFileSync(configPath, '[]\n')
+    const ctx = await boot(NAME, configPath, [{ insert: [patches[1]!.insert![0]!] }])
+    try {
+      expect(ctx.get('absolutePatchLoaded')).toBe(true)
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it('anchors inserted relative plugins to the patch file and keeps assertion names literal', () => {
@@ -358,8 +409,20 @@ describe('boot with user patches', () => {
     const filename = join(userDir, PROFILE_PATCH_FILENAME)
     const basePatches = [{ id: 'noop', config: { value: 'generated' } }]
     const ctx = await boot(NAME, writeTree(dir), basePatches)
+    onTestFinished(() => ctx.fiber.dispose())
     await ctx.plugin(Timer)
     await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
+    // Native notifications belong to hmr-config.spec.ts; this case owns the
+    // real HMR/Include transaction after each delivered filesystem event.
+    const watchers: FSWatcher[] = []
+    const previousFactory = configWatch.create
+    onTestFinished(() => { configWatch.create = previousFactory })
+    configWatch.create = (options) => {
+      const watcher = new FSWatcher(options)
+      watchers.push(watcher)
+      queueMicrotask(() => { watcher.emit('ready') })
+      return watcher
+    }
     const failures: Array<{ filename: string; error: Error }> = []
     ctx.on('hmr/config-update-failed', (failedFilename, error) => {
       failures.push({ filename: failedFilename, error })
@@ -369,45 +432,49 @@ describe('boot with user patches', () => {
       filename,
       compose: userPatches => [...basePatches, ...userPatches],
     })
+    expect(watchers).toHaveLength(1)
+    const watcher = watchers[0]!
     try {
       writeFileSync(filename, '- id: noop\n  config:\n    value: live\n')
+      watcher.emit('add', filename)
       await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'live', 'user patch addition was not applied')
 
       writeFileSync(filename, '- id: noop\n  config:\n    fail: true\n')
+      watcher.emit('change', filename)
       await eventually(() => failures.length === 1, 'failed candidate was not broadcast')
       expect(failures[0]).toMatchObject({ filename })
       expect(failures[0]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
-      await settleChokidarChangeThrottle()
 
       writeFileSync(filename, 'invalid: [unclosed\n')
+      watcher.emit('change', filename)
       await eventually(() => failures.length === 2, 'parse failure was not broadcast')
       expect(failures[1]?.error).toBeInstanceOf(Error)
       expect((entryConfig(ctx, 'noop') as { value?: string }).value).toBe('live')
-      await settleChokidarChangeThrottle()
 
       writeFileSync(filename, '- id: noop\n  config:\n    value: recovered\n')
+      watcher.emit('change', filename)
       await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'recovered', 'valid recovery was not applied')
-      await settleChokidarChangeThrottle()
 
       unlinkSync(filename)
+      watcher.emit('unlink', filename)
       await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'generated', 'user patch removal did not restore the app-owned patch')
       expect(failures).toHaveLength(2)
-      await settleChokidarChangeThrottle()
 
       // Default compose: the user layer IS the whole patch list, so a
       // fresh generation replaces the app-owned layer instead of stacking on it.
       await dispose()
       const disposeDefault = await watchUserPatches(ctx, { binName: NAME, filename })
+      expect(watchers).toHaveLength(2)
       try {
         writeFileSync(filename, '- id: noop\n  config:\n    value: identity\n')
+        watchers[1]!.emit('add', filename)
         await eventually(() => (entryConfig(ctx, 'noop') as { value?: string }).value === 'identity', 'default-compose user patch was not applied')
       } finally {
         await disposeDefault()
       }
     } finally {
       await dispose()
-      await ctx.fiber.dispose()
     }
   })
 

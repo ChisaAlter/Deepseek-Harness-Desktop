@@ -16,7 +16,7 @@ import {
 import { en as conversationEn, NS as CONVERSATION_NS, zh as conversationZh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 import { apply as applyChat, inject as injectChat } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { apply as applyTool, inject as injectTool } from '../src/client/apply.ts'
-import { toolChatSnapshot } from './tool-details-render.client.tsx'
+import { toolChatSnapshot } from './tool-fixtures.client.ts'
 
 const SID = 's1' as SessionId
 
@@ -116,12 +116,14 @@ async function bench(snapshot: ChatSnapshot) {
 
   await runtime.sessions.add({
     id: SID,
-    summary: { title: 'S', displayTitle: 'S' },
+    summary: { title: 'S', displayTitle: 'S', cwd: '/w' },
     snapshot: { running: snapshot.legacy.runningCalls.length > 0 },
   })
   const layout = { openDetails: vi.fn(), closeDetails: vi.fn() }
   const openWorkspacePath = vi.fn(async () => ({ ok: true, value: { opened: true } }))
   ctx.provide('layout', layout as never)
+  const sidebarRight = { openResource: vi.fn<(address: string) => void>() }
+  ctx.provide('sidebarRight', sidebarRight as never)
   ctx.provide('uiWorkspace', {} as never)
   new TestRemote(ctx, { session: { openWorkspacePath } })
   const locale = new LocaleRuntime(ctx)
@@ -132,7 +134,7 @@ async function bench(snapshot: ChatSnapshot) {
   await runtime.root.declare(ROOT_CHILDREN, AppRoot)
   await runtime.mount({ inject: [...injectChat], apply: applyChat })
   await runtime.mount({ inject: [...injectTool], apply: applyTool })
-  return { runtime, layout, openPath, openWorkspacePath }
+  return { runtime, layout, openPath, openWorkspacePath, sidebarRight }
 }
 
 function mountApp(runtime: SlotTestRuntime) {
@@ -161,6 +163,13 @@ describe('run_code sub-calls through the real chat machinery', () => {
     expect(view.getByText('Bash')).toBeTruthy()
     expect(view.getByText('List notes')).toBeTruthy()
     expect(view.getByText('Tool call')).toBeTruthy()
+
+    const bashRow = nest!.querySelector('[data-sample="bash"]')!
+    expect(bashRow.getAttribute('role')).toBe('button')
+    fireEvent.click(bashRow)
+    expect(nest!.querySelector('[data-terminal]')).not.toBeNull()
+    expect(view.getByText('ls notes')).toBeTruthy()
+    expect(nest!.querySelector('[data-terminal]')!.textContent).toContain('demo.txt')
   })
 
   it('renders Cordis sub-calls with lifecycle titles over the generic variants', async () => {
@@ -222,7 +231,10 @@ describe('run_code sub-calls through the real chat machinery', () => {
     view.getByText('notes/demo.txt').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      expect(b.openPath).toHaveBeenCalledWith('notes/demo.txt')
+      // rc.1 funnels chat file opens through resolveWorkspacePath before the
+      // native handoff: the workspace-rooted absolute path plus the (unset)
+      // open options reach workspaces.openPath.
+      expect(b.openPath).toHaveBeenCalledWith('/w/notes/demo.txt', undefined)
     })
     expect(b.openWorkspacePath).not.toHaveBeenCalled()
     view.getByText('List notes').click()

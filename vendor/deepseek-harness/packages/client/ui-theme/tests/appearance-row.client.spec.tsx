@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -10,6 +11,10 @@ import type { AppearanceRowComponentProps } from '../src/client/AppearanceRow.ts
 import { createAppearanceRowStore, type AppearanceSyncSnapshot } from '../src/client/settings-store.ts'
 import type { ThemePreference } from '../src/client/index.ts'
 import { DEFAULT_THEME_SETTINGS } from '../src/theme-settings.ts'
+
+// Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
 afterEach(cleanup)
 
@@ -53,6 +58,7 @@ function mount(preference: ThemePreference = 'system') {
   const props: AppearanceRowComponentProps = {
     useSessions: emptySessions(),
     useSessionPendingInteraction,
+    usePanelInfo, useResource,
     useWorkspaces: emptyWorkspaces(),
     useStore: bindSnapshotSelector(store),
     actions: store.actions,

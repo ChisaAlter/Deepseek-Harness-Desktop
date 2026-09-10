@@ -17,7 +17,9 @@ function latestLine(text: string): string {
 }
 
 /**
- * Render one assistant reasoning block as the Think disclosure row.
+ * Render one assistant reasoning block as the Think disclosure row. The
+ * collapsed summary omits double-asterisk markers; expanded content preserves
+ * the complete text.
  * @param props.text - complete or streaming reasoning text.
  * @param props.running - whether this block is the streaming tail.
  * @param props.t - conversation locale seat for the running status.
@@ -25,7 +27,7 @@ function latestLine(text: string): string {
  */
 export function ReasoningRow({ text, running, t }: { text: string; running: boolean; t: ChatViewSlotProps['t'] }) {
   const [expanded, setExpanded] = useState(false)
-  const summary = running ? latestLine(text) : firstLine(text)
+  const summary = (running ? latestLine(text) : firstLine(text)).replaceAll('**', '')
 
   return (
     <div

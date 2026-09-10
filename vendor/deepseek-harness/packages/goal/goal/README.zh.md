@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-goal` 为每个 agent 会话保留一个持久的完成目标：目标的文本、phase、Round 数量与 revision 历史都保存在会话日志中，因此会话 resume（恢复）、fork 与进程重启后依然存在。你可以 create、edit、pause、resume、complete、block 和 clear 一个 goal，且每次变更都是比较并设置，陈旧的视图不会覆盖更新的状态。goal 带有 Round 上限（默认 256）以约束自动续行，被阻塞的 goal 会保留稳定的策略代码和面向人的说明。它是状态而非调度器：服务不决定工作何时继续，续行权限是进程本地的且绝不持久化。当单个长期目标需要横跨多轮时选择它；常规单轮工作不要使用。
+`dsh-goal` 让一个长期完成目标在多轮、会话 resume（恢复）、fork 与进程重启后持续存在。用户与 agent 可以 create、edit、pause、resume、complete、block 或 clear 该目标；比较并设置的更新会拒绝陈旧视图。可配置的 Round 上限（默认 256）约束自动续行，被阻塞的 goal 会保留稳定的策略代码和面向人的说明。本包存储 goal 状态但不调度工作，续行权限是进程本地的而非持久状态。单个目标需要横跨多轮时选择本包；常规单轮工作或并行目标不要使用。
 
 ## 目录
 
@@ -106,14 +106,14 @@ view.activation                        // 'armed' | 'disarmed' — not persisted
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`GoalService`、config schema、变更、续行启用缓存、投影单元 |
 | [`src/domain.ts`](src/domain.ts) | 持久变更载荷、`goal/changed` 事件、goal 消息来源归属 |
-| [`src/types.ts`](src/types.ts) | 纯客户端安全类型：`GoalView`、`GoalSnapshot`、投影键声明 |
+| [`src/types.ts`](src/types.ts) | 纯客户端安全类型：`GoalView`、`GoalSnapshot`、`GoalActivationChanged`、投影键声明 |
 | [`src/fold.ts`](src/fold.ts) | 持久 goal 变更的严格回放折叠与解码器 |
 | [`src/runtime.ts`](src/runtime.ts) | `GoalId` 品牌、`GoalError` 代码、变更版本常量 |
 | [`src/invariant.ts`](src/invariant.ts) | 不变式伴生：对每个已挂接会话的独立增量折叠 |
 
 ### 事件与归属
 
-`goal/changed` 在持久事件提交后触发，监听器失败会被隔离；载荷携带操作、精确 ref 与最新视图（clear tombstone 时省略）。已准入的续行 Round 通过 `user/message` 事件上的 `GoalMessageSource { goalId, revision, round }` 归属，严格折叠会将其验证为当前 goal 的下一个已准入 Round。
+`goal/changed` 在持久事件提交后触发，监听器失败会被隔离；载荷携带操作、精确 ref 与最新视图（clear tombstone 时省略）。`goal/activation-changed` 在不改变持久状态的情况下，转发携带精确当前 ref 的进程本地 `armed`／`disarmed` 边界；clear 后则不携带 goal。已准入的续行 Round 通过 `user/message` 事件上的 `GoalMessageSource { goalId, revision, round }` 归属，严格折叠会将其验证为当前 goal 的下一个已准入 Round。
 
 </details>
 

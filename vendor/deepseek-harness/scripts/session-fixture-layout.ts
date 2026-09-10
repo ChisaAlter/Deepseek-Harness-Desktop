@@ -11,6 +11,13 @@ import {
 } from '@deepseek-ai/dsh-session'
 import type { SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
+import { SessionFormatEventCollector, type SessionFormatArtifactDecoder, type SessionFormatCodec } from '@deepseek-ai/dsh-session-format'
+import { releasedV0SessionFormatCodec, releasedV1SessionFormatCodec } from '@deepseek-ai/dsh-session-format-v0-to-v1'
+import { releasedV2SessionFormatCodec } from '@deepseek-ai/dsh-session-format-v1-to-v2'
+
+const historicalCodecs: readonly SessionFormatCodec[] = [
+  releasedV0SessionFormatCodec, releasedV1SessionFormatCodec, releasedV2SessionFormatCodec,
+]
 
 /** Physical persistence artifacts validated by the WebWorker runtime fixture spec. */
 const WEBWORKER_PHYSICAL_SESSION_FIXTURE_ROOT =
@@ -95,6 +102,7 @@ function parseFixtureObjectLine(line: string, lineNumber: number): Record<string
 function parseFixtureRows(content: string, headerValue: unknown): SessionEvent[] {
   const rows: Record<string, unknown>[] = []
   const rowLines: number[] = []
+  const eventLines: number[] = []
   let nextSeq: SessionLogOffsetType = SessionLogOffset(0)
   let headerSkipped = false
   for (const [index, line] of content.split(/\r?\n/).entries()) {
@@ -113,7 +121,9 @@ function parseFixtureRows(content: string, headerValue: unknown): SessionEvent[]
     if (!Object.hasOwn(record, timeKey)) record[timeKey] = 0
     rows.push(record)
     rowLines.push(index + 1)
-    nextSeq = SessionLogOffset(nextSeq + projectedRowCardinality(record))
+    const cardinality = projectedRowCardinality(record)
+    for (let offset = 0; offset < cardinality; offset += 1) eventLines.push(index + 1)
+    nextSeq = SessionLogOffset(nextSeq + cardinality)
   }
   // Versionless protocol fixtures and current projected snapshots use scalar
   // event rows. Current snapshots may contain owner-restored scrub tokens such
@@ -143,16 +153,49 @@ function parseFixtureRows(content: string, headerValue: unknown): SessionEvent[]
       }
     })
   }
+  const collector = new SessionFormatEventCollector()
+  let decoder: SessionFormatArtifactDecoder
   try {
-    return [
-      ...sessionFormatCatalog.decodeArtifact(validationHeader(headerValue), rows).events,
-    ] as unknown as SessionEvent[]
+    const version = (headerValue as Record<string, unknown>).version
+    const codec = historicalCodecs.find(candidate => candidate.version === version)
+    if (codec === undefined) throw new Error(`unsupported session fixture version ${String(version)}`)
+    decoder = codec.createDecoder(validationHeader(headerValue), 'strict')
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    const storedRow = /\brow (\d+)\b/.exec(detail)
-    const line = storedRow === null ? 1 : rowLines[Number(storedRow[1])] ?? 1
+    throw new Error(`session snapshot line 1: ${detail}`, { cause: error })
+  }
+  for (const [index, row] of rows.entries()) {
+    try {
+      decoder.decodeRow(row, collector)
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`session snapshot line ${rowLines[index] ?? 1}: ${detail}`, { cause: error })
+    }
+  }
+  try {
+    decoder.finish(collector)
+    return [...collector.values] as unknown as SessionEvent[]
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    const line = fixtureDiagnosticLine(error, rowLines, eventLines)
     throw new Error(`session snapshot line ${line}: ${detail}`, { cause: error })
   }
+}
+
+function fixtureDiagnosticLine(
+  error: unknown,
+  rowLines: readonly number[],
+  eventLines: readonly number[],
+): number {
+  const detail = error instanceof Error && error.cause instanceof Error
+    ? error.cause.message
+    : error instanceof Error ? error.message : String(error)
+  const physicalRow = /^released Session row (\d+)/.exec(detail)
+  if (physicalRow !== null) return rowLines[Number(physicalRow[1])] ?? 1
+  const event = /Session event (\d+)/.exec(detail)
+    ?? / at seq (\d+)/.exec(detail)
+    ?? /inherited Session cut (\d+)/.exec(detail)
+  return event === null ? 1 : eventLines[Number(event[1])] ?? 1
 }
 
 function withoutEnvelope(events: readonly SessionEvent[]): Array<Omit<SessionEvent, 'seq' | 'time'>> {
@@ -164,8 +207,9 @@ function withoutEnvelope(events: readonly SessionEvent[]): Array<Omit<SessionEve
 
 /**
  * Canonicalize one JSONL document when its first record is a session header.
- * The header line remains byte-identical; body records decode to logical events,
- * re-encode one event per row, and omit storage sequence/time envelopes.
+ * Historical generations receive strict source-codec validation and remain byte-identical;
+ * conversion to the current format is not required. Current body records re-encode
+ * one event per row and omit storage sequence/time envelopes; their header is preserved.
  * Non-session JSONL returns undefined.
  *
  * @param content - JSONL source text.

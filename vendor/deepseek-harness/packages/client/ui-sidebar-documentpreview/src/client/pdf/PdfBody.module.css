@@ -1,0 +1,49 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  padding: 8px;
+  overflow-x: hidden;
+  font-family: var(--dsw-font, sans-serif);
+  white-space: normal;
+}
+
+.page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  overflow-x: hidden;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+}
+
+.canvas {
+  display: block;
+  width: min(var(--pdf-page-width), 100%);
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
+
+.canvas[hidden] {
+  display: none;
+}
+
+.status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}

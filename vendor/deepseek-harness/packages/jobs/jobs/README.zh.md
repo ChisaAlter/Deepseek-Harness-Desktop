@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-jobs` 让工具可以把长时间工作注册为后台任务：工作获得稳定的 `<kind>-N` id，在 agent 继续推进的同时保持运行，拥有它的 agent 可以随时读取输出、带超时等待或请求取消。任务属于启动它的 agent 会话，因此一个 agent 的工作永远不会被另一个 agent 看到；完成以会话内通知而非轮询的方式送达给拥有者。本包只提供约定：进程本地注册表位于 `dsh-jobs-local`，模型侧控制与完成通知位于 `dsh-tool-jobs`。加载一个实现才能获得后台任务；没有实现时 `ctx.jobs` 不存在，`start()` 无法运行。
+`dsh-jobs` 让工具可以在 agent 继续推进时保持长时间工作运行。每项任务都会获得稳定的 `<kind>-N` id，拥有它的 agent 可以读取输出、带超时等待或请求取消。归属范围限定在 agent 会话内，因此其他 agent 无法查看或停止任务；任务完成时会通过会话内通知送达，无需轮询。只有部署提供任务执行能力时，后台任务才能启动。
 
 ## 目录
 
@@ -97,7 +97,7 @@ kind: "package-reference"
 - [进程本地注册表](../jobs-local/README.zh.md)——在本进程中运行任务的随附实现。
 - [模型侧任务控制](../tool-jobs/README.zh.md)——`job_output`、`job_list` 与 `job_kill` 工具及完成通知。
 - [通用长时间运行工具运行时 Agent Note](../../../.agents/notes/implemented/architecture/2026-06-20-generic-long-running-tool-runtime.zh.md)——后台任务运行时背后的设计。
-- [任务注册表 seam Agent Note](../../../.agents/notes/implemented/architecture/2026-07-26-job-registry-seam.zh.md)——按所有者隔离的注册表约定及其理由。
+- [任务注册表 seam Agent Note](../../../.agents/notes/archived/architecture/2026-07-26-job-registry-seam.md)——按所有者隔离的注册表约定及其理由。
 
 -----
 

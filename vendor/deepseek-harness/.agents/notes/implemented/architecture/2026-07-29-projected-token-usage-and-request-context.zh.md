@@ -26,7 +26,7 @@ token-meter 还拥有在持久事件上运行的共享纯 attempt／Turn fold。
 
 两个单元都沿用标准投影生命周期：历史尾页基线、`session/projection` 实时帧、seq 高者胜的客户端存储、JSON 检查点、缓存恢复和单元卸载。系统没有任何 token 专用的历史字段、mux 帧、投影器、修订计数器或客户端栅栏。
 
-Web `StatsLine` 通过标准 `useProjection` 席位读取两者。窗口内节点仍提供轮次和步骤计数，以及 LLM（大语言模型）与工具的墙钟时间：它们回答的是「屏幕上有什么」，按窗口作用域正是正确的。压缩使可见 assistant 步骤归零后，持久 token 与上下文分组仍会保留。缓存写入会计入计费输入和缓存命中率分母。未部署 token-meter 时会去掉 token 分组；只有压力与容量都已知时才显示占用率。精确 overflow tooltip 只在统计行非空时挂载测量子组件，并在值变化期间保留同一个 `ResizeObserver`；文本变化只直接测量一次，不替换 observer。
+Web [`StatsPills`](../feature/2026-09-07-composer-session-stats-pills.zh.md) 通过标准 `useProjection` 席位读取两者。窗口内节点仍作为无投影回退提供轮次和步骤计数，以及 LLM（大语言模型）与工具的墙钟时间：它们回答的是「屏幕上有什么」，按窗口作用域正是正确的。压缩使可见 assistant 步骤归零后，持久用量 pill 仍会保留。缓存写入会计入计费输入和缓存命中率分母。未部署 token-meter 时会去掉用量 pill；上下文占用率由输入框旁的 ContextMeter 圆环承载。精确 token 数字显示在用量 pill 点击展开的弹层里，而非悬停提示。
 
 ## 上下文占用率是近似值，而这正是决策本身
 
@@ -48,7 +48,7 @@ Web `StatsLine` 通过标准 `useProjection` 席位读取两者。窗口内节�
 
 **在 token-meter 内部解析容量。** 该包自述与模型路由无关，且在其他方面是一个从不向日志追加内容的纯读取方。AgentLoop 在写入请求头的位置已经持有已解析的元数据。
 
-**为 `session.models` RPC 增加容量字段。** 其处理器已经解析出容量又将其丢弃，因此这个字段几乎是免费的；但 `StatsLine` 位于 `ui-conversation`，模型目录位于 `ui-model-selection`，而 `ui-conversation` 不能依赖 `ui-model-selection`。要送达它，就得增加第二个 dock 条目、把一行文本拆到两个插件里，或者做一次跨插件的 store 写入。
+**为 `session.models` RPC 增加容量字段。** 其处理器已经解析出容量又将其丢弃，因此这个字段几乎是免费的；但统计展示（现为 `StatsPills`，ui-chat）与模型目录位于两个互不依赖的插件。要送达它，就得增加第二个 dock 条目把一个表面拆到两个插件里，或者做一次跨插件的 store 写入。
 
 **在模型选择器旁增加上下文圆环。** 该位置会让人以为这是所选模型的状态。统计行可以承载该数字，无需引入重复的 UI 或数据路径。
 

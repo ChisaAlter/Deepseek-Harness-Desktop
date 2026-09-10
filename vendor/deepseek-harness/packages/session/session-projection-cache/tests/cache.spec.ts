@@ -665,6 +665,14 @@ describe('SessionProjectionCache cold-read seeding', () => {
     })
     const { cache, ctx } = await harness({ root })
     const apply = vi.fn((_state: number, _event: SessionEvent) => 1)
+    const whenWritten = (id: SessionId): Promise<void> => new Promise((resolve) => {
+      const dispose = ctx.on('domain/changed', (change) => {
+        if (change.domain !== projectionCacheDomainSpec.name
+          || change.table !== 'sessions' || change.key !== id || change.operation !== 'put') return
+        dispose()
+        resolve()
+      })
+    })
     ctx.sessionProjections.register({
       key: 'cache-test/count',
       stateSchema: z.number().int().nonnegative(),
@@ -676,6 +684,7 @@ describe('SessionProjectionCache cold-read seeding', () => {
     const events = Array.from({ length: 5 }, (_, seq) => ({
       type: 'cache-test/mark', seq: SessionSeq(seq), time: seq, data: { marks: [`m${seq}`] },
     })) as SessionEvent[]
+    const refreshed = whenWritten(meta.id)
     const snapshot = cache.coldSnapshot(meta, SessionLogOffset(0), events)
     // The full log was traversed, but the fold applied only seqs 3 and 4.
     expect(apply).toHaveBeenCalledTimes(2)
@@ -684,17 +693,16 @@ describe('SessionProjectionCache cold-read seeding', () => {
     // Host-only unit: folded but not served; the refreshed row is written
     // back (fail-soft, fire-and-forget) once the write lands.
     expect(Object.keys(snapshot.values)).not.toContain('cache-test/count')
-    await vi.waitFor(async () => {
-      expect((await storedRows(root, meta.id))?.['cache-test/count']?.seq).toBe(4)
-    })
+    await refreshed
+    expect((await storedRows(root, meta.id))?.['cache-test/count']?.seq).toBe(4)
     // No cached row yet: the first cold read folds from init over the full
     // log and creates the cache row (the `?? {}` seed path).
     const fresh = headerOf(SessionId('cold-fresh'), 10)
+    const created = whenWritten(fresh.id)
     cache.coldSnapshot(fresh, SessionLogOffset(0), events)
     expect(apply).toHaveBeenCalledTimes(7) // 2 tail + 5 full
-    await vi.waitFor(async () => {
-      expect((await storedRows(root, fresh.id))?.['cache-test/count']?.seq).toBe(4)
-    })
+    await created
+    expect((await storedRows(root, fresh.id))?.['cache-test/count']?.seq).toBe(4)
   })
 
   it('coldSnapshot write-back is fail-soft: a failed durable write logs and never throws', async () => {

@@ -46,7 +46,7 @@ export class GoalService extends TypertRemoteService {
 
 ### 把 Host 对象与 Context 关联到 wire identity
 
-复杂的 Host 对象不能直接跨 wire 传输。业务包通过可合并扩展的 `TypertLookupMap` 与 `TypertContextMap` 声明关联。Host 与 Client Context adapter 都把 `Context` 映射为 wire identity，也把该 identity 映射回 `Context`；Host adapter 还拥有稳定 wire 声明。Host 组合可以覆盖其同步或异步 resolver。因策略而拒绝的 resolver 抛出带自有码的 `RemoteError`，该码原样到达调用方。
+复杂的 Host 对象不能直接跨 wire 传输。业务包通过可合并扩展的 `TypertLookupMap` 与 `TypertContextMap` 声明关联。Host Context adapter 拥有稳定 wire 声明，并把 wire identity 解析为活跃 Context。Client Context adapter 需要双向映射，因为作用域调用从 Client Context 发起，而转发的 Host 事件要在 Client 侧解析其显式 wire identity。Host 组合可以覆盖其同步或异步 resolver。因策略而拒绝的 resolver 抛出带自有码的 `RemoteError`，该码原样到达调用方。
 
 ### 报告与读取 Remote 失败
 

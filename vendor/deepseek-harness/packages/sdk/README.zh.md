@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-本组让另一进程驱动完整的 DeepSeek Harness 运行时：JSON-RPC 协议格式定义消息，服务插件通过 stdio 为外部客户端提供服务，TypeScript 与 Python 客户端则用具名 profile 和有序 patch 启动 `dsh`。本组没有任何包定义独立应用或创建开发者项目。SDK 客户端可以打开会话、发送提示词，并实时观察会话事件、agent 状态转换与 subagent 完成事件。TypeScript 客户端是 [Python SDK](../../python/README.zh.md) 的设计孪生，二者说同一种协议。本页是组的映射；各包 README 负责各自的包级约定。
+SDK 家族让另一进程通过按换行分帧的 JSON-RPC 驱动完整的 DeepSeek Harness 运行时。协议包定义公开消息，TypeScript 客户端用具名 profile 和有序 patch 启动 `dsh`，服务器则通过 stdio 接受 SDK 请求。客户端可以打开会话、发送提示词，并观察会话事件、agent 状态变化与 subagent 完成事件。TypeScript 客户端与 [Python SDK](../../python/README.zh.md) 使用同一种协议，而这些包不会创建开发者项目，也不定义其他应用。
 
 ## 目录
 
@@ -39,9 +39,8 @@ kind: "package-group"
 
 - [Python SDK](../../python/README.zh.md) — 说同一种协议的 Python 对侧实现，并随附捆绑运行时。
 - [SDK 应用组合包](../bundle/sdk-app/README.zh.md) — 启动 JSON-RPC 服务器的 `dsh --profile sdk` 应用。
-- [Python profile 运行时决策](../../.agents/notes/implemented/architecture/2026-08-23-python-sdk-dsh-profile-runtime.zh.md) — 打包后的 Python 客户端为何启动相同的具名 profile。
-- [TypeScript SDK 与 SDK subagent 后端决策](../../.agents/notes/implemented/feature/2026-07-27-typescript-sdk-and-sdk-subagent-backend.zh.md) — 客户端约定及其上的 subagent 后端。
-- [SDK 项目工具链移除](../../.agents/notes/implemented/simplification/2026-08-11-remove-sdk-project-toolchain.zh.md) — 本组为何从不创建、配置或构建开发者项目。
+- [架构](../../docs/architecture.zh.md) — 打包后的 Python 客户端为何启动相同的具名 profile。
+- [SDK 项目工具链移除](../../.agents/notes/archived/simplification/2026-08-11-remove-sdk-project-toolchain.md) — 本组为何从不创建、配置或构建开发者项目。
 - [SDK subagent 提供方](../subagent/subagent-dsh-sdk/README.zh.md) — harness 内部消费 TypeScript 客户端的例子。
 
 <a id="dev-note"></a>

@@ -13,7 +13,6 @@ import SubagentRuntime, {
   type ResolvedSubagentStartRequest,
   type SubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Config as ToolConfig, ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import { defineContentToolFixture, RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
@@ -69,7 +68,6 @@ async function setup(script: Script, options: SetupOptions = {}) {
   }
   await mountInvariants(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
-  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   const disposeProvider = ctx.subagents.registerProvider({
     name: 'spawn',
@@ -96,6 +94,13 @@ function structuredRequest(parent: SubagentStartRequest['parent'], extra?: Parti
 /** The tool names of one recorded model request. */
 function toolNames(request: GenerateOptions): string[] {
   return (request.tools ?? []).map(tool => tool.name)
+}
+
+/** Text of a loop-built request's leading system message; `''` when the request has none. */
+function requestSystem(request: GenerateOptions): string {
+  const head = request.messages[0]
+  if (head?.role !== 'system') return ''
+  return head.content.filter(block => block.type === 'text').map(block => block.text).join('')
 }
 
 describe('in-process structured output', () => {
@@ -378,10 +383,10 @@ describe('in-process structured output', () => {
     ctx.systemPrompt.section({ name: 'test:persona', order: 10, text: 'You are a counter.' })
     const run = await ctx.subagents.start('spawn', structuredRequest(parent))
     await run.result
-    const childRequest = adapter.requests.at(-1)!
-    expect(childRequest.system).toContain('You are a counter.')
-    expect(childRequest.system!.endsWith(STRUCTURED_OUTPUT_INSTRUCTION)).toBe(true)
-    expect(childRequest.system!.indexOf(STRUCTURED_OUTPUT_INSTRUCTION)).toBeGreaterThan(0)
+    const childSystem = requestSystem(adapter.requests.at(-1)!)
+    expect(childSystem).toContain('You are a counter.')
+    expect(childSystem.endsWith(STRUCTURED_OUTPUT_INSTRUCTION)).toBe(true)
+    expect(childSystem.indexOf(STRUCTURED_OUTPUT_INSTRUCTION)).toBeGreaterThan(0)
     await run.dispose()
   })
 
@@ -403,11 +408,12 @@ describe('in-process structured output', () => {
     expect(result.structured).toEqual({ answer: 12 })
     const request = adapter.requests[0]!
     expect(toolNames(request)).toEqual([RUN_CODE_NAME])
-    expect(request.system).toContain('interface ToolArgsMap')
-    expect(request.system).toContain('interface ToolOutputMap')
-    expect(request.system).toContain('recorded: true;')
-    expect(request.system).toContain('Promise<ToolOutputMap[K]>')
-    expect(request.system).toContain(STRUCTURED_OUTPUT_INSTRUCTION)
+    const system = requestSystem(request)
+    expect(system).toContain('interface ToolArgsMap')
+    expect(system).toContain('interface ToolOutputMap')
+    expect(system).toContain('recorded: true;')
+    expect(system).toContain('Promise<ToolOutputMap[K]>')
+    expect(system).toContain(STRUCTURED_OUTPUT_INSTRUCTION)
     await run.dispose()
   })
 
@@ -472,12 +478,12 @@ describe('in-process structured output', () => {
     ])
     parent.followup(createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } }))
     await parent.whenIdle()
-    expect(adapter.requests[0]!.system ?? '').not.toContain(STRUCTURED_OUTPUT_INSTRUCTION)
+    expect(requestSystem(adapter.requests[0]!)).not.toContain(STRUCTURED_OUTPUT_INSTRUCTION)
     const run = await ctx.subagents.start('spawn', structuredRequest(parent))
     await run.result
     // The loop always assembles a base prompt (the harness identity section),
     // so the instruction APPENDS — never replaces.
-    const childSystem = adapter.requests.at(-1)!.system!
+    const childSystem = requestSystem(adapter.requests.at(-1)!)
     expect(childSystem.endsWith(STRUCTURED_OUTPUT_INSTRUCTION)).toBe(true)
     expect(childSystem.length).toBeGreaterThan(STRUCTURED_OUTPUT_INSTRUCTION.length)
     await run.dispose()
@@ -573,7 +579,7 @@ describe('in-process structured output', () => {
       const names = toolNames(request)
       expect(names.indexOf(STRUCTURED_OUTPUT_TOOL)).toBeGreaterThanOrEqual(0)
       expect(names.indexOf(STRUCTURED_OUTPUT_TOOL)).toBeLessThan(names.indexOf('zz_probe'))
-      const system = request.system ?? ''
+      const system = requestSystem(request)
       const instructionAt = system.indexOf(STRUCTURED_OUTPUT_INSTRUCTION)
       expect(instructionAt).toBeGreaterThanOrEqual(0)
       expect(system.indexOf('AFTER-BAND')).toBeGreaterThan(instructionAt)

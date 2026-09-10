@@ -42,7 +42,7 @@ Status: implemented
 | `@deepseek-ai/dsh-command-goal` | `packages/goal/command-goal/`，人类命令生产方 | 为 TUI 注册构建在目标领域之上的 `/goal` 状态、创建、编辑、暂停、恢复与清除。 |
 | `@deepseek-ai/dsh-tool-ralph` | `packages/workflow/tool-ralph/`，固定工作流消费方 | 注册 `ralph({ objective, maxRounds? })`，验证全新结构化提供方与有界 `RalphRoundReport`，并返回 `complete`、`blocked` 或 `budget-limited`。 |
 
-详细约定见[目标领域](2026-07-19-persisted-same-session-goal-domain.zh.md)、[目标自有事件](../architecture/2026-07-31-goal-owned-durable-events.zh.md)、[模型目标工具](2026-07-19-model-facing-goal-tools.zh.md)、[Goal Round 驱动器](2026-07-19-same-session-goal-round-driver.zh.md)、[命令注册表](2026-07-19-plugin-command-registration.zh.md)、[人类目标命令](2026-07-19-human-goal-command.zh.md)与 [Ralph 工作流工具](2026-07-19-fresh-agent-ralph-workflow-tool.zh.md) Agent Note。
+详细约定见[目标领域](2026-07-19-persisted-same-session-goal-domain.zh.md)、[目标自有事件](../architecture/2026-07-31-goal-owned-durable-events.zh.md)、[模型目标工具](2026-07-19-model-facing-goal-tools.zh.md)、[Goal Round 驱动器](../../archived/feature/2026-07-19-same-session-goal-round-driver.md)、[命令注册表](2026-07-19-plugin-command-registration.zh.md)、[人类目标命令](../../archived/feature/2026-07-19-human-goal-command.md)与 [Ralph 工作流工具](../../archived/feature/2026-07-19-fresh-agent-ralph-workflow-tool.md) Agent Note。
 
 ### 持久目标状态与实时权限
 
@@ -50,7 +50,7 @@ Status: implemented
 
 持久阶段只有 `active`、`paused`、`blocked` 与 `complete`。阻塞目标必须携带 `GoalBlockReason`，其中包含稳定的小写 kebab-case `code` 与非空的人类可读 `message`；用量限制、Round 耗尽、模型失败与策略拒绝都是原因代码，而不是额外生命周期阶段。独立激活态是 `armed` 或 `disarmed`，且永不持久化。创建与显式恢复会激活目标；停止转换、会话启动、fork 回放、驱动器替换和驱动器拆卸都会让目标保持未激活。
 
-这种分离让会话恢复可观察且符合直觉。重新打开会话绝不会自行开始目标工作。随后的人类提示词，例如「继续」、「恢复目标」或任何语言中的等价请求，会给运行时根 agent 的模型一个新轮次；模型可在其中读取目标并调用 `update_goal(..., action: 'resume')`。`/goal resume` 是直接人类命令路径。运行时认证请求来自实时直接人类轮次；提示策略让模型解释措辞在语义上是否授权创建或恢复。
+这种分离让会话恢复可观察且符合直觉。重新打开会话绝不会自行开始目标工作。随后的人类提示词，例如「继续」、「恢复目标」或任何语言中的等价请求，会给运行时根 agent 的模型一个新轮次；模型可在其中读取 active-but-disarmed 目标并调用 `update_goal(..., action: 'resume')`。持久的 paused 目标通过 `/goal resume`、Web 控件或其他直接调用 goal 服务的调用方恢复；模型工具依据[用户独占暂停决策](../bug-fix/2026-09-03-user-owned-goal-pause-activation.zh.md)拒绝它。运行时认证请求来自实时直接人类轮次；提示策略让模型解释措辞在语义上是否授权创建或恢复。
 
 fork 会话会继承持久目标前缀，因为这是自然的重放结果。fork 从未激活状态开始，因此继承不等于执行权限，历史中也不会插入合成目标取消。
 
@@ -62,7 +62,7 @@ Goal Round 驱动器为每个特定的实时 agent 至多拥有一个待定预�
 
 只有已接纳、Round 为正数且带目标来源的 `user/message` 会计入一个 Round。陈旧预留会结束一个阻塞的零步骤轮次，不会消耗上限。并发目标修订会胜过旧 Round 的结算。
 
-普通轮次完成后，只有目标仍活跃、已激活且低于上限时才会安排另一个 Round。取消会暂停。速率限制或配额耗尽以代码 `usage-limited` 阻塞；上限耗尽使用 `round-limit`；队列失败使用 `queue-failed`；轮次错误、max-token 停止、策略拒绝与未知终止结果使用各自对应的阻塞代码。独立组合的请求恢复插件可以在同一个轮次内重试暂时性提供方失败；目标驱动器绝不会在异常终止结果后凭空发起另一个 Round。人类随后可以通过普通语言或 `/goal resume` 授权恢复。
+普通轮次完成后，只有目标仍活跃、已激活且低于上限时才会安排另一个 Round。取消会暂停。速率限制或配额耗尽以代码 `usage-limited` 阻塞；上限耗尽使用 `round-limit`；队列失败使用 `queue-failed`；轮次错误、max-token 停止、策略拒绝与未知终止结果使用各自对应的阻塞代码。独立组合的请求恢复插件可以在同一个轮次内重试暂时性提供方失败；目标驱动器绝不会在异常终止结果后凭空发起另一个 Round。人类随后可以通过 `/goal resume` 或 Web 控件恢复；blocked 目标也仍可由模型 `update_goal resume` 恢复，而持久 paused 目标不能。
 
 ### 人类与模型交互
 

@@ -112,7 +112,7 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
   fireEvent.click(contextTrigger)
   const contextPanel = await screen.findByRole('dialog', { name: 'of context used' })
   within(contextPanel).getByText('System prompt')
-  within(contextPanel).getByText('Tools')
+  within(contextPanel).getByText('Tool definitions')
   within(contextPanel).getByText('Messages')
 
   // The write/edit turns render a real diff card through the assembled graph
