@@ -60,6 +60,7 @@ const [
   clientEntrySource,
   clientSources,
   executable,
+  executableSource,
 ] = await Promise.all([
   readFile(resolve(root, 'lib/client.js'), 'utf8'),
   readFile(resolve(root, 'lib/index.js'), 'utf8'),
@@ -70,6 +71,7 @@ const [
   readFile(resolve(root, 'plugin-src/client/index.js'), 'utf8'),
   readSourceTree(resolve(root, 'plugin-src/client')),
   stat(resolve(root, 'bin/dsh-im.mjs')),
+  readFile(resolve(root, 'bin/dsh-im.mjs'), 'utf8'),
 ]);
 const manifest = JSON.parse(manifestText);
 const lock = JSON.parse(lockText);
@@ -111,22 +113,30 @@ if (forbiddenDshLockPaths.length > 0) {
 if (!/\bid\s*:\s*["']@xmanrui\/dsh-im["']/u.test(client)) {
   throw new Error('client bundle does not register the dsh-im loader id');
 }
-const sourceSectionMarkers = [
-  /ctx\.slots\.inject\(\s*["']settings\.section["']/u,
-  /name\s*:\s*["']settings\.section["']/u,
-  /id\s*:\s*["']xmanrui-dsh-im["']/u,
-  /order\s*:\s*21\b/u,
-  /label\s*:\s*\(\)\s*=>\s*t\(\s*["']IM机器人["']\s*\)/u,
+const remoteTabInjectionPattern = /ctx\.slots\.inject\(\s*["']settings\.remote\.tab["']/gu;
+const remoteTabRegistrationPattern = /ctx\.slots\.inject\(\s*["']settings\.remote\.tab["']\s*,\s*\(\)\s*=>\s*ctx\.slots\.register\(\s*\{([\s\S]*?)\}\s*,/u;
+const remoteTabMarkers = [
+  /name\s*:\s*["']settings\.remote\.tab["']/u,
+  /id\s*:\s*["']channels["']/u,
+  /order\s*:\s*10\b/u,
   /locale\s*:\s*IM_LOCALE_NAMESPACE\b/u,
 ];
-const bundleSectionPattern = /name\s*:\s*["']settings\.section["']\s*,\s*id\s*:\s*["']xmanrui-dsh-im["']\s*,\s*order\s*:\s*21\s*,\s*label\s*:\s*\(\)\s*=>\s*[$A-Z_a-z][$\w]*\(\s*["']IM(?:机器人|\\u673A\\u5668\\u4EBA)["']\s*\)\s*,\s*locale\s*:\s*(?:[$A-Z_a-z][$\w]*|["']dsh-im["'])/u;
-if (sourceSectionMarkers.some((pattern) => !pattern.test(clientEntrySource))
+const sourceRemoteTabOptions = clientEntrySource.match(remoteTabRegistrationPattern)?.[1];
+const bundleRemoteTabOptions = client.match(remoteTabRegistrationPattern)?.[1];
+const hasRemoteTabShape = (options) => options !== undefined
+  && remoteTabMarkers.every((pattern) => pattern.test(options));
+if ((clientEntrySource.match(remoteTabInjectionPattern) ?? []).length !== 1
+  || (client.match(remoteTabInjectionPattern) ?? []).length !== 1
+  || !hasRemoteTabShape(sourceRemoteTabOptions)
+  || !hasRemoteTabShape(bundleRemoteTabOptions)
   || !/IM_LOCALE_NAMESPACE\s*=\s*["']dsh-im["']/u.test(clientSources)
-  || !bundleSectionPattern.test(client)) {
-  throw new Error('client bundle does not register the localized top-level IM settings section');
+  || !/IM_LOCALE_NAMESPACE\s*=\s*["']dsh-im["']/u.test(client)) {
+  throw new Error('client source and bundle must register exactly one settings.remote.tab child slot with the channels shape');
 }
-if ((client.match(/\.slots\.inject\(\s*["']settings\.section["']/gu) ?? []).length !== 1) {
-  throw new Error('client bundle must register exactly one top-level settings section');
+if (clientEntrySource.includes('settings.section')
+  || clientSources.includes('settings.section')
+  || client.includes('settings.section')) {
+  throw new Error('client source or bundle still registers the legacy top-level settings.section slot');
 }
 if (client.includes('settings.plugins.tab') || clientSources.includes('settings.plugins.tab')) {
   throw new Error('client source or bundle still contains the legacy Plugins-tab settings entry');
@@ -198,7 +208,13 @@ if (manifest.bin?.['dsh-im'] !== 'bin/dsh-im.mjs') {
 if (/(?:from\s*|import\s*\(|require\s*\()\s*["'](?:@larksuiteoapi\/node-sdk|@whiskeysockets\/baileys|https-proxy-agent|protobufjs)(?:\/[^"']*)?["']/.test(host)) {
   throw new Error('host bundle must not import a bundled SDK, proxy agent, or protobufjs at runtime');
 }
-if ((executable.mode & 0o111) === 0) throw new Error('dsh-im CLI is not executable');
+if (!executable.isFile()) throw new Error('dsh-im CLI entry is not a regular file');
+if (!/^#!\/usr\/bin\/env node(?:\r?\n|$)/u.test(executableSource)) {
+  throw new Error('dsh-im CLI entry is missing the Node shebang');
+}
+if (process.platform !== 'win32' && (executable.mode & 0o111) === 0) {
+  throw new Error('dsh-im CLI is not executable');
+}
 if (/private-bot-token|must-be-rolled-back|DEEPSEEK_API_KEY=/.test(client + host)) {
   throw new Error('built artifacts contain a test or environment secret marker');
 }

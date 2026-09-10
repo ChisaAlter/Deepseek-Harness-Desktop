@@ -424,15 +424,79 @@ function isPortInUse(host, port) {
   });
 }
 
-async function findFreePort(host, startPort) {
+/**
+ * Whether this process can actually LISTEN on host:port. Windows reserves
+ * dynamic TCP port blocks (Hyper-V / WinNAT, e.g. 2989-3088) that hold no
+ * listener: the connect probe above calls such a port "free" while any real
+ * bind dies with EACCES. Ports already held by someone also fail here
+ * (EADDRINUSE), so a `true` result means "free AND bindable by us".
+ */
+function bindPortStatus(host, port, timeoutMs = 600) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    let settled = false;
+    const done = (status) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      server.removeAllListeners();
+      server.close(() => {});
+      resolve(status);
+    };
+    const timer = setTimeout(() => done({ ok: false, errorCode: 'TIMEOUT' }), timeoutMs);
+    server.once('error', (error) => done({
+      ok: false,
+      errorCode: error?.code || 'UNKNOWN',
+    }));
+    server.once('listening', () => done({ ok: true, errorCode: null }));
+    const bindOn = String(host || '').trim().replace(/^\[|\]$/g, '') || undefined;
+    try {
+      server.listen({ host: bindOn, port });
+    } catch {
+      done({ ok: false, errorCode: 'UNKNOWN' });
+    }
+  });
+}
+
+function canBindPort(host, port, timeoutMs = 600) {
+  return bindPortStatus(host, port, timeoutMs).then((status) => status.ok);
+}
+
+function bindFailure(status) {
+  const code = status?.errorCode;
+  return code && code !== 'EACCES' && code !== 'EADDRINUSE' && code !== 'TIMEOUT';
+}
+
+function throwBindFailure(host, port, status) {
+  if (!bindFailure(status)) {
+    return;
+  }
+  const error = new Error(`无法监听 ${host || '*'}:${port}（${status.errorCode}）`);
+  error.code = status.errorCode;
+  throw error;
+}
+
+async function findFreePort(host, startPort, deps = {}) {
+  const bindable = deps.bindable || ((bindOn, port) => canBindPort(bindOn, port));
+  const bindStatus = deps.bindableStatus || ((bindOn, port) => bindPortStatus(bindOn, port));
   const probeHost = connectHost(host);
   const begin = Number(startPort) || 3080;
   for (let port = begin; port < begin + PORT_SCAN_RANGE; port += 1) {
-    if (!(await isPortInUse(probeHost, port))) {
+    if (await isPortInUse(probeHost, port)) {
+      continue;
+    }
+    const status = deps.bindable
+      ? { ok: await bindable(host, port), errorCode: null }
+      : await bindStatus(host, port);
+    throwBindFailure(host, port, status);
+    if (status.ok) {
       return port;
     }
   }
-  throw new Error(`从 ${begin} 起连续 ${PORT_SCAN_RANGE} 个端口都被占用`);
+  throw new Error(`从 ${begin} 起连续 ${PORT_SCAN_RANGE} 个端口都不可用（被占用或被系统保留）`);
 }
 
 async function probePort(host, port) {
@@ -461,13 +525,29 @@ async function probePort(host, port) {
  * other listener — even one that looks like a dsh server — belongs to someone
  * else, so we hop to the next free port instead of killing by process name.
  */
-async function ensureOwnedPort(host, wantedPort, log = () => {}) {
+async function ensureOwnedPort(host, wantedPort, log = () => {}, deps = {}) {
+  const bindable = deps.bindable || ((bindOn, port) => canBindPort(bindOn, port));
+  const bindStatus = deps.bindableStatus || ((bindOn, port) => bindPortStatus(bindOn, port));
   const wanted = Number(wantedPort) || 3080;
+  // No listener ≠ usable: a Windows-excluded port passes the connect probe
+  // but kills the harness on bind (EACCES), so confirm bindability too.
+  const takeIfBindable = async () => {
+    const status = deps.bindable
+      ? { ok: await bindable(host, wanted), errorCode: null }
+      : await bindStatus(host, wanted);
+    throwBindFailure(host, wanted, status);
+    if (status.ok) {
+      log(`端口 ${wanted} 空闲`);
+      return wanted;
+    }
+    const next = await findFreePort(host, wanted + 1, deps);
+    log(`端口 ${wanted} 被系统保留或无权监听，改用 ${next}`);
+    return next;
+  };
   let probe = await probePort(host, wanted);
   if (!probe.inUse) {
     clearPidFile();
-    log(`端口 ${wanted} 空闲`);
-    return wanted;
+    return takeIfBindable();
   }
 
   const previous = readPidFile();
@@ -478,12 +558,12 @@ async function ensureOwnedPort(host, wantedPort, log = () => {}) {
     probe = await probePort(host, wanted);
     if (!probe.inUse) {
       clearPidFile();
-      return wanted;
+      return takeIfBindable();
     }
   }
   clearPidFile();
 
-  const next = await findFreePort(host, wanted + 1);
+  const next = await findFreePort(host, wanted + 1, deps);
   log(`端口 ${wanted} 被其他程序占用，改用 ${next}`);
   return next;
 }
@@ -1068,6 +1148,7 @@ module.exports = {
   probePort,
   findFreePort,
   ensureOwnedPort,
+  canBindPort,
   connectHost,
   readyUrlPattern,
   harnessSpawnPlan,

@@ -57,6 +57,18 @@ export const inject = [
   'sessionProjectionCache',
 ]
 
+/**
+ * rc.1 makes client-connection's webServer dependency optional for headless
+ * profiles. The usage panel still registers an RPC route through the caller
+ * scoped connection handle, so expose the active webServer on that scope when
+ * the loader provided it through service lookup.
+ */
+function channelContext(ctx: Context): Context {
+  const webServer = typeof ctx?.get === 'function' ? ctx.get('webServer') : undefined
+  if (webServer === undefined || typeof ctx?.extend !== 'function') return ctx
+  return ctx.extend({ webServer })
+}
+
 /** sessionQuery's typed absence (vendored rc.1): a deleted session, not a damaged artifact. */
 function isSessionGone(err: unknown): boolean {
   return (err as { code?: string } | null | undefined)?.code === 'SESSION_QUERY_SESSION_NOT_FOUND'
@@ -67,12 +79,13 @@ const RESCAN_MS = 10 * 60 * 1000 // periodic keep-warm rescan
 
 export function apply(ctx: Context): void {
   const tag = '[dsh-usage-panel]'
+  const scopedCtx = channelContext(ctx)
   // Structural casts to the vendored rc.1 faces (types.ts): the npm rc.6
   // type packages still describe the retired id-only coldSnapshot contract.
   const sq = ctx.get('sessionQuery') as unknown as HostSessionQuery
   const registry = ctx.get('sessionProjections') as SessionProjectionRegistry
   const projCache = ctx.get('sessionProjectionCache') as unknown as HostProjectionCache
-  const connection = ctx.get('connection') as HostConnection | undefined
+  const connection = scopedCtx.get('connection') as HostConnection | undefined
   const llm = ctx.get('llm') as HostLlm | undefined
 
   let mode: CoverageStats['mode'] = 'projection'

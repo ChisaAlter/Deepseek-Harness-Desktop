@@ -26,7 +26,12 @@ Touched files:
 - `plugin-src/client/styles.js`
 - `plugin-src/client/channels/*/styles.js`
 
-Host / RPC / credentials paths are unchanged.
+Host / RPC / credentials paths are unchanged except for the rc.1 host-context
+bridge: channel starts receive the caller-scoped `webServer` service through
+`ctx.extend({ webServer })`. Replay this patch in
+`plugin-src/host/index.mjs` on every pin bump, and keep
+`host-plugin.test.mjs` green to prove every channel receives the same scoped
+server.
 
 ## Load contract
 

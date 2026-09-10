@@ -441,9 +441,9 @@ class HarnessController extends EventEmitter {
     // cordis.patch.yml is purely user-owned (ensure only strips legacy
     // managed blocks). Never pass that file to --patch: overlays still apply
     // under --skip-user-plugins, so it would re-mount every user row the
-    // skip exists to bypass. The install, usage-panel, and dsh-im overlays
-    // are required on all starts; session-search overlay joins below on full
-    // starts only.
+    // skip exists to bypass. The install, usage-panel, dsh-im, and market
+    // overlays are required on all starts; full starts insert session-search
+    // before dsh-im.
     const patchFiles = [];
     if (desktopInstall?.overlayFile) {
       patchFiles.push(desktopInstall.overlayFile);

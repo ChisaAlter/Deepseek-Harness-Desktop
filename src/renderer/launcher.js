@@ -177,6 +177,7 @@ function forensicsSummaryText(forensics) {
     const recovery = window.launcherRecovery;
     const labels = recovery?.GENERIC_LABELS || {
       oom: '检测到内存不足（OOM），与单个插件无关。',
+      'port-excluded': '端口被系统保留或无权监听（listen EACCES），与插件无关，跳过用户插件无法修复。',
       'port-in-use': '检测到端口被占用，与单个插件无关。',
       'missing-node': '未找到 Node 运行时，与单个插件无关。',
     };

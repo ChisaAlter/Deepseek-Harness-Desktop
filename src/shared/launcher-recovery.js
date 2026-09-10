@@ -3,6 +3,7 @@
 const GENERIC_LABELS = {
   'session-cache': '历史会话缓存格式不兼容，导致内核启动失败。跳过用户插件无法修复；请更新到包含缓存兼容修复的桌面版本，并保留日志。不要删除原始会话或清空历史数据。',
   oom: '检测到内存不足（OOM），与单个插件无关。',
+  'port-excluded': '端口被系统保留或无权监听（listen EACCES），与插件无关，跳过用户插件无法修复。请重试启动——预检会自动改用可绑定的相邻端口；若仍失败，可在管理员终端运行 netsh int ipv4 show excludedportrange protocol=tcp 查看保留段，并更换启动端口。',
   'port-in-use': '检测到端口被占用，与单个插件无关。',
   'missing-node': '未找到 Node 运行时，与单个插件无关。',
 };
@@ -75,9 +76,13 @@ function recoveryVerdict(lastStart, recovery, forensics) {
   }
   // In-box damage outranks the sticky-skip banner: neither「恢复完整插件」nor
   // per-plugin disable can repair a broken harness runtime, so saying so first
-  // is the only honest verdict.
+  // is the only honest verdict. port-excluded joins that family: no plugin
+  // choice can un-reserve a Windows port block.
   if (forensics?.desktopRuntimeDamage) {
     return desktopRuntimeDamageVerdict(forensics);
+  }
+  if (forensics?.genericCause === 'port-excluded') {
+    return GENERIC_LABELS['port-excluded'];
   }
   if (recovery?.skipUserPlugins) {
     return '当前在跳过用户插件模式下运行；完整加载请点「恢复完整插件并启动」。禁用单项不会自动加载全部用户插件。';

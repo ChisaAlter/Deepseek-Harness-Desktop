@@ -41,6 +41,22 @@ test('generic crashes are not blamed on a plugin', () => {
   assert.equal(inspected.plugins[0].suspect, false);
 });
 
+test('listen EACCES（Windows 保留端口）归因为 port-excluded，不指向插件', () => {
+  assert.equal(classifyGenericFailure('Error: listen EACCES: permission denied 127.0.0.1:3080'), 'port-excluded');
+  const inspected = inspectPlugins({
+    logs: [
+      'dsh web --host 127.0.0.1 --port 3080',
+      'Error: listen EACCES: permission denied 127.0.0.1:3080',
+      'cannot resolve profile bundle "evil-pack"',
+    ].join('\n'),
+    plugins: [{ name: 'evil-pack', spec: '1.0.0' }],
+    bundles: ['evil-pack'],
+  });
+  assert.equal(inspected.genericCause, 'port-excluded');
+  assert.deepEqual(inspected.suspects, [], '端口保留时不得把插件列为嫌疑');
+  assert.equal(inspected.plugins[0].suspect, false);
+});
+
 test('loader application failures identify the leaf plugin rather than the include wrapper', () => {
   const logs = 'failed to apply loader entry include (cordis:include): failed to apply loader entry stats (@acme/stats): invalid stored record';
   assert.deepEqual(extractSuspectNames(logs), ['@acme/stats']);

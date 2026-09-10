@@ -6,6 +6,10 @@ const { DSH_IM_ALIASES } = require('./dsh-im-desktop');
 const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 
 const GENERIC_OOM = /heap out of memory|js heap|allocation failed|oom\b/i;
+// listen EACCES = the port is unusable by policy (Windows excluded-port
+// range, privileged port without elevation) while nobody holds it — a
+// different failure from EADDRINUSE and one no plugin choice can fix.
+const GENERIC_PORT_EXCLUDED = /\blisten\s+eacces\b/i;
 const GENERIC_PORT = /eaddrinuse|address already in use/i;
 const GENERIC_NODE = /node['"]?\s+is not recognized|cannot find node|enoent.*node(\.exe)?\b/i;
 
@@ -65,6 +69,7 @@ function isInBoxPackageName(name) {
 function classifyGenericFailure(text) {
   const blob = String(text || '');
   if (GENERIC_OOM.test(blob)) return 'oom';
+  if (GENERIC_PORT_EXCLUDED.test(blob)) return 'port-excluded';
   if (GENERIC_PORT.test(blob)) return 'port-in-use';
   if (GENERIC_NODE.test(blob)) return 'missing-node';
   if (/domain ['"]session_projcache['"]:[^\r\n]*does not match its schema/i.test(blob)) return 'session-cache';

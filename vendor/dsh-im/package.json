@@ -83,7 +83,7 @@
   "scripts": {
     "test:desktop": "node --test *.test.mjs",
     "build": "node plugin-src/client/build.mjs && node plugin-src/host/build.mjs",
-    "test": "node --test test/*.test.mjs test/channels/*/*.test.mjs",
+    "test": "npm run test:desktop",
     "check": "npm run build && npm test && node scripts/verify-package.mjs"
   },
   "engines": {

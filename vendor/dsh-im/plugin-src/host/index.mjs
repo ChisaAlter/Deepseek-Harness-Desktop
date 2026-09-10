@@ -26,6 +26,19 @@ function channelConfig(config, name) {
     : { ...channel, rpcAuthority: config.rpcAuthority };
 }
 
+function channelContext(ctx) {
+  // rc.1 makes client-connection's webServer dependency optional so the
+  // service can also run in headless profiles. dsh-im's channel RPC helpers
+  // still use the scoped owner property when registering routes; expose the
+  // active service on the channel scope when the loader supplied it through
+  // the unscoped service lookup.
+  const webServer = typeof ctx?.get === 'function' ? ctx.get('webServer') : undefined;
+  if (webServer === undefined || typeof ctx?.extend !== 'function') {
+    return ctx;
+  }
+  return ctx.extend({ webServer });
+}
+
 export function createImHostPlugin(internals = {}) {
   const startFeishu = internals.applyFeishu ?? applyFeishu;
   const startWeixin = internals.applyWeixin ?? applyWeixin;
@@ -54,12 +67,13 @@ export function createImHostPlugin(internals = {}) {
     inject,
     async apply(ctx, config = {}) {
       setImHostLanguage(config.language ?? process.env.DSH_IM_LANGUAGE);
+      const scopedCtx = channelContext(ctx);
       if (typeof ctx?.inject === 'function') {
-        ctx.inject(['tools', 'systemPrompt'], (artifactCtx) => {
+        scopedCtx.inject(['tools', 'systemPrompt'], (artifactCtx) => {
           installOutboundArtifactTool(artifactCtx);
         });
       } else {
-        installOutboundArtifactTool(ctx);
+        installOutboundArtifactTool(scopedCtx);
       }
       const logger = typeof ctx?.logger === 'function'
         ? ctx.logger(name)
@@ -67,7 +81,7 @@ export function createImHostPlugin(internals = {}) {
       const failures = [];
       for (const [channel, start] of channels) {
         try {
-          await start(ctx, channelConfig(config, channel));
+          await start(scopedCtx, channelConfig(config, channel));
         } catch (error) {
           failures.push(error);
           logger.error?.(`[dsh-im] failed to activate ${channel}; continuing with the remaining channels`, error);

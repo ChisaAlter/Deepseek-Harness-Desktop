@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `remote-settings` |
 | **status** | `active` |
-| **last verified** | 2026-09-08 — 默认服务器切到 `ayase.cn:443` + TLS，公网 SPA 切到 `https://ayase.cn/dshd/`；旧内置 IP 精确迁移、自定义服务器保留。VPS relay 容器 `healthy` / 0 restart，nginx live 与候选配置通过；Node 远程聚焦 92 pass / 0 fail / 1 环境 skip，设置 UI 10/10，公网目录一致性通过，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。未执行真机相机、Android WebView 或正式安装包升级验收。 |
+| **last verified** | 2026-09-11 — rc.1 后 dsh-im 各 channel 的 caller-scoped webServer 注入已修复；dsh-im check 19 pass / 1 skip、官方 remote specs、真实 source smoke 与 package dry-run 通过。此前：2026-09-08 — 默认服务器切到 `ayase.cn:443` + TLS，公网 SPA 切到 `https://ayase.cn/dshd/`；旧内置 IP 精确迁移、自定义服务器保留。VPS relay 容器 `healthy` / 0 restart，nginx live 与候选配置通过；Node 远程聚焦 92 pass / 0 fail / 1 环境 skip，设置 UI 10/10，公网目录一致性通过，真实 daemon + 公网 relay + 公网 SPA E2E 10/10。未执行真机相机、Android WebView 或正式安装包升级验收。 |
 
 ## User paths
 

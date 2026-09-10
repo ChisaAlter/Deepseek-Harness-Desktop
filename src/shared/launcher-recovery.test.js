@@ -77,3 +77,10 @@ test('session cache diagnosis outranks sticky skip without recommending plugin r
   assert.match(verdict, /不要删除/);
   assert.doesNotMatch(verdict, /恢复完整插件/);
 });
+
+test('port-excluded diagnosis outranks sticky skip: a reserved port is not a plugin problem', () => {
+  const verdict = recoveryVerdict(null, { skipUserPlugins: true }, { genericCause: 'port-excluded' });
+  assert.match(verdict, /系统保留/);
+  assert.match(verdict, /listen EACCES/);
+  assert.doesNotMatch(verdict, /恢复完整插件/);
+});

@@ -1057,3 +1057,75 @@ test('probePort/findFreePort 对通配 host 归一探测地址', async () => {
     server.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Windows 保留端口段：段内没有监听者，connect 探测看不见，必须真实 bind 试探
+// ---------------------------------------------------------------------------
+
+test('canBindPort：空闲端口可绑定，被占用端口不可绑定', async () => {
+  const http = require('node:http');
+  const { canBindPort } = require('./dsh');
+  const server = http.createServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const held = server.address().port;
+  const probe = http.createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const released = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  try {
+    assert.equal(await canBindPort('127.0.0.1', held), false, '被占用端口应判定不可绑定');
+    assert.equal(await canBindPort('127.0.0.1', released), true, '刚释放的端口应判定可绑定');
+  } finally {
+    server.close();
+  }
+});
+
+test('ensureOwnedPort 遇系统保留端口（bind EACCES）时改用相邻可绑定端口', async () => {
+  const http = require('node:http');
+  const { ensureOwnedPort } = require('./dsh');
+  const probe = http.createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const wanted = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  // 模拟 Windows 保留段：wanted~wanted+2 无监听者，但 bind 会 EACCES。
+  const reserved = new Set([wanted, wanted + 1, wanted + 2]);
+  const logs = [];
+  const port = await ensureOwnedPort('127.0.0.1', wanted, (line) => logs.push(line), {
+    bindable: async (host, candidate) => !reserved.has(candidate),
+  });
+  assert.ok(!reserved.has(port), '不得落在保留段内');
+  assert.ok(port > wanted, '应改跳到保留段之外');
+  assert.ok(
+    logs.some((line) => line.includes('被系统保留') && line.includes('改用')),
+    '应记录保留原因：' + JSON.stringify(logs),
+  );
+});
+
+test('findFreePort 跳过不可绑定的保留端口', async () => {
+  const http = require('node:http');
+  const { findFreePort } = require('./dsh');
+  const probe = http.createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const begin = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  const reserved = new Set([begin, begin + 1]);
+  const port = await findFreePort('127.0.0.1', begin, {
+    bindable: async (host, candidate) => !reserved.has(candidate),
+  });
+  assert.ok(!reserved.has(port), '保留端口不得当选');
+  assert.ok(port > begin, '应跳到保留段之外');
+});
+
+test('ensureOwnedPort 不把无效绑定地址误归因于系统保留端口', async () => {
+  const { ensureOwnedPort } = require('./dsh');
+  await assert.rejects(
+    () => ensureOwnedPort('192.0.2.1', 3080, () => {}, {
+      bindableStatus: async () => ({ ok: false, errorCode: 'EADDRNOTAVAIL' }),
+    }),
+    (error) => {
+      assert.equal(error.code, 'EADDRNOTAVAIL');
+      assert.match(error.message, /EADDRNOTAVAIL/);
+      return true;
+    },
+  );
+});

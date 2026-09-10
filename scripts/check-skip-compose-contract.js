@@ -16,12 +16,24 @@ const {
   DSH_IM_END,
   DSH_IM_INSERT_ID,
 } = require('../src/main/dsh-im-desktop');
+const {
+  ensureDesktopUsagePanel,
+  USAGE_PANEL_PACKAGE,
+} = require('../src/main/usage-panel-preset');
+const {
+  ensureDesktopMarket,
+  DSH_MARKET_INSERT_ID,
+} = require('../src/main/dsh-market-desktop');
+const {
+  ensureSessionSearchOverlay,
+} = require('../src/main/session-search-overlay');
 
 /**
  * Skip compose contract against the REAL dsh CLI (`dsh web --dump-config`):
- * every desktop start passes the desktop-owned install AND dsh-im overlays
- * via `--patch`; a skip start must compose both overlays while the user
- * layer stays out, and a full start must compose all three. The fixture also
+ * every desktop start passes the desktop-owned install, usage, dsh-im, and
+ * market overlays via `--patch`; a skip start must compose those overlays
+ * while the user layer stays out, and a full start must add session search.
+ * The fixture also
  * replays the managed-block migration: the temp profile starts with a canary
  * user row PLUS the legacy install and dsh-im managed blocks, and ensure
  * must strip the blocks (keeping the canary) or the full round double-mounts
@@ -37,6 +49,9 @@ const {
 const CANARY_ID = 'dshd-contract-canary-user-plugin';
 const INSTALL_ID = 'dshd-desktop-plugin-install';
 const IM_ID = DSH_IM_INSERT_ID;
+const USAGE_ID = 'usage-stats';
+const MARKET_ID = DSH_MARKET_INSERT_ID;
+const SESSION_SEARCH_ID = 'session-query-sqlite';
 const DUMP_TIMEOUT_MS = 120_000;
 
 const CANARY_PATCH = [
@@ -67,8 +82,14 @@ const LEGACY_DSH_IM_BLOCK = [
   '',
 ].join('\n');
 
-function countOccurrences(text, needle) {
-  return String(text).split(needle).length - 1;
+function countRows(text, id) {
+  const expected = `- id: ${id}`;
+  return String(text).split(/\r?\n/).filter((line) => line.trim() === expected).length;
+}
+
+function countConfigLines(text, value) {
+  const expected = `${value}`;
+  return String(text).split(/\r?\n/).filter((line) => line.trim() === expected).length;
 }
 
 /**
@@ -109,17 +130,29 @@ function writeDshImFixture(home) {
 function composeContractProblems(round, stdout) {
   const text = String(stdout || '');
   const problems = [];
-  const installCount = countOccurrences(text, INSTALL_ID);
-  if (installCount === 0) {
-    problems.push(`${round}: dump 输出缺少桌面安装插件行 ${INSTALL_ID}`);
-  } else if (installCount > 1) {
-    problems.push(`${round}: 桌面安装插件行出现 ${installCount} 次——受管块残留与 overlay 双挂载`);
+  const requiredRows = [
+    [INSTALL_ID, '桌面安装插件'],
+    [USAGE_ID, '桌面内置用量统计'],
+    [IM_ID, '桌面内置 dsh-im'],
+    [MARKET_ID, '桌面内置市场'],
+  ];
+  for (const [id, label] of requiredRows) {
+    const count = countRows(text, id);
+    if (count === 0) {
+      problems.push(`${round}: dump 输出缺少${label}行 ${id}`);
+    } else if (count > 1) {
+      problems.push(`${round}: ${label}行出现 ${count} 次——受管块残留与 overlay 双挂载`);
+    }
   }
-  const imCount = countOccurrences(text, IM_ID);
-  if (imCount === 0) {
-    problems.push(`${round}: dump 输出缺少桌面内置 dsh-im 行 ${IM_ID}`);
-  } else if (imCount > 1) {
-    problems.push(`${round}: 桌面内置 dsh-im 行出现 ${imCount} 次——受管块残留与 overlay 双挂载`);
+  // The base Web bundle always has session-query-sqlite with openAt: never;
+  // only the desktop overlay changes it to first-search on full starts.
+  const searchCount = countConfigLines(text, 'openAt: first-search');
+  if (round === 'skip' && searchCount > 0) {
+    problems.push(`${round}: session-search overlay 不应随 --skip-user-plugins compose`);
+  } else if (round === 'full' && searchCount === 0) {
+    problems.push(`${round}: dump 输出缺少 full-start session-search 行 ${SESSION_SEARCH_ID}`);
+  } else if (round === 'full' && searchCount > 1) {
+    problems.push(`${round}: session-search 行出现 ${searchCount} 次——overlay 重复挂载`);
   }
   if (round === 'skip') {
     if (text.includes(CANARY_ID)) {
@@ -133,18 +166,22 @@ function composeContractProblems(round, stdout) {
 
 /**
  * The two dump-config invocations, mirroring the desktop's production argv:
- * every desktop-owned overlay rides `--patch` on BOTH rounds (launcher flags
- * stay in the CLI grammar prefix, before any app arg).
+ * install, usage, dsh-im, and market overlays ride `--patch` on BOTH rounds;
+ * full starts add session-search between usage and dsh-im (launcher flags stay
+ * in the CLI grammar prefix, before any app arg).
  * @param {string} binJs - absolute path of apps/cli/lib/bin.js.
- * @param {string[]} overlayFiles - the desktop-owned overlays (install + dsh-im).
+ * @param {string[]} overlayFiles - desktop-owned overlays on skip and full starts.
+ * @param {string[]} fullOverlayFiles - exact full-start order, including full-only overlays.
  * @returns {Array<{ round: 'skip'|'full', args: string[] }>}
  */
-function composeContractRounds(binJs, overlayFiles) {
+function composeContractRounds(binJs, overlayFiles, fullOverlayFiles = overlayFiles) {
   const overlays = (Array.isArray(overlayFiles) ? overlayFiles : [overlayFiles])
+    .flatMap((file) => ['--patch', file]);
+  const full = (Array.isArray(fullOverlayFiles) ? fullOverlayFiles : [fullOverlayFiles])
     .flatMap((file) => ['--patch', file]);
   return [
     { round: 'skip', args: [binJs, 'web', '--skip-user-plugins', ...overlays, '--dump-config'] },
-    { round: 'full', args: [binJs, 'web', ...overlays, '--dump-config'] },
+    { round: 'full', args: [binJs, 'web', ...full, '--dump-config'] },
   ];
 }
 
@@ -155,9 +192,9 @@ function composeContractRounds(binJs, overlayFiles) {
  * a runtime that is supposed to be complete.
  * @param {string} harnessRoot
  * @param {{ spawnSync?: typeof spawnSync, nodeBin?: string, log?: (line: string) => void }} [options]
- * @returns {{ ok: true, rounds: number }}
+ * @returns {Promise<{ ok: true, rounds: number }>}
  */
-function runSkipComposeContract(harnessRoot, options = {}) {
+async function runSkipComposeContract(harnessRoot, options = {}) {
   const spawn = options.spawnSync || spawnSync;
   const nodeBin = options.nodeBin || process.execPath;
   const log = options.log || (() => {});
@@ -188,6 +225,27 @@ function runSkipComposeContract(harnessRoot, options = {}) {
     if (!imEnsure || imEnsure.ok !== true) {
       throw new Error(`skip compose 契约门禁：ensureDesktopDshIm 失败（${(imEnsure && imEnsure.error) || 'unknown'}）`);
     }
+    const usageSource = path.join(home, 'fixtures', 'usage-panel');
+    fs.mkdirSync(usageSource, { recursive: true });
+    fs.writeFileSync(path.join(usageSource, 'package.json'), JSON.stringify({
+      name: USAGE_PANEL_PACKAGE,
+      version: '0.0.0-contract',
+      main: './index.js',
+      dependencies: {},
+    }, null, 2), 'utf8');
+    fs.writeFileSync(path.join(usageSource, 'index.js'), 'export function apply() {}\n', 'utf8');
+    const usageEnsure = await ensureDesktopUsagePanel({ sourceDir: usageSource, profileDir });
+    if (!usageEnsure || usageEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureDesktopUsagePanel 失败（${(usageEnsure && usageEnsure.error) || 'unknown'}）`);
+    }
+    const marketEnsure = ensureDesktopMarket({ sourceDir: null, profileDir });
+    if (!marketEnsure || marketEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureDesktopMarket 失败（${(marketEnsure && marketEnsure.error) || 'unknown'}）`);
+    }
+    const searchEnsure = ensureSessionSearchOverlay({ profileDir, dshHome: home });
+    if (!searchEnsure || searchEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureSessionSearchOverlay 失败（${(searchEnsure && searchEnsure.error) || 'unknown'}）`);
+    }
     const migrated = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8');
     if (migrated.includes(DESKTOP_INSTALL_BEGIN) || migrated.includes(DSH_IM_BEGIN)) {
       throw new Error('skip compose 契约门禁：受管块迁移失败——cordis.patch.yml 仍含桌面受管块');
@@ -201,8 +259,23 @@ function runSkipComposeContract(harnessRoot, options = {}) {
     delete env.DSHD_HOME;
     delete env.DSH_HARNESS_ROOT;
     const problems = [];
-    const overlayFiles = [ensure.overlayFile, imEnsure.overlayFile];
-    for (const { round, args } of composeContractRounds(binJs, overlayFiles)) {
+    // Keep this order identical to HarnessController: session-search is
+    // inserted before dsh-im and market on full starts, while dsh-im and
+    // market remain present on skip starts too.
+    const overlayFiles = [
+      ensure.overlayFile,
+      usageEnsure.overlayFile,
+      imEnsure.overlayFile,
+      marketEnsure.overlayFile,
+    ];
+    const fullOverlayFiles = [
+      ensure.overlayFile,
+      usageEnsure.overlayFile,
+      searchEnsure.overlayFile,
+      imEnsure.overlayFile,
+      marketEnsure.overlayFile,
+    ];
+    for (const { round, args } of composeContractRounds(binJs, overlayFiles, fullOverlayFiles)) {
       log(`dump-config ${round} 轮…`);
       const result = spawn(nodeBin, args, {
         encoding: 'utf8',
@@ -234,6 +307,9 @@ module.exports = {
   CANARY_ID,
   INSTALL_ID,
   IM_ID,
+  USAGE_ID,
+  MARKET_ID,
+  SESSION_SEARCH_ID,
   composeContractProblems,
   composeContractRounds,
   runSkipComposeContract,
@@ -241,11 +317,10 @@ module.exports = {
 
 if (require.main === module) {
   const root = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vendor', 'deepseek-harness'));
-  try {
-    runSkipComposeContract(root, { log: (line) => console.log(line) });
+  runSkipComposeContract(root, { log: (line) => console.log(line) }).then(() => {
     console.log(`skip compose 契约通过（${root}）`);
-  } catch (error) {
+  }).catch((error) => {
     console.error(error && error.message ? error.message : String(error));
     process.exit(1);
-  }
+  });
 }

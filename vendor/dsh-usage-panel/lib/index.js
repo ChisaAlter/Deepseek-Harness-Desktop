@@ -1484,6 +1484,11 @@ var inject = [
   "sessionQuery",
   "sessionProjectionCache"
 ];
+function channelContext(ctx) {
+  const webServer = typeof ctx?.get === "function" ? ctx.get("webServer") : void 0;
+  if (webServer === void 0 || typeof ctx?.extend !== "function") return ctx;
+  return ctx.extend({ webServer });
+}
 function isSessionGone(err) {
   return err?.code === "SESSION_QUERY_SESSION_NOT_FOUND";
 }
@@ -1491,10 +1496,11 @@ var STALE_MS = 10 * 60 * 1e3;
 var RESCAN_MS = 10 * 60 * 1e3;
 function apply(ctx) {
   const tag = "[dsh-usage-panel]";
+  const scopedCtx = channelContext(ctx);
   const sq = ctx.get("sessionQuery");
   const registry = ctx.get("sessionProjections");
   const projCache = ctx.get("sessionProjectionCache");
-  const connection = ctx.get("connection");
+  const connection = scopedCtx.get("connection");
   const llm = ctx.get("llm");
   let mode = "projection";
   console.log(

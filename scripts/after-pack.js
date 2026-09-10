@@ -944,9 +944,10 @@ module.exports = async function afterPack(context) {
   // Skip compose contract against the REAL packaged CLI: unit tests mock
   // dsh.start, so this dist-path gate is the only automated place where the
   // shipped runtime proves `--skip-user-plugins` drops the user layer while
-  // the desktop-owned `--patch` overlay still mounts the install plugin.
+  // the desktop-owned overlays mount install + usage + dsh-im + market on
+  // every start and session-search only on full starts.
   console.log('校验 skip compose 契约（真实 CLI dump-config，skip + full 双轮）…');
-  runSkipComposeContract(harnessDest, { log: (line) => console.log(line) });
+  await runSkipComposeContract(harnessDest, { log: (line) => console.log(line) });
 
   const archive = path.join(resources, 'vendor', 'deepseek-harness.tar');
   console.log('打包运行时为单个 tar，减少 NSIS 解压文件数…');
