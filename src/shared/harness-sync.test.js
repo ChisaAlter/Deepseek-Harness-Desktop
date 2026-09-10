@@ -50,6 +50,7 @@ function makeUpstream(t) {
   const shaA = commitAll(upstream, 'A');
   writeFile(upstream, 'keep.txt', 'theirs\n');
   writeFile(upstream, 'new.txt', 'added\n');
+  writeFile(upstream, 'snapshots/web/说明.txt', 'non-ascii\n');
   writeFile(upstream, 'apps/cli/package.json', `${JSON.stringify({ version: '0.1.0-rc.7' })}\n`);
   const shaB = commitAll(upstream, 'B');
   return { upstream, shaA, shaB };
@@ -104,6 +105,10 @@ test('happy path updates only the vendor prefix and pin', (t) => {
   assert.equal(pin.npm, '0.1.0-rc.7');
   assert.equal(fs.readFileSync(path.join(desktop, 'vendor', 'deepseek-harness', 'keep.txt'), 'utf8'), 'theirs\n');
   assert.equal(fs.readFileSync(path.join(desktop, 'vendor', 'deepseek-harness', 'new.txt'), 'utf8'), 'added\n');
+  assert.equal(
+    fs.readFileSync(path.join(desktop, 'vendor', 'deepseek-harness', 'snapshots', 'web', '说明.txt'), 'utf8'),
+    'non-ascii\n',
+  );
   assert.equal(fs.readFileSync(path.join(desktop, 'vendor', 'deepseek-harness', 'desktop-only.txt'), 'utf8'), 'local\n');
   assert.equal(fs.readFileSync(path.join(desktop, 'untouched.txt'), 'utf8'), 'root\n');
   assert.equal(git(desktop, ['rev-parse', BACKUP_REF]).status, 0);

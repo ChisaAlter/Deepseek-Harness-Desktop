@@ -171,13 +171,16 @@ function buildCandidate(git, root, mergedTree) {
 }
 
 function assertPrefixOnly(git, root, candidate) {
-  const names = gitOk(git, ['diff-tree', '--name-only', '-r', 'HEAD', candidate], { cwd: root })
-    .stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  // -z emits raw NUL-separated paths: core.quotepath C-quotes non-ASCII names
+  // (upstream ships e.g. snapshots/说明.txt) and the quoted form fails the
+  // prefix check below.
+  const names = gitOk(git, ['diff-tree', '-z', '--name-only', '-r', 'HEAD', candidate], { cwd: root })
+    .stdout.split('\0').map((line) => line.trim()).filter(Boolean);
   const leaked = names.filter((name) => name !== PREFIX && !name.startsWith(`${PREFIX}/`));
   if (leaked.length > 0) {
     throw new Error(`candidate tree touches paths outside ${PREFIX}: ${leaked.join(', ')}`);
   }
-  console.log(gitOk(git, ['diff-tree', '--name-status', '-r', 'HEAD', candidate], { cwd: root }).stdout);
+  console.log(gitOk(git, ['-c', 'core.quotepath=false', 'diff-tree', '--name-status', '-r', 'HEAD', candidate], { cwd: root }).stdout);
   return names;
 }
 
