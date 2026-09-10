@@ -46,8 +46,10 @@ function makeUpstream(t) {
   t.after(() => fs.rmSync(upstream, { recursive: true, force: true }));
   initRepo(upstream);
   writeFile(upstream, 'keep.txt', 'base\n');
+  writeFile(upstream, 'stale.txt', 'deleted upstream in B\n');
   writeFile(upstream, 'apps/cli/package.json', `${JSON.stringify({ version: '0.1.0-rc.5' })}\n`);
   const shaA = commitAll(upstream, 'A');
+  git(upstream, ['rm', 'stale.txt']);
   writeFile(upstream, 'keep.txt', 'theirs\n');
   writeFile(upstream, 'new.txt', 'added\n');
   writeFile(upstream, 'snapshots/web/说明.txt', 'non-ascii\n');
@@ -63,6 +65,7 @@ function makeDesktop(t, upstream, shaA, keep) {
   writeFile(desktop, 'untouched.txt', 'root\n');
   writeFile(desktop, 'vendor/deepseek-harness/keep.txt', keep);
   writeFile(desktop, 'vendor/deepseek-harness/desktop-only.txt', 'local\n');
+  writeFile(desktop, 'vendor/deepseek-harness/stale.txt', 'deleted upstream in B\n');
   writeFile(desktop, 'vendor/deepseek-harness/apps/cli/package.json', `${JSON.stringify({ version: '0.1.0-rc.5' })}\n`);
   writePin(desktop, {
     repo: 'https://github.com/deepseek-ai/deepseek-harness.git',
@@ -109,6 +112,8 @@ test('happy path updates only the vendor prefix and pin', (t) => {
     fs.readFileSync(path.join(desktop, 'vendor', 'deepseek-harness', 'snapshots', 'web', '说明.txt'), 'utf8'),
     'non-ascii\n',
   );
+  assert.equal(fs.existsSync(path.join(desktop, 'vendor', 'deepseek-harness', 'stale.txt')), false);
+  assert.equal(git(desktop, ['ls-files', '--', 'vendor/deepseek-harness/stale.txt']).stdout.trim(), '');
   assert.equal(fs.readFileSync(path.join(desktop, 'vendor', 'deepseek-harness', 'desktop-only.txt'), 'utf8'), 'local\n');
   assert.equal(fs.readFileSync(path.join(desktop, 'untouched.txt'), 'utf8'), 'root\n');
   assert.equal(git(desktop, ['rev-parse', BACKUP_REF]).status, 0);

@@ -195,6 +195,10 @@ function applyMergedTree(git, root, pin, ref, sha, mergedTree, io) {
   const candidate = buildCandidate(git, root, mergedTree);
   assertPrefixOnly(git, root, candidate);
   assertClean(git, root);
+  // checkout <tree> -- <path> only overwrites paths the tree still has; drop
+  // the prefix first so paths the merge deleted (upstream renames/reorgs)
+  // leave the index and worktree instead of lingering as pre-merge content.
+  gitOk(git, ['rm', '-r', '-q', '--ignore-unmatch', '--', PREFIX], { cwd: root });
   gitOk(git, ['checkout', candidate, '--', PREFIX], { cwd: root });
   const npm = readNpmVersion(bindGit(git, root), sha);
   const next = { repo: pin.repo, ref, sha, npm };
