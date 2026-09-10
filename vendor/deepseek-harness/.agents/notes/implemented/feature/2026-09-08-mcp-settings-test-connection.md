@@ -30,5 +30,4 @@ Focused Host tests cover stdio and HTTP success, paginated discovery, connection
 
 ## Related
 
-[MCP and Skill settings management](2026-08-14-mcp-and-skill-settings.md).
-[MCP Settings signs in HTTP servers](2026-08-20-mcp-settings-oauth.md).
+[MCP and Skill settings management](2026-08-14-mcp-and-skill-settings.md). [MCP Settings signs in HTTP servers](2026-08-20-mcp-settings-oauth.md).

@@ -16,6 +16,16 @@ Extend the existing `ComposerBeamStyle` and keep `ComposerBeam` as the sole rend
 
 Active style and presets are persisted together through one `SettingsScope.mutate()` revision fence. JSON exchange uses a versioned `dsh-composer-beam` envelope, rejects invalid core/version, unsafe colors, invalid preset names/counts, and inputs above 64 KiB, while unknown fields are ignored. Import changes only the draft until Save; failed writes keep the draft and report the localized error.
 
+## Alternatives considered
+
+**Port the reference implementation's state-light matrix.** Rejected because focus, typing, send, done, and error lights restate business state the InputBar and footer already render, and a second light vocabulary would make one capsule carry two meanings.
+
+**Add a second renderer for the new profiles.** Rejected because two renderers let the live InputBar and the Settings preview drift; `ComposerBeam` reads one CSS-variable contract for both.
+
+**Persist presets in their own namespace or a separate document.** Rejected because a split write can land a preset selection without its style; one namespace mutation makes the pair atomic.
+
+**Accept arbitrary CSS in the JSON envelope.** Rejected because unbounded colors, easing, and sizes would be unvalidated style injection; the envelope bounds every field and ignores unknown keys.
+
 ## Consequences
 
 Old five-field style documents remain loadable because Host schema defaults and client normalization fill the new fields. Reduced motion still hides the entire beam. Desktop customization does not alter mobile/web defaults, the InputBar activation condition, pointer hit-testing, composer stack gap, toolbar/Stop behavior, or the static rim.

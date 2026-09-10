@@ -16,6 +16,16 @@ Status: implemented
 
 active style 与预设通过同一个 `SettingsScope.mutate()` revision fence 一起持久化。JSON 交换使用带版本的 `dsh-composer-beam` envelope，拒绝错误 core/version、不安全颜色、非法预设名称/数量和超过 64 KiB 的输入，未知字段忽略。导入在点击 Save 前只改变草稿；写入失败时保留草稿并显示本地化错误。
 
+## 备选方案
+
+**移植参考实现的状态灯矩阵。** 否决，因为聚焦、输入、发送、完成与失败状态灯重复了 InputBar 与 footer 已经渲染的业务状态，第二套灯光词汇会让同一个胶囊同时表达两种含义。
+
+**为新模式另加一个渲染器。** 否决，因为两个渲染器会让运行态 InputBar 与设置预览漂移；`ComposerBeam` 对两者读取同一份 CSS 变量合同。
+
+**把预设持久化到独立命名空间或独立文档。** 否决，因为分离写入可能只落盘预设选择而丢掉对应 style；一次 namespace mutation 让两者原子提交。
+
+**允许 JSON envelope 携带任意 CSS。** 否决，因为不受限的颜色、缓动和尺寸等于未校验的样式注入；envelope 对每个字段做边界校验并忽略未知键。
+
 ## 后果
 
 旧五字段 style 文档仍可加载，因为 Host schema 默认值与 client 归一化会补齐新增字段。减弱动效仍隐藏完整 beam。桌面自定义不改变 mobile/web 默认值、InputBar 激活条件、指针命中、composer stack gap、toolbar/Stop 行为或静止 rim。

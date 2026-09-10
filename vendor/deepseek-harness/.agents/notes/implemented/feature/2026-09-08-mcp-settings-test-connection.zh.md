@@ -30,5 +30,4 @@ Settings 可以在不改变 MCP 配置或模型可见工具的前提下报告真
 
 ## Related
 
-[MCP 与 Skill Settings 管理](2026-08-14-mcp-and-skill-settings.zh.md)。
-[MCP Settings 为 HTTP 服务器登录](2026-08-20-mcp-settings-oauth.zh.md)。
+[MCP 与 Skill Settings 管理](2026-08-14-mcp-and-skill-settings.zh.md)。[MCP Settings 为 HTTP 服务器登录](2026-08-20-mcp-settings-oauth.zh.md)。
