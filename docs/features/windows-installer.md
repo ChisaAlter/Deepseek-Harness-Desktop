@@ -22,6 +22,7 @@
 - 许可页读根 `LICENSE`（MIT）原文。
 - 安装器/卸载器图标 = `assets/icon.ico`（与应用同一鲸标）。
 - 发布链产物验收：windows job 的 packaged smoke 门禁（`smoke:packaged` on `dist/win-unpacked`）位于 `npm run dist` 之后、artifact 上传之前，**阻断**发版；步骤内置两次尝试（连续两次失败=真问题），不设 `continue-on-error`。`workflow_dispatch` 默认只构建 Windows；macOS 仅在显式 `include_macos=true` 时构建。本版 Windows 发布不上传 DMG。不得把该步骤改造成重复 test.yml 的质量门（`npm test` / `test:gui` 仍禁止进 release.yml）。
+- 发布晋级必须使用 `.github/workflows/publish.yml`：仅接受 `release.yml` 在 `main` 分支的成功候选运行，核对同一 SHA 的 Desktop tests、Setup SHA256 与版本化文件名，从该运行下载原始资产并生成 `SHA512SUMS.txt` / provenance；晋级步骤不得重新执行 `setup-harness` 或 `npm run dist`。
 
 ## Allowed touch
 
@@ -29,7 +30,7 @@
 - `build/` — `installer.nsh` 与生成的 BMP
 - `scripts/render-installer-assets.js`、`scripts/run-render-installer-assets.js` — 位图生成
 - `src/main/installer-branding.test.js` — 自动门禁
-- `.github/workflows/release.yml` windows job 的 packaged smoke、手动候选的 Windows-only 默认值与 `src/main/ci-isolation.test.js` 对应钉子（2026-09-06 用户明确要求本版不要 macOS；上传 globs / SHA512SUMS 流仍在 Do not touch）
+- `.github/workflows/release.yml` windows job 的 packaged smoke、`.github/workflows/publish.yml` 的同一候选资产晋级、手动候选的 Windows-only 默认值与 `src/main/ci-isolation.test.js` 对应钉子（2026-09-06 用户明确要求本版不要 macOS；上传 globs / SHA512SUMS 流仍在 Do not touch）
 - 本卡与 [build-release handbook](../handbook/modules/build-release.md)
 
 ## Do not touch
@@ -42,7 +43,7 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `node --test src/main/installer-branding.test.js src/main/ci-isolation.test.js`（随 `npm test`）：nsis 契约、BMP 几何/位深、nsh 宏白名单、release.yml glob 对齐；手动候选默认 Windows-only；packaged smoke 位于 dist 后、上传前，两次尝试且无 `continue-on-error`；release CI 实跑 `smoke:packaged`（win-unpacked 实启 + 内嵌 DSH_SMOKE 断言，阻断发版） |
+| Automated | `node --test src/main/installer-branding.test.js src/main/ci-isolation.test.js`（随 `npm test`）：nsis 契约、BMP 几何/位深、nsh 宏白名单、release.yml glob 对齐；手动候选默认 Windows-only；packaged smoke 位于 dist 后、上传前，两次尝试且无 `continue-on-error`；publish.yml 只晋级 main 同 SHA 候选、校验 Setup 版本名 / SHA256 并禁止重建；release CI 实跑 `smoke:packaged`（win-unpacked 实启 + 内嵌 DSH_SMOKE 断言，阻断发版） |
 | Manual / QA | `TC-INST-001`（GUI 安装走查）、`TC-INST-009`（`/S` 覆盖升级）、`TC-INST-010`（卸载）、`TC-INST-012/013` in [production-acceptance-test-cases.md](../qa/production-acceptance-test-cases.md)；每次改品牌位图后对 CI windows artifact 目检欢迎/许可/目录/完成/卸载五页——实机执行清单（artifact 下载/SHA256/逐页 checklist/zh_CN）固化在 [TC-INST-RUNBOOK.md](../qa/results/2026-08-25/installer-branding/TC-INST-RUNBOOK.md) |
 
 ## Sources

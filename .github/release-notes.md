@@ -1,8 +1,8 @@
-## Deepseek-Harness-Desktop 0.2.9
+## Deepseek-Harness-Desktop 0.3.0
 
-发布日期：2026-09-06。平台：Windows x64。
+平台：Windows x64；macOS 仅在同一已验收候选包含该资产时发布。
 
-相对 [0.2.7](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7)：Harness 升级到 `0.1.2-rc.1`，修复识图路由、历史工作区关联和非法工具调用保护，并带来内置用量统计、内置市场、透明主题与服务器默认远程连接。`0.2.8` 未对外发布。
+相对 [0.2.9](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9)，本版本只记录本轮实际变更，并将 Harness 固定到 `dsh-v0.1.5-rc.1`（SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`）。候选构建与发布晋级分离；晋级只接受已验收候选运行产生的原始资产，不由 tag push 触发重建。
 
 ### 升级注意（必读）
 
@@ -32,66 +32,34 @@ if (Test-Path "$old\attachments") {
 
 ### 安装包
 
-本次 `0.2.9` 仅发布 Windows x64 安装包，不提供 macOS 新版安装包。
+本版本 `0.3.0` 提供 Windows x64；macOS 仅在同一已验收候选包含该资产时发布，晋级阶段不会重新构建。
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.9.exe` |
+| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.3.0.exe` |
 
-- 校验：同页的 `SHA512SUMS.txt`（Windows Setup / blockmap）
+- 校验：候选晋级页生成的 `SHA512SUMS.txt`（Windows Setup / blockmap）
 - 安装器未做 Authenticode 签名；请从本仓库下载并核对校验文件。
 
 ### 本版变化
 
-**关键修复**
+- Harness 固定为 `dsh-v0.1.5-rc.1`（SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`），源码与安装包共用同一官方基线。
+- 安装版 Browser 交付 `dshd mini-player` P0 路径：复用同一 Browser guest / `previewId`，挂到聊天可视区内的 renderer 浮层，支持标题栏拖拽和四边/四角缩放；恢复后保留 URL / history。
+- 边界：mini-player 只迁移 guest 的呈现边界，不创建第二个 BrowserView、外部窗口或 mini 专用 IPC；Web / Android 仍不在默认 Windows 候选的验收范围内。
+- 启动器与 compose 恢复链、`dsh-im` / `dsh-usage` 内置模块的装配保持可用，避免候选包缺少桌面恢复和用量入口。
+- 修复文件交付卡动作后的预览焦点、标题栏浮动面板拖拽误报、模型菜单拖拽隔离、Python lazy grammar 事件同步和 Switch `corner-shape` 契约。
+- 终端 settle-fit 只在宿主拥有真实 used box 时调整 PTY，未布局或折叠 pane 不再产生伪 resize。
+- 工具调用继续执行严格的 id/name 校验、畸形响应重试和旧投影修复；keyless malformed-call 快照改用 v3 规范，原始会话日志不被改写。
+- 构建与晋级分离：`release.yml` 生成并冒烟安装包，`publish.yml` 仅下载同一已验收运行的原始资产，校验同 SHA 测试、Setup SHA256 和版本文件名后才创建 Release，不重新构建。
 
-- 恢复识图模型设置的请求消费，上传图片和工具读取图片可交由识图模型生成描述；后续请求复用已记录描述，取消和超时不再伪装为成功
-- 恢复工具调用标识校验、畸形响应重试和旧历史投影修复，原始会话日志保持不变
-- 注册或重新添加工作区时重新关联后来导入的历史会话，保留原有归属和排序
-- 启动时自动补回仍登记工作区遗漏的历史和已归档会话，保留原成员顺序与归档状态，不恢复已删除的工作区
-- 修复插件 Git 安装失败被误报为构建授权的问题
-- 文件搜索先按查询过滤再限制结果，避免目标文件被截断漏检
-- 修复旧版 `session_projcache` 记录可能让 Harness 陷入启动崩溃循环的问题；旧格式记录会备份并冷重建，不再阻塞进入应用
-- 修复已重建的 Web UI 组合仍命中旧 `index.html` 缓存的问题
-- 恢复侧栏分组折叠动画，并补齐输入卡四角连续边光与静止态边缘层级
+### 本版不交付
 
-**Harness 与会话**
-
-- Harness 钉 `dsh-v0.1.2-rc.1`；安装包与源码从 0.2.9 起使用同一官方基线
-- 归档 / 就地编辑重新接上官方 workspace / session Remote
-- 会话统计与峰谷行停靠在输入卡宽度内；界面设置可开「会话累计费用」
-- 标题栏 Git：登记工作区后即可切分支 / 推拉（0.1.2 工作区 unary 口径）
-
-**设置与外观**
-
-- 设置里的值选择改为官方胶囊 + 菜单（模型、MCP、Skills、通用 / 界面、价格面板）
-- 外观新增「透明主题」：有壁纸时表层 0% 填充；毛玻璃低于 20% 会一次性提到 20%
-- Skills 支持多选分组
-- 用量统计与市场改为桌面内置模块；市场 Discover 分页，退役家族（含改名绕过）整段拒绝安装
-- 工作区 / 空态选择器统一为紧凑方形入口
-
-**启动与恢复**
-
-- 启动失败仍只在启动器 Recovery Board 做插件级排查
-- 对话页多标签遵守「显示会话标签」开关；AppFrame 不再露出 cozy Session 日志标签
-
-**本版不交付**
-
-- dshbot 的机器人功能由独立插件维护，不随桌面交付；旧用户安装保留，由通用插件管理负责禁用和恢复
-
-**远程连接**
-
-- 设置中的「外出」改为「服务器」，未配置时默认服务器；局域网保留为手动选项
-- 默认模式不会自动开启配对；已保存的连接方式和中继地址保持不变
-- 手机目录只传列表必需信息，保留全部会话；模型、权限与计划详情在打开会话时获取，降低弱网下目录同步超时的风险
-- 首次连接失败恢复重试入口，配对成功后自动重连改用保存凭据；新配对链接可取消未完成的旧连接
-- 内置消息渠道适配新版 Harness 鉴权、事件与审批协议，修复 Windows 飞书 SDK 构建兼容问题
-- 精简远程运行时并统一 DSHD 命名，补齐与 Electron 匹配的 SQLite 原生绑定
-- Android 壳层同步连接与前后台恢复修复；本次发布不包含 Android APK，Android 实机验收尚未完成
+- dshbot 的机器人功能由独立插件维护，不随桌面交付；旧用户安装保留，由通用插件管理负责禁用和恢复。
+- Web 第二客户端、Android APK 与 macOS 实机验收不在默认 Windows 候选范围内。
 
 ### 发布验证与已知边界
 
-- 固定源码：`583b6fa92d93df2ee56363e96e2891b356af75b9`；[Desktop tests](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/34015974835) 和 [Windows 构建及打包冒烟](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/34015983516) 已通过。
-- 发布的是同一批 CI 原始产物，Setup SHA256：`1eb5bd7c3769e1d09a6e863f8948706359f255a91608f0989e7982d19c380117`。
-- 本次经维护者在获知验收缺口后明确授权发布；完整新包实机 P0 验收仍未完成，未测项不计 Pass，历史候选结果不沿用。
-- Web 第二客户端、Android 与 macOS 实机验收不在本次放行范围；全库文档检查仍有既有问题，不宣称所有检查通过。
+- 发布前必须在发布记录填入构建源码 SHA、运行 ID、Desktop tests 成功运行和 Setup SHA256；本文件不预填运行号或资产摘要。
+- 发布晋级使用 `.github/workflows/publish.yml`，要求操作员提供候选运行 ID、`v0.3.0` 标签和 Setup SHA256；晋级阶段不重建二进制，并生成 `SHA512SUMS.txt` 与 provenance。
+- 完整安装包 P0 实机验收仍是发布前置条件；未测项不计 Pass，历史候选结果不沿用。
+- Web 第二客户端、Android 与 macOS 实机验收仍不在 Windows 默认候选范围；全库文档检查存在既有问题，不宣称所有检查通过。

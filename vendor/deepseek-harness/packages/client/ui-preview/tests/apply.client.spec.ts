@@ -5,12 +5,14 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '../src/client/index.ts'
 import { PreviewPanel } from '../src/client/PreviewPanel.tsx'
+import { DshdMiniPlayer } from '../src/client/DshdMiniPlayer.tsx'
 
 function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
     children: {
       'surfaces.browser': { kind: 'single', scope: 'session-maybe' },
+      'shell.overlay': { kind: 'list', scope: 'root' },
     },
   } as never, () => null)
 }
@@ -34,8 +36,10 @@ describe('ui-preview apply', () => {
   it('injects PreviewPanel into surfaces.browser', async () => {
     const b = await bench()
     expect(b.slots.entries('surfaces.browser')[0]?.component).toBe(PreviewPanel)
+    expect(b.slots.entries('shell.overlay')[0]?.component).toBe(DshdMiniPlayer)
     await b.fiber.dispose()
     expect(b.slots.entries('surfaces.browser')).toHaveLength(0)
+    expect(b.slots.entries('shell.overlay')).toHaveLength(0)
   })
 
   it('re-registers after the declaring slot collapses and returns', async () => {

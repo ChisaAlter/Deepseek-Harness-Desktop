@@ -9,7 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { CodeBlock } from '../src/markdown/CodeBlock.tsx'
-import { StreamingHighlightSession } from '../src/markdown/highlight.ts'
+import { StreamingHighlightSession, subscribeGrammarLoaded } from '../src/markdown/highlight.ts'
 import { markdownLabels } from './labels.client.ts'
 
 const LABELS = markdownLabels.code
@@ -135,12 +135,20 @@ describe('StreamingHighlightSession', () => {
 
   it('a lazy grammar reports plain until it registers, then highlights on the next update', async () => {
     const session = new StreamingHighlightSession()
-    expect(session.update('print(1)', 'python')).toBeUndefined()
-    await vi.waitFor(() => {
+    const highlighted = Promise.withResolvers<void>()
+    const stop = subscribeGrammarLoaded(() => {
       const lines = session.update('print(1)', 'python')
-      expect(lines?.[0]?.map(span => span.text).join('')).toBe('print(1)')
-      expect(lines?.[0]?.length).toBeGreaterThan(1)
-    }, { timeout: 5_000 })
+      if (lines?.[0]?.length !== undefined && lines[0].length > 1) highlighted.resolve()
+    })
+    try {
+      expect(session.update('print(1)', 'python')).toBeUndefined()
+      await highlighted.promise
+    } finally {
+      stop()
+    }
+    const lines = session.update('print(1)', 'python')
+    expect(lines?.[0]?.map(span => span.text).join('')).toBe('print(1)')
+    expect(lines?.[0]?.length).toBeGreaterThan(1)
   })
 
   it('a trailing newline renders as a real empty last line (settled-arm parity)', () => {

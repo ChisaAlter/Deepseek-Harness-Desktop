@@ -2,7 +2,7 @@
 
 中文 · 扫桌面 **远程** 弹窗里的二维码。浏览器与 Android 都运行 `mobile/web` 的 dshd 远程 SPA；Android 原生层负责扫码、粘贴、返回、媒体选择与生命周期承载，不另写聊天 UI。它们都不是官方四栏 `dsh web`。
 
-**0.2.9 发布范围（2026-09-06）：** 本次仅交付 Windows x64 桌面安装包，不发布 Android APK。本文是源码能力说明，Web 第二客户端与 Android 未纳入本次实机放行范围，不能据此视为手机全流程验收通过。见[中英文发布说明](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9)。
+**0.3.0 发布范围：** 默认交付 Windows x64 桌面安装包，不发布 Android APK。本文是源码能力说明，Web 第二客户端与 Android 未纳入本次实机放行范围，不能据此视为手机全流程验收通过。见仓库内的[中文发布说明](../.github/release-notes.md)和[英文发布说明](../.github/release-notes.en.md)。
 
 **后续交互改造（2026-09-06，本地候选已构建，验收未完成）：** 上述发布范围保留为历史记录，不豁免本轮 T1 公网 Web、适用 T2 LAN 与 T3 Android 验收。当前修订的 debug APK 已构建，JVM 测试与源码资源审计通过，但不能记为真机 Pass。行为以[手机远程 feature card](../docs/features/mobile-remote.md)为准，候选身份见[打包记录](../tools/mobile-web-qa/results/2026-09-06-interaction/packaging.md)。
 

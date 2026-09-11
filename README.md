@@ -57,12 +57,12 @@
 
 | 平台 | 下载 |
 | --- | --- |
-| Windows 10 及以上 · x64 | [下载 v0.2.9 安装包](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/download/v0.2.9/Deepseek-Harness-Desktop-Setup-0.2.9.exe) |
+| Windows 10 及以上 · x64 | [下载最新公开版](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) |
 
 本版仅提供 Windows 安装包。其他版本与更新说明见 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases)。
 
 > [!NOTE]
-> Windows 安装包尚未进行数字签名，系统可能显示安全提示。请仅从本仓库下载；发布页提供 [SHA512SUMS.txt](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/download/v0.2.9/SHA512SUMS.txt) 供核对文件完整性。
+> Windows 安装包尚未进行数字签名，系统可能显示安全提示。请仅从本仓库下载；发布页提供 `SHA512SUMS.txt` 供核对文件完整性。
 
 ### 开始使用
 
@@ -80,7 +80,7 @@
 
 ### 如何升级？
 
-应用启动时会检查更新，也可以下载新版安装包覆盖安装。已使用 0.2.7 桌面版的用户可保留现有数据升级到 0.2.9；升级前建议备份数据目录。
+应用启动时会检查更新，也可以下载新版安装包覆盖安装。已使用 0.2.7 桌面版的用户可保留现有数据升级；升级前建议备份数据目录。
 
 从官方 CLI 或早于 0.2.7 的版本迁移，请使用启动器的「导入」，不要直接覆盖数据库或复制整个 `profiles` 目录。导入后重新添加原来的工作区路径即可查找对应会话。
 

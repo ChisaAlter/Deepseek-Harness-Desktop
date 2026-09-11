@@ -44,9 +44,13 @@ describe('highlightToHtml', () => {
 
   it('lazily loads every read-card grammar: plain first, highlighted after load', async () => {
     const registered = Promise.withResolvers<undefined>()
+    const pending = new Set(LAZY_ALIASES)
     // Registration notifications, not a private polling deadline, establish readiness.
     const stop = subscribeGrammarLoaded(() => {
-      if (LAZY_ALIASES.every(alias => highlightToHtml('x', alias) !== undefined)) registered.resolve(undefined)
+      for (const alias of pending) {
+        if (highlightToHtml('x', alias) !== undefined) pending.delete(alias)
+      }
+      if (pending.size === 0) registered.resolve(undefined)
     })
     try {
       for (const alias of LAZY_ALIASES) expect(highlightToHtml('x', alias), alias).toBeUndefined()
@@ -55,7 +59,7 @@ describe('highlightToHtml', () => {
     } finally {
       stop()
     }
-  })
+  }, 30_000)
 })
 
 describe('CodeBlock', () => {

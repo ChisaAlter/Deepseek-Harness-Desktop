@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FIT_SETTLE_MS } from './fit.ts'
+import { FIT_SETTLE_MS, hostHasFitSize } from './fit.ts'
 import { sessionBuffer, type TerminalSessionRecord } from './stores.ts'
 import {
   activateTerminalTarget,
@@ -150,6 +150,9 @@ export function TerminalPane({
         const activeTerminal = termRef.current
         /* v8 ignore next -- teardown clears this timer when it nulls termRef. */
         if (activeTerminal === null) return
+        // Do not fit a collapsed or not-yet-laid-out pane: Ghostty's default
+        // grid would otherwise be reported to the PTY as a spurious resize.
+        if (!hostHasFitSize(host)) return
         const wasAtBottom = activeTerminal.isAtBottom()
         activeTerminal.fit()
         if (wasAtBottom) activeTerminal.scrollToBottom()

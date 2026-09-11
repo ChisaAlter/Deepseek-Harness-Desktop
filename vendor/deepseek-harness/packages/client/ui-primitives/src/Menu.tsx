@@ -190,8 +190,8 @@ export function Menu({ open, anchor, items, selectedId, selectedIds, onSelect, o
   }, [mounted, portal, align, side, getAnchorRect, matchAnchorWidth])
 
   useEffect(() => {
-    if (open && autoFocus) listRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
-  }, [open, autoFocus])
+    if (open && autoFocus && mounted) listRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()
+  }, [open, autoFocus, mounted])
 
   useEffect(() => {
     if (!open) {

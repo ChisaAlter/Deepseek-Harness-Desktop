@@ -1,8 +1,8 @@
-## Deepseek-Harness-Desktop 0.2.9 (English)
+## Deepseek-Harness-Desktop 0.3.0 (English)
 
-Release date: September 6, 2026. Platform: Windows x64.
+Platform: Windows x64; macOS is published only when the same accepted candidate contains that artifact.
 
-Compared with [0.2.7](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.7), this release upgrades Harness to `0.1.2-rc.1`, repairs vision routing, historical workspace membership, and malformed tool-call handling, and includes built-in Usage Stats, Market, transparent themes, and Server-default remote connections. `0.2.8` was not publicly released.
+Compared with [0.2.9](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9), this release records only the current delta and pins Harness to `dsh-v0.1.5-rc.1` (SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`). Candidate building and promotion are separate; promotion accepts original assets from an accepted candidate run, and tag pushes no longer rebuild them.
 
 ### Important upgrade notes
 
@@ -30,66 +30,34 @@ if (Test-Path "$old\attachments") {
 
 ### Installer
 
-`0.2.9` ships a Windows x64 installer only. There is no new macOS installer in this release.
+`0.3.0` provides a Windows x64 installer. macOS is published only when the same accepted candidate contains that artifact; promotion never rebuilds it.
 
 | Platform | File |
 | --- | --- |
-| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.2.9.exe` |
+| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.3.0.exe` |
 
-- Checksums: `SHA512SUMS.txt` on this release, covering the Windows Setup and blockmap.
+- Checksums: `SHA512SUMS.txt` generated during candidate promotion, covering the Windows Setup and blockmap.
 - The installer is not Authenticode-signed. Download from this repository and verify the checksum file.
 
 ### Changes
 
-**Key fixes**
+- Pin Harness to `dsh-v0.1.5-rc.1` (SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`); source and installers share the same official baseline.
+- Ship the installed-package Browser `dshd mini-player` as a P0 path: reuse the same Browser guest / `previewId` in a renderer overlay constrained to the chat viewport, with title-bar drag and four-edge/four-corner resize; restore preserves URL / history.
+- Boundary: the mini-player only moves the guest presentation bounds; it does not create a second BrowserView, external window, or mini-specific IPC. Web / Android remain outside the default Windows candidate acceptance scope.
+- Keep launcher/compose recovery and the packaged `dsh-im` / `dsh-usage` desktop modules available so the candidate does not omit recovery or usage entry points.
+- Fix post-action preview focus, caption-drag false positives around floating panels, fixed model-menu drag isolation, Python lazy-grammar event synchronization, and the Switch `corner-shape` contract.
+- Limit terminal settle-fit resizing to panes with a real used box, avoiding phantom PTY resizes for hidden or not-yet-laid-out panes.
+- Preserve strict tool-call id/name validation, malformed-response retry, and historical projection repair; the keyless malformed-call fixture now uses the canonical v3 snapshot without rewriting the append-only session log.
+- Separate build from promotion: `release.yml` packages and smokes the installer, while `publish.yml` downloads the original assets from the same accepted run and requires same-SHA tests, Setup SHA256, and filename/version guards before creating a Release. It never rebuilds binaries.
 
-- Restore consumption of the configured vision model: uploads and images read by tools can be described by the fallback model; later requests reuse recorded descriptions, and cancellation or timeout is not reported as success.
-- Restore tool-call identifier validation, malformed-response retries, and historical projection repair while leaving original session logs unchanged.
-- Registering or re-adding a workspace adopts subsequently imported history while preserving existing ownership and ordering.
-- Startup restores missing active and archived history for still-registered workspaces, preserves original member order and archive state, and does not recreate deleted workspaces.
-- Do not misreport Git plugin installation failures as build-approval requests.
-- Filter file-search matches before limiting results so matching files are not lost to truncation.
-- Back up and cold-rebuild compatible old `session_projcache` records instead of letting them cause a startup crash loop.
-- Revalidate `index.html` after rebuilding the Web UI composition instead of serving an old cached page.
-- Restore sidebar group-fold animation and complete composer corner lighting and resting-edge layering.
-
-**Harness and conversations**
-
-- Pin Harness to `dsh-v0.1.2-rc.1`; source and installer builds share the official baseline from 0.2.9 onward.
-- Reconnect archive and inline message editing to the official workspace/session Remotes.
-- Align session statistics and peak/off-peak information with the composer width; cumulative session costs can be enabled in Interface Settings.
-- Restore titlebar branch switching and push/pull for registered workspaces using the 0.1.2 workspace unary API.
-
-**Settings and appearance**
-
-- Use official capsule-and-menu value selectors for models, MCP, Skills, General, Interface, and pricing controls.
-- Add transparent themes: with a wallpaper, surfaces use 0% fill; frost below 20% is raised to 20% once.
-- Support grouped multi-selection in Skills.
-- Make Usage Stats and Market built-in desktop modules. Market Discover is paginated; retired plugin families, including renamed variants, are rejected.
-- Use compact square entries for workspace and empty-state pickers.
-
-**Startup and recovery**
-
-- Keep plugin-level startup recovery in the launcher's Recovery Board.
-- Conversation tabs follow the Show session tabs preference; AppFrame no longer exposes the cozy Session log tab.
-
-**Not shipped**
+### Not shipped
 
 - dshbot functionality belongs to the independent plugin and is not bundled. Existing user installations remain available to generic plugin management and recovery.
-
-**Remote connections**
-
-- Rename Away to Server and default to Server when unconfigured; LAN remains manually selectable.
-- The default mode does not enable pairing automatically. Saved modes and relay addresses are preserved.
-- Send only catalog-required metadata while retaining all sessions; fetch model, permission, and plan details when opening a session to reduce weak-network catalog timeouts.
-- Restore retry after first-connect failure, use saved credentials for reconnect after pairing, and allow new pairing links to cancel unfinished older connections.
-- Adapt built-in messaging channels to newer Harness authentication, event, and approval APIs, including Windows Feishu SDK build compatibility.
-- Trim the remote runtime, standardize DSHD naming, and provide SQLite native bindings compatible with Electron.
-- Update Android connection and foreground/background recovery code. No Android APK is shipped, and Android device acceptance remains incomplete.
+- Web second-client, Android APK, and macOS device acceptance remain outside the default Windows candidate scope.
 
 ### Verification and known limits
 
-- Fixed source: `583b6fa92d93df2ee56363e96e2891b356af75b9`. [Desktop tests](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/34015974835) and the [Windows build and packaged smoke](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/34015983516) passed.
-- These are the same original CI artifacts. Setup SHA256: `1eb5bd7c3769e1d09a6e863f8948706359f255a91608f0989e7982d19c380117`.
-- The maintainer explicitly authorized publication after being informed of the acceptance gap. Full installed-package P0 acceptance remains incomplete; untested cases are not Pass, and earlier candidate results are not inherited.
-- Web second-client, Android, and macOS device acceptance are outside this release's approval scope. Repository-wide documentation checks still have existing failures; not all checks are claimed green.
+- The source SHA, workflow run ID, green Desktop tests run, and Setup SHA256 must be recorded before publication; run IDs and asset digests are intentionally not hardcoded here.
+- Promotion uses `.github/workflows/publish.yml` and requires the candidate run ID, `v0.3.0`, and the Setup SHA256. It does not rebuild binaries and generates `SHA512SUMS.txt` plus provenance.
+- Full installed-package P0 acceptance remains a release prerequisite; untested cases are not Pass, and earlier candidate results are not inherited.
+- Web second-client, Android, and macOS device acceptance remain outside the default Windows candidate scope. Repository-wide documentation checks still have existing failures; not all checks are claimed green.

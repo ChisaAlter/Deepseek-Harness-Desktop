@@ -8,8 +8,6 @@ on:
         required: false
         type: boolean
         default: false
-  push:
-    tags: ['v*'] # 打 tag 时构建并发布 GitHub Release
 
 permissions:
   contents: read
@@ -52,7 +50,7 @@ jobs:
       # single-shot flake (slow runner, first-boot caches); two consecutive
       # failures fail the job. Re-run the job for infra-level noise;
       # recurring red means a real packaging regression. Validate this step
-      # itself via workflow_dispatch once before tagging a release.
+      # itself via workflow_dispatch before promoting a release candidate.
       - name: Packaged smoke gate (win-unpacked, blocking, 2 attempts)
         shell: pwsh
         env:
@@ -76,8 +74,8 @@ jobs:
 
   macos:
     # Manual candidate builds are Windows-only unless explicitly requested.
-    # Tag builds keep the historical best-effort macOS behavior.
-    if: ${{ github.event_name == 'push' || inputs.include_macos }}
+    # macOS remains an optional artifact from the same candidate run.
+    if: ${{ inputs.include_macos }}
     runs-on: macos-latest
     timeout-minutes: 120
     env:
@@ -111,81 +109,3 @@ jobs:
           name: DeepSeek-Harness-macos-arm64
           path: dist/Deepseek-Harness-Desktop-*.dmg
           if-no-files-found: error
-
-  release:
-    needs: [windows, macos]
-    # Publishing policy: the Windows installer gates the release; macOS is
-    # best-effort. When the macos job fails, the release still ships but
-    # simply carries no .dmg asset (nullglob below drops the empty pattern).
-    if: ${{ always() && startsWith(github.ref, 'refs/tags/') && needs.windows.result == 'success' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      actions: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            .github/release-notes.md
-            package.json
-            scripts/check-release-version.mjs
-          sparse-checkout-cone-mode: false
-
-      - name: Verify tag matches package version
-        run: node scripts/check-release-version.mjs "$GITHUB_REF_NAME"
-
-      # Quality gate: the release job intentionally does not re-run the test
-      # suites (see ci-isolation.test.js); instead it requires that the
-      # "Desktop tests" workflow already passed for this exact commit.
-      - name: Require green Desktop tests for this commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          count=$(gh api \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/test.yml/runs?head_sha=$GITHUB_SHA&status=success&per_page=1" \
-            --jq '.total_count')
-          if [ "${count:-0}" -lt 1 ]; then
-            echo "No green Desktop tests run found for $GITHUB_SHA." >&2
-            echo "让同一提交先在 CI（test.yml）变绿，再打 tag 发版。" >&2
-            exit 1
-          fi
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist-out
-          merge-multiple: true
-
-      # SHA512SUMS.txt lets the desktop updater (src/main/update.js) verify
-      # the downloaded Setup asset; releases without it install unverified.
-      - name: Write SHA512SUMS.txt
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          cd dist-out
-          files=(Deepseek-Harness-Desktop-Setup-*.exe Deepseek-Harness-Desktop-Setup-*.exe.blockmap Deepseek-Harness-Desktop-*.dmg)
-          if (( ${#files[@]} == 0 )); then
-            echo "No release artifacts to checksum." >&2
-            exit 1
-          fi
-          sha512sum "${files[@]}" > SHA512SUMS.txt
-          cat SHA512SUMS.txt
-
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          windows=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap)
-          macos=(dist-out/Deepseek-Harness-Desktop-*.dmg)
-          if (( ${#windows[@]} == 0 )); then
-            echo "Windows release artifacts are missing." >&2
-            exit 1
-          fi
-          assets=("${windows[@]}" "${macos[@]}" dist-out/SHA512SUMS.txt)
-          gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Deepseek-Harness-Desktop $GITHUB_REF_NAME" \
-            --notes-file .github/release-notes.md \
-            --latest

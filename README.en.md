@@ -57,12 +57,12 @@ This is an independently maintained community project, not an official DeepSeek 
 
 | Platform | Download |
 | --- | --- |
-| Windows 10 or later · x64 | [Download v0.2.9 installer](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/download/v0.2.9/Deepseek-Harness-Desktop-Setup-0.2.9.exe) |
+| Windows 10 or later · x64 | [Download latest public release](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) |
 
 This release provides a Windows installer only. See [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) for other versions and release notes.
 
 > [!NOTE]
-> The Windows installer is not digitally signed, so Windows may display a security warning. Download only from this repository. A [SHA512SUMS.txt](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/download/v0.2.9/SHA512SUMS.txt) file is available on the release page to verify file integrity.
+> The Windows installer is not digitally signed, so Windows may display a security warning. Download only from this repository. The release page provides `SHA512SUMS.txt` for integrity checks.
 
 ### Getting Started
 
@@ -80,7 +80,7 @@ You need to configure an API key for your chosen model provider. This project do
 
 ### How do I upgrade?
 
-The app checks for updates at startup. You can also download a newer installer and install it over the existing version. Desktop users on 0.2.7 can keep their data when upgrading to 0.2.9. Back up your data directory before upgrading.
+The app checks for updates at startup. You can also download a newer installer and install it over the existing version. Desktop users on 0.2.7 can keep their data when upgrading. Back up your data directory before upgrading.
 
 To migrate from the official CLI or a version older than 0.2.7, use Import in the launcher. Do not overwrite databases or copy the entire `profiles` directory. After importing, add the original workspace path again to find its conversations.
 

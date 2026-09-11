@@ -27,6 +27,7 @@ import {
 } from './viewport.ts'
 import { DEFAULT_DEVICE_VIEWPORT } from './viewportPresets.ts'
 import css from './PreviewPanel.module.css'
+import { closeMiniPlayer, clearMiniPlayer, notifyMiniPlayerLayout, openMiniPlayer, setMiniPlayerRuntime, setMiniPlayerSuspended, useMiniPlayer } from './mini-player-state.ts'
 
 /** Must match ui-user-terminal; client packages cannot share a value export. */
 const OPEN_SURFACE_EVENT = 'dshd-open-surface'
@@ -195,6 +196,7 @@ export function PreviewPanel({
   const [servers, setServers] = useState<DiscoveredServer[]>([])
   const [moreOpen, setMoreOpen] = useState(false)
   const [presetMenuOpen, setPresetMenuOpen] = useState(false)
+  const miniPlayer = useMiniPlayer()
   const overlayOpen = moreOpen || presetMenuOpen
   const focusedRef = useRef(false)
   const deviceToolbarRef = useRef(deviceToolbar)
@@ -235,6 +237,7 @@ export function PreviewPanel({
 
   useEffect(() => {
     if (previewId === null) return
+    if (miniPlayer.open) return
     if (!active || occluded || overlayOpen || pipOpen) {
       void previewHide(previewId).catch(ignoreOverlayIpcFailure)
       return
@@ -276,10 +279,10 @@ export function PreviewPanel({
       window.removeEventListener('resize', sync)
       void previewHide(previewId).catch(ignoreOverlayIpcFailure)
     }
-  }, [previewId, active, occluded, overlayOpen, pipOpen, previewHide, previewResize, previewShow])
+  }, [previewId, active, occluded, overlayOpen, pipOpen, miniPlayer.open, previewHide, previewResize, previewShow])
 
   useEffect(() => {
-    if (previewId === null || !active || occluded || overlayOpen || pipOpen) return
+    if (previewId === null || !active || occluded || overlayOpen || pipOpen || miniPlayer.open) return
     const bounds = guestBoundsForHost(
       hostRef.current,
       deviceToolbar,
@@ -288,10 +291,34 @@ export function PreviewPanel({
     )
     if (bounds === undefined) return
     void previewResize(previewId, bounds).catch(ignoreOverlayIpcFailure)
-  }, [deviceToolbar, viewportSetting, zoomFactor, previewId, active, occluded, overlayOpen, pipOpen, previewResize])
+  }, [deviceToolbar, viewportSetting, zoomFactor, previewId, active, occluded, overlayOpen, pipOpen, miniPlayer.open, previewResize])
+
+  useEffect(() => {
+    setMiniPlayerSuspended(occluded || overlayOpen || pipOpen)
+    if (miniPlayer.open) notifyMiniPlayerLayout()
+  }, [occluded, overlayOpen, pipOpen, miniPlayer.open])
+
+  useEffect(() => {
+    if (previewId === null) {
+      clearMiniPlayer()
+      return
+    }
+    setMiniPlayerRuntime(previewId, {
+      previewShow,
+      previewResize,
+      previewHide,
+      restore: () => {
+        window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, { detail: { kind: 'preview' } }))
+      },
+    })
+    return () => { clearMiniPlayer(previewId) }
+  }, [previewId, previewShow, previewResize, previewHide])
 
   useEffect(() => () => {
-    if (previewId !== null) void previewClose(previewId).catch(ignoreOverlayIpcFailure)
+    if (previewId !== null) {
+      clearMiniPlayer(previewId)
+      void previewClose(previewId).catch(ignoreOverlayIpcFailure)
+    }
   }, [previewId, previewClose])
 
   const applyNav = (result: PreviewNavState): void => {
@@ -361,7 +388,8 @@ export function PreviewPanel({
       // sessionStorage can throw in a locked browser profile.
     }
     const onOpen = (event: Event): void => {
-      const next = (event as CustomEvent<{ url?: string } | undefined>).detail?.url
+      const detail = (event as CustomEvent<{ url?: string } | undefined>).detail
+      const next = detail?.url
       if (typeof next !== 'string' || next.length === 0) return
       try {
         sessionStorage.removeItem(PENDING_PREVIEW_URL_KEY)
@@ -589,6 +617,17 @@ export function PreviewPanel({
               label={t('external')}
               disabled={barUrl.length === 0}
               onClick={() => { void openExternal(barUrl) }}
+            >
+              <IconRightUpOutline16 size={14} />
+            </ChromeButton>
+            <ChromeButton
+              label={miniPlayer.open ? t('miniRestore') : t('miniOpen')}
+              disabled={previewId === null}
+              onClick={() => {
+                if (previewId === null) return
+                if (miniPlayer.open) closeMiniPlayer()
+                else openMiniPlayer(previewId)
+              }}
             >
               <IconRightUpOutline16 size={14} />
             </ChromeButton>

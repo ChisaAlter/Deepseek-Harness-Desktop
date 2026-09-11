@@ -27,7 +27,7 @@
 | 网络 | 可访问模型网关与壁纸源（Bing / Wallhaven） |
 | 账号 | 无需产品登录；模型密钥见 §0.4 |
 
-**现 workflow 缺口（本表点名，不在本文件改 YAML）：** 打 `v*` tag 且 windows 成功后，`release` job **立刻** `gh release create`，来不及先走本表。合规顺序：`workflow_dispatch`（或其它「先出 artifact、不自动发 Release」的路径）→ 下载测完 → 用**同一批文件**发 Release。先 tag 再测已经公开的包，**不算发布前验收**。
+**发布链约束：** 先手动运行 `release.yml` 的 `workflow_dispatch` 生成候选 artifact，记录 candidate run ID、候选 commit SHA 与 Setup SHA256；下载并对该批文件完成本表和 §16 签字后，才能手动运行 `publish.yml`，传入 candidate run ID、目标 `vMAJOR.MINOR.PATCH` tag 与已验收的 Setup SHA256。晋级只下载并发布原候选字节，不重新构建；先打 tag 或另起 workflow 生成新包再测，**不算发布前验收**。
 
 ### 0.2 非法证据（出现则该格不得 Pass，整份报告不得勾可交付）
 
@@ -48,7 +48,7 @@
 | **Major** | 次要路径坏、可绕过、文案严重误导 | 发版需书面豁免 |
 | **Minor** | 视觉/动效/文案瑕疵 | 可进发版备注 |
 
-**每次发布前**（GitHub Release 或分发该 SHA 的 Setup）：对 **该 CI SHA** 走完本表，写下 `docs/qa/results/<日期>/` 执行报告，填 §16 且勾「Release 将上传同一 SHA」。没有这份绑定 CI SHA 的报告，**禁止发版**。
+**每次发布前**（GitHub Release 或分发该 SHA 的 Setup）：先由 `release.yml` 产出候选，记录 candidate run ID、commit SHA、artifact 名和 Setup SHA256；再对 **该 CI SHA** 走完本表，写下 `docs/qa/results/<日期>/` 执行报告，填 §16 且勾「Release 将上传同一 SHA」。最后只能用 `publish.yml` 晋级这次候选。没有这份绑定 CI SHA 的报告，**禁止发版**。
 
 **「可交付」= 全部 P0 = Pass（或合法 Blocked+书面豁免），且 §16 绑定 CI artifact SHA。** dshbot 已拆为独立插件：TC-EXT-007 降为 **P1**（默认不装：无页签 + 启动不阻断）。当前没有远程书面豁免条。P1 失败记入发布说明或豁免单。P2 记入后续迭代。
 
@@ -633,6 +633,12 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 **期望：** 关闭在标题**右侧**。
 
+### TC-SURF-008 · Browser：安装版 dshd mini-player · P0
+
+**步骤：** 只使用 `release.yml` Windows artifact 安装的包（不得使用源码、`dist/` 或 `qa:packaged`）。在 Browser 依次打开两个可区分的页面（A、B），记录当前 URL、页面标题以及可后退/前进状态。点击工具栏 `dshd mini-player`，确认浮层在聊天可视区内；拖拽标题栏，再从四边和四角调整大小。打开一个会覆盖 Browser 的菜单或 PiP/遮挡路径，确认 mini-player 暂停且不留下可见的重复内容，解除后恢复同一内容。点击恢复回到 Browser surface，然后执行后退到 A、前进到 B，核对 URL、history、标题和 loading 状态。
+
+**期望：** mini-player 显示同一 Browser 内容，位置和大小始终限制在聊天可视区；拖拽与八方向缩放可用且不遮挡主窗口操作。菜单、PiP 或遮挡期间不会出现幽灵/双重呈现，解除后可继续操作。恢复后 URL / history / 标题 / loading 状态不丢失，后退和前进仍分别回到 A、B。仅以安装包可观察的内容连续性、geometry、suspend/resume 和无额外外部窗口作为本 P0 证据；第二 BrowserView 与 mini 专用 IPC 属于自动化结构不变量，由 focused tests 覆盖。证据必须是该 CI artifact SHA + 已安装 exe。
+
 ### TC-TERM-001 · 底栏终端可用 · P0
 
 **步骤：** 与 TC-WS-006 **同一仓库** 按 `` Ctrl+` `` → `echo dshd-qa-ok`。不得只在启动工作区测。
@@ -1003,7 +1009,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 2. 源码 / packaged smoke 若声称 Git/终端全绿，却只探针启动工作区，视为套件 Fail。  
 3. 无 stamp 陈旧 extract 时源码树不测 `--no-open` 覆盖。
 
-**发版：** 下载 CI windows artifact → 对本 SHA 走完本表 → `docs/qa/results/<日期>/` + §16 勾同一 SHA → 再 `gh release` 上传**该文件**。GitHub `release.yml` **不得**跑 `qa:packaged`（那也不是本表）。
+**发版：** 手动运行 `release.yml` → 下载该 run 的 CI Windows artifact → 对本 SHA 走完本表 → `docs/qa/results/<日期>/` + §16 记录 candidate run ID、Setup SHA256 并勾同一 SHA → 手动运行 `publish.yml` 晋级**该 run 的原始文件**。晋级 workflow 不重建二进制；GitHub `release.yml` **不得**跑 `qa:packaged`（那也不是本表）。
 
 ---
 
@@ -1083,6 +1089,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | TC-SURF-005 | P2 |  |  |  | Trent | 2026-08-31 |
 | TC-SURF-006 | P1 | Pass | CI SHA + 已装 exe | agents.panel / empty | Trent | 2026-08-31 |
 | TC-SURF-007 | P0 | Pass | CI SHA + 已装 exe | close 在标题侧 | Trent | 2026-08-31 |
+| TC-SURF-008 | P0 |  |  | 待 0.3.0 安装包补测；同一 guest / previewId；结构不变量由 focused tests 证明 | Trent | 2026-09-11 |
 | TC-TERM-001 | P0 | Pass | CI SHA `F2C571D2` + 已装 exe | Ghostty wasm HTTP 200 | Trent | 2026-09-01 |
 | TC-TERM-002 | P0 | Pass | CI SHA `F2C571D2` + 已装 exe | `case.terminal.addToChat` 终端 fence | Trent | 2026-09-01 |
 | TC-TERM-003 | P1 |  |  |  | Trent | 2026-08-31 |
@@ -1133,7 +1140,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ## 16. 签字
 
-未填 Actions run URL 与 SHA256、或未勾「Release 将上传同一 SHA」，不得勾可交付，**不得发该包**。
+每一轮候选都必须填入 `release.yml` 的 Actions run URL / candidate run ID、候选 commit SHA、已实测 Setup SHA256，并勾「Release 将上传同一 SHA」；不得用另一个 run、另一次本机构建或本机 `dist/` 替代。缺任一项不得勾可交付，**不得发该包**。新增的 `TC-SURF-008` 也是 P0，必须在该候选的已安装包上单独记录结果；不能以源码或旧包结果替代。下表保留上一轮 `0.2.7` 的历史签字，晋级 `0.3.0` 前必须用新候选记录完整替换。
 
 | 项 | 内容 |
 | --- | --- |
@@ -1141,13 +1148,13 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | Artifact 名 | `DeepSeek-Harness-windows-x64` |
 | 安装包文件名 | `Deepseek-Harness-Desktop-Setup-0.2.7.exe` |
 | SHA256（已测文件） | `F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856` |
-| Release 将上传同一 SHA | ☑（未打 tag、未 `gh release create`；若发版须上传**该文件**） |
+| Release 将上传同一 SHA | ☑（该表对应历史 CI 文件；新候选必须由 `publish.yml` 上传同一 run 的原始文件） |
 | 应用 About 版本 | `0.2.7` |
 | 该包内 harness 基线（勿混源码钉） | stamp `0.1.2-alpha.2` / `dsh-v0.1.2-alpha.2` / sha `0a53fb55bea101816fa226bb964ae2bed71c343b` |
 | Windows 版本 / 机型 | Windows 10.0.26200 x64 |
 | 模型：`ayase` / `grok-4.6` @ `https://ayase.cn/v1` | 已配置 ☑ |
 | 附录 A 五轮（安装包会话，TC-WS-006 仓） | 1–5 过 ☑；reject ☑ vision ☑ editUser ☑ |
-| P0 结果 | 全 Pass □ / 有 Fail □ / 有 Blocked+负责人忽略 □ — 实测 P0（含 MODEL-004 / SESS-003 / TERM-002 / NEG-005）Pass；造障 INST-004/005/006/011/011b、LAUNCH-005/008、NEG-002 **Blocked**（未注入） |
+| P0 结果 | 全 Pass □ / 有 Fail □ / 有 Blocked+负责人忽略 □ — 历史实测 P0（含 MODEL-004 / SESS-003 / TERM-002 / NEG-005）Pass；造障 INST-004/005/006/011/011b、LAUNCH-005/008、NEG-002 **Blocked**（未注入）。`0.3.0` 新候选还必须单独记录 `TC-SURF-008`，不继承本行历史结果 |
 | P1 豁免/发布说明 | 见 [results/2026-08-31/EXECUTION-REPORT.md](results/2026-08-31/EXECUTION-REPORT.md) §7 |
 | 结论 | **可交付** □ / **不可交付** □（CI Node 22 同树包已测） / **负责人忽略剩余 Blocked** □ — 测试已绑定该 SHA；产品负责人未签；未 tag / 未发 Release |
 | 测试负责人 / 日期 | Trent · 2026-09-01 |

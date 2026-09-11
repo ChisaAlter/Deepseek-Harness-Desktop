@@ -461,13 +461,13 @@ describe('compact stream readers', () => {
       { type: 'tool-call-delta', index: 2, id: ToolCallId('call-1'), name: 'read', argumentsDelta: '' },
       { type: 'tool-call-delta', index: 2, id: ToolCallId('call-1'), argumentsDelta: '{"path":' },
       { type: 'tool-call-delta', index: 2, id: ToolCallId('call-1'), argumentsDelta: '"a"}' },
-      { type: 'tool-call-delta', index: 3, id: ToolCallId(''), argumentsDelta: '{}' },
+      { type: 'tool-call-delta', index: 3, id: ToolCallId('call-2'), name: 'read', argumentsDelta: '{}' },
       { type: 'usage', usage: { inputTokens: 3, outputTokens: 2 } },
       { type: 'finish', reason: { kind: 'tool-calls' }, replayState: { response: { id: 'r' } } },
     ]
     for (const [index, chunk] of chunks.entries()) accumulator.push({ time: 1_000 + index, chunk })
     const stream = accumulator.snapshot()
-    expect(stream.filter(record => record.type !== 'chunk')).toHaveLength(4)
+    expect(stream.filter(record => record.type !== 'chunk')).toHaveLength(5)
 
     const expanded = new BlockAssembler()
     for (const member of expandAssistantStream(stream)) expanded.push(member.chunk)

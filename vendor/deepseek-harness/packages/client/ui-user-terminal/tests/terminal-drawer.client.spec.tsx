@@ -702,6 +702,23 @@ describe('TerminalDrawer', () => {
     expect(b.instance.getSnapshot().sessions[0]?.rows).toBe(DEFAULT_TERMINAL_ROWS)
   })
 
+  it('does not settle-fit a zero-used-box pane', async () => {
+    const b = mount({ cwd: '/work' })
+    fireEvent.click(screen.getByRole('button', { name: 'New terminal' }))
+    await screen.findByRole('log', { name: 'pty-1' })
+    const term = await waitFor(() => {
+      const next = ghosttyState.instances.at(-1)
+      if (next === undefined) throw new Error('ghostty not ready')
+      return next
+    })
+    const fit = vi.spyOn(term, 'fit')
+    await new Promise(resolve => {
+      window.setTimeout(resolve, FIT_SETTLE_MS + 20)
+    })
+    expect(fit).not.toHaveBeenCalled()
+    expect(b.ptyResize).not.toHaveBeenCalled()
+  })
+
   it('forwards Ghostty onResize like TerminalViewport', async () => {
     const b = mount({ cwd: '/work' })
     fireEvent.click(screen.getByRole('button', { name: 'New terminal' }))

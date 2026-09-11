@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `surfaces-work-loops` |
 | **status** | `active` |
-| **last verified** | 2026-09-10 — 同步 `dsh-v0.1.5-rc.1`：右栏新接入上游 ui-sidebar-right / ui-dockkit（Trajectory 停靠面），其 fixed 覆盖层（dock 菜单/浮板/全屏面板）按 caption band no-drag 契约补洞并连同全部 27 处分叉登记进 post-merge-ui no-drag 清单；chat 文件路径点击随上游 `resolveWorkspacePath` 改为工作区绝对路径 + options 直达原生打开（ui-tool 双 spec 16/16 按新契约更新）；Desktop tests 1450 全绿。web e2e 回放：rc.1 新增 auth 门已适配 post-merge 组装 e2e 导航（`scaffold.authenticatedUrl`），settings/preset 配方与金样漂移及 hero 连接流重构记录为合并后道债。此前 2026-09-07 — 同步 `dsh-v0.1.3-alpha.1` 后 Files / Browser / Diff / Agents 工作循环及 tab 关闭控件位置保留；Host / Client build、含 ui-surfaces 与 ui-chat 的重点 Client 101 文件 / 1279 项、Desktop tests 1425 passed / 2 skipped。此前同日 `test:gui` 411 文件 / 5360 pass / 1 skip 与 official client artifacts 证据仍有效；本次未重跑 `qa:source`。 |
+| **last verified** | 2026-09-11 — 新增 Browser guest 的 `dshd mini-player` renderer 浮层：复用同一 `previewId`，挂载 `shell.overlay`，聊天区域内可拖拽/八方向缩放并可恢复右栏 Browser；未新增 BrowserView/IPC。focused ui-preview、bundle、`npm test`、`smoke:source` 通过；`test:gui` 在功能 revision 全量通过，后续几何回归轮唯一失败为独立 PDF license 打包子进程超时。此前同日 `PresentedFileCard` 原生操作完成后在菜单卸载后的 layout phase 恢复预览按钮焦点；`Menu` 首次打开等待 portal 挂载后再 autofocus，避免 Escape/动作竞态；caption no-drag、模型菜单隔离与工作环契约保持。 |
 
 ## User paths
 
@@ -12,8 +12,9 @@
 2. 点击对话文件提及、工具路径或产物芯片 → HTML / HTM / XHTML / PDF 进 Browser，其余工作区文件进 Files；点工作区根目录打开 Files 资源管理器。
 3. Files：点预览工具栏的悬浮图标 → 当前文件在单独的置顶只读窗口展示；继续打开文件会复用该窗口。
 4. Browser：输入 URL、导航；可选截图 / PiP / 录制。
-5. Diff / Agents 按当前 UI 可用。
-6. Surface Tab 关闭控件在标题**右侧**。
+5. Browser：点击工具栏 `dshd mini-player` 按钮后，预览浮在聊天可视区内；拖拽标题条或边/角调整大小，点击恢复按钮回到右栏并保留当前 URL / history。
+6. Diff / Agents 按当前 UI 可用。
+7. Surface Tab 关闭控件在标题**右侧**。
 
 ## Invariants
 
@@ -27,6 +28,7 @@
 - `shell:preview-automation-*` 链已删除，不得在无新卡+权限模型的情况下复活。
 - browser-doc 扩展名单一事实：`{html, htm, xhtml, pdf}`（openPath 双开与 FilePreview 工具栏同集合）；SVG 按图片留在 Files。
 - Files 悬浮预览是工作区权威内的单实例只读窗口：不得绕过 `preview-workspace` token URL，不得把编辑缓冲区或保存队列迁入悬浮窗；HTML 只在 sandbox frame 中运行，图片 / 音视频 / PDF / 文本按浏览器原生只读能力展示。
+- `dshd mini-player` 只改变 Browser guest 的呈现边界：状态为 `surface | mini` 时同一 `previewId` 只能有一个 `previewShow/previewResize` owner；mini 几何限制在聊天可视区并使用 pointer capture，恢复后 URL、history、loading 状态不丢；不得创建第二个 BrowserView、外部窗口或 mini 专用 IPC。
 - 对话 / 产物 / 工具行 / 终端 / 技能的文件打开都走 `workspaces.openPath`；pin 的 Workspace 服务没有该方法时由 ui-surfaces `ensureBaseOpenPath` 补 Host 本体，ui-chat `openFile` 不得绕过它直连 `remote.session.openWorkspacePath`。当前 Session cwd 内的路径由右栏接管；根目录开 Files，浏览器文档在保留 Files Tab 后激活 Browser，其余文件激活 Files。
 - `gitInit` 成功广播 `dshd-git-init`，Diff 门无需切会话即重探。
 - Files 保存拒绝任何含 `.git` 段的路径（大小写不敏感，含 `.git` gitlink 本体）；`listDir` 隐藏 `.git` 与之同一契约。`.gitignore` / `.github/**` 等普通 dotfile 照常可存。
@@ -50,7 +52,7 @@
 | Kind | What |
 | --- | --- |
 | Automated | 相关 client / preview / preload / theme 单测；`npm run qa:source` |
-| Manual / QA | `TC-SURF-001` … `TC-SURF-007`；Files 图片 / 文本 / PDF 悬浮预览；`TC-CHAT-007`、`TC-CHAT-008` |
+| Manual / QA | `TC-SURF-001` … `TC-SURF-008`；Files 图片 / 文本 / PDF 悬浮预览；`TC-CHAT-007`、`TC-CHAT-008` |
 
 ## Sources
 

@@ -90,6 +90,7 @@
 
 .track .thumb {
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-layer-1);
   transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
 }

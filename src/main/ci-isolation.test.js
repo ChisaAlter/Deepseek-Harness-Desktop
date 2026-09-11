@@ -114,35 +114,59 @@ test('windows release job smokes the packaged artifact: blocking, after dist, tw
   assert.ok(retryAt > smokeAt, 'the documented two-attempt flake policy needs a second attempt');
   assert.doesNotMatch(windowsJob, /continue-on-error/);
   // The macOS job stays best-effort and does not gate on the smoke.
-  const macosJob = yml.slice(yml.indexOf('\n  macos:'), yml.indexOf('\n  release:'));
+  const macosJob = yml.slice(yml.indexOf('\n  macos:'));
   assert.doesNotMatch(macosJob, /smoke:packaged/);
 });
 
-test('release job requires a green same-SHA Desktop tests run before publishing', () => {
+test('release.yml is candidate-only and cannot publish from a tag push', () => {
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-  const gateAt = yml.indexOf('actions/workflows/test.yml/runs?head_sha=');
-  const publishAt = yml.indexOf('gh release create');
-  assert.ok(gateAt >= 0, 'release.yml must query the test workflow for this SHA');
-  assert.match(yml, /status=success/);
-  assert.match(yml, /actions: read/);
-  assert.ok(publishAt > gateAt, 'the CI gate must run before gh release create');
+  assert.match(yml, /workflow_dispatch:/);
+  assert.doesNotMatch(yml, /push:\s*\r?\n\s+tags:/);
+  assert.doesNotMatch(yml, /gh release create/);
+  assert.doesNotMatch(yml, /\n\s+release:\s*\r?\n/);
 });
 
 test('manual release candidates default to Windows-only', () => {
   const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
   assert.match(yml, /workflow_dispatch:\r?\n\s+inputs:\r?\n\s+include_macos:/);
   assert.match(yml, /include_macos:[\s\S]*?type: boolean[\s\S]*?default: false/);
-  const macos = yml.slice(yml.indexOf('\n  macos:'), yml.indexOf('\n  release:'));
-  assert.match(macos, /if: \$\{\{ github\.event_name == 'push' \|\| inputs\.include_macos \}\}/);
+  const macos = yml.slice(yml.indexOf('\n  macos:'));
+  assert.match(macos, /if: \$\{\{ inputs\.include_macos \}\}/);
 });
 
-test('release.yml still publishes when Windows succeeds and macOS fails (documented policy)', () => {
-  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
-  assert.match(yml, /always\(\)/);
-  assert.match(yml, /needs\.windows\.result == 'success'/);
-  // The policy stays documented next to the if: guard: mac assets are simply
-  // absent when the macos job fails; Windows gates the release.
-  assert.match(yml, /macOS is\r?\n\s*# best-effort/);
+test('publish workflow promotes only an explicit successful candidate run', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8');
+  assert.match(yml, /candidate_run_id:[\s\S]*?required: true[\s\S]*?type: string/);
+  assert.match(yml, /release_tag:[\s\S]*?required: true[\s\S]*?type: string/);
+  assert.match(yml, /expected_setup_sha256:[\s\S]*?required: true[\s\S]*?type: string/);
+  assert.match(yml, /workflow_dispatch/);
+  assert.match(yml, /actions\/runs\/\$CANDIDATE_RUN_ID/);
+  assert.match(yml, /event.*workflow_dispatch/);
+  assert.match(yml, /path.*release\.yml/);
+  assert.match(yml, /head_branch/);
+  assert.match(yml, /head_branch[\s\S]*== main/);
+  assert.match(yml, /actions\/workflows\/test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
+  assert.match(yml, /gh run download "\$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64/);
+  assert.match(yml, /expected_version=.*RELEASE_TAG/);
+  assert.match(yml, /Deepseek-Harness-Desktop-Setup-\$\{expected_version\}\.exe/);
+  assert.match(yml, /sha256sum/);
+  assert.match(yml, /actual_setup_sha256.*expected_setup_sha256/);
+  assert.match(yml, /ref: \$\{\{ steps\.candidate\.outputs\.candidate_sha \}\}/);
+  assert.match(yml, /\.github\/release-notes\.md/);
+  assert.match(yml, /\.github\/release-notes\.en\.md/);
+  assert.match(yml, /cat \.github\/release-notes\.md > release-body\.md/);
+  assert.match(yml, /cat \.github\/release-notes\.en\.md >> release-body\.md/);
+  assert.match(yml, /Release provenance/);
+  assert.match(yml, /Release body combines the Chinese and English release notes above/);
+  assert.match(yml, /Assets were downloaded from that candidate run; this promotion does not rebuild them/);
+  const notesZhAt = yml.indexOf('cat .github/release-notes.md > release-body.md');
+  const notesEnAt = yml.indexOf('cat .github/release-notes.en.md >> release-body.md');
+  const provenanceAt = yml.indexOf('Release provenance');
+  assert.ok(notesZhAt >= 0 && notesEnAt > notesZhAt && provenanceAt > notesEnAt, 'promotion must append provenance after both notes');
+  assert.match(yml, /gh release create[\s\S]*--target "\$CANDIDATE_SHA"/);
+  assert.doesNotMatch(yml, /setup-harness/);
+  assert.doesNotMatch(yml, /npm run dist\b/);
+  assert.doesNotMatch(yml, /npm run dist:mac\b/);
 });
 
 test('test workflow keeps portable quality gates without the viewport-dependent smoke', () => {

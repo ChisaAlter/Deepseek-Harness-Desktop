@@ -1,0 +1,179 @@
+name: Promote release candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful release.yml workflow_dispatch run that produced the candidate artifacts
+        required: true
+        type: string
+      release_tag:
+        description: New Git tag to publish, for example v0.3.0
+        required: true
+        type: string
+      expected_setup_sha256:
+        description: SHA256 of the Windows Setup executable from the candidate run
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Inspect candidate workflow run
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          EXPECTED_SETUP_SHA256: ${{ inputs.expected_setup_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_RUN_ID" =~ ^[0-9]+$ ]] || { echo "candidate_run_id must be numeric" >&2; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "release_tag must be a stable vMAJOR.MINOR.PATCH tag" >&2; exit 1; }
+          [[ "$EXPECTED_SETUP_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "expected_setup_sha256 must be a 64-character SHA256" >&2; exit 1; }
+
+          run_json=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID")
+          status=$(jq -r '.status' <<<"$run_json")
+          conclusion=$(jq -r '.conclusion' <<<"$run_json")
+          event=$(jq -r '.event' <<<"$run_json")
+          workflow_path=$(jq -r '.path' <<<"$run_json")
+          candidate_sha=$(jq -r '.head_sha' <<<"$run_json")
+          head_branch=$(jq -r '.head_branch' <<<"$run_json")
+          [[ "$status" == completed && "$conclusion" == success ]] || { echo "Candidate run must be completed and successful" >&2; exit 1; }
+          [[ "$event" == workflow_dispatch ]] || { echo "Candidate run must be a manual workflow_dispatch" >&2; exit 1; }
+          [[ "$workflow_path" == .github/workflows/release.yml ]] || { echo "Candidate run must come from release.yml" >&2; exit 1; }
+          [[ "$head_branch" == main ]] || { echo "Candidate run must come from the main branch" >&2; exit 1; }
+          [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Candidate run has no valid commit SHA" >&2; exit 1; }
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the exact candidate commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.candidate.outputs.candidate_sha }}
+          fetch-depth: 1
+          sparse-checkout: |
+            .github/release-notes.md
+            .github/release-notes.en.md
+            package.json
+            scripts/check-release-version.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Verify tag matches candidate package version
+        run: node scripts/check-release-version.mjs "${{ inputs.release_tag }}"
+
+      - name: Require green Desktop tests for the exact candidate SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          count=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/test.yml/runs?head_sha=$CANDIDATE_SHA&status=success&per_page=100" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+          if [ "${count:-0}" -lt 1 ]; then
+            echo "No green test.yml run found for $CANDIDATE_SHA." >&2
+            exit 1
+          fi
+
+      - name: Download Windows artifacts from the supplied candidate run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist-out
+          gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64 --dir dist-out
+
+      - name: Verify candidate assets and Setup SHA256
+        env:
+          EXPECTED_SETUP_SHA256: ${{ inputs.expected_setup_sha256 }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          setups=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe)
+          blockmaps=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap)
+          (( ${#setups[@]} == 1 )) || { echo "Candidate must contain exactly one Windows Setup executable" >&2; exit 1; }
+          (( ${#blockmaps[@]} == 1 )) || { echo "Candidate must contain exactly one Windows blockmap" >&2; exit 1; }
+          expected_version="${RELEASE_TAG#v}"
+          setup_name=$(basename "${setups[0]}")
+          [[ "$setup_name" == "Deepseek-Harness-Desktop-Setup-${expected_version}.exe" ]] || {
+            echo "Setup filename does not match the requested release tag" >&2
+            exit 1
+          }
+          actual_setup_sha256=$(sha256sum "${setups[0]}" | awk '{print tolower($1)}')
+          expected_setup_sha256=$(printf '%s' "$EXPECTED_SETUP_SHA256" | tr '[:upper:]' '[:lower:]')
+          [[ "$actual_setup_sha256" == "$expected_setup_sha256" ]] || {
+            echo "Setup SHA256 does not match the operator-supplied candidate digest" >&2
+            exit 1
+          }
+          echo "setup_sha256=$actual_setup_sha256" >> "$GITHUB_ENV"
+
+      - name: Download optional macOS artifact from the same candidate run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+        run: |
+          set -euo pipefail
+          mac_count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "DeepSeek-Harness-macos-arm64" and .expired == false)] | length')
+          if [ "$mac_count" -gt 0 ]; then
+            gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-macos-arm64 --dir dist-out
+          fi
+
+      - name: Build checksums and provenance notes
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd dist-out
+          files=(Deepseek-Harness-Desktop-Setup-*.exe Deepseek-Harness-Desktop-Setup-*.exe.blockmap Deepseek-Harness-Desktop-*.dmg)
+          (( ${#files[@]} >= 2 )) || { echo "No complete candidate asset set to checksum" >&2; exit 1; }
+          sha512sum "${files[@]}" > SHA512SUMS.txt
+          cd ..
+          cat .github/release-notes.md > release-body.md
+          printf '\n\n---\n\n' >> release-body.md
+          cat .github/release-notes.en.md >> release-body.md
+          {
+            printf '\n\n## Release provenance\n\n'
+            printf -- '- Release tag: `%s`\n' "$RELEASE_TAG"
+            printf -- '- Candidate workflow: `release.yml` run `%s`\n' "$CANDIDATE_RUN_ID"
+            printf -- '- Candidate commit: `%s`\n' "$CANDIDATE_SHA"
+            printf -- '- Verified Windows Setup SHA256: `%s`\n' "$setup_sha256"
+            printf -- '- Release body combines the Chinese and English release notes above.\n'
+            printf -- '- Assets were downloaded from that candidate run; this promotion does not rebuild them.\n'
+          } >> release-body.md
+
+      - name: Reject an existing tag before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists; refusing to repoint it." >&2
+            exit 1
+          fi
+
+      - name: Publish the verified candidate without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.candidate_sha }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap dist-out/Deepseek-Harness-Desktop-*.dmg dist-out/SHA512SUMS.txt)
+          (( ${#assets[@]} >= 3 )) || { echo "Release assets are incomplete" >&2; exit 1; }
+          gh release create "$RELEASE_TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$CANDIDATE_SHA" \
+            --title "Deepseek-Harness-Desktop $RELEASE_TAG" \
+            --notes-file release-body.md \
+            --latest

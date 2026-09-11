@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `terminal-drawer` |
 | **status** | `active` |
-| **last verified** | 2026-09-01 — 已装 CI Setup SHA `F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856`：`packaged.ghostty.wasm` HTTP **200**；`terminal.drawer` / `terminal.new` / `terminal.surface` PASS；`case.terminal.addToChat` 终端 fence（`install-full-report.json`）。 |
+| **last verified** | 2026-09-11 — `TerminalPane` 的 settle fit 仅在宿主有真实 used box 时通知 PTY，折叠/未布局 pane 不再误报默认网格；ui-user-terminal 45/45，完整 `test:gui` 505 文件 / 6860 通过 / 1 跳过，`npm run smoke:source` PTY 探针通过。此前 2026-09-01 — 已装 CI Setup SHA `F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856`：`packaged.ghostty.wasm` HTTP **200**；`terminal.drawer` / `terminal.new` / `terminal.surface` PASS；`case.terminal.addToChat` 终端 fence（`install-full-report.json`）。 |
 
 ## User paths
 

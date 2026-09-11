@@ -1,5 +1,5 @@
 /** File identity and explicit default-app or file-manager actions for one delivery. */
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import {
   Menu, FileTypeIcon, fileExtension, IconRightUpOutline16,
@@ -32,13 +32,19 @@ export function PresentedFileCard({ file, cwd, phase, host, onPreview, onAction,
 } & PropsLocale<typeof NS>) {
   const [menuOpen, setMenuOpen] = useState(false)
   const previewRef = useRef<HTMLButtonElement>(null)
+  const restorePreviewFocusRef = useRef(false)
+  useLayoutEffect(() => {
+    if (menuOpen || !restorePreviewFocusRef.current) return
+    restorePreviewFocusRef.current = false
+    previewRef.current?.focus()
+  }, [menuOpen])
   const pending = phase === 'opening' || phase === 'revealing'
   const menuDisabled = pending || host === null || !host.available
   if (menuDisabled && menuOpen) setMenuOpen(false)
   const reveal = host?.fileManager ?? 'directory'
   const act = (action: PresentedAction) => {
+    restorePreviewFocusRef.current = true
     setMenuOpen(false)
-    previewRef.current?.focus()
     onAction(action)
   }
   const name = basename(file.path)
