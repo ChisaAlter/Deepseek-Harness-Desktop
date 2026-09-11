@@ -29,18 +29,25 @@
   <img src="assets/screenshot-home.jpg" alt="Deepseek-Harness-Desktop main window" width="920" />
 </p>
 
-This is an independently maintained community project, not an official DeepSeek client. It brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) chat interface to the desktop with integrated tools. No separate Node.js installation or manual `dsh web` setup is required.
+This is an independently maintained Electron desktop shell, not an official DeepSeek client. It brings the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI, tool calls, and plugin system to the local desktop, with a launcher, workspaces, window and tray integration, and updates. Installed builds do not require a separate Node.js installation or a manual `dsh web` setup.
 
 ## Features
 
 - **AI conversations**: Organize workspaces and chat history, inspect tool calls, approve actions, and edit and resend messages.
-- **Project tools**: Search and edit files, inspect diffs, preview web pages, and add file or terminal selections to a conversation.
+- **Project tools**: Search and edit files, inspect diffs, preview web pages, and add file or terminal selections to a conversation. Browser previews can move into a chat-area mini-player.
 - **Terminal and Git**: Run commands, switch branches, commit changes, push code, and open pull requests without leaving the app.
 - **Models and extensions**: Configure model providers, manage MCP servers, skills, and plugins, and install extensions from the built-in marketplace.
 - **Usage statistics**: View token usage across sessions, activity heatmaps, and session costs, with data export support.
 - **Appearance**: Light, dark, and transparent themes, a wallpaper gallery, and frosted-glass and pixelation effects.
-- **Remote access**: Enable remote connections when needed and scan a QR code to access desktop sessions from a mobile browser.
+- **Remote access**: Enable remote connections when needed and scan a QR code to access desktop sessions from a mobile browser. Remote listening is off by default.
 - **Desktop integration**: System tray support, app updates, and a launcher for data import and plugin troubleshooting.
+
+## How It Works
+
+- **Local-first**: Sessions, settings, and plugin configuration live in a desktop-specific `dsh-home`, separate from the official CLI's `~/.dsh`.
+- **One workspace flow**: Conversations, files, Browser, diffs, terminal, and Git share the active workspace. File references and terminal selections can return directly to the Composer.
+- **Extensible runtime**: Model providers, MCP, skills, and plugins use DeepSeek Harness's plugin architecture. Desktop-owned features are attached through controlled desktop plugins.
+- **Desktop safety boundary**: High-impact tool actions follow Harness approval and permission policies. Remote access requires an explicit opt-in.
 
 <table>
   <tr>
@@ -59,7 +66,7 @@ This is an independently maintained community project, not an official DeepSeek 
 | --- | --- |
 | Windows 10 or later · x64 | [Download latest public release](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) |
 
-This release provides a Windows installer only. See [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) for other versions and release notes.
+Public distribution currently focuses on a Windows x64 installer. Other platforms can run or build from source as described below. See [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) for versions and release notes.
 
 > [!NOTE]
 > The Windows installer is not digitally signed, so Windows may display a security warning. Download only from this repository. The release page provides `SHA512SUMS.txt` for integrity checks.
@@ -80,9 +87,9 @@ You need to configure an API key for your chosen model provider. This project do
 
 ### How do I upgrade?
 
-The app checks for updates at startup. You can also download a newer installer and install it over the existing version. Desktop users on 0.2.7 can keep their data when upgrading. Back up your data directory before upgrading.
+The app checks for updates at startup. You can also download a newer installer and install it over the existing version. Desktop installations normally keep their data during upgrades. Back up your data directory before upgrading.
 
-To migrate from the official CLI or a version older than 0.2.7, use Import in the launcher. Do not overwrite databases or copy the entire `profiles` directory. After importing, add the original workspace path again to find its conversations.
+To migrate from the official CLI or an older desktop installation, use Import in the launcher. Do not overwrite databases or copy the entire `profiles` directory. After importing, add the original workspace path again to find its conversations.
 
 ### Where is my data stored?
 
@@ -117,14 +124,16 @@ npm run dist      # Build the Windows installer
 npm run dist:mac  # Build the macOS installer; requires macOS
 ```
 
-## Contributing
-
-Issues and pull requests are welcome, whether for features, bug fixes, or documentation. When reporting a problem, include the app version, operating system, reproduction steps, and relevant screenshots. Remove API keys and other sensitive information from logs before sharing them.
+## Documentation
 
 - [Product and architecture handbook](docs/handbook/README.md) (Chinese)
 - [Design guidelines](docs/design-language.en.md) · [Motion guidelines](docs/motion.en.md)
 - [Feature contracts](docs/features/README.md) (Chinese)
 - [Build and release guide](docs/handbook/modules/build-release.md) (Chinese)
+
+## Contributing
+
+Issues and pull requests are welcome, whether for features, bug fixes, or documentation. When reporting a problem, include the app version, operating system, reproduction steps, and relevant screenshots. Remove API keys and other sensitive information from logs before sharing them.
 
 ## Community
 

@@ -29,18 +29,25 @@
   <img src="assets/screenshot-home.jpg" alt="Deepseek-Harness-Desktop 主界面" width="920" />
 </p>
 
-本项目由社区独立维护，非 DeepSeek 官方客户端。沿用 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的对话界面，并提供桌面集成；安装后无需自行配置 Node.js 或启动 `dsh web`。
+这是一个由社区独立维护的 Electron 桌面壳，非 DeepSeek 官方客户端。它将 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI、工具调用和插件体系带到本地桌面，并补充启动器、工作区、窗口、托盘和更新等桌面能力。安装版无需自行配置 Node.js 或启动 `dsh web`。
 
 ## 功能
 
 - **AI 对话**：管理工作区与历史会话，查看工具调用、确认操作审批，编辑并重新发送消息。
-- **项目工具**：搜索和编辑文件、查看代码差异、预览网页，将文件或终端选区加入对话。
+- **项目工具**：搜索和编辑文件、查看代码差异、预览网页，将文件或终端选区加入对话；Browser 预览支持在聊天区域内切换 mini-player。
 - **集成终端与 Git**：在应用内运行命令，切换分支、提交更改、推送代码及创建 Pull Request。
 - **模型与扩展**：配置模型服务，在设置中管理 MCP、技能和插件，通过内置市场安装扩展。
 - **用量统计**：查看跨会话 Token 用量、热力图和会话费用，支持导出统计数据。
 - **个性化外观**：浅色、深色与透明主题，配合壁纸图库、毛玻璃和像素化效果。
-- **远程访问**：按需开启远程连接，通过扫码在手机浏览器访问桌面会话。
+- **远程访问**：按需开启远程连接，通过扫码在手机浏览器访问桌面会话；默认不监听远程端口。
 - **桌面集成**：托盘驻留、应用更新，以及启动器中的数据导入和插件故障排查。
+
+## 工作方式
+
+- **本地优先**：会话、设置和插件配置保存在桌面专用的 `dsh-home`，与官方 CLI 的 `~/.dsh` 分开。
+- **统一工作区**：对话、文件、Browser、Diff、终端和 Git 围绕当前工作区协作，文件引用和终端选区可以直接回到 Composer。
+- **可扩展运行时**：模型服务、MCP、技能和插件由 DeepSeek Harness 的插件机制提供；桌面自有功能通过受控的桌面插件接入。
+- **桌面安全边界**：高风险工具操作遵循 Harness 的审批和权限策略；远程功能需要用户主动开启。
 
 <table>
   <tr>
@@ -59,7 +66,7 @@
 | --- | --- |
 | Windows 10 及以上 · x64 | [下载最新公开版](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/latest) |
 
-本版仅提供 Windows 安装包。其他版本与更新说明见 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases)。
+公开分发以 Windows x64 安装包为主；其他平台可按下方说明从源码运行或构建。版本和变更记录见 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases)。
 
 > [!NOTE]
 > Windows 安装包尚未进行数字签名，系统可能显示安全提示。请仅从本仓库下载；发布页提供 `SHA512SUMS.txt` 供核对文件完整性。
@@ -80,9 +87,9 @@
 
 ### 如何升级？
 
-应用启动时会检查更新，也可以下载新版安装包覆盖安装。已使用 0.2.7 桌面版的用户可保留现有数据升级；升级前建议备份数据目录。
+应用启动时会检查更新，也可以下载新的安装包覆盖安装。桌面版用户通常可以保留现有数据升级；升级前建议备份数据目录。
 
-从官方 CLI 或早于 0.2.7 的版本迁移，请使用启动器的「导入」，不要直接覆盖数据库或复制整个 `profiles` 目录。导入后重新添加原来的工作区路径即可查找对应会话。
+从官方 CLI 或早期桌面版本迁移，请使用启动器的「导入」，不要直接覆盖数据库或复制整个 `profiles` 目录。导入后重新添加原来的工作区路径即可查找对应会话。
 
 ### 数据保存在哪里？
 
@@ -117,14 +124,16 @@ npm run dist      # 构建 Windows 安装包
 npm run dist:mac  # 构建 macOS 安装包，需在 macOS 上运行
 ```
 
-## 参与贡献
-
-欢迎提交 Issue 和 Pull Request，参与功能开发、问题修复或文档改进。报告问题时，请附上应用版本、操作系统、复现步骤和必要截图，并移除日志中的密钥等敏感信息。
+## 文档
 
 - [产品与架构手册](docs/handbook/README.md)
 - [界面设计规范](docs/design-language.md) · [动效规范](docs/motion.md)
 - [功能契约](docs/features/README.md)
 - [构建与发布指南](docs/handbook/modules/build-release.md)
+
+## 参与贡献
+
+欢迎提交 Issue 和 Pull Request，参与功能开发、问题修复或文档改进。报告问题时，请附上应用版本、操作系统、复现步骤和必要截图，并移除日志中的密钥等敏感信息。
 
 ## 社区
 
