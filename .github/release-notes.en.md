@@ -1,63 +1,31 @@
-## Deepseek-Harness-Desktop 0.3.0 (English)
+# Deepseek-Harness-Desktop 0.3.0
 
-Platform: Windows x64; macOS is published only when the same accepted candidate contains that artifact.
+DeepSeek Harness on the Windows desktop: conversations, files, web previews, terminal work, and Git in one local application.
 
-Compared with [0.2.9](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9), this release records only the current delta and pins Harness to `dsh-v0.1.5-rc.1` (SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`). Candidate building and promotion are separate; promotion accepts original assets from an accepted candidate run, and tag pushes no longer rebuild them.
+## What's new
 
-### Important upgrade notes
+- **Browser mini-player**: Move a web preview into an overlay inside the chat area, resize it from any edge or corner, and restore it without losing the current page or history.
+- **Workspace flow**: Files, Browser, Diff, terminal, and Git work around the active workspace. Files and terminal selections can be sent directly to the conversation.
+- **Launcher and recovery**: Improve cold start, plugin troubleshooting, data import, and update flows while keeping the built-in usage, messaging, and marketplace entry points available.
+- **Models and extensions**: Manage model providers, MCP, skills, and plugins from Settings, and browse or install extensions from the built-in marketplace.
+- **Runtime reliability**: Fix tool-call validation, malformed-response retries, session projection recovery, terminal layout, and several desktop interaction edge cases.
+- **Installer reliability**: Preserve dependency runtime files during Windows packaging so the installed app can load the complete Harness runtime.
+- **Harness baseline**: The desktop client and installer use the same pinned DeepSeek Harness baseline.
 
-**dshbot is no longer bundled with the desktop.** Its source, development preset, and first-party recommendation have been removed. Older dshbot installations may fail to start because they call APIs removed by the newer Harness. Disable only dshbot in the launcher's plugin recovery tools, then start the desktop. Disabling it does not delete plugin files, bot settings, memories, or sessions. Re-enable it after the independent plugin becomes compatible; do not clear user data.
+## Install and upgrade
 
-> [!CAUTION]
-> **Migration from a version older than 0.2.7 or from the official CLI does not bring old conversations over automatically.**
->
-> Since 0.2.7, the desktop uses its own `dsh-home` and does not read or automatically migrate the official `~/.dsh`. Quit the application completely, including the tray, before migrating.
->
-> **Recommended:** open **launcher > Import** on cold start and copy only the selected items into the desktop home. Do not copy `profiles`. Compatible old projection caches can be cold-rebuilt automatically, but the app still does not directly read the official `~/.dsh`.
->
-> Existing 0.2.7 desktop-home users can install over their current version. The desktop home stays the same and the app does not switch back to `~/.dsh`.
+The public installer targets Windows 10 or later on x64. Download it from [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) and verify the files with the accompanying `SHA512SUMS.txt`. The installer is not Authenticode-signed, so Windows may show a security warning.
 
-If the launcher is unavailable, use this Windows PowerShell fallback. Reopen the original workspace path afterwards; directory-free conversations appear in the ungrouped workspace section.
+Existing desktop installations can be upgraded in place. To migrate from the official CLI or another older environment, use Import in the launcher instead of copying the entire `profiles` directory. If an older dshbot installation prevents startup, disable only that plugin in the launcher's troubleshooting tools; sessions and plugin files are preserved.
 
-```powershell
-$old = "$env:USERPROFILE\.dsh"
-$new = "$env:APPDATA\Deepseek-Harness-Desktop\dsh-home"
-Copy-Item "$old\sessions\*" "$new\sessions\" -Recurse -Force
-if (Test-Path "$old\attachments") {
-  Copy-Item "$old\attachments\*" "$new\attachments\" -Recurse -Force
-}
-```
+## Platform scope
 
-### Installer
+This publication contains a Windows x64 installer. macOS, Android, and the Web second client are not included in this Windows asset set. Remote access requires an explicit pairing opt-in.
 
-`0.3.0` provides a Windows x64 installer. macOS is published only when the same accepted candidate contains that artifact; promotion never rebuilds it.
+## Verification scope
 
-| Platform | File |
-| --- | --- |
-| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.3.0.exe` |
+The Windows candidate passed same-commit desktop tests, installer packaging, and packaged smoke, and the promotion step independently rechecked the candidate Setup SHA256. Full manual acceptance of every installed-app path was not completed; paths not exercised are not claimed as verified here.
 
-- Checksums: `SHA512SUMS.txt` generated during candidate promotion, covering the Windows Setup and blockmap.
-- The installer is not Authenticode-signed. Download from this repository and verify the checksum file.
+## Feedback
 
-### Changes
-
-- Pin Harness to `dsh-v0.1.5-rc.1` (SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`); source and installers share the same official baseline.
-- Ship the installed-package Browser `dshd mini-player` as a P0 path: reuse the same Browser guest / `previewId` in a renderer overlay constrained to the chat viewport, with title-bar drag and four-edge/four-corner resize; restore preserves URL / history.
-- Boundary: the mini-player only moves the guest presentation bounds; it does not create a second BrowserView, external window, or mini-specific IPC. Web / Android remain outside the default Windows candidate acceptance scope.
-- Keep launcher/compose recovery and the packaged `dsh-im` / `dsh-usage` desktop modules available so the candidate does not omit recovery or usage entry points.
-- Fix post-action preview focus, caption-drag false positives around floating panels, fixed model-menu drag isolation, Python lazy-grammar event synchronization, and the Switch `corner-shape` contract.
-- Limit terminal settle-fit resizing to panes with a real used box, avoiding phantom PTY resizes for hidden or not-yet-laid-out panes.
-- Preserve strict tool-call id/name validation, malformed-response retry, and historical projection repair; the keyless malformed-call fixture now uses the canonical v3 snapshot without rewriting the append-only session log.
-- Separate build from promotion: `release.yml` packages and smokes the installer, while `publish.yml` downloads the original assets from the same accepted run and requires same-SHA tests, Setup SHA256, and filename/version guards before creating a Release. It never rebuilds binaries.
-
-### Not shipped
-
-- dshbot functionality belongs to the independent plugin and is not bundled. Existing user installations remain available to generic plugin management and recovery.
-- Web second-client, Android APK, and macOS device acceptance remain outside the default Windows candidate scope.
-
-### Verification and known limits
-
-- The source SHA, workflow run ID, green Desktop tests run, and Setup SHA256 must be recorded before publication; run IDs and asset digests are intentionally not hardcoded here.
-- Promotion uses `.github/workflows/publish.yml` and requires the candidate run ID, `v0.3.0`, and the Setup SHA256. It does not rebuild binaries and generates `SHA512SUMS.txt` plus provenance.
-- Full installed-package P0 acceptance remains a release prerequisite; untested cases are not Pass, and earlier candidate results are not inherited.
-- Web second-client, Android, and macOS device acceptance remain outside the default Windows candidate scope. Repository-wide documentation checks still have existing failures; not all checks are claimed green.
+Report problems through [Issues](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues) with your OS, reproduction steps, and relevant logs. Remove API keys and other sensitive data before sharing logs.

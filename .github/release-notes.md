@@ -1,65 +1,31 @@
-## Deepseek-Harness-Desktop 0.3.0
+# Deepseek-Harness-Desktop 0.3.0
 
-平台：Windows x64；macOS 仅在同一已验收候选包含该资产时发布。
+把 DeepSeek Harness 带到 Windows 桌面：在一个本地窗口里完成对话、文件处理、网页预览、终端操作和 Git 工作流。
 
-相对 [0.2.9](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases/tag/v0.2.9)，本版本只记录本轮实际变更，并将 Harness 固定到 `dsh-v0.1.5-rc.1`（SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`）。候选构建与发布晋级分离；晋级只接受已验收候选运行产生的原始资产，不由 tag push 触发重建。
+## 这次更新
 
-### 升级注意（必读）
+- **Browser mini-player**：网页预览可以切换为聊天区域内的浮层，支持拖拽和八方向缩放；恢复后保留当前页面和历史记录。
+- **工作区工作流**：Files、Browser、Diff、终端和 Git 围绕当前工作区协作，文件和终端选区可以直接加入对话。
+- **启动器与恢复**：改进冷启动、插件排查、数据导入和更新流程；内置的用量统计、消息渠道和市场入口保持可用。
+- **模型与扩展**：设置中可以管理模型服务、MCP、技能和插件，并从内置市场查看和安装扩展。
+- **运行时可靠性**：修复工具调用校验、畸形响应重试、会话投影恢复、终端布局和多个桌面交互边界。
+- **安装包可靠性**：修复 Windows 打包时依赖运行时文件被过滤的问题，确保安装版可以加载完整的 Harness 依赖。
+- **Harness 基线**：桌面客户端与安装包使用同一套固定的 DeepSeek Harness 基线。
 
-**dshbot 已从桌面本体剥离。** 不再附带其源码、开发预置或第一方推荐。旧版 dshbot 可能因调用新版 Harness 已移除的接口而启动失败；已安装用户请在启动器的插件排查中单独禁用 dshbot，再启动桌面。插件文件、机器人设置、记忆与会话不会因禁用而删除。待独立插件兼容后可重新启用；不要清空用户数据。
+## 安装与升级
 
-> [!CAUTION]
-> **从早于 0.2.7 的版本、或官方 CLI 升级过来，不会自动带上旧对话。**
->
-> 0.2.7 起桌面只用自己的 `dsh-home`，不读、不迁官方 `~/.dsh`。请先**完全退出**应用（托盘也要退）。
->
-> **推荐做法：** 冷启动进入 **启动器 → 导入**，按勾选项拷进桌面家目录。不要拷 `profiles`。本版会对可兼容的旧投影缓存自动冷重建，但仍不会直接读取官方 `~/.dsh`。
->
-> 已经在用 0.2.7 桌面家目录的，直接覆盖安装即可；本版仍钉同一桌面 home，不回读 `~/.dsh`。
+当前公开安装包为 Windows 10 及以上 x64。请从 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) 下载，并用随附的 `SHA512SUMS.txt` 校验文件完整性。安装器未进行 Authenticode 签名，Windows 可能显示安全提示。
 
-启动器不可用时，可用下面的手动拷贝兜底（拷完后打开**当时聊天用的工作区路径**；未绑定工作区的对话在「无工作区」）：
+已有桌面安装可以直接覆盖升级。若要从官方 CLI 或其他旧环境迁移，请在启动器中使用「导入」，不要直接复制整个 `profiles` 目录。旧版 dshbot 如果导致启动失败，请在启动器的插件排查中单独禁用它；这不会删除会话或插件文件。
 
-**Windows（PowerShell）**
+## 平台范围
 
-```powershell
-$old = "$env:USERPROFILE\.dsh"
-$new = "$env:APPDATA\Deepseek-Harness-Desktop\dsh-home"
-Copy-Item "$old\sessions\*" "$new\sessions\" -Recurse -Force
-if (Test-Path "$old\attachments") {
-  Copy-Item "$old\attachments\*" "$new\attachments\" -Recurse -Force
-}
-```
+本次公开资产为 Windows x64 安装包。macOS、Android 和 Web 第二客户端不包含在这批 Windows 安装资产中；远程访问需要用户主动开启配对。
 
-### 安装包
+## 验证范围
 
-本版本 `0.3.0` 提供 Windows x64；macOS 仅在同一已验收候选包含该资产时发布，晋级阶段不会重新构建。
+Windows 候选已通过同一提交的桌面测试、安装包构建和 packaged smoke，并在晋级时重新校验了候选 Setup 的 SHA256。完整安装版手工验收尚未全部执行，未执行的路径不在本公告中宣称为已验证能力。
 
-| 平台 | 文件 |
-| --- | --- |
-| Windows x64 | `Deepseek-Harness-Desktop-Setup-0.3.0.exe` |
+## 反馈
 
-- 校验：候选晋级页生成的 `SHA512SUMS.txt`（Windows Setup / blockmap）
-- 安装器未做 Authenticode 签名；请从本仓库下载并核对校验文件。
-
-### 本版变化
-
-- Harness 固定为 `dsh-v0.1.5-rc.1`（SHA `183f08e9c6dde7e36cd2318eaee70b0da08fb35e`），源码与安装包共用同一官方基线。
-- 安装版 Browser 交付 `dshd mini-player` P0 路径：复用同一 Browser guest / `previewId`，挂到聊天可视区内的 renderer 浮层，支持标题栏拖拽和四边/四角缩放；恢复后保留 URL / history。
-- 边界：mini-player 只迁移 guest 的呈现边界，不创建第二个 BrowserView、外部窗口或 mini 专用 IPC；Web / Android 仍不在默认 Windows 候选的验收范围内。
-- 启动器与 compose 恢复链、`dsh-im` / `dsh-usage` 内置模块的装配保持可用，避免候选包缺少桌面恢复和用量入口。
-- 修复文件交付卡动作后的预览焦点、标题栏浮动面板拖拽误报、模型菜单拖拽隔离、Python lazy grammar 事件同步和 Switch `corner-shape` 契约。
-- 终端 settle-fit 只在宿主拥有真实 used box 时调整 PTY，未布局或折叠 pane 不再产生伪 resize。
-- 工具调用继续执行严格的 id/name 校验、畸形响应重试和旧投影修复；keyless malformed-call 快照改用 v3 规范，原始会话日志不被改写。
-- 构建与晋级分离：`release.yml` 生成并冒烟安装包，`publish.yml` 仅下载同一已验收运行的原始资产，校验同 SHA 测试、Setup SHA256 和版本文件名后才创建 Release，不重新构建。
-
-### 本版不交付
-
-- dshbot 的机器人功能由独立插件维护，不随桌面交付；旧用户安装保留，由通用插件管理负责禁用和恢复。
-- Web 第二客户端、Android APK 与 macOS 实机验收不在默认 Windows 候选范围内。
-
-### 发布验证与已知边界
-
-- 发布前必须在发布记录填入构建源码 SHA、运行 ID、Desktop tests 成功运行和 Setup SHA256；本文件不预填运行号或资产摘要。
-- 发布晋级使用 `.github/workflows/publish.yml`，要求操作员提供候选运行 ID、`v0.3.0` 标签和 Setup SHA256；晋级阶段不重建二进制，并生成 `SHA512SUMS.txt` 与 provenance。
-- 完整安装包 P0 实机验收仍是发布前置条件；未测项不计 Pass，历史候选结果不沿用。
-- Web 第二客户端、Android 与 macOS 实机验收仍不在 Windows 默认候选范围；全库文档检查存在既有问题，不宣称所有检查通过。
+请通过 [Issues](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/issues) 报告问题，并附上操作系统、复现步骤和相关日志。分享日志前请移除 API 密钥等敏感信息。
