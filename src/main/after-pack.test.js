@@ -180,6 +180,49 @@ test('collectFiles preserves a linked package copied to distinct destinations', 
   );
 });
 
+test('collectFiles filters workspace source trees but keeps package src and tests', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-source-filter-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destination = path.join(workspace, 'destination');
+  const koffi = path.join(
+    workspace,
+    'node_modules',
+    '.pnpm',
+    'koffi@3.1.1',
+    'node_modules',
+    'koffi',
+  );
+  const files = new Map([
+    [path.join('apps', 'cli', 'src', 'index.js'), 'workspace src'],
+    [path.join('packages', 'shared', 'tests', 'index.js'), 'workspace tests'],
+    [path.join('node_modules', '.pnpm', 'koffi@3.1.1', 'node_modules', 'koffi', 'package.json'), '{"name":"koffi"}\n'],
+    [path.join('node_modules', '.pnpm', 'koffi@3.1.1', 'node_modules', 'koffi', 'src', 'koffi', 'index.js'), 'koffi runtime'],
+    [path.join('node_modules', '.pnpm', 'koffi@3.1.1', 'node_modules', 'koffi', 'tests', 'runtime.js'), 'koffi tests'],
+  ]);
+  for (const [relative, content] of files) {
+    const file = path.join(workspace, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  }
+  const linkedKoffi = path.join(workspace, 'apps', 'desktop-host', 'node_modules', 'koffi');
+  fs.mkdirSync(path.dirname(linkedKoffi), { recursive: true });
+  fs.symlinkSync(koffi, linkedKoffi, process.platform === 'win32' ? 'junction' : 'dir');
+
+  const destinations = collectFiles(workspace, destination, false, true)
+    .map(({ dest }) => path.relative(destination, dest));
+
+  assert.equal(destinations.includes(path.join('apps', 'cli', 'src', 'index.js')), false);
+  assert.equal(destinations.includes(path.join('packages', 'shared', 'tests', 'index.js')), false);
+  assert.equal(
+    destinations.includes(path.join('node_modules', 'koffi', 'src', 'koffi', 'index.js')),
+    true,
+  );
+  assert.equal(
+    destinations.includes(path.join('node_modules', 'koffi', 'tests', 'runtime.js')),
+    true,
+  );
+});
+
 test('resolveDeployDir ignores local caches unless a deploy directory is explicit', () => {
   assert.equal(resolveDeployDir(undefined), null);
   assert.equal(resolveDeployDir(''), null);
@@ -250,6 +293,7 @@ function writePinRuntimeFiles(root) {
     [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'), 'export {}\n'],
     [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'), 'export {}\n'],
     [path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'), 'export {}\n'],
+    [path.join('node_modules', 'koffi', 'src', 'koffi', 'index.js'), 'export default {}\n'],
   ]);
   for (const [relative, content] of files) {
     const file = path.join(root, relative);
@@ -270,6 +314,24 @@ test('assertHarnessRuntime accepts a complete compatible host', (t) => {
   writeAjv(path.join(root, 'node_modules', '@modelcontextprotocol', 'sdk', 'node_modules', 'ajv'), '8.17.1');
 
   assert.doesNotThrow(() => assertHarnessRuntime(root, RC7_PIN));
+});
+
+test('assertHarnessRuntime rejects a host missing the Koffi ESM runtime entry', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-koffi-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  writePinRuntimeFiles(root);
+  writeRuntimeVersions(root, RC7_PIN.npm);
+  writeNodePtyPrebuild(root);
+  writeDesktopForkPackages(root);
+  writeGhosttyTerminalPackage(root);
+  writeMcpSdk(root);
+  writeAjv(path.join(root, 'node_modules', '@modelcontextprotocol', 'sdk', 'node_modules', 'ajv'), '8.17.1');
+  fs.rmSync(path.join(root, 'node_modules', 'koffi', 'src', 'koffi', 'index.js'));
+
+  assert.throws(
+    () => assertHarnessRuntime(root, RC7_PIN),
+    /koffi.*src.*koffi.*index\.js/i,
+  );
 });
 
 test('assertHarnessRuntime rejects a runtime missing a registered desktop fork package', (t) => {

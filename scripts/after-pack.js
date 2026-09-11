@@ -239,7 +239,11 @@ function shouldSkip(src, root, expandNested = false, skipStore = false) {
         return true; // node_modules 下的 dev-only 包
       }
     }
-    if ((part === 'src' || part === 'tests' || part === '__tests__') && /^(packages|apps)(\\|\/)/.test(parts.slice(0, i).join(path.sep))) {
+    if (
+      nodeModulesSeen === 0
+      && (part === 'src' || part === 'tests' || part === '__tests__')
+      && /^(packages|apps)(\\|\/)/.test(parts.slice(0, i).join(path.sep))
+    ) {
       // 只跳过 packages/ apps/ 下的源码与测试目录（node_modules 内的不动）
       return true;
     }
@@ -860,6 +864,7 @@ function assertHarnessRuntime(harnessDest, pin) {
     path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-mcp', 'lib', 'client.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'index.js'),
     path.join('node_modules', '@deepseek-ai', 'dsh-client-ui-settings-skills', 'lib', 'client.js'),
+    path.join('node_modules', 'koffi', 'src', 'koffi', 'index.js'),
   ];
   const missing = requiredFiles.filter((relative) => !fs.existsSync(path.join(harnessDest, relative)));
   if (missing.length > 0) {
