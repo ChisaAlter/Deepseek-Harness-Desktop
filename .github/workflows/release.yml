@@ -63,6 +63,19 @@ jobs:
             npm run smoke:packaged
           }
 
+      # Install the REAL wrapped Setup.exe end-to-end — win-unpacked smoke
+      # alone cannot catch wrapper/stub regressions (a bare or broken Setup
+      # passed CI before this gate existed). Covers: DSHSTUB tail present,
+      # /S /D install produces the full tree, uninstall registration is a
+      # valid absolute path, shortcuts exist, DSHD_SETUP_FORCE_FALLBACK
+      # spawns the classic wizard (the no-WebView2 user path), and /S
+      # uninstall cleans up. The branded WebView2 page itself remains a
+      # manual TC-INST item — CI cannot guarantee a healthy runtime.
+      - name: Setup install gate (wrapped Setup.exe, blocking)
+        shell: pwsh
+        timeout-minutes: 30
+        run: node scripts/verify-setup-install.mjs
+
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4
         with:

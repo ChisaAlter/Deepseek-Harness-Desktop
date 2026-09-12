@@ -193,6 +193,23 @@ test('installer stub keeps silent /S pass-through and GUI fallback', () => {
   assert.match(stub, /runInnerGuiAndWait/);
   assert.match(stub, /TIMER_READY/);
   assert.match(stub, /g_wvReady/);
+  // DSHD_SETUP_FORCE_FALLBACK forces the wizard path so the no-WebView2
+  // user journey is testable on machines where the runtime is healthy.
+  assert.match(stub, /DSHD_SETUP_FORCE_FALLBACK/);
+});
+
+test('release workflow gates the real wrapped Setup, not only win-unpacked', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(yml, /scripts\/verify-setup-install\.mjs/);
+  // The gate verifies the actual artifact: wrapper tail, /S /D install,
+  // uninstall registration, shortcuts, forced-fallback spawn, cleanup.
+  const script = fs.readFileSync(path.join(ROOT, 'scripts', 'verify-setup-install.mjs'), 'utf8');
+  assert.match(script, /DSHSTUB/);
+  assert.match(script, /\/S/);
+  assert.match(script, /\/D=/);
+  assert.match(script, /DSHD_SETUP_FORCE_FALLBACK/);
+  assert.match(script, /dsh-inner-setup/);
+  assert.match(script, /UninstallString/);
 });
 
 test('installer stub rejects mangled install records before upgrade', () => {

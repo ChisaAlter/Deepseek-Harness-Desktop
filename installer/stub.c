@@ -887,6 +887,13 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 static int runGui(void) {
+  /* Test hook: force the classic-wizard path without a broken WebView2
+   * (CI/manual QA coverage for the same degradation users hit when the
+   * runtime is missing). */
+  if (GetEnvironmentVariableW(L"DSHD_SETUP_FORCE_FALLBACK", NULL, 0)) {
+    dlog(L"DSHD_SETUP_FORCE_FALLBACK set - skipping WebView2");
+    return runInnerGuiAndWait(NULL);
+  }
   /* Extract the loader + page before showing anything; if the WebView2
    * loader or runtime is missing we hand off to the classic wizard. */
   wchar_t loaderPath[MAX_PATH];
