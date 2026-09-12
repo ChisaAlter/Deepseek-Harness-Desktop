@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Deepseek-Harness-Desktop</title>
+<style>
+  /*
+   * Token mirror — same contract as scripts/render-installer-assets.js:
+   * the stub cannot import the theme pack, so these literals MIRROR the
+   * official light table in src/shared/dsh-webui-tokens.css (the table the
+   * launcher uses). Keep in sync with that file; never add a parallel
+   * palette, never use the boot page's instrument-canvas tokens.
+   * Composition mirrors src/renderer/launcher.css: left rail on
+   * --dsw-specific-sidebar-fill + hairline divider, right stage with
+   * page-head / lede / left-aligned 36px capsule actions.
+   */
+  :root {
+    --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans', sans-serif;
+    --dsw-alias-bg-base: rgb(255, 255, 255);
+    --dsw-alias-bg-layer-1: rgb(255, 255, 255);
+    --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+    --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+    --dsw-alias-button-primary-fill: rgb(15, 17, 21);
+    --dsw-alias-button-primary-hover: rgb(67, 69, 74);
+    --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+    --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+    --dsw-alias-label-primary: rgb(15, 17, 21);
+    --dsw-alias-label-primary-foreground: rgb(255, 255, 255);
+    --dsw-alias-label-secondary: rgb(97, 102, 107);
+    --dsw-alias-label-tertiary: rgb(129, 133, 140);
+    --dsw-alias-state-business-primary: rgb(65, 118, 230);
+    --dsw-alias-state-error-primary: rgb(236, 19, 19);
+    --dsw-specific-sidebar-fill: rgb(249, 250, 251);
+    --ds-transition-duration-fast: 100ms;
+    --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--dsw-alias-bg-base);
+    color: var(--dsw-alias-label-primary);
+    font-family: var(--dsw-font-family);
+    user-select: none;
+    cursor: default;
+  }
+
+  .shell {
+    position: relative;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .caption {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 84px;
+    height: 40px;
+    z-index: 4;
+  }
+
+  .wctl {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px 0 0;
+  }
+
+  .wctl button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--dsw-alias-label-secondary);
+    transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+  }
+
+  .wctl button svg { width: 16px; height: 16px; display: block; }
+
+  .wctl button:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
+
+  .wctl button.close:hover {
+    background: var(--dsw-alias-state-error-primary);
+    color: var(--dsw-alias-label-primary-foreground);
+  }
+
+  .rail {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    width: 188px;
+    padding: 48px 20px 16px;
+    background: var(--dsw-specific-sidebar-fill);
+    border-right: 1px solid var(--dsw-alias-border-l1);
+  }
+
+  .mark {
+    width: 36px;
+    height: 36px;
+    color: var(--dsw-alias-label-primary);
+  }
+  .mark svg { width: 100%; height: 100%; display: block; }
+
+  .rail-head { margin-top: 16px; }
+
+  .rail-kicker {
+    margin: 0 0 4px;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .rail-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 24px;
+    word-break: break-all;
+  }
+
+  .rail-meta {
+    margin: 4px 0 0;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .stage {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 48px 24px 16px;
+  }
+
+  .page-head { flex: none; margin-bottom: 16px; }
+  .page-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 24px;
+  }
+
+  main { flex: 1; min-height: 0; }
+
+  .state { display: none; }
+  .state.is-active { display: block; }
+
+  .lede {
+    margin: 0 0 12px;
+    color: var(--dsw-alias-label-secondary);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .field { margin: 0 0 16px; }
+  .field-label {
+    display: block;
+    margin: 0 0 4px;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .dir-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 36px;
+    padding: 0 4px 0 12px;
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 8px;
+    background: var(--dsw-alias-bg-layer-1);
+  }
+
+  .dir-value {
+    flex: 1;
+    min-width: 0;
+    color: var(--dsw-alias-label-primary);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: left;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .ghost {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 28px;
+    padding: 0 12px;
+    border: 1px solid var(--dsw-alias-border-l2);
+    border-radius: 14px;
+    background: transparent;
+    color: var(--dsw-alias-label-primary);
+    font-size: 12px;
+    line-height: 18px;
+    transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+  }
+
+  .ghost:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+
+  .actions { display: flex; align-items: center; gap: 8px; }
+
+  .actions .primary, .actions .ghost {
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: var(--dsw-alias-button-primary-fill);
+    color: var(--dsw-alias-label-primary-foreground);
+    transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+  }
+
+  .primary:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); }
+  .primary:disabled, .ghost:disabled { opacity: 0.4; cursor: default; }
+
+  .bar {
+    width: 100%;
+    height: 4px;
+    margin: 0 0 12px;
+    border-radius: 999px;
+    background: var(--dsw-alias-border-l2);
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--dsw-alias-state-business-primary);
+    transition: width var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+  }
+
+  .progress-text {
+    margin: 0;
+    color: var(--dsw-alias-label-secondary);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .progress-text .pct { color: var(--dsw-alias-state-business-primary); font-variant-numeric: tabular-nums; }
+
+  .error-text {
+    margin: 0 0 12px;
+    color: var(--dsw-alias-state-error-primary);
+    font-size: 14px;
+    line-height: 22px;
+    word-break: break-all;
+  }
+
+  .foot {
+    flex: none;
+    padding-top: 12px;
+    border-top: 1px solid var(--dsw-alias-border-l1);
+    display: flex;
+    justify-content: space-between;
+    color: var(--dsw-alias-label-tertiary);
+    font-size: 12px;
+    line-height: 18px;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="caption" id="caption" aria-hidden="true"></div>
+  <div class="wctl">
+    <button type="button" id="wmin" title="Minimize" aria-label="Minimize">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2.4 7.3h11.2v1.4H2.4z"/></svg>
+    </button>
+    <button type="button" id="wclose" class="close" title="Close" aria-label="Close">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8.7 8 12.9 3.8a.7.7 0 0 0-1-1L7.7 7 3.5 2.8a.7.7 0 1 0-1 1L6.7 8 2.5 12.2a.7.7 0 1 0 1 1L7.7 9l4.2 4.2a.7.7 0 0 0 1-1z"/></svg>
+    </button>
+  </div>
+  <aside class="rail">
+    <div class="mark" aria-hidden="true">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" fill="none"><path fill="currentColor" fill-rule="nonzero" d="M48.8354 10.0479C48.3232 9.79199 48.1025 10.2798 47.8032 10.5278C47.7007 10.6079 47.6143 10.7119 47.5273 10.8076C46.7793 11.624 45.9048 12.1597 44.7622 12.0957C43.0923 12 41.666 12.5356 40.4058 13.8398C40.1377 12.2319 39.2476 11.272 37.8926 10.6558C37.1836 10.3359 36.4668 10.0156 35.9702 9.31982C35.6235 8.82373 35.5293 8.27197 35.356 7.72754C35.2456 7.3999 35.1353 7.06396 34.7651 7.00781C34.3633 6.94385 34.2056 7.2876 34.0479 7.57568C33.418 8.75195 33.1733 10.0479 33.1973 11.3599C33.2524 14.312 34.4736 16.6641 36.8999 18.3359C37.1758 18.5278 37.2466 18.7197 37.1597 19C36.9946 19.5757 36.7974 20.1357 36.624 20.7119C36.5137 21.0801 36.3486 21.1597 35.9624 21C34.6309 20.4321 33.481 19.5918 32.4644 18.5757C30.7393 16.8721 29.1792 14.9917 27.2334 13.52C26.7764 13.1758 26.3193 12.856 25.8467 12.5518C23.8618 10.584 26.1069 8.96777 26.627 8.77588C27.1704 8.57568 26.8159 7.8877 25.0591 7.896C23.3022 7.90381 21.6953 8.50391 19.647 9.30371C19.3477 9.42383 19.0322 9.51172 18.7095 9.58398C16.8501 9.22363 14.9199 9.14355 12.9033 9.37598C9.10596 9.80762 6.07275 11.6396 3.84326 14.7681C1.16455 18.5278 0.53418 22.7998 1.30664 27.2559C2.11768 31.9521 4.46582 35.8398 8.07373 38.8799C11.8159 42.0322 16.1255 43.5762 21.041 43.2803C24.0269 43.104 27.3516 42.6963 31.1016 39.4561C32.0469 39.936 33.0396 40.1279 34.686 40.272C35.9546 40.3921 37.1758 40.208 38.1211 40.0078C39.6021 39.688 39.4995 38.2881 38.9639 38.0322C34.623 35.9678 35.5762 36.8081 34.71 36.1279C36.9155 33.4639 40.2402 30.6958 41.54 21.728C41.6426 21.0161 41.5557 20.5679 41.54 19.9917C41.5322 19.6396 41.6108 19.5039 42.0049 19.4639C43.0923 19.3359 44.1479 19.0317 45.1167 18.4878C47.9292 16.9199 49.064 14.3438 49.3315 11.2559C49.3711 10.7837 49.3237 10.2959 48.8354 10.0479ZM24.3262 37.8398C20.1196 34.4639 18.0791 33.3521 17.2358 33.3999C16.4482 33.4482 16.5898 34.3682 16.7632 34.9678C16.9443 35.5601 17.1812 35.9683 17.5117 36.4878C17.7402 36.832 17.8979 37.3442 17.2832 37.728C15.9282 38.584 13.5728 37.4399 13.4624 37.3838C10.7207 35.7358 8.42822 33.5601 6.81348 30.584C5.25342 27.7197 4.34766 24.6479 4.19775 21.3677C4.1582 20.5757 4.38672 20.2959 5.15869 20.1519C6.17529 19.96 7.22314 19.9199 8.23926 20.0718C12.5327 20.7119 16.1885 22.6719 19.2529 25.7759C21.002 27.5439 22.3252 29.6558 23.6885 31.7202C25.1377 33.9121 26.6978 36 28.6831 37.7119C29.3843 38.312 29.9434 38.7681 30.479 39.104C28.8643 39.2881 26.1699 39.3281 24.3262 37.8398ZM26.3433 24.6001C26.3433 24.248 26.6191 23.9678 26.9658 23.9678C27.0444 23.9678 27.1152 23.9839 27.1782 24.0078C27.2651 24.04 27.3438 24.0879 27.4067 24.1602C27.5171 24.272 27.5801 24.4321 27.5801 24.6001C27.5801 24.9521 27.3042 25.2319 26.9575 25.2319C26.6108 25.2319 26.3433 24.9521 26.3433 24.6001ZM32.6064 27.8799C32.2046 28.0479 31.8027 28.1919 31.4165 28.208C30.8179 28.2397 30.1641 27.9922 29.8096 27.688C29.2583 27.2158 28.8643 26.9521 28.6987 26.1279C28.6279 25.7759 28.6675 25.2319 28.7305 24.9199C28.8721 24.248 28.7144 23.8159 28.2495 23.4238C27.8716 23.104 27.3911 23.0161 26.8633 23.0161C26.666 23.0161 26.4849 22.9277 26.3511 22.856C26.1304 22.7441 25.9492 22.4639 26.1226 22.1201C26.1777 22.0078 26.4458 21.7358 26.5088 21.688C27.2256 21.272 28.0527 21.4077 28.8169 21.7197C29.5259 22.0161 30.0615 22.5601 30.834 23.3281C31.6216 24.2559 31.7632 24.5117 32.2124 25.208C32.5669 25.752 32.8901 26.312 33.1104 26.9521C33.2446 27.3521 33.0713 27.6802 32.6064 27.8799Z"/></svg>
+    </div>
+    <div class="rail-head">
+      <p class="rail-kicker">DeepSeek Harness</p>
+      <h1 class="rail-title" id="brand">Deepseek-Harness-Desktop</h1>
+      <p class="rail-meta" id="meta"></p>
+    </div>
+  </aside>
+  <div class="stage">
+    <header class="page-head">
+      <h2 id="page-title"></h2>
+    </header>
+    <main>
+      <section class="state" id="state-ready">
+        <p class="lede" id="ready-lede"></p>
+        <div class="field" id="dir-row">
+          <span class="field-label" id="dir-label"></span>
+          <div class="dir-row">
+            <span class="dir-value" id="dir-value"></span>
+            <button class="ghost" id="browse"></button>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="install"></button>
+        </div>
+      </section>
+
+      <section class="state" id="state-busy">
+        <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        <p class="progress-text" id="busy-text"></p>
+      </section>
+
+      <section class="state" id="state-done">
+        <p class="lede" id="done-lede"></p>
+        <div class="actions">
+          <button class="primary" id="launch"></button>
+          <button class="ghost" id="done-close"></button>
+        </div>
+      </section>
+
+      <section class="state" id="state-error">
+        <p class="error-text" id="error-text"></p>
+        <div class="actions">
+          <button class="primary" id="retry"></button>
+          <button class="ghost" id="compat"></button>
+          <button class="ghost" id="error-close"></button>
+        </div>
+      </section>
+    </main>
+    <footer class="foot">
+      <span id="foot-left">DeepSeek Harness</span>
+      <span id="foot-right">MIT License</span>
+    </footer>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  var STRINGS = {
+    zh: {
+      product: 'Deepseek-Harness-Desktop',
+      install: '安装',
+      update: '更新',
+      installing: '正在安装',
+      doneTitle: '安装完成',
+      errorTitle: '安装失败',
+      readyInstall: '选择安装位置并开始安装。',
+      readyUpdate: '检测到已安装版本 v%s，将更新至 v%s。',
+      dirLabel: '安装位置',
+      browse: '更改…',
+      done: '安装完成。',
+      launch: '启动 Deepseek-Harness-Desktop',
+      close: '关闭',
+      retry: '重试',
+      compat: '使用兼容安装向导',
+      errorPrefix: '安装失败',
+      browseTitle: '选择安装位置',
+      minTip: '最小化',
+      closeTip: '关闭'
+    },
+    en: {
+      product: 'Deepseek-Harness-Desktop',
+      install: 'Install',
+      update: 'Update',
+      installing: 'Installing',
+      doneTitle: 'Installation complete',
+      errorTitle: 'Installation failed',
+      readyInstall: 'Choose an install location to continue.',
+      readyUpdate: 'Installed v%s detected — updating to v%s.',
+      dirLabel: 'Location',
+      browse: 'Change…',
+      done: 'Installation complete.',
+      launch: 'Launch Deepseek-Harness-Desktop',
+      close: 'Close',
+      retry: 'Retry',
+      compat: 'Use classic wizard',
+      errorPrefix: 'Installation failed',
+      browseTitle: 'Choose install location',
+      minTip: 'Minimize',
+      closeTip: 'Close'
+    }
+  };
+
+  var bridge = window.chrome && window.chrome.webview;
+  var lang = 'zh';
+  var info = null;
+  var chosenDir = '';
+
+  function t() { return STRINGS[lang] || STRINGS.zh; }
+  function $(id) { return document.getElementById(id); }
+  function post(msg) { if (bridge) bridge.postMessage(msg); }
+  function fmt(template, a, b) {
+    return template.replace('%s', a).replace('%s', b === undefined ? '' : b);
+  }
+
+  function titleFor(name) {
+    var s = t();
+    if (name === 'busy') return s.installing;
+    if (name === 'done') return s.doneTitle;
+    if (name === 'error') return s.errorTitle;
+    return info && info.mode === 'upgrade' ? s.update : s.install;
+  }
+
+  function show(name) {
+    var states = document.querySelectorAll('.state');
+    for (var i = 0; i < states.length; i++) states[i].classList.remove('is-active');
+    $('state-' + name).classList.add('is-active');
+    $('page-title').textContent = titleFor(name);
+  }
+
+  function applyStrings() {
+    var s = t();
+    $('ready-lede').textContent = info && info.mode === 'upgrade'
+      ? fmt(s.readyUpdate, info.installedVersion || '?', info.version)
+      : s.readyInstall;
+    $('dir-label').textContent = s.dirLabel;
+    $('browse').textContent = s.browse;
+    $('install').textContent = info && info.mode === 'upgrade' ? s.update : s.install;
+    $('busy-text').innerHTML = s.installing + '… <span class="pct" id="pct">0%</span>';
+    $('done-lede').textContent = s.done;
+    $('launch').textContent = s.launch;
+    $('done-close').textContent = s.close;
+    $('retry').textContent = s.retry;
+    $('compat').textContent = s.compat;
+    $('error-close').textContent = s.close;
+    $('meta').textContent = 'v' + (info && info.version ? info.version : '') + ' · MIT License';
+    $('wmin').title = s.minTip;
+    $('wclose').title = s.closeTip;
+    $('wmin').setAttribute('aria-label', s.minTip);
+    $('wclose').setAttribute('aria-label', s.closeTip);
+    $('dir-value').textContent = chosenDir;
+    $('dir-value').title = chosenDir;
+    // Upgrade: location is fixed by the existing install record.
+    var readOnly = info && info.mode === 'upgrade';
+    $('browse').disabled = !!readOnly;
+    $('browse').style.display = readOnly ? 'none' : '';
+    $('page-title').textContent = titleFor('ready');
+  }
+
+  $('browse').addEventListener('click', function () { post({ t: 'browse' }); });
+  $('install').addEventListener('click', function () {
+    post({ t: 'install', dir: chosenDir });
+    show('busy');
+  });
+  $('retry').addEventListener('click', function () {
+    post({ t: 'install', dir: chosenDir });
+    show('busy');
+  });
+  $('compat').addEventListener('click', function () { post({ t: 'compat', dir: chosenDir }); });
+  $('launch').addEventListener('click', function () { post({ t: 'launch' }); post({ t: 'close' }); });
+  $('done-close').addEventListener('click', function () { post({ t: 'close' }); });
+  $('error-close').addEventListener('click', function () { post({ t: 'close' }); });
+
+  $('wmin').addEventListener('click', function () { post({ t: 'min' }); });
+  $('wclose').addEventListener('click', function () { post({ t: 'close' }); });
+  /* Frameless window: the caption strip starts a native drag-move. */
+  $('caption').addEventListener('mousedown', function (e) {
+    if (e.button === 0) post({ t: 'drag' });
+  });
+
+  if (bridge) {
+    bridge.addEventListener('message', function (event) {
+      var msg = event.data;
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.t === 'init') {
+        info = msg;
+        lang = msg.lang === 'en' ? 'en' : 'zh';
+        chosenDir = msg.dir || '';
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        applyStrings();
+        show('ready');
+      } else if (msg.t === 'dir') {
+        chosenDir = msg.path || chosenDir;
+        applyStrings();
+      } else if (msg.t === 'progress') {
+        var pct = Math.max(0, Math.min(99, msg.pct | 0));
+        $('bar-fill').style.width = pct + '%';
+        var pctEl = $('pct');
+        if (pctEl) pctEl.textContent = pct + '%';
+      } else if (msg.t === 'done') {
+        $('bar-fill').style.width = '100%';
+        if (msg.dir) chosenDir = msg.dir;
+        show('done');
+      } else if (msg.t === 'error') {
+        $('error-text').textContent = t().errorPrefix + (msg.msg ? '：' + msg.msg : '');
+        show('error');
+      }
+    });
+    post({ t: 'ready' });
+  } else {
+    show('ready');
+  }
+})();
+</script>
+</body>
+</html>

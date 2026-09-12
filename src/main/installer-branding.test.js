@@ -150,3 +150,69 @@ test('bitmap renderer pins the MUI2 geometry and stays regenerable', () => {
   assert.doesNotMatch(source, /--boot-/);
   assert.equal(pkg.scripts['installer:assets'], 'node scripts/run-render-installer-assets.js');
 });
+
+test('dist pipeline wraps the NSIS setup into the branded shell', () => {
+  assert.match(pkg.scripts.dist, /wrap-setup\.mjs/);
+});
+
+test('stub tail format round-trips between wrap-setup and stub.c', async () => {
+  const { buildTail, parseTail } = await import('../../scripts/wrap-setup.mjs');
+  const manifest = {
+    v: 1,
+    payloadLen: 42,
+    installBytes: 1000,
+    version: '0.0.0-test',
+    productName: 'Deepseek-Harness-Desktop',
+    exeName: 'Deepseek-Harness-Desktop.exe',
+  };
+  const payload = Buffer.alloc(42, 0xab);
+  const wrapped = Buffer.concat([Buffer.alloc(100, 0x5a), payload, buildTail(manifest)]);
+  const parsed = parseTail(wrapped);
+  assert.ok(parsed, 'wrapped exe parses');
+  assert.equal(parsed.payloadOfs, 100);
+  assert.equal(parsed.payloadLen, 42);
+  assert.deepEqual(parsed.manifest, manifest);
+  // An unwrapped buffer must not parse as a package.
+  assert.equal(parseTail(Buffer.alloc(64, 7)), null);
+
+  // C side must share the same magic + field names.
+  const stub = fs.readFileSync(path.join(ROOT, 'installer', 'stub.c'), 'utf8');
+  assert.match(stub, /DSHSTUB/);
+  assert.match(stub, /payloadLen/);
+  assert.match(stub, /installBytes/);
+});
+
+test('installer stub keeps silent /S pass-through and GUI fallback', () => {
+  const stub = fs.readFileSync(path.join(ROOT, 'installer', 'stub.c'), 'utf8');
+  // Silent installs hand straight to the embedded NSIS payload.
+  assert.match(stub, /\/S/);
+  assert.match(stub, /\/D=/);
+  assert.match(stub, /runInner\(TRUE/);
+  // The branded UI is optional: WebView2 unavailable, page never ready, or
+  // browser process dead all fall back to the classic NSIS wizard.
+  assert.match(stub, /runInnerGuiAndWait/);
+  assert.match(stub, /TIMER_READY/);
+  assert.match(stub, /g_wvReady/);
+});
+
+test('installer stub rejects mangled install records before upgrade', () => {
+  const stub = fs.readFileSync(path.join(ROOT, 'installer', 'stub.c'), 'utf8');
+  // A stored install dir must be a proper absolute path: drive-relative
+  // ("C:foo") or otherwise corrupted registry values are ignored instead of
+  // steering an upgrade into a phantom location (incident 2026-09-12).
+  assert.match(stub, /isAbsoluteDirW/);
+  assert.match(stub, /dirContainsApp/);
+  // Resolution precedence matches the inner NSIS upgrade path:
+  // Software\<subkey> InstallLocation first, UninstallString-derived dir next.
+  assert.match(stub, /InstallLocation/);
+});
+
+test('branded installer page stays on official light-theme tokens', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'installer', 'ui', 'app.html'), 'utf8');
+  assert.match(html, /--dsw-alias-bg-base/);
+  assert.match(html, /--dsw-alias-label-primary/);
+  assert.match(html, /--dsw-alias-state-business-primary|--dsw-static-deepseek-500/);
+  // No second skin: no boot-page tokens, no arbitrary hex palette.
+  assert.doesNotMatch(html, /--boot-/);
+  assert.doesNotMatch(html, /#[0-9a-fA-F]{3,8}\b/);
+});
