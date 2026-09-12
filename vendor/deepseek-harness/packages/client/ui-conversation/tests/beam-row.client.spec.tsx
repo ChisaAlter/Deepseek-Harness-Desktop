@@ -79,6 +79,15 @@ describe('BeamRow', () => {
     expect(mounted.saveComposerBeamConfiguration).toHaveBeenLastCalledWith(DEFAULT_COMPOSER_BEAM_STYLE, {})
   })
 
+  it('rotates palette swatches with the hue offset so chips preview effective colors', () => {
+    mount()
+    fireEvent.click(screen.getByRole('button', { name: 'Configure thinking glow' }))
+    const swatch = screen.getByRole('button', { name: 'Aurora' }).firstElementChild as HTMLElement
+    expect(swatch.style.filter).toBe('hue-rotate(0deg)')
+    fireEvent.change(screen.getByRole('slider', { name: 'Hue offset' }), { target: { value: '90' } })
+    expect(swatch.style.filter).toBe('hue-rotate(90deg)')
+  })
+
   it('discards modal edits on cancel', () => {
     const mounted = mount()
     fireEvent.click(screen.getByRole('button', { name: 'Configure thinking glow' }))

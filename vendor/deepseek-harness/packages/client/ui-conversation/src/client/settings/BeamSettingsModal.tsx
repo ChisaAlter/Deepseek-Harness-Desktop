@@ -514,11 +514,14 @@ export function BeamSettingsModal({ open, value, presets, onClose, onSave, t }: 
                 className={css.paletteChip}
                 aria-label={t(`settings.beam.panel.palette.${id}`)}
                 aria-pressed={draft.palette.kind === 'preset' && draft.palette.id === id}
-                onClick={() => { setDraft(current => ({ ...current, palette: { kind: 'preset', id } })) }}
+                onClick={() => { setDraft(current => ({ ...current, mode: 'custom', palette: { kind: 'preset', id } })) }}
               >
                 <span
                   className={css.paletteSwatch}
-                  style={{ background: `linear-gradient(90deg, ${COMPOSER_BEAM_PALETTE_COLORS[id].join(', ')})` }}
+                  style={{
+                    background: `linear-gradient(90deg, ${COMPOSER_BEAM_PALETTE_COLORS[id].join(', ')})`,
+                    filter: `hue-rotate(${draft.hue}deg)`,
+                  }}
                 />
                 <span>{t(`settings.beam.panel.palette.${id}`)}</span>
               </button>

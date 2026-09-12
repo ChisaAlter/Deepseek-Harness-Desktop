@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { createElement } from 'react'
@@ -91,6 +93,11 @@ describe('composer beam settings', () => {
     expect(beam.style.getPropertyValue('--dsh-composer-beam-track-width')).toBe('4px')
     expect(beam.style.getPropertyValue('--dsh-composer-beam-glow-blur')).toBe('0px')
     expect(beam.style.getPropertyValue('--dsh-composer-beam-palette-gradient')).toContain('#112233')
+    expect(beam.style.getPropertyValue('--dsh-composer-beam-inner-gradient')).toContain('#112233')
+    const bloomGradient = beam.style.getPropertyValue('--dsh-composer-beam-bloom-gradient')
+    expect(bloomGradient).toContain('#aabbcc')
+    expect(bloomGradient).toContain('transparent 58%')
+    expect(bloomGradient).toContain('transparent 82%')
   })
 
   it('rejects unsupported JSON envelopes and inputs larger than 64KiB', () => {
@@ -115,5 +122,16 @@ describe('composer beam settings', () => {
     }
     tooMany.presets = Object.fromEntries(Array.from({ length: 6 }, (_unused, index) => [`p${index}`, style]))
     expect(() => parseComposerBeamConfiguration(JSON.stringify(tooMany))).toThrow()
+  })
+
+  it('pins the preview stage on an opaque surface at the top of the settings scroll region', () => {
+    const modalCss = readFileSync(
+      resolve(process.cwd(), 'packages/client/ui-conversation/src/client/settings/BeamSettingsModal.module.css'),
+      'utf8',
+    )
+    const stage = modalCss.match(/\.previewStage\s*\{[^}]*\}/)?.[0] ?? ''
+    expect(stage).toContain('position: sticky')
+    expect(stage).toContain('top: 0')
+    expect(stage).toContain('background: var(--dsw-alias-bg-layer-2)')
   })
 })

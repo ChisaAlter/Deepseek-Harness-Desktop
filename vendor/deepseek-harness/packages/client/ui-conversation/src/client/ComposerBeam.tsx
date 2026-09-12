@@ -28,11 +28,36 @@ function paletteColors(style: ComposerBeamStyle): readonly string[] {
 }
 
 function paletteGradient(colors: readonly string[]): string {
-  const stops = colors.map((color, index) => {
-    const percent = (index / (colors.length - 1)) * 100
+  const closed = colors[colors.length - 1] === colors[0] ? colors : [...colors, colors[0] ?? '#ffffff']
+  const stops = closed.map((color, index) => {
+    const percent = (index / (closed.length - 1)) * 100
     return `${color} ${percent.toFixed(2)}%`
   }).join(', ')
   return ['conic-gradient(from var(--dsh-composer-beam-angle), ', stops, ')'].join('')
+}
+
+/** Soft inner-light radials rebuilt on palette colors at the pinned positions. */
+function innerGradient(colors: readonly string[]): string {
+  const at = (index: number, alpha: string): string =>
+    withAlpha(colors[index % colors.length] ?? '#ffffff', alpha)
+  return [
+    `radial-gradient(ellipse 180px 32px at 74% 100%, ${at(0, '6b')}, transparent)`,
+    `radial-gradient(ellipse 74px 32px at 94% 0%, ${at(1, '61')}, transparent)`,
+    `radial-gradient(ellipse 80px 40px at 6% 0%, ${at(2, '66')}, transparent)`,
+    `radial-gradient(ellipse 90px 45px at 20% 0%, ${at(3, '5c')}, transparent)`,
+  ].join(', ')
+}
+
+/** Traveling bloom arc rebuilt on palette colors inside the pinned intensity window. */
+function bloomGradient(colors: readonly string[]): string {
+  const first = colors[0] ?? '#ffffff'
+  const second = colors[1 % colors.length] ?? first
+  return [
+    'conic-gradient(from var(--dsh-composer-beam-angle), ',
+    'transparent 0%, transparent 58%, rgba(255, 255, 255, 0.08) 64%, ',
+    `${withAlpha(first, '8c')} 69%, ${withAlpha(second, 'b3')} 70.5%, ${withAlpha(first, '73')} 73%, `,
+    'transparent 82%, transparent 100%)',
+  ].join('')
 }
 
 /** Resolve the local-clock dimming factor for an injected clock value. */
@@ -72,6 +97,8 @@ function variables(style: ComposerBeamStyle, now: number): BeamVariables {
     const firstColor = colors[0] ?? '#ffffff'
     const lastColor = colors[colors.length - 1] ?? firstColor
     result['--dsh-composer-beam-palette-gradient'] = paletteGradient(colors)
+    result['--dsh-composer-beam-inner-gradient'] = innerGradient(colors)
+    result['--dsh-composer-beam-bloom-gradient'] = bloomGradient(colors)
     result['--dsh-composer-beam-inner-shadow'] = [
       `inset 0 0 18px 3px ${withAlpha(firstColor, '66')}`,
       `inset 0 0 42px 10px ${withAlpha(lastColor, '33')}`,

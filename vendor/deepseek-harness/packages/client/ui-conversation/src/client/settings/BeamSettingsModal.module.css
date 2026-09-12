@@ -17,7 +17,13 @@
 }
 
 .previewStage {
-  padding: 8px 4px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -24px;
+  padding: 8px 28px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 0.5px 0 var(--dsw-alias-border-l2);
 }
 
 .previewCard {

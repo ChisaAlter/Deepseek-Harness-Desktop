@@ -128,7 +128,7 @@
 .beamInner {
   z-index: 1;
   background: var(
-    --dsh-composer-beam-palette-gradient,
+    --dsh-composer-beam-inner-gradient,
     radial-gradient(ellipse 180px 32px at 74% 100%, rgba(100, 70, 255, 0.42), transparent),
     radial-gradient(ellipse 74px 32px at 94% 0%, rgba(255, 120, 40, 0.38), transparent),
     radial-gradient(ellipse 80px 40px at 6% 0%, rgba(40, 140, 255, 0.4), transparent),
@@ -221,7 +221,7 @@
   border-radius: 22px;
   corner-shape: round;
   background: var(
-    --dsh-composer-beam-palette-gradient,
+    --dsh-composer-beam-bloom-gradient,
     conic-gradient(
       from var(--dsh-composer-beam-angle),
       transparent 0%,

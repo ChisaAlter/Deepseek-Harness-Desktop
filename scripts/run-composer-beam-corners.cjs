@@ -41,6 +41,8 @@ const paletteColors = {
 
 const beamVariableNames = [
   '--dsh-composer-beam-palette-gradient',
+  '--dsh-composer-beam-inner-gradient',
+  '--dsh-composer-beam-bloom-gradient',
   '--dsh-composer-beam-inner-shadow',
   '--dsh-composer-beam-track-width',
   '--dsh-composer-beam-glow-blur',
@@ -53,8 +55,23 @@ const beamVariableNames = [
 ];
 
 function paletteGradient(colors) {
-  const stops = colors.map((color, index) => `${color} ${(index / (colors.length - 1) * 100).toFixed(2)}%`).join(', ');
+  const closed = colors[colors.length - 1] === colors[0] ? colors : [...colors, colors[0]];
+  const stops = closed.map((color, index) => `${color} ${(index / (closed.length - 1) * 100).toFixed(2)}%`).join(', ');
   return `conic-gradient(from var(--dsh-composer-beam-angle), ${stops})`;
+}
+
+function innerGradient(colors) {
+  const at = (index, alpha) => `${colors[index % colors.length]}${alpha}`;
+  return [
+    `radial-gradient(ellipse 180px 32px at 74% 100%, ${at(0, '6b')}, transparent)`,
+    `radial-gradient(ellipse 74px 32px at 94% 0%, ${at(1, '61')}, transparent)`,
+    `radial-gradient(ellipse 80px 40px at 6% 0%, ${at(2, '66')}, transparent)`,
+    `radial-gradient(ellipse 90px 45px at 20% 0%, ${at(3, '5c')}, transparent)`,
+  ].join(', ');
+}
+
+function bloomGradient(colors) {
+  return `conic-gradient(from var(--dsh-composer-beam-angle), transparent 0%, transparent 58%, rgba(255, 255, 255, 0.08) 64%, ${colors[0]}8c 69%, ${colors[1 % colors.length]}b3 70.5%, ${colors[0]}73 73%, transparent 82%, transparent 100%)`;
 }
 
 function customBeamOptions(colors) {
@@ -64,6 +81,8 @@ function customBeamOptions(colors) {
     hueCycle: 'off',
     variables: {
       '--dsh-composer-beam-palette-gradient': paletteGradient(colors),
+      '--dsh-composer-beam-inner-gradient': innerGradient(colors),
+      '--dsh-composer-beam-bloom-gradient': bloomGradient(colors),
       '--dsh-composer-beam-inner-shadow': `inset 0 0 18px 3px ${colors[0]}66, inset 0 0 42px 10px ${colors[colors.length - 1]}33`,
       '--dsh-composer-beam-track-width': '4px',
       '--dsh-composer-beam-glow-blur': '0px',
