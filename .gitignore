@@ -43,11 +43,6 @@ apps/mobile/.expo/
 apps/mobile/dist/
 
 # Local agent/QA artifacts
-# Compiled by scripts/build-installer-stub.mjs during npm run dist (MinGW);
-# the exe must always be rebuilt from installer/stub.c, never committed.
-build/dsh-setup-stub.exe
-# Repo-root scratch dir for ad-hoc verification installs and probes.
-tmp/
 gui-test-screenshots/
 .codely-cli/
 CODELY.md

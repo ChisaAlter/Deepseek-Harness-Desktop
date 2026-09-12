@@ -29,7 +29,7 @@
     "check:remote-flag": "node scripts/check-remote-flag-not-committed.mjs",
     "qa:remote:v2": "node tools/remote-web-qa/full-web-v2/run.mjs",
     "refresh:marketplace-snapshot": "node scripts/refresh-marketplace-snapshot.mjs",
-    "dist": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never && node scripts/wrap-setup.mjs",
+    "dist": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never",
     "dist:mac": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never"
   },
   "engines": {
