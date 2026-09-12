@@ -50,7 +50,7 @@
 
 **每次发布前**（GitHub Release 或分发该 SHA 的 Setup）：先由 `release.yml` 产出候选，记录 candidate run ID、commit SHA、artifact 名和 Setup SHA256；再对 **该 CI SHA** 走完本表，写下 `docs/qa/results/<日期>/` 执行报告，填 §16 且勾「Release 将上传同一 SHA」。最后只能用 `publish.yml` 晋级这次候选。没有这份绑定 CI SHA 的报告，**禁止发版**。
 
-**「可交付」= 全部 P0 = Pass（或合法 Blocked+书面豁免），且 §16 绑定 CI artifact SHA。** dshbot 已拆为独立插件：TC-EXT-007 降为 **P1**（默认不装：无页签 + 启动不阻断）。当前没有远程书面豁免条。P1 失败记入发布说明或豁免单。P2 记入后续迭代。
+**「可交付」= 全部 P0 = Pass（或合法 Blocked+书面豁免），且 §16 绑定 CI artifact SHA。** dshbot 已回归桌面内置：TC-EXT-007 升为 **P0**（默认内置：Bots 页签必须出现）。当前没有远程书面豁免条。P1 失败记入发布说明或豁免单。P2 记入后续迭代。
 
 **造障类 P0**（插件弄挂、杀子进程、强制升级包）：能造则测；本轮无法安全造障时标 **Blocked**，附原因，由产品负责人决定是否豁免，**不得静默标 Pass**。
 
@@ -795,11 +795,11 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 **期望：** 可进入；取消无坏状态。
 
-### TC-EXT-007 · dshbot 本体剥离与用户安装保留 · P1
+### TC-EXT-007 · dshbot 桌面内置与升级迁移 · P0
 
-**步骤：** 全新安装确认不携带机器人功能和第一方 dshbot 推荐。旧预置升级确认受管装载块和旧预置链接已脱离；用户插件文件、依赖、房间 preset、设置与会话保留。对含不兼容 dshbot 的旧用户配置，确认启动器能归因并单独禁用它，恢复桌面启动而不影响其他插件。
+**步骤：** 全新安装确认侧栏出现 Bots 页签且无需安装任何插件；「跳过用户插件」恢复启动后 Bots 页签仍在。旧预置升级确认受管装载块被迁移、由内置 overlay 接管；机器人设置、记忆、房间 preset、会话保留。确认插件排查不提供 dshbot 的禁用/卸载入口（desktop-builtin）。
 
-**期望：** 桌面不依赖 dshbot 实现；用户插件不兼容仍可能使首次启动失败，但可单独隔离并恢复。数据不因清理或禁用而删除。本仓不验收独立插件的建群或机器人功能（feature 卡 `dshbot`）。
+**期望：** 桌面随包交付 dshbot（`vendor/dshbot` + `desktop-dshbot.patch.yml` overlay，每次启动挂载）；用户数据不因迁移而删除；vendor 源缺损判内置组件损坏并阻断启动（feature 卡 `dshbot`）。
 
 **2026-08-26 源码实机（不填本表 Pass）：** 云端 Linux X11 GUI 对源码 Electron 完整轮换 A/B(自动)/C 三相：未装分支 walk 全绿 → `dsh plugin add github:…#path:/vendor/dshbot`（钉到 `7972a34`）后探针翻转（Bots 页签出现、已安装列出、`dshbot-room` preset 自装）→ remove + 重启回未装分支且三处残留全净。9 个 dshbot 套件 95/95、全仓 1099/0。B 相手工建群因无 `DEEPSEEK_API_KEY` BLOCKED；Windows 安装包三相维持 BLOCKED。报告：[results/2026-08-26/tc-ext-007-dshbot.md](results/2026-08-26/tc-ext-007-dshbot.md)。
 
@@ -901,6 +901,22 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 **步骤：** 设置 → 关于 →「打开运行目录」。
 
 **期望：** 系统文件管理器打开桌面 `userData/dsh-home`（Windows：`%APPDATA%\Deepseek-Harness-Desktop\dsh-home`）。不得打开 `userData` 根、安装目录、当前工作区或官方 `~/.dsh`。
+
+### TC-DESK-010 · 桌面宠物显示、拖拽与持久化 · P1
+
+**前置：** Harness ready；托盘「桌面宠物」默认开启。
+
+**步骤：**
+
+1. 确认宠物只在 Harness ready 后出现，点击一次并观察轻量反馈。
+2. 拖拽宠物到安全区域，缩放窗口并执行最大化/恢复。
+3. 重启 Harness/应用，确认宠物位置与开启状态恢复。
+4. 托盘取消「桌面宠物」，确认宠物消失且原位置 Harness 仍可点击；重新勾选后确认宠物恢复。
+5. 在 boot、启动器、关闭遮罩和 Harness 重启期间确认没有宠物残影。
+
+**期望：** 宠物仅覆盖约 80–96px 小矩形，避开标题栏；窗口变化后不出屏、不吞掉矩形外 Harness 点击；归一化位置和 enabled 跨重启恢复；关闭/恢复只影响宠物，不改变 Harness 或插件/会话数据。未完成实机路径不得填 Pass。
+
+**Codex 宠物导入补充：** 使用 `${CODEX_HOME}/pets/<pet-id>/pet.json` 与相邻 `spritesheet.webp` 的现有 Codex 包，确认应用自动发现并显示；分别验证 v1 `1536x1872 / 8x9` 与 v2 `1536x2288 / 8x11`，并确认 manifest 缺失、绝对路径、`..` 穿越和尺寸错误会被忽略，renderer 不获得通用文件系统访问。
 
 ---
 
@@ -1089,7 +1105,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | TC-SURF-005 | P2 |  |  |  | Trent | 2026-08-31 |
 | TC-SURF-006 | P1 | Pass | CI SHA + 已装 exe | agents.panel / empty | Trent | 2026-08-31 |
 | TC-SURF-007 | P0 | Pass | CI SHA + 已装 exe | close 在标题侧 | Trent | 2026-08-31 |
-| TC-SURF-008 | P0 |  |  | 待 0.3.0 安装包补测；同一 guest / previewId；结构不变量由 focused tests 证明 | Trent | 2026-09-11 |
+| TC-SURF-008 | P0 |  |  | 待 0.3.1 安装包补测；同一 guest / previewId；结构不变量由 focused tests 证明 | Trent | 2026-09-11 |
 | TC-TERM-001 | P0 | Pass | CI SHA `F2C571D2` + 已装 exe | Ghostty wasm HTTP 200 | Trent | 2026-09-01 |
 | TC-TERM-002 | P0 | Pass | CI SHA `F2C571D2` + 已装 exe | `case.terminal.addToChat` 终端 fence | Trent | 2026-09-01 |
 | TC-TERM-003 | P1 |  |  |  | Trent | 2026-08-31 |
@@ -1140,7 +1156,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 ## 16. 签字
 
-每一轮候选都必须填入 `release.yml` 的 Actions run URL / candidate run ID、候选 commit SHA、已实测 Setup SHA256，并勾「Release 将上传同一 SHA」；不得用另一个 run、另一次本机构建或本机 `dist/` 替代。缺任一项不得勾可交付，**不得发该包**。新增的 `TC-SURF-008` 也是 P0，必须在该候选的已安装包上单独记录结果；不能以源码或旧包结果替代。下表保留上一轮 `0.2.7` 的历史签字，晋级 `0.3.0` 前必须用新候选记录完整替换。
+每一轮候选都必须填入 `release.yml` 的 Actions run URL / candidate run ID、候选 commit SHA、已实测 Setup SHA256，并勾「Release 将上传同一 SHA」；不得用另一个 run、另一次本机构建或本机 `dist/` 替代。缺任一项不得勾可交付，**不得发该包**。新增的 `TC-SURF-008` 也是 P0，必须在该候选的已安装包上单独记录结果；不能以源码或旧包结果替代。下表保留上一轮 `0.2.7` 的历史签字，晋级 `0.3.1` 前必须用新候选记录完整替换。
 
 | 项 | 内容 |
 | --- | --- |
@@ -1154,7 +1170,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | Windows 版本 / 机型 | Windows 10.0.26200 x64 |
 | 模型：`ayase` / `grok-4.6` @ `https://ayase.cn/v1` | 已配置 ☑ |
 | 附录 A 五轮（安装包会话，TC-WS-006 仓） | 1–5 过 ☑；reject ☑ vision ☑ editUser ☑ |
-| P0 结果 | 全 Pass □ / 有 Fail □ / 有 Blocked+负责人忽略 □ — 历史实测 P0（含 MODEL-004 / SESS-003 / TERM-002 / NEG-005）Pass；造障 INST-004/005/006/011/011b、LAUNCH-005/008、NEG-002 **Blocked**（未注入）。`0.3.0` 新候选还必须单独记录 `TC-SURF-008`，不继承本行历史结果 |
+| P0 结果 | 全 Pass □ / 有 Fail □ / 有 Blocked+负责人忽略 □ — 历史实测 P0（含 MODEL-004 / SESS-003 / TERM-002 / NEG-005）Pass；造障 INST-004/005/006/011/011b、LAUNCH-005/008、NEG-002 **Blocked**（未注入）。`0.3.1` 新候选还必须单独记录 `TC-SURF-008`，不继承本行历史结果 |
 | P1 豁免/发布说明 | 见 [results/2026-08-31/EXECUTION-REPORT.md](results/2026-08-31/EXECUTION-REPORT.md) §7 |
 | 结论 | **可交付** □ / **不可交付** □（CI Node 22 同树包已测） / **负责人忽略剩余 Blocked** □ — 测试已绑定该 SHA；产品负责人未签；未 tag / 未发 Release |
 | 测试负责人 / 日期 | Trent · 2026-09-01 |

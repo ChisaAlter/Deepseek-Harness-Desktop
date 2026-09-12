@@ -331,7 +331,7 @@ invoke('getState')
   });
 
 listen('onState', renderState);
-listen('onLog', appendLog);
+listen('onLog', (payload) => (Array.isArray(payload) ? payload : [payload]).forEach(appendLog));
 listen('onPluginBoot', renderPluginBoot);
 if (typeof window.watchShellTheme === 'function') {
   window.watchShellTheme();

@@ -43,8 +43,8 @@ Managed sessions also suppress implicit default saving from other ordinary
 session-model entry points, such as the command menu. This is mutation scope,
 not authorization; selecting a session-local model is not denied by presentation.
 
-Overall dshbot workflow completeness remains tracked in the independent plugin's
-docs/feature-gap-audit-2026-09-08.md.
+dshbot ships built-in via `vendor/dshbot` + the desktop overlay (see the dshbot
+card); overall workflow completeness is tracked there.
 
 Gates: projection/command tests, workspace list and draft reuse tests, conversation
 render tests, official build, actual dshbot full-shell first-send/isolation/reload

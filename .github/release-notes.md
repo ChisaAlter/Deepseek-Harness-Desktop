@@ -1,4 +1,4 @@
-# Deepseek-Harness-Desktop 0.3.0
+# Deepseek-Harness-Desktop 0.3.1
 
 把 DeepSeek Harness 带到 Windows 桌面：在一个本地窗口里完成对话、文件处理、网页预览、终端操作和 Git 工作流。
 
@@ -12,11 +12,16 @@
 - **安装包可靠性**：修复 Windows 打包时依赖运行时文件被过滤的问题，确保安装版可以加载完整的 Harness 依赖。
 - **Harness 基线**：桌面客户端与安装包使用同一套固定的 DeepSeek Harness 基线。
 
+## 技术契约
+
+- 安装版 Browser 交付 `dshd mini-player` P0 路径：复用同一 Browser guest / `previewId`，挂到聊天可视区内的 renderer 浮层，支持标题栏拖拽与八方向缩放；恢复后保留当前 URL 与 history。
+- mini-player 只迁移 guest 的呈现边界，不创建第二个 BrowserView、外部窗口或 mini 专用 IPC。
+
 ## 安装与升级
 
 当前公开安装包为 Windows 10 及以上 x64。请从 [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) 下载，并用随附的 `SHA512SUMS.txt` 校验文件完整性。安装器未进行 Authenticode 签名，Windows 可能显示安全提示。
 
-已有桌面安装可以直接覆盖升级。若要从官方 CLI 或其他旧环境迁移，请在启动器中使用「导入」，不要直接复制整个 `profiles` 目录。旧版 dshbot 如果导致启动失败，请在启动器的插件排查中单独禁用它；这不会删除会话或插件文件。
+已有桌面安装可以直接覆盖升级。若要从官方 CLI 或其他旧环境迁移，请在启动器中使用「导入」，不要直接复制整个 `profiles` 目录。dshbot 已回归桌面内置并随包发布：Bots 页签默认出现，旧预置的受管装载会在首次启动时自动迁移，机器人设置、记忆、房间 preset 与会话全部保留。
 
 ## 平台范围
 

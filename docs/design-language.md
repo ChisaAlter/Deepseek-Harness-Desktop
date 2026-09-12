@@ -146,6 +146,17 @@ Android 保持稳定 asset origin 与同一 Web 源码，不平行实现聊天�
 
 窗口控件仍走 [`window-controls.css`](../src/renderer/window-controls.css)。禁止 NERV / MAGI / SEELE / EVA 商标或官方标志。禁止把 `--boot-*` 用到设置页、关闭遮罩、标题栏或 Web UI。
 
+## 桌面宠物
+
+桌面宠物是 Desktop shell 的受限 overlay，不是启动页装饰，也不是 Harness Web UI 的插件或 DOM 注入。它只在 Harness ready/revealed 后出现；boot、启动器、关闭遮罩、重启和 Harness teardown 期间必须隐藏并销毁自己的 BrowserView。
+
+- 宠物 BrowserView 只覆盖约 80–96px 的小矩形，避开顶部标题栏，并在窗口缩放、最大化和恢复后重新 clamp；禁止用全窗口透明 BrowserView，透明区域不得吞掉 Harness 点击。
+- 视觉资产可复用仓库已有品牌矢量资产；容器透明，颜色、字体、圆角和反馈只引用 `src/shared/dsh-webui-tokens.css` 与现有 motion token，不使用 `--boot-*`，不新增独立色板。
+- v1 只有点击反馈和拖拽定位。托盘提供「桌面宠物」checkbox；状态只持久化 `{ enabled, xRatio, yRatio, petId }`，位置用归一化坐标，异常值回退安全默认，瞬时表情不落盘。缺失或失效的 `petId` 自动回退到可用 Codex 宠物或内置占位资产。
+- 宠物兼容 `${CODEX_HOME:-$HOME/.codex}/pets/<pet-id>/` 下的 `pet.json` 与相邻图集，双读 Codex v1 的 `1536x1872 / 8x9` 和 Desktop v2 的 `1536x2288 / 8x11`；v2 由 `spriteVersionNumber: 2` 或尺寸确认，禁止绝对路径和 `..` 穿越。
+- 宠物 preload 只暴露读取初始状态、提交归一化位置和主题订阅；主进程按精确 pet BrowserView sender 与 `pet.html` 主 frame 校验 IPC。不得复用 Harness 的 workspace、Git、文件、远程或插件权限。
+- `prefers-reduced-motion` 下反馈直接落位；正常模式只允许 opacity/transform 的短反馈，不增加持续 idle 动画或第二套桌面皮肤。
+
 ## 桌面启动器
 
 Recovery Board 在既有归因文本位区分会话投影缓存格式错误与用户插件失败；缓存错误提示优先于跳过插件模式状态，不新增面板或操作控件，不建议清空原始会话。

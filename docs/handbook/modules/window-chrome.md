@@ -2,7 +2,7 @@
 
 ## 职责与非目标
 
-**职责：** 主窗口、boot↔harness 切换、标题栏注入、关闭遮罩、窗口控件。  
+**职责：** 主窗口、boot↔harness 切换、标题栏注入、关闭遮罩、窗口控件，以及仅在 Harness ready 时出现的受限桌面宠物浮层。  
 **非目标：** 不自绘整套窗口皮肤替代系统控件命中区。
 
 ## 用户路径
@@ -13,13 +13,13 @@
 
 ## 架构要点
 
-- `window.js` 管理 BrowserView bounds 与覆盖。  
+- `window.js` 管理 Harness BrowserView bounds 与覆盖；`desktop-pet.js` 管理约 80–96px 的宠物 BrowserView、层级、归一化位置和生命周期。宠物在 Harness reveal 后重新置顶，boot/teardown 时移除，不注入 Harness DOM。
 - `harness-chrome-inject.js` / `chrome.js` 把桌面 chrome 接到官方页。  
 - `closing-overlay.js` 关闭过渡。
 
 ## 实现入口
 
-- `src/main/window.js`、`chrome.js`、`harness-chrome-inject.js`、`closing-overlay.js`
+- `src/main/window.js`、`desktop-pet.js`、`chrome.js`、`harness-chrome-inject.js`、`closing-overlay.js`
 - `src/renderer/window-controls.css`
 
 ## 不变量

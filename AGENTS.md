@@ -33,3 +33,8 @@ Product behavior that ships and will be re-edited lives under [docs/features/](d
 2. Start the session with `Touching: <id>` (template in [docs/features/README.md](docs/features/README.md)). Keep the diff inside that card’s **Allowed touch**; expanding scope needs user confirmation.
 3. After the change, update the card’s `last verified`. If invariants or user paths changed, edit the card and keep any matching short `.cursor/rules` entry in sync.
 4. Prefer commit subjects `feature(<id>): …` so regressions are traceable against the card.
+
+## Running the app from source (agent workflow)
+
+- Start: `npm start` (prestart rebuilds the vendored client when stale, then launches Electron). Inside Devin Desktop the shell inherits `ELECTRON_RUN_AS_NODE=1`, which makes `electron.exe` run as plain Node and exit silently with code 0 — always launch with `env -u ELECTRON_RUN_AS_NODE npm start`.
+- User preference: **restart the app after every code change** (stop the repo's `electron.exe` processes, then relaunch). `vendor/dshbot` is junction-linked into `dsh-home/profiles/web/node_modules`, so plugin edits need only the restart, no re-ensure.

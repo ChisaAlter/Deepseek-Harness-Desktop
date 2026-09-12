@@ -1,4 +1,4 @@
-# Deepseek-Harness-Desktop 0.3.0
+# Deepseek-Harness-Desktop 0.3.1
 
 DeepSeek Harness on the Windows desktop: conversations, files, web previews, terminal work, and Git in one local application.
 
@@ -12,11 +12,16 @@ DeepSeek Harness on the Windows desktop: conversations, files, web previews, ter
 - **Installer reliability**: Preserve dependency runtime files during Windows packaging so the installed app can load the complete Harness runtime.
 - **Harness baseline**: The desktop client and installer use the same pinned DeepSeek Harness baseline.
 
+## Technical contract
+
+- The installed-package Browser P0 path ships `dshd mini-player`: it reuses the same Browser guest / `previewId`, mounts as a renderer overlay inside the chat viewport, and preserves the current URL and history on restore.
+- The mini-player only moves the guest's presentation bounds; it does not create a second BrowserView, external window, or mini-specific IPC.
+
 ## Install and upgrade
 
 The public installer targets Windows 10 or later on x64. Download it from [Releases](https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases) and verify the files with the accompanying `SHA512SUMS.txt`. The installer is not Authenticode-signed, so Windows may show a security warning.
 
-Existing desktop installations can be upgraded in place. To migrate from the official CLI or another older environment, use Import in the launcher instead of copying the entire `profiles` directory. If an older dshbot installation prevents startup, disable only that plugin in the launcher's troubleshooting tools; sessions and plugin files are preserved.
+Existing desktop installations can be upgraded in place. To migrate from the official CLI or another older environment, use Import in the launcher instead of copying the entire `profiles` directory. dshbot is back as a desktop built-in and ships in the installer: the Bots tab appears by default, the old preset's managed mount is migrated on first start, and bot settings, memories, room presets, and sessions are preserved.
 
 ## Platform scope
 

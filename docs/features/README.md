@@ -47,9 +47,9 @@ Gate: <卡上 gates>
 | [boot-page](boot-page.md) | 仪器启动画布 + 插件进度/恢复 | `boot.*` / harness-controller | TC-INST-003…007、012、013 |
 | [terminal-drawer](terminal-drawer.md) | 底栏 PTY 工作环 | `pty.js` / ui-user-terminal | TC-TERM-001…004（TC-WS-006 仓） |
 | [settings-select](settings-select.md) | 设置内值选择统一为官方胶囊 + Menu | `SettingsSelect` | vendor client spec |
-| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；入口开放，配对默认关闭 | `DshdRemote` / `ui-settings-remote` | 以卡内实机矩阵为准；0.3.0 不将 Web/Android 排除项记为 Pass |
+| [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；入口开放，配对默认关闭 | `DshdRemote` / `ui-settings-remote` | 以卡内实机矩阵为准；0.3.1 不将 Web/Android 排除项记为 Pass |
 | [remote-settings](remote-settings.md) | 设置→远程双标签（网关 + dsh-im）；未配置时默认服务器模式 | `ui-settings-remote` / `dsh-im-desktop` | 桌面装配回归；真实账号绑定/收发按卡内门槛验收 |
-| [dshbot](dshbot.md) | 已从本体剥离；只保留旧预置脱离和用户插件恢复 | `legacy-dshbot-preset` | 升级 / 用户数据保留 |
+| [dshbot](dshbot.md) | 桌面内置 Bots：vendor 快照 + overlay 每次启动挂载（含 skip） | `dshbot-desktop` / `legacy-dshbot-preset` | 升级 / 用户数据保留 |
 | [plugin-session-navigation](plugin-session-navigation.md) | 插件固定会话的持久化标题、普通列表隔离与空会话聊天布局 | vendor session-controller / ui-workspace / ui-conversation | 投影、导航与真实插件桌面链路 |
 | [dsh-home](dsh-home.md) | 桌面 `userData/dsh-home`；Harness 不读官方 `~/.dsh` | `dsh-home.js` / spawnEnv | TC-INST-009、011；TC-WS-006 |
 | [desktop-launcher](desktop-launcher.md) | 冷启动闸门：更新询问、启停桌面、版本、插件问诊 | `launcher.*` / launcher-gate | TC-LAUNCH-001…007 |
@@ -65,3 +65,4 @@ Gate: <卡上 gates>
 | [composer-draft-transition](composer-draft-transition.md) | 草稿首次发送时输入框连续落位、不贴底回弹 | vendor `ui-conversation` | 组件回归 + keyless 逐帧几何 |
 | [windows-installer](windows-installer.md) | NSIS 品牌化安装器；`/S` 静默与 artifact 名不变 | `build.nsis` / `build/installer.nsh` | installer-branding 单测；TC-INST-001、009、010 |
 | [dsh-tools](dsh-tools.md) | 工具调用名/ID 校验、失败重试与旧会话投影修复 | vendor llm / agent-loop / session / tools | focused Harness specs |
+| [desktop-pet](desktop-pet.md) | Desktop shell 内受限宠物浮层：点击、拖拽、托盘开关与位置持久化 | `desktop-pet` / `window` / `tray` | TC-DESK-010；focused tests |

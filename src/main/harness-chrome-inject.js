@@ -113,6 +113,11 @@
         background: #e81123;
         color: #fff;
       }
+      /* The conversation-header corner expander (new seat in the rc.1 merge)
+         duplicates the titlebar's own right-panel toggle. */
+      [data-sidebar-right-expand] {
+        display: none;
+      }
     `;
     if (style.textContent !== css) {
       style.textContent = css;
