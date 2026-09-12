@@ -6,7 +6,7 @@ const { trayMenuTemplate } = require('./tray-menu');
 let tray = null;
 let trayActions = null;
 
-function createTray({ onShow, onOpenLauncher, onRestart, onQuit }) {
+function createTray({ onShow, onOpenLauncher, onRestart, onQuit, onPetToggle, petEnabled }) {
   if (tray) {
     return tray;
   }
@@ -26,6 +26,7 @@ function createTray({ onShow, onOpenLauncher, onRestart, onQuit }) {
     marketplace: () => { openMarketplace(); },
     restart: onRestart,
     quit: onQuit,
+    petToggle: onPetToggle || (() => {}),
   };
   tray = new Tray(image && !image.isEmpty() ? image : nativeImage.createEmpty());
   tray.setToolTip('Deepseek-Harness-Desktop');
@@ -36,6 +37,8 @@ function createTray({ onShow, onOpenLauncher, onRestart, onQuit }) {
     onMarketplace: trayActions.marketplace,
     onRestart,
     onQuit,
+    onPetToggle: trayActions.petToggle,
+    petEnabled,
   })));
   tray.on('click', () => trayActions.show());
   return tray;

@@ -57,6 +57,14 @@ test('harness view relayouts on maximize and unmaximize', () => {
   assert.match(src, /win\.on\('unmaximize', relayout\)/);
 });
 
+test('harness view relayouts after cross-monitor moves and metric changes', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  assert.match(src, /win\.on\('moved', relayout\)/);
+  assert.match(src, /win\.on\('restore', relayout\)/);
+  assert.match(src, /screen\.on\('display-metrics-changed', relayoutOnMetricsChange\)/);
+  assert.match(src, /win\.once\('closed', \(\) => \{\s*screen\.removeListener\('display-metrics-changed', relayoutOnMetricsChange\)/);
+});
+
 test('setBootHarnessCovered toggles the boot flag only on boot.html', () => {
   const electronPath = require.resolve('electron');
   const previous = require.cache[electronPath];

@@ -1,4 +1,4 @@
-const { BrowserView, BrowserWindow, shell, nativeImage } = require('electron');
+const { BrowserView, BrowserWindow, shell, nativeImage, screen } = require('electron');
 const { rendererFile, assetFile, preloadFile } = require('./paths');
 const { REMOTE_FEATURE_ENABLED } = require('./config');
 const { windowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, officialShellBackground } = require('./chrome');
@@ -39,6 +39,10 @@ let harnessOriginListener = null;
 let pluginBootWatch = null;
 let pendingMarketplaceJump = false;
 let launcherWindow = null;
+
+function desktopPet() {
+  return require('./desktop-pet').getDesktopPet();
+}
 
 function pluginBootCancelled(message = 'Web UI 插件加载已取消') {
   const error = new Error(message);
@@ -211,6 +215,7 @@ function hideHarnessView(win) {
   notifyHarnessOrigin();
   setBootHarnessCovered(win, false);
   cancelPluginBootWatch();
+  desktopPet()?.hide(win);
   if (!harnessView) {
     return;
   }
@@ -233,6 +238,7 @@ function layoutHarnessView(win) {
   const bounds = win.getContentBounds();
   harnessView.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
   harnessView.setAutoResize({ width: true, height: true });
+  desktopPet()?.layout(win);
 }
 
 function revealHarnessView(win) {
@@ -247,6 +253,7 @@ function revealHarnessView(win) {
   if (typeof win.setTopBrowserView === 'function') {
     win.setTopBrowserView(harnessView);
   }
+  desktopPet()?.show(win);
   setBootHarnessCovered(win, true);
   prepareHarnessChrome(win);
   syncHarnessChrome(win, harnessView.webContents);
@@ -365,6 +372,20 @@ function ensureHarnessView(win) {
     win.on('resize', relayout);
     win.on('maximize', relayout);
     win.on('unmaximize', relayout);
+    // A cross-monitor drag finishes its DIP/DPI transition only when the move
+    // completes; the last 'resize' can still read stale bounds, and a pure
+    // scale-factor swap reports no size delta at all.
+    win.on('moved', relayout);
+    win.on('restore', relayout);
+    const relayoutOnMetricsChange = () => {
+      if (!win.isDestroyed()) relayout();
+    };
+    if (screen && typeof screen.on === 'function') {
+      screen.on('display-metrics-changed', relayoutOnMetricsChange);
+      win.once('closed', () => {
+        screen.removeListener('display-metrics-changed', relayoutOnMetricsChange);
+      });
+    }
   }
   return harnessView;
 }

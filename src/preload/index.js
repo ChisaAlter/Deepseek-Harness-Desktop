@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const SHELL_ROLES = new Set(['boot', 'harness', 'launcher']);
+const SHELL_ROLES = new Set(['boot', 'harness', 'launcher', 'pet']);
 
 function shellRole(argv = process.argv) {
   const prefix = '--dshd-shell-role=';
@@ -187,6 +187,8 @@ function launcherApi(renderer) {
     onUpdateProgress: subscribe(renderer, 'shell:update-progress'),
     scanImport: invoke(renderer, 'shell:scan-import'),
     runImport: invoke(renderer, 'shell:run-import'),
+    cancelImport: invoke(renderer, 'shell:cancel-import'),
+    onImportProgress: subscribe(renderer, 'shell:import-progress'),
     pickImportSource: invoke(renderer, 'shell:pick-import-source'),
     pickSkillDir: invoke(renderer, 'shell:pick-skill-dir'),
     listReleases: invoke(renderer, 'shell:list-releases'),
@@ -209,10 +211,19 @@ function launcherApi(renderer) {
   };
 }
 
+function petApi(renderer) {
+  return {
+    getState: invoke(renderer, 'shell:pet-state'),
+    commitDrag: invoke(renderer, 'shell:pet-drag-commit'),
+    onTheme: subscribe(renderer, 'shell:theme'),
+  };
+}
+
 function buildShellApi(role, renderer, remoteFeature = remoteFeatureEnabled()) {
   if (role === 'boot') return bootApi(renderer);
   if (role === 'harness') return harnessApi(renderer, remoteFeature);
   if (role === 'launcher') return launcherApi(renderer);
+  if (role === 'pet') return petApi(renderer);
   return null;
 }
 

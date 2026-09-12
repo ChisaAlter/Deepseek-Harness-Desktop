@@ -9,16 +9,27 @@
  *   onMarketplace: () => void,
  *   onRestart: () => void,
  *   onQuit: () => void,
+ *   onPetToggle: (enabled: boolean) => void,
+ *   petEnabled: () => boolean,
  * }} actions
  * @returns {Array<{ label?: string, type?: string, click?: () => void }>}
  */
-function trayMenuTemplate({ onShow, onOpenLauncher, onSettings, onMarketplace, onRestart, onQuit }) {
+function trayMenuTemplate({ onShow, onOpenLauncher, onSettings, onMarketplace, onRestart, onQuit, onPetToggle, petEnabled }) {
+  const petItem = typeof onPetToggle === 'function' && typeof petEnabled === 'function'
+    ? [{
+        label: '桌面宠物',
+        type: 'checkbox',
+        checked: petEnabled(),
+        click: (item) => onPetToggle(typeof item?.checked === 'boolean' ? item.checked : !petEnabled()),
+      }]
+    : [];
   return [
     { label: '显示窗口', click: () => onShow() },
     { label: '打开启动器', click: () => onOpenLauncher() },
     { label: '设置…', click: () => onSettings() },
     { label: '插件市场', click: () => onMarketplace() },
     { label: '重启 Harness', click: () => onRestart() },
+    ...petItem,
     { type: 'separator' },
     { label: '退出', click: () => onQuit() },
   ];

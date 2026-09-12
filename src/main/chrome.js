@@ -178,6 +178,7 @@ function prepareHarnessChrome(win) {
 function applyAppTheme() {
   const theme = currentTheme();
   const { getHarnessWebContents } = require('./window');
+  require('./desktop-pet').getDesktopPet()?.setTheme(theme);
   for (const win of BrowserWindow.getAllWindows()) {
     const harnessWc = getHarnessWebContents(win);
     if (harnessWc && isHarnessUrl(harnessWc.getURL())) {

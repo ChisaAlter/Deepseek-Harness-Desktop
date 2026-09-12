@@ -1,0 +1,103 @@
+:root {
+  --pet-fill: var(--dsw-alias-button-info-fill);
+  --pet-surface: var(--dsw-alias-bg-l1);
+  --pet-border: var(--dsw-alias-border-l2);
+  --pet-shadow: var(--dsw-alias-shadow-lv2);
+  --pet-motion: var(--ds-transition-duration-normal, 160ms);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  font-family: var(--dsw-font-family, system-ui, sans-serif);
+}
+
+.pet {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  padding: 8px;
+  border: 1px solid var(--pet-border);
+  border-radius: 50%;
+  background: var(--pet-surface);
+  box-shadow: var(--pet-shadow);
+  color: var(--pet-fill);
+  cursor: grab;
+  transform: translateZ(0);
+  transition: transform var(--pet-motion) ease, box-shadow var(--pet-motion) ease;
+  -webkit-app-region: no-drag;
+}
+
+.pet:active,
+.pet.is-dragging {
+  cursor: grabbing;
+}
+
+.pet.is-happy {
+  transform: translateY(-4px) scale(1.04);
+}
+
+.pet__image {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--pet-fill);
+}
+
+.pet__halo,
+.pet__spark {
+  position: absolute;
+  pointer-events: none;
+}
+
+.pet__halo {
+  inset: 7px;
+  border: 1px solid color-mix(in srgb, var(--pet-fill) 26%, transparent);
+  border-radius: 50%;
+  opacity: .65;
+}
+
+.pet__spark {
+  top: 11px;
+  right: 13px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pet-fill);
+  opacity: 0;
+  transform: scale(.5);
+}
+
+.pet.is-happy .pet__spark {
+  opacity: .8;
+  transform: scale(1);
+  transition: opacity var(--pet-motion) ease, transform var(--pet-motion) ease;
+}
+
+html[data-theme="dark"] {
+  --pet-surface: var(--dsw-alias-bg-l2);
+  --pet-border: var(--dsw-alias-border-l2);
+  --pet-shadow: var(--dsw-alias-shadow-lv2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet,
+  .pet__spark {
+    transition: none;
+  }
+}
