@@ -917,6 +917,9 @@ module.exports = async function afterPack(context) {
   // a half-broken tree that silently drops Settings → Remote → Channels).
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-im'), { skipIfComplete: false });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-im');
+  restoreVendoredPluginNodeModules(projectDir, resources, 'dshbot');
+  installPluginRuntimeDeps(path.join(resources, 'vendor', 'dshbot'), { skipIfComplete: true });
+  assertVendoredPluginRuntimeDeps(resources, 'dshbot');
   await assertDshdRemoteRuntime(resources);
   const harnessDest = path.join(resources, 'vendor', 'deepseek-harness');
   const deployDir = resolveDeployDir(process.env.DSH_DEPLOY_DIR);
@@ -949,8 +952,8 @@ module.exports = async function afterPack(context) {
   // Skip compose contract against the REAL packaged CLI: unit tests mock
   // dsh.start, so this dist-path gate is the only automated place where the
   // shipped runtime proves `--skip-user-plugins` drops the user layer while
-  // the desktop-owned overlays mount install + usage + dsh-im + market on
-  // every start and session-search only on full starts.
+  // the desktop-owned overlays mount install + usage + dsh-im + market +
+  // dshbot on every start and session-search only on full starts.
   console.log('校验 skip compose 契约（真实 CLI dump-config，skip + full 双轮）…');
   await runSkipComposeContract(harnessDest, { log: (line) => console.log(line) });
 

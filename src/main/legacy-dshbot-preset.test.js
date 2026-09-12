@@ -70,11 +70,13 @@ for (const kind of ['directory', 'pnpm-link']) {
   });
 }
 
-test('desktop no longer ships or publishes a dshbot implementation', () => {
+test('desktop ships dshbot built-in via vendor + overlay, with no preset or publish flow', () => {
   const root = path.join(__dirname, '..', '..');
-  for (const file of ['vendor/dshbot/package.json', 'src/main/dshbot-preset.js', 'scripts/export-dshbot-standalone.mjs', '.github/workflows/publish-dshbot.yml']) {
+  assert.equal(fs.existsSync(path.join(root, 'vendor/dshbot/package.json')), true);
+  for (const file of ['src/main/dshbot-preset.js', 'scripts/export-dshbot-standalone.mjs', '.github/workflows/publish-dshbot.yml']) {
     assert.equal(fs.existsSync(path.join(root, file)), false, file);
   }
   const source = fs.readFileSync(path.join(__dirname, 'harness-controller.js'), 'utf8');
-  assert.doesNotMatch(source, /ensureDshbotPlugin|isDshbotPresetEnabled/);
+  assert.match(source, /ensureDshbotPlugin/);
+  assert.doesNotMatch(source, /isDshbotPresetEnabled/);
 });

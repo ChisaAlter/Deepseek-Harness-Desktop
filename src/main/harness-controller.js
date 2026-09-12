@@ -52,6 +52,8 @@ class HarnessController extends EventEmitter {
       || (async () => ({ ok: true }));
     this.ensureDshImPlugin = options.ensureDshImPlugin
       || (async () => ({ ok: true, added: false }));
+    this.ensureDshbotPlugin = options.ensureDshbotPlugin
+      || (async () => ({ ok: true, added: false }));
     this.ensureDesktopMarket = options.ensureDesktopMarket
       || (async () => ({ ok: true, added: false }));
     this.removeLegacyDshbotPreset = options.removeLegacyDshbotPreset
@@ -87,6 +89,16 @@ class HarnessController extends EventEmitter {
       ...((this.loadConfig() || {}).pluginRecovery || {}),
     };
 
+    this.logBatch = [];
+    this.logFlushTimer = null;
+    this.setLogTimer = options.setLogTimer
+      || ((fn, ms) => {
+        const timer = setTimeout(fn, ms);
+        timer.unref?.();
+        return timer;
+      });
+    this.clearLogTimer = options.clearLogTimer || ((timer) => clearTimeout(timer));
+
     this.onDshState = (snapshot) => {
       this.sendState(snapshot);
       if (!this.shuttingDown && snapshot?.state === 'error' && snapshot?.failure?.phase === 'runtime') {
@@ -99,7 +111,16 @@ class HarnessController extends EventEmitter {
         });
       }
     };
-    this.onDshLog = (line) => this.sendToBoot('shell:log', line);
+    // Plugin boot writes hundreds of dsh lines in bursts; forward them to the
+    // boot page as one send per flush window instead of one IPC per line. The
+    // flush timer is not part of the recovery FSM clock: it uses its own seam
+    // so quiescence is not gated on a pending log flush.
+    this.onDshLog = (line) => {
+      this.logBatch.push(line);
+      if (this.logFlushTimer === null) {
+        this.logFlushTimer = this.setLogTimer(() => this.flushLogBatch(), 60);
+      }
+    };
     this.dsh.on('state', this.onDshState);
     this.dsh.on('log', this.onDshLog);
   }
@@ -155,6 +176,19 @@ class HarnessController extends EventEmitter {
   clearTimers() {
     this.clearRecoveryTimer();
     this.clearStableTimer();
+    this.flushLogBatch();
+  }
+
+  flushLogBatch() {
+    if (this.logFlushTimer !== null) {
+      this.clearLogTimer(this.logFlushTimer);
+      this.logFlushTimer = null;
+    }
+    if (this.logBatch.length) {
+      const lines = this.logBatch;
+      this.logBatch = [];
+      this.sendToBoot('shell:log', lines);
+    }
   }
 
   async ensureBootVisible() {
@@ -231,7 +265,8 @@ class HarnessController extends EventEmitter {
   async beginPluginTreeRecovery() {
     if (this.pluginRecoveryTask) return this.pluginRecoveryTask;
     const task = (async () => {
-      this.writePluginSkip(this.dsh.snapshot().failure || this.dsh.snapshot().error);
+      const snapshot = this.dsh.snapshot();
+      this.writePluginSkip(snapshot.failure || snapshot.error);
       await this.ensureBootVisible();
       if (this.shuttingDown) throw operationCancelled();
       return this.replaceOperation({ showBoot: false });
@@ -442,8 +477,8 @@ class HarnessController extends EventEmitter {
     // managed blocks). Never pass that file to --patch: overlays still apply
     // under --skip-user-plugins, so it would re-mount every user row the
     // skip exists to bypass. The install, usage-panel, dsh-im, and market
-    // overlays are required on all starts; full starts insert session-search
-    // before dsh-im.
+    // overlays are required on all starts (dshbot only while `dshbotEnabled`
+    // is on); full starts insert session-search before dsh-im.
     const patchFiles = [];
     if (desktopInstall?.overlayFile) {
       patchFiles.push(desktopInstall.overlayFile);
@@ -555,11 +590,39 @@ class HarnessController extends EventEmitter {
       if (removed && removed.ok === false) {
         this.dsh.log(`清理 dshbot 预置残留失败：${removed.error || 'unknown'}`, 'app');
       } else if (removed && removed.changed) {
-        this.dsh.log('已清理 dshbot 桌面预置残留（插件与机器人数据保留）', 'app');
+        this.dsh.log('已清理 dshbot 旧版预置残留', 'app');
       }
     } catch (error) {
       if (isCancellation(error)) throw error;
       this.dsh.log(`清理 dshbot 预置残留失败：${errorMessage(error)}`, 'app');
+    }
+    // dshbot is desktop built-in sidebar Bots — not a user plugin. Its
+    // overlay rides --patch on every start (including skipUserPlugins
+    // recovery) only while `dshbotEnabled` is on in 界面设置 (default off);
+    // the disable list never applies; a missing vendor copy fails start
+    // (desktop runtime damage, skip cannot fix it).
+    try {
+      const bots = await this.ensureDshbotPlugin({
+        enabled: (this.loadConfig() || {}).dshbotEnabled === true,
+      });
+      this.assertOperationCurrent(generation);
+      if (bots && bots.ok === false) {
+        throw new Error(`桌面内置 dshbot 失败：${bots.error || 'unknown'}`);
+      }
+      if (bots?.overlayFile) {
+        patchFiles.push(bots.overlayFile);
+      }
+      if (bots && bots.ok && bots.disabled) {
+        this.dsh.log('桌面内置 dshbot 已按设置关闭', 'app');
+      } else if (bots && bots.ok) {
+        this.dsh.log(bots.added ? '已接入桌面内置 dshbot（Bots）' : '桌面内置 dshbot 已就绪', 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置 dshbot 失败：')) {
+        throw error;
+      }
+      throw new Error(`桌面内置 dshbot 失败：${errorMessage(error)}`);
     }
     try {
       const disabled = this.applyDisabledBundles((this.loadConfig() || {}).disabledPlugins);

@@ -31,6 +31,7 @@ import { GeneralSection } from './GeneralSection.tsx'
 import { InterfaceSection } from './InterfaceSection.tsx'
 import { CloseBehaviorRow } from './CloseBehaviorRow.tsx'
 import { AutoStartDesktopRow } from './AutoStartDesktopRow.tsx'
+import { DshbotRow } from './DshbotRow.tsx'
 import { AboutSection } from './AboutSection.tsx'
 import { HarnessRestartRow } from './HarnessRestartRow.tsx'
 import { canPersistCloseBehavior, desktopShell } from './desktop-shell.ts'
@@ -226,6 +227,12 @@ export function apply(ctx: ClientContext): void {
       order: 26,
       locale: NS,
     }, AutoStartDesktopRow))
+    ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
+      name: 'settings.interface.item',
+      id: 'dshbot',
+      order: 80,
+      locale: NS,
+    }, DshbotRow))
   }
   // The desktop-only Harness auto-recovery row: registered only when the
   // desktop bridge exposes both config directions — a plain browser has no

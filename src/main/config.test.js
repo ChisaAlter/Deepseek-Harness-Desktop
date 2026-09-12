@@ -33,6 +33,7 @@ const {
   normalizeRendererConfigPatch,
   normalizeLauncherConfigPatch,
   normalizeRemotePatch,
+  normalizePetState,
 } = require('./config');
 
 test.after(() => {
@@ -43,6 +44,7 @@ test('Harness recovery defaults are bounded and enabled', () => {
   assert.equal(DEFAULTS.harnessAutoRestart, true);
   assert.equal(DEFAULTS.harnessRestartMaxAttempts, 3);
   assert.equal(DEFAULTS.harnessRestartBaseDelayMs, 1000);
+  assert.equal(DEFAULTS.dshbotEnabled, false);
   assert.deepEqual(normalizeHarnessRecovery({}), {
     harnessAutoRestart: true,
     harnessRestartMaxAttempts: 3,
@@ -72,12 +74,14 @@ test('renderer config patch only accepts safe typed fields', () => {
     locale: 'en',
     harnessRestartMaxAttempts: 4,
     githubToken: ' token ',
+    dshbotEnabled: true,
   }), {
     closeToTray: false,
     autoStartDesktop: true,
     locale: 'en',
     harnessRestartMaxAttempts: 4,
     githubToken: 'token',
+    dshbotEnabled: true,
   });
   for (const patch of [
     { dshBin: 'C:\\malware.cmd' },
@@ -85,6 +89,7 @@ test('renderer config patch only accepts safe typed fields', () => {
     { workspace: 'C:\\' },
     { baseUrl: 'https://attacker.invalid' },
     { closeToTray: 'yes' },
+    { dshbotEnabled: 'yes' },
     { harnessRestartMaxAttempts: 99 },
   ]) {
     assert.throws(() => normalizeRendererConfigPatch(patch));
@@ -173,6 +178,16 @@ test('remote defaults to server without enabling pairing and preserves an explic
   assert.equal(normalizeRemoteConfig({ remoteMode: 'invalid' }).remoteMode, 'relay');
   assert.equal(publicConfig({}).remoteMode, 'relay');
   assert.equal(normalizeRemoteConfig({ remoteMode: 'lan' }).remoteMode, 'lan');
+});
+
+test('desktop pet defaults and malformed saved state are normalized', () => {
+  assert.deepEqual(DEFAULTS.pet, { enabled: true, xRatio: 0.82, yRatio: 0.72 });
+  assert.deepEqual(normalizePetState({ enabled: 'yes', xRatio: 2, yRatio: -1 }), {
+    enabled: true,
+    xRatio: 1,
+    yRatio: 0,
+  });
+  assert.deepEqual(loadConfig().pet, DEFAULTS.pet);
 });
 
 test('remote feature is released: the flag is on and the saved config keeps remote settings', () => {

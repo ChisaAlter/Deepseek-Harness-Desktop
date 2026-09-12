@@ -255,12 +255,16 @@ test('skip-user-plugins start still cleans dshmarket preset residue', async () =
   assert.equal(f.dsh.startOptions[0].skipUserPlugins, true);
 });
 
-test('default start cleans dshbot preset residue instead of ensuring it', async () => {
+test('default start cleans legacy dshbot residue then mounts the built-in overlay', async () => {
   const order = [];
+  const botOverlay = 'C:/profiles/web/desktop-plugins/dshbot/desktop-dshbot.patch.yml';
+  let botArgs = null;
   const f = fixture({
-    ensureDshbotPlugin: async () => {
+    initialConfig: { dshbotEnabled: true },
+    ensureDshbotPlugin: async (options) => {
+      botArgs = options;
       order.push('dshbot-ensure');
-      return { ok: true, added: true };
+      return { ok: true, added: true, overlayFile: botOverlay };
     },
     removeLegacyDshbotPreset: async () => {
       order.push('dshbot-cleanup');
@@ -268,12 +272,30 @@ test('default start cleans dshbot preset residue instead of ensuring it', async 
     },
   });
   await f.controller.start();
-  assert.deepEqual(order, ['dshbot-cleanup']);
+  assert.deepEqual(order, ['dshbot-cleanup', 'dshbot-ensure']);
+  assert.deepEqual(botArgs, { enabled: true });
   assert.equal(f.dsh.startCalls, 1);
-  assert.ok(f.dsh.logs.some((line) => /已清理 dshbot 桌面预置残留/.test(line)));
+  assert.ok(f.dsh.startOptions[0].patchFiles.includes(botOverlay));
+  assert.ok(f.dsh.logs.some((line) => /已清理 dshbot 旧版预置残留/.test(line)));
+  assert.ok(f.dsh.logs.some((line) => /桌面内置 dshbot/.test(line)));
 });
 
-test('obsolete dshbotPreset does not recreate the detached plugin', async () => {
+test('dshbotEnabled defaults off: ensure is called with enabled:false and no overlay mounts', async () => {
+  let botArgs = null;
+  const f = fixture({
+    ensureDshbotPlugin: async (options) => {
+      botArgs = options;
+      return { ok: true, added: false, disabled: true };
+    },
+  });
+  await f.controller.start();
+  assert.deepEqual(botArgs, { enabled: false });
+  assert.equal(f.dsh.startCalls, 1);
+  assert.ok(!f.dsh.startOptions[0].patchFiles.some((file) => /dshbot/.test(file)));
+  assert.ok(f.dsh.logs.some((line) => /桌面内置 dshbot 已按设置关闭/.test(line)));
+});
+
+test('obsolete dshbotPreset config does not change the built-in mount', async () => {
   const order = [];
   const f = fixture({
     initialConfig: { dshbotPreset: true },
@@ -312,17 +334,20 @@ test('obsolete dshbotPreset does not recreate the detached plugin', async () => 
     return origStart(options);
   };
   await f.controller.start();
-  assert.deepEqual(order, ['desktop-install', 'dshmarket-cleanup', 'usage-panel', 'dsh-im', 'dshbot-cleanup', 'disabled-bundles', 'start']);
+  assert.deepEqual(order, ['desktop-install', 'dshmarket-cleanup', 'usage-panel', 'dsh-im', 'dshbot-cleanup', 'dshbot-ensure', 'disabled-bundles', 'start']);
   assert.ok(!f.dsh.logs.some((line) => /已预置 dshbot（开发模式）/.test(line)));
 });
 
-test('skip-user-plugins never ensures dshbot even when the dev preset is on', async () => {
+test('skip-user-plugins still wires built-in dshbot (every start rides it)', async () => {
   const order = [];
+  const botOverlay = 'C:/profiles/web/desktop-plugins/dshbot/desktop-dshbot.patch.yml';
+  let botArgs = null;
   const f = fixture({
-    initialConfig: { dshbotPreset: true },
-    ensureDshbotPlugin: async () => {
+    initialConfig: { dshbotPreset: true, dshbotEnabled: true },
+    ensureDshbotPlugin: async (options) => {
+      botArgs = options;
       order.push('dshbot-ensure');
-      return { ok: true, added: true };
+      return { ok: true, added: true, overlayFile: botOverlay };
     },
     removeLegacyDshbotPreset: async () => {
       order.push('dshbot-cleanup');
@@ -331,8 +356,10 @@ test('skip-user-plugins never ensures dshbot even when the dev preset is on', as
   });
   f.controller.writePluginSkip(new Error('recovery'));
   await f.controller.start();
-  assert.deepEqual(order, ['dshbot-cleanup']);
+  assert.deepEqual(order, ['dshbot-cleanup', 'dshbot-ensure']);
+  assert.deepEqual(botArgs, { enabled: true });
   assert.equal(f.dsh.startOptions[0].skipUserPlugins, true);
+  assert.ok(f.dsh.startOptions[0].patchFiles.includes(botOverlay));
 });
 
 test('a failed usage-panel ensure blocks Harness start (desktop runtime damage)', async () => {
@@ -382,6 +409,21 @@ test('dsh-im failure blocks Harness start', async () => {
     () => f.controller.start(),
     (error) => {
       assert.match(String(error.message), /桌面内置 dsh-im 失败/);
+      assert.match(String(error.message), /missing-source/);
+      return true;
+    },
+  );
+  assert.equal(f.dsh.startCalls, 0);
+});
+
+test('dshbot failure blocks Harness start (desktop runtime damage)', async () => {
+  const f = fixture({
+    ensureDshbotPlugin: async () => ({ ok: false, error: 'missing-source:package.json' }),
+  });
+  await assert.rejects(
+    () => f.controller.start(),
+    (error) => {
+      assert.match(String(error.message), /桌面内置 dshbot 失败/);
       assert.match(String(error.message), /missing-source/);
       return true;
     },
@@ -472,30 +514,33 @@ test('a failed session-search ensure never contributes a stale overlay path', as
   assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay]);
 });
 
-test('dsh-im and usage-panel and market overlays ride --patch on both full and skip starts', async () => {
+test('dsh-im and usage-panel and market and dshbot overlays ride --patch on both full and skip starts', async () => {
   const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
   const usageOverlay = 'C:/profiles/web/desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml';
   const imOverlay = 'C:/profiles/web/desktop-plugins/dsh-im/desktop-dsh-im.patch.yml';
   const marketOverlay = 'C:/profiles/web/desktop-plugins/dsh-market/desktop-dsh-market.patch.yml';
+  const botOverlay = 'C:/profiles/web/desktop-plugins/dshbot/desktop-dshbot.patch.yml';
   const f = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
     ensureUsagePanelPlugin: async () => ({ ok: true, added: false, overlayFile: usageOverlay }),
     ensureDshImPlugin: async () => ({ ok: true, added: false, overlayFile: imOverlay }),
     ensureDesktopMarket: async () => ({ ok: true, added: false, overlayFile: marketOverlay }),
+    ensureDshbotPlugin: async () => ({ ok: true, added: false, overlayFile: botOverlay }),
   });
   await f.controller.start();
-  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay]);
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay, botOverlay]);
 
   const skipped = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
     ensureUsagePanelPlugin: async () => ({ ok: true, added: false, overlayFile: usageOverlay }),
     ensureDshImPlugin: async () => ({ ok: true, added: false, overlayFile: imOverlay }),
     ensureDesktopMarket: async () => ({ ok: true, added: false, overlayFile: marketOverlay }),
+    ensureDshbotPlugin: async () => ({ ok: true, added: false, overlayFile: botOverlay }),
   });
   skipped.controller.writePluginSkip(new Error('recovery'));
   await skipped.controller.start();
   assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
-  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay]);
+  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay, botOverlay]);
 });
 
 test('a failed usage-panel ensure blocks Harness start and never passes a stale overlay', async () => {
@@ -891,4 +936,36 @@ test('disabling auto restart cancels a pending recovery immediately', async () =
   assert.equal(f.controller.snapshot().recovery.status, 'cancelled');
   assert.equal(f.controller.snapshot().recovery.reason, 'disabled');
   assert.equal(f.clock.timers.size, 0);
+});
+
+test('dsh log lines are batched into one shell:log send per flush window', async () => {
+  const sends = [];
+  const flushTimers = new Map();
+  let nextTimerId = 1;
+  const pendingFlush = [];
+  const f = fixture({
+    sendToBoot: (channel, payload) => sends.push({ channel, payload }),
+    setLogTimer: (fn) => {
+      const id = nextTimerId++;
+      flushTimers.set(id, fn);
+      pendingFlush.push(fn);
+      return id;
+    },
+    clearLogTimer: (id) => {
+      flushTimers.delete(id);
+    },
+  });
+  const flush = () => pendingFlush.splice(0).forEach((fn) => fn());
+  f.dsh.log('one');
+  f.dsh.log('two');
+  f.dsh.log('three');
+  assert.equal(sends.filter((row) => row.channel === 'shell:log').length, 0);
+  flush();
+  const logs = sends.filter((row) => row.channel === 'shell:log');
+  assert.equal(logs.length, 1);
+  assert.deepEqual(logs[0].payload, ['[app] one', '[app] two', '[app] three']);
+  f.dsh.log('late');
+  flush();
+  assert.deepEqual(sends.filter((row) => row.channel === 'shell:log').map((row) => row.payload).flat(),
+    ['[app] one', '[app] two', '[app] three', '[app] late']);
 });

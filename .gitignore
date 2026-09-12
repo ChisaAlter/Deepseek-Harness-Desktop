@@ -3,6 +3,8 @@ node_modules/
 !vendor/dsh-usage-panel/node_modules/**
 !vendor/dsh-im/node_modules/
 !vendor/dsh-im/node_modules/**
+!vendor/dshbot/node_modules/
+!vendor/dshbot/node_modules/**
 vendor/deepseek-harness/node_modules/
 vendor/deepseek-harness/apps/web/dist/
 # host-side tsc emits declaration/map artifacts beside the sources; keep the
@@ -19,6 +21,8 @@ dist/
 !vendor/dsh-usage-panel/node_modules/**/dist/**
 !vendor/dsh-im/node_modules/**/dist/
 !vendor/dsh-im/node_modules/**/dist/**
+!vendor/dshbot/node_modules/**/dist/
+!vendor/dshbot/node_modules/**/dist/**
 dist-release/
 out/
 /release/

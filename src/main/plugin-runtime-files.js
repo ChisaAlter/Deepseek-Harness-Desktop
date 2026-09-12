@@ -101,7 +101,7 @@ function entryExists(depDir, rel) {
 function missingDeclaredEntries(dir, pkg) {
   const missing = [];
   for (const rel of declaredEntryRelatives(pkg)) {
-    if (rel.endsWith('.d.ts') || rel === 'package.json') {
+    if (rel.endsWith('.ts') || rel === 'package.json') {
       continue;
     }
     if (!entryExists(dir, rel)) {
@@ -158,6 +158,9 @@ function missingRuntimeFiles(packageDir, options = {}) {
       continue;
     }
     for (const rel of declaredEntryRelatives(depPkg)) {
+      if (rel.endsWith('.ts')) {
+        continue;
+      }
       if (!entryExists(depDir, rel)) {
         missing.push(posixJoin(name, rel.split(path.sep).join('/')));
       }

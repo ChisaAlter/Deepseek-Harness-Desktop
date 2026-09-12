@@ -9,6 +9,7 @@ const { removeDshMarketPreset } = require('./dshmarket-preset');
 const { ensureUsagePanelPlugin } = require('./usage-panel-preset');
 const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
+const { ensureDshbotPlugin } = require('./dshbot-desktop');
 const { ensureDesktopMarket } = require('./dsh-market-desktop');
 const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
@@ -20,6 +21,7 @@ const git = require('./git');
 const { listDir } = require('./workspace-fs');
 const { buildMenu } = require('./menu');
 const { createTray, invokeTrayAction } = require('./tray');
+const { DESKTOP_PET_FEATURE, configureDesktopPet, getDesktopPet } = require('./desktop-pet');
 const { checkUpdate, installUpdate, setGithubTokenProvider } = require('./update');
 const { probeImportHold, recoverInterruptedImport } = require('./data-import');
 const {
@@ -45,6 +47,7 @@ const {
   sendToBoot,
   isBootLoaded,
   getHarnessWebContents,
+  isHarnessLoaded,
   hideHarnessView,
   showLauncher,
   prepareLauncher,
@@ -53,7 +56,7 @@ const {
   closeLauncherWindow,
   showMain,
 } = require('./window');
-const { watchSystemTheme } = require('./chrome');
+const { watchSystemTheme, currentTheme } = require('./chrome');
 const { showClosingOverlay } = require('./closing-overlay');
 const { hideOnClose } = require('./close-behavior');
 const { qaFlag, qaRemoteMode: readRemoteMode } = require('./qa-gate');
@@ -316,6 +319,7 @@ const harness = new HarnessController({
   ensureUsagePanelPlugin,
   ensureSessionSearchOverlay,
   ensureDshImPlugin,
+  ensureDshbotPlugin,
   ensureDesktopMarket,
   removeLegacyDshbotPreset,
   applyDisabledBundles,
@@ -423,6 +427,7 @@ if (!gotLock) {
     fs.mkdirSync(desktopHome, { recursive: true });
     dsh.log(`Harness 家目录 ${desktopHome}`, 'app');
     const config = loadConfig();
+    configureDesktopPet({ loadConfig, saveConfig, currentTheme });
     fs.mkdirSync(config.workspace, { recursive: true });
     saveConfig({ workspace: config.workspace });
     app.setLoginItemSettings({ openAtLogin: Boolean(config.openAtLogin) });
@@ -469,6 +474,14 @@ if (!gotLock) {
       onOpenLauncher: () => ignoreFailure(openLauncher()),
       onRestart: () => ignoreFailure(restartWithCleanup()),
       onQuit: () => quitApp(),
+      ...(DESKTOP_PET_FEATURE ? {
+        petEnabled: () => getDesktopPet()?.isEnabled() === true,
+        onPetToggle: (enabled) => {
+          const pet = getDesktopPet();
+          const win = getMainWindow();
+          pet?.setEnabled(enabled, isHarnessLoaded(win) ? win : null);
+        },
+      } : {}),
     });
 
     watchSystemTheme();

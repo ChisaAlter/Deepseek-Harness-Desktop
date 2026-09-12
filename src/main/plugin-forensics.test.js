@@ -75,14 +75,22 @@ test('legacy session cache schema failures are not attributed to user plugins', 
   assert.equal(classifyGenericFailure("domain 'other': stored record 'old' does not match its schema"), '');
 });
 
-test('an incompatible user-installed dshbot is a disableable suspect, not desktop damage', () => {
+test('a broken built-in dshbot mount is desktop runtime damage once absent from the profile', () => {
   const logs = "failed to apply loader entry include (cordis:include): failed to import loader entry dsh-bot (dshbot): The requested module '@deepseek-ai/dsh-settings' does not provide an export named 'settingsNamespace'";
-  const result = inspectPlugins({ logs, pluginTreeFailure: true, plugins: [{ name: 'dshbot' }, { name: 'other-plugin' }], bundles: ['dshbot', 'other-plugin'] });
   assert.deepEqual(extractSuspectNames(logs), ['dshbot']);
-  assert.equal(result.desktopRuntimeDamage, false);
-  assert.equal(result.plugins.find(row => row.name === 'dshbot').suspect, true);
-  assert.equal(result.plugins.find(row => row.name === 'other-plugin').suspect, false);
-  assert.equal(isPresetPlugin('dshbot'), false);
+  // Row still listed: suspect + preset (removal blocked; disable is blocked
+  // separately via IPC and config alias-stripping) — not yet damage.
+  const listed = inspectPlugins({ logs, pluginTreeFailure: true, plugins: [{ name: 'dshbot' }, { name: 'other-plugin' }], bundles: ['dshbot', 'other-plugin'] });
+  assert.equal(listed.desktopRuntimeDamage, false);
+  assert.equal(listed.plugins.find(row => row.name === 'dshbot').suspect, true);
+  assert.equal(listed.plugins.find(row => row.name === 'dshbot').preset, true);
+  assert.equal(listed.plugins.find(row => row.name === 'other-plugin').suspect, false);
+  // Absent from the profile: orphan in-box suspect → desktop damage, and
+  // the verdict outranks the sticky-skip banner.
+  const orphan = inspectPlugins({ logs, pluginTreeFailure: true, plugins: [{ name: 'other-plugin' }], bundles: ['other-plugin'] });
+  assert.equal(orphan.desktopRuntimeDamage, true);
+  assert.equal(orphan.orphanSuspects.find(row => row.name === 'dshbot').inBox, true);
+  assert.equal(isPresetPlugin('dshbot'), true);
 });
 
 test('inspectPlugins flags suspects and presets without deleting the latter', () => {
@@ -99,8 +107,9 @@ test('inspectPlugins flags suspects and presets without deleting the latter', ()
   assert.equal(inspected.plugins.find((row) => row.name === 'evil-pack').suspect, true);
   assert.equal(inspected.plugins.find((row) => row.name === 'evil-pack').disabled, true);
   assert.equal(isPresetPlugin('dsh-usage-panel'), true);
-  // dshbot is a standalone user plugin now, so forensics may suspect/disable it.
-  assert.equal(isPresetPlugin('dshbot'), false);
+  // dshbot is a desktop built-in again — preset marker blocks removal and
+  // in-box flags its orphans as desktop runtime damage.
+  assert.equal(isPresetPlugin('dshbot'), true);
   // The marketplace is desktop-owned code, not a mounted preset plugin.
   assert.equal(isPresetPlugin('dshmarket'), false);
   assert.equal(isPresetPlugin('evil-pack'), false);

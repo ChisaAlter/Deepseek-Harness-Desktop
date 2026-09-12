@@ -8,6 +8,7 @@ import { stubSettingsScope, TestRemote, usePinnedBrowserLanguages } from '@deeps
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-general/client'
 import { CloseBehaviorRow } from '../src/client/CloseBehaviorRow.tsx'
 import { AutoStartDesktopRow } from '../src/client/AutoStartDesktopRow.tsx'
+import { DshbotRow } from '../src/client/DshbotRow.tsx'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -67,8 +68,14 @@ describe('ui-settings-general desktop close-behavior row', () => {
     const autoStartRow = rows.find(row => row.options.id === 'auto-start-desktop')!
     expect(autoStartRow.component).toBe(AutoStartDesktopRow)
     expect(autoStartRow.options).toMatchObject({ id: 'auto-start-desktop', order: 26 })
+    const botRow = b.slots.entries('settings.interface.item')
+      .find(row => row.options.id === 'dshbot')!
+    expect(botRow.component).toBe(DshbotRow)
+    expect(botRow.options).toMatchObject({ id: 'dshbot', order: 80 })
+    expect(botRow.locale).toBe('settings')
     await fiber.dispose()
     expect(b.slots.entries('settings.general.item')).toEqual([])
+    expect(b.slots.entries('settings.interface.item')).toEqual([])
   })
 
   it('withholds the row without a persistable desktop shell', async () => {
@@ -76,5 +83,6 @@ describe('ui-settings-general desktop close-behavior row', () => {
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     expect(b.slots.entries('settings.general.item')).toEqual([])
+    expect(b.slots.entries('settings.interface.item')).toEqual([])
   })
 })

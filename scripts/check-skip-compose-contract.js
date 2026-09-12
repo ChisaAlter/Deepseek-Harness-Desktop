@@ -25,15 +25,24 @@ const {
   DSH_MARKET_INSERT_ID,
 } = require('../src/main/dsh-market-desktop');
 const {
+  ensureDesktopDshbot,
+  DSHBOT_PACKAGE,
+  DSHBOT_INSERT_ID,
+} = require('../src/main/dshbot-desktop');
+const {
+  DSHBOT_BEGIN,
+  DSHBOT_END,
+} = require('../src/main/legacy-dshbot-preset');
+const {
   ensureSessionSearchOverlay,
 } = require('../src/main/session-search-overlay');
 
 /**
  * Skip compose contract against the REAL dsh CLI (`dsh web --dump-config`):
- * every desktop start passes the desktop-owned install, usage, dsh-im, and
- * market overlays via `--patch`; a skip start must compose those overlays
- * while the user layer stays out, and a full start must add session search.
- * The fixture also
+ * every desktop start passes the desktop-owned install, usage, dsh-im,
+ * market, and dshbot overlays via `--patch`; a skip start must compose
+ * those overlays while the user layer stays out, and a full start must add
+ * session search. The fixture also
  * replays the managed-block migration: the temp profile starts with a canary
  * user row PLUS the legacy install and dsh-im managed blocks, and ensure
  * must strip the blocks (keeping the canary) or the full round double-mounts
@@ -51,6 +60,7 @@ const INSTALL_ID = 'dshd-desktop-plugin-install';
 const IM_ID = DSH_IM_INSERT_ID;
 const USAGE_ID = 'usage-stats';
 const MARKET_ID = DSH_MARKET_INSERT_ID;
+const BOT_ID = DSHBOT_INSERT_ID;
 const SESSION_SEARCH_ID = 'session-query-sqlite';
 const DUMP_TIMEOUT_MS = 120_000;
 
@@ -79,6 +89,15 @@ const LEGACY_DSH_IM_BLOCK = [
   `    - id: ${IM_ID}`,
   `      name: ${JSON.stringify(DSH_IM_PACKAGE)}`,
   DSH_IM_END,
+  '',
+].join('\n');
+
+const LEGACY_DSHBOT_BLOCK = [
+  DSHBOT_BEGIN,
+  '- insert:',
+  `    - id: ${BOT_ID}`,
+  `      name: ${JSON.stringify(DSHBOT_PACKAGE)}`,
+  DSHBOT_END,
   '',
 ].join('\n');
 
@@ -117,12 +136,40 @@ function writeDshImFixture(home) {
 }
 
 /**
+ * Minimal first-party dshbot package fixture: the real ensureDesktopDshbot
+ * junctions it into the throwaway profile and emits its overlay. The
+ * packaged vendor copy's completeness is asserted separately in after-pack;
+ * this contract only proves compose semantics.
+ * @param {string} home - the throwaway DSH_HOME.
+ * @returns {string} the fixture source directory.
+ */
+function writeDshbotFixture(home) {
+  const dir = path.join(home, 'fixtures', 'dshbot');
+  fs.mkdirSync(path.join(dir, 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'client'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: DSHBOT_PACKAGE,
+    version: '0.0.0-contract',
+    main: './lib/index.js',
+    exports: {
+      '.': './lib/index.js',
+      './client': './client/client.js',
+      './cordis.patch.yml': './cordis.patch.yml',
+    },
+  }, null, 2), 'utf8');
+  fs.writeFileSync(path.join(dir, 'lib', 'index.js'), 'export function apply() {}\n', 'utf8');
+  fs.writeFileSync(path.join(dir, 'client', 'client.js'), 'export function apply() {}\n', 'utf8');
+  fs.writeFileSync(path.join(dir, 'cordis.patch.yml'), `- insert:\n    - id: ${BOT_ID}\n      name: ${JSON.stringify(DSHBOT_PACKAGE)}\n`, 'utf8');
+  return dir;
+}
+
+/**
  * Pure verdict on one dump-config round. The positive assertion comes first:
  * an empty or truncated dump must fail on the missing desktop rows, never
  * pass because the canary also vanished with everything else. Exactly one
- * install row and one dsh-im row per round — a second copy means a stale
- * managed block composed next to the overlay (the CLI's `insert` does not
- * dedupe by id).
+ * install row, one dsh-im row, and one dshbot row per round — a second copy
+ * means a stale managed block composed next to the overlay (the CLI's
+ * `insert` does not dedupe by id).
  * @param {'skip'|'full'} round
  * @param {string} stdout
  * @returns {string[]} problems, empty when the round honors the contract.
@@ -135,6 +182,7 @@ function composeContractProblems(round, stdout) {
     [USAGE_ID, '桌面内置用量统计'],
     [IM_ID, '桌面内置 dsh-im'],
     [MARKET_ID, '桌面内置市场'],
+    [BOT_ID, '桌面内置 dshbot'],
   ];
   for (const [id, label] of requiredRows) {
     const count = countRows(text, id);
@@ -166,9 +214,9 @@ function composeContractProblems(round, stdout) {
 
 /**
  * The two dump-config invocations, mirroring the desktop's production argv:
- * install, usage, dsh-im, and market overlays ride `--patch` on BOTH rounds;
- * full starts add session-search between usage and dsh-im (launcher flags stay
- * in the CLI grammar prefix, before any app arg).
+ * install, usage, dsh-im, market, and dshbot overlays ride `--patch` on
+ * BOTH rounds; full starts add session-search between usage and dsh-im
+ * (launcher flags stay in the CLI grammar prefix, before any app arg).
  * @param {string} binJs - absolute path of apps/cli/lib/bin.js.
  * @param {string[]} overlayFiles - desktop-owned overlays on skip and full starts.
  * @param {string[]} fullOverlayFiles - exact full-start order, including full-only overlays.
@@ -208,13 +256,13 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
     fs.mkdirSync(profileDir, { recursive: true });
     // Migration replay: the profile starts as an upgraded install would —
     // a canary user row plus the managed blocks an earlier desktop version
-    // upserted (install + dsh-im). The ensures must strip both blocks
-    // (keeping the canary) and write their overlays; the full round then
-    // proves exactly one copy of each desktop row composes.
+    // upserted (install + dsh-im + dshbot). The ensures must strip the
+    // blocks (keeping the canary) and write their overlays; the full round
+    // then proves exactly one copy of each desktop row composes.
     const stalePlaceholderHref = 'file:///stale/desktop-plugins/install-dsh-plugin/install-dsh-plugin.mjs';
     fs.writeFileSync(
       path.join(profileDir, 'cordis.patch.yml'),
-      `${CANARY_PATCH}\n${LEGACY_MANAGED_BLOCK(stalePlaceholderHref)}\n${LEGACY_DSH_IM_BLOCK}`,
+      `${CANARY_PATCH}\n${LEGACY_MANAGED_BLOCK(stalePlaceholderHref)}\n${LEGACY_DSH_IM_BLOCK}\n${LEGACY_DSHBOT_BLOCK}`,
       'utf8',
     );
     const ensure = ensureDesktopInstallPlugin({ profileDir });
@@ -242,12 +290,16 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
     if (!marketEnsure || marketEnsure.ok !== true) {
       throw new Error(`skip compose 契约门禁：ensureDesktopMarket 失败（${(marketEnsure && marketEnsure.error) || 'unknown'}）`);
     }
+    const botEnsure = ensureDesktopDshbot({ sourceDir: writeDshbotFixture(home), profileDir, enabled: true });
+    if (!botEnsure || botEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureDesktopDshbot 失败（${(botEnsure && botEnsure.error) || 'unknown'}）`);
+    }
     const searchEnsure = ensureSessionSearchOverlay({ profileDir, dshHome: home });
     if (!searchEnsure || searchEnsure.ok !== true) {
       throw new Error(`skip compose 契约门禁：ensureSessionSearchOverlay 失败（${(searchEnsure && searchEnsure.error) || 'unknown'}）`);
     }
     const migrated = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8');
-    if (migrated.includes(DESKTOP_INSTALL_BEGIN) || migrated.includes(DSH_IM_BEGIN)) {
+    if (migrated.includes(DESKTOP_INSTALL_BEGIN) || migrated.includes(DSH_IM_BEGIN) || migrated.includes(DSHBOT_BEGIN)) {
       throw new Error('skip compose 契约门禁：受管块迁移失败——cordis.patch.yml 仍含桌面受管块');
     }
     if (!migrated.includes(CANARY_ID)) {
@@ -260,13 +312,14 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
     delete env.DSH_HARNESS_ROOT;
     const problems = [];
     // Keep this order identical to HarnessController: session-search is
-    // inserted before dsh-im and market on full starts, while dsh-im and
-    // market remain present on skip starts too.
+    // inserted before dsh-im on full starts, while dsh-im, market, and
+    // dshbot remain present on skip starts too.
     const overlayFiles = [
       ensure.overlayFile,
       usageEnsure.overlayFile,
       imEnsure.overlayFile,
       marketEnsure.overlayFile,
+      botEnsure.overlayFile,
     ];
     const fullOverlayFiles = [
       ensure.overlayFile,
@@ -274,6 +327,7 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
       searchEnsure.overlayFile,
       imEnsure.overlayFile,
       marketEnsure.overlayFile,
+      botEnsure.overlayFile,
     ];
     for (const { round, args } of composeContractRounds(binJs, overlayFiles, fullOverlayFiles)) {
       log(`dump-config ${round} 轮…`);
@@ -309,6 +363,7 @@ module.exports = {
   IM_ID,
   USAGE_ID,
   MARKET_ID,
+  BOT_ID,
   SESSION_SEARCH_ID,
   composeContractProblems,
   composeContractRounds,

@@ -47,10 +47,37 @@ const DEFAULTS = {
   autoStartDesktop: true,
   askOnUpdate: true,
   disabledPlugins: [],
+  dshbotEnabled: false,
+  pet: {
+    enabled: true,
+    xRatio: 0.82,
+    yRatio: 0.72,
+  },
 };
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function clampRatio(value, fallback) {
+  const ratio = Number(value);
+  return Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : fallback;
+}
+
+function normalizePetState(value) {
+  const source = isPlainObject(value) ? value : {};
+  return {
+    enabled: source.enabled !== false,
+    xRatio: clampRatio(source.xRatio, DEFAULTS.pet.xRatio),
+    yRatio: clampRatio(source.yRatio, DEFAULTS.pet.yRatio),
+  };
+}
+
+function normalizePetStateInConfig(config) {
+  return {
+    ...config,
+    pet: normalizePetState(config?.pet),
+  };
 }
 
 function normalizeRendererConfigPatch(patch) {
@@ -59,7 +86,7 @@ function normalizeRendererConfigPatch(patch) {
   }
   const next = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (['closeToTray', 'openAtLogin', 'openDevTools', 'harnessAutoRestart', 'autoStartDesktop'].includes(key)) {
+    if (['closeToTray', 'openAtLogin', 'openDevTools', 'harnessAutoRestart', 'autoStartDesktop', 'dshbotEnabled'].includes(key)) {
       if (typeof value !== 'boolean') {
         throw new TypeError(`${key} must be a boolean`);
       }
@@ -197,12 +224,13 @@ function normalizePluginRecovery(config) {
 
 function normalizeDisabledPlugins(list) {
   const { withoutDshImAliases } = require('./dsh-im-desktop');
+  const { withoutDshbotAliases } = require('./dshbot-desktop');
   const { withoutUsagePanelAliases } = require('./usage-panel-preset');
-  return [...new Set(withoutUsagePanelAliases(withoutDshImAliases(
+  return [...new Set(withoutDshbotAliases(withoutUsagePanelAliases(withoutDshImAliases(
     (Array.isArray(list) ? list : [])
       .map((name) => String(name || '').trim())
       .filter(Boolean),
-  )))];
+  ))))];
 }
 
 function normalizeLauncherSettings(config) {
@@ -376,7 +404,7 @@ function loadConfig() {
     remoteDevices: Array.isArray(creds.remoteDevices) ? creds.remoteDevices : [],
   };
   config = normalizeLauncherSettings(
-    normalizeRemoteConfig(normalizePluginRecovery(normalizeHarnessRecovery(config))),
+    normalizePetStateInConfig(normalizeRemoteConfig(normalizePluginRecovery(normalizeHarnessRecovery(config)))),
   );
   if (!config.workspace || isUnsafeWorkspace(config.workspace)) {
     config.workspace = defaultWorkspace();
@@ -392,7 +420,7 @@ function loadConfig() {
 function saveConfig(next) {
   const current = loadConfig();
   const merged = normalizeLauncherSettings(
-    normalizeRemoteConfig(normalizePluginRecovery(normalizeHarnessRecovery({ ...current, ...next }))),
+    normalizePetStateInConfig(normalizeRemoteConfig(normalizePluginRecovery(normalizeHarnessRecovery({ ...current, ...next })))),
   );
   if (merged.githubToken === '********') {
     merged.githubToken = current.githubToken;
@@ -419,6 +447,7 @@ function saveConfig(next) {
 function publicConfig(config) {
   return {
     ...config,
+    pet: normalizePetState(config?.pet),
     apiKey: config.apiKey ? '********' : '',
     githubToken: config.githubToken ? '********' : '',
     hasApiKey: Boolean(config.apiKey),
@@ -479,6 +508,7 @@ module.exports = {
   normalizePluginRecovery,
   normalizeRendererConfigPatch,
   normalizeLauncherConfigPatch,
+  normalizePetState,
   normalizeRemotePatch,
   normalizeRelayOrigin,
   normalizeRemoteBindAddress,

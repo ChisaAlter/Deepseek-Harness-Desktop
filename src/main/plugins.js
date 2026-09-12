@@ -21,6 +21,9 @@ const DROPPED = [
   // Settings → 用量统计 ships first-party from vendor/dsh-usage-panel.
   // Reject marketplace installs of the same package to avoid a second mount.
   'dsh-usage-panel',
+  // Bots ships first-party from vendor/dshbot.
+  // Reject marketplace installs of the same package to avoid a second mount.
+  'dshbot',
 ];
 // Exact unscoped basenames of the dropped families. A rename that only moves
 // the package to a new scope (e.g. `@changfenhuang/dsh-genui`) or a new
@@ -33,6 +36,7 @@ const DROPPED_BASENAMES = [
   'dsh-im',
   'xmanrui-dsh-im',
   'dsh-usage-panel',
+  'dshbot',
 ];
 
 /** The npm name without its scope (`@scope/name` → `name`). */

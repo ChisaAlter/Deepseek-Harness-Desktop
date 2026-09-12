@@ -82,6 +82,11 @@ export type DesktopConfig = {
   autoStartDesktop?: boolean
   dshHome?: string
   /**
+   * Whether the desktop mounts the built-in dshbot Bots plugin; the shell
+   * restarts Harness after this field changes.
+   */
+  dshbotEnabled?: boolean
+  /**
    * How the desktop persists credentials.json: `encrypted` via the OS
    * keychain (safeStorage), or `plaintext` on platforms without one.
    */

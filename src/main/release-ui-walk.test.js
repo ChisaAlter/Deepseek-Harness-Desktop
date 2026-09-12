@@ -46,7 +46,8 @@ test('release walk helpers stay injectable into the harness page', () => {
   assert.ok(QA_REQUIRED_STEPS.includes('gallery.sources'));
   assert.ok(QA_REQUIRED_STEPS.includes('market.discover'));
   assert.ok(QA_REQUIRED_STEPS.includes('browser.url'));
-  assert.equal(QA_REQUIRED_STEPS.some((name) => name.startsWith('plugin.dshbot.')), false);
+  // dshbot is a desktop built-in again — the walk must prove the Bots tab renders.
+  assert.ok(QA_REQUIRED_STEPS.includes('plugin.dshbot.tab'));
   assert.ok(QA_REQUIRED_STEPS.includes('market.installed'));
   assert.ok(QA_REQUIRED_STEPS.includes('usage-stats.section'));
   assert.ok(QA_REQUIRED_STEPS.includes('files.mentionAppended'));

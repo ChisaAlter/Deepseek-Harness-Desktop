@@ -222,10 +222,10 @@ test('main process boots the ChisaCode remote face (RemoteGateway retired)', () 
   assert.doesNotMatch(index, /createDisabledRemote/);
 });
 
-test('desktop does not carry the detached dshbot plugin', () => {
-  assert.equal(fs.existsSync(path.join(ROOT, 'vendor/dshbot/package.json')), false);
+test('desktop ships dshbot as a built-in vendored plugin', () => {
+  assert.equal(fs.existsSync(path.join(ROOT, 'vendor/dshbot/package.json')), true);
   const manifest = JSON.parse(readRel(ROOT, 'package.json'));
-  assert.doesNotMatch(JSON.stringify(manifest.build.extraResources), /dshbot/);
+  assert.match(JSON.stringify(manifest.build.extraResources), /dshbot/);
 });
 
 // Upstream ships zero -webkit-app-region (it is a web-only app), so every

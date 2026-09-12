@@ -3,6 +3,7 @@
 const { OFFICIAL_TEMPLATE_BUNDLES } = require('./plugins');
 const { DESKTOP_PACKAGES } = require('../shared/harness-desktop-forks');
 const { DSH_IM_ALIASES } = require('./dsh-im-desktop');
+const { DSHBOT_ALIASES } = require('./dshbot-desktop');
 const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 
 const GENERIC_OOM = /heap out of memory|js heap|allocation failed|oom\b/i;
@@ -23,20 +24,21 @@ const EVIDENCE_PATTERNS = [
 
 // Preset plugins stay here to block `shell:remove-plugin` on a same-named
 // profile row (the built-in itself never appears in the profile list — it
-// mounts via the desktop overlay). dsh-usage-panel and dsh-im are both
+// mounts via the desktop overlay). dsh-usage-panel, dsh-im, and dshbot are
 // desktop built-in modules now (not disableable), but the `preset` marker
 // only gates removal; disable is blocked separately via IPC and config
 // alias-stripping.
-const PRESET_PLUGINS = new Set(['dsh-usage-panel', '@xmanrui/dsh-im', 'dsh-im', 'xmanrui-dsh-im']);
+const PRESET_PLUGINS = new Set(['dsh-usage-panel', '@xmanrui/dsh-im', 'dsh-im', 'xmanrui-dsh-im', ...DSHBOT_ALIASES]);
 const EVIDENCE_LINE_MAX = 240;
 
 // In-box names cover the harness fork packages plus the desktop built-in
-// modules (dsh-im and dsh-usage-panel, both overlay-mounted from vendor):
-// breakage in either is desktop runtime damage — disable and
+// modules (dsh-im, dsh-usage-panel, and dshbot, all overlay-mounted from
+// vendor): breakage in any is desktop runtime damage — disable and
 // skip-user-plugins cannot repair it.
 const IN_BOX_PACKAGE_NAMES = new Set([
   ...DESKTOP_PACKAGES.map((pkg) => pkg.name),
   ...DSH_IM_ALIASES,
+  ...DSHBOT_ALIASES,
   ...USAGE_PANEL_ALIASES,
 ]);
 

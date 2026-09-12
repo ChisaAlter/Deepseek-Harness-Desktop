@@ -295,6 +295,7 @@ const QA_REQUIRED_STEPS = [
   'market.discover',
   'market.installed',
   'usage-stats.section',
+  'plugin.dshbot.tab',
 ];
 
 function gitHeadSubject(workspacePath) {
@@ -1771,6 +1772,15 @@ async function runReleaseUiWalk(wc, helpers) {
 
   await dismiss();
   await sleep(300);
+
+  // dshbot is a desktop built-in (overlay-mounted on every start): the Bots
+  // sidebar tab must be present without any user install.
+  const botsTab = await pageEval(wc, () => {
+    const tab = Array.from(document.querySelectorAll('[role="tab"]')).find((el) =>
+      dshShown(el) && /(bots|机器人)/i.test(dshLabel(el)));
+    return Boolean(tab);
+  });
+  rec('plugin.dshbot.tab', botsTab, botsTab ? '' : 'built-in dshbot did not render the Bots tab');
 
   } catch (error) {
     rec('walk.uncaught', false, error && error.stack ? error.stack : String(error));
