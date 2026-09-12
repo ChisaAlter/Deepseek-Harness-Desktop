@@ -231,12 +231,12 @@ test('shouldHoldForImport is true only when dest sessions are empty and source h
   assert.equal(shouldHoldForImport({ destEmpty: true, sourceHasData: false }), false);
 });
 
-test('importSessions skips conflicts by default, overwrites when asked, and never writes the source', () => {
+test('importSessions skips conflicts by default, overwrites when asked, and never writes the source', async () => {
   const tree = makeTree();
   fs.mkdirSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a'), { recursive: true });
   fs.writeFileSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl'), 'OLD\n');
   const { importSessions } = require('./data-import');
-  const skipped = importSessions({
+  const skipped = await importSessions({
     sourceHome: tree.source,
     destHome: tree.dest,
     userDataDir: tree.userData,
@@ -248,7 +248,7 @@ test('importSessions skips conflicts by default, overwrites when asked, and neve
   assert.equal(fs.existsSync(path.join(tree.userData, 'import-journal.json')), true);
   assert.equal(fs.readFileSync(path.join(tree.source, 'sessions', 'proj', 'sess-a', 'session.jsonl'), 'utf8'), '{"id":"a"}\n');
 
-  const overwritten = importSessions({
+  const overwritten = await importSessions({
     sourceHome: tree.source,
     destHome: tree.dest,
     overwrite: true,
@@ -260,10 +260,10 @@ test('importSessions skips conflicts by default, overwrites when asked, and neve
   fs.rmSync(tree.root, { recursive: true, force: true });
 });
 
-test('importSessions rejects relative escape paths', () => {
+test('importSessions rejects relative escape paths', async () => {
   const tree = makeTree();
   const { importSessions } = require('./data-import');
-  const result = importSessions({
+  const result = await importSessions({
     sourceHome: tree.source,
     destHome: tree.dest,
     selectedRels: ['../escape'],
@@ -777,5 +777,98 @@ test('runImport skips MCP/skill conflicts unless overwrite, and rejects paths ou
   assert.equal(escaped.sessions[0].status, 'rejected');
   assert.equal(escaped.skills[0].status, 'rejected');
   assert.equal(fs.existsSync(path.join(tree.dest, 'escape')), false);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('runImport reports per-phase progress through onProgress', async () => {
+  const tree = makeTree();
+  const events = [];
+  const { runImport } = require('./data-import');
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    agentsSkillsRoot: path.join(tree.root, 'no-agents'),
+    userDataDir: tree.userData,
+    selectedRels: ['proj/sess-a', 'proj/sess-b'],
+    selectedSkillIds: [],
+    selectedPluginNames: [],
+    selectedMcpIds: [],
+    selectedSettingIds: [],
+    selectedPresetIds: [],
+    importAttachments: true,
+    onProgress: (event) => events.push(event),
+  });
+  assert.equal(result.ok, true);
+  const phases = events.map((event) => event.phase);
+  assert.ok(phases.includes('sessions'), 'expected a sessions phase event');
+  const sessionEvents = events.filter((event) => event.phase === 'sessions' && event.total === 2);
+  assert.ok(sessionEvents.length >= 2, 'expected per-item session progress');
+  const doneEvents = sessionEvents.map((event) => event.done).sort();
+  assert.deepEqual([...new Set(doneEvents)], [1, 2]);
+  assert.equal(events.at(-1).phase, 'done');
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('runImport honours AbortSignal between session copies and stays resumable', async () => {
+  const tree = makeTree();
+  const controller = new AbortController();
+  let copies = 0;
+  const { runImport } = require('./data-import');
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    agentsSkillsRoot: path.join(tree.root, 'no-agents'),
+    userDataDir: tree.userData,
+    selectedRels: ['proj/sess-a', 'proj/sess-b'],
+    selectedSkillIds: [],
+    selectedPluginNames: [],
+    selectedMcpIds: [],
+    selectedSettingIds: [],
+    selectedPresetIds: [],
+    importAttachments: true,
+    signal: controller.signal,
+    onProgress: (event) => {
+      if (event.phase === 'sessions' && event.done === 1) {
+        copies += 1;
+        controller.abort();
+      }
+    },
+  });
+  assert.equal(copies, 1);
+  assert.equal(result.cancelled, true);
+  assert.equal(result.ok, false);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl')), true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-b')), false);
+  const { readImportJournal } = require('./data-import');
+  const journal = readImportJournal(tree.userData);
+  assert.equal(journal.phase, 'copying', 'a cancelled import must stay recoverable like an interrupted one');
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('importSessions reuses a provided scan instead of rescanning the source', async () => {
+  const tree = makeTree();
+  const { importSessions } = require('./data-import');
+  const fakeScan = {
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    sessions: [
+      {
+        rel: 'proj/sess-a',
+        abs: path.join(tree.source, 'sessions', 'proj', 'sess-a'),
+        unsupported: false,
+        conflict: false,
+      },
+    ],
+  };
+  const result = await importSessions({
+    scan: fakeScan,
+    sourceHome: path.join(tree.root, 'does-not-exist'),
+    destHome: tree.dest,
+    selectedRels: ['proj/sess-a'],
+    userDataDir: tree.userData,
+    importAttachments: false,
+  });
+  assert.equal(result.sessions[0].status, 'copied');
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl')), true);
   fs.rmSync(tree.root, { recursive: true, force: true });
 });

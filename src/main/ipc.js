@@ -39,6 +39,7 @@ const {
 const { scanImport, probeImportHold, runImport } = require('./data-import');
 const { inspectPlugins, isPresetPlugin } = require('./plugin-forensics');
 const { DSH_IM_ALIASES } = require('./dsh-im-desktop');
+const { DSHBOT_ALIASES } = require('./dshbot-desktop');
 const { DSH_MARKET_ALIASES } = require('./dsh-market-desktop');
 const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 const { isPluginTreeFailure } = require('./plugin-tree-failure');
@@ -69,23 +70,27 @@ function configLocale(config = loadConfig()) {
   return config.locale === 'en' ? 'en' : 'zh';
 }
 
-function configPayload(config) {
-  return {
-    ...publicConfig(config),
-    locale: configLocale(config),
-    theme: config.theme || 'midnight',
-    themes: listThemes(),
-    themeTokens: resolveTheme(config, {
-      systemDark: Boolean(nativeTheme && nativeTheme.shouldUseDarkColors),
-    }),
+// Binary/source detection runs sync filesystem probes and, on machines
+// without a bundled or standard-path Node, `where.exe`/`which` subprocesses.
+// Neither nodeBin nor dshBin is renderer-writable, so the detection result
+// cannot change at runtime; memoize it instead of re-probing on every
+// get-config / launcher-status / save-config response.
+let detectedShellInfoCache = null;
+let detectedShellInfoKey = '';
+
+function detectedShellInfo(config) {
+  const key = `${config.nodeBin || ''}${config.dshBin || ''}`;
+  if (detectedShellInfoCache && detectedShellInfoKey === key) {
+    return detectedShellInfoCache;
+  }
+  const source = sourceHarnessStatus();
+  detectedShellInfoKey = key;
+  detectedShellInfoCache = {
     nodeDetected: resolveNodeBin(config),
-    dshDetected: (() => {
-      const source = sourceHarnessStatus();
-      if (source.present) {
-        return source.built ? `源码 ${source.root}` : `源码未构建 ${source.root}`;
-      }
-      return resolveDshBin(config);
-    })(),
+    dshDetected: source.present
+      ? (source.built ? `源码 ${source.root}` : `源码未构建 ${source.root}`)
+      : resolveDshBin(config),
+    themes: listThemes(),
     appVersion: currentVersion(),
     repoUrl: REPO_URL,
     releasesUrl: RELEASES_PAGE,
@@ -93,6 +98,21 @@ function configPayload(config) {
     // About/diagnostics: whether credentials.json is protected by the OS
     // keychain (safeStorage) or sits in the documented plaintext fallback.
     credentialStorage: credentialStorageMode(),
+  };
+  return detectedShellInfoCache;
+}
+
+function configPayload(config) {
+  return {
+    ...publicConfig(config),
+    locale: configLocale(config),
+    theme: config.theme || 'midnight',
+    // themeTokens stay live: the harness writes its own settings.yaml when the
+    // user changes the UI theme, so this must re-read per call.
+    themeTokens: resolveTheme(config, {
+      systemDark: Boolean(nativeTheme && nativeTheme.shouldUseDarkColors),
+    }),
+    ...detectedShellInfo(config),
   };
 }
 
@@ -130,6 +150,16 @@ function kernelNeedsAlign(dsh) {
 function kernelIsRunning(dsh) {
   const state = dshKernelState(dsh);
   return state !== 'idle' && state !== '';
+}
+
+function pluginDisableGuardError(name) {
+  if (OFFICIAL_TEMPLATE_BUNDLES.has(name)) {
+    return 'official-template';
+  }
+  if (DSH_IM_ALIASES.includes(name) || DSH_MARKET_ALIASES.includes(name) || USAGE_PANEL_ALIASES.includes(name) || DSHBOT_ALIASES.includes(name)) {
+    return 'desktop-builtin';
+  }
+  return null;
 }
 
 function finiteNumber(value) {
@@ -215,6 +245,23 @@ function registerIpc({
       'harnessRestartBaseDelayMs',
     ].some((key) => Object.prototype.hasOwnProperty.call(safePatch, key))) {
       harness.refreshPolicy();
+    }
+    if (
+      harness
+      && typeof startHarness === 'function'
+      && Object.prototype.hasOwnProperty.call(safePatch, 'dshbotEnabled')
+    ) {
+      // The Bots toggle changes which overlays the next start composes:
+      // return the saved config first, then restart Harness off-thread.
+      setImmediate(() => {
+        void enqueueProfileAlign(() => alignHarnessAfterProfileChange('dshbot toggle restart failed'))
+          .then((result) => {
+            if (result && result.harnessRestarted !== true) {
+              dsh.log(`切换 Bots 后重启 Harness 失败：${result.error || 'unknown'}`, 'app');
+            }
+          })
+          .catch(() => {});
+      });
     }
     return configPayload(next);
   });
@@ -650,7 +697,9 @@ function registerIpc({
     return result.filePaths[0];
   });
 
-  handle('shell:run-import', LAUNCHER_ONLY, async (_event, options = {}) => {
+  let importAbort = null;
+
+  handle('shell:run-import', LAUNCHER_ONLY, async (event, options = {}) => {
     const kernelStopped = await stopKernelIfRunning();
     const sourceHome = typeof options.sourceHome === 'string' ? options.sourceHome : undefined;
     const extraSkillDirs = Array.isArray(options.extraSkillDirs)
@@ -658,25 +707,47 @@ function registerIpc({
       : [];
     const overwrite = options.overwrite === true;
     const userDataDir = app.getPath('userData');
-    const result = await runImport({
-      sourceHome,
-      extraSkillDirs,
-      overwrite,
-      userDataDir,
-      selectedRels: Array.isArray(options.selectedRels) ? options.selectedRels : [],
-      selectedSkillIds: Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [],
-      selectedPluginNames: Array.isArray(options.selectedPluginNames) ? options.selectedPluginNames : [],
-      selectedMcpIds: Array.isArray(options.selectedMcpIds) ? options.selectedMcpIds : [],
-      selectedSettingIds: Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [],
-      selectedPresetIds: Array.isArray(options.selectedPresetIds) ? options.selectedPresetIds : [],
-      importAttachments: options.importAttachments === true,
-      installPlugin: (spec) => installImportPlugin(spec, { token: loadConfig().githubToken }),
-    });
-    return {
-      ...result,
-      kernelStopped,
-      hold: probeImportHold({ sourceHome, extraSkillDirs }).hold,
-    };
+    const controller = new AbortController();
+    importAbort = controller;
+    try {
+      const result = await runImport({
+        sourceHome,
+        extraSkillDirs,
+        overwrite,
+        userDataDir,
+        selectedRels: Array.isArray(options.selectedRels) ? options.selectedRels : [],
+        selectedSkillIds: Array.isArray(options.selectedSkillIds) ? options.selectedSkillIds : [],
+        selectedPluginNames: Array.isArray(options.selectedPluginNames) ? options.selectedPluginNames : [],
+        selectedMcpIds: Array.isArray(options.selectedMcpIds) ? options.selectedMcpIds : [],
+        selectedSettingIds: Array.isArray(options.selectedSettingIds) ? options.selectedSettingIds : [],
+        selectedPresetIds: Array.isArray(options.selectedPresetIds) ? options.selectedPresetIds : [],
+        importAttachments: options.importAttachments === true,
+        signal: controller.signal,
+        onProgress: (payload) => {
+          if (event.sender && !event.sender.isDestroyed()) {
+            event.sender.send('shell:import-progress', payload);
+          }
+        },
+        installPlugin: (spec) => installImportPlugin(spec, { token: loadConfig().githubToken }),
+      });
+      return {
+        ...result,
+        kernelStopped,
+        hold: probeImportHold({ sourceHome, extraSkillDirs }).hold,
+      };
+    } finally {
+      if (importAbort === controller) {
+        importAbort = null;
+      }
+    }
+  });
+
+  handle('shell:cancel-import', LAUNCHER_ONLY, () => {
+    if (!importAbort) {
+      return { ok: false };
+    }
+    importAbort.abort();
+    return { ok: true };
   });
 
   handle('shell:list-releases', LAUNCHER_ONLY, () => listReleases());
@@ -722,17 +793,9 @@ function registerIpc({
       return { ok: false, error: 'missing-names' };
     }
     for (const raw of list) {
-      if (OFFICIAL_TEMPLATE_BUNDLES.has(raw)) {
-        return { ok: false, error: 'official-template', name: raw };
-      }
-      if (DSH_IM_ALIASES.includes(raw)) {
-        return { ok: false, error: 'desktop-builtin', name: raw };
-      }
-      if (DSH_MARKET_ALIASES.includes(raw)) {
-        return { ok: false, error: 'desktop-builtin', name: raw };
-      }
-      if (USAGE_PANEL_ALIASES.includes(raw)) {
-        return { ok: false, error: 'desktop-builtin', name: raw };
+      const guardError = pluginDisableGuardError(raw);
+      if (guardError) {
+        return { ok: false, error: guardError, name: raw };
       }
     }
     const config = loadConfig();
@@ -753,17 +816,9 @@ function registerIpc({
     if (!raw) {
       return { ok: false, error: 'missing-name' };
     }
-    if (OFFICIAL_TEMPLATE_BUNDLES.has(raw)) {
-      return { ok: false, error: 'official-template' };
-    }
-    if (DSH_IM_ALIASES.includes(raw)) {
-      return { ok: false, error: 'desktop-builtin' };
-    }
-    if (DSH_MARKET_ALIASES.includes(raw)) {
-      return { ok: false, error: 'desktop-builtin' };
-    }
-    if (USAGE_PANEL_ALIASES.includes(raw)) {
-      return { ok: false, error: 'desktop-builtin' };
+    const guardError = pluginDisableGuardError(raw);
+    if (guardError) {
+      return { ok: false, error: guardError };
     }
     const config = loadConfig();
     const disabled = [...new Set([...(config.disabledPlugins || []), raw])];

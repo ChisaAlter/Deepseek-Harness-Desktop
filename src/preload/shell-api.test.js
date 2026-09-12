@@ -53,6 +53,7 @@ test('shellRole accepts only explicit desktop roles', () => {
   assert.equal(shellRole(['electron', '--dshd-shell-role=boot']), 'boot');
   assert.equal(shellRole(['electron', '--dshd-shell-role=harness']), 'harness');
   assert.equal(shellRole(['electron', '--dshd-shell-role=launcher']), 'launcher');
+  assert.equal(shellRole(['electron', '--dshd-shell-role=pet']), 'pet');
   assert.equal(shellRole(['electron', '--dshd-shell-role=marketplace']), null);
   assert.equal(shellRole(['electron', '--dshd-shell-role=admin']), null);
   assert.equal(shellRole(['electron']), null);
@@ -86,6 +87,17 @@ test('marketplace preload role is not exposed', () => {
 
   const { exposed } = loadPreload(['electron', '--dshd-shell-role=marketplace']);
   assert.equal(exposed, null);
+});
+
+test('pet preload exposes only state, drag, and theme controls', () => {
+  const api = buildShellApi('pet', fakeRenderer());
+  assert.equal(typeof api.getState, 'function');
+  assert.equal(typeof api.commitDrag, 'function');
+  assert.equal(typeof api.onTheme, 'function');
+  assert.equal(api.writeFile, undefined);
+  assert.equal(api.saveConfig, undefined);
+  assert.equal(api.openLauncher, undefined);
+  assert.equal(Object.keys(api).sort().join(','), 'commitDrag,getState,onTheme');
 });
 
 test('harness preload keeps work loops and remote controls', () => {
@@ -217,6 +229,8 @@ test('launcher preload exposes import, releases, and forensics', () => {
   const api = buildShellApi('launcher', fakeRenderer());
   assert.equal(typeof api.scanImport, 'function');
   assert.equal(typeof api.runImport, 'function');
+  assert.equal(typeof api.cancelImport, 'function');
+  assert.equal(typeof api.onImportProgress, 'function');
   assert.equal(typeof api.pickImportSource, 'function');
   assert.equal(typeof api.pickSkillDir, 'function');
   assert.equal(typeof api.listReleases, 'function');
@@ -233,6 +247,8 @@ test('boot preload cannot import data or install a release', () => {
   const api = buildShellApi('boot', fakeRenderer());
   assert.equal(api.scanImport, undefined);
   assert.equal(api.runImport, undefined);
+  assert.equal(api.cancelImport, undefined);
+  assert.equal(api.onImportProgress, undefined);
   assert.equal(api.installRelease, undefined);
   assert.equal(api.pluginForensics, undefined);
 });

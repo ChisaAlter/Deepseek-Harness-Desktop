@@ -1261,16 +1261,34 @@ function recoverInterruptedImport({ userDataDir, destHome: dest } = {}) {
   return { recovered: true, removedTmp };
 }
 
-function copyDirAtomic(from, to) {
-  fs.mkdirSync(path.dirname(to), { recursive: true });
-  const tmp = `${to}.import-tmp`;
-  fs.rmSync(tmp, { recursive: true, force: true });
-  fs.cpSync(from, tmp, { recursive: true });
-  fs.rmSync(to, { recursive: true, force: true });
-  fs.renameSync(tmp, to);
+function importIsCancelled(signal) {
+  return Boolean(signal && signal.aborted === true);
 }
 
-function importSessions({
+/**
+ * Progress sink shared by the import phases. `onProgress` receives
+ * `{ phase, done, total, rel|id|name }` per completed item plus a terminal
+ * `done`/`cancelled` event from runImport.
+ */
+function emitImportProgress(onProgress, event) {
+  if (typeof onProgress === 'function') {
+    onProgress(event);
+  }
+}
+
+// Async so each copy yields the event loop: large session dirs and the
+// attachments tree no longer stall every main-process IPC, and a cancel
+// request can be observed between items.
+async function copyDirAtomic(from, to) {
+  await fs.promises.mkdir(path.dirname(to), { recursive: true });
+  const tmp = `${to}.import-tmp`;
+  await fs.promises.rm(tmp, { recursive: true, force: true });
+  await fs.promises.cp(from, tmp, { recursive: true });
+  await fs.promises.rm(to, { recursive: true, force: true });
+  await fs.promises.rename(tmp, to);
+}
+
+async function importSessions({
   sourceHome,
   destHome: dest,
   selectedRels,
@@ -1279,52 +1297,70 @@ function importSessions({
   extraSkillDirs,
   agentsSkillsRoot,
   importAttachments,
+  scan: providedScan,
+  signal,
+  onProgress,
 } = {}) {
-  const scan = scanImport({ sourceHome, destHome: dest, extraSkillDirs, agentsSkillsRoot });
+  const scan = providedScan || scanImport({ sourceHome, destHome: dest, extraSkillDirs, agentsSkillsRoot });
   const chosen = Array.isArray(selectedRels) ? selectedRels : scan.sessions.map((row) => row.rel);
   const journalFile = journalPath(userDataDir || path.join(scan.destHome, '..'));
   const results = [];
   writeJournal(journalFile, { phase: 'copying', sourceHome: scan.sourceHome, destHome: scan.destHome, items: [] });
 
   const byRel = new Map(scan.sessions.map((row) => [row.rel, row]));
+  let cancelled = false;
+  let done = 0;
   for (const rel of chosen) {
+    // Cancel between items: each copyDirAtomic is all-or-nothing, so a stop
+    // here leaves no partial session and the journal stays 'copying' — the
+    // next cold start's recoverInterruptedImport can clean up and the user
+    // gets the resumable hint.
+    if (importIsCancelled(signal)) {
+      cancelled = true;
+      break;
+    }
     if (isUnsafeRel(rel)) {
       results.push({ rel, status: 'rejected', error: 'invalid-path' });
-      continue;
+    } else {
+      const row = byRel.get(rel);
+      if (!row) {
+        results.push({ rel, status: 'missing' });
+      } else if (row.unsupported || row.mixedEncoding) {
+        results.push({ rel, status: 'unsupported' });
+      } else if (row.conflict && !overwrite) {
+        results.push({ rel, status: 'skipped' });
+      } else {
+        try {
+          await copyDirAtomic(row.abs, path.join(scan.destHome, 'sessions', ...rel.split('/')));
+          results.push({ rel, status: 'copied' });
+        } catch (error) {
+          results.push({ rel, status: 'failed', error: error.message || String(error) });
+        }
+      }
     }
-    const row = byRel.get(rel);
-    if (!row) {
-      results.push({ rel, status: 'missing' });
-      continue;
-    }
-    if (row.unsupported || row.mixedEncoding) {
-      results.push({ rel, status: 'unsupported' });
-      continue;
-    }
-    if (row.conflict && !overwrite) {
-      results.push({ rel, status: 'skipped' });
-      continue;
-    }
-    try {
-      copyDirAtomic(row.abs, path.join(scan.destHome, 'sessions', ...rel.split('/')));
-      results.push({ rel, status: 'copied' });
-    } catch (error) {
-      results.push({ rel, status: 'failed', error: error.message || String(error) });
-    }
+    done += 1;
+    emitImportProgress(onProgress, { phase: 'sessions', done, total: chosen.length, rel });
   }
 
   let attachments = 'absent';
   const shouldCopyAttachments = importAttachments !== false;
   const sourceAttachments = path.join(scan.sourceHome, 'attachments');
-  if (shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
+  if (!cancelled && shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
+    emitImportProgress(onProgress, { phase: 'attachments', done: 0, total: 1 });
     try {
-      copyDirAtomic(sourceAttachments, path.join(scan.destHome, 'attachments'));
+      await copyDirAtomic(sourceAttachments, path.join(scan.destHome, 'attachments'));
       attachments = 'copied';
     } catch (error) {
       attachments = `failed:${error.message || String(error)}`;
     }
+    emitImportProgress(onProgress, { phase: 'attachments', done: 1, total: 1 });
   }
 
+  if (cancelled) {
+    // Leave the journal at 'copying': a deliberate cancel is recoverable
+    // exactly like an interrupted import.
+    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile };
+  }
   writeJournal(journalFile, {
     phase: 'done',
     sourceHome: scan.sourceHome,
@@ -1343,8 +1379,11 @@ async function importPlugins({
   installPlugin,
   extraSkillDirs,
   agentsSkillsRoot,
+  scan: providedScan,
+  signal,
+  onProgress,
 } = {}) {
-  const scan = scanImport({ sourceHome, destHome: dest, extraSkillDirs, agentsSkillsRoot });
+  const scan = providedScan || scanImport({ sourceHome, destHome: dest, extraSkillDirs, agentsSkillsRoot });
   const chosen = new Set(
     Array.isArray(selectedNames)
       ? selectedNames
@@ -1358,33 +1397,37 @@ async function importPlugins({
   if (!run) {
     return { ok: false, error: 'missing-installer', plugins: results };
   }
+  let done = 0;
   for (const row of scan.plugins) {
     if (!chosen.has(row.name)) {
       continue;
     }
+    if (importIsCancelled(signal)) {
+      break;
+    }
     if (row.skipped) {
       results.push({ name: row.name, status: 'skipped', reason: row.reason });
-      continue;
-    }
-    if (row.alreadyInstalled && !overwrite) {
+    } else if (row.alreadyInstalled && !overwrite) {
       results.push({ name: row.name, status: 'skipped', reason: 'installed' });
-      continue;
+    } else {
+      const spec = pluginReinstallSpec(row.name, row.spec);
+      if (spec === null) {
+        results.push({ name: row.name, status: 'skipped', reason: 'unsupported' });
+      } else {
+        try {
+          const installed = await run(spec);
+          results.push({
+            name: row.name,
+            status: installed?.ok === false ? 'failed' : 'installed',
+            error: installed?.error,
+          });
+        } catch (error) {
+          results.push({ name: row.name, status: 'failed', error: error.message || String(error) });
+        }
+      }
     }
-    const spec = pluginReinstallSpec(row.name, row.spec);
-    if (spec === null) {
-      results.push({ name: row.name, status: 'skipped', reason: 'unsupported' });
-      continue;
-    }
-    try {
-      const installed = await run(spec);
-      results.push({
-        name: row.name,
-        status: installed?.ok === false ? 'failed' : 'installed',
-        error: installed?.error,
-      });
-    } catch (error) {
-      results.push({ name: row.name, status: 'failed', error: error.message || String(error) });
-    }
+    done += 1;
+    emitImportProgress(onProgress, { phase: 'plugins', done, total: chosen.size, name: row.name });
   }
   return { ok: results.every((row) => row.status !== 'failed'), plugins: results };
 }
@@ -1395,36 +1438,37 @@ function destNameFromSkillId(id) {
   return idx === -1 ? text : text.slice(idx + 1);
 }
 
-function importSkills({ scan, selectedIds, overwrite }) {
+async function importSkills({ scan, selectedIds, overwrite, signal, onProgress }) {
   const chosen = Array.isArray(selectedIds) ? selectedIds : [];
   const byId = new Map((scan.skills || []).map((row) => [row.id, row]));
   const results = [];
+  let done = 0;
   for (const id of chosen) {
+    if (importIsCancelled(signal)) {
+      break;
+    }
     const destName = destNameFromSkillId(id);
     if (isUnsafeRel(destName)) {
       results.push({ id, status: 'rejected', error: 'invalid-path' });
-      continue;
+    } else {
+      const row = byId.get(id);
+      if (!row) {
+        results.push({ id, status: 'missing' });
+      } else if (!(scan.skillRoots || []).some((root) => isInside(root, row.abs)) || isUnsafeRel(row.destName)) {
+        results.push({ id, status: 'rejected', error: 'invalid-path' });
+      } else if (row.conflict && !overwrite) {
+        results.push({ id, status: 'skipped' });
+      } else {
+        try {
+          await copyDirAtomic(row.abs, path.join(scan.destHome, 'skills', row.destName));
+          results.push({ id, status: 'copied' });
+        } catch (error) {
+          results.push({ id, status: 'failed', error: error.message || String(error) });
+        }
+      }
     }
-    const row = byId.get(id);
-    if (!row) {
-      results.push({ id, status: 'missing' });
-      continue;
-    }
-    const allowed = (scan.skillRoots || []).some((root) => isInside(root, row.abs));
-    if (!allowed || isUnsafeRel(row.destName)) {
-      results.push({ id, status: 'rejected', error: 'invalid-path' });
-      continue;
-    }
-    if (row.conflict && !overwrite) {
-      results.push({ id, status: 'skipped' });
-      continue;
-    }
-    try {
-      copyDirAtomic(row.abs, path.join(scan.destHome, 'skills', row.destName));
-      results.push({ id, status: 'copied' });
-    } catch (error) {
-      results.push({ id, status: 'failed', error: error.message || String(error) });
-    }
+    done += 1;
+    emitImportProgress(onProgress, { phase: 'skills', done, total: chosen.length, id });
   }
   return results;
 }
@@ -1516,38 +1560,38 @@ function importSettings({ scan, selectedIds, overwrite }) {
 }
 
 /** Copy selected agent preset directories into dest `.agent-presets/` (conflict-skip). */
-function importPresets({ scan, selectedIds, overwrite }) {
+async function importPresets({ scan, selectedIds, overwrite, signal, onProgress }) {
   const chosen = Array.isArray(selectedIds) ? selectedIds : [];
   const byId = new Map((scan.presets || []).map((row) => [row.id, row]));
   const results = [];
+  let done = 0;
   for (const id of chosen) {
+    if (importIsCancelled(signal)) {
+      break;
+    }
     if (isUnsafeRel(id) || !PRESET_ID.test(String(id || ''))) {
       results.push({ id, status: 'rejected', error: 'invalid-path' });
-      continue;
+    } else {
+      const row = byId.get(id);
+      if (!row) {
+        results.push({ id, status: 'missing' });
+      } else if (row.broken) {
+        results.push({ id, status: 'unsupported' });
+      } else if (!isInside(path.join(scan.sourceHome, AGENT_PRESETS_DIR), row.abs)) {
+        results.push({ id, status: 'rejected', error: 'invalid-path' });
+      } else if (row.conflict && !overwrite) {
+        results.push({ id, status: 'skipped' });
+      } else {
+        try {
+          await copyDirAtomic(row.abs, path.join(scan.destHome, AGENT_PRESETS_DIR, id));
+          results.push({ id, status: 'copied' });
+        } catch (error) {
+          results.push({ id, status: 'failed', error: error.message || String(error) });
+        }
+      }
     }
-    const row = byId.get(id);
-    if (!row) {
-      results.push({ id, status: 'missing' });
-      continue;
-    }
-    if (row.broken) {
-      results.push({ id, status: 'unsupported' });
-      continue;
-    }
-    if (!isInside(path.join(scan.sourceHome, AGENT_PRESETS_DIR), row.abs)) {
-      results.push({ id, status: 'rejected', error: 'invalid-path' });
-      continue;
-    }
-    if (row.conflict && !overwrite) {
-      results.push({ id, status: 'skipped' });
-      continue;
-    }
-    try {
-      copyDirAtomic(row.abs, path.join(scan.destHome, AGENT_PRESETS_DIR, id));
-      results.push({ id, status: 'copied' });
-    } catch (error) {
-      results.push({ id, status: 'failed', error: error.message || String(error) });
-    }
+    done += 1;
+    emitImportProgress(onProgress, { phase: 'presets', done, total: chosen.length, id });
   }
   return results;
 }
@@ -1602,6 +1646,8 @@ async function runImport(options = {}) {
     && !importAttachments;
   const scan = scanImport(options);
   const journalFile = journalPath(options.userDataDir || path.join(scan.destHome, '..'));
+  const signal = options.signal;
+  const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
   if (empty) {
     writeJournal(journalFile, {
       phase: 'done',
@@ -1610,6 +1656,7 @@ async function runImport(options = {}) {
       empty: true,
       items: [],
     });
+    emitImportProgress(onProgress, { phase: 'done', done: 0, total: 0 });
     return {
       ok: true,
       empty: true,
@@ -1625,23 +1672,58 @@ async function runImport(options = {}) {
     };
   }
 
-  const sessions = importSessions({
+  // One scan feeds every phase; the importers used to rescan the source each.
+  const sessions = await importSessions({
     ...options,
+    scan,
     selectedRels,
     importAttachments,
+    signal,
+    onProgress,
   });
-  const skills = importSkills({ scan, selectedIds: selectedSkillIds, overwrite: options.overwrite === true });
-  const plugins = await importPlugins({
-    ...options,
-    selectedNames: selectedPluginNames,
-  });
-  const mcp = importMcp({ scan, selectedIds: selectedMcpIds, overwrite: options.overwrite === true });
-  const settingsOutcome = importSettings({
-    scan,
-    selectedIds: selectedSettingIds,
-    overwrite: options.overwrite === true,
-  });
-  const presets = importPresets({ scan, selectedIds: selectedPresetIds, overwrite: options.overwrite === true });
+  const skills = importIsCancelled(signal)
+    ? []
+    : await importSkills({ scan, selectedIds: selectedSkillIds, overwrite: options.overwrite === true, signal, onProgress });
+  const plugins = importIsCancelled(signal)
+    ? { ok: true, plugins: [] }
+    : await importPlugins({
+      ...options,
+      scan,
+      selectedNames: selectedPluginNames,
+      signal,
+      onProgress,
+    });
+  const mcp = importIsCancelled(signal)
+    ? []
+    : importMcp({ scan, selectedIds: selectedMcpIds, overwrite: options.overwrite === true });
+  const settingsOutcome = importIsCancelled(signal)
+    ? { settings: [], credentials: [] }
+    : importSettings({
+      scan,
+      selectedIds: selectedSettingIds,
+      overwrite: options.overwrite === true,
+    });
+  const presets = importIsCancelled(signal)
+    ? []
+    : await importPresets({ scan, selectedIds: selectedPresetIds, overwrite: options.overwrite === true, signal, onProgress });
+  const cancelled = sessions.cancelled === true || importIsCancelled(signal);
+  if (cancelled) {
+    emitImportProgress(onProgress, { phase: 'cancelled', done: 0, total: 0 });
+    return {
+      ok: false,
+      cancelled: true,
+      empty: false,
+      sessions: sessions.sessions,
+      skills,
+      plugins: plugins.plugins,
+      mcp,
+      settings: settingsOutcome.settings,
+      credentials: settingsOutcome.credentials,
+      presets,
+      attachments: sessions.attachments,
+      journal: journalFile,
+    };
+  }
   writeJournal(journalFile, {
     phase: 'done',
     sourceHome: scan.sourceHome,
@@ -1662,6 +1744,7 @@ async function runImport(options = {}) {
     && settingsOutcome.settings.every((row) => row.status !== 'failed')
     && settingsOutcome.credentials.every((row) => row.status !== 'failed')
     && presets.every((row) => row.status !== 'failed');
+  emitImportProgress(onProgress, { phase: 'done', done: 1, total: 1 });
   return {
     ok,
     empty: false,

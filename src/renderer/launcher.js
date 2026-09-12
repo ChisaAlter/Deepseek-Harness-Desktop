@@ -728,9 +728,38 @@ function countStatus(rows, status) {
   return (Array.isArray(rows) ? rows : []).filter((row) => row.status === status).length;
 }
 
+const IMPORT_PHASE_LABELS = {
+  sessions: '会话',
+  attachments: '附件',
+  skills: '技能',
+  plugins: '插件',
+  presets: '预设',
+};
+
+function importProgressText(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+  if (payload.phase === 'done') {
+    return '导入完成。';
+  }
+  if (payload.phase === 'cancelled') {
+    return '已取消。';
+  }
+  const label = IMPORT_PHASE_LABELS[payload.phase];
+  if (!label) {
+    return '';
+  }
+  const item = payload.rel || payload.id || payload.name || '';
+  return `正在导入${label} ${payload.done}/${payload.total}${item ? `：${item}` : ''}`;
+}
+
 function summarizeImport(result) {
   if (!result) {
     return '没有返回结果。';
+  }
+  if (result.cancelled) {
+    return '导入已取消。已拷贝的内容保留，下次可按原规则续导（已存在的会跳过）。';
   }
   if (result.empty) {
     return '未选择任何项，没有写入桌面 home。';
@@ -1107,20 +1136,43 @@ function bind() {
     syncSessionClusters();
     syncImportSummary();
   });
-  $('btn-import').addEventListener('click', async () => {
-    const result = await api?.runImport({
-      ...scanOptions(),
-      overwrite: $('import-overwrite').checked,
-      importAttachments: $('import-attachments').checked,
-      selectedRels: checkedValues('session-rel'),
-      selectedSkillIds: checkedValues('skill-id'),
-      selectedPluginNames: checkedValues('plugin-name'),
-      selectedMcpIds: checkedValues('mcp-id'),
-      selectedSettingIds: checkedValues('setting-id'),
-      selectedPresetIds: checkedValues('preset-id'),
-    });
-    $('import-result').textContent = summarizeImport(result);
+  const importRunBtn = $('btn-import');
+  const importCancelBtn = $('btn-import-cancel');
+  importRunBtn.addEventListener('click', async () => {
+    importRunBtn.disabled = true;
+    importCancelBtn.hidden = false;
+    importCancelBtn.disabled = false;
+    $('import-result').textContent = '正在导入…';
+    try {
+      const result = await api?.runImport({
+        ...scanOptions(),
+        overwrite: $('import-overwrite').checked,
+        importAttachments: $('import-attachments').checked,
+        selectedRels: checkedValues('session-rel'),
+        selectedSkillIds: checkedValues('skill-id'),
+        selectedPluginNames: checkedValues('plugin-name'),
+        selectedMcpIds: checkedValues('mcp-id'),
+        selectedSettingIds: checkedValues('setting-id'),
+        selectedPresetIds: checkedValues('preset-id'),
+      });
+      $('import-result').textContent = summarizeImport(result);
+    } finally {
+      importRunBtn.disabled = false;
+      importCancelBtn.hidden = true;
+    }
   });
+  importCancelBtn.addEventListener('click', () => {
+    importCancelBtn.disabled = true;
+    void api?.cancelImport?.();
+  });
+  if (typeof api?.onImportProgress === 'function') {
+    api.onImportProgress((payload) => {
+      const text = importProgressText(payload);
+      if (text) {
+        $('import-result').textContent = text;
+      }
+    });
+  }
   $('btn-refresh-releases').addEventListener('click', () => refreshReleases());
   $('btn-refresh-plugins').addEventListener('click', () => refreshPlugins());
   ['opt-quit', 'opt-auto', 'opt-ask'].forEach((id) => {

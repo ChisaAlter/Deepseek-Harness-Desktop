@@ -40,12 +40,14 @@ function bootEvent() {
   };
 }
 
-function launcherEvent() {
+function launcherEvent(progress) {
   return {
     role: IPC_ROLES.LAUNCHER,
     sender: {
       isDestroyed: () => false,
-      send() {},
+      send(channel, payload) {
+        if (progress) progress.push({ channel, payload });
+      },
     },
   };
 }
@@ -165,6 +167,7 @@ function loadIpc(options = {}) {
     resolveNodeBin: () => 'node',
     resolveDshBin: () => 'dsh',
     sourceHarnessStatus: () => ({ present: false, built: false, root: '' }),
+    ...(options.dshDeps || {}),
   });
   stub('../shared/themes', {
     listThemes: () => [],
@@ -191,12 +194,12 @@ function loadIpc(options = {}) {
       };
     },
     probeImportHold: () => ({ destEmpty: true, sourceHasData: false, hold: false }),
-    runImport: async (opts) => {
+    runImport: options.runImport || (async (opts) => {
       runImportCalls.push(opts);
       return {
         ok: true, empty: true, sessions: [], skills: [], plugins: [], mcp: [], settings: [], credentials: [], presets: [],
       };
-    },
+    }),
   });
   stub('./plugin-forensics', {
     inspectPlugins: () => ({ genericCause: null, suspects: [], plugins: [] }),
@@ -1435,6 +1438,93 @@ test('open-launcher serves harness and boot (boot lands on home tab), rejects la
       (error) => error.code === 'ERR_DSH_IPC_SENDER',
     );
     assert.equal(calls.length, 2);
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('shell:get-config runs binary/source detection once per registration', async () => {
+  let nodeCalls = 0;
+  let dshCalls = 0;
+  let sourceCalls = 0;
+  const ipc = loadIpc({
+    dshDeps: {
+      resolveNodeBin: () => { nodeCalls += 1; return 'node'; },
+      resolveDshBin: () => { dshCalls += 1; return 'dsh'; },
+      sourceHarnessStatus: () => { sourceCalls += 1; return { present: false, built: false, root: '' }; },
+    },
+  });
+  try {
+    await ipc.invoke('shell:get-config', harnessEvent());
+    await ipc.invoke('shell:get-config', harnessEvent());
+    await ipc.invoke('shell:launcher-status', launcherEvent());
+    assert.equal(nodeCalls, 1);
+    assert.equal(dshCalls, 1);
+    assert.equal(sourceCalls, 1);
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('shell:run-import forwards onProgress as shell:import-progress events', async () => {
+  const progress = [];
+  const ipc = loadIpc({
+    runImport: async (opts) => {
+      opts.onProgress({ phase: 'sessions', done: 1, total: 2, rel: 'a/b' });
+      opts.onProgress({ phase: 'done', done: 1, total: 1 });
+      return { ok: true, empty: false, sessions: [], skills: [], plugins: [], mcp: [], settings: [], credentials: [], presets: [] };
+    },
+  });
+  try {
+    await ipc.invoke('shell:run-import', launcherEvent(progress), { selectedRels: ['a/b'] });
+    const events = progress.filter((row) => row.channel === 'shell:import-progress').map((row) => row.payload);
+    assert.deepEqual(events, [
+      { phase: 'sessions', done: 1, total: 2, rel: 'a/b' },
+      { phase: 'done', done: 1, total: 1 },
+    ]);
+  } finally {
+    ipc.restore();
+  }
+});
+
+test('shell:cancel-import aborts the in-flight import signal', async () => {
+  let capturedSignal = null;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const ipc = loadIpc({
+    runImport: async (opts) => {
+      capturedSignal = opts.signal;
+      await gate;
+      return { ok: false, cancelled: capturedSignal.aborted, sessions: [], skills: [], plugins: [], mcp: [], settings: [], credentials: [], presets: [] };
+    },
+  });
+  try {
+    const running = ipc.invoke('shell:run-import', launcherEvent(), { selectedRels: ['a/b'] });
+    for (let i = 0; i < 10 && !capturedSignal; i += 1) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    assert.ok(capturedSignal, 'runImport must receive an AbortSignal');
+    const cancel = await ipc.invoke('shell:cancel-import', launcherEvent());
+    assert.equal(cancel.ok, true);
+    assert.equal(capturedSignal.aborted, true);
+    release();
+    const result = await running;
+    assert.equal(result.cancelled, true);
+  } finally {
+    release();
+    ipc.restore();
+  }
+});
+
+test('shell:cancel-import with no import running resolves without aborting', async () => {
+  const ipc = loadIpc();
+  try {
+    const cancel = await ipc.invoke('shell:cancel-import', launcherEvent());
+    assert.equal(cancel.ok, false);
+    await assert.rejects(
+      () => ipc.invoke('shell:cancel-import', harnessEvent()),
+      (error) => error.code === 'ERR_DSH_IPC_SENDER',
+    );
   } finally {
     ipc.restore();
   }
