@@ -103,10 +103,15 @@ test('installer languages are Chinese-first with an English fallback', () => {
 test('installer.nsh customizes GUI pages only and stays silent-install (/S) safe', () => {
   assert.equal(nsis.include, 'build/installer.nsh');
   const nsh = fs.readFileSync(path.join(ROOT, 'build', 'installer.nsh'), 'utf8');
-  // Exactly the three GUI-only extension points; anything else (customInstall,
-  // customInit, sections…) would also run during silent installs/upgrades.
+  // The three GUI-only extension points plus the scoped customInit registry
+  // hygiene block (incident 2026-09-12). customInit does run during silent
+  // installs — intentionally: it only deletes dead install records and
+  // repairs a poisoned $INSTDIR, never touching UI or exec.
   const macros = [...nsh.matchAll(/^!macro\s+(\S+)/gm)].map((m) => m[1]);
-  assert.deepEqual(macros, ['customWelcomePage', 'customUnWelcomePage', 'customHeader']);
+  assert.deepEqual(macros, [
+    'customWelcomePage', 'customUnWelcomePage', 'customHeader',
+    '_DSHD_IS_ABS', '_DSHD_CHECK_UNINSTALL', 'customInit',
+  ]);
   assert.match(nsh, /!insertmacro MUI_PAGE_WELCOME/);
   // customUnWelcomePage *replaces* the stock un-welcome insertion in
   // electron-builder's assistedInstaller.nsh, so it must (a) re-insert the
@@ -129,6 +134,37 @@ test('installer.nsh customizes GUI pages only and stays silent-install (/S) safe
   assert.doesNotMatch(code, /RequestExecutionLevel/i);
   assert.doesNotMatch(code, /^\s*Section\b/im);
   assert.doesNotMatch(code, /ExecWait|ExecShell\b/);
+});
+
+test('customInit purges dead install records and repairs a poisoned $INSTDIR', () => {
+  const nsh = fs.readFileSync(path.join(ROOT, 'build', 'installer.nsh'), 'utf8');
+  const init = nsh.match(/^!macro customInit\r?\n([\s\S]*?)^!macroend/m);
+  assert.ok(init, 'customInit macro body');
+  const body = init[1];
+  // InstallLocation survives only while it is a live record: absolute AND the
+  // app executable is still there. Dead entries (drive-relative "C:foo" from
+  // a bash-mangled /D=, or a wiped target dir) are deleted, never trusted.
+  assert.match(body, /ReadRegStr \$0 SHELL_CONTEXT "\$\{INSTALL_REGISTRY_KEY\}" InstallLocation/);
+  assert.match(body, /\$\{FileExists\} "\$0\\\$\{APP_EXECUTABLE_FILENAME\}"/);
+  assert.match(body, /DeleteRegValue SHELL_CONTEXT "\$\{INSTALL_REGISTRY_KEY\}" InstallLocation/);
+  // The UninstallString fallback applies the same liveness rule to the quoted
+  // uninstaller path; dead records lose the whole key. A surviving uninstaller
+  // may still supply the upgrade dir via GetFileParent.
+  const un = nsh.match(/^!macro _DSHD_CHECK_UNINSTALL[\s\S]*?^!macroend/m);
+  assert.ok(un, '_DSHD_CHECK_UNINSTALL helper');
+  assert.match(un[0], /Call GetInQuotes/);
+  assert.match(un[0], /\$\{FileExists\} "\$2"/);
+  assert.match(un[0], /DeleteRegKey SHELL_CONTEXT "\$\{key\}"/);
+  // $INSTDIR resolution order: /D > live InstallLocation > live uninstaller
+  // dir > per-user default; the trailing guard also rejects a mangled /D.
+  assert.match(body, /GetDParameter/);
+  assert.match(body, /Call GetFileParent/);
+  assert.match(body, /StrCpy \$INSTDIR "\$LocalAppData\\Programs\\\$\{APP_FILENAME\}"/);
+  // The helper treats X:\, "X:\", \\ and "\\" as absolute.
+  const abs = nsh.match(/^!macro _DSHD_IS_ABS[\s\S]*?^!macroend/m);
+  assert.ok(abs, '_DSHD_IS_ABS helper');
+  assert.match(abs[0], /== ":\\"/);
+  assert.match(abs[0], /== "\\\\"/);
 });
 
 test('bitmap renderer pins the MUI2 geometry and stays regenerable', () => {

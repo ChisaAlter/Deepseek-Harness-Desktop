@@ -1,9 +1,11 @@
 # Deepseek-Harness-Desktop NSIS customization (assisted installer only).
 #
-# Scope is GUI polish exclusively: every macro below is skipped in silent
-# mode (/S), so QA TC-INST silent installs, overwrite upgrades and the
-# SHA512SUMS updater flow are untouched. No sections, no exec-level changes,
-# no MessageBox.
+# GUI polish (the three page/header macros below) is skipped in silent mode
+# (/S). The single exception is customInit: a registry-hygiene block that also
+# runs during silent installs and upgrades — by design, because the damage it
+# guards against happens silently. It performs no UI, no exec, no sections;
+# it only deletes install records that are already dead (non-absolute paths
+# can never resolve) and repairs a poisoned $INSTDIR.
 
 # Inserted where assistedInstaller.nsh declares pages, i.e. before the
 # license/directory/instfiles/finish pages — the only place where MUI page
@@ -37,4 +39,129 @@
 !macro customHeader
   # Replace the stock "Nullsoft Install System vX.XX" footer with the product.
   BrandingText "Deepseek-Harness-Desktop ${VERSION}"
+!macroend
+
+# --- Corrupted install-record hygiene (incident 2026-09-12) ----------------
+#
+# A stale record hijacks the upgrade path twice over: initMultiUser copies
+# InstallLocation into $INSTDIR, and the old-uninstaller fallback derives the
+# target dir from the quoted UninstallString. Both reads happen in/after
+# initMultiUser; customInit runs immediately after it, still inside .onInit,
+# before any page or section work.
+#
+# A record counts as live only when it is an absolute Win32 path AND still
+# resolves on disk (InstallLocation → ${APP_EXECUTABLE_FILENAME} present;
+# UninstallString → quoted uninstaller present). Anything else — drive-relative
+# mangling like "C:AiDeepseek…" from an unquoted bash /D=, or a well-formed
+# path whose directory was wiped — is deleted so stock upgrade logic can never
+# see it, and $INSTDIR is recomputed: /D > live InstallLocation > live
+# uninstaller dir > per-user default.
+#
+# GetInQuotes / GetFileParent are Functions from installUtil.nsh — included
+# textually after .onInit, so their !macro wrappers are unavailable here, but
+# Call targets resolve at compile time.
+#
+# _DSHD_IS_ABS src dst → dst="1" when src is an absolute Win32 path:
+# X:\…, "X:\…", \\… or "\\…" (quote case covered by checking both offsets).
+
+!macro _DSHD_IS_ABS src dst
+  StrCpy ${dst} "0"
+  StrCpy $1 ${src} 2
+  ${If} $1 == "\\"
+    StrCpy ${dst} "1"
+  ${Else}
+    StrCpy $1 ${src} 2 1
+    ${If} $1 == ":\"
+    ${OrIf} $1 == "\\"
+      StrCpy ${dst} "1"
+    ${Else}
+      StrCpy $1 ${src} 2 2
+      ${If} $1 == ":\"
+        StrCpy ${dst} "1"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+# _DSHD_CHECK_UNINSTALL key → extracts the quoted uninstaller path, deletes the
+# key when the record is dead (unquoted, non-absolute, or file missing), and
+# leaves the surviving uninstaller path in $2 ($2 untouched when key empty).
+!macro _DSHD_CHECK_UNINSTALL key
+  ReadRegStr $1 SHELL_CONTEXT "${key}" UninstallString
+  ${If} $1 != ""
+    Push $1
+    Call GetInQuotes
+    Pop $2
+    ${If} $2 == ""
+      DeleteRegKey SHELL_CONTEXT "${key}"
+    ${Else}
+      !insertmacro _DSHD_IS_ABS $2 $R0
+      ${If} $R0 == "1"
+        ${IfNot} ${FileExists} "$2"
+          StrCpy $R0 "0"
+        ${EndIf}
+      ${EndIf}
+      ${If} $R0 == "0"
+        DeleteRegKey SHELL_CONTEXT "${key}"
+        StrCpy $2 ""
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend
+
+!macro customInit
+  StrCpy $R1 "0"
+  StrCpy $2 ""
+
+  # InstallLocation: keep only a live record — absolute path that still holds
+  # the app executable. Dead entries are deleted so a wiped directory (e.g. a
+  # cleaned tmp target) can never redirect a fresh install.
+  ReadRegStr $0 SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" InstallLocation
+  ${If} $0 != ""
+    !insertmacro _DSHD_IS_ABS $0 $R0
+    ${If} $R0 == "1"
+      ${IfNot} ${FileExists} "$0\${APP_EXECUTABLE_FILENAME}"
+        StrCpy $R0 "0"
+      ${EndIf}
+    ${EndIf}
+    ${If} $R0 == "0"
+      DeleteRegValue SHELL_CONTEXT "${INSTALL_REGISTRY_KEY}" InstallLocation
+      StrCpy $R1 "1"
+      StrCpy $0 ""
+    ${EndIf}
+  ${EndIf}
+
+  # UninstallString(s): same liveness rule on the extracted uninstaller path.
+  !insertmacro _DSHD_CHECK_UNINSTALL "${UNINSTALL_REGISTRY_KEY}"
+  !ifdef UNINSTALL_REGISTRY_KEY_2
+    ${If} $2 == ""
+      !insertmacro _DSHD_CHECK_UNINSTALL "${UNINSTALL_REGISTRY_KEY_2}"
+    ${EndIf}
+  !endif
+
+  # Recompute $INSTDIR. Stock order preserved: an explicit /D wins, then a
+  # live InstallLocation, then the live uninstaller's directory (real upgrade
+  # target when InstallLocation was lost). When the record was poisoned and
+  # nothing valid remains, restore the per-user default.
+  !insertmacro GetDParameter $3
+  ${If} $3 != ""
+    StrCpy $INSTDIR $3
+  ${ElseIf} $0 != ""
+    StrCpy $INSTDIR $0
+  ${ElseIf} $2 != ""
+    Push $2
+    Call GetFileParent
+    Pop $4
+    StrCpy $INSTDIR $4
+  ${ElseIf} $R1 == "1"
+    StrCpy $INSTDIR "$LocalAppData\Programs\${APP_FILENAME}"
+  ${EndIf}
+
+  # Final guard: whatever survived — including a mangled /D like
+  # "C:AiDeepseek…" — must be an absolute path, else fall back to default
+  # instead of landing in a drive-relative phantom directory.
+  !insertmacro _DSHD_IS_ABS $INSTDIR $R0
+  ${If} $R0 == "0"
+    StrCpy $INSTDIR "$LocalAppData\Programs\${APP_FILENAME}"
+  ${EndIf}
 !macroend
