@@ -38,6 +38,14 @@ const stepStart = (seq: number, time: number, turn: number, step: number): Sessi
   data: { turn, step },
 })
 
+/** One route snapshot: the log's own model attribution source. */
+const requestContext = (seq: number, time: number, provider: string, model: string): SessionEvent => ({
+  type: 'request/context',
+  seq: SessionSeq(seq),
+  time,
+  data: { provider, model },
+})
+
 const usageAttempt = (seq: number, time: number, usage: TokenUsage, turn = 1, step = 1): SessionEvent => ({
   type: 'assistant/attempt',
   seq: SessionSeq(seq),
@@ -76,7 +84,7 @@ describe('billed-usage fold — phase classification', () => {
   })
 
   it('serves zero buckets for a log without usage reports', () => {
-    expect(foldAll([stepStart(0, PEAK_MS, 1, 1)])).toEqual({ peak: ZERO, offPeak: ZERO })
+    expect(foldAll([stepStart(0, PEAK_MS, 1, 1)])).toEqual({ peak: ZERO, offPeak: ZERO, models: [] })
   })
 
   it('buckets a peak-window sample at the peak rates shape', () => {
@@ -172,16 +180,14 @@ describe('billed-usage fold — replace and identity rules', () => {
   })
 
   it('projects the wire view through the validated schema shape', () => {
-    const state = billedUsageProjectionDefinition.apply(
-      billedUsageProjectionDefinition.apply(
-        billedUsageProjectionDefinition.init(),
-        stepStart(0, PEAK_MS, 1, 1),
-      ),
-      usageAttempt(1, PEAK_LATER_MS, MIXED),
-    )
+    const events = [stepStart(0, PEAK_MS, 1, 1), usageAttempt(1, PEAK_LATER_MS, MIXED)]
+    let state = billedUsageProjectionDefinition.init()
+    for (const event of events) state = billedUsageProjectionDefinition.apply(state, event)
     expect(billedUsageProjectionDefinition.wire.viewSchema.parse(viewOf(state))).toEqual({
       peak: { missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 },
       offPeak: ZERO,
+      // No request snapshot in this log, so the row names no route.
+      models: [{ provider: '', model: '', peak: { missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 }, offPeak: ZERO }],
     })
   })
 
@@ -200,6 +206,91 @@ describe('billed-usage fold — replace and identity rules', () => {
       finalMessage(4, PEAK_LATER_MS, MIXED),
     ])
     expect(view.peak).toEqual({ missInputTokens: 525, cacheReadTokens: 1_000, outputTokens: 130 })
+  })
+})
+
+describe('billed-usage fold — model route attribution', () => {
+  it('files each sample under the route the log reported for it', () => {
+    const view = foldAll([
+      requestContext(0, PEAK_MS, 'hohai', 'glm-5.3-flash'),
+      stepStart(1, PEAK_MS, 1, 1),
+      usageAttempt(2, PEAK_LATER_MS, MISS, 1, 1),
+      stepStart(3, OFF_PEAK_MS, 2, 1),
+      usageAttempt(4, OFF_PEAK_MS, MIXED, 2, 1),
+    ])
+    // One route, two phases: the row carries both bucket sets.
+    expect(view.models).toEqual([
+      { provider: 'hohai', model: 'glm-5.3-flash', peak: { missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 }, offPeak: { missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 } },
+    ])
+    expect(view.peak).toEqual({ missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 })
+    expect(view.offPeak).toEqual({ missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 })
+  })
+
+  it('keeps a separate row per route when a conversation switches models', () => {
+    const view = foldAll([
+      requestContext(0, PEAK_MS, 'hohai', 'glm-5.3-flash'),
+      stepStart(1, PEAK_MS, 1, 1),
+      usageAttempt(2, PEAK_LATER_MS, MISS, 1, 1),
+      requestContext(3, OFF_PEAK_MS, 'deepseek-official', 'deepseek-v4-pro'),
+      stepStart(4, OFF_PEAK_MS, 2, 1),
+      usageAttempt(5, OFF_PEAK_MS, MIXED, 2, 1),
+    ])
+    expect(view.models.map(row => `${row.provider}/${row.model}`)).toEqual([
+      'hohai/glm-5.3-flash',
+      'deepseek-official/deepseek-v4-pro',
+    ])
+    expect(view.models[1]?.offPeak).toEqual({ missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 })
+    // The session totals still sum the rows.
+    expect(view.peak).toEqual({ missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 })
+    expect(view.offPeak).toEqual({ missInputTokens: 225, cacheReadTokens: 1_000, outputTokens: 40 })
+  })
+
+  it('keeps two providers serving the same model id in their own rows', () => {
+    const view = foldAll([
+      requestContext(0, PEAK_MS, 'hohai', 'glm-5.3-flash'),
+      stepStart(1, PEAK_MS, 1, 1),
+      usageAttempt(2, PEAK_LATER_MS, MISS, 1, 1),
+      requestContext(3, PEAK_LATER_MS, 'zai', 'glm-5.3-flash'),
+      stepStart(4, PEAK_LATER_MS, 2, 1),
+      usageAttempt(5, PEAK_LATER_MS, MISS, 2, 1),
+    ])
+    expect(view.models).toHaveLength(2)
+    expect(view.models.map(row => row.provider)).toEqual(['hohai', 'zai'])
+  })
+
+  it('moves a superseded sample to the route that restated it', () => {
+    // The attempt sampled under one route, the final message re-reports after
+    // the route changed: the provisional sample must leave its old row rather
+    // than inflating it forever.
+    const view = foldAll([
+      requestContext(0, PEAK_MS, 'hohai', 'glm-5.3-flash'),
+      usageAttempt(1, PEAK_LATER_MS, { inputTokens: 10, outputTokens: 2 }, 1, 1),
+      requestContext(2, PEAK_LATER_MS, 'zai', 'glm-5.3-flash'),
+      finalMessage(3, PEAK_LATER_MS, MISS, 1, 1),
+    ])
+    expect(view.models).toEqual([
+      { provider: 'zai', model: 'glm-5.3-flash', peak: { missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 }, offPeak: ZERO },
+    ])
+    expect(view.peak).toEqual({ missInputTokens: 300, cacheReadTokens: 0, outputTokens: 90 })
+  })
+
+  it('lets a logged header snapshot override the context route', () => {
+    const header: SessionEvent = {
+      type: 'request/header',
+      seq: SessionSeq(2),
+      time: PEAK_MS,
+      data: {
+        header: { config: { provider: 'zai', model: 'glm-5.3-flash' } },
+        reason: 'change',
+      },
+    }
+    const view = foldAll([
+      requestContext(0, PEAK_MS, 'hohai', 'glm-5.3-flash'),
+      stepStart(1, PEAK_MS, 1, 1),
+      header,
+      usageAttempt(3, PEAK_LATER_MS, MISS, 1, 1),
+    ])
+    expect(view.models.map(row => row.provider)).toEqual(['zai'])
   })
 })
 
