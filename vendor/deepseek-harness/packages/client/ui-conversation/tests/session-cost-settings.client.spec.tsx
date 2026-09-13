@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// Session-cost durable settings: the Interface row writes through the policy,
-// the policy adopts accepted values, and the schema round-trips the price
-// record through the wire envelope shape.
+// Session-cost durable settings: the Interface row is the session-cost switch
+// alone (the one price editor lives on the usage-stats settings page), the
+// policy adopts accepted values, and the schema round-trips the price record
+// through the wire envelope shape.
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
@@ -23,11 +24,8 @@ const unused = (() => { throw new Error('unused by CostSettingsRow') }) as never
 function mount(opts: {
   enabled?: boolean
   writable?: boolean
-  prices?: Record<string, unknown>
-  catalog?: readonly { provider: string; id: string }[]
 } = {}) {
   const setSessionCost = vi.fn()
-  const setCostPrices = vi.fn()
   const props: CostSettingsRowProps = {
     usePanelInfo: panelInfoStub,
     useResource: resourceStub,
@@ -35,36 +33,12 @@ function mount(opts: {
     useSessionPendingInteraction: unused,
     useWorkspaces: unused,
     useSessionCost: bindSnapshotSelector(createSnapshotStore(opts.enabled ?? false)),
-    useCostPrices: bindSnapshotSelector(createSnapshotStore((opts.prices ?? {}) as never)),
     useWritable: bindSnapshotSelector(createSnapshotStore(opts.writable ?? true)),
     setSessionCost,
-    setCostPrices,
-    catalogModels: () => opts.catalog ?? [],
     t: key => key,
   }
   render(<CostSettingsRow {...props} />)
-  return { setSessionCost, setCostPrices }
-}
-
-const MODEL = 'sessionCost.panel.model'
-
-function openModelMenu() {
-  if (screen.queryByRole('menu') === null) {
-    fireEvent.click(screen.getByRole('button', { name: MODEL }))
-  }
-}
-
-function modelLabels() {
-  openModelMenu()
-  return screen.getAllByRole('menuitem').map(item => item.textContent ?? '')
-}
-
-function pickModel(id: string) {
-  openModelMenu()
-  const item = screen.getAllByRole('menuitem').find(el =>
-    el.textContent === id || (el.textContent?.startsWith(`${id} ·`) ?? false))
-  if (item === undefined) throw new Error(`missing model ${id}`)
-  fireEvent.click(item)
+  return { setSessionCost }
 }
 
 describe('CostSettingsRow', () => {
@@ -80,118 +54,13 @@ describe('CostSettingsRow', () => {
     expect(screen.getByRole('switch', { name: 'settings.sessionCost.title' })).toHaveProperty('disabled', true)
   })
 
-  it('picks a model through SettingsSelect instead of a native select', () => {
-    mount({ catalog: [{ provider: 'my-relay', id: 'my-relay' }] })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    expect(screen.queryByRole('combobox')).toBeNull()
-    expect(screen.getByRole('dialog').querySelector('select')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'sessionCost.panel.model' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'my-relay/my-relay' }))
-    const inputs = screen.queryAllByRole('spinbutton')
-    expect(inputs.every(input => !input.hasAttribute('disabled'))).toBe(true)
-  })
-
-  it('opens the price panel from the row button and saves through setCostPrices', () => {
-    const written = mount({ catalog: [{ provider: 'my-relay', id: 'my-relay' }] })
-    expect(screen.queryByText('sessionCost.panel.title')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    // The modal is up, seeded from the empty record: the first official model,
-    // displayed read-only.
-    expect(screen.getByText('sessionCost.panel.title')).toBeTruthy()
-    expect(screen.getByRole('button', { name: MODEL }).textContent).toContain('deepseek-v4-flash')
-    const officialInputs = screen.queryAllByRole('spinbutton')
-    expect(officialInputs.every(input => input.hasAttribute('disabled'))).toBe(true)
-    // Switch to the directory model, type prices, save — the record lands in
-    // setCostPrices under the provider-scoped key.
-    pickModel('my-relay/my-relay')
-    const inputs = screen.queryAllByRole('spinbutton')
-    fireEvent.change(inputs[0]!, { target: { value: '1' } })
-    fireEvent.change(inputs[1]!, { target: { value: '5' } })
-    fireEvent.change(inputs[2]!, { target: { value: '9' } })
-    fireEvent.click(screen.getByRole('button', { name: 'sessionCost.panel.save' }))
-    expect(written.setCostPrices).toHaveBeenCalledWith({
-      'my-relay/my-relay': { inputCacheHit: 1, inputCacheMiss: 5, output: 9 },
-    })
-  })
-
-  it('merges the aggregated directory models into the panel dropdown', () => {
-    mount({ catalog: [{ provider: 'deepseek', id: 'deepseek-chat' }, { provider: 'my-relay', id: 'my-relay' }] })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    expect(modelLabels()).toEqual([
-      'deepseek-v4-flash',
-      'deepseek-v4-pro',
-      'deepseek-v4-flash-vision-exp',
-      'deepseek/deepseek-chat',
-      'my-relay/my-relay',
-    ])
-  })
-
-  it('lists a directory model sharing an official column id beside the official column and prices it', () => {
-    const written = mount({ catalog: [{ provider: 'my-gateway', id: 'deepseek-v4-flash' }] })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const options = modelLabels()
-    // The official read-only column stays listed and the custom provider's
-    // same-id model is its own editable entry beside it.
-    expect(options).toContain('deepseek-v4-flash')
-    const customValue = 'my-gateway/deepseek-v4-flash'
-    expect(options).toContain(customValue)
-    pickModel(customValue)
-    const inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
-    expect(inputs.every(input => !input.hasAttribute('disabled'))).toBe(true)
-    fireEvent.change(inputs[0]!, { target: { value: '1' } })
-    fireEvent.change(inputs[1]!, { target: { value: '5' } })
-    fireEvent.change(inputs[2]!, { target: { value: '9' } })
-    fireEvent.click(screen.getByRole('button', { name: 'sessionCost.panel.save' }))
-    expect(written.setCostPrices).toHaveBeenCalledWith({
-      'my-gateway/deepseek-v4-flash': { inputCacheHit: 1, inputCacheMiss: 5, output: 9 },
-    })
-  })
-
-  it('lists the same model id under each provider and prices them separately', () => {
-    const written = mount({ catalog: [
-      { provider: 'hohai', id: 'glm-5.3-flash' },
-      { provider: 'zai', id: 'glm-5.3-flash' },
-    ] })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const options = modelLabels()
-    expect(options).toContain('hohai/glm-5.3-flash')
-    expect(options).toContain('zai/glm-5.3-flash')
-    // Price each provider's model separately.
-    pickModel('hohai/glm-5.3-flash')
-    let inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
-    fireEvent.change(inputs[0]!, { target: { value: '1' } })
-    fireEvent.change(inputs[1]!, { target: { value: '1' } })
-    fireEvent.change(inputs[2]!, { target: { value: '1' } })
-    pickModel('zai/glm-5.3-flash')
-    inputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
-    fireEvent.change(inputs[0]!, { target: { value: '2' } })
-    fireEvent.change(inputs[1]!, { target: { value: '2' } })
-    fireEvent.change(inputs[2]!, { target: { value: '2' } })
-    fireEvent.click(screen.getByRole('button', { name: 'sessionCost.panel.save' }))
-    expect(written.setCostPrices).toHaveBeenCalledWith({
-      'hohai/glm-5.3-flash': { inputCacheHit: 1, inputCacheMiss: 1, output: 1 },
-      'zai/glm-5.3-flash': { inputCacheHit: 2, inputCacheMiss: 2, output: 2 },
-    })
-  })
-
-  it('migrates a legacy bare-model price to every provider serving that model', () => {
-    mount({
-      catalog: [
-        { provider: 'hohai', id: 'glm-5.3-flash' },
-        { provider: 'zai', id: 'glm-5.3-flash' },
-      ],
-      prices: { 'glm-5.3-flash': { inputCacheHit: 0.15, inputCacheMiss: 0.15, output: 3 } },
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'settings.sessionCost.openPrices' }))
-    const options = modelLabels()
-    expect(options.some(label => label.startsWith('hohai/glm-5.3-flash'))).toBe(true)
-    expect(options.some(label => label.startsWith('zai/glm-5.3-flash'))).toBe(true)
-    pickModel('hohai/glm-5.3-flash')
-    const hohaiInputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
-    expect(hohaiInputs[0]!.value).toBe('0.15')
-    pickModel('zai/glm-5.3-flash')
-    const zaiInputs = screen.getAllByRole('spinbutton') as HTMLInputElement[]
-    expect(zaiInputs[0]!.value).toBe('0.15')
+  it('renders the session-cost switch and no price entry of its own', () => {
+    mount()
+    // The one price editor lives on the usage-stats settings page, so the row
+    // carries the switch alone — no button, no window.
+    expect(screen.getByRole('switch', { name: 'settings.sessionCost.title' })).toBeTruthy()
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 

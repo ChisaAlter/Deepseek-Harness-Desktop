@@ -33,7 +33,13 @@ export interface SessionCostModelPrice {
         inputCacheMiss: number;
         output: number;
     };
-    /** Per-model peak/valley pricing OFF: both periods bill the peak column. */
+    /**
+     * Per-model 峰谷计价 OFF: one price for both periods. This marker is THIS
+     * PLUGIN'S OWN — the harness record has no `flat` field and ignores it, which
+     * is why the editor persists the same triple as an explicit `idle` column
+     * beside it (`repairFlatEntries` shows why a flat record without `idle`
+     * billed half in off-peak hours).
+     */
     flat?: boolean;
 }
 /**
@@ -118,6 +124,31 @@ export declare function parseSessionCostPrices(input: unknown): {
 } | {
     ok: false;
     issues: string[];
+};
+/**
+ * Give every flat record an explicit idle column.
+ *
+ * `flat` is this plugin's own marker for "峰谷计价 OFF: one price for both
+ * periods", and the HARNESS does not know it: it reads the three top-level
+ * numbers as the PEAK column and derives the off-peak charge as half of them
+ * whenever `idle` is absent. A flat record without `idle` therefore billed the
+ * entered single price at HALF in off-peak hours. This returns the record with
+ * `idle` = the same three numbers for every `flat: true` entry that lacks it —
+ * the shape the modal's OFF branch writes now — so every reader (the harness
+ * composer strip, this plugin's cost math, the modal on reopen) agrees that both
+ * periods bill that price.
+ *
+ * Entries that already carry an `idle` column are left untouched, and so is
+ * every non-flat entry: for a single-column non-flat record the derived half IS
+ * the intended semantics (that record declares a peak column), so repairing it
+ * would silently change what it bills.
+ * @param prices - the stored record; never mutated.
+ * @returns the repaired record plus whether anything changed — a second run
+ *   over the first run's output reports `changed: false`.
+ */
+export declare function repairFlatEntries(prices: SessionCostPrices): {
+    prices: SessionCostPrices;
+    changed: boolean;
 };
 /**
  * Render a cost as `¥X.XX` from integer cents.

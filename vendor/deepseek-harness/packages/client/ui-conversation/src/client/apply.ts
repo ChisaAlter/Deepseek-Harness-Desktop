@@ -225,12 +225,9 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     inject: (): CostSettingsRowInjected => ({
       hooks: {
         sessionCost: submissionPolicy.sessionCost,
-        costPrices: submissionPolicy.sessionCostPrices,
         writable: submissionPolicy.writable,
       },
       setSessionCost: (value) => { submissionPolicy.setSessionCost(value) },
-      setCostPrices: (prices) => { submissionPolicy.setSessionCostPrices(prices) },
-      catalogModels,
     }),
   }, CostSettingsRow))
 
@@ -306,20 +303,10 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   // current provider route for composer-dock entries (see model-facts.ts).
   const composerModelFacts = new ComposerModelFactRegistry()
   const composerModelCatalog = new ComposerModelCatalogRegistry()
-  // The settings row has no session scope, so its panel merges the models
-  // every resident session directory advertises (duck-typed: the plugin may
-  // be absent). The dock reads its own session's pushed catalog instead.
-  const catalogModels = (): readonly { provider: string; id: string }[] => {
-    const directories = ctx.get('modelDirectories') as unknown as
-      | { catalogModelIds(): readonly { provider: string; id: string }[] }
-      | undefined
-    return directories?.catalogModelIds() ?? []
-  }
 
   // Conversation assembly and input share the Session binding lifecycle. The
   // source roster is installed before any consuming Slot entry.
-  ctx.uiSession.provide({
-    hooks: ['conversation', 'input'],
+  ctx.uiSession.provide({    hooks: ['conversation', 'input'],
     props: ['inputActions'],
     resolve: (binding) => {
       const shell = inputHub.shellFor(binding)
@@ -556,11 +543,9 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         hooks: {
           peakValley: submissionPolicy.officialPeakValley,
           modelProvider: composerModelFacts.storeFor(sessionId),
-          modelCatalog: composerModelCatalog.storeFor(sessionId),
           sessionCost: submissionPolicy.sessionCost,
           costPrices: submissionPolicy.sessionCostPrices,
         },
-        setCostPrices: (prices) => { submissionPolicy.setSessionCostPrices(prices) },
       }),
     }, PeakValleyRow)
   })

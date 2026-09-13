@@ -103,8 +103,11 @@ describe('PeakValleyRow phase and countdown', () => {
     expect(row).not.toBeNull()
     expect(textOf(view)).toContain('高峰时段')
     expect(textOf(view)).toContain('距离切换剩余时间：00:01:00')
-    // The schedule/price hint rides the native title.
-    expect(row?.getAttribute('title')).toBe(zh['peakValley.hint.peak'])
+    // The schedule hint rides the phase group's native title — the cost figure
+    // is a button with its own detail card, so the row itself must not put a
+    // native tooltip on it.
+    expect(view.view.container.querySelector('[class*="phaseGroup"]')?.getAttribute('title'))
+      .toBe(zh['peakValley.hint.peak'])
   })
 
   it('ticks every second and flips color, text, and countdown at the boundary', () => {
@@ -119,7 +122,8 @@ describe('PeakValleyRow phase and countdown', () => {
     expect(row).not.toBeNull()
     expect(textOf(view)).toContain('空闲时段')
     expect(textOf(view)).toContain('距离切换剩余时间：01:59:59')
-    expect(row?.getAttribute('title')).toBe(zh['peakValley.hint.offPeak'])
+    expect(view.view.container.querySelector('[class*="phaseGroup"]')?.getAttribute('title'))
+      .toBe(zh['peakValley.hint.offPeak'])
   })
 
   it('takes the labels from the active locale', () => {
