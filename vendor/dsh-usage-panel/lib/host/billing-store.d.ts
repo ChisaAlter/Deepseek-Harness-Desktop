@@ -27,11 +27,14 @@ export interface BillingMedium {
 }
 export type BillingStoreMode = 'durable' | 'memory';
 /**
- * Billing-preferences store. `save` is replace-whole (the record is small;
- * the client edits one object). Load runs the shared semantic validator on
- * the prices: a record that fails validation is treated as default (logged),
- * never half-applied. Starts in memory mode; the domain can attach later
- * (`attachMedium`) without losing a save made meanwhile.
+ * Legacy-record reader. `load` runs the shared semantic validator on the
+ * prices: a record that fails validation is treated as default (logged), never
+ * half-applied. Starts in memory mode; the domain can attach later
+ * (`attachMedium`) without losing what the memory phase cached.
+ *
+ * The memory phase is why the one-time import must gate on {@link mode}: `load`
+ * caches its first result (an empty record before the medium attaches), and a
+ * reader that cached "no prices" would mark the import complete forever.
  */
 export declare class BillingStore {
     private readonly warn;
@@ -43,12 +46,15 @@ export declare class BillingStore {
     attachMedium(medium: BillingMedium): void;
     /** Read the current record (cached per process; first read materializes). */
     load(): Promise<BillingSettings>;
-    /** Replace the whole record (validated; throws with the issues on refusal). */
-    save(settings: BillingSettings): Promise<BillingSettings>;
+    /**
+     * Drop this domain's prices after they have been merged into the surviving
+     * record. The record itself stays schema-valid (`prices: {}`); the legacy
+     * fields of the retired composer strip are gone with it.
+     */
+    clearPrices(): Promise<void>;
     private fromRaw;
-    private toRaw;
 }
-/** Open the billing domain over the facility; returns undefined (memory mode) on any failure. */
+/** Open the legacy domain over the facility; returns undefined (memory mode) on any failure. */
 export declare function openBillingMedium(storageDomain: {
     open(spec: object): Promise<{
         global: BillingMedium;

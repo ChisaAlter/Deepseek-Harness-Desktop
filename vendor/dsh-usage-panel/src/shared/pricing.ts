@@ -7,7 +7,11 @@
 // peak column (the price editor's three inputs); for a user-priced model
 // without an explicit idle column, the off-peak values derive from the entered
 // peaks (official rule: off-peak = half of peak) — a convention hint, never
-// claimed as an official rule.
+// claimed as an official rule. A record the editor wrote for a user's 峰谷计价
+// OFF therefore carries BOTH columns at the entered price plus the plugin's own
+// `flat` marker (the harness has no such field and halves an absent idle
+// column); `repairFlatEntries` enforces that shape on the write path and once
+// over the stored section.
 //
 // Resolver order: custom (provider-scoped composite key first, then the bare
 // model id for legacy records) → official column (matched by model id,
@@ -77,7 +81,13 @@ export interface SessionCostModelPrice {
   output: number
   /** Explicit off-peak column; absent means derived (half of the peaks). */
   idle?: { inputCacheHit: number; inputCacheMiss: number; output: number }
-  /** Per-model peak/valley pricing OFF: both periods bill the peak column. */
+  /**
+   * Per-model 峰谷计价 OFF: one price for both periods. This marker is THIS
+   * PLUGIN'S OWN — the harness record has no `flat` field and ignores it, which
+   * is why the editor persists the same triple as an explicit `idle` column
+   * beside it (`repairFlatEntries` shows why a flat record without `idle`
+   * billed half in off-peak hours).
+   */
   flat?: boolean
 }
 
@@ -273,6 +283,48 @@ function readPrice(value: unknown): number | null {
   if (!Number.isFinite(value)) return null
   if (value < 0 || value > MAX_PRICE) return null
   return value
+}
+
+/**
+ * Give every flat record an explicit idle column.
+ *
+ * `flat` is this plugin's own marker for "峰谷计价 OFF: one price for both
+ * periods", and the HARNESS does not know it: it reads the three top-level
+ * numbers as the PEAK column and derives the off-peak charge as half of them
+ * whenever `idle` is absent. A flat record without `idle` therefore billed the
+ * entered single price at HALF in off-peak hours. This returns the record with
+ * `idle` = the same three numbers for every `flat: true` entry that lacks it —
+ * the shape the modal's OFF branch writes now — so every reader (the harness
+ * composer strip, this plugin's cost math, the modal on reopen) agrees that both
+ * periods bill that price.
+ *
+ * Entries that already carry an `idle` column are left untouched, and so is
+ * every non-flat entry: for a single-column non-flat record the derived half IS
+ * the intended semantics (that record declares a peak column), so repairing it
+ * would silently change what it bills.
+ * @param prices - the stored record; never mutated.
+ * @returns the repaired record plus whether anything changed — a second run
+ *   over the first run's output reports `changed: false`.
+ */
+export function repairFlatEntries(prices: SessionCostPrices): { prices: SessionCostPrices; changed: boolean } {
+  let changed = false
+  const next: SessionCostPrices = {}
+  for (const [key, entry] of Object.entries(prices)) {
+    if (entry.flat === true && entry.idle === undefined) {
+      changed = true
+      next[key] = {
+        ...entry,
+        idle: {
+          inputCacheHit: entry.inputCacheHit,
+          inputCacheMiss: entry.inputCacheMiss,
+          output: entry.output,
+        },
+      }
+      continue
+    }
+    next[key] = entry
+  }
+  return { prices: next, changed }
 }
 
 /**
