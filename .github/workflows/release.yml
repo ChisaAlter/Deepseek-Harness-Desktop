@@ -64,7 +64,7 @@ jobs:
           }
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DeepSeek-Harness-windows-x64
           path: |
@@ -104,7 +104,7 @@ jobs:
         run: npm run dist:mac
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DeepSeek-Harness-macos-arm64
           path: dist/Deepseek-Harness-Desktop-*.dmg
