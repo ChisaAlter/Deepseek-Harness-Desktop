@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # engines 要求 ^22.19.0 || >=24（node:sqlite 等）；.nvmrc 是唯一钉版来源
           node-version-file: .nvmrc
@@ -87,7 +87,7 @@ jobs:
       - name: Reject macOS icon below electron-builder minimum
         run: node scripts/check-mac-icon.js
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
