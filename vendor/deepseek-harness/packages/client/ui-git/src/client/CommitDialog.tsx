@@ -16,6 +16,12 @@ export interface CommitFileRow {
   deletions: number
 }
 
+/** Large-file warning entry from the host. */
+export interface LargeFileWarning {
+  path: string
+  size: number
+}
+
 /** Props for the commit review dialog. */
 export interface CommitDialogProps {
   open: boolean
@@ -26,6 +32,7 @@ export interface CommitDialogProps {
   editing: boolean
   message: string
   t: PropsLocale<typeof NS>['t']
+  largeFiles?: readonly LargeFileWarning[]
   onClose: () => void
   onMessage: (value: string) => void
   onToggleEdit: () => void
@@ -36,13 +43,18 @@ export interface CommitDialogProps {
   onOpenFile?: (path: string) => void
 }
 
+/** Format bytes as MB for the warning banner. */
+function formatMb(size: number): string {
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
 /**
  * Render the commit review dialog.
  * @param props - open state, files, copy, and callbacks.
  * @returns the modal.
  */
 export function CommitDialog({
-  open, branchName, isDefaultRef, files, excluded, editing, message, t,
+  open, branchName, isDefaultRef, files, excluded, editing, message, t, largeFiles,
   onClose, onMessage, onToggleEdit, onTogglePath, onToggleAll, onCommit, onCommitNewRef, onOpenFile,
 }: CommitDialogProps) {
   const selected = files.filter(file => !excluded.has(file.path))
@@ -50,6 +62,7 @@ export function CommitDialog({
   const allSelected = files.length > 0 && selected.length === files.length
   const insertions = selected.reduce((sum, file) => sum + file.insertions, 0)
   const deletions = selected.reduce((sum, file) => sum + file.deletions, 0)
+  const hasLargeFiles = Array.isArray(largeFiles) && largeFiles.length > 0
 
   return (
     <Modal
@@ -79,6 +92,20 @@ export function CommitDialog({
           <span className={css.branchName}>{branchName ?? t('commit.detached')}</span>
           {isDefaultRef && <span className={css.warn}>{t('commit.defaultWarning')}</span>}
         </div>
+        {hasLargeFiles && (
+          <div className={css.warningBanner} role="alert">
+            <span className={css.warningTitle}>{t('commit.largeFileWarning')}</span>
+            <ul className={css.warningList}>
+              {largeFiles.map(file => (
+                <li key={file.path} className={css.warningItem}>
+                  <span className={css.warningPath}>{file.path}</span>
+                  <span className={css.warningSize}>{formatMb(file.size)}</span>
+                </li>
+              ))}
+            </ul>
+            <span className={css.warningHint}>{t('commit.largeFileHint')}</span>
+          </div>
+        )}
         <div className={css.filesHead}>
           <div className={css.filesLabel}>
             {editing && files.length > 0 && (

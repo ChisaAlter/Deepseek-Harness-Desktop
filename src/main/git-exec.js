@@ -43,6 +43,8 @@ const GIT_MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 const PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES = 49_000;
 /** Range-diff patch cap. */
 const RANGE_DIFF_PATCH_MAX_OUTPUT_BYTES = 59_000;
+/** GitHub rejects files over 100 MB; warn before commit. */
+const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024;
 const OUTPUT_TRUNCATED_MARKER = '\n\n[truncated]';
 
 function withTruncationMarker(text, truncated) {
@@ -289,6 +291,7 @@ module.exports = {
   GIT_MAX_OUTPUT_BYTES,
   PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES,
   RANGE_DIFF_PATCH_MAX_OUTPUT_BYTES,
+  LARGE_FILE_WARNING_BYTES,
   OUTPUT_TRUNCATED_MARKER,
   withTruncationMarker,
   gitChildEnv,

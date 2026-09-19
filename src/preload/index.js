@@ -124,6 +124,7 @@ function harnessApi(renderer, remoteFeature) {
     gitUnstage: invoke(renderer, 'shell:git-unstage'),
     gitDiscard: invoke(renderer, 'shell:git-discard'),
     gitStatusEntries: invoke(renderer, 'shell:git-status-entries'),
+    gitCheckLargeFiles: invoke(renderer, 'shell:git-check-large-files'),
     gitBranchList: invoke(renderer, 'shell:git-branch-list'),
     gitSwitchBranch: invoke(renderer, 'shell:git-switch-branch'),
     gitCreateBranch: invoke(renderer, 'shell:git-create-branch'),

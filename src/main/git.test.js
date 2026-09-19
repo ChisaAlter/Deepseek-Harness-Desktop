@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createWorkspaceAuthority } = require('./workspace-authority');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
-const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
+const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitCheckLargeFiles, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
 const { parseRepositoryNameWithOwnerFromNormalized } = require('./git-pullrequest');
 const { setTextGenerator } = require('./git-generate.js');
 
@@ -2039,5 +2039,50 @@ test('gitBranchList lists branches for a harness-registered sibling of the boot 
     fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(boot, { recursive: true, force: true });
     fs.rmSync(sibling, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles flags working-tree files over 100 MB', async () => {
+  const cwd = makeTempDir();
+  try {
+    git(cwd, ['init', '-b', 'main']);
+    git(cwd, ['config', 'user.email', 't@local']);
+    git(cwd, ['config', 'user.name', 'T']);
+    fs.writeFileSync(path.join(cwd, 'README.md'), 'hello\n');
+    git(cwd, ['add', 'README.md']);
+    git(cwd, ['commit', '-m', 'base']);
+    // Create a sparse file just over 100 MB without writing real data.
+    const bigPath = path.join(cwd, 'big.bin');
+    const fd = fs.openSync(bigPath, 'w');
+    fs.ftruncateSync(fd, 101 * 1024 * 1024);
+    fs.closeSync(fd);
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.files.length, 1);
+    assert.equal(result.files[0].path, 'big.bin');
+    assert.equal(result.files[0].size, 101 * 1024 * 1024);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles ignores small files and directories', async () => {
+  const cwd = makeTempDir();
+  try {
+    git(cwd, ['init', '-b', 'main']);
+    git(cwd, ['config', 'user.email', 't@local']);
+    git(cwd, ['config', 'user.name', 'T']);
+    fs.writeFileSync(path.join(cwd, 'README.md'), 'hello\n');
+    git(cwd, ['add', 'README.md']);
+    git(cwd, ['commit', '-m', 'base']);
+    fs.mkdirSync(path.join(cwd, 'dir'));
+    fs.writeFileSync(path.join(cwd, 'dir', 'small.txt'), 'tiny\n');
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.files.length, 0);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 });

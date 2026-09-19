@@ -61,7 +61,7 @@ const DEFAULTS = {
     petId: '',
   },
   live2dPet: {
-    enabled: true,
+    enabled: false,
     x: null,
     y: null,
     growth: { points: 0, tokensFed: 0, tokensSeen: 0 },
@@ -102,7 +102,7 @@ function normalizePetStateInConfig(config) {
 function normalizeLive2dPetState(value) {
   const source = isPlainObject(value) ? value : {};
   return {
-    enabled: source.enabled !== false,
+    enabled: source.enabled === true,
     x: Number.isFinite(source.x) ? Math.round(source.x) : null,
     y: Number.isFinite(source.y) ? Math.round(source.y) : null,
     growth: normalizeGrowthState(source.growth),

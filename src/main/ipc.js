@@ -44,7 +44,7 @@ const { inspectPlugins, isPresetPlugin } = require('./plugin-forensics');
 const { isPluginTreeFailure } = require('./plugin-tree-failure');
 const { readLastDesktopStart, recordLastDesktopStart, stickySkipActive } = require('./launcher-gate');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
-const { gitBranchList, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
+const { gitBranchList, gitCheckLargeFiles, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
 const { gitIpcNull, guardGitIpc } = require('./git-ipc-guard');
 const { watchWorkspaceRegistrations } = require('./git-workspace-watch');
 const { registerPreviewIpc } = require('./preview');
@@ -418,6 +418,7 @@ function registerIpc({
   handle('shell:git-unstage', HARNESS_ONLY, guardGitIpc((_event, cwd, relativePath) => gitUnstage(cwd, relativePath)));
   handle('shell:git-discard', HARNESS_ONLY, guardGitIpc((_event, cwd, relativePath) => gitDiscard(cwd, relativePath)));
   handle('shell:git-status-entries', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitStatusEntries(cwd)));
+  handle('shell:git-check-large-files', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitCheckLargeFiles(cwd)));
   handle('shell:git-branch-list', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitBranchList(cwd)));
   handle('shell:git-switch-branch', HARNESS_ONLY, guardGitIpc((_event, cwd, ref) => gitSwitchBranch(cwd, ref)));
   handle('shell:git-create-branch', HARNESS_ONLY, guardGitIpc((_event, cwd, name) => gitCreateBranch(cwd, name)));

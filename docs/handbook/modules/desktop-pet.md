@@ -14,7 +14,7 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 
 | 操作 | 行为 |
 | --- | --- |
-| 启动后 | 工作区右下角出现鲸鱼娘，空闲呼吸/眨眼/微动作，眼睛看向光标 |
+| 启动后 | 默认关闭；在设置或托盘主动开启后出现鲸鱼娘。已有明确开启的配置保留 |
 | 悬停 | 窗口从点击穿透切换为可交互（可点按、可抓）；离开约 24px 后恢复穿透 |
 | 点按 | 四种表情轮换；3 秒内连戳 4 次 → 生气立绘 + 喷水 |
 | 拖拽 | 抓起（pick-up 立绘、随速度倾斜）；松手速度慢 → 原地落下；快速甩出 → 弹道飞行、撞边反弹、地面摩擦停下；空中可再次抓住 |
@@ -231,7 +231,7 @@ preload `pet-live2d` 角色只暴露下表面（`window.shell`），主进程对
 
 ```jsonc
 {
-  "enabled": true,                 // 托盘 checkbox / 隐藏项
+  "enabled": false,                // 默认关闭；设置或托盘主动开启并持久化
   "x": null, "y": null,            // 屏幕坐标；null 或落不进任何显示器 → 工作区右下角
   "growth": {
     "points": 0, "tokensFed": 0, "tokensSeen": 0,

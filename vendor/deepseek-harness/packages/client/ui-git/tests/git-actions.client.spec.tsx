@@ -90,6 +90,7 @@ function mount(opts: {
   gitReadPullRequest?: GitActionsProps['gitReadPullRequest']
   gitInit?: GitActionsProps['gitInit']
   gitCommit?: GitActionsProps['gitCommit']
+  gitCheckLargeFiles?: GitActionsProps['gitCheckLargeFiles']
   gitPush?: GitActionsProps['gitPush']
   gitPull?: GitActionsProps['gitPull']
   gitCreateChangeRequest?: GitActionsProps['gitCreateChangeRequest']
@@ -114,6 +115,7 @@ function mount(opts: {
   }))
   const gitInit = opts.gitInit ?? vi.fn(async () => ({ ok: true }))
   const gitCommit = opts.gitCommit ?? vi.fn(async () => ({ ok: true }))
+  const gitCheckLargeFiles = opts.gitCheckLargeFiles ?? vi.fn(async () => ({ ok: true, files: [] }))
   const gitPush = opts.gitPush ?? vi.fn(async () => ({ ok: true }))
   const gitPull = opts.gitPull ?? vi.fn(async () => ({ ok: true }))
   const gitCreateChangeRequest = opts.gitCreateChangeRequest ?? vi.fn(async () => ({ ok: true }))
@@ -142,6 +144,7 @@ function mount(opts: {
       gitReadPullRequest={gitReadPullRequest}
       gitInit={gitInit}
       gitCommit={gitCommit}
+      gitCheckLargeFiles={gitCheckLargeFiles}
       gitPush={gitPush}
       gitPull={gitPull}
       gitCreateChangeRequest={gitCreateChangeRequest}
@@ -158,7 +161,7 @@ function mount(opts: {
     />,
   )
   return {
-    gitStatus, gitFetchForStatus, gitReadPullRequest, gitInit, gitCommit, gitPush, gitPull, gitCreateChangeRequest,
+    gitStatus, gitFetchForStatus, gitReadPullRequest, gitInit, gitCommit, gitCheckLargeFiles, gitPush, gitPull, gitCreateChangeRequest,
     gitPublishRepository, gitBranchList, gitSwitchBranch, gitCreateBranch, openWorkspacePath,
     onGitProgress, onWorkspacesChanged, openExternal, rerender: view.rerender,
   }
@@ -334,6 +337,7 @@ describe('GitActionsControl', () => {
       gitReadPullRequest: vi.fn(async () => ({ ok: true, pr: null })),
       gitInit: vi.fn(async () => ({ ok: true })),
       gitCommit: vi.fn(async () => ({ ok: true })),
+      gitCheckLargeFiles: vi.fn(async () => ({ ok: true, files: [] })),
       gitPush: vi.fn(async () => ({ ok: true })),
       gitPull: vi.fn(async () => ({ ok: true })),
       gitCreateChangeRequest: vi.fn(async () => ({ ok: true })),
@@ -471,6 +475,7 @@ describe('GitActionsControl', () => {
         gitReadPullRequest={b.gitReadPullRequest}
         gitInit={b.gitInit}
         gitCommit={b.gitCommit}
+        gitCheckLargeFiles={b.gitCheckLargeFiles}
         gitPush={b.gitPush}
         gitPull={b.gitPull}
         gitCreateChangeRequest={b.gitCreateChangeRequest}

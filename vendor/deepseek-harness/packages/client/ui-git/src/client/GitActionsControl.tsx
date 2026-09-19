@@ -68,6 +68,7 @@ export interface GitActionsInjected {
   gitCreateChangeRequest: (cwd: string, input?: { title?: string; body?: string }, actionId?: number) => Promise<GitResult>
   gitPublishRepository: (cwd: string, input: { name: string; visibility: 'public' | 'private'; remoteUrl?: string }, actionId?: number) => Promise<GitResult>
   gitBranchList: (cwd: string) => Promise<{ ok: boolean; message?: string; branches?: BranchRef[] }>
+  gitCheckLargeFiles: (cwd: string) => Promise<GitResult & { files?: Array<{ path: string; size: number }> }>
   gitSwitchBranch: (cwd: string, ref: string) => Promise<GitResult & { refName?: string }>
   gitCreateBranch: (cwd: string, name: string) => Promise<GitResult & { refName?: string }>
   openExternal: (url: string) => Promise<boolean>
@@ -192,6 +193,7 @@ export function GitActionsControl({
   gitCreateChangeRequest,
   gitPublishRepository,
   gitBranchList,
+  gitCheckLargeFiles,
   gitSwitchBranch,
   gitCreateBranch,
   openExternal,
@@ -209,6 +211,7 @@ export function GitActionsControl({
   const [busy, setBusy] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [commitOpen, setCommitOpen] = useState(false)
+  const [largeFiles, setLargeFiles] = useState<Array<{ path: string; size: number }>>([])
   const [commitMessage, setCommitMessage] = useState('')
   const [excludedFiles, setExcludedFiles] = useState<Set<string>>(() => new Set())
   const [editingFiles, setEditingFiles] = useState(false)
@@ -472,6 +475,15 @@ export function GitActionsControl({
     setExcludedFiles(new Set())
     setEditingFiles(false)
     setCommitOpen(true)
+    if (cwd !== undefined) {
+      void gitCheckLargeFiles(cwd).then((result) => {
+        if (result.ok && Array.isArray(result.files)) {
+          setLargeFiles(result.files)
+        } else {
+          setLargeFiles([])
+        }
+      }).catch(() => { setLargeFiles([]) })
+    }
   }
 
   const selectedCommitPaths = (): string[] | undefined => {
@@ -846,6 +858,7 @@ export function GitActionsControl({
         editing={editingFiles}
         message={commitMessage}
         t={t}
+        largeFiles={largeFiles}
         onClose={closeCommit}
         onMessage={setCommitMessage}
         onToggleEdit={() => { setEditingFiles(next => !next) }}

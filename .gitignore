@@ -84,3 +84,6 @@ tmp/
 .workbuddy-ai/
 _pin-ws/
 logs/
+
+# Local test/QA artifacts (large binaries, logs)
+.artifacts/
