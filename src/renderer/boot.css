@@ -41,6 +41,19 @@ body[data-harness-covered] .caption {
   pointer-events: none;
 }
 
+/* While the view covers the window, blank this document: minimize→restore
+   can present this layer for a frame before the view's surface returns, and
+   a transparent canvas falls through to the window background (synced to the
+   harness page bg) instead of flashing the boot canvas. */
+html:has(body[data-harness-covered]),
+body[data-harness-covered] {
+  background: transparent;
+}
+
+body[data-harness-covered] {
+  visibility: hidden;
+}
+
 .scan {
   pointer-events: none;
   position: fixed;
