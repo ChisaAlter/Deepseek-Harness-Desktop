@@ -53,7 +53,7 @@ jobs:
           echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout the exact candidate commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.candidate.outputs.candidate_sha }}
           fetch-depth: 1
