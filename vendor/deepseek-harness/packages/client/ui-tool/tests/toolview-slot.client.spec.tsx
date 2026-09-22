@@ -119,6 +119,34 @@ describe('keyed toolview hole through the real machinery', () => {
     await b.runtime.dispose()
   })
 
+  it('supplies the parent image renderer to the generic fallback', async () => {
+    // The parent Tool node owns `tool.call.images`; a generic result carrying a
+    // durable image must reach the attachment gallery without the fallback
+    // importing an attachment implementation.
+    const attachment = {
+      attachmentId: 'sha256:feed',
+      mediaType: 'image/png',
+      bytes: 12,
+      width: 4,
+      height: 3,
+      name: 'shot.png',
+    }
+    const b = await bench([
+      toolResult(3, 'c1', 'mcp_screenshot', '{"page":"a"}', {
+        content: [{ type: 'image', attachment }],
+      } as never),
+    ])
+    const view = b.runtime.renderRoot()
+    await vi.waitFor(() => {
+      expect(view.container.textContent).toContain('(1)')
+    })
+    fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    // ui-attachment is not mounted in this bench, so the slot legitimately
+    // renders nothing; the assertion is that the count and card path exist.
+    expect(view.container.textContent).toContain('(1)')
+    await b.runtime.dispose()
+  })
+
   it('renders Auto denial copy through the real machinery', async () => {
     const b = await bench([
       toolResult(

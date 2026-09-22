@@ -2,6 +2,7 @@
 import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ReactNode } from 'react'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
 import type { OpenFileOptions, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { MessageImageLoader, MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -51,6 +52,13 @@ export interface ToolImagesOwnerProps {
   align: 'start' | 'end'
 }
 
+/**
+ * Slot-backed renderer handed to every atomic Tool view. The parent Tool node
+ * owns the `tool.call.images` child declaration, so a toolview renders durable
+ * images without importing the attachment presentation plugin.
+ */
+export type RenderToolImages = (owner: Omit<ToolImagesOwnerProps, 'loadImage'>) => ReactNode
+
 /** Standard owner currency supplied to every atomic Tool view. */
 export interface ToolCallOwnerProps {
   /** Tool call identity, stable across running and settled forms. */
@@ -76,6 +84,12 @@ export interface ToolCallOwnerProps {
    * authorization.
    */
   loadImage: MessageImageLoader
+  /**
+   * Render one durable Tool image group through the attachment presentation
+   * plugin. Supplied by the parent Tool node for every atomic view and generic
+   * fallback; absent only in a bare unit-test owner.
+   */
+  renderToolImages?: RenderToolImages | undefined
   /** Inspect this call in the trajectory view when available. */
   inspect?: (() => void) | undefined
 }
@@ -99,5 +113,6 @@ export type ToolHostInfoInjected = {
 /** Full props of the Tool call-tree renderer registered as a `tool-call` Chat Node. */
 export type ToolTreeProps = PropsRuntime<'conversation.chat.node', 'tool-call'>
   & PropsRenderSlots<'tool.call.toolview'>
+  & PropsRenderSlots<'tool.call.images'>
   & PropsLocale<'conversation'>
   & InjectFace<ToolHostInfoInjected>

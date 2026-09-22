@@ -14,7 +14,7 @@ import { parsedToolCall } from './raw-tool-call.ts'
  */
 export interface ImageCardModel {
   /** Card label: the read path, shortened the way every other card's is. */
-  label: string
+  label?: string
   /** The durable images this result returned, in result order. */
   images: readonly { readonly attachment: ImageAttachmentRef }[]
   /**
@@ -28,6 +28,15 @@ export interface ImageCardModel {
   text: string
 }
 
+/**
+ * The generic image-card material one settled non-read_image call contributes:
+ * the ordered durable references plus the result's own text blocks.
+ *
+ * Unlike the read_image card, no path is available nor required: an MCP or
+ * browser tool owns its own argument vocabulary. The card still uses the same
+ * attachment gallery and loader, so the bytes stay provider-owned and the
+ * renderer never handles URL authorization.
+ */
 /**
  * The persisted `presentationMeta` this card reads: the resolved display path only
  * (the value `read_image` persisted from its target's display path, not the
@@ -147,6 +156,37 @@ function imageReferences(content: readonly unknown[]): ImageAttachmentRef[] | nu
     })
   }
   return refs.length > 0 ? refs : null
+}
+
+/**
+ * Derive a generic image card from any settled result carrying image blocks.
+ *
+ * Order is the result's own block order, so a multi-image MCP or browser
+ * result stays one-by-one in the order the model saw. Every image block must
+ * narrow cleanly; one malformed block declines the whole card to the generic
+ * text path rather than rendering a partial gallery.
+ *
+ * Unlike {@link imageCardModel}, this derivation has no read_image envelope
+ * gate: any non-read_image tool may return an image block. The read_image card
+ * keeps its own envelope/label rules and is selected first by its dedicated
+ * toolview.
+ * @param block - running or settled Tool block.
+ * @returns the generic image card, or null when the result has no valid images.
+ */
+export function genericImageCardModel(block: ToolCallBlock): ImageCardModel | null {
+  if (!('kind' in block) || block.isError) return null
+  const refs = imageReferences(block.content)
+  if (refs === null) return null
+  const text: string[] = []
+  for (const part of block.content) {
+    if (typeof part !== 'object' || part === null) continue
+    const { type, text: value } = part as { type?: unknown; text?: unknown }
+    if (type === 'text' && typeof value === 'string') text.push(value)
+    // Image blocks are the gallery's own material; every other shape keeps the
+    // existing flattened-output evidence instead of being hidden behind it.
+    else if (type !== 'image') text.push(JSON.stringify(part, null, 2))
+  }
+  return { images: refs.map(ref => ({ attachment: ref })), text: text.join('\n') }
 }
 
 /**
