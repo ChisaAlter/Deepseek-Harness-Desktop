@@ -40,6 +40,18 @@ test.after(() => {
   fs.rmSync(userData, { recursive: true, force: true });
 });
 
+test('Live2D pet is opt-in through config defaults and persistence', () => {
+  assert.equal(DEFAULTS.live2dPet.enabled, false);
+  for (const live2dPet of [undefined, {}, { enabled: 'true' }, { enabled: false }]) {
+    assert.equal(publicConfig({ live2dPet }).live2dPet.enabled, false);
+  }
+  saveConfig({ live2dPet: { enabled: true, x: 12, y: 34 } });
+  assert.equal(loadConfig().live2dPet.enabled, true);
+  saveConfig({ live2dPet: { enabled: false, x: 12, y: 34 } });
+  assert.equal(loadConfig().live2dPet.enabled, false);
+  assert.equal(loadConfig().live2dPet.x, 12);
+});
+
 test('Harness recovery defaults are bounded and enabled', () => {
   assert.equal(DEFAULTS.harnessAutoRestart, true);
   assert.equal(DEFAULTS.harnessRestartMaxAttempts, 3);
