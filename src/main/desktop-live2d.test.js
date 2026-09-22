@@ -72,6 +72,7 @@ function stubWindow() {
 
 function live2dDeps(overrides = {}) {
   const win = stubWindow();
+  const config = overrides.loadConfig || (() => ({}));
   return {
     win,
     electron: {
@@ -91,6 +92,10 @@ function live2dDeps(overrides = {}) {
     loadConfig: () => ({}),
     saveConfig: () => {},
     ...overrides,
+    loadConfig: () => {
+      const saved = config();
+      return { ...saved, live2dPet: { enabled: true, ...saved.live2dPet } };
+    },
   };
 }
 
@@ -106,7 +111,7 @@ const DEFAULT_PET_SETTINGS = petSettings.defaultSettings();
 const DEFAULT_DSH = petSettings.defaultDshState();
 const DEFAULT_EATEN = { total: 0, history: [] };
 
-test('normalizeLive2dPetState defaults to enabled with auto position', () => {
+test('normalizeLive2dPetState defaults to disabled with auto position', () => {
   const freshStats = { satiety: 70, mood: 70, affection: 0, lastTick: 42, care: {} };
   const extra = {
     settings: DEFAULT_PET_SETTINGS,
@@ -114,9 +119,42 @@ test('normalizeLive2dPetState defaults to enabled with auto position', () => {
     fileEaten: DEFAULT_EATEN,
     assistantSessionId: '',
   };
-  assert.deepEqual(normalizeLive2dPetState(undefined, 42), { enabled: true, x: null, y: null, growth: { points: 0, tokensFed: 0, tokensSeen: 0, baseline: null, today: null }, stats: freshStats, ...extra });
+  assert.deepEqual(normalizeLive2dPetState(undefined, 42), { enabled: false, x: null, y: null, growth: { points: 0, tokensFed: 0, tokensSeen: 0, baseline: null, today: null }, stats: freshStats, ...extra });
   assert.deepEqual(normalizeLive2dPetState({ enabled: false, x: 12.6, y: 40.4 }, 42), { enabled: false, x: 13, y: 40, growth: { points: 0, tokensFed: 0, tokensSeen: 0, baseline: null, today: null }, stats: freshStats, ...extra });
-  assert.deepEqual(normalizeLive2dPetState({ x: 'bad', y: {} }, 42), { enabled: true, x: null, y: null, growth: { points: 0, tokensFed: 0, tokensSeen: 0, baseline: null, today: null }, stats: freshStats, ...extra });
+  assert.deepEqual(normalizeLive2dPetState({ x: 'bad', y: {} }, 42), { enabled: false, x: null, y: null, growth: { points: 0, tokensFed: 0, tokensSeen: 0, baseline: null, today: null }, stats: freshStats, ...extra });
+  assert.equal(normalizeLive2dPetState({ enabled: 'true' }).enabled, false);
+  assert.equal(normalizeLive2dPetState({ enabled: true }).enabled, true);
+});
+
+test('default startup does not create a window or timers; opt-in remains available', (t) => {
+  const timers = [];
+  const cleared = [];
+  t.mock.method(global, 'setInterval', (callback, ms) => {
+    const timer = { ms, unref() {} };
+    timers.push(timer);
+    return timer;
+  });
+  t.mock.method(global, 'clearInterval', (timer) => cleared.push(timer));
+  const saved = [];
+  const deps = live2dDeps({ saveConfig: (next) => saved.push(next) });
+  deps.loadConfig = () => ({});
+  const manager = createLive2dPetManager(deps);
+  t.after(() => manager.dispose());
+  assert.equal(manager.isEnabled(), false);
+  assert.equal(manager.show(), null);
+  assert.deepEqual(timers, []);
+  assert.deepEqual(deps.win.ignoreCalls, []);
+  manager.setEnabled(true);
+  assert.equal(saved.at(-1).live2dPet.enabled, true);
+  assert.ok(deps.win.ignoreCalls.length > 0);
+  const growthTimer = timers.find(timer => timer.ms === 60000);
+  assert.ok(growthTimer);
+  manager.setEnabled(false);
+  assert.equal(saved.at(-1).live2dPet.enabled, false);
+  assert.equal(deps.win.closed, true);
+  assert.ok(cleared.includes(growthTimer));
+  manager.setEnabled(true);
+  assert.equal(timers.filter(timer => timer.ms === 60000).length, 2);
 });
 
 test('defaultPosition anchors the pet to the work area bottom-right', () => {
