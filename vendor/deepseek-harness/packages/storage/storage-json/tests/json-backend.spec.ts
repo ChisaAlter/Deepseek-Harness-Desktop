@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -195,6 +195,31 @@ describe('json backend specifics', () => {
     expect(ctx.get(storageBackendServiceKey('json'))).toBeUndefined()
     await expect(unit.putRecord('t', 'x', {})).rejects.toMatchObject({ code: 'closed' })
   })
+
+  it.skipIf(process.platform !== 'win32')(
+    'replaces a record while a reader holds the target open (transient rename interference)',
+    async () => {
+      const root = await freshRoot()
+      const backend = new JsonStorageBackend(root)
+      const unit = await backend.kv.open(descriptor)
+      const path = join(root, 'shape.json')
+      await unit.putRecord('t', 'k', { v: 'before' })
+      // Windows refuses a replacing rename while any handle holds the target,
+      // so a reader polling this document is what a first-attempt failure needs.
+      const reader = await open(path, 'r')
+      const release = setTimeout(() => { void reader.close() }, 60)
+      try {
+        await unit.putRecord('t', 'k', { v: 'after' })
+      } finally {
+        clearTimeout(release)
+        await reader.close()
+      }
+      const stored = await unit.loadAll()
+      expect(stored.tables['t']).toEqual({ k: { v: 'after' } })
+      expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ tables: { t: { k: { v: 'after' } } } })
+      await backend.close()
+    },
+  )
 
   it('close drains in-flight writes and blocks in-flight opens', async () => {
     const root = await freshRoot()
