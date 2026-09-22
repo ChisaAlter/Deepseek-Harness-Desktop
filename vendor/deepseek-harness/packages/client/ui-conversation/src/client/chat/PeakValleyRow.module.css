@@ -1,7 +1,8 @@
 /* Official peak/valley status row under the session stats: 12/20 tertiary
    text with a state-colored dot, phase label, per-second countdown, and (when
-   the session-cost preference is on) the running cost plus its price-settings
-   entry on the same line. */
+   the session-cost preference is on) the running cost on the same line. The
+   cost figure is a button: it opens the cost card (SessionCostCard.module.css)
+   that carries the per-route consumption and the price-settings path. */
 
 .root {
   display: flex;
@@ -77,27 +78,32 @@
   color: var(--dsw-alias-separator-primary);
 }
 
+/* The figure is the cost card's trigger, so it is a real button; the reset
+   keeps the row's readout typography — no chip, no padding, no own background.
+   It stays a quiet inline control: the affordance is the pointer cursor and a
+   one-step color lift on hover. */
 .cost {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The price-settings entry reads as a quiet inline control, not a second
-   toolbar button. */
-.costSettings {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
   padding: 0;
   border: none;
-  background: transparent;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-tertiary);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
-.costSettings:hover {
-  color: var(--dsw-alias-label-primary);
+.cost:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.cost:focus-visible {
+  outline: none;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--dsw-alias-border-l3);
 }
