@@ -1,4 +1,4 @@
-/** `terminal` namespace dictionaries: drawer and surface chrome. */
+/** `terminal` namespace dictionaries: drawer chrome. */
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
@@ -17,6 +17,7 @@ export const zh = {
   'sessions.list': '终端会话',
   'group.label': '组',
   'error.create': '无法启动终端',
+  'error.openLink': '无法在右侧边栏中打开该链接',
   'action.copy': '复制',
   'action.addToChat': '加入对话',
   'action.openLink': '打开链接',
@@ -43,6 +44,7 @@ export const en = {
   'sessions.list': 'Terminal sessions',
   'group.label': 'Group',
   'error.create': 'Could not start a terminal',
+  'error.openLink': 'Could not open that link in the right sidebar',
   'action.copy': 'Copy',
   'action.addToChat': 'Add to chat',
   'action.openLink': 'Open link',

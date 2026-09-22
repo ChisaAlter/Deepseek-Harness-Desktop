@@ -39,6 +39,9 @@
       "path": "../ui-workspace"
     },
     {
+      "path": "../ui-sidebar-right"
+    },
+    {
       "path": "../../api/session-controller/tsconfig.client.json"
     },
     {

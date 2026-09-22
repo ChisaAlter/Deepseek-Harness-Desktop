@@ -160,6 +160,8 @@ export interface TerminalDrawerOwnerProps {}
 export interface TitlebarTrailingOwnerProps {
   /** Surfaces column width in px (0 when closed). */
   surfaces: number
+  /** True while the upstream rightbar track is shown (desktop right Sidebar). */
+  rightbarShown: boolean
   /** Terminal drawer height in px (0 when closed). */
   terminalDrawer: number
   /** True when the current Session uses plugin-managed presentation. */

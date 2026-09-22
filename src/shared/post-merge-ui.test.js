@@ -24,14 +24,9 @@ const UI_FEATURES = [
     includes: ['shell.titlebar.trailing'],
   },
   {
-    name: 'surfaces empty five-card grid',
-    file: 'packages/client/ui-surfaces/src/client/EmptyState.tsx',
-    includes: ['data-surfaces-empty', 'card.browser', 'card.files', 'card.diff', 'card.agents'],
-  },
-  {
-    name: 'surfaces work-loop tabs',
-    file: 'packages/client/ui-surfaces/src/client/SurfaceTabs.tsx',
-    includes: ['data-surfaces-tabs', "t('tab.close')"],
+    name: 'single visible right Sidebar navigation adapter',
+    file: 'packages/client/ui-surfaces/src/client/apply.ts',
+    includes: ['closeSurfaces', 'openInRightSidebar'],
   },
   {
     name: 'Files search work loop',
@@ -261,7 +256,6 @@ const NO_DRAG_FILES = [
   'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css',
   'packages/client/ui-sidebar/src/client/SidebarRoot.module.css',
   'packages/client/ui-subagent/src/client/SubagentHeaderLineage.module.css',
-  'packages/client/ui-surfaces/src/client/SurfaceTabs.module.css',
   'packages/client/ui-titlebar/src/client/PanelToggles.module.css',
   'packages/extensions/ui-cordis/src/client/CordisPanel.module.css',
 ];

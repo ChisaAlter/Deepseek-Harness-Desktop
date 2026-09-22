@@ -2808,61 +2808,6 @@ describe('FilePreview', () => {
     expect(toolbar?.textContent).toContain('src')
   })
 
-  it('opens an html file in the preview browser from the toolbar', async () => {
-    const previewWorkspaceFile = vi.fn(async () => ({
-      ok: true as const,
-      url: 'http://127.0.0.1:9/tok/index.html',
-    }))
-    ;(window as Window & { shell?: unknown }).shell = { previewWorkspaceFile }
-    const events: unknown[] = []
-    const onOpen = (event: Event): void => { events.push((event as CustomEvent).detail) }
-    window.addEventListener('dshd-open-surface', onOpen)
-    try {
-      render(
-        <FilePreview
-          usePanelInfo={panelInfoStub}
-          useResource={resourceStub}
-          sessionId={SID}
-          relativePath="index.html"
-          active
-          onDirtyChange={() => {}}
-          registerSave={() => {}}
-          readBuffer={() => undefined}
-          writeBuffer={() => {}}
-          useSession={neverHook}
-          useSessions={sel => sel(sessionList('/tmp/proj'))}
-          useWorkspaces={neverHook}
-          useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-          useInput={neverHook}
-          inputActions={undefined}
-          listDir={async () => ({ ok: false })}
-          readFile={async () => ({ ok: true, text: '<p>hi</p>', binary: false })}
-          readFileMedia={async () => ({ ok: false })}
-          mentionFile={() => {}}
-          writeFile={async () => ({ ok: true })}
-          t={t}
-        />,
-      )
-      fireEvent.click(await screen.findByRole('button', { name: 'Open in browser' }))
-      await waitFor(() => {
-        expect(previewWorkspaceFile).toHaveBeenCalledWith({
-          cwd: '/tmp/proj',
-          relativePath: 'index.html',
-        })
-        expect(events).toEqual([{ kind: 'preview', url: 'http://127.0.0.1:9/tok/index.html' }])
-      })
-      expect(sessionStorage.getItem('dshd-pending-preview-url')).toBe(
-        'http://127.0.0.1:9/tok/index.html',
-      )
-    } finally {
-      window.removeEventListener('dshd-open-surface', onOpen)
-      sessionStorage.removeItem('dshd-pending-preview-url')
-    }
-  })
-
   it('opens the current file in the desktop floating preview', async () => {
     const previewOpenFileWindow = vi.fn(async () => ({ ok: true as const }))
     ;(window as Window & { shell?: unknown }).shell = { previewOpenFileWindow }
@@ -2901,61 +2846,6 @@ describe('FilePreview', () => {
         relativePath: 'src/a.ts',
       })
     })
-  })
-
-  it('opens a pdf file in the preview browser from the toolbar', async () => {
-    const previewWorkspaceFile = vi.fn(async () => ({
-      ok: true as const,
-      url: 'http://127.0.0.1:9/tok/doc.pdf',
-    }))
-    ;(window as Window & { shell?: unknown }).shell = { previewWorkspaceFile }
-    const events: unknown[] = []
-    const onOpen = (event: Event): void => { events.push((event as CustomEvent).detail) }
-    window.addEventListener('dshd-open-surface', onOpen)
-    try {
-      render(
-        <FilePreview
-          usePanelInfo={panelInfoStub}
-          useResource={resourceStub}
-          sessionId={SID}
-          relativePath="doc.pdf"
-          active
-          onDirtyChange={() => {}}
-          registerSave={() => {}}
-          readBuffer={() => undefined}
-          writeBuffer={() => {}}
-          useSession={neverHook}
-          useSessions={sel => sel(sessionList('/tmp/proj'))}
-          useWorkspaces={neverHook}
-          useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-          useInput={neverHook}
-          inputActions={undefined}
-          listDir={async () => ({ ok: false })}
-          readFile={async () => ({ ok: true, text: '%PDF-1.4', binary: false })}
-          readFileMedia={async () => ({ ok: false })}
-          mentionFile={() => {}}
-          writeFile={async () => ({ ok: true })}
-          t={t}
-        />,
-      )
-      fireEvent.click(await screen.findByRole('button', { name: 'Open in browser' }))
-      await waitFor(() => {
-        expect(previewWorkspaceFile).toHaveBeenCalledWith({
-          cwd: '/tmp/proj',
-          relativePath: 'doc.pdf',
-        })
-        expect(events).toEqual([{ kind: 'preview', url: 'http://127.0.0.1:9/tok/doc.pdf' }])
-      })
-      expect(sessionStorage.getItem('dshd-pending-preview-url')).toBe(
-        'http://127.0.0.1:9/tok/doc.pdf',
-      )
-    } finally {
-      window.removeEventListener('dshd-open-surface', onOpen)
-      sessionStorage.removeItem('dshd-pending-preview-url')
-    }
   })
 
   it('scrolls the source textarea to a centered reveal line', async () => {

@@ -10,6 +10,7 @@ import { SurfacesToggleRow, TerminalToggleRow } from './PanelToggleRow.tsx'
 import { ChromeVisibility } from './chrome-visibility.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import {
   SURFACES_TOGGLE_FIELD, TERMINAL_TOGGLE_FIELD, TITLEBAR_SETTINGS_NAMESPACE,
   type TitlebarSettings,
@@ -29,6 +30,19 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services required by the titlebar plugin. */
 export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'settingsScope']
 
+/** The Sidebar write is best-effort: a composition without it keeps the settings row. */
+function toggleRightPanel(ctx: Context): void {
+  const sidebarRight = ctx.get('sidebarRight')
+  if (sidebarRight === undefined) return
+  try {
+    sidebarRight.toggleExpanded()
+  } catch (error) {
+    // A write before the session surface mounts has nothing to toggle.
+    if (error instanceof Error && error.message === 'sidebarRight: no session surface is mounted') return
+    throw error
+  }
+}
+
 /**
  * Register the dictionaries, inject the panel toggles at order 40, and
  * contribute the Interface Settings rows.
@@ -47,7 +61,7 @@ export function apply(ctx: Context): void {
     order: 40,
     locale: NS,
     inject: (): PanelTogglesInjected => ({
-      toggleSurfaces: () => { ctx.layout.toggleSurfaces() },
+      toggleRightPanel: () => { toggleRightPanel(ctx) },
       toggleTerminalDrawer: () => { ctx.layout.toggleTerminalDrawer() },
       hooks: {
         terminalToggle: terminalChrome.visible,

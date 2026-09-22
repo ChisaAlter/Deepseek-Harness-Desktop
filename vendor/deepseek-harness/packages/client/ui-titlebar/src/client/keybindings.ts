@@ -43,14 +43,17 @@ export function isTextEntryTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * True for Ctrl/Cmd+\\ (surfaces column).
+ * True for Ctrl/Cmd+\\ (right Sidebar).
  * @param event - keydown event.
- * @returns true when the surfaces column shortcut fired.
+ * @returns true when the right-panel shortcut fired.
  */
-export function isSurfacesShortcut(event: KeyboardEvent): boolean {
+export function isRightPanelShortcut(event: KeyboardEvent): boolean {
   if (!event.ctrlKey && !event.metaKey) return false
   return event.key === '\\' || event.code === 'Backslash'
 }
+
+/** @deprecated Kept for package-local callers during the rename. */
+export const isSurfacesShortcut = isRightPanelShortcut
 
 /**
  * True for Ctrl/Cmd+` (terminal drawer). `ui-user-terminal`'s

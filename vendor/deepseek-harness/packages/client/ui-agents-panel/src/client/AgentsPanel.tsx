@@ -13,7 +13,7 @@ export interface AgentsPanelInjected {
 }
 
 export type AgentsPanelProps =
-  & PropsRuntime<'surfaces.agents'>
+  & PropsRuntime<'sidebar.right.pane.tab'>
   & PropsLocale<typeof NS>
   & InjectFace<AgentsPanelInjected>
 
@@ -26,18 +26,14 @@ const JOB_STATUS_KEY = {
 } as const satisfies Record<JobView['status'], AgentsKey>
 
 /**
- * Current-session subagent occupant of `surfaces.agents`. Reads the existing
+ * Current-session subagent body of the right Sidebar. Reads the existing
  * session snapshot; it does not dispatch or spawn agents.
- * @param props - session-maybe seats, openAgent, and copy.
+ * @param props - session seats, openAgent, and copy.
  * @returns the agents surface.
  */
 export function AgentsPanel({ sessionId, useSessions, openAgent, t }: AgentsPanelProps): ReactNode {
   const agents = useSessions(state => listSessionAgents(state, sessionId))
-  const jobs = useSessions((state) => {
-    const id = sessionId ?? Object.values(state.byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
-    if (id === undefined) return []
-    return state.jobsBySession[id] ?? []
-  })
+  const jobs = useSessions(state => state.jobsBySession[sessionId] ?? [])
 
   return (
     <div className={css.root} data-agents-panel>

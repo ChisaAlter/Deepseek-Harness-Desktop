@@ -51,11 +51,20 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
     .join('\n');
   writeFile(root, 'packages/bundle/web-app/cordis.patch.yml', `- insert:\n${webRows}\n`);
   writeFile(root, 'packages/client/ui-layout/src/client/index.ts', [
+    "export interface TitlebarTrailingOwnerProps { rightbarShown: boolean }",
     "    'surfaces': { kind: 'single', scope: 'session-maybe' },",
     "    'shell.titlebar.trailing': { kind: 'list', scope: 'root' },",
     "    'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },",
     '',
   ].join('\n'));
+  writeFile(root, 'packages/client/ui-layout/src/client/AppFrame.tsx', 'rightbarShown: layoutInfo.rightbarShown,\n');
+  writeFile(root, 'packages/client/ui-surfaces/src/client/apply.ts', [
+    'ctx.layout.closeSurfaces()',
+    'openInRightSidebar',
+    '',
+  ].join('\n'));
+  writeFile(root, 'packages/client/ui-titlebar/src/client/apply.ts', 'sidebarRight.toggleExpanded()\n');
+  writeFile(root, 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', 'rightbarShown\n');
   writeFile(root, 'packages/client/ui-renderer/src/client/scoped-slots.tsx', [
     "  const scopedStoreBinding = scope === 'session-maybe' && scopeBinding?.key === undefined ? { key: '' } : scopeBinding",
     '',
@@ -108,7 +117,11 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'tsconfig.base.json': '{"paths":{"@deepseek-ai/dsh-host-mcp-servers":[],"@deepseek-ai/dsh-host-skill-inventory":[],"@deepseek-ai/dsh-llm-vision-fallback":[],"@deepseek-ai/dsh-mcp-servers-file":[]}}\n',
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
-      'packages/client/ui-surfaces/src/client/EmptyState.module.css': '.inner { max-width: 320px; }\n.card { aspect-ratio: 1 / 1; }\n',
+      'packages/client/ui-layout/src/client/index.ts': "rightbarShown: boolean\nsurfaces: { kind: 'single', scope: 'session-maybe' }\nshell.titlebar.trailing\nshell.terminalDrawer\n",
+      'packages/client/ui-layout/src/client/AppFrame.tsx': 'rightbarShown: layoutInfo.rightbarShown,\n',
+      'packages/client/ui-surfaces/src/client/apply.ts': 'ctx.layout.closeSurfaces()\nopenInRightSidebar\n',
+      'packages/client/ui-titlebar/src/client/apply.ts': 'sidebarRight.toggleExpanded()\n',
+      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'rightbarShown\n',
       'apps/web/tests/models-settings.e2e.ts': "await page.route('**/api/llm.discoverModels', async (route) => {\n",
       'apps/web/tests/composer-resize-dock.e2e.ts': "describe('desktop fork: input.dock panels follow the composer drag width', () => {\n",
       'apps/web/tsconfig.json': '{\n  "exclude": ["tests/composer-resize-dock.e2e.ts"]\n}\n',
@@ -134,6 +147,11 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/host/directory-picker/src/index.ts': "export const WINDOWS_VOLUME_ROOT = '\\\\.\\\\dsh-computer'\n",
       'packages/host/directory-picker-browse/src/index.ts': 'async function volumeListing() {}\nconst sentinel = WINDOWS_VOLUME_ROOT\n',
       'packages/host/directory-picker-browse/tests/service.spec.ts': 'WINDOWS_VOLUME_ROOT\n',
+      'packages/client/ui-layout/src/client/AppFrame.tsx': 'rightbarShown: layoutInfo.rightbarShown,\n',
+      'packages/client/ui-layout/src/client/index.ts': "rightbarShown: boolean\n    'surfaces': { kind: 'single', scope: 'session-maybe' },\n    'shell.titlebar.trailing': { kind: 'list', scope: 'root' },\n    'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },\n",
+      'packages/client/ui-surfaces/src/client/apply.ts': 'ctx.layout.closeSurfaces()\nopenInRightSidebar\n',
+      'packages/client/ui-titlebar/src/client/apply.ts': 'sidebarRight.toggleExpanded()\n',
+      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'rightbarShown\n',
     };
     writeFile(root, marker.file, content[marker.file] ?? 'export {}\n');
   }
@@ -165,11 +183,11 @@ test('assertDesktopForks throws when the header golden regains Session log', (t)
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /Session log/);
 });
 
-test('assertDesktopForks throws when the empty-state picker reverts to horizontal strips', (t) => {
+test('assertDesktopForks throws when the single right-panel contract regresses', (t) => {
   const root = makeFixture(t);
-  const cssPath = path.join(root, ...'packages/client/ui-surfaces/src/client/EmptyState.module.css'.split('/'));
-  fs.writeFileSync(cssPath, '.inner { width: 100%; max-width: 480px; }\n.card { min-height: 64px; }\n');
-  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /EmptyState\.module\.css no longer contains/);
+  const applyPath = path.join(root, ...'packages/client/ui-surfaces/src/client/apply.ts'.split('/'));
+  fs.writeFileSync(applyPath, "ctx.slots.inject('surfaces', () => {})\n");
+  assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /ui-surfaces\/src\/client\/apply\.ts no longer contains/);
 });
 
 test('assertDesktopForks throws when transparent theme markers drop', (t) => {

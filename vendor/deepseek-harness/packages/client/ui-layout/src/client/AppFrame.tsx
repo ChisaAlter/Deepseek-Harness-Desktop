@@ -486,6 +486,7 @@ export function AppFrame({
       >
         {renderSlot('shell.titlebar.trailing', {
           surfaces: layoutInfo.surfaces,
+          rightbarShown: layoutInfo.rightbarShown,
           terminalDrawer: layoutInfo.terminalDrawer,
           managedSession,
           density: titlebarDensity,

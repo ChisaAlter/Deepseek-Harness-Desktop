@@ -2,6 +2,9 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'type.label': '差异',
+  'guide.title': '工作区差异',
+  'guide.description': '查看当前会话工作区的 Git 变更。',
   'empty.cwd': '没有工作区，无法查看差异。',
   'empty.changes': '没有净变更。',
   'unavailable': '差异仅适用于 Git 仓库。',
@@ -29,6 +32,9 @@ export type DiffKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'type.label': 'Diff',
+  'guide.title': 'Workspace diff',
+  'guide.description': 'Review Git changes in this session workspace.',
   'empty.cwd': 'A workspace is required to review diffs.',
   'empty.changes': 'No net changes in this selection.',
   'unavailable': 'Diff is only available in Git repositories.',

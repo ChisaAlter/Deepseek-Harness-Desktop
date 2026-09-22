@@ -130,6 +130,7 @@ function mount(opts: {
       usePanelInfo={panelInfoStub}
       useResource={resourceStub}
       surfaces={0}
+      rightbarShown={false}
       terminalDrawer={0}
       managedSession={opts.managedSession ?? false}
       {...(opts.density === undefined ? {} : { density: opts.density })}
@@ -343,6 +344,7 @@ describe('GitActionsControl', () => {
       gitCreateBranch: vi.fn(async () => ({ ok: true })),
       onGitProgress: vi.fn(() => () => {}),
       onWorkspacesChanged: vi.fn(() => () => {}),
+      rightbarShown: false,
       openExternal: vi.fn(async () => true),
       openWorkspacePath: vi.fn(async () => ({ ok: true })),
       useTitlebarGit: sel => sel(true),
@@ -460,6 +462,7 @@ describe('GitActionsControl', () => {
         usePanelInfo={panelInfoStub}
         useResource={resourceStub}
         surfaces={0}
+        rightbarShown={false}
         terminalDrawer={0}
         managedSession={false}
         useSessions={useSessionsStub(sessionList(undefined))}

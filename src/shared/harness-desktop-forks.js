@@ -118,10 +118,13 @@ const FORK_FILE_MARKERS = [
   // Desktop fork: the shipped web-app composition carries the browse rows, so
   // the scaffold's upstream -auto disable+insert pair must stay removed (it
   // duplicates the shipped client browse row and fails every boot sweep).
-  // Right-column empty-state picker: square tiles (docs/design-language.md,
-  // Layout paragraph). Upstream ships horizontal strips; keep the tile
-  // geometry so a sync resolved towards upstream cannot silently revert it.
-  { file: 'packages/client/ui-surfaces/src/client/EmptyState.module.css', includes: ['max-width: 320px', 'aspect-ratio: 1 / 1'] },
+  // Desktop keeps the upstream rightbar and leaves the legacy surfaces track
+  // dormant. The titlebar consumes the owner fact instead of reopening it.
+  { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['rightbarShown: boolean'] },
+  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['rightbarShown: layoutInfo.rightbarShown'] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['closeSurfaces', 'openInRightSidebar'], excludes: ["name: 'surfaces'", 'openSurfaces()'] },
+  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['toggleExpanded'], excludes: ['layout.toggleSurfaces'] },
+  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['rightbarShown'] },
   { file: 'apps/web/tests/scaffold.ts', excludes: ['directory-picker-browse'] },
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
   // Desktop fork: input.dock panels follow the drag-resized composer card.

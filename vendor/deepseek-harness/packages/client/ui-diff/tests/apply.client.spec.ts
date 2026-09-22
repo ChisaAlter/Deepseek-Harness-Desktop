@@ -1,71 +1,101 @@
-/** Diff plugin injects the panel into surfaces.diff. */
+/**
+ * The diff page type's registrations, and their removal when the plugin goes.
+ *
+ * The registry is real; the slot and locale services are recorders, because
+ * what matters is the keyed body under the definition's id, the guide entry,
+ * and that disposal leaves neither a type nor a seat behind.
+ */
 import { Context } from '@deepseek-ai/cordis'
-import { describe, expect, it } from 'vitest'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
-import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { apply, inject } from '../src/client/index.ts'
-import { DiffPanel } from '../src/client/DiffPanel.tsx'
-import type { DiffShellInjected } from '../src/client/shell.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { SidebarRightTabRegistry } from '../../ui-sidebar-right/src/client/tab-registry.ts'
+import { DIFF_ID, DIFF_KIND, apply, inject } from '../src/client/index.ts'
+import { DiffPanel, type DiffPanelInjected } from '../src/client/DiffPanel.tsx'
+import { en, zh } from '../src/client/locales.ts'
 
-function declare(slots: SlotRegistry): () => void {
-  return slots.register({
-    name: 'root',
-    children: {
-      'surfaces.diff': { kind: 'single', scope: 'session-maybe' },
-    },
-  } as never, () => null)
+interface Recorded {
+  name: string
+  key: string
+  locale: string
+  inject: (sessionId: string) => DiffPanelInjected
+  component: unknown
 }
 
-async function bench() {
+async function boot() {
   const ctx = new Context()
-  await ctx.plugin(SlotRegistry).await()
-  const slots = ctx.get('slots') as SlotRegistry
-  const declaration = declare(slots)
-  ctx.provide('locale', new LocaleRuntime(ctx))
+  const tabs = new SidebarRightTabRegistry(ctx)
+  const injectedSlots: string[] = []
+  const registered: Recorded[] = []
+  const slots = {
+    inject: vi.fn((name: string, register: () => () => void) => {
+      injectedSlots.push(name)
+      return register()
+    }),
+    register: vi.fn((options: Omit<Recorded, 'component'>, component: unknown) => {
+      const entry = { ...options, component }
+      registered.push(entry)
+      return () => { registered.splice(registered.indexOf(entry), 1) }
+    }),
+  }
+  const dictionaries = new Map<string, unknown>()
+  const locale = {
+    bind: vi.fn(() => (key: string) => key),
+    register: vi.fn((ns: string, dicts: unknown) => {
+      dictionaries.set(ns, dicts)
+      return () => { dictionaries.delete(ns) }
+    }),
+  }
+  const sessions = {
+    list: {
+      getSnapshot: () => ({
+        byId: { 'session-diff': { cwd: '/tmp/repo' } },
+      }),
+    },
+  }
+  const openPath = vi.fn(async () => {})
+  ctx.provide('sidebarRightTabs', tabs as never)
+  ctx.provide('slots', slots as never)
+  ctx.provide('locale', locale as never)
+  ctx.provide('sessions', sessions as never)
+  ctx.provide('workspaces', { openPath } as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber }
+  return { tabs, injectedSlots, registered, dictionaries, openPath, fiber }
 }
 
 describe('ui-diff apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale'])
+    expect(inject).toEqual(['slots', 'locale', 'sidebarRightTabs', 'sessions', 'workspaces'])
   })
 
-  it('injects DiffPanel into surfaces.diff', async () => {
-    const b = await bench()
-    expect(b.slots.entries('surfaces.diff')[0]?.component).toBe(DiffPanel)
-    await b.fiber.dispose()
-    expect(b.slots.entries('surfaces.diff')).toHaveLength(0)
+  it('registers the type, guide, dictionaries, and keyed body under the definition id', async () => {
+    const b = await boot()
+    const definition = b.tabs.get(DIFF_KIND)
+    expect(definition?.id).toBe(DIFF_ID)
+    expect(definition?.priority).toBe('extension')
+    expect(definition?.title('sidebar://diff')).toBe('type.label')
+    expect(definition?.guide?.map(entry => [entry.order, entry.title(), entry.description?.()]))
+      .toEqual([[30, 'guide.title', 'guide.description']])
+    expect(b.dictionaries.get('diff')).toEqual({ zh, en })
+    expect(b.registered.map(entry => [entry.name, entry.key, entry.locale, entry.component])).toEqual([
+      ['sidebar.right.pane.tab', DIFF_ID, 'diff', DiffPanel],
+    ])
+    expect(b.injectedSlots).toEqual(['sidebar.right.pane.tab'])
+    expect(b.injectedSlots.some(name => name.startsWith('surfaces.'))).toBe(false)
   })
 
-  it('re-registers after the declaring slot collapses and returns', async () => {
-    const b = await bench()
-    b.declaration()
-    expect(b.slots.entries('surfaces.diff')).toHaveLength(0)
-    const redeclare = declare(b.slots)
-    await Promise.resolve()
-    expect(b.slots.entries('surfaces.diff')[0]?.component).toBe(DiffPanel)
-    redeclare()
+  it('opens a diff path through the tab session workspace opener', async () => {
+    const b = await boot()
+    const injected = b.registered[0]!.inject('session-diff')
+    await injected.openFile('README.md')
+    expect(b.openPath).toHaveBeenCalledWith('/tmp/repo/README.md', { sessionId: 'session-diff' })
     await b.fiber.dispose()
   })
 
-  it('binds missing-shell git fallbacks', async () => {
-    const b = await bench()
-    const injected = (b.slots.entries('surfaces.diff')[0]?.inject as unknown as () => DiffShellInjected)()
-    await expect(injected.gitStatus('/tmp')).resolves.toBeNull()
-    await expect(injected.gitDiff('/tmp')).resolves.toBeNull()
-    await expect(injected.gitStatusEntries('/tmp')).resolves.toBeNull()
-    await expect(injected.gitStage('/tmp', 'a.ts')).resolves.toEqual({
-      ok: false, message: 'Git status is unavailable.',
-    })
-    await expect(injected.gitUnstage('/tmp', 'a.ts')).resolves.toEqual({
-      ok: false, message: 'Git status is unavailable.',
-    })
-    await expect(injected.gitDiscard('/tmp', 'a.ts')).resolves.toEqual({
-      ok: false, message: 'Git status is unavailable.',
-    })
-    await expect(injected.gitBranchList('/tmp')).resolves.toBeNull()
+  it('takes every registration back when the plugin is disposed', async () => {
+    const b = await boot()
     await b.fiber.dispose()
+    expect(b.tabs.get(DIFF_KIND)).toBeUndefined()
+    expect(b.registered).toEqual([])
+    expect(b.dictionaries.size).toBe(0)
   })
 })

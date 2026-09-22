@@ -127,11 +127,11 @@ function looksBinary(buf) {
   return false;
 }
 
-async function readFile(cwd, relativePath) {
+async function readFileUsing(authorityForRead, cwd, relativePath) {
   if (typeof relativePath !== 'string' || relativePath.trim() === '') {
     return fail('File path is required.');
   }
-  const target = resolveInside(cwd, relativePath);
+  const target = authorityForRead.resolveInside(cwd, relativePath);
   if (!target) return fail('Path is outside the workspace.');
   let stat;
   try {
@@ -162,6 +162,23 @@ async function readFile(cwd, relativePath) {
     return { ok: true, binary: true, text: '', truncated };
   }
   return { ok: true, binary: false, text: buf.toString('utf8'), truncated };
+}
+
+async function readFile(cwd, relativePath) {
+  return readFileUsing(authority(), cwd, relativePath);
+}
+
+/**
+ * Main-process only: a bounded reader bound to a preview-scoped authority, so
+ * the native preview can read the Host scratch root without widening the
+ * ordinary read/write IPC authority.
+ * @param {{ resolveInside: Function, resolveAuthorizedCwd: Function }} authorityForRead
+ * @returns {{ readFile: (cwd: string, relativePath: string) => Promise<object> }}
+ */
+function createWorkspaceFileReader(authorityForRead) {
+  return {
+    readFile: (cwd, relativePath) => readFileUsing(authorityForRead, cwd, relativePath),
+  };
 }
 
 async function readFileMedia(cwd, relativePath) {
@@ -247,6 +264,7 @@ async function writeFile(cwd, relativePath, text) {
 module.exports = {
   listDir,
   readFile,
+  createWorkspaceFileReader,
   readFileMedia,
   writeFile,
   setWorkspaceAuthority,

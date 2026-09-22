@@ -1,7 +1,11 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
+const { createWorkspaceAuthority } = require('./workspace-authority');
 const {
   FILE_PREVIEW_STATE_CHANNEL,
   previewFileKind,
@@ -128,4 +132,90 @@ test('binary text fallback opens an explicit unsupported state', async () => {
   const state = await ipcMain.handlers.get(FILE_PREVIEW_STATE_CHANNEL)({ sender: win.webContents });
   assert.equal(state.kind, 'unsupported');
   assert.match(state.message, /binary file/);
+});
+
+test('file preview reuses one window across files and replaces it after close', async () => {
+  const ipcMain = fakeIpcMain();
+  const windows = [];
+  const controller = createFilePreviewWindowController({
+    ipcMain,
+    workspacePreview: {
+      async fileUrl(input) {
+        return { ok: true, url: `http://127.0.0.1:9/token/${input.relativePath}` };
+      },
+    },
+    readFile: async () => ({ ok: true, text: 'text' }),
+    createWindow() {
+      const win = fakeWindow();
+      windows.push(win);
+      return win;
+    },
+    getTheme: () => ({ scheme: 'light' }),
+    getLocale: () => 'en',
+    preloadPath: 'preview-preload.js',
+    htmlPath: 'preview.html',
+  });
+
+  await controller.open({ cwd: '/repo', relativePath: 'one.html' });
+  await controller.open({ cwd: '/repo', relativePath: 'two.txt' });
+  assert.equal(windows.length, 1);
+  assert.equal(windows[0].calls.filter(call => call[0] === 'load').length, 2);
+  await controller.close();
+  assert.equal(windows[0].isDestroyed(), true);
+  await controller.open({ cwd: '/repo', relativePath: 'three.txt' });
+  assert.equal(windows.length, 2);
+});
+
+test('file preview normalizes an absolute target and reads scratch text', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-preview-window-'));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-preview-window-scratch-'));
+  try {
+    const absolute = path.join(root, 'note.txt');
+    fs.writeFileSync(absolute, 'hello\n');
+    const authority = createWorkspaceAuthority({ workspace: root, extraWorkspaces: [scratch] });
+    const ipcMain = fakeIpcMain();
+    const windows = [];
+    const reads = [];
+    const urls = [];
+    const controller = createFilePreviewWindowController({
+      ipcMain,
+      authority,
+      workspacePreview: {
+        async fileUrl(input) {
+          urls.push(input);
+          return { ok: true, url: `http://127.0.0.1:9/token/${input.relativePath}` };
+        },
+      },
+      async readFile(cwd, relativePath) {
+        reads.push([cwd, relativePath]);
+        return { ok: true, text: 'hello\n' };
+      },
+      createWindow() {
+        const win = fakeWindow();
+        windows.push(win);
+        return win;
+      },
+      getTheme: () => ({ scheme: 'light' }),
+      getLocale: () => 'en',
+      preloadPath: 'preview-preload.js',
+      htmlPath: 'preview.html',
+    });
+
+    // Absolute targets are rebased onto the most specific authorized root.
+    await controller.open({ absolutePath: absolute });
+    assert.deepEqual(urls[0], { ok: true, cwd: root, relativePath: 'note.txt' });
+
+    const scratchFile = path.join(scratch, 'scratch.txt');
+    fs.writeFileSync(scratchFile, 'scratch\n');
+    await controller.open({ absolutePath: scratchFile });
+    assert.deepEqual(urls[1], { ok: true, cwd: scratch, relativePath: 'scratch.txt' });
+    assert.deepEqual(reads, [
+      [root, 'note.txt'],
+      [scratch, 'scratch.txt'],
+    ]);
+    assert.equal(windows.length, 1);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
 });
