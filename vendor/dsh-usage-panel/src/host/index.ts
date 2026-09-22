@@ -11,6 +11,12 @@
 // Reads are served with stale-while-revalidate: fresh for 10 minutes; older
 // payloads return instantly with `stale: true` while a background rescan
 // refreshes; the refresh button forces a synchronous scan. Read-only.
+//
+// User PRICES are the one thing this plugin writes, and they are written into
+// the harness conversation settings section (`ui-conversation.sessionCostPrices`,
+// see prices-source.ts) — the record the composer cost strip reprices from. The
+// plugin's own storage domain is retired to a one-time legacy import
+// (legacy-billing-import.ts).
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionRecord } from '@deepseek-ai/dsh-session-query'
 import type { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
@@ -43,10 +49,13 @@ import { usagePanelProjectionDefinition } from './projection-unit.ts'
 import { USAGE_PANEL_KEY, type UsagePanelState } from './projection.ts'
 import { scanFallback } from './scan.ts'
 import { BillingStore, openBillingMedium } from './billing-store.ts'
+import { createLegacyBillingImport } from './legacy-billing-import.ts'
+import { CONVERSATION_SETTINGS_NS, createPricesSource } from './prices-source.ts'
+import { createPricesRepair } from './prices-repair.ts'
 import { repairSessionLog, resolveDshHome, runtimeCodec } from './session-repair.ts'
 import { openStatsCache, statsCacheKey, type StatsCache } from './stats-cache.ts'
 import { scanPacer, withTimeout } from './pacing.ts'
-import type { HostConnection, HostLlm, HostProjectionCache, HostSessionQuery, LlmProviderInfoLike } from './types.ts'
+import type { HostConnection, HostLlm, HostProjectionCache, HostSessionQuery, HostSettings, HostSettingsEventSource, LlmProviderInfoLike } from './types.ts'
 
 export const name = 'dsh-usage-panel'
 export const inject = [
@@ -55,6 +64,7 @@ export const inject = [
   'sessionProjections',
   'sessionQuery',
   'sessionProjectionCache',
+  'settings',
 ]
 
 /**
@@ -140,14 +150,50 @@ export function apply(ctx: Context): void {
     statsCache = cache
   })
 
-  // Billing preferences: plugin-owned JSON via storageDomain when the
-  // facility is present (its activation precedes ours through
-  // sessionProjectionCache), fail-soft to memory otherwise. The medium
-  // attaches async at boot; the store serves memory until then, so the RPC
-  // never waits on the domain.
-  const billingStore = new BillingStore(undefined, (message) => console.warn(tag, message))
+  // Prices: the ONE record is the harness conversation settings section
+  // `ui-conversation.sessionCostPrices` — the same one the composer cost strip
+  // reprices from. The section is registered by the harness conversation plugin
+  // and may appear after this one, so reads tolerate an unregistered section
+  // (the snapshot re-checks until it exists) while writes reject.
+  const settings = ctx.get('settings') as unknown as HostSettings
+  const pricesSource = createPricesSource(settings, (message) => console.warn(tag, message))
+  // The harness commits section changes through this event; adopting the value
+  // it carries keeps the host-side cost ranking correct after any edit without
+  // a re-read per page.
+  ;(ctx as unknown as HostSettingsEventSource).on('settings/updated', (ns, next) => {
+    if (String(ns) === CONVERSATION_SETTINGS_NS) pricesSource.adoptSection(next)
+  })
+
+  // One-time repair of records written by the retired 峰谷计价-OFF path (a
+  // `flat: true` entry with no `idle` column bills the entered price at half
+  // off-peak, because the harness reads the top-level triple as the PEAK
+  // column). Same gating as the legacy import: it defers while the section is
+  // unregistered and the next `billing.get` retries, and it never throws here.
+  const pricesRepair = createPricesRepair({
+    prices: pricesSource,
+    warn: (message) => console.warn(tag, message),
+    log: (message) => console.log(tag, message),
+  })
+  // Startup attempt: usually deferred, because the section is registered by the
+  // harness conversation plugin, which may apply after this one.
+  void pricesRepair.attempt()
+
+  // The plugin's own price domain is retired: it is read ONCE by the legacy
+  // import (see legacy-billing-import.ts) and never written again. Its medium
+  // attaches asynchronously; the import refuses to read before that (a
+  // memory-phase read caches "no prices" and would complete the import early).
+  const legacyStore = new BillingStore(undefined, (message) => console.warn(tag, message))
+  const legacyImport = createLegacyBillingImport({
+    store: legacyStore,
+    prices: pricesSource,
+    warn: (message) => console.warn(tag, message),
+    log: (message) => console.log(tag, message),
+  })
   openBillingMedium(ctx.get('storageDomain') as never, (message) => console.warn(tag, message)).then((medium) => {
-    if (medium) billingStore.attachMedium(medium)
+    if (medium) legacyStore.attachMedium(medium)
+    // Gate attempt: the section may be unregistered here, in which case the
+    // import defers and the next billing.get retries it.
+    return legacyImport.attempt()
   })
 
   function logFailure(message: string): void {
@@ -512,11 +558,15 @@ export function apply(ctx: Context): void {
 
   const PAGE_SIZE = 10
 
-  /** Current billing record for host-side cost ranking (freshened on edits). */
-  let billingSnapshot: BillingSettings = { ...DEFAULT_BILLING_SETTINGS }
-  billingStore.load().then((s) => {
-    billingSnapshot = s
-  }).catch(() => {})
+  /**
+   * Current billing settings in the wire shape. The record itself is the
+   * conversation section's `sessionCostPrices`; peak/valley pricing is a
+   * harness-side constant now (the section has no switch for it), so it always
+   * reads ON and the client's switch renders as fixed.
+   */
+  function billingSettings(): BillingSettings {
+    return { prices: pricesSource.snapshot(), peakValleyEnabled: true }
+  }
 
   const sortOf = (payload: Partial<PageRequest> | undefined): 'tokens' | 'cost' => payload?.sort ?? 'tokens'
 
@@ -524,7 +574,7 @@ export function apply(ctx: Context): void {
   async function sessionsMore(payload: Partial<PageRequest> | undefined): Promise<SessionPage> {
     const offset = Math.max(0, payload?.offset ?? 0)
     const sort = sortOf(payload)
-    const ranked = rankSessionsBy(sessionIndex, sort, billingSnapshot.prices, billingSnapshot.peakValleyEnabled)
+    const ranked = rankSessionsBy(sessionIndex, sort, pricesSource.snapshot(), true)
     const { rows, hasMore } = pageOf(ranked, offset, PAGE_SIZE)
     const titles = new Map<string, string | null>()
     await Promise.all(
@@ -553,7 +603,7 @@ export function apply(ctx: Context): void {
   /** Next page of the project (= working directory) ranking. */
   async function projectsMore(payload: Partial<PageRequest> | undefined): Promise<ProjectPage> {
     const offset = Math.max(0, payload?.offset ?? 0)
-    const all = projectRowsOf(sessionIndex, sortOf(payload), billingSnapshot.prices, billingSnapshot.peakValleyEnabled)
+    const all = projectRowsOf(sessionIndex, sortOf(payload), pricesSource.snapshot(), true)
     const { rows, hasMore } = pageOf(all, offset, PAGE_SIZE)
     return { rows, hasMore }
   }
@@ -665,24 +715,31 @@ export function apply(ctx: Context): void {
           )
         }
         if (endpoint === RPC_BILLING_GET) {
-          return billingStore.load().then(
-            (value) => ({ ok: true, value }),
-            (err) => ({
-              ok: false,
-              error: {
-                code: 'internal',
-                message: String((err as Error)?.message ?? err),
-                details: {},
-              },
-            }),
-          )
+          // The one-time legacy import rides this call: it is the read the price
+          // UI makes, and a deferred precondition must be retried on a later one
+          // (the section registers and the domain attaches asynchronously). The
+          // flat-record section repair needs the same retry, for the same reason.
+          return legacyImport
+            .attempt()
+            .then(() => pricesRepair.attempt())
+            .then(
+              () => ({ ok: true, value: billingSettings() }),
+              (err) => ({
+                ok: false,
+                error: {
+                  code: 'internal',
+                  message: String((err as Error)?.message ?? err),
+                  details: {},
+                },
+              }),
+            )
         }
         if (endpoint === RPC_BILLING_SET) {
-          return billingStore.save((payload ?? { ...DEFAULT_BILLING_SETTINGS }) as BillingSettings).then(
-            (value) => {
-              billingSnapshot = value
-              return { ok: true, value }
-            },
+          // Write-through to the conversation settings section (the plugin's own
+          // domain is retired); peak/valley stays a constant in the response.
+          const next: BillingSettings = { ...DEFAULT_BILLING_SETTINGS, ...((payload ?? {}) as BillingSettings) }
+          return pricesSource.save(next.prices).then(
+            () => ({ ok: true, value: billingSettings() }),
             (err) => ({
               ok: false,
               error: {

@@ -6,8 +6,15 @@
 // unknown model starts empty with a "set your own price" hint. 保存 commits
 // ONLY the selected model: values equal to the default remove any custom
 // override (revert to official), edited values are stored as a custom
-// override; every other model's stored override is preserved. There is no
-// configured-list and no per-model flat switch — peak/valley is global.
+// override; every other model's stored override is preserved.
+//
+// The 峰谷计价 switch is PER MODEL and its state is seeded from the saved
+// record (`billing-buffer.ts`), never defaulted on: the main row is labelled
+// 空闲价格 while it is on and 价格 while it is off. With it OFF the entered
+// price is persisted in BOTH columns plus the plugin's own `flat` marker —
+// the harness reads the top-level triple as the PEAK column and halves it when
+// no `idle` column exists, so a flat record without `idle` bills half in
+// off-peak hours.
 import * as React from 'react'
 import { Modal, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { I18n } from './locales.ts'
@@ -15,14 +22,11 @@ import type { RpcLike } from './ctx.ts'
 import { type BillingModelOption, type BillingModelOptions, type BillingSettings } from '../shared/contract.ts'
 import type { SessionCostPrices } from '../shared/pricing.ts'
 import {
-  DEEPSEEK_OFFICIAL_PRICES,
-  OFFICIAL_PRICES_AS_OF,
-  OFFICIAL_PRICES_SOURCE,
   compositePriceKey,
-  priceText,
   resolveModelPrice,
 } from '../shared/pricing.ts'
 import { callBillingGet, callBillingModels, callBillingSet } from './api.ts'
+import { EMPTY_BUFFER, seedPriceBuffer, type PriceBuffer } from './billing-buffer.ts'
 import { currentBilling, publishBilling } from './billing-bus.ts'
 
 export interface BillingSettingsModalProps {
@@ -30,26 +34,6 @@ export interface BillingSettingsModalProps {
   i18n: I18n
   open: boolean
   onClose: () => void
-}
-
-interface PriceBuffer {
-  hit: string
-  miss: string
-  out: string
-  idleChecked: boolean
-  idleHit: string
-  idleMiss: string
-  idleOut: string
-}
-
-const EMPTY_BUFFER: PriceBuffer = {
-  hit: '',
-  miss: '',
-  out: '',
-  idleChecked: false,
-  idleHit: '',
-  idleMiss: '',
-  idleOut: '',
 }
 
 function rowKey(provider: string, model: string): string {
@@ -65,26 +49,6 @@ function validPrice(value: string): boolean {
 /** The default price of a model: the official column when known, else null. */
 function defaultPrice(provider: string, model: string): ReturnType<typeof resolveModelPrice> {
   return resolveModelPrice(provider, model, {})
-}
-
-function bufferFromCustom(custom: SessionCostPrices[string] | undefined): PriceBuffer {
-  if (custom === undefined) return { ...EMPTY_BUFFER }
-  const peak = { hit: String(custom.inputCacheHit), miss: String(custom.inputCacheMiss), out: String(custom.output) }
-  const half = (n: number): string => String(n / 2)
-  // The MAIN row is 空闲价格: the explicit idle column when present, the flat
-  // price when flat, else the derived half-peaks (legacy single-price entries).
-  const idle = custom.idle !== undefined
-    ? { hit: String(custom.idle.inputCacheHit), miss: String(custom.idle.inputCacheMiss), out: String(custom.idle.output) }
-    : custom.flat === true
-      ? peak
-      : { hit: half(custom.inputCacheHit), miss: half(custom.inputCacheMiss), out: half(custom.output) }
-  return {
-    ...peak,
-    idleChecked: true,
-    idleHit: idle.hit,
-    idleMiss: idle.miss,
-    idleOut: idle.out,
-  }
 }
 
 /**
@@ -204,38 +168,36 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
     return option ? option.models : []
   }, [providerOptions, providerId])
 
-  /** Load the selected model into the buffer: custom override, else the
-   *  official default (peak and idle columns BOTH shown, idle auto-opened),
-   *  else empty (unknown model — user sets a price). */
+  /** Load the selected model into the buffer. The switch state and every
+   *  prefilled row come from the saved record — a model the user saved with
+   *  峰谷计价 OFF reopens OFF — falling back to the official peak + idle
+   *  columns (both shown, switch on) and then to empty (unknown model, one
+   *  price to enter). See `billing-buffer.ts` for the seeding rules. */
   const selectModel = (provider: string, model: string): void => {
     setProviderId(provider)
     setModelName(model)
     setEditError(null)
     const custom = settings?.prices[rowKey(provider, model)] ?? settings?.prices[model]
-    if (custom !== undefined) {
-      setBuffer(bufferFromCustom(custom))
-      return
-    }
-    const def = defaultPrice(provider, model)
-    if (def !== null) {
-      // Peak/valley-capable model: open the idle column AND prefill the
-      // official idle prices, so both periods are visible immediately.
-      setBuffer({
-        hit: String(def.peak.inputCacheHit),
-        miss: String(def.peak.inputCacheMiss),
-        out: String(def.peak.output),
-        idleChecked: true,
-        idleHit: String(def.idle.inputCacheHit),
-        idleMiss: String(def.idle.inputCacheMiss),
-        idleOut: String(def.idle.output),
-      })
-      return
-    }
-    setBuffer({ ...EMPTY_BUFFER })
+    setBuffer(seedPriceBuffer(custom, defaultPrice(provider, model)))
   }
 
+  // The model dropdown has no placeholder, so the form must never sit on an
+  // empty selection: once the provider directory (or the selected provider)
+  // arrives, land on that provider's first model THROUGH selectModel — setting
+  // modelName alone would fill the dropdown and leave every price input blank.
+  // Idempotent (it only ever fires while modelName is empty) and guarded: a
+  // provider with NO models — the synthesized `(unknown)` provider built from
+  // stored custom prices, or a failed/timed-out `listModels` — leaves the form
+  // empty, which is the reachable case `commitModel` still handles.
+  React.useEffect(() => {
+    if (!open || modelName !== '' || providerId === '') return
+    const first = providerModels[0]
+    if (first === undefined) return
+    selectModel(providerId, first)
+  }, [open, modelName, providerId, providerModels])
+
   /** Toggle per-model 峰谷计价: ON shows the 高峰价格 row, OFF bills both
-   *  periods at the entered 空闲价格 (flat). Opening prefills the peak row as
+   *  periods at the entered single (价格) row. Opening prefills the peak row as
    *  twice the idle values when the peak fields are empty. */
   const toggleIdle = (checked: boolean): void => {
     if (!checked) {
@@ -252,16 +214,26 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
     })
   }
 
+  /** Switch provider and land on its first model (the dropdown has no
+   *  placeholder). A provider with no models — `(unknown)`, an empty adapter
+   *  directory — keeps the form empty instead of forcing a model that does not
+   *  exist, which is what leaves `commitModel`'s no-model branch reachable. */
   const switchProvider = (provider: string): void => {
-    setProviderId(provider)
-    setModelName('')
-    setBuffer({ ...EMPTY_BUFFER })
+    const first = providerOptions.find((p) => p.provider === provider)?.models[0]
     setEditError(null)
+    if (first === undefined) {
+      setProviderId(provider)
+      setModelName('')
+      setBuffer({ ...EMPTY_BUFFER })
+      return
+    }
+    selectModel(provider, first)
   }
 
   /** Commit the selected model; values equal to the default revert it to
    *  the official column (no custom record), edited values override. With no
-   *  model selected, 保存 simply persists the switch settings (no forced pick).
+   *  model selected — the only remaining cause is a provider that has none — 保存
+   *  simply persists the switch settings (no forced pick).
    *  @param close - true = also close the modal (footer 保存); false = stay open (添加/更新). */
   const commitModel = (close: boolean): void => {
     if (settings === null) return
@@ -313,18 +285,25 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
         idle: { inputCacheHit: Number(buffer.idleHit), inputCacheMiss: Number(buffer.idleMiss), output: Number(buffer.idleOut) },
       }
     } else {
-      // 峰谷计价 OFF: the main (空闲价格) row IS the single flat price.
+      // 峰谷计价 OFF: the single (价格) row IS the one price for both periods.
       if (!validPrice(buffer.idleHit) || !validPrice(buffer.idleMiss) || !validPrice(buffer.idleOut)) {
-        setSaveError(t('billing.err.invalidIdle', { key: modelName }))
+        setSaveError(t('billing.err.invalidSingle', { key: modelName }))
         return
       }
       delete prices[modelName]
-      prices[key] = {
+      const flat = {
         inputCacheHit: Number(buffer.idleHit),
         inputCacheMiss: Number(buffer.idleMiss),
         output: Number(buffer.idleOut),
-        flat: true,
       }
+      // WRITE BOTH COLUMNS. The harness has no `flat` field: it reads the three
+      // top-level numbers as the PEAK column and derives the off-peak charge as
+      // HALF of them when `idle` is absent — so the old flat-only record billed
+      // the entered price at half in off-peak hours. Persisting the same triple
+      // as an explicit idle column makes every reader (the composer strip, this
+      // plugin's cost math, this modal on reopen) agree that both periods bill
+      // that price; `flat` stays as this plugin's own switch marker.
+      prices[key] = { ...flat, idle: { ...flat }, flat: true }
     }
     setSaving(true)
     setSaveError(null)
@@ -384,7 +363,6 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
               value={modelName}
               onChange={(e) => selectModel(providerId, e.target.value)}
             >
-              <option value="">{t('billing.pickModel')}</option>
               {providerModels.map((model) => (
                 <option key={model} value={model}>
                   {model}
@@ -403,7 +381,13 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
           )}
         </div>
         <div className="dsw-ust-bill-prices" data-period="idle">
-          <span className="dsw-ust-bill-period is-idle">{t('billing.periodIdle')}</span>
+          {/* The main row is the OFF-PEAK column only while the switch is on;
+              with it off this is the one price that bills both periods, so it
+              is labelled 价格 and drops the green `is-idle` colour — green
+              claims "off-peak", a period this row does not name. */}
+          <span className={buffer.idleChecked ? 'dsw-ust-bill-period is-idle' : 'dsw-ust-bill-period'}>
+            {buffer.idleChecked ? t('billing.periodIdle') : t('billing.periodSingle')}
+          </span>
           <PriceInput label={t('billing.hit')} value={buffer.idleHit} onChange={(v) => setBuffer({ ...buffer, idleHit: v })} />
           <PriceInput label={t('billing.miss')} value={buffer.idleMiss} onChange={(v) => setBuffer({ ...buffer, idleMiss: v })} />
           <PriceInput label={t('billing.out')} value={buffer.idleOut} onChange={(v) => setBuffer({ ...buffer, idleOut: v })} />
@@ -424,44 +408,6 @@ export function BillingSettingsModal({ rpc, i18n, open, onClose }: BillingSettin
         {updated !== null && <div className="dsw-ust-bill-error is-ok">{updated}</div>}
         {editError !== null && <div className="dsw-ust-bill-error">{editError}</div>}
       </section>
-
-      <div className="dsw-ust-bill-divider" />
-
-      <details className="dsw-ust-bill-ref">
-        <summary>{t('billing.refTitle')}</summary>
-        <div className="dsw-ust-bill-ref-note">
-          {t('billing.refAsOf', { date: OFFICIAL_PRICES_AS_OF })} ·{' '}
-          <a href={OFFICIAL_PRICES_SOURCE} target="_blank" rel="noreferrer">
-            {t('billing.refSource')}
-          </a>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>{t('billing.refModel')}</th>
-              <th>{t('billing.colHit')}</th>
-              <th>{t('billing.colMiss')}</th>
-              <th>{t('billing.colOutput')}</th>
-            </tr>
-            <tr className="dsw-ust-bill-ref-subhead">
-              <th></th>
-              <th>{t('billing.peakIdle')}</th>
-              <th>{t('billing.peakIdle')}</th>
-              <th>{t('billing.peakIdle')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {DEEPSEEK_OFFICIAL_PRICES.map((entry) => (
-              <tr key={entry.model}>
-                <td>{entry.model}</td>
-                <td>{priceText(entry.price.inputCacheHit.peak)} / {priceText(entry.price.inputCacheHit.idle)}</td>
-                <td>{priceText(entry.price.inputCacheMiss.peak)} / {priceText(entry.price.inputCacheMiss.idle)}</td>
-                <td>{priceText(entry.price.output.peak)} / {priceText(entry.price.output.idle)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
 
       {saveError !== null && <div className="dsw-ust-bill-error">{saveError}</div>}
     </div>
