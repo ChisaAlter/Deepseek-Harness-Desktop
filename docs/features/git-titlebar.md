@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `git-titlebar` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — pin `0.1.2-alpha.2` 工作区自动登记改为 Typert HTTP unary `POST /api/workspace/create` + `{ args: { request: { path } } }`（旧点号 `/api/workspace.create` 404，标题栏「切换分支」一直 disabled）。本机 `smoke:source`：surfaces/branch/git 均打开。此前同日 — `gitPush` 成功或 skip 后补齐 `refs/remotes/<primary>/HEAD`（先 `set-head --auto`，否则刚推的分支），非 main 首发仓 `isDefaultRef` 为真，胶囊走 Commit & push。此前 2026-08-25 — 审查批次 3：首载登记竞态根因修复（主进程 watch `workspace.json` → 推 `shell:git-workspaces-changed` → 标题栏即刻重读状态；含武装间隙补发）；win32 `taskkill` 非零退出回退 `child.kill()`；登记兄弟仓 `gitBranchList` 全链路自动化（TC-WS-006/TC-GIT-001 关键断言的 rehearsal）；禁用行 hint Tooltip 与 `shell:git-branch-list` 抛错接线补测。实机 Electron（Linux/xvfb + CDP）验证：未登记兄弟仓 → 写入登记 → renderer 收到信号 → gitStatus/gitBranchList 即刻授权；`smoke:source` 通过。合并树 `ea659884`（consolidation #39 落地后）：desktop `npm test` 997/0/3 绿（git 链单测在内）+ `qa:source` titlebar/branchMenu/gitMenu/commit 步骤 PASS。实机 Windows 仍未覆盖（验证手册见 [合并收口计划 Phase 5](../superpowers/plans/2026-08-25-post-consolidation-closeout.md)） |；本次 alpha.4：source smoke 与 packaged P0 的 titlebar/Git 命中通过。
+| **last verified** | 2026-09-19 — `git.test.js` 92 项通过；Fork / 同仓库 PR 参数、来源分支改名、已有 PR 匹配、查询失败阻断、目标描述范围与缓存回归通过；相关 IPC、工作区授权与 watcher 测试通过（1 项跳过）。真实仓库只读解析确认 Fork 来源与上游目标；不含线上 PR 创建或安装包验收。 |
 
 ## User paths
 
@@ -28,6 +28,7 @@
 - 已知权衡（信任粒度）：通过过滤的登记根对 Git/FS/PTY 全量生效，不做逐操作确认；边界是「登记只来自用户主动打开的工作区」加上盘符根与高危祖先过滤。
 - `gitPush`（含 skip）在 `refs/remotes/<primary>/HEAD` 缺失或悬空时补上：先 `git remote set-head <primary> --auto`，失败则指向刚推的分支。这样首发非 `main`/`master` 的仓 `isDefaultRef` 为真，Commit & push 而不是误走 Commit, push & PR。不把 push 失败画成 set-head 失败。
 - 官方 `dsh web` 标题栏 Git 视觉；不另做皮肤。
+- PR 查询与创建固定使用 gh 解析的目标仓库；跨仓库创建使用 `owner:branch`，已有 PR 同时核对来源仓库与分支。描述从目标远程基线生成；未拉取目标分支时明确失败，不静默使用 origin。
 
 ## Allowed touch
 
@@ -47,12 +48,12 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
+| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal）；`src/main/git-pullrequest.test.js`（Fork / 同仓库目标、查询与创建）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
 | Manual / QA | 每次发布前生产表 `TC-WS-006`、`TC-GIT-001`…`007`；已装 CI 包 + 真实 `dsh-home` |
 
 ## Sources
 
-- Decision: none
+- Decision: [Fork PR 使用显式目标仓库](../decisions/implemented/bug-fix/2026-09-19-fork-pr-target.md)
 
 - Handbook：[../handbook/modules/git-titlebar.md](../handbook/modules/git-titlebar.md)
 - Spec：[../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md](../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md)
