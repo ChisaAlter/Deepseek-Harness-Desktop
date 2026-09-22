@@ -253,3 +253,18 @@ describe('title projection across assembled surfaces', () => {
     await runtime.dispose()
   })
 })
+
+describe('the assembled conversation owns no price editor', () => {
+  it('mounts the real tree without a slot crash and publishes no price-dialog service', async () => {
+    const runtime = await bench()
+    const view = runtime.renderRoot()
+    // Model prices are edited by the usage-stats 计费设置 window, so the
+    // conversation tree mounts every slot it declares without a crash face.
+    expect(view.container.querySelector('[data-slot-error]')).toBeNull()
+    // ...and it publishes no cross-plugin entry point that could open a second
+    // price window beside that one.
+    const services = runtime.ctx as unknown as { get(name: string): unknown }
+    expect(services.get('modelPriceDialog')).toBeUndefined()
+    await runtime.dispose()
+  })
+})

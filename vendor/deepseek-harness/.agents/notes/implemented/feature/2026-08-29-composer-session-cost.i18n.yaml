@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-29-composer-session-cost.md
-2026-08-29-composer-session-cost.md: 934b7b6f68f4122ec085c97aee66e91111bf8b9d
-2026-08-29-composer-session-cost.zh.md: 21e6f27bc3ae40feb52a3acf42914ee9d22f4970
+2026-08-29-composer-session-cost.md: 0da5ea2c81e071cb162cec5ba6ffbbb02b5a4929
+2026-08-29-composer-session-cost.zh.md: 9f5c3ad049c8ad54b6b7de2b63fd79c03d40da1f
