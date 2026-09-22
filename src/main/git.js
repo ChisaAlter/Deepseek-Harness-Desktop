@@ -1113,12 +1113,22 @@ async function gitCheckLargeFiles(cwd) {
   const root = asCwd(cwd);
   if (!root) return fail('Git status is unavailable.');
   // `--porcelain` prints paths relative to the repository root even when the
-  // cwd is a subdirectory, so resolve against that root. It must be
-  // authorized on its own: a registered subdirectory does not authorize the
-  // repository above it.
-  const top = await runGit(root, ['rev-parse', '--show-toplevel']);
-  const workRoot = top.code === 0 ? asCwd(top.stdout.trim()) : null;
-  if (!workRoot) return fail('Git status is unavailable.');
+  // cwd is a subdirectory. `--show-prefix` reports where the cwd sits inside
+  // that root, so the root is derived lexically from the already-authorized
+  // cwd rather than trusted from a second source. When that root is itself
+  // authorized the whole repository is scanned, matching `git add -A` from a
+  // subdirectory (it stages the whole tree); otherwise the scan stays inside
+  // the authorized cwd and paths above it are skipped.
+  const prefix = await runGit(root, ['rev-parse', '--show-prefix']);
+  const cwdPrefix = prefix.code === 0
+    ? prefix.stdout.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    : '';
+  const cwdDepth = cwdPrefix ? cwdPrefix.split('/').length : 0;
+  // `asCwd` canonicalizes, so an unauthorized ancestor yields null and the
+  // scan falls back to the cwd subtree (dropping the prefix from each path).
+  const repoRoot = cwdDepth > 0 ? asCwd(path.resolve(root, ...Array(cwdDepth).fill('..'))) : root;
+  const scanRoot = repoRoot ?? root;
+  const useRepoPaths = repoRoot !== null;
   const listed = await runGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
   if (listed.missing) return fail('Git is unavailable.');
   if (listed.timedOut) return fail('Git command timed out.');
@@ -1129,14 +1139,20 @@ async function gitCheckLargeFiles(cwd) {
   for (const entry of parsePorcelainZ(listed.stdout)) {
     // A rename/copy record lists the destination first; that is the path
     // `git add -A` stages, while its origin is already gone from disk.
-    const filePath = entry.path;
-    if (!filePath || isNtfsReservedGitPath(filePath)) continue;
-    const target = resolveInsideWorkspace(workRoot, filePath);
+    const repoPath = entry.path;
+    if (!repoPath || isNtfsReservedGitPath(repoPath)) continue;
+    // Without an authorized repository root, only the cwd subtree is in scope.
+    if (!useRepoPaths && !repoPath.startsWith(`${cwdPrefix}/`)) continue;
+    const filePath = useRepoPaths ? repoPath : repoPath.slice(cwdPrefix.length + 1);
+    if (!filePath) continue;
+    const target = resolveInsideWorkspace(scanRoot, filePath);
     if (!target) continue;
     try {
       const stat = fs.lstatSync(target);
       if (stat.isFile() && stat.size > LARGE_FILE_WARNING_BYTES) {
-        files.push({ path: filePath, size: stat.size });
+        // Report the repository-relative path git itself uses, so the client
+        // can match it against status.workingTree files.
+        files.push({ path: repoPath, size: stat.size });
       }
     } catch {
       // Vanished between `git status` and here, or unreadable: nothing to warn about.

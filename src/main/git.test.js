@@ -2140,18 +2140,43 @@ test('gitCheckLargeFiles does not follow symlinks and never stages', async () =>
   }
 });
 
-test('gitCheckLargeFiles resolves repo-root paths when the cwd is a subdirectory', async () => {
+test('gitCheckLargeFiles covers the whole repo when the cwd is an authorized subdirectory', async () => {
   const cwd = makeTempDir();
   try {
     initRepoWithBase(cwd);
     const sub = path.join(cwd, 'sub');
     makeSparseFile(path.join(sub, 'big.bin'), 101 * MIB);
+    // `git add -A` from `sub` stages the whole tree, so an oversized file
+    // above the cwd is still a commit candidate.
+    makeSparseFile(path.join(cwd, 'root-big.bin'), 101 * MIB);
     const result = await gitCheckLargeFiles(sub);
     assert.equal(result.ok, true, result.message);
-    assert.deepEqual(result.files, [{ path: 'sub/big.bin', size: 101 * MIB }]);
+    assert.deepEqual(result.files, [
+      { path: 'root-big.bin', size: 101 * MIB },
+      { path: 'sub/big.bin', size: 101 * MIB },
+    ]);
   } finally {
     setWorkspaceAuthority(null);
     fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles stays inside the authorized root when it is a subdirectory', async () => {
+  const boot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-lf-boot-'));
+  const sub = path.join(boot, 'sub');
+  try {
+    initRepoWithBase(boot);
+    makeSparseFile(path.join(boot, 'root-big.bin'), 101 * MIB);
+    makeSparseFile(path.join(sub, 'sub-big.bin'), 101 * MIB);
+    // Only the subdirectory is registered: the repository root above it is
+    // outside the workspace, so its candidate must not be reported.
+    setWorkspaceAuthority(createWorkspaceAuthority({ workspace: sub }));
+    const result = await gitCheckLargeFiles(sub);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, [{ path: 'sub/sub-big.bin', size: 101 * MIB }]);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(boot, { recursive: true, force: true });
   }
 });
 
