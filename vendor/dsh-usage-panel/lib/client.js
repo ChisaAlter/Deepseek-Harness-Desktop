@@ -10,7 +10,6 @@ window.__ModuleLoader__.load({
     var module = { exports: {} }
     var exports = module.exports
     var React = require('react')
-    "use strict";
     var __create = Object.create;
     var __defProp = Object.defineProperty;
     var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -2183,20 +2182,17 @@ window.__ModuleLoader__.load({
     var import_react10 = require("react");
     var React13 = __toESM(require("react"), 1);
     var Boundary = class extends import_react10.Component {
-      constructor() {
-        super(...arguments);
-        this.state = { error: null };
-        this.reset = () => {
-          clearCached();
-          this.setState({ error: null });
-        };
-      }
+      state = { error: null };
       static getDerivedStateFromError(err) {
         return { error: String(err?.message ?? err) };
       }
       componentDidCatch(err) {
         console.error("[dsh-usage-panel] render crashed:", err);
       }
+      reset = () => {
+        clearCached();
+        this.setState({ error: null });
+      };
       render() {
         const t = this.props.i18n.t;
         if (this.state.error !== null) {
