@@ -26,7 +26,9 @@ function setWorkspaceAuthority(authority) {
 }
 
 function authority() {
-  if (workspaceAuthority === null) workspaceAuthority = loadWorkspaceAuthority();
+  if (workspaceAuthority === null) {
+    workspaceAuthority = loadWorkspaceAuthority({ allowScratchCwd: true });
+  }
   return workspaceAuthority;
 }
 

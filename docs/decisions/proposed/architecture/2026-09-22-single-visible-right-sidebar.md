@@ -27,7 +27,7 @@ Status: proposed
 
 上游维护约束：共享上游文件的改动只允许极小增量和一处通用缝——`ui-layout/src/client/index.ts` 的 `TitlebarTrailingOwnerProps` 增加 `rightbarShown: boolean`，`ui-layout/src/client/AppFrame.tsx` 把它传给 `shell.titlebar.trailing`；`ui-sidebar-documentpreview/src/client/document/actions.ts` 新增平台中立的 `sidebar.right.tab.document.actions` list slot，并在 `TextPreview.tsx` 的文档头部渲染它。该缝不含 Electron API、scratch 规则或桌面文案；没有注册者时头部与原先完全一致。`columns.ts`、`stores.ts`、`service.ts`、`persist.ts` 与 `packages/bundle/web-app/cordis.patch.yml` 在本决定中不做任何改动。
 
-悬浮预览是显式交付物：桌面文件视图与原生 Document Preview 头部都通过同一个 Desktop-owned `ui-files` 动作触发；支持 `{ cwd, relativePath }` 与无 cwd 的 `{ absolutePath }`，成功必须 `result.ok === true`，拒绝、崩溃或畸形响应显示本地化错误并保持右栏可用，绝不回落到系统打开器、`workspaces.openPath` 或 Browser tab。主进程使用 preview 专属的 `loadWorkspaceAuthority({ allowScratchCwd: true })` 与有界只读适配器，因此 Host scratch 中的文本与 HTML 可以预览，而普通读写 IPC 的权限不变。
+悬浮预览是显式交付物：桌面文件视图与原生 Document Preview 头部都通过同一个 Desktop-owned `ui-files` 动作触发；支持 `{ cwd, relativePath }` 与无 cwd 的 `{ absolutePath }`，成功必须 `result.ok === true`，拒绝、崩溃或畸形响应显示本地化错误并保持右栏可用，绝不回落到系统打开器、`workspaces.openPath` 或 Browser tab。主进程使用 preview 专属的 `loadWorkspaceAuthority({ allowScratchCwd: true })` 与有界只读适配器，因此 Host scratch 中的文本与 HTML 可以预览；文档页经 `shell:read-file` / `shell:list-dir` 读取 scratch 产物时同样携带该 scratch 根（[decision](../../implemented/bug-fix/2026-09-23-scratch-cwd-document-tab-read.md)）。两条路径都只扩展到既有 Host scratch 根，不包含任意路径。
 
 ## Alternatives considered
 
@@ -48,7 +48,7 @@ Status: proposed
 
 - 上游 `ui-layout` 与 `ui-sidebar-documentpreview` 的少量共享改动在下一次 `sync:harness` 会被人工裁定；`FORK_FILE_MARKERS` 与 `single-right-panel-contract` 测试用于早期发现回退。
 - 退役旧壳后若某个 Desktop 能力未真正迁移到 Sidebar，会在运行时缺失；因此 Files/Browser/Diff/Agents/Terminal 各自的扩展注册测试与 Electron smoke 是发布门槛。
-- 原生悬浮预览的 scratch 授权若被扩大，会扩大主进程读取面；preview 专用 authority 只包含既有 Host scratch 根，普通读写 IPC 权限不变。
+- 原生悬浮预览与文档页的 scratch 授权若被扩大，会扩大主进程读取面；两条路径的 authority 都只包含既有 Host scratch 根，父目录与任意路径仍被拒绝。
 
 ## Consequences
 

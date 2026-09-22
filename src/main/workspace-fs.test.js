@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createWorkspaceAuthority } = require('./workspace-authority');
+const {
+  createWorkspaceAuthority,
+  scratchWorkspacePath,
+} = require('./workspace-authority');
+const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
 const { listDir, readFile, readFileMedia, writeFile, setWorkspaceAuthority } = require('./workspace-fs.js');
 
 function makeTempDir() {
@@ -70,6 +74,62 @@ test('listDir accepts a second authorized root and rejects an outsider', async (
     fs.rmSync(boot, { recursive: true, force: true });
     fs.rmSync(extra, { recursive: true, force: true });
     fs.rmSync(outsider, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Issue #97: a session with no workspace cwd generates files under the
+ * Host-owned scratch root. The document tab reads through `shell:read-file` /
+ * `shell:list-dir`, which resolve through workspace-fs's *lazy production*
+ * authority. That authority must include the scratch root (the preview
+ * authority already does), while traversal outside it stays refused.
+ */
+test('workspace-fs authority (shell:read-file / shell:list-dir) accepts the scratch cwd and refuses its parent', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-fs-home-'));
+  const boot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-fs-boot-'));
+  const previousConfig = require.cache[require.resolve('./config')];
+  try {
+    const scratch = scratchWorkspacePath(home);
+    fs.mkdirSync(scratch);
+    fs.writeFileSync(path.join(scratch, 'pelican-bike.html'), '<h1>ok</h1>\n');
+    const outside = path.join(path.dirname(scratch), 'outside.txt');
+    fs.writeFileSync(outside, 'classified\n');
+
+    require.cache[require.resolve('./config')] = {
+      id: require.resolve('./config'),
+      filename: require.resolve('./config'),
+      loaded: true,
+      exports: { loadConfig: () => ({ workspace: boot }) },
+    };
+    setDesktopDshHome(home);
+    // Drive the production path: no test authority is pinned, so
+    // workspace-fs's own lazy authority is what answers both calls.
+    setWorkspaceAuthority(null);
+
+    const listed = await listDir(scratch, '');
+    assert.equal(listed.ok, true);
+    assert.deepEqual(listed.entries, [{ name: 'pelican-bike.html', kind: 'file' }]);
+
+    const read = await readFile(scratch, 'pelican-bike.html');
+    assert.equal(read.ok, true);
+    assert.equal(read.text, '<h1>ok</h1>\n');
+
+    // Negative: the scratch root is the boundary, not the whole volume/home.
+    for (const rel of ['..', path.join('..', 'outside.txt'), outside]) {
+      const escapedRead = await readFile(scratch, rel);
+      assert.equal(escapedRead.ok, false, `readFile(${rel}) 必须被拒绝`);
+      assert.equal(escapedRead.message, 'Path is outside the workspace.');
+      const escapedList = await listDir(scratch, rel);
+      assert.equal(escapedList.ok, false, `listDir(${rel}) 必须被拒绝`);
+      assert.equal(escapedList.message, 'Path is outside the workspace.');
+    }
+  } finally {
+    setWorkspaceAuthority(null);
+    if (previousConfig) require.cache[require.resolve('./config')] = previousConfig;
+    else delete require.cache[require.resolve('./config')];
+    clearDesktopDshHome();
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(boot, { recursive: true, force: true });
   }
 });
 

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `no-directory-sessions` |
 | **status** | `active` |
-| **last verified** | 2026-09-18 — no-directory and Workspace New Session share Host-authoritative reuse; 25 boundary tests, 272 workspace tests, and both real-browser first-send/reload flows passed without changing old logs. 2026-09-17 — 同步 `dsh-v0.1.6-alpha.1`：上游把无目录组合从 `ConversationRoot.tsx` 迁入 `skeleton/ConversationContent.tsx`，fork marker 与卡内路径随改；Desktop tests 1751 全绿。此前 2026-09-10 — 同步 `dsh-v0.1.5-rc.1` 后无目录会话、Workspace 成员补全与已删工作区语义保留；delete-archived host spec 随上游 API 适配（`personaPrefix`、`AgentSetup` 双参）通过；fork marker 与 Desktop tests 1450 全绿。 |
+| **last verified** | 2026-09-23 — 修复 #97：文档页通过 `shell:read-file` / `shell:list-dir` 读取 scratch 会话产物时同样获得 Host `no-workspace` 目录授权（`workspace-fs` 的生产 authority 与 preview 一致 `allowScratchCwd: true`）；新增回归验证 scratch 可读且其父目录仍被拒绝，`node --test src/main/workspace-fs.test.js` 10/10 通过。此前 2026-09-18 — no-directory and Workspace New Session share Host-authoritative reuse；25 boundary tests、272 workspace tests 与两条实浏览器首发送/重载流程通过。 |
 
 ## User paths
 
@@ -18,6 +18,7 @@
 ## Invariants
 
 - Host 通过 Workspace `follow` baseline 公布 `scratchCwd`（`$DSH_HOME/no-workspace`，`WorkspaceController` init 时 `mkdir -p`）。客户端 `WorkspaceSnapshot.scratchCwd` 在 baseline 到达前为 `undefined`，此时不会列出任何 scratch 会话。
+- scratch 会话的产物在右栏文档页可读：`shell:read-file` / `shell:list-dir` 的生产 authority 与 preview 一致携带 `allowScratchCwd: true`，授权的边界仍是 Host 固定的 `$DSH_HOME/no-workspace`（父目录与外部绝对路径继续被拒绝），不扩大为任意路径。
 - 「无工作目录会话」= 不属于任何已登记工作区的 `sessionIds` **且** `cwd === scratchCwd`。只满足前者（被删工作区的会话、其他进程在别处建的会话）一律不列出。判断集中在 `tree.ts` 的 `isNoDirectorySession` / `currentGroupKey`，四个 derive 函数共用。
 - `connectNoDirectory()` 只在「空白 + scratch cwd + 非成员 + 未归档 + 非 subagent」的候选通过只读 Host `session.blankReuse({ sessionId })` 后复用，否则 `session.create({ cwd: scratchCwd })`；客户端在提交复用前重查当前成员关系、归档状态和摘要，并发调用把完整的检查加创建合并为一次；绝不调用 `workspace.create`。空白仍表示没有开始过 turn；已有 `session/title` pin 的会话不参与 New Session 复用，但用户显式打开时保留原 pin。
 - `WorkspaceRegistry.create(path)` 新记录的 `sessionIds` = 该规范化目录下所有未被其他工作区记账的会话（按 `createdAt` 新→旧）；创建时刷新一次持久化 header 索引，保证跨重启也能找回。
@@ -51,6 +52,7 @@
 ## Sources
 
 - Decision: [blank Session reuse after presentation release](../decisions/implemented/bug-fix/2026-09-18-blank-session-reuse.md)
+- Decision: [Let the document tab read scratch-session files](../decisions/implemented/bug-fix/2026-09-23-scratch-cwd-document-tab-read.md)
 
 - Agent Note：[2026-08-15-no-directory-task-sessions.md](../../vendor/deepseek-harness/.agents/notes/implemented/feature/2026-08-15-no-directory-task-sessions.md)
 - 合树背景：alpha.1/alpha.2 pin 时该 leftover 被上游覆盖（仅残留 `connectNoDirectory` 桩与 `menu.noDirectory` 文案），本卡在 alpha.4 上重建并加 marker 防再次丢失
