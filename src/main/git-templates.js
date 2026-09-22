@@ -1,5 +1,5 @@
 const { run, runGit, GH_TIMEOUT_MS } = require('./git-exec');
-const { defaultRefName, resolveCurrentUpstream, parseGitHubRepositoryNameWithOwner } = require('./git-remotes');
+const { defaultRefName, resolveCurrentUpstream, parseGitHubRepositoryNameWithOwner, normalizeGitRemoteUrl } = require('./git-remotes');
 const { parseRepositoryNameWithOwnerFromNormalized } = require('./git-pullrequest');
 
 const PR_TEMPLATE_FILES = [
@@ -83,7 +83,7 @@ async function readPrTemplate(cwd, treeish) {
   return '';
 }
 
-async function resolvePrBaseBranch(cwd, refName, hasPrimaryRemote) {
+async function resolvePrBaseBranch(cwd, refName, hasPrimaryRemote, targetRepository) {
   const configured = await runGit(cwd, ['config', '--get', `branch.${refName}.gh-merge-base`]);
   if (configured.code === 0) {
     const value = configured.stdout.trim();
@@ -102,11 +102,14 @@ async function resolvePrBaseBranch(cwd, refName, hasPrimaryRemote) {
       || parseRepositoryNameWithOwnerFromNormalized(headUrl);
     const originRepo = parseGitHubRepositoryNameWithOwner(originUrl)
       || parseRepositoryNameWithOwnerFromNormalized(originUrl);
-    const isCrossRepository = headRepo && originRepo
+    const isCrossRepository = targetRepository
+      ? normalizeGitRemoteUrl(headUrl) !== normalizeGitRemoteUrl(targetRepository.url)
+      : headRepo && originRepo
       ? headRepo.toLowerCase() !== originRepo.toLowerCase()
       : Boolean(upstream.remoteName && upstream.remoteName !== 'origin' && headRepo);
     if (!isCrossRepository) return upstream.branchName;
   }
+  if (targetRepository) return targetRepository.defaultBranch;
   // Prefer the GitHub default branch before hardcoding main.
   // Prefer gh over origin/HEAD / local main|master so rename or missing remote HEAD
   // cannot pin Create PR --base to a stale git heuristic.

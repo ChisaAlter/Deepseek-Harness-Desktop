@@ -7,7 +7,7 @@ const {
 } = require('./git-remotes');
 
 const PR_LOOKUP_CACHE_CAPACITY = 32;
-/** @type {Map<string, { pr: object | null, headBranch: string, upstreamRef: string | null, remoteName: string | null, headRemoteUrlKey: string | null }>} */
+/** @type {Map<string, { pr: object | null, headBranch: string, upstreamRef: string | null, remoteName: string | null, headRemoteUrlKey: string | null, targetRepositoryUrlKey?: string }>} */
 const lastKnownPrByBranchKey = new Map();
 
 function rememberLastKnownPr(branchKey, entry) {
@@ -21,6 +21,8 @@ function rememberLastKnownPr(branchKey, entry) {
 function resolveLastKnownPr(branchKey, current) {
   const lastKnown = lastKnownPrByBranchKey.get(branchKey);
   if (!lastKnown) return null;
+  if (current.targetRepositoryUrlKey !== undefined
+    && lastKnown.targetRepositoryUrlKey !== current.targetRepositoryUrlKey) return null;
   if (lastKnown.headBranch !== current.headBranch) return null;
   if (lastKnown.headRemoteUrlKey !== null && current.headRemoteUrlKey !== null) {
     return lastKnown.headRemoteUrlKey === current.headRemoteUrlKey ? lastKnown.pr : null;
@@ -50,9 +52,10 @@ function appendUnique(values, next) {
  * Head selectors for `gh pr list --head` probing.
  * @param {string} cwd
  * @param {string} refName
+ * @param {object} [targetRepository] Resolved gh target; otherwise compare with origin.
  * @returns {Promise<object>}
  */
-async function resolveBranchHeadContext(cwd, refName) {
+async function resolveBranchHeadContext(cwd, refName, targetRepository) {
   const configuredRemote = await runGit(cwd, ['config', '--get', `branch.${refName}.remote`]);
   const remoteName = configuredRemote.code === 0 && configuredRemote.stdout.trim()
     ? configuredRemote.stdout.trim()
@@ -75,7 +78,9 @@ async function resolveBranchHeadContext(cwd, refName) {
   const originRepo = parseGitHubRepositoryNameWithOwner(originRemoteUrl)
     || parseRepositoryNameWithOwnerFromNormalized(originRemoteUrl);
   const ownerLogin = headRepo ? headRepo.split('/')[0] : null;
-  const isCrossRepository = headRepo && originRepo
+  const isCrossRepository = targetRepository && headRemoteUrl
+    ? normalizeGitRemoteUrl(headRemoteUrl) !== normalizeGitRemoteUrl(targetRepository.url)
+    : headRepo && originRepo
     ? headRepo.toLowerCase() !== originRepo.toLowerCase()
     : Boolean(effectiveRemote && effectiveRemote !== 'origin' && headRepo);
   const ownerHeadSelector = ownerLogin && headBranch ? `${ownerLogin}:${headBranch}` : null;
@@ -107,7 +112,29 @@ async function resolveBranchHeadContext(cwd, refName) {
     headRepositoryNameWithOwner: headRepo,
     headRepositoryOwnerLogin: ownerLogin,
     isCrossRepository,
+    targetRepositoryUrlKey: targetRepository ? normalizeGitRemoteUrl(targetRepository.url) : undefined,
   };
+}
+
+/** Resolve the repository selected by gh, including its configured base override. */
+async function resolvePullRequestRepository(cwd) {
+  const viewed = await run('gh', ['repo', 'view', '--json', 'nameWithOwner,url,defaultBranchRef'], cwd, {
+    timeoutMs: GH_TIMEOUT_MS,
+  });
+  if (viewed.missing || viewed.code !== 0) return null;
+  try {
+    const parsed = JSON.parse(viewed.stdout);
+    if (typeof parsed.nameWithOwner !== 'string' || !parsed.nameWithOwner.trim()
+      || typeof parsed.url !== 'string' || !/^https?:\/\//i.test(parsed.url)
+      || typeof parsed.defaultBranchRef?.name !== 'string' || !parsed.defaultBranchRef.name.trim()) return null;
+    return {
+      nameWithOwner: parsed.nameWithOwner.trim(),
+      url: parsed.url,
+      defaultBranch: parsed.defaultBranchRef.name.trim(),
+    };
+  } catch {
+    return null;
+  }
 }
 
 function parseRepositoryNameWithOwnerFromNormalized(url) {
@@ -195,12 +222,13 @@ function parseGhPullRequestRow(parsed) {
 }
 
 /**
- * Probe open PRs across head selectors. Distinguishes lookup failure from empty.
+ * Query the resolved target and match both the head branch and repository.
  * @param {string} cwd
  * @param {string} [refName]
- * @returns {Promise<{ pr: object | null, failed: boolean, headContext?: object }>}
+ * @param {object} [targetRepository] Reuse the target throughout a create operation.
+ * @returns {Promise<{ pr: object | null, failed: boolean, headContext?: object, targetRepository?: object }>}
  */
-async function lookupOpenPullRequest(cwd, refName) {
+async function lookupOpenPullRequest(cwd, refName, targetRepository) {
   if (lookupOpenPullRequestOverride) return lookupOpenPullRequestOverride(cwd);
   const root = asCwd(cwd);
   if (!root) return { pr: null, failed: true };
@@ -211,47 +239,30 @@ async function lookupOpenPullRequest(cwd, refName) {
   }
   const headRef = typeof refName === 'string' && refName.trim() ? refName.trim() : '';
   if (!headRef) return { pr: null, failed: false };
-  const headContext = await resolveBranchHeadContext(root, headRef);
+  const target = targetRepository || await resolvePullRequestRepository(root);
+  if (!target) return { pr: null, failed: true };
+  const headContext = await resolveBranchHeadContext(root, headRef, target);
   const jsonFields = 'number,title,url,baseRefName,headRefName,state,isCrossRepository,headRepository,headRepositoryOwner';
-  let sawFailure = false;
-  for (const headSelector of headContext.headSelectors) {
-    const listed = await run('gh', [
-      'pr',
-      'list',
-      '--head',
-      headSelector,
-      '--state',
-      'open',
-      '--limit',
-      '20',
-      '--json',
-      jsonFields,
-    ], root, { timeoutMs: GH_TIMEOUT_MS });
-    if (listed.missing || listed.code !== 0) {
-      // Fail closed on any list error (do not treat as empty).
-      sawFailure = true;
-      continue;
-    }
-    try {
-      const rows = JSON.parse(listed.stdout);
-      if (!Array.isArray(rows)) {
-        sawFailure = true;
-        continue;
+  // gh pr list filters by branch name; repository identity is checked on each row.
+  const listed = await run('gh', [
+    'pr', 'list', '--repo', target.url, '--head', headContext.headBranch,
+    '--state', 'open', '--limit', '20', '--json', jsonFields,
+  ], root, { timeoutMs: GH_TIMEOUT_MS });
+  const context = { headContext, targetRepository: target };
+  if (listed.missing || listed.code !== 0) return { pr: null, failed: true, ...context };
+  try {
+    const rows = JSON.parse(listed.stdout);
+    if (!Array.isArray(rows)) return { pr: null, failed: true, ...context };
+    for (const row of rows) {
+      const pr = parseGhPullRequestRow(row);
+      if (pr && matchesBranchHeadContext(pr, headContext)) {
+        return { pr, failed: false, ...context };
       }
-      for (const row of rows) {
-        const pr = parseGhPullRequestRow(row);
-        if (pr && matchesBranchHeadContext(pr, headContext)) {
-          return { pr, failed: false, headContext };
-        }
-      }
-    } catch {
-      sawFailure = true;
     }
+  } catch {
+    return { pr: null, failed: true, ...context };
   }
-  if (sawFailure) {
-    return { pr: null, failed: true, headContext };
-  }
-  return { pr: null, failed: false, headContext };
+  return { pr: null, failed: false, ...context };
 }
 
 /** @type {null | ((cwd: string) => Promise<{ pr: object | null, failed: boolean, headContext?: object }>)} */
@@ -262,8 +273,8 @@ function setLookupOpenPullRequest(resolver) {
   lookupOpenPullRequestOverride = typeof resolver === 'function' ? resolver : null;
 }
 
-async function readPullRequest(cwd, refName) {
-  const looked = await lookupOpenPullRequest(cwd, refName);
+async function readPullRequest(cwd, refName, targetRepository) {
+  const looked = await lookupOpenPullRequest(cwd, refName, targetRepository);
   if (looked.failed) return null;
   return looked.pr;
 }
@@ -273,6 +284,7 @@ module.exports = {
   resolveLastKnownPr,
   resetLastKnownPrCache,
   resolveBranchHeadContext,
+  resolvePullRequestRepository,
   parseRepositoryNameWithOwnerFromNormalized,
   matchesBranchHeadContext,
   parseGhPullRequestRow,
