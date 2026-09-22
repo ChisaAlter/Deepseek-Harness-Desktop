@@ -1082,10 +1082,207 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
     platform: options.platform,
   });
   let host = null;
-  const remember = (event) => {
-    authorize(event);
-    host = event && event.sender ? event.sender : host;
+  /**
+   * Generation token for the current host. Bumped on every accepted claim so a
+   * handler that awaited across a host replacement can tell that its result
+   * belongs to a superseded host and must not be adopted.
+   */
+  let generation = 0;
+  /**
+   * Per-epoch ownership ledger. Each accepted host epoch gets one record; a
+   * host that leaves and returns gets a fresh record so a sweep of the old
+   * epoch can never touch resources the returning host acquired later.
+   */
+  const hostClaims = new Map();
+  const listenersInstalled = new WeakSet();
+  /**
+   * The shared preview singletons are owned by whichever host most recently
+   * asked for them. Ownership transfers synchronously at claim time so the
+   * leaving host's deferred teardown can re-validate before it closes them.
+   * A pending reservation (settled === false) belongs to the in-flight handler,
+   * which closes its own late result; teardown only reaps settled resources.
+   */
+  let fileWindowOwner = null;
+  let fileWindowSettled = false;
+  let workspaceOwner = null;
+  let workspaceSettled = false;
+  /** Serialize host sweeps so closes for one epoch settle in order. */
+  let teardownQueue = Promise.resolve();
+
+  const unauthorized = () => {
+    const error = new Error('Unauthorized IPC sender');
+    error.code = 'ERR_DSH_IPC_SENDER';
+    return error;
   };
+  /** Report a teardown failure without disturbing the successor host. */
+  const reportTeardown = (error) => {
+    if (typeof options.onTeardownError === 'function') options.onTeardownError(error);
+  };
+
+  function installHostListeners(sender) {
+    if (!sender || listenersInstalled.has(sender) || typeof sender.on !== 'function') return;
+    listenersInstalled.add(sender);
+    // A cross-document navigation (reload included) or a crashed renderer
+    // destroys the JS context that owned this host's previews and singletons.
+    // Capture the epoch synchronously: by the time the queued sweep runs, a
+    // successor may already own the host slot and the singletons.
+    const queue = () => {
+      const record = hostClaims.get(sender);
+      if (!record || record.queued) return;
+      record.queued = true;
+      // End the epoch now. A reload reuses the same webContents object, so the
+      // next claim from this sender must start a fresh generation/record
+      // instead of being swept as part of the document that just went away.
+      if (host === sender) host = null;
+      // A failing teardown reporter must never wedge the sweep queue for the
+      // hosts that follow this one.
+      teardownQueue = teardownQueue
+        .then(() => reapHost(sender, record))
+        .catch((error) => reportTeardown(error));
+    };
+    sender.on('did-navigate', queue);
+    sender.on('render-process-gone', queue);
+    if (typeof sender.once === 'function') sender.once('destroyed', queue);
+  }
+
+  /**
+   * Close only the resources the recorded epoch owned. Ownership is
+   * re-validated immediately before each singleton close because a successor
+   * can claim the singleton while an earlier close is still awaiting.
+   */
+  async function reapHost(sender, record) {
+    // Let a successor's synchronous first claim register before any close.
+    await Promise.resolve();
+    if (record.reaped) return;
+    record.reaped = true;
+    for (const id of [...record.previews]) {
+      record.previews.delete(id);
+      try {
+        await live.close(id);
+      } catch (error) {
+        reportTeardown(error);
+      }
+    }
+    if (fileWindowOwner === record && fileWindowSettled) {
+      fileWindowOwner = null;
+      fileWindowSettled = false;
+      try {
+        await filePreviewWindow.close();
+      } catch (error) {
+        reportTeardown(error);
+      }
+    }
+    if (workspaceOwner === record && workspaceSettled) {
+      workspaceOwner = null;
+      workspaceSettled = false;
+      try {
+        await workspacePreview.close();
+      } catch (error) {
+        reportTeardown(error);
+      }
+    }
+    // End this epoch unless the sender already reclaimed the host slot with a
+    // newer record; a returning host must not inherit this sweep's ownership.
+    // Dropping the record also releases the swept webContents for GC.
+    if (hostClaims.get(sender) === record) {
+      hostClaims.delete(sender);
+      if (host === sender) host = null;
+    }
+  }
+
+  /**
+   * Security precondition for every IPC entry point, run before the handler
+   * touches host ownership or creates/closes any resource. A rejected sender
+   * (or a missing/destroyed one) must surface as a rejected promise carrying
+   * ERR_DSH_IPC_SENDER, never as an { ok: false } result, so callers cannot
+   * mistake an authorization failure for a handled outcome.
+   *
+   * Returns the caller's generation token and ownership record on success.
+   */
+  const claim = (event) => {
+    authorize(event);
+    const sender = event && event.sender ? event.sender : null;
+    if (!sender) throw unauthorized();
+    if (typeof sender.isDestroyed === 'function' && sender.isDestroyed()) throw unauthorized();
+    if (sender !== host) {
+      const leaving = host;
+      host = sender;
+      generation += 1;
+      let record = hostClaims.get(sender);
+      if (!record || record.generation !== generation) {
+        record = { generation, previews: new Set(), queued: false, reaped: false };
+        hostClaims.set(sender, record);
+      }
+      if (leaving) {
+        const leavingRecord = hostClaims.get(leaving);
+        if (leavingRecord && !leavingRecord.queued) {
+          leavingRecord.queued = true;
+          teardownQueue = teardownQueue
+            .then(() => reapHost(leaving, leavingRecord))
+            .catch((error) => reportTeardown(error));
+        }
+      }
+    }
+    installHostListeners(sender);
+    return { generation, sender, record: hostClaims.get(sender) };
+  };
+  /** True when a claim still matches the live host generation. */
+  const stillCurrent = (claimed) => claimed.generation === generation && claimed.sender === host;
+  const staleResult = () => ({ ok: false, message: 'Unauthorized IPC sender' });
+  /**
+   * Take over a shared singleton for the claiming epoch. The reservation is
+   * synchronous; it settles once the entry point's async work returns ok.
+   */
+  function reserveFileWindow(record) {
+    fileWindowOwner = record;
+    fileWindowSettled = false;
+  }
+  function reserveWorkspace(record) {
+    workspaceOwner = record;
+    workspaceSettled = false;
+  }
+  function settleFileWindow(record) {
+    if (fileWindowOwner !== record) return false;
+    fileWindowSettled = true;
+    return true;
+  }
+  function settleWorkspace(record) {
+    if (workspaceOwner !== record) return false;
+    workspaceSettled = true;
+    return true;
+  }
+  function releaseFileWindow(record) {
+    if (fileWindowOwner === record && !fileWindowSettled) fileWindowOwner = null;
+  }
+  function releaseWorkspace(record) {
+    if (workspaceOwner === record && !workspaceSettled) workspaceOwner = null;
+  }
+  /** A stale in-flight open closes the singleton only while it still owns it. */
+  async function closeReservedFileWindow(record) {
+    if (fileWindowOwner !== record) return;
+    fileWindowOwner = null;
+    fileWindowSettled = false;
+    try {
+      await filePreviewWindow.close();
+    } catch (error) {
+      reportTeardown(error);
+    }
+  }
+  /**
+   * A stale floating-window open also owns the shared workspace server when no
+   * later claim took it over; close it so a replaced host cannot orphan it.
+   */
+  async function closeReservedWorkspace(record) {
+    if (workspaceOwner !== record) return;
+    workspaceOwner = null;
+    workspaceSettled = false;
+    try {
+      await workspacePreview.close();
+    } catch (error) {
+      reportTeardown(error);
+    }
+  }
+
   const sendToHost = (channel, payload) => {
     if (host && typeof host.isDestroyed === 'function' && host.isDestroyed()) return;
     if (host && typeof host.send === 'function') host.send(channel, payload);
@@ -1107,137 +1304,182 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
       sendToHost('shell:preview-recording-frame', frame);
     },
   });
-  ipcMain.handle('shell:preview-open', (event, input) => {
-    remember(event);
-    return live.open(input);
+  ipcMain.handle('shell:preview-open', async (event, input) => {
+    const claimed = claim(event);
+    const opened = await live.open(input);
+    const id = opened && typeof opened === 'object' ? opened.id : undefined;
+    if (!stillCurrent(claimed)) {
+      // The host was replaced while the preview was being created: close what
+      // this call just created (exactly once) and never adopt it. The id is
+      // never recorded as an owned resource, so a concurrent sweep cannot also
+      // close it.
+      if (id !== undefined && id !== null) {
+        try {
+          await live.close(id);
+        } catch (error) {
+          reportTeardown(error);
+        }
+      }
+      throw unauthorized();
+    }
+    if (id !== undefined && id !== null) claimed.record.previews.add(id);
+    return opened;
   });
-  ipcMain.handle('shell:preview-navigate', (event, id, url) => {
-    remember(event);
+  ipcMain.handle('shell:preview-navigate', async (event, id, url) => {
+    claim(event);
     return live.navigate(id, url);
   });
-  ipcMain.handle('shell:preview-back', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-back', async (event, id) => {
+    claim(event);
     return live.back(id);
   });
-  ipcMain.handle('shell:preview-forward', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-forward', async (event, id) => {
+    claim(event);
     return live.forward(id);
   });
-  ipcMain.handle('shell:preview-reload', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-reload', async (event, id) => {
+    claim(event);
     return live.reload(id);
   });
-  ipcMain.handle('shell:preview-hard-reload', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-hard-reload', async (event, id) => {
+    claim(event);
     return live.hardReload(id);
   });
-  ipcMain.handle('shell:preview-stop', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-stop', async (event, id) => {
+    claim(event);
     return live.stop(id);
   });
-  ipcMain.handle('shell:preview-zoom-in', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-zoom-in', async (event, id) => {
+    claim(event);
     return live.zoomIn(id);
   });
-  ipcMain.handle('shell:preview-zoom-out', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-zoom-out', async (event, id) => {
+    claim(event);
     return live.zoomOut(id);
   });
-  ipcMain.handle('shell:preview-zoom-reset', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-zoom-reset', async (event, id) => {
+    claim(event);
     return live.resetZoom(id);
   });
-  ipcMain.handle('shell:preview-color-scheme', (event, id, scheme) => {
-    remember(event);
+  ipcMain.handle('shell:preview-color-scheme', async (event, id, scheme) => {
+    claim(event);
     return live.setColorScheme(id, scheme);
   });
-  ipcMain.handle('shell:preview-clear-cookies', (event) => {
-    remember(event);
+  ipcMain.handle('shell:preview-clear-cookies', async (event) => {
+    claim(event);
     return live.clearCookies();
   });
-  ipcMain.handle('shell:preview-clear-cache', (event) => {
-    remember(event);
+  ipcMain.handle('shell:preview-clear-cache', async (event) => {
+    claim(event);
     return live.clearCache();
   });
-  ipcMain.handle('shell:preview-capture-screenshot', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-capture-screenshot', async (event, id) => {
+    claim(event);
     return asResult(() => live.captureScreenshot(id));
   });
-  ipcMain.handle('shell:preview-pick-element', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-pick-element', async (event, id) => {
+    claim(event);
     return live.pickElement(id);
   });
-  ipcMain.handle('shell:preview-cancel-pick', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-cancel-pick', async (event, id) => {
+    claim(event);
     return live.cancelPickElement(id);
   });
-  ipcMain.handle('shell:preview-annotation-theme', (event, id, theme) => {
-    remember(event);
+  ipcMain.handle('shell:preview-annotation-theme', async (event, id, theme) => {
+    claim(event);
     return live.setAnnotationTheme(id, theme);
   });
-  ipcMain.handle('shell:preview-open-pip', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-open-pip', async (event, id) => {
+    claim(event);
     return live.openPictureInPicture(id);
   });
-  ipcMain.handle('shell:preview-close-pip', (event) => {
-    remember(event);
+  ipcMain.handle('shell:preview-close-pip', async (event) => {
+    claim(event);
     return live.closePictureInPicture();
   });
-  ipcMain.handle('shell:preview-start-recording', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-start-recording', async (event, id) => {
+    claim(event);
     return asResult(() => live.startRecording(id));
   });
-  ipcMain.handle('shell:preview-stop-recording', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-stop-recording', async (event, id) => {
+    claim(event);
     return asResult(() => live.stopRecording(id));
   });
-  ipcMain.handle('shell:preview-save-recording', (event, id, payload) => {
-    remember(event);
+  ipcMain.handle('shell:preview-save-recording', async (event, id, payload) => {
+    claim(event);
     return asResult(() => live.saveRecording(id, payload));
   });
-  ipcMain.handle('shell:preview-reveal-artifact', (event, artifactPath) => {
-    remember(event);
+  ipcMain.handle('shell:preview-reveal-artifact', async (event, artifactPath) => {
+    claim(event);
     return asResult(() => live.revealArtifact(artifactPath));
   });
-  ipcMain.handle('shell:preview-copy-artifact', (event, artifactPath) => {
-    remember(event);
+  ipcMain.handle('shell:preview-copy-artifact', async (event, artifactPath) => {
+    claim(event);
     return asResult(() => live.copyArtifactToClipboard(artifactPath));
   });
-  ipcMain.handle('shell:preview-state', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-state', async (event, id) => {
+    claim(event);
     return live.state(id);
   });
-  ipcMain.handle('shell:preview-devtools', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-devtools', async (event, id) => {
+    claim(event);
     return live.openDevTools(id);
   });
-  ipcMain.handle('shell:preview-discover', (event) => {
-    remember(event);
+  ipcMain.handle('shell:preview-discover', async (event) => {
+    claim(event);
     return discoverLocalServers();
   });
-  ipcMain.handle('shell:preview-resize', (event, id, bounds) => {
-    remember(event);
+  ipcMain.handle('shell:preview-resize', async (event, id, bounds) => {
+    claim(event);
     return live.resize(id, bounds);
   });
-  ipcMain.handle('shell:preview-hide', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-hide', async (event, id) => {
+    claim(event);
     return live.hide(id);
   });
-  ipcMain.handle('shell:preview-show', (event, id, bounds) => {
-    remember(event);
+  ipcMain.handle('shell:preview-show', async (event, id, bounds) => {
+    claim(event);
     return live.show(id, bounds);
   });
-  ipcMain.handle('shell:preview-close', (event, id) => {
-    remember(event);
+  ipcMain.handle('shell:preview-close', async (event, id) => {
+    claim(event).record.previews.delete(id);
     return live.close(id);
   });
-  ipcMain.handle('shell:preview-workspace-file', (event, input) => {
-    remember(event);
-    return workspacePreview.fileUrl(input);
+  ipcMain.handle('shell:preview-workspace-file', async (event, input) => {
+    const claimed = claim(event);
+    reserveWorkspace(claimed.record);
+    let result;
+    try {
+      result = await workspacePreview.fileUrl(input);
+    } catch (error) {
+      releaseWorkspace(claimed.record);
+      throw error;
+    }
+    if (!settleWorkspace(claimed.record)) return staleResult();
+    return result;
   });
-  ipcMain.handle('shell:preview-open-file-window', (event, input) => {
-    remember(event);
-    return asResult(() => filePreviewWindow.open(input));
+  ipcMain.handle('shell:preview-open-file-window', async (event, input) => {
+    const claimed = claim(event);
+    reserveFileWindow(claimed.record);
+    // The floating-window entry point also starts (or reuses) the shared
+    // workspace server, so it claims that singleton for this host epoch too.
+    reserveWorkspace(claimed.record);
+    const result = await asResult(() => filePreviewWindow.open(input));
+    settleWorkspace(claimed.record);
+    if (!stillCurrent(claimed)) {
+      // A replaced host's delayed open is reported as a handled failure, not a
+      // rejection: this API already exposes { ok, message }. Close the window
+      // only while the stale generation still owns the singleton; a successor
+      // that already claimed it keeps its preview.
+      await Promise.all([
+        closeReservedFileWindow(claimed.record),
+        closeReservedWorkspace(claimed.record),
+      ]);
+      return staleResult();
+    }
+    if (result && result.ok === true) settleFileWindow(claimed.record);
+    else releaseFileWindow(claimed.record);
+    return result;
   });
   const closeAll = typeof live.closeAll === 'function' ? live.closeAll.bind(live) : async () => {};
   live.closeAll = async () => {

@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 
 function fail(message) {
@@ -80,29 +81,78 @@ function normalizeAbsolute(absolutePath, authority) {
   }
 
   const target = path.resolve(absolutePath);
+  // The authority canonicalizes its roots (see workspace-authority), so the
+  // target must be canonicalized on the same path plane before containment is
+  // checked. On macOS os.tmpdir() is reached through /var while realpathSync
+  // returns /private/var, and the lexical form is what the renderer supplied.
+  const realTarget = realPathOfDeepestExisting(target);
   const roots = authority
     .authorizedRoots()
     .filter((root) => typeof root === 'string' && root.trim() !== '')
     .map((root) => path.resolve(root))
     .filter((root) => {
-      const rel = path.relative(root, target);
+      const rel = path.relative(root, realTarget);
       return rel === '' || (!path.isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${path.sep}`));
     })
     .sort((left, right) => right.length - left.length);
   if (roots.length === 0) return fail('Path is outside the workspace.');
 
   for (const root of roots) {
-    const cwd = authority.resolveAuthorizedCwd(root);
-    if (!cwd) continue;
-    const relativePath = path.relative(cwd, target);
+    const relativePath = path.relative(root, realTarget);
     if (relativePath === '') return fail('Directories cannot be previewed.');
     if (path.isAbsolute(relativePath) || relativePath === '..' || relativePath.startsWith(`..${path.sep}`)) {
       continue;
     }
-    if (!authority.resolveInside(cwd, relativePath)) continue;
-    return { ok: true, cwd, relativePath };
+    // Keep the spelling the renderer supplied where possible (so /var/... on
+    // macOS does not turn into /private/var/...), then let the authority
+    // re-validate both the cwd and the relative target. A symlinked target
+    // breaks that reconstruction (its lexical shape no longer matches the
+    // canonical one), so fall back to the canonical root in that case.
+    const lexicalCwd = lexicalCwdFor(target, relativePath);
+    if (authority.resolveInside(lexicalCwd, relativePath)) {
+      return { ok: true, cwd: lexicalCwd, relativePath };
+    }
+    if (authority.resolveInside(root, relativePath)) {
+      return { ok: true, cwd: root, relativePath };
+    }
   }
   return fail('Path is outside the workspace.');
+}
+
+/**
+ * Canonicalize a target whose final components may not exist yet while keeping
+ * any missing suffix attached to the real path of the deepest existing node.
+ * @param {string} target - absolute, already path.resolve'd target.
+ * @returns {string}
+ */
+function realPathOfDeepestExisting(target) {
+  const missing = [];
+  let node = target;
+  while (true) {
+    try {
+      const real = fs.realpathSync(node);
+      return missing.length === 0 ? real : path.join(real, ...missing.reverse());
+    } catch {
+      const parent = path.dirname(node);
+      if (parent === node) return target;
+      missing.push(path.basename(node));
+      node = parent;
+    }
+  }
+}
+
+/**
+ * Strip the target-relative suffix from the lexical target so the returned cwd
+ * uses the same spelling the renderer supplied.
+ * @param {string} target - absolute lexical target.
+ * @param {string} relativePath - canonical target relative to the matching root.
+ * @returns {string}
+ */
+function lexicalCwdFor(target, relativePath) {
+  const segments = relativePath.split(path.sep).filter((part) => part.length > 0);
+  let cwd = target;
+  for (let index = segments.length; index > 0; index -= 1) cwd = path.dirname(cwd);
+  return cwd;
 }
 
 module.exports = { normalizePreviewFileTarget };
