@@ -363,7 +363,8 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   // Conversation assembly and input share the Session binding lifecycle. The
   // source roster is installed before any consuming Slot entry.
-  ctx.uiSession.provide({    hooks: ['conversation', 'input'],
+  ctx.uiSession.provide({
+    hooks: ['conversation', 'input'],
     props: ['inputActions'],
     resolve: (binding) => {
       trackBinding(binding)
