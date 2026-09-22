@@ -29,6 +29,7 @@
 - `gitPush`（含 skip）在 `refs/remotes/<primary>/HEAD` 缺失或悬空时补上：先 `git remote set-head <primary> --auto`，失败则指向刚推的分支。这样首发非 `main`/`master` 的仓 `isDefaultRef` 为真，Commit & push 而不是误走 Commit, push & PR。不把 push 失败画成 set-head 失败。
 - 提交候选里超过 100 MiB（`100 * 1024 * 1024`）的文件在提交对话框内醒目标注路径与大小；扫描只读元数据（不 `git add`、不写索引），用 `lstat` 不跟随符号链接，忽略项不出现。cwd 为子目录时按 `rev-parse --show-prefix` 从已授权 cwd 反推仓库根：根已授权则覆盖整仓（对齐 `git add -A` 暂存整棵树），未授权则只覆盖该 cwd 子树。仅警告不改行为：排除该文件后其警告消失，按钮仍可点，提交语义不变。扫描失败按「无警告」降级、不阻塞提交；对话框关闭即在途结果作废。
 - 官方 `dsh web` 标题栏 Git 视觉；不另做皮肤。
+- PR 查询与创建固定使用 gh 解析的目标仓库；跨仓库创建使用 `owner:branch`，已有 PR 同时核对来源仓库与分支。描述从目标远程基线生成；未拉取目标分支时明确失败，不静默使用 origin。
 
 ## Allowed touch
 
@@ -48,12 +49,13 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal 与 `gitCheckLargeFiles` 大文件扫描）；vendor `ui-git` 聚焦 spec（`CommitDialog` 警告横幅 / `GitActionsControl` 扫描接线与排除联动）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
+| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal 与 `gitCheckLargeFiles` 大文件扫描）；`src/main/git-pullrequest.test.js`（Fork / 同仓库目标、查询与创建）；vendor `ui-git` 聚焦 spec（`CommitDialog` 警告横幅 / `GitActionsControl` 扫描接线与排除联动）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
 | Manual / QA | 每次发布前生产表 `TC-WS-006`、`TC-GIT-001`…`007`；已装 CI 包 + 真实 `dsh-home` |
 
 ## Sources
 
 - Decision: [提交前告警超出托管上限的大文件](../decisions/implemented/bug-fix/2026-09-22-large-file-commit-warning.md)
+- Decision: [Fork PR 使用显式目标仓库](../decisions/implemented/bug-fix/2026-09-19-fork-pr-target.md)
 
 - Handbook：[../handbook/modules/git-titlebar.md](../handbook/modules/git-titlebar.md)
 - Spec：[../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md](../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md)

@@ -559,6 +559,7 @@ async function gitReadPullRequest(cwd) {
     headBranch: headContext.headBranch,
     remoteName: headContext.remoteName,
     headRemoteUrlKey: headContext.headRemoteUrlKey,
+    targetRepositoryUrlKey: headContext.targetRepositoryUrlKey,
   };
   if (looked.failed) {
     return ok({ pr: resolveLastKnownPr(branchKey, current) });
@@ -693,10 +694,11 @@ async function gitPull(cwd, onProgress) {
  * Preferred `--head` for `gh pr create` (fork → `owner:branch`).
  * @param {string} cwd
  * @param {string} refName
+ * @param {object} [targetRepository]
  * @returns {Promise<string>}
  */
-async function resolvePreferredHeadSelector(cwd, refName) {
-  const ctx = await resolveBranchHeadContext(cwd, refName);
+async function resolvePreferredHeadSelector(cwd, refName, targetRepository) {
+  const ctx = await resolveBranchHeadContext(cwd, refName, targetRepository);
   return ctx.preferredHeadSelector;
 }
 
@@ -771,8 +773,9 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
     return fail('Current branch has not been pushed. Push before creating a PR.');
   }
   const existingLookup = await lookupOpenPullRequest(root, status.refName);
+  const targetRepository = existingLookup.targetRepository;
   const headContext = existingLookup.headContext
-    || await resolveBranchHeadContext(root, status.refName);
+    || await resolveBranchHeadContext(root, status.refName, targetRepository);
   const branchKey = `${root}\u0000${status.refName}`;
   // Last-known is status-badge only. Do not remember null (poisons the badge
   // after a successful create when a later list flakes).
@@ -786,6 +789,7 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
       headBranch: headContext.headBranch,
       remoteName: headContext.remoteName,
       headRemoteUrlKey: headContext.headRemoteUrlKey,
+      targetRepositoryUrlKey: headContext.targetRepositoryUrlKey,
     });
   }
   const existing = existingLookup.pr;
@@ -805,13 +809,26 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
   let title = '';
   let body = '';
   // Resolve once and reuse for range copy + `gh pr create --base`.
-  const baseBranch = await resolvePrBaseBranch(root, status.refName, Boolean(status.hasPrimaryRemote));
+  const baseBranch = await resolvePrBaseBranch(root, status.refName, Boolean(status.hasPrimaryRemote), targetRepository);
   if (preserveProvided && providedTitle) {
     title = providedTitle;
     body = providedBody;
   } else {
     emit({ kind: 'phase', title: `Generating ${terms.shortLabel} content...` });
-    const remote = await resolvePrimaryRemoteName(root);
+    let remote = await resolvePrimaryRemoteName(root);
+    if (targetRepository) {
+      remote = null;
+      for (const name of await listRemoteNames(root)) {
+        const url = await runGit(root, ['remote', 'get-url', name]);
+        if (url.code === 0 && normalizeGitRemoteUrl(url.stdout) === normalizeGitRemoteUrl(targetRepository.url)) {
+          remote = name;
+          break;
+        }
+      }
+      if (!remote || (await runGit(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}/${baseBranch}`])).code !== 0) {
+        return fail('Fetch the pull request target branch before generating PR content.');
+      }
+    }
     const baseRangeRef = remote
       ? ((await runGit(root, ['rev-parse', '--verify', '--quiet', `${remote}/${baseBranch}`])).code === 0
         ? `${remote}/${baseBranch}`
@@ -828,14 +845,15 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
     body = generated.body;
   }
   if (!title) return fail('Change request title is required.');
+  if (!targetRepository) return fail('Could not resolve the pull request target repository.');
 
   emit({ kind: 'phase', title: `Creating ${terms.singular}...` });
   const bodyFile = path.join(os.tmpdir(), `dshd-pr-body-${process.pid}-${Date.now()}.md`);
   fs.writeFileSync(bodyFile, body);
   let created;
   try {
-    const headSelector = await resolvePreferredHeadSelector(root, status.refName);
-    const prArgs = ['pr', 'create', '--title', title, '--body-file', bodyFile, '--head', headSelector];
+    const headSelector = headContext.preferredHeadSelector;
+    const prArgs = ['pr', 'create', '--repo', targetRepository.url, '--title', title, '--body-file', bodyFile, '--head', headSelector];
     // Always pass --base when resolved (never omit when base === head name).
     if (baseBranch) prArgs.push('--base', baseBranch);
     created = await run('gh', prArgs, root, {
@@ -850,7 +868,7 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
   }
   if (created.missing) return fail('gh is unavailable.');
   if (created.code !== 0) return fail(created.stderr.trim() || created.stdout.trim() || 'gh pr create failed.');
-  const viewed = await readPullRequest(root, status.refName);
+  const viewed = await readPullRequest(root, status.refName, targetRepository);
   const url = viewed?.url || created.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
   // Only remember a real lookup row — do not invent number:0 when list flakes.
   if (viewed?.url && typeof viewed.number === 'number' && viewed.number > 0) {
@@ -860,6 +878,7 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
       headBranch: headContext.headBranch,
       remoteName: headContext.remoteName,
       headRemoteUrlKey: headContext.headRemoteUrlKey,
+      targetRepositoryUrlKey: headContext.targetRepositoryUrlKey,
     });
   }
   return ok({
