@@ -57,6 +57,12 @@ const { parseUnifiedDiff, gitDiff } = require('./git-diff');
 const { readPrTemplate, resolvePrBaseBranch, setGhDefaultBranchResolver } = require('./git-templates');
 
 /**
+ * GitHub's hard per-file limit. A file must exceed this to be rejected, so a
+ * file of exactly this size is not a problem: the check is `>`.
+ */
+const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024;
+
+/**
  * Git-for-Windows `core.protectNTFS` rejects these device names in any path
  * component, including `NUL.txt` and trailing dots/spaces.
  * @param {unknown} rel
@@ -1095,6 +1101,67 @@ async function gitCreateBranch(cwd, name) {
   return ok({ refName: branch });
 }
 
+/**
+ * Working-tree files `git add -A` would stage that exceed GitHub's per-file
+ * limit. Path metadata only: nothing is staged, and symlinks are skipped
+ * rather than followed, so a link cannot report its target's size. Ignored
+ * paths never reach this list — `git status` omits them unless asked.
+ * @param {unknown} cwd
+ * @returns {Promise<{ ok: boolean, message?: string, files?: Array<{ path: string, size: number }> }>}
+ */
+async function gitCheckLargeFiles(cwd) {
+  const root = asCwd(cwd);
+  if (!root) return fail('Git status is unavailable.');
+  // `--porcelain` prints paths relative to the repository root even when the
+  // cwd is a subdirectory. `--show-prefix` reports where the cwd sits inside
+  // that root, so the root is derived lexically from the already-authorized
+  // cwd rather than trusted from a second source. When that root is itself
+  // authorized the whole repository is scanned, matching `git add -A` from a
+  // subdirectory (it stages the whole tree); otherwise the scan stays inside
+  // the authorized cwd and paths above it are skipped.
+  const prefix = await runGit(root, ['rev-parse', '--show-prefix']);
+  const cwdPrefix = prefix.code === 0
+    ? prefix.stdout.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    : '';
+  const cwdDepth = cwdPrefix ? cwdPrefix.split('/').length : 0;
+  // `asCwd` canonicalizes, so an unauthorized ancestor yields null and the
+  // scan falls back to the cwd subtree (dropping the prefix from each path).
+  const repoRoot = cwdDepth > 0 ? asCwd(path.resolve(root, ...Array(cwdDepth).fill('..'))) : root;
+  const scanRoot = repoRoot ?? root;
+  const useRepoPaths = repoRoot !== null;
+  const listed = await runGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  if (listed.missing) return fail('Git is unavailable.');
+  if (listed.timedOut) return fail('Git command timed out.');
+  if (listed.code !== 0) return fail(gitFailureMessage(listed, 'git status failed.'));
+  // The path list was cut short, so "no large files" would be a lie.
+  if (listed.truncated) return fail('Too many changed files to check for large files.');
+  const files = [];
+  for (const entry of parsePorcelainZ(listed.stdout)) {
+    // A rename/copy record lists the destination first; that is the path
+    // `git add -A` stages, while its origin is already gone from disk.
+    const repoPath = entry.path;
+    if (!repoPath || isNtfsReservedGitPath(repoPath)) continue;
+    // Without an authorized repository root, only the cwd subtree is in scope.
+    if (!useRepoPaths && !repoPath.startsWith(`${cwdPrefix}/`)) continue;
+    const filePath = useRepoPaths ? repoPath : repoPath.slice(cwdPrefix.length + 1);
+    if (!filePath) continue;
+    const target = resolveInsideWorkspace(scanRoot, filePath);
+    if (!target) continue;
+    try {
+      const stat = fs.lstatSync(target);
+      if (stat.isFile() && stat.size > LARGE_FILE_WARNING_BYTES) {
+        // Report the repository-relative path git itself uses, so the client
+        // can match it against status.workingTree files.
+        files.push({ path: repoPath, size: stat.size });
+      }
+    } catch {
+      // Vanished between `git status` and here, or unreadable: nothing to warn about.
+    }
+  }
+  files.sort((left, right) => left.path.localeCompare(right.path));
+  return ok({ files });
+}
+
 module.exports = {
   gitStatus,
   gitFetchForStatus,
@@ -1114,6 +1181,7 @@ module.exports = {
   gitBranchList,
   gitSwitchBranch,
   gitCreateBranch,
+  gitCheckLargeFiles,
   summarizeCommitMessage,
   sanitizeFeatureBranchName,
   uniqueFeatureBranchName,

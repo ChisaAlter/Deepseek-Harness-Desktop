@@ -44,7 +44,7 @@ const { inspectPlugins, isPresetPlugin } = require('./plugin-forensics');
 const { isPluginTreeFailure } = require('./plugin-tree-failure');
 const { readLastDesktopStart, recordLastDesktopStart, stickySkipActive } = require('./launcher-gate');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
-const { gitBranchList, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
+const { gitBranchList, gitCheckLargeFiles, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
 const { gitIpcNull, guardGitIpc } = require('./git-ipc-guard');
 const { watchWorkspaceRegistrations } = require('./git-workspace-watch');
 const { registerPreviewIpc } = require('./preview');
@@ -386,6 +386,9 @@ function registerIpc({
   handle('shell:git-pull-request', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitReadPullRequest(cwd)));
   handle('shell:git-init', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitInit(cwd)));
   handle('shell:git-diff', HARNESS_ONLY, guardGitIpc((_event, cwd, options) => gitDiff(cwd, options), gitIpcNull));
+  // Read-only pre-commit size probe for the commit dialog. Same guard as the
+  // other Git reads so a cwd outside the authorized roots cannot be scanned.
+  handle('shell:git-check-large-files', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitCheckLargeFiles(cwd), gitIpcNull));
   const sendGitProgress = (event, actionId) => (progress) => {
     if (actionId == null || event.sender.isDestroyed()) return;
     event.sender.send('shell:git-progress', { actionId, ...progress });

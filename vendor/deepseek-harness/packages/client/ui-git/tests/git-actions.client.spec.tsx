@@ -90,6 +90,7 @@ function mount(opts: {
   gitReadPullRequest?: GitActionsProps['gitReadPullRequest']
   gitInit?: GitActionsProps['gitInit']
   gitCommit?: GitActionsProps['gitCommit']
+  gitCheckLargeFiles?: GitActionsProps['gitCheckLargeFiles']
   gitPush?: GitActionsProps['gitPush']
   gitPull?: GitActionsProps['gitPull']
   gitCreateChangeRequest?: GitActionsProps['gitCreateChangeRequest']
@@ -114,6 +115,7 @@ function mount(opts: {
   }))
   const gitInit = opts.gitInit ?? vi.fn(async () => ({ ok: true }))
   const gitCommit = opts.gitCommit ?? vi.fn(async () => ({ ok: true }))
+  const gitCheckLargeFiles = opts.gitCheckLargeFiles ?? vi.fn(async () => ({ ok: true, files: [] }))
   const gitPush = opts.gitPush ?? vi.fn(async () => ({ ok: true }))
   const gitPull = opts.gitPull ?? vi.fn(async () => ({ ok: true }))
   const gitCreateChangeRequest = opts.gitCreateChangeRequest ?? vi.fn(async () => ({ ok: true }))
@@ -143,6 +145,7 @@ function mount(opts: {
       gitReadPullRequest={gitReadPullRequest}
       gitInit={gitInit}
       gitCommit={gitCommit}
+      gitCheckLargeFiles={gitCheckLargeFiles}
       gitPush={gitPush}
       gitPull={gitPull}
       gitCreateChangeRequest={gitCreateChangeRequest}
@@ -159,7 +162,7 @@ function mount(opts: {
     />,
   )
   return {
-    gitStatus, gitFetchForStatus, gitReadPullRequest, gitInit, gitCommit, gitPush, gitPull, gitCreateChangeRequest,
+    gitStatus, gitFetchForStatus, gitReadPullRequest, gitInit, gitCommit, gitCheckLargeFiles, gitPush, gitPull, gitCreateChangeRequest,
     gitPublishRepository, gitBranchList, gitSwitchBranch, gitCreateBranch, openWorkspacePath,
     onGitProgress, onWorkspacesChanged, openExternal, rerender: view.rerender,
   }
@@ -335,6 +338,7 @@ describe('GitActionsControl', () => {
       gitReadPullRequest: vi.fn(async () => ({ ok: true, pr: null })),
       gitInit: vi.fn(async () => ({ ok: true })),
       gitCommit: vi.fn(async () => ({ ok: true })),
+      gitCheckLargeFiles: vi.fn(async () => ({ ok: true, files: [] })),
       gitPush: vi.fn(async () => ({ ok: true })),
       gitPull: vi.fn(async () => ({ ok: true })),
       gitCreateChangeRequest: vi.fn(async () => ({ ok: true })),
@@ -474,6 +478,7 @@ describe('GitActionsControl', () => {
         gitReadPullRequest={b.gitReadPullRequest}
         gitInit={b.gitInit}
         gitCommit={b.gitCommit}
+        gitCheckLargeFiles={b.gitCheckLargeFiles}
         gitPush={b.gitPush}
         gitPull={b.gitPull}
         gitCreateChangeRequest={b.gitCreateChangeRequest}
@@ -1146,5 +1151,126 @@ describe('GitActionsControl', () => {
     act(() => { titlebarGit.set(false) })
     expect(screen.queryByRole('button', { name: 'Git actions' })).toBeNull()
     expect(screen.getByRole('dialog', { name: 'Commit changes' })).toBeTruthy()
+  })
+
+  it('warns about oversized commit candidates when the dialog opens', async () => {
+    const b = mount({
+      cwd: '/work',
+      git: status({
+        hasWorkingTreeChanges: true,
+        workingTree: filesTree([{ path: 'video.bin', insertions: 0, deletions: 0 }]),
+      }),
+      gitCheckLargeFiles: vi.fn(async () => ({ ok: true, files: [{ path: 'video.bin', size: 101 * 1024 * 1024 }] })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).getByText('video.bin')).toBeTruthy()
+    expect(b.gitCheckLargeFiles).toHaveBeenCalledWith('/work')
+  })
+
+  it('drops the warning once the user excludes the oversized file from the commit', async () => {
+    mount({
+      cwd: '/work',
+      git: status({
+        hasWorkingTreeChanges: true,
+        workingTree: filesTree([
+          { path: 'video.bin', insertions: 0, deletions: 0 },
+          { path: 'small.ts', insertions: 1, deletions: 0 },
+        ]),
+      }),
+      gitCheckLargeFiles: vi.fn(async () => ({ ok: true, files: [{ path: 'video.bin', size: 101 * 1024 * 1024 }] })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'video.bin' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('still warns for an oversized file inside a collapsed untracked directory', async () => {
+    // `git status` collapses a brand-new directory to `dir/`, so the warning
+    // path never equals a dialog row and must match by prefix instead.
+    mount({
+      cwd: '/work',
+      git: status({
+        hasWorkingTreeChanges: true,
+        workingTree: filesTree([{ path: 'assets/', insertions: 0, deletions: 0 }]),
+      }),
+      gitCheckLargeFiles: vi.fn(async () => ({
+        ok: true,
+        files: [{ path: 'assets/video.bin', size: 101 * 1024 * 1024 }],
+      })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByText('assets/video.bin')).toBeTruthy()
+  })
+
+  it('does not warn about a large file that is not part of the commit', async () => {
+    mount({
+      cwd: '/work',
+      git: status({
+        hasWorkingTreeChanges: true,
+        workingTree: filesTree([{ path: 'small.ts', insertions: 1, deletions: 0 }]),
+      }),
+      gitCheckLargeFiles: vi.fn(async () => ({ ok: true, files: [{ path: 'elsewhere.bin', size: 101 * 1024 * 1024 }] })),
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    expect(await screen.findByRole('dialog', { name: 'Commit changes' })).toBeTruthy()
+    await waitFor(() => { expect(screen.queryByRole('alert')).toBeNull() })
+  })
+
+  it('shows no warning when the large-file scan fails and keeps the dialog usable', async () => {
+    const gitCheckLargeFiles = vi.fn(async () => { throw new Error('scan ipc dropped') })
+    const gitCommit = vi.fn(async () => ({ ok: true }))
+    mount({
+      cwd: '/work',
+      git: status({
+        hasWorkingTreeChanges: true,
+        workingTree: filesTree([{ path: 'small.ts', insertions: 1, deletions: 0 }]),
+      }),
+      gitCheckLargeFiles,
+      gitCommit,
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    expect(await screen.findByRole('dialog', { name: 'Commit changes' })).toBeTruthy()
+    await waitFor(() => { expect(gitCheckLargeFiles).toHaveBeenCalled() })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('status', { name: 'Action failed' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Commit' }))
+    await waitFor(() => { expect(gitCommit).toHaveBeenCalled() })
+  })
+
+  it('ignores a scan answer that lands after the dialog was dismissed', async () => {
+    let answer: ((value: { ok: boolean, files: Array<{ path: string, size: number }> }) => void) | undefined
+    const gitCheckLargeFiles = vi.fn(() => new Promise<{ ok: boolean, files: Array<{ path: string, size: number }> }>(
+      (resolve) => { answer = resolve },
+    ))
+    mount({
+      cwd: '/work',
+      git: status({
+        hasWorkingTreeChanges: true,
+        workingTree: filesTree([{ path: 'video.bin', insertions: 0, deletions: 0 }]),
+      }),
+      gitCheckLargeFiles,
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Commit changes' })
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Cancel' })[0]!)
+    await waitFor(() => { expect(screen.queryByRole('dialog', { name: 'Commit changes' })).toBeNull() })
+    await act(async () => {
+      answer?.({ ok: true, files: [{ path: 'video.bin', size: 101 * 1024 * 1024 }] })
+    })
+    // Reopening must not inherit the stale answer either.
+    fireEvent.click(screen.getByRole('button', { name: 'Git actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Commit' }))
+    expect(await screen.findByRole('dialog', { name: 'Commit changes' })).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

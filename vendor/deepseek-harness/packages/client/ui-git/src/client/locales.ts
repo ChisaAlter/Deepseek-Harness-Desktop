@@ -100,6 +100,8 @@ export const zh = {
   'branch.switchFailed': '切换分支失败。',
   'branch.createFailed': '创建并切换分支失败。',
   'commit.openFailed': '无法打开文件',
+  'commit.largeFileWarning': '检测到超过 100 MB 的大文件',
+  'commit.largeFileHint': 'GitHub 拒绝超过 100 MB 的文件。建议取消提交，将文件加入 .gitignore 或使用 Git LFS。',
 } satisfies Record<string, string>
 
 /** The git namespace key union. */
@@ -204,6 +206,8 @@ export const en = {
   'branch.switchFailed': 'Failed to switch branch.',
   'branch.createFailed': 'Failed to create and switch branch.',
   'commit.openFailed': 'Unable to open file',
+  'commit.largeFileWarning': 'Large files over 100 MB detected',
+  'commit.largeFileHint': 'GitHub rejects files over 100 MB. Cancel and add them to .gitignore or use Git LFS.',
 } satisfies Record<GitKey, string>
 
 /** Dictionary namespace owned by this plugin. */

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { CommitDialog, type CommitDialogProps } from '../src/client/CommitDialog.tsx'
 import { en } from '../src/client/locales.ts'
 
@@ -141,5 +141,36 @@ describe('CommitDialog', () => {
     mount({ onOpenFile })
     fireEvent.click(screen.getByRole('button', { name: 'src/demo.ts' }))
     expect(onOpenFile).toHaveBeenCalledWith('src/demo.ts')
+  })
+
+  it('stays silent when the host reported no oversized files', () => {
+    mount({ largeFiles: [] })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('Large files over 100 MB detected')).toBeNull()
+  })
+
+  it('warns with each oversized path and its size', () => {
+    mount({
+      largeFiles: [
+        { path: 'assets/video.bin', size: 101 * 1024 * 1024 },
+        { path: 'a dir/ünï code.bin', size: 100 * 1024 * 1024 + 1 },
+      ],
+    })
+    const alert = screen.getByRole('alert')
+    expect(within(alert).getByText('Large files over 100 MB detected')).toBeTruthy()
+    expect(within(alert).getByText('assets/video.bin')).toBeTruthy()
+    expect(within(alert).getByText('a dir/ünï code.bin')).toBeTruthy()
+    // Rounded up, so a just-over-limit file never reads as "100.0 MB".
+    expect(within(alert).getByText('101.0 MB')).toBeTruthy()
+    expect(within(alert).getByText('100.1 MB')).toBeTruthy()
+    expect(
+      within(alert).getByText('GitHub rejects files over 100 MB. Cancel and add them to .gitignore or use Git LFS.'),
+    ).toBeTruthy()
+  })
+
+  it('keeps commit actions enabled while warning about a large file', () => {
+    mount({ largeFiles: [{ path: 'src/demo.ts', size: 150 * 1024 * 1024 }] })
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Commit' }).disabled).toBe(false)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Commit on new branch' }).disabled).toBe(false)
   })
 })
