@@ -82,6 +82,12 @@ function createWorkspaceAuthority({
    * symlink escapes: the deepest existing node on the target chain must stay
    * inside the base after realpath normalization. Symlinks that stay inside
    * the workspace (pnpm store links) keep working.
+   *
+   * Paths that spell or land in a `.git` directory are refused here so every
+   * caller (files, git, editors, preview) shares one rule. The spelled form is
+   * not enough: a link with an innocent name (`notes` -> `.git`) resolves into
+   * the repository metadata, and a save there escalates to code execution
+   * through hooks.
    * @param {unknown} cwd - the renderer-supplied cwd (authorized first).
    * @param {unknown} relativePath - path relative to the cwd.
    * @returns {string | null} the canonical target, or null.
@@ -93,11 +99,16 @@ function createWorkspaceAuthority({
     const target = path.resolve(base, rel);
     const fromBase = path.relative(base, target);
     if (fromBase.startsWith('..') || path.isAbsolute(fromBase)) return null;
+    if (hasGitDirSegment(fromBase)) return null;
     let node = target;
     while (true) {
       const nodeReal = realPathOrNull(node);
       if (nodeReal !== null) {
-        return containedIn(base, nodeReal) ? target : null;
+        if (!containedIn(base, nodeReal)) return null;
+        // Canonical form: catches `.git` reached through a link whose own name
+        // is innocuous, and `.GIT` on case-insensitive filesystems.
+        if (hasGitDirSegment(path.relative(base, nodeReal))) return null;
+        return target;
       }
       const parent = path.dirname(node);
       if (parent === node) return null;
@@ -166,6 +177,21 @@ function realPathOrNull(target) {
 function containedIn(root, candidate) {
   const fromRoot = path.relative(root, candidate);
   return !fromRoot.startsWith('..') && !path.isAbsolute(fromRoot);
+}
+
+/**
+ * True when any segment of a relative path is `.git` (case-insensitive, both
+ * separator styles). A `.git` directory holds hooks, config, and refs: writing
+ * there runs attacker-chosen code on the next git invocation, so the desktop
+ * surface never addresses it. Names that merely start with `.git`
+ * (`.gitignore`, `.github`, `git.txt`) are ordinary files and stay reachable.
+ * @param {string} relativePath
+ * @returns {boolean}
+ */
+function hasGitDirSegment(relativePath) {
+  return String(relativePath)
+    .split(/[\\/]+/)
+    .some((segment) => segment.toLowerCase() === '.git');
 }
 
 function dshHome() {

@@ -5,6 +5,8 @@ const net = require('node:net');
 const path = require('node:path');
 const { rewriteLoopbackLoadUrl } = require('./local-url');
 const { isHttpOrHttpsUrl } = require('./preview-url');
+const { loadWorkspaceAuthority } = require('./workspace-authority');
+const { createWorkspaceFileReader } = require('./workspace-fs');
 const { createWorkspacePreviewController } = require('./preview-workspace');
 const { createFilePreviewWindowController } = require('./preview-file-window');
 const {
@@ -1060,12 +1062,18 @@ function createPreviewController(options = {}) {
  */
 function registerPreviewIpc(ipcMain, controller, options = {}) {
   const authorize = typeof options.authorize === 'function' ? options.authorize : () => {};
-  const workspacePreview = options.workspacePreview ?? createWorkspacePreviewController();
+  const workspaceAuthority = options.workspaceAuthority
+    ?? loadWorkspaceAuthority({ allowScratchCwd: true });
+  const workspacePreview = options.workspacePreview
+    ?? createWorkspacePreviewController({ authority: workspaceAuthority });
+  const previewFileReader = options.readFile
+    ? null
+    : createWorkspaceFileReader(workspaceAuthority).readFile;
   const filePreviewWindow = options.filePreviewWindow ?? createFilePreviewWindowController({
     ipcMain,
     workspacePreview,
     createWindow: options.createFilePreviewWindow,
-    readFile: options.readFile,
+    readFile: previewFileReader ?? options.readFile,
     getTheme: options.getTheme,
     getLocale: options.getLocale,
     preloadPath: options.filePreviewPreloadPath,

@@ -127,11 +127,11 @@ function looksBinary(buf) {
   return false;
 }
 
-async function readFile(cwd, relativePath) {
+async function readFileUsing(authorityForRead, cwd, relativePath) {
   if (typeof relativePath !== 'string' || relativePath.trim() === '') {
     return fail('File path is required.');
   }
-  const target = resolveInside(cwd, relativePath);
+  const target = authorityForRead.resolveInside(cwd, relativePath);
   if (!target) return fail('Path is outside the workspace.');
   let stat;
   try {
@@ -162,6 +162,26 @@ async function readFile(cwd, relativePath) {
     return { ok: true, binary: true, text: '', truncated };
   }
   return { ok: true, binary: false, text: buf.toString('utf8'), truncated };
+}
+
+/**
+ * Main-process preview reader. The injected authority can include the
+ * Host-owned scratch cwd without widening the ordinary filesystem IPC.
+ * @param {{ resolveAuthorizedCwd: Function, resolveInside: Function }} authorityForRead
+ */
+function createWorkspaceFileReader(authorityForRead) {
+  if (!authorityForRead || typeof authorityForRead.resolveAuthorizedCwd !== 'function') {
+    throw new TypeError('workspace file reader requires a workspace authority');
+  }
+  return {
+    readFile(cwd, relativePath) {
+      return readFileUsing(authorityForRead, cwd, relativePath);
+    },
+  };
+}
+
+async function readFile(cwd, relativePath) {
+  return readFileUsing(authority(), cwd, relativePath);
 }
 
 async function readFileMedia(cwd, relativePath) {
@@ -249,6 +269,7 @@ module.exports = {
   readFile,
   readFileMedia,
   writeFile,
+  createWorkspaceFileReader,
   setWorkspaceAuthority,
   MAX_WRITE_BYTES,
 };
