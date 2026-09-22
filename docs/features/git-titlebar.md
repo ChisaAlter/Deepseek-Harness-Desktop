@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `git-titlebar` |
 | **status** | `active` |
-| **last verified** | 2026-08-31 — pin `0.1.2-alpha.2` 工作区自动登记改为 Typert HTTP unary `POST /api/workspace/create` + `{ args: { request: { path } } }`（旧点号 `/api/workspace.create` 404，标题栏「切换分支」一直 disabled）。本机 `smoke:source`：surfaces/branch/git 均打开。此前同日 — `gitPush` 成功或 skip 后补齐 `refs/remotes/<primary>/HEAD`（先 `set-head --auto`，否则刚推的分支），非 main 首发仓 `isDefaultRef` 为真，胶囊走 Commit & push。此前 2026-08-25 — 审查批次 3：首载登记竞态根因修复（主进程 watch `workspace.json` → 推 `shell:git-workspaces-changed` → 标题栏即刻重读状态；含武装间隙补发）；win32 `taskkill` 非零退出回退 `child.kill()`；登记兄弟仓 `gitBranchList` 全链路自动化（TC-WS-006/TC-GIT-001 关键断言的 rehearsal）；禁用行 hint Tooltip 与 `shell:git-branch-list` 抛错接线补测。实机 Electron（Linux/xvfb + CDP）验证：未登记兄弟仓 → 写入登记 → renderer 收到信号 → gitStatus/gitBranchList 即刻授权；`smoke:source` 通过。合并树 `ea659884`（consolidation #39 落地后）：desktop `npm test` 997/0/3 绿（git 链单测在内）+ `qa:source` titlebar/branchMenu/gitMenu/commit 步骤 PASS。实机 Windows 仍未覆盖（验证手册见 [合并收口计划 Phase 5](../superpowers/plans/2026-08-25-post-consolidation-closeout.md)） |；本次 alpha.4：source smoke 与 packaged P0 的 titlebar/Git 命中通过。
+| **last verified** | 2026-09-22 — Commit 对话框在打开时扫描提交候选，列出超过 100 MiB 的文件及其大小：`gitCheckLargeFiles` 只读 `git status --porcelain -z` 的路径元数据（`lstat`，>100 MiB 严格大于），从不暂存、不跟随符号链接，忽略项天然不在列；cwd 为子目录时按 `rev-parse --show-toplevel` 的仓库根解析路径并单独授权。`src/main/git.test.js` 增 7 例（阈值两侧、空格/非 ASCII 路径、忽略项、符号链接、子目录 cwd、路径消失、未授权 cwd）；vendor `ui-git` 聚焦 10 文件 140 项通过。此前 2026-09-19 — Fork PR 改按 gh 解析出的目标仓库固定查询与创建。此前 2026-08-31 — pin `0.1.2-alpha.2` 工作区自动登记改为 Typert HTTP unary `POST /api/workspace/create` + `{ args: { request: { path } } }`（旧点号 `/api/workspace.create` 404，标题栏「切换分支」一直 disabled）。本机 `smoke:source`：surfaces/branch/git 均打开。此前同日 — `gitPush` 成功或 skip 后补齐 `refs/remotes/<primary>/HEAD`（先 `set-head --auto`，否则刚推的分支），非 main 首发仓 `isDefaultRef` 为真，胶囊走 Commit & push。此前 2026-08-25 — 审查批次 3：首载登记竞态根因修复（主进程 watch `workspace.json` → 推 `shell:git-workspaces-changed` → 标题栏即刻重读状态；含武装间隙补发）；win32 `taskkill` 非零退出回退 `child.kill()`；登记兄弟仓 `gitBranchList` 全链路自动化（TC-WS-006/TC-GIT-001 关键断言的 rehearsal）；禁用行 hint Tooltip 与 `shell:git-branch-list` 抛错接线补测。实机 Electron（Linux/xvfb + CDP）验证：未登记兄弟仓 → 写入登记 → renderer 收到信号 → gitStatus/gitBranchList 即刻授权；`smoke:source` 通过。合并树 `ea659884`（consolidation #39 落地后）：desktop `npm test` 997/0/3 绿（git 链单测在内）+ `qa:source` titlebar/branchMenu/gitMenu/commit 步骤 PASS。实机 Windows 仍未覆盖（验证手册见 [合并收口计划 Phase 5](../superpowers/plans/2026-08-25-post-consolidation-closeout.md)） |；本次 alpha.4：source smoke 与 packaged P0 的 titlebar/Git 命中通过。
 
 ## User paths
 
@@ -27,6 +27,7 @@
 - 首载不留空窗：harness 异步写 `workspace.json` 完成后，主进程 watcher（`git-workspace-watch.js`，watch `storages/` 目录、防抖、目录缺失重试；武装成功时若注册文件已存在则补发一次信号，覆盖「目录创建 + 首次登记都落在重试间隙」的漏窗）推送 `shell:git-workspaces-changed`，标题栏订阅后立即重读状态，不依赖窗口重新聚焦兜底。
 - 已知权衡（信任粒度）：通过过滤的登记根对 Git/FS/PTY 全量生效，不做逐操作确认；边界是「登记只来自用户主动打开的工作区」加上盘符根与高危祖先过滤。
 - `gitPush`（含 skip）在 `refs/remotes/<primary>/HEAD` 缺失或悬空时补上：先 `git remote set-head <primary> --auto`，失败则指向刚推的分支。这样首发非 `main`/`master` 的仓 `isDefaultRef` 为真，Commit & push 而不是误走 Commit, push & PR。不把 push 失败画成 set-head 失败。
+- 提交候选里超过 100 MiB（`100 * 1024 * 1024`）的文件在提交对话框内醒目标注路径与大小；扫描只读元数据（不 `git add`、不写索引），用 `lstat` 不跟随符号链接，忽略项不出现。仅警告不改行为：排除该文件后其警告消失，按钮仍可点，提交语义不变。扫描失败按「无警告」降级、不阻塞提交；对话框关闭即在途结果作废。
 - 官方 `dsh web` 标题栏 Git 视觉；不另做皮肤。
 
 ## Allowed touch
@@ -47,12 +48,12 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
+| Automated | `src/main/git.test.js`（含登记兄弟仓 `gitBranchList` 全链路 rehearsal 与 `gitCheckLargeFiles` 大文件扫描）；vendor `ui-git` 聚焦 spec（`CommitDialog` 警告横幅 / `GitActionsControl` 扫描接线与排除联动）；`workspace-rpc.test.js`（启动工作区 unary 路径/信封）；`workspace-authority.test.js`；`git-workspace-watch.test.js`；`ipc.test.js` 的 git guard/watcher 接线；`qa:packaged` 可 rehearsal 兄弟仓 `gitBranchList`（**不能**当发版 Pass） |
 | Manual / QA | 每次发布前生产表 `TC-WS-006`、`TC-GIT-001`…`007`；已装 CI 包 + 真实 `dsh-home` |
 
 ## Sources
 
-- Decision: none
+- Decision: [提交前告警超出托管上限的大文件](../decisions/implemented/bug-fix/2026-09-22-large-file-commit-warning.md)
 
 - Handbook：[../handbook/modules/git-titlebar.md](../handbook/modules/git-titlebar.md)
 - Spec：[../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md](../superpowers/specs/2026-08-18-t3-git-tool-verbatim-leftovers-design.md)

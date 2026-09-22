@@ -57,6 +57,12 @@ const { parseUnifiedDiff, gitDiff } = require('./git-diff');
 const { readPrTemplate, resolvePrBaseBranch, setGhDefaultBranchResolver } = require('./git-templates');
 
 /**
+ * GitHub's hard per-file limit. A file must exceed this to be rejected, so a
+ * file of exactly this size is not a problem: the check is `>`.
+ */
+const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024;
+
+/**
  * Git-for-Windows `core.protectNTFS` rejects these device names in any path
  * component, including `NUL.txt` and trailing dots/spaces.
  * @param {unknown} rel
@@ -1095,6 +1101,51 @@ async function gitCreateBranch(cwd, name) {
   return ok({ refName: branch });
 }
 
+/**
+ * Working-tree files `git add -A` would stage that exceed GitHub's per-file
+ * limit. Path metadata only: nothing is staged, and symlinks are skipped
+ * rather than followed, so a link cannot report its target's size. Ignored
+ * paths never reach this list — `git status` omits them unless asked.
+ * @param {unknown} cwd
+ * @returns {Promise<{ ok: boolean, message?: string, files?: Array<{ path: string, size: number }> }>}
+ */
+async function gitCheckLargeFiles(cwd) {
+  const root = asCwd(cwd);
+  if (!root) return fail('Git status is unavailable.');
+  // `--porcelain` prints paths relative to the repository root even when the
+  // cwd is a subdirectory, so resolve against that root. It must be
+  // authorized on its own: a registered subdirectory does not authorize the
+  // repository above it.
+  const top = await runGit(root, ['rev-parse', '--show-toplevel']);
+  const workRoot = top.code === 0 ? asCwd(top.stdout.trim()) : null;
+  if (!workRoot) return fail('Git status is unavailable.');
+  const listed = await runGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  if (listed.missing) return fail('Git is unavailable.');
+  if (listed.timedOut) return fail('Git command timed out.');
+  if (listed.code !== 0) return fail(gitFailureMessage(listed, 'git status failed.'));
+  // The path list was cut short, so "no large files" would be a lie.
+  if (listed.truncated) return fail('Too many changed files to check for large files.');
+  const files = [];
+  for (const entry of parsePorcelainZ(listed.stdout)) {
+    // A rename/copy record lists the destination first; that is the path
+    // `git add -A` stages, while its origin is already gone from disk.
+    const filePath = entry.path;
+    if (!filePath || isNtfsReservedGitPath(filePath)) continue;
+    const target = resolveInsideWorkspace(workRoot, filePath);
+    if (!target) continue;
+    try {
+      const stat = fs.lstatSync(target);
+      if (stat.isFile() && stat.size > LARGE_FILE_WARNING_BYTES) {
+        files.push({ path: filePath, size: stat.size });
+      }
+    } catch {
+      // Vanished between `git status` and here, or unreadable: nothing to warn about.
+    }
+  }
+  files.sort((left, right) => left.path.localeCompare(right.path));
+  return ok({ files });
+}
+
 module.exports = {
   gitStatus,
   gitFetchForStatus,
@@ -1114,6 +1165,7 @@ module.exports = {
   gitBranchList,
   gitSwitchBranch,
   gitCreateBranch,
+  gitCheckLargeFiles,
   summarizeCommitMessage,
   sanitizeFeatureBranchName,
   uniqueFeatureBranchName,

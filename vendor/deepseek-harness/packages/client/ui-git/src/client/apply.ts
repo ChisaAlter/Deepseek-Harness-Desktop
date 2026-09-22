@@ -40,6 +40,7 @@ interface GitShell {
   gitCreateChangeRequest?: (cwd: string, input?: { title?: string; body?: string }, actionId?: number) => Promise<GitResult>
   gitPublishRepository?: (cwd: string, input: { name: string; visibility: 'public' | 'private'; remoteUrl?: string }, actionId?: number) => Promise<GitResult>
   gitBranchList?: (cwd: string) => Promise<{ ok: boolean; message?: string; branches?: import('./branches.ts').BranchRef[] }>
+  gitCheckLargeFiles?: (cwd: string) => Promise<GitResult & { files?: Array<{ path: string; size: number }> }>
   gitSwitchBranch?: (cwd: string, ref: string) => Promise<GitResult & { refName?: string }>
   gitCreateBranch?: (cwd: string, name: string) => Promise<GitResult & { refName?: string }>
   openExternal?: (url: string) => Promise<boolean>
@@ -78,6 +79,7 @@ function readGitShell(): Omit<GitActionsInjected, 'hooks'> {
     gitPublishRepository: (cwd, input, actionId) =>
       shell?.gitPublishRepository?.(cwd, input, actionId) ?? Promise.resolve(unavailable()),
     gitBranchList: cwd => shell?.gitBranchList?.(cwd) ?? noBranchList(),
+    gitCheckLargeFiles: cwd => shell?.gitCheckLargeFiles?.(cwd) ?? Promise.resolve(unavailable()),
     gitSwitchBranch: (cwd, ref) => shell?.gitSwitchBranch?.(cwd, ref) ?? Promise.resolve(unavailable()),
     gitCreateBranch: (cwd, name) => shell?.gitCreateBranch?.(cwd, name) ?? Promise.resolve(unavailable()),
     openExternal: url => shell?.openExternal?.(url) ?? Promise.resolve(false),
