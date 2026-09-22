@@ -232,10 +232,11 @@ describe('run_code sub-calls through the real chat machinery', () => {
     view.getByText('notes/demo.txt').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      // rc.1 funnels chat file opens through resolveWorkspacePath before the
-      // native handoff: the workspace-rooted absolute path plus the (unset)
-      // open options reach workspaces.openPath.
-      expect(b.openPath).toHaveBeenCalledWith('/w/notes/demo.txt', undefined)
+      // Chat funnels every file open through resolveWorkspacePath before the
+      // native handoff: the workspace-rooted absolute path reaches
+      // workspaces.openPath, tagged with the initiating session so the
+      // desktop surfaces can route the open to the right sidebar.
+      expect(b.openPath).toHaveBeenCalledWith('/w/notes/demo.txt', { sessionId: SID })
     })
     expect(b.openWorkspacePath).not.toHaveBeenCalled()
     view.getByText('List notes').click()

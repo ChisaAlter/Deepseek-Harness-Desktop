@@ -217,10 +217,11 @@ describe('keyed toolview hole through the real machinery', () => {
     view.getByText('src/a.ts').click()
     expect(b.layout.openDetails).not.toHaveBeenCalled()
     await vi.waitFor(() => {
-      // rc.1 funnels chat file opens through resolveWorkspacePath before the
-      // native handoff: the workspace-rooted absolute path plus the (unset)
-      // open options reach workspaces.openPath.
-      expect(b.openPath).toHaveBeenCalledWith('/w/src/a.ts', undefined)
+      // Chat funnels every file open through resolveWorkspacePath before the
+      // native handoff: the workspace-rooted absolute path reaches
+      // workspaces.openPath, tagged with the initiating session so the
+      // desktop surfaces can route the open to the right sidebar.
+      expect(b.openPath).toHaveBeenCalledWith('/w/src/a.ts', { sessionId: SID })
     })
     expect(b.openWorkspacePath).not.toHaveBeenCalled()
     await b.runtime.dispose()
