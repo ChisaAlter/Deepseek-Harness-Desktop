@@ -52,8 +52,7 @@ const MIME_TYPES = {
   '.wasm': 'application/wasm',
 };
 
-// Feature switch: the window ships enabled; hiding it persists
-// `live2dPet.enabled=false` through the tray item or the pet's own menu.
+// Keep the feature available, but only create the window after opt-in.
 const LIVE2D_PET_FEATURE = true;
 
 function finite(value, fallback = 0) {
@@ -63,7 +62,7 @@ function finite(value, fallback = 0) {
 function normalizeLive2dPetState(value, now = Date.now()) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   return {
-    enabled: source.enabled !== false,
+    enabled: source.enabled === true,
     x: Number.isFinite(source.x) ? Math.round(source.x) : null,
     y: Number.isFinite(source.y) ? Math.round(source.y) : null,
     growth: normalizeGrowthState(source.growth),
@@ -755,6 +754,8 @@ function createLive2dPetManager(options = {}) {
   }
 
   function hide() {
+    clearInterval(growthTimer);
+    growthTimer = 0;
     stopCursorPump();
     if (stopDshWatch) {
       stopDshWatch();
