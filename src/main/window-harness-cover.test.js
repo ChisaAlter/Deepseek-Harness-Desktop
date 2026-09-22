@@ -11,6 +11,17 @@ test('boot caption disables drag while the harness BrowserView covers it', () =>
   assert.match(css, /body\[data-harness-covered\] \.caption[\s\S]*?-webkit-app-region:\s*no-drag/);
 });
 
+test('covered boot document blanks out so minimize/restore gaps show the window background', () => {
+  const css = fs.readFileSync(path.join(__dirname, '../renderer/boot.css'), 'utf8');
+  assert.match(css, /html:has\(body\[data-harness-covered\]\)[\s\S]*?background:\s*transparent/);
+  assert.match(css, /body\[data-harness-covered\][\s\S]*?visibility:\s*hidden/);
+});
+
+test('harness view keeps painting while the window is hidden so restore does not flash a blank surface', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'window.js'), 'utf8');
+  assert.match(src, /backgroundThrottling:\s*false/);
+});
+
 test('boot failure actions include a download-log ghost button', () => {
   const html = fs.readFileSync(path.join(__dirname, '../renderer/boot.html'), 'utf8');
   const boot = fs.readFileSync(path.join(__dirname, '../renderer/boot.js'), 'utf8');
