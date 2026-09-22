@@ -1127,10 +1127,12 @@ function initialRecord() {
 var BillingStore = class {
   constructor(medium, warn) {
     this.warn = warn;
-    this.cache = null;
     this.medium = medium;
     this.mode = medium === void 0 ? "memory" : "durable";
   }
+  cache = null;
+  medium;
+  mode;
   /** Attach the durable medium after the async domain open (upgrades the mode). */
   attachMedium(medium) {
     this.medium = medium;
