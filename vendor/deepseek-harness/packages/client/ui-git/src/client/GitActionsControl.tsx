@@ -40,7 +40,7 @@ import {
 import { NS } from './locales.ts'
 import { BranchMenu } from './BranchMenu.tsx'
 import type { BranchRef } from './branches.ts'
-import { CommitDialog } from './CommitDialog.tsx'
+import { CommitDialog, type CommitFileRow, type LargeFileWarning } from './CommitDialog.tsx'
 import { GitProgressToast, type GitProgressState } from './GitProgressToast.tsx'
 import { PublishDialog } from './PublishDialog.tsx'
 import css from './GitActionsControl.module.css'
@@ -68,6 +68,7 @@ export interface GitActionsInjected {
   gitCreateChangeRequest: (cwd: string, input?: { title?: string; body?: string }, actionId?: number) => Promise<GitResult>
   gitPublishRepository: (cwd: string, input: { name: string; visibility: 'public' | 'private'; remoteUrl?: string }, actionId?: number) => Promise<GitResult>
   gitBranchList: (cwd: string) => Promise<{ ok: boolean; message?: string; branches?: BranchRef[] }>
+  gitCheckLargeFiles: (cwd: string) => Promise<GitResult & { files?: Array<{ path: string; size: number }> }>
   gitSwitchBranch: (cwd: string, ref: string) => Promise<GitResult & { refName?: string }>
   gitCreateBranch: (cwd: string, name: string) => Promise<GitResult & { refName?: string }>
   openExternal: (url: string) => Promise<boolean>
@@ -171,6 +172,28 @@ function foldPr(result: GitResult): NonNullable<StackedActionResult['pr']> {
 }
 
 /**
+ * Narrow host-reported large files to the ones this commit will contain.
+ * The host scans every changed path; the dialog lets the user exclude some,
+ * and an excluded file is no longer a candidate. A new untracked directory
+ * reaches the dialog collapsed to `dir/`, so a warned path nested under a
+ * selected directory entry is still selected.
+ * @param largeFiles - paths the host found over the hosting limit.
+ * @param files - the dialog's live file rows.
+ * @param excluded - paths the user removed from this commit.
+ * @returns the warnings to show, in host order.
+ */
+function selectedLargeFiles(
+  largeFiles: readonly LargeFileWarning[],
+  files: readonly CommitFileRow[],
+  excluded: ReadonlySet<string>,
+): LargeFileWarning[] {
+  const selected = files.filter(file => !excluded.has(file.path)).map(file => file.path)
+  return largeFiles.filter(warning => selected.some(entry => (
+    entry === warning.path || (entry.endsWith('/') && warning.path.startsWith(entry))
+  )))
+}
+
+/**
  * Render the titlebar Git split button, dropdown, commit dialog, and default-ref confirm.
  * @param props - titlebar owner widths and density, current-session seats, git IPC, and copy.
  * @returns the split button and any open dialogs.
@@ -192,6 +215,7 @@ export function GitActionsControl({
   gitCreateChangeRequest,
   gitPublishRepository,
   gitBranchList,
+  gitCheckLargeFiles,
   gitSwitchBranch,
   gitCreateBranch,
   openExternal,
@@ -209,6 +233,7 @@ export function GitActionsControl({
   const [busy, setBusy] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [commitOpen, setCommitOpen] = useState(false)
+  const [largeFiles, setLargeFiles] = useState<LargeFileWarning[]>([])
   const [commitMessage, setCommitMessage] = useState('')
   const [excludedFiles, setExcludedFiles] = useState<Set<string>>(() => new Set())
   const [editingFiles, setEditingFiles] = useState(false)
@@ -220,6 +245,7 @@ export function GitActionsControl({
   const [publishRemoteUrl, setPublishRemoteUrl] = useState('')
   const actionSeq = useRef(0)
   const refreshSeq = useRef(0)
+  const largeFileScanSeq = useRef(0)
   const lastProgressLine = useRef<string | null>(null)
   const currentPhaseLabel = useRef('Running git action...')
 
@@ -462,16 +488,34 @@ export function GitActionsControl({
   }
 
   const closeCommit = (): void => {
+    // Bump the scan generation so an in-flight host answer cannot repopulate
+    // the warnings of a dialog the user already dismissed.
+    largeFileScanSeq.current += 1
     setCommitOpen(false)
     setCommitMessage('')
     setExcludedFiles(new Set())
     setEditingFiles(false)
+    setLargeFiles([])
   }
 
   const openCommit = (): void => {
     setExcludedFiles(new Set())
     setEditingFiles(false)
     setCommitOpen(true)
+    // Clear the previous dialog's answer: a warning must never describe the
+    // commit the user is about to review from a stale scan.
+    setLargeFiles([])
+    const scan = largeFileScanSeq.current + 1
+    largeFileScanSeq.current = scan
+    if (cwd !== undefined) {
+      void gitCheckLargeFiles(cwd).then((result) => {
+        if (largeFileScanSeq.current !== scan) return
+        setLargeFiles(result.ok && Array.isArray(result.files) ? result.files : [])
+      }).catch(() => {
+        if (largeFileScanSeq.current !== scan) return
+        setLargeFiles([])
+      })
+    }
   }
 
   const selectedCommitPaths = (): string[] | undefined => {
@@ -728,6 +772,7 @@ export function GitActionsControl({
     : undefined
 
   const quickLabel = localizeGitLabel(quickAction.label, t)
+  const commitLargeFiles = selectedLargeFiles(largeFiles, commitFiles, excludedFiles)
   const mainButton = (
     <button
       type="button"
@@ -846,6 +891,7 @@ export function GitActionsControl({
         editing={editingFiles}
         message={commitMessage}
         t={t}
+        largeFiles={commitLargeFiles}
         onClose={closeCommit}
         onMessage={setCommitMessage}
         onToggleEdit={() => { setEditingFiles(next => !next) }}

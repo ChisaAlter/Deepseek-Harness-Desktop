@@ -31,6 +31,8 @@
 - `safeRefName` 白名单不放宽：白名单外的名字 `gitBranchList` 标 `switchable:false`，picker 禁用该行并提示；拒绝文案说明字符不可安全传递。
 - Windows 超时/输出超量用 `taskkill /PID /T /F` 杀 git 子进程树（`git-exec.js killProcessTree`），POSIX 用默认 `child.kill()`；taskkill 缺失/spawn 失败/非零退出一律回退 `child.kill()`。
 - Android 工作区胶囊走同一套 git IPC：已登录 `POST /__remote__/shell/git*`，不把 PTY / `writeFile` 暴露给手机。
+- 提交前大文件警告由 `gitCheckLargeFiles(cwd)` 提供：读 `git status --porcelain=v1 -z --untracked-files=all` 的路径并 `lstat` 取尺寸，只返回严格超过 100 MiB 的行；不调 `git add`、不写索引，符号链接不跟随，忽略项不出现。`--porcelain` 输出仓库相对路径，故用 `rev-parse --show-prefix` 从已授权 cwd 反推仓库根（不外信第二个根）：根已授权则覆盖整仓（对齐 `git add -A` 暂存整棵树），未授权则只覆盖该 cwd 子树。客户端在对话框打开时扫描，按当前选中路径收窄（未跟踪目录折叠成 `dir/` 时按前缀匹配），关闭对话框作废在途结果；扫描失败降级为无警告。
+- PR 目标遵循 gh 的仓库选择，并在查询、创建和创建后查询中显式固定；跨 Fork 的来源与实际目标比较，创建使用 `owner:branch`。自动描述使用目标远程的已拉取基线，缺失时提示先拉取，不回退到 Fork 的基线。
 - Git cwd 授权读桌面 `dsh-home` 的工作区登记，允许启动目录的兄弟项目；拒绝把盘符根（`C:\`、`/`）写入白名单。
 
 ## 门槛

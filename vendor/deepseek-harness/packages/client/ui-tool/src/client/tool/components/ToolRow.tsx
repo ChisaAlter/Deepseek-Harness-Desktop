@@ -4,9 +4,10 @@ import {
   CodeBlock, DiffBlock, DisclosureRow, IconInspectOutline12, ReadBlock, SearchBlock, StateDot, TerminalBlock, WebBlock,
   diffTotals,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { PropsRenderSlots, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpenFileOptions } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { RenderToolImages } from '../../contract/slots.ts'
 import { CHAT_DIFF_MAX_LINES, type DiffCardModel } from '../models/diff-card-model.ts'
 import { CHAT_READ_MAX_LINES, type ReadCardModel } from '../models/read-card-model.ts'
 import type { ImageCardModel } from '../models/image-card-model.ts'
@@ -61,11 +62,11 @@ export interface ToolRowProps {
    */
   image?: ImageCardModel | null | undefined
   /**
-   * Dispatch the image gallery through the tool-owned `tool.call.images`
-   * slot, supplied by the toolview that owns this row together with the
-   * session-authorized loader.
+   * Render the image gallery through the parent Tool node's `tool.call.images`
+   * slot. Supplied by the chat-node owner together with the session-authorized
+   * loader.
    */
-  renderSlot?: PropsRenderSlots<'tool.call.images'>['renderSlot'] | undefined
+  renderToolImages?: RenderToolImages | undefined
   /** Session-authorized image URL loader for the gallery slot. */
   loadImage?: MessageImageLoader | undefined
   search?: SearchCardModel | null | undefined
@@ -124,7 +125,7 @@ export function ToolRow({
   diff,
   read,
   image,
-  renderSlot,
+  renderToolImages,
   loadImage,
   search,
   web,
@@ -145,7 +146,7 @@ export function ToolRow({
     : localizeTerminalCardModel(terminal, t)
   const diffBody = diff ?? null
   const readBody = read ?? null
-  const imageBody = image !== undefined && image !== null && renderSlot !== undefined && loadImage !== undefined
+  const imageBody = image !== undefined && image !== null && renderToolImages !== undefined && loadImage !== undefined
     ? image
     : null
   const searchBody = search ?? null
@@ -173,6 +174,9 @@ export function ToolRow({
     return `+${added} -${removed}`
   }, [diffBody])
   const suffix = failureLine === null ? summarySuffix ?? diffStat : null
+  const imageSuffix = failureLine === null && imageBody !== null
+    ? `${t('image.label')} (${imageBody.images.length})`
+    : null
   const toggleExpand = () => {
     setExpanded(v => !v)
   }
@@ -229,8 +233,10 @@ export function ToolRow({
                 {summaryText}
               </span>
             )}
-            {suffix !== null && (
-              <span className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)}>{suffix}</span>
+            {(imageSuffix ?? suffix) !== null && (
+              <span className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)}>
+                {imageSuffix ?? suffix}
+              </span>
             )}
           </>
         )}
@@ -262,10 +268,9 @@ export function ToolRow({
                          attachment slot can render nothing, and then this line is the
                          only evidence an image was returned. */
                       <div className={css.imageBody}>
-                        <div className={css.imageLabel}>{imageBody.label}</div>
-                        {renderSlot !== undefined && loadImage !== undefined && renderSlot('tool.call.images', {
+                        {imageBody.label !== undefined && <div className={css.imageLabel}>{imageBody.label}</div>}
+                        {renderToolImages !== undefined && loadImage !== undefined && renderToolImages({
                           images: imageBody.images,
-                          loadImage,
                           align: 'start',
                         })}
                         <div className={css.imageMeta}>{imageBody.text}</div>

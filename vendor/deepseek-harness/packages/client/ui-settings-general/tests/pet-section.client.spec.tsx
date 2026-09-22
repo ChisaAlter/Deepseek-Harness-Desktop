@@ -78,7 +78,9 @@ describe('PetSection', () => {
     const { saveLive2dPetSettings } = shellWith()
     mount()
     const wander = await screen.findByRole('switch', { name: en['pet.wander'] })
-    expect(wander.getAttribute('aria-checked')).toBe('true')
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: en['pet.wander'] }).getAttribute('aria-checked')).toBe('true')
+    })
     fireEvent.click(wander)
     expect(saveLive2dPetSettings).toHaveBeenCalledWith({ patch: { wander: false } })
     // The normalized echo from main updates the row.
