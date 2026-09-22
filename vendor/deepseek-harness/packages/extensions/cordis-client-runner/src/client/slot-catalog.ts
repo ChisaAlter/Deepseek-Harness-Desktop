@@ -3680,7 +3680,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'surfaces.agents\', () => ctx.slots.register(\n      { name: \'surfaces.agents\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-surfaces/src/client/apply.ts:84',
+    source: 'packages/client/ui-surfaces/src/client/apply.ts:89',
   },
   {
     key: 'surfaces.browser',
@@ -3717,7 +3717,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'surfaces.browser\', () => ctx.slots.register(\n      { name: \'surfaces.browser\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-surfaces/src/client/apply.ts:63',
+    source: 'packages/client/ui-surfaces/src/client/apply.ts:68',
   },
   {
     key: 'surfaces.diff',
@@ -3754,7 +3754,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'surfaces.diff\', () => ctx.slots.register(\n      { name: \'surfaces.diff\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-surfaces/src/client/apply.ts:80',
+    source: 'packages/client/ui-surfaces/src/client/apply.ts:85',
   },
   {
     key: 'surfaces.file',
@@ -3791,7 +3791,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'surfaces.file\', () => ctx.slots.register(\n      { name: \'surfaces.file\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-surfaces/src/client/apply.ts:76',
+    source: 'packages/client/ui-surfaces/src/client/apply.ts:81',
   },
   {
     key: 'surfaces.files',
@@ -3828,7 +3828,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'surfaces.files\', () => ctx.slots.register(\n      { name: \'surfaces.files\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-surfaces/src/client/apply.ts:72',
+    source: 'packages/client/ui-surfaces/src/client/apply.ts:77',
   },
   {
     key: 'surfaces.terminal',
@@ -3863,7 +3863,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'surfaces.terminal\', () => ctx.slots.register(\n      { name: \'surfaces.terminal\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-surfaces/src/client/apply.ts:68',
+    source: 'packages/client/ui-surfaces/src/client/apply.ts:73',
   },
   {
     key: 'tool.call.images',
