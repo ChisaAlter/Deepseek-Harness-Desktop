@@ -17,12 +17,9 @@ import type { FilesPanelProps } from '../src/client/FilesPanel.tsx'
 import { FilesPanel } from '../src/client/FilesPanel.tsx'
 import { en } from '../src/client/locales.ts'
 import type { DirEntry, ListDirResult } from '../src/client/shell.ts'
-const panelInfoStub = ((selector: (s: unknown) => unknown) => selector({ activePanelId: null })) as never
-const resourceStub = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as never
 
 
 const t: FilesPanelProps['t'] = key => (en as Record<string, string>)[key] ?? key
-const neverHook = (() => { throw new Error('files must not read this hook') }) as never
 const SID = 'session-files' as SessionId
 const BACKGROUND_SID = 'session-files-background' as SessionId
 
@@ -218,18 +215,8 @@ describe('FilesPanel', () => {
   it('ignores a background workspace after the main-view session is released', () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={undefined}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/main', false))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async () => ({ ok: true, entries: FAKE_ROOT })}
         readFile={async () => ({ ok: false })}
@@ -247,18 +234,8 @@ describe('FilesPanel', () => {
     const listDir = vi.fn(listDirFake)
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={openFile}
         listDir={listDir}
         readFile={async () => ({ ok: false })}
@@ -291,18 +268,8 @@ describe('FilesPanel', () => {
   it('shows the list error when listDir rejects', async () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async () => { throw new Error('unknown id') }}
         readFile={async () => ({ ok: false })}
@@ -320,18 +287,8 @@ describe('FilesPanel', () => {
     const listDir = vi.fn(listDirFake)
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={listDir}
         readFile={async () => ({ ok: false })}
@@ -357,18 +314,8 @@ describe('FilesPanel', () => {
     vi.mocked(writeClipboard).mockClear()
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={listDirFake}
         readFile={async () => ({ ok: false })}
@@ -410,18 +357,8 @@ describe('FilesPanel', () => {
     vi.mocked(writeClipboard).mockClear()
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={listDirFake}
         readFile={async () => ({ ok: false })}
@@ -444,18 +381,8 @@ describe('FilesPanel', () => {
   it('shows the empty-cwd message when no workspace is attached', () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList(undefined))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
@@ -473,18 +400,8 @@ describe('FilesPanel', () => {
     const pending = new Promise<ListDirResult>((resolve) => { finish = resolve })
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={() => pending}
         readFile={async () => ({ ok: false })}
@@ -506,18 +423,8 @@ describe('FilesPanel', () => {
   it('shows the empty-directory message when listing returns no entries', async () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async () => ({ ok: true, entries: [] })}
         readFile={async () => ({ ok: false })}
@@ -531,18 +438,8 @@ describe('FilesPanel', () => {
     cleanup()
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async () => ({ ok: true })}
         readFile={async () => ({ ok: false })}
@@ -558,18 +455,8 @@ describe('FilesPanel', () => {
   it('shows the list message when listDir returns not-ok', async () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async () => ({ ok: false, message: 'denied' })}
         readFile={async () => ({ ok: false })}
@@ -587,18 +474,8 @@ describe('FilesPanel', () => {
     const mentionFile = vi.fn()
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={undefined}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async (_cwd, relativePath) => {
           if (relativePath === 'src') return { ok: false }
@@ -624,18 +501,8 @@ describe('FilesPanel', () => {
   it('surfaces a thrown child listing error', async () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async (_cwd, relativePath) => {
           if (relativePath === 'src') throw new Error('boom')
@@ -660,18 +527,8 @@ describe('FilesPanel', () => {
     const pending = new Promise<ListDirResult>((resolve) => { finish = resolve })
     const { unmount } = render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={() => pending}
         readFile={async () => ({ ok: false })}
@@ -687,18 +544,8 @@ describe('FilesPanel', () => {
     const rejecting = new Promise<ListDirResult>((_, reject) => { fail = reject })
     const { unmount: unmountReject } = render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={() => rejecting}
         readFile={async () => ({ ok: false })}
@@ -712,18 +559,8 @@ describe('FilesPanel', () => {
     fail(new Error('late'))
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async (_cwd, relativePath) => {
           if (relativePath === 'src') return { ok: true }
@@ -741,18 +578,8 @@ describe('FilesPanel', () => {
     cleanup()
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={async (_cwd, relativePath) => {
           if (relativePath === '') return { ok: true, entries: FAKE_ROOT }
@@ -776,18 +603,8 @@ describe('FilesPanel', () => {
   it('filters the tree from the search field and clears on Escape', async () => {
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={listDirFake}
         readFile={async () => ({ ok: false })}
@@ -818,18 +635,8 @@ describe('FilesPanel', () => {
     const listDir = vi.fn(listDirFake)
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={listDir}
         readFile={async () => ({ ok: false })}
@@ -856,18 +663,8 @@ describe('FilesPanel', () => {
     const listDir = vi.fn(listDirFake)
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={listDir}
         readFile={async () => ({ ok: false })}
@@ -904,18 +701,8 @@ describe('FilesPanel', () => {
     }
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/deep'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={() => {}}
         listDir={deepList}
         readFile={async () => ({ ok: false })}
@@ -946,18 +733,8 @@ describe('FilesPanel', () => {
     }
     render(
       <FilesPanel
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         openFile={openFile}
         listDir={listDir}
         readFile={async () => ({ ok: false })}
@@ -981,8 +758,6 @@ describe('FilePreview', () => {
   it('shows the read error when readFile rejects', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="README.md"
         active
@@ -990,15 +765,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => { throw new Error('unknown id') }}
         readFileMedia={async () => ({ ok: false })}
@@ -1013,8 +780,6 @@ describe('FilePreview', () => {
   it('renders markdown with codeLabels and images from readFileMedia', async () => {
     const { rerender } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -1022,15 +787,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# Hello', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1043,8 +800,6 @@ describe('FilePreview', () => {
     expect(await screen.findByText('Hello')).toBeTruthy()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="icon.png"
         active
@@ -1052,15 +807,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={async () => ({ ok: true, mime: 'image/png', base64: 'aaaa' })}
@@ -1076,8 +823,6 @@ describe('FilePreview', () => {
   it('shows the binary stub and the empty-cwd message', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="blob.bin"
         active
@@ -1085,15 +830,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList(undefined))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, binary: true, text: '' })}
         readFileMedia={async () => ({ ok: false })}
@@ -1108,8 +845,6 @@ describe('FilePreview', () => {
   it('shows truncated text, binary stub, and media errors', async () => {
     const { rerender } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="src/a.ts"
         active
@@ -1117,15 +852,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'const x = 1', binary: false, truncated: true })}
         readFileMedia={async () => ({ ok: false })}
@@ -1141,8 +868,6 @@ describe('FilePreview', () => {
     expect(screen.getByText('const x = 1')).toBeTruthy()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="blob.bin"
         active
@@ -1150,15 +875,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, binary: true, text: '' })}
         readFileMedia={async () => ({ ok: false })}
@@ -1170,8 +887,6 @@ describe('FilePreview', () => {
     expect(await screen.findByText('This binary file cannot be previewed.')).toBeTruthy()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="icon.png"
         active
@@ -1179,15 +894,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={async () => ({ ok: false, message: 'too large' })}
@@ -1206,8 +913,6 @@ describe('FilePreview', () => {
     })
     const { unmount } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="late.ts"
         active
@@ -1215,15 +920,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={() => pending}
         readFileMedia={async () => ({ ok: false })}
@@ -1236,8 +933,6 @@ describe('FilePreview', () => {
     finish({ ok: true, text: 'late', binary: false })
     const { rerender } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="icon.png"
         active
@@ -1245,15 +940,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={async () => { throw new Error('media') }}
@@ -1265,8 +952,6 @@ describe('FilePreview', () => {
     expect(await screen.findByText('Could not read the file.')).toBeTruthy()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="photo.jpg"
         active
@@ -1274,15 +959,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={async () => ({ ok: true, mime: 'image/jpeg', base64: 'bb', truncated: true })}
@@ -1296,8 +973,6 @@ describe('FilePreview', () => {
     expect(screen.queryByRole('img')).toBeNull()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -1305,15 +980,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# Hi', binary: false, truncated: true })}
         readFileMedia={async () => ({ ok: false })}
@@ -1325,8 +992,6 @@ describe('FilePreview', () => {
     expect(await screen.findByText('File is too large; showing the beginning.')).toBeTruthy()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="missing.ts"
         active
@@ -1334,15 +999,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1357,8 +1014,6 @@ describe('FilePreview', () => {
   it('previews a file with no extension', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="LICENSE"
         active
@@ -1366,15 +1021,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'mit', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1393,8 +1040,6 @@ describe('FilePreview', () => {
     })
     const { unmount } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="icon.png"
         active
@@ -1402,15 +1047,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={() => pending}
@@ -1425,8 +1062,6 @@ describe('FilePreview', () => {
     const rejecting = new Promise<never>((_, reject) => { fail = reject })
     const { unmount: unmountReject } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="icon.png"
         active
@@ -1434,15 +1069,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={() => rejecting}
@@ -1457,8 +1084,6 @@ describe('FilePreview', () => {
     const rejectingText = new Promise<never>((_, reject) => { failText = reject })
     const { unmount: unmountText } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1466,15 +1091,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={() => rejectingText}
         readFileMedia={async () => ({ ok: false })}
@@ -1487,8 +1104,6 @@ describe('FilePreview', () => {
     failText(new Error('late-text'))
     const { rerender } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="icon.png"
         active
@@ -1496,15 +1111,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false })}
         readFileMedia={async () => ({ ok: true })}
@@ -1516,8 +1123,6 @@ describe('FilePreview', () => {
     expect(await screen.findByText('Could not read the file.')).toBeTruthy()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1525,15 +1130,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1551,8 +1148,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -1560,15 +1155,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# Hello', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1598,8 +1185,6 @@ describe('FilePreview', () => {
     const onDirtyChange = vi.fn()
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1607,15 +1192,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={writeBuffer}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1645,8 +1222,6 @@ describe('FilePreview', () => {
   it('shows the write error when save fails', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1654,15 +1229,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1693,8 +1260,6 @@ describe('FilePreview', () => {
     const writeBuffer = vi.fn()
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="race.txt"
         active
@@ -1702,15 +1267,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={writeBuffer}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: disk, binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1739,8 +1296,6 @@ describe('FilePreview', () => {
     const { rerender } = render(
       <div data-keep-alive hidden={false}>
         <FilePreview
-          usePanelInfo={panelInfoStub}
-          useResource={resourceStub}
           sessionId={SID}
           relativePath="a.ts"
           active
@@ -1748,15 +1303,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-          useSession={neverHook}
           useSessions={sel => sel(sessionList('/tmp/proj'))}
-          useWorkspaces={neverHook}
-          useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-          useInput={neverHook}
-          inputActions={undefined}
           listDir={async () => ({ ok: false })}
           readFile={async () => ({ ok: true, text: 'x', binary: false })}
           readFileMedia={async () => ({ ok: false })}
@@ -1771,8 +1318,6 @@ describe('FilePreview', () => {
     rerender(
       <div data-keep-alive hidden>
         <FilePreview
-          usePanelInfo={panelInfoStub}
-          useResource={resourceStub}
           sessionId={SID}
           relativePath="a.ts"
           active
@@ -1780,15 +1325,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-          useSession={neverHook}
           useSessions={sel => sel(sessionList('/tmp/proj'))}
-          useWorkspaces={neverHook}
-          useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-          useInput={neverHook}
-          inputActions={undefined}
           listDir={async () => ({ ok: false })}
           readFile={async () => ({ ok: true, text: 'x', binary: false })}
           readFileMedia={async () => ({ ok: false })}
@@ -1802,8 +1339,6 @@ describe('FilePreview', () => {
     rerender(
       <div data-keep-alive hidden={false}>
         <FilePreview
-          usePanelInfo={panelInfoStub}
-          useResource={resourceStub}
           sessionId={SID}
           relativePath="a.ts"
           active
@@ -1811,15 +1346,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-          useSession={neverHook}
           useSessions={sel => sel(sessionList('/tmp/proj'))}
-          useWorkspaces={neverHook}
-          useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-          useInput={neverHook}
-          inputActions={undefined}
           listDir={async () => ({ ok: false })}
           readFile={async () => ({ ok: true, text: 'x', binary: false })}
           readFileMedia={async () => ({ ok: false })}
@@ -1835,8 +1362,6 @@ describe('FilePreview', () => {
   it('keeps the editor when writeFile throws', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1844,15 +1369,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1871,8 +1388,6 @@ describe('FilePreview', () => {
   it('uses the write error copy when save fails without a message', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1880,15 +1395,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1907,8 +1414,6 @@ describe('FilePreview', () => {
     const onDirtyChange = vi.fn()
     const { rerender } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1916,15 +1421,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1939,8 +1436,6 @@ describe('FilePreview', () => {
     onDirtyChange.mockClear()
     rerender(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1948,15 +1443,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList(undefined))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -1976,8 +1463,6 @@ describe('FilePreview', () => {
     const buffer = { text: 'v1', draft: 'edited' }
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -1993,15 +1478,7 @@ describe('FilePreview', () => {
           buffer.text = next.text
           buffer.draft = next.draft
         }}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: disk, binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2016,8 +1493,6 @@ describe('FilePreview', () => {
     cleanup()
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2033,15 +1508,7 @@ describe('FilePreview', () => {
           buffer.text = next.text
           buffer.draft = next.draft
         }}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: disk, binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2060,8 +1527,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2069,15 +1534,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2099,8 +1556,6 @@ describe('FilePreview', () => {
     const buffer = { text: 'v1', draft: 'edited' }
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2116,15 +1571,7 @@ describe('FilePreview', () => {
           buffer.text = next.text
           buffer.draft = next.draft
         }}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false, message: 'gone' })}
         readFileMedia={async () => ({ ok: false })}
@@ -2144,8 +1591,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2153,15 +1598,7 @@ describe('FilePreview', () => {
         registerSave={(next) => { save = next }}
         readBuffer={() => ({ text: 'v1', draft: 'edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false, message: 'gone' })}
         readFileMedia={async () => ({ ok: false })}
@@ -2183,8 +1620,6 @@ describe('FilePreview', () => {
   it('lets a dirty markdown draft switch to source after the last read failed', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -2192,15 +1627,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => ({ text: '# v1', draft: '# edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: false, message: 'gone' })}
         readFileMedia={async () => ({ ok: false })}
@@ -2217,8 +1644,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2226,15 +1651,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => ({ text: 'v1', draft: 'edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'v1-prefix', binary: false, truncated: true })}
         readFileMedia={async () => ({ ok: false })}
@@ -2255,8 +1672,6 @@ describe('FilePreview', () => {
   it('lets a dirty markdown draft switch to source after a truncated reread', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -2264,15 +1679,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => ({ text: '# v1', draft: '# edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# v1-prefix', binary: false, truncated: true })}
         readFileMedia={async () => ({ ok: false })}
@@ -2289,8 +1696,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2298,15 +1703,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => ({ text: 'v1', draft: 'edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, binary: true, text: '' })}
         readFileMedia={async () => ({ ok: false })}
@@ -2327,8 +1724,6 @@ describe('FilePreview', () => {
   it('lets a dirty markdown draft switch to source when cwd is missing', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -2336,15 +1731,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => ({ text: '# v1', draft: '# edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList(undefined))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# v1', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2362,8 +1749,6 @@ describe('FilePreview', () => {
     let resolveRead: ((value: { ok: true; text: string; binary: false }) => void) | undefined
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2371,15 +1756,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={() => new Promise(resolve => { resolveRead = resolve })}
         readFileMedia={async () => ({ ok: false })}
@@ -2404,8 +1781,6 @@ describe('FilePreview', () => {
     })
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2413,15 +1788,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: disk, binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2449,8 +1816,6 @@ describe('FilePreview', () => {
     const buffer = { text: 'v1', draft: 'edited' }
     const preview = (active: boolean) => (
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active={active}
@@ -2466,15 +1831,7 @@ describe('FilePreview', () => {
           buffer.text = next.text
           buffer.draft = next.draft
         }}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => {
           reads.push(disk)
@@ -2504,8 +1861,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active={false}
@@ -2513,15 +1868,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => ({ text: 'x', draft: 'edited' })}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2541,8 +1888,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2550,15 +1895,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2583,8 +1920,6 @@ describe('FilePreview', () => {
     const writeFile = vi.fn(async () => ({ ok: true as const }))
     const { unmount } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2592,15 +1927,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2627,8 +1954,6 @@ describe('FilePreview', () => {
     })
     const { unmount } = render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2636,15 +1961,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: disk, binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2670,8 +1987,6 @@ describe('FilePreview', () => {
   it('shows the Source/Rendered toggle for mdx files', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="notes.mdx"
         active
@@ -2679,15 +1994,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# Notes', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2703,8 +2010,6 @@ describe('FilePreview', () => {
   it('toggles word wrap to pre-wrap on the editor', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2712,15 +2017,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'line', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2741,8 +2038,6 @@ describe('FilePreview', () => {
   it('renders markdown preview without rewriting task checkboxes in the draft', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="todo.md"
         active
@@ -2750,15 +2045,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '- [ ] milk', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2776,8 +2063,6 @@ describe('FilePreview', () => {
   it('shows project and directory crumbs in the toolbar', async () => {
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="src/a.ts"
         active
@@ -2785,15 +2070,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2813,8 +2090,6 @@ describe('FilePreview', () => {
     ;(window as Window & { shell?: unknown }).shell = { previewOpenFileWindow }
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="src/a.ts"
         active
@@ -2822,15 +2097,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'x', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -2884,8 +2151,6 @@ describe('FilePreview', () => {
     try {
       render(
         <FilePreview
-          usePanelInfo={panelInfoStub}
-          useResource={resourceStub}
           sessionId={SID}
           relativePath="a.ts"
           active
@@ -2895,15 +2160,7 @@ describe('FilePreview', () => {
           registerSave={() => {}}
           readBuffer={() => undefined}
           writeBuffer={() => {}}
-          useSession={neverHook}
           useSessions={sel => sel(sessionList('/tmp/proj'))}
-          useWorkspaces={neverHook}
-          useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-          useInput={neverHook}
-          inputActions={undefined}
           listDir={async () => ({ ok: false })}
           readFile={async () => ({ ok: true, text: 'one\ntwo\nthree', binary: false })}
           readFileMedia={async () => ({ ok: false })}
@@ -2966,8 +2223,6 @@ describe('FilePreview', () => {
     })
     const preview = (revealRequestId: number) => (
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="a.ts"
         active
@@ -2977,15 +2232,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'one\ntwo\nthree', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -3032,8 +2279,6 @@ describe('FilePreview', () => {
     localStorage.setItem('dshd.renderMarkdown', '1')
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="note.md"
         active
@@ -3043,15 +2288,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: '# Hello\nsecond', binary: false })}
         readFileMedia={async () => ({ ok: false })}
@@ -3069,8 +2306,6 @@ describe('FilePreview', () => {
     const appendComposerText = vi.fn()
     render(
       <FilePreview
-        usePanelInfo={panelInfoStub}
-        useResource={resourceStub}
         sessionId={SID}
         relativePath="src/a.ts"
         active
@@ -3078,15 +2313,7 @@ describe('FilePreview', () => {
         registerSave={() => {}}
         readBuffer={() => undefined}
         writeBuffer={() => {}}
-        useSession={neverHook}
         useSessions={sel => sel(sessionList('/tmp/proj'))}
-        useWorkspaces={neverHook}
-        useProjection={neverHook}
-        useConversation={neverHook}
-        useSessionStatus={neverHook}
-        useSessionRetainInfo={() => undefined}
-        useInput={neverHook}
-        inputActions={undefined}
         listDir={async () => ({ ok: false })}
         readFile={async () => ({ ok: true, text: 'one\ntwo\nthree', binary: false })}
         readFileMedia={async () => ({ ok: false })}

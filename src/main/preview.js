@@ -6,9 +6,9 @@ const path = require('node:path');
 const { rewriteLoopbackLoadUrl } = require('./local-url');
 const { isHttpOrHttpsUrl } = require('./preview-url');
 const { loadWorkspaceAuthority } = require('./workspace-authority');
+const { createWorkspaceFileReader } = require('./workspace-fs');
 const { createWorkspacePreviewController } = require('./preview-workspace');
 const { createFilePreviewWindowController } = require('./preview-file-window');
-const { createWorkspaceFileReader } = require('./workspace-fs');
 const {
   previewGuestWebPreferences,
   previewPartitionForScope,
@@ -1082,9 +1082,105 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
     platform: options.platform,
   });
   let host = null;
+  let hostGeneration = 0;
+  let boundHost = null;
+  const boundHostListeners = new Map();
+  /**
+   * Resources created by the host generation that currently owns the window.
+   *
+   * Cleanup for a replaced host must never sweep resources created by its
+   * successor. `reapHost()` runs before the replacement's first
+   * `shell:preview-open` resolves, so a deferred global `closeAll()` would
+   * destroy the newly opened preview while its handler still reported success.
+   * Each generation therefore tears down only the ids and singletons it
+   * actually created.
+   */
+  let ownedPreviewIds = new Set();
+  let ownedSingletons = new Set();
+  /**
+   * Which generation currently owns each shared singleton. A successor host
+   * that reuses the workspace preview server or the file preview window takes
+   * ownership, so the replaced host's teardown must leave it alone.
+   */
+  const singletonOwner = new Map();
+  let teardownOwnedResources = async () => {};
+
+  function ownPreview(result) {
+    if (result && typeof result.id === 'string') ownedPreviewIds.add(result.id);
+    return result;
+  }
+
+  function ownSingleton(name, generation) {
+    ownedSingletons.add(name);
+    singletonOwner.set(name, generation);
+  }
+
+  function canTrackHost(sender) {
+    return Boolean(sender && typeof sender.on === 'function' && typeof sender.once === 'function');
+  }
+
+  function releaseHost() {
+    const previous = boundHost;
+    if (!previous) return;
+    for (const [eventName, listener] of boundHostListeners) {
+      if (typeof previous.off === 'function') {
+        previous.off(eventName, listener);
+      } else if (typeof previous.removeListener === 'function') {
+        previous.removeListener(eventName, listener);
+      }
+    }
+    boundHostListeners.clear();
+    boundHost = null;
+  }
+
+  function reapHost() {
+    if (!host) return;
+    const reapedGeneration = hostGeneration;
+    const reapedPreviewIds = ownedPreviewIds;
+    const reapedSingletons = ownedSingletons;
+    ownedPreviewIds = new Set();
+    ownedSingletons = new Set();
+    hostGeneration += 1;
+    host = null;
+    releaseHost();
+    if (reapedPreviewIds.size === 0 && reapedSingletons.size === 0) return;
+    void Promise.resolve()
+      .then(() => teardownOwnedResources(reapedPreviewIds, reapedSingletons, reapedGeneration))
+      .catch(() => {});
+  }
+
+  function bindHost(sender) {
+    if (boundHost === sender) return;
+    releaseHost();
+    boundHost = sender;
+    const onNavigate = () => reapHost();
+    const onGone = () => reapHost();
+    const onDestroyed = () => reapHost();
+    boundHostListeners.set('did-navigate', onNavigate);
+    boundHostListeners.set('render-process-gone', onGone);
+    boundHostListeners.set('destroyed', onDestroyed);
+    if (typeof sender.on === 'function') {
+      sender.on('did-navigate', onNavigate);
+      sender.on('render-process-gone', onGone);
+      sender.once('destroyed', onDestroyed);
+    }
+  }
+
   const remember = (event) => {
     authorize(event);
-    host = event && event.sender ? event.sender : host;
+    const sender = event && event.sender ? event.sender : null;
+    if (!sender || (typeof sender.isDestroyed === 'function' && sender.isDestroyed())) {
+      const error = new Error('Unauthorized IPC sender');
+      error.code = 'ERR_DSH_IPC_SENDER';
+      throw error;
+    }
+    if (host !== sender) {
+      if (canTrackHost(host) || canTrackHost(sender)) reapHost();
+      host = sender;
+      hostGeneration += 1;
+    }
+    if (canTrackHost(sender)) bindHost(sender);
+    return hostGeneration;
   };
   const sendToHost = (channel, payload) => {
     if (host && typeof host.isDestroyed === 'function' && host.isDestroyed()) return;
@@ -1093,6 +1189,16 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
   const asResult = (work) => Promise.resolve()
     .then(work)
     .catch((error) => ({ ok: false, message: error instanceof Error ? error.message : String(error) }));
+  /**
+   * Single reporting path for cleanup failures. Every teardown attempt routes
+   * through here so a failed close stays observable instead of being counted
+   * as a successful cleanup.
+   */
+  const reportTeardownFailure = typeof options.onTeardownError === 'function'
+    ? options.onTeardownError
+    : (error) => {
+      console.warn(`[preview] host teardown failed: ${error instanceof Error ? error.message : String(error)}`);
+    };
   const live = controller ?? createPreviewController({
     attach: options.attach,
     createPipWindow: options.createPipWindow,
@@ -1107,9 +1213,20 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
       sendToHost('shell:preview-recording-frame', frame);
     },
   });
-  ipcMain.handle('shell:preview-open', (event, input) => {
-    remember(event);
-    return live.open(input);
+  ipcMain.handle('shell:preview-open', async (event, input) => {
+    const generation = remember(event);
+    const result = await live.open(input);
+    if (generation !== hostGeneration || !host) {
+      if (result && typeof result.id === 'string') {
+        await Promise.resolve()
+          .then(() => live.close(result.id))
+          .catch((error) => reportTeardownFailure(error));
+      }
+      const error = new Error('Unauthorized IPC sender');
+      error.code = 'ERR_DSH_IPC_SENDER';
+      throw error;
+    }
+    return ownPreview(result);
   });
   ipcMain.handle('shell:preview-navigate', (event, id, url) => {
     remember(event);
@@ -1176,7 +1293,11 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
     return live.setAnnotationTheme(id, theme);
   });
   ipcMain.handle('shell:preview-open-pip', (event, id) => {
-    remember(event);
+    // Claim ownership synchronously. `remember()` may have queued a teardown
+    // for the previous generation; that microtask runs as soon as this handler
+    // awaits, so a claim registered afterwards would arrive too late and the
+    // stale teardown would close the resource this host just created.
+    ownSingleton('picture-in-picture', remember(event));
     return live.openPictureInPicture(id);
   });
   ipcMain.handle('shell:preview-close-pip', (event) => {
@@ -1229,21 +1350,110 @@ function registerPreviewIpc(ipcMain, controller, options = {}) {
   });
   ipcMain.handle('shell:preview-close', (event, id) => {
     remember(event);
+    ownedPreviewIds.delete(id);
     return live.close(id);
   });
   ipcMain.handle('shell:preview-workspace-file', (event, input) => {
-    remember(event);
+    // Synchronous claim, as above: the successor must own the shared server
+    // before its first await lets the replaced host's teardown run.
+    ownSingleton('workspace-preview', remember(event));
     return workspacePreview.fileUrl(input);
   });
-  ipcMain.handle('shell:preview-open-file-window', (event, input) => {
-    remember(event);
-    return asResult(() => filePreviewWindow.open(input));
+  ipcMain.handle('shell:preview-open-file-window', async (event, input) => {
+    const generation = remember(event);
+    ownSingleton('file-preview-window', generation);
+    // `open()` resolves its URL through the shared workspace-preview server, so
+    // the window depends on that server. A floating-window entry point can be a
+    // host's only contact with the server, so claim it here too; otherwise the
+    // server stays ownerless and the replaced host's teardown closes it out
+    // from under the successor's window.
+    ownSingleton('workspace-preview', generation);
+    const result = await asResult(() => filePreviewWindow.open(input));
+    // `open()` awaits the workspace preview server and a window load, so the
+    // host can be reaped mid-flight. A window installed after the reap would
+    // belong to no generation and never be torn down.
+    if (generation !== hostGeneration || !host) {
+      // Close only a window this call actually created. A failed open installed
+      // nothing, and a successor may already own the single shared window — in
+      // both cases closing here would destroy a window this host never owned.
+      const ownedBySuccessor = singletonOwner.has('file-preview-window')
+        && singletonOwner.get('file-preview-window') !== generation;
+      if (result?.ok === true && !ownedBySuccessor) {
+        // Route this through the same reporting path as host teardown: a failed
+        // close here is a real leak, not a silent success.
+        await Promise.resolve()
+          .then(() => filePreviewWindow.close())
+          .catch((error) => reportTeardownFailure(error));
+      }
+      return { ok: false, message: 'Unauthorized IPC sender' };
+    }
+    return result;
   });
   const closeAll = typeof live.closeAll === 'function' ? live.closeAll.bind(live) : async () => {};
   live.closeAll = async () => {
-    await closeAll();
-    await filePreviewWindow.close();
-    await workspacePreview.close();
+    const attempts = [
+      () => closeAll(),
+      () => filePreviewWindow.close(),
+      () => workspacePreview.close(),
+    ].map((close) => {
+      try {
+        return Promise.resolve(close());
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    });
+    // `allSettled` keeps one failure from blocking the others, but the results
+    // must still be inspected: an explicit closeAll() that swallowed a failed
+    // close would report cleanup that did not happen.
+    const results = await Promise.allSettled(attempts);
+    for (const result of results) {
+      if (result.status === 'rejected') reportTeardownFailure(result.reason);
+    }
+  };
+  /**
+   * Tear down exactly the resources the reaped generation created. Preview ids
+   * are closed individually so a preview opened by the replacement host is
+   * never swept; shared singletons are closed only when the reaped generation
+   * still owns them (a successor that reuses one takes ownership).
+   * @param {Set<string>} previewIds
+   * @param {Set<string>} singletons
+   * @param {number} generation
+   */
+  teardownOwnedResources = async (previewIds, singletons, generation) => {
+    /** @type {Promise<unknown>[]} */
+    const attempts = [];
+    const attempt = (work) => {
+      attempts.push(Promise.resolve().then(work).catch((error) => {
+        reportTeardownFailure(error);
+      }));
+    };
+    for (const id of previewIds) {
+      if (typeof live.close !== 'function') break;
+      attempt(() => live.close(id));
+    }
+    for (const name of singletons) {
+      /**
+       * Ownership is re-validated *inside* the close work, synchronously
+       * immediately before the close call. Checking (and releasing the claim)
+       * before queuing left a window in which a successor could take ownership
+       * and still be closed by the reaped generation.
+       */
+      const closeIfStillOwned = (close) => () => {
+        if (singletonOwner.get(name) !== generation) return undefined;
+        singletonOwner.delete(name);
+        return close();
+      };
+      if (name === 'picture-in-picture') {
+        attempt(closeIfStillOwned(() => (typeof live.closePictureInPicture === 'function'
+          ? live.closePictureInPicture()
+          : undefined)));
+      } else if (name === 'workspace-preview') {
+        attempt(closeIfStillOwned(() => workspacePreview.close()));
+      } else if (name === 'file-preview-window') {
+        attempt(closeIfStillOwned(() => filePreviewWindow.close()));
+      }
+    }
+    await Promise.all(attempts);
   };
   return live;
 }
