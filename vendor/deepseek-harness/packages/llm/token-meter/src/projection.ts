@@ -80,16 +80,39 @@ export interface BilledUsageBuckets {
 }
 
 /**
- * Whole-log billable usage split by the official peak/valley schedule. The
- * buckets are price-independent: applying a price table is the read side's
- * job, so user-edited prices never require a refold. Absent usage reports
- * leave the totals at zero.
+ * One model route's billable usage over the whole log. Two providers may
+ * serve the same model id at different real-world prices, so the route — not
+ * the bare model id — is the attribution unit, matching the price record's
+ * own `provider/model` key.
+ */
+export interface ModelBilledUsage {
+  /** Provider route id the samples were dispatched through; empty when the log names none. */
+  provider: string
+  /** Provider-owned model id; empty when the log names none. */
+  model: string
+  /** This route's samples billed inside Beijing weekday peak windows. */
+  peak: BilledUsageBuckets
+  /** This route's samples billed outside every peak window. */
+  offPeak: BilledUsageBuckets
+}
+
+/**
+ * Whole-log billable usage split by the official peak/valley schedule, both
+ * in total and per model route. The buckets are price-independent: applying a
+ * price table is the read side's job, so user-edited prices never require a
+ * refold. Absent usage reports leave the totals at zero.
+ *
+ * Per-route rows exist because one conversation may switch models: pricing
+ * the whole log at a single route's column would bill every token of every
+ * other model at the wrong rate.
  */
 export interface BilledUsageProjection {
-  /** Samples billed inside Beijing weekday peak windows. */
+  /** Every route's samples billed inside Beijing weekday peak windows. */
   peak: BilledUsageBuckets
-  /** Samples billed outside every peak window, at the official idle column. */
+  /** Every route's samples billed outside every peak window, at the official idle column. */
   offPeak: BilledUsageBuckets
+  /** One row per route that reported usage, in first-seen order. */
+  models: ModelBilledUsage[]
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
@@ -100,7 +123,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     contextPressure: ContextPressureProjection
     /** Heuristic system/tools/message composition of the next request. */
     contextBreakdown: ContextBreakdownProjection
-    /** Whole-log usage split by the official peak/valley billing windows. */
+    /** Whole-log usage split by the official peak/valley billing windows, per model route. */
     billedUsage: BilledUsageProjection
   }
 }

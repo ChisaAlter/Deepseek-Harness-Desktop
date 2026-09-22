@@ -148,15 +148,18 @@ window.__ModuleLoader__.load({
       "billing.close": "\u5173\u95ED",
       "billing.save": "\u4FDD\u5B58",
       "billing.saving": "\u4FDD\u5B58\u4E2D\u2026",
-      "billing.idleToggleNote": "\u5F00\u542F\u540E\u540C\u65F6\u663E\u793A\u9AD8\u5CF0\u4EF7\u683C;\u5173\u95ED\u65F6\u6309\u6240\u586B\u7A7A\u95F2\u4EF7\u683C\u8BA1\u8D39",
+      "billing.idleToggleNote": "\u5F00\u542F\uFF1A\u9AD8\u5CF0\u4E0E\u7A7A\u95F2\u4E24\u884C\u5206\u522B\u8BA1\u4EF7;\u5173\u95ED\uFF1A\u53EA\u586B\u4E00\u4E2A\u4EF7\u683C\uFF0C\u4E24\u65F6\u6BB5\u90FD\u6309\u5B83\u8BA1\u8D39",
+      // Inserted next to the switch note it describes (peak row + single price row).
+      "billing.periodSingle": "\u4EF7\u683C",
       "billing.peakValleyLabel": "\u5CF0\u8C37\u8BA1\u4EF7\uFF08\u6309\u9AD8\u5CF0/\u8C37\u6BB5\u5206\u522B\u8BA1\u8D39\uFF09",
       "billing.peakHint": "\u5355\u4F4D\uFF1A\xA5 / \u767E\u4E07 tokens\uFF1B\u7A7A\u95F2\u4EF7\u9ED8\u8BA4 = \u9AD8\u5CF0\u4EF7\u7684\u4E00\u534A",
-      "billing.flatHint": "\u5CF0\u8C37\u8BA1\u4EF7\u5DF2\u5173\u95ED\uFF1A\u4E24\u65F6\u6BB5\u5747\u6309\u6240\u586B\u4EF7\u683C\u8BA1\u8D39",
+      // With 峰谷计价 OFF the entered price is written into BOTH columns, so the
+      // note may state plainly that both periods bill it.
+      "billing.flatHint": "\u5CF0\u8C37\u8BA1\u4EF7\u5DF2\u5173\u95ED\uFF1A\u4E24\u65F6\u6BB5\u5747\u6309\u6240\u586B\u4EF7\u683C\u8BA1\u8D39\uFF08\u4FDD\u5B58\u540E\u9AD8\u5CF0\u4E0E\u7A7A\u95F2\u4E24\u5217\u540C\u4EF7\uFF09",
       "billing.modelsNone": "\u6682\u65E0\u53EF\u7528\u6A21\u578B\uFF08provider \u76EE\u5F55\u4E3A\u7A7A\uFF09",
       "billing.modelsTitle": "\u6A21\u578B\u9009\u62E9",
       "billing.providerLabel": "\u4F9B\u5E94\u5546",
       "billing.modelLabel": "\u6A21\u578B",
-      "billing.pickModel": "\u9009\u62E9\u6A21\u578B\u2026",
       "billing.commit": "\u6DFB\u52A0/\u66F4\u65B0",
       "billing.updated": "\u5DF2\u66F4\u65B0\uFF1A{model}",
       "billing.configuredTitle": "\u5DF2\u914D\u7F6E\u4EF7\u683C",
@@ -168,7 +171,6 @@ window.__ModuleLoader__.load({
       "billing.filterPlaceholder": "\u641C\u7D22\u6A21\u578B\u2026",
       "billing.filterNone": "\u6CA1\u6709\u5339\u914D\u7684\u6A21\u578B",
       "billing.editorTitle": "\u4EF7\u683C\u8F93\u5165",
-      "billing.pickModelHint": "\u5148\u9009\u62E9\u6A21\u578B\uFF0C\u4EF7\u683C\u8F93\u5165\u6846\u5C06\u663E\u793A\u9ED8\u8BA4\u4EF7\u683C",
       "billing.defaultHint": "\u9ED8\u8BA4\u91C7\u7528\u5B98\u65B9\u4EF7\u683C\uFF1B\u5982\u4E0E\u5B9E\u9645\u4E0D\u7B26\u53EF\u4FEE\u6539\u540E\u4FDD\u5B58\uFF08\u5C06\u8986\u76D6\u4E3A\u81EA\u5B9A\u4E49\u4EF7\uFF09",
       "billing.unknownHint": "\u8BE5\u6A21\u578B\u65E0\u5B98\u65B9\u4EF7\uFF0C\u8BF7\u81EA\u884C\u8BBE\u7F6E\u4EF7\u683C\uFF08\u4FDD\u5B58\u540E\u6309\u6B64\u4EF7\u8BA1\u8D39\uFF09",
       "billing.editorEmpty": "\u5148\u4ECE\u4E0A\u65B9\u9009\u62E9\u8981\u8BBE\u7F6E\u4EF7\u683C\u7684\u6A21\u578B",
@@ -184,19 +186,12 @@ window.__ModuleLoader__.load({
       "billing.periodIdle": "\u7A7A\u95F2\u4EF7\u683C",
       "billing.addModel": "\u6DFB\u52A0",
       "billing.addModelPlaceholder": "\u624B\u52A8\u8F93\u5165\u6A21\u578B ID",
-      "billing.refTitle": "\u5B98\u65B9\u4EF7\u76EE\u8868\uFF08\u53EA\u8BFB\uFF09",
-      "billing.refAsOf": "\u751F\u6548\u65E5\u671F {date}",
-      "billing.refSource": "\u5B98\u65B9\u6765\u6E90",
-      "billing.refModel": "\u6A21\u578B",
-      "billing.colHit": "\u547D\u4E2D",
-      "billing.colMiss": "\u672A\u547D\u4E2D",
-      "billing.colOutput": "\u8F93\u51FA",
-      "billing.peakIdle": "\u9AD8\u5CF0 / \u8C37\u6BB5",
       "billing.saveError": "\u4FDD\u5B58\u5931\u8D25\uFF1A{msg}",
       "billing.loadError": "\u8BBE\u7F6E\u52A0\u8F7D\u5931\u8D25\uFF1A{msg}",
       "billing.retry": "\u91CD\u8BD5",
       "billing.err.invalidPrice": "\u300C{key}\u300D\u4EF7\u683C\u65E0\u6548\uFF1A\u4E09\u4E2A\u4EF7\u683C\u90FD\u5FC5\u987B\u662F\u975E\u8D1F\u6570\u5B57",
-      "billing.err.invalidIdle": "\u300C{key}\u300D\u7A7A\u95F2\u4EF7\u65E0\u6548\uFF1A\u4E09\u4E2A\u4EF7\u683C\u90FD\u5FC5\u987B\u662F\u975E\u8D1F\u6570\u5B57"
+      "billing.err.invalidIdle": "\u300C{key}\u300D\u7A7A\u95F2\u4EF7\u65E0\u6548\uFF1A\u4E09\u4E2A\u4EF7\u683C\u90FD\u5FC5\u987B\u662F\u975E\u8D1F\u6570\u5B57",
+      "billing.err.invalidSingle": "\u300C{key}\u300D\u4EF7\u683C\u65E0\u6548\uFF1A\u4E09\u4E2A\u4EF7\u683C\u90FD\u5FC5\u987B\u662F\u975E\u8D1F\u6570\u5B57"
     };
     var enUS = {
       "nav.label": "Usage stats",
@@ -296,15 +291,18 @@ window.__ModuleLoader__.load({
       "billing.close": "Close",
       "billing.save": "Save",
       "billing.saving": "Saving\u2026",
-      "billing.idleToggleNote": "On: shows both period prices; off: bills the entered off-peak price",
+      "billing.idleToggleNote": "On: peak and off-peak rows bill separately; off: one price bills both periods",
+      // Inserted next to the switch note it describes (peak row + single price row).
+      "billing.periodSingle": "Price",
       "billing.peakValleyLabel": "Peak/valley pricing (period-based billing)",
       "billing.peakHint": "Unit: CNY / million tokens; off-peak defaults to half of the peak price",
-      "billing.flatHint": "Peak/valley pricing off: both periods bill at the price you enter",
+      // With 峰谷计价 OFF the entered price is written into BOTH columns, so the
+      // note may state plainly that both periods bill it.
+      "billing.flatHint": "Peak/valley pricing off: both periods bill the entered price (peak and off-peak columns are saved equal)",
       "billing.modelsNone": "No models available (empty provider directory)",
       "billing.modelsTitle": "Model selection",
       "billing.providerLabel": "Provider",
       "billing.modelLabel": "Model",
-      "billing.pickModel": "Select a model\u2026",
       "billing.commit": "Add / update",
       "billing.updated": "Updated: {model}",
       "billing.configuredTitle": "Configured prices",
@@ -316,7 +314,6 @@ window.__ModuleLoader__.load({
       "billing.filterPlaceholder": "Filter models\u2026",
       "billing.filterNone": "No matching models",
       "billing.editorTitle": "Price editor",
-      "billing.pickModelHint": "Pick a model first; the inputs will show its default price",
       "billing.defaultHint": "Defaults to the official price; edit and save to override",
       "billing.unknownHint": "No official price for this model \u2014 set your own (saved as custom)",
       "billing.editorEmpty": "Pick a model above to set its price",
@@ -332,19 +329,12 @@ window.__ModuleLoader__.load({
       "billing.idleShort": "Off-peak",
       "billing.addModel": "Add",
       "billing.addModelPlaceholder": "Type a model id",
-      "billing.refTitle": "Official price table (read-only)",
-      "billing.refAsOf": "Effective {date}",
-      "billing.refSource": "Official source",
-      "billing.refModel": "Model",
-      "billing.colHit": "Hit",
-      "billing.colMiss": "Miss",
-      "billing.colOutput": "Output",
-      "billing.peakIdle": "peak / off-peak",
       "billing.saveError": "Save failed: {msg}",
       "billing.loadError": "Settings failed to load: {msg}",
       "billing.retry": "Retry",
       "billing.err.invalidPrice": 'Invalid price for "{key}": all three prices must be non-negative numbers',
-      "billing.err.invalidIdle": 'Invalid off-peak price for "{key}": all three prices must be non-negative numbers'
+      "billing.err.invalidIdle": 'Invalid off-peak price for "{key}": all three prices must be non-negative numbers',
+      "billing.err.invalidSingle": 'Invalid price for "{key}": all three prices must be non-negative numbers'
     };
     function interpolate(text, params) {
       if (!params) return text;
@@ -556,7 +546,6 @@ window.__ModuleLoader__.load({
       ".dsw-ust-modal-content{max-height:calc(100vh - 180px);overflow-y:auto}",
       ".dsw-ust-bill-loading{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;padding:8px 0}",
       ".dsw-ust-bill{display:flex;flex-direction:column;gap:14px;width:100%;min-width:0}",
-      ".dsw-ust-bill-divider{height:1px;background:var(--dsw-alias-border-l1);margin:2px 0}",
       ".dsw-ust-bill-switch-inline input{accent-color:var(--dsw-static-deepseek-500)}",
       // Model-level 峰谷计价 toggle: inline in the pick row, right-aligned, no note.
       ".dsw-ust-bill-switch-inline{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;margin-left:auto;flex-shrink:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-primary);cursor:pointer}",
@@ -600,14 +589,6 @@ window.__ModuleLoader__.load({
       ".dsw-ust-bill-add input{flex:1;min-width:120px;padding:2px 6px;border-radius:4px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px}",
       ".dsw-ust-bill-add button{border:1px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:4px;font-size:12px;line-height:18px;padding:2px 10px;cursor:pointer}",
       ".dsw-ust-bill-add button:hover{color:var(--dsw-alias-label-primary)}",
-      ".dsw-ust-bill-ref summary{cursor:pointer;font-size:12px;line-height:18px;font-weight:600;color:var(--dsw-alias-label-primary)}",
-      ".dsw-ust-bill-ref-note{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary);margin:4px 0}",
-      ".dsw-ust-bill-ref-note a{color:var(--dsw-alias-state-link-primary)}",
-      ".dsw-ust-bill-ref table{border-collapse:collapse;font-size:12px;line-height:18px}",
-      ".dsw-ust-bill-ref th,.dsw-ust-bill-ref td{border-bottom:1px solid var(--dsw-alias-border-l1);padding:2px 10px 2px 0;text-align:left;color:var(--dsw-alias-label-secondary)}",
-      ".dsw-ust-bill-ref th{font-weight:600;color:var(--dsw-alias-label-primary)}",
-      ".dsw-ust-bill-ref .dsw-ust-bill-ref-subhead th{font-weight:500;color:var(--dsw-alias-label-tertiary)}",
-      ".dsw-ust-bill-ref td:first-child{color:var(--dsw-alias-label-primary)}",
       ".dsw-ust-bill-error{font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary)}",
       ".dsw-ust-bill-error.is-ok{color:var(--dsw-alias-state-success-primary)}",
       ".dsw-ust-bill-footer{display:flex;justify-content:flex-end;gap:8px}",
@@ -1037,8 +1018,6 @@ window.__ModuleLoader__.load({
         }
       }
     ];
-    var OFFICIAL_PRICES_AS_OF = "2026-08-17";
-    var OFFICIAL_PRICES_SOURCE = "https://api-docs.deepseek.com/zh-cn/quick_start/pricing";
     function officialPriceFor(model) {
       const needle = model.toLowerCase();
       return DEEPSEEK_OFFICIAL_PRICES.find((entry) => entry.model.toLowerCase() === needle)?.price;
@@ -1778,6 +1757,8 @@ window.__ModuleLoader__.load({
     // src/client/BillingSettingsModal.tsx
     var React11 = __toESM(require("react"), 1);
     var import_dsh_client_ui_primitives3 = require("@deepseek-ai/dsh-client-ui-primitives");
+
+    // src/client/billing-buffer.ts
     var EMPTY_BUFFER = {
       hit: "",
       miss: "",
@@ -1787,6 +1768,32 @@ window.__ModuleLoader__.load({
       idleMiss: "",
       idleOut: ""
     };
+    function seedPriceBuffer(custom, official) {
+      if (custom === void 0) {
+        if (official === null) return { ...EMPTY_BUFFER };
+        return {
+          hit: priceText(official.peak.inputCacheHit),
+          miss: priceText(official.peak.inputCacheMiss),
+          out: priceText(official.peak.output),
+          idleChecked: true,
+          idleHit: priceText(official.idle.inputCacheHit),
+          idleMiss: priceText(official.idle.inputCacheMiss),
+          idleOut: priceText(official.idle.output)
+        };
+      }
+      const peak = {
+        hit: priceText(custom.inputCacheHit),
+        miss: priceText(custom.inputCacheMiss),
+        out: priceText(custom.output)
+      };
+      if (custom.flat === true) {
+        return { ...EMPTY_BUFFER, idleHit: peak.hit, idleMiss: peak.miss, idleOut: peak.out };
+      }
+      const idle = custom.idle !== void 0 ? { hit: priceText(custom.idle.inputCacheHit), miss: priceText(custom.idle.inputCacheMiss), out: priceText(custom.idle.output) } : { hit: priceText(custom.inputCacheHit / 2), miss: priceText(custom.inputCacheMiss / 2), out: priceText(custom.output / 2) };
+      return { ...peak, idleChecked: true, idleHit: idle.hit, idleMiss: idle.miss, idleOut: idle.out };
+    }
+
+    // src/client/BillingSettingsModal.tsx
     function rowKey(provider, model) {
       return compositePriceKey(provider, model);
     }
@@ -1797,19 +1804,6 @@ window.__ModuleLoader__.load({
     }
     function defaultPrice(provider, model) {
       return resolveModelPrice(provider, model, {});
-    }
-    function bufferFromCustom(custom) {
-      if (custom === void 0) return { ...EMPTY_BUFFER };
-      const peak = { hit: String(custom.inputCacheHit), miss: String(custom.inputCacheMiss), out: String(custom.output) };
-      const half = (n) => String(n / 2);
-      const idle = custom.idle !== void 0 ? { hit: String(custom.idle.inputCacheHit), miss: String(custom.idle.inputCacheMiss), out: String(custom.idle.output) } : custom.flat === true ? peak : { hit: half(custom.inputCacheHit), miss: half(custom.inputCacheMiss), out: half(custom.output) };
-      return {
-        ...peak,
-        idleChecked: true,
-        idleHit: idle.hit,
-        idleMiss: idle.miss,
-        idleOut: idle.out
-      };
     }
     function withClientTimeout(source, ms, label) {
       source.catch(() => {
@@ -1910,25 +1904,14 @@ window.__ModuleLoader__.load({
         setModelName(model);
         setEditError(null);
         const custom = settings?.prices[rowKey(provider, model)] ?? settings?.prices[model];
-        if (custom !== void 0) {
-          setBuffer(bufferFromCustom(custom));
-          return;
-        }
-        const def2 = defaultPrice(provider, model);
-        if (def2 !== null) {
-          setBuffer({
-            hit: String(def2.peak.inputCacheHit),
-            miss: String(def2.peak.inputCacheMiss),
-            out: String(def2.peak.output),
-            idleChecked: true,
-            idleHit: String(def2.idle.inputCacheHit),
-            idleMiss: String(def2.idle.inputCacheMiss),
-            idleOut: String(def2.idle.output)
-          });
-          return;
-        }
-        setBuffer({ ...EMPTY_BUFFER });
+        setBuffer(seedPriceBuffer(custom, defaultPrice(provider, model)));
       };
+      React11.useEffect(() => {
+        if (!open || modelName !== "" || providerId === "") return;
+        const first = providerModels[0];
+        if (first === void 0) return;
+        selectModel(providerId, first);
+      }, [open, modelName, providerId, providerModels]);
       const toggleIdle = (checked) => {
         if (!checked) {
           setBuffer({ ...buffer, idleChecked: false });
@@ -1944,10 +1927,15 @@ window.__ModuleLoader__.load({
         });
       };
       const switchProvider = (provider) => {
-        setProviderId(provider);
-        setModelName("");
-        setBuffer({ ...EMPTY_BUFFER });
+        const first = providerOptions.find((p) => p.provider === provider)?.models[0];
         setEditError(null);
+        if (first === void 0) {
+          setProviderId(provider);
+          setModelName("");
+          setBuffer({ ...EMPTY_BUFFER });
+          return;
+        }
+        selectModel(provider, first);
       };
       const commitModel = (close) => {
         if (settings === null) return;
@@ -1989,16 +1977,16 @@ window.__ModuleLoader__.load({
           };
         } else {
           if (!validPrice(buffer.idleHit) || !validPrice(buffer.idleMiss) || !validPrice(buffer.idleOut)) {
-            setSaveError(t("billing.err.invalidIdle", { key: modelName }));
+            setSaveError(t("billing.err.invalidSingle", { key: modelName }));
             return;
           }
           delete prices[modelName];
-          prices[key] = {
+          const flat = {
             inputCacheHit: Number(buffer.idleHit),
             inputCacheMiss: Number(buffer.idleMiss),
-            output: Number(buffer.idleOut),
-            flat: true
+            output: Number(buffer.idleOut)
           };
+          prices[key] = { ...flat, idle: { ...flat }, flat: true };
         }
         setSaving(true);
         setSaveError(null);
@@ -2030,7 +2018,6 @@ window.__ModuleLoader__.load({
           value: modelName,
           onChange: (e) => selectModel(providerId, e.target.value)
         },
-        /* @__PURE__ */ React11.createElement("option", { value: "" }, t("billing.pickModel")),
         providerModels.map((model) => /* @__PURE__ */ React11.createElement("option", { key: model, value: model }, model))
       )), peakValley && /* @__PURE__ */ React11.createElement("label", { className: "dsw-ust-bill-switch-inline" }, /* @__PURE__ */ React11.createElement("span", null, t("billing.idleToggle")), /* @__PURE__ */ React11.createElement(
         import_dsh_client_ui_primitives3.Switch,
@@ -2038,7 +2025,7 @@ window.__ModuleLoader__.load({
           checked: buffer.idleChecked,
           onChange: (e) => toggleIdle(e.target.checked)
         }
-      ))), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-prices", "data-period": "idle" }, /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-period is-idle" }, t("billing.periodIdle")), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.hit"), value: buffer.idleHit, onChange: (v) => setBuffer({ ...buffer, idleHit: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.miss"), value: buffer.idleMiss, onChange: (v) => setBuffer({ ...buffer, idleMiss: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.out"), value: buffer.idleOut, onChange: (v) => setBuffer({ ...buffer, idleOut: v }) })), buffer.idleChecked && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-prices" }, /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-period is-peak" }, t("billing.periodPeak")), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.hit"), value: buffer.hit, onChange: (v) => setBuffer({ ...buffer, hit: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.miss"), value: buffer.miss, onChange: (v) => setBuffer({ ...buffer, miss: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.out"), value: buffer.out, onChange: (v) => setBuffer({ ...buffer, out: v }) })), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-commit-row" }, /* @__PURE__ */ React11.createElement("button", { type: "button", className: "dsw-ust-bill-commit", onClick: addUpdate, disabled: saving || modelName === "" }, t("billing.commit"))), updated !== null && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-error is-ok" }, updated), editError !== null && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-error" }, editError)), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-divider" }), /* @__PURE__ */ React11.createElement("details", { className: "dsw-ust-bill-ref" }, /* @__PURE__ */ React11.createElement("summary", null, t("billing.refTitle")), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-ref-note" }, t("billing.refAsOf", { date: OFFICIAL_PRICES_AS_OF }), " \xB7", " ", /* @__PURE__ */ React11.createElement("a", { href: OFFICIAL_PRICES_SOURCE, target: "_blank", rel: "noreferrer" }, t("billing.refSource"))), /* @__PURE__ */ React11.createElement("table", null, /* @__PURE__ */ React11.createElement("thead", null, /* @__PURE__ */ React11.createElement("tr", null, /* @__PURE__ */ React11.createElement("th", null, t("billing.refModel")), /* @__PURE__ */ React11.createElement("th", null, t("billing.colHit")), /* @__PURE__ */ React11.createElement("th", null, t("billing.colMiss")), /* @__PURE__ */ React11.createElement("th", null, t("billing.colOutput"))), /* @__PURE__ */ React11.createElement("tr", { className: "dsw-ust-bill-ref-subhead" }, /* @__PURE__ */ React11.createElement("th", null), /* @__PURE__ */ React11.createElement("th", null, t("billing.peakIdle")), /* @__PURE__ */ React11.createElement("th", null, t("billing.peakIdle")), /* @__PURE__ */ React11.createElement("th", null, t("billing.peakIdle")))), /* @__PURE__ */ React11.createElement("tbody", null, DEEPSEEK_OFFICIAL_PRICES.map((entry) => /* @__PURE__ */ React11.createElement("tr", { key: entry.model }, /* @__PURE__ */ React11.createElement("td", null, entry.model), /* @__PURE__ */ React11.createElement("td", null, priceText(entry.price.inputCacheHit.peak), " / ", priceText(entry.price.inputCacheHit.idle)), /* @__PURE__ */ React11.createElement("td", null, priceText(entry.price.inputCacheMiss.peak), " / ", priceText(entry.price.inputCacheMiss.idle)), /* @__PURE__ */ React11.createElement("td", null, priceText(entry.price.output.peak), " / ", priceText(entry.price.output.idle))))))), saveError !== null && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-error" }, saveError));
+      ))), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-prices", "data-period": "idle" }, /* @__PURE__ */ React11.createElement("span", { className: buffer.idleChecked ? "dsw-ust-bill-period is-idle" : "dsw-ust-bill-period" }, buffer.idleChecked ? t("billing.periodIdle") : t("billing.periodSingle")), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.hit"), value: buffer.idleHit, onChange: (v) => setBuffer({ ...buffer, idleHit: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.miss"), value: buffer.idleMiss, onChange: (v) => setBuffer({ ...buffer, idleMiss: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.out"), value: buffer.idleOut, onChange: (v) => setBuffer({ ...buffer, idleOut: v }) })), buffer.idleChecked && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-prices" }, /* @__PURE__ */ React11.createElement("span", { className: "dsw-ust-bill-period is-peak" }, t("billing.periodPeak")), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.hit"), value: buffer.hit, onChange: (v) => setBuffer({ ...buffer, hit: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.miss"), value: buffer.miss, onChange: (v) => setBuffer({ ...buffer, miss: v }) }), /* @__PURE__ */ React11.createElement(PriceInput, { label: t("billing.out"), value: buffer.out, onChange: (v) => setBuffer({ ...buffer, out: v }) })), /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-commit-row" }, /* @__PURE__ */ React11.createElement("button", { type: "button", className: "dsw-ust-bill-commit", onClick: addUpdate, disabled: saving || modelName === "" }, t("billing.commit"))), updated !== null && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-error is-ok" }, updated), editError !== null && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-error" }, editError)), saveError !== null && /* @__PURE__ */ React11.createElement("div", { className: "dsw-ust-bill-error" }, saveError));
       return /* @__PURE__ */ React11.createElement(
         import_dsh_client_ui_primitives3.Modal,
         {

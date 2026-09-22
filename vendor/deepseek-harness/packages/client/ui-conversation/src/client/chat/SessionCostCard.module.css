@@ -1,0 +1,194 @@
+/* Session-cost detail card: the click-opened surface behind the composer
+   strip's cost figure. Skin parity with the 「Token 用量」 stat card — menu
+   surface, r12, elevation-prominent — is built here from the same semantic
+   aliases rather than importing that feature plugin's CSS module. Placement
+   comes from useSessionCostCard (SessionCostCard.tsx). */
+
+/* Portal surface: fixed in the viewport, left/top supplied inline from the
+   anchored-position clamp so the card keeps its 12px viewport margin instead
+   of hanging off the trigger and clipping at the window edge. Portaled panels
+   layer above modal overlays (z 1000). */
+.panel {
+  position: fixed;
+  /* Desktop fork: fixed layers must punch a no-drag hole over the caption
+     band (the z 1100 contract the stat card carries). */
+  -webkit-app-region: no-drag;
+  z-index: 1100;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  /* Content-driven by decision: size to the widest row, bounded only by the
+     viewport margin the placement clamp also keeps, so a long row widens the
+     card instead of being clipped to an arbitrary cap. The legible floor keeps
+     a short card from collapsing and yields to a viewport narrower than itself,
+     so it cannot push the card past that clamp; a card wider than the space
+     left of the trigger is shifted into view by the clamp, which reads the
+     panel's real width. */
+  width: max-content;
+  min-width: min(300px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  padding: 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
+  /* Elevated surface: the scrolling body takes the l2 scrollbar pair (both
+     variables together — the rebinding contract in ui-theme scrollbar.css). */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  cursor: default;
+}
+
+/* Heading row: the section name left, the headline total right, both at the
+   primary weight. */
+.title {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  color: var(--dsw-alias-label-primary);
+  font-weight: 500;
+}
+
+/* Section-heading glyph seated left of the section name. */
+.titleLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.titleLabel svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.titleValue {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rule under the heading, above the rows. */
+.titleRule {
+  margin-bottom: 10px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+/* Row area: the only scrolling region. The max-height is applied inline (the
+   viewport fit), so the bounded card scrolls instead of growing without
+   limit — a session with many routes and many subagents stays compact. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  /* Vertical scrolling only. `overflow-y: auto` on its own computes a
+     horizontal `auto` as well, which would turn a stray wide row into a
+     sideways scrollbar; every line ellipsizes inside its own box instead. */
+  overflow: hidden auto;
+}
+
+/* One billed route: its identity, then its own lines. */
+.route {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.routeName {
+  color: var(--dsw-alias-label-primary);
+  overflow-wrap: anywhere;
+}
+
+.line {
+  color: var(--dsw-alias-label-tertiary);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* The delegation tree's folded row, and its child lines, sit under the routes
+   they explain. */
+.subagent {
+  margin-top: 2px;
+}
+
+/* The summary is ONE line by construction. `white-space: nowrap` is the
+   guarantee — it forbids the second line outright; `min-width: 0` is what lets
+   this flex item shrink below its content instead of forcing the row wider, and
+   `flex: 1 1 auto` makes it the item that gives way (the primitive sizes it
+   `flex: none`). `overflow: hidden` + `text-overflow: ellipsis` are the
+   LAST-RESORT fallback only: the panel is content-driven, so an ordinary window
+   fits the whole row and the ellipsis engages only when the content genuinely
+   exceeds the viewport margin. The `.subagent` prefix outranks the primitive's
+   own `.title` rule. */
+.subagent .subagentTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The trailing affordance never shrinks, so the row still reads as opening
+   after its text is clipped. */
+.subagentChevron {
+  flex: none;
+  margin-left: 4px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.subagentList {
+  display: grid;
+  /* The name column is sized by its content: the card's width is content-driven
+     now, so a cap on the text that defines that width would make the width
+     circular (a percentage max-width inside a `max-content` box resolves
+     against the size it is supposed to decide). A long name widens the card up
+     to the viewport margin; the value column below is the one that yields.
+     No left indent: the disclosure row above owns the expand affordance and its
+     expanded state, so nesting costs no horizontal space and every line in the
+     card starts on the one left edge the panel's padding sets. */
+  grid-template-columns: minmax(76px, auto) minmax(0, 1fr);
+  gap: 6px 16px;
+  padding: 4px 0;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.subagentList dt,
+.subagentList dd {
+  min-width: 0;
+  margin: 0;
+  /* One line per child, same as the summary it expands: the detail line is a
+     reading, not prose, and the card body scrolls instead of the line. The
+     ellipsis is the fallback for content wider than the viewport. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagentList dd {
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The honest remainder past the rendered child lines; flush with the child
+   lines above it, on the card's single left edge. */
+.subagentMore {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Where model prices are set — the only actionable line for an unpriced route. */
+.hint {
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
+}

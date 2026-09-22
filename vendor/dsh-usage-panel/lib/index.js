@@ -149,6 +149,26 @@ function readPrice(value) {
   if (value < 0 || value > MAX_PRICE) return null;
   return value;
 }
+function repairFlatEntries(prices) {
+  let changed = false;
+  const next = {};
+  for (const [key, entry] of Object.entries(prices)) {
+    if (entry.flat === true && entry.idle === void 0) {
+      changed = true;
+      next[key] = {
+        ...entry,
+        idle: {
+          inputCacheHit: entry.inputCacheHit,
+          inputCacheMiss: entry.inputCacheMiss,
+          output: entry.output
+        }
+      };
+      continue;
+    }
+    next[key] = entry;
+  }
+  return { prices: next, changed };
+}
 
 // src/shared/cost.ts
 var MICRO_SCALE = 1e6;
@@ -1090,7 +1110,6 @@ var priceValueSchema = z2.object({
   }).optional(),
   flat: z2.boolean().optional()
 });
-var emptyPrices = {};
 var billingGlobalSchema = z2.object({
   prices: z2.record(z2.string(), priceValueSchema),
   // Legacy v0.3 fields of the retired composer cost strip: a record written
@@ -1125,21 +1144,22 @@ var BillingStore = class {
     this.cache = this.fromRaw(this.medium?.get());
     return this.cache;
   }
-  /** Replace the whole record (validated; throws with the issues on refusal). */
-  async save(settings) {
-    this.toRaw(settings);
-    if (this.medium !== void 0) {
-      await this.medium.set(settings);
-    }
-    this.cache = settings;
-    return this.cache;
+  /**
+   * Drop this domain's prices after they have been merged into the surviving
+   * record. The record itself stays schema-valid (`prices: {}`); the legacy
+   * fields of the retired composer strip are gone with it.
+   */
+  async clearPrices() {
+    const cleared = { prices: {}, peakValleyEnabled: DEFAULT_BILLING_SETTINGS.peakValleyEnabled };
+    if (this.medium !== void 0) await this.medium.set(cleared);
+    this.cache = cleared;
   }
   fromRaw(raw) {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return initialRecord();
     const record = raw;
     const parsed = parseSessionCostPrices(record.prices);
     if (!parsed.ok) {
-      this.warn("stored prices failed validation, using defaults: " + parsed.issues.join(" | "));
+      this.warn("stored legacy prices failed validation, using defaults: " + parsed.issues.join(" | "));
       return {
         prices: {},
         peakValleyEnabled: record.peakValleyEnabled === false ? false : true
@@ -1150,16 +1170,6 @@ var BillingStore = class {
       peakValleyEnabled: record.peakValleyEnabled === false ? false : true
     };
   }
-  toRaw(settings) {
-    if (typeof settings !== "object" || settings === null || Array.isArray(settings)) {
-      throw new Error("invalid billing settings: expected an object");
-    }
-    const parsed = parseSessionCostPrices(settings.prices);
-    if (!parsed.ok) throw new Error("invalid prices: " + parsed.issues.join(" | "));
-    if (typeof settings.peakValleyEnabled !== "boolean") {
-      throw new Error("invalid billing settings: peakValleyEnabled must be a boolean");
-    }
-  }
 };
 async function openBillingMedium(storageDomain, warn) {
   if (storageDomain === void 0) return void 0;
@@ -1169,15 +1179,189 @@ async function openBillingMedium(storageDomain, warn) {
       version: BILLING_DOMAIN_VERSION,
       global: {
         schema: billingGlobalSchema,
-        initial: { ...initialRecord(), prices: { ...emptyPrices } }
+        initial: { ...initialRecord(), prices: {} }
       },
       tables: {}
     });
     return domain.global;
   } catch (error) {
-    warn("billing domain open failed; preferences are memory-only: " + String(error?.message ?? error));
+    warn("legacy billing domain open failed; the one-time price import is deferred: " + String(error?.message ?? error));
     return void 0;
   }
+}
+
+// src/host/legacy-billing-import.ts
+function mergeLegacyPrices(legacy, section) {
+  const prices = { ...section };
+  const imported = [];
+  for (const [key, value] of Object.entries(legacy)) {
+    if (Object.hasOwn(section, key)) continue;
+    prices[key] = value;
+    imported.push(key);
+  }
+  return { prices, imported };
+}
+function createLegacyBillingImport(deps) {
+  const { store, prices, warn, log } = deps;
+  let done = false;
+  let inflight = null;
+  let lastReason = null;
+  function warnOnce(reason) {
+    if (lastReason === reason) return;
+    lastReason = reason;
+    warn(reason);
+  }
+  async function run() {
+    try {
+      if (store.mode !== "durable") {
+        warnOnce("legacy price import deferred: the plugin billing domain has not attached yet");
+        return;
+      }
+      if (!prices.isSectionRegistered()) {
+        warnOnce("legacy price import deferred: the ui-conversation settings section is not registered yet");
+        return;
+      }
+      lastReason = null;
+      const legacy = await store.load();
+      if (Object.keys(legacy.prices).length === 0) {
+        done = true;
+        return;
+      }
+      const { prices: merged, imported } = mergeLegacyPrices(legacy.prices, prices.snapshot());
+      if (imported.length > 0) await prices.save(merged);
+      await store.clearPrices();
+      done = true;
+      log(
+        "imported " + imported.length + " legacy price(s) from " + BILLING_DOMAIN_NAME + " into the conversation settings section; that domain is import-only from now on"
+      );
+    } catch (err) {
+      warnOnce("legacy price import failed (retried on the next billing.get): " + String(err?.message ?? err));
+    }
+  }
+  return {
+    isDone: () => done,
+    attempt() {
+      if (done) return Promise.resolve();
+      if (inflight !== null) return inflight;
+      const running = run().finally(() => {
+        inflight = null;
+      });
+      inflight = running;
+      return running;
+    }
+  };
+}
+
+// src/host/prices-source.ts
+var CONVERSATION_SETTINGS_NS = "ui-conversation";
+var SESSION_COST_PRICES_FIELD = "sessionCostPrices";
+function createPricesSource(settings, warn) {
+  let cached = {};
+  let observed = false;
+  let lastWarning = null;
+  function warnOnce(message) {
+    if (lastWarning === message) return;
+    lastWarning = message;
+    warn(message);
+  }
+  function pricesOf(section) {
+    if (typeof section !== "object" || section === null || Array.isArray(section)) return null;
+    const raw = section[SESSION_COST_PRICES_FIELD];
+    if (raw === void 0 || raw === null) return {};
+    const parsed = parseSessionCostPrices(raw);
+    if (!parsed.ok) {
+      warnOnce(
+        "stored " + CONVERSATION_SETTINGS_NS + "." + SESSION_COST_PRICES_FIELD + " failed validation, ignoring it: " + parsed.issues.join(" | ")
+      );
+      return {};
+    }
+    return parsed.prices;
+  }
+  function readSection() {
+    let section;
+    try {
+      section = settings.get(CONVERSATION_SETTINGS_NS);
+    } catch (err) {
+      warnOnce("settings read failed: " + String(err?.message ?? err));
+      return false;
+    }
+    const prices = section === void 0 ? null : pricesOf(section);
+    if (prices === null) return false;
+    cached = prices;
+    observed = true;
+    return true;
+  }
+  return {
+    isSectionRegistered() {
+      return readSection();
+    },
+    snapshot() {
+      if (!observed) readSection();
+      return cached;
+    },
+    adoptSection(section) {
+      const prices = pricesOf(section);
+      if (prices === null) return;
+      cached = prices;
+      observed = true;
+    },
+    async save(prices) {
+      const { prices: repaired } = repairFlatEntries(prices);
+      const parsed = parseSessionCostPrices(repaired);
+      if (!parsed.ok) throw new Error("invalid prices: " + parsed.issues.join(" | "));
+      await settings.update(CONVERSATION_SETTINGS_NS, { [SESSION_COST_PRICES_FIELD]: parsed.prices });
+      if (!readSection()) {
+        cached = parsed.prices;
+        observed = true;
+      }
+    }
+  };
+}
+
+// src/host/prices-repair.ts
+function createPricesRepair(deps) {
+  const { prices, warn, log } = deps;
+  let done = false;
+  let inflight = null;
+  let lastReason = null;
+  function warnOnce(reason) {
+    if (lastReason === reason) return;
+    lastReason = reason;
+    warn(reason);
+  }
+  async function run() {
+    try {
+      if (!prices.isSectionRegistered()) {
+        warnOnce("flat price repair deferred: the ui-conversation settings section is not registered yet");
+        return;
+      }
+      lastReason = null;
+      const repaired = repairFlatEntries(prices.snapshot());
+      if (!repaired.changed) {
+        done = true;
+        return;
+      }
+      await prices.save(repaired.prices);
+      done = true;
+      log(
+        "repaired the stored conversation prices: every \u5CF0\u8C37\u8BA1\u4EF7-OFF record gained the idle column, so both periods bill the entered price"
+      );
+    } catch (err) {
+      warnOnce("flat price repair failed (retried on the next billing.get): " + String(err?.message ?? err));
+    }
+  }
+  return {
+    isDone: () => done,
+    attempt() {
+      if (done) return Promise.resolve();
+      if (inflight !== null) return inflight;
+      const running = run().finally(() => {
+        inflight = null;
+      });
+      inflight = running;
+      return running;
+    }
+  };
 }
 
 // src/host/session-repair.ts
@@ -1494,7 +1678,8 @@ var inject = [
   "connection",
   "sessionProjections",
   "sessionQuery",
-  "sessionProjectionCache"
+  "sessionProjectionCache",
+  "settings"
 ];
 function channelContext(ctx) {
   const webServer = typeof ctx?.get === "function" ? ctx.get("webServer") : void 0;
@@ -1549,9 +1734,27 @@ function apply(ctx) {
   openStatsCache(resolveDshHome(), (message) => console.warn(tag, message)).then((cache2) => {
     statsCache = cache2;
   });
-  const billingStore = new BillingStore(void 0, (message) => console.warn(tag, message));
+  const settings = ctx.get("settings");
+  const pricesSource = createPricesSource(settings, (message) => console.warn(tag, message));
+  ctx.on("settings/updated", (ns, next) => {
+    if (String(ns) === CONVERSATION_SETTINGS_NS) pricesSource.adoptSection(next);
+  });
+  const pricesRepair = createPricesRepair({
+    prices: pricesSource,
+    warn: (message) => console.warn(tag, message),
+    log: (message) => console.log(tag, message)
+  });
+  void pricesRepair.attempt();
+  const legacyStore = new BillingStore(void 0, (message) => console.warn(tag, message));
+  const legacyImport = createLegacyBillingImport({
+    store: legacyStore,
+    prices: pricesSource,
+    warn: (message) => console.warn(tag, message),
+    log: (message) => console.log(tag, message)
+  });
   openBillingMedium(ctx.get("storageDomain"), (message) => console.warn(tag, message)).then((medium) => {
-    if (medium) billingStore.attachMedium(medium);
+    if (medium) legacyStore.attachMedium(medium);
+    return legacyImport.attempt();
   });
   function logFailure(message) {
     console.warn(tag, message);
@@ -1859,16 +2062,14 @@ function apply(ctx) {
     };
   }
   const PAGE_SIZE = 10;
-  let billingSnapshot = { ...DEFAULT_BILLING_SETTINGS };
-  billingStore.load().then((s) => {
-    billingSnapshot = s;
-  }).catch(() => {
-  });
+  function billingSettings() {
+    return { prices: pricesSource.snapshot(), peakValleyEnabled: true };
+  }
   const sortOf = (payload) => payload?.sort ?? "tokens";
   async function sessionsMore(payload) {
     const offset = Math.max(0, payload?.offset ?? 0);
     const sort = sortOf(payload);
-    const ranked = rankSessionsBy(sessionIndex, sort, billingSnapshot.prices, billingSnapshot.peakValleyEnabled);
+    const ranked = rankSessionsBy(sessionIndex, sort, pricesSource.snapshot(), true);
     const { rows, hasMore } = pageOf(ranked, offset, PAGE_SIZE);
     const titles = /* @__PURE__ */ new Map();
     await Promise.all(
@@ -1895,7 +2096,7 @@ function apply(ctx) {
   }
   async function projectsMore(payload) {
     const offset = Math.max(0, payload?.offset ?? 0);
-    const all = projectRowsOf(sessionIndex, sortOf(payload), billingSnapshot.prices, billingSnapshot.peakValleyEnabled);
+    const all = projectRowsOf(sessionIndex, sortOf(payload), pricesSource.snapshot(), true);
     const { rows, hasMore } = pageOf(all, offset, PAGE_SIZE);
     return { rows, hasMore };
   }
@@ -1983,8 +2184,8 @@ function apply(ctx) {
         );
       }
       if (endpoint === RPC_BILLING_GET) {
-        return billingStore.load().then(
-          (value) => ({ ok: true, value }),
+        return legacyImport.attempt().then(() => pricesRepair.attempt()).then(
+          () => ({ ok: true, value: billingSettings() }),
           (err) => ({
             ok: false,
             error: {
@@ -1996,11 +2197,9 @@ function apply(ctx) {
         );
       }
       if (endpoint === RPC_BILLING_SET) {
-        return billingStore.save(payload ?? { ...DEFAULT_BILLING_SETTINGS }).then(
-          (value) => {
-            billingSnapshot = value;
-            return { ok: true, value };
-          },
+        const next = { ...DEFAULT_BILLING_SETTINGS, ...payload ?? {} };
+        return pricesSource.save(next.prices).then(
+          () => ({ ok: true, value: billingSettings() }),
           (err) => ({
             ok: false,
             error: {
