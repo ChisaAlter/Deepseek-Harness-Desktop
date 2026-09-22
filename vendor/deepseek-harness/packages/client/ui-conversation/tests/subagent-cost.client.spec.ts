@@ -35,6 +35,7 @@ function row(opts: {
     id: opts.id,
     displayTitle: opts.displayTitle ?? String(opts.id),
     running: false,
+    retainedBy: {},
     blank: false,
     updatedAt: 0,
     ...(opts.parentId === undefined ? {} : { parentId: opts.parentId }),
@@ -48,11 +49,9 @@ function listOf(rows: readonly SessionSummary[]): SessionListState {
   return {
     ids: rows.map(entry => entry.id),
     byId: Object.fromEntries(rows.map(entry => [entry.id, entry])),
-    current: PARENT,
     phase: 'ready',
     subagentsByParent: {},
     jobsBySession: {},
-    currentAddress: undefined,
   }
 }
 
