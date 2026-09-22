@@ -1,0 +1,67 @@
+/* Setting-Cell Selector pill (figma Selector: h36 r18, pad 0/14, gap 12). */
+
+.root {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+.menuFill {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 18px;
+  background: var(--dsw-alias-bg-module-platform);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.block .trigger {
+  width: 100%;
+}
+
+.trigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+
+.placeholder {
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.chevron {
+  flex: none;
+}

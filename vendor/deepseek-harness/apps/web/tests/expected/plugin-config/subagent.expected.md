@@ -1,0 +1,29 @@
+- button "返回插件列表":
+  - img
+  - text: 插件列表
+- heading "Subagent" [level=3]
+- paragraph: 设置 Subagent 的递归层级、数量和模型。
+- region "运行限制":
+  - heading "运行限制" [level=3]
+  - text: 最大递归深度
+  - button "最大递归深度说明":
+    - img
+  - text: 已覆盖
+  - button "恢复默认"
+  - textbox "最大递归深度":
+    - /placeholder: ""
+    - text: "2"
+  - text: Subagent 并行数量上限
+  - button "Subagent 并行数量上限说明":
+    - img
+  - text: 已覆盖
+  - button "恢复默认"
+  - textbox "Subagent 并行数量上限":
+    - /placeholder: ""
+    - text: "12"
+- region "模型选择":
+  - heading "模型选择" [level=3]
+  - text: 允许 Agent 为 Subagent 选择模型
+  - switch "允许 Agent 为 Subagent 选择模型"
+  - paragraph: 关闭后，Subagent 使用配置的默认模型或继承父 Agent 的模型；已选模型会保留。
+- button "保存" [disabled]

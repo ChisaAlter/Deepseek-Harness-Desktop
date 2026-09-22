@@ -1,0 +1,45 @@
+/** Review tab: a file selector and icon tools in the document preview's header row, then numbered diff lines in the code font. Unwrapped split columns clip their lines and scroll sideways together; wrapped ones share rows so the sides stay aligned. */
+.root { display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: 100%; min-height: 0; color: var(--dsw-alias-label-primary); }
+.header { display: flex; flex: 0 0 auto; gap: 6px; align-items: center; box-sizing: border-box; height: 38px; padding: 0 6px 0 8px; border-bottom: 0.5px solid var(--dsw-alias-border-l3); }
+.selector { flex: 0 1 auto; min-width: 0; }
+.selectorLabel { flex: 1 1 auto; min-width: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.selectorButton { display: inline-flex; gap: 4px; align-items: center; box-sizing: border-box; max-width: 100%; height: 28px; padding: 0 6px 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-primary); cursor: pointer; font: inherit; font-size: 12px; }
+.selectorButton:hover, .selectorButton[aria-expanded='true'] { background: var(--dsw-alias-interactive-bg-hover); }
+.selectorText { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item { display: flex; gap: 12px; align-items: center; justify-content: space-between; min-width: 0; }
+.itemPath { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itemCounts, .counts { display: inline-flex; flex: none; gap: 6px; font-family: var(--ds-font-family-code); font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.counts { min-width: 0; margin-right: auto; }
+.added { color: var(--dsw-alias-state-success-primary); }
+.deleted { color: var(--dsw-alias-state-error-primary); }
+.label { color: var(--dsw-alias-label-tertiary); }
+.tools { display: inline-flex; flex: none; gap: 2px; align-items: center; margin-left: auto; }
+.tool { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
+.tool svg { width: 15px; height: 15px; }
+.tool:hover:not(:disabled), .tool[aria-pressed='true'] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.tool:disabled { cursor: progress; }
+.tool[data-error] { color: var(--dsw-alias-state-error-primary); }
+.status { display: flex; gap: 12px; align-items: center; margin: 0; padding: 16px; font-size: 13px; color: var(--dsw-alias-label-secondary); }
+.body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: auto; padding: 8px 0 16px; font: var(--dsw-font-markdown-code-block); }
+.columns { display: grid; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; }
+.column { min-width: 0; overflow-x: auto; }
+.column + .column { border-left: 0.5px solid var(--dsw-alias-border-l3); }
+.sideLine { display: grid; grid-template-columns: 3.5em max-content; box-sizing: border-box; min-width: 100%; width: max-content; min-height: 22px; line-height: 22px; white-space: pre; }
+.note { margin: 0; padding: 4px 16px 8px; font: var(--dsw-font-xs-13); color: var(--dsw-alias-label-tertiary); }
+.hunk { margin-bottom: 8px; }
+.hunkHeader { padding: 4px 16px; color: var(--dsw-alias-label-tertiary); white-space: pre; }
+.line { display: grid; grid-template-columns: 3.5em 3.5em 1.2em minmax(0, 1fr); min-height: 22px; line-height: 22px; white-space: pre; }
+.splitLine { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 22px; line-height: 22px; white-space: pre; }
+.cell { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); min-width: 0; }
+.cell + .cell { border-left: 0.5px solid var(--dsw-alias-border-l3); }
+.number { padding-right: 8px; color: var(--dsw-alias-label-tertiary); text-align: right; user-select: none; }
+.sign { text-align: center; user-select: none; }
+.text { padding-right: 16px; }
+.body[data-review-wrap] .line, .body[data-review-wrap] .splitLine { white-space: pre-wrap; }
+.body[data-review-wrap] .text { overflow-wrap: anywhere; }
+.add { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 12%, transparent); }
+.add .sign, .add .text { color: var(--dsw-alias-state-success-primary); }
+.del { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent); }
+.del .sign, .del .text { color: var(--dsw-alias-state-error-primary); }
+.context .text { color: var(--dsw-alias-label-secondary); }
+.empty { background: var(--dsw-alias-interactive-bg-hover); }

@@ -1,0 +1,87 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  clearAssistantImageMetadataCache,
+  estimateAssistantMessageHeightFromCache,
+  extractAssistantImageSources,
+  getAssistantImageLoadStateFromMetadata,
+  getAssistantImageMetadata,
+  setAssistantImageMetadata,
+} from "./assistant-image-metadata";
+
+describe("assistant image metadata", () => {
+  beforeEach(() => {
+    clearAssistantImageMetadataCache();
+  });
+
+  it("extracts markdown image sources", () => {
+    expect(
+      extractAssistantImageSources(
+        'Before\n\n![local](/tmp/chisacode.png)\n\n![remote](https://example.com/test.png "Remote")',
+      ),
+    ).toEqual(["/tmp/chisacode.png", "https://example.com/test.png"]);
+  });
+
+  it("reuses cached metadata across canonical and raw source keys", () => {
+    setAssistantImageMetadata(
+      {
+        source: "/tmp/chisacode-codex-screenshot.png",
+        workspaceRoot: "/Users/moboudra/dev/chisacode",
+        serverId: "server-1",
+      },
+      { width: 1200, height: 800 },
+    );
+
+    expect(
+      getAssistantImageMetadata({
+        source: "/tmp/chisacode-codex-screenshot.png",
+      }),
+    ).toEqual({
+      width: 1200,
+      height: 800,
+      aspectRatio: 1.5,
+    });
+  });
+
+  it("maps missing metadata to the image loading state", () => {
+    expect(getAssistantImageLoadStateFromMetadata(null)).toEqual({ status: "loading" });
+  });
+
+  it("maps cached metadata to the image ready state", () => {
+    expect(
+      getAssistantImageLoadStateFromMetadata({
+        width: 900,
+        height: 1600,
+        aspectRatio: 9 / 16,
+      }),
+    ).toEqual({
+      status: "ready",
+      aspectRatio: 9 / 16,
+    });
+  });
+
+  it("estimates assistant message height from cached image metadata", () => {
+    setAssistantImageMetadata(
+      {
+        source: "https://example.com/landscape.png",
+      },
+      { width: 1200, height: 800 },
+    );
+
+    expect(
+      estimateAssistantMessageHeightFromCache(
+        "Here is the screenshot\n\n![Screenshot](https://example.com/landscape.png)",
+      ),
+    ).toBeGreaterThan(220);
+  });
+
+  it("estimates image-only data-image markdown without caching the full payload as text", () => {
+    const source = `data:image/png;base64,${"a".repeat(512)}`;
+    setAssistantImageMetadata({ source }, { width: 1200, height: 800 });
+
+    const imageOnlyHeight = estimateAssistantMessageHeightFromCache(`![Screenshot](${source})`);
+    const mixedHeight = estimateAssistantMessageHeightFromCache(`Text\n\n![Screenshot](${source})`);
+
+    expect(imageOnlyHeight).toBeGreaterThan(220);
+    expect(mixedHeight).toBeGreaterThan(imageOnlyHeight ?? 0);
+  });
+});

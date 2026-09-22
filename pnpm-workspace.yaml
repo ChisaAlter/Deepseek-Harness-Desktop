@@ -1,0 +1,6 @@
+allowBuilds:
+  electron-winstaller: set this to true or false
+  node-pty: set this to true or false
+
+overrides:
+  app-builder-lib>@electron/get: 5.1.0

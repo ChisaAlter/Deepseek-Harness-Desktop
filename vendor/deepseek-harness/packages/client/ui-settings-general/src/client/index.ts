@@ -1,0 +1,293 @@
+/**
+ * Settings shell and ownerless-copy plugin, browser half: renders the
+ * `sidebar.settings` occupant — panel chrome, section navigation, and the
+ * onboarding stage — and registers everything on the Settings pages that
+ * belongs to no single feature: the trigger/header chrome content,
+ * local-document action, General and Interface sections, desktop close-window
+ * row, and `settings` dictionaries.
+ * Feature-owned rows and sections stay with their features.
+ * Export discipline: packages/client/AGENTS.md.
+ */
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+// Type-only: pulls the ctx.remote merge and its fixed Host facts.
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
+import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: the settings slot declarations plus the ctx.settingsScope Context
+// merge. Cross-plugin collaboration goes through the service, never a value
+// import (client bundle purity gate).
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: pulls ctx.locale into this program.
+import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {
+  SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
+} from './shell-contract.ts'
+import { SettingsNavigationService } from './settings-navigation.ts'
+import { SettingsRoot } from './SettingsRoot.tsx'
+import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
+import type { DesktopUpdateBridge } from './desktop-update-bridge.ts'
+import { DesktopUpdateSource } from './desktop-update-source.ts'
+import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
+import { GeneralSection } from './GeneralSection.tsx'
+import { InterfaceSection } from './InterfaceSection.tsx'
+import { CloseBehaviorRow } from './CloseBehaviorRow.tsx'
+import { AutoStartDesktopRow } from './AutoStartDesktopRow.tsx'
+import { DshbotRow } from './DshbotRow.tsx'
+import { PetSection } from './PetSection.tsx'
+import type { PetSectionInjected } from './PetSection.tsx'
+import { AboutSection } from './AboutSection.tsx'
+import { HarnessRestartRow } from './HarnessRestartRow.tsx'
+import { canPersistCloseBehavior, desktopShell } from './desktop-shell.ts'
+import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
+import type { SettingsDocumentActionInjected } from './SettingsDocumentAction.tsx'
+import { SettingsDocumentStore } from './settings-document-store.ts'
+import { en, zh, type SettingsKey } from './locales.ts'
+
+export type {
+  CloseLabelProps, HeaderContentProps, TriggerContentProps,
+} from './chrome.tsx'
+export type {
+  GeneralSectionComponentProps,
+} from './GeneralSection.tsx'
+export type {
+  InterfaceSectionComponentProps,
+} from './InterfaceSection.tsx'
+export type { HarnessRestartRowProps } from './HarnessRestartRow.tsx'
+export type { AboutSectionProps } from './AboutSection.tsx'
+export type { PetSectionProps } from './PetSection.tsx'
+export type { SettingsDocumentActionInjected, SettingsDocumentActionProps } from './SettingsDocumentAction.tsx'
+export type { SettingsDocumentState } from './settings-document-store.ts'
+export { SettingsDocumentStore } from './settings-document-store.ts'
+export type { SettingsNavigation, SettingsNavigationSnapshot } from './settings-navigation.ts'
+export type { SettingsKey } from './locales.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Shared client service for opening and closing the existing Settings shell. */
+    settingsNavigation: import('./settings-navigation.ts').SettingsNavigation
+  }
+}
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** Shell chrome + shell-owned General section copy. */
+    settings: SettingsKey
+  }
+}
+
+/** Dictionary namespace owned by this plugin (shell chrome + General copy). */
+const NS = 'settings'
+
+/**
+ * Required services (cordis fiber inject). The target slots are declared by
+ * ui-settings' apply, whose activation order relative to this one is NOT
+ * constrained; registrations depend on their slots through `slots.inject()`.
+ */
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'remote.session', 'settingsScope']
+
+/**
+ * Register the `settings` dictionaries, the chrome content, and the General
+ * section, each once its slot declaration is on the ledger.
+ * @param ctx - client root context.
+ */
+export function apply(ctx: ClientContext): void {
+  const settingsNavigation = new SettingsNavigationService(ctx)
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-general: dictionaries')
+  const connection = ctx.get('connection') as ConnectionHandle
+  const carrier = (globalThis as typeof globalThis & { dshDesktop?: { protocolVersion: number; updates?: DesktopUpdateBridge } }).dshDesktop
+  const desktopUpdate = new DesktopUpdateSource(carrier?.protocolVersion === 1 ? carrier.updates : undefined)
+  ctx.effect(() => () => { desktopUpdate.dispose() }, 'ui-settings-general: desktop update carrier')
+  ctx.slots.inject('sidebar.toggle.badge', () => ctx.slots.register({
+    name: 'sidebar.toggle.badge', locale: NS,
+    inject: () => ({ hooks: { desktopUpdate: desktopUpdate.store, connectionState: connection.state } }),
+  }, DesktopUpdateBadge))
+
+  // Copy freshness is framework-owned: components read the standard `t`
+  // seat, and the nav label is a thunk the owner resolves per render — no
+  // locale/change re-registration wiring.
+  const t = ctx.locale.bind(NS)
+  // The shared SettingsScope mirror updates after document commits and reconnects.
+  const documentController = ctx.remote.$host.isLoopback
+    ? new SettingsDocumentStore(ctx, ctx.settingsScope.describe())
+    : undefined
+  const documentInjected = documentController === undefined
+    ? undefined
+    : (): SettingsDocumentActionInjected => ({
+      controller: documentController,
+      hooks: { snapshot: documentController.store },
+    })
+  ctx.effect(() => () => { documentController?.dispose() }, 'ui-settings-general: document action directory')
+  // The settings shell: this package occupies the sidebar-owned hole and
+  // declares the settings slots. Ledger → nav-row projection as an observable
+  // source (uSES contract: getSnapshot returns the cached rows until the
+  // ledger version moves). Labels may be locale-following thunks, so the cache
+  // key includes the locale revision and subscribers ride both sources.
+  let rowsVersion = -1
+  let rowsRevision = -1
+  let rows: readonly SettingsSectionRow[] = []
+  let onboardingVersion = -1
+  let onboardingSteps: readonly SettingsOnboardingStep[] = []
+  const shellInjected = (): SettingsRootInjected => ({
+    openDesktopUpdate: () => { desktopUpdate.open() },
+    reconnect: () => { connection.reconnect() },
+    openSettings: sectionId => { settingsNavigation.open(sectionId) },
+    closeSettings: () => { settingsNavigation.close() },
+    hooks: {
+      desktopUpdate: desktopUpdate.store,
+      connectionState: connection.state,
+      navigation: settingsNavigation,
+      sections: {
+        getSnapshot: () => {
+          const version = ctx.slots.getVersion('settings.section')
+          const revision = ctx.locale.getSnapshot().revision
+          if (version !== rowsVersion || revision !== rowsRevision) {
+            rowsVersion = version
+            rowsRevision = revision
+            rows = ctx.slots.entries('settings.section')
+              .map(e => ({
+                /* v8 ignore next -- list-slot registration requires id (SlotCore rejects an entry without one) */
+                id: e.options.id ?? '',
+                order: e.options.order ?? 0,
+                label: resolveSlotLabel(e.options.label) ?? '',
+              }))
+              .sort((a, b) => a.order - b.order)
+          }
+          return rows
+        },
+        subscribe: (listener) => {
+          const offLedger = ctx.slots.subscribe('settings.section', listener)
+          const offLocale = ctx.locale.subscribe(listener)
+          return () => {
+            offLedger()
+            offLocale()
+          }
+        },
+      },
+      onboardingSteps: {
+        getSnapshot: () => {
+          const version = ctx.slots.getVersion('settings.onboarding')
+          if (version !== onboardingVersion) {
+            onboardingVersion = version
+            onboardingSteps = ctx.slots.entries('settings.onboarding')
+              .map(e => ({
+                /* v8 ignore next -- list-slot registration requires id */
+                id: e.options.id ?? '',
+                order: e.options.order ?? 0,
+              }))
+              .sort((a, b) => a.order - b.order)
+          }
+          return onboardingSteps
+        },
+        subscribe: listener => ctx.slots.subscribe('settings.onboarding', listener),
+      },
+    },
+  })
+  ctx.slots.inject('sidebar.settings', () => ctx.slots.register({
+    name: 'sidebar.settings',
+    locale: NS,
+    children: {
+      'settings.trigger': { kind: 'single', scope: 'root' },
+      'settings.header': { kind: 'single', scope: 'root' },
+      'settings.action': { kind: 'list', scope: 'root' },
+      'settings.close': { kind: 'single', scope: 'root' },
+      'settings.section': { kind: 'list', scope: 'root' },
+      'settings.onboarding': { kind: 'list', scope: 'root' },
+    },
+    inject: shellInjected,
+  }, SettingsRoot))
+
+  ctx.slots.inject('settings.trigger', () =>
+    ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))
+  ctx.slots.inject('settings.header', () =>
+    ctx.slots.register({ name: 'settings.header', locale: NS }, HeaderContent))
+  if (documentInjected !== undefined) {
+    ctx.slots.inject('settings.action', () => ctx.slots.register({
+      name: 'settings.action',
+      id: 'open-document',
+      order: 0,
+      locale: NS,
+      inject: documentInjected,
+    }, SettingsDocumentAction))
+  }
+  ctx.slots.inject('settings.close', () =>
+    ctx.slots.register({ name: 'settings.close', locale: NS }, CloseLabel))
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'general',
+    order: 0,
+    label: () => t('general.nav'),
+    locale: NS,
+    children: { 'settings.general.item': { kind: 'list', scope: 'root' } },
+  }, GeneralSection))
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'interface',
+    order: 6,
+    label: () => t('interface.nav'),
+    locale: NS,
+    children: { 'settings.interface.item': { kind: 'list', scope: 'root' } },
+  }, InterfaceSection))
+  if (canPersistCloseBehavior()) {
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item',
+      id: 'close-behavior',
+      order: 25,
+      locale: NS,
+    }, CloseBehaviorRow))
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item',
+      id: 'auto-start-desktop',
+      order: 26,
+      locale: NS,
+    }, AutoStartDesktopRow))
+    ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
+      name: 'settings.interface.item',
+      id: 'dshbot',
+      order: 80,
+      locale: NS,
+    }, DshbotRow))
+  }
+  // The desktop-only Harness auto-recovery row: registered only when the
+  // desktop bridge exposes both config directions — a plain browser has no
+  // Harness process to restart. Feature-owned rows keep their earlier orders.
+  const shell = desktopShell()
+  if (shell?.getConfig && shell.saveConfig) {
+    ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+      name: 'settings.general.item',
+      id: 'harness-restart',
+      order: 100,
+      locale: NS,
+    }, HarnessRestartRow))
+  }
+  // The desktop pet's own section: registered only when the bridge can
+  // route settings writes through the pet manager (plain browsers have no
+  // pet overlay). Always reachable — the whale-assistant toggle lives here
+  // because the whale plugin's own section disappears while it is disabled.
+  if (shell?.getConfig && shell.saveConfig && shell.saveLive2dPetSettings) {
+    const petInjected = (): PetSectionInjected => ({
+      // The look picker rides the session model catalog (image-capable
+      // routes), the same source the Models vision picker uses.
+      modelCatalog: () => ctx.remote.session.modelCatalog(),
+    })
+    ctx.slots.inject('settings.section', () => ctx.slots.register({
+      name: 'settings.section',
+      id: 'pet',
+      order: 40,
+      label: () => t('pet.nav'),
+      locale: NS,
+      // Pet-adjacent feature blocks (the whale assistant's own fields live in
+      // her plugin) mount under the 助理 group through this child seat.
+      children: { 'settings.pet.item': { kind: 'list', scope: 'root' } },
+      inject: petInjected,
+    }, PetSection))
+  }
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'about',
+    order: 90,
+    label: () => t('about.nav'),
+    locale: NS,
+  }, AboutSection))
+}

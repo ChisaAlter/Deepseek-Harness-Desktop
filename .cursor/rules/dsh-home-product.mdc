@@ -1,0 +1,15 @@
+---
+description: Desktop Harness home is userData/dsh-home, never official ~/.dsh
+alwaysApply: true
+---
+
+# Desktop Harness home
+
+Desktop `$DSH_HOME` is `userData/dsh-home` only (`DSHD_HOME` for debug; packaged builds drop an inherited `DSHD_HOME` unless `DSHD_ALLOW_ENV_HOME=1`). Harness/PTY/`process.env.DSH_HOME` must not read, write, or clean official `~/.dsh`. The shell launcher may read `~/.dsh` and `~/.agents/skills` only for an explicit user-confirmed checkbox import.
+
+Marketplace / `dsh plugin` installs into `dsh-home/profiles/web`. Do not set Electron `process.env.DSH_HOME`; PTY must not inject it. `dsh web` and `dsh plugin` children overwrite `DSH_HOME` to the desktop home. Child `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` only when shell `baseUrl` is empty or `https://api.deepseek.com` (https only).
+
+Ignore inherited `DSH_HOME`. Profile name stays `web`. Skip-user-plugins FSM unchanged.
+
+Full card: [docs/features/dsh-home.md](../../docs/features/dsh-home.md)
+Handbook: [docs/handbook/modules/dsh-home.md](../../docs/handbook/modules/dsh-home.md)

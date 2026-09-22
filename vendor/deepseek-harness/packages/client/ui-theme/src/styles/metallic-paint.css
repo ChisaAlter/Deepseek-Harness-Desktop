@@ -1,0 +1,38 @@
+/* Metallic-paint hover sheen (React Bits MetallicPaint, CSS port): translucent
+ * bands sweep across a hovered button, layered on top of the variant's own
+ * hover fill. Activated by html[data-dsh-metallic-paint] — the Appearance
+ * 按钮悬停光泽 switch drops the attribute, leaving the plain hover fill.
+ * The sheen is the button's own background-image, so it clips to
+ * the control's border-radius (including corner-shape) without touching
+ * position, overflow, or the ::before/::after pseudo-elements. Bands derive
+ * from the label alias tokens: label-primary-foreground is the on-primary text
+ * color (always contrasts button fills, so glyphs keep contrast), label-primary
+ * is the theme ink, label-secondary the mid tone — the pair inverts with the
+ * theme's light/dark half and tints with custom themes. */
+html[data-dsh-metallic-paint] button:not(:disabled):not([aria-disabled='true']):hover {
+  background-image: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--dsw-alias-label-secondary) 14%, transparent) 0%,
+    color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 42%, transparent) 18%,
+    color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent) 34%,
+    color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 36%, transparent) 52%,
+    color-mix(in srgb, var(--dsw-alias-label-primary) 20%, transparent) 68%,
+    color-mix(in srgb, var(--dsw-alias-label-primary-foreground) 36%, transparent) 84%,
+    color-mix(in srgb, var(--dsw-alias-label-secondary) 14%, transparent) 100%
+  );
+  background-position: 50% 50%;
+  background-size: 320% 320%;
+  animation: dsh-metallic-paint 4.5s ease-in-out infinite;
+}
+
+@keyframes dsh-metallic-paint {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-dsh-metallic-paint] button:not(:disabled):not([aria-disabled='true']):hover {
+    animation: none;
+  }
+}

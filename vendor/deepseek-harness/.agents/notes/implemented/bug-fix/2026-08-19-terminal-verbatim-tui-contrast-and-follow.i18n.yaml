@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-19-terminal-verbatim-tui-contrast-and-follow.md
+2026-08-19-terminal-verbatim-tui-contrast-and-follow.md: 33061f910fa70aa8d4eb91b43657ab9b28b3c129
+2026-08-19-terminal-verbatim-tui-contrast-and-follow.zh.md: 7b25712f2306efb527fa8f7cd9435f3fb4bf2103

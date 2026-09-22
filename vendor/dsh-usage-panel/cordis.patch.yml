@@ -1,0 +1,8 @@
+# dsh-usage-panel bundle patch: one host row over the web profile.
+# The row name resolves from the profile's node_modules, where
+# `dsh plugin --profile <name> add ...` installed this package. The
+# package's `dsh.client` declaration registers the web half — the
+# Settings page "用量统计" served at /plugins/dsh-usage-panel/client.js.
+- insert:
+    - id: usage-stats
+      name: dsh-usage-panel

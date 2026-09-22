@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>会话切换丝滑化 + AI 输出对齐 T3code — 原型</title>
+    <style>
+      :root {
+        --bg: #f4f5f8;
+        --surface0: #ffffff;
+        --surface-workspace: #f4f5f8;
+        --fg: #14171f;
+        --fg-muted: #6f7686;
+        --border: #e4e6ec;
+        --border-accent: #d5d9e2;
+        --accent: #2a6cf0;
+        --fg-80: rgba(20, 23, 31, 0.8); /* foregroundSoft (light) — T3 text-foreground/80 */
+        --mono: ui-monospace, "SF Mono", "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+        --system: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        --hairline: rgba(20, 23, 31, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--system);
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 28px 24px 80px;
+      }
+
+      h1 {
+        font-size: 22px;
+        font-weight: 700;
+        margin: 0 0 4px;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        color: var(--fg-muted);
+        font-size: 13px;
+        margin: 0 0 28px;
+      }
+
+      .section {
+        max-width: 1100px;
+        margin: 0 auto 44px;
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow:
+          0 1px 2px rgba(20, 23, 31, 0.04),
+          0 8px 24px rgba(20, 23, 31, 0.06);
+      }
+      .section-head {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .section-head h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .section-head .pill {
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--surface-workspace);
+        color: var(--fg-muted);
+        letter-spacing: 0.02em;
+      }
+      .section-head .pill.now {
+        background: #fde8e8;
+        color: #b91c1c;
+      }
+      .section-head .pill.t3 {
+        background: #dcfce7;
+        color: #15803d;
+      }
+
+      .ab-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        min-height: 420px;
+      }
+      .ab-col {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .ab-col + .ab-col {
+        border-left: 1px solid var(--border);
+      }
+      .ab-label {
+        padding: 10px 20px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--fg-muted);
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-workspace);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .ab-label .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .ab-label.now .dot {
+        background: #ef4444;
+      }
+      .ab-label.t3 .dot {
+        background: #18a34a;
+      }
+      .ab-body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 0;
+        background: var(--surface-workspace);
+      }
+
+      /* ── Conversation column (centered, max 800) ────────────────────── */
+      .conv-host {
+        flex: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0 20px;
+        background: var(--surface-workspace);
+        min-height: 100%;
+      }
+      .conv-column {
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        max-width: 800px;
+        flex-shrink: 1;
+        background: var(--surface0);
+        border-top: 1px solid var(--border);
+      }
+      .stream {
+        padding: 14px 28px 10px;
+      }
+      .composer-dock {
+        padding: 8px 0 16px;
+        margin: 0 28px;
+      }
+      .composer {
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--surface0);
+        min-height: 60px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: center;
+        color: var(--fg-muted);
+        font-size: 14px;
+        box-shadow:
+          0 1px 2px rgba(20, 23, 31, 0.04),
+          0 4px 12px rgba(20, 23, 31, 0.06);
+      }
+
+      /* ── Assistant message (markdown prose) ──────────────────────────── */
+      .ai-row {
+        width: 100%;
+        max-width: 800px;
+        padding: 4px 0;
+      }
+      .ai-meta {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--fg-muted);
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        gap: 8px;
+        opacity: 0.7;
+      }
+
+      /* NOW (current ChisaCode) AI body: 14.5 / 24 / full foreground */
+      .ai-now {
+        font-size: 14.5px;
+        line-height: 24px;
+        color: var(--fg);
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .ai-now p {
+        margin: 0 0 12px;
+      }
+      .ai-now p:last-child {
+        margin-bottom: 0;
+      }
+      .ai-now h2 {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 24px 0 12px;
+        line-height: 26px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 8px;
+      }
+      .ai-now h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 16px 0 8px;
+        line-height: 24px;
+      }
+      .ai-now h4 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 16px 0 8px;
+        line-height: 22px;
+      }
+      .ai-now code {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--surface-workspace);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1px 5px;
+      }
+      .ai-now pre {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        margin: 12px 0;
+        overflow-x: auto;
+        line-height: 17px;
+      }
+      .ai-now pre code {
+        background: none;
+        border: 0;
+        padding: 0;
+      }
+      .ai-now ul {
+        margin: 0 0 12px;
+        padding-left: 20px;
+      }
+      .ai-now li {
+        margin: 4px 0;
+      }
+
+      /* T3-aligned AI body: 14 / 23 / 80% foreground */
+      .ai-t3 {
+        font-size: 14px;
+        line-height: 23px; /* Math.round(14 * 1.625) — leading-relaxed */
+        color: var(--fg-80);
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+      .ai-t3 p {
+        margin: 0 0 10px;
+      } /* 0.65rem ≈ 10 */
+      .ai-t3 p:last-child {
+        margin-bottom: 0;
+      }
+      .ai-t3 h2 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 20px 0 8px;
+        line-height: 1.3;
+        color: var(--fg);
+      }
+      .ai-t3 h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 20px 0 8px;
+        line-height: 1.3;
+        color: var(--fg);
+      }
+      .ai-t3 h4 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 20px 0 8px;
+        line-height: 1.3;
+        color: var(--fg);
+      }
+      .ai-t3 code {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--surface-workspace);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 1.6px 5.6px;
+        color: var(--fg);
+      }
+      .ai-t3 pre {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        margin: 10px 0;
+        overflow-x: auto;
+        line-height: 17px;
+        color: var(--fg);
+      }
+      .ai-t3 pre code {
+        background: none;
+        border: 0;
+        padding: 0;
+        color: var(--fg);
+      }
+      .ai-t3 ul {
+        margin: 0 0 10px;
+        padding-left: 20px;
+      }
+      .ai-t3 li {
+        margin: 4px 0;
+      }
+
+      /* ── User message (unchanged — right bubble) ────────────────────── */
+      .user-row {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        margin: 4px 0 16px;
+      }
+      .user-bubble {
+        max-width: 460px;
+        min-width: 0;
+        flex-shrink: 1;
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 11px 14px;
+        font-size: 14px;
+        line-height: 22px;
+        color: var(--fg);
+        box-shadow:
+          0 1px 2px rgba(20, 23, 31, 0.04),
+          0 8px 24px rgba(20, 23, 31, 0.06);
+        word-break: break-word;
+      }
+
+      /* ── Switch width demo ───────────────────────────────────────────── */
+      .switch-stage {
+        position: relative;
+        height: 380px;
+        background: var(--surface-workspace);
+        display: flex;
+        flex-direction: column;
+      }
+      .switch-tabs {
+        display: flex;
+        gap: 6px;
+        padding: 12px 16px 0;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface0);
+      }
+      .switch-tab {
+        padding: 8px 14px;
+        border-radius: 8px 8px 0 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--fg-muted);
+        cursor: pointer;
+        border: 1px solid transparent;
+        background: transparent;
+        font-family: inherit;
+      }
+      .switch-tab.active {
+        color: var(--fg);
+        background: var(--surface-workspace);
+        border-color: var(--border);
+        border-bottom-color: var(--surface-workspace);
+      }
+      .switch-tab:hover {
+        color: var(--fg);
+      }
+
+      .switch-body {
+        flex: 1;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0 20px;
+        position: relative;
+      }
+      .switch-ruler {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 1px;
+        background: var(--accent);
+        opacity: 0.25;
+        transform: translateX(-0.5px);
+        pointer-events: none;
+      }
+      .switch-meter {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 11px;
+        color: var(--accent);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        background: var(--surface0);
+        border: 1px solid var(--border-accent);
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
+
+      /* NOW (bug): column jumps 800 → paneHeight on each remount */
+      .col-bug {
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        max-width: 800px;
+        flex-shrink: 1;
+        background: var(--surface0);
+        border-top: 1px solid var(--border);
+        transition: max-width 60ms steps(1, end);
+      }
+      .col-bug.settled {
+        max-width: 680px;
+      } /* simulated paneHeight ~680 */
+
+      /* FIXED (T3 arch): column stable, never remounts */
+      .col-fix {
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        max-width: 680px; /* settled once, stays */
+        flex-shrink: 1;
+        background: var(--surface0);
+        border-top: 1px solid var(--border);
+      }
+      .col-stream {
+        padding: 14px 28px;
+      }
+      .col-stream .row {
+        font-size: 13px;
+        color: var(--fg-muted);
+        padding: 6px 0;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .col-stream .row:last-child {
+        border-bottom: 0;
+      }
+      .col-stream .row.user {
+        color: var(--fg);
+        text-align: right;
+        font-weight: 500;
+      }
+
+      .toggle-bar {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        border-top: 1px solid var(--border);
+        background: var(--surface0);
+        font-size: 12px;
+        color: var(--fg-muted);
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .toggle-bar button {
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface0);
+        color: var(--fg);
+        cursor: pointer;
+      }
+      .toggle-bar button:hover {
+        background: var(--surface-workspace);
+      }
+      .toggle-bar .note {
+        margin-left: auto;
+      }
+      .flash-badge {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-weight: 600;
+      }
+      .flash-badge.bad {
+        background: #fde8e8;
+        color: #b91c1c;
+      }
+      .flash-badge.good {
+        background: #dcfce7;
+        color: #15803d;
+      }
+
+      .legend {
+        max-width: 1100px;
+        margin: 0 auto 40px;
+        padding: 14px 18px;
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-size: 12.5px;
+        color: var(--fg-muted);
+        line-height: 20px;
+      }
+      .legend b {
+        color: var(--fg);
+      }
+      .legend code {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        background: var(--surface-workspace);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 1px 5px;
+        color: var(--fg);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>会话切换丝滑化 + AI 输出对齐 T3code</h1>
+    <p class="sub">
+      两块改动:① 切换时列宽稳定(列移到外壳,照 T3 架构) ② AI 输出正文对齐 T3code(14/23/80%
+      前景)。下方为 A/B 对照原型,供批准后实现。
+    </p>
+
+    <div class="legend">
+      <b>左列(当前 ChisaCode)</b>:AI 正文
+      <code>14.5px / 24 line-height / 100% foreground</code>,段落间距 12,标题 17/16/15,代码块 12px。
+      <br />
+      <b>右列(T3 对齐)</b>:AI 正文 <code>14px / 23 line-height / foreground@80%</code>,段落间距
+      10,标题 18/16/14,代码块 12px(不变)。
+      <br />
+      <b>切换闪动根因</b>:列随 panel key 重挂 → 首帧 <code>maxWidth:800</code> → onLayout 后改为
+      <code>paneHeight×1</code> → 居中列左右跳。修复后列挂载一次,跨切换保持宽度。
+    </div>
+
+    <!-- ════════ Section 1: Switch width stability ════════ -->
+    <section class="section">
+      <div class="section-head">
+        <h2>① 会话切换 — 列宽稳定性</h2>
+        <span class="pill now">当前(闪)</span>
+        <span class="pill t3">修复后(稳)</span>
+      </div>
+      <div class="ab-row" style="min-height: auto">
+        <div class="ab-col">
+          <div class="ab-label now">
+            <span class="dot"></span>当前:列随重挂,800 → paneHeight 跳变
+          </div>
+          <div class="switch-stage">
+            <div class="switch-tabs">
+              <button class="switch-tab active" data-bug-tab="a">会话 A</button>
+              <button class="switch-tab" data-bug-tab="b">会话 B</button>
+            </div>
+            <div class="switch-body">
+              <div class="switch-ruler"></div>
+              <div class="switch-meter" data-bug-meter>max-width: 800px</div>
+              <div class="col-bug" data-bug-col>
+                <div class="col-stream">
+                  <div class="row user">A 的用户消息</div>
+                  <div class="row">A 的 AI 回复第一段…</div>
+                  <div class="row">A 的 AI 回复第二段…</div>
+                </div>
+              </div>
+            </div>
+            <div class="toggle-bar">
+              <button data-bug-switch>切换会话(模拟重挂)</button>
+              <span class="flash-badge bad" data-bug-badge>横闪:列宽跳变 ±60px</span>
+              <span class="note">点击可观察列从 800 收窄到 ~680,左右双边缘位移</span>
+            </div>
+          </div>
+        </div>
+        <div class="ab-col">
+          <div class="ab-label t3"><span class="dot"></span>修复后:列移外壳,跨切换稳定</div>
+          <div class="switch-stage">
+            <div class="switch-tabs">
+              <button class="switch-tab active" data-fix-tab="a">会话 A</button>
+              <button class="switch-tab" data-fix-tab="b">会话 B</button>
+            </div>
+            <div class="switch-body">
+              <div class="switch-ruler"></div>
+              <div class="switch-meter">max-width: 680px</div>
+              <div class="col-fix" data-fix-col>
+                <div class="col-stream" data-fix-content>
+                  <div class="row user">A 的用户消息</div>
+                  <div class="row">A 的 AI 回复第一段…</div>
+                  <div class="row">A 的 AI 回复第二段…</div>
+                </div>
+              </div>
+            </div>
+            <div class="toggle-bar">
+              <button data-fix-switch>切换会话(只换内容)</button>
+              <span class="flash-badge good" data-fix-badge>无横闪</span>
+              <span class="note">列外壳保持挂载,仅内容替换 — 宽度恒定</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════ Section 2: AI output A/B ════════ -->
+    <section class="section">
+      <div class="section-head">
+        <h2>② AI 输出 — 正文对齐 T3code</h2>
+        <span class="pill now">当前 ChisaCode</span>
+        <span class="pill t3">对齐 T3code</span>
+      </div>
+      <div class="ab-row">
+        <div class="ab-col">
+          <div class="ab-label now"><span class="dot"></span>当前:14.5 / 24 / 100% foreground</div>
+          <div class="ab-body">
+            <div class="conv-host">
+              <div class="conv-column">
+                <div class="stream">
+                  <div class="user-row">
+                    <div class="user-bubble">
+                      帮我写一段介绍 React Server Components 的文字,带代码示例和小标题。
+                    </div>
+                  </div>
+                  <div class="ai-row">
+                    <div class="ai-now" data-tmpl>
+                      <p>
+                        React Server Components(RSC)是 React 18
+                        引入的一种组件模型,允许组件在服务端渲染并以流式协议发送到客户端。它们不会打包进客户端
+                        bundle,因此能显著减小首屏体积。
+                      </p>
+                      <h2>RSC 的核心优势</h2>
+                      <p>
+                        主要优势在于数据获取可以留在服务端,避免瀑布式请求;同时敏感依赖不会暴露给浏览器;代码分割也更细粒度。
+                      </p>
+                      <h3>一个最小示例</h3>
+                      <p>下面是一个在服务端读取数据库并直接渲染的组件:</p>
+                      <pre><code>// app/users/page.tsx
+export default async function UsersPage() {
+  const users = await db.user.findMany();
+  return (
+    &lt;ul&gt;
+      {users.map(u =&gt; &lt;li key={u.id}&gt;{u.name}&lt;/li&gt;)}
+    &lt;/ul&gt;
+  );
+}</code></pre>
+                      <h4>何时使用</h4>
+                      <p>
+                        当你需要直接访问数据源、组件不需要交互状态、或想减小客户端 bundle 时优先用
+                        Server Component;需要事件/状态时用 Client Component。
+                      </p>
+                      <ul>
+                        <li>服务端数据获取 — 无瀑布</li>
+                        <li>敏感依赖不进 bundle</li>
+                        <li>细粒度代码分割</li>
+                      </ul>
+                    </div>
+                    <div class="ai-meta"><span>Claude · 已复制</span><span>14:32</span></div>
+                  </div>
+                </div>
+                <div class="composer-dock">
+                  <div class="composer">输入消息…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ab-col">
+          <div class="ab-label t3"><span class="dot"></span>T3 对齐:14 / 23 / foreground@80%</div>
+          <div class="ab-body">
+            <div class="conv-host">
+              <div class="conv-column">
+                <div class="stream">
+                  <div class="user-row">
+                    <div class="user-bubble">
+                      帮我写一段介绍 React Server Components 的文字,带代码示例和小标题。
+                    </div>
+                  </div>
+                  <div class="ai-row">
+                    <div class="ai-t3" data-tmpl>
+                      <p>
+                        React Server Components(RSC)是 React 18
+                        引入的一种组件模型,允许组件在服务端渲染并以流式协议发送到客户端。它们不会打包进客户端
+                        bundle,因此能显著减小首屏体积。
+                      </p>
+                      <h2>RSC 的核心优势</h2>
+                      <p>
+                        主要优势在于数据获取可以留在服务端,避免瀑布式请求;同时敏感依赖不会暴露给浏览器;代码分割也更细粒度。
+                      </p>
+                      <h3>一个最小示例</h3>
+                      <p>下面是一个在服务端读取数据库并直接渲染的组件:</p>
+                      <pre><code>// app/users/page.tsx
+export default async function UsersPage() {
+  const users = await db.user.findMany();
+  return (
+    &lt;ul&gt;
+      {users.map(u =&gt; &lt;li key={u.id}&gt;{u.name}&lt;/li&gt;)}
+    &lt;/ul&gt;
+  );
+}</code></pre>
+                      <h4>何时使用</h4>
+                      <p>
+                        当你需要直接访问数据源、组件不需要交互状态、或想减小客户端 bundle 时优先用
+                        Server Component;需要事件/状态时用 Client Component。
+                      </p>
+                      <ul>
+                        <li>服务端数据获取 — 无瀑布</li>
+                        <li>敏感依赖不进 bundle</li>
+                        <li>细粒度代码分割</li>
+                      </ul>
+                    </div>
+                    <div class="ai-meta"><span>Claude · 已复制</span><span>14:32</span></div>
+                  </div>
+                </div>
+                <div class="composer-dock">
+                  <div class="composer">输入消息…</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      // ── Switch demo (bug vs fixed) ──────────────────────────────────────
+      const bugCol = document.querySelector("[data-bug-col]");
+      const bugMeter = document.querySelector("[data-bug-meter]");
+      const bugBadge = document.querySelector("[data-bug-badge]");
+      const fixCol = document.querySelector("[data-fix-col]");
+      const fixContent = document.querySelector("[data-fix-content]");
+      const fixBadge = document.querySelector("[data-fix-badge]");
+
+      const contentA = `<div class="row user">A 的用户消息</div><div class="row">A 的 AI 回复第一段…</div><div class="row">A 的 AI 回复第二段…</div>`;
+      const contentB = `<div class="row user">B 的用户消息</div><div class="row">B 的 AI 回复(更长一些)…</div><div class="row">B 的 AI 回复继续…</div><div class="row">B 的 AI 回复结尾。</div>`;
+
+      function flash(badge, text, cls) {
+        const prev = badge.textContent;
+        badge.textContent = text;
+        badge.className = "flash-badge " + cls;
+        setTimeout(() => {
+          badge.textContent = prev;
+          badge.className = "flash-badge " + (cls === "good" ? "good" : "bad");
+        }, 1200);
+      }
+
+      document.querySelector("[data-bug-switch]").addEventListener("click", () => {
+        // simulate remount: snap to 800 first, then settle to 680
+        bugCol.classList.remove("settled");
+        bugMeter.textContent = "max-width: 800px";
+        flash(bugBadge, "横闪! 800→680", "bad");
+        // force reflow then settle (mimics onLayout after mount)
+        void bugCol.offsetWidth;
+        setTimeout(() => {
+          bugCol.classList.add("settled");
+          bugMeter.textContent = "max-width: 680px";
+        }, 80);
+      });
+
+      let fixIsA = true;
+      document.querySelector("[data-fix-switch]").addEventListener("click", () => {
+        fixIsA = !fixIsA;
+        fixContent.innerHTML = fixIsA ? contentA : contentB;
+        flash(fixBadge, "稳定切换", "good");
+      });
+
+      // tabs are visual-only
+      document.querySelectorAll("[data-bug-tab]").forEach((t) =>
+        t.addEventListener("click", () => {
+          document.querySelectorAll("[data-bug-tab]").forEach((x) => x.classList.remove("active"));
+          t.classList.add("active");
+        }),
+      );
+      document.querySelectorAll("[data-fix-tab]").forEach((t) =>
+        t.addEventListener("click", () => {
+          document.querySelectorAll("[data-fix-tab]").forEach((x) => x.classList.remove("active"));
+          t.classList.add("active");
+        }),
+      );
+    </script>
+  </body>
+</html>

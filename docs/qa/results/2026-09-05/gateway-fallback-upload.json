@@ -1,0 +1,21 @@
+{
+  "prompt": "描述图片中的两个图形：分别给出左右位置、形状和颜色。",
+  "beforeAssistantCount": 0,
+  "observedAt": "2026-09-05T07:02:20.843Z",
+  "assistantCount": 1,
+  "text": "图片中的两个图形描述如下：\n\n左侧：一个红色正方形，实心、无描边，位于画面左半部分偏中间位置。\n右侧：一个蓝色圆形，实心、无描边，位于画面右半部分偏中间位置，其高度与左侧正方形的边长大致相近。",
+  "kinds": [
+    "system-prompt",
+    "user",
+    "turn-process",
+    "context",
+    "context",
+    "assistant-step",
+    "turn-tail"
+  ],
+  "busy": false,
+  "approval": "",
+  "errors": [],
+  "failure": "",
+  "composer": ""
+}

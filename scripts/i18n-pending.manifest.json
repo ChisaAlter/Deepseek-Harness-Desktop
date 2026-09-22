@@ -1,0 +1,4 @@
+{
+  "$comment": "One-way ratchet: pairs whose zh/en sides are known-drifted pending translation. Registering a pair excuses its staleness; a pair that is fresh again must be removed (the gate fails otherwise).",
+  "pairs": []
+}

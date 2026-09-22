@@ -1,0 +1,779 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "exclude": [
+    "duplicates"
+  ],
+  "ignoreBinaries": [
+    "bwrap",
+    "icacls",
+    "musl-gcc",
+    "python3",
+    "sandbox-exec",
+    "tar",
+    "taskkill",
+    "where.exe"
+  ],
+  "ignoreWorkspaces": [
+    "vendor/*",
+    "python/sdk-runtime"
+  ],
+  "ignoreDependencies": [
+    "@yarnpkg/cli-dist",
+    "lightningcss"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/**/*.mjs",
+        "scripts/**/*.cjs",
+        "snapshots/**/*.mjs",
+        "scripts/types/client-build-environment/index.d.ts"
+      ],
+      "ignoreUnresolved": [
+        "client-build-environment"
+      ],
+      "project": [
+        "scripts/**/*.ts",
+        "scripts/**/*.mjs",
+        "scripts/**/*.cjs",
+        "snapshots/**/*.mjs"
+      ]
+    },
+    "packages/host/directory-picker-auto": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-client-ui-directory-picker-browse",
+        "@deepseek-ai/dsh-client-ui-directory-picker-native"
+      ]
+    },
+    "packages/experimental/inspector": {
+      "entry": [
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/extensions/cordis-host-runner": {
+      "entry": [
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "zod"
+      ]
+    },
+    "packages/host/directory-picker-native": {
+      "entry": [
+        "tests/**/*.spec.{ts,tsx}",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ]
+    },
+    "packages/api/remotes": {
+      "entry": [
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/client/ui-approval": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-conversation": {
+      "entry": [
+        "tests/**/*.spec.{ts,tsx}",
+        "tests/**/*.perf.client.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "tests/**/*.{ts,tsx}"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    },
+    "packages/client/ui-sidebar": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    },
+    "packages/client/ui-subagent": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-client-ui-input-trigger"
+      ]
+    },
+    "packages/client/ui-primitives": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-goal": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-directory-picker-browse": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-directory-picker-native": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-deliverables": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-workflow-run": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
+    "packages/client/ui-layout": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.ts",
+        "tests/**/*.tsx"
+      ]
+    },
+    "website": {
+      "project": [
+        "**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@braintree/sanitize-url",
+        "cytoscape",
+        "cytoscape-cose-bilkent",
+        "dayjs",
+        "debug"
+      ]
+    },
+    "packages/*/*": {
+      "entry": [
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/experimental/webworker-runtime": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/compile/transform-corpus-check.ts",
+        "tests/fixtures/vfs-example/workspace/src/preview.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "buffer",
+        "@deepseek-ai/dsh-client-modules"
+      ]
+    },
+    "packages/typert/generator": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/type-model/**/*.ts",
+        "tests/fixtures/remote-model/**/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/shell/bash-sandbox": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/shell/pwsh-sandbox": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/e2b/e2b": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/composition/bin.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/context/time-context": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-bash-local",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-subprocess-local"
+      ]
+    },
+    "packages/lsp/lsp-stdio": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixture-server.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "typescript-language-server"
+      ]
+    },
+    "packages/sandbox/sandbox-local": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/session/session-telemetry-otel": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/cordis-plugin-logger-console",
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-bash-local",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-subprocess-local"
+      ]
+    },
+    "packages/util/brand": {
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/attachment/attachment": {
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/test-support/session-snapshot": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/test-support/loader-smoke": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/core/agent-loop": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/goal/goal": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/domain/seed-goal.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-bash-local",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-subprocess-local"
+      ]
+    },
+    "packages/session-query/session-query-sqlite": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/code-runtime/code-runtime-worker-thread": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/code-runtime/code-runtime-python": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/llm/llm": {
+      "ignoreDependencies": [
+        "zod"
+      ]
+    },
+    "packages/llm/llm-deepseek": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/llm/llm-pi-ai": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/session/session-title-first-prompt-llm": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/context/agent-instructions": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/context/session-reference": {
+      "ignoreDependencies": [
+        "zod"
+      ]
+    },
+    "packages/session/session-checkpoint-policy": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/web/web-search-exa": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/web/web-search-perplexity": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/workflow/workflow-worker-thread": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/web/web-search-deepseek": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/examples/agent-spine-demo": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/sdk/server": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/interaction/commands": {
+      "entry": [
+        "tests/**/*.spec.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "zod"
+      ]
+    },
+    "packages/subagent/subagent-spawn-in-process": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/subagent/subagent-acp": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/mock-acp-server.ts",
+        "tests/fixtures/loader/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-tool-subagent"
+      ]
+    },
+    "packages/subagent/subagent-codex": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/loader/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-tool-subagent"
+      ]
+    },
+    "packages/subagent/subagent-claude-code": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/loader/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-subagent-codex",
+        "@deepseek-ai/dsh-tool-subagent"
+      ]
+    },
+    "packages/fs/tool-fs": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/mcp/mcp-client": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixture-server.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@modelcontextprotocol/server-everything",
+        "@modelcontextprotocol/server-filesystem"
+      ]
+    },
+    "packages/client/web": {
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/client/ui-renderer": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
+    "apps/web": {
+      "entry": [
+        "tests/**/*.e2e.ts",
+        "tests/**/*.perf.ts",
+        "tests/**/*.snapshot.ts",
+        "tests/support.ts",
+        "src/node-module-stub.ts",
+        "src/preview.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@types/react",
+        "@types/react-dom",
+        "react",
+        "react-dom"
+      ]
+    },
+    "apps/cli": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/profiles/**/fixtures/**/*.{ts,mjs}",
+        "tests/profiles/**/tests/fixtures/**/*.{ts,mjs}"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "packages/subagent/subagent-dsh-sdk": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts",
+        "tests/fixtures/loader/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-agent-instructions",
+        "@deepseek-ai/dsh-agent-spine-demo",
+        "@deepseek-ai/dsh-llm-deepseek",
+        "@deepseek-ai/dsh-session-checkpoint-policy",
+        "@deepseek-ai/dsh-session-persistence-jsonl",
+        "@deepseek-ai/dsh-skill-filesystem"
+      ]
+    },
+    "packages/shell/tool-pwsh": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/loader/driver.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/test-support/loader-smoke": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/fixtures/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "tests/**/*.ts"
+      ]
+    },
+    "packages/experimental/agent-team-profile": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-experimental-agent-team",
+        "@deepseek-ai/dsh-experimental-tool-agent-team"
+      ]
+    },
+    "packages/bundle/base": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "packages/bundle/headless": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-code-runtime-worker-thread"
+      ]
+    },
+    "packages/bundle/acp-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-acp"
+      ]
+    },
+    "packages/bundle/sdk-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-sdk-jsonrpc-server"
+      ]
+    },
+    "packages/bundle/sdk-minimal": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    },
+    "packages/experimental/agent-team": {
+      "entry": [
+        "tests/**/*.spec.ts",
+        "tests/**/*.e2e.ts"
+      ]
+    },
+    "packages/experimental/agent-team-web-profile": {
+      "ignoreDependencies": [
+        "@deepseek-ai/dsh-experimental-client-ui-agent-team"
+      ]
+    },
+    "packages/bundle/web-app": {
+      "ignoreDependencies": [
+        "@deepseek-ai/.+"
+      ]
+    }
+  }
+}

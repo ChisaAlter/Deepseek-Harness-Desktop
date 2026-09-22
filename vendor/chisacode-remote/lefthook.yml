@@ -1,0 +1,22 @@
+pre-commit:
+  parallel: true
+  jobs:
+    - name: format
+      glob: "*.{css,js,json,jsonc,jsx,md,ts,tsx,yaml,yml}"
+      exclude:
+        - "package-lock.json"
+        - "**/package-lock.json"
+      run: npm run format:check:files -- {staged_files}
+    - name: lint
+      glob: "*.{js,jsx,ts,tsx}"
+      run: npm run lint -- {staged_files}
+
+# Full-workspace typecheck runs at pre-push instead of pre-commit: it touches
+# every package (not just staged files), is too slow to run on every commit,
+# and running it in parallel with file-scoped jobs under pre-commit risked
+# concurrent tsc --incremental writes to shared tsbuildinfo files (worktree
+# parallel-commit races).
+pre-push:
+  jobs:
+    - name: typecheck
+      run: npm run typecheck

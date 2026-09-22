@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Deepseek Harness",
+    "slug": "dsh-mobile",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "scheme": "dsh",
+    "splash": {
+      "backgroundColor": "#111113"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.deepseek.harness.mobile"
+    },
+    "android": {
+      "package": "ai.deepseek.harness.mobile",
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

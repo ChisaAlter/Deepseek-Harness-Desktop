@@ -1,0 +1,993 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode 侧栏治理 — 对齐 T3 Code 真机截图</title>
+    <style>
+      :root {
+        /* Soft Workbench tokens (ChisaCode current sidebar) */
+        --surface0: #ffffff;
+        --surface1: #e8eaef;
+        --surface2: #eef0f4;
+        --surface3: #e2e5ec;
+        --surfaceSidebar: #f0f1f5;
+        --surfaceSidebarHover: #e8eaef;
+        --surfaceWorkspace: #f4f5f8;
+        --foreground: #14171f;
+        --foregroundMuted: #6f7686;
+        --foregroundFaint: #9aa1b0;
+        --foregroundSubtleText: #3d4452;
+        --border: #e4e6ec;
+        --secondary: #eef0f4;
+        --accent: #2a6cf0;
+        --accentBright: #3d7dff;
+        --destructive: #ef4444;
+        --success: #18a34a;
+        --statusWarning: #d97706;
+        --statusWarningBg: rgba(217, 119, 6, 0.12);
+        --etch-ring: inset 0 0 0 1px rgba(20, 23, 31, 0.04);
+        --selected-shadow: 0 1px 2px rgba(20, 23, 31, 0.04);
+
+        /* T3-like light panel tokens from the real screenshot */
+        --t3-bg: #f7f7f8;
+        --t3-panel: #f7f7f8;
+        --t3-text: #1f232b;
+        --t3-muted: #8b93a0;
+        --t3-faint: #a8b0bc;
+        --t3-title: #1a1f27;
+        --t3-failed: #e24b4b;
+        --t3-hover: rgba(20, 23, 31, 0.04);
+        --t3-active: rgba(20, 23, 31, 0.07);
+        --t3-selected: #ffffff;
+        --t3-selected-shadow: 0 1px 2px rgba(20, 23, 31, 0.06);
+
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: var(--surfaceWorkspace);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 28px 20px 48px;
+        gap: 28px;
+        flex-wrap: wrap;
+      }
+
+      .proto-col {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .proto-label {
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        font-weight: 500;
+        text-align: center;
+        max-width: 300px;
+        line-height: 1.4;
+      }
+
+      .note {
+        width: min(920px, 100%);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        line-height: 1.55;
+      }
+      .note strong {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+
+      /* ═══════════════ Shared shell ═══════════════ */
+      .sidebar {
+        width: 280px;
+        height: 720px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(20, 23, 31, 0.06);
+        border: 1px solid var(--border);
+        background: var(--surfaceSidebar);
+      }
+
+      .view-switcher {
+        display: flex;
+        margin: 10px 12px 0;
+        background: var(--surface1);
+        border-radius: 8px;
+        padding: 2px;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .view-tab {
+        flex: 1;
+        padding: 6px 8px;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--foregroundMuted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+      .view-tab.active {
+        background: var(--surface0);
+        color: var(--foreground);
+        box-shadow: var(--etch-ring);
+      }
+
+      .scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 4px 8px 12px;
+      }
+      .scroll::-webkit-scrollbar {
+        width: 4px;
+      }
+      .scroll::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 4px;
+      }
+
+      .footer {
+        height: 88px;
+        padding: 10px;
+        border-top: 1px solid var(--secondary);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .host {
+        height: 36px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        box-shadow: var(--etch-ring);
+      }
+      .host-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+      }
+      .foot-icons {
+        display: flex;
+        gap: 4px;
+      }
+      .foot-btn {
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--foregroundMuted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--etch-ring);
+      }
+
+      /* ═══════════════ LEFT: By Project = current ChisaCode ═══════════════ */
+      .cc-top {
+        padding: 10px 12px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .cc-new {
+        min-height: 40px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--foreground);
+        box-shadow: var(--etch-ring);
+      }
+      .cc-search {
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px;
+        color: var(--foregroundFaint);
+        font-size: 13px;
+      }
+
+      .cc-pinned {
+        margin: 0 4px 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--secondary);
+      }
+      .cc-section {
+        margin: 10px 10px 4px;
+        color: var(--foregroundMuted);
+        font-size: 11.5px;
+        font-weight: 500;
+      }
+      .cc-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 10px 4px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        font-weight: 500;
+      }
+      .cc-row {
+        min-height: 34px;
+        margin-left: 4px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .cc-row:hover {
+        background: var(--surfaceSidebarHover);
+      }
+      .cc-row.selected {
+        background: var(--surface0);
+        box-shadow: var(--selected-shadow);
+      }
+      .cc-title {
+        flex: 1;
+        font-size: 12.5px;
+        color: var(--foregroundSubtleText);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .cc-row.selected .cc-title {
+        color: var(--foreground);
+      }
+      .cc-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .cc-badge {
+        font-size: 11px;
+        color: var(--statusWarning);
+        background: var(--statusWarningBg);
+        border-radius: 999px;
+        padding: 1px 6px;
+      }
+      .cc-settled {
+        opacity: 0.55;
+      }
+      .cc-time {
+        font-size: 11px;
+        color: var(--foregroundFaint);
+      }
+
+      /* ═══════════════ RIGHT: By Status = T3 real screenshot ═══════════════ */
+      .t3-sidebar {
+        background: var(--t3-panel);
+      }
+
+      .t3-header {
+        padding: 8px 10px 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+
+      /* Search: icon + text, no bordered box — matches T3 screenshot */
+      .t3-search-row {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 8px;
+        border-radius: 8px;
+        color: var(--t3-muted);
+        cursor: text;
+      }
+      .t3-search-row:hover {
+        background: var(--t3-hover);
+      }
+      .t3-search-text {
+        flex: 1;
+        font-size: 14px;
+        color: var(--t3-muted);
+      }
+      .t3-icon-btn {
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        color: var(--t3-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .t3-icon-btn:hover {
+        background: var(--t3-hover);
+        color: var(--t3-text);
+      }
+
+      /* Scope: Folder + "All projects" + chevron + FolderPlus — no border box */
+      .t3-scope-row {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 8px;
+        border-radius: 8px;
+        color: var(--t3-muted);
+      }
+      .t3-scope-row:hover {
+        background: var(--t3-hover);
+      }
+      .t3-scope-label {
+        flex: 1;
+        font-size: 14px;
+        color: var(--t3-muted);
+      }
+
+      .t3-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px 6px 12px;
+      }
+      .t3-body::-webkit-scrollbar {
+        width: 4px;
+      }
+      .t3-body::-webkit-scrollbar-thumb {
+        background: #d8dbe1;
+        border-radius: 4px;
+      }
+
+      /* Active card — 3 lines, quiet, like T3 */
+      .t3-card {
+        padding: 10px 10px 10px 10px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        cursor: pointer;
+        position: relative;
+      }
+      .t3-card:hover {
+        background: var(--t3-hover);
+      }
+      .t3-card.selected {
+        background: var(--t3-selected);
+        box-shadow: var(--t3-selected-shadow);
+      }
+      .t3-card.receded {
+        opacity: 0.72;
+      }
+      .t3-card.receded:hover {
+        opacity: 1;
+      }
+
+      .t3-line1,
+      .t3-line2,
+      .t3-line3 {
+        display: flex;
+        align-items: center;
+        min-height: 18px;
+      }
+
+      .t3-project {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        color: var(--t3-muted);
+        font-size: 13px;
+      }
+      .t3-project-name {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Right-side status OR relative time — mutually exclusive */
+      .t3-status {
+        flex-shrink: 0;
+        font-size: 13px;
+        font-weight: 500;
+        margin-left: 8px;
+      }
+      .t3-status.failed {
+        color: var(--t3-failed);
+      }
+      .t3-status.working {
+        color: #3b82f6;
+      }
+      .t3-status.approval {
+        color: #d97706;
+      }
+      .t3-status.done {
+        color: #16a34a;
+      }
+      .t3-time {
+        flex-shrink: 0;
+        font-size: 13px;
+        color: var(--t3-muted);
+        margin-left: 8px;
+      }
+
+      .t3-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--t3-title);
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 28px; /* room for trailing settle button */
+      }
+
+      .t3-branch {
+        font-size: 13px;
+        color: var(--t3-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 28px;
+      }
+
+      /* Trailing settle circle on cards — empty circle, right edge */
+      .t3-settle-btn {
+        position: absolute;
+        right: 10px;
+        bottom: 12px;
+        width: 22px;
+        height: 22px;
+        border: none;
+        background: transparent;
+        color: var(--t3-faint);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .t3-settle-btn:hover {
+        color: var(--t3-muted);
+        background: var(--t3-hover);
+      }
+
+      /* Shelf header: "Settled" + chevron only — no divider line */
+      .t3-shelf {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 10px 8px;
+        color: var(--t3-muted);
+        cursor: pointer;
+        user-select: none;
+      }
+      .t3-shelf-label {
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .t3-shelf-label.snoozed {
+        color: var(--accent);
+      }
+      .t3-shelf-chevron {
+        color: var(--t3-muted);
+        display: flex;
+      }
+
+      /* Settled slim rows: empty circle + title + time */
+      .t3-slim {
+        min-height: 34px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        color: var(--t3-muted);
+      }
+      .t3-slim:hover {
+        background: var(--t3-hover);
+      }
+      .t3-slim-title {
+        flex: 1;
+        font-size: 14px;
+        color: var(--t3-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .t3-slim-time {
+        font-size: 13px;
+        color: var(--t3-muted);
+        flex-shrink: 0;
+      }
+      .t3-slim-circle {
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--t3-faint);
+        border-radius: 999px;
+        flex-shrink: 0;
+      }
+
+      .t3-show-more {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--t3-muted);
+        font-size: 13px;
+        padding: 10px 0 4px;
+        cursor: pointer;
+        border-radius: 8px;
+      }
+      .t3-show-more:hover {
+        background: var(--t3-hover);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* Callouts pointing at the two status styles the user asked about */
+      .callout {
+        margin: 0 8px 8px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        font-size: 11.5px;
+        line-height: 1.45;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="note">
+      <strong>对照你贴的 T3 真机图重画后的关键差异：</strong>
+      1) 搜索不是描边输入框，而是「🔍 Search + 右侧铅笔」； 2) 项目筛选是「📁 All projects ▾ + 右侧
+      📁+」； 3) Active 行是三行卡片：项目名 / 粗标题 / 分支； 4)
+      右上角状态与相对时间互斥——失败显示红色 <code>Failed</code>，就绪显示 <code>1d</code>； 5)
+      右下角是空心 settle 圆圈，不是改名笔； 6) Settled 是「空心圆 + 标题 +
+      3d/7d」，没有项目名/分支。
+    </div>
+
+    <!-- ═══════════════ LEFT: 按项目 = current ChisaCode ═══════════════ -->
+    <div class="proto-col">
+      <div class="proto-label">按项目（保持你喜欢的 ChisaCode 当前侧栏）</div>
+      <div class="sidebar" id="by-project">
+        <div class="view-switcher">
+          <button class="view-tab active" data-mode="by-project">按项目</button>
+          <button class="view-tab" data-mode="by-status">按状态</button>
+        </div>
+
+        <div class="cc-top">
+          <button class="cc-new">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M5 12h14" />
+              <path d="M12 5v14" />
+            </svg>
+            新对话
+          </button>
+          <div class="cc-search">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            搜索会话…
+          </div>
+        </div>
+
+        <div class="scroll">
+          <div class="cc-pinned">
+            <div class="cc-group">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                style="color: var(--accent)"
+              >
+                <path d="M9 4h6l-1 6 4 2v2H6v-2l4-2-1-6Z" />
+              </svg>
+              置顶
+            </div>
+            <div class="cc-row">
+              <span class="cc-title">重要：模型网关重做</span>
+            </div>
+          </div>
+
+          <div class="cc-section">项目</div>
+          <div class="cc-group">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M4 20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2v16Z" />
+            </svg>
+            ChisaCode
+          </div>
+          <div class="cc-row selected">
+            <span class="cc-title">侧栏治理：shelf 融合</span>
+            <span class="cc-dot"></span>
+          </div>
+          <div class="cc-row">
+            <span class="cc-title">首次发送启动延迟优化</span>
+            <span class="cc-badge">2h</span>
+          </div>
+          <div class="cc-row cc-settled">
+            <span class="cc-title">desktop daemon 强绑定</span>
+            <span class="cc-time">2d</span>
+          </div>
+
+          <div class="cc-group">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M4 20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2v16Z" />
+            </svg>
+            my-project
+          </div>
+          <div class="cc-row">
+            <span class="cc-title">重构 auth 模块</span>
+          </div>
+          <div class="cc-row cc-settled">
+            <span class="cc-title">CI pipeline 修复</span>
+            <span class="cc-time">5d</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="host"><span class="host-dot"></span>38.76.185.154</div>
+          <div class="foot-icons">
+            <div class="foot-btn">📁</div>
+            <div class="foot-btn">⌂</div>
+            <div class="foot-btn">⚙</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ RIGHT: 按状态 = T3 real screenshot ═══════════════ -->
+    <div class="proto-col">
+      <div class="proto-label">按状态（对齐你贴的 T3 Code 真机截图）</div>
+      <div class="sidebar t3-sidebar" id="by-status">
+        <div class="view-switcher" style="background: #eceef2">
+          <button class="view-tab" data-mode="by-project">按项目</button>
+          <button class="view-tab active" data-mode="by-status">按状态</button>
+        </div>
+
+        <div class="t3-header">
+          <!-- Search row: icon + "Search" + pen — no border box -->
+          <div class="t3-search-row">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <span class="t3-search-text">Search</span>
+            <button class="t3-icon-btn" title="New thread">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 20h9" />
+                <path
+                  d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Scope: Folder + All projects + chevron + FolderPlus -->
+          <div class="t3-scope-row">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+              />
+            </svg>
+            <span class="t3-scope-label">All projects</span>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+            <button class="t3-icon-btn" title="New project" style="margin-left: 4px">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 10v6" />
+                <path d="M9 13h6" />
+                <path
+                  d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="t3-body">
+          <div class="callout">
+            你圈的两行区别：<br />
+            • 第 1 行右上角是状态 <strong style="color: #e24b4b">Failed</strong>（需要处理）<br />
+            • 第 2 行右上角是相对时间 <strong>1d</strong>（就绪/无事可做）
+          </div>
+
+          <!-- Active card 1: Failed -->
+          <div class="t3-card selected">
+            <div class="t3-line1">
+              <div class="t3-project">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                  />
+                </svg>
+                <span class="t3-project-name">ChisaTerminal</span>
+              </div>
+              <span class="t3-status failed">Failed</span>
+            </div>
+            <div class="t3-line2">
+              <div class="t3-title">这俩选择有啥区别</div>
+            </div>
+            <div class="t3-line3">
+              <div class="t3-branch">master</div>
+            </div>
+            <button class="t3-settle-btn" title="Settle">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <circle cx="12" cy="12" r="8" />
+                <path d="M12 8v4" />
+                <path d="M12 16h.01" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Active card 2: ready → shows relative time, NOT status -->
+          <div class="t3-card receded">
+            <div class="t3-line1">
+              <div class="t3-project">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                  />
+                </svg>
+                <span class="t3-project-name">ChisaTerminal</span>
+              </div>
+              <span class="t3-time">1d</span>
+            </div>
+            <div class="t3-line2">
+              <div class="t3-title">你好?</div>
+            </div>
+            <div class="t3-line3">
+              <div class="t3-branch">master</div>
+            </div>
+            <button class="t3-settle-btn" title="Settle">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <circle cx="12" cy="12" r="8" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Extra active card to show Working state -->
+          <div class="t3-card">
+            <div class="t3-line1">
+              <div class="t3-project">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                  />
+                </svg>
+                <span class="t3-project-name">ChisaCode</span>
+              </div>
+              <span class="t3-status working">Working</span>
+            </div>
+            <div class="t3-line2">
+              <div class="t3-title">侧栏治理：shelf 融合</div>
+            </div>
+            <div class="t3-line3">
+              <div class="t3-branch">cn-main</div>
+            </div>
+            <button class="t3-settle-btn" title="Settle">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <circle cx="12" cy="12" r="8" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Settled shelf header: just label + chevron, no divider -->
+          <div class="t3-shelf">
+            <span class="t3-shelf-label">Settled</span>
+            <span class="t3-shelf-chevron">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="m18 15-6-6-6 6" />
+              </svg>
+            </span>
+          </div>
+
+          <div class="t3-slim">
+            <span class="t3-slim-circle"></span>
+            <span class="t3-slim-title">看看这个项目</span>
+            <span class="t3-slim-time">3d</span>
+          </div>
+          <div class="t3-slim">
+            <span class="t3-slim-circle"></span>
+            <span class="t3-slim-title">项目概览</span>
+            <span class="t3-slim-time">7d</span>
+          </div>
+          <div class="t3-slim">
+            <span class="t3-slim-circle"></span>
+            <span class="t3-slim-title">desktop daemon 强绑定</span>
+            <span class="t3-slim-time">2d</span>
+          </div>
+          <div class="t3-slim">
+            <span class="t3-slim-circle"></span>
+            <span class="t3-slim-title">CI pipeline 修复</span>
+            <span class="t3-slim-time">5d</span>
+          </div>
+
+          <button class="t3-show-more">Show 4 more</button>
+        </div>
+
+        <div class="footer" style="background: var(--t3-panel); border-top-color: #e7e9ee">
+          <div class="host"><span class="host-dot"></span>38.76.185.154</div>
+          <div class="foot-icons">
+            <div class="foot-btn">📁</div>
+            <div class="foot-btn">⌂</div>
+            <div class="foot-btn">⚙</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Interactive view switcher on both sidebars
+      document.querySelectorAll(".view-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.dataset.mode;
+          document.getElementById("by-project").classList.toggle("hidden", mode !== "by-project");
+          document.getElementById("by-status").classList.toggle("hidden", mode !== "by-status");
+          // Keep both visible side-by-side for comparison in the prototype
+          // Comment above: for demo we show both always. Click just updates active tab styles.
+          document.querySelectorAll(".view-tab").forEach((b) => {
+            b.classList.toggle("active", b.dataset.mode === mode);
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

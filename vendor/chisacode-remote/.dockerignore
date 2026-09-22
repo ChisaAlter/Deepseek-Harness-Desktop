@@ -1,0 +1,69 @@
+# 通用排除：版本控制、依赖产物、本地缓存
+.git
+.gitignore
+.github
+.gitattributes
+
+# 构建产物与依赖
+**/node_modules
+**/dist
+**/.cache
+**/.turbo
+**/.parcel-cache
+**/.expo
+**/web-build
+
+# 文档与元数据（不参与 daemon 运行）
+docs
+*.md
+!packages/*/README.md
+LICENSE
+NOTICE
+SECURITY.md
+
+# 本地日志与临时文件
+tmp-*.log
+*.log
+.debug
+.chisacode
+.env
+.env.local
+.env.*.local
+
+# daemon 运行不需要的包源码（保留其 package.json 供 workspace 解析，源码由 Dockerfile 在构建阶段才 COPY）
+packages/app
+packages/desktop
+packages/cli
+packages/expo-two-way-audio
+!packages/*/package.json
+
+# Android / iOS / 桌面构建产物
+android
+ios
+*.apk
+*.aab
+*.ipa
+*.dmg
+*.exe
+*.deb
+*.rpm
+*.AppImage
+
+# 测试与脚本产物
+artifacts
+coverage
+**/__tests__
+**/*.test.ts
+**/*.test.tsx
+**/*.e2e.test.ts
+**/*.real.e2e.test.ts
+**/*.local.e2e.test.ts
+playwright-report
+test-results
+
+# 编辑器与平台杂项
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp

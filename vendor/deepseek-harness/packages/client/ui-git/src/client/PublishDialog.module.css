@@ -1,0 +1,42 @@
+.dialog {
+  width: min(440px, 100%);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.field:first-child {
+  margin-top: 0;
+}
+
+.label {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.input {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+.note {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}

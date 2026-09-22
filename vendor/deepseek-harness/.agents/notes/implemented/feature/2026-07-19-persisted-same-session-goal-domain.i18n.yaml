@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-07-19-persisted-same-session-goal-domain.md
+2026-07-19-persisted-same-session-goal-domain.md: 4ddc02c3bd3b7bbf04b3c6867a76673431309460
+2026-07-19-persisted-same-session-goal-domain.zh.md: 2bb937b0f637e54ab6d9a6e10ebe237849e08171

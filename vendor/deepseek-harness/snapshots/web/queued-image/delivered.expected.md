@@ -1,0 +1,94 @@
+- banner:
+  - navigation "Session hierarchy":
+    - button "Reply with a one-sentence description" [disabled]
+  - img
+  - text: Standard mode
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
+    - img
+  - tablist:
+    - tab "Chat" [selected]
+    - tab "Trajectory"
+- navigation "Turn navigation":
+  - button "Jump to turn 1"
+  - button "Jump to turn 2"
+  - button "Jump to turn 3"
+- button "System prompt":
+  - img
+  - img
+  - text: System prompt
+- text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
+- button "Copy":
+  - img
+- button "Thought for a while":
+  - text: Thought for a while
+  - img
+- paragraph: partial
+- text: Stopped
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
+- button "queued.png, click to view original":
+  - img "queued.png"
+- text: Compare with this screenshot {{clock}}
+- button "Copy":
+  - img
+- button "Thought for a while":
+  - text: Thought for a while
+  - img
+- paragraph: Event sourcing is a pattern where all changes to an application's state are stored as an immutable, append-only sequence of events, rather than persisting only the current state, enabling full auditability, temporal queries, and event-driven architectures.
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}} Continue with the queued comparison {{clock}}
+- button "Copy":
+  - img
+- button "Thought for a while":
+  - text: Thought for a while
+  - img
+- paragraph: Event sourcing is a pattern where all changes to an application's state are stored as an immutable, append-only sequence of events, rather than persisting only the current state, enabling full auditability, temporal queries, and event-driven architectures.
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands":
+  - img
+- 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Select model, current DeepSeek-V4-Flash":
+  - text: DeepSeek-V4-Flash
+  - img
+- button "Send message" [disabled]
+- button "3 turns 3 steps · {{throughput}} tok/s":
+  - img
+  - text: 3 turns 3 steps{{throughput}} tok/s
+- button "15.7K tok · Cache hit 99%":
+  - img
+  - text: 15.7K tokCache hit 99%
+- button "6% of context used": 6%

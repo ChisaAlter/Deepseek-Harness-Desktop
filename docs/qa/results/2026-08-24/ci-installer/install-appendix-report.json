@@ -1,0 +1,110 @@
+{
+  "at": "2026-08-24T17:36:02.075Z",
+  "productExe": "C:\\Program Files\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/32753948075",
+  "setupSha256": "FB442D442B85F60A956B1FC415A714BD90F603CC427C2DE65DD3652CE2580040",
+  "exit": {
+    "code": 1,
+    "signal": null
+  },
+  "pass": false,
+  "smokeOk": false,
+  "appendixQa": {
+    "ok": false,
+    "failed": [
+      "appendix.editUser",
+      "appendix.reject",
+      "appendix.vision"
+    ],
+    "steps": [
+      {
+        "name": "appendix.workspace",
+        "ok": true,
+        "detail": "C:\\Ai\\Deepseek-Harness-Desktop"
+      },
+      {
+        "name": "appendix.composer",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "appendix.model",
+        "ok": true,
+        "detail": "选择模型，当前 grok-4.6，推理等级 High grok-4.6High"
+      },
+      {
+        "name": "appendix.turn1.connect",
+        "ok": true,
+        "detail": "你已连通，验证码是 852。"
+      },
+      {
+        "name": "appendix.turn2.recall",
+        "ok": true,
+        "detail": "852"
+      },
+      {
+        "name": "appendix.turn3.readReadme",
+        "ok": true,
+        "detail": "tool-card | DeepSeek Harness 是一款 AI 交互平台，其插件市场（dsh-market）让用户能便捷地浏览、搜索和一键安装社区插件与主题；它支持实时备份恢复、热切换和安全安装，是 DeepSeek Harness 桌面版的核心功能模块之一。"
+      },
+      {
+        "name": "appendix.turn4.shell",
+        "ok": true,
+        "detail": "tool-card | Deepseek-Harness-Desktop"
+      },
+      {
+        "name": "appendix.turn5.summary",
+        "ok": true,
+        "detail": "852 DeepSeek Harness 是一款 AI 交互平台，其插件市场（dsh-market）让用户能便捷地浏览、搜索和一键安装社区插件与主题；它支持实时备份恢复、热切换和安全安装，是 DeepSeek Harness 桌面版的核心功能模块之一。 Deepseek-Harness-Desktop"
+      },
+      {
+        "name": "appendix.editUser",
+        "ok": false,
+        "detail": "Script failed to execute, this normally means an error was thrown. Check the renderer console for the error."
+      },
+      {
+        "name": "appendix.reject",
+        "ok": false,
+        "detail": "Script failed to execute, this normally means an error was thrown. Check the renderer console for the error."
+      },
+      {
+        "name": "appendix.vision",
+        "ok": false,
+        "detail": "Script failed to execute, this normally means an error was thrown. Check the renderer console for the error."
+      }
+    ],
+    "codePresent": true
+  },
+  "error": "In-app appendix A failed: appendix.editUser, appendix.reject, appendix.vision",
+  "logTail": [
+    "",
+    "[DSH_SMOKE] {\"hasFrame\":true,\"gridColumns\":\"280px 640px 0px 520px\",\"hasTitlebar\":true,\"titlebarButtons\":[\"Session log\",\"切换分支\",\"Commit, push & PR\",\"Git 操作\",\"切换终端抽屉\",\"切换右侧栏\"],\"hasTerminalToggle\":true,\"hasSurfacesToggle\":true,\"hasDragStrip\":false,\"hasDragMark\":false,\"hasHitMark\":false,\"captionRegion\":\"drag\",\"hasHarnessShellApi\":true,\"harnessShellApiIsScoped\":true,\"hasBootShellApi\":true,\"bootShellApiIsScoped\":true,\"pageErrors\":[]}",
+    "[DSH_SMOKE_PTY] echoed:ok",
+    "[DSH_QA] PASS workspace.path — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_QA] PASS workspace.addClicked",
+    "[DSH_QA] PASS workspace.picker",
+    "[DSH_QA] PASS workspace.pickerClosed",
+    "[DSH_QA] PASS workspace.connected — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_SMOKE_HITS] {\"hits\":{\"surfaces\":1,\"branch\":1,\"git\":1},\"error\":null}",
+    "[DSH_QA_APPENDIX] PASS appendix.workspace — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_QA_APPENDIX] PASS appendix.composer",
+    "[DSH_QA_APPENDIX] PASS appendix.model — 选择模型，当前 grok-4.6，推理等级 High grok-4.6High",
+    "[DSH_QA_APPENDIX] PASS appendix.turn1.connect — 你已连通，验证码是 852。",
+    "[DSH_QA_APPENDIX] PASS appendix.turn2.recall — 852",
+    "[DSH_QA_APPENDIX] PASS appendix.turn3.readReadme — tool-card | DeepSeek Harness 是一款 AI 交互平台，其插件市场（dsh-market）让用户能便捷地浏览、搜索和一键安装社区插件与主题；它支持实时备份恢复、热切换和安全安装，是 DeepSeek Harness 桌面版的核心功能模块之一。",
+    "[DSH_QA_APPENDIX] PASS appendix.turn4.shell — tool-card | Deepseek-Harness-Desktop",
+    "[DSH_QA_APPENDIX] PASS appendix.turn5.summary — 852 DeepSeek Harness 是一款 AI 交互平台，其插件市场（dsh-market）让用户能便捷地浏览、搜索和一键安装社区插件与主题；它支持实时备份恢复、热切换和安全安装，是 DeepSeek Harness 桌面版的核心功能模块之一。 Deepseek-Harness-Desktop",
+    "[DSH_QA_APPENDIX] FAIL appendix.editUser — Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.",
+    "[DSH_QA_APPENDIX] FAIL appendix.reject — Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.",
+    "[DSH_QA_APPENDIX] FAIL appendix.vision — Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.",
+    "[DSH_QA_APPENDIX] {\"ok\":false,\"failed\":[\"appendix.editUser\",\"appendix.reject\",\"appendix.vision\"],\"steps\":[{\"name\":\"appendix.workspace\",\"ok\":true,\"detail\":\"C:\\\\Ai\\\\Deepseek-Harness-Desktop\"},{\"name\":\"appendix.composer\",\"ok\":true,\"detail\":\"\"},{\"name\":\"appendix.model\",\"ok\":true,\"detail\":\"选择模型，当前 grok-4.6，推理等级 High grok-4.6High\"},{\"name\":\"appendix.turn1.connect\",\"ok\":true,\"detail\":\"你已连通，验证码是 852。\"},{\"name\":\"appendix.turn2.recall\",\"ok\":true,\"detail\":\"852\"},{\"name\":\"appendix.turn3.readReadme\",\"ok\":true,\"detail\":\"tool-card | DeepSeek Harness 是一款 AI 交互平台，其插件市场（dsh-market）让用户能便捷地浏览、搜索和一键安装社区插件与主题；它支持实时备份恢复、热切换和安全安装，是 DeepSeek Harness 桌面版的核心功能模块之一。\"},{\"name\":\"appendix.turn4.shell\",\"ok\":true,\"detail\":\"tool-card | Deepseek-Harness-Desktop\"},{\"name\":\"appendix.turn5.summary\",\"ok\":true,\"detail\":\"852 DeepSeek Harness 是一款 AI 交互平台，其插件市场（dsh-market）让用户能便捷地浏览、搜索和一键安装社区插件与主题；它支持实时备份恢复、热切换和安全安装，是 DeepSeek Harness 桌面版的核心功能模块之一。 Deepseek-Harness-Desktop\"},{\"name\":\"appendix.editUser\",\"ok\":false,\"detail\":\"Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.\"},{\"name\":\"appendix.reject\",\"ok\":false,\"detail\":\"Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.\"},{\"name\":\"appendix.vision\",\"ok\":false,\"detail\":\"Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.\"}]}",
+    "Error occurred in handler for 'shell:pty-resize': Error: unknown pty id: c13ab545-b240-4501-a959-3c629f36a2d8",
+    "    at requireSession (C:\\Program Files\\Deepseek-Harness-Desktop\\resources\\app.asar\\src\\main\\pty.js:346:13)",
+    "    at Object.resize (C:\\Program Files\\Deepseek-Harness-Desktop\\resources\\app.asar\\src\\main\\pty.js:392:7)",
+    "    at C:\\Program Files\\Deepseek-Harness-Desktop\\resources\\app.asar\\src\\main\\pty.js:456:78",
+    "    at Session.<anonymous> (node:electron/js2c/browser_init:2:118329)",
+    "    at Session.emit (node:events:509:28)",
+    ""
+  ]
+}

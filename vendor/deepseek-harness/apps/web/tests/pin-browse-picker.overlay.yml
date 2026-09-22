@@ -1,0 +1,12 @@
+# Loader overlay for the real-host smoke (`dsh web --patch`): keep the
+# in-browser directory picker under a smoke-owned host id. The shipped
+# `directory-picker` row is already browse; disabling it and inserting the
+# host backend again means a later revert to `-auto` cannot put a native OS
+# chooser under Playwright. The client surface stays the web-app roster row
+# (`ui-directory-picker-browse`); inserting it here would duplicate the
+# `single` directory-flow occupant.
+- id: directory-picker
+  disabled: true
+- insert:
+    - id: directory-picker-browse
+      name: '@deepseek-ai/dsh-host-directory-picker-browse'

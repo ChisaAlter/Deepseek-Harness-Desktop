@@ -1,0 +1,1092 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const PET_JS = path.join(__dirname, 'pet-live2d.js');
+const PHYSICS_JS = path.join(__dirname, 'pet-physics.js');
+const DIALOGUE_JS = path.join(__dirname, 'pet-dialogue.js');
+const WANDER_JS = path.join(__dirname, 'pet-wander.js');
+const DIALOGUE_JSON = path.join(__dirname, 'dialogue', 'whale.json');
+const SOURCE = fs.readFileSync(PET_JS, 'utf8');
+const PHYSICS_SOURCE = fs.readFileSync(PHYSICS_JS, 'utf8');
+const DIALOGUE_SOURCE = fs.readFileSync(DIALOGUE_JS, 'utf8');
+const WANDER_SOURCE = fs.readFileSync(WANDER_JS, 'utf8');
+const DIALOGUE_STORE = JSON.parse(fs.readFileSync(DIALOGUE_JSON, 'utf8'));
+
+const TOKEN_STYLE = {
+  '--dsw-font-family': 'TestFamily, sans-serif',
+  '--dsw-alias-bg-layer-1': 'rgb(255, 255, 255)',
+  '--dsw-alias-border-l2': 'rgba(0, 0, 0, 0.1)',
+  '--dsw-alias-label-primary': 'rgb(15, 17, 21)',
+};
+
+const PATH_OPS = new Set(['moveTo', 'lineTo', 'quadraticCurveTo', 'roundRect', 'ellipse', 'arc', 'closePath']);
+function currentPath(ctx) {
+  return ctx.ops.slice(ctx.ops.findLastIndex((op) => op[0] === 'beginPath') + 1)
+    .filter((op) => PATH_OPS.has(op[0])).map((op) => [...op]);
+}
+
+function makeCtx(canvas) {
+  const ctx = {
+    ops: [],
+    canvas,
+    font: '',
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    lineJoin: 'miter',
+    globalAlpha: 1,
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+    save() { this.ops.push(['save']); },
+    restore() { this.ops.push(['restore']); },
+    beginPath() { this.ops.push(['beginPath']); },
+    moveTo(x, y) { this.ops.push(['moveTo', x, y]); },
+    lineTo(x, y) { this.ops.push(['lineTo', x, y]); },
+    quadraticCurveTo(a, b, c, d) { this.ops.push(['quadraticCurveTo', a, b, c, d]); },
+    roundRect(...args) { this.ops.push(['roundRect', ...args]); },
+    ellipse(...args) { this.ops.push(['ellipse', ...args]); },
+    arc(...args) { this.ops.push(['arc', ...args]); },
+    clip() { this.ops.push(['clip']); },
+    closePath() { this.ops.push(['closePath']); },
+    fill() { this.ops.push(['fill', currentPath(this)]); },
+    stroke() { this.ops.push(['stroke', currentPath(this)]); },
+    fillText(text, x, y) { this.ops.push(['fillText', text, x, y]); },
+    clearRect(x, y, w, h) { this.ops.push(['clearRect', x, y, w, h]); },
+    drawImage(...args) { this.ops.push(['drawImage', ...args]); },
+    translate() {}, rotate() {}, scale() {},
+    putImageData() {},
+    createImageData(w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; },
+    getImageData(x, y, w, h) { return { data: new Uint8ClampedArray(w * h * 4) }; },
+    measureText(s) { return { width: Array.from(s).length * 13 }; },
+  };
+  return ctx;
+}
+
+function makeCanvas() {
+  const canvas = { width: 800, height: 600 };
+  canvas.ctx = makeCtx(canvas);
+  canvas.getContext = () => canvas.ctx;
+  return canvas;
+}
+
+function loadPet() {
+  const source = SOURCE.replace(/mount\(\)\.catch[\s\S]*$/, '');
+  let now = 100000;
+  let rand = () => 0.5;
+  const mathStub = {};
+  for (const key of Object.getOwnPropertyNames(Math)) {
+    mathStub[key] = Math[key];
+  }
+  mathStub.random = () => rand();
+  const mainCanvas = makeCanvas();
+  const context = vm.createContext({
+    document: {
+      documentElement: {},
+      getElementById: () => mainCanvas,
+      createElement: (tag) => (tag === 'canvas' ? makeCanvas() : {}),
+    },
+    window: {
+      innerWidth: 800,
+      innerHeight: 600,
+      addEventListener: () => {},
+      shell: {},
+    },
+    performance: { now: () => now },
+    Image: class {},
+    getComputedStyle: () => ({
+      getPropertyValue: (name) => TOKEN_STYLE[name] || '',
+    }),
+    requestAnimationFrame: () => 0,
+    setTimeout, clearTimeout, setInterval, clearInterval,
+    console,
+    Math: mathStub,
+    __dialogueStore: DIALOGUE_STORE,
+  });
+  vm.runInContext(PHYSICS_SOURCE, context, { filename: 'pet-physics.js' });
+  vm.runInContext(DIALOGUE_SOURCE, context, { filename: 'pet-dialogue.js' });
+  vm.runInContext(WANDER_SOURCE, context, { filename: 'pet-wander.js' });
+  vm.runInContext(source, context, { filename: 'pet-live2d.js' });
+  // mount() is stripped from the test source, so the dialogue store never
+  // fetches — inject the real JSON and wire the sayer exactly like mount.
+  vm.runInContext('dialogueStore = __dialogueStore; LINES = dialogueStore.global; wireDialogue();',
+    context);
+  return {
+    context,
+    canvas: mainCanvas,
+    run: (expr) => vm.runInContext(expr, context),
+    setNow: (v) => { now = v; },
+    now: () => now,
+    setRandom: (fn) => { rand = fn; },
+    resetRandom: () => { rand = () => 0.5; },
+  };
+}
+
+function pathOps(ops) {
+  const start = ops.findIndex((op) => op[0] === 'beginPath');
+  const end = ops.findIndex((op, i) => i > start && op[0] === 'closePath');
+  return ops.slice(start, end + 1);
+}
+
+function countOps(ops, name) {
+  return ops.filter((op) => op[0] === name).length;
+}
+
+test('drawBubble strokes and fills ONE continuous outline that includes the tail', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    bubble = { text: '测试气泡', until: ${pet.now() + 5000} };`);
+  const dirty = pet.run('drawBubble(performance.now())');
+  const ops = pet.canvas.ctx.ops;
+  assert.equal(countOps(ops, 'beginPath'), 1, 'exactly one path');
+  const fills = ops.filter((op) => op[0] === 'fill');
+  const strokes = ops.filter((op) => op[0] === 'stroke');
+  assert.equal(fills.length, 1, 'exactly one fill');
+  assert.equal(strokes.length, 1, 'exactly one stroke');
+  const recordedPath = pathOps(ops).filter((op) => PATH_OPS.has(op[0])).map((op) => [...op]);
+  assert.deepEqual(fills[0][1], recordedPath, 'fill covers the same path');
+  assert.deepEqual(strokes[0][1], recordedPath, 'stroke covers the same path incl tail');
+  assert.equal(recordedPath.at(-1)[0], 'closePath');
+  const bh = 16 + 12;
+  const by = (200 - 8) - 12 - bh - 8;
+  const bw = 4 * 13 + 18;
+  const headX = 280 + 240 / 2;
+  const bx = Math.min(Math.max(headX - bw / 2, 4), 800 - bw - 4);
+  const tx = Math.min(Math.max(headX, bx + 16), bx + bw - 16);
+  const tip = [tx, by + bh + 8];
+  const tipIdx = recordedPath.findIndex((op) => op[0] === 'lineTo'
+    && Math.abs(op[1] - tip[0]) < 0.01 && Math.abs(op[2] - tip[1]) < 0.01);
+  assert.ok(tipIdx > 0, 'tail tip inside the single stroked path');
+  assert.deepEqual(recordedPath[tipIdx - 1].slice(0, 3), ['lineTo', tx + 6, by + bh]);
+  assert.deepEqual(recordedPath[tipIdx + 1].slice(0, 3), ['lineTo', tx - 6, by + bh]);
+  const segs = recordedPath.filter((op) => op[0] === 'lineTo' || op[0] === 'moveTo')
+    .map((op) => [op[1], op[2]]);
+  for (let i = 1; i < segs.length; i += 1) {
+    const [x0, y0] = segs[i - 1];
+    const [x1, y1] = segs[i];
+    const sameY = Math.abs(y0 - y1) < 0.01;
+    const lr = Math.abs(x0 - (tx - 6)) < 0.01 && Math.abs(x1 - (tx + 6)) < 0.01;
+    const rl = Math.abs(x0 - (tx + 6)) < 0.01 && Math.abs(x1 - (tx - 6)) < 0.01;
+    assert.equal(sameY && (lr || rl), false, 'no base line between tail shoulders');
+  }
+  for (const op of recordedPath) {
+    for (const v of op.slice(1)) {
+      assert.ok(Number.isFinite(v), `finite coordinate in ${op[0]}`);
+    }
+  }
+  assert.ok(dirty.x <= bx - 3 && dirty.y <= by - 3);
+  assert.ok(dirty.x + dirty.w >= bx + bw + 3);
+  assert.ok(dirty.y + dirty.h >= by + bh + 8 + 3);
+});
+
+function bubbleRectInsideHost(pet, host) {
+  const ops = pet.canvas.ctx.ops;
+  const path = pathOps(ops);
+  const dirty = pet.run('__lastDirty');
+  for (const op of path) {
+    if (op[0] === 'moveTo' || op[0] === 'lineTo') {
+      assert.ok(op[1] >= host.x && op[1] <= host.x + host.width, `x ${op[1]} in host`);
+      assert.ok(op[2] >= host.y && op[2] <= host.y + host.height, `y ${op[2]} in host`);
+    }
+  }
+  assert.ok(dirty.x >= host.x && dirty.y >= host.y);
+  assert.ok(dirty.x + dirty.w <= host.x + host.width);
+  assert.ok(dirty.y + dirty.h <= host.y + host.height);
+}
+
+test('drawBubble flips below at the top edge and clamps inside the host', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    drawPos = { x: 280, y: 0 };
+    bubble = { text: '测试气泡', until: ${pet.now() + 5000} };
+    __lastDirty = drawBubble(performance.now());`);
+  const ops = pet.canvas.ctx.ops;
+  const path = pathOps(ops);
+  const by = 268 + 12 + 8;
+  const headX = 400;
+  const bw = 4 * 13 + 18;
+  const bx = Math.min(Math.max(headX - bw / 2, 4), 800 - bw - 4);
+  const tx = Math.min(Math.max(headX, bx + 16), bx + bw - 16);
+  const tipIdx = path.findIndex((op) => op[0] === 'lineTo'
+    && Math.abs(op[1] - tx) < 0.01 && Math.abs(op[2] - (by - 8)) < 0.01);
+  assert.ok(tipIdx > 0, 'upward tail tip present when flipped below');
+  bubbleRectInsideHost(pet, { x: 0, y: 0, width: 800, height: 600 });
+});
+
+test('drawBubble clamps on right, left, and bottom edges, nonzero origin, null host', () => {
+  const host = { x: 0, y: 0, width: 800, height: 600 };
+  for (const [dx, dy] of [[520, 300], [-90, 300], [280, 560], [0, 300]]) {
+    const pet = loadPet();
+    pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+      drawPos = { x: ${dx}, y: ${dy} };
+      bubble = { text: '测试气泡', until: ${pet.now() + 5000} };
+      __lastDirty = drawBubble(performance.now());`);
+    bubbleRectInsideHost(pet, host);
+  }
+  const pet2 = loadPet();
+  pet2.run(`homeRect = { x: 100, y: 50, width: 800, height: 600 };
+    drawPos = { x: 300, y: 200 };
+    bubble = { text: '测试气泡', until: ${pet2.now() + 5000} };
+    __lastDirty = drawBubble(performance.now());`);
+  bubbleRectInsideHost(pet2, { x: 100, y: 50, width: 800, height: 600 });
+  const pet3 = loadPet();
+  pet3.run(`homeRect = null;
+    drawPos = { x: 280, y: 200 };
+    bubble = { text: '测试气泡', until: ${pet3.now() + 5000} };
+    __lastDirty = drawBubble(performance.now());`);
+  bubbleRectInsideHost(pet3, { x: 0, y: 0, width: 800, height: 600 });
+});
+
+test('drawBubble wraps long text inside the width budget and host', () => {
+  const pet = loadPet();
+  const long = '这是一条特别特别长的台词用来验证气泡换行不会超出最大宽度';
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    drawPos = { x: 280, y: 200 };
+    bubble = { text: '${long}', until: ${pet.now() + 5000} };
+    __lastDirty = drawBubble(performance.now());`);
+  const ops = pet.canvas.ctx.ops;
+  const texts = ops.filter((op) => op[0] === 'fillText').map((op) => op[1]);
+  assert.ok(texts.length >= 2, 'long line wrapped');
+  for (const line of texts) {
+    assert.ok(Array.from(line).length * 13 <= 150);
+  }
+  bubbleRectInsideHost(pet, { x: 0, y: 0, width: 800, height: 600 });
+});
+
+test('drawBubble never starts a line with closing punctuation', () => {
+  const pet = loadPet();
+  const text = `${'鲸'.repeat(13)}。`;
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    drawPos = { x: 280, y: 200 };
+    bubble = { text: '${text}', until: ${pet.now() + 5000} };
+    drawBubble(performance.now());`);
+  const texts = pet.canvas.ctx.ops.filter((op) => op[0] === 'fillText').map((op) => op[1]);
+  assert.equal(texts.join(''), text, 'wrap preserves the full string');
+  for (const line of texts) {
+    assert.ok(Array.from(line).length * 13 <= 150);
+    assert.equal(/^[，。！？、；：…）》」』】”’]/u.test(line), false, `line starts with closing punctuation: ${line}`);
+  }
+  assert.ok(Array.from(texts.at(-1)).length > 1, 'last line is not a lone punctuation');
+});
+
+test('paint clears before draws and an expired bubble still gets a cleanup paint', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };`);
+  // A steady bubble is static: it repaints on its change edges (push,
+  // expiry) instead of forcing a tickStill paint every frame.
+  pet.run(`pushBubble({ text: '测试气泡', until: ${pet.now() + 1000}, priority: 1 })`);
+  const first = pet.canvas.ctx.ops.length;
+  assert.ok(first > 0, 'paint ran on bubble push');
+  const drawIdx = pet.canvas.ctx.ops.findIndex((op) => op[0] === 'fill' || op[0] === 'drawImage' || op[0] === 'fillText');
+  const lastClear = pet.canvas.ctx.ops.map((op, i) => [op, i])
+    .filter(([op]) => op[0] === 'clearRect').map(([, i]) => i).at(-1);
+  assert.ok(drawIdx > lastClear, 'all clears precede any draw');
+  pet.run('__rect = lastBubbleRect');
+  const rect = pet.run('__rect');
+  assert.ok(rect, 'bubble dirty rect recorded');
+  pet.setNow(pet.now() + 2000);
+  pet.canvas.ctx.ops.length = 0;
+  pet.run('tickStill(performance.now())');
+  const clears = pet.canvas.ctx.ops.filter((op) => op[0] === 'clearRect');
+  assert.ok(clears.some((op) => op[1] === rect.x && op[2] === rect.y
+    && op[3] === rect.w && op[4] === rect.h),
+    'expired bubble region cleared even with no inference frame');
+});
+
+const EXPECTED_KEYS = ['greet', 'pickup', 'throw', 'land', 'pat', 'feed', 'come',
+  'tease', 'angry', 'sleep', 'wake', 'sleepy', 'tap0', 'tap1', 'tap2', 'tap3',
+  'morning', 'noon', 'afternoon', 'evening', 'latenight', 'idle', 'feedEat',
+  'feedDone', 'arrive', 'idleRice', 'idleStandby', 'idleTail', 'idleCoding',
+  'idleCare', 'feedToken', 'feedTokenEat', 'feedTokenDone', 'levelUp',
+  'hungry', 'grumpy', 'clingy',
+  // §B4 wander + §B10 cheap items + R2 DSH-link seeds
+  'wanderStart', 'wanderEnd', 'wanderStop', 'personalitySet',
+  'settingsChanged', 'fileEat', 'dshWorking', 'dshDone', 'dshError',
+  'dshRest', 'dshMilestone', 'dshMiss', 'dshApproval', 'dshQuestion',
+  'chatFallback', 'looking', 'lookFallback', 'lookNoModel', 'lookAssistantOff',
+  'lookError', 'approvalAllow', 'approvalReject'];
+
+test('LINES has all 59 categories with ≥10 distinct lines each', () => {
+  const pet = loadPet();
+  const lines = pet.run('LINES');
+  assert.deepEqual(Object.keys(lines).sort(), [...EXPECTED_KEYS].sort());
+  const all = [];
+  for (const key of Object.keys(lines)) {
+    assert.ok(lines[key].length >= 10, `${key} has ≥10 lines`);
+    for (const line of lines[key]) {
+      assert.equal(typeof line, 'string');
+      assert.ok(line.length > 0);
+      all.push(line);
+    }
+  }
+  assert.equal(new Set(all).size, all.length, 'global lines distinct');
+});
+
+test('say() cycles every pool without repeats and never repeats at the boundary', () => {
+  const pet = loadPet();
+  const lines = pet.run('LINES');
+  for (const rand of [() => 0, () => 0.9999999]) {
+    pet.setRandom(rand);
+    for (const key of EXPECTED_KEYS) {
+      // Fresh sayer per category = fresh shuffle bags (the bag state lives
+      // inside PetDialogue.createSayer's closure, not reachable maps).
+      pet.run('wireDialogue()');
+      const seen = [];
+      for (let i = 0; i < 20; i += 1) {
+        pet.run(`say('${key}')`);
+        seen.push(pet.run('bubble.text'));
+      }
+      assert.equal(new Set(seen.slice(0, 10)).size, 10, `${key} cycle 1 unique`);
+      assert.equal(new Set(seen.slice(10)).size, 10, `${key} cycle 2 unique`);
+      assert.notEqual(seen[10], seen[9], `${key} boundary repeat`);
+      for (const text of seen) {
+        assert.ok(lines[key].includes(text));
+      }
+    }
+  }
+  pet.resetRandom();
+});
+
+test('say() with an unknown category leaves the current bubble untouched', () => {
+  const pet = loadPet();
+  pet.run(`bubble = { text: '测试气泡', until: ${pet.now() + 5000} };
+    say('__nope__')`);
+  assert.equal(pet.run('bubble.text'), '测试气泡');
+});
+
+test('personality routes say() through the agents layer with global fallback', () => {
+  const pet = loadPet();
+  // tsundere covers 'greet' — lines must come from the agent pool only.
+  pet.run(`applySettings({ ...settings, personality: 'tsundere' });
+    wireDialogue();`);
+  const seen = new Set();
+  for (let i = 0; i < 10; i += 1) {
+    pet.run(`say('greet')`);
+    seen.add(pet.run('bubble.text'));
+  }
+  const pool = pet.run('dialogueStore.agents.tsundere.greet');
+  for (const text of seen) {
+    assert.ok(pool.includes(text), `tsundere greet: ${text}`);
+  }
+  // A category the persona doesn't cover falls back to global.
+  pet.run(`say('sleepy')`);
+  assert.ok(pet.run('LINES.sleepy').includes(pet.run('bubble.text')),
+    'uncovered category falls back to global pool');
+  // Switching back to natural re-keys the bags onto the global pool.
+  pet.run(`applySettings({ ...settings, personality: 'natural' });
+    wireDialogue();`);
+  pet.run(`say('greet')`);
+  assert.ok(pet.run('LINES.greet').includes(pet.run('bubble.text')),
+    'natural reads the global pool');
+});
+
+test('every LINES category is reachable via say(), sayAlert(), time-of-day pick, or IDLE_TOPICS', () => {
+  const pet = loadPet();
+  const topics = pet.run('IDLE_TOPICS');
+  const lines = pet.run('LINES');
+  const alertCats = new Set(pet.run('[...ALERT_CATEGORIES]'));
+  const timeCats = ['latenight', 'morning', 'noon', 'afternoon', 'evening'];
+  // Every pool has a live call site — the look* categories wired up with
+  // the R3 看看 feature and its failure voices.
+  const PENDING_KEYS = new Set();
+  for (const key of Object.keys(lines)) {
+    const direct = new RegExp(`say\\([^)]*'${key}'`).test(SOURCE);
+    const tapDyn = /^tap\d$/.test(key) && SOURCE.includes('say(`tap');
+    const timeCat = timeCats.includes(key) && /say\(Math\.random\(\) < 0\.45 \? cat/.test(SOURCE);
+    assert.ok(direct || tapDyn || timeCat || topics.includes(key)
+      || alertCats.has(key) || PENDING_KEYS.has(key), `${key} reachable`);
+  }
+});
+
+test('feed sequence speaks feed, feedEat, feedDone in order', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    stills.set('running', { img: {}, box: { x: 0, y: 0, right: 10, bottom: 10 } });
+    stills.set('eat', { img: {}, box: { x: 0, y: 0, right: 10, bottom: 10 } });
+    feed = { phase: 'drop', t0: ${pet.now() - 500}, bowlX: 300, bowlY: 300, groundY: 540 };`);
+  pet.run('tickStill(performance.now())');
+  assert.ok(pet.run('LINES.feed').includes(pet.run('bubble.text')));
+  pet.run(`feed.phase = 'run'; feed.t0 = ${pet.now()};
+    drawPos.x = feed.bowlX - 240 / 2;`);
+  pet.run('tickStill(performance.now())');
+  assert.ok(pet.run('LINES.feedEat').includes(pet.run('bubble.text')));
+  pet.run(`feed = { phase: 'eat', t0: ${pet.now() - 3000}, bowlX: 300, bowlY: 540, groundY: 540 };`);
+  pet.run('tickStill(performance.now())');
+  assert.ok(pet.run('LINES.feedDone').includes(pet.run('bubble.text')));
+});
+
+test('come arrival speaks from the arrive pool', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    stills.set('running', { img: {}, box: { x: 0, y: 0, right: 10, bottom: 10 } });
+    come = { targetX: drawPos.x };`);
+  pet.run('tickStill(performance.now())');
+  assert.ok(pet.run('LINES.arrive').includes(pet.run('bubble.text')));
+});
+
+test('idle chatter is suppressed while sleeping or when a flourish just started', () => {
+  const pet = loadPet();
+  const now = pet.now();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    stills.set('sleep', { img: {}, box: { x: 0, y: 0, right: 10, bottom: 10 } });
+    bubble = null;
+    sleeping = true; stillCtl.target = 1;
+    tickStill._nextChat = ${now - 1}; tickStill._nextFlourish = ${now - 1};`);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('bubble'), null);
+  pet.run(`sleeping = false; stillCtl.target = 0; stillCtl.alpha = 0;
+    stillCtl.name = null; stillCtl.entry = null;
+    action = null; feed = null; come = null; dragging = false;
+    tickStill._nextChat = ${now - 1}; tickStill._nextFlourish = ${now - 1};`);
+  pet.setRandom(() => 0);
+  pet.run('tickStill(performance.now())');
+  assert.notEqual(pet.run('action'), null, 'flourish started in the same tick');
+  assert.equal(pet.run('bubble'), null, 'flourish in the same tick must gate chatter');
+  pet.run(`stillCtl.target = 0; stillCtl.alpha = 0; stillCtl.name = null; stillCtl.entry = null;
+    action = null; bubble = null;
+    idle.lastInteract = ${pet.now()};
+    tickStill._nextChat = ${pet.now() - 1}; tickStill._nextFlourish = ${pet.now() + 10000};`);
+  pet.setRandom(() => 0.5);
+  pet.run('tickStill(performance.now())');
+  const topics = pet.run('IDLE_TOPICS');
+  const flat = topics.flatMap((k) => pet.run(`LINES.${k}`));
+  assert.ok(flat.includes(pet.run('bubble.text')), 'idle chatter picked an IDLE_TOPICS line');
+  pet.resetRandom();
+});
+
+test('drag: pinned to the cursor, fast release goes ballistic and lands', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    stills.set('pick-up', { img: {}, box: { x: 0, y: 0, right: 200, bottom: 200 } });
+    stillCtl.name = 'pick-up'; stillCtl.entry = stills.get('pick-up');
+    stillCtl.alpha = 1; stillCtl.target = 1;
+    dragging = true; dragMoved = true;
+    physPoint = { x: 100, y: 300 }; physVel = { x: 0, y: 0 };
+    pointer.x = 400; pointer.y = 200;`);
+  // First tick only seeds physLastT (dt=0); the second pins her to the
+  // cursor (drag is 1:1 — the spring-follow read as laggy in practice).
+  pet.setNow(pet.now() + 16);
+  pet.run('tickPhysics(performance.now())');
+  pet.setNow(pet.now() + 16);
+  pet.run('tickPhysics(performance.now())');
+  assert.equal(pet.run('physPoint.x'), 400, 'pinned to the cursor');
+  assert.ok(pet.run('physVel.x') > 0, 'velocity still tracked for tilt/throw');
+  // Fast release: a fresh trail window with real velocity → thrown.
+  const t = pet.now() / 1000;
+  pet.run(`dragTrail = [[${t - 0.05}, 100, 200], [${t - 0.02}, 250, 200], [${t}, 400, 200]];
+    endDrag({ clientX: 400, clientY: 200 });`);
+  assert.equal(pet.run('thrown'), true);
+  assert.ok(pet.run('LINES.throw').includes(pet.run('bubble.text')), 'throw line spoken');
+  // Ballistic flight bounces and settles her on the floor.
+  for (let i = 0; i < 600 && pet.run('thrown'); i += 1) {
+    pet.setNow(pet.now() + 16);
+    pet.run('tickPhysics(performance.now())');
+  }
+  assert.equal(pet.run('thrown'), false);
+  const lx = pet.run('drawPos.x');
+  const ly = pet.run('drawPos.y');
+  assert.ok(lx >= 0 && lx <= 800 - pet.run('PET_W'), `landed inside host, x=${lx}`);
+  assert.equal(Math.round(ly + pet.run('PET_H')), 600, 'feet rest on the floor');
+});
+
+test('drag: a stale or slow release lands her in place, no throw', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    stills.set('pick-up', { img: {}, box: { x: 0, y: 0, right: 200, bottom: 200 } });
+    stillCtl.name = 'pick-up'; stillCtl.entry = stills.get('pick-up');
+    stillCtl.alpha = 1; stillCtl.target = 1;
+    dragging = true; dragMoved = true;
+    physPoint = { x: 300, y: 250 }; physVel = { x: 0, y: 0 };`);
+  // Trail ends 1s before release — a "set down", not a flick.
+  const t = pet.now() / 1000;
+  pet.run(`dragTrail = [[${t - 1.1}, 200, 250], [${t - 1.0}, 300, 250]];
+    endDrag({ clientX: 300, clientY: 250 });`);
+  assert.equal(pet.run('thrown'), false);
+  assert.equal(pet.run('physPoint'), null);
+  assert.ok(pet.run('LINES.land').includes(pet.run('bubble.text')), 'land line spoken');
+  assert.equal(Math.round(pet.run('drawPos.x')), 300 - pet.run('PET_W') / 2,
+    'live model lands under where the still was held');
+});
+
+test('pushed cursor positions drive interactivity (no forwarded moves needed)', async () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    globalThis.__calls = [];
+    petShell.setInteractive = (p) => { __calls.push(p.interactive); return Promise.resolve(null); };`);
+  // Hover via a pushed (buttons=null) position → enter debounce → on.
+  pet.run('onCursorMove(300, 250, null)');
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline && !pet.run('__calls.length')) {
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.equal(pet.run('JSON.stringify(__calls)'), '[true]');
+  // Cursor left the overlay entirely (inside:false path) → off at once.
+  pet.run('onCursorMove(-1e9, -1e9, null)');
+  assert.equal(pet.run('JSON.stringify(__calls)'), '[true,false]');
+});
+
+test('roam report carries the tight body bounds, not the whole pet frame', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    overlayOrigin = { x: 100, y: 50 };
+    // Silhouette inside the 240x260 frame — the frame itself is larger.
+    charRect = { x: 20, y: 10, right: 220, bottom: 250 };
+    globalThis.__roam = null;
+    petShell.reportRoam = (r) => { __roam = r; return Promise.resolve(null); };`);
+  pet.run('lastRoamAt = 0; reportRoam()');
+  // body = charRect ± HOVER_PADDING → pet-local 12..228 x, 2..258 y.
+  assert.equal(pet.run('JSON.stringify(__roam)'),
+    JSON.stringify({ x: 280 + 12 + 100, y: 200 + 2 + 50, w: 216, h: 256 }));
+});
+
+test('pointerdown in the hold ring does not grab or poke her', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    interactive = true;`);
+  // Body bounds = drawPos + charRect ± 8 → x from 272. A press at x=260 is
+  // inside the hold ring but off her: no grab, no tap.
+  pet.run('onCanvasPointerDown({ target: canvas, button: 0, clientX: 260, clientY: 300 })');
+  assert.equal(pet.run('dragging'), false);
+  assert.equal(pet.run('tapTimes.length'), 0);
+  // On her body the press still grabs.
+  pet.run('onCanvasPointerDown({ target: canvas, button: 0, clientX: 300, clientY: 300 })');
+  assert.equal(pet.run('dragging'), true);
+  pet.run('endDrag({ clientX: 300, clientY: 300 })'); // clears relocatePoll
+});
+
+test('status panel opens beside the pet, unions into bounds, chips dispatch', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    growth = { points: 25500, level: 2, levelName: '小鲸', nextAt: 50000, nextFeed: 4200, feedable: 4200, tokensFed: 0, todayUsed: 100 };
+    globalThis.__fed = 0; globalThis.__hid = 0;
+    petShell.getGrowth = () => Promise.resolve(growth);
+    petShell.feedTokens = () => { __fed += 1; return Promise.resolve({}); };
+    petShell.hidePet = () => { __hid += 1; return Promise.resolve(null); };`);
+  pet.run('openPanel()');
+  assert.ok(pet.run('panel'), 'panel opens');
+  const rect = pet.run('({x: panel.x, y: panel.y, w: panel.w, h: panel.h})');
+  assert.ok(rect.x >= 4 && rect.x + rect.w <= 796, 'card inside host');
+  // 喂食 is in the growth block now, not the chip grid — grid[0] is 聊聊.
+  assert.equal(pet.run('panel.cells[0].label'), '聊聊');
+  assert.equal(pet.run('panel.cells.every((c) => c.enabled !== false)'), true);
+  // Bounds union: a point over the card counts as "on the pet".
+  const overCard = pet.run(`overPet(panel.x + 10, panel.y + 10)`);
+  assert.equal(overCard, true, 'card area keeps interactivity');
+  // Hit-test the first chip (grid top-left = 聊聊), then hide (bottom-right).
+  const chipX = pet.run('panel.x + PANEL_PAD + 10');
+  const chipY = pet.run('panel.y + PANEL_GRID_TOP + 5');
+  assert.equal(pet.run(`panelCellAt(${chipX}, ${chipY})`), 0);
+  // The 6px gutter between the two columns hits nothing.
+  assert.equal(pet.run(`panelCellAt(panel.x + PANEL_PAD + PANEL_CHIP_W + 3, ${chipY})`), -1, 'gutter hits nothing');
+  // Feed button hit-test + dispatch.
+  const gy = pet.run('panel.y + PANEL_PAD + PANEL_HEAD_H + 8 + 78');
+  const fbX = pet.run('panel.x + panel.w / 2');
+  assert.equal(pet.run(`feedButtonHit(${fbX}, ${gy})`), true, 'feed button hit');
+  pet.run(`if (growth.nextFeed > 0) { closePanel(); __fed += 1; }`);
+  assert.equal(pet.run('__fed'), 1, 'feed button calls feedTokens');
+  pet.run('openPanel()');
+  pet.run(`dispatchPanelCell(panel.cells.find((c) => c.id === 'hide'))`);
+  assert.equal(pet.run('__hid'), 1, 'hide chip calls hidePet');
+  // The settings cell opens the DOM page (no-op under the test DOM stub).
+  pet.run('openPanel()');
+  pet.run(`dispatchPanelCell(panel.cells.find((c) => c.id === 'settings'))`);
+  assert.equal(pet.run('panel'), null, 'settings dispatch still closes the panel');
+});
+
+test('chat card anchors above her head and flips below at the top edge', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 300, y: 300 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };`);
+  const b = pet.run('petBodyBounds()');
+  const host = { x: 0, y: 0, width: 800, height: 600 };
+  const above = pet.run(`chatAnchor(petBodyBounds(), ${JSON.stringify(host)}, 248, 120)`);
+  assert.equal(above.y, Math.round(b.y - 120 - 8), 'sits above her head');
+  assert.equal(above.x, Math.round((b.x + b.right) / 2 - 124), 'centered on her');
+  // No room up top → flips below her feet.
+  pet.run('drawPos = { x: 300, y: 10 }');
+  const below = pet.run(`chatAnchor(petBodyBounds(), ${JSON.stringify(host)}, 248, 120)`);
+  const bTop = pet.run('petBodyBounds()');
+  assert.equal(below.y, Math.round(Math.min(bTop.bottom + 8, 600 - 120 - 4)), 'flips below');
+  // Near the right edge the card clamps inside the host, not offscreen.
+  pet.run('drawPos = { x: 700, y: 300 }');
+  const right = pet.run(`chatAnchor(petBodyBounds(), ${JSON.stringify(host)}, 248, 120)`);
+  assert.ok(right.x + 248 <= 800 - 4, 'clamped inside the host');
+});
+
+test('chat card picks the roomier side when the host is too short to clear her', () => {
+  const pet = loadPet();
+  const host = { x: 0, y: 0, width: 800, height: 400 };
+  pet.run(`drawPos = { x: 300, y: 60 };
+    homeRect = ${JSON.stringify(host)};`);
+  // Below-side has ~72px vs ~52px above → stays below, bottom-clamped.
+  let r = pet.run(`chatAnchor(petBodyBounds(), ${JSON.stringify(host)}, 248, 120)`);
+  assert.equal(r.y, 400 - 120 - 4, 'roomier side: below, clamped to host bottom');
+  // Near the bottom the above side is roomier → card sits at the host top.
+  pet.run('drawPos = { x: 300, y: 120 }');
+  r = pet.run(`chatAnchor(petBodyBounds(), ${JSON.stringify(host)}, 248, 120)`);
+  assert.equal(r.y, 4, 'roomier side: above, clamped to host top');
+});
+
+test('chat card suppresses ambient bubbles while open; alerts still land', () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    bubble = null; bubbleQueue = [];`);
+  pet.run(`pushBubble({ text: '闲聊', until: performance.now() + 5000, priority: 1 })`);
+  assert.equal(pet.run('bubble.text'), '闲聊');
+  // Opening the card drops the visible chatter; queued alerts survive.
+  pet.run(`bubbleQueue.push({ text: '排队审批', until: performance.now() + 60000, priority: 2, alertId: 'a9', seq: 1 })`);
+  pet.run('chatOpen = true; dropAmbientBubbles()');
+  assert.equal(pet.run('bubble'), null, 'visible chatter drops when the card opens');
+  assert.equal(pet.run('bubbleQueue.length'), 1, 'queued chatter purged, alert kept');
+  // New chatter is dropped outright — not shown, not queued.
+  pet.run(`pushBubble({ text: '又来闲聊', until: performance.now() + 5000, priority: 1 })`);
+  assert.equal(pet.run('bubble'), null, 'no ambient pop while the card is up');
+  assert.equal(pet.run('bubbleQueue.length'), 1, 'chatter does not accumulate');
+  // Priority-2 alerts still preempt — they can carry approval buttons.
+  pet.run(`pushBubble({ text: '审批', until: performance.now() + 60000, priority: 2, alertId: 'a1' })`);
+  assert.equal(pet.run('bubble.text'), '审批', 'alerts still reach the user');
+  // Closing the card restores ambient speech.
+  pet.run('chatOpen = false; resolveAlert("a1"); resolveAlert("a9")');
+  pet.run(`pushBubble({ text: '恢复闲聊', until: performance.now() + 5000, priority: 1 })`);
+  assert.equal(pet.run('bubble.text'), '恢复闲聊', 'ambient speech resumes after close');
+});
+
+test('status panel feed button disables when nothing is feedable', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    growth = { points: 150000, level: 4, levelName: '鲸鱼娘', nextAt: 400000, nextFeed: 0, feedable: 0, tokensFed: 150000, todayUsed: 0 };
+    petShell.getGrowth = () => Promise.resolve(growth);`);
+  pet.run('openPanel()');
+  // No fresh compute → feed button hit-test is true but feedTokens not called.
+  const gy = pet.run('panel.y + PANEL_PAD + PANEL_HEAD_H + 8 + 78');
+  const fbX = pet.run('panel.x + panel.w / 2');
+  assert.equal(pet.run(`feedButtonHit(${fbX}, ${gy})`), true, 'button rect hit');
+  // The guard: nextFeed === 0 → no feed.
+  assert.equal(pet.run('growth.nextFeed > 0'), false, 'no feedable tokens');
+});
+test('panel ⚙ cell navigates to the main-window pet settings section', async () => {
+  const pet = loadPet();
+  pet.run(`homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    bubble = null;
+    window.__calls = [];
+    petShell.openSettings = () => { window.__calls.push('openSettings'); return Promise.resolve({ ok: true }); };`);
+  pet.run(`dispatchPanelCell({ id: 'settings' })`);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(pet.run('JSON.stringify(window.__calls)'), '["openSettings"]');
+  assert.ok(pet.run('LINES.settingsChanged').includes(pet.run('bubble.text')),
+    'a successful jump gets an acknowledgement line');
+  // A failed/absent navigation surfaces the dsh-error pool instead of a
+  // dead popup — and no local settings overlay exists to fall back on.
+  pet.run(`bubble = null;
+    petShell.openSettings = () => Promise.resolve(false);`);
+  pet.run(`dispatchPanelCell({ id: 'settings' })`);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(pet.run('LINES.dshError').includes(pet.run('bubble.text')));
+  pet.run(`bubble = null;
+    petShell.openSettings = undefined;`);
+  pet.run(`dispatchPanelCell({ id: 'settings' })`);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(pet.run('LINES.dshError').includes(pet.run('bubble.text')));
+});
+
+test('look pins one bubble until settlement, deferring alerts without replaying chatter', async (t) => {
+  const pet = loadPet();
+  t.after(() => pet.run('stopLookAnim()'));
+  pet.run(`globalThis.__calls = 0;
+    petShell.lookScreen = () => { __calls++; return new Promise((r) => { globalThis.__resolve = r; }); };
+    pushBubble({ text: 'existing alert', priority: 2, alertId: 'old', until: performance.now() + 1000 });`);
+  const request = pet.run('submitLook()');
+  assert.equal(pet.run('bubble.lookPin'), true);
+  pet.run(`globalThis.__held = bubble;
+    say('pat'); say('morning');
+    onDshEvent({ category: 'dshWorking' });
+    onDshEvent({ category: 'dshWhale', summary: 'other reply' });
+    pushBubble({ text: 'approval', priority: 2, alertId: 'new', until: performance.now() + 1000 });
+    pushBubble({ text: 'updated approval', priority: 2, alertId: 'new', until: performance.now() + 1000 });
+    chatOpen = true; dropAmbientBubbles();`);
+  assert.equal(pet.run('bubble === __held'), true);
+  assert.equal(pet.run('bubbleQueue.some((e) => e.priority < 2)'), false);
+  assert.equal(pet.run('bubbleQueue.filter((e) => e.alertId === "new").length'), 1);
+  pet.run('resolveAlert("new"); resolveAlert(undefined)');
+  assert.equal(pet.run('bubble === __held'), true);
+  pet.setNow(pet.now() + 90000);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('bubble === __held'), true);
+  assert.ok(pet.run('drawBubble(performance.now())'));
+  await pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 1);
+  assert.equal(pet.run('bubble === __held'), true);
+  pet.run('__resolve({ ok: true, reply: "look result" })');
+  await request;
+  assert.equal(pet.run('bubble.text'), 'look result');
+  assert.equal(pet.run('Boolean(bubble.lookPin)'), false);
+  assert.equal(pet.run('bubble.pinned'), true);
+  assert.equal(pet.run('lookAnimTimer'), 0);
+  pet.setNow(pet.now() + 7000);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('bubble.text'), 'look result', 'pinned result ignores time');
+  pet.run('dismissPinnedBubble()');
+  assert.equal(pet.run('bubble.alertId'), 'old', '✕ dismissal surfaces the queue');
+  assert.equal(pet.run('bubbleQueue.some((e) => e.lookPin || e.lookResult)'), false);
+});
+
+test('panel action icon and label ink are independently centered', () => {
+  const pet = loadPet();
+  const ctx = pet.canvas.ctx;
+  const drawn = [];
+  const metrics = (text) => {
+    const icon = Array.from(text).length <= 2;
+    const width = icon ? 12 : Array.from(text).length * 11;
+    const left = ctx.textAlign === 'center' ? width / 2 + 1 : 1;
+    return { width, actualBoundingBoxLeft: left, actualBoundingBoxRight: width - left,
+      actualBoundingBoxAscent: (icon ? 11 : 8) - (ctx.textBaseline === 'middle' ? 5 : 0),
+      actualBoundingBoxDescent: (icon ? 1 : 2) + (ctx.textBaseline === 'middle' ? 5 : 0) };
+  };
+  ctx.measureText = metrics;
+  ctx.fillText = (text, x, y) => { drawn.push({ text, x, y, m: metrics(text) }); };
+  pet.run('settings.lookAvailable = true; openPanel()');
+  const cells = pet.run('panel.cells');
+  const p = pet.run('({ x: panel.x, y: panel.y, w: PANEL_CHIP_W, h: PANEL_CHIP_H, pad: PANEL_PAD, gap: PANEL_CHIP_GAP, top: PANEL_GRID_TOP })');
+  for (const [i, cell] of cells.entries()) {
+    const icon = drawn.findLast((r) => r.text === cell.icon);
+    const label = drawn.findLast((r) => r.text === cell.label);
+    assert.ok(icon && label, `${cell.id}: separate icon and label runs`);
+    const x = p.x + p.pad + (i % 2) * (p.w + p.gap) + p.w / 2;
+    const y = p.y + p.top + Math.floor(i / 2) * (p.h + p.gap) + p.h / 2;
+    for (const run of [icon, label]) {
+      assert.equal(run.y + (run.m.actualBoundingBoxDescent - run.m.actualBoundingBoxAscent) / 2, y);
+    }
+    const left = icon.x - icon.m.actualBoundingBoxLeft;
+    const right = label.x + label.m.actualBoundingBoxRight;
+    assert.equal((left + right) / 2, x);
+    assert.equal(label.x - label.m.actualBoundingBoxLeft - icon.x - icon.m.actualBoundingBoxRight, 4);
+  }
+});
+
+test('看看 shows a loading bubble at once, blocks re-entry, then lands the reply', async () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    bubble = null;
+    globalThis.__calls = 0;
+    globalThis.__resolveLook = null;
+    petShell.lookScreen = () => { __calls += 1; return new Promise((r) => { __resolveLook = r; }); };`);
+  // First click: the request fires and a「正在看」bubble is up synchronously,
+  // stretched to hold for the whole call window.
+  const first = pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 1);
+  const loading = pet.run('bubble && bubble.text');
+  assert.ok(loading && pet.run('LINES.looking').some((l) => loading.startsWith(l)),
+    'loading line is up before the model answers');
+  // Re-click while in-flight: re-says the loading line, no second request.
+  await pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 1);
+  // Resolve → the loading bubble is replaced in place by her reply.
+  pet.run(`__resolveLook({ ok: true, reply: '屏幕上是个编辑器' })`);
+  await first;
+  assert.equal(pet.run('bubble && bubble.text'), '屏幕上是个编辑器');
+  // Guard released after settle — a fresh click fires a new request.
+  const second = pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 2);
+  pet.run(`__resolveLook({ ok: false, reason: 'model-error', detail: 'HTTP 500' })`);
+  await second;
+  const errLine = pet.run('bubble && bubble.text');
+  assert.ok(pet.run('LINES.lookError').some((l) => errLine === l.replace('{detail}', 'HTTP 500')),
+    'model error lands with its provider detail');
+  // Capture-side misses never reached a model — they get the honest「看不清」
+  // pool, not a「模型拒绝」voice.
+  const third = pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 3);
+  pet.run(`__resolveLook({ ok: false, reason: 'capture-failed' })`);
+  await third;
+  assert.ok(pet.run('LINES.lookFallback').includes(pet.run('bubble && bubble.text')),
+    'capture failure speaks the generic pool');
+});
+
+test('看看 pin: ONE loading bubble the whole call — chatter dropped, alerts deferred, settle swaps in place', async (t) => {
+  const pet = loadPet();
+  t.after(() => pet.run('stopLookAnim()'));
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    bubble = null; bubbleQueue = [];
+    globalThis.__calls = 0;
+    globalThis.__resolveLook = null;
+    petShell.lookScreen = () => { __calls += 1; return new Promise((r) => { __resolveLook = r; }); };`);
+  // A pending approval owns the stage when the look starts.
+  pet.run(`pushBubble({ text: '审批中', until: performance.now() + 60000, priority: 2, alertId: 'a1' })`);
+  assert.equal(pet.run('bubble.text'), '审批中');
+  const first = pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 1);
+  const pin = pet.run('bubble');
+  assert.ok(pin && pin.lookPin === true, 'loading pin owns the stage at once');
+  assert.equal(pin.until, Infinity, 'pin never expires on a timer');
+  assert.ok(pet.run('LINES.looking').some((l) => pin.text.startsWith(l.replace(/…+$/u, '')))
+    || pin.text === '正在看屏幕', 'pin shows a loading line');
+  // The preempted alert is retained in the queue, not dropped.
+  assert.equal(pet.run('bubbleQueue.length'), 1);
+  assert.equal(pet.run('bubbleQueue[0].alertId'), 'a1');
+  // Ordinary voices (reactions, idle, DSH working lines) are dropped
+  // outright — nothing flashes over「正在看」, nothing is queued.
+  pet.run(`say('pat'); say('wake'); say('morning'); say('dshWorking')`);
+  assert.equal(pet.run('bubble.lookPin'), true, 'still the same pin');
+  assert.equal(pet.run('bubble.text'), pin.text, 'pin identity/text untouched');
+  assert.equal(pet.run('bubbleQueue.length'), 1, 'chatter dropped, not queued');
+  // Priority-2 traffic (the whale outbox rides priority 2) defers behind
+  // the pin — queued, not shown.
+  pet.run(`onDshEvent({ category: 'dshWhale', summary: '鲸鱼留言' })`);
+  assert.equal(pet.run('bubbleQueue.length'), 2, 'priority-2 defers behind the pin');
+  assert.equal(pet.run('bubble.lookPin'), true);
+  // Same alertId updates the queued copy in place (still one entry);
+  // resolving it removes just that entry while the pin stays.
+  pet.run(`pushBubble({ text: '审批更新', until: performance.now() + 60000, priority: 2, alertId: 'a1' })`);
+  assert.equal(pet.run('bubbleQueue.filter((e) => e.alertId === "a1").length'), 1, 'alertId dedup in queue');
+  assert.equal(pet.run('bubbleQueue.find((e) => e.alertId === "a1").text'), '审批更新');
+  pet.run(`resolveAlert('a1')`);
+  assert.equal(pet.run('bubbleQueue.some((e) => e.alertId === "a1")'), false);
+  assert.equal(pet.run('bubble.lookPin'), true, 'resolving the alert keeps the pin');
+  pet.run('resolveAlert(undefined)');
+  assert.equal(pet.run('bubble.lookPin'), true, 'undefined alertId must not clear the pin');
+  // The chat card's ambient purge spares the pin.
+  pet.run('chatOpen = true; dropAmbientBubbles()');
+  assert.equal(pet.run('bubble.lookPin'), true, 'pin survives the chat-open purge');
+  // Time alone never releases it: +90s, a tick, and it still paints.
+  pet.setNow(pet.now() + 90000);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('bubble.lookPin'), true, '90s later still the same pin');
+  const rect = pet.run('drawBubble(performance.now())');
+  assert.ok(rect && Number.isFinite(rect.x) && rect.w > 0 && rect.h > 0,
+    'pin still paints a real bubble rect');
+  // Re-clicks — including after a settings toggle — fire no second request.
+  await pet.run('submitLook()');
+  pet.run('applySettings({ ...settings, chatEnabled: false })');
+  await pet.run('submitLook()');
+  pet.run('applySettings({ ...settings, chatEnabled: true })');
+  await pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 1, 're-entry blocked regardless of settings churn');
+  assert.equal(pet.run('bubble.lookPin'), true);
+  // Settle: the reply replaces the pin in place even with the card open.
+  pet.run(`__resolveLook({ ok: true, reply: '屏幕上是个编辑器' })`);
+  await first;
+  assert.equal(pet.run('bubble && bubble.text'), '屏幕上是个编辑器');
+  assert.equal(pet.run('bubble.lookPin'), undefined, 'pin flag gone on settle');
+  assert.equal(pet.run('lookBusyUntil'), 0, 'guard released');
+  // Late ordinary speech can't knock the pinned reply off — dropped here
+  // only because the chat card is open.
+  pet.run(`pushBubble({ text: '迟到闲聊', until: performance.now() + 5000, priority: 1 })`);
+  assert.equal(pet.run('bubble.text'), '屏幕上是个编辑器', 'pinned reply holds the stage');
+  // Time alone never releases it — only the ✕ does, surfacing the queue.
+  pet.run('chatOpen = false');
+  pet.setNow(pet.now() + 7000);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('bubble && bubble.text'), '屏幕上是个编辑器', 'pinned reply ignores time');
+  pet.run('dismissPinnedBubble()');
+  assert.equal(pet.run('bubble && bubble.text'), '鲸鱼留言', '✕ dismissal surfaces the queue');
+});
+
+test('看看 pin: sync throw and rejection clean up, and the request can be retried', async (t) => {
+  const pet = loadPet();
+  t.after(() => pet.run('stopLookAnim()'));
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    bubble = null; bubbleQueue = [];
+    globalThis.__calls = 0;
+    globalThis.__resolveLook = null;`);
+  // Synchronous throw (IPC collapsed before promising) → generic fallback,
+  // no stale pin, guard released.
+  pet.run(`petShell.lookScreen = () => { __calls += 1; throw new Error('ipc dead'); };`);
+  await pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 1);
+  assert.ok(pet.run('LINES.lookFallback').includes(pet.run('bubble && bubble.text')));
+  assert.equal(pet.run('lookBusyUntil'), 0, 'guard released after sync throw');
+  assert.equal(pet.run('lookAnimTimer'), 0, 'anim timer stopped');
+  assert.equal(pet.run('bubbleQueue.some((e) => e.lookPin)'), false, 'no stale queued pin');
+  // Rejected promise → same cleanup.
+  pet.run(`bubble = null;
+    petShell.lookScreen = () => { __calls += 1; return Promise.reject(new Error('x')); };`);
+  await pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 2);
+  assert.ok(pet.run('LINES.lookFallback').includes(pet.run('bubble && bubble.text')));
+  assert.equal(pet.run('lookBusyUntil'), 0);
+  // Retry fires a real request and pins again — no stale state.
+  pet.run(`bubble = null;
+    petShell.lookScreen = () => { __calls += 1; return new Promise((r) => { __resolveLook = r; }); };`);
+  const retry = pet.run('submitLook()');
+  assert.equal(pet.run('__calls'), 3);
+  assert.equal(pet.run('bubble && bubble.lookPin'), true, 'fresh pin on retry');
+  pet.run(`__resolveLook({ ok: true, reply: '又看到了' })`);
+  await retry;
+  assert.equal(pet.run('bubble && bubble.text'), '又看到了');
+});
+
+test('panel runs are optically centered on real ink boxes; chip icon+label group is centered', () => {
+  const pet = loadPet();
+  const ctx = pet.canvas.ctx;
+  // Fake rasterizer with realistic asymmetric ink: emoji ride high with
+  // uneven side bearings, CJK sits lower — 'middle' baseline would miss.
+  const ICON = { advance: 22, bearing: 2, ink: 17, asc: 11, desc: 3 };
+  const CJK = { per: 13, bearing: 1, inkPad: 3, asc: 9, desc: 2.5 };
+  const iconish = (s) => {
+    const ch = Array.from(String(s))[0] || '';
+    return !/[\u4e00-\u9fffA-Za-z0-9 .+/→·—：「」]/.test(ch);
+  };
+  const metrics = (s) => {
+    const n = Array.from(String(s)).length;
+    const m = iconish(s)
+      ? { ...ICON }
+      : { advance: CJK.per * n, bearing: CJK.bearing, ink: Math.max(1, CJK.per * n - CJK.inkPad), asc: CJK.asc, desc: CJK.desc };
+    // Extents are anchor-relative: 'left' anchors the advance's left edge,
+    // 'center' its middle — the ink shifts with the anchor.
+    const left = ctx.textAlign === 'center' ? m.advance / 2 - m.bearing : -m.bearing;
+    const right = ctx.textAlign === 'center' ? m.ink + m.bearing - m.advance / 2 : m.bearing + m.ink;
+    return {
+      width: m.advance,
+      actualBoundingBoxLeft: left,
+      actualBoundingBoxRight: right,
+      actualBoundingBoxAscent: m.asc,
+      actualBoundingBoxDescent: m.desc,
+    };
+  };
+  ctx.measureText = (s) => metrics(s);
+  const texts = [];
+  const realFill = ctx.fillText;
+  ctx.fillText = (s, x, y) => {
+    texts.push({ t: String(s), x, y, align: ctx.textAlign, baseline: ctx.textBaseline, font: ctx.font });
+    return realFill.call(ctx, s, x, y);
+  };
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    growth = { points: 25500, level: 2, levelName: '小鲸', nextAt: 50000, nextFeed: 4200, feedable: 4200, tokensFed: 0, todayUsed: 100 };
+    stats = { satiety: 60, mood: 60, affectionLevel: 2, hearts: 3, affectionName: '亲近', satietyLabel: '刚好', moodLabel: '平静' };
+    settings.lookAvailable = false;
+    sleeping = false;
+    petShell.getGrowth = () => Promise.resolve(growth);`);
+  const inkOf = (op) => {
+    const m = (() => {
+      const saved = ctx.textAlign;
+      ctx.textAlign = op.align;
+      const r = metrics(op.t);
+      ctx.textAlign = saved;
+      return r;
+    })();
+    return {
+      left: op.x - m.actualBoundingBoxLeft,
+      right: op.x + m.actualBoundingBoxRight,
+      midY: (op.y - m.actualBoundingBoxAscent + op.y + m.actualBoundingBoxDescent) / 2,
+    };
+  };
+  pet.run('openPanel()');
+  const CHIP_W = pet.run('PANEL_CHIP_W');
+  const CHIP_H = pet.run('PANEL_CHIP_H');
+  const GAP = pet.run('PANEL_CHIP_GAP');
+  const padL = pet.run('panel.x + PANEL_PAD');
+  const gridTop = pet.run('panel.y + PANEL_GRID_TOP');
+  assert.equal(pet.run(`panel.cells.some((c) => c.icon === '👀')`), false,
+    'look cell hidden without a vision model');
+  const chipTexts = () => texts.filter((op) => op.font.startsWith('11px'));
+  const assertChips = () => {
+    const cells = pet.run('panel.cells.map((c) => ({ icon: c.icon, label: c.label }))');
+    for (const [i, cell] of cells.entries()) {
+      const cx = padL + (i % 2) * (CHIP_W + GAP);
+      const cy = gridTop + Math.floor(i / 2) * (CHIP_H + GAP);
+      const midY = cy + CHIP_H / 2;
+      const ops = chipTexts();
+      const icon = ops.find((op) => op.t === cell.icon);
+      const lab = ops.find((op) => op.t === cell.label);
+      assert.ok(icon && lab, `chip ${cell.label} drew two runs`);
+      const ii = inkOf(icon);
+      const li = inkOf(lab);
+      // Each run's ink is vertically centered on the chip midline.
+      assert.ok(Math.abs(ii.midY - midY) < 0.01, `${cell.icon} ink centered: ${ii.midY} vs ${midY}`);
+      assert.ok(Math.abs(li.midY - midY) < 0.01, `${cell.label} ink centered`);
+      // Icon ink ends, 4px gap, label ink begins; the pair centers as one.
+      assert.ok(Math.abs(li.left - ii.right - 4) < 0.01, `${cell.label} 4px gap (got ${li.left - ii.right})`);
+      assert.ok(Math.abs((ii.left + li.right) / 2 - (cx + CHIP_W / 2)) < 0.01,
+        `${cell.label} group centered in chip`);
+      for (const op of [icon, lab]) {
+        assert.equal(op.baseline, 'alphabetic', 'runs ride the measured baseline');
+        assert.equal(op.align, 'center');
+        assert.ok(Number.isFinite(op.x) && Number.isFinite(op.y), 'finite coords');
+      }
+    }
+  };
+  assertChips(); // covers 聊聊 (2 chars) + 摸摸头 (3 chars), look cell missing
+  // Every text run the panel paints goes through the measured path.
+  for (const op of texts) {
+    assert.equal(op.baseline, 'alphabetic', `no raw fillText for ${op.t}`);
+    assert.ok(Number.isFinite(op.x) && Number.isFinite(op.y), `finite ${op.t}`);
+  }
+  // Waking label + hovered cell re-draw stays centered.
+  texts.length = 0;
+  pet.run('sleeping = true; panel.cells = panelCells(); panel.hover = 2; drawPanel()');
+  assert.equal(pet.run(`panel.cells.some((c) => c.label === '叫醒')`), true, 'waking label');
+  assertChips();
+  // Metrics unavailable → 'middle' fallback, still finite.
+  texts.length = 0;
+  ctx.measureText = (s) => ({ width: Array.from(String(s)).length * 13 });
+  pet.run('drawPanel()');
+  for (const op of texts) {
+    assert.ok(Number.isFinite(op.x) && Number.isFinite(op.y), `no NaN for ${op.t}`);
+    assert.equal(op.baseline, 'middle', 'unmeasurable run falls back to middle');
+  }
+});
+
+test('notify bubble pins until the ✕ click — nothing preempts or expires it', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    charRect = { x: 0, y: 0, right: 240, bottom: 260 };
+    bubble = null; bubbleQueue = [];`);
+  pet.run(`onDshEvent({ category: 'dshWhale', summary: '部署成功：v1.2.3 已上线', kind: 'notify' })`);
+  assert.equal(pet.run('bubble.text'), '部署成功：v1.2.3 已上线');
+  assert.equal(pet.run('bubble.pinned'), true);
+  assert.equal(pet.run('bubble.until'), Infinity, 'no timer expiry');
+  // Later lines — another whale line and the done reaction — queue behind
+  // the pin instead of knocking it off.
+  pet.run(`onDshEvent({ category: 'dshWhale', summary: '随便聊聊', kind: 'say' })`);
+  pet.run(`onDshEvent({ category: 'dshDone' })`);
+  assert.equal(pet.run('bubble.text'), '部署成功：v1.2.3 已上线', 'pinned survives equal/lower priority');
+  assert.equal(pet.run('bubbleQueue.length'), 2);
+  // Time alone never releases it — an hour later, a tick, still pinned.
+  pet.setNow(pet.now() + 3600000);
+  pet.run('tickStill(performance.now())');
+  assert.equal(pet.run('bubble.pinned'), true);
+  // The pin paints and registers its ✕ hit box.
+  pet.run('drawBubble(performance.now())');
+  assert.ok(pet.run('bubbleCloseRect && bubbleCloseRect.w > 0'), '✕ hit box registered');
+  // The bubble joins the interactive zone so the ✕ actually takes clicks.
+  const cx = pet.run('bubbleCloseRect.x + bubbleCloseRect.w / 2');
+  const cy = pet.run('bubbleCloseRect.y + bubbleCloseRect.h / 2');
+  assert.equal(pet.run(`overPet(${cx}, ${cy})`), true, '✕ inside the interactive zone');
+  // Click the ✕ — pin dismissed, the queued whale line surfaces.
+  pet.run(`onCanvasPointerDown({ target: canvas, button: 0, clientX: ${cx}, clientY: ${cy} })`);
+  assert.equal(pet.run('bubble.text'), '随便聊聊', 'dismissal surfaces the queue');
+  assert.equal(pet.run('bubble.pinned'), false, 'next bubble is transient again');
+});
+
+test('say-kind whale lines stay transient and keep the old arbitration', () => {
+  const pet = loadPet();
+  pet.run(`drawPos = { x: 280, y: 200 };
+    homeRect = { x: 0, y: 0, width: 800, height: 600 };
+    bubble = null; bubbleQueue = [];`);
+  pet.run(`onDshEvent({ category: 'dshWhale', summary: '随口一句' })`);
+  assert.equal(pet.run('bubble.pinned'), false);
+  assert.ok(pet.run('Number.isFinite(bubble.until)'), 'transient until');
+  // Equal-priority follow-up replaces in place — unchanged behavior.
+  pet.run(`onDshEvent({ category: 'dshWhale', summary: '下一句', kind: 'say' })`);
+  assert.equal(pet.run('bubble.text'), '下一句');
+});

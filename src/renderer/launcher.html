@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-shell-theme="official">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deepseek-Harness-Desktop 启动器</title>
+  <link rel="stylesheet" href="../shared/dsh-webui-tokens.css" />
+  <link rel="stylesheet" href="launcher.css" />
+  <link rel="stylesheet" href="window-controls.css" />
+</head>
+<body>
+  <div class="caption" aria-hidden="true"></div>
+  <div class="window-controls"></div>
+  <div class="shell">
+    <aside class="rail">
+      <div class="rail-head">
+        <p class="rail-kicker">Deepseek-Harness-Desktop</p>
+        <h1 class="rail-title">启动器</h1>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="启动器分区">
+        <button type="button" class="tab is-active" data-tab="home" role="tab" aria-selected="true">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8.06 1.72a.9.9 0 0 0-.92 0L1.7 5.4A.9.9 0 0 0 1.3 6.2v7.4c0 .7.57 1.28 1.28 1.28h3.4V9.6h3.84v5.28h3.4c.7 0 1.28-.57 1.28-1.28V6.2a.9.9 0 0 0-.4-.8L8.06 1.72Z"/></svg>
+          首页
+        </button>
+        <button type="button" class="tab" data-tab="import" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8.72 9V1.3H7.28v7.7L4.1 6.26 3.08 7.28 7.28 11.5c.2.2.38.37.54.5.2.16.4.28.64.32.16.03.32.03.48 0 .24-.04.44-.16.64-.32.16-.13.34-.3.54-.5l3.58-4.22-1.02-1.02L8.72 9Zm6.65 2.41-.25 1.48A2.1 2.1 0 0 1 12.22 15H3.78a2.1 2.1 0 0 1-2.1-1.71l-.25-1.48 1.42-.24.25 1.48c.12.72.74 1.25 1.48 1.25h8.44c.74 0 1.36-.53 1.48-1.25l.24-1.48 1.43.24Z"/></svg>
+          导入
+        </button>
+        <button type="button" class="tab" data-tab="versions" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3.1 3.2h9.8v1.4H3.1V3.2Zm0 4.1h9.8v1.4H3.1V7.3Zm0 4.1h9.8v1.4H3.1v-1.4ZM1.4 1.5h13.2c.6 0 1.1.5 1.1 1.1v11c0 .6-.5 1.1-1.1 1.1H1.4c-.6 0-1.1-.5-1.1-1.1v-11c0-.6.5-1.1 1.1-1.1Z"/></svg>
+          版本
+        </button>
+        <button type="button" class="tab" data-tab="plugins" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.2 1.4h3.6v2.2h2.6c.6 0 1.1.5 1.1 1.1v2.6H16v3.6h-2.5v2.6c0 .6-.5 1.1-1.1 1.1H9.8V16H6.2v-2.5H3.6c-.6 0-1.1-.5-1.1-1.1V9.8H0V6.2h2.5V3.6c0-.6.5-1.1 1.1-1.1h2.6V1.4Zm1.4 1.4v2.2H4.7v3.6H2.5v.8h2.2v3.6h3.6V14h.8v-2.2h3.6V8.2H14v-.8h-2.2V3.8H8.4V2.8H7.6Z"/></svg>
+          插件排查
+        </button>
+        <button type="button" class="tab" data-tab="settings" role="tab" aria-selected="false">
+          <svg class="tab-icon" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 5.52a2.48 2.48 0 1 0 0 4.96 2.48 2.48 0 0 0 0-4.96ZM6.86 1.7c.14-.11.3-.16.47-.18.54-.05 1.13-.05 1.67 0 .17.02.33.07.47.18l.34.46c.34.46.57 1 .87 1.46.3.41.71.64 1.22.69.59.06 1.2-.02 1.8.03.17.02.33.1.41.21.3.4.58.88.8 1.33.06.13.06.19 0 .32l-.23.5c-.24.5-.58.93-.82 1.43-.23.48-.23.98 0 1.46.24.5.58.94.82 1.43l.23.5c.06.13.06.19 0 .32-.22.46-.5.93-.8 1.33-.08.11-.24.19-.41.21-.6.06-1.21-.02-1.8.03-.5.05-.92.28-1.22.69-.3.46-.53 1-.87 1.46l-.34.46c-.14.11-.3.16-.47.18-.54.05-1.13.05-1.67 0-.17-.02-.33-.07-.47-.18l-.34-.46c-.34-.46-.57-1-.87-1.46-.3-.41-.71-.64-1.22-.69-.59-.06-1.2.02-1.8-.03-.17-.02-.33-.1-.41-.21-.3-.4-.58-.88-.8-1.33-.06-.13-.06-.19 0-.32l.23-.5c.24-.5.58-.93.82-1.43.23-.48.23-.98 0-1.46-.24-.5-.58-.94-.82-1.43L1.7 6.4c-.06-.13-.06-.19 0-.32.22-.45.5-.93.8-1.33.08-.11.24-.19.41-.21.6-.05 1.21.03 1.8-.03.5-.05.92-.28 1.22-.69.3-.46.53-1 .87-1.46l.34-.46Z"/></svg>
+          设置
+        </button>
+      </nav>
+    </aside>
+    <div class="stage">
+      <p class="hint" id="hint" hidden></p>
+      <main>
+        <section id="panel-home" class="panel is-active" role="tabpanel">
+          <header class="page-head">
+            <h2>首页</h2>
+            <p class="lede" id="lede">检查更新并启动桌面端。数据导入、版本管理与插件排查可在左侧分区完成。</p>
+          </header>
+          <p class="status" id="home-status">正在读取状态…</p>
+          <div class="actions">
+            <button type="button" class="primary" id="btn-start">启动桌面端</button>
+            <button type="button" class="ghost" id="btn-skip">跳过用户插件启动</button>
+            <button type="button" class="ghost" id="btn-retry-full">恢复完整插件并启动</button>
+          </div>
+          <section id="home-recovery" class="recovery-board" hidden>
+            <header class="recovery-head">
+              <h3>恢复工作台</h3>
+              <p class="recovery-verdict" id="home-recovery-verdict"></p>
+            </header>
+            <div class="actions recovery-actions">
+              <button type="button" class="ghost" id="btn-disable-suspects">禁用全部可疑</button>
+            </div>
+            <ul id="home-recovery-list" class="list"></ul>
+          </section>
+        </section>
+        <section id="panel-import" class="panel import-pane" role="tabpanel" hidden>
+          <header class="import-head">
+            <h2>导入</h2>
+            <p class="lede">只读扫描官方 home。勾选后写入桌面 home，不修改官方目录，也不复制工程工作区。</p>
+            <p class="import-scope-note" id="import-scope-note">将迁移：会话、附件、技能、可重装插件、MCP、模型/提供方/默认模型/主题设置（随所选模型配置同步其引用的 API key，仅落盘不显示）、预设、全局指令。不迁移：工作区文件、profiles/ 与 node_modules、storages/ 内部状态、旧 SQLite 会话库、OAuth 会话态与未被引用的凭据。</p>
+            <p class="import-source-line" id="import-source"></p>
+            <p class="import-source-line" id="import-skill-roots" hidden></p>
+            <div class="import-toolbar">
+              <button type="button" class="ghost" id="btn-pick-source">选择目录</button>
+              <button type="button" class="ghost" id="btn-pick-skill">添加技能目录</button>
+              <button type="button" class="ghost" id="btn-scan">重新扫描</button>
+            </div>
+            <p class="import-source-line" id="import-scan-status"></p>
+          </header>
+          <div class="import-cats" role="tablist" aria-label="导入类别">
+            <button type="button" class="import-cat is-active" data-import-cat="sessions" role="tab" aria-selected="true">会话 <span id="import-sessions-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="skills" role="tab" aria-selected="false">技能 <span id="import-skills-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="plugins" role="tab" aria-selected="false">插件 <span id="import-plugins-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="mcp" role="tab" aria-selected="false">MCP <span id="import-mcp-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="settings" role="tab" aria-selected="false">设置 <span id="import-settings-count">0</span></button>
+            <button type="button" class="import-cat" data-import-cat="presets" role="tab" aria-selected="false">预设 <span id="import-presets-count">0</span></button>
+          </div>
+          <div class="import-board">
+            <div class="import-board-bar">
+              <p class="import-board-hint" id="import-board-hint">按目录分组</p>
+              <div class="import-board-actions">
+                <button type="button" class="ghost" id="btn-import-select-all">全选本栏</button>
+                <button type="button" class="ghost" id="btn-import-select-none">全不选</button>
+              </div>
+            </div>
+            <div class="import-board-body" id="import-board-body">
+              <ul id="import-sessions" class="list import-list is-active" data-import-pane="sessions"></ul>
+              <ul id="import-skills" class="list import-list" hidden data-import-pane="skills"></ul>
+              <ul id="import-plugins" class="list import-list" hidden data-import-pane="plugins"></ul>
+              <ul id="import-mcp" class="list import-list" hidden data-import-pane="mcp"></ul>
+              <ul id="import-settings" class="list import-list" hidden data-import-pane="settings"></ul>
+              <ul id="import-presets" class="list import-list" hidden data-import-pane="presets"></ul>
+            </div>
+          </div>
+          <footer class="import-foot">
+            <div class="import-foot-opts">
+              <label class="switch-row compact" title="覆盖同名会话、技能、MCP，并重装已勾选插件。">
+                <span class="switch-copy">
+                  <span class="switch-title">覆盖已有</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="import-overwrite" />
+                  <span class="switch-ui" aria-hidden="true"></span>
+                </span>
+              </label>
+              <label class="switch-row compact" title="有会话被勾选时默认开启。整树拷贝 attachments/，不按会话切割。">
+                <span class="switch-copy">
+                  <span class="switch-title">导入附件</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="import-attachments" />
+                  <span class="switch-ui" aria-hidden="true"></span>
+                </span>
+              </label>
+            </div>
+            <div class="import-foot-run">
+              <p id="import-result" class="import-summary"></p>
+              <button type="button" class="ghost" id="btn-import-cancel" hidden>取消</button>
+              <button type="button" class="primary" id="btn-import">开始导入</button>
+            </div>
+          </footer>
+        </section>
+        <section id="panel-versions" class="panel" role="tabpanel" hidden>
+          <header class="page-head">
+            <h2>版本</h2>
+            <p class="lede">列出 GitHub 正式版安装包。草稿不会出现在 latest；切换版本将下载对应 Setup 并启动安装程序。</p>
+          </header>
+          <div class="actions">
+            <button type="button" class="ghost" id="btn-refresh-releases">刷新列表</button>
+          </div>
+          <section class="installed-card" id="installed-card">
+            <div class="installed-card-main">
+              <h3 class="installed-card-title" id="installed-version">本机已安装</h3>
+              <p class="installed-card-path row-meta" id="installed-path" hidden></p>
+              <p class="installed-card-note row-meta" id="installed-uninstall-note" hidden></p>
+            </div>
+            <button type="button" class="danger" id="btn-uninstall-app" hidden>卸载本机应用</button>
+          </section>
+          <p class="progress" id="update-progress" hidden></p>
+          <ul id="release-list" class="list"></ul>
+        </section>
+        <section id="panel-plugins" class="panel" role="tabpanel" hidden>
+          <header class="page-head">
+            <h2>插件排查</h2>
+            <p class="lede" id="forensics-summary">查看已安装插件，并根据启动日志识别可疑冲突。禁用或移除后可重新启动桌面端。</p>
+          </header>
+          <div class="actions">
+            <button type="button" class="ghost" id="btn-refresh-plugins">刷新</button>
+          </div>
+          <ul id="plugin-list" class="list"></ul>
+        </section>
+        <section id="panel-settings" class="panel" role="tabpanel" hidden>
+          <header class="page-head">
+            <h2>设置</h2>
+            <p class="lede">以下选项仅作用于启动器。完整应用设置请在桌面端中调整。</p>
+          </header>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">就绪后关闭启动器</span>
+              <span class="switch-desc">桌面端就绪后自动关闭本窗口。若主窗口未打开，关闭启动器将退出应用。</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="opt-quit" />
+              <span class="switch-ui" aria-hidden="true"></span>
+            </span>
+          </label>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">打开后自动启动桌面端</span>
+              <span class="switch-desc">与桌面端「通用设置 → 启动时」同步。否：仅打开启动器；是：跳过启动器直接进桌面（启动器仍可从托盘右键打开）。存在更新确认、待导入或上次启动失败时不自动启动。</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="opt-auto" />
+              <span class="switch-ui" aria-hidden="true"></span>
+            </span>
+          </label>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <span class="switch-title">发现新正式版时询问</span>
+              <span class="switch-desc">关闭后仍可在「版本」中手动安装。草稿不会出现在 latest。</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="opt-ask" />
+              <span class="switch-ui" aria-hidden="true"></span>
+            </span>
+          </label>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="../shared/launcher-recovery.js"></script>
+  <script src="theme.js"></script>
+  <script src="window-controls.js"></script>
+  <script src="launcher.js"></script>
+</body>
+</html>

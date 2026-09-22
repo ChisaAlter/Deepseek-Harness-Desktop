@@ -1,0 +1,107 @@
+/**
+ * Cache `file_info` values returned by the QQ Bot API so identical uploads
+ * can be reused before the server-side TTL expires.
+ */
+
+import * as crypto from "node:crypto";
+import type { ChatScope, Logger } from "../types.js";
+
+interface CacheEntry {
+  fileInfo: string;
+  fileUuid: string;
+  expiresAt: number;
+}
+
+const MAX_CACHE_SIZE = 500;
+
+/** Compute an MD5 hash used as part of the cache key. */
+export function computeFileHash(data: string | Buffer): string {
+  return crypto.createHash("md5").update(data).digest("hex");
+}
+
+function buildCacheKey(
+  contentHash: string,
+  scope: string,
+  targetId: string,
+  fileType: number,
+): string {
+  return `${contentHash}:${scope}:${targetId}:${fileType}`;
+}
+
+/**
+ * In-memory upload cache. Each {@link QQBot} instance owns its own
+ * cache so multiple concurrent bots do not compete for the same map.
+ */
+export class UploadCache {
+  private readonly cache = new Map<string, CacheEntry>();
+  private readonly logger?: Logger;
+
+  constructor(options?: { logger?: Logger }) {
+    this.logger = options?.logger;
+  }
+
+  computeHash(data: string | Buffer): string {
+    return computeFileHash(data);
+  }
+
+  get(contentHash: string, scope: ChatScope, targetId: string, fileType: number): string | null {
+    const key = buildCacheKey(contentHash, scope, targetId, fileType);
+    const entry = this.cache.get(key);
+    if (!entry) {
+      return null;
+    }
+    if (Date.now() >= entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+    this.logger?.debug?.(
+      `[upload-cache] HIT key=${key.slice(0, 40)}... uuid=${entry.fileUuid}`,
+    );
+    return entry.fileInfo;
+  }
+
+  set(
+    contentHash: string,
+    scope: ChatScope,
+    targetId: string,
+    fileType: number,
+    fileInfo: string,
+    fileUuid: string,
+    ttl: number,
+  ): void {
+    if (this.cache.size >= MAX_CACHE_SIZE) {
+      const now = Date.now();
+      for (const [k, v] of this.cache) {
+        if (now >= v.expiresAt) {
+          this.cache.delete(k);
+        }
+      }
+      if (this.cache.size >= MAX_CACHE_SIZE) {
+        const keys = Array.from(this.cache.keys());
+        for (let i = 0; i < keys.length / 2; i++) {
+          this.cache.delete(keys[i]);
+        }
+      }
+    }
+    const key = buildCacheKey(contentHash, scope, targetId, fileType);
+    const safetyMargin = 60;
+    const effectiveTtl = Math.max(ttl - safetyMargin, 10);
+    this.cache.set(key, {
+      fileInfo,
+      fileUuid,
+      expiresAt: Date.now() + effectiveTtl * 1000,
+    });
+    this.logger?.debug?.(
+      `[upload-cache] SET key=${key.slice(0, 40)}... ttl=${effectiveTtl}s uuid=${fileUuid}`,
+    );
+  }
+
+  stats(): { size: number; maxSize: number } {
+    return { size: this.cache.size, maxSize: MAX_CACHE_SIZE };
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.logger?.debug?.(`[upload-cache] cleared`);
+  }
+}

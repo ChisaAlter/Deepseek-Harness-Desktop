@@ -1,0 +1,49 @@
+/* Editing-state bubble: geometry matches the static user stack / bubble
+   (525px cap, r22, 16/24) so the row does not jump when edit mode begins. */
+
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  width: min(525px, 82%);
+  max-width: min(525px, 82%);
+}
+
+.bubble {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--dsw-specific-bubble);
+  border-radius: 22px;
+  padding: 10px 16px;
+  font-size: 16px;
+  line-height: 24px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--dsw-alias-label-secondary);
+  /* Edit-mode affordance: the composer's input-border token as an inset ring
+     (box-shadow keeps the geometry byte-identical to the static bubble). */
+  box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2-darkmode-thin);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Where-the-edit-lives pointer, announced beside the cancel button. */
+.hint {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}

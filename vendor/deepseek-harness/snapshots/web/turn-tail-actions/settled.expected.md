@@ -1,0 +1,52 @@
+- banner:
+  - navigation "Session hierarchy":
+    - button "Begin your reply with the" [disabled]
+  - img
+  - text: Standard mode
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
+    - img
+  - tablist:
+    - tab "Chat" [selected]
+    - tab "Trajectory"
+- button "System prompt":
+  - img
+  - img
+  - text: System prompt
+- text: Begin your reply with the plain sentence "Reading the workspace now." as text, and in that same message call the bash tool with the command "echo alpha". After the tool result, reply with the single word DONE and stop. {{clock}}
+- button "Copy":
+  - img
+- button "1 tool call · 1 message":
+  - text: 1 tool call · 1 message
+  - img
+- paragraph: partial
+- text: Stopped
+- button "Copy":
+  - img
+- tooltip "Copy"
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands":
+  - img
+- 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Select model, current DeepSeek-V4-Flash":
+  - text: DeepSeek-V4-Flash
+  - img
+- button "Send message" [disabled]
+- button "1 turns 2 steps · {{throughput}} tok/s":
+  - img
+  - text: 1 turns 2 steps{{throughput}} tok/s
+- button "7.9K tok · Cache hit 0%":
+  - img
+  - text: 7.9K tokCache hit 0%
+- button "6% of context used": 6%

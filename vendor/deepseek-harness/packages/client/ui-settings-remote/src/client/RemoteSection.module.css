@@ -1,0 +1,342 @@
+.layer {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 8px);
+  height: 34px;
+  margin: 4px -4px;
+  padding: 6px 2px 6px 10px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: -2px;
+}
+
+.trigger[data-on] {
+  color: var(--dsw-alias-label-primary);
+}
+
+.triggerLabel {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.rail {
+  width: 36px;
+}
+
+.rail .trigger {
+  width: 36px;
+  height: 36px;
+  margin: 8px 0;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.overlay {
+  position: fixed;
+  -webkit-app-region: no-drag;
+  inset: 0;
+  z-index: 1000;
+}
+
+.mask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+}
+
+.panel {
+  position: absolute;
+  left: 12px;
+  bottom: 96px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  padding: 20px 20px 24px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 16px;
+  /* Raised layer follows the glass slider; the wallpaper canvas cap must
+     not punch through this popup. */
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.modes {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+
+.modeButton {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Bind-scope options: two fixed choices plus one button per NIC, wrapping. */
+.scopeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  gap: 8px;
+}
+
+.scopeButton {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 0;
+}
+
+.status,
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: center;
+}
+
+.retry {
+  height: 32px;
+  padding: 0 12px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.qr {
+  width: 196px;
+  height: 196px;
+  padding: 12px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+}
+
+.qr :global(svg) {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.devices {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.devices:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.footer {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+
+.footerButton {
+  flex: 1;
+  min-width: 0;
+}
+
+.devicesChevron {
+  display: inline-flex;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.deviceLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.devicePanel {
+  position: absolute;
+  left: 12px;
+  bottom: 96px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 280px;
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, calc(100vh - 120px));
+  padding: 20px;
+  box-sizing: border-box;
+  overflow: auto;
+  /* Elevated surface (bg-layer-2) that scrolls: rebind the shared scrollbar
+     thumb to the l2 rung, or the dark palette renders the l1 thumb here. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  border: 0;
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-shadow-lv2);
+  color: var(--dsw-alias-label-primary);
+}
+
+.deviceList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.deviceRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.deviceMeta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deviceName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.online {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.deviceDetail {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.deviceSeen {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.deviceActions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.unbind {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.renameForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.renameInput {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.renameInput:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+.renameButtons {
+  display: flex;
+  gap: 6px;
+}
+
+.renameButton {
+  flex: 1;
+  min-width: 0;
+}
+

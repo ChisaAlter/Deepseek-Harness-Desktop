@@ -1,0 +1,4 @@
+#!/bin/sh
+# DSHD staged-level checks: structural governance gates only (fast, no tests).
+# Full doc gates run at pre-push; `npm test` and CI own the heavy matrix.
+exec node scripts/run-gates.mjs governance

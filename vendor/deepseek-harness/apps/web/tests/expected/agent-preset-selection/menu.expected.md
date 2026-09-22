@@ -1,0 +1,8 @@
+- menu:
+  - menuitem "Standard mode Full coding agent with file editing, shell, file and web search, skills, planning, goals, subagents, and workflows.":
+    - text: Standard mode Full coding agent with file editing, shell, file and web search, skills, planning, goals, subagents, and workflows.
+    - img
+  - menuitem "PTC mode Full coding agent without the workflow tool; other tools are exposed through the PTC mode SDK so the model can combine multi-step operations in one TypeScript program."
+  - menuitem "Minimal mode Single-tool coding agent with a persistent shell."
+  - menuitem "Creator mode Built for creating custom agent presets, with all Standard mode capabilities plus runtime inspection, persistent plugin management, and preset-authoring guidance."
+  - menuitem "Refusing mode Resolves, then refuses to start."

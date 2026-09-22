@@ -1,0 +1,114 @@
+{
+  "date": "2026-08-27",
+  "environment": {
+    "os": "Linux 6.12 (cloud VM, x86_64)",
+    "node": "v22.22.2 (nvm, per .nvmrc; VM default /exec-daemon/node 22.14 shadowed — fixed via .cursor/environment.json)",
+    "display": "X :1 (real display, no xvfb wrapper needed)",
+    "jdk": "OpenJDK 21 preinstalled; OpenJDK 17 installed for the Android protocol toolchain",
+    "androidSdk": "absent"
+  },
+  "baseline": "main@6874270c (12-PR consolidation + DER INTEGER fix, CI run 33075872577 green)",
+  "branch": "cursor/post-consolidation-closeout-aebd",
+  "gates": [
+    {
+      "gate": "desktop npm test",
+      "command": "npm test",
+      "result": "PASS",
+      "detail": { "tests": 1224, "pass": 1219, "fail": 0, "skipped": 5 }
+    },
+    {
+      "gate": "vendor install",
+      "command": "pnpm install --frozen-lockfile (vendor/deepseek-harness)",
+      "result": "PASS",
+      "detail": { "exit": 0 }
+    },
+    {
+      "gate": "vendor build:lib",
+      "command": "pnpm run build:lib",
+      "result": "PASS",
+      "detail": { "exit": 0 }
+    },
+    {
+      "gate": "skip compose contract (real built CLI)",
+      "command": "node scripts/check-skip-compose-contract.js vendor/deepseek-harness",
+      "result": "PASS",
+      "detail": { "exit": 0, "note": "dump-config skip+full rounds, user-layer canary, managed-block migration replay, exactly-one install + dsh-im rows" }
+    },
+    {
+      "gate": "vendor test:gui",
+      "command": "pnpm run test:gui",
+      "result": "PASS",
+      "detail": { "files": 412, "pass": 5409, "skipped": 1, "fail": 0, "durationSeconds": 120.6 }
+    },
+    {
+      "gate": "gen checks",
+      "command": "pnpm run gen-client-catalog --check && pnpm run gen-third-party-notices --check",
+      "result": "PASS",
+      "detail": { "catalog": "up to date", "notices": "up to date" }
+    },
+    {
+      "gate": "mobile-web fake-daemon browser QA",
+      "command": "node tools/mobile-web-qa/run-qa.mjs",
+      "result": "PASS",
+      "detail": { "checks": 41, "pass": 41, "fail": 0, "browser": "headless Chrome via puppeteer-core (dev-only, npm i --no-save)" }
+    },
+    {
+      "gate": "smoke:source (near-real Electron GUI)",
+      "command": "npm run smoke:source",
+      "result": "PASS (flaky under load)",
+      "detail": {
+        "runs": 5,
+        "pass": 3,
+        "fail": 2,
+        "note": "Two initial runs failed at 'branch menu did not open' while the vendor test pipeline was saturating the VM; three consecutive idle runs passed with surfaces/branch/git hits all green. Consolidation range touches no ui-git/ui-titlebar/git.js code — verdict: load flake, not a regression."
+      }
+    },
+    {
+      "gate": "marketplace snapshot refresh",
+      "command": "npm run refresh:marketplace-snapshot",
+      "result": "PASS",
+      "detail": { "rowsBefore": 6, "rowsAfter": 200, "droppedFamilyRows": 0, "registry": "https://awesome-dsh-plugin.com/plugins.json (live)" }
+    },
+    {
+      "gate": "remote-tls DER edge tests",
+      "command": "node --test src/main/remote-tls.test.js",
+      "result": "PASS",
+      "detail": { "tests": 6, "pass": 6, "added": "multi-zero stripping + 0x00-before-high-bit retention" }
+    },
+    {
+      "gate": "android protocol unit tests",
+      "command": "./mobile/android/gradlew :protocol:test",
+      "result": "PASS",
+      "detail": { "tests": 5, "failures": 0, "skipped": 0, "suite": "ai.deepseek.harness.mobile.pair.OfferTest", "jdk": "17 (installed in VM; pure-JVM module)" }
+    },
+    {
+      "gate": "android app unit tests",
+      "command": "./mobile/android/gradlew :app:testDebugUnitTest",
+      "result": "BLOCKED",
+      "detail": { "reason": "SDK location not found — no Android SDK in the VM (no ANDROID_HOME, no sdkmanager/adb)" }
+    },
+    {
+      "gate": "dshbot publish preflight",
+      "command": "node scripts/check-dshbot-publish.mjs dshbot-v0.2.0",
+      "result": "PASS",
+      "detail": { "version": "0.2.0", "remainingGap": "NPM_TOKEN repository secret not configured (cannot be verified from the VM; workflow fails loudly without it)" }
+    },
+    {
+      "gate": "qa:packaged / Windows NSIS smoke (TC-EXT-007 etc.)",
+      "result": "BLOCKED",
+      "detail": { "reason": "cloud Linux VM cannot run Windows NSIS installers or the packaged Windows Electron build" }
+    },
+    {
+      "gate": "real-device relay pairing (TC-REM-002)",
+      "result": "BLOCKED",
+      "detail": { "reason": "no physical phone / LAN peer in the VM; fake-daemon harness covers the SPA side" }
+    }
+  ],
+  "hygiene": {
+    "staleRemoteBranches": "none — git ls-remote --heads origin shows only main (14 consolidation source branches already deleted on GitHub)",
+    "orphanDraftPrs": {
+      "open": [55, 57, 58, 60, 61, 62],
+      "status": "cannot close from this environment (read-only gh credentials); one-liner for a maintainer is in the closeout plan Phase A"
+    }
+  }
+}

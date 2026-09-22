@@ -1,0 +1,54 @@
+.window-controls {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--caption-h, 48px);
+  padding: 0 10px;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls button {
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls button svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  pointer-events: none;
+}
+
+.window-controls button:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.window-controls button[data-act="close"]:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.window-controls button.text-act {
+  width: auto;
+  min-width: 52px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font: 600 12px/1 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}

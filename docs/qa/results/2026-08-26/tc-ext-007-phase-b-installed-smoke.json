@@ -1,0 +1,485 @@
+{
+  "ok": true,
+  "result": {
+    "hasFrame": true,
+    "gridColumns": "280px 640.587px 0px 525px",
+    "hasTitlebar": true,
+    "titlebarButtons": [
+      "Session log",
+      "Switch branch",
+      "Commit",
+      "Git actions",
+      "Toggle terminal drawer",
+      "Toggle right panel"
+    ],
+    "hasTerminalToggle": true,
+    "hasSurfacesToggle": true,
+    "hasDragStrip": false,
+    "hasDragMark": false,
+    "hasHitMark": false,
+    "captionRegion": "drag",
+    "hasHarnessShellApi": true,
+    "harnessShellApiIsScoped": true,
+    "hasBootShellApi": true,
+    "bootShellApiIsScoped": true,
+    "workspaceConnect": [
+      {
+        "name": "workspace.path",
+        "ok": true,
+        "detail": "/tmp/dsh-dshbot-phaseB-Ajf4nI/workspace",
+        "optional": true
+      },
+      {
+        "name": "workspace.addClicked",
+        "ok": true,
+        "detail": "",
+        "optional": true
+      },
+      {
+        "name": "workspace.picker",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "workspace.pickerClosed",
+        "ok": true,
+        "detail": "",
+        "optional": true
+      },
+      {
+        "name": "workspace.connected",
+        "ok": true,
+        "detail": "/tmp/dsh-dshbot-phaseB-Ajf4nI/workspace"
+      }
+    ],
+    "titlebarHits": {
+      "hits": {
+        "surfaces": 1,
+        "branch": 1,
+        "git": 1
+      },
+      "error": null
+    },
+    "qa": {
+      "ok": true,
+      "failed": [],
+      "steps": [
+        {
+          "name": "workspace.picker",
+          "ok": true,
+          "detail": "connected before titlebar hits"
+        },
+        {
+          "name": "workspace.connected",
+          "ok": true,
+          "detail": "/tmp/dsh-dshbot-phaseB-Ajf4nI/workspace"
+        },
+        {
+          "name": "frame.fourColumn",
+          "ok": true,
+          "detail": "280px 862.286px 0px 540px"
+        },
+        {
+          "name": "composer.card",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.textarea",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.commands",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.send",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.access",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.thinking",
+          "ok": false,
+          "detail": "no effort chips on composer",
+          "optional": true
+        },
+        {
+          "name": "composer.skillMenuAbsent",
+          "ok": true,
+          "detail": "typed=$fo; menuitem=false"
+        },
+        {
+          "name": "composer.pathSourceAbsent",
+          "ok": true,
+          "detail": "typed=@"
+        },
+        {
+          "name": "remote.available",
+          "ok": true,
+          "detail": "available=true enabled=false listening=false port=3180 mode=lan tokenPresent=false urls=1"
+        },
+        {
+          "name": "remote.notListening",
+          "ok": true,
+          "detail": "listening=false"
+        },
+        {
+          "name": "remote.footerPresent",
+          "ok": true,
+          "detail": "trigger",
+          "optional": true
+        },
+        {
+          "name": "composer.commandsMenu",
+          "ok": true,
+          "detail": "opened",
+          "optional": true
+        },
+        {
+          "name": "titlebar.sessionLog",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.branch",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.commit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.git",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.terminal",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.surfaces",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.windowControls",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.branchMenu",
+          "ok": true,
+          "detail": "opened"
+        },
+        {
+          "name": "titlebar.gitMenu",
+          "ok": true,
+          "detail": "opened"
+        },
+        {
+          "name": "terminal.drawer",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "terminal.new",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "surfaces.open",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "surfaces.emptyCards",
+          "ok": true,
+          "detail": "already occupied",
+          "optional": true
+        },
+        {
+          "name": "surfaces.browserEnabled",
+          "ok": true,
+          "detail": "already occupied",
+          "optional": true
+        },
+        {
+          "name": "surfaces.diffEnabled",
+          "ok": true,
+          "detail": "already occupied",
+          "optional": true
+        },
+        {
+          "name": "files.panel",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.tabCloseRight",
+          "ok": true,
+          "detail": "label=1159 close=1186"
+        },
+        {
+          "name": "files.search",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.readme",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.note",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.mentionVisible",
+          "ok": true,
+          "detail": "visible"
+        },
+        {
+          "name": "files.mentionAppended",
+          "ok": true,
+          "detail": "[note.md](note.md)"
+        },
+        {
+          "name": "git.commitDialog",
+          "ok": false,
+          "detail": "commit dialog did not open",
+          "optional": true
+        },
+        {
+          "name": "git.commit",
+          "ok": true,
+          "detail": "Add note.md"
+        },
+        {
+          "name": "files.searchFilter",
+          "ok": true,
+          "detail": "note.md",
+          "optional": true
+        },
+        {
+          "name": "agents.panel",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "agents.empty",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "diff.panel",
+          "ok": true,
+          "detail": "Working tree\nCollapse all\nExpand all\nUnstaged\nnote.md\nStage\nDiscard\n@@ -0,0 +1,1 @@\n+\npost-merge ui"
+        },
+        {
+          "name": "browser.panel",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "browser.url",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "terminal.surface",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "settings.trigger",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.choose",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.browse",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.noSourceDump",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.themeSwitch",
+          "ok": true,
+          "detail": "light=true; dark=true; pressed=Dark,DeepSeek Light half Light✓,DeepSeek Dark half DarkCurrent mode✓"
+        },
+        {
+          "name": "appearance.localCrop",
+          "ok": true,
+          "detail": "crop confirmed"
+        },
+        {
+          "name": "gallery.dialog",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gallery.sources",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gallery.addSource",
+          "ok": true,
+          "detail": "hint visible"
+        },
+        {
+          "name": "gallery.wallhavenSfw",
+          "ok": true,
+          "detail": "SFW chips"
+        },
+        {
+          "name": "gallery.confirmSet",
+          "ok": true,
+          "detail": "Bing confirmed and cropped"
+        },
+        {
+          "name": "appearance.frost",
+          "ok": true,
+          "detail": "frost+pixelate after wallpaper"
+        },
+        {
+          "name": "models.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "models.customAdd",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "models.visionPicker",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "models.thinking",
+          "ok": false,
+          "detail": "thinking intensity editor not shown",
+          "optional": true
+        },
+        {
+          "name": "models.customForm",
+          "ok": true,
+          "detail": "provider saved without plaintext key"
+        },
+        {
+          "name": "mcp.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mcp.search",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mcp.add",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "skills.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "skills.add",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "plugins.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "market.section",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "market.discover",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "market.installed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "plugin.dshbot.market",
+          "ok": true,
+          "detail": "standalone dshbot listed on Installed",
+          "optional": true
+        },
+        {
+          "name": "usage-stats.section",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "plugin.dshbot.tabAbsent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "plugin.dshbot.page",
+          "ok": true,
+          "detail": "installed dshbot shows the Bots tab",
+          "optional": true
+        }
+      ]
+    }
+  },
+  "ptyStatus": "echoed:ok",
+  "pageErrors": [],
+  "desktopHome": "/tmp/dsh-dshbot-phaseB-Ajf4nI/user-data/dsh-home",
+  "homeLog": "[app] Harness 家目录 /tmp/dsh-dshbot-phaseB-Ajf4nI/user-data/dsh-home",
+  "electronEnv": {
+    "DSH_HOME": "",
+    "DSHD_HOME": ""
+  },
+  "bootLogs": [
+    "[app] Harness 家目录 /tmp/dsh-dshbot-phaseB-Ajf4nI/user-data/dsh-home",
+    "[app] 检测端口 127.0.0.1:36901",
+    "[app] 端口 36901 空闲",
+    "[app] 桌面内置 dsh-im 已就绪",
+    "[app] 工作区 /tmp/dsh-dshbot-phaseB-Ajf4nI/workspace",
+    "[app] 启动本机服务 http://127.0.0.1:36901",
+    "[app] 从官方源码启动 /workspace/vendor/deepseek-harness/apps/cli/lib/bin.js",
+    "[app] 子进程 DSH_HOME /tmp/dsh-dshbot-phaseB-Ajf4nI/user-data/dsh-home",
+    "[dsh] [dsh-usage-panel] boot: mode=projection services: sessionQuery=true sessionProjections=true sessionProjectionCache=true",
+    "[dsh] dsh web: http://127.0.0.1:36901",
+    "[dsh] [dsh-usage-panel] first scan done: mode=projection sessions=1/1 (failed 0, pending 0) withUsage=0 dataRange=-..-",
+    "[app] Web UI 就绪 http://127.0.0.1:36901",
+    "[app] 已注册工作区 /tmp/dsh-dshbot-phaseB-Ajf4nI/workspace"
+  ],
+  "packagedP0": null
+}

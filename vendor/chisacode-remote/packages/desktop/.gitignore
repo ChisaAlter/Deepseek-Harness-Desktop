@@ -1,0 +1,11 @@
+# Build output
+dist/
+release/
+release-*/
+
+# Dependencies
+node_modules/
+
+# TypeScript
+*.tsbuildinfo
+${env.ELECTRON_CACHE}/

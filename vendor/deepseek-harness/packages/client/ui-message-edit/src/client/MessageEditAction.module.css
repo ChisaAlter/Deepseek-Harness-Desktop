@@ -1,0 +1,46 @@
+/* The edit control mirrors the shared message IconActions chrome so the strip
+   reads as one row; the unavailable state keeps the Tooltip's hover/focus
+   events live (a native disabled button would drop them). */
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: none;
+  border-radius: 28px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.action[data-unavailable] {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* Same reset as the shared IconActions chrome: an unavailable control keeps
+   hover/focus events for its Tooltip but must not paint an interactive echo. */
+.action[data-unavailable]:hover {
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

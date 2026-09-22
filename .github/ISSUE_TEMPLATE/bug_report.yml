@@ -1,0 +1,28 @@
+name: Bug report
+description: Something broke in the desktop app / 桌面端出了问题
+type: Bug
+labels: ["kind/bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version / 版本
+      description: Setup version or commit, e.g. 0.3.2
+      placeholder: "0.3.2"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: What you did, what happened, what you expected.
+      placeholder: "1. …\n2. …\n3. …"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs / screenshots / 日志或截图
+      description: DevTools console, harness log, screenshots.
+    validations:
+      required: false

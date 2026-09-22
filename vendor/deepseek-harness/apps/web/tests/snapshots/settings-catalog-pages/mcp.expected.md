@@ -1,0 +1,46 @@
+- dialog "Settings":
+  - navigation:
+    - text: Settings
+    - button "General":
+      - img
+      - text: General
+    - button "Appearance":
+      - img
+      - text: Appearance
+    - button "Interface":
+      - img
+      - text: Interface
+    - button "Models":
+      - img
+      - text: Models
+    - button "Plugins":
+      - img
+      - text: Plugins
+    - button "Skills":
+      - img
+      - text: Skills
+    - button "MCP":
+      - img
+      - text: MCP
+    - button "Agent presets":
+      - img
+      - text: Agent presets
+    - button "About":
+      - img
+      - text: About
+  - button "Open configuration file"
+  - button "Close":
+    - img
+    - text: Close
+  - heading "MCP servers" [level=2]
+  - paragraph: Manage local MCP servers. Managed rows write $DSH_HOME/mcp-servers.yaml. Sign in on an HTTP row so its tools are available in chat. Composition rows are read-only.
+  - button "Add server":
+    - img
+  - button "Refresh":
+    - img
+  - img
+  - searchbox "Search name, ID, command, or URL"
+  - button "Enabled state":
+    - text: All
+    - img
+  - paragraph: No MCP servers yet. Add one to connect local tools or a remote service.

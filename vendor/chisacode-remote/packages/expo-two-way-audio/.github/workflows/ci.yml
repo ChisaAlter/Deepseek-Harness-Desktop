@@ -1,0 +1,36 @@
+name: 🧪 Test
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v3
+
+      - name: ⎔ Get Node Version
+        id: node_version
+        run: echo "NVMRC=$(cat .nvmrc)" >> $GITHUB_OUTPUT
+
+      - name: ⎔ Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "${{ steps.node_version.outputs.NVMRC }}"
+          cache: npm
+
+      - name: 📦 Install Dependencies
+        run: npm ci
+
+      - name: 🧪 Lint
+        run: npm run lint
+
+      - name: 🧪 Format
+        run: npm run format
+
+      - name: 🧪 Typecheck
+        run: npm run typecheck

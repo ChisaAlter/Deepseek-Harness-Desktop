@@ -1,0 +1,354 @@
+{
+  "at": "2026-08-23T15:37:11.649Z",
+  "electronBin": "C:\\Ai\\Deepseek-Harness-Desktop\\node_modules\\electron\\dist\\electron.exe",
+  "official": {
+    "light": {
+      "bg": "rgb(255, 255, 255)",
+      "sidebar": "rgb(249, 250, 251)",
+      "primary": "rgb(15, 17, 21)"
+    },
+    "dark": {
+      "bg": "rgb(21, 21, 23)",
+      "sidebar": "rgb(27, 27, 28)",
+      "primary": "rgb(249, 250, 251)"
+    }
+  },
+  "celadonProbe": {
+    "lightBg": "#f3faf7",
+    "darkBg": "#071411"
+  },
+  "schemes": [
+    {
+      "scheme": "light",
+      "userData": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-launcher-live-light-1787499431650",
+      "celadon": {
+        "lightBg": "#f3faf7",
+        "darkBg": "#071411"
+      },
+      "extraWindows": [],
+      "urls": [
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+      ],
+      "logTail": [
+        "",
+        "",
+        "DevTools listening on ws://127.0.0.1:9335/devtools/browser/49e22d90-2235-438a-a77e-3f8024dbea8f",
+        ""
+      ],
+      "rows": [
+        {
+          "tab": "home",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\light-home.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": false,
+            "tokenBg": "rgb(255, 255, 255)",
+            "tokenSidebar": "rgb(249, 250, 251)",
+            "tokenPrimary": "rgb(15, 17, 21)",
+            "htmlBg": "rgb(255, 255, 255)",
+            "bodyBg": "rgb(255, 255, 255)",
+            "railBg": "rgb(249, 250, 251)",
+            "primaryBg": "rgb(15, 17, 21)",
+            "inlineBg": "",
+            "activeTab": "home",
+            "panelId": "panel-home",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "",
+            "pluginSummary": "不启动内核即可查看已装插件。启动失败时会标出日志里对得上的包。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "import",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\light-import.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": false,
+            "tokenBg": "rgb(255, 255, 255)",
+            "tokenSidebar": "rgb(249, 250, 251)",
+            "tokenPrimary": "rgb(15, 17, 21)",
+            "htmlBg": "rgb(255, 255, 255)",
+            "bodyBg": "rgb(255, 255, 255)",
+            "railBg": "rgb(249, 250, 251)",
+            "primaryBg": "rgb(15, 17, 21)",
+            "inlineBg": "",
+            "activeTab": "import",
+            "panelId": "panel-import",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "",
+            "pluginSummary": "不启动内核即可查看已装插件。启动失败时会标出日志里对得上的包。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "versions",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\light-versions.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": false,
+            "tokenBg": "rgb(255, 255, 255)",
+            "tokenSidebar": "rgb(249, 250, 251)",
+            "tokenPrimary": "rgb(15, 17, 21)",
+            "htmlBg": "rgb(255, 255, 255)",
+            "bodyBg": "rgb(255, 255, 255)",
+            "railBg": "rgb(249, 250, 251)",
+            "primaryBg": "rgb(15, 17, 21)",
+            "inlineBg": "",
+            "activeTab": "versions",
+            "panelId": "panel-versions",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "v0.2.6\nDeepseek-Harness-Desktop-Setup-0.2.6.exe\n安装\nv0.2.3\nDeepseek-Harness-Desktop-Setup-0.2.3.exe\n安装\nv0.1.3\nDeepseek-Harness-Desktop-Setup-0.1.3.exe\n安装\nv0.1.2\nDeepseek-Harness-Desktop-Setup-0.1.2.exe\n安装\nv0.1.1\nDeepseek-Harness-Desktop-Setup-0.1.1.exe\n安装\nv0.1.0\nDeepseek-Harness-Desktop-Setup-0.1.0.exe\n安装",
+            "pluginSummary": "不启动内核即可查看已装插件。启动失败时会标出日志里对得上的包。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "plugins",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\light-plugins.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": false,
+            "tokenBg": "rgb(255, 255, 255)",
+            "tokenSidebar": "rgb(249, 250, 251)",
+            "tokenPrimary": "rgb(15, 17, 21)",
+            "htmlBg": "rgb(255, 255, 255)",
+            "bodyBg": "rgb(255, 255, 255)",
+            "railBg": "rgb(249, 250, 251)",
+            "primaryBg": "rgb(15, 17, 21)",
+            "inlineBg": "",
+            "activeTab": "plugins",
+            "panelId": "panel-plugins",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "\n      \n        v0.2.6 \n        Deepseek-Harness-Desktop-Setup-0.2.6.exe\n      \n      安装\n    \n      \n        v0.2.3 \n        Deepseek-Harness-Desktop-Setup-0.2.3.exe\n      \n      安装\n    \n      \n        v0.1.3 \n        Deepseek-Harness-Desktop-Setup-0.1.3.exe\n      \n      安装\n    \n      \n        v0.1.2 \n        Deepseek-Harness-Desktop-Setup-0.1.2.exe\n      \n      安装\n    \n      \n        v0.1.1 \n    ",
+            "pluginSummary": "没有从日志抽出确定的包名。可以按下面名单自行禁用后再试。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "settings",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\light-settings.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": false,
+            "tokenBg": "rgb(255, 255, 255)",
+            "tokenSidebar": "rgb(249, 250, 251)",
+            "tokenPrimary": "rgb(15, 17, 21)",
+            "htmlBg": "rgb(255, 255, 255)",
+            "bodyBg": "rgb(255, 255, 255)",
+            "railBg": "rgb(249, 250, 251)",
+            "primaryBg": "rgb(15, 17, 21)",
+            "inlineBg": "",
+            "activeTab": "settings",
+            "panelId": "panel-settings",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "\n      \n        v0.2.6 \n        Deepseek-Harness-Desktop-Setup-0.2.6.exe\n      \n      安装\n    \n      \n        v0.2.3 \n        Deepseek-Harness-Desktop-Setup-0.2.3.exe\n      \n      安装\n    \n      \n        v0.1.3 \n        Deepseek-Harness-Desktop-Setup-0.1.3.exe\n      \n      安装\n    \n      \n        v0.1.2 \n        Deepseek-Harness-Desktop-Setup-0.1.2.exe\n      \n      安装\n    \n      \n        v0.1.1 \n    ",
+            "pluginSummary": "没有从日志抽出确定的包名。可以按下面名单自行禁用后再试。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        }
+      ]
+    },
+    {
+      "scheme": "dark",
+      "userData": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-launcher-live-dark-1787499444269",
+      "celadon": {
+        "lightBg": "#f3faf7",
+        "darkBg": "#071411"
+      },
+      "extraWindows": [],
+      "urls": [
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+      ],
+      "logTail": [
+        "",
+        "",
+        "DevTools listening on ws://127.0.0.1:9336/devtools/browser/c7421bb9-ff80-4097-b0ac-4779284993c6",
+        ""
+      ],
+      "rows": [
+        {
+          "tab": "home",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\dark-home.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": true,
+            "tokenBg": "rgb(21, 21, 23)",
+            "tokenSidebar": "rgb(27, 27, 28)",
+            "tokenPrimary": "rgb(249, 250, 251)",
+            "htmlBg": "rgb(21, 21, 23)",
+            "bodyBg": "rgb(21, 21, 23)",
+            "railBg": "rgb(27, 27, 28)",
+            "primaryBg": "rgb(249, 250, 251)",
+            "inlineBg": "",
+            "activeTab": "home",
+            "panelId": "panel-home",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "",
+            "pluginSummary": "不启动内核即可查看已装插件。启动失败时会标出日志里对得上的包。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "import",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\dark-import.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": true,
+            "tokenBg": "rgb(21, 21, 23)",
+            "tokenSidebar": "rgb(27, 27, 28)",
+            "tokenPrimary": "rgb(249, 250, 251)",
+            "htmlBg": "rgb(21, 21, 23)",
+            "bodyBg": "rgb(21, 21, 23)",
+            "railBg": "rgb(27, 27, 28)",
+            "primaryBg": "rgb(249, 250, 251)",
+            "inlineBg": "",
+            "activeTab": "import",
+            "panelId": "panel-import",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "",
+            "pluginSummary": "不启动内核即可查看已装插件。启动失败时会标出日志里对得上的包。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "versions",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\dark-versions.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": true,
+            "tokenBg": "rgb(21, 21, 23)",
+            "tokenSidebar": "rgb(27, 27, 28)",
+            "tokenPrimary": "rgb(249, 250, 251)",
+            "htmlBg": "rgb(21, 21, 23)",
+            "bodyBg": "rgb(21, 21, 23)",
+            "railBg": "rgb(27, 27, 28)",
+            "primaryBg": "rgb(249, 250, 251)",
+            "inlineBg": "",
+            "activeTab": "versions",
+            "panelId": "panel-versions",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "v0.2.6\nDeepseek-Harness-Desktop-Setup-0.2.6.exe\n安装\nv0.2.3\nDeepseek-Harness-Desktop-Setup-0.2.3.exe\n安装\nv0.1.3\nDeepseek-Harness-Desktop-Setup-0.1.3.exe\n安装\nv0.1.2\nDeepseek-Harness-Desktop-Setup-0.1.2.exe\n安装\nv0.1.1\nDeepseek-Harness-Desktop-Setup-0.1.1.exe\n安装\nv0.1.0\nDeepseek-Harness-Desktop-Setup-0.1.0.exe\n安装",
+            "pluginSummary": "不启动内核即可查看已装插件。启动失败时会标出日志里对得上的包。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "plugins",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\dark-plugins.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": true,
+            "tokenBg": "rgb(21, 21, 23)",
+            "tokenSidebar": "rgb(27, 27, 28)",
+            "tokenPrimary": "rgb(249, 250, 251)",
+            "htmlBg": "rgb(21, 21, 23)",
+            "bodyBg": "rgb(21, 21, 23)",
+            "railBg": "rgb(27, 27, 28)",
+            "primaryBg": "rgb(249, 250, 251)",
+            "inlineBg": "",
+            "activeTab": "plugins",
+            "panelId": "panel-plugins",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "\n      \n        v0.2.6 \n        Deepseek-Harness-Desktop-Setup-0.2.6.exe\n      \n      安装\n    \n      \n        v0.2.3 \n        Deepseek-Harness-Desktop-Setup-0.2.3.exe\n      \n      安装\n    \n      \n        v0.1.3 \n        Deepseek-Harness-Desktop-Setup-0.1.3.exe\n      \n      安装\n    \n      \n        v0.1.2 \n        Deepseek-Harness-Desktop-Setup-0.1.2.exe\n      \n      安装\n    \n      \n        v0.1.1 \n    ",
+            "pluginSummary": "没有从日志抽出确定的包名。可以按下面名单自行禁用后再试。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        },
+        {
+          "tab": "settings",
+          "png": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-23-launcher-theme\\dark-settings.png",
+          "colorFails": [],
+          "sample": {
+            "shell": "official",
+            "boot": false,
+            "dark": true,
+            "tokenBg": "rgb(21, 21, 23)",
+            "tokenSidebar": "rgb(27, 27, 28)",
+            "tokenPrimary": "rgb(249, 250, 251)",
+            "htmlBg": "rgb(21, 21, 23)",
+            "bodyBg": "rgb(21, 21, 23)",
+            "railBg": "rgb(27, 27, 28)",
+            "primaryBg": "rgb(249, 250, 251)",
+            "inlineBg": "",
+            "activeTab": "settings",
+            "panelId": "panel-settings",
+            "homeStatus": "当前版本 0.2.7 · 桌面 idle",
+            "hint": "",
+            "importSource": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+            "releasePreview": "\n      \n        v0.2.6 \n        Deepseek-Harness-Desktop-Setup-0.2.6.exe\n      \n      安装\n    \n      \n        v0.2.3 \n        Deepseek-Harness-Desktop-Setup-0.2.3.exe\n      \n      安装\n    \n      \n        v0.1.3 \n        Deepseek-Harness-Desktop-Setup-0.1.3.exe\n      \n      安装\n    \n      \n        v0.1.2 \n        Deepseek-Harness-Desktop-Setup-0.1.2.exe\n      \n      安装\n    \n      \n        v0.1.1 \n    ",
+            "pluginSummary": "没有从日志抽出确定的包名。可以按下面名单自行禁用后再试。",
+            "pluginPreview": "",
+            "optQuit": false,
+            "optAuto": false,
+            "optAsk": false
+          }
+        }
+      ]
+    }
+  ],
+  "failures": [],
+  "ok": true
+}

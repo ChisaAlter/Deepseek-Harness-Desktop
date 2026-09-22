@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChisaCode 移动端 · WEB3 四主题设计系统（基于项目真实 token）</title>
+    <style>
+      :root {
+        --accent: #20744a;
+        --accent-bright: #7ccba0;
+        --success: #16a34a;
+        --warning: #f59e0b;
+        --danger: #dc2626;
+        --merged: #9333ea;
+        --font-ui: "Geist", "Inter", "Helvetica Neue", Arial, sans-serif;
+        --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: var(--font-ui);
+        background: #0e1110;
+        color: #e8ecea;
+        padding: 40px 24px 80px;
+        -webkit-font-smoothing: antialiased;
+      }
+      .page-head {
+        max-width: 1180px;
+        margin: 0 auto 36px;
+        text-align: center;
+      }
+      .page-head h1 {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: -0.3px;
+      }
+      .page-head p {
+        margin-top: 12px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #9aa39f;
+      }
+      .page-head .tokens {
+        margin-top: 16px;
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 8px 10px;
+        justify-content: center;
+      }
+      .page-head .tokens span {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #c8d0cc;
+      }
+      .swatch {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        margin-right: 5px;
+        vertical-align: middle;
+      }
+
+      .themes {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 22px;
+      }
+      @media (max-width: 1100px) {
+        .themes {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 560px) {
+        .themes {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .theme-col {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .theme-col .tname {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 14px;
+        color: #cfd6d2;
+        text-align: center;
+      }
+
+      /* ---------- Phone shell ---------- */
+      .phone {
+        width: 270px;
+        height: 564px;
+        border-radius: 36px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        --fg: #e8ecea;
+        --fg-muted: #9aa39f;
+        --surface: #181b1a;
+        --card: #272a29;
+        --card-2: #212423;
+        --border: #252b2a;
+        --accent: #20744a;
+      }
+      .phone .statusbar {
+        height: 42px;
+        flex: 0 0 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 22px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--fg);
+      }
+      .phone .content {
+        flex: 1 1 auto;
+        overflow: hidden;
+        padding: 4px 18px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .phone header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .wordmark {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.4px;
+        color: var(--fg);
+      }
+      .daemon-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        color: var(--fg-muted);
+      }
+      .daemon-pill .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--success);
+      }
+
+      .hero {
+        border-radius: 18px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .hero-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 9px;
+        letter-spacing: 1px;
+        color: var(--fg-muted);
+      }
+      .byok-chip {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 3px 8px;
+        border-radius: 8px;
+        background: rgba(124, 203, 160, 0.15);
+        color: var(--accent-bright);
+        border: 1px solid rgba(124, 203, 160, 0.3);
+      }
+      .stats {
+        display: flex;
+        gap: 12px;
+      }
+      .stat {
+        flex: 1;
+      }
+      .stat strong {
+        display: block;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--fg);
+        line-height: 1;
+      }
+      .stat span {
+        font-family: var(--font-mono);
+        font-size: 8px;
+        letter-spacing: 0.8px;
+        color: var(--fg-muted);
+      }
+      .providers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .providers .chip {
+        font-size: 10px;
+        font-weight: 600;
+        padding: 5px 9px;
+        border-radius: 9px;
+        background: var(--card-2);
+        border: 1px solid var(--border);
+        color: var(--fg);
+      }
+
+      .quick-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .qa {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        padding: 10px 8px;
+        border-radius: 12px;
+        text-align: center;
+        background: var(--card-2);
+        border: 1px solid var(--border);
+        color: var(--fg);
+      }
+      .qa.primary {
+        background: var(--accent);
+        border-color: transparent;
+        color: #fff;
+        grid-column: span 2;
+      }
+
+      .section-label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: var(--fg-muted);
+        margin-top: 2px;
+      }
+      .agent-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .agent-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 11px;
+        border-radius: 14px;
+        background: var(--card);
+        border: 1px solid var(--border);
+      }
+      .agent-row .sdot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: 0 0 8px;
+      }
+      .agent-row .meta {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .agent-row .meta .nm {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--fg);
+      }
+      .agent-row .meta .sub {
+        font-size: 9px;
+        color: var(--fg-muted);
+        font-family: var(--font-mono);
+      }
+      .agent-row .badge {
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        padding: 3px 7px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--fg-muted);
+      }
+
+      .tabbar {
+        flex: 0 0 54px;
+        margin: 6px 14px 12px;
+        border-radius: 36px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        padding: 0 6px;
+      }
+      .tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        font-size: 9px;
+        color: var(--fg-muted);
+      }
+      .tab .ic {
+        width: 16px;
+        height: 16px;
+        border-radius: 5px;
+        background: var(--fg-muted);
+        opacity: 0.5;
+      }
+      .tab.active {
+        color: var(--fg);
+      }
+      .tab.active .ic {
+        background: var(--accent);
+        opacity: 1;
+      }
+      .tab.active {
+        color: var(--accent-bright);
+      }
+
+      /* ---------- T1 Light Fresh Modern ---------- */
+      .t1 {
+        --fg: #1c211f;
+        --fg-muted: #7c8580;
+        --surface: #f5f7f6;
+        --card: #ffffff;
+        --card-2: #eef2f0;
+        --border: #e2e8e5;
+        --accent: #20744a;
+        --accent-bright: #7ccba0;
+        background: var(--surface);
+        box-shadow:
+          0 24px 60px rgba(20, 60, 40, 0.22),
+          0 0 0 1px #e2e8e5;
+      }
+      .t1 .hero,
+      .t1 .agent-row {
+        box-shadow: 0 6px 18px rgba(20, 60, 40, 0.07);
+      }
+      .t1 .qa.primary {
+        box-shadow: 0 8px 20px rgba(32, 116, 74, 0.28);
+      }
+
+      /* ---------- T2 Dark Minimal Premium ---------- */
+      .t2 {
+        --fg: #e8ecea;
+        --fg-muted: #a1a5a4;
+        --surface: #181b1a;
+        --card: #272a29;
+        --card-2: #212423;
+        --border: #252b2a;
+        --accent: #20744a;
+        --accent-bright: #7ccba0;
+        background: var(--surface);
+        box-shadow:
+          0 24px 60px rgba(0, 0, 0, 0.5),
+          0 0 0 1px #252b2a;
+      }
+
+      /* ---------- T3 Dark Tech Neon ---------- */
+      .t3 {
+        --fg: #e9ffef;
+        --fg-muted: #8fa89a;
+        --surface: #0b0f0d;
+        --card: #121816;
+        --card-2: #0f1513;
+        --border: #1c3a2c;
+        --accent: #0e9c5e;
+        --accent-bright: #3df5a8;
+        background: var(--surface);
+        box-shadow:
+          0 0 0 1px #1c3a2c,
+          0 0 40px rgba(61, 245, 168, 0.12),
+          0 24px 60px rgba(0, 0, 0, 0.6);
+      }
+      .t3 .wordmark {
+        color: #3df5a8;
+        text-shadow:
+          0 0 6px rgba(61, 245, 168, 0.9),
+          0 0 14px rgba(61, 245, 168, 0.55),
+          0 0 26px rgba(61, 245, 168, 0.3);
+      }
+      .t3 .daemon-pill {
+        border-color: rgba(61, 245, 168, 0.35);
+      }
+      .t3 .hero,
+      .t3 .agent-row {
+        border-color: rgba(61, 245, 168, 0.16);
+        box-shadow: 0 0 18px rgba(61, 245, 168, 0.08);
+      }
+      .t3 .qa.primary {
+        background: var(--accent-bright);
+        color: #04221a;
+        box-shadow:
+          0 0 16px rgba(61, 245, 168, 0.6),
+          0 0 32px rgba(61, 245, 168, 0.3);
+      }
+      .t3 .byok-chip {
+        color: #3df5a8;
+        background: rgba(61, 245, 168, 0.12);
+        border-color: rgba(61, 245, 168, 0.35);
+      }
+      .t3 .tab.active .ic {
+        background: var(--accent-bright);
+        box-shadow: 0 0 10px rgba(61, 245, 168, 0.8);
+      }
+      .t3 .tab.active {
+        color: var(--accent-bright);
+        text-shadow: 0 0 8px rgba(61, 245, 168, 0.6);
+      }
+
+      /* ---------- T4 Liquid Glass ---------- */
+      .t4 {
+        --fg: #f2f7ff;
+        --fg-muted: #afc4e6;
+        --surface: #0a1430;
+        --card: rgba(255, 255, 255, 0.14);
+        --card-2: rgba(255, 255, 255, 0.1);
+        --border: rgba(255, 255, 255, 0.3);
+        --accent: #007aff;
+        --accent-bright: #4da3ff;
+        background: linear-gradient(155deg, #0a2a6e 0%, #0a6e8c 45%, #007a6e 100%);
+        box-shadow:
+          0 24px 60px rgba(0, 30, 80, 0.5),
+          0 0 0 1px rgba(255, 255, 255, 0.18);
+        overflow: hidden;
+      }
+      .t4::before,
+      .t4::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(26px);
+        z-index: 0;
+        pointer-events: none;
+      }
+      .t4::before {
+        width: 150px;
+        height: 150px;
+        background: rgba(255, 90, 200, 0.5);
+        top: 36px;
+        left: -20px;
+      }
+      .t4::after {
+        width: 170px;
+        height: 170px;
+        background: rgba(80, 220, 255, 0.45);
+        bottom: 70px;
+        right: -30px;
+      }
+      .t4 > * {
+        position: relative;
+        z-index: 1;
+      }
+      .t4 .hero,
+      .t4 .agent-row,
+      .t4 .tabbar,
+      .t4 .byok-chip,
+      .t4 .qa,
+      .t4 .chip {
+        background: rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      .t4 .qa {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .t4 .qa.primary {
+        background: var(--accent);
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 8px 24px rgba(0, 122, 255, 0.5);
+      }
+      .t4 .wordmark {
+        color: #fff;
+        text-shadow: 0 0 14px rgba(120, 180, 255, 0.6);
+      }
+      .t4 .tab.active .ic {
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(0, 122, 255, 0.8);
+      }
+      .t4 .tab.active {
+        color: #cfe2ff;
+      }
+      .t4 .byok-chip {
+        color: #cfe2ff;
+      }
+
+      .legend {
+        max-width: 1180px;
+        margin: 48px auto 0;
+        font-size: 12px;
+        line-height: 1.7;
+        color: #8b948f;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 20px;
+      }
+      .legend b {
+        color: #cfd6d2;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-head">
+      <h1>ChisaCode 移动端 · WEB3 四主题设计系统</h1>
+      <p>
+        基于项目真实设计
+        token（<code>packages/app/src/styles/theme.ts</code>）与产品概念（本地优先多 provider 编码
+        agent 控制台 / Agents 首页 / daemon / BYOK / 状态机）。纯样式探索，不接真实 web3。
+      </p>
+      <div class="tokens">
+        <span><i class="swatch" style="background: #20744a"></i>accent #20744A</span>
+        <span><i class="swatch" style="background: #7ccba0"></i>accentBright #7CCBA0</span>
+        <span><i class="swatch" style="background: #16a34a"></i>success #16A34A</span>
+        <span><i class="swatch" style="background: #f59e0b"></i>warning #F59E0B</span>
+        <span><i class="swatch" style="background: #9333ea"></i>merged #9333EA</span>
+        <span><i class="swatch" style="background: #007aff"></i>liquidNeon #007aff</span>
+        <span><i class="swatch" style="background: #181b1a"></i>dark.surface0 #181B1A</span>
+      </div>
+    </div>
+
+    <div class="themes">
+      <!-- T1 -->
+      <div class="theme-col">
+        <div class="tname">
+          T1 · Light Fresh Modern<br /><small style="color: #7c8580; font-weight: 400"
+            >浅色清新现代</small
+          >
+        </div>
+        <div class="phone t1">
+          <div class="statusbar"><span>9:41</span><span>Chisa · WiFi</span></div>
+          <div class="content">
+            <header>
+              <div class="wordmark">ChisaCode</div>
+              <div class="daemon-pill"><span class="dot"></span>Online</div>
+            </header>
+            <div class="hero">
+              <div class="hero-top">
+                <span class="eyebrow">LOCAL-FIRST CONSOLE</span><span class="byok-chip">BYOK</span>
+              </div>
+              <div class="stats">
+                <div class="stat"><strong>3</strong><span>ACTIVE AGENTS</span></div>
+                <div class="stat"><strong>48.2K</strong><span>TOKENS / MIN</span></div>
+              </div>
+              <div class="providers">
+                <span class="chip">Claude</span><span class="chip">Codex</span
+                ><span class="chip">OpenCode</span><span class="chip">Kimi Code</span>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qa primary">NEW AGENT</div>
+              <div class="qa">SCHEDULE</div>
+              <div class="qa">TERMINAL</div>
+              <div class="qa">PAIR</div>
+            </div>
+            <div class="section-label">AGENTS</div>
+            <div class="agent-list">
+              <div class="agent-row">
+                <span class="sdot" style="background: #16a34a"></span>
+                <div class="meta">
+                  <div class="nm">Refactor Bot</div>
+                  <div class="sub">RUNNING · Claude</div>
+                </div>
+                <span class="badge">LIVE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #f59e0b"></span>
+                <div class="meta">
+                  <div class="nm">Docs Writer</div>
+                  <div class="sub">THINKING · Codex</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #a1a5a4"></span>
+                <div class="meta">
+                  <div class="nm">Test Gen</div>
+                  <div class="sub">IDLE · OpenCode</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #16a34a"></span>
+                <div class="meta">
+                  <div class="nm">Deploy Watch</div>
+                  <div class="sub">DONE · Kimi Code</div>
+                </div>
+                <span class="badge">OK</span>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab active">
+              <div class="ic"></div>
+              Agents
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Sessions
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Providers
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Host
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Settings
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- T2 -->
+      <div class="theme-col">
+        <div class="tname">
+          T2 · Dark Minimal Premium<br /><small style="color: #a1a5a4; font-weight: 400"
+            >暗色极简高级</small
+          >
+        </div>
+        <div class="phone t2">
+          <div class="statusbar"><span>9:41</span><span>Chisa · WiFi</span></div>
+          <div class="content">
+            <header>
+              <div class="wordmark">ChisaCode</div>
+              <div class="daemon-pill"><span class="dot"></span>Online</div>
+            </header>
+            <div class="hero">
+              <div class="hero-top">
+                <span class="eyebrow">LOCAL-FIRST CONSOLE</span><span class="byok-chip">BYOK</span>
+              </div>
+              <div class="stats">
+                <div class="stat"><strong>3</strong><span>ACTIVE AGENTS</span></div>
+                <div class="stat"><strong>48.2K</strong><span>TOKENS / MIN</span></div>
+              </div>
+              <div class="providers">
+                <span class="chip">Claude</span><span class="chip">Codex</span
+                ><span class="chip">OpenCode</span><span class="chip">Kimi Code</span>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qa primary">NEW AGENT</div>
+              <div class="qa">SCHEDULE</div>
+              <div class="qa">TERMINAL</div>
+              <div class="qa">PAIR</div>
+            </div>
+            <div class="section-label">AGENTS</div>
+            <div class="agent-list">
+              <div class="agent-row">
+                <span class="sdot" style="background: #16a34a"></span>
+                <div class="meta">
+                  <div class="nm">Refactor Bot</div>
+                  <div class="sub">RUNNING · Claude</div>
+                </div>
+                <span class="badge">LIVE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #f59e0b"></span>
+                <div class="meta">
+                  <div class="nm">Docs Writer</div>
+                  <div class="sub">THINKING · Codex</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #a1a5a4"></span>
+                <div class="meta">
+                  <div class="nm">Test Gen</div>
+                  <div class="sub">IDLE · OpenCode</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #16a34a"></span>
+                <div class="meta">
+                  <div class="nm">Deploy Watch</div>
+                  <div class="sub">DONE · Kimi Code</div>
+                </div>
+                <span class="badge">OK</span>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab active">
+              <div class="ic"></div>
+              Agents
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Sessions
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Providers
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Host
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Settings
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- T3 -->
+      <div class="theme-col">
+        <div class="tname">
+          T3 · Dark Tech Neon<br /><small style="color: #8fa89a; font-weight: 400"
+            >暗色科技霓虹</small
+          >
+        </div>
+        <div class="phone t3">
+          <div class="statusbar"><span>9:41</span><span>Chisa · WiFi</span></div>
+          <div class="content">
+            <header>
+              <div class="wordmark">ChisaCode</div>
+              <div class="daemon-pill"><span class="dot"></span>Online</div>
+            </header>
+            <div class="hero">
+              <div class="hero-top">
+                <span class="eyebrow">LOCAL-FIRST CONSOLE</span><span class="byok-chip">BYOK</span>
+              </div>
+              <div class="stats">
+                <div class="stat"><strong>3</strong><span>ACTIVE AGENTS</span></div>
+                <div class="stat"><strong>48.2K</strong><span>TOKENS / MIN</span></div>
+              </div>
+              <div class="providers">
+                <span class="chip">Claude</span><span class="chip">Codex</span
+                ><span class="chip">OpenCode</span><span class="chip">Kimi Code</span>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qa primary">NEW AGENT</div>
+              <div class="qa">SCHEDULE</div>
+              <div class="qa">TERMINAL</div>
+              <div class="qa">PAIR</div>
+            </div>
+            <div class="section-label">AGENTS</div>
+            <div class="agent-list">
+              <div class="agent-row">
+                <span class="sdot" style="background: #3df5a8"></span>
+                <div class="meta">
+                  <div class="nm">Refactor Bot</div>
+                  <div class="sub">RUNNING · Claude</div>
+                </div>
+                <span class="badge">LIVE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #f59e0b"></span>
+                <div class="meta">
+                  <div class="nm">Docs Writer</div>
+                  <div class="sub">THINKING · Codex</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #8fa89a"></span>
+                <div class="meta">
+                  <div class="nm">Test Gen</div>
+                  <div class="sub">IDLE · OpenCode</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #16a34a"></span>
+                <div class="meta">
+                  <div class="nm">Deploy Watch</div>
+                  <div class="sub">DONE · Kimi Code</div>
+                </div>
+                <span class="badge">OK</span>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab active">
+              <div class="ic"></div>
+              Agents
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Sessions
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Providers
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Host
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Settings
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- T4 -->
+      <div class="theme-col">
+        <div class="tname">
+          T4 · Liquid Glass<br /><small style="color: #afc4e6; font-weight: 400">液态玻璃</small>
+        </div>
+        <div class="phone t4">
+          <div class="statusbar"><span>9:41</span><span>Chisa · WiFi</span></div>
+          <div class="content">
+            <header>
+              <div class="wordmark">ChisaCode</div>
+              <div class="daemon-pill"><span class="dot"></span>Online</div>
+            </header>
+            <div class="hero">
+              <div class="hero-top">
+                <span class="eyebrow">LOCAL-FIRST CONSOLE</span><span class="byok-chip">BYOK</span>
+              </div>
+              <div class="stats">
+                <div class="stat"><strong>3</strong><span>ACTIVE AGENTS</span></div>
+                <div class="stat"><strong>48.2K</strong><span>TOKENS / MIN</span></div>
+              </div>
+              <div class="providers">
+                <span class="chip">Claude</span><span class="chip">Codex</span
+                ><span class="chip">OpenCode</span><span class="chip">Kimi Code</span>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qa primary">NEW AGENT</div>
+              <div class="qa">SCHEDULE</div>
+              <div class="qa">TERMINAL</div>
+              <div class="qa">PAIR</div>
+            </div>
+            <div class="section-label">AGENTS</div>
+            <div class="agent-list">
+              <div class="agent-row">
+                <span class="sdot" style="background: #4da3ff"></span>
+                <div class="meta">
+                  <div class="nm">Refactor Bot</div>
+                  <div class="sub">RUNNING · Claude</div>
+                </div>
+                <span class="badge">LIVE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #f59e0b"></span>
+                <div class="meta">
+                  <div class="nm">Docs Writer</div>
+                  <div class="sub">THINKING · Codex</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #b8c6e0"></span>
+                <div class="meta">
+                  <div class="nm">Test Gen</div>
+                  <div class="sub">IDLE · OpenCode</div>
+                </div>
+                <span class="badge">IDLE</span>
+              </div>
+              <div class="agent-row">
+                <span class="sdot" style="background: #16a34a"></span>
+                <div class="meta">
+                  <div class="nm">Deploy Watch</div>
+                  <div class="sub">DONE · Kimi Code</div>
+                </div>
+                <span class="badge">OK</span>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab active">
+              <div class="ic"></div>
+              Agents
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Sessions
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Providers
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Host
+            </div>
+            <div class="tab">
+              <div class="ic"></div>
+              Settings
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <b>说明：</b>此 HTML 为四主题的<b>浏览器预览原型</b>，用于在无 Ardot 连接 /
+      无多模态模型时肉眼确认设计方向，不是 Ardot 源文件。<br />
+      T2 / T3 / T4 已在 Ardot 文件 <code>701073241114590</code> 中建好（页面 <code>2:166</code> /
+      <code>2:332</code> / <code>2:444</code>）；T1（浅色）的页面节点此前从文件中丢失，待 Ardot MCP
+      重连后按同一蓝图补回。<br />
+      四主题共享同一组件结构：状态栏 → 字标 + daemon 在线胶囊 → Hero 卡（BYOK + 双指标 + provider
+      芯片）→ 4 个快捷操作 → 4 行 agent 卡片（状态点 + 状态机徽章）→ 药丸 Tab Bar（Agents 高亮）。
+    </div>
+  </body>
+</html>

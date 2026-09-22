@@ -1,0 +1,38 @@
+{
+  "hold": {
+    "name": "hold-for-import",
+    "sample": {
+      "tab": "import",
+      "status": "当前版本 0.2.7 · 桌面 idle",
+      "import": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+      "urls": [
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+      ]
+    },
+    "urls": [
+      "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+    ],
+    "startedDesktop": false
+  },
+  "toggle": {
+    "name": "settings-toggle",
+    "checked": true,
+    "quitAfterStart": true
+  },
+  "start": {
+    "name": "start-desktop",
+    "urls": [
+      "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/boot.html",
+      "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+    ],
+    "hint": "",
+    "status": "当前版本 0.2.7 · 桌面 idle",
+    "startedBoot": true,
+    "logTail": [
+      "",
+      "",
+      "DevTools listening on ws://127.0.0.1:9343/devtools/browser/18e4d239-5c9d-4f17-ad4c-881c6afd30bf",
+      ""
+    ]
+  }
+}

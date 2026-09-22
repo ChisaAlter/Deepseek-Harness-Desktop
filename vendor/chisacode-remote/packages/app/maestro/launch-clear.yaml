@@ -1,0 +1,5 @@
+appId: sh.chisacode
+---
+- launchApp:
+    clearState: true
+- runFlow: flows/dev-client.yaml

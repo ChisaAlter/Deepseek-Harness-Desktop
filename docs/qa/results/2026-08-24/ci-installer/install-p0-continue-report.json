@@ -1,0 +1,191 @@
+{
+  "at": "2026-08-24T15:33:15.090Z",
+  "productExe": "C:\\Program Files\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/32735432340",
+  "setupSha256": "52EBFCF4B43214988750552A66FF0087B1A70CD43FB6C4430F241917F7C06666",
+  "checks": [
+    {
+      "id": "TC-LAUNCH-002-auto",
+      "pass": true,
+      "ok": true,
+      "sample": {
+        "btnStart": "启动桌面端",
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行",
+        "hint": "",
+        "state": "ready",
+        "baseUrl": "http://127.0.0.1:3080",
+        "activeTab": "home"
+      },
+      "urls": [
+        "http://127.0.0.1:3080/",
+        "file:///C:/Program%20Files/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/boot.html",
+        "file:///C:/Program%20Files/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/launcher.html"
+      ]
+    },
+    {
+      "id": "TC-INST-002",
+      "pass": true,
+      "beforeCount": 0,
+      "afterCount": 0,
+      "stillOneHarness": true
+    },
+    {
+      "id": "TC-LAUNCH-006-close-launcher",
+      "pass": true,
+      "urlsAfterClose": [
+        "file:///C:/Program%20Files/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/boot.html",
+        "http://127.0.0.1:3080/"
+      ]
+    },
+    {
+      "id": "TC-LAUNCH-006-reopen",
+      "pass": true,
+      "blocked": false,
+      "invoked": {
+        "ok": true
+      },
+      "launcherVisible": true,
+      "urlsAfterReopen": [
+        "file:///C:/Program%20Files/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/launcher.html",
+        "file:///C:/Program%20Files/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/boot.html",
+        "http://127.0.0.1:3080/"
+      ]
+    },
+    {
+      "id": "TC-LAUNCH-007-official-chrome",
+      "pass": true,
+      "scheme": "dark",
+      "sample": {
+        "shell": "official",
+        "boot": false,
+        "dark": true,
+        "tokenBg": "rgb(21, 21, 23)",
+        "htmlBg": "rgb(21, 21, 23)",
+        "bodyBg": "rgb(21, 21, 23)"
+      },
+      "themeFails": [],
+      "configProbe": {
+        "workspace": "C:\\Ai\\Deepseek-Harness-Desktop",
+        "host": "127.0.0.1",
+        "port": 3080,
+        "apiKey": "********",
+        "baseUrl": "https://ayase.cn/v1",
+        "dshBin": "",
+        "nodeBin": "",
+        "closeToTray": true,
+        "openAtLogin": false,
+        "openDevTools": false,
+        "theme": "celadon",
+        "locale": "zh",
+        "githubToken": "",
+        "remoteEnabled": false,
+        "remotePort": 3180,
+        "remoteToken": "",
+        "remoteMode": "lan",
+        "remoteRelayUrl": "",
+        "remoteRelayToken": "",
+        "harnessAutoRestart": true,
+        "harnessRestartMaxAttempts": 3,
+        "harnessRestartBaseDelayMs": 1000,
+        "pluginRecovery": {
+          "skipUserPlugins": false,
+          "reason": "",
+          "at": "",
+          "appVersion": ""
+        },
+        "quitAfterStart": false,
+        "autoStartDesktop": false,
+        "askOnUpdate": false,
+        "disabledPlugins": [],
+        "remoteDevices": [],
+        "hasApiKey": true,
+        "hasGithubToken": false,
+        "remoteAvailable": false,
+        "themes": [
+          {
+            "id": "deepseek",
+            "name": "DeepSeek",
+            "bg": "#151517",
+            "accent": "#679efe",
+            "scheme": "dark"
+          },
+          {
+            "id": "midnight",
+            "name": "午夜",
+            "bg": "#0b0d12",
+            "accent": "#6ea8ff",
+            "scheme": "dark"
+          },
+          {
+            "id": "celadon",
+            "name": "青瓷",
+            "bg": "#071411",
+            "accent": "#3dd6b5",
+            "scheme": "dark"
+          },
+          {
+            "id": "violet",
+            "name": "暮紫",
+            "bg": "#120e18",
+            "accent": "#c4a1ff",
+            "scheme": "dark"
+          },
+          {
+            "id": "amber",
+            "name": "琥珀",
+            "bg": "#14100b",
+            "accent": "#e2b15c",
+            "scheme": "dark"
+          },
+          {
+            "id": "paper",
+            "name": "宣纸",
+            "bg": "#1a1712",
+            "accent": "#5eead4",
+            "scheme": "light"
+          },
+          {
+            "id": "contrast",
+            "name": "对比",
+            "bg": "#050505",
+            "accent": "#ffffff",
+            "scheme": "dark"
+          }
+        ],
+        "themeTokens": {
+          "id": "celadon",
+          "name": "青瓷",
+          "scheme": "dark",
+          "bg": "#071411",
+          "fg": "#e7f6f1",
+          "muted": "#899793",
+          "accent": "#3dd6b5",
+          "field": "#14221e",
+          "line": "rgba(245, 245, 245, 0.10)",
+          "buttonFg": "#071411"
+        },
+        "nodeDetected": "C:\\Program Files\\Deepseek-Harness-Desktop\\resources\\node.exe",
+        "dshDetected": "源码 C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop\\runtime\\0.2.7",
+        "appVersion": "0.2.7",
+        "repoUrl": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop",
+        "releasesUrl": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/releases",
+        "dshHome": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop\\dsh-home"
+      },
+      "note": "launcher chrome stays official while harness theme may differ (theme is not launcher-writable)"
+    },
+    {
+      "id": "TC-LAUNCH-003",
+      "pass": false,
+      "blocked": true,
+      "note": "installed 0.2.7 newer than /releases/latest 0.2.6; cannot prompt update without downgrading"
+    },
+    {
+      "id": "TC-LAUNCH-004",
+      "pass": false,
+      "blocked": true,
+      "note": "dest sessions non-empty (29 importable rows in scan); empty-home path not applicable"
+    }
+  ],
+  "pass": true
+}

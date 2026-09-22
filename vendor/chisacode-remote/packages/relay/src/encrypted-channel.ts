@@ -1,0 +1,577 @@
+/// <reference lib="dom" />
+/**
+ * Encrypted channel that wraps a WebSocket-like transport.
+ *
+ * Handles ECDH handshake and encrypts/decrypts all messages.
+ * Works identically for daemon and client sides.
+ */
+
+import {
+  generateKeyPair,
+  exportPublicKey,
+  importPublicKey,
+  deriveSharedKey,
+  encrypt,
+  decrypt,
+  ensurePrng,
+  type KeyPair,
+  type SharedKey,
+  SALT_LENGTH,
+} from "./crypto.js";
+import nacl from "tweetnacl";
+import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
+
+export interface Transport {
+  send(data: string | ArrayBuffer): void;
+  close(code?: number, reason?: string): void;
+  onmessage: ((data: string | ArrayBuffer) => void) | null;
+  onclose: ((code: number, reason: string) => void) | null;
+  onerror: ((error: Error) => void) | null;
+}
+
+export interface EncryptedChannelEvents {
+  onopen?: () => void;
+  onmessage?: (data: string | ArrayBuffer) => void;
+  onclose?: (code: number, reason: string) => void;
+  onerror?: (error: Error) => void;
+}
+
+type ChannelState = "connecting" | "handshaking" | "open" | "closed";
+
+interface EncryptedChannelOptions {
+  /**
+   * If set, the channel can validate repeated plaintext `{type:"e2ee_hello"}`
+   * messages even after it is open.
+   *
+   * This is useful for robustness when the client retries the handshake
+   * (e.g., it didn't observe the daemon's `{type:"e2ee_ready"}` yet). In that case,
+   * the daemon should re-send `{type:"e2ee_ready"}` without changing keys.
+   */
+  daemonKeyPair?: KeyPair;
+  securityContext?: EncryptedChannelSecurityContext;
+}
+
+/** Channel-bound values used by the higher-level relay device-auth handshake. */
+export interface EncryptedChannelSecurityContext {
+  clientPublicKeyB64: string;
+  authChallenge?: string;
+}
+
+interface E2EEHelloMessage {
+  type: "e2ee_hello";
+  key: string;
+}
+
+interface E2EEReadyMessage {
+  type: "e2ee_ready";
+  authChallenge?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isE2EEHelloMessage(value: unknown): value is E2EEHelloMessage {
+  return (
+    isRecord(value) &&
+    value.type === "e2ee_hello" &&
+    typeof value.key === "string" &&
+    value.key.trim().length > 0
+  );
+}
+
+function isE2EEReadyMessage(value: unknown): value is E2EEReadyMessage {
+  return (
+    isRecord(value) &&
+    value.type === "e2ee_ready" &&
+    (value.authChallenge === undefined ||
+      (typeof value.authChallenge === "string" && value.authChallenge.trim().length > 0))
+  );
+}
+
+function createAuthChallenge(): string {
+  ensurePrng();
+  const bytes = nacl.randomBytes(32);
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return arrayBufferToBase64(copy.buffer);
+}
+
+function buildInvalidHelloError(rawText: string, parsed?: unknown): Error {
+  const parsedRecord = isRecord(parsed) ? parsed : null;
+  const rawType = parsedRecord?.type;
+  function describeType(value: unknown): string {
+    if (typeof value === "string") return value;
+    if (value === undefined) return "undefined";
+    return typeof value;
+  }
+  const receivedType = describeType(rawType);
+  const hasKey = typeof parsedRecord?.key === "string" && parsedRecord.key.trim().length > 0;
+  const compact = rawText.replace(/\s+/g, " ").trim();
+  const preview = compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
+  return new Error(
+    `Invalid hello message (receivedType=${receivedType}, hasKey=${hasKey}, preview=${JSON.stringify(preview)})`,
+  );
+}
+
+const HANDSHAKE_RETRY_MS = 1000;
+const MAX_PENDING_SENDS = 200;
+const REHANDSHAKE_KEY_MISMATCH_CLOSE_CODE = 1008;
+const REHANDSHAKE_KEY_MISMATCH_CLOSE_REASON = "E2EE re-handshake key mismatch";
+// Fatal close used when a received frame violates replay protection (replayed
+// or out-of-order seq, or a salt that differs from the first frame's salt).
+const REPLAY_PROTECTION_CLOSE_CODE = 1011;
+const REPLAY_PROTECTION_CLOSE_REASON = "E2EE replay protection violation";
+
+interface TimeoutWithUnref {
+  unref(): void;
+}
+
+function hasUnref(timeout: unknown): timeout is TimeoutWithUnref {
+  return (
+    typeof timeout === "object" &&
+    timeout !== null &&
+    "unref" in timeout &&
+    typeof (timeout as Record<string, unknown>).unref === "function"
+  );
+}
+
+/**
+ * Creates an encrypted channel as the initiator (client).
+ *
+ * The client:
+ * 1. Receives daemon's public key via QR code
+ * 2. Generates own keypair
+ * 3. Sends e2ee_hello with own public key
+ * 4. Derives shared key and starts encrypted communication
+ */
+export async function createClientChannel(
+  transport: Transport,
+  daemonPublicKeyB64: string,
+  events: EncryptedChannelEvents = {},
+): Promise<EncryptedChannel> {
+  const keyPair = generateKeyPair();
+  const daemonPublicKey = importPublicKey(daemonPublicKeyB64);
+  const sharedKey = deriveSharedKey(keyPair.secretKey, daemonPublicKey);
+
+  const ourPublicKeyB64 = exportPublicKey(keyPair.publicKey);
+  const channel = new EncryptedChannel(transport, sharedKey, events, {
+    securityContext: { clientPublicKeyB64: ourPublicKeyB64 },
+  });
+
+  // Send e2ee_hello with our public key
+  const hello: E2EEHelloMessage = { type: "e2ee_hello", key: ourPublicKeyB64 };
+  const helloText = JSON.stringify(hello);
+
+  let retry: ReturnType<typeof setInterval> | null = null;
+  const emitSendError = (error: unknown) => {
+    const err = error instanceof Error ? error : new Error(String(error));
+    events.onerror?.(err);
+  };
+  const sendHello = () => {
+    try {
+      transport.send(helloText);
+      return true;
+    } catch (error) {
+      // This can happen during daemon restarts while the socket transitions
+      // through CLOSING/CLOSED states. Report it but do not throw from timers.
+      emitSendError(error);
+      return false;
+    }
+  };
+  const clearRetry = () => {
+    if (retry) {
+      clearInterval(retry);
+      retry = null;
+    }
+  };
+
+  channel.onTransitionToOpen(() => clearRetry());
+  channel.onClose(() => clearRetry());
+
+  sendHello();
+  try {
+    retry = setInterval(() => {
+      if (channel.isOpen()) {
+        clearRetry();
+        return;
+      }
+      sendHello();
+    }, HANDSHAKE_RETRY_MS);
+    // Avoid keeping Node processes alive (e.g. tests) if the handshake is stuck.
+    if (hasUnref(retry)) {
+      retry.unref();
+    }
+    return channel;
+  } catch (error) {
+    clearRetry();
+    throw error;
+  }
+}
+
+/**
+ * Creates an encrypted channel as the responder (daemon).
+ *
+ * The daemon:
+ * 1. Has pre-generated keypair (public key was in QR)
+ * 2. Waits for client's e2ee_hello with their public key
+ * 3. Derives shared key and starts encrypted communication
+ */
+export async function createDaemonChannel(
+  transport: Transport,
+  daemonKeyPair: KeyPair,
+  events: EncryptedChannelEvents = {},
+): Promise<EncryptedChannel> {
+  return new Promise((resolve, reject) => {
+    const bufferedMessages: Array<string | ArrayBuffer> = [];
+    const shouldIgnorePostHelloPlaintext = (data: string | ArrayBuffer): boolean => {
+      try {
+        const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+        const parsed: unknown = JSON.parse(text);
+        return isE2EEHelloMessage(parsed) || isE2EEReadyMessage(parsed);
+      } catch {
+        return false;
+      }
+    };
+
+    const handleHello = async (data: string | ArrayBuffer): Promise<void> => {
+      try {
+        const helloText = typeof data === "string" ? data : new TextDecoder().decode(data);
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(helloText);
+        } catch {
+          throw buildInvalidHelloError(helloText);
+        }
+
+        if (!isE2EEHelloMessage(parsed)) {
+          throw buildInvalidHelloError(helloText, parsed);
+        }
+
+        const msg = parsed;
+
+        // Buffer any subsequent messages that arrive while we're doing async
+        // WebCrypto work to derive the shared key. Without this, it's possible
+        // for the next message (already encrypted) to be misinterpreted as a
+        // second hello, causing the handshake to fail.
+        const bufferNext = (next: string | ArrayBuffer): void => {
+          bufferedMessages.push(next);
+        };
+        Object.assign(transport, { onmessage: bufferNext });
+
+        const clientPublicKey = importPublicKey(msg.key);
+        const sharedKey = deriveSharedKey(daemonKeyPair.secretKey, clientPublicKey);
+
+        const authChallenge = createAuthChallenge();
+        const channel = new EncryptedChannel(transport, sharedKey, events, {
+          daemonKeyPair,
+          securityContext: {
+            clientPublicKeyB64: msg.key,
+            authChallenge,
+          },
+        });
+        transport.send(
+          JSON.stringify({ type: "e2ee_ready", authChallenge } satisfies E2EEReadyMessage),
+        );
+
+        channel.setState("open");
+        events.onopen?.();
+
+        for (const buffered of bufferedMessages) {
+          if (shouldIgnorePostHelloPlaintext(buffered)) continue;
+          transport.onmessage?.(buffered);
+        }
+
+        resolve(channel);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    Object.assign(transport, {
+      onmessage: handleHello,
+      onerror: (error: Error) => {
+        reject(error);
+      },
+      onclose: (code: number, reason: string) => {
+        reject(new Error(`Connection closed during handshake: ${code} ${reason}`));
+      },
+    });
+  });
+}
+
+/**
+ * Encrypted channel that wraps a transport with E2EE.
+ */
+export class EncryptedChannel {
+  private transport: Transport;
+  private sharedKey: SharedKey;
+  private state: ChannelState = "handshaking";
+  private events: EncryptedChannelEvents;
+  private options: EncryptedChannelOptions;
+  private securityContext: EncryptedChannelSecurityContext | null;
+  private pendingSends: Array<string | ArrayBuffer> = [];
+  private onOpenCallbacks: Array<() => void> = [];
+  private onCloseCallbacks: Array<() => void> = [];
+  // Replay protection state, maintained per channel direction.
+  // Each side has its own send counter + send salt (random, generated when
+  // the channel transitions to open) and tracks the peer's receive counter +
+  // receive salt (locked to the first encrypted frame observed).
+  private sendSeq = 0n;
+  private recvSeq: bigint | null = null;
+  private sendSalt: Uint8Array | null = null;
+  private recvSalt: Uint8Array | null = null;
+
+  constructor(
+    transport: Transport,
+    sharedKey: SharedKey,
+    events: EncryptedChannelEvents = {},
+    options: EncryptedChannelOptions = {},
+  ) {
+    this.transport = transport;
+    this.sharedKey = sharedKey;
+    this.events = events;
+    this.options = options;
+    this.securityContext = options.securityContext ? { ...options.securityContext } : null;
+
+    Object.assign(transport, {
+      onmessage: (data: string | ArrayBuffer) => this.handleMessage(data),
+      onclose: (code: number, reason: string) => {
+        this.state = "closed";
+        this.events.onclose?.(code, reason);
+        for (const cb of this.onCloseCallbacks) cb();
+      },
+      onerror: (error: Error) => {
+        this.events.onerror?.(error);
+      },
+    });
+  }
+
+  setState(state: ChannelState): void {
+    this.state = state;
+    if (state === "open") {
+      // Initialise the send direction when entering open. The receive
+      // direction is locked to the peer's first encrypted frame.
+      ensurePrng();
+      this.sendSalt = nacl.randomBytes(SALT_LENGTH);
+      this.sendSeq = 0n;
+    }
+  }
+
+  private async handleMessage(data: string | ArrayBuffer): Promise<void> {
+    if (this.state === "handshaking") {
+      try {
+        const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+        const parsed: unknown = JSON.parse(text);
+        if (isE2EEReadyMessage(parsed)) {
+          if (this.securityContext && parsed.authChallenge) {
+            this.securityContext.authChallenge = parsed.authChallenge;
+          }
+          // Use setState so the send direction (salt + seq) is initialised.
+          this.setState("open");
+          this.events.onopen?.();
+          for (const cb of this.onOpenCallbacks) cb();
+          await this.flushPendingSends();
+        }
+      } catch {
+        // ignore non-ready handshake traffic
+      }
+      return;
+    }
+
+    if (this.state !== "open") return;
+
+    try {
+      const ciphertext = await (async () => {
+        // Handle (or ignore) any stray plaintext handshake traffic.
+        try {
+          const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+          if (text.trim().startsWith("{")) {
+            const parsed: unknown = JSON.parse(text);
+
+            if (isE2EEHelloMessage(parsed)) {
+              if (this.options.daemonKeyPair) {
+                await this.handleDaemonRehello(parsed.key);
+              }
+              return null;
+            }
+
+            if (isE2EEReadyMessage(parsed)) {
+              return null;
+            }
+
+            // Any other JSON-looking payload is plaintext app traffic, which
+            // means the peer is not encrypting (or we are out of sync).
+            throw new Error("Received plaintext frame on encrypted channel");
+          }
+        } catch (error) {
+          // If we detected plaintext protocol mismatch, fail hard.
+          if (error instanceof Error && error.message.includes("plaintext frame")) {
+            throw error;
+          }
+          // Otherwise ignore JSON parse/TextDecoder failures and fall back to
+          // decoding ciphertext below.
+        }
+
+        if (typeof data === "string") {
+          return base64ToArrayBuffer(data);
+        }
+
+        // Some WebSocket implementations deliver text frames as ArrayBuffer.
+        // Our protocol always transmits ciphertext as base64 text.
+        try {
+          const decoded = new TextDecoder().decode(data);
+          return base64ToArrayBuffer(decoded);
+        } catch {
+          return data;
+        }
+      })();
+
+      if (ciphertext) {
+        const { plaintext, seq, salt } = decrypt(this.sharedKey, ciphertext);
+        this.enforceReplayProtection(seq, salt);
+        this.events.onmessage?.(plaintext);
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // Treat decryption/protocol errors as fatal so the peer can reconnect and
+      // re-handshake. Emitting an error event here can cause higher-level code
+      // to tear down the session without triggering a clean reconnect.
+      try {
+        this.transport.close(
+          err.message.includes("replay") ? REPLAY_PROTECTION_CLOSE_CODE : 1011,
+          err.message.includes("replay") ? REPLAY_PROTECTION_CLOSE_REASON : err.message,
+        );
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  /**
+   * Rejects replayed or out-of-order frames. The first received frame locks
+   * the per-direction salt and seeds the recv counter; every subsequent frame
+   * must carry the same salt and a strictly greater seq. A violation closes
+   * the channel fatally so the peer must re-handshake.
+   */
+  private enforceReplayProtection(seq: bigint, salt: Uint8Array): void {
+    if (this.recvSalt === null || this.recvSeq === null) {
+      this.recvSalt = salt;
+      this.recvSeq = seq;
+      return;
+    }
+    if (salt.byteLength !== this.recvSalt.byteLength) {
+      throw new Error("E2EE replay protection violation: salt length changed");
+    }
+    let saltMismatch = 0;
+    for (let i = 0; i < this.recvSalt.byteLength; i += 1) {
+      saltMismatch |= salt[i] ^ this.recvSalt[i];
+    }
+    if (saltMismatch !== 0) {
+      throw new Error("E2EE replay protection violation: salt changed");
+    }
+    if (seq <= this.recvSeq) {
+      throw new Error("E2EE replay protection violation: seq not strictly increasing");
+    }
+    this.recvSeq = seq;
+  }
+
+  async send(data: string | ArrayBuffer): Promise<void> {
+    if (this.state === "handshaking") {
+      if (this.pendingSends.length >= MAX_PENDING_SENDS) {
+        this.pendingSends.shift();
+      }
+      this.pendingSends.push(data);
+      return;
+    }
+
+    if (this.state !== "open") {
+      throw new Error("Channel not open");
+    }
+
+    if (!this.sendSalt) {
+      throw new Error("Channel open without send salt initialised");
+    }
+
+    const seq = this.sendSeq;
+    this.sendSeq += 1n;
+    const ciphertext = encrypt(this.sharedKey, data, seq, this.sendSalt);
+    // Send as base64 for WebSocket text compatibility
+    this.transport.send(arrayBufferToBase64(ciphertext));
+  }
+
+  private async flushPendingSends(): Promise<void> {
+    if (this.state !== "open") return;
+    const pending = this.pendingSends;
+    this.pendingSends = [];
+    for (const item of pending) {
+      await this.send(item);
+    }
+  }
+
+  private async handleDaemonRehello(clientKeyB64: string): Promise<void> {
+    if (!this.options.daemonKeyPair) return;
+    const clientPublicKey = importPublicKey(clientKeyB64);
+    const nextSharedKey = deriveSharedKey(this.options.daemonKeyPair.secretKey, clientPublicKey);
+
+    // If it's the same client key (handshake retry), re-send
+    // "ready" but do not re-key. Re-keying here would desync
+    // the channel and cause decrypt failures.
+    if (keysEqual(nextSharedKey, this.sharedKey)) {
+      this.transport.send(
+        JSON.stringify({
+          type: "e2ee_ready",
+          ...(this.securityContext?.authChallenge
+            ? { authChallenge: this.securityContext.authChallenge }
+            : {}),
+        } satisfies E2EEReadyMessage),
+      );
+      return;
+    }
+
+    // A different key on an already-open encrypted channel is not an
+    // authenticated reconnect. Close and require a fresh transport instead of
+    // allowing the relay to switch this channel to an attacker-chosen key.
+    this.state = "closed";
+    this.transport.close(
+      REHANDSHAKE_KEY_MISMATCH_CLOSE_CODE,
+      REHANDSHAKE_KEY_MISMATCH_CLOSE_REASON,
+    );
+  }
+
+  close(code = 1000, reason = "Normal closure"): void {
+    this.state = "closed";
+    this.transport.close(code, reason);
+  }
+
+  isOpen(): boolean {
+    return this.state === "open";
+  }
+
+  /**
+   * Returns the E2EE handshake values that relay device auth must bind to.
+   * @returns A defensive copy of the channel security context, or null before setup
+   */
+  getSecurityContext(): EncryptedChannelSecurityContext | null {
+    return this.securityContext ? { ...this.securityContext } : null;
+  }
+
+  onTransitionToOpen(cb: () => void): void {
+    this.onOpenCallbacks.push(cb);
+  }
+
+  onClose(cb: () => void): void {
+    this.onCloseCallbacks.push(cb);
+  }
+}
+
+function keysEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.byteLength !== b.byteLength) return false;
+  let difference = 0;
+  for (let i = 0; i < a.byteLength; i += 1) {
+    difference |= a[i] ^ b[i];
+  }
+  return difference === 0;
+}

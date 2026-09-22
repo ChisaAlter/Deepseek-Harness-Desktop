@@ -1,0 +1,66 @@
+/* Typing-effect modal preview specifics; the shared panel chrome reuses
+   BeamSettingsModal.module.css (dialog, sections, controls, footer). */
+
+.previewLine {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  min-height: 22px;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsh-typing-fx-text-color, var(--dsw-alias-label-primary));
+  white-space: pre;
+}
+
+/* The ghost sits over its static character exactly like the composer echo
+   sits over the real glyph. */
+.previewChar {
+  position: relative;
+}
+
+.previewGhost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.previewCaret {
+  display: inline-block;
+  align-self: center;
+  width: 0.6em;
+  height: 1.1em;
+  margin-left: 1px;
+  background: var(--dsh-typing-fx-caret-color, var(--dsw-alias-state-business-primary));
+  border-radius: 1px;
+}
+
+.previewCaret[data-typing-fx-caret='underline'] {
+  height: 2px;
+  background: transparent;
+  border-bottom: 2px solid var(--dsh-typing-fx-caret-color, var(--dsw-alias-state-business-primary));
+  border-radius: 0;
+}
+
+.previewLine[data-blink] .previewCaret {
+  animation: dsh-typing-fx-preview-blink calc(var(--ds-motion-duration-flip) * 2.5) step-end infinite;
+}
+
+@keyframes dsh-typing-fx-preview-blink {
+  0%, 45% {
+    opacity: 1;
+  }
+  50%, 95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .previewCaret {
+    animation: none;
+  }
+}

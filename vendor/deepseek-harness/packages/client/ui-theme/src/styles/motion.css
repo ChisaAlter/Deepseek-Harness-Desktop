@@ -1,0 +1,116 @@
+/* Shared overlay / popover / fade / swap / flip recipes. A surface sets
+ * `data-dsh-motion` and `data-state` from `usePresence`; only opacity and
+ * transform move. `prefers-reduced-motion` zeros the duration tokens in
+ * base.css, so these rules become instantaneous without a second copy. */
+
+[data-dsh-motion][data-state='closed'] {
+  pointer-events: none;
+}
+
+[data-dsh-motion='overlay'] [data-dsh-motion-part='mask'] {
+  opacity: 1;
+  transition: opacity var(--ds-motion-duration-overlay) var(--ds-ease-in-out);
+}
+
+[data-dsh-motion='overlay'][data-state='closed'] [data-dsh-motion-part='mask'] {
+  opacity: 0;
+  transition-duration: var(--ds-motion-duration-overlay-out);
+}
+
+[data-dsh-motion='overlay'] [data-dsh-motion-part='panel'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--ds-motion-duration-overlay) var(--ds-ease-in-out),
+    transform var(--ds-motion-duration-overlay) var(--ds-ease-in-out);
+}
+
+[data-dsh-motion='overlay'][data-state='closed'] [data-dsh-motion-part='panel'] {
+  opacity: 0;
+  transform: translateY(var(--ds-motion-distance-overlay)) scale(var(--ds-motion-scale-overlay));
+  transition-duration: var(--ds-motion-duration-overlay-out);
+}
+
+[data-dsh-motion='popover'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--ds-motion-duration-popover) var(--ds-ease-in-out),
+    transform var(--ds-motion-duration-popover) var(--ds-ease-in-out);
+}
+
+[data-dsh-motion='popover'][data-state='closed'] {
+  opacity: 0;
+  transform: translateY(var(--ds-motion-distance-popover));
+}
+
+/* Opacity only: the marked node already uses transform for placement. */
+[data-dsh-motion='fade'] {
+  opacity: 1;
+  transition: opacity var(--ds-motion-duration-swap) var(--ds-ease-in-out);
+}
+
+[data-dsh-motion='fade'][data-state='closed'] {
+  opacity: 0;
+}
+
+[data-dsh-motion='swap'] {
+  animation: dsh-motion-swap-in var(--ds-motion-duration-swap) var(--ds-ease-in-out);
+}
+
+@keyframes dsh-motion-swap-in {
+  from { opacity: 0; }
+}
+
+/* Stacked outgoing + current spans; FlipText sizes the box to the new text. */
+[data-dsh-motion='flip'] {
+  position: relative;
+  display: inline-grid;
+  perspective: 140px;
+}
+
+[data-dsh-motion='flip'] > [data-dsh-motion-part] {
+  backface-visibility: hidden;
+  transform-origin: 50% 50%;
+}
+
+[data-dsh-motion='flip'] > [data-dsh-motion-part='outgoing'] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: dsh-motion-flip-out var(--ds-motion-duration-flip) var(--ds-ease-in-out) forwards;
+}
+
+[data-dsh-motion='flip'] > [data-dsh-motion-part='current'] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-dsh-motion='flip']:has([data-dsh-motion-part='outgoing']) > [data-dsh-motion-part='current'] {
+  animation: dsh-motion-flip-in var(--ds-motion-duration-flip) var(--ds-ease-in-out) both;
+}
+
+@keyframes dsh-motion-flip-out {
+  to {
+    opacity: 0;
+    transform: rotateX(-80deg);
+  }
+}
+
+@keyframes dsh-motion-flip-in {
+  from {
+    opacity: 0;
+    transform: rotateX(80deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dsh-motion='swap'],
+  [data-dsh-motion='flip'] > [data-dsh-motion-part] {
+    animation: none;
+  }
+}

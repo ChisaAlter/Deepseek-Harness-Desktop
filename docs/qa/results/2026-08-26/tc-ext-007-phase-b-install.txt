@@ -1,0 +1,14 @@
+dsh: initialized profile web at /tmp/dsh-dshbot-phaseB-Ajf4nI/user-data/dsh-home/profiles/web
+Packages are hard linked from the content-addressable store to the virtual store.
+  Content-addressable store is at: /home/ubuntu/.local/share/pnpm/store/v11
+  Virtual store is at:             node_modules/.pnpm
+Progress: resolved 0, reused 0, downloaded 1, added 0
+[WARN] Issues with peer dependencies found. Run "pnpm peers check" to list them.
+
+dependencies:
++ dshbot github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot
+
+Packages: +1
++
+Progress: resolved 1, reused 0, downloaded 1, added 1, done
+Done in 13.9s using pnpm v11.8.0

@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>T3 Git Suite 原型 — 顶栏 + 8 个弹窗</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --workspace: #fbfbfc;
+        --surface: #ffffff;
+        --text: #1e232b;
+        --muted: #657081;
+        --subtle: #8b93a0;
+        --border: #dfe3e8;
+        --surface-1: #f3f4f6;
+        --surface-2: #e8eaee;
+        --accent: #1e232b;
+        --ok: #1f7a4d;
+        --warn: #9a6b12;
+        --pr: #2563eb;
+        --danger: #b42318;
+        --shadow: 0 12px 40px rgba(20, 24, 32, 0.12);
+        font-family: ui-sans-serif, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 20px 24px 6px;
+      }
+      .lead {
+        margin: 0 24px 16px;
+        color: var(--muted);
+        font-size: 13px;
+        max-width: 820px;
+        line-height: 1.5;
+      }
+      .frames {
+        display: grid;
+        gap: 20px;
+        padding: 0 24px 24px;
+      }
+      .label {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--muted);
+      }
+      .window {
+        border: 1px solid var(--border);
+        background: var(--workspace);
+        overflow: hidden;
+      }
+      .topbar,
+      .soft-row {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px 0 16px;
+        border-bottom: 1px solid var(--surface-2);
+      }
+      .crumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        flex: 1;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .crumb span {
+        color: var(--subtle);
+        font-weight: 400;
+      }
+      .suite {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .pill,
+      .split {
+        height: 30px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        font-size: 12px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .pill:hover,
+      .split:hover,
+      .menu-item:hover,
+      .file:hover {
+        background: var(--surface-1);
+      }
+      .pill.muted {
+        color: var(--muted);
+      }
+      .pr-pill {
+        height: 30px;
+        border-radius: 999px;
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+        color: var(--pr);
+        padding: 0 10px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+      }
+      .split {
+        padding: 0;
+        overflow: hidden;
+      }
+      .split b,
+      .split i {
+        font-style: normal;
+        font-weight: 500;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+      }
+      .split i {
+        border-left: 1px solid var(--border);
+        color: var(--muted);
+        padding: 0 8px;
+      }
+      .icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .composer {
+        padding: 28px 24px 20px;
+      }
+      .composer-box {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        padding: 14px;
+        min-height: 88px;
+        color: var(--subtle);
+        font-size: 13px;
+      }
+      .soft-row {
+        height: auto;
+        min-height: 44px;
+        border: 0;
+        padding: 10px 0 0;
+      }
+      .nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 0 24px 24px;
+      }
+      .nav button {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 999px;
+        height: 30px;
+        padding: 0 12px;
+        font-size: 12px;
+        cursor: pointer;
+        color: var(--text);
+      }
+      .nav button.active {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(20, 24, 32, 0.28);
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 12vh 16px 16px;
+        z-index: 20;
+      }
+      .backdrop.show {
+        display: flex;
+      }
+      .popover,
+      .sheet {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+      }
+      .popover {
+        width: 400px;
+        max-height: 420px;
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .sheet {
+        width: 440px;
+        border-radius: 16px;
+        padding: 18px 18px 14px;
+      }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--surface-2);
+        color: var(--subtle);
+        font-size: 13px;
+      }
+      .search input {
+        border: 0;
+        outline: 0;
+        flex: 1;
+        font: inherit;
+        color: var(--text);
+        background: transparent;
+      }
+      .group {
+        padding: 8px 0 4px;
+      }
+      .group h3 {
+        margin: 0;
+        padding: 4px 12px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--subtle);
+        letter-spacing: 0.02em;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .row:hover,
+      .row.on {
+        background: var(--surface-1);
+      }
+      .row small {
+        margin-left: auto;
+        color: var(--subtle);
+        font-size: 11px;
+      }
+      .create {
+        border-top: 1px solid var(--surface-2);
+        padding: 10px 12px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .sheet h2 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .sheet p {
+        margin: 0 0 14px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .meta {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        margin-bottom: 14px;
+        background: var(--workspace);
+      }
+      .meta b {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .btn {
+        height: 32px;
+        border-radius: 8px;
+        padding: 0 12px;
+        font-size: 13px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .btn.ghost {
+        background: transparent;
+      }
+      .files {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin: 0 0 12px;
+        overflow: hidden;
+      }
+      .file {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        font-size: 12.5px;
+        border-top: 1px solid var(--surface-2);
+      }
+      .file:first-child {
+        border-top: 0;
+      }
+      .file .add {
+        margin-left: auto;
+        color: var(--ok);
+        font-size: 11px;
+      }
+      textarea,
+      .field {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font: inherit;
+        font-size: 13px;
+        margin-bottom: 12px;
+        resize: vertical;
+        min-height: 64px;
+      }
+      .field {
+        min-height: 0;
+        height: 34px;
+      }
+      .menu {
+        width: 240px;
+        border-radius: 12px;
+        padding: 6px;
+      }
+      .menu-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 10px;
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .menu-item.disabled {
+        color: var(--subtle);
+        cursor: default;
+      }
+      .menu-item.disabled:hover {
+        background: transparent;
+      }
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        width: 320px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        padding: 12px 14px;
+        display: none;
+        z-index: 30;
+      }
+      .toast.show {
+        display: block;
+      }
+      .toast b {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 8px;
+      }
+      .phase {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12.5px;
+        color: var(--muted);
+        margin: 4px 0;
+      }
+      .phase.done {
+        color: var(--ok);
+      }
+      .phase.run {
+        color: var(--text);
+      }
+      .phase.fail {
+        color: var(--danger);
+      }
+      .state {
+        margin: 0 24px 20px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>T3 Git Suite 原型</h1>
+    <p class="lead">
+      草稿页和对话顶栏共用同一套控件。下面两帧是挂载点；底部按钮打开合同里的 8
+      个弹窗。这是可点的视觉合同，不是实现。
+    </p>
+    <p class="state" id="state">
+      状态：env=Local · branch=fix/right-panel-below-topbar · dirty · 无 PR
+    </p>
+
+    <div class="frames">
+      <div>
+        <div class="label">对话顶栏</div>
+        <div class="window">
+          <div class="topbar">
+            <div class="crumb">ChisaCode <span>/</span> 测试1</div>
+            <div class="suite">
+              <button class="pill muted" type="button">打开</button>
+              <button class="pill" type="button" data-open="env">Local</button>
+              <button class="pill" type="button" data-open="picker">
+                fix/right-panel-below-topbar
+              </button>
+              <button class="pr-pill" type="button" data-open="prpill" hidden>#128</button>
+              <span class="split">
+                <b data-open="commit">Commit, Push &amp; PR</b>
+                <i data-open="menu">▾</i>
+              </span>
+              <span class="icon">□</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="label">草稿页（Soft Home）</div>
+        <div class="window">
+          <div class="composer">
+            <div class="composer-box">今天在哪个 workspace 上做什么？</div>
+            <div class="soft-row">
+              <div class="suite">
+                <button class="pill" type="button">C:\Ai\ChisaCode</button>
+                <button class="pill" type="button" data-open="env">Local</button>
+                <button class="pill" type="button" data-open="picker">
+                  fix/right-panel-below-topbar
+                </button>
+                <button class="pr-pill" type="button" data-open="prpill" hidden>#128</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button type="button" data-open="picker">1 分支选择器</button>
+      <button type="button" data-open="pr">2 检出 PR</button>
+      <button type="button" data-open="stash">3 未提交切分支</button>
+      <button type="button" data-open="restore">4 恢复暂存</button>
+      <button type="button" data-open="commit">5 Commit 对话框</button>
+      <button type="button" data-open="protect">6 保护分支</button>
+      <button type="button" data-open="worktree">7 Worktree 确认</button>
+      <button type="button" data-open="progress">8 堆叠进度</button>
+    </div>
+
+    <div class="backdrop" id="backdrop"></div>
+    <div class="toast" id="toast"></div>
+
+    <template id="tpl-picker">
+      <div class="popover">
+        <div class="search">⌕ <input value="" placeholder="搜索分支和 PR" /></div>
+        <div class="group">
+          <h3>当前</h3>
+          <div class="row on">fix/right-panel-below-topbar <small>✓</small></div>
+        </div>
+        <div class="group">
+          <h3>本地</h3>
+          <div class="row">cn-main</div>
+          <div class="row">fix/soft-home-git-t3</div>
+        </div>
+        <div class="group">
+          <h3>远程</h3>
+          <div class="row">origin/feat/git-suite</div>
+        </div>
+        <div class="group">
+          <h3>Pull requests</h3>
+          <div class="row" data-open="pr">#128 右边栏落到顶栏下方 <small>open</small></div>
+        </div>
+        <div class="create">回车新建并检出分支 <b>feat/from-here</b></div>
+      </div>
+    </template>
+
+    <template id="tpl-env">
+      <div class="popover menu">
+        <div class="menu-item on">Local <small>当前目录</small></div>
+        <div class="menu-item" data-open="worktree">Worktree <small>隔离副本</small></div>
+      </div>
+    </template>
+
+    <template id="tpl-menu">
+      <div class="popover menu">
+        <div class="menu-item" data-open="commit">Commit</div>
+        <div class="menu-item">Push</div>
+        <div class="menu-item">创建 PR</div>
+        <div class="menu-item disabled">Pull <small>没有可拉取的提交</small></div>
+      </div>
+    </template>
+
+    <template id="tpl-pr">
+      <div class="sheet">
+        <h2>检出 PR #128？</h2>
+        <p>会在当前 Local checkout 检出该 PR 的分支。要隔离工作，先切到 Worktree。</p>
+        <div class="meta">
+          <b>#128 右边栏落到顶栏下方</b>
+          基线 cn-main · 作者 you · open
+        </div>
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>取消</button>
+          <button class="btn primary" type="button" data-close>检出</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-stash">
+      <div class="sheet">
+        <h2>有未提交的更改</h2>
+        <p>切换到 cn-main 前要先暂存这些更改吗？</p>
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>取消</button>
+          <button class="btn primary" type="button" data-close>暂存并切换</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-restore">
+      <div class="sheet">
+        <h2>这个分支有暂存的更改</h2>
+        <p>要恢复刚才在 fix/right-panel-below-topbar 暂存的更改吗？</p>
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>稍后</button>
+          <button class="btn primary" type="button" data-close>恢复</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-commit">
+      <div class="sheet">
+        <h2>Commit</h2>
+        <p>只提交勾选的文件。主按钮会接着 Push 并创建 PR。</p>
+        <div class="files">
+          <label class="file"
+            ><input type="checkbox" checked /> packages/app/src/git/workspace-actions.tsx
+            <span class="add">+24</span></label
+          >
+          <label class="file"
+            ><input type="checkbox" checked />
+            packages/app/src/screens/workspace/workspace-header.tsx
+            <span class="add">+18</span></label
+          >
+          <label class="file"
+            ><input type="checkbox" /> docs/superpowers/specs/2026-08-13-t3-git-suite-design.md
+            <span class="add">+220</span></label
+          >
+        </div>
+        <textarea>Align desktop git suite with T3 branch toolbar</textarea>
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>取消</button>
+          <button class="btn primary" type="button" data-open="progress">提交并继续</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-protect">
+      <div class="sheet">
+        <h2>这是保护分支</h2>
+        <p>你在 cn-main 上。可以直接继续，或新建功能分支再 Commit / Push。</p>
+        <input class="field" value="fix/cn-main-guard" />
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>继续留在 cn-main</button>
+          <button class="btn primary" type="button" data-close>新建分支再继续</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-worktree">
+      <div class="sheet">
+        <h2>在 Worktree 中打开？</h2>
+        <p>会从当前分支建一个隔离副本。默认发送不会走这一步。</p>
+        <div class="meta">
+          <b>C:\Users\48818\.chisacode\worktrees\…\large-bird</b>
+          基线 fix/right-panel-below-topbar
+        </div>
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>取消，留在 Local</button>
+          <button class="btn primary" type="button" data-close>创建 Worktree</button>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-prpill">
+      <div class="sheet">
+        <h2>打开 PR #128</h2>
+        <p>在浏览器打开 GitHub。不会打开分支菜单。</p>
+        <div class="actions">
+          <button class="btn ghost" type="button" data-close>取消</button>
+          <button class="btn primary" type="button" data-close>打开</button>
+        </div>
+      </div>
+    </template>
+
+    <script>
+      const backdrop = document.getElementById("backdrop");
+      const toast = document.getElementById("toast");
+      const state = document.getElementById("state");
+
+      function closeAll() {
+        backdrop.classList.remove("show");
+        backdrop.innerHTML = "";
+        toast.classList.remove("show");
+        document.querySelectorAll(".nav button").forEach((b) => b.classList.remove("active"));
+      }
+
+      function openKey(key) {
+        if (key === "progress") {
+          closeAll();
+          toast.innerHTML =
+            "<b>Commit, Push &amp; PR</b>" +
+            '<div class="phase done">1 Commit 完成</div>' +
+            '<div class="phase run">2 Push 进行中…</div>' +
+            '<div class="phase">3 创建 PR</div>';
+          toast.classList.add("show");
+          document.querySelector('.nav [data-open="progress"]')?.classList.add("active");
+          return;
+        }
+        const tpl = document.getElementById("tpl-" + key);
+        if (!tpl) return;
+        closeAll();
+        backdrop.appendChild(tpl.content.cloneNode(true));
+        backdrop.classList.add("show");
+        document
+          .querySelectorAll('.nav [data-open="' + key + '"]')
+          .forEach((b) => b.classList.add("active"));
+      }
+
+      document.body.addEventListener("click", (event) => {
+        const open = event.target.closest("[data-open]");
+        if (open) {
+          event.preventDefault();
+          openKey(open.getAttribute("data-open"));
+          return;
+        }
+        if (event.target.closest("[data-close]")) {
+          closeAll();
+          return;
+        }
+        if (event.target === backdrop) closeAll();
+      });
+
+      document.querySelector('[data-open="env"]').addEventListener("click", () => {
+        state.textContent = "状态：env=Local · 点 Worktree 会先出确认，不会默默建树";
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,60 @@
+{
+  "at": "2026-08-31T15:26:52.503Z",
+  "productExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33398643700",
+  "setupSha256": "45EEC4AAD050E6BA506685F1A06336750406D732D03AA833A674A5C08EB49AA3",
+  "sibling": "C:\\Ai\\ChisaTerminal",
+  "driver": "cdp-contenteditable",
+  "steps": [
+    {
+      "name": "harness.up",
+      "ok": true,
+      "detail": "http://127.0.0.1:3080/"
+    },
+    {
+      "name": "term.ghosttyWasm",
+      "ok": false,
+      "detail": "[404,404]"
+    },
+    {
+      "name": "appendix.composer",
+      "ok": true,
+      "detail": "{\"kinds\":[\"system-prompt\",\"user\",\"turn-process\",\"context\",\"context\",\"assistant-step\",\"turn-tail\"],\"assistantCount\":1,\"lastText\":\"你已连通，验证码是 456。\",\"inputText\":\"\",\"inputEditable\":true,\"sendDisabled\":true,\"toolCall\":false,\"approval\":false,\"busy"
+    },
+    {
+      "name": "appendix.model",
+      "ok": true,
+      "detail": "选择模型，当前 grok-4.6，推理等级 Defaultgrok-4.6Default"
+    },
+    {
+      "name": "appendix.turn1.connect",
+      "ok": true,
+      "detail": "你已连通，验证码为 456。"
+    },
+    {
+      "name": "appendix.turn2.recall",
+      "ok": true,
+      "detail": "456"
+    },
+    {
+      "name": "appendix.turn3.readReadme",
+      "ok": true,
+      "detail": "工作区根目录中不存在 README 或 README.md 文件。\n因此无法从该文档中总结产品信息。\n此工作目录是一个 Node.js 开发环境，包含 vite、react 等前端依赖包。"
+    },
+    {
+      "name": "appendix.turn4.shell",
+      "ok": true,
+      "detail": "Path\n\nC:\\Ai\\ChisaTerminal"
+    },
+    {
+      "name": "appendix.turn5.summary",
+      "ok": true,
+      "detail": "456 这是一个 Node.js 开发环境，包含 vite、react 等前端依赖包。 C:\\Ai\\ChisaTerminal"
+    }
+  ],
+  "pass": true,
+  "ctx": {
+    "code": "456"
+  }
+}

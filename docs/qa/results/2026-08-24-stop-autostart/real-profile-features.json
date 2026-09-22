@@ -1,0 +1,40 @@
+{
+  "at": "2026-08-24T10:32:19.904Z",
+  "probes": [
+    {
+      "name": "import-rescan",
+      "pass": true,
+      "sawLoading": true,
+      "finalStatus": {
+        "scanStatus": "扫描完成 · 会话 29 · 技能 0 · 插件 0 · MCP 4 · 2026/8/24 18:32:20",
+        "hasPreset": false,
+        "sessionCount": 29
+      }
+    },
+    {
+      "name": "import-rescan",
+      "pass": false,
+      "error": "cdp.close is not a function"
+    },
+    {
+      "name": "versions-page",
+      "pass": true,
+      "card": {
+        "installed": "\n            \n              当前运行（源码）v0.2.7\n              \n              当前为源码运行，无本机安装包可卸载。请用「设置 → 应用」卸载已安装的 Deepseek-Harness-Desktop。\n            \n            卸载本机应用\n          ",
+        "hasUninstall": false,
+        "uninstallLabel": "卸载本机应用"
+      }
+    },
+    {
+      "name": "versions-page",
+      "pass": false,
+      "error": "cdp.close is not a function"
+    },
+    {
+      "name": "desktop-autostart-row",
+      "pass": false,
+      "error": "launcher.close is not a function"
+    }
+  ],
+  "pass": false
+}

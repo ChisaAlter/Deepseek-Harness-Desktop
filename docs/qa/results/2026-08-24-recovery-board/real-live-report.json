@@ -1,0 +1,54 @@
+{
+  "at": "2026-08-24T08:15:25.969Z",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "steps": [
+    {
+      "name": "cold",
+      "sample": {
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行 · 上次启动失败：qa-live: cannot resolve profile bundle \"qa-broken-pack\"",
+        "hint": "",
+        "recoveryHidden": false,
+        "recoveryVerdict": "启动日志指向可疑插件：qa-broken-pack。可逐项禁用后重新启动。",
+        "recoveryText": "qa-broken-pack 未在 profile 登记可疑冲突\nqa-live: cannot resolve profile bundle \"qa-broken-pack\"\n日志中出现但未写入 profile，无法在此禁用。",
+        "hasRecoveryApi": true
+      }
+    },
+    {
+      "name": "after-start",
+      "sample": {
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端已就绪",
+        "hint": "",
+        "recoveryHidden": true,
+        "recoveryVerdict": "启动日志指向可疑插件：qa-broken-pack。可逐项禁用后重新启动。",
+        "recoveryText": "\n      \n        qa-broken-pack 未在 profile 登记可疑冲突\n        \n        qa-live: cannot resolve profile bundle \"qa-broken-pack\"\n      \n      日志中出现但未写入 profile，无法在此禁用。\n    ",
+        "hasRecoveryApi": true
+      },
+      "desktopReady": true,
+      "hasLoopbackUi": true,
+      "logTail": "\r\n\r\nDevTools listening on ws://127.0.0.1:9367/devtools/browser/0a90b2bf-a13f-48f2-88ab-870430360f08\r\n[22664:0824/161534.280:INFO:CONSOLE:2] \"%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold; This renderer process has either no Content Security\r\n  Policy set or a policy with \"unsafe-eval\" enabled. This exposes users of\r\n  this app to unnecessary security risks.\r\n\r\nFor more information and help, consult\r\nhttps://electronjs.org/docs/tutorial/security.\r\nThis warning will not show up\r\nonce the app is packaged.\", source: node:electron/js2c/sandbox_bundle (2)\r\n",
+      "targets": [
+        "http://127.0.0.1:3080/",
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/boot.html",
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+      ]
+    },
+    {
+      "name": "stable",
+      "sample": {
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端已就绪",
+        "hint": "",
+        "recoveryHidden": true,
+        "recoveryVerdict": "启动日志指向可疑插件：qa-broken-pack。可逐项禁用后重新启动。",
+        "recoveryText": "\n      \n        qa-broken-pack 未在 profile 登记可疑冲突\n        \n        qa-live: cannot resolve profile bundle \"qa-broken-pack\"\n      \n      日志中出现但未写入 profile，无法在此禁用。\n    ",
+        "hasRecoveryApi": true
+      }
+    }
+  ],
+  "fails": [],
+  "pass": true,
+  "keepAlive": true,
+  "pid": 22664
+}

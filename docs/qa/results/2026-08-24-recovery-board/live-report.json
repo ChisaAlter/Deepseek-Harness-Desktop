@@ -1,0 +1,113 @@
+{
+  "at": "2026-08-24T08:03:28.948Z",
+  "userData": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-recovery-live-1787558449636",
+  "steps": [
+    {
+      "name": "cold-home-with-lastStart-fail",
+      "sample": {
+        "title": "Deepseek-Harness-Desktop 启动器",
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行 · 上次启动失败：qa-seeded: cannot resolve profile bundle \"qa-broken-pack\"",
+        "hint": "",
+        "recoveryHidden": false,
+        "recoveryVerdict": "启动日志指向可疑插件：qa-broken-pack。可逐项禁用后重新启动。",
+        "recoveryRows": [
+          "qa-broken-pack 可疑冲突\nfile:./missing-qa-broken-pack\nqa-seeded: cannot resolve profile bundle \"qa-broken-pack\"\n禁用"
+        ],
+        "disableSuspectsHidden": false,
+        "hasLauncherRecovery": true,
+        "pluginSummary": "查看已安装插件，并根据启动日志识别可疑冲突。禁用或移除后可重新启动桌面端。",
+        "pluginText": ""
+      }
+    },
+    {
+      "name": "after-start-attempt",
+      "sample": {
+        "title": "Deepseek-Harness-Desktop 启动器",
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行 · 上次启动失败：qa-seeded: cannot resolve profile bundle \"qa-broken-pack\"",
+        "hint": "正在启动桌面端…",
+        "recoveryHidden": false,
+        "recoveryVerdict": "启动日志指向可疑插件：qa-broken-pack。可逐项禁用后重新启动。",
+        "recoveryRows": [
+          "qa-broken-pack 可疑冲突\nfile:./missing-qa-broken-pack\nqa-seeded: cannot resolve profile bundle \"qa-broken-pack\"\n禁用"
+        ],
+        "disableSuspectsHidden": false,
+        "hasLauncherRecovery": true,
+        "pluginSummary": "查看已安装插件，并根据启动日志识别可疑冲突。禁用或移除后可重新启动桌面端。",
+        "pluginText": ""
+      },
+      "logTail": "\r\n\r\nDevTools listening on ws://127.0.0.1:9361/devtools/browser/0e6fae82-7344-47cb-b2f9-9e0fb4d6e564\r\n"
+    },
+    {
+      "name": "after-skip",
+      "sample": {
+        "title": "Deepseek-Harness-Desktop 启动器",
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端异常 · 当前跳过用户插件 · 上次启动失败：dsh 进程结束（code 1, signal none）",
+        "hint": "dsh 进程结束（code 1, signal none）",
+        "recoveryHidden": false,
+        "recoveryVerdict": "当前在跳过用户插件模式下运行；完整加载请点「恢复完整插件并启动」。禁用单项不会自动加载全部用户插件。",
+        "recoveryRows": [
+          "qa-broken-pack\nfile:./missing-qa-broken-pack\n禁用"
+        ],
+        "disableSuspectsHidden": true,
+        "hasLauncherRecovery": true,
+        "pluginSummary": "未能从日志确定具体插件。可逐项禁用下列插件后重新启动，以排查冲突。",
+        "pluginText": "\n      \n        qa-broken-pack \n        file:./missing-qa-broken-pack\n        \n      \n      禁用移除\n    "
+      },
+      "logTail": "\r\n\r\nDevTools listening on ws://127.0.0.1:9361/devtools/browser/0e6fae82-7344-47cb-b2f9-9e0fb4d6e564\r\n"
+    },
+    {
+      "name": "plugins-tab",
+      "sample": {
+        "title": "Deepseek-Harness-Desktop 启动器",
+        "activeTab": "plugins",
+        "homeStatus": "当前版本 0.2.7 · 桌面端异常 · 当前跳过用户插件 · 上次启动失败：dsh 进程结束（code 1, signal none）",
+        "hint": "dsh 进程结束（code 1, signal none）",
+        "recoveryHidden": false,
+        "recoveryVerdict": "当前在跳过用户插件模式下运行；完整加载请点「恢复完整插件并启动」。禁用单项不会自动加载全部用户插件。",
+        "recoveryRows": [
+          "\n      \n        qa-broken-pack \n        file:./missing-qa-broken-pack\n        \n      \n      禁用\n    "
+        ],
+        "disableSuspectsHidden": true,
+        "hasLauncherRecovery": true,
+        "pluginSummary": "未能从日志确定具体插件。可逐项禁用下列插件后重新启动，以排查冲突。",
+        "pluginText": "qa-broken-pack\nfile:./missing-qa-broken-pack\n禁用\n移除"
+      }
+    },
+    {
+      "name": "disable-qa-broken-pack",
+      "disableResult": {
+        "clicked": true,
+        "recoveryHidden": false,
+        "status": "当前版本 0.2.7 · 桌面端异常 · 当前跳过用户插件 · 上次启动失败：dsh 进程结束（code 1, signal none）",
+        "verdict": "当前在跳过用户插件模式下运行；完整加载请点「恢复完整插件并启动」。禁用单项不会自动加载全部用户插件。",
+        "listText": "qa-broken-pack 已禁用\nfile:./missing-qa-broken-pack\n启用"
+      }
+    },
+    {
+      "name": "after-retry-full",
+      "sample": {
+        "title": "Deepseek-Harness-Desktop 启动器",
+        "activeTab": "home",
+        "homeStatus": "当前版本 0.2.7 · 桌面端异常 · 上次启动失败：dsh 进程结束（code 1, signal none）",
+        "hint": "dsh 进程结束（code 1, signal none）",
+        "recoveryHidden": false,
+        "recoveryVerdict": "上次启动失败：dsh 进程结束（code 1, signal none）",
+        "recoveryRows": [
+          "qa-broken-pack 已禁用\nfile:./missing-qa-broken-pack\n启用"
+        ],
+        "disableSuspectsHidden": true,
+        "hasLauncherRecovery": true,
+        "pluginSummary": "未能从日志确定具体插件。可逐项禁用下列插件后重新启动，以排查冲突。",
+        "pluginText": "\n      \n        qa-broken-pack 已禁用\n        file:./missing-qa-broken-pack\n        \n      \n      启用移除\n    "
+      },
+      "logTail": "\r\n\r\nDevTools listening on ws://127.0.0.1:9361/devtools/browser/0e6fae82-7344-47cb-b2f9-9e0fb4d6e564\r\n"
+    }
+  ],
+  "pass": false,
+  "fails": [
+    "skip path log missing hide/no-ensure markers"
+  ]
+}

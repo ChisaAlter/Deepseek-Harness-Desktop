@@ -1,0 +1,29 @@
+diff --git a/node_modules/react-native-worklets/bundleMode/index.js b/node_modules/react-native-worklets/bundleMode/index.js
+--- a/node_modules/react-native-worklets/bundleMode/index.js
++++ b/node_modules/react-native-worklets/bundleMode/index.js
+@@ -155,16 +155,20 @@ function bundleModeCreateModuleIdFactory() {
+     if (idFileMap.has(moduleName)) {
+       return idFileMap.get(moduleName);
+     }
+-    if (moduleName.includes(workletsPackageName)) {
++    const normalizedModuleName = moduleName.replaceAll(
++      path.win32.sep,
++      path.posix.sep
++    );
++    if (normalizedModuleName.includes(workletsPackageName)) {
+       if (
+-        moduleName.endsWith(workletsSrcEntryPath) ||
+-        moduleName.endsWith(workletsLibEntryPath)
++        normalizedModuleName.endsWith(workletsSrcEntryPath) ||
++        normalizedModuleName.endsWith(workletsLibEntryPath)
+       ) {
+         const entryPointId = -2;
+         idFileMap.set(moduleName, entryPointId);
+         return entryPointId;
+-      } else if (moduleName.includes(workletsDirPath)) {
+-        const base = path.basename(moduleName, '.js');
++      } else if (normalizedModuleName.includes(workletsDirPath)) {
++        const base = path.posix.basename(normalizedModuleName, '.js');
+         const id = Number(base);
+         idFileMap.set(moduleName, id);
+         return id;

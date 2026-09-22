@@ -1,0 +1,88 @@
+{
+  "at": "2026-08-24T15:34:23.252Z",
+  "productExe": "C:\\Program Files\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/32735432340",
+  "setupSha256": "52EBFCF4B43214988750552A66FF0087B1A70CD43FB6C4430F241917F7C06666",
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "pass": true,
+  "shellP0Qa": {
+    "ok": true,
+    "failed": [],
+    "steps": [
+      {
+        "name": "shell.desk.trayLabels",
+        "ok": true,
+        "detail": "显示窗口 | 打开启动器 | 设置… | 插件市场 | 重启 Harness | separator | 退出"
+      },
+      {
+        "name": "shell.shortcut.settings",
+        "ok": true,
+        "detail": "Ctrl+, menu path opened settings"
+      },
+      {
+        "name": "shell.shortcut.surfaces",
+        "ok": true,
+        "detail": "beforeCollapsed=false; afterCollapsed=true"
+      },
+      {
+        "name": "shell.shortcut.terminal",
+        "ok": true,
+        "detail": "beforeOpen=false; afterOpen=true"
+      },
+      {
+        "name": "shell.window.controlsClickable",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "shell.window.maximizeRestore",
+        "ok": true,
+        "detail": "wasMax=false"
+      },
+      {
+        "name": "shell.window.minimizeRestore",
+        "ok": true,
+        "detail": "minimized then restored"
+      },
+      {
+        "name": "shell.desk.closeToTray",
+        "ok": true,
+        "detail": "visibleBefore=true; destroyed=false; harness=ready"
+      },
+      {
+        "name": "shell.desk.trayShow",
+        "ok": true,
+        "detail": "showMain from tray"
+      },
+      {
+        "name": "shell.desk.traySettings",
+        "ok": true,
+        "detail": "settings from tray"
+      },
+      {
+        "name": "shell.desk.trayMarketplace",
+        "ok": true,
+        "detail": "market section"
+      },
+      {
+        "name": "shell.desk.noExtraWindow",
+        "ok": true,
+        "detail": "windows=2 start=2"
+      },
+      {
+        "name": "shell.desk.closeWouldQuit",
+        "ok": true,
+        "detail": "intercepted=true; destroyed=false"
+      },
+      {
+        "name": "shell.persist.write",
+        "ok": true,
+        "detail": "closeToTray=true; theme=midnight"
+      }
+    ]
+  }
+}

@@ -1,0 +1,107 @@
+const { getDefaultConfig } = require("expo/metro-config");
+const { wrapWithReanimatedMetroConfig } = require("react-native-reanimated/metro-config");
+const { getBundleModeMetroConfig } = require("react-native-worklets/bundleMode");
+const { resolve } = require("metro-resolver");
+const fs = require("fs");
+const path = require("path");
+
+const projectRoot = __dirname;
+const appNodeModulesRoot = path.resolve(projectRoot, "node_modules");
+const appSrcRoot = path.resolve(projectRoot, "src");
+const relaySrcRoot = path.resolve(projectRoot, "../relay/src");
+const customWebPlatform = (process.env.CHISACODE_WEB_PLATFORM ?? "")
+  .trim()
+  .replace(/^\./, "")
+  .toLowerCase();
+
+const config = getDefaultConfig(projectRoot);
+const defaultResolveRequest = config.resolver.resolveRequest ?? resolve;
+const escapedAppSrcRoot = appSrcRoot
+  .split(path.sep)
+  .map((segment) => segment.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&"))
+  .join("[\\\\/]");
+const pathSeparatorPattern = "[\\\\/]";
+
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  react: path.join(appNodeModulesRoot, "react"),
+  "react-dom": path.join(appNodeModulesRoot, "react-dom"),
+  "react/jsx-runtime": path.join(appNodeModulesRoot, "react/jsx-runtime"),
+  "react/jsx-dev-runtime": path.join(appNodeModulesRoot, "react/jsx-dev-runtime"),
+};
+config.resolver.blockList = new RegExp(
+  `(^${escapedAppSrcRoot}${pathSeparatorPattern}.*\\.(test|spec)\\.(ts|tsx|js|jsx)$|${pathSeparatorPattern}__tests__${pathSeparatorPattern}.*)$`,
+);
+
+function isLocalModuleImport(moduleName) {
+  return (
+    moduleName.startsWith("./") ||
+    moduleName.startsWith("../") ||
+    moduleName.startsWith("@/") ||
+    path.isAbsolute(moduleName)
+  );
+}
+
+function resolveWithCustomWebOverlay(context, moduleName, platform) {
+  const shouldResolveCustomWebVariant =
+    platform === "web" &&
+    customWebPlatform.length > 0 &&
+    customWebPlatform !== "web" &&
+    isLocalModuleImport(moduleName);
+
+  if (shouldResolveCustomWebVariant) {
+    const overlayContext = {
+      ...context,
+      // Resolve only "<custom-platform>.<ext>" variants in overlay mode.
+      sourceExts: context.sourceExts.map((ext) => `${customWebPlatform}.${ext}`),
+      preferNativePlatform: false,
+    };
+
+    try {
+      return defaultResolveRequest(overlayContext, moduleName, null);
+    } catch {
+      // Ignore overlay misses and continue with normal web resolution.
+    }
+  }
+
+  return defaultResolveRequest(context, moduleName, platform);
+}
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const origin = context.originModulePath;
+  if (origin && origin.startsWith(relaySrcRoot) && moduleName.endsWith(".js")) {
+    const tsModuleName = moduleName.replace(/\.js$/, ".ts");
+    const candidatePath = path.resolve(path.dirname(origin), tsModuleName);
+    if (fs.existsSync(candidatePath)) {
+      return resolveWithCustomWebOverlay(context, tsModuleName, platform);
+    }
+  }
+
+  return resolveWithCustomWebOverlay(context, moduleName, platform);
+};
+
+function withWorkletsBundleModeGuard(metroConfig) {
+  const customSerializer = metroConfig.serializer.customSerializer;
+
+  metroConfig.serializer.customSerializer = async (entryPoint, preModules, graph, options) => {
+    if (graph.transformOptions.platform !== "web") {
+      const workletsEntryPath = [...graph.dependencies.keys()].find((modulePath) =>
+        modulePath.replaceAll("\\", "/").endsWith("react-native-worklets/src/index.ts"),
+      );
+
+      if (workletsEntryPath && options.createModuleId(workletsEntryPath) !== -2) {
+        throw new Error(
+          "Worklets Bundle Mode requires the react-native-worklets entry module to use ID -2.",
+        );
+      }
+    }
+
+    return customSerializer(entryPoint, preModules, graph, options);
+  };
+
+  return metroConfig;
+}
+
+module.exports = withWorkletsBundleModeGuard(
+  getBundleModeMetroConfig(wrapWithReanimatedMetroConfig(config)),
+);

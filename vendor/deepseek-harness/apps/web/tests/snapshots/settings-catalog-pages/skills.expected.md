@@ -1,0 +1,53 @@
+- dialog "Settings":
+  - navigation:
+    - text: Settings
+    - button "General":
+      - img
+      - text: General
+    - button "Appearance":
+      - img
+      - text: Appearance
+    - button "Interface":
+      - img
+      - text: Interface
+    - button "Models":
+      - img
+      - text: Models
+    - button "Plugins":
+      - img
+      - text: Plugins
+    - button "Skills":
+      - img
+      - text: Skills
+    - button "MCP":
+      - img
+      - text: MCP
+    - button "Agent presets":
+      - img
+      - text: Agent presets
+    - button "About":
+      - img
+      - text: About
+  - button "Open configuration file"
+  - button "Close":
+    - img
+    - text: Close
+  - heading "Skills" [level=2]
+  - paragraph: Find and manage user, current-project, and bundled skills.
+  - button "Add skill":
+    - img
+  - button "Refresh":
+    - img
+  - img
+  - searchbox "Search skills"
+  - button "Source":
+    - text: All
+    - img
+  - paragraph: 1 workspace and personal skills
+  - list:
+    - listitem:
+      - button "settings-catalog-fixture Deterministic skill for Settings composition coverage" [disabled]:
+        - img
+        - text: settings-catalog-fixture Deterministic skill for Settings composition coverage
+      - text: Bundled
+      - switch "Model invocation for settings-catalog-fixture" [disabled]

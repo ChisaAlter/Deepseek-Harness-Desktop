@@ -1,0 +1,145 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+.next/
+out/
+result
+
+# Environment variables
+.env
+.env.test
+.env.local
+.env.test.local
+.env*.local
+.dev.vars
+**/.dev.vars
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+*.lnk
+*.swp
+*.swo
+*~
+
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-*
+
+# Testing
+coverage/
+
+# Playwright
+test-results/
+**/test-results/
+
+# Vercel
+.vercel/
+
+# Expo
+.expo/
+
+# Misc
+*.pem
+.vercel
+
+# Local Claude configuration
+CLAUDE.local.md
+
+# Task CLI
+.tasks/
+
+.debug.conversations/
+.debug/
+.chisacode/
+.wrangler/
+**/.wrangler/
+**/.tanstack/
+
+# Local agent/tooling artifacts (do not commit)
+.tmp/
+.omc/
+.omo/
+.understand-anything/
+.workbuddy/
+.uploads/
+.workflow/
+.codex/
+.trae/
+PLAN.md
+.valknut/
+valknut-report.html/
+valknut-report.json/
+**/.playwright-mcp/
+**/.chisacode-provider-history/
+.claude/settings.local.json
+**/.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.plans/
+packages/server/src/server/fixtures/dictation/dictation-debug-largest.wav
+packages/server/src/server/fixtures/dictation/dictation-debug-largest.transcript.txt
+
+# Throwaway screenshots / debug captures written to repo root
+/tmp-*.png
+/tmp-*.jpg
+/tmp-*.jpeg
+/tmp-*.webp
+/tmp-*.cjs
+/tmp-*.json
+/tmp-*.log
+/.tmp-*.png
+/.tmp-*.jpg
+/.tmp-*.jpeg
+/.tmp-*.webp
+/.tmp-*.log
+/temp/
+/docs_doc_quality_assessment.json
+/*head-diff.txt
+
+/artifacts
+packages/app/*.apk
+packages/desktop/.cache/
+packages/desktop/release-*/
+packages/desktop/src-tauri/resources/managed-runtime/
+app.json
+
+# Local ZCode client state (not project source)
+.zcode/
+
+# Local ChisaCode agent session/diagnostic context (not project source)
+.chisacode-context/
+
+# Local CLI / debug helpers that must not be committed
+cli-client-id
+cleanup-verify-agents.mjs
+probe-providers.mjs
+
+
+# Windows reserved device name accidental files (cannot be staged by Git on Win)
+nul
+NUL
+
+# Accidental env-var path expansion pollution
+%SystemDrive%/
+**/%SystemDrive%/
+
+# Local agent test harness output (fixtures/workspaces/results)
+/tmp/
+
+# Local implementation worktrees
+/.worktrees/

@@ -1,0 +1,67 @@
+name: Desktop tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: jobs only read the repo. Release/publish set their own scopes.
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Desktop unit tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # engines 要求 ^22.19.0 || >=24；.nvmrc 是唯一钉版来源
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install app dependencies
+        run: npm ci
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+      - name: Structural governance (decision tree, feature cards, rules sync)
+        run: npm run check:governance
+      - name: Documentation governance (decisions, cards, pairing, links)
+        run: npm run doc-sync
+      - name: Run desktop unit tests
+        run: npm test
+
+  vendor-gui:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install app dependencies
+        run: npm ci
+      - name: Install vendor dependencies
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness install --frozen-lockfile
+      - name: Build vendor client + host libs
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run build:lib
+      # 每次 PR 用刚构建的真实 CLI 验证 skip compose 契约（dump-config skip/full
+      # 双轮 + 用户层 canary），补上 after-pack 门禁覆盖不到的 vendor PR 回归面。
+      - name: Skip compose contract (real CLI dump-config)
+        run: node scripts/check-skip-compose-contract.js vendor/deepseek-harness
+      - name: GUI component suites
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run test:gui
+      - name: Core contract regression suites
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run packages/core/agent-loop packages/core/session packages/core/tools packages/llm packages/api/session-controller packages/api/workspace-controller packages/fs/tool-fs packages/workspace packages/session/session-projection-cache packages/subagent/subagent --maxWorkers 2
+      - name: Malformed tool recovery (keyless dsh replay)
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness exec vitest run --config vitest.snapshot.config.ts snapshots/session/headless.snapshot.ts -t "replays malformed-tool-call-retry"
+      - name: Client catalog up to date
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-client-catalog --check
+      - name: Third-party notices up to date
+        run: node node_modules/pnpm/bin/pnpm.cjs --dir vendor/deepseek-harness run gen-third-party-notices --check

@@ -1,0 +1,15 @@
+NOT OK - M0 配对进 chat: document is not defined
+ok - M2 会话列表非空
+NOT OK - M2 工作区头分组: heads=0 flat list
+ok - M1 composer 控件不重叠
+ok - M3 打开会话时间线
+ok - M4 模型 sheet
+ok - M5 权限 sheet
+ok - M8 斜杠命令列表
+ok - M8 附件入口
+ok - M9 Git 顶栏可打开
+ok - M7 行菜单 Rename/Fork/归档
+ok - M7 搜索会话
+ok - M6 新会话
+ok - M10 设置 Files/MCP 冻结或只读
+NOT OK - M5 审批条（命令轮，可 Blocked）: no approval in 45s; banner= running=只回复一个词：pong。不要调用工具。pongzhihui-ok-buyonggongjuzhihui-ok-buyonggongju这是会话A标记句。请只回复

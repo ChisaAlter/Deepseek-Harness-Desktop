@@ -1,0 +1,80 @@
+{
+  "$schema": "./glossary.schema.json",
+  "version": 1,
+  "sourceLocale": "en",
+  "locales": ["zh-CN"],
+  "terms": [
+    {
+      "id": "agent",
+      "status": "decided",
+      "en": "Agent",
+      "translations": { "zh-CN": "Agent" },
+      "forbidden": { "zh-CN": ["智能体", "代理"] },
+      "note": "产品一级概念，保留英文原词，不译「代理」或「智能体」。"
+    },
+    {
+      "id": "subagent",
+      "status": "decided",
+      "en": "Subagent",
+      "translations": { "zh-CN": "Subagent" },
+      "forbidden": { "zh-CN": ["子代理"] },
+      "note": "跟随 Agent 保留英文。"
+    },
+    {
+      "id": "daemon",
+      "status": "decided",
+      "en": "Daemon",
+      "translations": { "zh-CN": "守护进程" },
+      "forbidden": { "zh-CN": ["守护程序", "后台进程"] },
+      "note": "统一译「守护进程」。"
+    },
+    {
+      "id": "workspace",
+      "status": "decided",
+      "en": "Workspace",
+      "translations": { "zh-CN": "工作区" },
+      "forbidden": { "zh-CN": ["工作空间"] },
+      "note": "统一译「工作区」。"
+    },
+    {
+      "id": "worktree",
+      "status": "decided",
+      "en": "Worktree",
+      "translations": { "zh-CN": "Worktree" },
+      "forbidden": { "zh-CN": ["工作树"] },
+      "note": "Git 术语，保留英文。"
+    },
+    {
+      "id": "relay",
+      "status": "decided",
+      "en": "Relay",
+      "translations": { "zh-CN": "中继" },
+      "forbidden": { "zh-CN": ["转发器", "中继器"] },
+      "note": "统一译「中继」。"
+    },
+    {
+      "id": "provider",
+      "status": "decided",
+      "en": "Provider",
+      "translations": { "zh-CN": "供应商" },
+      "forbidden": { "zh-CN": ["提供者", "提供商"] },
+      "note": "统一译「供应商」。"
+    },
+    {
+      "id": "session",
+      "status": "decided",
+      "en": "Session",
+      "translations": { "zh-CN": "会话" },
+      "forbidden": { "zh-CN": ["对话", "阶段"] },
+      "note": "统一译「会话」。"
+    },
+    {
+      "id": "archive",
+      "status": "decided",
+      "en": "Archive",
+      "translations": { "zh-CN": "归档" },
+      "forbidden": { "zh-CN": ["存档", "封存"] },
+      "note": "统一译「归档」。"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+- menu:
+  - text: Group by
+  - menuitem "WorkSpace":
+    - text: WorkSpace
+    - img
+  - menuitem "Workspace Tree"
+  - menuitem "In one list"
+  - separator
+  - text: Order by
+  - menuitem "Manual"
+  - menuitem "Last updated":
+    - text: Last updated
+    - img

@@ -1,0 +1,50 @@
+{
+  "name": "@chisacode/cli",
+  "version": "1.0.3",
+  "description": "ChisaCode CLI - control your AI coding agents from the command line",
+  "bin": {
+    "chisacode": "bin/chisacode"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "!dist/**/*.map"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{ recursive: true, force: true })\" && tsc -p tsconfig.json --incremental false",
+    "prepack": "npm run build",
+    "typecheck": "tsgo --noEmit",
+    "test": "npm run test:local",
+    "test:local": "tsx tests/run-all.ts",
+    "test:vitest": "vitest run src --bail=1",
+    "test:e2e": "npm run test:local",
+    "test:e2e:lifecycle": "npx tsx tests/e2e/agent-lifecycle.test.ts"
+  },
+  "dependencies": {
+    "@chisacode/client": "1.0.3",
+    "@chisacode/protocol": "1.0.3",
+    "@chisacode/server": "1.0.3",
+    "@clack/prompts": "^1.0.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "mime-types": "^2.1.35",
+    "tree-kill": "^1.2.2",
+    "ws": "8.21.0",
+    "yaml": "^2.8.4"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^3.0.1",
+    "@types/ws": "^8.5.8",
+    "tsx": "^4.6.0",
+    "typescript": "^5.2.2",
+    "vitest": "^4.1.6",
+    "zx": "^8.8.5"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

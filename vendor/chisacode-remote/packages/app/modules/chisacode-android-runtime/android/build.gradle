@@ -1,0 +1,36 @@
+apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+apply plugin: "expo-module-gradle-plugin"
+
+group = "expo.modules.chisacoderuntime"
+version = "1.0.0"
+
+def safeExtGetRoot(prop, fallback) {
+  rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+android {
+  namespace "expo.modules.chisacoderuntime"
+  compileSdk safeExtGetRoot("compileSdkVersion", 36)
+
+  defaultConfig {
+    minSdk safeExtGetRoot("minSdkVersion", 29)
+    targetSdk safeExtGetRoot("targetSdkVersion", 36)
+    versionCode 1
+    versionName "1.0.0"
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+dependencies {
+  implementation "org.jetbrains.kotlin:kotlin-stdlib:${safeExtGetRoot("kotlinVersion", "2.1.20")}"
+  implementation "androidx.core:core-ktx:1.15.0"
+}

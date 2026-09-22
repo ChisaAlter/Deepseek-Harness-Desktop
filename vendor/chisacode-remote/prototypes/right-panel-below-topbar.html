@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>右边栏在顶栏下方</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --workspace: #fbfbfc;
+        --surface: #ffffff;
+        --text: #1e232b;
+        --muted: #657081;
+        --border: #dfe3e8;
+        --surface-2: #e8eaee;
+        --topbar-h: 48px;
+        --caption-w: 138px;
+        --left-w: 220px;
+        --right-w: 320px;
+        font-family: ui-sans-serif, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+      h1 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 20px 24px 8px;
+      }
+      p {
+        margin: 0 24px 16px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .frames {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        padding: 0 24px 24px;
+      }
+      .label {
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--muted);
+      }
+      .window {
+        height: 420px;
+        border: 1px solid var(--border);
+        background: var(--workspace);
+        display: flex;
+        overflow: hidden;
+      }
+      .left {
+        width: var(--left-w);
+        background: #f3f4f6;
+        border-right: 1px solid var(--border);
+        padding: 12px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .topbar {
+        height: var(--topbar-h);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px 0 16px;
+        border-bottom: 1px solid var(--surface-2);
+        flex-shrink: 0;
+      }
+      .title {
+        flex: 1;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .tools {
+        display: flex;
+        gap: 4px;
+        margin-right: 4px;
+      }
+      .icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        border: 1px solid transparent;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .icon.active {
+        color: var(--text);
+        background: #eceef1;
+      }
+      .caption {
+        width: var(--caption-w);
+        height: var(--topbar-h);
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        margin: -0px -12px 0 0;
+        flex-shrink: 0;
+      }
+      .caption span {
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        color: #3b3f45;
+      }
+      .caption .close:hover {
+        background: #e81123;
+        color: #fff;
+      }
+      .body {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+      }
+      .center {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .rail {
+        width: var(--right-w);
+        border-left: 1px solid var(--border);
+        background: var(--workspace);
+        padding: 28px 16px 20px;
+      }
+      .rail h2 {
+        margin: 0;
+        font-size: 16px;
+        text-align: center;
+      }
+      .rail p {
+        margin: 6px 0 16px;
+        text-align: center;
+        font-size: 12.5px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      .card {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 14px;
+        padding: 12px 12px 14px;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+      .card small {
+        display: block;
+        margin-top: 6px;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>右边栏在顶栏下方</h1>
+    <p>
+      左栏仍通到窗口顶。顶栏横跨中间区 + 右边栏，─ □ ×
+      留在顶栏。右边栏没有「右侧面板」标题，也没有关闭按钮。
+    </p>
+    <div class="frames">
+      <div>
+        <div class="label">关闭</div>
+        <div class="window">
+          <div class="left">会话栏（通高）</div>
+          <div class="main">
+            <div class="topbar">
+              <div class="title">ChisaCode / 新会话</div>
+              <div class="tools">
+                <div class="icon">&gt;_</div>
+                <div class="icon">▣</div>
+              </div>
+              <div class="caption"><span>─</span><span>□</span><span class="close">×</span></div>
+            </div>
+            <div class="body"><div class="center">中间内容</div></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="label">打开</div>
+        <div class="window">
+          <div class="left">会话栏（通高）</div>
+          <div class="main">
+            <div class="topbar">
+              <div class="title">ChisaCode / 新会话</div>
+              <div class="tools">
+                <div class="icon">&gt;_</div>
+                <div class="icon active">▣</div>
+              </div>
+              <div class="caption"><span>─</span><span>□</span><span class="close">×</span></div>
+            </div>
+            <div class="body">
+              <div class="center">中间内容</div>
+              <aside class="rail">
+                <h2>选择要打开的面板</h2>
+                <p>选择面板</p>
+                <div class="grid">
+                  <div class="card">浏览器<small>在浏览器中打开工作区页面</small></div>
+                  <div class="card">终端<small>打开工作区终端会话</small></div>
+                  <div class="card">文件<small>浏览工作区文件</small></div>
+                  <div class="card">变更<small>查看工作区变更与 PR</small></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

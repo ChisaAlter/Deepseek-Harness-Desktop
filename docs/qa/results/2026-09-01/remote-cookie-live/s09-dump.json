@@ -1,0 +1,61 @@
+{
+  "models": [
+    "DeepSeek-V4-FlashDeepSeek · 含思考档",
+    "DeepSeek-V4-ProDeepSeek · 含思考档",
+    "DeepSeek-V4-Flash-Vision-ExpDeepSeek · 含思考档",
+    "grok-4.6Ayase · 含思考档",
+    "MiniMax-M3opencode-go · 含思考档",
+    "Qwen3.7 Maxopencode-go · 含思考档",
+    "Qwen3.7 Plusopencode-go · 含思考档",
+    "Qwen3.8 Maxopencode-go · 含思考档",
+    "DeepSeek V4 Flash (2x usage)opencode-go · 含思考档",
+    "DeepSeek V4 Pro (New)opencode-go · 含思考档",
+    "GLM-5.1opencode-go · 含思考档",
+    "GLM-5.2opencode-go · 含思考档",
+    "GLM-5.3opencode-go · 含思考档",
+    "Hy3opencode-go · 含思考档",
+    "Kimi K2.6opencode-go · 含思考档",
+    "Kimi K2.7 Codeopencode-go · 含思考档",
+    "Kimi K3opencode-go · 含思考档",
+    "MiMo V2.5opencode-go · 含思考档",
+    "MiMo V2.5 Proopencode-go · 含思考档",
+    "MiniMax-M2.7opencode-go · 含思考档",
+    "Qwen3.6 Plusopencode-go · 含思考档",
+    "GPT-5.6 Luna (2x usage)opencode-go · 含思考档",
+    "Grok 4.5opencode-go · 含思考档",
+    "glm-5.3-flashglm-5.3-flash · 含思考档",
+    "Muse Spark 1.2 Contributorglm-5.3-flash · 含思考档",
+    "grok-4.6Dshd QA",
+    "Low",
+    "High"
+  ],
+  "switchedGrok": true,
+  "modelChip": "grok-4.6",
+  "s09": [
+    {
+      "round": 1,
+      "assistant": "你已连通，三位数验证码是 952。",
+      "model": "grok-4.6"
+    },
+    {
+      "round": 2,
+      "assistant": "952",
+      "model": "grok-4.6"
+    },
+    {
+      "round": 3,
+      "assistant": "This workspace is a temporary QA environment for dshd-qa.  \nIt is part of the DeepSeek Harness Desktop system.  \nThe product is a desktop AI harness tool for development and testing.",
+      "model": "grok-4.6"
+    },
+    {
+      "round": 4,
+      "assistant": "C:\\Ai\\dshd-ws-s09-1788271403551",
+      "model": "grok-4.6"
+    },
+    {
+      "round": 5,
+      "assistant": "952\nThis workspace is a temporary QA environment for dshd-qa within the DeepSeek Harness Desktop system.\nC:\\Ai\\dshd-ws-s09-1788271403551",
+      "model": "grok-4.6"
+    }
+  ]
+}

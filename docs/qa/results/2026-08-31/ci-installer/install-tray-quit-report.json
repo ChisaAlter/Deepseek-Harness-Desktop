@@ -1,0 +1,42 @@
+{
+  "at": "2026-09-01T02:02:58.387Z",
+  "productExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33455954068",
+  "setupSha256": "F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856",
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "processCount": 0,
+  "pass": true,
+  "logTail": [
+    "",
+    "[DSH_SMOKE] {\"hasFrame\":true,\"gridColumns\":\"280px 706px 0px 454px\",\"hasTitlebar\":true,\"titlebarButtons\":[\"Session 日志\",\"切换分支\",\"Push\",\"Git 操作\",\"切换终端抽屉\",\"切换右侧栏\"],\"hasTerminalToggle\":true,\"hasSurfacesToggle\":true,\"hasDragStrip\":false,\"hasDragMark\":false,\"hasHitMark\":false,\"captionRegion\":\"drag\",\"hasHarnessShellApi\":true,\"harnessShellApiIsScoped\":true,\"hasBootShellApi\":true,\"bootShellApiIsScoped\":true,\"pageErrors\":[]}",
+    "[DSH_SMOKE_PTY] echoed:ok",
+    "[DSH_SMOKE_PACKAGED_P0] {\"ok\":true,\"steps\":[{\"name\":\"packaged.sibling.exists\",\"ok\":true,\"detail\":\"C:\\\\Ai\\\\ChisaTerminal\"},{\"name\":\"packaged.git.branchList\",\"ok\":true,\"detail\":\"current=master\"},{\"name\":\"packaged.pty.create\",\"ok\":true,\"detail\":\"created:8b0621d0-3cbd-42c7-8713-bd9d34b559c5\"},{\"name\":\"packaged.ghostty.wasm\",\"ok\":true,\"detail\":\"200 http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-ui-user-terminal/assets/ghostty-vt.wasm\"},{\"name\":\"packaged.boot.noOpen\",\"ok\":true,\"detail\":\"ok\"},{\"name\":\"packaged.runtime.stamp\",\"ok\":true,\"detail\":\"C:\\\\Users\\\\48818\\\\AppData\\\\Roaming\\\\Deepseek-Harness-Desktop\\\\runtime\\\\0.2.7\\\\.dshd-runtime.json\"}]}",
+    "[DSH_QA] PASS workspace.path — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_QA] PASS workspace.addClicked",
+    "[DSH_QA] PASS workspace.picker",
+    "[DSH_QA] PASS workspace.pickerClosed",
+    "[DSH_QA] PASS workspace.connected — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_SMOKE_HITS] {\"hits\":{\"surfaces\":1,\"branch\":1,\"git\":1},\"error\":null}",
+    "[DSH_QA_SHELL] PASS shell.desk.trayLabels — 显示窗口 | 打开启动器 | 设置… | 插件市场 | 重启 Harness | separator | 退出",
+    "[DSH_QA_SHELL] PASS shell.shortcut.settings — Ctrl+, menu path opened settings",
+    "[DSH_QA_SHELL] PASS shell.shortcut.surfaces — beforeCollapsed=false; afterCollapsed=true",
+    "[DSH_QA_SHELL] PASS shell.shortcut.terminal — beforeOpen=false; afterOpen=true",
+    "[DSH_QA_SHELL] PASS shell.window.controlsClickable",
+    "[DSH_QA_SHELL] PASS shell.window.maximizeRestore — wasMax=false",
+    "[DSH_QA_SHELL] PASS shell.window.minimizeRestore — minimized then restored",
+    "[DSH_QA_SHELL] PASS shell.desk.closeToTray — visibleBefore=true; destroyed=false; harness=ready",
+    "[DSH_QA_SHELL] PASS shell.desk.trayShow — showMain from tray",
+    "[DSH_QA_SHELL] PASS shell.desk.trayOpenLauncher — tray 打开启动器 raised launcher window",
+    "[DSH_QA_SHELL] PASS shell.desk.traySettings — settings from tray",
+    "[DSH_QA_SHELL] PASS shell.desk.trayMarketplace — market section",
+    "[DSH_QA_SHELL] PASS shell.desk.noExtraWindow — windows=1 start=1",
+    "[DSH_QA_SHELL] quit intercepted",
+    "[DSH_QA_SHELL] PASS shell.desk.closeWouldQuit — intercepted=true; destroyed=false",
+    "[DSH_QA_SHELL] PASS shell.persist.write — closeToTray=true; theme=midnight",
+    "[DSH_QA_SHELL] {\"ok\":true,\"failed\":[],\"trayQuitRequested\":true,\"steps\":[{\"name\":\"shell.desk.trayLabels\",\"ok\":true,\"detail\":\"显示窗口 | 打开启动器 | 设置… | 插件市场 | 重启 Harness | separator | 退出\"},{\"name\":\"shell.shortcut.settings\",\"ok\":true,\"detail\":\"Ctrl+, menu path opened settings\"},{\"name\":\"shell.shortcut.surfaces\",\"ok\":true,\"detail\":\"beforeCollapsed=false; afterCollapsed=true\"},{\"name\":\"shell.shortcut.terminal\",\"ok\":true,\"detail\":\"beforeOpen=false; afterOpen=true\"},{\"name\":\"shell.window.controlsClickable\",\"ok\":true,\"detail\":\"\"},{\"name\":\"shell.window.maximizeRestore\",\"ok\":true,\"detail\":\"wasMax=false\"},{\"name\":\"shell.window.minimizeRestore\",\"ok\":true,\"detail\":\"minimized then restored\"},{\"name\":\"shell.desk.closeToTray\",\"ok\":true,\"detail\":\"visibleBefore=true; destroyed=false; harness=ready\"},{\"name\":\"shell.desk.trayShow\",\"ok\":true,\"detail\":\"showMain from tray\"},{\"name\":\"shell.desk.trayOpenLauncher\",\"ok\":true,\"detail\":\"tray 打开启动器 raised launcher window\"},{\"name\":\"shell.desk.traySettings\",\"ok\":true,\"detail\":\"settings from tray\"},{\"name\":\"shell.desk.trayMarketplace\",\"ok\":true,\"detail\":\"market section\"},{\"name\":\"shell.desk.noExtraWindow\",\"ok\":true,\"detail\":\"windows=1 start=1\"},{\"name\":\"shell.desk.closeWouldQuit\",\"ok\":true,\"detail\":\"intercepted=true; destroyed=false\"},{\"name\":\"shell.persist.write\",\"ok\":true,\"detail\":\"closeToTray=true; theme=midnight\"}]}",
+    ""
+  ]
+}

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>机器人头像 · 设计稿</title>
+  <style>
+    :root {
+      --dsw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --ds-transition-duration: 0.2s;
+      --ds-transition-duration-fast: 0.1s;
+      --ds-transition-duration-slow: 0.3s;
+      --dsw-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
+      --dsw-static-deepseek-50: rgb(237, 243, 254);
+      --dsw-static-deepseek-100: rgb(228, 237, 253);
+      --dsw-static-deepseek-500: rgb(65, 118, 230);
+      --dsw-static-deepseek-600: rgb(72, 104, 178);
+      --dsw-static-amber-400: rgb(247, 173, 49);
+      --dsw-static-amber-500: rgb(245, 158, 11);
+      --dsw-static-amber-600: rgb(221, 134, 41);
+      --dsw-static-green-500: rgb(34, 197, 94);
+      --dsw-static-red-400: rgb(242, 90, 90);
+      --dsw-static-red-500: rgb(239, 68, 68);
+      --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+      --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+      --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+      --dsw-static-neutral-bluish-75: rgb(241, 243, 245);
+      --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+      --dsw-static-neutral-bluish-200: rgb(225, 229, 238);
+      --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+      --dsw-static-neutral-bluish-500: rgb(151, 157, 166);
+      --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+      --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+      --dsw-static-neutral-bluish-750: rgb(67, 69, 74);
+      --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+      --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+      --dsw-static-neutral-bluish-875: rgb(35, 35, 36);
+      --dsw-static-neutral-bluish-900: rgb(27, 27, 28);
+      --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
+      --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+    }
+    body {
+      --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+      --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.24);
+      --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+      --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+      --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+      --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-button-ghost-active-border: var(--dsw-static-neutral-bluish-500);
+      --dsw-alias-button-ghost-active-fill: var(--dsw-static-neutral-bluish-100);
+      --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
+      --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-750);
+      --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+      --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+      --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+      --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+      --dshbot-blob-ink: var(--dsw-alias-label-primary);
+      --dshbot-blob-brown: color-mix(in srgb, var(--dsw-static-amber-600) 70%, var(--dsw-static-neutral-bluish-1000));
+      --dshbot-blob-red: var(--dsw-static-red-500);
+      --dshbot-blob-orange: var(--dsw-static-amber-500);
+      --dshbot-blob-yellow: var(--dsw-static-amber-400);
+      --dshbot-blob-green: var(--dsw-static-green-500);
+      --dshbot-blob-teal: color-mix(in srgb, var(--dsw-static-green-500) 55%, var(--dsw-static-deepseek-500));
+      --dshbot-blob-blue: var(--dsw-static-deepseek-500);
+      --dshbot-blob-purple: color-mix(in srgb, var(--dsw-static-red-500) 40%, var(--dsw-static-deepseek-600));
+      --dshbot-blob-pink: color-mix(in srgb, var(--dsw-static-red-400) 70%, var(--dsw-static-neutral-bluish-00));
+      --dshbot-blob-grey: var(--dsw-alias-label-tertiary);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--dsw-font-family);
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--dsw-alias-label-primary);
+      background: var(--dsw-alias-bg-module-platform);
+    }
+    button, input { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .page {
+      display: grid;
+      grid-template-columns: minmax(320px, 420px) minmax(280px, 1fr);
+      gap: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px 48px;
+    }
+    .card {
+      background: var(--dsw-alias-bg-layer-1);
+      border-radius: 24px;
+      box-shadow: var(--dsw-shadow-lv3);
+      padding: 20px;
+    }
+    .card h1 {
+      margin: 0 0 16px;
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 600;
+    }
+    .hint { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); margin: 0 0 12px; }
+    .pills {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      padding: 0 8px;
+      border: none;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--dsw-alias-label-secondary);
+      background: var(--dsw-alias-bg-module-platform);
+    }
+    .pill[aria-pressed="true"] {
+      color: var(--dsw-alias-label-primary);
+      background: var(--dsw-alias-button-ghost-active-fill);
+      box-shadow: inset 0 0 0 1px var(--dsw-alias-button-ghost-active-border);
+    }
+    .shape-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .shape-cell {
+      aspect-ratio: 1;
+      border: 0;
+      border-radius: 12px;
+      background: var(--dsw-alias-bg-module-platform);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
+    .shape-cell[aria-pressed="true"] {
+      box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l2);
+      background: var(--dsw-alias-interactive-bg-hover);
+    }
+    .swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 0;
+      background: var(--swatch);
+    }
+    .swatch[aria-pressed="true"] {
+      box-shadow: inset 0 0 0 2px var(--dsw-alias-label-primary-foreground), 0 0 0 1px var(--dsw-alias-border-l2);
+    }
+    .preview-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .blob {
+      color: var(--dshbot-blob-ink);
+      overflow: visible;
+    }
+    .blob-eyes {
+      transform: translate(var(--eye-x, 0px), var(--eye-y, 0px));
+      transition: transform var(--ds-transition-duration) var(--ds-ease-in-out);
+    }
+    .blob-eye-white { fill: var(--dsw-static-neutral-bluish-00); stroke: var(--dsw-static-neutral-bluish-1000); stroke-width: 1.15; }
+    .frame[data-thinking="true"] .blob-eye {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: blob-blink calc(var(--ds-transition-duration-slow) * 4) var(--ds-ease-in-out) infinite;
+    }
+    @keyframes blob-blink {
+      0%, 70%, 100% { transform: scaleY(1); }
+      76% { transform: scaleY(0.12); }
+      82% { transform: scaleY(1); }
+    }
+    .blob-eye-pupil { fill: var(--dsw-static-neutral-bluish-1000); }
+    .avatar-image {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: var(--dsw-alias-bg-module-platform);
+    }
+    .avatar-image[data-thinking="true"] {
+      animation: image-think var(--ds-transition-duration-slow) var(--ds-ease-in-out) infinite alternate;
+    }
+    @keyframes image-think {
+      from { transform: scale(1); }
+      to { transform: scale(1.12); }
+    }
+    .frame {
+      width: 72px;
+      height: 72px;
+      flex-shrink: 0;
+    }
+    .frame.sm { width: 32px; height: 32px; }
+    .frame.md { width: 40px; height: 40px; }
+    .crop-circle { border-radius: 50%; overflow: hidden; }
+    .crop-square { border-radius: 10px; overflow: hidden; }
+    .upload {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .ghost {
+      height: 36px;
+      border-radius: 18px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      background: transparent;
+      padding: 0 16px;
+    }
+    .ghost:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: start;
+      padding: 8px 10px;
+      border-radius: 10px;
+    }
+    .row:hover, .row[data-active="true"] { background: var(--dsw-alias-interactive-bg-hover); }
+    .row-body { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .name { font-weight: 500; }
+    .preview { font-size: 12px; color: var(--dsw-alias-label-secondary); }
+    .bubble {
+      display: flex;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: var(--dsw-alias-interactive-bg-hover);
+      margin-top: 16px;
+    }
+    .bubble-text { font-size: 13px; color: var(--dsw-alias-label-secondary); }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--dsw-alias-label-secondary);
+      margin-bottom: 12px;
+    }
+    .hidden { display: none !important; }
+    @media (prefers-reduced-motion: reduce) {
+      .blob-eyes { transition: none; }
+      .avatar-image[data-thinking="true"],
+      .frame[data-thinking="true"] .blob-eye { animation: none; }
+    }
+    @media (max-width: 720px) {
+      .page { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="card" aria-labelledby="editor-title">
+      <h1 id="editor-title">编辑资料</h1>
+      <div class="preview-row">
+        <div class="frame" id="editor-frame"></div>
+        <div>
+          <div class="name">翻译官</div>
+          <p class="hint" style="margin:0">点形状或上传一张图。机器人会眨眼看人。</p>
+        </div>
+      </div>
+      <div class="pills" role="tablist">
+        <button class="pill" type="button" id="tab-blob" aria-pressed="true">机器人</button>
+        <button class="pill" type="button" id="tab-upload" aria-pressed="false">上传</button>
+      </div>
+      <div id="pane-blob">
+        <div class="shape-grid" id="shape-grid"></div>
+        <div class="swatches" id="swatches"></div>
+      </div>
+      <div id="pane-upload" class="upload hidden">
+        <input id="file" type="file" accept="image/*" hidden />
+        <button class="ghost" type="button" id="pick-file">选择图片</button>
+        <div class="pills">
+          <button class="pill" type="button" id="crop-circle" aria-pressed="true">圆形</button>
+          <button class="pill" type="button" id="crop-square" aria-pressed="false">方形</button>
+        </div>
+        <p class="hint" id="upload-hint">还没有图片。选一张后会按圆或方裁切预览。</p>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="live-title">
+      <h1 id="live-title">侧栏与气泡</h1>
+      <label class="toggle">
+        <input type="checkbox" id="thinking" />
+        思考中（变形 + 眼睛转）
+      </label>
+      <button class="row" type="button" data-active="true">
+        <span class="frame sm" id="list-frame"></span>
+        <span class="row-body">
+          <span class="name">翻译官</span>
+          <span class="preview">正在翻译这句话…</span>
+        </span>
+      </button>
+      <button class="row" type="button">
+        <span class="frame sm" id="idle-frame"></span>
+        <span class="row-body">
+          <span class="name">算术助手</span>
+          <span class="preview">12 × 4 = 48</span>
+        </span>
+      </button>
+      <div class="bubble">
+        <span class="frame md" id="bubble-frame"></span>
+        <div>
+          <div class="name" style="font-size:12px;color:var(--dsw-alias-label-secondary)">翻译官</div>
+          <div class="bubble-text" id="bubble-text">正在回答…</div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+    const SHAPES = ["circle", "soft", "square", "pill", "triangle", "hex", "cloud", "drop"];
+    const COLORS = ["ink", "brown", "red", "orange", "yellow", "green", "teal", "blue", "purple", "pink", "grey"];
+    const SHAPE_RADII = {
+      circle:   [22, 22, 22, 22, 22, 22, 22, 22],
+      soft:     [20, 25, 21, 24, 19, 23, 22, 26],
+      square:   [18, 26, 18, 26, 18, 26, 18, 26],
+      pill:     [14, 18, 26, 18, 14, 18, 26, 18],
+      triangle: [26, 16, 12, 22, 13, 22, 12, 16],
+      hex:      [20, 24, 24, 20, 24, 24, 20, 24],
+      cloud:    [14, 26, 22, 18, 16, 18, 22, 26],
+      drop:     [12, 16, 20, 24, 26, 24, 20, 16],
+    };
+    const HANDLE_K = (4 / 3) * Math.tan(Math.PI / 16);
+
+    function blobPath(shape, squash, lean) {
+      const radii = SHAPE_RADII[shape] || SHAPE_RADII.circle;
+      const amount = Number(squash) || 0;
+      const shear = Number(lean) || 0;
+      const squat = Math.max(0, amount);
+      const stretch = Math.max(0, -amount);
+      const n = 8;
+      const pts = [];
+      for (let i = 0; i < n; i++) {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+        const nx = Math.cos(a);
+        const ny = Math.sin(a);
+        const r = radii[i] * (
+          1
+          - squat * 0.42 * (ny * ny)
+          + squat * 0.36 * (nx * nx)
+          + stretch * 0.12 * (ny * ny)
+          - stretch * 0.22 * (nx * nx)
+        );
+        pts.push({
+          x: 32 + r * nx + shear * 7 * (0.35 - ny),
+          y: 32 + r * ny + squat * 7 - stretch * 2,
+          a,
+          r,
+        });
+      }
+      const cmds = [];
+      for (let i = 0; i < n; i++) {
+        const p0 = pts[i];
+        const p1 = pts[(i + 1) % n];
+        const h0 = p0.r * HANDLE_K;
+        const h1 = p1.r * HANDLE_K;
+        const a0 = p0.a + Math.PI / 2;
+        const a1 = p1.a + Math.PI / 2;
+        if (i === 0) cmds.push(`M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)}`);
+        cmds.push(
+          `C ${(p0.x + Math.cos(a0) * h0).toFixed(2)} ${(p0.y + Math.sin(a0) * h0).toFixed(2)} `
+          + `${(p1.x - Math.cos(a1) * h1).toFixed(2)} ${(p1.y - Math.sin(a1) * h1).toFixed(2)} `
+          + `${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`,
+        );
+      }
+      cmds.push("Z");
+      return cmds.join(" ");
+    }
+
+    function svgMarkup(shape, color) {
+      return `<svg class="blob" data-shape="${shape}" data-color="${color}" viewBox="0 0 64 64" aria-hidden="true" style="color:var(--dshbot-blob-${color});width:100%;height:100%">`
+        + `<path class="blob-body" d="${blobPath(shape, 0)}" fill="currentColor"></path>`
+        + `<g class="blob-eyes">`
+        + `<g class="blob-eye"><ellipse class="blob-eye-white" cx="25" cy="30" rx="5.2" ry="6.4"></ellipse><circle class="blob-eye-pupil" cx="26.2" cy="31" r="2.45"></circle></g>`
+        + `<g class="blob-eye"><ellipse class="blob-eye-white" cx="39" cy="30" rx="5.2" ry="6.4"></ellipse><circle class="blob-eye-pupil" cx="40.2" cy="31" r="2.45"></circle></g>`
+        + `</g></svg>`;
+    }
+
+    const state = {
+      tab: "blob",
+      shape: "pill",
+      color: "brown",
+      crop: "circle",
+      image: "",
+      thinking: false,
+    };
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function bindMount(el, opts) {
+      el.innerHTML = "";
+      el.dataset.thinking = opts.thinking ? "true" : "false";
+      const wrap = document.createElement("div");
+      wrap.style.width = "100%";
+      wrap.style.height = "100%";
+      if (opts.kind === "image") {
+        wrap.className = opts.crop === "square" ? "crop-square" : "crop-circle";
+        wrap.style.width = "100%";
+        wrap.style.height = "100%";
+        const img = document.createElement("img");
+        img.className = "avatar-image";
+        img.alt = "";
+        img.src = opts.src;
+        img.dataset.thinking = opts.thinking ? "true" : "false";
+        wrap.appendChild(img);
+      } else {
+        wrap.innerHTML = svgMarkup(opts.shape, opts.color);
+      }
+      el.appendChild(wrap);
+      return wrap;
+    }
+
+    function currentKind() {
+      return state.tab === "upload" && state.image ? "image" : "blob";
+    }
+
+    function paint() {
+      const kind = currentKind();
+      const opts = kind === "image"
+        ? { kind, src: state.image, crop: state.crop, thinking: state.thinking }
+        : { kind: "blob", shape: state.shape, color: state.color, thinking: state.thinking };
+      bindMount(document.getElementById("editor-frame"), { ...opts, thinking: false });
+      bindMount(document.getElementById("list-frame"), opts);
+      bindMount(document.getElementById("bubble-frame"), opts);
+      bindMount(document.getElementById("idle-frame"), {
+        kind: "blob", shape: "hex", color: "blue", thinking: false,
+      });
+      document.getElementById("bubble-text").textContent = state.thinking ? "正在回答…" : "春天 → spring";
+    }
+
+    function wanderEyes() {
+      if (reduced) return;
+      const range = state.thinking ? 7 : 2.2;
+      document.querySelectorAll(".blob-eyes").forEach((g) => {
+        g.style.setProperty("--eye-x", `${(Math.random() * 2 - 1) * range}px`);
+        g.style.setProperty("--eye-y", `${(Math.random() * 2 - 1) * range * 0.6}px`);
+      });
+    }
+
+    function morphTick(now) {
+      if (reduced || !state.thinking) return;
+      const period = 600;
+      const t = now / period;
+      const squash = Math.sin(t * Math.PI * 2);
+      const lean = Math.sin(t * Math.PI * 2 / 1.35 + 0.8);
+      document.querySelectorAll("#list-frame .blob-body, #bubble-frame .blob-body").forEach((path) => {
+        const host = path.closest("[data-shape]");
+        const shape = (host && host.dataset.shape) || state.shape;
+        path.setAttribute("d", blobPath(shape, squash, lean));
+      });
+    }
+
+    function renderChrome() {
+      const grid = document.getElementById("shape-grid");
+      grid.innerHTML = "";
+      SHAPES.forEach((shape) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "shape-cell";
+        btn.setAttribute("aria-pressed", String(shape === state.shape));
+        btn.innerHTML = svgMarkup(shape, state.color);
+        btn.addEventListener("click", () => { state.shape = shape; renderChrome(); paint(); });
+        grid.appendChild(btn);
+      });
+      const swatches = document.getElementById("swatches");
+      swatches.innerHTML = "";
+      COLORS.forEach((color) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "swatch";
+        btn.style.setProperty("--swatch", `var(--dshbot-blob-${color})`);
+        btn.setAttribute("aria-label", color);
+        btn.setAttribute("aria-pressed", String(color === state.color));
+        btn.addEventListener("click", () => { state.color = color; renderChrome(); paint(); });
+        swatches.appendChild(btn);
+      });
+      document.getElementById("tab-blob").setAttribute("aria-pressed", String(state.tab === "blob"));
+      document.getElementById("tab-upload").setAttribute("aria-pressed", String(state.tab === "upload"));
+      document.getElementById("pane-blob").classList.toggle("hidden", state.tab !== "blob");
+      document.getElementById("pane-upload").classList.toggle("hidden", state.tab !== "upload");
+      document.getElementById("crop-circle").setAttribute("aria-pressed", String(state.crop === "circle"));
+      document.getElementById("crop-square").setAttribute("aria-pressed", String(state.crop === "square"));
+    }
+
+    document.getElementById("tab-blob").addEventListener("click", () => { state.tab = "blob"; renderChrome(); paint(); });
+    document.getElementById("tab-upload").addEventListener("click", () => { state.tab = "upload"; renderChrome(); paint(); });
+    document.getElementById("crop-circle").addEventListener("click", () => { state.crop = "circle"; renderChrome(); paint(); });
+    document.getElementById("crop-square").addEventListener("click", () => { state.crop = "square"; renderChrome(); paint(); });
+    document.getElementById("pick-file").addEventListener("click", () => document.getElementById("file").click());
+    document.getElementById("file").addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.image = String(reader.result || "");
+        state.tab = "upload";
+        document.getElementById("upload-hint").textContent = "已裁切预览。保存时会烘焙成小 JPEG。";
+        renderChrome();
+        paint();
+      };
+      reader.readAsDataURL(file);
+    });
+    document.getElementById("thinking").addEventListener("change", (event) => {
+      state.thinking = event.target.checked;
+      paint();
+      armEyes();
+    });
+
+    let eyesId = 0;
+    function armEyes() {
+      clearInterval(eyesId);
+      if (reduced) return;
+      wanderEyes();
+      eyesId = setInterval(wanderEyes, state.thinking ? 300 : 1400);
+    }
+
+    function loop(now) {
+      morphTick(now);
+      requestAnimationFrame(loop);
+    }
+
+    renderChrome();
+    paint();
+    armEyes();
+    if (!reduced) requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

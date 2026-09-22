@@ -1,0 +1,1411 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode 工作区像素级原型</title>
+    <style>
+      :root {
+        --bg: #fbfbfc;
+        --panel: #ffffff;
+        --panel-soft: #f7f7f8;
+        --panel-hover: #f1f2f4;
+        --panel-strong: #eceef1;
+        --text: #1e232b;
+        --muted: #657081;
+        --faint: #a3abb8;
+        --border: #dfe3e8;
+        --border-strong: #d3d9e1;
+        --green: #43d477;
+        --green-soft: #d9f6e4;
+        --red: #dc5a62;
+        --accent: #55606f;
+        --shadow: 0 16px 40px rgba(25, 32, 44, 0.06);
+        --radius-panel: 14px;
+        --radius-card: 10px;
+        --radius-chip: 8px;
+        --titlebar-height: 32px;
+        --app-gap: 12px;
+        --side-w: 320px;
+        --float-card-w: 300px;
+        --footer-h: 54px;
+        --tab-h: 56px;
+        font-family:
+          ui-sans-serif,
+          "Segoe UI",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 760px;
+        min-height: 760px;
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .window {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      .titlebar {
+        height: var(--titlebar-height);
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        padding: 0 10px 0 12px;
+        border-bottom: 1px solid #eef0f3;
+        user-select: none;
+      }
+
+      .titlebar-name {
+        color: transparent;
+      }
+
+      .window-controls {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .window-button {
+        width: 38px;
+        height: 26px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: #1c2028;
+        display: grid;
+        place-items: center;
+      }
+
+      .window-button:hover {
+        background: #eef0f3;
+      }
+
+      .app {
+        height: calc(100vh - var(--titlebar-height));
+        display: grid;
+        grid-template-columns: var(--side-w) minmax(620px, 1fr);
+        gap: var(--app-gap);
+        padding: 8px;
+        transition: grid-template-columns 160ms ease;
+      }
+
+      body.left-collapsed {
+        --side-w: 72px;
+      }
+
+      @media (max-width: 1180px) {
+        .app {
+          grid-template-columns: minmax(620px, 1fr);
+        }
+
+        .app > .sidebar {
+          display: none !important;
+        }
+      }
+
+      .sidebar {
+        min-width: 0;
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr var(--footer-h);
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--panel);
+        box-shadow: 0 10px 30px rgba(29, 37, 50, 0.04);
+      }
+
+      .sidebar-header {
+        height: 96px;
+        display: grid;
+        grid-template-rows: 54px 1px 41px;
+      }
+
+      .sidebar-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 16px 0 20px;
+      }
+
+      .sidebar-title {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 17px;
+        white-space: nowrap;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+      }
+
+      .workspace-label {
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .session-list {
+        min-height: 0;
+        padding: 8px 12px 16px;
+        overflow: auto;
+      }
+
+      .session-card {
+        width: 100%;
+        min-height: 70px;
+        border: 0;
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--panel-soft);
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr) 12px;
+        align-items: center;
+        gap: 10px;
+        color: var(--text);
+        text-align: left;
+      }
+
+      .session-card:hover,
+      .session-card.active {
+        background: #f0f1f3;
+      }
+
+      .session-title {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 15px;
+        font-weight: 650;
+      }
+
+      .session-meta {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--green);
+      }
+
+      .sidebar-footer {
+        min-width: 0;
+        height: var(--footer-h);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px 10px 18px;
+        border-top: 1px solid var(--border);
+      }
+
+      .host-pill {
+        min-width: 0;
+        height: 32px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 6px;
+        color: var(--muted);
+      }
+
+      .host-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+
+      .footer-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+
+      body.left-collapsed .sidebar-title span,
+      body.left-collapsed .workspace-label,
+      body.left-collapsed .session-copy,
+      body.left-collapsed .host-label,
+      body.left-collapsed .footer-actions {
+        display: none;
+      }
+
+      body.left-collapsed .sidebar-title-row,
+      body.left-collapsed .workspace-label,
+      body.left-collapsed .session-list,
+      body.left-collapsed .sidebar-footer {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      body.left-collapsed .session-card {
+        min-height: 48px;
+        grid-template-columns: 1fr;
+        justify-items: center;
+        padding: 12px 0;
+      }
+
+      body.left-collapsed .sidebar-footer {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+
+      .workspace-stage {
+        min-width: 0;
+        height: 100%;
+        position: relative;
+      }
+
+      .main-panel {
+        min-width: 0;
+        height: 100%;
+        display: grid;
+        grid-template-rows: var(--tab-h) auto 1fr auto;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .tab-row {
+        height: var(--tab-h);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .tab-left {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        overflow: hidden;
+      }
+
+      .tabs {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .tab-chip {
+        height: 38px;
+        max-width: 220px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-chip);
+        background: var(--panel);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 8px 0 12px;
+        color: var(--text);
+        box-shadow: 0 3px 10px rgba(25, 32, 44, 0.04);
+      }
+
+      .tab-chip:not(.active) {
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .tab-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: 620;
+      }
+
+      .tab-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+      }
+
+      .notification-row {
+        height: 54px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 32px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .messages {
+        min-height: 0;
+        position: relative;
+        padding: 28px max(42px, calc(var(--float-card-w) + 44px)) 24px 42px;
+        overflow: auto;
+      }
+
+      body.env-closed .messages {
+        padding-right: 42px;
+      }
+
+      .chat-view {
+        width: min(100%, 760px);
+        margin: 0 auto;
+      }
+
+      .user-message {
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+      }
+
+      .bubble {
+        max-width: 360px;
+        border-radius: 16px;
+        padding: 14px 18px;
+        background: #dedfe3;
+        font-size: 16px;
+        font-weight: 620;
+      }
+
+      .time {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .assistant-message {
+        width: 100%;
+        margin-top: 62px;
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      .assistant-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: #eeeeef;
+      }
+
+      .assistant-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .assistant-name {
+        font-size: 16px;
+        font-weight: 650;
+      }
+
+      .ai-badge {
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 6px;
+        padding: 0 7px;
+        background: var(--green-soft);
+        color: #14914d;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .assistant-body {
+        display: grid;
+        gap: 14px;
+        line-height: 1.75;
+        font-size: 16px;
+      }
+
+      .assistant-tools {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        color: var(--muted);
+      }
+
+      .composer-wrap {
+        padding: 0 max(14px, calc(var(--float-card-w) + 44px)) 14px 14px;
+      }
+
+      body.env-closed .composer-wrap {
+        padding-right: 14px;
+      }
+
+      .composer {
+        width: min(100%, 760px);
+        margin: 0 auto;
+        min-height: 96px;
+        border: 1px solid var(--border-strong);
+        border-radius: 15px;
+        background: var(--panel);
+        display: grid;
+        grid-template-rows: 1fr auto;
+        overflow: hidden;
+      }
+
+      .composer-input-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 12px;
+        padding: 16px 18px 8px;
+      }
+
+      .placeholder {
+        color: #b7bfca;
+        font-size: 16px;
+      }
+
+      .focus-hint {
+        color: #a6afbd;
+        font-size: 12px;
+      }
+
+      .composer-toolbar {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 12px 10px;
+      }
+
+      .composer-left,
+      .composer-right {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .env-rail {
+        min-width: 0;
+        position: absolute;
+        top: calc(var(--tab-h) + 14px);
+        right: 16px;
+        width: var(--float-card-w);
+        max-height: calc(100% - var(--tab-h) - 28px);
+        overflow: auto;
+        z-index: 12;
+        transition:
+          opacity 150ms ease,
+          transform 150ms ease;
+      }
+
+      body.env-closed .env-rail {
+        display: none;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateX(12px);
+      }
+
+      .env-scroll {
+        overflow: visible;
+        padding: 0;
+      }
+
+      .env-card {
+        margin: 0;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: 0 18px 42px rgba(30, 39, 54, 0.12);
+        overflow: hidden;
+      }
+
+      .card-head,
+      .outline-row {
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+      }
+
+      .card-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #8c95a3;
+      }
+
+      .info-rows {
+        display: grid;
+        gap: 4px;
+        padding: 0 16px 12px;
+      }
+
+      .info-row {
+        min-height: 30px;
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 4px;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .info-row svg,
+      .float-card-line svg {
+        width: 16px;
+        height: 16px;
+        color: var(--text);
+      }
+
+      .change-values {
+        display: flex;
+        gap: 8px;
+        font-weight: 700;
+      }
+
+      .pos {
+        color: #219a51;
+      }
+
+      .neg {
+        color: var(--red);
+      }
+
+      .source-section {
+        border-top: 1px solid var(--border);
+        padding: 12px 16px;
+      }
+
+      .source-title {
+        margin-bottom: 10px;
+        color: #8c95a3;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .empty {
+        border-radius: 8px;
+        background: transparent;
+        padding: 0;
+        color: var(--faint);
+        font-size: 13px;
+      }
+
+      .float-card-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 30px;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .progress-line-title {
+        margin: 0;
+      }
+
+      .icon-button {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        display: inline-grid;
+        place-items: center;
+        flex: 0 0 auto;
+        cursor: pointer;
+      }
+
+      .icon-button.bordered {
+        border: 1px solid var(--border);
+        background: var(--panel);
+      }
+
+      .icon-button:hover,
+      .icon-button.active,
+      .host-pill:hover,
+      .mini-button:hover,
+      .tab-chip:hover {
+        background: var(--panel-hover);
+      }
+
+      .icon-button.active {
+        color: var(--text);
+        border-color: var(--border-strong);
+      }
+
+      .mini-button {
+        height: 30px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .spinner {
+        width: 18px;
+        height: 18px;
+        color: #252a33;
+        animation: spin 1.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+      }
+
+      .toast-stack {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 40;
+        display: grid;
+        gap: 8px;
+      }
+
+      .toast {
+        min-width: 220px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: var(--shadow);
+        padding: 10px 12px;
+        color: var(--text);
+        font-size: 13px;
+      }
+
+      .popover {
+        position: fixed;
+        z-index: 30;
+        min-width: 190px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        padding: 8px;
+        display: none;
+      }
+
+      .popover.open {
+        display: grid;
+        gap: 4px;
+      }
+
+      .popover button {
+        height: 34px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        padding: 0 10px;
+      }
+
+      .popover button:hover {
+        background: var(--panel-hover);
+      }
+
+      .audit-toggle {
+        position: fixed;
+        left: 12px;
+        top: 4px;
+        z-index: 35;
+        height: 24px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--muted);
+        padding: 0 12px;
+        box-shadow: 0 10px 30px rgba(30, 39, 54, 0.08);
+      }
+
+      body.audit .sidebar,
+      body.audit .main-panel,
+      body.audit .env-card,
+      body.audit .icon-button,
+      body.audit .mini-button,
+      body.audit .session-card,
+      body.audit .composer,
+      body.audit .tab-chip {
+        outline: 1px dashed rgba(52, 101, 164, 0.55);
+        outline-offset: -2px;
+      }
+
+      body.split-mode .messages {
+        display: grid;
+        grid-template-columns: minmax(0, 760px) 260px;
+        justify-content: center;
+        gap: 20px;
+      }
+
+      body.split-mode .messages::after {
+        content: "右侧分栏预览";
+        min-height: 260px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel-soft);
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+      }
+
+      body.split-mode .assistant-message {
+        width: 100%;
+      }
+
+      body.split-mode .assistant-tools {
+        flex-wrap: wrap;
+      }
+
+      .terminal-view {
+        display: none;
+        margin-top: 18px;
+        border-radius: 12px;
+        background: #151922;
+        color: #d8e0ec;
+        padding: 16px;
+        font:
+          13px/1.6 ui-monospace,
+          SFMono-Regular,
+          Consolas,
+          monospace;
+      }
+
+      body.terminal-tab .chat-view {
+        display: none;
+      }
+
+      body.terminal-tab .terminal-view {
+        display: block;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="sr-only" aria-hidden="true">
+      <symbol id="i-message" viewBox="0 0 24 24">
+        <path d="M8 10h8M8 14h5" />
+        <path
+          d="M6 4h12a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-7l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z"
+        />
+      </symbol>
+      <symbol id="i-sidebar" viewBox="0 0 24 24">
+        <path d="M4 5h16v14H4zM9 5v14" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="m6 6 12 12M18 6 6 18" />
+      </symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24">
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+      </symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24">
+        <path d="M4 5h16v14H4z" />
+        <path d="m8 9 3 3-3 3M13 16h4" />
+      </symbol>
+      <symbol id="i-columns" viewBox="0 0 24 24">
+        <path d="M4 5h16v14H4zM12 5v14" />
+      </symbol>
+      <symbol id="i-folder-plus" viewBox="0 0 24 24">
+        <path d="M4 6h6l2 2h8v12H4z" />
+        <path d="M14 14h6M17 11v6" />
+      </symbol>
+      <symbol id="i-home" viewBox="0 0 24 24">
+        <path d="m4 11 8-7 8 7" />
+        <path d="M6 10v10h12V10" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+        <path
+          d="M19 12a7.5 7.5 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7.5 7.5 0 0 0-1.8-1L14.4 3H10l-.4 3.1a7.5 7.5 0 0 0-1.8 1l-2.4-1-2 3.4 2 1.5a7.5 7.5 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.5 7.5 0 0 0 1.8 1l.4 3.1h4.4l.4-3.1a7.5 7.5 0 0 0 1.8-1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"
+        />
+      </symbol>
+      <symbol id="i-wrench" viewBox="0 0 24 24">
+        <path d="M14 6a5 5 0 0 0 7 7L12 22l-5-5 9-9a5 5 0 0 0-2-2Z" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <path d="M8 8h12v12H8z" />
+        <path d="M4 16V4h12" />
+      </symbol>
+      <symbol id="i-thumbs-up" viewBox="0 0 24 24">
+        <path d="M7 10v11H3V10zM7 10l5-7 1 1v6h6a2 2 0 0 1 2 2l-2 7a3 3 0 0 1-3 2H7" />
+      </symbol>
+      <symbol id="i-thumbs-down" viewBox="0 0 24 24">
+        <path d="M7 14V3H3v11zM7 14l5 7 1-1v-6h6a2 2 0 0 0 2-2l-2-7a3 3 0 0 0-3-2H7" />
+      </symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24">
+        <path d="m6 9 6 6 6-6" />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z" />
+      </symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24">
+        <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z" />
+        <path d="M19 11a7 7 0 0 1-14 0M12 18v4" />
+      </symbol>
+      <symbol id="i-wave" viewBox="0 0 24 24">
+        <path d="M4 12v2M8 8v8M12 5v14M16 8v8M20 11v3" />
+      </symbol>
+    </svg>
+
+    <div class="window">
+      <header class="titlebar">
+        <div class="titlebar-name">ChisaCode</div>
+        <div class="window-controls" aria-label="窗口控制">
+          <button class="window-button" data-action="minimize" aria-label="最小化">－</button>
+          <button class="window-button" data-action="maximize" aria-label="最大化">□</button>
+          <button class="window-button" data-action="close-window" aria-label="关闭">×</button>
+        </div>
+      </header>
+
+      <main class="app">
+        <aside class="sidebar" aria-label="会话侧栏">
+          <div class="sidebar-header">
+            <div class="sidebar-title-row">
+              <div class="sidebar-title">
+                <svg><use href="#i-message" /></svg>
+                <span>会话</span>
+              </div>
+              <button class="icon-button" data-action="toggle-left" aria-label="折叠左侧会话栏">
+                <svg><use href="#i-sidebar" /></svg>
+              </button>
+            </div>
+            <div class="divider"></div>
+            <div class="workspace-label">pi-desktop</div>
+          </div>
+
+          <section class="session-list">
+            <button
+              class="session-card active"
+              data-action="select-session"
+              aria-label="打开会话 你好啊"
+            >
+              <svg class="spinner"><use href="#i-settings" /></svg>
+              <span class="session-copy">
+                <span class="session-title">你好啊</span>
+                <span class="session-meta">空闲 · 11s ago</span>
+              </span>
+              <span class="status-dot"></span>
+            </button>
+          </section>
+
+          <footer class="sidebar-footer">
+            <button class="host-pill" data-action="host-menu" aria-label="切换主机">
+              <span class="status-dot"></span>
+              <span class="host-label">DESKTOP-TFK2NTA</span>
+            </button>
+            <div class="footer-actions" aria-label="侧栏底部操作">
+              <button class="icon-button" data-action="open-project" aria-label="打开项目">
+                <svg><use href="#i-folder-plus" /></svg>
+              </button>
+              <button class="icon-button" data-action="home" aria-label="回到主页">
+                <svg><use href="#i-home" /></svg>
+              </button>
+              <button class="icon-button" data-action="settings" aria-label="打开设置">
+                <svg><use href="#i-settings" /></svg>
+              </button>
+            </div>
+          </footer>
+        </aside>
+
+        <div class="workspace-stage">
+          <section class="main-panel" aria-label="主工作区">
+            <div class="tab-row">
+              <div class="tab-left">
+                <div class="tabs" id="tabs">
+                  <button class="tab-chip active" data-tab="chat" data-action="select-chat-tab">
+                    <svg class="spinner"><use href="#i-settings" /></svg>
+                    <span class="tab-name">你好啊</span>
+                    <span class="icon-button" data-action="close-tab" aria-label="关闭当前标签">
+                      <svg><use href="#i-x" /></svg>
+                    </span>
+                  </button>
+                </div>
+                <button class="icon-button" data-action="new-inline-tab" aria-label="新建标签">
+                  <svg><use href="#i-plus" /></svg>
+                </button>
+              </div>
+              <div class="tab-actions" aria-label="主工具栏">
+                <button class="icon-button bordered" data-action="new-chat" aria-label="新建会话">
+                  <svg><use href="#i-edit" /></svg>
+                </button>
+                <button class="icon-button bordered" data-action="terminal" aria-label="打开终端">
+                  <svg><use href="#i-terminal" /></svg>
+                </button>
+                <button class="icon-button bordered" data-action="split" aria-label="右侧分栏">
+                  <svg><use href="#i-columns" /></svg>
+                </button>
+                <button
+                  class="icon-button bordered active"
+                  data-action="open-env"
+                  aria-label="显示或隐藏右侧悬浮卡片"
+                >
+                  <svg><use href="#i-sidebar" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="notification-row">
+              <svg><use href="#i-wrench" /></svg>
+              <span>Task Notification</span>
+              <span>Background task notification</span>
+            </div>
+
+            <div class="messages">
+              <div class="chat-view">
+                <div class="user-message">
+                  <div class="bubble">你好啊</div>
+                  <div class="time">11:24</div>
+                </div>
+
+                <article class="assistant-message">
+                  <div class="assistant-avatar">
+                    <svg class="spinner"><use href="#i-settings" /></svg>
+                  </div>
+                  <div>
+                    <div class="assistant-head">
+                      <span class="assistant-name">ChisaCode</span>
+                      <span class="ai-badge">AI</span>
+                      <span class="time">11:24</span>
+                    </div>
+                    <div class="assistant-body">
+                      <div>你好！ 👋 有什么我可以帮你的吗？</div>
+                      <div>
+                        我看到你正在开发 <strong>pi-desktop</strong> 项目，目前在
+                        <strong>master</strong> 分支上，有一些修改和新增文件。
+                        需要我帮你处理代码相关的事情，还是有什么问题想聊聊？
+                      </div>
+                    </div>
+                    <div class="assistant-tools">
+                      <button class="icon-button" data-action="copy-message" aria-label="复制消息">
+                        <svg><use href="#i-copy" /></svg>
+                      </button>
+                      <button class="icon-button" data-action="like" aria-label="点赞">
+                        <svg><use href="#i-thumbs-up" /></svg>
+                      </button>
+                      <button class="icon-button" data-action="dislike" aria-label="点踩">
+                        <svg><use href="#i-thumbs-down" /></svg>
+                      </button>
+                      <button
+                        class="mini-button"
+                        data-action="worked-menu"
+                        aria-label="查看工作耗时详情"
+                      >
+                        Worked for 8s
+                        <svg><use href="#i-chevron-down" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <pre class="terminal-view">
+pi-desktop $ npm run dev
+ready - local daemon connected
+workspace: cn-main</pre
+              >
+            </div>
+
+            <div class="composer-wrap">
+              <div class="composer">
+                <div class="composer-input-row">
+                  <div class="placeholder">给智能体发消息，可用 @files、/commands 和 /skills</div>
+                  <div class="focus-hint">Ctrl+L 聚焦输入框</div>
+                </div>
+                <div class="composer-toolbar">
+                  <div class="composer-left">
+                    <button class="icon-button" data-action="attach" aria-label="添加附件">
+                      <svg><use href="#i-plus" /></svg>
+                    </button>
+                    <button class="mini-button" data-action="model-menu" aria-label="选择模型">
+                      <svg class="spinner"><use href="#i-settings" /></svg>
+                      glm-5.1
+                      <svg><use href="#i-chevron-down" /></svg>
+                    </button>
+                    <button
+                      class="mini-button"
+                      data-action="permission-menu"
+                      aria-label="选择权限模式"
+                    >
+                      <svg><use href="#i-shield" /></svg>
+                      Always ask
+                      <svg><use href="#i-chevron-down" /></svg>
+                    </button>
+                  </div>
+                  <div class="composer-right">
+                    <button class="icon-button" data-action="mic" aria-label="语音输入">
+                      <svg><use href="#i-mic" /></svg>
+                    </button>
+                    <button class="icon-button" data-action="voice-wave" aria-label="音频状态">
+                      <svg><use href="#i-wave" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="env-rail" aria-label="右侧悬浮卡片">
+            <div class="env-scroll">
+              <section class="env-card">
+                <div class="card-head">
+                  <div class="card-title">环境信息</div>
+                  <button class="icon-button" data-action="env-settings" aria-label="环境设置">
+                    <svg><use href="#i-settings" /></svg>
+                  </button>
+                </div>
+                <div class="info-rows">
+                  <div class="info-row">
+                    <svg><use href="#i-copy" /></svg>
+                    <span>变更</span>
+                    <span class="change-values"
+                      ><span class="pos">+1,510</span><span class="neg">-162</span></span
+                    >
+                  </div>
+                  <div class="info-row">
+                    <svg><use href="#i-terminal" /></svg>
+                    <span>本地</span>
+                    <span
+                      ><svg><use href="#i-chevron-down" /></svg
+                    ></span>
+                  </div>
+                  <div class="info-row">
+                    <svg><use href="#i-columns" /></svg>
+                    <span>cn-main</span>
+                    <span
+                      ><svg><use href="#i-chevron-down" /></svg
+                    ></span>
+                  </div>
+                  <div class="info-row">
+                    <svg><use href="#i-settings" /></svg>
+                    <span>提交或推送</span>
+                    <span></span>
+                  </div>
+                </div>
+                <div class="source-section">
+                  <div class="float-card-line">
+                    <span class="source-title progress-line-title">进度</span>
+                    <svg><use href="#i-chevron-down" /></svg>
+                  </div>
+                </div>
+                <div class="source-section">
+                  <div class="source-title">浏览器</div>
+                  <div class="float-card-line">
+                    <svg><use href="#i-home" /></svg>
+                    <span>ChisaCode 工作区像...</span>
+                  </div>
+                </div>
+                <div class="source-section">
+                  <div class="source-title">来源</div>
+                  <div class="empty">暂无来源</div>
+                </div>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <button class="audit-toggle" data-action="audit-mode">验收辅助模式</button>
+    <div class="popover" id="popover" role="menu"></div>
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+    <script>
+      const body = document.body;
+      const popover = document.querySelector("#popover");
+      const toastStack = document.querySelector("#toast-stack");
+      let tabCount = 1;
+
+      function icon(id) {
+        return `<svg><use href="#${id}"></use></svg>`;
+      }
+
+      function toast(message) {
+        const item = document.createElement("div");
+        item.className = "toast";
+        item.textContent = message;
+        toastStack.append(item);
+        setTimeout(() => item.remove(), 1800);
+      }
+
+      function closePopover() {
+        popover.classList.remove("open");
+        popover.innerHTML = "";
+      }
+
+      function openPopover(anchor, items) {
+        closePopover();
+        items.forEach((label) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = label;
+          button.addEventListener("click", () => {
+            toast(label);
+            closePopover();
+          });
+          popover.append(button);
+        });
+        const rect = anchor.getBoundingClientRect();
+        popover.style.left = `${Math.min(rect.left, window.innerWidth - 220)}px`;
+        popover.style.top = `${rect.bottom + 8}px`;
+        popover.classList.add("open");
+      }
+
+      function setEnvOpen(open) {
+        body.classList.toggle("env-closed", !open);
+        document.querySelector('[data-action="open-env"]').classList.toggle("active", open);
+      }
+
+      function addTab(label = "新会话") {
+        tabCount += 1;
+        const tab = document.createElement("button");
+        tab.className = "tab-chip";
+        tab.dataset.action = "select-draft-tab";
+        tab.innerHTML = `${icon("i-edit")}<span class="tab-name">${label} ${tabCount}</span><span class="icon-button" data-action="close-tab" aria-label="关闭标签">${icon("i-x")}</span>`;
+        document.querySelector("#tabs").append(tab);
+        document.querySelectorAll(".tab-chip").forEach((item) => item.classList.remove("active"));
+        tab.classList.add("active");
+        body.classList.remove("terminal-tab");
+        toast(`已创建 ${label} ${tabCount}`);
+      }
+
+      function runOverlapAudit() {
+        const controls = [...document.querySelectorAll("button, .tab-chip, .session-card")].filter(
+          (element) => {
+            const style = getComputedStyle(element);
+            const rect = element.getBoundingClientRect();
+            return style.display !== "none" && rect.width > 0 && rect.height > 0;
+          },
+        );
+        const overlaps = [];
+        for (let i = 0; i < controls.length; i += 1) {
+          const a = controls[i].getBoundingClientRect();
+          for (let j = i + 1; j < controls.length; j += 1) {
+            const b = controls[j].getBoundingClientRect();
+            const intersect =
+              a.left < b.right - 1 &&
+              a.right > b.left + 1 &&
+              a.top < b.bottom - 1 &&
+              a.bottom > b.top + 1;
+            if (intersect) {
+              overlaps.push([
+                controls[i].getAttribute("data-action") ||
+                  controls[i].ariaLabel ||
+                  controls[i].className,
+                controls[j].getAttribute("data-action") ||
+                  controls[j].ariaLabel ||
+                  controls[j].className,
+              ]);
+            }
+          }
+        }
+        return overlaps;
+      }
+
+      window.runPrototypeAudit = runOverlapAudit;
+
+      document.addEventListener("click", (event) => {
+        const actionElement = event.target.closest("[data-action]");
+        if (!actionElement) {
+          closePopover();
+          return;
+        }
+
+        const action = actionElement.dataset.action;
+        if (
+          action !== "model-menu" &&
+          action !== "permission-menu" &&
+          action !== "env-settings" &&
+          action !== "host-menu" &&
+          action !== "worked-menu"
+        ) {
+          closePopover();
+        }
+
+        switch (action) {
+          case "toggle-left":
+            body.classList.toggle("left-collapsed");
+            toast(
+              body.classList.contains("left-collapsed") ? "左侧会话栏已折叠" : "左侧会话栏已展开",
+            );
+            break;
+          case "open-env":
+            setEnvOpen(body.classList.contains("env-closed"));
+            toast(
+              body.classList.contains("env-closed") ? "右侧悬浮卡片已隐藏" : "右侧悬浮卡片已显示",
+            );
+            break;
+          case "new-inline-tab":
+          case "new-chat":
+            addTab("新会话");
+            break;
+          case "terminal":
+            body.classList.toggle("terminal-tab");
+            if (body.classList.contains("terminal-tab")) {
+              document
+                .querySelectorAll(".tab-chip")
+                .forEach((item) => item.classList.remove("active"));
+            }
+            actionElement.classList.toggle("active", body.classList.contains("terminal-tab"));
+            toast(body.classList.contains("terminal-tab") ? "终端标签已打开" : "已回到会话标签");
+            break;
+          case "split":
+            body.classList.toggle("split-mode");
+            actionElement.classList.toggle("active", body.classList.contains("split-mode"));
+            toast(
+              body.classList.contains("split-mode") ? "已打开右侧分栏预览" : "已关闭右侧分栏预览",
+            );
+            break;
+          case "close-tab":
+            event.stopPropagation();
+            if (actionElement.closest(".tab-chip")?.dataset.tab === "chat") {
+              toast("主会话标签保留，真实应用中会关闭当前标签");
+            } else {
+              actionElement.closest(".tab-chip")?.remove();
+              toast("标签已关闭");
+            }
+            break;
+          case "select-chat-tab":
+          case "select-draft-tab":
+            document
+              .querySelectorAll(".tab-chip")
+              .forEach((item) => item.classList.remove("active"));
+            actionElement.classList.add("active");
+            body.classList.remove("terminal-tab");
+            document.querySelector('[data-action="terminal"]').classList.remove("active");
+            toast("已切换标签");
+            break;
+          case "env-settings":
+            openPopover(actionElement, ["刷新信息", "复制分支名", "打开 Git 设置"]);
+            break;
+          case "model-menu":
+            openPopover(actionElement, ["glm-5.1", "gpt-5-codex", "claude-sonnet"]);
+            break;
+          case "permission-menu":
+            openPopover(actionElement, ["Always ask", "Auto approve reads", "Full access"]);
+            break;
+          case "host-menu":
+            openPopover(actionElement, ["DESKTOP-TFK2NTA 在线", "刷新主机", "添加主机"]);
+            break;
+          case "worked-menu":
+            openPopover(actionElement, ["查看执行详情", "复制耗时信息"]);
+            break;
+          case "toggle-outline":
+            document.querySelector("#outline-body").toggleAttribute("hidden");
+            toast("大纲折叠状态已切换");
+            break;
+          case "audit-mode":
+            body.classList.toggle("audit");
+            toast(`重叠检测：${runOverlapAudit().length} 个问题`);
+            break;
+          case "select-session":
+            toast("已打开会话：你好啊");
+            break;
+          case "open-project":
+            toast("打开项目");
+            break;
+          case "home":
+            toast("回到主页");
+            break;
+          case "settings":
+            toast("打开设置");
+            break;
+          case "attach":
+            openPopover(actionElement, ["选择文件", "添加图片", "引用工作区文件"]);
+            break;
+          case "mic":
+            actionElement.classList.toggle("active");
+            toast(actionElement.classList.contains("active") ? "语音输入已开启" : "语音输入已关闭");
+            break;
+          case "voice-wave":
+            toast("显示音频状态");
+            break;
+          case "copy-message":
+            toast("消息已复制");
+            break;
+          case "like":
+            actionElement.classList.toggle("active");
+            toast("已记录点赞反馈");
+            break;
+          case "dislike":
+            actionElement.classList.toggle("active");
+            toast("已记录点踩反馈");
+            break;
+          case "minimize":
+          case "maximize":
+          case "close-window":
+            toast("窗口按钮为原型占位");
+            break;
+          default:
+            toast(actionElement.ariaLabel || "按钮已点击");
+        }
+      });
+    </script>
+  </body>
+</html>

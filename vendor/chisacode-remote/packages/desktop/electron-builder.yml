@@ -1,0 +1,79 @@
+npmRebuild: false
+appId: sh.chisacode.desktop
+productName: ChisaCode
+executableName: ChisaCode
+afterPack: ./scripts/after-pack.js
+afterSign: ./scripts/after-sign.js
+directories:
+  output: release
+files:
+  - dist/**/*
+  - node_modules/better-sqlite3/binding.gyp
+  - node_modules/better-sqlite3/src/**/*
+  - node_modules/better-sqlite3/deps/**/*
+  - "!**/*.map"
+  - "!node_modules/@chisacode/*/src/**"
+  - "!node_modules/@chisacode/**/*.test.*"
+  - "!node_modules/@chisacode/**/*.spec.*"
+asarUnpack:
+  - dist/daemon/node-entrypoint-runner.js
+  - node_modules/@chisacode/server/dist/server/terminal/shell-integration/**/*
+  - node_modules/better-sqlite3/**/*
+extraResources:
+  - from: ../app/dist
+    to: app-dist
+  - from: ../../skills
+    to: skills
+publish:
+  provider: github
+  owner: ChisaAlter
+  repo: ChisaCode
+mac:
+  artifactName: "ChisaCode-${version}-${arch}.${ext}"
+  category: public.app-category.developer-tools
+  icon: assets/icon.icns
+  hardenedRuntime: true
+  notarize: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  extraResources:
+    - from: bin/chisacode
+      to: bin/chisacode
+  target:
+    - dmg
+    - zip
+linux:
+  category: Development
+  icon: assets
+  artifactName: "ChisaCode-${version}-${arch}.${ext}"
+  maintainer: "Mohamed Boudra <hello@moboudra.com>"
+  vendor: "ChisaCode"
+  extraResources:
+    - from: bin/chisacode
+      to: bin/chisacode
+  target:
+    - AppImage
+    - deb
+    - rpm
+    - tar.gz
+win:
+  artifactName: "ChisaCode-Setup-${version}-${arch}.${ext}"
+  icon: assets/icon.ico
+  extraResources:
+    - from: bin/chisacode.cmd
+      to: bin/chisacode.cmd
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+electronDownload:
+  cache: "${env.ELECTRON_CACHE}"

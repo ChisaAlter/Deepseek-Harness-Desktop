@@ -1,0 +1,37 @@
+.cluster {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  -webkit-app-region: no-drag;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.toggle:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.pressed {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-button-ghost-active-fill);
+  box-shadow: var(--dsw-shadow-lv1);
+}
+
+.toggle:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: not-allowed;
+}

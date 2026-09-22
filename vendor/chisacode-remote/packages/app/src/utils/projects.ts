@@ -1,0 +1,189 @@
+import type { WorkspaceDescriptor } from "@/stores/session-store";
+
+/** A condensed view of a single workspace within a project listing */
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  workspaceKind: WorkspaceDescriptor["workspaceKind"];
+  status: WorkspaceDescriptor["status"];
+  currentBranch: string | null;
+}
+
+/** A host (server) that contributes workspaces to a project, with its repo root and runtime state */
+export interface ProjectHostEntry {
+  serverId: string;
+  serverName: string;
+  isOnline: boolean;
+  repoRoot: string;
+  workspaceCount: number;
+  workspaces: WorkspaceSummary[];
+  gitRuntime?: WorkspaceDescriptor["gitRuntime"];
+  githubRuntime?: WorkspaceDescriptor["githubRuntime"];
+}
+
+/** An aggregated project spanning one or more hosts, sorted and ready for display */
+export interface ProjectSummary {
+  projectKey: string;
+  projectName: string;
+  projectCustomName?: string | null;
+  hosts: ProjectHostEntry[];
+  totalWorkspaceCount: number;
+  hostCount: number;
+  onlineHostCount: number;
+  githubUrl?: string;
+}
+
+/** A host and its workspaces, used as input when building project summaries */
+export interface ProjectHost {
+  serverId: string;
+  serverName: string;
+  isOnline: boolean;
+  workspaces: WorkspaceDescriptor[];
+}
+
+/** Input for {@link buildProjects}: the set of hosts whose workspaces should be grouped into projects */
+export interface BuildProjectsInput {
+  hosts: ProjectHost[];
+}
+
+/** Output of {@link buildProjects}: the aggregated, name-sorted project summaries */
+export interface BuildProjectsResult {
+  projects: ProjectSummary[];
+}
+
+const GITHUB_PROJECT_KEY_PATTERN = /^remote:github\.com\/([^/]+)\/([^/]+)$/;
+
+interface HostGroup {
+  serverId: string;
+  serverName: string;
+  isOnline: boolean;
+  workspaces: WorkspaceDescriptor[];
+}
+
+interface ProjectGroup {
+  projectKey: string;
+  projectName: string;
+  projectCustomName: string | null;
+  hostsByServerId: Map<string, HostGroup>;
+}
+
+function deriveGithubUrl(projectKey: string): string | undefined {
+  const match = projectKey.match(GITHUB_PROJECT_KEY_PATTERN);
+  if (!match) {
+    return undefined;
+  }
+  return `https://github.com/${match[1]}/${match[2]}`;
+}
+
+function resolveHostRepoRoot(workspaces: WorkspaceDescriptor[]): string {
+  for (const workspace of workspaces) {
+    const mainRepoRoot = workspace.project?.checkout.mainRepoRoot;
+    if (mainRepoRoot) {
+      return mainRepoRoot;
+    }
+  }
+  return workspaces[0]?.projectRootPath ?? "";
+}
+
+function toWorkspaceSummary(workspace: WorkspaceDescriptor): WorkspaceSummary {
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    workspaceKind: workspace.workspaceKind,
+    status: workspace.status,
+    currentBranch: workspace.gitRuntime?.currentBranch ?? null,
+  };
+}
+
+function toHostEntry(group: HostGroup): ProjectHostEntry {
+  const repoRoot = resolveHostRepoRoot(group.workspaces);
+  const canonical =
+    group.workspaces.find((workspace) => workspace.projectRootPath === repoRoot) ??
+    group.workspaces[0];
+  return {
+    serverId: group.serverId,
+    serverName: group.serverName,
+    isOnline: group.isOnline,
+    repoRoot,
+    workspaceCount: group.workspaces.length,
+    workspaces: group.workspaces.map(toWorkspaceSummary),
+    gitRuntime: canonical?.gitRuntime,
+    githubRuntime: canonical?.githubRuntime,
+  };
+}
+
+function compareHosts(left: ProjectHostEntry, right: ProjectHostEntry): number {
+  const name = left.serverName.localeCompare(right.serverName);
+  if (name !== 0) {
+    return name;
+  }
+  return left.serverId.localeCompare(right.serverId);
+}
+
+function toProjectSummary(draft: ProjectGroup): ProjectSummary {
+  const hosts = Array.from(draft.hostsByServerId.values()).map(toHostEntry).sort(compareHosts);
+  const totalWorkspaceCount = hosts.reduce((sum, host) => sum + host.workspaceCount, 0);
+  const onlineHostCount = hosts.filter((host) => host.isOnline).length;
+  return {
+    projectKey: draft.projectKey,
+    projectName: draft.projectName,
+    projectCustomName: draft.projectCustomName,
+    hosts,
+    totalWorkspaceCount,
+    hostCount: hosts.length,
+    onlineHostCount,
+    githubUrl: deriveGithubUrl(draft.projectKey),
+  };
+}
+
+/**
+ * Groups workspaces from all hosts into per-project summaries sorted by project name
+ * @param input The hosts and their workspaces to aggregate
+ * @returns The aggregated project summaries with per-host entries and workspace counts
+ */
+export function buildProjects(input: BuildProjectsInput): BuildProjectsResult {
+  const groups = new Map<string, ProjectGroup>();
+
+  for (const host of input.hosts) {
+    for (const workspace of host.workspaces) {
+      const projectKey = workspace.projectId;
+
+      let group = groups.get(projectKey);
+      if (!group) {
+        group = {
+          projectKey,
+          projectName: workspace.projectDisplayName,
+          projectCustomName: workspace.projectCustomName ?? null,
+          hostsByServerId: new Map(),
+        };
+        groups.set(projectKey, group);
+      } else if (workspace.projectCustomName && !group.projectCustomName) {
+        group.projectCustomName = workspace.projectCustomName;
+        group.projectName = workspace.projectDisplayName;
+      }
+
+      let hostGroup = group.hostsByServerId.get(host.serverId);
+      if (!hostGroup) {
+        hostGroup = {
+          serverId: host.serverId,
+          serverName: host.serverName,
+          isOnline: host.isOnline,
+          workspaces: [],
+        };
+        group.hostsByServerId.set(host.serverId, hostGroup);
+      }
+      hostGroup.workspaces.push(workspace);
+    }
+  }
+
+  const projects = Array.from(groups.values()).map(toProjectSummary);
+  projects.sort((left, right) => {
+    const name = left.projectName.localeCompare(right.projectName);
+    if (name !== 0) {
+      return name;
+    }
+    return left.projectKey.localeCompare(right.projectKey);
+  });
+
+  return { projects };
+}

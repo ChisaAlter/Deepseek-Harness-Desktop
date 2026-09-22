@@ -1,0 +1,24 @@
+{
+  "prompt": "刚才的验证码是多少？只回答数字。",
+  "beforeAssistantCount": 1,
+  "observedAt": "2026-09-05T05:55:01.140Z",
+  "assistantCount": 2,
+  "text": "456",
+  "kinds": [
+    "system-prompt",
+    "user",
+    "turn-process",
+    "context",
+    "context",
+    "assistant-step",
+    "turn-tail",
+    "user",
+    "turn-process",
+    "assistant-step",
+    "turn-tail"
+  ],
+  "busy": false,
+  "approval": "",
+  "errors": [],
+  "composer": ""
+}

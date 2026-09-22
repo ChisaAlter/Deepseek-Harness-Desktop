@@ -1,0 +1,2443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>安卓远程 · 1:1 原型</title>
+  <style>
+    :root {
+      --dsw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --ds-font-family-code: "SF Mono", "JetBrains Mono", "Fira Code", Consolas, Menlo, monospace;
+      --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --ds-transition-duration: 0.2s;
+      --ds-transition-duration-fast: 0.1s;
+      --ds-transition-duration-slow: 0.3s;
+      --dsw-mask-blur: blur(2px);
+      --dsw-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
+      --dsw-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
+      --dsw-static-deepseek-50: rgb(237, 243, 254);
+      --dsw-static-deepseek-100: rgb(228, 237, 253);
+      --dsw-static-deepseek-400: rgb(103, 158, 254);
+      --dsw-static-deepseek-500: rgb(65, 118, 230);
+      --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+      --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+      --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+      --dsw-static-neutral-bluish-75: rgb(241, 243, 245);
+      --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+      --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+      --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+      --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+      --dsw-static-neutral-bluish-750: rgb(67, 69, 74);
+      --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+      --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+      --dsw-static-neutral-bluish-875: rgb(35, 35, 36);
+      --dsw-static-neutral-bluish-900: rgb(27, 27, 28);
+      --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
+      --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+      --dsw-static-red-600: rgb(236, 19, 19);
+      --dsw-static-amber-100: rgb(254, 245, 231);
+      --dsw-static-amber-400: rgb(247, 173, 49);
+      --dsw-static-amber-500: rgb(245, 158, 11);
+      --dsw-static-amber-900: rgb(39, 36, 31);
+      --dsw-static-green-500: rgb(34, 197, 94);
+    }
+    body {
+      --dsw-alias-glass-opacity: 80%;
+      --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.24);
+      --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+      --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+      --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+      --dsw-alias-border-l2-darkmode-thin: rgba(0, 0, 0, 0.1);
+      --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+      --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
+      --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-750);
+      --dsw-alias-button-info-fill: var(--dsw-static-deepseek-500);
+      --dsw-alias-button-info-hover: var(--dsw-static-deepseek-400);
+      --dsw-alias-button-elevated-fill: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-button-floating-fill: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-button-floating-hover: var(--dsw-static-neutral-bluish-75);
+      --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+      --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+      --dsw-alias-interactive-bg-hover-danger: rgba(236, 19, 19, 0.08);
+      --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+      --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+      --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-400);
+      --dsw-alias-label-dimmed: var(--dsw-static-neutral-bluish-400);
+      --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+      --dsw-alias-state-error-primary: var(--dsw-static-red-600);
+      --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+      --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
+      --dsw-alias-state-warn-secondary: var(--dsw-static-amber-400);
+      --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-100);
+      --dsw-alias-state-warn-label: var(--dsw-static-amber-500);
+      --dsw-specific-bubble: var(--dsw-static-deepseek-50);
+      --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-50);
+      --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-deepseek-100);
+      --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-75);
+      --dsw-specific-input-major: color-mix(in srgb, var(--dsw-static-neutral-bluish-00) 80%, transparent);
+      --dsw-specific-selector: var(--dsw-static-neutral-bluish-60);
+    }
+    .phone[data-ds-dark-theme] {
+      --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+      --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
+      --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+      --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
+      --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-900);
+      --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
+      --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+      --dsw-alias-border-l2-darkmode-thin: rgba(255, 255, 255, 0.06);
+      --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+      --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+      --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
+      --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-100);
+      --dsw-alias-button-info-fill: var(--dsw-static-deepseek-400);
+      --dsw-alias-button-info-hover: var(--dsw-static-deepseek-500);
+      --dsw-alias-button-elevated-fill: var(--dsw-static-neutral-bluish-750);
+      --dsw-alias-button-floating-fill: var(--dsw-static-neutral-bluish-850);
+      --dsw-alias-button-floating-hover: var(--dsw-static-neutral-bluish-800);
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+      --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+      --dsw-alias-interactive-bg-hover-danger: rgba(242, 90, 90, 0.16);
+      --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+      --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-label-secondary: rgb(207, 211, 214);
+      --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+      --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-600);
+      --dsw-alias-label-dimmed: var(--dsw-static-neutral-bluish-600);
+      --dsw-alias-state-business-primary: var(--dsw-static-deepseek-400);
+      --dsw-alias-state-warn-label: var(--dsw-static-amber-400);
+      --dsw-alias-state-error-primary: rgb(242, 90, 90);
+      --dsw-alias-state-warn-tertiary: var(--dsw-static-amber-900);
+      --dsw-specific-bubble: var(--dsw-static-neutral-bluish-850);
+      --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-900);
+      --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-neutral-bluish-800);
+      --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-850);
+      --dsw-specific-input-major: color-mix(in srgb, var(--dsw-static-neutral-bluish-850) 80%, transparent);
+      --dsw-specific-selector: var(--dsw-static-neutral-bluish-800);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--dsw-font-family);
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--dsw-alias-label-primary);
+      background: var(--dsw-alias-bg-module-platform);
+    }
+    button, input, textarea, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+    .studio {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) 1fr;
+      gap: 32px;
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+    .notes h1 { margin: 0 0 8px; font-size: 16px; line-height: 24px; font-weight: 500; }
+    .notes p, .notes li { margin: 0 0 10px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
+    .notes ul { margin: 0 0 16px; padding-left: 18px; }
+    .notes h2 { margin: 16px 0 8px; font-size: 13px; line-height: 20px; font-weight: 600; }
+    .review { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      height: 28px; padding: 0 12px; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 14px; background: transparent; font-size: 12px; line-height: 18px; font-weight: 500;
+    }
+    .chip:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .phone-wrap { display: flex; justify-content: center; }
+    .phone {
+      --safe-top: 72px;
+      --safe-bottom: 28px;
+      position: relative; width: 390px; height: 844px; border-radius: 40px;
+      border: 1px solid var(--dsw-alias-border-l2); background: var(--dsw-alias-bg-base);
+      box-shadow: var(--dsw-shadow-lv3); overflow: hidden;
+    }
+    .notch {
+      position: absolute; top: 10px; left: 50%; z-index: 50; width: 118px; height: 28px;
+      transform: translateX(-50%); border-radius: 16px; background: var(--dsw-alias-bg-module-platform); pointer-events: none;
+    }
+    .status {
+      position: absolute; top: 14px; left: 22px; right: 22px; z-index: 51;
+      display: flex; justify-content: space-between; font-size: 12px; line-height: 18px; font-weight: 500;
+      pointer-events: none;
+    }
+    .home-bar {
+      position: absolute; bottom: 8px; left: 50%; z-index: 51; width: 120px; height: 4px;
+      transform: translateX(-50%); border-radius: 4px; background: var(--dsw-alias-label-tertiary); opacity: 0.45; pointer-events: none;
+    }
+    .screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+    .connect { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: var(--safe-top) 24px var(--safe-bottom); gap: 12px; }
+    .kicker { margin: 0; font-size: 13px; line-height: 20px; color: var(--dsw-alias-label-tertiary); }
+    .connect h2, .blank h2, .perm h2 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
+    .lead { margin: 0; color: var(--dsw-alias-label-secondary); }
+    .device {
+      display: flex; align-items: center; gap: 8px; margin: 4px 0 8px;
+      font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary);
+    }
+    .live { width: 8px; height: 8px; border-radius: 50%; background: var(--dsw-alias-state-success-primary); }
+    .live.wait { background: var(--dsw-alias-state-warn-primary); }
+    .live.off { background: var(--dsw-alias-label-caption); }
+    .error { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; line-height: 18px; }
+    .primary-btn, .ghost-btn, .danger-btn {
+      height: 36px; padding: 0 18px; border-radius: 18px; font-size: 14px; line-height: 22px; font-weight: 500;
+    }
+    .primary-btn { border: 0; background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
+    .primary-btn:hover { background: var(--dsw-alias-button-primary-hover); }
+    .ghost-btn { border: 1px solid var(--dsw-alias-border-l2); background: transparent; }
+    .ghost-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .primary-btn:disabled, .ghost-btn:disabled {
+      opacity: 0.45; cursor: not-allowed;
+    }
+    .danger-btn { border: 1px solid transparent; background: transparent; color: var(--dsw-alias-state-error-primary); }
+    .danger-btn:hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
+    .paste {
+      width: 100%; height: 36px; padding: 0 14px; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 8px; background: var(--dsw-alias-bg-layer-1);
+    }
+    .paste::placeholder { color: var(--dsw-alias-label-caption); }
+    .scan {
+      background: var(--dsw-static-neutral-bluish-950);
+      color: var(--dsw-static-neutral-bluish-50);
+    }
+    .scan-view {
+      position: relative; flex: 1; margin: calc(var(--safe-top) + 16px) 24px 16px; border-radius: 16px; overflow: hidden;
+      background: var(--dsw-static-neutral-bluish-900);
+    }
+    .scan-grain {
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(circle at 30% 40%, rgba(255,255,255,0.06), transparent 42%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 3px);
+      animation: grain 1.6s linear infinite;
+    }
+    @keyframes grain { to { transform: translateY(-3px); } }
+    .finder {
+      position: absolute; inset: 18%;
+      border: 0;
+    }
+    .finder span {
+      position: absolute; width: 28px; height: 28px; border: 2px solid var(--dsw-static-neutral-bluish-50);
+    }
+    .finder .tl { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+    .finder .tr { top: 0; right: 0; border-left: 0; border-bottom: 0; }
+    .finder .bl { bottom: 0; left: 0; border-right: 0; border-top: 0; }
+    .finder .br { bottom: 0; right: 0; border-left: 0; border-top: 0; }
+    .scan[data-torch] .scan-grain { background: radial-gradient(circle at 50% 40%, rgba(255,255,220,0.28), transparent 55%), repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 3px); }
+    .scan-hint { margin: 0 24px 8px; text-align: center; font-size: 13px; line-height: 20px; color: var(--dsw-static-neutral-bluish-400); }
+    .scan-row { display: flex; justify-content: space-between; gap: 12px; padding: 0 24px var(--safe-bottom); }
+    .scan-row .ghost-btn, .scan-row .primary-btn { flex: 1; color: var(--dsw-static-neutral-bluish-50); border-color: rgba(255,255,255,0.16); }
+    .scan-row .primary-btn { background: var(--dsw-static-neutral-bluish-50); color: var(--dsw-static-neutral-bluish-1000); }
+    .perm { justify-content: center; padding: var(--safe-top) 24px var(--safe-bottom); gap: 12px; }
+    .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; padding-top: var(--safe-top); }
+    .phone-menu {
+      position: absolute; top: var(--safe-top); left: 10px; z-index: 8; display: grid; place-items: center;
+      width: 36px; height: 36px; padding: 0; border: 0; border-radius: 12px;
+      background: var(--dsw-alias-button-floating-fill); color: var(--dsw-alias-label-primary);
+      box-shadow: var(--dsw-shadow-lv2);
+    }
+    .phone[data-drawer] .phone-menu { visibility: hidden; }
+    .phone-menu:hover { background: var(--dsw-alias-button-floating-hover); }
+    .banner {
+      flex: none; margin: 0 16px 8px; padding: 8px 12px; border-radius: 8px;
+      background: var(--dsw-alias-interactive-bg-hover-danger); color: var(--dsw-alias-state-error-primary);
+      font-size: 12px; line-height: 18px;
+    }
+    .header { position: relative; flex: none; min-width: 0; padding: 8px 16px 10px 56px; }
+    .header::after {
+      content: ""; position: absolute; right: 0; bottom: 0; left: 0; height: 1px;
+      background: var(--dsw-alias-border-l2);
+    }
+    .title { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); display: flex; gap: 8px; align-items: center; min-width: 0; }
+    #host-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .git-chip {
+      flex: none; height: 22px; padding: 0 8px; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 11px; background: transparent; color: var(--dsw-alias-label-secondary);
+      font-size: 12px; line-height: 18px;
+    }
+    .git-chip:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .run { color: var(--dsw-alias-state-business-primary); }
+    .log { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 8px; }
+    .stamp { align-self: center; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-caption); }
+    .user { align-self: flex-end; max-width: 86%; padding: 10px 14px; border-radius: 16px; background: var(--dsw-specific-bubble); display: flex; flex-direction: column; align-items: flex-end; }
+    .assistant { align-self: stretch; }
+    .assistant p { margin: 0 0 8px; }
+    .assistant p:last-child { margin: 0; }
+    .assistant code, .tool pre { font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; }
+    .tool { border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 10px 12px; background: var(--dsw-alias-bg-layer-1); }
+    .tool-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; line-height: 18px; }
+    .tool-name { font-weight: 500; color: var(--dsw-alias-label-secondary); }
+    .tool-ok { color: var(--dsw-alias-state-success-primary); }
+    .tool-fail { color: var(--dsw-alias-state-error-primary); }
+    .tool pre { margin: 6px 0 0; color: var(--dsw-alias-label-tertiary); white-space: pre-wrap; }
+    .sys { align-self: center; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-caption); }
+    .blank { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 24px 24px 8px; gap: 8px; }
+    .composer-root { flex: none; display: flex; flex-direction: column; align-items: center; padding: 0 16px var(--safe-bottom); }
+    .composer {
+      display: flex; flex-direction: column; gap: 12px; width: 100%; padding-top: 10px;
+      border: 1px solid var(--dsw-alias-border-l2-darkmode-thin); border-radius: 22px;
+      background: var(--dsw-specific-input-major); box-shadow: var(--dsw-shadow-lv2);
+    }
+    .composer textarea {
+      width: 100%; min-height: 48px; max-height: 120px; padding: 0 16px; border: 0; resize: none;
+      background: transparent; font-size: 16px; line-height: 24px; outline: none;
+    }
+    .composer textarea::placeholder { color: var(--dsw-alias-label-caption); }
+    .rail {
+      display: flex; gap: 10px; overflow-x: auto; padding: 8px 12px 0;
+      scrollbar-width: none;
+    }
+    .rail::-webkit-scrollbar { display: none; }
+    .thumb {
+      position: relative; flex: none; width: 64px; height: 64px;
+    }
+    .thumb button.preview {
+      width: 64px; height: 64px; padding: 0; overflow: hidden;
+      border: 1px solid var(--dsw-alias-border-l2-darkmode-thin); border-radius: 16px;
+      background: var(--dsw-alias-interactive-bg-hover);
+    }
+    .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .thumb .remove {
+      position: absolute; top: 4px; right: 4px; z-index: 1; display: grid; place-items: center;
+      width: 18px; height: 18px; padding: 0; border: 0; border-radius: 50%;
+      background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground);
+    }
+    .msg-imgs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+    .user .msg-imgs { justify-content: flex-end; }
+    .msg-imgs button {
+      padding: 0; overflow: hidden; border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
+      border-radius: 16px; background: var(--dsw-alias-interactive-bg-hover);
+    }
+    .msg-imgs img { display: block; width: 64px; height: 64px; object-fit: cover; }
+    .msg-imgs button.solo img { width: 180px; height: auto; max-height: 240px; object-fit: contain; }
+    .lightbox {
+      position: absolute; inset: 0; z-index: 35; display: grid; place-items: center;
+      padding: calc(var(--safe-top) + 16px) 24px calc(var(--safe-bottom) + 16px);
+    }
+    .lightbox-mask {
+      position: absolute; inset: 0; border: 0; padding: 0;
+      background: var(--dsw-alias-bg-mask-1); backdrop-filter: var(--dsw-mask-blur);
+    }
+    .lightbox img {
+      position: relative; max-width: 100%; max-height: 70%; object-fit: contain; border-radius: 12px;
+      background: var(--dsw-specific-input-major); box-shadow: var(--dsw-shadow-lv3);
+    }
+    .lightbox-close {
+      position: absolute; top: calc(var(--safe-top) + 4px); right: 16px; z-index: 1;
+      display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 999px;
+      background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary);
+      box-shadow: var(--dsw-shadow-lv2);
+    }
+    .composer-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 8px 6px; }
+    .tools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .icon-tool {
+      display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 12px;
+      background: transparent; color: var(--dsw-alias-label-secondary);
+    }
+    .icon-tool:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .mode {
+      height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent;
+      color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; font-weight: 500;
+    }
+    .mode:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .send, .stop {
+      display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 999px;
+    }
+    .send { background: var(--dsw-alias-button-info-fill); color: var(--dsw-static-neutral-bluish-00); }
+    .send:hover { background: var(--dsw-alias-button-info-hover); }
+    .stop { background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
+    .approval {
+      width: 100%; overflow: hidden; border: 1px solid var(--dsw-alias-state-warn-secondary);
+      border-radius: 20px; background: var(--dsw-specific-input-major); box-shadow: var(--dsw-shadow-lv2);
+    }
+    .strip {
+      display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+      background: var(--dsw-alias-state-warn-tertiary); color: var(--dsw-alias-state-warn-primary);
+      font-size: 13px; line-height: 18px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dsw-alias-state-warn-primary); }
+    .approval-body { padding: 12px 16px 0; }
+    .headline { margin: 0 0 6px; font-size: 15px; line-height: 24px; font-weight: 500; }
+    .command { margin: 0; color: var(--dsw-alias-label-tertiary); font-family: var(--ds-font-family-code); font-size: 13px; line-height: 20px; word-break: break-all; }
+    .action-row { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px; }
+    .backdrop {
+      position: absolute; inset: 0; z-index: 14; padding: 0; border: 0;
+      background: var(--dsw-alias-bg-mask-1); backdrop-filter: var(--dsw-mask-blur);
+    }
+    .drawer {
+      position: absolute; top: 0; bottom: 0; left: 0; z-index: 15;
+      width: min(320px, calc(100% - 48px)); display: flex; flex-direction: column;
+      padding: var(--safe-top) 8px var(--safe-bottom);
+      background-color: var(--dsw-alias-bg-base);
+      background-image: linear-gradient(var(--dsw-specific-sidebar-fill), var(--dsw-specific-sidebar-fill));
+      transform: translateX(-100%);
+      transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+    }
+    .phone[data-drawer] .drawer { transform: none; }
+    .drawer-head {
+      display: flex; align-items: center; gap: 8px; margin: 0 2px 8px; flex: none;
+    }
+    .drawer-close {
+      display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 12px;
+      background: var(--dsw-alias-button-floating-fill); color: var(--dsw-alias-label-primary); flex: none;
+    }
+    .drawer-close:hover { background: var(--dsw-alias-button-floating-hover); }
+    .search {
+      flex: 1; min-width: 0; height: 36px; margin: 0; padding: 0 12px; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
+    }
+    .options .search { flex: none; width: 100%; }
+    .new-session {
+      display: flex; align-items: center; justify-content: center; gap: 6px; height: 38px; margin: 0 2px 8px;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+      background: var(--dsw-alias-button-elevated-fill); font-weight: 500;
+    }
+    .new-session:hover { background: var(--dsw-alias-button-floating-hover); }
+    .ws { margin: 4px 12px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .session-list { flex: 1; min-height: 0; overflow: auto; }
+    .session {
+      display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 12px; border: 0;
+      border-radius: 12px; background: transparent; text-align: left;
+    }
+    .session:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
+    .session.active { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+    .session b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session span { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .drawer-end { margin-top: auto; flex: none; padding-bottom: 0; }
+    .drawer-foot {
+      display: flex; align-items: center; gap: 8px; width: calc(100% + 4px);
+      height: 42px; margin-left: -2px; margin-right: -2px; padding: 0 10px 0 8px;
+      border: 0; border-radius: 12px; background: transparent; text-align: left;
+    }
+    .drawer-foot:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .settings {
+      position: absolute; inset: 0; z-index: 18; display: flex; flex-direction: column;
+      background: var(--dsw-alias-bg-layer-2);
+    }
+    .set-head {
+      display: flex; align-items: center; gap: 8px;
+      padding: var(--safe-top) 14px 8px 8px; flex: none;
+    }
+    .set-head h2 { margin: 0; flex: 1; font-size: 16px; line-height: 24px; font-weight: 500; }
+    .icon-btn {
+      display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0;
+      border-radius: 28px; background: transparent; flex: none;
+    }
+    .icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .options { flex: 1; min-height: 0; overflow: auto; padding: 0 16px var(--safe-bottom); display: flex; flex-direction: column; gap: 20px; }
+    .hub { display: flex; flex-direction: column; gap: 20px; }
+    .group { display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; background: var(--dsw-alias-bg-layer-1); }
+    .group-label { margin: 0 4px 8px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .link-row {
+      display: flex; align-items: center; gap: 8px; width: 100%; min-height: 52px; padding: 12px 14px; border: 0;
+      border-bottom: 1px solid var(--dsw-alias-border-l1); background: transparent; text-align: left;
+    }
+    .group .link-row:last-child { border-bottom: 0; }
+    .link-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .link-row .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .chev { flex: none; color: var(--dsw-alias-label-caption); }
+    .git-file {
+      display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 12px 0;
+      border: 0; border-bottom: 1px solid var(--dsw-alias-border-l1); background: transparent; text-align: left;
+    }
+    .git-file:hover { background: transparent; }
+    .git-mark { flex: none; width: 18px; font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; color: var(--dsw-alias-state-warn-primary); }
+    .git-mark.add { color: var(--dsw-alias-state-success-primary); }
+    .options.git-ws { gap: 12px; }
+    .git-chrome {
+      position: sticky; top: 0; z-index: 1; padding: 4px 0 8px;
+      background: var(--dsw-alias-bg-layer-2);
+    }
+    .git-split {
+      display: flex; align-items: stretch; overflow: hidden; width: 100%; height: 32px;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 18px; background: transparent;
+    }
+    .git-split button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+      height: 100%; border: 0; border-radius: 0; background: transparent;
+      color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 20px;
+    }
+    .git-split button:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+    .git-split button:disabled { color: var(--dsw-alias-label-dimmed); cursor: not-allowed; }
+    .git-branch { flex: 1; min-width: 0; padding: 0 12px; }
+    .git-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .git-primary { flex: none; max-width: 48%; padding: 0 12px; white-space: nowrap; }
+    .git-primary span { overflow: hidden; text-overflow: ellipsis; }
+    .git-more { flex: none; width: 28px; padding: 0; }
+    .git-rule { width: 1px; align-self: stretch; margin: 6px 0; background: var(--dsw-alias-border-l2); }
+    .git-status { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .git-tabs { display: flex; gap: 4px; padding: 2px; border-radius: 12px; background: var(--dsw-alias-bg-module-platform); }
+    .git-tabs button {
+      flex: 1; height: 32px; border: 0; border-radius: 10px; background: transparent; font-weight: 500;
+    }
+    .git-tabs button[aria-pressed="true"] { background: var(--dsw-alias-bg-layer-1); }
+    .git-stat { flex: none; font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: nowrap; }
+    .git-add { color: var(--dsw-alias-state-success-primary); }
+    .git-del { color: var(--dsw-alias-state-error-primary); }
+    .git-file .grow, .sheet button.git-item .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .git-layer {
+      position: absolute; inset: 0; z-index: 33;
+    }
+    .git-layer .sheet-mask { z-index: 0; }
+    .git-dialog {
+      position: absolute; left: 12px; right: 12px; top: calc(var(--safe-top) + 12px);
+      bottom: calc(12px + var(--safe-bottom)); z-index: 1; display: flex; flex-direction: column;
+      overflow: hidden; border-radius: 16px; background: var(--dsw-alias-bg-layer-1); box-shadow: var(--dsw-shadow-lv3);
+    }
+    .git-dialog.compact {
+      top: auto; height: auto; max-height: 70%;
+    }
+    .git-dialog.compact .git-dialog-foot {
+      flex-direction: column-reverse;
+    }
+    .git-dialog.compact .git-dialog-foot button { width: 100%; }
+    .git-dialog-head { flex: none; padding: 16px 16px 8px; }
+    .git-dialog-head h3 { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
+    .git-dialog-head p { margin: 4px 0 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+    .git-dialog-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .git-dialog-foot {
+      flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px;
+      padding: 12px 16px; border-top: 1px solid var(--dsw-alias-border-l1);
+    }
+    .git-review {
+      display: flex; flex-direction: column; gap: 10px; padding: 12px;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+    }
+    .git-branch-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .git-branch-row b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 20px; font-weight: 500; }
+    .git-warn { margin-left: auto; color: var(--dsw-alias-state-warn-label); font-size: 12px; line-height: 18px; white-space: nowrap; }
+    .git-files-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .git-commit-row { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+    .git-commit-row .path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 20px; }
+    .git-commit-row .path.muted { color: var(--dsw-alias-label-caption); }
+    .git-field { display: flex; flex-direction: column; gap: 6px; }
+    .git-field span { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .git-field textarea {
+      min-height: 72px; padding: 8px 10px; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 8px; background: var(--dsw-alias-bg-layer-2); resize: vertical;
+    }
+    .sheet button.git-item {
+      display: flex; align-items: center; gap: 8px; height: auto; min-height: 44px; padding: 8px 12px;
+    }
+    .git-toast {
+      position: absolute; top: calc(var(--safe-top) + 8px); right: 12px; left: 12px; bottom: auto; z-index: 32;
+      display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+      background: var(--dsw-alias-bg-layer-2); box-shadow: var(--dsw-shadow-lv2);
+    }
+    .git-toast .copy { flex: 1; min-width: 0; }
+    .git-toast .title { font-size: 13px; line-height: 20px; font-weight: 500; }
+    .git-toast .sub { margin: 2px 0 0; color: var(--dsw-alias-label-tertiary); font-size: 12px; line-height: 18px; }
+    .git-toast .spin {
+      flex: none; width: 16px; height: 16px; margin-top: 2px;
+      border: 2px solid var(--dsw-alias-border-l2); border-top-color: var(--dsw-alias-label-primary);
+      border-radius: 50%; animation: git-spin 0.7s linear infinite;
+    }
+    @keyframes git-spin { to { transform: rotate(360deg); } }
+    .diff {
+      margin: 0; padding: 12px; border-radius: 12px; background: var(--dsw-alias-bg-layer-1);
+      font-family: var(--ds-font-family-code); font-size: 12px; line-height: 18px; white-space: pre-wrap;
+      color: var(--dsw-alias-label-secondary);
+    }
+    .market-card {
+      display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 12px;
+    }
+    .block { display: flex; flex-direction: column; gap: 12px; }
+    .heading { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
+    .hint { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+    .row {
+      display: flex; align-items: center; gap: 8px; padding: 16px 0;
+      border-bottom: 1px solid var(--dsw-alias-border-l2);
+    }
+    .row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
+    .row-title { font-size: 14px; line-height: 22px; }
+    .row-desc { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .selector {
+      display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border: 0;
+      border-radius: 18px; background: var(--dsw-alias-bg-module-platform); white-space: nowrap;
+    }
+    .tiles { display: flex; gap: 8px; }
+    .tile {
+      flex: 1; height: 64px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+      background: var(--dsw-alias-bg-layer-1); display: flex; flex-direction: column; justify-content: flex-end;
+      padding: 8px; font-size: 12px; line-height: 18px; text-align: left;
+    }
+    .tile[aria-pressed="true"] { border-color: var(--dsw-alias-state-business-primary); background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+    .theme-card {
+      display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 12px;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+    }
+    .swatch { width: 16px; height: 16px; border-radius: 8px; background: var(--dsw-alias-state-business-primary); }
+    .hair {
+      display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 0;
+      border-bottom: 1px solid var(--dsw-alias-border-l1);
+    }
+    .hair .grow { flex: 1; min-width: 0; }
+    .tag { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-tertiary); }
+    .switch {
+      position: relative; width: 40px; height: 24px; flex: none; border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 999px; background: var(--dsw-alias-bg-module-platform); padding: 0;
+    }
+    .switch i {
+      position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%;
+      background: var(--dsw-static-neutral-bluish-00); transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+    }
+    .switch[aria-pressed="true"] { background: var(--dsw-alias-button-primary-fill); border-color: transparent; }
+    .switch[aria-pressed="true"] i { transform: translateX(16px); background: var(--dsw-alias-label-primary-foreground); }
+    .slider { appearance: none; width: 100%; height: 22px; background: transparent; }
+    .slider::-webkit-slider-runnable-track {
+      height: 6px; border-radius: 999px;
+      background: linear-gradient(var(--dsw-alias-brand-primary), var(--dsw-alias-brand-primary)) 0 0 / var(--fill, 80%) 100% no-repeat,
+        var(--dsw-alias-bg-layer-2);
+      box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l1);
+    }
+    .slider::-webkit-slider-thumb {
+      appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 999px;
+      background: var(--dsw-static-neutral-bluish-00); border: 2px solid var(--dsw-alias-brand-primary);
+    }
+    .model { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 12px; border: 1px solid var(--dsw-alias-border-l2); text-align: left; background: transparent; width: 100%; }
+    .model.active { background: var(--dsw-specific-sidebar-nav-item-active-accent); border-color: transparent; }
+    .notice {
+      padding: 8px 12px; border-radius: 8px; background: var(--dsw-alias-interactive-bg-hover);
+      color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px;
+    }
+    .sheet-mask {
+      position: absolute; inset: 0; z-index: 30; border: 0; padding: 0;
+      background: var(--dsw-alias-bg-mask-1);
+    }
+    .sheet {
+      position: absolute; right: 12px; bottom: calc(12px + var(--safe-bottom)); left: 12px; z-index: 31;
+      padding: 8px; border-radius: 16px; background: var(--dsw-alias-bg-layer-1);
+      box-shadow: var(--dsw-shadow-lv3);
+    }
+    .sheet h3 { margin: 8px 12px; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--dsw-alias-label-tertiary); }
+    .sheet button {
+      display: block; width: 100%; height: 44px; padding: 0 12px; border: 0; border-radius: 12px;
+      background: transparent; text-align: left;
+    }
+    .sheet button:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .sheet button[aria-pressed="true"] { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+    @media (prefers-reduced-motion: reduce) {
+      .drawer, .switch i, .scan-grain { transition: none; animation: none; }
+    }
+    @media (max-width: 860px) { .studio { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="studio">
+    <aside class="notes">
+      <h1>安卓远程 1:1 原型</h1>
+      <p>这是 Kotlin Compose 的画面合同。手机框里只能走真实按钮。框外按钮只给桌面审查注入扫码/故障，<strong>不会进安装包 UI</strong>。</p>
+      <ul>
+        <li>不套官方四栏，不套 WebView。斜杠命令仍不画。</li>
+        <li>作曲器可传图、从工作区选文件。Git 在工作区顶部，对齐桌面标题栏那组胶囊。</li>
+        <li>设置是分组钻取。「外观」只改这台手机；电脑背景图在「电脑外观」。</li>
+        <li>假 Host：发「跑 git」会出审批；发「工具」会出工具卡；点停止会取消当轮。</li>
+      </ul>
+      <h2>审查注入（框外）</h2>
+      <div class="review">
+        <button class="chip" type="button" data-inject="lan">模拟扫到局域网码</button>
+        <button class="chip" type="button" data-inject="relay">模拟扫到中继码</button>
+        <button class="chip" type="button" data-inject="bad">模拟废码</button>
+        <button class="chip" type="button" data-inject="down">模拟 Harness 未就绪</button>
+        <button class="chip" type="button" data-inject="wait">模拟中继未连上</button>
+        <button class="chip" type="button" data-inject="denied">模拟相机权限拒绝</button>
+        <button class="chip" type="button" data-inject="grant">恢复相机权限</button>
+        <button class="chip" type="button" data-inject="drop">模拟断线 401</button>
+        <button class="chip" type="button" data-inject="clear">清除本机设备令牌</button>
+        <button class="chip" type="button" data-inject="photo">注入一张图</button>
+      </div>
+    </aside>
+
+    <div class="phone-wrap">
+      <div class="phone" id="phone">
+        <div class="notch"></div>
+        <div class="status"><span>9:41</span><span id="status-mode">未连接</span></div>
+        <div class="home-bar"></div>
+
+        <section class="screen connect" id="screen-connect">
+          <p class="kicker">手机远程</p>
+          <h2>连接到这台电脑</h2>
+          <p class="lead">用应用扫桌面侧栏远程弹窗里的二维码。密钥在 #offer=，不会进查询串。</p>
+          <div class="device" id="device-line"><span class="live off"></span>等待配对</div>
+          <p class="error hidden" id="connect-error"></p>
+          <button class="primary-btn" type="button" id="scan-open">扫描二维码</button>
+          <input class="paste" id="paste" type="url" placeholder="http://192.168.1.23:3180/#offer=…" autocomplete="off" />
+          <button class="ghost-btn" type="button" id="paste-enter">用链接连接</button>
+        </section>
+
+        <section class="screen scan hidden" id="screen-scan">
+          <div class="scan-view">
+            <div class="scan-grain"></div>
+            <div class="finder" aria-hidden="true">
+              <span class="tl"></span><span class="tr"></span><span class="bl"></span><span class="br"></span>
+            </div>
+          </div>
+          <p class="scan-hint" id="scan-hint">将二维码放入框内</p>
+          <div class="scan-row">
+            <button class="ghost-btn" type="button" id="scan-cancel">取消</button>
+            <button class="primary-btn" type="button" id="torch">手电筒</button>
+          </div>
+        </section>
+
+        <section class="screen perm hidden" id="screen-perm">
+          <h2>需要相机权限</h2>
+          <p class="lead">扫码要用相机。系统权限窗由 Android 弹出；拒绝后可以只粘贴配对链接。</p>
+          <button class="primary-btn" type="button" id="perm-settings">去系统设置</button>
+          <button class="ghost-btn" type="button" id="perm-paste">改用粘贴链接</button>
+        </section>
+
+        <section class="screen chat hidden" id="screen-chat">
+          <button class="phone-menu" type="button" id="menu" aria-label="打开会话列表">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </button>
+          <div class="banner hidden" id="banner"></div>
+          <header class="header">
+            <h2 class="title" id="chat-title">新会话</h2>
+            <p class="meta"><span id="host-name">Deepseek-Harness-Desktop</span><button class="git-chip" type="button" id="git-chip">main · 3</button><span class="run hidden" id="run-flag">运行中</span></p>
+          </header>
+          <div class="log hidden" id="log"></div>
+          <div class="blank" id="blank">
+            <h2>新会话</h2>
+            <p class="lead">描述你想要构建的内容。工作区仍是电脑上的那一个。</p>
+          </div>
+          <div class="composer-root">
+            <form class="composer" id="composer">
+              <div class="rail hidden" id="rail"></div>
+              <textarea id="draft" rows="2" placeholder="给智能体发消息"></textarea>
+              <div class="composer-row">
+                <div class="tools">
+                  <button class="icon-tool" type="button" id="attach" aria-label="添加">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                  </button>
+                  <button class="mode" type="button" id="perm-chip">只读 ▾</button>
+                </div>
+                <div class="tools">
+                  <button class="mode" type="button" id="model-chip">V3.1 ▾</button>
+                  <button class="send" type="submit" id="send" aria-label="发送消息">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button class="stop hidden" type="button" id="stop" aria-label="停止这一轮">
+                    <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1.5" fill="currentColor"/></svg>
+                  </button>
+                </div>
+              </div>
+            </form>
+            <div class="approval hidden" id="approval">
+              <div class="strip"><span class="dot"></span>等待审批</div>
+              <div class="approval-body">
+                <p class="headline" id="approval-title">需要审批</p>
+                <p class="command" id="approval-command"></p>
+              </div>
+              <div class="action-row">
+                <button class="ghost-btn" type="button" id="approval-reject">拒绝</button>
+                <button class="primary-btn" type="button" id="approval-allow">允许一次</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <button class="backdrop hidden" type="button" id="backdrop" aria-label="关闭会话列表"></button>
+        <aside class="drawer" id="drawer">
+          <div class="drawer-head">
+            <button class="drawer-close" type="button" id="drawer-close" aria-label="关闭会话列表">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </button>
+            <input class="search" id="search" type="search" placeholder="搜索会话" />
+          </div>
+          <button class="new-session" type="button" id="new-session">新会话</button>
+          <div class="ws" id="workspace-line">Deepseek-Harness-Desktop</div>
+          <div class="session-list" id="session-list"></div>
+          <div class="drawer-end">
+          <button class="drawer-foot" type="button" id="open-git">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 3v3.5m0 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm6-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 3c0 2.5-2.2 3.5-6 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            工作区
+          </button>
+          <button class="drawer-foot" type="button" id="open-settings">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6.5 2.5h3l.6 1.7 1.8.7 1.5-1.1 2.1 2.1-1.1 1.5.7 1.8 1.7.6v3l-1.7.6-.7 1.8 1.1 1.5-2.1 2.1-1.5-1.1-1.8.7-.6 1.7h-3l-.6-1.7-1.8-.7-1.5 1.1-2.1-2.1 1.1-1.5-.7-1.8L1.2 9.5v-3l1.7-.6.7-1.8L2.5 2.6 4.6.5 6.1 1.6l1.8-.7L6.5 2.5Z" stroke="currentColor" stroke-width="1.1"/><circle cx="8" cy="8" r="2.1" stroke="currentColor" stroke-width="1.1"/></svg>
+            设置
+          </button>
+          </div>
+        </aside>
+
+        <section class="settings hidden" id="settings" aria-label="设置">
+          <div class="set-head">
+            <button class="icon-btn hidden" type="button" id="settings-back" aria-label="返回">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3.5 5.5 8 10 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <h2 id="settings-title">设置</h2>
+            <button class="icon-btn" type="button" id="close-settings" aria-label="关闭">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="options" id="options"></div>
+        </section>
+
+        <input class="hidden" id="pick-image" type="file" accept="image/*" multiple />
+        <input class="hidden" id="pick-camera" type="file" accept="image/*" capture="environment" />
+        <div class="lightbox hidden" id="lightbox">
+          <button class="lightbox-mask" type="button" id="lightbox-mask" aria-label="关闭预览"></button>
+          <img id="lightbox-img" alt="" />
+          <button class="lightbox-close" type="button" id="lightbox-close" aria-label="关闭">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <button class="sheet-mask hidden" type="button" id="sheet-mask" aria-label="关闭菜单"></button>
+        <div class="sheet hidden" id="sheet"></div>
+        <div class="git-layer hidden" id="git-layer">
+          <button class="sheet-mask" type="button" id="git-mask" aria-label="关闭 Git 对话框"></button>
+          <div class="git-dialog" id="git-dialog" role="dialog" aria-modal="true"></div>
+        </div>
+        <div class="git-toast hidden" id="git-toast"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORE = "dsh-android-proto";
+    const CHEV = `<svg class="chev" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3.5 10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const ICON_BRANCH = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M5 3.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 3v3.5m0 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm6-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 3c0 2.5-2.2 3.5-6 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+    const ICON_CHEV_DOWN = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 5.5 7 9l3.5-3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const ICON_COMMIT = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M8 2.5v3.2M8 10.3v3.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+    const ICON_PUSH = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 12.5V4.5M5 7l3-3 3 3M3.5 13.5h9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const ICON_PR = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="5" cy="4" r="1.6" stroke="currentColor" stroke-width="1.2"/><circle cx="11" cy="12" r="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M5 5.6v6.8A2.6 2.6 0 0 0 7.6 15H11M11 10.4V6.5A2.5 2.5 0 0 0 8.5 4H7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+    const ICON_PLUS = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`;
+    const MODELS = [
+      { id: "v31", name: "DeepSeek V3.1", tag: "思考 · 默认" },
+      { id: "v3", name: "DeepSeek V3", tag: "非思考" },
+      { id: "kimi", name: "Kimi K2.5", tag: "第三方" },
+    ];
+
+    function encodeOffer(obj) {
+      const json = JSON.stringify(obj);
+      return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+    function decodeOffer(raw) {
+      try {
+        let b64 = String(raw || "").replace(/-/g, "+").replace(/_/g, "/");
+        while (b64.length % 4) b64 += "=";
+        const value = JSON.parse(decodeURIComponent(escape(atob(b64))));
+        if (!value || value.v !== 1 || !value.token) return null;
+        return { v: 1, token: value.token, mode: value.mode === "relay" ? "relay" : "lan", relay: value.relay || "" };
+      } catch {
+        return null;
+      }
+    }
+    function offerFromPaste(text) {
+      const value = String(text || "").trim();
+      if (!value) return null;
+      try {
+        return decodeOffer(new URL(value).hash.replace(/^#/, "").match(/(?:^|&)offer=([^&]+)/)?.[1]);
+      } catch {
+        const match = value.match(/(?:^|#|&)offer=([^&]+)/);
+        return match ? decodeOffer(match[1]) : null;
+      }
+    }
+
+    const URLS = {
+      lan: `http://192.168.1.23:3180/#offer=${encodeOffer({ v: 1, token: "lan-ok", mode: "lan" })}`,
+      relay: `https://relay.example/#offer=${encodeOffer({ v: 1, token: "relay-ok", mode: "relay", relay: "https://relay.example" })}`,
+      down: `http://192.168.1.23:3180/#offer=${encodeOffer({ v: 1, token: "lan-down", mode: "lan" })}`,
+      wait: `https://relay.example/#offer=${encodeOffer({ v: 1, token: "relay-wait", mode: "relay", relay: "https://relay.example" })}`,
+      bad: "http://192.168.1.23:3180/#offer=not-a-payload",
+    };
+
+    const phone = document.getElementById("phone");
+    const screens = {
+      connect: document.getElementById("screen-connect"),
+      scan: document.getElementById("screen-scan"),
+      perm: document.getElementById("screen-perm"),
+      chat: document.getElementById("screen-chat"),
+    };
+    const settingsEl = document.getElementById("settings");
+    const composer = document.getElementById("composer");
+    const approval = document.getElementById("approval");
+    const backdrop = document.getElementById("backdrop");
+    const logEl = document.getElementById("log");
+    const blank = document.getElementById("blank");
+    const banner = document.getElementById("banner");
+    const sheet = document.getElementById("sheet");
+    const sheetMask = document.getElementById("sheet-mask");
+
+    let streamTimer = 0;
+    let gitTimer = 0;
+    let cameraPermission = "prompt";
+    const mem = {
+      theme: "light",
+      glass: 80,
+      hostGlass: 80,
+      language: "中文",
+      enter: "排队发送",
+      access: "只读",
+      gitTitle: true,
+      columns: true,
+      logs: false,
+      dangerAsk: true,
+      model: "v31",
+      closeToTray: true,
+      harnessRestart: true,
+      wallpaperFrost: 40,
+      wallpaperPixel: 0,
+      uiFont: "",
+      git: {
+        branch: "main",
+        defaultBranch: "main",
+        hasRemote: true,
+        hasUpstream: true,
+        ahead: 0,
+        behind: 0,
+        pr: null,
+        busy: false,
+        branches: [
+          { name: "main", remote: false },
+          { name: "feature/mobile-remote", remote: false },
+          { name: "origin/main", remote: true },
+        ],
+        dirty: [
+          { path: "packages/client/ui-files/src/composerMention.ts", mark: "M", insertions: 4, deletions: 1, diff: "- mention.fromSearch()\n+ mention.fromSearch(paths)" },
+          { path: "AGENTS.md", mark: "M", insertions: 2, deletions: 2, diff: "- Android 应用内扫码不在本卡。\n+ Android 应用内扫码走独立客户端。" },
+          { path: "docs/features/mobile-remote.md", mark: "A", insertions: 8, deletions: 0, diff: "+ Allowed touch: mobile/android/" },
+        ],
+      },
+      files: [
+        "packages/client/ui-files/src/composerMention.ts",
+        "packages/client/ui-git/src/client/index.ts",
+        "packages/client/ui-attachment/src/client/ComposerAttachments.tsx",
+        "src/main/remote.js",
+        "docs/features/mobile-remote.md",
+        "AGENTS.md",
+      ],
+      market: [
+        { name: "dsh-code-review", tag: "技能包", installed: true },
+        { name: "browser-use", tag: "MCP · catalog", installed: false },
+      ],
+      mcp: [
+        { name: "filesystem", tag: "stdio · 已连接", on: true },
+        { name: "github", tag: "HTTP · 已停用", on: false },
+      ],
+      skills: [
+        { name: "dsh-code-review", tag: "用户 · 可调用", on: true },
+        { name: "dsh-prose-standard", tag: "项目 · 只读", on: true },
+      ],
+    };
+
+    const state = {
+      screen: "connect",
+      settingsOpen: false,
+      settingsPane: "",
+      gitDiff: "",
+      gitUi: "",
+      wsTab: "changes",
+      commitMsg: "",
+      commitEdit: false,
+      excluded: [],
+      branchQuery: "",
+      createName: "",
+      pendingGit: null,
+      gitToast: null,
+      fileQuery: "",
+      draftImages: [],
+      bound: false,
+      mode: "",
+      error: "",
+      banner: "",
+      query: "",
+      sessionId: "",
+      sessions: [],
+    };
+
+    function seedSessions() {
+      return [
+        {
+          id: "s-files",
+          title: "把 Files 搜索结果送进对话",
+          time: "刚才",
+          blank: false,
+          running: false,
+          events: [
+            { kind: "stamp", text: "今天 21:14" },
+            { kind: "user", text: "把 ui-files 的搜索结果能直接拖进输入框。" },
+            { kind: "assistant", text: "可以。Files 里选中的路径会序列化成提及，拖到作曲器即可插入。" },
+            { kind: "tool", name: "bash", status: "完成", body: "rg -n \"composerMention\" packages/client/ui-files" },
+            { kind: "assistant", text: "命中在 composerMention.ts。需要的话我可以把 @ 补全接到这一侧。" },
+          ],
+        },
+        {
+          id: "s-empty",
+          title: "新会话",
+          time: "昨天 19:02",
+          blank: true,
+          running: false,
+          events: [],
+        },
+        {
+          id: "s-approve",
+          title: "看一下工作区脏不脏",
+          time: "周一",
+          blank: false,
+          running: true,
+          pending: { title: "bash 需要在工作区执行命令", command: "git status --porcelain" },
+          events: [
+            { kind: "stamp", text: "周一 11:02" },
+            { kind: "user", text: "看一下工作区现在脏不脏。" },
+            { kind: "assistant", text: "我先跑 git status。" },
+          ],
+        },
+      ];
+    }
+
+    function current() {
+      return state.sessions.find((row) => row.id === state.sessionId);
+    }
+
+    function modelLabel() {
+      return MODELS.find((row) => row.id === mem.model)?.name.replace("DeepSeek ", "") || "V3.1";
+    }
+
+    function showError(message) {
+      state.error = message || "";
+      const el = document.getElementById("connect-error");
+      el.textContent = state.error;
+      el.classList.toggle("hidden", !state.error);
+    }
+
+    function setBanner(message) {
+      state.banner = message || "";
+      banner.textContent = state.banner;
+      banner.classList.toggle("hidden", !state.banner);
+    }
+
+    function setScreen(name) {
+      state.screen = name;
+      if (name !== "chat") {
+        phone.removeAttribute("data-drawer");
+        backdrop.classList.add("hidden");
+        state.settingsOpen = false;
+      }
+      Object.entries(screens).forEach(([key, node]) => {
+        node.classList.toggle("hidden", key !== name);
+      });
+      settingsEl.classList.toggle("hidden", !state.settingsOpen);
+      if (name === "scan") document.getElementById("scan-hint").textContent = "将二维码放入框内";
+    }
+
+    function closeDrawer() {
+      phone.removeAttribute("data-drawer");
+      backdrop.classList.add("hidden");
+    }
+
+    function themeLabel() {
+      return mem.theme === "light" ? "浅色" : mem.theme === "dark" ? "深色" : "跟随系统";
+    }
+
+    function applyTheme() {
+      const dark = mem.theme === "dark" || (mem.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+      phone.toggleAttribute("data-ds-dark-theme", dark);
+      phone.style.setProperty("--dsw-alias-glass-opacity", `${mem.glass}%`);
+      phone.style.fontFamily = mem.uiFont.trim() || "";
+    }
+
+    function persistBound(on) {
+      state.bound = on;
+      if (on) sessionStorage.setItem(STORE, JSON.stringify({ mode: state.mode }));
+      else sessionStorage.removeItem(STORE);
+    }
+
+    function login(offer) {
+      if (!offer) {
+        showError("链接无效");
+        return false;
+      }
+      if (offer.token === "lan-down") {
+        showError("Harness 还没就绪");
+        setScreen("connect");
+        return false;
+      }
+      if (offer.token === "relay-wait") {
+        showError("桌面还没连上中继");
+        setScreen("connect");
+        return false;
+      }
+      if (offer.token !== "lan-ok" && offer.token !== "relay-ok") {
+        showError("配对密钥无效");
+        setScreen("connect");
+        return false;
+      }
+      state.mode = offer.mode;
+      persistBound(true);
+      showError("");
+      setBanner("");
+      if (!state.sessions.length) state.sessions = seedSessions();
+      const first = state.sessions.find((row) => !row.blank) || state.sessions[0];
+      openSession(first.id);
+      setScreen("chat");
+      renderAll();
+      return true;
+    }
+
+    function openSession(id) {
+      stopStream(false);
+      state.sessionId = id;
+      closeDrawer();
+      renderAll();
+    }
+
+    function stopStream(announce) {
+      window.clearInterval(streamTimer);
+      streamTimer = 0;
+      const row = current();
+      if (row && row.streaming) {
+        row.streaming = false;
+        row.running = Boolean(row.pending);
+        if (announce) row.events.push({ kind: "sys", text: "已停止这一轮" });
+      }
+    }
+
+    function streamAssistant(row, text, after) {
+      row.running = true;
+      row.streaming = true;
+      const bubble = { kind: "assistant", text: "" };
+      row.events.push(bubble);
+      let i = 0;
+      renderAll();
+      streamTimer = window.setInterval(() => {
+        i += 1;
+        bubble.text = text.slice(0, i);
+        renderLog();
+        if (i >= text.length) {
+          window.clearInterval(streamTimer);
+          streamTimer = 0;
+          row.streaming = false;
+          after?.();
+          renderAll();
+        }
+      }, 18);
+    }
+
+    function sendPrompt(text) {
+      const row = current();
+      const images = state.draftImages.slice();
+      if (!row || (!text.trim() && !images.length)) return;
+      stopStream(false);
+      row.blank = false;
+      if (row.title === "新会话") row.title = (text.trim() || "图片").slice(0, 18);
+      row.time = "刚才";
+      row.events.push({ kind: "user", text: text.trim(), images });
+      state.draftImages = [];
+      renderRail();
+      row.running = true;
+      renderAll();
+      if (images.length) {
+        streamAssistant(row, `已看到 ${images.length} 张图。工作区仍是电脑上的那一个。`, () => {
+          row.running = false;
+          renderAll();
+        });
+        return;
+      }
+      if (/git|审批|bash/i.test(text)) {
+        streamAssistant(row, "我先跑 git status。", () => {
+          row.pending = { title: "bash 需要在工作区执行命令", command: "git status --porcelain" };
+          row.running = true;
+          renderAll();
+        });
+        return;
+      }
+      if (/工具|失败/.test(text)) {
+        streamAssistant(row, "我查一下相关符号。", () => {
+          row.events.push({
+            kind: "tool",
+            name: "bash",
+            status: /失败/.test(text) ? "失败" : "完成",
+            body: /失败/.test(text) ? "rg: packages/missing: No such file" : "ok composerMention.ts",
+          });
+          row.events.push({ kind: "assistant", text: /失败/.test(text) ? "这次没找到目录。" : "已经对上 Files 那一侧。" });
+          row.running = false;
+          renderAll();
+        });
+        return;
+      }
+      streamAssistant(row, "工作区仍是电脑上的那一个。改动会写进当前会话。", () => {
+        row.running = false;
+        renderAll();
+      });
+    }
+
+    function renderDevice() {
+      const line = document.getElementById("device-line");
+      const status = document.getElementById("status-mode");
+      line.replaceChildren();
+      const live = document.createElement("span");
+      if (!state.bound) {
+        live.className = "live off";
+        line.append(live, "等待配对");
+        status.textContent = "未连接";
+        return;
+      }
+      live.className = "live";
+      const label = state.mode === "relay" ? "Trent 的电脑 · 服务器中继已连接" : "Trent 的电脑 · 局域网";
+      line.append(live, label);
+      status.textContent = state.mode === "relay" ? "中继" : "局域网";
+      document.getElementById("workspace-line").textContent = "Deepseek-Harness-Desktop";
+      document.getElementById("host-name").textContent = "Deepseek-Harness-Desktop";
+    }
+
+    function renderSessions() {
+      const query = state.query.trim();
+      const list = document.getElementById("session-list");
+      list.replaceChildren(...state.sessions
+        .filter((row) => !query || row.title.includes(query))
+        .map((row) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = `session${row.id === state.sessionId ? " active" : ""}`;
+          const title = document.createElement("b");
+          title.textContent = row.title;
+          const meta = document.createElement("span");
+          meta.textContent = row.running ? `运行中 · ${row.time}` : row.time;
+          button.append(title, meta);
+          button.addEventListener("click", () => openSession(row.id));
+          return button;
+        }));
+    }
+
+    function renderLog() {
+      const row = current();
+      const events = row?.events || [];
+      blank.classList.toggle("hidden", events.length > 0);
+      logEl.classList.toggle("hidden", events.length === 0);
+      logEl.replaceChildren(...events.map((item) => {
+        if (item.kind === "stamp" || item.kind === "sys") {
+          const node = document.createElement("div");
+          node.className = item.kind === "sys" ? "sys" : "stamp";
+          node.textContent = item.text;
+          return node;
+        }
+        if (item.kind === "user") {
+          const node = document.createElement("div");
+          node.className = "user";
+          const images = item.images || [];
+          if (images.length) {
+            const gallery = document.createElement("div");
+            gallery.className = "msg-imgs";
+            images.forEach((image) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              if (images.length === 1) button.className = "solo";
+              const img = document.createElement("img");
+              img.src = image.url;
+              img.alt = image.name || "图片";
+              button.append(img);
+              button.addEventListener("click", () => openLightbox(image.url, img.alt));
+              gallery.append(button);
+            });
+            node.append(gallery);
+          }
+          if (item.text) node.append(item.text);
+          return node;
+        }
+        if (item.kind === "tool") {
+          const node = document.createElement("div");
+          node.className = "tool";
+          const head = document.createElement("div");
+          head.className = "tool-head";
+          const name = document.createElement("span");
+          name.className = "tool-name";
+          name.textContent = item.name;
+          const st = document.createElement("span");
+          st.className = item.status === "失败" ? "tool-fail" : "tool-ok";
+          st.textContent = item.status;
+          head.append(name, st);
+          const pre = document.createElement("pre");
+          pre.textContent = item.body;
+          node.append(head, pre);
+          return node;
+        }
+        const node = document.createElement("div");
+        node.className = "assistant";
+        const p = document.createElement("p");
+        p.textContent = item.text;
+        node.append(p);
+        return node;
+      }));
+      if (events.length) logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function renderChat() {
+      const row = current();
+      document.getElementById("chat-title").textContent = row?.title || "新会话";
+      document.getElementById("run-flag").classList.toggle("hidden", !row?.running);
+      const chip = document.getElementById("git-chip");
+      const dirty = mem.git.dirty.length;
+      chip.textContent = dirty ? `${mem.git.branch} · ${dirty}` : mem.git.branch;
+      chip.classList.toggle("hidden", !mem.gitTitle);
+      document.getElementById("perm-chip").textContent = `${mem.access} ▾`;
+      document.getElementById("model-chip").textContent = `${modelLabel()} ▾`;
+      const pending = Boolean(row?.pending);
+      composer.classList.toggle("hidden", pending);
+      approval.classList.toggle("hidden", !pending);
+      if (pending) {
+        document.getElementById("approval-title").textContent = row.pending.title;
+        document.getElementById("approval-command").textContent = row.pending.command;
+      }
+      const running = Boolean(row?.running);
+      document.getElementById("send").classList.toggle("hidden", running);
+      document.getElementById("stop").classList.toggle("hidden", !running);
+      renderLog();
+    }
+
+    function closeSheet() {
+      sheet.classList.add("hidden");
+      sheetMask.classList.add("hidden");
+      if (state.gitUi === "branch" || state.gitUi === "menu") state.gitUi = "";
+    }
+
+    function openSheet(title, options, currentValue, onPick) {
+      sheet.replaceChildren();
+      const heading = document.createElement("h3");
+      heading.textContent = title;
+      sheet.append(heading);
+      options.forEach((opt) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = opt;
+        button.setAttribute("aria-pressed", String(opt === currentValue));
+        button.addEventListener("click", () => {
+          onPick(opt);
+          closeSheet();
+          renderAll();
+        });
+        sheet.append(button);
+      });
+      sheet.classList.remove("hidden");
+      sheetMask.classList.remove("hidden");
+    }
+
+    function openSettings(pane) {
+      state.settingsOpen = true;
+      state.settingsPane = pane || "";
+      if (pane !== "工作区") {
+        state.gitDiff = "";
+        if (state.gitUi === "commit" || state.gitUi === "create" || state.gitUi === "confirm") state.gitUi = "";
+      }
+      closeDrawer();
+      settingsEl.classList.remove("hidden");
+      renderAll();
+    }
+
+    function closeSettings() {
+      const gitMenu = state.gitUi === "branch" || state.gitUi === "menu";
+      state.settingsOpen = false;
+      state.settingsPane = "";
+      state.gitUi = "";
+      state.gitDiff = "";
+      settingsEl.classList.add("hidden");
+      document.getElementById("git-layer").classList.add("hidden");
+      if (gitMenu) {
+        sheet.classList.add("hidden");
+        sheetMask.classList.add("hidden");
+      }
+    }
+
+    function linkRow(pane, title, desc) {
+      return `<button class="link-row" type="button" data-pane="${pane}"><span class="grow"><span class="row-title">${title}</span><span class="row-desc">${desc}</span></span>${CHEV}</button>`;
+    }
+
+    function fakePhoto(label, color) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 640, 400);
+      ctx.fillStyle = "#fff";
+      ctx.font = "28px sans-serif";
+      ctx.fillText(label, 32, 210);
+      return { id: `img-${Date.now()}-${Math.random().toString(16).slice(2)}`, url: canvas.toDataURL("image/jpeg", 0.82), name: `${label}.jpg` };
+    }
+
+    function addImages(files) {
+      const incoming = [...files].filter((file) => file.type.startsWith("image/"));
+      incoming.forEach((file) => {
+        state.draftImages.push({
+          id: `img-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          url: URL.createObjectURL(file),
+          name: file.name || "图片",
+        });
+      });
+      renderRail();
+    }
+
+    function renderRail() {
+      const rail = document.getElementById("rail");
+      rail.classList.toggle("hidden", !state.draftImages.length);
+      rail.replaceChildren(...state.draftImages.map((image) => {
+        const wrap = document.createElement("div");
+        wrap.className = "thumb";
+        wrap.innerHTML = `<button class="preview" type="button"><img alt=""></button><button class="remove" type="button" aria-label="移除图片">×</button>`;
+        wrap.querySelector("img").src = image.url;
+        wrap.querySelector("img").alt = image.name;
+        wrap.querySelector(".preview").onclick = () => openLightbox(image.url, image.name);
+        wrap.querySelector(".remove").onclick = () => {
+          if (image.url.startsWith("blob:")) URL.revokeObjectURL(image.url);
+          state.draftImages = state.draftImages.filter((row) => row.id !== image.id);
+          renderRail();
+        };
+        return wrap;
+      }));
+    }
+
+    function openLightbox(url, alt) {
+      document.getElementById("lightbox-img").src = url;
+      document.getElementById("lightbox-img").alt = alt || "图片";
+      document.getElementById("lightbox").classList.remove("hidden");
+    }
+
+    function closeLightbox() {
+      document.getElementById("lightbox").classList.add("hidden");
+      document.getElementById("lightbox-img").src = "";
+    }
+
+    function insertMention(path) {
+      const draft = document.getElementById("draft");
+      const prefix = draft.value && !draft.value.endsWith(" ") ? " " : "";
+      draft.value += `${prefix}@${path} `;
+      draft.focus();
+      closeSettings();
+    }
+
+    function unbindDevice() {
+      persistBound(false);
+      state.sessions = [];
+      state.sessionId = "";
+      closeSettings();
+      showError("");
+      setScreen("connect");
+      renderAll();
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[ch]));
+    }
+
+    function vcs() {
+      const git = mem.git;
+      return {
+        refName: git.branch,
+        hasWorkingTreeChanges: git.dirty.length > 0,
+        hasUpstream: git.hasUpstream,
+        aheadCount: git.ahead,
+        behindCount: git.behind,
+        pr: git.pr,
+        isDefaultRef: git.branch === git.defaultBranch,
+        hasPrimaryRemote: git.hasRemote,
+      };
+    }
+
+    function gitQuick() {
+      const gitStatus = vcs();
+      const isBusy = mem.git.busy;
+      const isDefaultRef = gitStatus.isDefaultRef;
+      const hasPrimaryRemote = gitStatus.hasPrimaryRemote;
+      if (isBusy) return { label: "Commit", disabled: true, kind: "show_hint", hint: "Git 操作进行中。" };
+      const hasBranch = gitStatus.refName !== null;
+      const hasChanges = gitStatus.hasWorkingTreeChanges;
+      const hasOpenPr = gitStatus.pr?.state === "open";
+      const isAhead = gitStatus.aheadCount > 0;
+      const isBehind = gitStatus.behindCount > 0;
+      const isDiverged = isAhead && isBehind;
+      if (!hasBranch) return { label: "Commit", disabled: true, kind: "show_hint", hint: "请先创建并检出分支。" };
+      if (hasChanges) {
+        if (!gitStatus.hasUpstream && !hasPrimaryRemote) return { label: "Commit", disabled: false, kind: "run_action", action: "commit" };
+        if (hasOpenPr || isDefaultRef) return { label: "Commit & push", disabled: false, kind: "run_action", action: "commit_push" };
+        return { label: "Commit, push & PR", disabled: false, kind: "run_action", action: "commit_push_pr" };
+      }
+      if (!gitStatus.hasUpstream) {
+        if (!hasPrimaryRemote) return { label: "Publish repository", disabled: false, kind: "open_publish" };
+        return { label: "Push", disabled: false, kind: "run_action", action: "push" };
+      }
+      if (isDiverged) return { label: "Sync branch", disabled: true, kind: "show_hint", hint: "分支已分叉，请先变基或合并。" };
+      if (isBehind) return { label: "Pull", disabled: false, kind: "run_pull" };
+      if (isAhead) {
+        if (hasOpenPr || isDefaultRef) return { label: "Push", disabled: false, kind: "run_action", action: "push" };
+        return { label: "Push & create PR", disabled: false, kind: "run_action", action: "create_pr" };
+      }
+      if (hasOpenPr && gitStatus.hasUpstream) return { label: "View PR", disabled: false, kind: "open_pr" };
+      return { label: "Commit", disabled: true, kind: "show_hint", hint: "分支已是最新，无需操作。" };
+    }
+
+    function gitMenuItems() {
+      const gitStatus = vcs();
+      const isBusy = mem.git.busy;
+      const hasBranch = gitStatus.refName !== null;
+      const hasChanges = gitStatus.hasWorkingTreeChanges;
+      const hasOpenPr = gitStatus.pr?.state === "open";
+      const isBehind = gitStatus.behindCount > 0;
+      const canPushAhead = gitStatus.aheadCount > 0;
+      const canCommit = !isBusy && hasChanges;
+      const canPush = !isBusy && hasBranch && !isBehind && canPushAhead && gitStatus.hasUpstream;
+      const canCreatePr = !isBusy && hasBranch && !hasChanges && !hasOpenPr && canPushAhead && !isBehind && gitStatus.hasUpstream;
+      return [
+        { id: "commit", label: "Commit", disabled: !canCommit, icon: "commit", hint: canCommit ? "" : "工作区是干净的。请先改文件再提交。" },
+        { id: "push", label: "Push", disabled: !canPush, icon: "push", hint: canPush ? "" : hasChanges ? "请先提交或贮藏本地改动再推送。" : isBehind ? "落后于上游，请先拉取。" : "没有可推送的本地提交。" },
+        hasOpenPr
+          ? { id: "pr", label: "View PR", disabled: isBusy, icon: "pr", hint: "" }
+          : { id: "pr", label: "Create PR", disabled: !canCreatePr, icon: "pr", hint: canCreatePr ? "" : hasChanges ? "请先提交本地改动再创建拉取请求。" : "没有可包含进拉取请求的本地提交。" },
+      ];
+    }
+
+    function gitIcon(name) {
+      if (name === "commit") return ICON_COMMIT;
+      if (name === "pr") return ICON_PR;
+      return ICON_PUSH;
+    }
+
+    function gitPrimaryIcon(quick) {
+      if (quick.kind === "open_pr" || /PR/.test(quick.label)) return "pr";
+      if (quick.action === "commit" || quick.label === "Commit") return "commit";
+      return "push";
+    }
+
+    function gitStatusLine() {
+      const git = mem.git;
+      const parts = [];
+      if (git.dirty.length) parts.push(`${git.dirty.length} 个未提交改动`);
+      if (git.ahead) parts.push(`领先 ${git.ahead}`);
+      if (git.behind) parts.push(`落后 ${git.behind}`);
+      if (git.pr?.state === "open") parts.push(`PR #${git.pr.number}`);
+      if (!parts.length) parts.push("已与上游同步");
+      return `${git.branch} · ${parts.join(" · ")}`;
+    }
+
+    function showGitToast(tone, title, description, action) {
+      state.gitToast = { tone, title, description: description || "", action: action || null };
+      renderGitToast();
+      clearTimeout(gitTimer);
+      if (tone !== "loading") {
+        gitTimer = setTimeout(() => {
+          state.gitToast = null;
+          renderGitToast();
+        }, 2400);
+      }
+    }
+
+    function renderGitToast() {
+      const el = document.getElementById("git-toast");
+      const toast = state.gitToast;
+      if (!toast) {
+        el.classList.add("hidden");
+        el.replaceChildren();
+        return;
+      }
+      el.classList.remove("hidden");
+      const mark = toast.tone === "loading"
+        ? `<span class="spin" aria-hidden="true"></span>`
+        : toast.tone === "error"
+          ? `<span class="git-del">!</span>`
+          : `<span class="git-add">✓</span>`;
+      el.innerHTML = `${mark}<div class="copy"><div class="title">${escapeHtml(toast.title)}</div>${toast.description ? `<p class="sub">${escapeHtml(toast.description)}</p>` : ""}${toast.action ? `<button class="ghost-btn" type="button" id="git-toast-act" style="height:28px;margin-top:8px">${escapeHtml(toast.action.label)}</button>` : ""}</div><button class="icon-btn" type="button" id="git-toast-close" aria-label="关闭通知">×</button>`;
+      el.querySelector("#git-toast-close").onclick = () => {
+        clearTimeout(gitTimer);
+        state.gitToast = null;
+        renderGitToast();
+      };
+      const act = el.querySelector("#git-toast-act");
+      if (act) act.onclick = toast.action.run;
+    }
+
+    function localBranchNames() {
+      return mem.git.branches.filter((row) => !row.remote).map((row) => row.name);
+    }
+
+    function uniqueBranch(base) {
+      const names = new Set(localBranchNames());
+      if (!names.has(base)) return base;
+      let n = 2;
+      while (names.has(`${base}-${n}`)) n += 1;
+      return `${base}-${n}`;
+    }
+
+    function setCurrentBranch(name) {
+      if (!mem.git.branches.some((row) => row.name === name && !row.remote)) {
+        mem.git.branches.unshift({ name, remote: false });
+      }
+      mem.git.branch = name;
+    }
+
+    function selectedCommitFiles() {
+      return mem.git.dirty.filter((row) => !state.excluded.includes(row.path));
+    }
+
+    function needsDefaultConfirm(action) {
+      return action === "push" || action === "create_pr" || action === "commit_push" || action === "commit_push_pr";
+    }
+
+    function confirmCopy(action, branch) {
+      if (action === "push") {
+        return { title: "推送到默认分支？", description: `此操作会将本地提交推送到“${branch}”。你可以继续在此引用上操作，或新建功能引用后再执行同一操作。`, continueLabel: `推送到 ${branch}` };
+      }
+      if (action === "commit_push") {
+        return { title: "提交并推送到默认分支？", description: `此操作会提交更改并推送到“${branch}”。你可以继续在此引用上操作，或新建功能引用后再执行同一操作。`, continueLabel: `提交并推送到 ${branch}` };
+      }
+      if (action === "commit_push_pr") {
+        return { title: "从默认分支提交、推送并创建 pull request？", description: `此操作会提交、推送并从“${branch}”创建 pull request。你可以继续在此引用上操作，或新建功能引用后再执行同一操作。`, continueLabel: "提交、推送并创建 pull request" };
+      }
+      return { title: "从默认分支推送并创建 pull request？", description: `此操作会推送本地提交并从“${branch}”创建 pull request。你可以继续在此引用上操作，或新建功能引用后再执行同一操作。`, continueLabel: "推送并创建 pull request" };
+    }
+
+    function closeGitDialogs() {
+      const wasMenu = state.gitUi === "branch" || state.gitUi === "menu";
+      state.gitUi = "";
+      state.pendingGit = null;
+      document.getElementById("git-layer").classList.add("hidden");
+      if (wasMenu) {
+        sheet.classList.add("hidden");
+        sheetMask.classList.add("hidden");
+      }
+    }
+
+    function stageTitle(action, options) {
+      if (options.featureBranch) return "Preparing feature ref...";
+      if (action === "push") return "Pushing...";
+      if (action === "create_pr") return "Preparing PR...";
+      if (!options.commitMessage) return "Generating commit message...";
+      return "Committing...";
+    }
+
+    function applyStacked(action, options) {
+      if (options.featureBranch) setCurrentBranch(uniqueBranch("feature/untitled"));
+      const wantsCommit = action === "commit" || action === "commit_push" || action === "commit_push_pr";
+      if (wantsCommit) {
+        const keep = new Set((options.filePaths || selectedCommitFiles().map((row) => row.path)));
+        mem.git.dirty = mem.git.dirty.filter((row) => !keep.has(row.path));
+        mem.git.ahead += 1;
+        state.gitDiff = "";
+        state.excluded = [];
+      }
+      const wantsPush = action === "push" || action === "commit_push" || action === "commit_push_pr" || action === "create_pr";
+      if (wantsPush) mem.git.ahead = 0;
+      if (action === "create_pr" || action === "commit_push_pr") {
+        mem.git.pr = { state: "open", number: 12, url: "https://github.com/deepseek-ai/dsh/pull/12" };
+      }
+    }
+
+    function finishStacked(action) {
+      mem.git.busy = false;
+      if (action === "commit") showGitToast("success", "已提交更改", mem.git.branch);
+      else if (action === "push" || action === "commit_push") showGitToast("success", "已推送", mem.git.branch);
+      else if (action === "create_pr" || action === "commit_push_pr") {
+        showGitToast("success", "完成", `已创建拉取请求 #${mem.git.pr.number}`, {
+          label: "打开拉取请求",
+          run: () => setBanner("已在电脑上打开拉取请求"),
+        });
+      }
+      renderAll();
+    }
+
+    function runStacked(action, options = {}) {
+      const isDefault = !options.featureBranch && mem.git.branch === mem.git.defaultBranch;
+      if (!options.skipConfirm && needsDefaultConfirm(action) && isDefault) {
+        state.pendingGit = { action, ...options };
+        state.gitUi = "confirm";
+        renderGitUi();
+        return;
+      }
+      closeGitDialogs();
+      mem.git.busy = true;
+      showGitToast("loading", stageTitle(action, options), "Running for 0s");
+      renderAll();
+      clearTimeout(gitTimer);
+      gitTimer = setTimeout(() => {
+        applyStacked(action, options);
+        finishStacked(action);
+      }, 700);
+    }
+
+    function runPull() {
+      closeGitDialogs();
+      mem.git.busy = true;
+      showGitToast("loading", "Pulling...", "Running for 0s");
+      renderAll();
+      clearTimeout(gitTimer);
+      gitTimer = setTimeout(() => {
+        mem.git.behind = 0;
+        mem.git.busy = false;
+        showGitToast("success", "已拉取", `已从 origin/${mem.git.defaultBranch} 更新 ${mem.git.branch}`);
+        renderAll();
+      }, 700);
+    }
+
+    function openCommit() {
+      state.commitMsg = "";
+      state.commitEdit = false;
+      state.excluded = [];
+      state.gitUi = "commit";
+      renderGitUi();
+    }
+
+    function onGitPrimary() {
+      const quick = gitQuick();
+      if (quick.disabled || quick.kind === "show_hint") return;
+      if (quick.kind === "open_pr") {
+        setBanner("已在电脑上打开拉取请求");
+        showGitToast("success", "打开拉取请求", mem.git.pr ? `#${mem.git.pr.number}` : "");
+        return;
+      }
+      if (quick.kind === "open_publish") {
+        showGitToast("error", "发布仓库不可用。", "原型里没有 gh。");
+        return;
+      }
+      if (quick.kind === "run_pull") {
+        runPull();
+        return;
+      }
+      if (quick.action === "commit") {
+        openCommit();
+        return;
+      }
+      if (quick.action) runStacked(quick.action);
+    }
+
+    function renderCommitDialog() {
+      const files = mem.git.dirty;
+      const selected = selectedCommitFiles();
+      const none = selected.length === 0;
+      const allOn = files.length > 0 && selected.length === files.length;
+      const insertions = selected.reduce((sum, row) => sum + row.insertions, 0);
+      const deletions = selected.reduce((sum, row) => sum + row.deletions, 0);
+      const isDefault = mem.git.branch === mem.git.defaultBranch;
+      const rows = files.map((row) => {
+        const excluded = state.excluded.includes(row.path);
+        return `<div class="git-commit-row">
+          ${state.commitEdit ? `<input type="checkbox" data-path="${escapeHtml(row.path)}" ${excluded ? "" : "checked"} />` : ""}
+          <span class="path${excluded ? " muted" : ""}">${escapeHtml(row.path)}</span>
+          ${excluded ? `<span class="tag">已排除</span>` : `<span class="git-stat"><span class="git-add">+${row.insertions}</span> / <span class="git-del">-${row.deletions}</span></span>`}
+        </div>`;
+      }).join("");
+      return `<div class="git-dialog-head"><h3>提交更改</h3><p>确认本次提交内容。提交信息留空将自动生成。</p></div>
+        <div class="git-dialog-body">
+          <div class="git-review">
+            <div class="git-branch-row"><span class="tag">分支</span><b>${escapeHtml(mem.git.branch)}</b>${isDefault ? `<span class="git-warn">警告：目标为默认分支</span>` : ""}</div>
+            <div class="git-files-head"><span class="tag">文件${allOn || state.commitEdit ? "" : `（${selected.length}/${files.length}）`}</span>${files.length ? `<button class="ghost-btn" type="button" id="git-edit-files" style="height:28px">${state.commitEdit ? "完成" : "编辑"}</button>` : ""}</div>
+            ${files.length ? `${rows}<div class="git-stat"><span class="git-add">+${insertions}</span> / <span class="git-del">-${deletions}</span></div>` : `<p class="hint">无</p>`}
+          </div>
+          <label class="git-field"><span>提交信息（可选）</span><textarea id="git-msg" placeholder="留空则自动生成"></textarea></label>
+        </div>
+        <div class="git-dialog-foot">
+          <button class="ghost-btn" type="button" id="git-commit-cancel">取消</button>
+          <button class="ghost-btn" type="button" id="git-commit-new" ${none ? "disabled" : ""}>在新建分支上提交</button>
+          <button class="primary-btn" type="button" id="git-commit-go" ${none ? "disabled" : ""}>提交</button>
+        </div>`;
+    }
+
+    function renderCreateDialog() {
+      const taken = localBranchNames().includes(state.createName.trim());
+      const can = state.createName.trim() && !taken;
+      return `<div class="git-dialog-head"><h3>创建并检出新分支</h3><p>基于当前 HEAD 创建一个新的本地分支，并在创建成功后立即切换过去。</p></div>
+        <div class="git-dialog-body">
+          <label class="git-field"><span>分支名</span><input class="paste" id="git-create-name" placeholder="例如 feature/git-branch-switcher" value="${escapeHtml(state.createName)}" />
+          <span>${taken ? "这个名字已被占用。" : "首版只支持基于当前 HEAD 创建并切换。"}</span></label>
+        </div>
+        <div class="git-dialog-foot">
+          <button class="ghost-btn" type="button" id="git-create-cancel">取消</button>
+          <button class="primary-btn" type="button" id="git-create-go" ${can ? "" : "disabled"}>创建并切换</button>
+        </div>`;
+    }
+
+    function renderConfirmDialog() {
+      const pending = state.pendingGit;
+      const copy = confirmCopy(pending.action, mem.git.branch);
+      return `<div class="git-dialog-head"><h3>${escapeHtml(copy.title)}</h3><p>${escapeHtml(copy.description)}</p></div>
+        <div class="git-dialog-foot">
+          <button class="ghost-btn" type="button" id="git-confirm-abort">取消</button>
+          <button class="ghost-btn" type="button" id="git-confirm-feature">在新功能分支上继续</button>
+          <button class="primary-btn" type="button" id="git-confirm-go">${escapeHtml(copy.continueLabel)}</button>
+        </div>`;
+    }
+
+    function bindCommitDialog(root) {
+      const msg = root.querySelector("#git-msg");
+      if (msg) {
+        msg.value = state.commitMsg;
+        msg.oninput = (event) => { state.commitMsg = event.target.value; };
+      }
+      const edit = root.querySelector("#git-edit-files");
+      if (edit) edit.onclick = () => { state.commitEdit = !state.commitEdit; renderGitUi(); };
+      root.querySelectorAll("input[type=checkbox][data-path]").forEach((box) => {
+        box.onchange = () => {
+          const path = box.dataset.path;
+          if (box.checked) state.excluded = state.excluded.filter((item) => item !== path);
+          else state.excluded = state.excluded.concat(path);
+          renderGitUi();
+        };
+      });
+      root.querySelector("#git-commit-cancel").onclick = closeGitDialogs;
+      root.querySelector("#git-commit-new").onclick = () => {
+        const filePaths = selectedCommitFiles().map((row) => row.path);
+        if (!filePaths.length) return;
+        runStacked("commit", { commitMessage: state.commitMsg, filePaths, featureBranch: true, skipConfirm: true });
+      };
+      root.querySelector("#git-commit-go").onclick = () => {
+        const filePaths = selectedCommitFiles().map((row) => row.path);
+        if (!filePaths.length) return;
+        runStacked("commit", { commitMessage: state.commitMsg, filePaths });
+      };
+    }
+
+    function bindCreateDialog(root) {
+      const input = root.querySelector("#git-create-name");
+      input.oninput = (event) => { state.createName = event.target.value; renderGitUi(); };
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      root.querySelector("#git-create-cancel").onclick = closeGitDialogs;
+      root.querySelector("#git-create-go").onclick = () => {
+        const name = state.createName.trim();
+        if (!name || localBranchNames().includes(name)) return;
+        setCurrentBranch(name);
+        closeGitDialogs();
+        showGitToast("success", "已切换分支", name);
+        renderAll();
+      };
+    }
+
+    function bindConfirmDialog(root) {
+      root.querySelector("#git-confirm-abort").onclick = closeGitDialogs;
+      root.querySelector("#git-confirm-feature").onclick = () => {
+        const pending = state.pendingGit;
+        setCurrentBranch(uniqueBranch("feature/git-work"));
+        runStacked(pending.action, { ...pending, skipConfirm: true });
+      };
+      root.querySelector("#git-confirm-go").onclick = () => {
+        const pending = state.pendingGit;
+        runStacked(pending.action, { ...pending, skipConfirm: true });
+      };
+    }
+
+    function renderBranchSheet() {
+      const query = state.branchQuery.trim().toLowerCase();
+      const rows = mem.git.branches.filter((row) => !query || row.name.toLowerCase().includes(query));
+      const canCreate = state.branchQuery.trim() && !localBranchNames().includes(state.branchQuery.trim());
+      sheet.replaceChildren();
+      const heading = document.createElement("h3");
+      heading.textContent = "切换分支";
+      const search = document.createElement("input");
+      search.className = "paste";
+      search.type = "search";
+      search.placeholder = "搜索分支…";
+      search.value = state.branchQuery;
+      search.style.margin = "0 8px 8px";
+      search.oninput = (event) => { state.branchQuery = event.target.value; renderBranchSheet(); };
+      sheet.append(heading, search);
+      if (!rows.length) {
+        const empty = document.createElement("p");
+        empty.className = "hint";
+        empty.style.padding = "8px 12px";
+        empty.textContent = "没有匹配的分支";
+        sheet.append(empty);
+      }
+      rows.forEach((row) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "git-item";
+        button.disabled = row.name === mem.git.branch && !row.remote;
+        button.innerHTML = `${ICON_BRANCH}<span class="grow"><span>${escapeHtml(row.name)}</span>${row.remote ? `<span class="tag">远程</span>` : row.name === mem.git.branch ? `<span class="tag">当前</span>` : ""}</span>`;
+        button.onclick = () => {
+          const name = row.remote ? row.name.replace(/^origin\//, "") : row.name;
+          setCurrentBranch(name);
+          closeGitDialogs();
+          showGitToast("success", "已切换分支", name);
+          renderAll();
+        };
+        sheet.append(button);
+      });
+      const create = document.createElement("button");
+      create.type = "button";
+      create.className = "git-item";
+      create.disabled = Boolean(state.branchQuery.trim()) && !canCreate;
+      create.innerHTML = `${ICON_PLUS}<span>${canCreate ? `创建并检出分支「${escapeHtml(state.branchQuery.trim())}」` : "创建并检出新分支…"}</span>`;
+      create.onclick = () => {
+        state.createName = canCreate ? state.branchQuery.trim() : "";
+        state.gitUi = "create";
+        sheet.classList.add("hidden");
+        sheetMask.classList.add("hidden");
+        renderGitUi();
+      };
+      sheet.append(create);
+      sheet.classList.remove("hidden");
+      sheetMask.classList.remove("hidden");
+      search.focus();
+      search.setSelectionRange(search.value.length, search.value.length);
+    }
+
+    function renderMenuSheet() {
+      sheet.replaceChildren();
+      const heading = document.createElement("h3");
+      heading.textContent = "Git 操作";
+      sheet.append(heading);
+      gitMenuItems().forEach((item) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "git-item";
+        button.disabled = item.disabled;
+        button.title = item.hint || "";
+        button.innerHTML = `${gitIcon(item.icon)}<span class="grow"><span>${escapeHtml(item.label)}</span>${item.disabled && item.hint ? `<span class="tag">${escapeHtml(item.hint)}</span>` : ""}</span>`;
+        button.onclick = () => {
+          if (item.disabled) return;
+          closeSheet();
+          if (item.id === "commit") openCommit();
+          else if (item.id === "push") runStacked("push");
+          else if (mem.git.pr?.state === "open") {
+            setBanner("已在电脑上打开拉取请求");
+            showGitToast("success", "打开拉取请求", `#${mem.git.pr.number}`);
+          } else runStacked("create_pr");
+        };
+        sheet.append(button);
+      });
+      if (mem.git.behind && !mem.git.dirty.length && !mem.git.ahead) {
+        const note = document.createElement("p");
+        note.className = "hint";
+        note.style.padding = "8px 12px";
+        note.textContent = "落后于上游，请先拉取或变基。";
+        sheet.append(note);
+      }
+      sheet.classList.remove("hidden");
+      sheetMask.classList.remove("hidden");
+    }
+
+    function renderGitUi() {
+      const layer = document.getElementById("git-layer");
+      const dialog = document.getElementById("git-dialog");
+      const modal = state.gitUi === "commit" || state.gitUi === "create" || state.gitUi === "confirm";
+      layer.classList.toggle("hidden", !modal);
+      dialog.classList.toggle("compact", state.gitUi === "confirm" || state.gitUi === "create");
+      if (modal && state.gitToast && state.gitToast.tone !== "loading") {
+        clearTimeout(gitTimer);
+        state.gitToast = null;
+      }
+      if (state.gitUi === "commit") {
+        dialog.innerHTML = renderCommitDialog();
+        bindCommitDialog(dialog);
+      } else if (state.gitUi === "create") {
+        dialog.innerHTML = renderCreateDialog();
+        bindCreateDialog(dialog);
+      } else if (state.gitUi === "confirm") {
+        dialog.innerHTML = renderConfirmDialog();
+        bindConfirmDialog(dialog);
+      }
+      if (state.gitUi === "branch") renderBranchSheet();
+      if (state.gitUi === "menu") renderMenuSheet();
+      renderGitToast();
+    }
+
+    function bindGitChrome(root) {
+      const busy = mem.git.busy;
+      root.querySelector("#git-branch").onclick = () => {
+        if (busy) return;
+        state.branchQuery = "";
+        state.gitUi = state.gitUi === "branch" ? "" : "branch";
+        if (state.gitUi === "branch") renderGitUi();
+        else closeSheet();
+      };
+      root.querySelector("#git-primary").onclick = onGitPrimary;
+      root.querySelector("#git-more").onclick = () => {
+        if (busy) return;
+        state.gitUi = state.gitUi === "menu" ? "" : "menu";
+        if (state.gitUi === "menu") renderGitUi();
+        else closeSheet();
+      };
+    }
+
+    function bindSlider(root, selector, key, labelId, onChange) {
+      const slider = root.querySelector(selector);
+      slider.oninput = () => {
+        mem[key] = Number(slider.value);
+        slider.style.setProperty("--fill", `${slider.value}%`);
+        root.querySelector(labelId).textContent = `${slider.value}%`;
+        if (onChange) onChange();
+      };
+    }
+
+    function renderSettings() {
+      const options = document.getElementById("options");
+      const pane = state.settingsPane;
+      const back = document.getElementById("settings-back");
+      document.getElementById("settings-title").textContent = pane || "设置";
+      back.classList.toggle("hidden", !pane);
+      options.classList.toggle("git-ws", pane === "工作区");
+      const notice = `<p class="notice">远程页上的改动只留在这次连接，不会写回电脑上的 settings.yaml。标了「电脑」的项会改 Host 窗口。</p>`;
+      if (!pane) {
+        options.innerHTML = `<div class="hub">${notice}
+          <p class="group-label">这次连接</p>
+          <div class="group">
+            ${linkRow("连接详情", state.mode === "relay" ? "服务器中继" : "局域网", "Trent 的电脑")}
+            <button class="link-row" type="button" id="hub-unbind"><span class="grow"><span class="row-title">断开这台设备</span><span class="row-desc">作废本机设备令牌</span></span></button>
+          </div>
+          <p class="group-label">对话</p>
+          <div class="group">
+            ${linkRow("通用设置", "通用设置", `${mem.language} · ${mem.enter}`)}
+            ${linkRow("权限", "权限", mem.access)}
+            ${linkRow("模型", "模型", modelLabel())}
+          </div>
+          <p class="group-label">工作区</p>
+          <div class="group">
+            ${linkRow("工作区", "Git", gitStatusLine())}
+            ${linkRow("文件", "文件", "搜索并插入到输入框")}
+          </div>
+          <p class="group-label">这台手机</p>
+          <div class="group">
+            ${linkRow("外观", "外观", themeLabel())}
+          </div>
+          <p class="group-label">电脑与界面</p>
+          <div class="group">
+            ${linkRow("电脑外观", "电脑外观", "背景图 · 毛玻璃")}
+            ${linkRow("界面设置", "界面设置", "标题栏 Git · 分栏 · 日志")}
+          </div>
+          <p class="group-label">Host</p>
+          <div class="group">
+            ${linkRow("MCP", "MCP", `${mem.mcp.filter((row) => row.on).length} 个已连接`)}
+            ${linkRow("技能", "技能", `${mem.skills.length} 个`)}
+            ${linkRow("插件", "插件", "已挂载清单")}
+            ${linkRow("市场", "市场", "在电脑上安装")}
+          </div>
+          <p class="group-label">关于</p>
+          <div class="group">${linkRow("关于", "关于", "0.2.6")}</div>
+        </div>`;
+        options.querySelectorAll("[data-pane]").forEach((button) => {
+          button.onclick = () => { state.settingsPane = button.dataset.pane; state.gitDiff = ""; renderSettings(); };
+        });
+        options.querySelector("#hub-unbind").onclick = unbindDevice;
+        return;
+      }
+      if (pane === "连接详情") {
+        options.innerHTML = `${notice}
+          <div class="row"><div class="row-text"><div class="row-title">主机</div><div class="row-desc">Trent 的电脑</div></div></div>
+          <div class="row"><div class="row-text"><div class="row-title">通道</div><div class="row-desc">${state.mode === "relay" ? "HTTPS 中继" : "局域网 :3180"}</div></div></div>
+          <button class="danger-btn" type="button" id="unbind">断开这台设备</button>`;
+        options.querySelector("#unbind").onclick = unbindDevice;
+        return;
+      }
+      if (pane === "通用设置") {
+        options.innerHTML = `${notice}
+          <div class="row"><div class="row-text"><div class="row-title">语言</div><div class="row-desc">产品文案语言。电脑窗口仍用它自己的设置。</div></div><button class="selector" type="button" id="pick-lang">${mem.language} ▾</button></div>
+          <div class="row"><div class="row-text"><div class="row-title">排队发送时的 Enter</div><div class="row-desc">会话运行中，Enter 排队或插话。</div></div><button class="selector" type="button" id="pick-enter">${mem.enter} ▾</button></div>
+          <div class="row"><div class="row-text"><div class="row-title">关闭窗口时</div><div class="row-desc">电脑窗口点关闭：进托盘或退出。手机远程不关电脑窗口。</div></div><button class="selector" type="button" id="pick-close">${mem.closeToTray ? "最小化到托盘" : "退出应用"} ▾</button></div>
+          ${switchRow("harnessRestart", "Harness 自动恢复", "电脑上 Harness 崩溃后按策略重启。")}
+          <div class="row"><div class="row-text"><div class="row-title">打开配置文件</div><div class="row-desc">在电脑上打开 settings.yaml。</div></div><button class="ghost-btn" type="button" id="open-config">在电脑上打开</button></div>`;
+        options.querySelector("#pick-lang").onclick = () => openSheet("语言", ["中文", "English"], mem.language, (v) => { mem.language = v; });
+        options.querySelector("#pick-enter").onclick = () => openSheet("Enter", ["排队发送", "插话"], mem.enter, (v) => { mem.enter = v; });
+        options.querySelector("#pick-close").onclick = () => openSheet("关闭窗口时", ["最小化到托盘", "退出应用"], mem.closeToTray ? "最小化到托盘" : "退出应用", (v) => { mem.closeToTray = v === "最小化到托盘"; });
+        options.querySelector("#open-config").onclick = () => setBanner("已请求电脑打开配置文件");
+        bindSwitches(options);
+        return;
+      }
+      if (pane === "外观") {
+        options.innerHTML = `<p class="hint">只改这台手机。电脑窗口的色制和背景图在「电脑外观」。</p>
+          <div class="block"><h3 class="heading">色制</h3><p class="hint">这台手机用浅色、深色，还是跟随系统。</p>
+          <div class="tiles">${["light", "dark", "system"].map((id) => `<button class="tile" type="button" data-scheme="${id}" aria-pressed="${mem.theme === id}">${id === "light" ? "浅色" : id === "dark" ? "深色" : "跟随系统"}</button>`).join("")}</div></div>
+          <div class="block"><h3 class="heading">主题</h3><div class="theme-card"><span>DeepSeek</span><span class="swatch"></span></div></div>
+          <div class="block"><div style="display:flex;justify-content:space-between"><h3 class="heading">玻璃透明度</h3><span class="hint" id="glass-val">${mem.glass}%</span></div>
+          <p class="hint">这台手机的毛玻璃。数值越低越通透。不改电脑窗口。</p>
+          <input class="slider" id="glass" type="range" min="0" max="100" value="${mem.glass}" style="--fill:${mem.glass}%" /></div>
+          <div class="block"><h3 class="heading">字体</h3><div class="row"><div class="row-text"><div class="row-title">界面字体</div><div class="row-desc">留空则用系统默认。只作用于这台手机。</div></div></div>
+          <input class="paste" id="ui-font" placeholder="系统默认" value="${escapeHtml(mem.uiFont)}" /></div>`;
+        options.querySelectorAll("[data-scheme]").forEach((tile) => {
+          tile.onclick = () => { mem.theme = tile.dataset.scheme; applyTheme(); renderSettings(); };
+        });
+        bindSlider(options, "#glass", "glass", "#glass-val", applyTheme);
+        options.querySelector("#ui-font").oninput = (event) => { mem.uiFont = event.target.value; applyTheme(); };
+        return;
+      }
+      if (pane === "电脑外观") {
+        options.innerHTML = `${notice}
+          <div class="block"><h3 class="heading">电脑玻璃透明度</h3>
+          <div style="display:flex;justify-content:space-between"><span class="hint">电脑</span><span class="hint" id="host-glass-val">${mem.hostGlass}%</span></div>
+          <p class="hint">电脑窗口的毛玻璃。不改这台手机。</p>
+          <input class="slider" id="host-glass" type="range" min="0" max="100" value="${mem.hostGlass}" style="--fill:${mem.hostGlass}%" /></div>
+          <div class="block"><h3 class="heading">背景图</h3><p class="hint">图库窗口在电脑上。这里调毛玻璃和像素化，并可以请电脑打开图库。</p>
+          <button class="ghost-btn" type="button" id="open-gallery">在电脑上打开图库</button>
+          <div style="display:flex;justify-content:space-between"><span class="hint">毛玻璃程度</span><span class="hint" id="frost-val">${mem.wallpaperFrost}%</span></div>
+          <input class="slider" id="frost" type="range" min="0" max="100" value="${mem.wallpaperFrost}" style="--fill:${mem.wallpaperFrost}%" />
+          <div style="display:flex;justify-content:space-between"><span class="hint">像素化程度</span><span class="hint" id="pixel-val">${mem.wallpaperPixel}%</span></div>
+          <input class="slider" id="pixel" type="range" min="0" max="100" value="${mem.wallpaperPixel}" style="--fill:${mem.wallpaperPixel}%" /></div>`;
+        bindSlider(options, "#host-glass", "hostGlass", "#host-glass-val");
+        bindSlider(options, "#frost", "wallpaperFrost", "#frost-val");
+        bindSlider(options, "#pixel", "wallpaperPixel", "#pixel-val");
+        options.querySelector("#open-gallery").onclick = () => setBanner("已请求电脑打开图库窗口");
+        return;
+      }
+      if (pane === "界面设置") {
+        options.innerHTML = `
+          ${switchRow("gitTitle", "标题栏 Git 操作", "电脑宽屏标题栏和手机对话页头显示分支胶囊。工作区顶部的 Git 操作始终可用。")}
+          ${switchRow("columns", "分栏开关", "电脑上显示 Files / Browser 分栏开关。")}
+          ${switchRow("logs", "会话日志与轨迹页签", "电脑对话页头的 Chat / 日志切换。")}`;
+        bindSwitches(options);
+        return;
+      }
+      if (pane === "权限") {
+        options.innerHTML = `
+          <div class="row"><div class="row-text"><div class="row-title">默认访问模式</div><div class="row-desc">新会话的工具权限。完全访问仍要确认。</div></div><button class="selector" type="button" id="pick-access">${mem.access} ▾</button></div>
+          ${switchRow("dangerAsk", "危险命令需审批", "bash 等工具在工作区外或破坏性操作时弹出审批卡。")}`;
+        options.querySelector("#pick-access").onclick = () => openSheet("访问模式", ["只读", "完全访问"], mem.access, (v) => { mem.access = v; });
+        bindSwitches(options);
+        return;
+      }
+      if (pane === "模型") {
+        options.innerHTML = `<p class="hint">当前会话的模型。改动只作用于这一会话，除非设为默认。</p>${MODELS.map((row) => `<button class="model${mem.model === row.id ? " active" : ""}" type="button" data-model="${row.id}"><b>${row.name}</b><span class="tag">${row.tag}</span></button>`).join("")}`;
+        options.querySelectorAll("[data-model]").forEach((button) => {
+          button.onclick = () => { mem.model = button.dataset.model; renderAll(); };
+        });
+        return;
+      }
+      if (pane === "工作区") {
+        const quick = gitQuick();
+        const busy = mem.git.busy;
+        const changes = state.wsTab !== "files";
+        const filesHtml = mem.git.dirty.map((row) => `<button class="git-file" type="button" data-path="${escapeHtml(row.path)}"><span class="git-mark${row.mark === "A" ? " add" : ""}">${row.mark}</span><span class="grow"><div>${escapeHtml(row.path.split("/").pop())}</div><div class="tag">${escapeHtml(row.path)}</div></span><span class="git-stat"><span class="git-add">+${row.insertions}</span> / <span class="git-del">-${row.deletions}</span></span></button>`).join("");
+        const q = state.fileQuery.trim();
+        const fileRows = mem.files.filter((path) => !q || path.includes(q));
+        const filesTab = `<input class="search" id="file-q" type="search" placeholder="搜索文件" style="margin:0" value="${escapeHtml(q)}" />
+          ${fileRows.map((path) => `<button class="git-file" type="button" data-path="${escapeHtml(path)}"><span class="grow"><div>${escapeHtml(path.split("/").pop())}</div><div class="tag">${escapeHtml(path)}</div></span></button>`).join("") || `<p class="hint">没有匹配的文件</p>`}`;
+        options.innerHTML = `<div class="git-chrome">
+            <div class="git-split">
+              <button class="git-branch" type="button" id="git-branch" ${busy ? "disabled" : ""} aria-label="切换分支">${ICON_BRANCH}<span class="git-name">${escapeHtml(mem.git.branch)}</span>${ICON_CHEV_DOWN}</button>
+              <span class="git-rule" aria-hidden="true"></span>
+              <button class="git-primary" type="button" id="git-primary" ${quick.disabled || busy ? "disabled" : ""} title="${escapeHtml(quick.hint || quick.label)}" aria-label="${escapeHtml(quick.label)}">${gitIcon(gitPrimaryIcon(quick))}<span>${escapeHtml(quick.label)}</span></button>
+              <span class="git-rule" aria-hidden="true"></span>
+              <button class="git-more" type="button" id="git-more" ${busy ? "disabled" : ""} aria-label="Git 操作">${ICON_CHEV_DOWN}</button>
+            </div>
+          </div>
+          <p class="git-status">${escapeHtml(gitStatusLine())}</p>
+          <div class="git-tabs">
+            <button type="button" data-tab="changes" aria-pressed="${changes}">更改</button>
+            <button type="button" data-tab="files" aria-pressed="${!changes}">文件</button>
+          </div>
+          ${changes
+            ? `${filesHtml || `<p class="hint">工作区是干净的。</p>`}${state.gitDiff ? `<pre class="diff">${escapeHtml(state.gitDiff)}</pre>` : ""}`
+            : filesTab}`;
+        bindGitChrome(options);
+        options.querySelectorAll("[data-tab]").forEach((button) => {
+          button.onclick = () => {
+            state.wsTab = button.dataset.tab;
+            state.gitDiff = "";
+            renderSettings();
+          };
+        });
+        if (changes) {
+          options.querySelectorAll(".git-file").forEach((button) => {
+            button.onclick = () => {
+              const row = mem.git.dirty.find((item) => item.path === button.dataset.path);
+              state.gitDiff = row ? `${row.path}\n${row.diff}` : "";
+              renderSettings();
+            };
+          });
+        } else {
+          const input = options.querySelector("#file-q");
+          input.oninput = (event) => { state.fileQuery = event.target.value; renderSettings(); };
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+          options.querySelectorAll(".git-file").forEach((button) => {
+            button.onclick = () => insertMention(button.dataset.path);
+          });
+        }
+        return;
+      }
+      if (pane === "文件") {
+        const q = state.fileQuery.trim();
+        const rows = mem.files.filter((path) => !q || path.includes(q));
+        options.innerHTML = `<p class="hint">电脑工作区里的文件。点一行会把 @路径 插入输入框。</p>
+          <input class="search" id="file-q" type="search" placeholder="搜索文件" style="margin:0" value="${q}" />
+          ${rows.map((path) => `<button class="git-file" type="button" data-path="${path}"><span class="grow"><div>${path.split("/").pop()}</div><div class="tag">${path}</div></span></button>`).join("") || `<p class="hint">没有匹配的文件</p>`}`;
+        const input = options.querySelector("#file-q");
+        input.oninput = (event) => { state.fileQuery = event.target.value; renderSettings(); };
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+        options.querySelectorAll(".git-file").forEach((button) => {
+          button.onclick = () => insertMention(button.dataset.path);
+        });
+        return;
+      }
+      if (pane === "MCP") {
+        options.innerHTML = `<p class="hint">电脑 Host 上的 MCP 清单。远程开关只留在这次连接。</p>
+          <div class="tools" style="margin-bottom:8px"><button class="primary-btn" type="button" id="add-mcp">添加服务器</button><button class="ghost-btn" type="button" id="refresh-mcp">刷新</button></div>
+          ${mem.mcp.map((row, index) => hairSwitch(index, "mcp", row)).join("")}`;
+        options.querySelector("#add-mcp").onclick = () => {
+          const name = `custom-${mem.mcp.length + 1}`;
+          mem.mcp.push({ name, tag: "stdio · 本次连接", on: true });
+          renderSettings();
+        };
+        options.querySelector("#refresh-mcp").onclick = () => renderSettings();
+        bindHair(options, "mcp");
+        return;
+      }
+      if (pane === "技能") {
+        options.innerHTML = `<p class="hint">当前会话分层目录里的技能。开关控制是否允许模型调用。</p>
+          <input class="search" id="skill-q" type="search" placeholder="搜索技能" style="margin:0" />
+          <div id="skill-rows">${skillRows("")}</div>`;
+        options.querySelector("#skill-q").oninput = (event) => {
+          options.querySelector("#skill-rows").innerHTML = skillRows(event.target.value);
+          bindHair(options.querySelector("#skill-rows"), "skills");
+        };
+        bindHair(options.querySelector("#skill-rows"), "skills");
+        return;
+      }
+      if (pane === "插件") {
+        options.innerHTML = `<p class="hint">Host 上已安装的插件。远程页只读。</p>
+          <div class="hair"><div class="grow"><div>ui-files</div><div class="tag">已挂载 · 已启用</div></div></div>
+          <div class="hair"><div class="grow"><div>ui-preview</div><div class="tag">已挂载 · 已启用</div></div></div>
+          <div class="hair"><div class="grow"><div>ui-git</div><div class="tag">已挂载 · 已启用</div></div></div>
+          <div class="hair"><div class="grow"><div>ui-attachment</div><div class="tag">已挂载 · 已启用</div></div></div>`;
+        return;
+      }
+      if (pane === "市场") {
+        options.innerHTML = `<p class="hint">安装落到电脑 dsh-home/profiles/web。进度在这次连接可见。</p>
+          ${mem.market.map((row, index) => `<div class="market-card"><div><b>${row.name}</b><div class="tag">${row.tag}</div></div><button class="${row.installed ? "ghost-btn" : "primary-btn"}" type="button" data-market="${index}">${row.installed ? "已安装" : "安装"}</button></div>`).join("")}`;
+        options.querySelectorAll("[data-market]").forEach((button) => {
+          button.onclick = () => {
+            const row = mem.market[Number(button.dataset.market)];
+            if (row.installed) return;
+            button.textContent = "安装中…";
+            window.setTimeout(() => { row.installed = true; renderSettings(); }, 700);
+          };
+        });
+        return;
+      }
+      options.innerHTML = `<p class="hint">本桌面应用与官方 Harness。</p>
+        <div class="row"><div class="row-text"><div class="row-title">Deepseek-Harness-Desktop</div><div class="row-desc">当前版本 0.2.6</div></div></div>
+        <div class="row"><div class="row-text"><div class="row-title">官方 Harness</div><div class="row-desc">vendor 钉住的 Web UI 与 Host。</div></div></div>
+        <button class="ghost-btn" type="button" id="open-gh">GitHub 发行版</button>`;
+      options.querySelector("#open-gh").onclick = () => {
+        window.open("https://github.com", "_blank", "noopener");
+      };
+    }
+
+    function switchRow(key, title, desc) {
+      return `<div class="row"><div class="row-text"><div class="row-title">${title}</div><div class="row-desc">${desc}</div></div><button class="switch" type="button" data-key="${key}" aria-pressed="${mem[key]}" aria-label="${title}"><i></i></button></div>`;
+    }
+    function hairSwitch(index, group, row) {
+      return `<div class="hair"><div class="grow"><div>${row.name}</div><div class="tag">${row.tag}</div></div><button class="switch" type="button" data-group="${group}" data-index="${index}" aria-pressed="${row.on}"><i></i></button></div>`;
+    }
+    function skillRows(query) {
+      return mem.skills
+        .map((row, index) => ({ row, index }))
+        .filter((item) => !query || item.row.name.includes(query))
+        .map((item) => hairSwitch(item.index, "skills", item.row))
+        .join("");
+    }
+    function bindSwitches(root) {
+      root.querySelectorAll(".switch[data-key]").forEach((button) => {
+        button.onclick = () => {
+          const on = button.getAttribute("aria-pressed") !== "true";
+          mem[button.dataset.key] = on;
+          button.setAttribute("aria-pressed", String(on));
+          if (button.dataset.key === "gitTitle") renderChat();
+        };
+      });
+    }
+    function bindHair(root, group) {
+      root.querySelectorAll(`.switch[data-group="${group}"]`).forEach((button) => {
+        button.onclick = () => {
+          const index = Number(button.dataset.index);
+          mem[group][index].on = !mem[group][index].on;
+          button.setAttribute("aria-pressed", String(mem[group][index].on));
+        };
+      });
+    }
+
+    function renderAll() {
+      applyTheme();
+      renderDevice();
+      renderSessions();
+      renderChat();
+      renderRail();
+      if (state.settingsOpen) renderSettings();
+      renderGitUi();
+    }
+
+    function openScanner() {
+      if (cameraPermission === "denied") {
+        setScreen("perm");
+        return;
+      }
+      if (kind === "photo") {
+        if (!state.bound) return;
+        state.draftImages.push(fakePhoto("截图", "rgb(65, 118, 230)"));
+        setScreen("chat");
+        renderRail();
+        return;
+      }
+      cameraPermission = "granted";
+      setScreen("scan");
+    }
+
+    function injectScan(kind) {
+      if (kind === "denied") {
+        cameraPermission = "denied";
+        setScreen("perm");
+        return;
+      }
+      if (kind === "grant") {
+        cameraPermission = "granted";
+        if (state.screen === "perm") setScreen("connect");
+        return;
+      }
+      if (kind === "clear") {
+        persistBound(false);
+        state.sessions = [];
+        state.sessionId = "";
+        showError("");
+        setBanner("");
+        setScreen("connect");
+        renderAll();
+        return;
+      }
+      if (kind === "drop") {
+        setBanner("登录已失效，请重新扫码");
+        persistBound(false);
+        setTimeout(() => {
+          setScreen("connect");
+          showError("unauthorized");
+          renderAll();
+        }, 600);
+        return;
+      }
+      if (kind === "photo") {
+        if (!state.bound) return;
+        state.draftImages.push(fakePhoto("截图", "rgb(65, 118, 230)"));
+        setScreen("chat");
+        renderRail();
+        return;
+      }
+      cameraPermission = "granted";
+      setScreen("scan");
+      document.getElementById("scan-hint").textContent = "已识别，正在登录…";
+      window.setTimeout(() => {
+        if (kind === "bad") {
+          showError("配对密钥无效");
+          setScreen("connect");
+          return;
+        }
+        const map = { lan: URLS.lan, relay: URLS.relay, down: URLS.down, wait: URLS.wait };
+        login(offerFromPaste(map[kind]));
+      }, 700);
+    }
+
+    document.getElementById("scan-open").onclick = openScanner;
+    document.getElementById("scan-cancel").onclick = () => setScreen("connect");
+    document.getElementById("torch").onclick = () => {
+      screens.scan.toggleAttribute("data-torch");
+    };
+    document.getElementById("perm-paste").onclick = () => setScreen("connect");
+    document.getElementById("perm-settings").onclick = () => {
+      showError("原型里打不开系统设置，请用框外「恢复相机权限」");
+      setScreen("connect");
+    };
+    document.getElementById("paste-enter").onclick = () => login(offerFromPaste(document.getElementById("paste").value));
+    document.getElementById("menu").onclick = () => {
+      phone.setAttribute("data-drawer", "");
+      backdrop.classList.remove("hidden");
+    };
+    document.getElementById("drawer-close").onclick = closeDrawer;
+    backdrop.onclick = closeDrawer;
+    document.getElementById("new-session").onclick = () => {
+      const id = `s-${Date.now()}`;
+      state.sessions.unshift({ id, title: "新会话", time: "刚才", blank: true, running: false, events: [] });
+      openSession(id);
+    };
+    document.getElementById("open-settings").onclick = () => openSettings("");
+    document.getElementById("open-git").onclick = () => openSettings("工作区");
+    document.getElementById("git-chip").onclick = () => openSettings("工作区");
+    document.getElementById("git-mask").onclick = () => { closeGitDialogs(); };
+    document.getElementById("settings-back").onclick = () => {
+      state.settingsPane = "";
+      state.gitDiff = "";
+      closeGitDialogs();
+      renderSettings();
+    };
+    document.getElementById("close-settings").onclick = () => closeSettings();
+    document.getElementById("search").oninput = (event) => {
+      state.query = event.target.value;
+      renderSessions();
+    };
+    document.getElementById("attach").onclick = () => {
+      openSheet("添加", ["拍照", "从相册选择", "从工作区选文件"], "", (choice) => {
+        if (choice === "拍照") document.getElementById("pick-camera").click();
+        if (choice === "从相册选择") document.getElementById("pick-image").click();
+        if (choice === "从工作区选文件") openSettings("文件");
+      });
+    };
+    document.getElementById("pick-image").onchange = (event) => {
+      addImages(event.target.files);
+      event.target.value = "";
+    };
+    document.getElementById("pick-camera").onchange = (event) => {
+      addImages(event.target.files);
+      event.target.value = "";
+    };
+    document.getElementById("lightbox-mask").onclick = closeLightbox;
+    document.getElementById("lightbox-close").onclick = closeLightbox;
+    composer.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const draft = document.getElementById("draft");
+      sendPrompt(draft.value);
+      draft.value = "";
+    });
+    document.getElementById("stop").onclick = () => {
+      const row = current();
+      stopStream(true);
+      if (row) row.running = Boolean(row.pending);
+      renderAll();
+    };
+    document.getElementById("approval-allow").onclick = () => {
+      const row = current();
+      if (!row?.pending) return;
+      row.events.push({ kind: "tool", name: "bash", status: "完成", body: row.pending.command });
+      row.events.push({ kind: "assistant", text: "命令已允许一次并执行。" });
+      row.pending = null;
+      row.running = false;
+      renderAll();
+    };
+    document.getElementById("approval-reject").onclick = () => {
+      const row = current();
+      if (!row?.pending) return;
+      row.events.push({ kind: "sys", text: "已拒绝这次命令" });
+      row.pending = null;
+      row.running = false;
+      renderAll();
+    };
+    document.getElementById("perm-chip").onclick = () => openSheet("访问模式", ["只读", "完全访问"], mem.access, (v) => { mem.access = v; });
+    document.getElementById("model-chip").onclick = () => openSheet("模型", MODELS.map((row) => row.name), MODELS.find((row) => row.id === mem.model).name, (name) => {
+      mem.model = MODELS.find((row) => row.name === name).id;
+    });
+    sheetMask.onclick = closeSheet;
+    document.querySelectorAll("[data-inject]").forEach((button) => {
+      button.onclick = () => injectScan(button.dataset.inject);
+    });
+
+    const saved = sessionStorage.getItem(STORE);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        state.mode = parsed.mode === "relay" ? "relay" : "lan";
+        persistBound(true);
+        state.sessions = seedSessions();
+        openSession(state.sessions.find((row) => !row.blank).id);
+        setScreen("chat");
+      } catch {
+        persistBound(false);
+      }
+    }
+    renderAll();
+  </script>
+</body>
+</html>

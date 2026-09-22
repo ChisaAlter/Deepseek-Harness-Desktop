@@ -1,0 +1,142 @@
+import { test } from "./fixtures";
+import { gotoAppShell, openSettings } from "./helpers/app";
+import { getE2EDaemonPort } from "./helpers/daemon-port";
+import { TEST_HOST_LABEL } from "./helpers/daemon-registry";
+import { getServerId } from "./helpers/server-id";
+import {
+  expectSettingsHeader,
+  openSettingsHost,
+  expectHostLabelDisplayed,
+  clickEditHostLabel,
+  expectHostLabelEditMode,
+  expectHostConnectionsCard,
+  expectHostInjectMcpCard,
+  expectHostActionCards,
+  expectHostNoLocalOnlyRows,
+  expectRetiredSidebarSectionsAbsent,
+  expectHostPageVisible,
+  expectLocalHostEntryFirst,
+} from "./helpers/settings";
+
+test.describe("Settings host page", () => {
+  test("host page shows seeded label, connection endpoint, inject MCP toggle, and all action rows", async ({
+    page,
+  }) => {
+    const serverId = getServerId();
+    const port = getE2EDaemonPort();
+
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsHost(page, serverId);
+
+    await expectSettingsHeader(page, TEST_HOST_LABEL);
+    await expectHostLabelDisplayed(page);
+    await expectHostConnectionsCard(page, port);
+    await expectHostInjectMcpCard(page);
+    await expectHostActionCards(page);
+  });
+
+  test("clicking the label pencil reveals the inline editor", async ({ page }) => {
+    const serverId = getServerId();
+
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsHost(page, serverId);
+
+    await expectHostLabelDisplayed(page);
+    await clickEditHostLabel(page);
+    await expectHostLabelEditMode(page, TEST_HOST_LABEL);
+  });
+
+  test("host page does not render pair-device or daemon-lifecycle rows for a remote daemon", async ({
+    page,
+  }) => {
+    const serverId = getServerId();
+
+    await gotoAppShell(page);
+    await openSettings(page);
+    await openSettingsHost(page, serverId);
+
+    // TODO: add local-daemon fixture for positive Pair/Daemon coverage.
+    await expectHostNoLocalOnlyRows(page);
+  });
+
+  test("settings sidebar does not expose retired top-level sections", async ({ page }) => {
+    await gotoAppShell(page);
+    await openSettings(page);
+
+    await expectRetiredSidebarSectionsAbsent(page);
+  });
+
+  test("navigating to /settings/hosts/[serverId] directly renders the host page", async ({
+    page,
+  }) => {
+    const serverId = getServerId();
+
+    await gotoAppShell(page);
+    await page.goto(`/settings/hosts/${encodeURIComponent(serverId)}`);
+
+    await expectHostPageVisible(page, serverId);
+    await expectSettingsHeader(page, TEST_HOST_LABEL);
+    await expectHostLabelDisplayed(page);
+    await expectHostActionCards(page);
+  });
+
+  test("sidebar pins the local daemon host first with a Local marker", async ({ page }) => {
+    const serverId = getServerId();
+
+    // Simulate the Electron desktop bridge so `useIsLocalDaemon` resolves the
+    // seeded host to the local daemon. The desktop bootstrap now always starts
+    // the built-in daemon (hard-bound, ignores manageBuiltInDaemon), so the
+    // start command must return a running status for the bootstrap to succeed.
+    await page.addInitScript((localServerId) => {
+      (window as unknown as { chisacodeDesktop: unknown }).chisacodeDesktop = {
+        platform: "darwin",
+        invoke: async (command: string) => {
+          if (command === "desktop_daemon_status") {
+            return {
+              serverId: localServerId,
+              status: "running",
+              listen: "127.0.0.1:6767",
+              hostname: null,
+              pid: null,
+              home: "",
+              version: null,
+              desktopManaged: true,
+              error: null,
+            };
+          }
+          if (command === "start_desktop_daemon") {
+            return {
+              serverId: localServerId,
+              status: "running",
+              listen: "127.0.0.1:6767",
+              hostname: null,
+              pid: null,
+              home: "",
+              version: null,
+              desktopManaged: true,
+              error: null,
+            };
+          }
+          if (command === "get_desktop_settings") {
+            return {
+              releaseChannel: "stable",
+              daemon: { manageBuiltInDaemon: false, keepRunningAfterQuit: true },
+            };
+          }
+          if (command === "desktop_daemon_logs") {
+            return { logPath: "", contents: "" };
+          }
+          return null;
+        },
+        getPendingOpenProject: async () => null,
+        events: { on: async () => () => undefined },
+      };
+    }, serverId);
+
+    await gotoAppShell(page);
+    await openSettings(page);
+    await expectLocalHostEntryFirst(page, serverId);
+  });
+});

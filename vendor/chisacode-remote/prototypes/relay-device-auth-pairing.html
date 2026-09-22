@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode Relay 设备认证配对原型</title>
+    <style>
+      :root {
+        --bg: #fbfbfc;
+        --panel: #ffffff;
+        --panel-soft: #f7f7f8;
+        --panel-hover: #f1f2f4;
+        --text: #1e232b;
+        --muted: #657081;
+        --faint: #a3abb8;
+        --border: #dfe3e8;
+        --primary: #3a5ef0;
+        --primary-soft: #e8edfe;
+        --destructive: #dc5a62;
+        --destructive-soft: #fdecee;
+        --green: #1f8f4e;
+        --green-soft: #d9f6e4;
+        --amber: #a5761f;
+        --amber-soft: #fdf3dc;
+        --shadow: 0 16px 40px rgba(25, 32, 44, 0.14);
+        --radius-panel: 14px;
+        --radius-card: 12px;
+        --radius-chip: 999px;
+        font-family:
+          ui-sans-serif,
+          "Segoe UI",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background: var(--bg);
+        padding: 28px 18px 72px;
+      }
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+      .page {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .breadcrumb {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        margin: 0 0 22px;
+        color: var(--muted);
+        font-size: 13.5px;
+        line-height: 1.55;
+        max-width: 70ch;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 820px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .nav,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        box-shadow: 0 1px 2px rgba(25, 32, 44, 0.03);
+      }
+      .nav {
+        padding: 12px;
+        height: fit-content;
+      }
+      .nav-title {
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--muted);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 8px 10px 10px;
+      }
+      .nav button {
+        width: 100%;
+        text-align: left;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        border-radius: 10px;
+        padding: 10px 12px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .nav button:hover {
+        background: var(--panel-hover);
+      }
+      .nav button.active {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .nav .label {
+        font-size: 13.5px;
+        font-weight: 650;
+      }
+      .nav .hint {
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+      .nav button.active .hint {
+        color: #4d6ff1;
+      }
+      .panel {
+        padding: 18px;
+        min-height: 560px;
+      }
+      .screen {
+        display: none;
+      }
+      .screen.active {
+        display: block;
+      }
+      .screen-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .screen-title {
+        font-size: 17px;
+        font-weight: 700;
+        margin: 0;
+      }
+      .screen-sub {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: var(--radius-chip);
+        border: 1px solid var(--border);
+        padding: 3px 10px;
+        font-size: 11.5px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .chip.v2 {
+        color: var(--primary);
+        border-color: #c9d6fc;
+        background: var(--primary-soft);
+      }
+      .chip.legacy {
+        color: var(--amber);
+        border-color: #efd7a3;
+        background: var(--amber-soft);
+      }
+      .chip.danger {
+        color: var(--destructive);
+        border-color: #f3c1c5;
+        background: var(--destructive-soft);
+      }
+      .chip.ok {
+        color: var(--green);
+        border-color: #bfe6cd;
+        background: var(--green-soft);
+      }
+      .card {
+        border: 1px solid var(--border);
+        border-radius: var(--radius-card);
+        background: var(--panel-soft);
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 13.5px;
+        font-weight: 700;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.5;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .stack {
+        display: grid;
+        gap: 10px;
+      }
+      .btn {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 9px 12px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .btn:hover {
+        background: var(--panel-hover);
+      }
+      .btn.primary {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+      }
+      .btn.primary:hover {
+        filter: brightness(0.96);
+      }
+      .btn.danger {
+        background: var(--destructive-soft);
+        border-color: #f3c1c5;
+        color: var(--destructive);
+      }
+      .btn.ghost {
+        background: transparent;
+      }
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .field input,
+      .field textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: #fff;
+        color: var(--text);
+      }
+      .field textarea {
+        min-height: 88px;
+        resize: vertical;
+      }
+      .qr {
+        width: 168px;
+        height: 168px;
+        border-radius: 12px;
+        border: 1px dashed #c9d0da;
+        background:
+          linear-gradient(45deg, #eef1f5 25%, transparent 25%) 0 0 / 16px 16px,
+          linear-gradient(-45deg, #eef1f5 25%, transparent 25%) 0 0 / 16px 16px,
+          #fff;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+        padding: 10px;
+      }
+      .device-list {
+        display: grid;
+        gap: 8px;
+      }
+      .device {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #fff;
+      }
+      .device .meta {
+        min-width: 0;
+      }
+      .device .name {
+        font-size: 13.5px;
+        font-weight: 700;
+      }
+      .device .sub {
+        margin-top: 2px;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .banner {
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+      .banner.info {
+        background: var(--primary-soft);
+        color: #2b49c7;
+      }
+      .banner.warn {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+      .banner.error {
+        background: var(--destructive-soft);
+        color: var(--destructive);
+      }
+      .banner.ok {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+      .split {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 14px;
+        align-items: start;
+      }
+      @media (max-width: 640px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+        .qr {
+          width: 100%;
+          height: 180px;
+        }
+      }
+      .compact-note {
+        margin-top: 16px;
+        border-top: 1px dashed var(--border);
+        padding-top: 12px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .footer-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      .approval {
+        margin-top: 18px;
+        padding: 14px;
+        border: 1px solid #c9d6fc;
+        background: #f5f8ff;
+        border-radius: 12px;
+      }
+      .approval h2 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+      .approval ul {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 1.55;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="breadcrumb">prototypes / relay-device-auth-pairing · Phase 2 UI gate</div>
+      <h1>Relay 设备认证配对原型</h1>
+      <p class="lead">
+        覆盖计划阶段 2 要求的 UI
+        路径：首次配对、旧客户端被拒、升级后要求重配、设备撤销、错误恢复，以及 compact/native
+        可见控制。 本原型仅用于布局与文案审批；用户批准前不得实现 App UI。
+      </p>
+
+      <div class="grid">
+        <aside class="nav">
+          <div class="nav-title">场景</div>
+          <button class="active" data-screen="first-pair" type="button">
+            <span class="label">首次配对</span>
+            <span class="hint">扫码 / 粘贴 / deep link</span>
+          </button>
+          <button data-screen="legacy-reject" type="button">
+            <span class="label">旧客户端被拒</span>
+            <span class="hint">requireDeviceAuth=1</span>
+          </button>
+          <button data-screen="re-pair" type="button">
+            <span class="label">升级后重配</span>
+            <span class="hint">丢失/吊销后恢复</span>
+          </button>
+          <button data-screen="devices" type="button">
+            <span class="label">设备列表与撤销</span>
+            <span class="hint">daemon 本机设备管理</span>
+          </button>
+          <button data-screen="error-recovery" type="button">
+            <span class="label">错误恢复</span>
+            <span class="hint">token 过期 / 校验失败</span>
+          </button>
+          <button data-screen="compact" type="button">
+            <span class="label">Compact / Native</span>
+            <span class="hint">小屏可见控制</span>
+          </button>
+        </aside>
+
+        <main class="panel">
+          <!-- 1. First pair -->
+          <section class="screen active" id="first-pair">
+            <div class="screen-head">
+              <div>
+                <h2 class="screen-title">首次配对 · 新设备</h2>
+                <p class="screen-sub">
+                  Daemon 生成带 authBootstrap 的 offer；client 完成 pairing 后本地保存 device
+                  secret。
+                </p>
+              </div>
+              <span class="chip v2">security: v2</span>
+            </div>
+            <div class="banner info">
+              二维码/链接等同短期密码。成功配对后 token 立即失效，不会写入日志。
+            </div>
+            <div class="split">
+              <div class="qr">QR<br />#offer=…authBootstrap</div>
+              <div class="stack">
+                <div class="field">
+                  <label>粘贴配对链接</label>
+                  <textarea readonly>
+https://app.chisacode.sh/#offer=eyJ2IjoyLCJhdXRoQm9vdHN0cmFwIjp7InZlcnNpb24iOjEsInBhaXJpbmdUb2tlbiI6Ii4uLiJ9fQ</textarea
+                  >
+                </div>
+                <div class="row">
+                  <button class="btn primary" type="button">开始配对</button>
+                  <button class="btn" type="button">复制链接</button>
+                  <button class="btn ghost" type="button">用 deep link 打开 App</button>
+                </div>
+                <div class="card">
+                  <h3>成功后</h3>
+                  <p>
+                    设备显示为「已配对 · v2」。后续连接发送 HMAC proof；不再消费 bootstrap token。
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div class="compact-note">
+              Desktop / Browser / Mobile 共用同一 offer；移动端额外提供扫码入口，web 仅粘贴/deep
+              link。
+            </div>
+          </section>
+
+          <!-- 2. Legacy reject -->
+          <section class="screen" id="legacy-reject">
+            <div class="screen-head">
+              <div>
+                <h2 class="screen-title">旧客户端被拒</h2>
+                <p class="screen-sub">
+                  新 daemon 开启 CHISACODE_RELAY_REQUIRE_DEVICE_AUTH=1 时，不接受 offer-only hello。
+                </p>
+              </div>
+              <span class="chip danger">close 4401</span>
+            </div>
+            <div class="banner error">
+              需要升级应用并重新配对。当前客户端不支持设备认证，daemon 已拒绝未认证的 relay
+              session。
+            </div>
+            <div class="card">
+              <h3>用户可见原因</h3>
+              <p class="mono">Relay device auth required; upgrade and re-pair</p>
+            </div>
+            <div class="footer-actions">
+              <button class="btn primary" type="button">查看升级说明</button>
+              <button class="btn" type="button">改用本机直连</button>
+              <button class="btn ghost" type="button">复制诊断信息（无 secret）</button>
+            </div>
+            <div class="compact-note">
+              默认策略仍可 legacy 接受旧客户端并标记 security: legacy；强制模式才展示此屏。
+            </div>
+          </section>
+
+          <!-- 3. Re-pair -->
+          <section class="screen" id="re-pair">
+            <div class="screen-head">
+              <div>
+                <h2 class="screen-title">升级后要求重配</h2>
+                <p class="screen-sub">
+                  本地凭据损坏、设备被撤销、或 daemon 升级后要求 v2 时进入此路径。
+                </p>
+              </div>
+              <span class="chip legacy">local secret missing</span>
+            </div>
+            <div class="banner warn">
+              此主机上的设备凭据不可用或已失效。请使用 daemon 端新的配对码重新绑定。
+            </div>
+            <div class="stack">
+              <div class="card">
+                <h3>保留的主机信息</h3>
+                <p>
+                  serverId、relay endpoint、daemon public key 可保留；deviceId/deviceSecret
+                  必须清除后重配。
+                </p>
+              </div>
+              <div class="row">
+                <button class="btn primary" type="button">重新扫描 / 粘贴 offer</button>
+                <button class="btn danger" type="button">清除本地凭据</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 4. Devices revoke -->
+          <section class="screen" id="devices">
+            <div class="screen-head">
+              <div>
+                <h2 class="screen-title">设备列表与撤销</h2>
+                <p class="screen-sub">
+                  Daemon 本机设置页；只显示 device id / 标签 / 时间，不显示 secret。
+                </p>
+              </div>
+              <span class="chip ok">store: relay-devices.json</span>
+            </div>
+            <div class="device-list">
+              <div class="device">
+                <div class="meta">
+                  <div class="name">Ayase 的手机</div>
+                  <div class="sub mono">dev_8f2a… · 创建 2026-08-10 · 最近使用 2 分钟前</div>
+                </div>
+                <div class="row">
+                  <span class="chip v2">active</span>
+                  <button class="btn danger" type="button">撤销</button>
+                </div>
+              </div>
+              <div class="device">
+                <div class="meta">
+                  <div class="name">办公桌面</div>
+                  <div class="sub mono">dev_c11e… · 创建 2026-08-01 · 最近使用 3 天前</div>
+                </div>
+                <div class="row">
+                  <span class="chip v2">active</span>
+                  <button class="btn danger" type="button">撤销</button>
+                </div>
+              </div>
+              <div class="device">
+                <div class="meta">
+                  <div class="name">旧测试机</div>
+                  <div class="sub mono">dev_99aa… · 已撤销 2026-08-09</div>
+                </div>
+                <div class="row">
+                  <span class="chip danger">revoked</span>
+                  <button class="btn ghost" type="button" disabled>已撤销</button>
+                </div>
+              </div>
+            </div>
+            <div class="footer-actions">
+              <button class="btn primary" type="button">生成新配对码</button>
+              <button class="btn" type="button">刷新列表</button>
+            </div>
+            <div class="compact-note">
+              撤销后：该 deviceId 的 proof 全部失败；已连接 session 在下次 resume 时因 device
+              mismatch 被拒。
+            </div>
+          </section>
+
+          <!-- 5. Error recovery -->
+          <section class="screen" id="error-recovery">
+            <div class="screen-head">
+              <div>
+                <h2 class="screen-title">错误恢复</h2>
+                <p class="screen-sub">
+                  常见失败分类与可操作恢复动作；日志只含 reason code / device id。
+                </p>
+              </div>
+              <span class="chip">no secrets in logs</span>
+            </div>
+            <div class="stack">
+              <div class="card">
+                <h3>pairing token 过期 / 重放</h3>
+                <p>
+                  reason: <span class="mono">relay_pairing_token_invalid</span> · 动作：在 daemon
+                  重新生成 offer。
+                </p>
+              </div>
+              <div class="card">
+                <h3>HMAC proof 失败</h3>
+                <p>
+                  reason: <span class="mono">relay_device_auth_invalid</span> ·
+                  动作：清除本地凭据并重配；或检查系统时间。
+                </p>
+              </div>
+              <div class="card">
+                <h3>resume device mismatch</h3>
+                <p>
+                  reason: <span class="mono">relay_device_resume_mismatch</span> ·
+                  动作：使用原配对设备，或撤销后作为新设备配对。
+                </p>
+              </div>
+              <div class="card">
+                <h3>challenge 重放</h3>
+                <p>
+                  reason: 同一 challenge 二次使用被拒绝 · 动作：自动换 challenge
+                  重试一次，仍失败则重配。
+                </p>
+              </div>
+            </div>
+            <div class="footer-actions">
+              <button class="btn primary" type="button">重试连接</button>
+              <button class="btn" type="button">重新配对</button>
+              <button class="btn ghost" type="button">导出诊断（脱敏）</button>
+            </div>
+          </section>
+
+          <!-- 6. Compact/native -->
+          <section class="screen" id="compact">
+            <div class="screen-head">
+              <div>
+                <h2 class="screen-title">Compact / Native 可见控制</h2>
+                <p class="screen-sub">小屏不依赖 hover；主要动作始终可见。</p>
+              </div>
+              <span class="chip">compact form factor</span>
+            </div>
+            <div class="card" style="max-width: 380px; margin: 0 auto">
+              <div class="banner warn" style="margin-bottom: 10px">
+                需要重新配对才能继续使用远程 daemon。
+              </div>
+              <div class="stack">
+                <button class="btn primary" type="button" style="width: 100%">扫描二维码</button>
+                <button class="btn" type="button" style="width: 100%">粘贴配对链接</button>
+                <button class="btn" type="button" style="width: 100%">查看已配对设备</button>
+                <button class="btn danger" type="button" style="width: 100%">清除本地凭据</button>
+              </div>
+              <p class="screen-sub" style="margin-top: 12px">
+                Native：扫码始终显示；Web：扫码入口隐藏，粘贴/deep link 置顶。
+              </p>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <div class="approval">
+        <h2>需要你批准的内容（UI 实现门禁）</h2>
+        <ul>
+          <li>上述 6 个场景的信息架构与主按钮层级是否可接受</li>
+          <li>旧客户端被拒 / 重配 / 撤销 的文案是否准确（无 secret、强调升级与重配）</li>
+          <li>compact/native 始终可见控制是否满足触控场景</li>
+          <li>
+            批准后才允许改 packages/app 配对相关 UI；未批准前仅保留 protocol/server/client 非 UI
+            能力
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      const buttons = [...document.querySelectorAll(".nav button")];
+      const screens = [...document.querySelectorAll(".screen")];
+      function show(id) {
+        buttons.forEach((btn) => btn.classList.toggle("active", btn.dataset.screen === id));
+        screens.forEach((screen) => screen.classList.toggle("active", screen.id === id));
+      }
+      buttons.forEach((btn) => btn.addEventListener("click", () => show(btn.dataset.screen)));
+    </script>
+  </body>
+</html>

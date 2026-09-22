@@ -1,0 +1,65 @@
+/** Web SSE transport for page-owned client entry reconciliation and rebuilt code replacement. */
+import type { Context } from '@deepseek-ai/cordis'
+import type { PluginsEventParseResult } from '../events.ts'
+import { EVENTS_ENDPOINT, parsePluginsEventFrame } from '../events.ts'
+
+export type { PluginsEventFrame } from '../events.ts'
+export { EVENTS_ENDPOINT } from '../events.ts'
+
+/** Cordis plugin name. */
+export const name = 'client-hmr'
+
+/** Required service: the client module system whose entry controller handles received frames. */
+export const inject = ['modules']
+
+/**
+ * Whether the page authority is loopback. Duplicates the connection-package
+ * predicate so this immediately-tier plugin does not import another client
+ * plugin; a phone or relay origin must not hold `/plugins/events`.
+ */
+function pageIsLoopback(): boolean {
+  if (typeof location === 'undefined') return true
+  const hostname = location.hostname
+  if (hostname === 'localhost' || hostname === '[::1]') return true
+  const parts = hostname.split('.')
+  return parts.length === 4
+    && parts[0] === '127'
+    && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)
+}
+
+/**
+ * Forward graph snapshots and rebuilds to the page's shared serial controller.
+ * @param ctx - Plugin context with the client module system.
+ */
+export function apply(ctx: Context): void {
+  const entries = ctx.modules.entries
+  const handle = (frame: Extract<PluginsEventParseResult, { kind: 'frame' }>['frame']): void => {
+    const run = frame.type === 'graph'
+      ? Promise.resolve().then(() => entries.sync(frame.graph))
+      : entries.reload(frame.id, frame.rev)
+    void run.catch((error: unknown) => { ctx.logger.error(error) })
+  }
+
+  if (!pageIsLoopback()) return
+
+  ctx.effect(() => {
+    const source = new EventSource(EVENTS_ENDPOINT)
+    source.addEventListener('message', (event: MessageEvent<string>) => {
+      let value: unknown
+      try {
+        value = JSON.parse(event.data) as unknown
+      } catch {
+        // Wire boundary: a malformed transport frame is dropped loudly.
+        ctx.logger.warn(`client-hmr: unparseable event frame: ${event.data}`)
+        return
+      }
+      const parsed = parsePluginsEventFrame(value)
+      if (parsed.kind === 'invalid') {
+        ctx.logger.warn(`client-hmr: invalid event frame: ${event.data}`)
+      } else if (parsed.kind === 'frame') {
+        handle(parsed.frame)
+      }
+    })
+    return () => { source.close() }
+  }, 'client-hmr: event source')
+}

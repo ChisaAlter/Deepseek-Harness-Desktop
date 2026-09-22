@@ -1,0 +1,14 @@
+---
+description: Wallpaper gallery product — browse window owns all gallery settings
+alwaysApply: true
+---
+
+# Wallpaper gallery product
+
+Appearance wallpaper **row**: pick / browse / crop / frost / pixelate only. No source list, JSON URLs, or Bing switch on Appearance.
+
+**Browse** opens the gallery window (categories + search above, grid below). Favorite; click → confirm set wallpaper → Yes → crop. All source add / edit / delete stays in that window.
+
+Built-ins: Bing Daily + Wallhaven SFW (`purity=100`). User sources: named HTTPS JSON catalogs. Tabs = sources + 收藏. No Unsplash/Pexels/Pixabay keys, Timeline, or R18. Tokens / `ui-primitives` only; no `marketplace.css` hex.
+
+Full card: [docs/features/wallpaper-gallery.md](../../docs/features/wallpaper-gallery.md)

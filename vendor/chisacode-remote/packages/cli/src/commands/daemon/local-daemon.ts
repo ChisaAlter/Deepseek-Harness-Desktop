@@ -1,0 +1,714 @@
+import { spawnSync, type ChildProcess } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import {
+  getPidLockOwnerStatus,
+  loadConfig,
+  resolveChisaCodeHome,
+  spawnProcess,
+} from "@chisacode/server";
+import treeKill from "tree-kill";
+import { tryConnectToDaemon } from "../../utils/client.js";
+
+export interface DaemonStartOptions {
+  port?: string;
+  listen?: string;
+  home?: string;
+  foreground?: boolean;
+  relay?: boolean;
+  relayUseTls?: boolean;
+  mcp?: boolean;
+  injectMcp?: boolean;
+  hostnames?: string;
+}
+
+export interface LocalDaemonPidInfo {
+  pid: number;
+  startedAt?: string;
+  hostname?: string;
+  uid?: number;
+  listen?: string;
+  desktopManaged?: boolean;
+}
+
+export interface LocalDaemonState {
+  home: string;
+  listen: string;
+  relayEnabled: boolean;
+  relayEndpoint: string;
+  relayUseTls: boolean;
+  relayPublicUseTls: boolean;
+  logPath: string;
+  pidPath: string;
+  pidInfo: LocalDaemonPidInfo | null;
+  running: boolean;
+  stalePidFile: boolean;
+}
+
+export interface DetachedStartResult {
+  pid: number | null;
+  logPath: string;
+}
+
+export interface StopLocalDaemonOptions {
+  home?: string;
+  timeoutMs?: number;
+  killTimeoutMs?: number;
+  force?: boolean;
+}
+
+export interface StopLocalDaemonResult {
+  action: "stopped" | "not_running";
+  home: string;
+  pid: number | null;
+  forced: boolean;
+  message: string;
+}
+
+interface ProcessExitDetails {
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  error?: Error;
+}
+
+type DetachedStartupResult = { exitedEarly: false } | ({ exitedEarly: true } & ProcessExitDetails);
+
+export interface DetachedDaemonProcess extends Pick<ChildProcess, "once" | "pid" | "unref"> {}
+
+export interface ForegroundDaemonProcessResult {
+  status: number | null;
+  error?: Error;
+}
+
+export interface DaemonLaunchRuntime {
+  resolveRunnerEntry(): string;
+  resolveHome(env: NodeJS.ProcessEnv): string;
+  spawnDetached(
+    command: string,
+    args: string[],
+    options: Parameters<typeof spawnProcess>[2],
+  ): DetachedDaemonProcess;
+  spawnForeground(
+    command: string,
+    args: string[],
+    options: Parameters<typeof spawnSync>[2],
+  ): ForegroundDaemonProcessResult;
+}
+
+const DETACHED_STARTUP_GRACE_MS = 1200;
+const PID_POLL_INTERVAL_MS = 100;
+const DAEMON_LOG_FILENAME = "daemon.log";
+const DAEMON_PID_FILENAMES = ["chisacode.pid"] as const;
+
+export const DEFAULT_STOP_TIMEOUT_MS = 15_000;
+export const DEFAULT_KILL_TIMEOUT_MS = 3_000;
+
+const require = createRequire(import.meta.url);
+
+const defaultDaemonLaunchRuntime: DaemonLaunchRuntime = {
+  resolveRunnerEntry: resolveDaemonRunnerEntry,
+  resolveHome: resolveChisaCodeHome,
+  spawnDetached: spawnProcess,
+  spawnForeground: spawnSync,
+};
+
+const startupReady = (): DetachedStartupResult => ({ exitedEarly: false });
+
+const startupExited = (details: ProcessExitDetails): DetachedStartupResult => ({
+  exitedEarly: true,
+  ...details,
+});
+
+function envWithHome(home?: string): NodeJS.ProcessEnv {
+  if (!home) {
+    return process.env;
+  }
+
+  return { ...process.env, CHISACODE_HOME: home };
+}
+
+function buildRunnerArgs(options: DaemonStartOptions): string[] {
+  const args: string[] = [];
+  if (options.relay === false) {
+    args.push("--no-relay");
+  }
+  if (options.relayUseTls === true) {
+    args.push("--relay-use-tls");
+  }
+
+  if (options.mcp === false) {
+    args.push("--no-mcp");
+  }
+  if (options.injectMcp === false) {
+    args.push("--no-inject-mcp");
+  }
+
+  return args;
+}
+
+function buildChildEnv(options: DaemonStartOptions): NodeJS.ProcessEnv {
+  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  if (options.home) {
+    childEnv.CHISACODE_HOME = options.home;
+  }
+  if (options.listen) {
+    childEnv.CHISACODE_LISTEN = options.listen;
+  } else if (options.port) {
+    childEnv.CHISACODE_LISTEN = `127.0.0.1:${options.port}`;
+  }
+  if (options.hostnames) {
+    childEnv.CHISACODE_HOSTNAMES = options.hostnames;
+  }
+  if (options.relayUseTls === true) {
+    childEnv.CHISACODE_RELAY_USE_TLS = "true";
+  }
+  return childEnv;
+}
+
+function resolveServerRunnerFromDir(currentDir: string): string | null {
+  const packageJsonPath = path.join(currentDir, "package.json");
+  if (!existsSync(packageJsonPath)) return null;
+  try {
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as { name?: string };
+    if (packageJson.name !== "@chisacode/server") return null;
+    const distRunner = path.join(currentDir, "dist", "scripts", "supervisor-entrypoint.js");
+    if (existsSync(distRunner)) {
+      return distRunner;
+    }
+    return path.join(currentDir, "scripts", "supervisor-entrypoint.ts");
+  } catch {
+    return null;
+  }
+}
+
+function resolveDaemonRunnerEntry(): string {
+  const serverExportPath = require.resolve("@chisacode/server");
+  let currentDir = path.dirname(serverExportPath);
+
+  while (true) {
+    const entry = resolveServerRunnerFromDir(currentDir);
+    if (entry) {
+      return entry;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      break;
+    }
+    currentDir = parentDir;
+  }
+
+  throw new Error("Unable to resolve @chisacode/server package root for daemon runner");
+}
+
+function pidFilePath(chisacodeHome: string): string {
+  const pidFileName = DAEMON_PID_FILENAMES.find((fileName) =>
+    existsSync(path.join(chisacodeHome, fileName)),
+  );
+  return path.join(chisacodeHome, pidFileName ?? DAEMON_PID_FILENAMES[0]);
+}
+
+function resolveListenField(listen: unknown, sockPath: unknown): string | undefined {
+  if (typeof listen === "string") return listen;
+  if (typeof sockPath === "string") return sockPath;
+  return undefined;
+}
+
+function resolveStopMessage(
+  forced: boolean,
+  lifecycleRequested: boolean,
+  fallbackMessage: string | null | undefined,
+): string {
+  if (forced) return "Daemon owner process was force-stopped";
+  if (lifecycleRequested) return "Daemon stopped gracefully";
+  return fallbackMessage ?? "Daemon stopped via owner PID signal";
+}
+
+function getOwnerSignalRefusalMessage(
+  pid: number,
+  status: "mismatch" | "unknown" | "not_running",
+): string {
+  switch (status) {
+    case "mismatch":
+      return `Refusing to signal daemon PID ${pid}: owner identity mismatch`;
+    case "unknown":
+      return `Refusing to signal daemon PID ${pid}: owner identity could not be verified`;
+    case "not_running":
+      return `Refusing to signal daemon PID ${pid}: process is not running`;
+  }
+}
+
+async function getUnsafeOwnerSignalResult(
+  state: LocalDaemonState & { pidInfo: LocalDaemonPidInfo },
+): Promise<StopLocalDaemonResult | null> {
+  const ownerStatus = await getPidLockOwnerStatus(state.pidInfo);
+  if (ownerStatus === "match") {
+    return null;
+  }
+
+  return {
+    action: "not_running",
+    home: state.home,
+    pid: state.pidInfo.pid,
+    forced: false,
+    message: getOwnerSignalRefusalMessage(state.pidInfo.pid, ownerStatus),
+  };
+}
+
+function readPidFile(pidPath: string): LocalDaemonPidInfo | null {
+  try {
+    const parsed = JSON.parse(readFileSync(pidPath, "utf-8")) as Record<string, unknown>;
+    const pidValue = parsed.pid;
+    if (typeof pidValue !== "number" || !Number.isInteger(pidValue) || pidValue <= 0) {
+      return null;
+    }
+
+    return {
+      pid: pidValue,
+      startedAt: typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+      hostname: typeof parsed.hostname === "string" ? parsed.hostname : undefined,
+      uid: typeof parsed.uid === "number" ? parsed.uid : undefined,
+      listen: resolveListenField(parsed.listen, parsed.sockPath),
+      desktopManaged: parsed.desktopManaged === true ? true : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function tailFile(filePath: string, lines = 30): string | null {
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    return content.split("\n").filter(Boolean).slice(-lines).join("\n");
+  } catch {
+    return null;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function readNodeErrnoCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  return typeof error.code === "string" ? error.code : undefined;
+}
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    const code = readNodeErrnoCode(err);
+    if (code === "EPERM") {
+      return true;
+    }
+    return false;
+  }
+}
+
+function removeStaleDesktopManagedPidFile(pidPath: string, pidInfo: LocalDaemonPidInfo): boolean {
+  if (pidInfo.desktopManaged !== true) {
+    return false;
+  }
+  if (isProcessRunning(pidInfo.pid)) {
+    return false;
+  }
+
+  try {
+    unlinkSync(pidPath);
+    return true;
+  } catch (err) {
+    return readNodeErrnoCode(err) === "ENOENT";
+  }
+}
+
+function signalProcess(pid: number, signal: NodeJS.Signals): boolean {
+  try {
+    process.kill(pid, signal);
+    return true;
+  } catch (err) {
+    const code = readNodeErrnoCode(err);
+    if (code === "ESRCH") {
+      return false;
+    }
+    throw err;
+  }
+}
+
+function signalProcessSafely(pid: number, signal: NodeJS.Signals): boolean {
+  if (!Number.isInteger(pid) || pid <= 1 || pid === process.pid) {
+    return false;
+  }
+
+  try {
+    return signalProcess(pid, signal);
+  } catch (err) {
+    const code = readNodeErrnoCode(err);
+    if (code === "EPERM") {
+      return true;
+    }
+    throw err;
+  }
+}
+
+async function signalProcessTreeSafely(pid: number, signal: NodeJS.Signals): Promise<boolean> {
+  if (!Number.isInteger(pid) || pid <= 1 || pid === process.pid) {
+    return false;
+  }
+
+  return new Promise((resolve, reject) => {
+    treeKill(pid, signal, (err) => {
+      if (!err) {
+        resolve(true);
+        return;
+      }
+
+      const code = readNodeErrnoCode(err);
+      if (code === "ESRCH") {
+        resolve(false);
+        return;
+      }
+      if (code === "EPERM") {
+        resolve(true);
+        return;
+      }
+      reject(err);
+    });
+  });
+}
+
+async function signalProcessTreeOrOwnerSafely(
+  pid: number,
+  signal: NodeJS.Signals,
+): Promise<boolean> {
+  try {
+    return await signalProcessTreeSafely(pid, signal);
+  } catch {
+    return signalProcessSafely(pid, signal);
+  }
+}
+
+async function waitForPidExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  async function poll(): Promise<boolean> {
+    if (!isProcessRunning(pid)) return true;
+    if (Date.now() >= deadline) return !isProcessRunning(pid);
+    await sleep(PID_POLL_INTERVAL_MS);
+    return poll();
+  }
+  return poll();
+}
+
+type LifecycleShutdownAttempt = { requested: true } | { requested: false; reason: string };
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function resolveLocalChisaCodeHome(home?: string): string {
+  return resolveChisaCodeHome(envWithHome(home));
+}
+
+export function resolveTcpHostFromListen(listen: string): string | null {
+  const normalized = listen.trim();
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    normalized.startsWith("/") ||
+    normalized.startsWith("unix://") ||
+    normalized.startsWith("pipe://") ||
+    normalized.startsWith("\\\\.\\pipe\\") ||
+    /^[A-Za-z]:[/\\]/.test(normalized)
+  ) {
+    return null;
+  }
+
+  if (/^\d+$/.test(normalized)) {
+    return `127.0.0.1:${normalized}`;
+  }
+
+  if (normalized.includes(":")) {
+    return normalized;
+  }
+
+  return null;
+}
+
+export function resolveLocalDaemonState(options: { home?: string } = {}): LocalDaemonState {
+  const env: NodeJS.ProcessEnv = {
+    ...envWithHome(options.home),
+    // Status should reflect local persisted config + pid file, not inherited daemon env overrides.
+    // This is CLI-side defensive scrubbing; the daemon RPC is authoritative when available.
+    CHISACODE_LISTEN: undefined,
+    CHISACODE_HOSTNAMES: undefined,
+    CHISACODE_ALLOWED_HOSTS: undefined,
+    CHISACODE_RELAY_ENABLED: undefined,
+    CHISACODE_RELAY_ENDPOINT: undefined,
+    CHISACODE_RELAY_PUBLIC_ENDPOINT: undefined,
+    CHISACODE_RELAY_USE_TLS: undefined,
+    CHISACODE_RELAY_PUBLIC_USE_TLS: undefined,
+  };
+  const home = resolveChisaCodeHome(env);
+  const config = loadConfig(home, { env });
+  const pidPath = pidFilePath(home);
+  const logPath = path.join(home, DAEMON_LOG_FILENAME);
+  let pidInfo = existsSync(pidPath) ? readPidFile(pidPath) : null;
+  let running = pidInfo ? isProcessRunning(pidInfo.pid) : false;
+  if (pidInfo && !running && removeStaleDesktopManagedPidFile(pidPath, pidInfo)) {
+    pidInfo = null;
+    running = false;
+  }
+  const listen = pidInfo?.listen ?? config.listen;
+
+  return {
+    home,
+    listen,
+    relayEnabled: config.relayEnabled ?? true,
+    relayEndpoint: config.relayPublicEndpoint ?? config.relayEndpoint ?? "relay.chisacode.sh:443",
+    relayUseTls: config.relayUseTls ?? false,
+    relayPublicUseTls: config.relayPublicUseTls ?? config.relayUseTls ?? false,
+    logPath,
+    pidPath,
+    pidInfo,
+    running,
+    stalePidFile: Boolean(pidInfo) && !running,
+  };
+}
+
+export function tailDaemonLog(home?: string, lines = 30): string | null {
+  const logPath = path.join(resolveLocalChisaCodeHome(home), DAEMON_LOG_FILENAME);
+  return tailFile(logPath, lines);
+}
+
+export async function startLocalDaemonDetached(
+  options: DaemonStartOptions,
+  runtime: DaemonLaunchRuntime = defaultDaemonLaunchRuntime,
+): Promise<DetachedStartResult> {
+  if (options.listen && options.port) {
+    throw new Error("Cannot use --listen and --port together");
+  }
+
+  const daemonRunnerEntry = runtime.resolveRunnerEntry();
+  const childEnv = buildChildEnv(options);
+
+  const chisacodeHome = runtime.resolveHome(childEnv);
+  const logPath = path.join(chisacodeHome, DAEMON_LOG_FILENAME);
+  const child = runtime.spawnDetached(
+    process.execPath,
+    [...process.execArgv, daemonRunnerEntry, ...buildRunnerArgs(options)],
+    {
+      detached: true,
+      envMode: "internal",
+      env: childEnv,
+      stdio: ["ignore", "ignore", "ignore"],
+    },
+  );
+
+  child.unref();
+
+  const startup = await new Promise<DetachedStartupResult>((resolve) => {
+    let settled = false;
+
+    const finish = (value: DetachedStartupResult) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const timer = setTimeout(() => finish(startupReady()), DETACHED_STARTUP_GRACE_MS);
+
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      finish(startupExited({ code: null, signal: null, error }));
+    });
+
+    child.once("exit", (code, signal) => {
+      clearTimeout(timer);
+      finish(startupExited({ code, signal }));
+    });
+  });
+
+  if (startup.exitedEarly) {
+    const reason = startup.error
+      ? startup.error.message
+      : `exit code ${startup.code ?? "unknown"}${startup.signal ? ` (${startup.signal})` : ""}`;
+    const recentLogs = tailFile(logPath);
+    throw new Error(
+      [
+        `Daemon failed to start in background (${reason}).`,
+        recentLogs ? `Recent daemon logs:\n${recentLogs}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    );
+  }
+
+  return {
+    pid: child.pid ?? null,
+    logPath,
+  };
+}
+
+export function startLocalDaemonForeground(
+  options: DaemonStartOptions,
+  runtime: DaemonLaunchRuntime = defaultDaemonLaunchRuntime,
+): number {
+  if (options.listen && options.port) {
+    throw new Error("Cannot use --listen and --port together");
+  }
+
+  const daemonRunnerEntry = runtime.resolveRunnerEntry();
+  const childEnv = buildChildEnv(options);
+  const result = runtime.spawnForeground(
+    process.execPath,
+    [...process.execArgv, daemonRunnerEntry, ...buildRunnerArgs(options)],
+    {
+      env: childEnv,
+      stdio: "inherit",
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return result.status ?? 1;
+}
+
+async function requestLifecycleShutdown(
+  state: LocalDaemonState,
+  timeoutMs: number,
+): Promise<LifecycleShutdownAttempt> {
+  const host = resolveTcpHostFromListen(state.listen);
+  if (!host) {
+    return {
+      requested: false,
+      reason: "daemon listen target is not TCP, falling back to owner PID signal",
+    };
+  }
+
+  const client = await tryConnectToDaemon({ host, timeout: Math.min(timeoutMs, 5000) });
+  if (!client) {
+    return {
+      requested: false,
+      reason: `daemon websocket at ${host} is not reachable, falling back to owner PID signal`,
+    };
+  }
+
+  try {
+    await client.shutdownServer();
+    return { requested: true };
+  } catch (error) {
+    // The daemon can terminate the socket mid-request once shutdown takes
+    // effect, so a lost response is not a failed shutdown. Wait briefly for
+    // the daemon PID to exit before falling back to a process signal.
+    const daemonPid = state.pidInfo?.pid;
+    if (daemonPid !== undefined && daemonPid !== null) {
+      const exited = await waitForPidExit(daemonPid, Math.min(2000, timeoutMs));
+      if (exited) {
+        return { requested: true };
+      }
+    }
+    return {
+      requested: false,
+      reason: `daemon lifecycle shutdown request failed (${getErrorMessage(
+        error,
+      )}), falling back to owner PID signal`,
+    };
+  } finally {
+    await client.close().catch(() => undefined);
+  }
+}
+
+export async function stopLocalDaemon(
+  options: StopLocalDaemonOptions = {},
+): Promise<StopLocalDaemonResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_STOP_TIMEOUT_MS;
+  const killTimeoutMs = options.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS;
+  const state = resolveLocalDaemonState({ home: options.home });
+
+  if (!state.pidInfo || !state.running) {
+    const staleSuffix =
+      state.stalePidFile && state.pidInfo ? ` (stale PID file for ${state.pidInfo.pid})` : "";
+    return {
+      action: "not_running",
+      home: state.home,
+      pid: state.pidInfo?.pid ?? null,
+      forced: false,
+      message: `Daemon is not running${staleSuffix}`,
+    };
+  }
+
+  const pid = state.pidInfo.pid;
+  const shutdownAttempt = await requestLifecycleShutdown(state, timeoutMs);
+  const lifecycleRequested = shutdownAttempt.requested;
+  const fallbackMessage = shutdownAttempt.requested ? null : shutdownAttempt.reason;
+  let forced = false;
+  if (!lifecycleRequested) {
+    const unsafeOwnerResult = await getUnsafeOwnerSignalResult({
+      ...state,
+      pidInfo: state.pidInfo,
+    });
+    if (unsafeOwnerResult) {
+      return unsafeOwnerResult;
+    }
+
+    const signaled = await signalProcessTreeOrOwnerSafely(pid, "SIGTERM");
+    if (!signaled) {
+      return {
+        action: "not_running",
+        home: state.home,
+        pid,
+        forced: false,
+        message: "Daemon process was already stopped",
+      };
+    }
+  }
+
+  let stopped = await waitForPidExit(pid, timeoutMs);
+  if (!stopped && options.force) {
+    const unsafeOwnerResult = await getUnsafeOwnerSignalResult({
+      ...state,
+      pidInfo: state.pidInfo,
+    });
+    if (unsafeOwnerResult) {
+      return unsafeOwnerResult;
+    }
+
+    const signaled = await signalProcessTreeOrOwnerSafely(pid, "SIGKILL");
+    if (!signaled) {
+      return {
+        action: "not_running",
+        home: state.home,
+        pid,
+        forced: false,
+        message: "Daemon process was already stopped before the force signal",
+      };
+    }
+    forced = true;
+    stopped = await waitForPidExit(pid, killTimeoutMs);
+  }
+
+  if (!stopped) {
+    throw new Error(
+      `Timed out waiting for daemon PID ${pid} to stop after ${Math.ceil(timeoutMs / 1000)}s`,
+    );
+  }
+
+  return {
+    action: "stopped",
+    home: state.home,
+    pid,
+    forced,
+    message: resolveStopMessage(forced, lifecycleRequested, fallbackMessage),
+  };
+}

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-15-continuable-activation-capacity.md
+2026-09-15-continuable-activation-capacity.md: a6403d10fd4bcfb73147a0482293429e108939e2
+2026-09-15-continuable-activation-capacity.zh.md: 75cf6ca7a352d503cfffef29416c0990f98185db

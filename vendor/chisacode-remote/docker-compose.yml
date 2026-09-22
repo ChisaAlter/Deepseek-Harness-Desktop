@@ -1,0 +1,37 @@
+# ChisaCode daemon 容器编排模板。
+# 用法：docker compose up -d
+# 远程暴露前请务必设置 CHISACODE_PASSWORD（参见 SECURITY.md「Local daemon trust boundary」）。
+
+services:
+  chisacode-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chisacode-daemon:latest
+    container_name: chisacode-daemon
+    restart: unless-stopped
+    ports:
+      # 默认仅绑 loopback；远程暴露请改为 "6767:6767" 并必填 CHISACODE_PASSWORD。
+      - "127.0.0.1:6767:6767"
+    volumes:
+      - chisacode-data:/data
+    environment:
+      # 守护进程监听地址，容器内需绑定 0.0.0.0 才能被端口映射访问。
+      CHISACODE_LISTEN: "0.0.0.0:6767"
+      # 可选共享密钥（明文，启动后由 daemon bcrypt 哈希）。
+      # 留空则任何能访问 6767 的客户端均可控制 daemon，强烈建议填入强随机值。
+      CHISACODE_PASSWORD: ""
+      # Host 头白名单（逗号分隔）。容器内访问场景如需通过自定义域名可在此追加。
+      # 设为 "true" 表示禁用白名单（仅在受信网络隔离下使用）。
+      CHISACODE_HOSTNAMES: ""
+      # 日志级别：trace | debug | info | warn | error
+      CHISACODE_LOG_LEVEL: "info"
+      # 以下为 provider CLI 运行所需的环境变量示例（按需填入）。
+      # OPENAI_API_KEY: ""
+      # ANTHROPIC_API_KEY: ""
+      # CLAUDE_CODE_OAUTH_TOKEN: ""
+    # 数据目录权限已由 Dockerfile 中的 node 用户预置；不额外指定 user 以保持默认。
+
+volumes:
+  chisacode-data:
+    name: chisacode-data

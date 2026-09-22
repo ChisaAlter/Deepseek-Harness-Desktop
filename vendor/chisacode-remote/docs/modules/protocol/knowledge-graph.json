@@ -1,0 +1,1927 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-08-22T09:09:45.623Z",
+  "generator": "scripts/generate-modular-knowledge-graphs.mjs",
+  "module": {
+    "id": "protocol",
+    "packageName": "@chisacode/protocol",
+    "path": "packages/protocol",
+    "description": "ChisaCode shared protocol schemas and wire types",
+    "ownership": [
+      "WebSocket message schemas",
+      "provider config schemas",
+      "binary frame codecs",
+      "append-only compatibility rules"
+    ]
+  },
+  "entrypoints": {
+    "main": null,
+    "types": null,
+    "exports": {
+      "./agent-attention-notification": {
+        "types": "./dist/agent-attention-notification.d.ts",
+        "default": "./dist/agent-attention-notification.js"
+      },
+      "./agent/attachments": {
+        "types": "./dist/agent/attachments.d.ts",
+        "default": "./dist/agent/attachments.js"
+      },
+      "./agent/extensions": {
+        "types": "./dist/agent/extensions.d.ts",
+        "default": "./dist/agent/extensions.js"
+      },
+      "./agent/messages": {
+        "types": "./dist/agent/messages.d.ts",
+        "default": "./dist/agent/messages.js"
+      },
+      "./agent/state": {
+        "types": "./dist/agent/state.d.ts",
+        "default": "./dist/agent/state.js"
+      },
+      "./agent-labels": {
+        "types": "./dist/agent-labels.d.ts",
+        "default": "./dist/agent-labels.js"
+      },
+      "./agent-lifecycle": {
+        "types": "./dist/agent-lifecycle.d.ts",
+        "default": "./dist/agent-lifecycle.js"
+      },
+      "./agent-presets": {
+        "types": "./dist/agent-presets.d.ts",
+        "default": "./dist/agent-presets.js"
+      },
+      "./agent-state-bucket": {
+        "types": "./dist/agent-state-bucket.d.ts",
+        "default": "./dist/agent-state-bucket.js"
+      },
+      "./agent-title-limits": {
+        "types": "./dist/agent-title-limits.d.ts",
+        "default": "./dist/agent-title-limits.js"
+      },
+      "./agent-types": {
+        "types": "./dist/agent-types.d.ts",
+        "default": "./dist/agent-types.js"
+      },
+      "./automation/messages": {
+        "types": "./dist/automation/messages.d.ts",
+        "default": "./dist/automation/messages.js"
+      },
+      "./binary-frames/file-transfer": {
+        "types": "./dist/binary-frames/file-transfer.d.ts",
+        "default": "./dist/binary-frames/file-transfer.js"
+      },
+      "./binary-frames/index": {
+        "types": "./dist/binary-frames/index.d.ts",
+        "default": "./dist/binary-frames/index.js"
+      },
+      "./binary-frames/terminal": {
+        "types": "./dist/binary-frames/terminal.d.ts",
+        "default": "./dist/binary-frames/terminal.js"
+      },
+      "./branch-slug": {
+        "types": "./dist/branch-slug.d.ts",
+        "default": "./dist/branch-slug.js"
+      },
+      "./chat/rpc-schemas": {
+        "types": "./dist/chat/rpc-schemas.d.ts",
+        "default": "./dist/chat/rpc-schemas.js"
+      },
+      "./chat/types": {
+        "types": "./dist/chat/types.d.ts",
+        "default": "./dist/chat/types.js"
+      },
+      "./cindy/messages": {
+        "types": "./dist/cindy/messages.d.ts",
+        "default": "./dist/cindy/messages.js"
+      },
+      "./chisacode-config-schema": {
+        "types": "./dist/chisacode-config-schema.d.ts",
+        "default": "./dist/chisacode-config-schema.js"
+      },
+      "./checkout/messages": {
+        "types": "./dist/checkout/messages.d.ts",
+        "default": "./dist/checkout/messages.js"
+      },
+      "./client-capabilities": {
+        "types": "./dist/client-capabilities.d.ts",
+        "default": "./dist/client-capabilities.js"
+      },
+      "./connection-offer": {
+        "types": "./dist/connection-offer.d.ts",
+        "default": "./dist/connection-offer.js"
+      },
+      "./relay-device-auth": {
+        "types": "./dist/relay-device-auth.d.ts",
+        "default": "./dist/relay-device-auth.js"
+      },
+      "./daemon-endpoints": {
+        "types": "./dist/daemon-endpoints.d.ts",
+        "default": "./dist/daemon-endpoints.js"
+      },
+      "./daemon/messages": {
+        "types": "./dist/daemon/messages.d.ts",
+        "default": "./dist/daemon/messages.js"
+      },
+      "./error-utils": {
+        "types": "./dist/error-utils.d.ts",
+        "default": "./dist/error-utils.js"
+      },
+      "./generative-ui/component-manifest": {
+        "types": "./dist/generative-ui/component-manifest.d.ts",
+        "default": "./dist/generative-ui/component-manifest.js"
+      },
+      "./generative-ui/rpc-schemas": {
+        "types": "./dist/generative-ui/rpc-schemas.d.ts",
+        "default": "./dist/generative-ui/rpc-schemas.js"
+      },
+      "./git-remote": {
+        "types": "./dist/git-remote.d.ts",
+        "default": "./dist/git-remote.js"
+      },
+      "./goal/rpc-schemas": {
+        "types": "./dist/goal/rpc-schemas.d.ts",
+        "default": "./dist/goal/rpc-schemas.js"
+      },
+      "./host-connection-schema": {
+        "types": "./dist/host-connection-schema.d.ts",
+        "default": "./dist/host-connection-schema.js"
+      },
+      "./importable-providers": {
+        "types": "./dist/importable-providers.d.ts",
+        "default": "./dist/importable-providers.js"
+      },
+      "./literal-union": {
+        "types": "./dist/literal-union.d.ts",
+        "default": "./dist/literal-union.js"
+      },
+      "./learn/rpc-schemas": {
+        "types": "./dist/learn/rpc-schemas.d.ts",
+        "default": "./dist/learn/rpc-schemas.js"
+      },
+      "./loop/rpc-schemas": {
+        "types": "./dist/loop/rpc-schemas.d.ts",
+        "default": "./dist/loop/rpc-schemas.js"
+      },
+      "./messages": {
+        "types": "./dist/messages.d.ts",
+        "default": "./dist/messages.js"
+      },
+      "./migration/rpc-schemas": {
+        "types": "./dist/migration/rpc-schemas.d.ts",
+        "default": "./dist/migration/rpc-schemas.js"
+      },
+      "./path-utils": {
+        "types": "./dist/path-utils.d.ts",
+        "default": "./dist/path-utils.js"
+      },
+      "./provider-config": {
+        "types": "./dist/provider-config.d.ts",
+        "default": "./dist/provider-config.js"
+      },
+      "./provider-manifest": {
+        "types": "./dist/provider-manifest.d.ts",
+        "default": "./dist/provider-manifest.js"
+      },
+      "./provider/messages": {
+        "types": "./dist/provider/messages.d.ts",
+        "default": "./dist/provider/messages.js"
+      },
+      "./project-context/rpc-schemas": {
+        "types": "./dist/project-context/rpc-schemas.d.ts",
+        "default": "./dist/project-context/rpc-schemas.js"
+      },
+      "./schedule/rpc-schemas": {
+        "types": "./dist/schedule/rpc-schemas.d.ts",
+        "default": "./dist/schedule/rpc-schemas.js"
+      },
+      "./schedule/types": {
+        "types": "./dist/schedule/types.d.ts",
+        "default": "./dist/schedule/types.js"
+      },
+      "./snapshot/rpc-schemas": {
+        "types": "./dist/snapshot/rpc-schemas.d.ts",
+        "default": "./dist/snapshot/rpc-schemas.js"
+      },
+      "./terminal-input-mode": {
+        "types": "./dist/terminal-input-mode.d.ts",
+        "default": "./dist/terminal-input-mode.js"
+      },
+      "./terminal-key-input": {
+        "types": "./dist/terminal-key-input.d.ts",
+        "default": "./dist/terminal-key-input.js"
+      },
+      "./terminal/messages": {
+        "types": "./dist/terminal/messages.d.ts",
+        "default": "./dist/terminal/messages.js"
+      },
+      "./terminal-snapshot": {
+        "types": "./dist/terminal-snapshot.d.ts",
+        "default": "./dist/terminal-snapshot.js"
+      },
+      "./terminal-stream-protocol": {
+        "types": "./dist/terminal-stream-protocol.d.ts",
+        "default": "./dist/terminal-stream-protocol.js"
+      },
+      "./team/rpc-schemas": {
+        "types": "./dist/team/rpc-schemas.d.ts",
+        "default": "./dist/team/rpc-schemas.js"
+      },
+      "./tool-call-display": {
+        "types": "./dist/tool-call-display.d.ts",
+        "default": "./dist/tool-call-display.js"
+      },
+      "./tool-name-normalization": {
+        "types": "./dist/tool-name-normalization.d.ts",
+        "default": "./dist/tool-name-normalization.js"
+      },
+      "./usage/messages": {
+        "types": "./dist/usage/messages.d.ts",
+        "default": "./dist/usage/messages.js"
+      },
+      "./voice/messages": {
+        "types": "./dist/voice/messages.d.ts",
+        "default": "./dist/voice/messages.js"
+      },
+      "./workspace/messages": {
+        "types": "./dist/workspace/messages.d.ts",
+        "default": "./dist/workspace/messages.js"
+      }
+    },
+    "scripts": {
+      "build": "node -e \"require('node:fs').rmSync('dist',{ recursive: true, force: true })\" && tsc -p tsconfig.json --incremental false",
+      "prepack": "npm run build",
+      "typecheck": "tsgo --noEmit",
+      "test": "vitest run"
+    }
+  },
+  "stats": {
+    "files": 109,
+    "categories": {
+      "config": 4,
+      "docs": 1,
+      "test": 48,
+      "source": 56
+    },
+    "internalImportEdges": 136,
+    "workspaceDependencies": [],
+    "externalDependencies": [
+      "@chisacode/protocol",
+      "node:fs",
+      "node:path",
+      "node:url",
+      "vitest",
+      "zod"
+    ],
+    "unresolvedInternalImports": 0
+  },
+  "nodes": [
+    {
+      "id": "file:packages/protocol/package.json",
+      "type": "config",
+      "path": "packages/protocol/package.json",
+      "lines": 259,
+      "imports": ["node:fs"]
+    },
+    {
+      "id": "file:packages/protocol/README.md",
+      "type": "docs",
+      "path": "packages/protocol/README.md",
+      "lines": 13,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/agent-attention-notification.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent-attention-notification.test.ts",
+      "lines": 98,
+      "imports": ["./agent-attention-notification.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent-attention-notification.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-attention-notification.ts",
+      "lines": 211,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/agent-feature-schemas.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent-feature-schemas.test.ts",
+      "lines": 180,
+      "imports": ["./messages.js", "./provider/messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent-labels.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-labels.ts",
+      "lines": 119,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/agent-lifecycle.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-lifecycle.ts",
+      "lines": 10,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/agent-presets.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent-presets.test.ts",
+      "lines": 9,
+      "imports": ["./agent-presets.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent-presets.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-presets.ts",
+      "lines": 61,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent-state-bucket.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent-state-bucket.test.ts",
+      "lines": 93,
+      "imports": ["./agent-state-bucket.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent-state-bucket.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-state-bucket.ts",
+      "lines": 56,
+      "imports": ["./agent-lifecycle.js", "./messages.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent-title-limits.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-title-limits.ts",
+      "lines": 3,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/agent-types.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent-types.ts",
+      "lines": 564,
+      "imports": ["./agent-labels.js", "./agent/attachments.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/attachments.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent/attachments.test.ts",
+      "lines": 33,
+      "imports": ["../messages.js", "./attachments.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/attachments.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent/attachments.ts",
+      "lines": 86,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/extensions.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent/extensions.test.ts",
+      "lines": 74,
+      "imports": ["../messages.js", "./extensions.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/extensions.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent/extensions.ts",
+      "lines": 438,
+      "imports": ["../provider-manifest.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent/messages.test.ts",
+      "lines": 256,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent/messages.ts",
+      "lines": 797,
+      "imports": [
+        "../agent-labels.js",
+        "../agent-presets.js",
+        "../agent-title-limits.js",
+        "../provider-manifest.js",
+        "../provider/messages.js",
+        "../workspace/messages.js",
+        "./attachments.js",
+        "./extensions.js",
+        "./state.js",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/state.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/agent/state.test.ts",
+      "lines": 113,
+      "imports": ["../messages.js", "./state.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/agent/state.ts",
+      "type": "source",
+      "path": "packages/protocol/src/agent/state.ts",
+      "lines": 463,
+      "imports": [
+        "../agent-labels.js",
+        "../agent-lifecycle.js",
+        "../agent-presets.js",
+        "../agent-types.js",
+        "../provider-manifest.js",
+        "../provider/messages.js",
+        "../workspace/messages.js",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/automation/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/automation/messages.test.ts",
+      "lines": 58,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/automation/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/automation/messages.ts",
+      "lines": 176,
+      "imports": [
+        "../chat/rpc-schemas.js",
+        "../loop/rpc-schemas.js",
+        "../schedule/rpc-schemas.js",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/demux.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/binary-frames/demux.test.ts",
+      "lines": 54,
+      "imports": ["./index.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/demux.ts",
+      "type": "source",
+      "path": "packages/protocol/src/binary-frames/demux.ts",
+      "lines": 36,
+      "imports": ["./file-transfer.js", "./terminal.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/file-transfer.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/binary-frames/file-transfer.test.ts",
+      "lines": 155,
+      "imports": ["./index.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/file-transfer.ts",
+      "type": "source",
+      "path": "packages/protocol/src/binary-frames/file-transfer.ts",
+      "lines": 167,
+      "imports": ["./terminal.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/index.ts",
+      "type": "source",
+      "path": "packages/protocol/src/binary-frames/index.ts",
+      "lines": 4,
+      "imports": ["./demux.js", "./file-transfer.js", "./terminal.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/terminal.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/binary-frames/terminal.test.ts",
+      "lines": 115,
+      "imports": ["./index.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/binary-frames/terminal.ts",
+      "type": "source",
+      "path": "packages/protocol/src/binary-frames/terminal.ts",
+      "lines": 134,
+      "imports": ["../messages.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/branch-slug.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/branch-slug.test.ts",
+      "lines": 52,
+      "imports": ["./branch-slug.js", "node:fs", "node:path", "node:url", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/branch-slug.ts",
+      "type": "source",
+      "path": "packages/protocol/src/branch-slug.ts",
+      "lines": 62,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/chat/rpc-schemas.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/chat/rpc-schemas.test.ts",
+      "lines": 24,
+      "imports": ["./rpc-schemas.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/chat/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/chat/rpc-schemas.ts",
+      "lines": 120,
+      "imports": ["./types.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/chat/types.ts",
+      "type": "source",
+      "path": "packages/protocol/src/chat/types.ts",
+      "lines": 31,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/checkout/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/checkout/messages.test.ts",
+      "lines": 56,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/checkout/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/checkout/messages.ts",
+      "lines": 796,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/chisacode-config-schema.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/chisacode-config-schema.test.ts",
+      "lines": 158,
+      "imports": ["@chisacode/protocol/chisacode-config-schema", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/chisacode-config-schema.ts",
+      "type": "config",
+      "path": "packages/protocol/src/chisacode-config-schema.ts",
+      "lines": 99,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/cindy-exports.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/cindy-exports.test.ts",
+      "lines": 35,
+      "imports": ["./client-capabilities.js", "node:fs", "node:path", "node:url", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/cindy/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/cindy/messages.ts",
+      "lines": 166,
+      "imports": [
+        "../goal/rpc-schemas.js",
+        "../learn/rpc-schemas.js",
+        "../migration/rpc-schemas.js",
+        "../project-context/rpc-schemas.js",
+        "../snapshot/rpc-schemas.js",
+        "../team/rpc-schemas.js",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/client-capabilities.ts",
+      "type": "source",
+      "path": "packages/protocol/src/client-capabilities.ts",
+      "lines": 15,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/connection-offer.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/connection-offer.test.ts",
+      "lines": 96,
+      "imports": ["./connection-offer.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/connection-offer.ts",
+      "type": "source",
+      "path": "packages/protocol/src/connection-offer.ts",
+      "lines": 68,
+      "imports": ["./relay-device-auth.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/daemon-endpoints.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/daemon-endpoints.test.ts",
+      "lines": 214,
+      "imports": ["./daemon-endpoints.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/daemon-endpoints.ts",
+      "type": "source",
+      "path": "packages/protocol/src/daemon-endpoints.ts",
+      "lines": 263,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/daemon/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/daemon/messages.test.ts",
+      "lines": 85,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/daemon/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/daemon/messages.ts",
+      "lines": 333,
+      "imports": [
+        "../agent/extensions.js",
+        "../chisacode-config-schema.js",
+        "../provider-config.js",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/error-utils.ts",
+      "type": "source",
+      "path": "packages/protocol/src/error-utils.ts",
+      "lines": 28,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/generative-ui/component-manifest.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/generative-ui/component-manifest.test.ts",
+      "lines": 61,
+      "imports": ["./component-manifest.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/generative-ui/component-manifest.ts",
+      "type": "source",
+      "path": "packages/protocol/src/generative-ui/component-manifest.ts",
+      "lines": 136,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/generative-ui/rpc-schemas.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/generative-ui/rpc-schemas.test.ts",
+      "lines": 170,
+      "imports": ["./rpc-schemas.js", "@chisacode/protocol/messages", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/generative-ui/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/generative-ui/rpc-schemas.ts",
+      "lines": 51,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/git-remote.ts",
+      "type": "source",
+      "path": "packages/protocol/src/git-remote.ts",
+      "lines": 87,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/goal/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/goal/rpc-schemas.ts",
+      "lines": 126,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/host-connection-schema.ts",
+      "type": "source",
+      "path": "packages/protocol/src/host-connection-schema.ts",
+      "lines": 13,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/importable-providers.ts",
+      "type": "source",
+      "path": "packages/protocol/src/importable-providers.ts",
+      "lines": 7,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/learn/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/learn/rpc-schemas.ts",
+      "lines": 165,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/literal-union.ts",
+      "type": "source",
+      "path": "packages/protocol/src/literal-union.ts",
+      "lines": 4,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/loop/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/loop/rpc-schemas.ts",
+      "lines": 196,
+      "imports": ["@chisacode/protocol/provider-manifest", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.attachments.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.attachments.test.ts",
+      "lines": 328,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.checkout-pr-schema.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.checkout-pr-schema.test.ts",
+      "lines": 190,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.create-agent-client-message-id.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.create-agent-client-message-id.test.ts",
+      "lines": 57,
+      "imports": ["./messages", "@chisacode/protocol/agent-title-limits", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.create-agent-worktree-autoarchive.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.create-agent-worktree-autoarchive.test.ts",
+      "lines": 94,
+      "imports": ["./agent-labels.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.list-commands.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.list-commands.test.ts",
+      "lines": 53,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.providers-snapshot.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.providers-snapshot.test.ts",
+      "lines": 247,
+      "imports": ["./messages.js", "./provider/messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.pull-request-timeline.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.pull-request-timeline.test.ts",
+      "lines": 282,
+      "imports": ["./messages.js", "vitest", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.rename-entities.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.rename-entities.test.ts",
+      "lines": 141,
+      "imports": ["./messages.js", "vitest", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.stream-parsing.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.stream-parsing.test.ts",
+      "lines": 406,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.terminal-restore.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.terminal-restore.test.ts",
+      "lines": 62,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.test.ts",
+      "lines": 570,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.tool-call-schema.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.tool-call-schema.test.ts",
+      "lines": 199,
+      "imports": ["./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/messages.ts",
+      "lines": 644,
+      "imports": [
+        "./agent/attachments.js",
+        "./agent/extensions.js",
+        "./agent/messages.js",
+        "./agent/state.js",
+        "./automation/messages.js",
+        "./checkout/messages.js",
+        "./cindy/messages.js",
+        "./client-capabilities.js",
+        "./daemon/messages.js",
+        "./provider/messages.js",
+        "./terminal/messages.js",
+        "./usage/messages.js",
+        "./voice/messages.js",
+        "./workspace/messages.js",
+        "@chisacode/protocol/chisacode-config-schema",
+        "@chisacode/protocol/generative-ui/rpc-schemas",
+        "@chisacode/protocol/provider-config",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/messages.workspaces.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/messages.workspaces.test.ts",
+      "lines": 775,
+      "imports": ["./messages.js", "./provider/messages.js", "vitest", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/migration/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/migration/rpc-schemas.ts",
+      "lines": 74,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/package-exports.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/package-exports.test.ts",
+      "lines": 125,
+      "imports": ["../package.json", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/path-utils.ts",
+      "type": "source",
+      "path": "packages/protocol/src/path-utils.ts",
+      "lines": 18,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/project-context/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/project-context/rpc-schemas.ts",
+      "lines": 78,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/provider-config.ts",
+      "type": "config",
+      "path": "packages/protocol/src/provider-config.ts",
+      "lines": 367,
+      "imports": ["./agent-types.js", "./provider-manifest.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/provider-manifest.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/provider-manifest.test.ts",
+      "lines": 23,
+      "imports": ["./importable-providers.js", "./provider-manifest.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "source",
+      "path": "packages/protocol/src/provider-manifest.ts",
+      "lines": 297,
+      "imports": ["./agent-types.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/provider/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/provider/messages.test.ts",
+      "lines": 107,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/provider/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/provider/messages.ts",
+      "lines": 504,
+      "imports": ["../agent-types.js", "../provider-manifest.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/relay-device-auth.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/relay-device-auth.test.ts",
+      "lines": 77,
+      "imports": ["./connection-offer.js", "./relay-device-auth.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/relay-device-auth.ts",
+      "type": "source",
+      "path": "packages/protocol/src/relay-device-auth.ts",
+      "lines": 97,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/schedule/rpc-schemas.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/schedule/rpc-schemas.test.ts",
+      "lines": 18,
+      "imports": ["./rpc-schemas.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/schedule/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/schedule/rpc-schemas.ts",
+      "lines": 184,
+      "imports": ["./types.js", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/schedule/types.ts",
+      "type": "source",
+      "path": "packages/protocol/src/schedule/types.ts",
+      "lines": 118,
+      "imports": ["@chisacode/protocol/provider-manifest", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/snapshot/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/snapshot/rpc-schemas.ts",
+      "lines": 114,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/team/rpc-schemas.ts",
+      "type": "source",
+      "path": "packages/protocol/src/team/rpc-schemas.ts",
+      "lines": 231,
+      "imports": ["@chisacode/protocol/provider-manifest", "zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-input-mode.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/terminal-input-mode.test.ts",
+      "lines": 82,
+      "imports": ["./terminal-input-mode.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-input-mode.ts",
+      "type": "source",
+      "path": "packages/protocol/src/terminal-input-mode.ts",
+      "lines": 195,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-key-input.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/terminal-key-input.test.ts",
+      "lines": 58,
+      "imports": ["./terminal-key-input.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-key-input.ts",
+      "type": "source",
+      "path": "packages/protocol/src/terminal-key-input.ts",
+      "lines": 234,
+      "imports": ["./terminal-input-mode.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-snapshot.ts",
+      "type": "source",
+      "path": "packages/protocol/src/terminal-snapshot.ts",
+      "lines": 206,
+      "imports": ["./terminal/messages.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-stream-protocol.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/terminal-stream-protocol.test.ts",
+      "lines": 37,
+      "imports": ["./binary-frames/index.js", "./terminal-stream-protocol.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal-stream-protocol.ts",
+      "type": "source",
+      "path": "packages/protocol/src/terminal-stream-protocol.ts",
+      "lines": 2,
+      "imports": ["./binary-frames/terminal.js"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/terminal/messages.test.ts",
+      "lines": 51,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/terminal/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/terminal/messages.ts",
+      "lines": 273,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/tool-call-display.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/tool-call-display.test.ts",
+      "lines": 204,
+      "imports": ["./tool-call-display.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/tool-call-display.ts",
+      "type": "source",
+      "path": "packages/protocol/src/tool-call-display.ts",
+      "lines": 171,
+      "imports": [
+        "./agent-types.js",
+        "./path-utils.js",
+        "@chisacode/protocol/tool-name-normalization"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/src/tool-name-normalization.ts",
+      "type": "source",
+      "path": "packages/protocol/src/tool-name-normalization.ts",
+      "lines": 95,
+      "imports": []
+    },
+    {
+      "id": "file:packages/protocol/src/usage/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/usage/messages.test.ts",
+      "lines": 123,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/usage/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/usage/messages.ts",
+      "lines": 118,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/voice/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/voice/messages.test.ts",
+      "lines": 135,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/voice/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/voice/messages.ts",
+      "lines": 213,
+      "imports": ["zod/v3"]
+    },
+    {
+      "id": "file:packages/protocol/src/workspace/messages.test.ts",
+      "type": "test",
+      "path": "packages/protocol/src/workspace/messages.test.ts",
+      "lines": 54,
+      "imports": ["../messages.js", "./messages.js", "vitest"]
+    },
+    {
+      "id": "file:packages/protocol/src/workspace/messages.ts",
+      "type": "source",
+      "path": "packages/protocol/src/workspace/messages.ts",
+      "lines": 721,
+      "imports": [
+        "../agent/attachments.js",
+        "../checkout/messages.js",
+        "../literal-union.js",
+        "zod/v3"
+      ]
+    },
+    {
+      "id": "file:packages/protocol/tsconfig.json",
+      "type": "config",
+      "path": "packages/protocol/tsconfig.json",
+      "lines": 26,
+      "imports": []
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:packages/protocol/src/agent-attention-notification.test.ts",
+      "target": "file:packages/protocol/src/agent-attention-notification.ts",
+      "type": "imports",
+      "specifier": "./agent-attention-notification.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-feature-schemas.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-feature-schemas.test.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "./provider/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-presets.test.ts",
+      "target": "file:packages/protocol/src/agent-presets.ts",
+      "type": "imports",
+      "specifier": "./agent-presets.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-state-bucket.test.ts",
+      "target": "file:packages/protocol/src/agent-state-bucket.ts",
+      "type": "imports",
+      "specifier": "./agent-state-bucket.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-state-bucket.ts",
+      "target": "file:packages/protocol/src/agent-lifecycle.ts",
+      "type": "imports",
+      "specifier": "./agent-lifecycle.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-state-bucket.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-types.ts",
+      "target": "file:packages/protocol/src/agent-labels.ts",
+      "type": "imports",
+      "specifier": "./agent-labels.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent-types.ts",
+      "target": "file:packages/protocol/src/agent/attachments.ts",
+      "type": "imports",
+      "specifier": "./agent/attachments.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/attachments.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/attachments.test.ts",
+      "target": "file:packages/protocol/src/agent/attachments.ts",
+      "type": "imports",
+      "specifier": "./attachments.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/extensions.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/extensions.test.ts",
+      "target": "file:packages/protocol/src/agent/extensions.ts",
+      "type": "imports",
+      "specifier": "./extensions.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/extensions.ts",
+      "target": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "imports",
+      "specifier": "../provider-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.test.ts",
+      "target": "file:packages/protocol/src/agent/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/agent-labels.ts",
+      "type": "imports",
+      "specifier": "../agent-labels.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/agent-presets.ts",
+      "type": "imports",
+      "specifier": "../agent-presets.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/agent-title-limits.ts",
+      "type": "imports",
+      "specifier": "../agent-title-limits.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "imports",
+      "specifier": "../provider-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "../provider/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/workspace/messages.ts",
+      "type": "imports",
+      "specifier": "../workspace/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/agent/attachments.ts",
+      "type": "imports",
+      "specifier": "./attachments.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/agent/extensions.ts",
+      "type": "imports",
+      "specifier": "./extensions.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/messages.ts",
+      "target": "file:packages/protocol/src/agent/state.ts",
+      "type": "imports",
+      "specifier": "./state.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.test.ts",
+      "target": "file:packages/protocol/src/agent/state.ts",
+      "type": "imports",
+      "specifier": "./state.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/agent-labels.ts",
+      "type": "imports",
+      "specifier": "../agent-labels.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/agent-lifecycle.ts",
+      "type": "imports",
+      "specifier": "../agent-lifecycle.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/agent-presets.ts",
+      "type": "imports",
+      "specifier": "../agent-presets.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/agent-types.ts",
+      "type": "imports",
+      "specifier": "../agent-types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "imports",
+      "specifier": "../provider-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "../provider/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/agent/state.ts",
+      "target": "file:packages/protocol/src/workspace/messages.ts",
+      "type": "imports",
+      "specifier": "../workspace/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/automation/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/automation/messages.test.ts",
+      "target": "file:packages/protocol/src/automation/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/automation/messages.ts",
+      "target": "file:packages/protocol/src/chat/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../chat/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/automation/messages.ts",
+      "target": "file:packages/protocol/src/loop/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../loop/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/automation/messages.ts",
+      "target": "file:packages/protocol/src/schedule/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../schedule/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/demux.test.ts",
+      "target": "file:packages/protocol/src/binary-frames/index.ts",
+      "type": "imports",
+      "specifier": "./index.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/demux.ts",
+      "target": "file:packages/protocol/src/binary-frames/file-transfer.ts",
+      "type": "imports",
+      "specifier": "./file-transfer.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/demux.ts",
+      "target": "file:packages/protocol/src/binary-frames/terminal.ts",
+      "type": "imports",
+      "specifier": "./terminal.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/file-transfer.test.ts",
+      "target": "file:packages/protocol/src/binary-frames/index.ts",
+      "type": "imports",
+      "specifier": "./index.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/file-transfer.ts",
+      "target": "file:packages/protocol/src/binary-frames/terminal.ts",
+      "type": "imports",
+      "specifier": "./terminal.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/index.ts",
+      "target": "file:packages/protocol/src/binary-frames/demux.ts",
+      "type": "imports",
+      "specifier": "./demux.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/index.ts",
+      "target": "file:packages/protocol/src/binary-frames/file-transfer.ts",
+      "type": "imports",
+      "specifier": "./file-transfer.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/index.ts",
+      "target": "file:packages/protocol/src/binary-frames/terminal.ts",
+      "type": "imports",
+      "specifier": "./terminal.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/terminal.test.ts",
+      "target": "file:packages/protocol/src/binary-frames/index.ts",
+      "type": "imports",
+      "specifier": "./index.js"
+    },
+    {
+      "source": "file:packages/protocol/src/binary-frames/terminal.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/branch-slug.test.ts",
+      "target": "file:packages/protocol/src/branch-slug.ts",
+      "type": "imports",
+      "specifier": "./branch-slug.js"
+    },
+    {
+      "source": "file:packages/protocol/src/chat/rpc-schemas.test.ts",
+      "target": "file:packages/protocol/src/chat/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "./rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/chat/rpc-schemas.ts",
+      "target": "file:packages/protocol/src/chat/types.ts",
+      "type": "imports",
+      "specifier": "./types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/checkout/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/checkout/messages.test.ts",
+      "target": "file:packages/protocol/src/checkout/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy-exports.test.ts",
+      "target": "file:packages/protocol/src/client-capabilities.ts",
+      "type": "imports",
+      "specifier": "./client-capabilities.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy/messages.ts",
+      "target": "file:packages/protocol/src/goal/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../goal/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy/messages.ts",
+      "target": "file:packages/protocol/src/learn/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../learn/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy/messages.ts",
+      "target": "file:packages/protocol/src/migration/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../migration/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy/messages.ts",
+      "target": "file:packages/protocol/src/project-context/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../project-context/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy/messages.ts",
+      "target": "file:packages/protocol/src/snapshot/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../snapshot/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/cindy/messages.ts",
+      "target": "file:packages/protocol/src/team/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "../team/rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/connection-offer.test.ts",
+      "target": "file:packages/protocol/src/connection-offer.ts",
+      "type": "imports",
+      "specifier": "./connection-offer.js"
+    },
+    {
+      "source": "file:packages/protocol/src/connection-offer.ts",
+      "target": "file:packages/protocol/src/relay-device-auth.ts",
+      "type": "imports",
+      "specifier": "./relay-device-auth.js"
+    },
+    {
+      "source": "file:packages/protocol/src/daemon-endpoints.test.ts",
+      "target": "file:packages/protocol/src/daemon-endpoints.ts",
+      "type": "imports",
+      "specifier": "./daemon-endpoints.js"
+    },
+    {
+      "source": "file:packages/protocol/src/daemon/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/daemon/messages.test.ts",
+      "target": "file:packages/protocol/src/daemon/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/daemon/messages.ts",
+      "target": "file:packages/protocol/src/agent/extensions.ts",
+      "type": "imports",
+      "specifier": "../agent/extensions.js"
+    },
+    {
+      "source": "file:packages/protocol/src/daemon/messages.ts",
+      "target": "file:packages/protocol/src/chisacode-config-schema.ts",
+      "type": "imports",
+      "specifier": "../chisacode-config-schema.js"
+    },
+    {
+      "source": "file:packages/protocol/src/daemon/messages.ts",
+      "target": "file:packages/protocol/src/provider-config.ts",
+      "type": "imports",
+      "specifier": "../provider-config.js"
+    },
+    {
+      "source": "file:packages/protocol/src/generative-ui/component-manifest.test.ts",
+      "target": "file:packages/protocol/src/generative-ui/component-manifest.ts",
+      "type": "imports",
+      "specifier": "./component-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/generative-ui/rpc-schemas.test.ts",
+      "target": "file:packages/protocol/src/generative-ui/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "./rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.attachments.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.checkout-pr-schema.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.create-agent-client-message-id.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.create-agent-worktree-autoarchive.test.ts",
+      "target": "file:packages/protocol/src/agent-labels.ts",
+      "type": "imports",
+      "specifier": "./agent-labels.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.create-agent-worktree-autoarchive.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.list-commands.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.providers-snapshot.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.providers-snapshot.test.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "./provider/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.pull-request-timeline.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.rename-entities.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.stream-parsing.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.terminal-restore.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.tool-call-schema.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/agent/attachments.ts",
+      "type": "imports",
+      "specifier": "./agent/attachments.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/agent/extensions.ts",
+      "type": "imports",
+      "specifier": "./agent/extensions.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/agent/messages.ts",
+      "type": "imports",
+      "specifier": "./agent/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/agent/state.ts",
+      "type": "imports",
+      "specifier": "./agent/state.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/automation/messages.ts",
+      "type": "imports",
+      "specifier": "./automation/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/checkout/messages.ts",
+      "type": "imports",
+      "specifier": "./checkout/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/cindy/messages.ts",
+      "type": "imports",
+      "specifier": "./cindy/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/client-capabilities.ts",
+      "type": "imports",
+      "specifier": "./client-capabilities.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/daemon/messages.ts",
+      "type": "imports",
+      "specifier": "./daemon/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "./provider/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/terminal/messages.ts",
+      "type": "imports",
+      "specifier": "./terminal/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/usage/messages.ts",
+      "type": "imports",
+      "specifier": "./usage/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/voice/messages.ts",
+      "type": "imports",
+      "specifier": "./voice/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.ts",
+      "target": "file:packages/protocol/src/workspace/messages.ts",
+      "type": "imports",
+      "specifier": "./workspace/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.workspaces.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/messages.workspaces.test.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "./provider/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/package-exports.test.ts",
+      "target": "file:packages/protocol/package.json",
+      "type": "imports",
+      "specifier": "../package.json"
+    },
+    {
+      "source": "file:packages/protocol/src/provider-config.ts",
+      "target": "file:packages/protocol/src/agent-types.ts",
+      "type": "imports",
+      "specifier": "./agent-types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider-config.ts",
+      "target": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "imports",
+      "specifier": "./provider-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider-manifest.test.ts",
+      "target": "file:packages/protocol/src/importable-providers.ts",
+      "type": "imports",
+      "specifier": "./importable-providers.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider-manifest.test.ts",
+      "target": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "imports",
+      "specifier": "./provider-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider-manifest.ts",
+      "target": "file:packages/protocol/src/agent-types.ts",
+      "type": "imports",
+      "specifier": "./agent-types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider/messages.test.ts",
+      "target": "file:packages/protocol/src/provider/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider/messages.ts",
+      "target": "file:packages/protocol/src/agent-types.ts",
+      "type": "imports",
+      "specifier": "../agent-types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/provider/messages.ts",
+      "target": "file:packages/protocol/src/provider-manifest.ts",
+      "type": "imports",
+      "specifier": "../provider-manifest.js"
+    },
+    {
+      "source": "file:packages/protocol/src/relay-device-auth.test.ts",
+      "target": "file:packages/protocol/src/connection-offer.ts",
+      "type": "imports",
+      "specifier": "./connection-offer.js"
+    },
+    {
+      "source": "file:packages/protocol/src/relay-device-auth.test.ts",
+      "target": "file:packages/protocol/src/relay-device-auth.ts",
+      "type": "imports",
+      "specifier": "./relay-device-auth.js"
+    },
+    {
+      "source": "file:packages/protocol/src/schedule/rpc-schemas.test.ts",
+      "target": "file:packages/protocol/src/schedule/rpc-schemas.ts",
+      "type": "imports",
+      "specifier": "./rpc-schemas.js"
+    },
+    {
+      "source": "file:packages/protocol/src/schedule/rpc-schemas.ts",
+      "target": "file:packages/protocol/src/schedule/types.ts",
+      "type": "imports",
+      "specifier": "./types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-input-mode.test.ts",
+      "target": "file:packages/protocol/src/terminal-input-mode.ts",
+      "type": "imports",
+      "specifier": "./terminal-input-mode.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-key-input.test.ts",
+      "target": "file:packages/protocol/src/terminal-key-input.ts",
+      "type": "imports",
+      "specifier": "./terminal-key-input.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-key-input.ts",
+      "target": "file:packages/protocol/src/terminal-input-mode.ts",
+      "type": "imports",
+      "specifier": "./terminal-input-mode.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-snapshot.ts",
+      "target": "file:packages/protocol/src/terminal/messages.ts",
+      "type": "imports",
+      "specifier": "./terminal/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-stream-protocol.test.ts",
+      "target": "file:packages/protocol/src/binary-frames/index.ts",
+      "type": "imports",
+      "specifier": "./binary-frames/index.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-stream-protocol.test.ts",
+      "target": "file:packages/protocol/src/terminal-stream-protocol.ts",
+      "type": "imports",
+      "specifier": "./terminal-stream-protocol.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal-stream-protocol.ts",
+      "target": "file:packages/protocol/src/binary-frames/terminal.ts",
+      "type": "imports",
+      "specifier": "./binary-frames/terminal.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/terminal/messages.test.ts",
+      "target": "file:packages/protocol/src/terminal/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/tool-call-display.test.ts",
+      "target": "file:packages/protocol/src/tool-call-display.ts",
+      "type": "imports",
+      "specifier": "./tool-call-display.js"
+    },
+    {
+      "source": "file:packages/protocol/src/tool-call-display.ts",
+      "target": "file:packages/protocol/src/agent-types.ts",
+      "type": "imports",
+      "specifier": "./agent-types.js"
+    },
+    {
+      "source": "file:packages/protocol/src/tool-call-display.ts",
+      "target": "file:packages/protocol/src/path-utils.ts",
+      "type": "imports",
+      "specifier": "./path-utils.js"
+    },
+    {
+      "source": "file:packages/protocol/src/usage/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/usage/messages.test.ts",
+      "target": "file:packages/protocol/src/usage/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/voice/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/voice/messages.test.ts",
+      "target": "file:packages/protocol/src/voice/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/workspace/messages.test.ts",
+      "target": "file:packages/protocol/src/messages.ts",
+      "type": "imports",
+      "specifier": "../messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/workspace/messages.test.ts",
+      "target": "file:packages/protocol/src/workspace/messages.ts",
+      "type": "imports",
+      "specifier": "./messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/workspace/messages.ts",
+      "target": "file:packages/protocol/src/agent/attachments.ts",
+      "type": "imports",
+      "specifier": "../agent/attachments.js"
+    },
+    {
+      "source": "file:packages/protocol/src/workspace/messages.ts",
+      "target": "file:packages/protocol/src/checkout/messages.ts",
+      "type": "imports",
+      "specifier": "../checkout/messages.js"
+    },
+    {
+      "source": "file:packages/protocol/src/workspace/messages.ts",
+      "target": "file:packages/protocol/src/literal-union.ts",
+      "type": "imports",
+      "specifier": "../literal-union.js"
+    }
+  ],
+  "unresolvedInternalImports": []
+}

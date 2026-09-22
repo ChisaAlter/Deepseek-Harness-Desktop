@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>壁纸图库 · 设计稿</title>
+  <style>
+    :root {
+      --dsw-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --ds-transition-duration: 0.2s;
+      --ds-transition-duration-fast: 0.1s;
+      --dsw-mask-blur: blur(2px);
+      --dsw-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
+      --dsw-shadow-lv3: 0 0 1px 0 rgba(0, 0, 0, 0.2), 0 0 4px 0 rgba(0, 0, 0, 0.02), 0 12px 32px 0 rgba(0, 0, 0, 0.08);
+      --dsw-static-deepseek-50: rgb(237, 243, 254);
+      --dsw-static-deepseek-100: rgb(228, 237, 253);
+      --dsw-static-deepseek-500: rgb(65, 118, 230);
+      --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+      --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+      --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+      --dsw-static-neutral-bluish-75: rgb(241, 243, 245);
+      --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+      --dsw-static-neutral-bluish-150: rgb(233, 236, 242);
+      --dsw-static-neutral-bluish-200: rgb(225, 229, 238);
+      --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+      --dsw-static-neutral-bluish-500: rgb(151, 157, 166);
+      --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+      --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+      --dsw-static-neutral-bluish-750: rgb(67, 69, 74);
+      --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+      --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+      --dsw-static-neutral-bluish-875: rgb(35, 35, 36);
+      --dsw-static-neutral-bluish-900: rgb(27, 27, 28);
+      --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
+      --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+      --dsw-static-red-600: rgb(236, 19, 19);
+    }
+    body {
+      --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.24);
+      --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+      --dsw-alias-border-inverted: rgba(0, 0, 0, 0);
+      --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+      --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+      --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+      --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-button-ghost-active-border: var(--dsw-static-neutral-bluish-500);
+      --dsw-alias-button-ghost-active-fill: var(--dsw-static-neutral-bluish-100);
+      --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
+      --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-750);
+      --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+      --dsw-alias-interactive-bg-active: rgba(38, 49, 72, 0.1);
+      --dsw-alias-label-dimmed: var(--dsw-static-neutral-bluish-200);
+      --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-00);
+      --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+      --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+      --dsw-alias-glass-opacity: 80%;
+      --dsw-specific-bubble: var(--dsw-static-deepseek-50);
+      --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-50);
+      --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-deepseek-100);
+      --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-75);
+      --dsw-specific-input-major: color-mix(in srgb, var(--dsw-static-neutral-bluish-00) 80%, transparent);
+    }
+    html[data-ds-dark-theme] body {
+      --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+      --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
+      --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+      --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+      --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
+      --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-800);
+      --dsw-alias-border-inverted: rgba(255, 255, 255, 0.06);
+      --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
+      --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+      --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+      --dsw-alias-brand-primary: var(--dsw-static-neutral-bluish-50);
+      --dsw-alias-button-ghost-active-border: var(--dsw-static-neutral-bluish-600);
+      --dsw-alias-button-ghost-active-fill: var(--dsw-static-neutral-bluish-750);
+      --dsw-alias-button-primary-hover: var(--dsw-static-neutral-bluish-100);
+      --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+      --dsw-alias-interactive-bg-active: rgba(255, 255, 255, 0.14);
+      --dsw-alias-label-dimmed: var(--dsw-static-neutral-bluish-750);
+      --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+      --dsw-alias-label-primary-foreground: var(--dsw-static-neutral-bluish-1000);
+      --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+      --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+      --dsw-specific-bubble: var(--dsw-static-neutral-bluish-850);
+      --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-900);
+      --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-neutral-bluish-800);
+      --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-850);
+      --dsw-specific-input-major: color-mix(in srgb, var(--dsw-static-neutral-bluish-850) 80%, transparent);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: var(--dsw-font-family);
+      font-size: 14px;
+      line-height: 22px;
+      color: var(--dsw-alias-label-primary);
+      background: var(--dsw-alias-bg-base);
+    }
+    button, input, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      height: 100%;
+      background:
+        linear-gradient(color-mix(in srgb, var(--dsw-alias-bg-base) 72%, transparent), color-mix(in srgb, var(--dsw-alias-bg-base) 72%, transparent)),
+        url("https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1800&q=60") center / cover;
+    }
+    .sidebar {
+      background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 82%, transparent);
+      border-right: 1px solid var(--dsw-alias-border-l1);
+      padding: 16px 12px;
+    }
+    .brand {
+      margin: 0 8px 16px;
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 500;
+    }
+    .session {
+      height: 40px;
+      padding: 9px 12px;
+      border-radius: 12px;
+      background: var(--dsw-specific-sidebar-nav-item-active-accent);
+    }
+    .canvas { display: flex; flex-direction: column; justify-content: flex-end; padding: 24px 32px 20px; min-width: 0; }
+    .bubble {
+      align-self: flex-end;
+      max-width: 420px;
+      padding: 10px 14px;
+      border-radius: 16px;
+      background: var(--dsw-specific-bubble);
+    }
+    .composer {
+      margin-top: 16px;
+      height: 44px;
+      border-radius: 16px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      background: var(--dsw-specific-input-major);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 1000;
+    }
+    .overlay.open { display: flex; }
+    .overlay .mask {
+      position: absolute;
+      inset: 0;
+      background: var(--dsw-alias-bg-mask-1);
+      backdrop-filter: var(--dsw-mask-blur);
+    }
+    #confirm-mask, #source-mask, #crop-mask { z-index: 1100; }
+
+    .panel {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      width: 800px;
+      height: min(800px, calc(100vh - 48px));
+      max-width: calc(100vw - 48px);
+      overflow: hidden;
+      border-radius: 24px;
+      background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) var(--dsw-alias-glass-opacity), transparent);
+      box-shadow: var(--dsw-shadow-lv3);
+    }
+    .nav {
+      flex: none;
+      width: 188px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 22px 12px 0;
+    }
+    .nav-title {
+      padding: 0 12px;
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 500;
+    }
+    .nav-list { display: flex; flex-direction: column; gap: 4px; }
+    .nav-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 40px;
+      padding: 9px 16px 9px 12px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      text-align: left;
+    }
+    .nav-cell:hover { background: var(--dsw-specific-sidebar-nav-item-hover); }
+    .nav-cell.active { background: var(--dsw-specific-sidebar-nav-item-active-accent); }
+    .content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .content-head {
+      display: flex;
+      justify-content: flex-end;
+      height: 54px;
+      padding: 20px 14px 8px 10px;
+    }
+    .options { flex: 1; min-height: 0; padding: 0 24px 24px; overflow: auto; display: flex; flex-direction: column; gap: 28px; }
+
+    .block { display: flex; flex-direction: column; gap: 12px; }
+    .heading { margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; }
+    .hint { margin: 0; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+    .row-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .value { font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .cubes { display: flex; gap: 8px; }
+    .cube {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 20px 16px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 16px;
+      background: transparent;
+    }
+    .cube:hover:not(.selected) { background: var(--dsw-alias-interactive-bg-hover); }
+    .cube.selected {
+      background: var(--dsw-alias-bg-module-platform);
+      border-color: var(--dsw-static-neutral-bluish-400);
+    }
+
+    .preview {
+      height: 88px;
+      border-radius: 12px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      background: url("https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=60") center / cover;
+    }
+    .slider {
+      appearance: none;
+      width: 100%;
+      height: 22px;
+      margin: 0;
+      background: transparent;
+    }
+    .slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background:
+        linear-gradient(var(--dsw-alias-brand-primary), var(--dsw-alias-brand-primary)) 0 0 / var(--fill, 24%) 100% no-repeat,
+        var(--dsw-alias-bg-layer-2);
+      box-shadow: inset 0 0 0 1px var(--dsw-alias-border-l1);
+    }
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      margin-top: -5px;
+      border-radius: 999px;
+      background: var(--dsw-static-neutral-bluish-00);
+      border: 2px solid var(--dsw-alias-brand-primary);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 36px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: 18px;
+      background: transparent;
+      font-size: 14px;
+      line-height: 22px;
+    }
+    .btn-primary { background: var(--dsw-alias-button-primary-fill); color: var(--dsw-alias-label-primary-foreground); }
+    .btn-primary:hover { background: var(--dsw-alias-button-primary-hover); }
+    .btn-outline { border: 1px solid var(--dsw-alias-border-l2); }
+    .btn-outline:hover, .btn-ghost:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .btn-sm { height: 28px; padding: 0 10px; border-radius: 14px; font-size: 12px; line-height: 18px; }
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--dsw-alias-label-secondary);
+    }
+    .icon-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+    .dialog {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      width: min(380px, 100%);
+      overflow: hidden;
+      border: 1px solid var(--dsw-alias-border-inverted);
+      border-radius: 24px;
+      background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) var(--dsw-alias-glass-opacity), transparent);
+      box-shadow: var(--dsw-shadow-lv3);
+    }
+    .dialog.gallery {
+      width: min(880px, calc(100vw - 48px));
+      height: min(720px, calc(100vh - 48px));
+    }
+    .dialog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 22px 14px 12px 24px;
+    }
+    .dialog-head h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 500;
+    }
+    .head-actions { display: flex; align-items: center; gap: 8px; }
+    .dialog-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      flex: 1;
+      padding: 8px 24px 24px;
+    }
+    .dialog-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 24px 24px;
+    }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; }
+    .tabs, .chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+    .tab, .chip {
+      height: 24px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--dsw-alias-label-secondary);
+      background: var(--dsw-alias-bg-layer-2);
+    }
+    .tab:hover, .chip:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .tab[aria-selected="true"], .chip[aria-pressed="true"] {
+      color: var(--dsw-alias-label-primary);
+      background: var(--dsw-alias-button-ghost-active-fill);
+      box-shadow: inset 0 0 0 1px var(--dsw-alias-button-ghost-active-border);
+    }
+    .search {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 32px;
+      width: min(240px, 100%);
+      padding: 0 8px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 8px;
+      background: var(--dsw-alias-bg-layer-1);
+    }
+    .search:focus-within { border-color: var(--dsw-alias-brand-primary); }
+    .search svg { flex: none; color: var(--dsw-alias-label-tertiary); }
+    .search input {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+    }
+    .search input::placeholder { color: var(--dsw-alias-label-dimmed); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+    }
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid var(--dsw-alias-border-l1);
+      border-radius: 14px;
+      background: var(--dsw-alias-bg-layer-1);
+      text-align: left;
+      transition: border-color var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+        box-shadow var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+    }
+    .card:hover, .card:focus-visible {
+      border-color: var(--dsw-alias-border-l2);
+      box-shadow: var(--dsw-shadow-lv2);
+    }
+    .card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      background: var(--dsw-alias-bg-base);
+    }
+    .meta { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 10px; min-width: 0; }
+    .title, .copy { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .title { font-size: 12px; line-height: 18px; }
+    .copy { font-size: 11px; line-height: 16px; color: var(--dsw-alias-label-secondary); }
+    .star {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 72%, transparent);
+      color: var(--dsw-alias-label-primary);
+    }
+    .star:hover { background: var(--dsw-alias-interactive-bg-active); }
+
+    .source-list { display: flex; flex-direction: column; gap: 4px; }
+    .source-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      align-items: center;
+      gap: 8px;
+      height: 40px;
+      padding: 0 8px 0 12px;
+      border-radius: 12px;
+    }
+    .source-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .kind {
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      line-height: 24px;
+      color: var(--dsw-alias-label-secondary);
+      background: var(--dsw-alias-bg-layer-2);
+    }
+    .field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+    .field input, .field select {
+      height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 8px;
+      background: var(--dsw-alias-bg-layer-1);
+      color: var(--dsw-alias-label-primary);
+    }
+    .confirm-shot {
+      height: 120px;
+      border-radius: 12px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      background: center / cover no-repeat;
+    }
+    .crop-frame {
+      display: grid;
+      place-items: center;
+      height: 320px;
+      overflow: hidden;
+      border: 1px solid var(--dsw-alias-border-l2);
+      border-radius: 8px;
+      background: var(--dsw-alias-bg-base);
+    }
+    .crop-frame img { width: 100%; height: 100%; object-fit: cover; }
+    #gallery-browse, #gallery-sources { display: flex; flex-direction: column; gap: 12px; min-height: 0; flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <p class="brand">DeepSeek Harness</p>
+      <div class="session">新会话</div>
+    </aside>
+    <main class="canvas">
+      <div class="bubble">把这张湖景设成背景。</div>
+      <div class="composer"></div>
+    </main>
+  </div>
+
+  <div class="overlay open" id="settings-mask">
+    <div class="mask"></div>
+    <div class="panel">
+      <nav class="nav">
+        <div class="nav-title">设置</div>
+        <div class="nav-list">
+          <button type="button" class="nav-cell active">外观</button>
+          <button type="button" class="nav-cell" disabled>通用</button>
+          <button type="button" class="nav-cell" disabled>模型</button>
+          <button type="button" class="nav-cell" disabled>插件</button>
+        </div>
+      </nav>
+      <div class="content">
+        <div class="content-head">
+          <button type="button" class="icon-btn" aria-label="关闭设置">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+        </div>
+        <div class="options">
+          <section class="block">
+            <h2 class="heading">色制</h2>
+            <p class="hint">选择现在使用浅色半、深色半，还是跟随系统。</p>
+            <div class="cubes">
+              <button type="button" class="cube selected" data-scheme="light">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M3.8 12.2l1.1-1.1M11.1 4.9l1.1-1.1" stroke="currentColor" stroke-width="1.5"/></svg>
+                浅色
+              </button>
+              <button type="button" class="cube" data-scheme="dark">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10.2 2.6A5.5 5.5 0 1 0 13.4 10 4.2 4.2 0 0 1 10.2 2.6z" stroke="currentColor" stroke-width="1.5"/></svg>
+                深色
+              </button>
+              <button type="button" class="cube" data-scheme="system">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="9" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M6 14h4" stroke="currentColor" stroke-width="1.5"/></svg>
+                跟随系统
+              </button>
+            </div>
+          </section>
+          <section class="block">
+            <h2 class="heading">背景图</h2>
+            <p class="hint">选一张图铺在整个界面后面。图要透过界面才能看见：玻璃透明度越高，图越被盖住。设好之后可以拉毛玻璃和像素化。</p>
+            <div class="actions">
+              <button type="button" class="btn btn-outline">选择图片</button>
+              <button type="button" class="btn btn-outline" id="open-gallery">浏览图库</button>
+              <button type="button" class="btn btn-ghost">清除</button>
+            </div>
+            <div class="preview" role="img" aria-label="背景图"></div>
+            <div class="row-head"><span class="hint">毛玻璃程度</span><span class="value">24%</span></div>
+            <input class="slider" type="range" min="0" max="100" value="24" style="--fill:24%" />
+            <div class="row-head"><span class="hint">像素化程度</span><span class="value">0%</span></div>
+            <input class="slider" type="range" min="0" max="100" value="0" style="--fill:0%" />
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="gallery-mask" aria-hidden="true">
+    <div class="mask"></div>
+    <div class="dialog gallery" role="dialog" aria-labelledby="gallery-title">
+      <div class="dialog-head">
+        <h2 id="gallery-title">浏览图库</h2>
+        <div class="head-actions">
+          <button type="button" class="btn btn-outline btn-sm" id="open-sources" aria-pressed="false">图源</button>
+          <button type="button" class="icon-btn" data-close="gallery" aria-label="关闭">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="dialog-body">
+        <div id="gallery-browse">
+          <div class="toolbar">
+            <div class="tabs" role="tablist">
+              <button type="button" class="tab" role="tab" aria-selected="true" data-source="bing">必应</button>
+              <button type="button" class="tab" role="tab" aria-selected="false" data-source="wallhaven">Wallhaven</button>
+              <button type="button" class="tab" role="tab" aria-selected="false" data-source="catalog">我的目录</button>
+              <button type="button" class="tab" role="tab" aria-selected="false" data-source="fav">收藏</button>
+            </div>
+            <label class="search">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.25" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L13.5 13.5" stroke="currentColor" stroke-width="1.5"/></svg>
+              <input id="gallery-search" type="search" placeholder="搜索标题或版权" />
+            </label>
+          </div>
+          <div class="chips" id="bing-chips">
+            <button type="button" class="chip" aria-pressed="true">今日</button>
+            <button type="button" class="chip">2026</button>
+            <button type="button" class="chip">2025</button>
+            <button type="button" class="chip">2024</button>
+            <button type="button" class="chip">2023</button>
+          </div>
+          <div class="chips hidden" id="wh-chips">
+            <button type="button" class="chip" aria-pressed="true">常规</button>
+            <button type="button" class="chip">动漫</button>
+            <button type="button" class="chip">人物</button>
+          </div>
+          <div class="grid" id="grid"></div>
+        </div>
+        <div id="gallery-sources" class="hidden">
+          <div class="row-head">
+            <p class="hint">分类来自这里。必应和 Wallhaven 各只能有一条。</p>
+            <button type="button" class="btn btn-outline btn-sm" id="open-add">新增图源</button>
+          </div>
+          <div class="source-list">
+            <div class="source-row">
+              <span>必应</span><span class="kind">必应</span>
+              <button type="button" class="btn btn-ghost btn-sm" data-edit="bing">编辑</button>
+              <button type="button" class="btn btn-ghost btn-sm">删除</button>
+            </div>
+            <div class="source-row">
+              <span>Wallhaven</span><span class="kind">Wallhaven</span>
+              <button type="button" class="btn btn-ghost btn-sm" data-edit="wallhaven">编辑</button>
+              <button type="button" class="btn btn-ghost btn-sm">删除</button>
+            </div>
+            <div class="source-row">
+              <span>我的目录</span><span class="kind">目录</span>
+              <button type="button" class="btn btn-ghost btn-sm" data-edit="catalog">编辑</button>
+              <button type="button" class="btn btn-ghost btn-sm">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="confirm-mask" aria-hidden="true">
+    <div class="mask"></div>
+    <div class="dialog" role="dialog" aria-labelledby="confirm-title">
+      <div class="dialog-head">
+        <h2 id="confirm-title">设为背景图</h2>
+        <button type="button" class="icon-btn" data-close="confirm" aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <p class="hint" id="confirm-copy">将这张图设为背景？接下来会按窗口比例裁剪。</p>
+        <div class="confirm-shot" id="confirm-shot"></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-outline" data-close="confirm">取消</button>
+        <button type="button" class="btn btn-primary" id="confirm-yes">设为壁纸</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="crop-mask" aria-hidden="true">
+    <div class="mask"></div>
+    <div class="dialog" style="width:min(560px,100%)" role="dialog" aria-labelledby="crop-title">
+      <div class="dialog-head">
+        <h2 id="crop-title">调整背景图</h2>
+        <button type="button" class="icon-btn" data-close="crop" aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <p class="hint">拖动图片或使用滚轮调整取景。</p>
+        <div class="crop-frame"><img id="crop-img" alt="" /></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-outline" data-close="crop">取消</button>
+        <button type="button" class="btn btn-primary" id="crop-use">使用此图片</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="source-mask" aria-hidden="true">
+    <div class="mask"></div>
+    <div class="dialog" role="dialog" aria-labelledby="source-title">
+      <div class="dialog-head">
+        <h2 id="source-title">新增图源</h2>
+        <button type="button" class="icon-btn" data-close="source" aria-label="关闭">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5"/></svg>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <div class="field">
+          <label for="source-kind">类型</label>
+          <select id="source-kind">
+            <option disabled>必应（已添加）</option>
+            <option disabled>Wallhaven（已添加）</option>
+            <option selected>目录</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="source-name">显示名</label>
+          <input id="source-name" value="我的目录" />
+        </div>
+        <div class="field">
+          <label for="source-url">HTTPS 目录地址</label>
+          <input id="source-url" value="https://example.com/pack.json" />
+        </div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn btn-outline" data-close="source">取消</button>
+        <button type="button" class="btn btn-primary" data-close="source">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const photos = [
+      ["晨湖", "© Bing", "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=720&q=60"],
+      ["雪松", "© Bing", "https://images.unsplash.com/photo-1482192505345-5655af669d7e?auto=format&fit=crop&w=720&q=60"],
+      ["海岸", "© Bing", "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=720&q=60"],
+      ["山谷", "© Bing", "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=720&q=60"],
+      ["林雾", "© Bing", "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=720&q=60"],
+      ["沙丘", "© Bing", "https://images.unsplash.com/photo-1509316785289-025f5b846b35?auto=format&fit=crop&w=720&q=60"],
+      ["夜城", "wallhaven", "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=720&q=60"],
+      ["极光", "wallhaven", "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=720&q=60"],
+    ];
+    const grid = document.getElementById("grid");
+    const fav = new Set([0]);
+    let picked = photos[0];
+
+    function renderGrid(filter) {
+      const q = (document.getElementById("gallery-search").value || "").trim();
+      grid.replaceChildren();
+      photos.map((row, i) => ({ row, i })).filter(({ row, i }) => {
+        if (filter === "fav") return fav.has(i);
+        if (filter === "wallhaven") return row[1] === "wallhaven";
+        if (filter === "catalog") return i % 2 === 0;
+        return row[1] === "© Bing";
+      }).filter(({ row }) => !q || row[0].includes(q) || row[1].includes(q)).forEach(({ row, i }) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "card";
+        card.innerHTML = `<img src="${row[2]}" alt="" referrerpolicy="no-referrer" /><span class="meta"><span class="title">${row[0]}</span><span class="copy">${row[1]}</span></span><button type="button" class="star" aria-label="收藏" aria-pressed="${fav.has(i)}"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 2.5l1.7 3.4 3.8.6-2.8 2.7.7 3.8L8 11.3 4.6 13l.7-3.8L2.5 6.5l3.8-.6L8 2.5z" fill="${fav.has(i) ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.2"/></svg></button>`;
+        card.querySelector(".star").addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (fav.has(i)) fav.delete(i); else fav.add(i);
+          renderGrid(document.querySelector(".tab[aria-selected='true']").dataset.source);
+        });
+        card.addEventListener("click", () => {
+          picked = row;
+          document.getElementById("confirm-copy").textContent = `将「${row[0]}」设为背景？接下来会按窗口比例裁剪。`;
+          document.getElementById("confirm-shot").style.backgroundImage = `url("${row[2]}")`;
+          openMask("confirm-mask");
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    function openMask(id) {
+      const el = document.getElementById(id);
+      el.classList.add("open");
+      el.setAttribute("aria-hidden", "false");
+    }
+    function closeMask(id) {
+      const el = document.getElementById(id);
+      el.classList.remove("open");
+      el.setAttribute("aria-hidden", "true");
+    }
+    function showSources(on) {
+      document.getElementById("gallery-browse").classList.toggle("hidden", on);
+      document.getElementById("gallery-sources").classList.toggle("hidden", !on);
+      const btn = document.getElementById("open-sources");
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.textContent = on ? "返回图库" : "图源";
+    }
+
+    document.getElementById("open-gallery").addEventListener("click", () => {
+      showSources(false);
+      openMask("gallery-mask");
+      renderGrid("bing");
+    });
+    document.getElementById("open-sources").addEventListener("click", () => {
+      showSources(document.getElementById("open-sources").getAttribute("aria-pressed") !== "true");
+    });
+    document.getElementById("open-add").addEventListener("click", () => {
+      document.getElementById("source-title").textContent = "新增图源";
+      openMask("source-mask");
+    });
+    document.querySelectorAll("[data-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.getElementById("source-title").textContent = "编辑图源";
+        openMask("source-mask");
+      });
+    });
+    document.querySelectorAll("[data-close]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const map = { gallery: "gallery-mask", confirm: "confirm-mask", source: "source-mask", crop: "crop-mask" };
+        if (btn.dataset.close === "gallery") showSources(false);
+        closeMask(map[btn.dataset.close]);
+      });
+    });
+    document.getElementById("confirm-yes").addEventListener("click", () => {
+      closeMask("confirm-mask");
+      closeMask("gallery-mask");
+      document.getElementById("crop-img").src = picked[2];
+      openMask("crop-mask");
+    });
+    document.getElementById("crop-use").addEventListener("click", () => closeMask("crop-mask"));
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", "false"));
+        tab.setAttribute("aria-selected", "true");
+        document.getElementById("bing-chips").classList.toggle("hidden", tab.dataset.source !== "bing");
+        document.getElementById("wh-chips").classList.toggle("hidden", tab.dataset.source !== "wallhaven");
+        renderGrid(tab.dataset.source);
+      });
+    });
+    document.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        chip.parentElement.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", "false"));
+        chip.setAttribute("aria-pressed", "true");
+      });
+    });
+    document.getElementById("gallery-search").addEventListener("input", () => {
+      renderGrid(document.querySelector(".tab[aria-selected='true']").dataset.source);
+    });
+    document.querySelectorAll("[data-scheme]").forEach((cube) => {
+      cube.addEventListener("click", () => {
+        document.querySelectorAll("[data-scheme]").forEach((c) => c.classList.remove("selected"));
+        cube.classList.add("selected");
+        if (cube.dataset.scheme === "dark") document.documentElement.setAttribute("data-ds-dark-theme", "");
+        else document.documentElement.removeAttribute("data-ds-dark-theme");
+      });
+    });
+    renderGrid("bing");
+    openMask("gallery-mask");
+  </script>
+</body>
+</html>

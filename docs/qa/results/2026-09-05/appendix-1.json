@@ -1,0 +1,20 @@
+{
+  "prompt": "用一句话回复：你已连通，并给出一个三位数验证码。",
+  "beforeAssistantCount": 0,
+  "observedAt": "2026-09-05T05:54:10.687Z",
+  "assistantCount": 1,
+  "text": "你已连通，验证码是456。",
+  "kinds": [
+    "system-prompt",
+    "user",
+    "turn-process",
+    "context",
+    "context",
+    "assistant-step",
+    "turn-tail"
+  ],
+  "busy": false,
+  "approval": "",
+  "errors": [],
+  "composer": ""
+}

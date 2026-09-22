@@ -1,0 +1,383 @@
+{
+  "officialHome": "C:\\Users\\48818\\.dsh",
+  "destHome": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-import-live-1787501173958\\dsh-home",
+  "userData": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-import-live-1787501173958",
+  "before": {
+    "files": 423,
+    "bytes": 5225301,
+    "jsonl": 82,
+    "digest": "850bb7dba658252afb2d7054a4c7b1a26bf718b59a60c069f57cc81b0f35257a"
+  },
+  "beforeUi": {
+    "source": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+    "result": "会话 82 · 插件 0"
+  },
+  "afterUi": {
+    "source": "来源 C:\\Users\\48818\\.dsh（有可导入数据）；桌面会话为空",
+    "result": "{\n  \"sessions\": {\n    \"ok\": true,\n    \"sessions\": [\n      {\n        \"rel\": \"_no-cwd/preset-authored\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-both-full\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-both-minimal\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-child\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-child-parent\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-child-switch\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-child-switch-parent\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-code\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-code-native\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-cordis\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-fork-child\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-fork-parent\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-locked\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-minimal\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-minimal-meter\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-no-cordis\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-product-generation-existing\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-product-generation-later\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-claude-code-2aa4cec8-0270-4ce0-b6ea-8652da041f69\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-claude-code-8ec4cf51-7d7e-4f64-8355-95d569c3c697\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-claude-code-d5033e63-6f96-4324-82f7-9e528a755e56\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-codex-36861614-84b4-474e-8ad2-2d728cce1fe6\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-codex-4a4f768c-5fd3-4439-baa9-505b338784d4\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-codex-claude-code-42edc43b-90bc-48ce-a2b0-a0c6e7bcdc75\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-codex-claude-code-b1c63982-be05-4a7c-b6c7-52bd3c3e50cc\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-codex-claude-code-c797b591-ba23-4627-af8b-51088dab9da7\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-codex-fcc94324-cb63-438f-83cc-8bad506320f2\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-none-82a76791-7e20-4cf3-af65-a5e985bd2a56\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-none-a8ecdafc-1775-4b93-afa4-82c4997fda70\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-both-none-c9f17e1f-a75c-4cac-b018-a94957d9a321\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-claude-codex-claude-code-1ab83560-5990-404d-8676-9a6fbd404520\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-claude-codex-claude-code-3d365242-db4d-4a1f-b3ad-22135cf56cf2\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-claude-codex-claude-code-df4abb2a-a949-47e6-9a1b-d05b244d9551\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-codex-codex-claude-code-03058ba7-70fe-40ea-84b6-ebb77b57acf4\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-codex-codex-claude-code-45b02925-b837-4d21-aecb-629df736fb72\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-codex-codex-claude-code-7a7f5a78-bbfb-42d8-afae-7be45b059453\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-none-codex-claude-code-1dc15153-6496-4af0-aa28-ef4d5e624fcb\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-none-codex-claude-code-7461d45a-54a8-4a7a-b227-a12bf95be17d\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-products-none-codex-claude-code-a6daf002-2187-4419-b6e2-14fc2eb32fdf\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-readonly\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-13b4b2e1-86f9-44b9-b28b-dd628dc1df7b\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-31c0ca19-99dd-4999-b388-489865b56142\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-32dcc651-aa86-4108-9717-aff7bd183359\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-3d399779-cd1b-43e3-9099-13359bac562f\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-44895b19-b731-4c79-9e1e-c5169cb77b6e\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-c08dee1a-a69d-412b-b4bf-57e0e9a2716a\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-minimal-deafb994-1aa5-426f-af5e-92b9eb61dd3e\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-standard-14473e94-2f41-45b7-a916-698c1f481f1e\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-standard-77b65313-a45a-4bd9-afa5-6b344b7cd3cc\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-skills-standard-eea3cc21-5c97-4dc1-89fa-bbfdf5edc272\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-standard\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-switch-logged\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"_no-cwd/preset-user-default\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Ai-ChisaTerminal--/0fdec604-92a2-4a2b-95d6-c05fcd36c7b2\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Ai-ChisaTerminal--/bdf06d81-c945-4ed0-9ff0-09f77cfc7bf8\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Ai-ChisaTerminal--/fc00af66-06df-49bc-b0e8-ff66dd69b1b5\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Ai-ChisaTerminal--/session-2b4f722c-8cb7-4c07-97f3-d0efbc6756dc\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Ai-ChisaTerminal--/session-535ff9b4-f933-4e18-88b9-c6ee5ee1ca96\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/0954a0a9-f5fa-4012-bdd6-bf4ba79f4bf8\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/28b14f84-23fd-4130-9d62-3c402cce9ce8\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/4faa841b-e46c-4352-97e6-b76360aea4c9\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/5d36a43a-4e3c-4c24-acf9-fa750c226222\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/7bab5f6e-734f-4444-b500-6aad91a970cc\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/97c5617d-250b-4bbc-848b-12619186e0f6\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/9de98fd8-1fa6-4232-b5d6-2edd04a36a55\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/a01b4845-e719-4bab-b64f-8b5dd6903987\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/a9b5cdfb-b76f-4b55-8313-7b454934d6d7\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/af1b242f-7254-491d-83e5-9a7e235ab20f\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/c146ef18-6841-40dd-8f49-47579977ba5a\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/c9a10fc6-d5d6-4d11-bf22-580b1099d899\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/d1376465-187d-4e4f-b4fd-1a584765a6cc\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/d5fccb95-14b0-4722-94d7-5667d4873208\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/e51b572d-b249-4cb0-b5b5-aa5b903349f7\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/fd227070-3553-4f58-b395-0ad11ec15cdb\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/session-020f2fb7-f3a3-41bb-ab98-22c76ee41f62\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/session-0a40464e-90e6-4214-b7aa-e65f4acec9f8\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/session-1dd3400d-db8d-4bdd-b527-42a8c071ccaf\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/session-36e1d7b1-ae91-49e2-9278-453b119d36f3\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/session-5cc70a7f-9515-4caf-b933-fa31a8d2cdc1\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-.dsh-no-workspace--/session-7686130a-73d7-4b1b-979e-6ebb1266f16b\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-Documents-Deepseek-Harness-Desktop--/session-736f6fe5-73ed-4ceb-81e6-e43908c9d3b1\",\n        \"status\": \"copied\"\n      },\n      {\n        \"rel\": \"--C-Users-48818-Documents-Deepseek-Harness-Desktop--/session-7cd35b52-263d-442f-99a5-8fb73c9696f9\",\n        \"status\": \"copied\"\n      }\n    ],\n    \"attachments\": \"copied\",\n    \"journal\": \"C:\\\\Users\\\\48818\\\\AppData\\\\Local\\\\Temp\\\\dshd-import-live-1787501173958\\\\import-journal.json\"\n  },\n  \"plugins\": {\n    \"ok\": true,\n    \"plugins\": []\n  },\n  \"hold\": false\n}"
+  },
+  "afterOfficial": {
+    "files": 423,
+    "bytes": 5225301,
+    "jsonl": 82,
+    "digest": "850bb7dba658252afb2d7054a4c7b1a26bf718b59a60c069f57cc81b0f35257a"
+  },
+  "dest": {
+    "files": 83,
+    "bytes": 1388784,
+    "jsonl": 82,
+    "digest": "71704d2fd21b5205026a559ddafc11a03b39541c87bc36f884f228aee6c66feb"
+  },
+  "parsed": {
+    "sessions": {
+      "ok": true,
+      "sessions": [
+        {
+          "rel": "_no-cwd/preset-authored",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-both-full",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-both-minimal",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-child",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-child-parent",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-child-switch",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-child-switch-parent",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-code",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-code-native",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-cordis",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-fork-child",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-fork-parent",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-locked",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-minimal",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-minimal-meter",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-no-cordis",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-product-generation-existing",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-product-generation-later",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-claude-code-2aa4cec8-0270-4ce0-b6ea-8652da041f69",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-claude-code-8ec4cf51-7d7e-4f64-8355-95d569c3c697",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-claude-code-d5033e63-6f96-4324-82f7-9e528a755e56",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-codex-36861614-84b4-474e-8ad2-2d728cce1fe6",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-codex-4a4f768c-5fd3-4439-baa9-505b338784d4",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-codex-claude-code-42edc43b-90bc-48ce-a2b0-a0c6e7bcdc75",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-codex-claude-code-b1c63982-be05-4a7c-b6c7-52bd3c3e50cc",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-codex-claude-code-c797b591-ba23-4627-af8b-51088dab9da7",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-codex-fcc94324-cb63-438f-83cc-8bad506320f2",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-none-82a76791-7e20-4cf3-af65-a5e985bd2a56",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-none-a8ecdafc-1775-4b93-afa4-82c4997fda70",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-both-none-c9f17e1f-a75c-4cac-b018-a94957d9a321",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-claude-codex-claude-code-1ab83560-5990-404d-8676-9a6fbd404520",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-claude-codex-claude-code-3d365242-db4d-4a1f-b3ad-22135cf56cf2",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-claude-codex-claude-code-df4abb2a-a949-47e6-9a1b-d05b244d9551",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-codex-codex-claude-code-03058ba7-70fe-40ea-84b6-ebb77b57acf4",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-codex-codex-claude-code-45b02925-b837-4d21-aecb-629df736fb72",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-codex-codex-claude-code-7a7f5a78-bbfb-42d8-afae-7be45b059453",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-none-codex-claude-code-1dc15153-6496-4af0-aa28-ef4d5e624fcb",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-none-codex-claude-code-7461d45a-54a8-4a7a-b227-a12bf95be17d",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-products-none-codex-claude-code-a6daf002-2187-4419-b6e2-14fc2eb32fdf",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-readonly",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-13b4b2e1-86f9-44b9-b28b-dd628dc1df7b",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-31c0ca19-99dd-4999-b388-489865b56142",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-32dcc651-aa86-4108-9717-aff7bd183359",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-3d399779-cd1b-43e3-9099-13359bac562f",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-44895b19-b731-4c79-9e1e-c5169cb77b6e",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-c08dee1a-a69d-412b-b4bf-57e0e9a2716a",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-minimal-deafb994-1aa5-426f-af5e-92b9eb61dd3e",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-standard-14473e94-2f41-45b7-a916-698c1f481f1e",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-standard-77b65313-a45a-4bd9-afa5-6b344b7cd3cc",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-skills-standard-eea3cc21-5c97-4dc1-89fa-bbfdf5edc272",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-standard",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-switch-logged",
+          "status": "copied"
+        },
+        {
+          "rel": "_no-cwd/preset-user-default",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Ai-ChisaTerminal--/0fdec604-92a2-4a2b-95d6-c05fcd36c7b2",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Ai-ChisaTerminal--/bdf06d81-c945-4ed0-9ff0-09f77cfc7bf8",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Ai-ChisaTerminal--/fc00af66-06df-49bc-b0e8-ff66dd69b1b5",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Ai-ChisaTerminal--/session-2b4f722c-8cb7-4c07-97f3-d0efbc6756dc",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Ai-ChisaTerminal--/session-535ff9b4-f933-4e18-88b9-c6ee5ee1ca96",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/0954a0a9-f5fa-4012-bdd6-bf4ba79f4bf8",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/28b14f84-23fd-4130-9d62-3c402cce9ce8",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/4faa841b-e46c-4352-97e6-b76360aea4c9",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/5d36a43a-4e3c-4c24-acf9-fa750c226222",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/7bab5f6e-734f-4444-b500-6aad91a970cc",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/97c5617d-250b-4bbc-848b-12619186e0f6",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/9de98fd8-1fa6-4232-b5d6-2edd04a36a55",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/a01b4845-e719-4bab-b64f-8b5dd6903987",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/a9b5cdfb-b76f-4b55-8313-7b454934d6d7",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/af1b242f-7254-491d-83e5-9a7e235ab20f",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/c146ef18-6841-40dd-8f49-47579977ba5a",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/c9a10fc6-d5d6-4d11-bf22-580b1099d899",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/d1376465-187d-4e4f-b4fd-1a584765a6cc",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/d5fccb95-14b0-4722-94d7-5667d4873208",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/e51b572d-b249-4cb0-b5b5-aa5b903349f7",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/fd227070-3553-4f58-b395-0ad11ec15cdb",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/session-020f2fb7-f3a3-41bb-ab98-22c76ee41f62",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/session-0a40464e-90e6-4214-b7aa-e65f4acec9f8",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/session-1dd3400d-db8d-4bdd-b527-42a8c071ccaf",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/session-36e1d7b1-ae91-49e2-9278-453b119d36f3",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/session-5cc70a7f-9515-4caf-b933-fa31a8d2cdc1",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-.dsh-no-workspace--/session-7686130a-73d7-4b1b-979e-6ebb1266f16b",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-Documents-Deepseek-Harness-Desktop--/session-736f6fe5-73ed-4ceb-81e6-e43908c9d3b1",
+          "status": "copied"
+        },
+        {
+          "rel": "--C-Users-48818-Documents-Deepseek-Harness-Desktop--/session-7cd35b52-263d-442f-99a5-8fb73c9696f9",
+          "status": "copied"
+        }
+      ],
+      "attachments": "copied",
+      "journal": "C:\\Users\\48818\\AppData\\Local\\Temp\\dshd-import-live-1787501173958\\import-journal.json"
+    },
+    "plugins": {
+      "ok": true,
+      "plugins": []
+    },
+    "hold": false
+  },
+  "copied": 82,
+  "failed": 0,
+  "officialUnchanged": true,
+  "ok": true,
+  "logTail": [
+    "",
+    "",
+    "DevTools listening on ws://127.0.0.1:9355/devtools/browser/3411ae40-d265-4f87-9bd6-662fa48c2890",
+    ""
+  ]
+}

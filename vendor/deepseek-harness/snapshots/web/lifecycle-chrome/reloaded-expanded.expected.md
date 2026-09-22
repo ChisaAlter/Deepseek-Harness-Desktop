@@ -1,0 +1,58 @@
+- banner:
+  - navigation "Session hierarchy":
+    - button "Reply with the single word" [disabled]
+  - img
+  - text: Standard mode
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
+    - img
+  - tablist:
+    - tab "Chat" [selected]
+    - tab "Trajectory"
+- button "System prompt":
+  - img
+  - img
+  - text: System prompt
+- text: Reply with the single word LIGHTHOUSE and stop. {{clock}}
+- button "Copy":
+  - img
+- button "Thought for a while" [expanded]:
+  - text: Thought for a while
+  - img
+- button "Context injection @deepseek-ai/dsh-system-prompt":
+  - img
+  - img
+  - text: Context injection @deepseek-ai/dsh-system-prompt
+- button "Think The user wants me to reply with a single word. Let me comply.":
+  - img
+  - img
+  - text: Think The user wants me to reply with a single word. Let me comply.
+- paragraph: LIGHTHOUSE
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands":
+  - img
+- 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Select model, current DeepSeek-V4-Flash":
+  - text: DeepSeek-V4-Flash
+  - img
+- button "Send message" [disabled]
+- button "1 turns 1 steps · {{throughput}} tok/s":
+  - img
+  - text: 1 turns 1 steps{{throughput}} tok/s
+- button "10K tok · Cache hit 99.5%":
+  - img
+  - text: 10K tokCache hit 99.5%
+- button "8% of context used": 8%

@@ -1,0 +1,177 @@
+{
+  "at": "2026-08-27T09:54:29.580Z",
+  "electronBin": "/workspace/node_modules/electron/dist/electron",
+  "userData": "/tmp/dshd-transparent-live-1787824457642/user-data",
+  "ok": true,
+  "failed": [],
+  "steps": [
+    {
+      "name": "boot.settingsTrigger",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "appearance.open",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc013.toggleOnWithoutWallpaper",
+      "ok": true,
+      "detail": "{\"checked\":true}"
+    },
+    {
+      "name": "tc013.hintNeedsWallpaper",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc013.transparentAttrAbsent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc013.glassStaysSlider",
+      "ok": true,
+      "detail": "glass=80%"
+    },
+    {
+      "name": "tc013.glassSliderEnabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc013.glassSliderStillEffective",
+      "ok": true,
+      "detail": "glass=60%"
+    },
+    {
+      "name": "wallpaper.fileAssigned",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "wallpaper.cropConfirmed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc012.transparentAttrSet",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc012.glassZero",
+      "ok": true,
+      "detail": "glass=0%"
+    },
+    {
+      "name": "tc012.sidebarZeroFill",
+      "ok": true,
+      "detail": "color-mix(in srgb, #fff 0%, transparent)"
+    },
+    {
+      "name": "tc012.maskDropped",
+      "ok": true,
+      "detail": "mask=rgba(0, 0, 0, 0)"
+    },
+    {
+      "name": "tc012.terminalPaneSolid",
+      "ok": true,
+      "detail": "#fff"
+    },
+    {
+      "name": "tc012.glassSliderDisabled",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc014.blurAutoNudged",
+      "ok": true,
+      "detail": "blur=20"
+    },
+    {
+      "name": "tc014.normalHintAfterNudge",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc014.lowerNotReclamped",
+      "ok": true,
+      "detail": "blur=0"
+    },
+    {
+      "name": "tc014.lowBlurHint",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc012.offRestoresGlass",
+      "ok": true,
+      "detail": "glass=80%"
+    },
+    {
+      "name": "tc012.offRemovesAttr",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc012.offEnablesSlider",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "tc012.offKeepsMask",
+      "ok": true,
+      "detail": "mask=rgba(0, 0, 0, 0.24)"
+    },
+    {
+      "name": "tc012.onWithWallpaper",
+      "ok": true,
+      "detail": "{\"glass\":\"0%\"}"
+    },
+    {
+      "name": "tc014.blurNudgedOnEnable",
+      "ok": true,
+      "detail": "blur=20"
+    }
+  ],
+  "screenshots": [
+    "tc013_transparent_without_wallpaper_hint.png",
+    "tc012_transparent_effective_settings.png",
+    "tc014_low_blur_warning_hint.png",
+    "tc012_transparent_chrome_over_wallpaper.png"
+  ],
+  "logTail": [
+    "[11394:0827/095426.228642:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are \"tcp\" and on UNIX \"unix\")",
+    "[11394:0827/095426.228697:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: ",
+    "[11394:0827/095426.228765:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are \"tcp\" and on UNIX \"unix\")",
+    "[11394:0827/095426.229083:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: ",
+    "[11394:0827/095428.113417:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are \"tcp\" and on UNIX \"unix\")",
+    "[11394:0827/095428.113893:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: ",
+    "[11394:0827/095428.114059:ERROR:dbus/bus.cc:405] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are \"tcp\" and on UNIX \"unix\")",
+    "[11394:0827/095428.114115:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: ",
+    "[11394:0827/095428.584557:ERROR:content/common/zygote/zygote_communication_linux.cc:291] Failed to send GetTerminationStatus message to zygote",
+    "[11394:0827/095428.584571:WARNING:content/common/zygote/zygote_communication_linux.cc:303] Socket closed prematurely.",
+    "[11394:0827/095428.587847:ERROR:content/browser/network_service_instance_impl.cc:721] Network service crashed or was terminated, restarting service.",
+    "[11394:0827/095428.595163:ERROR:content/common/zygote/zygote_communication_linux.cc:291] Failed to send GetTerminationStatus message to zygote",
+    "[11394:0827/095428.595267:WARNING:content/common/zygote/zygote_communication_linux.cc:303] Socket closed prematurely.",
+    "[11394:0827/095428.598675:ERROR:content/common/zygote/zygote_communication_linux.cc:291] Failed to send GetTerminationStatus message to zygote",
+    "[11394:0827/095428.598689:WARNING:content/common/zygote/zygote_communication_linux.cc:303] Socket closed prematurely.",
+    "Renderer process clean-exit - see https://www.electronjs.org/docs/tutorial/application-debugging for potential debugging information.",
+    "[11394:0827/095428.603349:ERROR:content/browser/gpu/gpu_process_host.cc:1083] GPU process launch failed: error_code=1002",
+    "[11394:0827/095428.603359:WARNING:content/browser/gpu/gpu_process_host.cc:1531] The GPU process has crashed 1 time(s)",
+    "[11394:0827/095428.603926:ERROR:content/browser/gpu/gpu_process_host.cc:1083] GPU process launch failed: error_code=1002",
+    "[11394:0827/095428.604042:WARNING:content/browser/gpu/gpu_process_host.cc:1531] The GPU process has crashed 2 time(s)",
+    "[11394:0827/095428.604443:ERROR:content/browser/gpu/gpu_process_host.cc:1083] GPU process launch failed: error_code=1002",
+    "[11394:0827/095428.604520:WARNING:content/browser/gpu/gpu_process_host.cc:1531] The GPU process has crashed 3 time(s)",
+    "[11394:0827/095428.608226:ERROR:content/browser/gpu/gpu_process_host.cc:1083] GPU process launch failed: error_code=1002",
+    "[11394:0827/095428.608230:WARNING:content/browser/gpu/gpu_process_host.cc:1531] The GPU process has crashed 4 time(s)",
+    "[11394:0827/095428.608440:ERROR:content/browser/gpu/gpu_process_host.cc:1083] GPU process launch failed: error_code=1002",
+    "[11394:0827/095428.608443:WARNING:content/browser/gpu/gpu_process_host.cc:1531] The GPU process has crashed 5 time(s)",
+    "[11394:0827/095428.609402:ERROR:content/browser/gpu/gpu_process_host.cc:1083] GPU process launch failed: error_code=1002",
+    "[11394:0827/095428.609408:WARNING:content/browser/gpu/gpu_process_host.cc:1531] The GPU process has crashed 6 time(s)",
+    "[11394:0827/095428.609415:FATAL:content/browser/gpu/gpu_data_manager_impl_private.cc:416] GPU process isn't usable. Goodbye.",
+    ""
+  ]
+}

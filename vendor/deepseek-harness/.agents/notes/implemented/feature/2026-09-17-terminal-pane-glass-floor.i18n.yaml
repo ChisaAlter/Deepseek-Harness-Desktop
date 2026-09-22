@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-17-terminal-pane-glass-floor.md
+2026-09-17-terminal-pane-glass-floor.md: eecd7fb9e2f570fb8d443f115a7f876c22d7c5bb
+2026-09-17-terminal-pane-glass-floor.zh.md: bbf8328e6b3fe86a4c6a54df6ace858209aabd51

@@ -1,0 +1,225 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const ROOT = path.join(__dirname, '..', '..');
+
+/**
+ * Pins that make `npm test` require `vendor/deepseek-harness/node_modules`.
+ * These pass on a prepared developer machine and fail on a clean CI checkout.
+ */
+function listVendorHarnessRootPins(source) {
+  const pins = [];
+  const joined = /DSH_HARNESS_ROOT\s*=\s*path\.join\([^;]*['"]vendor['"]\s*,\s*['"]deepseek-harness['"]/g;
+  const literal = /DSH_HARNESS_ROOT\s*=\s*[^;\n]*vendor[/\\]deepseek-harness/g;
+  for (const re of [joined, literal]) {
+    re.lastIndex = 0;
+    let match;
+    while ((match = re.exec(source))) pins.push(match[0]);
+  }
+  return pins;
+}
+
+function walkTestFiles(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkTestFiles(full, out);
+    else if (entry.name.endsWith('.test.js')) out.push(full);
+  }
+  return out;
+}
+
+function fakePng(width, height) {
+  const buf = Buffer.alloc(24);
+  buf[0] = 0x89;
+  buf.write('PNG', 1, 'ascii');
+  buf.writeUInt32BE(width, 16);
+  buf.writeUInt32BE(height, 20);
+  return buf;
+}
+
+test('macOS icon check rejects the 386px capture that failed v0.2.3 packing', () => {
+  const { assertMacReleaseIcon } = require('../../scripts/check-mac-icon');
+  assert.throws(
+    () => assertMacReleaseIcon(fakePng(386, 386), 'assets/icon.png'),
+    /386x386/,
+  );
+});
+
+test('macOS release icon meets electron-builder minimum dimensions', () => {
+  const { assertMacReleaseIcon, MIN_MAC_ICON_PX } = require('../../scripts/check-mac-icon');
+  const png = fs.readFileSync(path.join(ROOT, 'assets', 'icon.png'));
+  const size = assertMacReleaseIcon(png, 'assets/icon.png');
+  assert.ok(size.width >= MIN_MAC_ICON_PX);
+  assert.ok(size.height >= MIN_MAC_ICON_PX);
+});
+
+test('icon renderer writes a display-independent PNG size', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'render-icon.js'), 'utf8');
+  assert.match(source, /PNG_SIZE = 1024/);
+  assert.match(source, /resize\(\{[\s\S]*width:\s*PNG_SIZE[\s\S]*height:\s*PNG_SIZE/);
+  assert.match(source, /assertMacReleaseIcon/);
+});
+
+test('macOS pack job rejects a too-small icon before electron-builder', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  const checkAt = yml.indexOf('node scripts/check-mac-icon.js');
+  const distAt = yml.indexOf('npm run dist:mac');
+  assert.ok(checkAt >= 0);
+  assert.ok(distAt > checkAt);
+});
+
+test('a vendor DSH_HARNESS_ROOT pin is visible to the isolation scan', () => {
+  const tagged = `process.env.${'DSH_HARNESS' + '_ROOT'} = path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');\n`;
+  assert.equal(listVendorHarnessRootPins(tagged).length, 1);
+});
+
+test('desktop unit tests do not pin DSH_HARNESS_ROOT to vendor/deepseek-harness', () => {
+  const hits = [];
+  for (const file of walkTestFiles(path.join(ROOT, 'src'))) {
+    const pins = listVendorHarnessRootPins(fs.readFileSync(file, 'utf8'));
+    for (const pin of pins) hits.push(`${path.relative(ROOT, file).replaceAll('\\', '/')}: ${pin}`);
+  }
+  assert.deepEqual(hits, []);
+});
+
+test('release workflow builds artifacts without repeating test.yml quality gates', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.doesNotMatch(yml, /\bnpm test\b/);
+  assert.doesNotMatch(yml, /\bpnpm run test:gui\b/);
+  assert.doesNotMatch(yml, /pnpm\/action-setup/);
+  assert.match(yml, /node scripts\/setup-harness\.js/);
+  assert.match(yml, /npm run dist\b/);
+  assert.match(yml, /npm run dist:mac\b/);
+});
+
+test('windows release job smokes the packaged artifact: blocking, after dist, two attempts', () => {
+  // Not a repeated quality gate: smoke:packaged needs dist/win-unpacked,
+  // which only exists in the release chain — it is artifact acceptance.
+  // The step sits between `npm run dist` and the artifact upload so a
+  // Setup that cannot boot never reaches the publish job. Flake policy:
+  // two in-step attempts; only two consecutive failures fail the job.
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  const windowsJob = yml.slice(yml.indexOf('\n  windows:'), yml.indexOf('\n  macos:'));
+  const distAt = windowsJob.indexOf('npm run dist');
+  const smokeAt = windowsJob.indexOf('npm run smoke:packaged');
+  const uploadAt = windowsJob.indexOf('Upload installer artifacts');
+  assert.ok(distAt >= 0, 'windows job must build the installer');
+  assert.ok(smokeAt > distAt, 'packaged smoke must run after npm run dist');
+  assert.ok(uploadAt > smokeAt, 'a red smoke must block the artifact upload (and so the release)');
+  const retryAt = windowsJob.indexOf('npm run smoke:packaged', smokeAt + 1);
+  assert.ok(retryAt > smokeAt, 'the documented two-attempt flake policy needs a second attempt');
+  assert.doesNotMatch(windowsJob, /continue-on-error/);
+  // The macOS job stays best-effort and does not gate on the smoke.
+  const macosJob = yml.slice(yml.indexOf('\n  macos:'));
+  assert.doesNotMatch(macosJob, /smoke:packaged/);
+});
+
+test('release.yml is candidate-only and cannot publish from a tag push', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(yml, /workflow_dispatch:/);
+  assert.doesNotMatch(yml, /push:\s*\r?\n\s+tags:/);
+  assert.doesNotMatch(yml, /gh release create/);
+  assert.doesNotMatch(yml, /\n\s+release:\s*\r?\n/);
+});
+
+test('manual release candidates default to Windows-only', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'release.yml'), 'utf8');
+  assert.match(yml, /workflow_dispatch:\r?\n\s+inputs:\r?\n\s+include_macos:/);
+  assert.match(yml, /include_macos:[\s\S]*?type: boolean[\s\S]*?default: false/);
+  const macos = yml.slice(yml.indexOf('\n  macos:'));
+  assert.match(macos, /if: \$\{\{ inputs\.include_macos \}\}/);
+});
+
+test('publish workflow promotes only an explicit successful candidate run', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8');
+  assert.match(yml, /candidate_run_id:[\s\S]*?required: true[\s\S]*?type: string/);
+  assert.match(yml, /release_tag:[\s\S]*?required: true[\s\S]*?type: string/);
+  assert.match(yml, /expected_setup_sha256:[\s\S]*?required: true[\s\S]*?type: string/);
+  assert.match(yml, /workflow_dispatch/);
+  assert.match(yml, /actions\/runs\/\$CANDIDATE_RUN_ID/);
+  assert.match(yml, /event.*workflow_dispatch/);
+  assert.match(yml, /path.*release\.yml/);
+  assert.match(yml, /head_branch/);
+  assert.match(yml, /head_branch[\s\S]*== main/);
+  assert.match(yml, /actions\/workflows\/test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
+  assert.match(yml, /gh run download "\$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64/);
+  assert.match(yml, /expected_version=.*RELEASE_TAG/);
+  assert.match(yml, /Deepseek-Harness-Desktop-Setup-\$\{expected_version\}\.exe/);
+  assert.match(yml, /sha256sum/);
+  assert.match(yml, /actual_setup_sha256.*expected_setup_sha256/);
+  assert.match(yml, /ref: \$\{\{ steps\.candidate\.outputs\.candidate_sha \}\}/);
+  assert.match(yml, /\.github\/release-notes\.md/);
+  assert.match(yml, /\.github\/release-notes\.en\.md/);
+  assert.match(yml, /cat \.github\/release-notes\.md > release-body\.md/);
+  assert.match(yml, /cat \.github\/release-notes\.en\.md >> release-body\.md/);
+  assert.match(yml, /Release provenance/);
+  assert.match(yml, /Release body combines the Chinese and English release notes above/);
+  assert.match(yml, /Assets were downloaded from that candidate run; this promotion does not rebuild them/);
+  const notesZhAt = yml.indexOf('cat .github/release-notes.md > release-body.md');
+  const notesEnAt = yml.indexOf('cat .github/release-notes.en.md >> release-body.md');
+  const provenanceAt = yml.indexOf('Release provenance');
+  assert.ok(notesZhAt >= 0 && notesEnAt > notesZhAt && provenanceAt > notesEnAt, 'promotion must append provenance after both notes');
+  assert.match(yml, /gh release create[\s\S]*--target "\$CANDIDATE_SHA"/);
+  assert.doesNotMatch(yml, /setup-harness/);
+  assert.doesNotMatch(yml, /npm run dist\b/);
+  assert.doesNotMatch(yml, /npm run dist:mac\b/);
+});
+
+test('test workflow keeps portable quality gates without the viewport-dependent smoke', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'test.yml'), 'utf8');
+  const desktop = yml.slice(0, yml.indexOf('\n  vendor-gui:'));
+  const electronAt = desktop.indexOf('node node_modules/electron/install.js');
+  const testAt = desktop.indexOf('npm test');
+  assert.match(yml, /macos-latest/);
+  assert.match(yml, /\bnpm test\b/);
+  assert.match(yml, /node node_modules\/pnpm\/bin\/pnpm\.cjs --dir vendor\/deepseek-harness run test:gui/);
+  assert.doesNotMatch(yml, /pnpm\/action-setup/);
+  assert.ok(electronAt >= 0);
+  assert.ok(testAt > electronAt);
+  assert.doesNotMatch(yml, /\bsmoke:source\b/);
+  assert.doesNotMatch(yml, /\bsource-electron-smoke\b/);
+});
+
+test('setup-harness uses the lockfile-installed pnpm executable', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'setup-harness.js'), 'utf8');
+  assert.match(source, /node_modules['"], ['"]pnpm['"], ['"]bin['"], ['"]pnpm\.cjs/);
+});
+
+test('setup-harness builds the official DSH client profile', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'scripts', 'setup-harness.js'), 'utf8');
+  assert.match(source, /'run', 'build:official'/);
+  assert.doesNotMatch(source, /'run', 'build'\]/);
+});
+
+test('electron-builder app-builder-lib resolves @electron/get with ElectronDownloadCacheMode', () => {
+  const builderPkg = path.dirname(require.resolve('electron-builder/package.json'));
+  const libEntry = require.resolve('app-builder-lib', { paths: [builderPkg] });
+  const from = path.join(path.dirname(libEntry), 'util');
+  const resolved = require.resolve('@electron/get', { paths: [from] });
+  const get = require(resolved);
+  assert.equal(
+    typeof get.ElectronDownloadCacheMode?.ReadWrite,
+    'number',
+    `@electron/get at ${resolved} must export ElectronDownloadCacheMode (NSIS/DMG tool download)`,
+  );
+});
+
+test('pnpm workspace pins app-builder-lib away from @electron/get 3.0.0', () => {
+  const yaml = fs.readFileSync(path.join(ROOT, 'pnpm-workspace.yaml'), 'utf8');
+  assert.match(yaml, /allowBuilds:/);
+  assert.match(yaml, /\bnode-pty:/);
+  assert.match(yaml, /app-builder-lib>@electron\/get:\s*5\.1\.0/);
+  const lock = fs.readFileSync(path.join(ROOT, 'pnpm-lock.yaml'), 'utf8');
+  assert.match(
+    lock,
+    /app-builder-lib@26\.15\.3[\s\S]*?'@electron\/get': 5\.1\.0/,
+  );
+  assert.doesNotMatch(
+    lock,
+    /app-builder-lib@26\.15\.3\(dmg-builder@26\.15\.3\)[\s\S]*?'@electron\/get': 3\.0\.0/,
+  );
+});

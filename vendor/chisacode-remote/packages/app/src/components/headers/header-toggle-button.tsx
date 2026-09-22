@@ -1,0 +1,119 @@
+import { useCallback, type ReactElement, type ReactNode } from "react";
+import { Text, View, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet } from "react-native-unistyles";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Shortcut } from "@/components/ui/shortcut";
+import type { ShortcutKey } from "@/utils/format-shortcut";
+import { isWeb } from "@/constants/platform";
+
+interface HeaderToggleButtonState {
+  hovered: boolean;
+  pressed: boolean;
+}
+
+interface HeaderToggleButtonProps extends Omit<PressableProps, "style" | "onPress" | "children"> {
+  onPress: NonNullable<PressableProps["onPress"]>;
+  tooltipLabel: string;
+  tooltipKeys: ShortcutKey[];
+  tooltipSide: "left" | "right" | "top" | "bottom";
+  tooltipDelayDuration?: number;
+  style?: StyleProp<ViewStyle>;
+  children: ReactNode | ((state: HeaderToggleButtonState) => ReactNode);
+}
+
+export function HeaderToggleButton({
+  onPress,
+  tooltipLabel,
+  tooltipKeys,
+  tooltipSide,
+  tooltipDelayDuration = 0,
+  style,
+  disabled,
+  children,
+  ...props
+}: HeaderToggleButtonProps): ReactElement {
+  const tooltipTestID =
+    typeof props.testID === "string" && props.testID.length > 0
+      ? `${props.testID}-tooltip`
+      : undefined;
+  const expandedState = (props.accessibilityState as { expanded?: boolean } | undefined)?.expanded;
+  const ariaExpandedProps =
+    isWeb && typeof expandedState === "boolean"
+      ? ({ "aria-expanded": expandedState } as Record<string, boolean>)
+      : null;
+
+  const combinedStyle = useCallback(
+    ({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+      headerIconSlotStyle.slot,
+      style,
+      (Boolean(hovered) || pressed) && headerIconSlotStyle.slotHovered,
+    ],
+    [style],
+  );
+
+  return (
+    <Tooltip delayDuration={tooltipDelayDuration} enabledOnDesktop enabledOnMobile={false}>
+      <TooltipTrigger
+        {...props}
+        {...ariaExpandedProps}
+        disabled={disabled}
+        onPress={onPress}
+        style={combinedStyle}
+      >
+        {typeof children === "function"
+          ? (state: { pressed: boolean; hovered?: boolean }) =>
+              children({ hovered: Boolean(state.hovered), pressed: state.pressed })
+          : children}
+      </TooltipTrigger>
+      <TooltipContent testID={tooltipTestID} side={tooltipSide} align="center" offset={8}>
+        <View style={styles.tooltipRow}>
+          <Text style={styles.tooltipText}>{tooltipLabel}</Text>
+          <Shortcut keys={tooltipKeys} style={styles.shortcut} />
+        </View>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+export const headerIconSlotStyle = StyleSheet.create((theme) => ({
+  // Soft .top-tools .icon-btn: 32 quiet pill, hover wash.
+  slot: {
+    width: {
+      xs: undefined,
+      md: 32,
+    },
+    height: {
+      xs: undefined,
+      md: 32,
+    },
+    padding: {
+      xs: theme.spacing[3],
+      md: 0,
+    },
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    // Soft .top-tools .icon-btn: quiet r10.
+    borderRadius: 10,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  slotHovered: {
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface1,
+  },
+}));
+
+const styles = StyleSheet.create((theme) => ({
+  tooltipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  tooltipText: {
+    fontSize: 12.5,
+    lineHeight: 16,
+    color: theme.colors.popoverForeground,
+  },
+  shortcut: {},
+}));

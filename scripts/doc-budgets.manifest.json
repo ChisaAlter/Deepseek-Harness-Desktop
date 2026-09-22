@@ -1,0 +1,7 @@
+{
+  "$comment": "Word ceilings for authority docs (CJK char = 1 word). Guardrails, not reduction targets: when red, relocate or condense first; raise only with PR justification.",
+  "AGENTS.md": 830,
+  "docs/design-language.md": 14300,
+  "docs/features/README.md": 2120,
+  "docs/decisions/README.md": 1250
+}

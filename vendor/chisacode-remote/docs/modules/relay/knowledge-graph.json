@@ -1,0 +1,569 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-08-22T09:09:45.640Z",
+  "generator": "scripts/generate-modular-knowledge-graphs.mjs",
+  "module": {
+    "id": "relay",
+    "packageName": "@chisacode/relay",
+    "path": "packages/relay",
+    "description": "ChisaCode relay for bridging daemon and client connections",
+    "ownership": [
+      "encrypted client/daemon channels",
+      "relay server adapters",
+      "handshake and crypto primitives",
+      "remote connectivity threat boundary"
+    ]
+  },
+  "entrypoints": {
+    "main": null,
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "node": "./dist/index.js",
+        "import": "./src/index.ts",
+        "default": "./src/index.ts"
+      },
+      "./e2ee": {
+        "types": "./dist/e2ee.d.ts",
+        "node": "./dist/e2ee.js",
+        "import": "./src/e2ee.ts",
+        "default": "./src/e2ee.ts"
+      },
+      "./cloudflare": {
+        "types": "./dist/cloudflare-adapter.d.ts",
+        "node": "./dist/cloudflare-adapter.js",
+        "import": "./src/cloudflare-adapter.ts",
+        "default": "./src/cloudflare-adapter.ts"
+      }
+    },
+    "scripts": {
+      "build": "node -e \"require('node:fs').rmSync('dist',{ recursive: true, force: true })\" && tsc -p tsconfig.json --incremental false",
+      "prepack": "npm run build",
+      "typecheck": "tsgo --noEmit",
+      "test": "vitest run",
+      "test:watch": "vitest"
+    }
+  },
+  "stats": {
+    "files": 44,
+    "categories": {
+      "support": 27,
+      "config": 3,
+      "docs": 1,
+      "source": 7,
+      "test": 6
+    },
+    "internalImportEdges": 16,
+    "workspaceDependencies": [],
+    "externalDependencies": [
+      "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+      "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+      "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-CxcFkF\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-GnXOIW\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-VyCsbn\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-Yh4UJz\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-bFXMnx\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-gHkEBh\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-laXR1F\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-vQS1LC\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-x3KSZZ\\\\middleware-insertion-facade.js",
+      "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts",
+      "base64-js",
+      "node:buffer",
+      "node:child_process",
+      "node:fs",
+      "node:module",
+      "node:net",
+      "node:path",
+      "node:url",
+      "tweetnacl",
+      "vitest",
+      "ws"
+    ],
+    "unresolvedInternalImports": 0
+  },
+  "nodes": [
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-bFXMnx/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-bFXMnx/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-bFXMnx/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-bFXMnx/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-bFXMnx\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-CxcFkF/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-CxcFkF/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-CxcFkF/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-CxcFkF/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-CxcFkF\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-gHkEBh/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-gHkEBh/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-gHkEBh/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-gHkEBh/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-gHkEBh\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-GnXOIW/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-GnXOIW/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-GnXOIW/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-GnXOIW/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-GnXOIW\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-laXR1F/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-laXR1F/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-laXR1F/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-laXR1F/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-laXR1F\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-vQS1LC/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-vQS1LC/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-vQS1LC/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-vQS1LC/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-vQS1LC\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-VyCsbn/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-VyCsbn/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-VyCsbn/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-VyCsbn/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-VyCsbn\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-x3KSZZ/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-x3KSZZ/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-x3KSZZ/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-x3KSZZ/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-x3KSZZ\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-Yh4UJz/middleware-insertion-facade.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-Yh4UJz/middleware-insertion-facade.js",
+      "lines": 11,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-ensure-req-body-drained.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\middleware-miniflare3-json-error.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\src\\\\cloudflare-adapter.ts"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/bundle-Yh4UJz/middleware-loader.entry.ts",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/bundle-Yh4UJz/middleware-loader.entry.ts",
+      "lines": 135,
+      "imports": [
+        "C:\\\\Ai\\\\ChisaCode\\\\node_modules\\\\wrangler\\\\templates\\\\middleware\\\\common.ts",
+        "C:\\\\Ai\\\\ChisaCode\\\\packages\\\\relay\\\\.wrangler\\\\tmp\\\\bundle-Yh4UJz\\\\middleware-insertion-facade.js"
+      ]
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-ALF7qJ/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-ALF7qJ/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-GUGyHu/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-GUGyHu/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-hEDwWN/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-hEDwWN/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-IHgdw5/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-IHgdw5/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-KTLhMU/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-KTLhMU/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-sO5Izq/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-sO5Izq/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-VQYxho/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-VQYxho/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-W5J6O1/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-W5J6O1/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/.wrangler/tmp/dev-zXmcHR/cloudflare-adapter.js",
+      "type": "support",
+      "path": "packages/relay/.wrangler/tmp/dev-zXmcHR/cloudflare-adapter.js",
+      "lines": 3226,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/package.json",
+      "type": "config",
+      "path": "packages/relay/package.json",
+      "lines": 54,
+      "imports": ["node:fs"]
+    },
+    {
+      "id": "file:packages/relay/README.md",
+      "type": "docs",
+      "path": "packages/relay/README.md",
+      "lines": 28,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/src/base64.ts",
+      "type": "source",
+      "path": "packages/relay/src/base64.ts",
+      "lines": 20,
+      "imports": ["base64-js"]
+    },
+    {
+      "id": "file:packages/relay/src/cloudflare-adapter.test.ts",
+      "type": "test",
+      "path": "packages/relay/src/cloudflare-adapter.test.ts",
+      "lines": 513,
+      "imports": ["./cloudflare-adapter.js", "./crypto.js", "vitest"]
+    },
+    {
+      "id": "file:packages/relay/src/cloudflare-adapter.ts",
+      "type": "source",
+      "path": "packages/relay/src/cloudflare-adapter.ts",
+      "lines": 797,
+      "imports": ["./crypto.js", "./types.js"]
+    },
+    {
+      "id": "file:packages/relay/src/crypto.test.ts",
+      "type": "test",
+      "path": "packages/relay/src/crypto.test.ts",
+      "lines": 277,
+      "imports": ["./crypto.js", "tweetnacl", "vitest"]
+    },
+    {
+      "id": "file:packages/relay/src/crypto.ts",
+      "type": "source",
+      "path": "packages/relay/src/crypto.ts",
+      "lines": 364,
+      "imports": ["base64-js", "tweetnacl"]
+    },
+    {
+      "id": "file:packages/relay/src/dist-handshake-parity.test.ts",
+      "type": "test",
+      "path": "packages/relay/src/dist-handshake-parity.test.ts",
+      "lines": 34,
+      "imports": ["node:child_process", "node:fs", "node:path", "node:url", "vitest"]
+    },
+    {
+      "id": "file:packages/relay/src/e2e.test.ts",
+      "type": "test",
+      "path": "packages/relay/src/e2e.test.ts",
+      "lines": 584,
+      "imports": [
+        "./crypto.js",
+        "node:buffer",
+        "node:child_process",
+        "node:module",
+        "node:net",
+        "node:path",
+        "tweetnacl",
+        "vitest",
+        "ws"
+      ]
+    },
+    {
+      "id": "file:packages/relay/src/e2ee.ts",
+      "type": "source",
+      "path": "packages/relay/src/e2ee.ts",
+      "lines": 28,
+      "imports": ["./crypto.js", "./encrypted-channel.js"]
+    },
+    {
+      "id": "file:packages/relay/src/encrypted-channel.test.ts",
+      "type": "test",
+      "path": "packages/relay/src/encrypted-channel.test.ts",
+      "lines": 325,
+      "imports": ["./crypto.js", "./encrypted-channel.js", "vitest"]
+    },
+    {
+      "id": "file:packages/relay/src/encrypted-channel.ts",
+      "type": "source",
+      "path": "packages/relay/src/encrypted-channel.ts",
+      "lines": 578,
+      "imports": ["./base64.js", "./crypto.js", "tweetnacl"]
+    },
+    {
+      "id": "file:packages/relay/src/index.ts",
+      "type": "source",
+      "path": "packages/relay/src/index.ts",
+      "lines": 25,
+      "imports": ["./crypto.js", "./encrypted-channel.js", "./types.js"]
+    },
+    {
+      "id": "file:packages/relay/src/live-relay.e2e.test.ts",
+      "type": "test",
+      "path": "packages/relay/src/live-relay.e2e.test.ts",
+      "lines": 217,
+      "imports": ["./crypto.js", "tweetnacl", "vitest", "ws"]
+    },
+    {
+      "id": "file:packages/relay/src/types.ts",
+      "type": "source",
+      "path": "packages/relay/src/types.ts",
+      "lines": 33,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/tsconfig.json",
+      "type": "config",
+      "path": "packages/relay/tsconfig.json",
+      "lines": 25,
+      "imports": []
+    },
+    {
+      "id": "file:packages/relay/wrangler.toml",
+      "type": "config",
+      "path": "packages/relay/wrangler.toml",
+      "lines": 18,
+      "imports": []
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:packages/relay/src/cloudflare-adapter.test.ts",
+      "target": "file:packages/relay/src/cloudflare-adapter.ts",
+      "type": "imports",
+      "specifier": "./cloudflare-adapter.js"
+    },
+    {
+      "source": "file:packages/relay/src/cloudflare-adapter.test.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/cloudflare-adapter.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/cloudflare-adapter.ts",
+      "target": "file:packages/relay/src/types.ts",
+      "type": "imports",
+      "specifier": "./types.js"
+    },
+    {
+      "source": "file:packages/relay/src/crypto.test.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/e2e.test.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/e2ee.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/e2ee.ts",
+      "target": "file:packages/relay/src/encrypted-channel.ts",
+      "type": "imports",
+      "specifier": "./encrypted-channel.js"
+    },
+    {
+      "source": "file:packages/relay/src/encrypted-channel.test.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/encrypted-channel.test.ts",
+      "target": "file:packages/relay/src/encrypted-channel.ts",
+      "type": "imports",
+      "specifier": "./encrypted-channel.js"
+    },
+    {
+      "source": "file:packages/relay/src/encrypted-channel.ts",
+      "target": "file:packages/relay/src/base64.ts",
+      "type": "imports",
+      "specifier": "./base64.js"
+    },
+    {
+      "source": "file:packages/relay/src/encrypted-channel.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/index.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    },
+    {
+      "source": "file:packages/relay/src/index.ts",
+      "target": "file:packages/relay/src/encrypted-channel.ts",
+      "type": "imports",
+      "specifier": "./encrypted-channel.js"
+    },
+    {
+      "source": "file:packages/relay/src/index.ts",
+      "target": "file:packages/relay/src/types.ts",
+      "type": "imports",
+      "specifier": "./types.js"
+    },
+    {
+      "source": "file:packages/relay/src/live-relay.e2e.test.ts",
+      "target": "file:packages/relay/src/crypto.ts",
+      "type": "imports",
+      "specifier": "./crypto.js"
+    }
+  ],
+  "unresolvedInternalImports": []
+}

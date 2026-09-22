@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../core/session" },
+    { "path": "../../typert/protocol" },
+    { "path": "../../util/home-paths" },
+    { "path": "../../skill/skill" }
+  ]
+}

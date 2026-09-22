@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-17-thinking-markdown.md
+2026-09-17-thinking-markdown.md: de49cb42ba537700f6584c9f4cef9a57fb2e3605
+2026-09-17-thinking-markdown.zh.md: e403630138f2f39aec0834e550d4d4a8860a67fe

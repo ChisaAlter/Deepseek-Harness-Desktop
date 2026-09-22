@@ -1,0 +1,571 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode — Provider 连接异常可见性（模型列表不再被 error 挡住）</title>
+    <style>
+      :root {
+        /* Soft Workbench tokens (ChisaCode current palette) */
+        --surface0: #ffffff;
+        --surface1: #e8eaef;
+        --surface2: #eef0f4;
+        --surface3: #e2e5ec;
+        --surfaceWorkspace: #f4f5f8;
+        --foreground: #14171f;
+        --foregroundMuted: #6f7686;
+        --foregroundFaint: #9aa1b0;
+        --foregroundSubtleText: #3d4452;
+        --border: #e4e6ec;
+        --secondary: #eef0f4;
+        --accent: #2a6cf0;
+        --accentBright: #3d7dff;
+        --destructive: #ef4444;
+        --success: #18a34a;
+        --statusWarning: #d97706;
+        --statusWarningBg: rgba(217, 119, 6, 0.12);
+        --statusWarningBorder: rgba(217, 119, 6, 0.28);
+        --etch-ring: inset 0 0 0 1px rgba(20, 23, 31, 0.04);
+        --selected-shadow: 0 1px 2px rgba(20, 23, 31, 0.04);
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: var(--surfaceWorkspace);
+        padding: 28px 20px 56px;
+      }
+
+      .page-title {
+        font-size: 15px;
+        font-weight: 650;
+        color: var(--foreground);
+        margin-bottom: 6px;
+      }
+      .page-sub {
+        font-size: 12.5px;
+        color: var(--foregroundMuted);
+        margin-bottom: 24px;
+        max-width: 720px;
+        line-height: 1.6;
+      }
+
+      .section {
+        margin-bottom: 30px;
+      }
+      .section-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--foregroundSubtleText);
+        letter-spacing: 0.02em;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+      }
+      .section-note {
+        font-size: 11.5px;
+        color: var(--foregroundMuted);
+        margin-top: 8px;
+        line-height: 1.5;
+        max-width: 640px;
+      }
+
+      .panel {
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--etch-ring), var(--selected-shadow);
+        padding: 16px;
+        max-width: 640px;
+      }
+
+      /* ---------- 1. Composer model cluster ---------- */
+      .composer-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .composer-trigger {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 13px;
+        color: var(--foreground);
+        cursor: pointer;
+      }
+      .composer-trigger .provider-name {
+        color: var(--foregroundMuted);
+        font-size: 11.5px;
+        margin-right: 2px;
+      }
+      .composer-trigger .model-name {
+        font-weight: 550;
+      }
+      .composer-trigger .caret {
+        color: var(--foregroundFaint);
+        font-size: 10px;
+      }
+      .composer-mode-chip {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 12px;
+        font-size: 13px;
+        color: var(--foregroundSubtleText);
+      }
+
+      .warning-strip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--statusWarningBg);
+        border: 1px solid var(--statusWarningBorder);
+        border-radius: 8px;
+        padding: 8px 10px;
+        margin-top: 10px;
+      }
+      .warning-strip .warn-icon {
+        color: var(--statusWarning);
+        display: inline-flex;
+        flex-shrink: 0;
+      }
+      .warning-strip .warn-text {
+        font-size: 12px;
+        color: #92400e;
+        line-height: 1.45;
+        flex: 1;
+        min-width: 0;
+      }
+      .warning-strip .warn-text .warn-detail {
+        display: block;
+        color: rgba(146, 64, 14, 0.75);
+        font-size: 11px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 420px;
+      }
+      .retry-btn {
+        flex-shrink: 0;
+        background: var(--surface0);
+        border: 1px solid var(--statusWarningBorder);
+        color: #92400e;
+        border-radius: 6px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .retry-btn:hover {
+        background: rgba(217, 119, 6, 0.08);
+      }
+      .retry-btn .spinner {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border: 1.5px solid rgba(146, 64, 14, 0.35);
+        border-top-color: #92400e;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin-right: 5px;
+        vertical-align: -1px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* ---------- 2. Selector provider list ---------- */
+      .selector-shell {
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 6px 24px rgba(20, 23, 31, 0.1);
+        padding: 8px;
+        max-width: 640px;
+      }
+      .search-box {
+        background: var(--surface2);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: var(--foregroundFaint);
+        margin-bottom: 6px;
+      }
+      .provider-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .provider-row:hover {
+        background: var(--surface2);
+      }
+      .provider-icon {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: var(--surface3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--foregroundSubtleText);
+        flex-shrink: 0;
+      }
+      .provider-row .name {
+        font-size: 13px;
+        color: var(--foreground);
+        flex: 1;
+      }
+      .trailing {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .count {
+        font-size: 12px;
+        color: var(--foregroundMuted);
+      }
+      .badge-warning {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11.5px;
+        color: var(--statusWarning);
+        background: var(--statusWarningBg);
+        border-radius: 5px;
+        padding: 2px 6px;
+      }
+      .badge-warning svg {
+        width: 11px;
+        height: 11px;
+      }
+      .row-spinner {
+        width: 12px;
+        height: 12px;
+        border: 1.5px solid var(--border);
+        border-top-color: var(--foregroundFaint);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      .chevron {
+        color: var(--foregroundFaint);
+        font-size: 11px;
+      }
+      .divider {
+        height: 1px;
+        background: var(--border);
+        margin: 4px 8px;
+      }
+
+      /* ---------- 3. Drill-down with cached models ---------- */
+      .drill-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+      }
+      .back-btn {
+        background: none;
+        border: none;
+        color: var(--foregroundSubtleText);
+        font-size: 12px;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 5px;
+      }
+      .back-btn:hover {
+        background: var(--surface2);
+      }
+      .drill-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--foreground);
+        flex: 1;
+      }
+      .model-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .model-row:hover {
+        background: var(--surface2);
+      }
+      .model-row.selected {
+        background: var(--surface1);
+        box-shadow: var(--etch-ring);
+      }
+      .model-row .model-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .model-row .model-name {
+        font-size: 13px;
+        color: var(--foreground);
+      }
+      .model-row .model-desc {
+        font-size: 11px;
+        color: var(--foregroundFaint);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 380px;
+      }
+      .model-row .cached-tag {
+        font-size: 10.5px;
+        color: var(--foregroundMuted);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1px 5px;
+        flex-shrink: 0;
+      }
+      .check {
+        color: var(--accent);
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+
+      /* ---------- 4. Error empty state (already shipped, for contrast) ---------- */
+      .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 24px 12px;
+        text-align: center;
+      }
+      .empty-state .msg {
+        font-size: 12.5px;
+        color: var(--foregroundMuted);
+        max-width: 360px;
+        line-height: 1.5;
+      }
+      .btn-default {
+        background: var(--surface0);
+        border: 1px solid var(--border);
+        color: var(--foreground);
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .btn-default:hover {
+        background: var(--surface2);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-title">Provider 连接异常可见性 — 模型列表不再被 error 状态挡住</div>
+    <div class="page-sub">
+      目标：provider 探测失败（error）时，<b>不隐藏模型列表</b>、<b>不把已选 provider 清空</b>。
+      显示上次缓存的模型并持续给出琥珀色警告 + 单 provider 重试。发送时若 provider
+      仍未恢复，由服务端错误在草稿页暴露（不静默）。
+    </div>
+
+    <!-- 1. Composer: selected provider is error -->
+    <div class="section">
+      <div class="section-label">① Composer 模型集群 — 选中 provider 处于 error</div>
+      <div class="panel">
+        <div class="composer-row">
+          <div class="composer-mode-chip">默认模式</div>
+          <div class="composer-trigger">
+            <span class="provider-name">Codex</span>
+            <span class="model-name">GPT-5.4</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+        <div class="warning-strip">
+          <span class="warn-icon">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <span class="warn-text">
+            无法连接 Codex，正在显示上次缓存的模型
+            <span class="warn-detail">Timed out checking Codex availability after 30000ms</span>
+          </span>
+          <button class="retry-btn">重试</button>
+        </div>
+      </div>
+      <div class="section-note">
+        触发按钮仍显示 provider +
+        当前模型（缓存），点击可正常打开选择器；警告条不拦截输入，仅提示。重试只针对该
+        provider（定向 force，不触发全量探测）。
+      </div>
+    </div>
+
+    <!-- 2. Selector: provider list -->
+    <div class="section">
+      <div class="section-label">② 选择器 — Provider 列表（error 条目显示缓存徽标）</div>
+      <div class="selector-shell">
+        <div class="search-box">搜索模型...</div>
+        <div class="provider-row">
+          <span class="provider-icon">C</span>
+          <span class="name">Claude</span>
+          <span class="trailing"
+            ><span class="count">8 个模型</span><span class="chevron">›</span></span
+          >
+        </div>
+        <div class="provider-row">
+          <span class="provider-icon">X</span>
+          <span class="name">Codex</span>
+          <span class="trailing">
+            <span class="count">6 个模型</span>
+            <span class="badge-warning">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              缓存
+            </span>
+            <span class="chevron">›</span>
+          </span>
+        </div>
+        <div class="provider-row">
+          <span class="provider-icon">K</span>
+          <span class="name">Kimi</span>
+          <span class="trailing"
+            ><span class="row-spinner"></span><span class="count">加载中...</span
+            ><span class="chevron">›</span></span
+          >
+        </div>
+      </div>
+      <div class="section-note">
+        error provider
+        不再从列表消失：模型数照常显示，右侧加琥珀色「缓存」徽标，说明这些是上次成功获取的模型。
+      </div>
+    </div>
+
+    <!-- 3. Drill-down into error provider -->
+    <div class="section">
+      <div class="section-label">③ 钻取 error provider — 缓存模型列表 + 警告头</div>
+      <div class="selector-shell">
+        <div class="drill-header">
+          <button class="back-btn">‹ 返回</button>
+          <span class="drill-title">Codex</span>
+        </div>
+        <div class="warning-strip" style="margin: 0 4px 6px">
+          <span class="warn-icon">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <span class="warn-text">
+            连接异常，显示上次缓存的模型
+            <span class="warn-detail">Timed out checking Codex availability after 30000ms</span>
+          </span>
+          <button class="retry-btn"><span class="spinner"></span>重试中...</button>
+        </div>
+        <div class="model-row selected">
+          <span class="model-info">
+            <div class="model-name">GPT-5.4</div>
+            <div class="model-desc">旗舰推理模型，支持深度思考</div>
+          </span>
+          <span class="cached-tag">缓存</span>
+          <span class="check">✓</span>
+        </div>
+        <div class="model-row">
+          <span class="model-info">
+            <div class="model-name">GPT-5.1-mini</div>
+            <div class="model-desc">快速响应，适合日常任务</div>
+          </span>
+          <span class="cached-tag">缓存</span>
+        </div>
+        <div class="model-row">
+          <span class="model-info">
+            <div class="model-name">o4-mini</div>
+            <div class="model-desc">轻量推理模型</div>
+          </span>
+          <span class="cached-tag">缓存</span>
+        </div>
+      </div>
+      <div class="section-note">
+        缓存模型仍可选择（保持当前会话可换模型）；警告头内重试按钮带 spinner
+        状态（重试中禁点）。重试成功后徽标与警告自动消失（PUSH 更新）。
+      </div>
+    </div>
+
+    <!-- 4. Contrast: error without any cached models -->
+    <div class="section">
+      <div class="section-label">④ 对照 — error 且无缓存模型（既有行为，保留）</div>
+      <div class="selector-shell">
+        <div class="empty-state">
+          <span style="color: var(--foregroundMuted)">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+              />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <span class="msg">Timed out checking Grok availability after 30000ms</span>
+          <button class="btn-default">重试</button>
+        </div>
+      </div>
+      <div class="section-note">
+        首次探测就失败（从未有缓存）时保持现有空态 + 重试；不编造模型列表。
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "at": "2026-08-24T10:28:04.913Z",
+  "probes": [
+    {
+      "name": "stop-desktop-real-profile",
+      "pass": false,
+      "error": "timeout Page.captureScreenshot"
+    },
+    {
+      "name": "launcher-settings-toggle",
+      "pass": false,
+      "error": "timeout Page.captureScreenshot"
+    }
+  ],
+  "pass": false
+}

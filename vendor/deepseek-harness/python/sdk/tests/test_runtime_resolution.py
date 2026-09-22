@@ -1,0 +1,263 @@
+"""Keyless runtime-resolution tests; launch coverage lives in test_bundled_runtime.py."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+import deepseek_harness_runtime as runtime
+import pytest
+
+from deepseek_harness_runtime import (
+    RUNTIME_MODE_ENV_VAR,
+    bundled_package_dir,
+    main,
+    resolve_bundled_launch_args,
+)
+
+
+def _office_sidecar(executable: Path, native_targets: tuple[str, ...] = ("darwin-arm64", "darwin-x64", "win32-x64")) -> Path:
+    office = executable.with_name(f"{executable.name.removesuffix('.exe')}-office")
+    tag = executable.name.removeprefix("deepseek-harness-sdk-runtime-").removesuffix(".exe")
+    native = tag.replace("win-", "win32-").replace("macos-", "darwin-")
+    engine = native if native in native_targets else "wasm"
+    for required in ("@deepseek-ai/libreoffice-kit/package.json", f"@deepseek-ai/libreoffice-kit-{engine}/prebuilds.json"):
+        path = office / "node_modules" / required
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}")
+    adapter = office / "node_modules/@deepseek-ai/libreoffice-kit/package.json"
+    adapter.write_text(json.dumps({"optionalDependencies": {
+        f"@deepseek-ai/libreoffice-kit-{target}": "0.0.1" for target in (*native_targets, "wasm")
+    }}), encoding="utf-8")
+    return office
+
+
+def test_unknown_explicit_mode_fails_loud() -> None:
+    with pytest.raises(ValueError, match="expected 'exe' or 'node'"):
+        resolve_bundled_launch_args("bogus")
+
+
+def test_unknown_env_mode_fails_loud(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(RUNTIME_MODE_ENV_VAR, "bogus")
+    with pytest.raises(ValueError, match="expected 'exe' or 'node'"):
+        resolve_bundled_launch_args()
+
+
+def test_explicit_mode_wins_over_env_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(RUNTIME_MODE_ENV_VAR, "bogus")
+    try:
+        args = resolve_bundled_launch_args("exe")
+    except FileNotFoundError:
+        return  # explicit 'exe' was honored; only the artifact is missing
+    assert args[0].endswith(("-x64", "-arm64"))
+
+
+def test_runtime_requires_spawn_helper_only_on_macos(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    linux = runtime_dir / "deepseek-harness-sdk-runtime-linux-x64"
+    linux.touch()
+    Path(f"{linux}-rg").touch()
+    _office_sidecar(linux)
+    macos = runtime_dir / "deepseek-harness-sdk-runtime-macos-arm64"
+    macos.touch()
+    Path(f"{macos}-rg").touch()
+    monkeypatch.setattr(runtime, "bundled_package_dir", lambda: tmp_path)
+
+    monkeypatch.setattr(runtime, "_current_platform_tag", lambda: "macos-arm64")
+    with pytest.raises(FileNotFoundError, match="node-pty spawn helper"):
+        runtime.bundled_runtime_path()
+    monkeypatch.setattr(runtime, "_current_platform_tag", lambda: "linux-x64")
+    assert runtime.bundled_runtime_path() == linux
+
+
+def test_windows_runtime_uses_exe_payload_and_exe_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    executable = runtime_dir / "deepseek-harness-sdk-runtime-win-x64.exe"
+    executable.touch()
+    (runtime_dir / "deepseek-harness-sdk-runtime-win-x64-rg.exe").touch()
+    _office_sidecar(executable)
+    monkeypatch.setattr(runtime, "bundled_package_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "_current_platform_tag", lambda: "win-x64")
+
+    assert runtime.bundled_runtime_path() == executable
+
+
+def test_current_platform_supports_windows_x64_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runtime.sys, "platform", "win32")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "AMD64")
+    assert runtime._current_platform_tag() == "win-x64"
+
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "ARM64")
+    with pytest.raises(FileNotFoundError, match="Windows x64"):
+        runtime._current_platform_tag()
+
+
+def test_current_platform_supports_macos_x64(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(runtime.sys, "platform", "darwin")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "x86_64")
+
+    assert runtime._current_platform_tag() == "macos-x64"
+
+
+def test_runtime_requires_ripgrep_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    (runtime_dir / "deepseek-harness-sdk-runtime-linux-x64").touch()
+    monkeypatch.setattr(runtime, "bundled_package_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "_current_platform_tag", lambda: "linux-x64")
+
+    with pytest.raises(FileNotFoundError, match="ripgrep sidecar"):
+        runtime.bundled_runtime_path()
+
+
+def test_runtime_requires_complete_office_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    executable = tmp_path / "runtime" / "deepseek-harness-sdk-runtime-linux-x64"
+    executable.parent.mkdir()
+    executable.touch()
+    Path(f"{executable}-rg").touch()
+    monkeypatch.setattr(runtime, "bundled_package_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "_current_platform_tag", lambda: "linux-x64")
+
+    with pytest.raises(FileNotFoundError, match="Office sidecar"):
+        runtime.bundled_runtime_path()
+    office = _office_sidecar(executable)
+    assert runtime.bundled_runtime_path() == executable
+    (office / "node_modules/@deepseek-ai/libreoffice-kit-wasm/prebuilds.json").unlink()
+    with pytest.raises(FileNotFoundError, match="Office sidecar"):
+        runtime.bundled_runtime_path()
+
+
+def test_node_mode_runs_the_deployed_dsh_cli(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bin_js = tmp_path / "runtime" / "node" / "node_modules" / "@deepseek-ai" / "dsh" / "lib" / "bin.js"
+    bin_js.parent.mkdir(parents=True)
+    bin_js.touch()
+    monkeypatch.setattr(runtime, "bundled_package_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime.shutil, "which", lambda _name: "/node")
+
+    assert resolve_bundled_launch_args("node") == ("/node", str(bin_js))
+
+
+def test_python_dsh_command_requires_explicit_home(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.delenv("DSH_HOME", raising=False)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 2
+    assert "explicit DSH_HOME" in capsys.readouterr().err
+
+
+def test_python_dsh_command_executes_the_bundled_cli(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    called: dict[str, object] = {}
+    monkeypatch.setenv("DSH_HOME", "/explicit/home")
+    monkeypatch.setattr(runtime, "resolve_bundled_launch_args", lambda: ("/runtime",))
+    monkeypatch.setattr(runtime, "sys", SimpleNamespace(platform="linux", argv=["dsh", "plugin", "--profile", "sdk", "list"]))
+
+    def execvpe(file: str, args: tuple[str, ...], env: dict[str, str]) -> None:
+        called.update(file=file, args=args, home=env.get("DSH_HOME"))
+
+    monkeypatch.setattr(runtime.os, "execvpe", execvpe)
+
+    main()
+
+    assert called == {
+        "file": "/runtime",
+        "args": ("/runtime", "plugin", "--profile", "sdk", "list"),
+        "home": "/explicit/home",
+    }
+
+
+@pytest.mark.parametrize("returncode", [0, 37, 513])
+def test_windows_console_waits_and_forwards_runtime_status(monkeypatch: pytest.MonkeyPatch, returncode: int) -> None:
+    monkeypatch.setenv("DSH_HOME", "/explicit/home")
+    monkeypatch.setattr(runtime, "sys", SimpleNamespace(platform="win32", argv=["dsh", "plugin", "argument with spaces", "中文"]))
+    monkeypatch.setattr(runtime, "resolve_bundled_launch_args", lambda: ("runtime.exe",))
+    called = []
+
+    def run(args: tuple[str, ...], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        called.append((args, kwargs))
+        return subprocess.CompletedProcess(args, returncode)
+
+    def forbidden_exec(*args: object) -> None:
+        pytest.fail("Windows console must wait instead of entering CRT exec")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    monkeypatch.setattr(runtime.os, "execvpe", forbidden_exec)
+    with pytest.raises(SystemExit) as result:
+        main()
+    assert result.value.code == returncode
+    assert called == [(("runtime.exe", "plugin", "argument with spaces", "中文"), {"env": os.environ})]
+
+
+@pytest.mark.parametrize("returncode", [0, 37, pytest.param(513, marks=pytest.mark.skipif(sys.platform != "win32", reason="POSIX truncates process exit codes to eight bits"))])
+def test_windows_console_branch_preserves_real_child_io_and_completion(tmp_path: Path, returncode: int) -> None:
+    child = tmp_path / "child with spaces.py"
+    sentinel = tmp_path / "finished"
+    child.write_text(
+        "import pathlib,sys\n"
+        "assert sys.argv[1] == 'argument with spaces'\n"
+        "assert sys.argv[2] == '中文'\n"
+        "print('stdout-中文', flush=True)\n"
+        "print('stderr-中文', file=sys.stderr, flush=True)\n"
+        f"pathlib.Path({str(sentinel)!r}).write_text('done')\n"
+        f"raise SystemExit({returncode})\n", encoding="utf-8",
+    )
+    driver = (
+        "import deepseek_harness_runtime as runtime; from types import SimpleNamespace; "
+        f"runtime.sys = SimpleNamespace(platform='win32', argv=['dsh', 'argument with spaces', '中文']); "
+        f"runtime.resolve_bundled_launch_args = lambda: ({sys.executable!r}, {str(child)!r}); runtime.main()"
+    )
+    result = subprocess.run([sys.executable, "-c", driver], capture_output=True, text=True, encoding="utf-8",
+                            env={**os.environ, "DSH_HOME": str(tmp_path), "PYTHONIOENCODING": "utf-8"}, timeout=15)
+    assert result.returncode == returncode, result.stderr
+    assert result.stdout == "stdout-中文\n"
+    assert result.stderr == "stderr-中文\n"
+    assert sentinel.read_text() == "done"
+
+
+@pytest.mark.parametrize("target,native_targets", [
+    ("linux-x64", ()), ("linux-arm64", ()),
+    ("macos-arm64", ("darwin-arm64",)), ("macos-x64", ("darwin-x64",)), ("win-x64", ("win32-x64",)),
+    ("linux-x64", ("linux-x64",)), ("macos-arm64", ()),
+])
+def test_runtime_requires_its_platform_office_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str, native_targets: tuple[str, ...],
+) -> None:
+    extension = ".exe" if target.startswith("win-") else ""
+    executable = tmp_path / "runtime" / f"deepseek-harness-sdk-runtime-{target}{extension}"
+    executable.parent.mkdir()
+    executable.touch()
+    executable.with_name(f"{executable.stem}-rg{extension}").touch()
+    if target.startswith("macos-"):
+        Path(f"{executable}-spawn-helper").touch()
+    office = _office_sidecar(executable, native_targets)
+    monkeypatch.setattr(runtime, "bundled_package_dir", lambda: tmp_path)
+    monkeypatch.setattr(runtime, "_current_platform_tag", lambda: target)
+    assert runtime.bundled_runtime_path() == executable
+    engine = next(office.glob("node_modules/@deepseek-ai/libreoffice-kit-*/prebuilds.json"))
+    engine.unlink()
+    foreign = office / "node_modules/@deepseek-ai" / ("libreoffice-kit-darwin-arm64" if engine.parent.name == "libreoffice-kit-wasm" else "libreoffice-kit-wasm") / "prebuilds.json"
+    foreign.parent.mkdir(parents=True, exist_ok=True)
+    foreign.write_text("{}")
+    with pytest.raises(FileNotFoundError, match="Office sidecar"):
+        runtime.bundled_runtime_path()

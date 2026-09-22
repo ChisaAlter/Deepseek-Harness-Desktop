@@ -1,0 +1,9 @@
+[env]
+ANDROID_HOME = "{{env.HOME}}/.local/share/mise/installs/android-sdk/1.0"
+_.path = [
+  "{{env.HOME}}/.local/share/mise/installs/android-sdk/1.0/platform-tools",
+  "{{env.HOME}}/.local/share/mise/installs/android-sdk/1.0/emulator",
+]
+
+[tools]
+java = "17"

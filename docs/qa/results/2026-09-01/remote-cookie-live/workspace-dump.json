@@ -1,0 +1,90 @@
+{
+  "drawer": {
+    "heads": [
+      {
+        "title": "dshd-qa-ws-2026-08-30",
+        "add": true,
+        "more": true
+      },
+      {
+        "title": "Deepseek-Harness-Desktop",
+        "add": true,
+        "more": true
+      },
+      {
+        "title": "Deepseek-Harness-Desktop",
+        "add": true,
+        "more": true
+      },
+      {
+        "title": "ChisaTerminal",
+        "add": true,
+        "more": true
+      }
+    ],
+    "titles": [
+      "dshd-qa-ws-2026-08-30",
+      "连接完成并给出验证码",
+      "用pwsh将qa写入指定文件",
+      "Deepseek-Harness-Desktop",
+      "用pwsh写入qa文件",
+      "只调用一次 write 工具，参数必",
+      "验证连接并生成验证码",
+      "长颈鹿打螺丝SVG动画",
+      "有一个水杯配对游戏。共有 4",
+      "描述这张图里有什么。若模型",
+      "在工作区根目录下创建 dshd-reject-probe.txt 文件",
+      "确认连接并生成验证码",
+      "使用一条bash命令创建dshd-reject-probe.txt文件",
+      "生成连接确认与验证码",
+      "请用一条 bash 命令在工作区根",
+      "用一句话回复：你已连通，并",
+      "使用一条 bash 命令创建文件",
+      "生成验证码并回复连接",
+      "描述这张图里有什么。若模型",
+      "请用一条 bash 命令在工作区根",
+      "连接成功并提供验证码",
+      "工作区根目录创建 dshd-reject-probe.txt 文件",
+      "连接成功并生成验证码",
+      "连接成功并提供验证码",
+      "申请写入权限创建文件",
+      "连接成功并提供验证码",
+      "Deepseek-Harness-Desktop",
+      "ChisaTerminal",
+      "pong",
+      "工作区根目录写入 dshd-reject-probe.txt",
+      "用一句话回复：你已连通，并",
+      "在工作区根目录写入文件 dshd-reject-probe.txt",
+      "连接成功并给出验证码",
+      "工作区根目录写入文件",
+      "用一句话回复：你已连通，并",
+      "probe 文件内联写入",
+      "连接成功并生成验证码",
+      "连接确认并提供验证码",
+      "在工作区根目录创建文件",
+      "连接成功并生成验证码",
+      "在工作区根目录创建 dshd-reject-probe.txt 文件",
+      "连接成功与验证码生成",
+      "在工作区根目录创建dshd-reject-probe.txt文件",
+      "连接验证三位数验证码",
+      "工作区根目录创建文件",
+      "连接确认与验证码生成",
+      "工作区根目录创建 dshd-reject-probe.txt 文件",
+      "连通并给出三位数验证码",
+      "连接完成并提供验证码",
+      "用一句话回复：你已连通，并",
+      "用一句话回复：你已连通，并",
+      "用一句话回复：你已连通，并",
+      "终端工具一次调用 pwd",
+      "确认连接并生成验证码",
+      "一句话回复连通验证码",
+      "糖果最少取数保证匹配",
+      "水杯配对游戏最优交换策略",
+      "[用户] 你们好啊 [新机器人] 你",
+      "[用户] 你们好啊 You are the",
+      "ChisaTerminal 渲染层架构评审"
+    ],
+    "banner": "",
+    "error": false
+  }
+}

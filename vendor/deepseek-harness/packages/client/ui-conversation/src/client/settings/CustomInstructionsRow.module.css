@@ -1,0 +1,73 @@
+/* Custom-instructions block: title/description above a bounded textarea. */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.blockText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.desc {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  min-height: 148px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--dsw-alias-border-l3);
+  box-shadow: 0 0 0 1px var(--dsw-alias-border-l3);
+}
+
+.textarea:disabled {
+  opacity: 0.6;
+}
+
+.counter {
+  align-self: flex-end;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .textarea {
+    transition: border-color var(--dsw-alias-motion-fast, 120ms) ease;
+  }
+}

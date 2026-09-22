@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-15-selection-popups-close-on-pick.md
+2026-09-15-selection-popups-close-on-pick.md: 0cfae596554a04a32143c3cb6019f56adf655dc0
+2026-09-15-selection-popups-close-on-pick.zh.md: 9ed5e902bc4efc73b96fcb01d9d9b28c0daef3c6

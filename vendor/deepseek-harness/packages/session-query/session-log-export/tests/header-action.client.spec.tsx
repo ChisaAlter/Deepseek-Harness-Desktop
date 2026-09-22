@@ -1,0 +1,154 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useSyncExternalStore } from 'react'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { SessionState } from '@deepseek-ai/dsh-api-session-controller/client'
+import { SessionLogDownloadController } from '../src/client/controller.ts'
+import { SessionLogDownloadHeaderAction } from '../src/client/HeaderAction.tsx'
+import type { SessionLogDownloadDialogProps } from '../src/client/Dialog.tsx'
+import { en } from '../src/client/locales.ts'
+
+const SID = 'session-export-header' as SessionId
+const BACKGROUND_SID = 'session-export-background' as SessionId
+
+function sessionList(mainViewId: SessionId | undefined): SessionState {
+  return {
+    ids: [SID, BACKGROUND_SID],
+    byId: {
+      [SID]: {
+        id: SID,
+        displayTitle: 'main',
+        running: false,
+        blank: false,
+        retainedBy: mainViewId === SID ? { mainView: 1 } : {},
+        updatedAt: 1,
+      },
+      [BACKGROUND_SID]: {
+        id: BACKGROUND_SID,
+        displayTitle: 'background',
+        running: false,
+        blank: false,
+        retainedBy: mainViewId === BACKGROUND_SID ? { mainView: 1 } : {},
+        updatedAt: 1,
+      },
+    },
+    phase: 'ready',
+    subagentsByParent: {},
+    jobsBySession: {},
+  }
+}
+
+function bindSessionExport(controller: SessionLogDownloadController) {
+  return function useSessionLogDownload<T>(selector: (state: ReturnType<typeof controller.store.getSnapshot>) => T): T {
+    return useSyncExternalStore(
+      listener => controller.store.subscribe(listener),
+      () => selector(controller.store.getSnapshot()),
+    )
+  }
+}
+
+function bench(
+  sessionId: SessionId | undefined = SID,
+  managedSession = false,
+  mainViewId: SessionId | undefined = sessionId,
+) {
+  const controller = new SessionLogDownloadController(async () => new Response('zip'), vi.fn())
+  const request = vi.fn((next: SessionId) => controller.download(next))
+  const dismiss = vi.fn((next: SessionId) => { controller.dismiss(next) })
+  const useSessionLogDownload = bindSessionExport(controller)
+  const props = {
+    sessionId,
+    useSessions: (selector: (state: SessionState) => unknown) => selector(sessionList(mainViewId)),
+    useSessionLogDownload,
+    request,
+    dismiss,
+    managedSession,
+    t: (key: keyof typeof en): string => en[key],
+  } as unknown as SessionLogDownloadDialogProps
+  const view = render(<SessionLogDownloadHeaderAction {...props} />)
+  return { controller, request, view, props }
+}
+
+afterEach(cleanup)
+
+describe('Session export Header action', () => {
+  it('renders no visible UI for managed sessions', () => {
+    const b = bench(SID, true)
+    expect(b.view.container.firstChild).toBeNull()
+  })
+
+  it('keeps the visible action for ordinary sessions', () => {
+    const b = bench(SID, false)
+    expect(b.view.getByRole('button', { name: 'Download session log' })).toBeTruthy()
+  })
+
+  it('uses the retained main-view session instead of a background fallback', async () => {
+    const b = bench(BACKGROUND_SID, false, SID)
+    fireEvent.click(b.view.getByRole('button', { name: 'Download session log' }))
+    await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
+  })
+
+  it('keeps the explicit session fallback after the main-view reference is released', async () => {
+    const b = bench(BACKGROUND_SID, false, undefined)
+    fireEvent.click(b.view.getByRole('button', { name: 'Download session log' }))
+    await waitFor(() => { expect(b.request).toHaveBeenCalledWith(BACKGROUND_SID) })
+  })
+
+  it('renders the 111×32 text capsule and downloads through the shared controller', async () => {
+    const b = bench()
+    const button = b.view.getByRole('button', { name: 'Download session log' })
+    expect(button.querySelector('svg')).not.toBeNull()
+    fireEvent.click(button)
+    await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
+    expect(await b.view.findByRole('dialog', { name: 'Session download started' })).toBeTruthy()
+  })
+
+  it('disables the capsule while either entry path downloads this Session', async () => {
+    const b = bench()
+    let release!: (response: Response) => void
+    const pending = new Promise<Response>((resolve) => { release = resolve })
+    const controller = new SessionLogDownloadController(() => pending, vi.fn())
+    const useSessionLogDownload = bindSessionExport(controller)
+    b.view.rerender(<SessionLogDownloadHeaderAction {...({
+      sessionId: SID,
+      useSessions: (selector: (state: SessionState) => unknown) => selector(sessionList(SID)),
+      useSessionLogDownload,
+      request: (sessionId: SessionId) => controller.download(sessionId),
+      dismiss: (sessionId: SessionId) => { controller.dismiss(sessionId) },
+      t: (key: keyof typeof en): string => en[key],
+    } as unknown as SessionLogDownloadDialogProps)} />)
+
+    const download = controller.download(SID)
+    const button = b.view.getByRole('button', { name: 'Download session log' })
+    await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('true') })
+    expect((button as HTMLButtonElement).disabled).toBe(true)
+    release(new Response('zip'))
+    await download
+    await waitFor(() => { expect(button.getAttribute('aria-busy')).toBe('false') })
+  })
+
+  it('keeps the capsule mounted when the current session is empty, then enables after a session arrives', async () => {
+    const b = bench(undefined)
+    expect(b.view.getByRole('button', { name: 'Download session log' })).toBeTruthy()
+    b.view.rerender(<SessionLogDownloadHeaderAction {...({
+      ...b.props,
+      sessionId: SID,
+      useSessions: (selector: (state: SessionState) => unknown) => selector(sessionList(SID)),
+    } as unknown as SessionLogDownloadDialogProps)} />)
+    const button = b.view.getByRole('button', { name: 'Download session log' })
+    fireEvent.click(button)
+    await waitFor(() => { expect(b.request).toHaveBeenCalledWith(SID) })
+  })
+
+  it('drops the visible Session log label at cozy density and keeps the accessible name', () => {
+    const b = bench()
+    b.view.rerender(<SessionLogDownloadHeaderAction {...({
+      ...b.props,
+      density: 'cozy',
+    } as unknown as SessionLogDownloadDialogProps)} />)
+    const button = b.view.getByRole('button', { name: 'Download session log' })
+    expect(b.view.queryByText('Download session log')).toBeNull()
+    expect(button.querySelector('svg')).not.toBeNull()
+  })
+})

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-25-terminal-drawer-chord-ghostty.md
+2026-08-25-terminal-drawer-chord-ghostty.md: 7e1d17bf91864b51739b3653a4ef989da0c4e8fb
+2026-08-25-terminal-drawer-chord-ghostty.zh.md: 574374612ef613ec04ef32f309226d5e2ed08b14

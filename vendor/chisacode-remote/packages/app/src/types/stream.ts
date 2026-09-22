@@ -1,0 +1,1286 @@
+import type { AgentProvider, ToolCallDetail } from "@chisacode/protocol/agent-types";
+import type { AgentAttachment, AgentStreamEventPayload } from "@chisacode/protocol/messages";
+import type { AttachmentMetadata } from "@/attachments/types";
+import { extractTaskEntriesFromToolCall } from "../utils/tool-call-parsers";
+import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
+
+/**
+ * Simple hash function for deterministic ID generation
+ */
+
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Generate a simple unique ID (timestamp + random)
+ */
+export function generateMessageId(): string {
+  return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+}
+
+function createTimelineId(prefix: string, text: string, timestamp: Date): string {
+  return `${prefix}_${timestamp.getTime()}_${simpleHash(text)}`;
+}
+
+function createUniqueTimelineId(
+  state: StreamItem[],
+  prefix: string,
+  text: string,
+  timestamp: Date,
+): string {
+  const base = createTimelineId(prefix, text, timestamp);
+  // We only ever append new timeline items, and we incorporate the current
+  // length as a monotonic suffix, so uniqueness is guaranteed without an O(n)
+  // collision scan (important for large hydration snapshots).
+  const suffixSeed = state.length;
+  return `${base}_${suffixSeed.toString(36)}`;
+}
+
+export type StreamItem =
+  | UserMessageItem
+  | AssistantMessageItem
+  | ThoughtItem
+  | ToolCallItem
+  | TodoListItem
+  | ActivityLogItem
+  | CompactionItem
+  | TurnChangesItem
+  | GenerativeUiItem;
+
+export type UserMessageImageAttachment = AttachmentMetadata;
+
+export interface UserMessageItem {
+  kind: "user_message";
+  id: string;
+  text: string;
+  timestamp: Date;
+  optimistic?: true;
+  images?: UserMessageImageAttachment[];
+  attachments?: AgentAttachment[];
+}
+
+export interface OptimisticUserMessageInput {
+  id: string;
+  text: string;
+  timestamp: Date;
+  images?: UserMessageImageAttachment[];
+  attachments?: AgentAttachment[];
+}
+
+export type OptimisticUserMessagePlacement = "tail" | "active-head";
+
+export interface AssistantMessageItem {
+  kind: "assistant_message";
+  id: string;
+  messageId?: string;
+  text: string;
+  timestamp: Date;
+  blockGroupId?: string;
+  blockIndex?: number;
+}
+
+export type ThoughtStatus = "loading" | "ready";
+
+export interface ThoughtItem {
+  kind: "thought";
+  id: string;
+  text: string;
+  timestamp: Date;
+  status: ThoughtStatus;
+  isCollapsedSummary?: boolean;
+  summaryForAssistantMessageId?: string;
+}
+
+export type OrchestratorToolCallStatus = "executing" | "completed" | "failed";
+export type AgentToolCallStatus = "running" | "completed" | "failed" | "canceled";
+
+interface OrchestratorToolCallData {
+  toolCallId: string;
+  toolName: string;
+  arguments: unknown;
+  result?: unknown;
+  error?: unknown;
+  status: OrchestratorToolCallStatus;
+}
+
+export interface AgentToolCallData {
+  provider: AgentProvider;
+  callId: string;
+  name: string;
+  status: AgentToolCallStatus;
+  error: unknown;
+  detail: ToolCallDetail;
+  metadata?: Record<string, unknown>;
+}
+
+export type ToolCallPayload =
+  | { source: "agent"; data: AgentToolCallData }
+  | { source: "orchestrator"; data: OrchestratorToolCallData };
+
+export interface ToolCallItem {
+  kind: "tool_call";
+  id: string;
+  timestamp: Date;
+  payload: ToolCallPayload;
+}
+
+export type AgentToolCallItem = ToolCallItem & {
+  payload: { source: "agent"; data: AgentToolCallData };
+};
+
+export function isAgentToolCallItem(item: StreamItem): item is AgentToolCallItem {
+  return item.kind === "tool_call" && item.payload.source === "agent";
+}
+
+type ActivityLogType = "system" | "info" | "success" | "error";
+
+export interface ActivityLogItem {
+  kind: "activity_log";
+  id: string;
+  timestamp: Date;
+  activityType: ActivityLogType;
+  message: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CompactionItem {
+  kind: "compaction";
+  id: string;
+  timestamp: Date;
+  status: "loading" | "completed" | "failed";
+  error?: string;
+  trigger?: "auto" | "manual";
+  preTokens?: number;
+}
+
+export interface ChangedFileEntry {
+  path: string;
+  additions?: number;
+  deletions?: number;
+}
+
+export interface TurnChangesItem {
+  kind: "turn_changes";
+  id: string;
+  timestamp: Date;
+  changeSummary: string;
+  changedFiles: ChangedFileEntry[];
+  checkpointRef?: string;
+}
+
+export interface TodoEntry {
+  text: string;
+  completed: boolean;
+}
+
+export interface TodoListItem {
+  kind: "todo_list";
+  id: string;
+  timestamp: Date;
+  provider: AgentProvider;
+  items: TodoEntry[];
+}
+
+export type GenerativeUiStatus = "rendering" | "interactive" | "error";
+
+export interface GenerativeUiItem {
+  kind: "generative_ui";
+  id: string;
+  instanceId: string;
+  componentId: string;
+  props: Record<string, unknown>;
+  title?: string;
+  source: "tool_call" | "fence";
+  status: GenerativeUiStatus;
+  timestamp: Date;
+}
+
+export type StreamUpdateSource = "live" | "canonical";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeChunk(text: string): { chunk: string; hasContent: boolean } {
+  if (!text) {
+    return { chunk: "", hasContent: false };
+  }
+  const chunk = text.replace(/\r/g, "");
+  if (!chunk) {
+    return { chunk: "", hasContent: false };
+  }
+  return { chunk, hasContent: /\S/.test(chunk) };
+}
+
+function markThoughtReady(item: ThoughtItem): ThoughtItem {
+  if (item.status === "ready") {
+    return item;
+  }
+  return {
+    ...item,
+    status: "ready",
+  };
+}
+
+function buildUserMessageItem(input: {
+  id: string;
+  text: string;
+  timestamp: Date;
+  optimistic?: UserMessageItem | null;
+}): UserMessageItem {
+  if (input.optimistic) {
+    return {
+      kind: "user_message",
+      id: input.id,
+      text: input.optimistic.text,
+      timestamp: input.optimistic.timestamp,
+      ...(input.optimistic.images && input.optimistic.images.length > 0
+        ? { images: input.optimistic.images }
+        : {}),
+      ...(input.optimistic.attachments && input.optimistic.attachments.length > 0
+        ? { attachments: input.optimistic.attachments }
+        : {}),
+    };
+  }
+
+  return {
+    kind: "user_message",
+    id: input.id,
+    text: input.text,
+    timestamp: input.timestamp,
+  };
+}
+
+export function buildOptimisticUserMessage(input: OptimisticUserMessageInput): UserMessageItem {
+  return {
+    kind: "user_message",
+    id: input.id,
+    text: input.text,
+    timestamp: input.timestamp,
+    optimistic: true,
+    ...(input.images && input.images.length > 0 ? { images: input.images } : {}),
+    ...(input.attachments && input.attachments.length > 0
+      ? { attachments: input.attachments }
+      : {}),
+  };
+}
+
+function hasUserMessage(state: StreamItem[]): boolean {
+  return state.some((item) => item.kind === "user_message");
+}
+
+export function appendOptimisticUserMessageToStream(params: {
+  tail: StreamItem[];
+  head: StreamItem[];
+  message: UserMessageItem;
+  placement: OptimisticUserMessagePlacement;
+  skipIfUserMessageExists?: boolean;
+}): ApplyStreamEventResult {
+  const { tail, head, message, placement } = params;
+  if (
+    tail.some((item) => item.id === message.id) ||
+    head.some((item) => item.id === message.id) ||
+    (params.skipIfUserMessageExists && (hasUserMessage(tail) || hasUserMessage(head)))
+  ) {
+    return { tail, head, changedTail: false, changedHead: false };
+  }
+
+  if (placement === "active-head" && head.length > 0) {
+    return {
+      tail,
+      head: [...head, message],
+      changedTail: false,
+      changedHead: true,
+    };
+  }
+
+  return {
+    tail: [...tail, message],
+    head,
+    changedTail: true,
+    changedHead: false,
+  };
+}
+
+function appendUserMessage(
+  state: StreamItem[],
+  text: string,
+  timestamp: Date,
+  messageId?: string,
+): StreamItem[] {
+  const { chunk, hasContent } = normalizeChunk(text);
+  if (!hasContent) {
+    return state;
+  }
+
+  const chunkSeed = chunk.trim() || chunk;
+  const entryId = messageId ?? createUniqueTimelineId(state, "user", chunkSeed, timestamp);
+  const optimisticIndex = state.findIndex(
+    (entry) => entry.kind === "user_message" && entry.optimistic,
+  );
+  const optimistic = optimisticIndex >= 0 ? (state[optimisticIndex] as UserMessageItem) : null;
+
+  const nextItem = buildUserMessageItem({
+    id: entryId,
+    text: chunk,
+    timestamp,
+    optimistic,
+  });
+
+  if (optimisticIndex >= 0) {
+    const next = [...state];
+    next[optimisticIndex] = nextItem;
+    return next;
+  }
+
+  return [...state, nextItem];
+}
+
+export function clearOptimisticUserMessages(state: StreamItem[]): StreamItem[] {
+  const next = state.filter((item) => item.kind !== "user_message" || !item.optimistic);
+  return next.length === state.length ? state : next;
+}
+
+function appendAssistantMessage(
+  state: StreamItem[],
+  text: string,
+  timestamp: Date,
+  source: StreamUpdateSource,
+  messageId?: string,
+): StreamItem[] {
+  const { chunk, hasContent } = normalizeChunk(text);
+  if (!chunk) {
+    return state;
+  }
+
+  const last = state[state.length - 1];
+  const shouldAppendToLast =
+    last &&
+    last.kind === "assistant_message" &&
+    (messageId === undefined || last.messageId === messageId);
+  if (shouldAppendToLast) {
+    const updated: AssistantMessageItem = {
+      ...last,
+      text: `${last.text}${chunk}`,
+      timestamp,
+    };
+    return [...state.slice(0, -1), updated];
+  }
+
+  // If the last item is a user_message (optimistic append to head during
+  // interrupt), look one further back for the streaming assistant_message.
+  const secondLast = state[state.length - 2];
+  if (
+    source === "live" &&
+    last?.kind === "user_message" &&
+    secondLast?.kind === "assistant_message" &&
+    (messageId === undefined || secondLast.messageId === messageId)
+  ) {
+    const updated: AssistantMessageItem = {
+      ...secondLast,
+      text: `${secondLast.text}${chunk}`,
+      timestamp,
+    };
+    return [...state.slice(0, -2), updated, last];
+  }
+
+  if (!hasContent) {
+    return state;
+  }
+
+  const idSeed = chunk.trim() || chunk;
+  const entryId = messageId ?? createUniqueTimelineId(state, "assistant", idSeed, timestamp);
+  const item: AssistantMessageItem = {
+    kind: "assistant_message",
+    id: entryId,
+    ...(messageId ? { messageId } : {}),
+    text: chunk,
+    timestamp,
+  };
+  return [...state, item];
+}
+
+function appendThought(state: StreamItem[], text: string, timestamp: Date): StreamItem[] {
+  const { chunk, hasContent } = normalizeChunk(text);
+  if (!chunk) {
+    return state;
+  }
+
+  const last = state[state.length - 1];
+  if (last && last.kind === "thought") {
+    const updated: ThoughtItem = {
+      ...last,
+      text: `${last.text}${chunk}`,
+      timestamp,
+      status: "loading",
+    };
+    return [...state.slice(0, -1), updated];
+  }
+
+  if (!hasContent) {
+    return state;
+  }
+
+  const idSeed = chunk.trim() || chunk;
+  const item: ThoughtItem = {
+    kind: "thought",
+    id: createUniqueTimelineId(state, "thought", idSeed, timestamp),
+    text: chunk,
+    timestamp,
+    status: "loading",
+  };
+  return [...state, item];
+}
+
+function finalizeActiveThoughts(state: StreamItem[]): StreamItem[] {
+  let mutated = false;
+  const nextState = state.map((entry) => {
+    if (entry.kind === "thought" && entry.status !== "ready") {
+      mutated = true;
+      return markThoughtReady(entry);
+    }
+    return entry;
+  });
+
+  return mutated ? nextState : state;
+}
+
+function findExistingAgentToolCallIndex(state: StreamItem[], callId: string): number {
+  return state.findIndex(
+    (entry) =>
+      entry.kind === "tool_call" &&
+      entry.payload.source === "agent" &&
+      entry.payload.data.callId === callId,
+  );
+}
+
+function hasNonEmptyObject(value: unknown): boolean {
+  return isRecord(value) && Object.keys(value).length > 0;
+}
+
+function mergeUnknownValue(existing: unknown, incoming: unknown): unknown {
+  if (incoming === null) {
+    return existing;
+  }
+
+  if (!hasNonEmptyObject(incoming) && hasNonEmptyObject(existing)) {
+    return existing;
+  }
+
+  return incoming;
+}
+
+function hasSameIncomingFields<T extends Record<string, unknown>>(
+  existing: T,
+  incoming: T,
+): boolean {
+  return Object.entries(incoming).every(([key, value]) => existing[key] === value);
+}
+
+function mergeToolCallMetadata(
+  existing: Record<string, unknown> | undefined,
+  incoming: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!incoming) {
+    return existing;
+  }
+
+  if (!existing) {
+    return incoming;
+  }
+
+  if (hasSameIncomingFields(existing, incoming)) {
+    return existing;
+  }
+
+  return { ...existing, ...incoming };
+}
+
+export function mergeToolCallDetail(
+  existing: ToolCallDetail,
+  incoming: ToolCallDetail,
+): ToolCallDetail {
+  if (existing.type === "unknown" && incoming.type !== "unknown") {
+    return incoming;
+  }
+
+  if (incoming.type === "unknown" && existing.type !== "unknown") {
+    return existing;
+  }
+
+  if (existing.type === "unknown" && incoming.type === "unknown") {
+    const input = mergeUnknownValue(existing.input, incoming.input);
+    const output = mergeUnknownValue(existing.output, incoming.output);
+    if (input === existing.input && output === existing.output) {
+      return existing;
+    }
+
+    return {
+      type: "unknown",
+      input,
+      output,
+    };
+  }
+
+  if (existing.type === incoming.type) {
+    if (hasSameIncomingFields(existing, incoming)) {
+      return existing;
+    }
+
+    return { ...existing, ...incoming } as ToolCallDetail;
+  }
+
+  return incoming;
+}
+
+function inputFromUnknownDetail(detail: ToolCallDetail): unknown {
+  return detail.type === "unknown" ? detail.input : null;
+}
+
+function mergeAgentToolCallStatus(
+  existing: AgentToolCallStatus,
+  incoming: AgentToolCallStatus,
+): AgentToolCallStatus {
+  if (existing === "failed" || incoming === "failed") {
+    return "failed";
+  }
+  if (existing === "canceled") {
+    return "canceled";
+  }
+  if (incoming === "canceled") {
+    return existing === "completed" ? "completed" : "canceled";
+  }
+  if (existing === "completed" || incoming === "completed") {
+    return "completed";
+  }
+  return "running";
+}
+
+export function mergeAgentToolCallItem(
+  existing: AgentToolCallItem,
+  data: AgentToolCallData,
+  timestamp: Date,
+): AgentToolCallItem {
+  const mergedStatus = mergeAgentToolCallStatus(existing.payload.data.status, data.status);
+  const mergedError =
+    mergedStatus === "failed"
+      ? (data.error ?? existing.payload.data.error ?? { message: "工具调用失败" })
+      : null;
+  const mergedMetadata = mergeToolCallMetadata(existing.payload.data.metadata, data.metadata);
+  const mergedDetail = mergeToolCallDetail(existing.payload.data.detail, data.detail);
+
+  return {
+    ...existing,
+    timestamp,
+    payload: {
+      source: "agent",
+      data: {
+        ...existing.payload.data,
+        ...data,
+        status: mergedStatus,
+        error: mergedError,
+        detail: mergedDetail,
+        metadata: mergedMetadata,
+      },
+    },
+  };
+}
+
+function appendAgentToolCall(
+  state: StreamItem[],
+  data: AgentToolCallData,
+  timestamp: Date,
+): StreamItem[] {
+  const existingIndex = findExistingAgentToolCallIndex(state, data.callId);
+
+  if (existingIndex >= 0) {
+    const existing = state[existingIndex];
+    if (!existing || !isAgentToolCallItem(existing)) {
+      return state;
+    }
+    const merged = mergeAgentToolCallItem(existing, data, timestamp);
+
+    if (
+      merged.payload.data.provider === existing.payload.data.provider &&
+      merged.payload.data.callId === existing.payload.data.callId &&
+      merged.payload.data.name === existing.payload.data.name &&
+      merged.payload.data.status === existing.payload.data.status &&
+      merged.payload.data.error === existing.payload.data.error &&
+      merged.payload.data.detail === existing.payload.data.detail &&
+      merged.payload.data.metadata === existing.payload.data.metadata
+    ) {
+      return state;
+    }
+
+    const next = [...state];
+    next[existingIndex] = merged;
+    return next;
+  }
+
+  const item: ToolCallItem = {
+    kind: "tool_call",
+    id: `agent_tool_${data.callId}`,
+    timestamp,
+    payload: {
+      source: "agent",
+      data: {
+        ...data,
+        error: data.status === "failed" ? data.error : null,
+      },
+    },
+  };
+
+  return [...state, item];
+}
+
+function appendActivityLog(state: StreamItem[], entry: ActivityLogItem): StreamItem[] {
+  const index = state.findIndex((existing) => existing.id === entry.id);
+  if (index >= 0) {
+    const next = [...state];
+    next[index] = entry;
+    return next;
+  }
+  return [...state, entry];
+}
+
+function appendTodoList(
+  state: StreamItem[],
+  provider: AgentProvider,
+  items: TodoEntry[],
+  timestamp: Date,
+): StreamItem[] {
+  const normalizedItems = items.map((item) => ({
+    text: item.text,
+    completed: item.completed,
+  }));
+
+  const lastItem = state[state.length - 1];
+  if (lastItem && lastItem.kind === "todo_list" && lastItem.provider === provider) {
+    const next = [...state];
+    const updated: TodoListItem = {
+      ...lastItem,
+      items: normalizedItems,
+      timestamp,
+    };
+    next[next.length - 1] = updated;
+    return next;
+  }
+
+  const idSeed = `${provider}:${JSON.stringify(normalizedItems)}`;
+  const entryId = createUniqueTimelineId(state, "todo", idSeed, timestamp);
+
+  const entry: TodoListItem = {
+    kind: "todo_list",
+    id: entryId,
+    timestamp,
+    provider,
+    items: normalizedItems,
+  };
+
+  return [...state, entry];
+}
+
+function reduceTimelineToolCall(
+  state: StreamItem[],
+  event: Extract<AgentStreamEventPayload, { type: "timeline" }>,
+  item: Extract<
+    Extract<AgentStreamEventPayload, { type: "timeline" }>["item"],
+    { type: "tool_call" }
+  >,
+  timestamp: Date,
+): StreamItem[] {
+  const normalizedToolName = item.name
+    .trim()
+    .replace(/[.\s-]+/g, "_")
+    .toLowerCase();
+  if (event.provider === "claude" && normalizedToolName === "exitplanmode") {
+    return state;
+  }
+
+  if (
+    event.provider === "claude" &&
+    (normalizedToolName === "todowrite" || normalizedToolName === "todo_write")
+  ) {
+    const tasks = extractTaskEntriesFromToolCall(item.name, inputFromUnknownDetail(item.detail));
+    if (!tasks) {
+      return state;
+    }
+    return appendTodoList(
+      state,
+      event.provider,
+      tasks.map((entry) => ({ text: entry.text, completed: entry.completed })),
+      timestamp,
+    );
+  }
+
+  const tasks = extractTaskEntriesFromToolCall(item.name, inputFromUnknownDetail(item.detail));
+  if (tasks) {
+    return appendTodoList(
+      state,
+      event.provider,
+      tasks.map((entry) => ({ text: entry.text, completed: entry.completed })),
+      timestamp,
+    );
+  }
+
+  return appendAgentToolCall(
+    state,
+    {
+      provider: event.provider,
+      callId: item.callId,
+      name: item.name,
+      status: item.status,
+      error: item.error,
+      detail: item.detail,
+      metadata: item.metadata,
+    },
+    timestamp,
+  );
+}
+
+function reduceTimelineCompaction(
+  state: StreamItem[],
+  item: Extract<
+    Extract<AgentStreamEventPayload, { type: "timeline" }>["item"],
+    { type: "compaction" }
+  >,
+  timestamp: Date,
+): StreamItem[] {
+  if (item.status === "completed") {
+    const loadingIdx = state.findIndex((s) => s.kind === "compaction" && s.status === "loading");
+    const existing = loadingIdx >= 0 ? state[loadingIdx] : undefined;
+    if (loadingIdx >= 0 && existing && existing.kind === "compaction") {
+      const updated: CompactionItem = {
+        ...existing,
+        status: "completed",
+        error: undefined,
+        trigger: item.trigger,
+        preTokens: item.preTokens,
+      };
+      return [...state.slice(0, loadingIdx), updated, ...state.slice(loadingIdx + 1)];
+    }
+    if (loadingIdx >= 0) {
+      return state;
+    }
+  }
+  const compaction: CompactionItem = {
+    kind: "compaction",
+    id: createTimelineId("compaction", item.status, timestamp),
+    timestamp,
+    status: item.status,
+    ...(item.error ? { error: item.error } : {}),
+    trigger: item.trigger,
+    preTokens: item.preTokens,
+  };
+  return [...state, compaction];
+}
+
+function reduceTimelineEvent(
+  state: StreamItem[],
+  event: Extract<AgentStreamEventPayload, { type: "timeline" }>,
+  timestamp: Date,
+  source: StreamUpdateSource,
+): StreamItem[] {
+  const item = event.item;
+  switch (item.type) {
+    case "user_message":
+      return finalizeActiveThoughts(appendUserMessage(state, item.text, timestamp, item.messageId));
+    case "assistant_message":
+      return finalizeActiveThoughts(
+        appendAssistantMessage(state, item.text, timestamp, source, item.messageId),
+      );
+    case "reasoning":
+      return appendThought(state, item.text, timestamp);
+    case "tool_call":
+      return finalizeActiveThoughts(reduceTimelineToolCall(state, event, item, timestamp));
+    case "todo": {
+      if (event.provider === "claude") {
+        return finalizeActiveThoughts(state);
+      }
+      const items: TodoEntry[] = (item.items ?? []).map((todo) => ({
+        text: todo.text,
+        completed: todo.completed,
+      }));
+      return finalizeActiveThoughts(appendTodoList(state, event.provider, items, timestamp));
+    }
+    case "error": {
+      const activity: ActivityLogItem = {
+        kind: "activity_log",
+        id: createTimelineId("error", item.message ?? "", timestamp),
+        timestamp,
+        activityType: "error",
+        message: item.message ?? "Unknown error",
+      };
+      return finalizeActiveThoughts(appendActivityLog(state, activity));
+    }
+    case "compaction":
+      return finalizeActiveThoughts(reduceTimelineCompaction(state, item, timestamp));
+    case "turn_changes": {
+      const finalizedState = finalizeActiveThoughts(state);
+      const turnChangesItem = {
+        kind: "turn_changes",
+        id: createUniqueTimelineId(finalizedState, "turn_changes", item.changeSummary, timestamp),
+        timestamp,
+        changeSummary: item.changeSummary,
+        changedFiles: item.changedFiles.map((f) => ({
+          path: f.path,
+          ...(f.additions != null ? { additions: f.additions } : {}),
+          ...(f.deletions != null ? { deletions: f.deletions } : {}),
+        })),
+        ...(item.checkpointRef ? { checkpointRef: item.checkpointRef } : {}),
+      } as TurnChangesItem;
+      return [...finalizedState, turnChangesItem];
+    }
+    case "generative_ui": {
+      const finalizedState = finalizeActiveThoughts(state);
+      if ("componentId" in item && "instanceId" in item) {
+        const genUiItem: GenerativeUiItem = {
+          kind: "generative_ui",
+          id: createUniqueTimelineId(
+            finalizedState,
+            "genui",
+            (item as Record<string, unknown>).instanceId as string,
+            timestamp,
+          ),
+          instanceId: (item as Record<string, unknown>).instanceId as string,
+          componentId: (item as Record<string, unknown>).componentId as string,
+          props: ((item as Record<string, unknown>).props as Record<string, unknown>) ?? {},
+          title: (item as Record<string, unknown>).title as string | undefined,
+          source:
+            ((item as Record<string, unknown>).source as "tool_call" | "fence") ?? "tool_call",
+          status: ((item as Record<string, unknown>).status as GenerativeUiStatus) ?? "rendering",
+          timestamp,
+        };
+        return [...finalizedState, genUiItem];
+      }
+      return finalizedState;
+    }
+    default:
+      return state;
+  }
+}
+
+/**
+ * Reduce a single AgentManager stream event into the UI timeline
+ */
+export function reduceStreamUpdate(
+  state: StreamItem[],
+  event: AgentStreamEventPayload,
+  timestamp: Date,
+  options?: { source?: StreamUpdateSource },
+): StreamItem[] {
+  const source = options?.source ?? "live";
+  switch (event.type) {
+    case "timeline":
+      return reduceTimelineEvent(state, event, timestamp, source);
+    case "thread_started":
+    case "turn_started":
+    case "turn_completed":
+    case "turn_failed":
+    case "turn_canceled":
+    case "permission_requested":
+    case "permission_resolved":
+    case "attention_required":
+      return finalizeActiveThoughts(state);
+    case "generative_ui_update": {
+      const finalized = finalizeActiveThoughts(state);
+      const idx = finalized.findLastIndex(
+        (s) => s.kind === "generative_ui" && s.instanceId === event.instanceId,
+      );
+      if (idx === -1) return finalized;
+      // Never mutate the previous snapshot's props in place: reducers must stay
+      // immutable or stale-snapshot readers see corrupted data and memoized
+      // components keyed on item.props reference stop re-rendering.
+      const previous = finalized[idx] as GenerativeUiItem;
+      const updated = {
+        ...previous,
+        props: { ...previous.props, ...event.props },
+      } as GenerativeUiItem;
+      if (event.status) updated.status = event.status;
+      return [...finalized.slice(0, idx), updated, ...finalized.slice(idx + 1)];
+    }
+    case "generative_ui_remove": {
+      const finalized = finalizeActiveThoughts(state);
+      const idx = finalized.findLastIndex(
+        (s) => s.kind === "generative_ui" && s.instanceId === event.instanceId,
+      );
+      if (idx === -1) return finalized;
+      const removed = { ...finalized[idx] } as GenerativeUiItem;
+      removed.status = "error"; // "removed" lifecycle expressed as error status
+      return [...finalized.slice(0, idx), removed, ...finalized.slice(idx + 1)];
+    }
+    default:
+      return state;
+  }
+}
+
+/**
+ * Hydrate stream state from a batch of AgentManager stream events
+ */
+export function hydrateStreamState(
+  events: Array<{
+    event: AgentStreamEventPayload;
+    timestamp: Date;
+  }>,
+  options?: { source?: StreamUpdateSource },
+): StreamItem[] {
+  const hydrated = events.reduce<StreamItem[]>((state, { event, timestamp }) => {
+    return reduceStreamUpdate(state, event, timestamp, options);
+  }, []);
+
+  return finalizeActiveThoughts(hydrated);
+}
+
+/**
+ * Streamable item kinds - items that can be incrementally streamed
+ * and should be buffered in the head before committing to tail.
+ */
+type StreamableKind = "assistant_message" | "thought";
+
+const STREAMABLE_KINDS = new Set<StreamItem["kind"]>(["assistant_message", "thought"]);
+
+function isStreamableKind(kind: StreamItem["kind"]): kind is StreamableKind {
+  return STREAMABLE_KINDS.has(kind);
+}
+
+const STREAM_COMPLETION_EVENTS = new Set<AgentStreamEventPayload["type"]>([
+  "turn_completed",
+  "turn_failed",
+  "turn_canceled",
+]);
+
+function applyCompletionToTail(
+  tail: StreamItem[],
+  event: AgentStreamEventPayload,
+  timestamp: Date,
+  source: StreamUpdateSource,
+): StreamItem[] {
+  const finalized = finalizeActiveThoughts(tail);
+  return reduceStreamUpdate(finalized, event, timestamp, { source });
+}
+
+/**
+ * Determine what kind of StreamItem an event would produce
+ */
+function getEventItemKind(event: AgentStreamEventPayload): StreamItem["kind"] | null {
+  if (event.type !== "timeline") {
+    return null;
+  }
+  switch (event.item.type) {
+    case "user_message":
+      return "user_message";
+    case "assistant_message":
+      return "assistant_message";
+    case "reasoning":
+      return "thought";
+    case "tool_call":
+      return "tool_call";
+    case "todo":
+      return "todo_list";
+    case "error":
+      return "activity_log";
+    case "turn_changes":
+      return "turn_changes";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Finalize head items before flushing to tail.
+ * Marks thoughts as "ready" since they're no longer being streamed.
+ */
+function finalizeHeadItems(head: StreamItem[]): StreamItem[] {
+  return head.map((item) => {
+    if (item.kind === "thought" && item.status !== "ready") {
+      return markThoughtReady(item);
+    }
+    if (item.kind === "assistant_message" && item.blockGroupId) {
+      return {
+        ...item,
+        id: createAssistantBlockId({
+          groupId: item.blockGroupId,
+          blockIndex: item.blockIndex ?? 0,
+        }),
+      };
+    }
+    return item;
+  });
+}
+
+function createAssistantBlockId(params: { groupId: string; blockIndex: number }): string {
+  return `${params.groupId}:block:${params.blockIndex}`;
+}
+
+function getTrailingNewlineSuffix(text: string): string {
+  return /\n+$/.exec(text)?.[0] ?? "";
+}
+
+function getActiveAssistantHeadIndex(head: StreamItem[]): number {
+  for (let index = head.length - 1; index >= 0; index -= 1) {
+    if (head[index]?.kind === "assistant_message") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function getTailAssistantToResume(params: {
+  incomingKind: StreamItem["kind"] | null;
+  event: AgentStreamEventPayload;
+  nextHead: StreamItem[];
+  tailAssistant: StreamItem | undefined;
+}): AssistantMessageItem | null {
+  if (params.incomingKind !== "assistant_message" || params.nextHead.length !== 0) {
+    return null;
+  }
+  if (params.tailAssistant?.kind !== "assistant_message") {
+    return null;
+  }
+  const incomingMessageId =
+    params.event.type === "timeline" && params.event.item.type === "assistant_message"
+      ? params.event.item.messageId
+      : undefined;
+  if (incomingMessageId !== undefined && params.tailAssistant.messageId !== incomingMessageId) {
+    return null;
+  }
+  return params.tailAssistant;
+}
+
+function promoteCompletedAssistantBlocks(params: { tail: StreamItem[]; head: StreamItem[] }): {
+  tail: StreamItem[];
+  head: StreamItem[];
+  changedTail: boolean;
+  changedHead: boolean;
+} {
+  const assistantIndex = getActiveAssistantHeadIndex(params.head);
+  const activeItem = params.head[assistantIndex];
+  if (assistantIndex < 0 || !activeItem || activeItem.kind !== "assistant_message") {
+    return {
+      tail: params.tail,
+      head: params.head,
+      changedTail: false,
+      changedHead: false,
+    };
+  }
+
+  const blocks = splitMarkdownBlocks(activeItem.text);
+  if (blocks.length < 2) {
+    return {
+      tail: params.tail,
+      head: params.head,
+      changedTail: false,
+      changedHead: false,
+    };
+  }
+
+  const blockGroupId = activeItem.blockGroupId ?? activeItem.id;
+  const firstBlockIndex = activeItem.blockIndex ?? 0;
+  const completedBlocks = blocks.slice(0, -1);
+  const liveBlock = `${blocks[blocks.length - 1] ?? ""}${getTrailingNewlineSuffix(activeItem.text)}`;
+  const promotedItems = completedBlocks.map<AssistantMessageItem>((block, offset) => ({
+    kind: "assistant_message",
+    id: createAssistantBlockId({
+      groupId: blockGroupId,
+      blockIndex: firstBlockIndex + offset,
+    }),
+    blockGroupId,
+    blockIndex: firstBlockIndex + offset,
+    text: block,
+    timestamp: activeItem.timestamp,
+  }));
+
+  const nextTail = flushHeadToTail(params.tail, promotedItems);
+  const liveItem: AssistantMessageItem = {
+    ...activeItem,
+    id: `${blockGroupId}:head`,
+    blockGroupId,
+    blockIndex: firstBlockIndex + completedBlocks.length,
+    text: liveBlock,
+  };
+  const nextHead = [
+    ...params.head.slice(0, assistantIndex),
+    liveItem,
+    ...params.head.slice(assistantIndex + 1),
+  ];
+
+  return {
+    tail: nextTail,
+    head: nextHead,
+    changedTail: nextTail !== params.tail,
+    changedHead: true,
+  };
+}
+
+/**
+ * Flush head items to tail, avoiding duplicates.
+ */
+export function flushHeadToTail(tail: StreamItem[], head: StreamItem[]): StreamItem[] {
+  if (head.length === 0) {
+    return tail;
+  }
+
+  const finalized = finalizeHeadItems(head);
+  const tailIds = new Set(tail.map((item) => item.id));
+  const newItems = finalized.filter((item) => !tailIds.has(item.id));
+
+  if (newItems.length === 0) {
+    return tail;
+  }
+
+  return [...tail, ...newItems];
+}
+
+/**
+ * Determine if the head should be flushed based on incoming event kind.
+ * Flush when a different kind arrives or when the incoming kind is not streamable.
+ */
+function shouldFlushHead(head: StreamItem[], incomingKind: StreamItem["kind"] | null): boolean {
+  if (head.length === 0) {
+    return false;
+  }
+
+  // Non-timeline events don't trigger flush (except completion events handled separately)
+  if (incomingKind === null) {
+    return false;
+  }
+
+  // If incoming is not streamable, flush current head
+  if (!isStreamableKind(incomingKind)) {
+    return true;
+  }
+
+  // Find the last streamable item in head (skip trailing non-streamable
+  // items like an optimistic user_message appended during interrupt).
+  let lastStreamable: StreamItem | undefined;
+  for (let i = head.length - 1; i >= 0; i--) {
+    if (isStreamableKind(head[i].kind)) {
+      lastStreamable = head[i];
+      break;
+    }
+  }
+
+  if (!lastStreamable) {
+    return true;
+  }
+
+  // If incoming kind is different from current head's streamable kind, flush
+  if (lastStreamable.kind !== incomingKind) {
+    return true;
+  }
+
+  return false;
+}
+
+export interface ApplyStreamEventResult {
+  tail: StreamItem[];
+  head: StreamItem[];
+  changedTail: boolean;
+  changedHead: boolean;
+}
+
+/**
+ * Apply a stream event using head/tail model.
+ *
+ * - Tail: committed history (rarely changes during streaming)
+ * - Head: active streaming items (frequently updated)
+ *
+ * Both use the same reduceStreamUpdate function. The difference is:
+ * - Streamable items (assistant_message, thought) go to head
+ * - Non-streamable items flush head to tail first, then go to tail
+ * - Turn completion events flush head to tail
+ */
+export function applyStreamEvent(params: {
+  tail: StreamItem[];
+  head: StreamItem[];
+  event: AgentStreamEventPayload;
+  timestamp: Date;
+  source?: StreamUpdateSource;
+}): ApplyStreamEventResult {
+  const { tail, head, event, timestamp } = params;
+  const source = params.source ?? "live";
+  let nextTail = tail;
+  let nextHead = head;
+  let changedTail = false;
+  let changedHead = false;
+
+  const flushHead = () => {
+    if (nextHead.length === 0) {
+      return;
+    }
+    const flushed = flushHeadToTail(nextTail, nextHead);
+    if (flushed !== nextTail) {
+      nextTail = flushed;
+      changedTail = true;
+    }
+    nextHead = [];
+    changedHead = true;
+  };
+
+  // Handle turn completion events - flush everything
+  if (STREAM_COMPLETION_EVENTS.has(event.type)) {
+    flushHead();
+    const finalized = applyCompletionToTail(nextTail, event, timestamp, source);
+    if (finalized !== nextTail) {
+      nextTail = finalized;
+      changedTail = true;
+    }
+    return { tail: nextTail, head: nextHead, changedTail, changedHead };
+  }
+
+  const incomingKind = getEventItemKind(event);
+
+  // Check if we need to flush head before processing this event
+  if (shouldFlushHead(nextHead, incomingKind)) {
+    flushHead();
+  }
+
+  const tailAssistant = getTailAssistantToResume({
+    incomingKind,
+    event,
+    nextHead,
+    tailAssistant: nextTail.at(-1),
+  });
+  if (tailAssistant) {
+    nextTail = nextTail.slice(0, -1);
+    nextHead = [tailAssistant];
+    changedTail = true;
+    changedHead = true;
+  }
+
+  // For streamable kinds, apply to head
+  if (incomingKind !== null && isStreamableKind(incomingKind)) {
+    const reduced = reduceStreamUpdate(nextHead, event, timestamp, { source });
+    if (reduced !== nextHead) {
+      nextHead = reduced;
+      changedHead = true;
+    }
+    if (incomingKind === "assistant_message") {
+      const promoted = promoteCompletedAssistantBlocks({
+        tail: nextTail,
+        head: nextHead,
+      });
+      nextTail = promoted.tail;
+      nextHead = promoted.head;
+      changedTail = changedTail || promoted.changedTail;
+      changedHead = changedHead || promoted.changedHead;
+    }
+    return { tail: nextTail, head: nextHead, changedTail, changedHead };
+  }
+
+  // For non-streamable kinds or non-timeline events, apply to tail
+  const reduced = reduceStreamUpdate(nextTail, event, timestamp, { source });
+  if (reduced !== nextTail) {
+    nextTail = reduced;
+    changedTail = true;
+  }
+
+  return { tail: nextTail, head: nextHead, changedTail, changedHead };
+}

@@ -1,0 +1,746 @@
+import type { Options as ClaudeAgentOptions } from "@anthropic-ai/claude-agent-sdk";
+import type { AgentAttachment } from "@chisacode/protocol/messages";
+
+export type AgentProvider = string;
+
+export interface AgentMetadata {
+  [key: string]: unknown;
+}
+
+/**
+ * Stdio-based MCP server (spawns a subprocess).
+ */
+export interface McpStdioServerConfig {
+  type: "stdio";
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+/**
+ * HTTP-based MCP server.
+ */
+export interface McpHttpServerConfig {
+  type: "http";
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/**
+ * SSE-based MCP server (Server-Sent Events over HTTP).
+ */
+export interface McpSseServerConfig {
+  type: "sse";
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Canonical MCP server configuration.
+ * Discriminated union by `type` field.
+ * Each provider normalizes this to their expected format.
+ */
+export type McpServerConfig = McpStdioServerConfig | McpHttpServerConfig | McpSseServerConfig;
+
+export interface AgentMode {
+  id: string;
+  label: string;
+  description?: string;
+  icon?: string;
+  colorTier?: string;
+  isUnattended?: boolean;
+}
+
+export type ProviderStatus = "ready" | "loading" | "error" | "unavailable";
+export type ProviderStatusReason =
+  | "disabled"
+  | "command_unavailable"
+  | "runtime_unavailable"
+  | "model_discovery_failed"
+  | "refresh_failed"
+  | "configuration_changed";
+
+export interface AgentModelDefinition {
+  provider: AgentProvider;
+  id: string;
+  label: string;
+  description?: string;
+  isDefault?: boolean;
+  contextWindowMaxTokens?: number;
+  supportsImages?: boolean;
+  /** Per-million-token pricing in USD. Omitted when unknown or not applicable. */
+  cost?: ModelCost;
+  metadata?: AgentMetadata;
+  thinkingOptions?: AgentSelectOption[];
+  defaultThinkingOptionId?: string;
+}
+
+/** USD pricing per million tokens. */
+export interface ModelCost {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+}
+
+export interface AgentSelectOption {
+  id: string;
+  label: string;
+  description?: string;
+  isDefault?: boolean;
+  metadata?: AgentMetadata;
+}
+
+export function normalizeAgentModelDefinition(model: AgentModelDefinition): AgentModelDefinition {
+  const defaultThinkingOptionId =
+    model.defaultThinkingOptionId ?? model.thinkingOptions?.find((option) => option.isDefault)?.id;
+  if (!defaultThinkingOptionId || defaultThinkingOptionId === model.defaultThinkingOptionId) {
+    return model;
+  }
+  return { ...model, defaultThinkingOptionId };
+}
+
+export interface ProviderSnapshotEntry {
+  provider: AgentProvider;
+  status: ProviderStatus;
+  statusReason?: ProviderStatusReason;
+  enabled: boolean;
+  error?: string;
+  models?: AgentModelDefinition[];
+  modes?: AgentMode[];
+  fetchedAt?: string;
+  label?: string;
+  description?: string;
+  defaultModeId?: string | null;
+  derivedFromProviderId?: AgentProvider | null;
+  modelGatewayId?: string | null;
+  installedVersion?: string | null;
+  latestVersion?: string | null;
+  versionStatus?: "unknown" | "not-installed" | "current" | "outdated";
+  packageName?: string;
+  checkedAt?: string;
+  installAvailable?: boolean;
+  updateAvailable?: boolean;
+}
+
+export interface AgentCreateConfigParent {
+  provider: AgentProvider;
+  modeId: string | null;
+  isUnattended: boolean;
+}
+
+export interface ResolveAgentCreateConfigInput {
+  provider: AgentProvider;
+  requestedMode: string | undefined;
+  featureValues: Record<string, unknown> | undefined;
+  parent: AgentCreateConfigParent | null;
+  availableModes: AgentMode[] | undefined;
+}
+
+export interface ResolveAgentCreateConfigResult {
+  modeId: string | undefined;
+  featureValues: Record<string, unknown> | undefined;
+}
+
+export interface AgentCreateConfigUnattendedInput {
+  modeId: string | null;
+  config: AgentSessionConfig;
+  features?: AgentFeature[];
+  availableModes: AgentMode[];
+}
+
+export interface AgentFeatureToggle {
+  type: "toggle";
+  id: string;
+  label: string;
+  description?: string;
+  tooltip?: string;
+  icon?: string;
+  value: boolean;
+}
+
+export interface AgentFeatureSelect {
+  type: "select";
+  id: string;
+  label: string;
+  description?: string;
+  tooltip?: string;
+  icon?: string;
+  value: string | null;
+  options: AgentSelectOption[];
+}
+
+export type AgentFeature = AgentFeatureToggle | AgentFeatureSelect;
+
+export interface AgentCapabilityFlags {
+  supportsStreaming: boolean;
+  supportsSessionPersistence: boolean;
+  supportsDynamicModes: boolean;
+  supportsMcpServers: boolean;
+  supportsReasoningStream: boolean;
+  supportsToolInvocations: boolean;
+  supportsRewindConversation?: boolean;
+  supportsRewindFiles?: boolean;
+  supportsRewindBoth?: boolean;
+}
+
+export interface AgentPersistenceHandle {
+  provider: AgentProvider;
+  sessionId: string;
+  /** Provider specific handle (Codex thread id, Claude resume token, etc). */
+  nativeHandle?: string;
+  metadata?: AgentMetadata;
+}
+
+export type AgentPromptContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string }
+  | AgentAttachment;
+
+export type AgentPromptInput = string | AgentPromptContentBlock[];
+
+export interface AgentRunOptions {
+  outputSchema?: unknown;
+  resumeFrom?: AgentPersistenceHandle;
+  maxThinkingTokens?: number;
+  messageId?: string;
+}
+
+export interface AgentUsage {
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  outputTokens?: number;
+  totalCostUsd?: number;
+  contextWindowMaxTokens?: number;
+  contextWindowUsedTokens?: number;
+}
+
+export const TOOL_CALL_ICON_NAMES = [
+  "wrench",
+  "square_terminal",
+  "eye",
+  "pencil",
+  "search",
+  "bot",
+  "sparkles",
+  "brain",
+  "mic_vocal",
+] as const;
+
+export type ToolCallIconName = (typeof TOOL_CALL_ICON_NAMES)[number];
+
+export type ToolCallDetail =
+  | {
+      type: "shell";
+      command: string;
+      cwd?: string;
+      output?: string;
+      exitCode?: number | null;
+    }
+  | {
+      type: "read";
+      filePath: string;
+      content?: string;
+      offset?: number;
+      limit?: number;
+    }
+  | {
+      type: "edit";
+      filePath: string;
+      oldString?: string;
+      newString?: string;
+      unifiedDiff?: string;
+    }
+  | {
+      type: "write";
+      filePath: string;
+      content?: string;
+    }
+  | {
+      type: "search";
+      query: string;
+      toolName?: "search" | "grep" | "glob" | "web_search";
+      content?: string;
+      filePaths?: string[];
+      webResults?: Array<{
+        title: string;
+        url: string;
+      }>;
+      annotations?: string[];
+      numFiles?: number;
+      numMatches?: number;
+      durationMs?: number;
+      durationSeconds?: number;
+      truncated?: boolean;
+      mode?: "content" | "files_with_matches" | "count";
+    }
+  | {
+      type: "fetch";
+      url: string;
+      prompt?: string;
+      result?: string;
+      code?: number;
+      codeText?: string;
+      bytes?: number;
+      durationMs?: number;
+    }
+  | {
+      type: "worktree_setup";
+      worktreePath: string;
+      branchName: string;
+      log: string;
+      commands: Array<{
+        index: number;
+        command: string;
+        cwd: string;
+        log: string;
+        status: "running" | "completed" | "failed";
+        exitCode: number | null;
+        durationMs?: number;
+      }>;
+      truncated?: boolean;
+    }
+  | {
+      type: "sub_agent";
+      subAgentType?: string;
+      description?: string;
+      childSessionId?: string;
+      log: string;
+      actions?: Array<{
+        index: number;
+        toolName: string;
+        summary?: string;
+      }>;
+    }
+  | {
+      type: "plain_text";
+      label?: string;
+      text?: string;
+      icon?: ToolCallIconName;
+    }
+  | {
+      type: "plan";
+      text: string;
+    }
+  | {
+      type: "unknown";
+      input: unknown;
+      output: unknown;
+    };
+
+export interface ToolCallBase {
+  [key: string]: unknown;
+  type: "tool_call";
+  callId: string;
+  name: string;
+  detail: ToolCallDetail;
+  metadata?: Record<string, unknown>;
+}
+
+type ToolCallRunningTimelineItem = ToolCallBase & {
+  status: "running";
+  error: null;
+};
+
+type ToolCallCompletedTimelineItem = ToolCallBase & {
+  status: "completed";
+  error: null;
+};
+
+type ToolCallFailedTimelineItem = ToolCallBase & {
+  status: "failed";
+  error: unknown;
+};
+
+type ToolCallCanceledTimelineItem = ToolCallBase & {
+  status: "canceled";
+  error: null;
+};
+
+export type ToolCallTimelineItem =
+  | ToolCallRunningTimelineItem
+  | ToolCallCompletedTimelineItem
+  | ToolCallFailedTimelineItem
+  | ToolCallCanceledTimelineItem;
+
+export interface CompactionTimelineItem {
+  [key: string]: unknown;
+  type: "compaction";
+  status: "loading" | "completed" | "failed";
+  error?: string;
+  trigger?: "auto" | "manual";
+  preTokens?: number;
+}
+
+export type GenerativeUiStatus = "rendering" | "interactive" | "error";
+
+export interface GenerativeUiTimelineItem {
+  [key: string]: unknown;
+  type: "generative_ui";
+  instanceId: string;
+  componentId: string;
+  props: Record<string, unknown>;
+  title?: string;
+  source: "tool_call" | "fence";
+  status: GenerativeUiStatus;
+}
+
+export type AgentTimelineItem =
+  | { type: "user_message"; text: string; messageId?: string }
+  | { type: "assistant_message"; text: string; messageId?: string }
+  | { type: "reasoning"; text: string }
+  | ToolCallTimelineItem
+  | GenerativeUiTimelineItem
+  | { type: "todo"; items: { text: string; completed: boolean }[] }
+  | { type: "error"; message: string }
+  | CompactionTimelineItem
+  | {
+      type: "turn_changes";
+      changeSummary: string;
+      changedFiles: { path: string; additions?: number; deletions?: number }[];
+      checkpointRef?: string;
+    };
+
+export type AgentStreamEvent =
+  | { type: "thread_started"; sessionId: string; provider: AgentProvider }
+  | { type: "turn_started"; provider: AgentProvider; turnId?: string }
+  | { type: "turn_completed"; provider: AgentProvider; usage?: AgentUsage; turnId?: string }
+  | { type: "usage_updated"; provider: AgentProvider; usage: AgentUsage; turnId?: string }
+  | {
+      type: "mode_changed";
+      provider: AgentProvider;
+      currentModeId: string | null;
+      availableModes: AgentMode[];
+    }
+  | { type: "model_changed"; provider: AgentProvider; runtimeInfo: AgentRuntimeInfo }
+  | {
+      type: "thinking_option_changed";
+      provider: AgentProvider;
+      thinkingOptionId: string | null;
+    }
+  | {
+      type: "turn_failed";
+      provider: AgentProvider;
+      error: string;
+      code?: string;
+      diagnostic?: string;
+      turnId?: string;
+    }
+  | { type: "turn_canceled"; provider: AgentProvider; reason: string; turnId?: string }
+  | {
+      type: "timeline";
+      item: AgentTimelineItem;
+      provider: AgentProvider;
+      turnId?: string;
+      timestamp?: string;
+    }
+  | {
+      type: "permission_requested";
+      provider: AgentProvider;
+      request: AgentPermissionRequest;
+      turnId?: string;
+    }
+  | {
+      type: "permission_resolved";
+      provider: AgentProvider;
+      requestId: string;
+      resolution: AgentPermissionResponse;
+      turnId?: string;
+    }
+  | {
+      type: "attention_required";
+      provider: AgentProvider;
+      reason: "finished" | "error" | "permission";
+      timestamp: string;
+    }
+  | {
+      type: "generative_ui_update";
+      instanceId: string;
+      props: Record<string, unknown>;
+      status?: GenerativeUiStatus;
+      provider?: AgentProvider;
+      timestamp?: string;
+    }
+  | {
+      type: "generative_ui_remove";
+      instanceId: string;
+      provider?: AgentProvider;
+      timestamp?: string;
+    };
+
+export function getAgentStreamEventTurnId(event: AgentStreamEvent): string | undefined {
+  return "turnId" in event ? event.turnId : undefined;
+}
+
+export type AgentPermissionRequestKind = "tool" | "plan" | "question" | "mode" | "other";
+
+export type AgentPermissionUpdate = AgentMetadata;
+
+export interface AgentPermissionAction {
+  id: string;
+  label: string;
+  behavior: "allow" | "deny";
+  variant?: "primary" | "secondary" | "danger";
+  intent?: "implement" | "implement_resume" | "dismiss";
+}
+
+export interface AgentPermissionRequest {
+  id: string;
+  provider: AgentProvider;
+  name: string;
+  kind: AgentPermissionRequestKind;
+  title?: string;
+  description?: string;
+  input?: AgentMetadata;
+  detail?: ToolCallDetail;
+  suggestions?: AgentPermissionUpdate[];
+  actions?: AgentPermissionAction[];
+  metadata?: AgentMetadata;
+}
+
+export type AgentPermissionResponse =
+  | {
+      behavior: "allow";
+      selectedActionId?: string;
+      updatedInput?: AgentMetadata;
+      updatedPermissions?: AgentPermissionUpdate[];
+    }
+  | {
+      behavior: "deny";
+      selectedActionId?: string;
+      message?: string;
+      interrupt?: boolean;
+    };
+
+export interface AgentRunResult {
+  sessionId: string;
+  finalText: string;
+  usage?: AgentUsage;
+  timeline: AgentTimelineItem[];
+  canceled?: boolean;
+}
+
+export interface AgentRuntimeInfo {
+  provider: AgentProvider;
+  sessionId: string | null;
+  model?: string | null;
+  thinkingOptionId?: string | null;
+  modeId?: string | null;
+  extra?: AgentMetadata;
+}
+
+/**
+ * Represents a slash command available in an agent session.
+ * Commands are executed by sending them as prompts with / prefix.
+ */
+export interface AgentSlashCommand {
+  name: string;
+  description: string;
+  argumentHint: string;
+}
+
+export type AgentSkillSourceType =
+  | "project"
+  | "agents-home"
+  | "codex-home"
+  | "claude-home"
+  | "bundled"
+  | "unknown";
+
+export interface AgentSkillSource {
+  id: string;
+  type: AgentSkillSourceType;
+  path: string;
+  installedSourceId?: string;
+  removable?: boolean;
+}
+
+export interface AgentSkill {
+  name: string;
+  description?: string;
+  sources: AgentSkillSource[];
+  errors?: string[];
+}
+
+export interface AgentSkillEffectivePolicy {
+  globalDisabledSkillNames?: string[];
+  providerEnabledSkillNames?: string[];
+  providerDisabledSkillNames?: string[];
+  agentEnabledSkillNames?: string[];
+  agentDisabledSkillNames?: string[];
+}
+
+export interface ListPersistedAgentsOptions {
+  limit?: number;
+  /**
+   * Optional cwd hint. Providers that can cheaply pre-filter persisted
+   * sessions by working directory should do so before doing expensive
+   * work like fetching turn timelines. Providers that can't filter
+   * cheaply may ignore this hint.
+   */
+  cwd?: string;
+}
+
+export interface PersistedAgentDescriptor {
+  provider: AgentProvider;
+  sessionId: string;
+  cwd: string;
+  title: string | null;
+  lastActivityAt: Date;
+  persistence: AgentPersistenceHandle;
+  timeline: AgentTimelineItem[];
+}
+
+export interface AgentSessionConfig {
+  provider: AgentProvider;
+  runtimeProvider?: AgentProvider;
+  cwd: string;
+  /**
+   * Provider-agnostic system/developer instruction string.
+   * Mapped by each provider to its native instruction field.
+   */
+  systemPrompt?: string;
+  /**
+   * Daemon-level instructions appended at runtime. This is deliberately not
+   * persisted into agent config so daemon setting changes apply cleanly.
+   */
+  daemonAppendSystemPrompt?: string;
+  modeId?: string;
+  model?: string;
+  thinkingOptionId?: string;
+  featureValues?: Record<string, unknown>;
+  title?: string | null;
+  approvalPolicy?: string;
+  sandboxMode?: string;
+  networkAccess?: boolean;
+  webSearch?: boolean;
+  extra?: {
+    codex?: AgentMetadata;
+    claude?: Partial<ClaudeAgentOptions>;
+  };
+  mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Internal agents are hidden from listings and don't trigger notifications.
+   * They are used for ephemeral system tasks like commit/PR generation.
+   */
+  internal?: boolean;
+}
+
+export interface AgentLaunchContext {
+  agentId?: string;
+  env?: Record<string, string>;
+}
+
+export interface AgentCreateSessionOptions {
+  /**
+   * Whether the provider should leave a durable native session behind.
+   * Defaults to true. Providers that cannot honor false should no-op.
+   */
+  persistSession?: boolean;
+}
+
+/**
+ * Returned by respondToPermission when the permission resolution requires
+ * a follow-up turn (e.g. Codex plan approval → implementation).
+ */
+export interface AgentPermissionResult {
+  followUpPrompt?: AgentPromptInput;
+}
+
+export interface AgentSession {
+  readonly provider: AgentProvider;
+  readonly id: string | null;
+  readonly capabilities: AgentCapabilityFlags;
+  readonly features?: AgentFeature[];
+  run(prompt: AgentPromptInput, options?: AgentRunOptions): Promise<AgentRunResult>;
+  startTurn(prompt: AgentPromptInput, options?: AgentRunOptions): Promise<{ turnId: string }>;
+  subscribe(callback: (event: AgentStreamEvent) => void): () => void;
+  streamHistory(): AsyncGenerator<AgentStreamEvent>;
+  getRuntimeInfo(): Promise<AgentRuntimeInfo>;
+  getAvailableModes(): Promise<AgentMode[]>;
+  getCurrentMode(): Promise<string | null>;
+  setMode(modeId: string): Promise<void>;
+  getPendingPermissions(): AgentPermissionRequest[];
+  respondToPermission(
+    requestId: string,
+    response: AgentPermissionResponse,
+  ): Promise<AgentPermissionResult | void>;
+  describePersistence(): AgentPersistenceHandle | null;
+  interrupt(): Promise<void>;
+  close(): Promise<void>;
+  /**
+   * Optional connectivity probe for deferred-connect providers (e.g. codex).
+   * When false, registration may skip runtime/session refreshes that would
+   * otherwise force a process spawn before the first turn.
+   */
+  isConnected?(): boolean;
+  listCommands?(): Promise<AgentSlashCommand[]>;
+  listSkills?(): Promise<AgentSkill[]>;
+  setModel?(modelId: string | null): Promise<void>;
+  setThinkingOption?(thinkingOptionId: string | null): Promise<void>;
+  setFeature?(featureId: string, value: unknown): Promise<void>;
+  revertConversation?(input: { messageId: string }): Promise<void>;
+  revertFiles?(input: { messageId: string }): Promise<void>;
+  revertBoth?(input: { messageId: string }): Promise<void>;
+  /**
+   * Out-of-band prompt handler. When non-null, the manager runs the returned
+   * handler instead of allocating a turn. The handler emits stream events
+   * directly via the provided `emit` callback, which routes through the
+   * manager's persistence + broadcast pipeline. The active foreground turn
+   * (if any) is left untouched, so this is how mid-turn side-effect commands
+   * (e.g. /goal pause) reach the provider without canceling the running turn.
+   */
+  tryHandleOutOfBand?(prompt: AgentPromptInput): {
+    run(ctx: { emit: (event: AgentStreamEvent) => void }): Promise<void>;
+  } | null;
+}
+
+export interface ListModelsOptions {
+  cwd: string;
+  force: boolean;
+}
+
+export interface ListModesOptions {
+  cwd: string;
+  force: boolean;
+}
+
+export interface AgentClient {
+  readonly provider: AgentProvider;
+  readonly capabilities: AgentCapabilityFlags;
+  createSession(
+    config: AgentSessionConfig,
+    launchContext?: AgentLaunchContext,
+    options?: AgentCreateSessionOptions,
+  ): Promise<AgentSession>;
+  resumeSession(
+    handle: AgentPersistenceHandle,
+    overrides?: Partial<AgentSessionConfig>,
+    launchContext?: AgentLaunchContext,
+  ): Promise<AgentSession>;
+  listModels(options: ListModelsOptions): Promise<AgentModelDefinition[]>;
+  listModes?(options: ListModesOptions): Promise<AgentMode[]>;
+  resolveCreateConfig?(input: ResolveAgentCreateConfigInput): ResolveAgentCreateConfigResult;
+  isCreateConfigUnattended?(input: AgentCreateConfigUnattendedInput): boolean;
+  listCommands?(config: AgentSessionConfig): Promise<AgentSlashCommand[]>;
+  listSkills?(config: AgentSessionConfig): Promise<AgentSkill[]>;
+  listFeatures?(config: AgentSessionConfig): Promise<AgentFeature[]>;
+  listPersistedAgents?(options?: ListPersistedAgentsOptions): Promise<PersistedAgentDescriptor[]>;
+  /**
+   * Check if this provider is available (CLI binary is installed).
+   * Returns true if available, false otherwise.
+   */
+  isAvailable(): Promise<boolean>;
+  getDiagnostic?(): Promise<{ diagnostic: string }>;
+  /**
+   * Archive a persisted session in the native provider (best-effort).
+   * Called when ChisaCode archives an agent so the provider's own UI reflects the same state.
+   */
+  archiveNativeSession?(handle: AgentPersistenceHandle): Promise<void>;
+  /**
+   * Release any provider-owned resources held by this client (background
+   * processes, sockets, cached subprocesses, etc.). Called when the daemon
+   * shuts down. Must be idempotent.
+   */
+  shutdown?(): Promise<void>;
+}

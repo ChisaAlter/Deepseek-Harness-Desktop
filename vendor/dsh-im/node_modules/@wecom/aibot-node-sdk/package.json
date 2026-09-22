@@ -1,0 +1,43 @@
+{
+  "name": "@wecom/aibot-node-sdk",
+  "version": "1.0.7",
+  "description": "企业微信智能机器人 Node.js SDK - WebSocket 长连接通道",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "release": "node scripts/publish-all.mjs",
+    "release:dry": "node scripts/publish-all.mjs --dry-run",
+    "example": "ts-node examples/basic.ts",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "wecom",
+    "wxwork",
+    "bot",
+    "aibot",
+    "websocket"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WecomTeam/aibot-node-sdk.git"
+  },
+  "homepage": "https://github.com/WecomTeam/aibot-node-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/WecomTeam/aibot-node-sdk/issues"
+  },
+  "dependencies": {
+    "axios": "^1.6.7",
+    "eventemitter3": "^5.0.1",
+    "ws": "^8.16.0"
+  }
+}

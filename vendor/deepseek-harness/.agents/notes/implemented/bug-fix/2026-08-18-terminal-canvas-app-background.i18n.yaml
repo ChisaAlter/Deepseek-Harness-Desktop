@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-18-terminal-canvas-app-background.md
+2026-08-18-terminal-canvas-app-background.md: 51e3a434c7188c22049ebf16d826ba740e735892
+2026-08-18-terminal-canvas-app-background.zh.md: 8d9e54b0ec5f75ccfe9a8fff38f168d442f6c47c

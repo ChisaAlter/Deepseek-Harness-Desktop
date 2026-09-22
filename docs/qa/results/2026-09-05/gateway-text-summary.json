@@ -1,0 +1,64 @@
+[
+  {
+    "id": "deepseek-v4-flash-0731-oc",
+    "elapsedMs": 7976,
+    "pass": true,
+    "response": "DSHD_QA_OK_33942243475",
+    "failure": "",
+    "evidence": "gateway-text-1.json"
+  },
+  {
+    "id": "glm-5.3-0731-oc",
+    "elapsedMs": 10133,
+    "pass": true,
+    "response": "DSHD_QA_OK_33942243475",
+    "failure": "",
+    "evidence": "gateway-text-2.json"
+  },
+  {
+    "id": "deepseek-v4-pro-0813-oc",
+    "elapsedMs": 14847,
+    "pass": true,
+    "response": "DSHD_QA_OK_33942243475",
+    "failure": "",
+    "evidence": "gateway-text-3.json"
+  },
+  {
+    "id": "codely-core",
+    "elapsedMs": 6379,
+    "pass": true,
+    "response": "DSHD_QA_OK_33942243475",
+    "failure": "",
+    "evidence": "gateway-text-4.json"
+  },
+  {
+    "id": "GLM-5.3-FLASH",
+    "elapsedMs": 15968,
+    "pass": true,
+    "response": "DSHD_QA_OK_33942243475",
+    "failure": "",
+    "evidence": "gateway-text-5.json"
+  },
+  {
+    "id": "KIMI-K3",
+    "elapsedMs": 35861,
+    "pass": false,
+    "response": "",
+    "failure": "本轮运行失败429: {\"message\":\"***.RateLimitError: Sliding window TPM limit exceeded for model_group=KIMI-K3 provider_ref=55d8daa779c2. window=60s\",\"type\":\"throttling_error\",\"param\":\"\",\"code\":\"429\"}\nRATE_LIMIT",
+    "evidence": "gateway-text-6.json",
+    "retest": {
+      "pass": true,
+      "response": "DSHD_QA_OK_33942243475",
+      "failure": "",
+      "evidence": "gateway-text-kimi-retest.json"
+    }
+  },
+  {
+    "id": "moonshotai/kimi-k3",
+    "elapsedMs": 135656,
+    "pass": true,
+    "response": "DSHD_QA_OK_33942243475",
+    "failure": "",
+    "evidence": "gateway-text-7.json"
+  }
+]

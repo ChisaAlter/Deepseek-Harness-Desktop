@@ -1,0 +1,257 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: var(--dsw-alias-bg-base);
+}
+
+.toolbar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.nav {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.icon:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.url {
+  flex: 1;
+  min-width: 0;
+}
+
+.discovered {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 0 12px 8px;
+}
+
+.discoveredTitle {
+  margin: 0;
+  width: 100%;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.host {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--dsw-alias-bg-base);
+}
+
+.deviceToolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 8px;
+  overflow-x: auto;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-base);
+}
+
+.deviceDims {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.deviceDim {
+  width: 56px;
+  flex: none;
+}
+
+.deviceDim input {
+  height: 22px;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.deviceTimes {
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rail {
+  position: absolute;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.railWest,
+.railEast {
+  cursor: ew-resize;
+}
+
+.railSouth {
+  cursor: ns-resize;
+}
+
+.railSouthwest {
+  cursor: nesw-resize;
+}
+
+.railSoutheast {
+  cursor: nwse-resize;
+}
+
+.message {
+  margin: 16px 16px 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  text-align: center;
+}
+
+.unreachable {
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  text-align: center;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-base);
+}
+
+.miniPlayer {
+  position: absolute;
+  z-index: 48;
+  pointer-events: auto;
+  box-sizing: border-box;
+  min-width: 240px;
+  min-height: 150px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  box-shadow: var(--dsw-elevation-soft);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  -webkit-app-region: no-drag;
+}
+
+.miniPlayerChrome {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.miniPlayerChrome:active { cursor: grabbing; }
+
+.miniPlayerTitle {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.miniPlayerViewport {
+  position: absolute;
+  inset: 28px 20px 20px 20px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-base);
+}
+
+.miniPlayerPlaceholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.miniPlayerResize {
+  position: absolute;
+  z-index: 3;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+}
+
+.miniPlayerResize::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border: 0 solid var(--dsw-alias-label-tertiary);
+}
+
+.miniPlayerResize[data-side='n'], .miniPlayerResize[data-side='s'] { left: 20px; right: 20px; height: 20px; }
+.miniPlayerResize[data-side='n'] { top: 18px; cursor: ns-resize; }
+.miniPlayerResize[data-side='s'] { bottom: 0; cursor: ns-resize; }
+.miniPlayerResize[data-side='e'], .miniPlayerResize[data-side='w'] { top: 28px; bottom: 20px; width: 20px; }
+.miniPlayerResize[data-side='e'] { right: 0; cursor: ew-resize; }
+.miniPlayerResize[data-side='w'] { left: 0; cursor: ew-resize; }
+.miniPlayerResize[data-side='ne'], .miniPlayerResize[data-side='nw'], .miniPlayerResize[data-side='se'], .miniPlayerResize[data-side='sw'] { width: 20px; height: 20px; }
+.miniPlayerResize[data-side='ne'] { top: 18px; right: 0; cursor: nesw-resize; }
+.miniPlayerResize[data-side='nw'] { top: 18px; left: 0; cursor: nwse-resize; }
+.miniPlayerResize[data-side='se'] { right: 0; bottom: 0; cursor: nwse-resize; }
+.miniPlayerResize[data-side='sw'] { left: 0; bottom: 0; cursor: nesw-resize; }
+.miniPlayerResize[data-side='n']::after, .miniPlayerResize[data-side='s']::after { left: 50%; top: 6px; border-top-width: 1px; border-top-style: solid; transform: translateX(-50%); }
+.miniPlayerResize[data-side='e']::after, .miniPlayerResize[data-side='w']::after { top: 50%; left: 6px; border-left-width: 1px; border-left-style: solid; transform: translateY(-50%); }
+.miniPlayerResize[data-side='ne']::after { right: 4px; top: 4px; border-top-width: 1px; border-top-style: solid; border-right-width: 1px; border-right-style: solid; }
+.miniPlayerResize[data-side='nw']::after { left: 4px; top: 4px; border-top-width: 1px; border-top-style: solid; border-left-width: 1px; border-left-style: solid; }
+.miniPlayerResize[data-side='se']::after { right: 4px; bottom: 4px; border-right-width: 1px; border-right-style: solid; border-bottom-width: 1px; border-bottom-style: solid; }
+.miniPlayerResize[data-side='sw']::after { left: 4px; bottom: 4px; border-left-width: 1px; border-left-style: solid; border-bottom-width: 1px; border-bottom-style: solid; }

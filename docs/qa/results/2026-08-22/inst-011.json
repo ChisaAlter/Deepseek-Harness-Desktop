@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "desktopHome": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\user-data\\dsh-home",
+  "homeLog": "[app] Harness 家目录 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\user-data\\dsh-home",
+  "electronEnv": {
+    "DSH_HOME": "",
+    "DSHD_HOME": ""
+  },
+  "ptyStatus": "echoed:ok",
+  "smokeOk": false,
+  "titlebarHits": {
+    "hits": {
+      "surfaces": 1,
+      "branch": 1,
+      "git": 0
+    },
+    "error": "branch menu did not open"
+  },
+  "hasFrame": true,
+  "webReady": true,
+  "stillPoisoned": true,
+  "settingsHashUnchanged": true,
+  "officialHomeTouched": false,
+  "profileBackup": "C:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-08-22\\web-package.json.orig",
+  "smokeRoot": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY"
+}

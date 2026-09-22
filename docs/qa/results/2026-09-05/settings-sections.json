@@ -1,0 +1,56 @@
+[
+  {
+    "id": "general",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n权限\n选择新会话的默认权限模式\n完全权限\n语言\n中文\n字号大小\n仅影响会话内容的字号\n15\npx\n对话显示\n控制已完成轮次的过程内容\nCompact\n繁忙时 Enter 键行为\n仅在智能体运行时生效；Cmd/Ctrl+Enter 使用另一行为\n排队发送\n关闭窗口时\n点标题栏关闭时：最小化到托盘，或退出并停止本机 Harness 服务。\n最小化到托盘\n启动时\n是：直接打开桌面端，启动器可从托盘右键「打开启动器」进入。否：先打开启动器，再手动启动桌面端。\n直接启动桌面端\nHarness 自动恢复\nHarness 进程意外退出后自动重启，最多重试有限次数，重试之间按基础延迟退避等待。\n最大重启次数\n3\n基础重启延迟\n1 秒",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "interface",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n会话日志导出\n在标题栏显示会话日志按钮。关闭后仍可使用 /export 下载。\n标题栏 Git 操作\n显示初始化、切换分支、提交及菜单。关闭后仍可通过进行中的进度与对话框完成操作。\n终端抽屉开关\n在标题栏显示终端抽屉按钮。关闭后仍可使用 Ctrl+` 切换。\n右侧面板开关\n在标题栏显示右侧栏按钮。关闭后仍可使用 Ctrl+\\ 切换。\n发送消息时的思考炫光\n智能体发送或思考时，在输入条周围播放彩色边光。\n拖动调整输入框大小\n允许拖动输入区上、左、右边框改变高度和宽度。关闭后高度仍按草稿自动增高，宽度回到栏宽。\n会话统计\n在输入框上方显示轮次、耗时、缓存与 token。关闭后隐藏数字，保留这一行间隔。\n会话累计费用\n在输入框下方显示峰谷状态条与当前会话累计费用。\n设置模型价格\n官方峰谷时\n会话累计费用开启时，在会话统计下方显示官方峰谷时段状态条。开启后始终显示；关闭时仅在检测到 DeepSeek API 路线时显示。\n对话与轨迹页签\n在会话顶栏显示「对话」「轨迹」切换。关闭后仍停留在当前视图。\n显示已归档列表\n在侧栏底部显示已归档会话。关闭后仍可归档，只是侧栏不再列出。恢复或删除已归档会话时，请先在此重新打开开关。",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "plugins",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n插件\n\n配置和查看本部署已安装的插件。\n\n插件配置\n插件列表\n终端\n限制 agent 运行的每一条命令。\nAgent 循环\nAgent 如何派发工具调用。\nSubagent\n控制 Agent 为 Subagent 选择模型的权限。\n网页搜索\nDeepSeek 搜索提供方。",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "skills",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n技能\n\n查找并管理用户、当前项目与捆绑技能。\n\n全部\n\n工作区与个人技能 70 项\n\nask\nProcess-first advisor routing for Claude, Codex, or Gemini via `omc ask`, with artifact capture and no raw CLI assembly\n个人\nask-matt\nAsk which skill or flow fits your situation. A router over the skills in this repo.\n个人\nautopilot\nFull autonomous execution from idea to working code\n个人\nautoresearch\nStateful single-mission improvement loop with strict evaluator contract, markdown decision logs, and max-runtime stop behavior\n个人\ncancel\nCancel any active OMC mode (autopilot, ralph, ultrawork, ultraqa, swarm, ultrapilot, pipeline, team)\n个人\nccg\nClaude-Codex-Gemini tri-model orchestration via /ask codex + /ask gemini, then Claude synthesizes results\n个人\nchisacode\nChisaCode reference for managing agents and worktrees. Load whenever you need to create agents, send them prompts, or manage worktrees.\n个人\nchisacode-advisor\nSpin up a single agent as an advisor — second opinion on the current task. Use when the user says \"advisor\", \"second opinion\", \"what does X think\", or wants an outside take without delegating the work itself.\n个人\nchisacode-committee\nForm a committee of two high-reasoning agents to step back, do root cause analysis, and produce a plan. Use when stuck, looping, tunnel-visioning, or facing a hard planning problem.\n个人\nchisacode-epic\nHeavy-ceremony orchestration for big work — research, planning, adversarial review, phased implementation, audit, delivery. Use when the user says \"epic\", \"long task\", \"build this end to end\", or wants a feature that runs all night.\n个人\nchisacode-handoff\nHand off the current task to another agent with full context. Use when the user says \"handoff\", \"hand off\", \"hand this to\", or wants to pass work to another agent.\n个人\nchisacode-loop\nRun an agent loop until an exit condition is met. Use when the user says \"loop\", \"babysit\", \"keep trying until\", \"check every X\", \"watch\", or wants iterative autonomous execution.\n个人\nchisacode-orchestrate\nDeprecated. Renamed to chisacode-epic. Loading this skill redirects to chisacode-epic and tells the user.\n个人\ncode-review\nReview the changes since a fixed point (commit, branch, tag, or merge-base) along two axes — Standards (does the code follow this repo's documented coding standards?) and Spec (do",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "market",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n插件市场\n\n从精选目录浏览、搜索并安装社区插件；安装或卸载后 Harness 会自动重启。\n\n正在加载插件目录…",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "mcp",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\nMCP 服务器\n\n管理本机 MCP 服务器。受管条目写入 $DSH_HOME/mcp-servers.yaml；HTTP 服务器可在本页登录后在对话里使用工具。组成配置条目只读。\n\n全部\n已配置 4 项\n已连接\ndeepwiki\nHTTP · https://mcp.deepwiki.com/mcp\n3 个工具\n已配置\n已连接\ncontext7\nHTTP · https://mcp.context7.com/mcp\n2 个工具\n已配置\n已连接\nmslearn\nHTTP · https://learn.microsoft.com/api/mcp\n3 个工具\n已配置\n连接失败\nardot\nHTTP · https://ardot.tencent.com/mcp\nHTTP 401: Error: Streamable HTTP error: Error POSTing to endpoint: {\"error\":\"token is inactive\"}\n已配置\n登录",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "agent-presets",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\nAgent 预设\n\n预设即一个会话的 Agent 所运行的插件组装 —— 它的工具、提示词与能力。复制一份既有预设改成自己的，或用「创造模式」让 Agent 帮你创建。\n\n内置\n标准模式\n内置\n当前使用\n功能完整的编码 Agent，支持文件编辑、Shell、文件与网页检索、Skills、计划、目标、子代理和工作流。\nstandard\nPTC 模式\n内置\n功能完整的编码 Agent，但默认不提供 workflow 工具；其他工具通过 PTC 模式 SDK 呈现，让模型用一个 TypeScript 程序组合多步操作。\nptc\n极简模式\n内置\n仅提供持久 bash 与 str_replace_editor 的双工具编码 Agent。\nminimal\n创造模式\n内置\n用于创建自定义 Agent preset：具备标准模式的全部能力，并提供运行时检查、插件实验和 preset 创作指导。\ncordis\n自定义\n用「创造模式」创作自定义预设",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "usage-stats",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n用量统计\n数据更新于 06:35 · UTC\n导出\n设置\n刷新\nToken 总用量\n0\n输入 0 · 输出 0\n费用合计(估算)\n¥0.00\n峰段 ¥7.91 · 谷段 ¥0.00\n总会话数量\n0\n总会话 203 · 有用量会话：主 107 · 子代理 0\n最常用模型\ngrok-4.6\n占比 87.2%\n缓存命中率\n0.0%\n读 2927.7 万 · 写 0\n活跃热力图\n2026年9月 · UTC\n‹\n›\n少\n多\n一\n三\n五\n1\n7\n14\n21\n28\n每日 Token 用量\n按模型堆叠\n7d\n14d\n30d\n0\n1250万\n2500万\n3750万\n5000万\n08/30\n08/31\n09/01\n09/02\n09/03\n09/04\n09/05\ngrok-4.6\nx-preview-f-free\ndeepseek-v4-flash\nglm-5.3-flash\ndeepseek-v4-flash-0731-oc\n其他\n会话用量排行\n按全部历史用量\n按\nToken 排序\n费用排序\n#\n会话\n类型\n最近活跃\n费用\nToken 用量\n1\n连接确认并提供验证码\n主会话\n2026-08-31\n—\n675.8 万\n2\nChisaTerminal 渲染层架构评审\n主会话\n2026-08-21\n—\n256.6 万\n3\n验证连接并生成验证码\n主会话\n2026-08-30\n—\n87.2 万\n4\n连接成功并生成验证码\n主会话\n2026-08-31\n—\n60.8 万\n5\n连接成功并生成验证码 (1)\n主会话\n2026-08-31\n—\n60.8 万\n6\n连接成功并生成验证码 (1)\n主会话\n2026-08-31\n—\n60.8 万\n7\n连接成功并生成验证码 (1)\n主会话\n2026-08-31\n—\n60.8 万\n8\n连接成功并生成验证码 (1)\n主会话\n2026-08-31\n—\n60.8 万\n9\n连接成功并生成验证码 (1)\n主会话\n2026-08-31\n—\n60.8 万\n10\n连接成功并生成验证码 (1)\n主会话\n2026-08-31\n—\n60.8 万\n显示更多…\n项目用量排行\n按会话工作目录聚合\n按\nToken 排序\n费用排序\n#\n项目\n费用合计\nToken 用量\n1\nChisaTerminal\n—\n2896.4 万\n2\nDeepseek-Harness-Desktop\n¥6.65\n374.8 万\n3\ndshd-qa-ws-2026-08-30\n—\n54.4 万\n4\nno-workspace\n¥1.26\n51.2 万\n5\ndshd-qa-ws-v2-20260901-2345\n—\n29198\n显示更多…\n服务商用量\nAyase\n2947 万\nopencodezen\n256.6 万\nopencode-go\n118 万\n天翼云\n30.4 万\nglm\n27.7 万\n模型用量\n3379.7 万\nToken 总用量\n模型\n用量\n占比\n命中率\ngrok-4.6\n2947 万\n87.2%\n90.0%\nx-preview-f-free\n256.6 万\n7.6%\n94.2%\ndeepseek-v4-flash\n118 万\n3.5%\n50.8%\nglm-5.3-flash\n27.7 万\n0.8%\n74.6%\ndeepseek-v4-flash-0731-oc\n23.8 万\n0.7%\n84.8%\n其他\n66233\n0.2%\n0.0%",
+    "alerts": [],
+    "dialogCount": 1
+  },
+  {
+    "id": "about",
+    "text": "设置\n通用设置\n外观\n界面设置\n模型\n插件\n技能\n市场\n远程\nMCP\nAgent 预设\n用量统计\n关于\n打开配置文件\n关闭\n关于\n\n本桌面应用与官方 Harness。\n\nDeepseek-Harness-Desktop\n\n当前版本 0.2.9\n\ngithub.com/ChisaAlter/Deepseek-Harness-Desktop\n\n已是最新版本 0.2.7\n\n检测更新\n在线安装\n\n凭据存储：系统钥匙串加密（safeStorage）\n\n运行目录 C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop\\dsh-home\n\n打开运行目录\nGitHub 发行版\n官方 Harness",
+    "alerts": [],
+    "dialogCount": 1
+  }
+]

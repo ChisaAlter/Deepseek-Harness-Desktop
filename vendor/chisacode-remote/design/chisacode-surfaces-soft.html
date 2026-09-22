@@ -1,0 +1,1654 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChisaCode · Soft Surfaces (code-faithful)</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --font:
+          "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        --mono: ui-monospace, Consolas, monospace;
+        --r-sm: 8px;
+        --r-md: 12px;
+        --r-lg: 16px;
+        --r-xl: 18px;
+        --r-pill: 999px;
+        --nav-w: 260px;
+        --settings-nav: 240px;
+        --phone-w: 360px;
+        --phone-h: 760px;
+        --shell: #f4f5f8;
+        --nav: #f0f1f5;
+        --surface: #ffffff;
+        --hover: #e8eaef;
+        --active: #e2e5ec;
+        --border: #e4e6ec;
+        --border-soft: #eef0f4;
+        --text: #14171f;
+        --text-2: #3d4452;
+        --muted: #6f7686;
+        --faint: #9aa1b0;
+        --accent: #2a6cf0;
+        --ok: #18a34a;
+        --send: #1a1d26;
+        --send-fg: #fff;
+        --shadow-soft: 0 1px 2px rgba(20, 23, 31, 0.04), 0 8px 24px rgba(20, 23, 31, 0.06);
+        --shadow-composer: 0 2px 8px rgba(20, 23, 31, 0.04), 0 14px 36px rgba(20, 23, 31, 0.07);
+        --shadow-phone: 0 24px 60px rgba(0, 0, 0, 0.45);
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        font-family: var(--font);
+        background: #0a0c10;
+        color: #d5dae6;
+        line-height: 1.45;
+      }
+      .page {
+        min-height: 100%;
+        padding: 14px 14px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .page-head {
+        max-width: 1460px;
+        width: 100%;
+        margin: 0 auto;
+      }
+      .page-head h1 {
+        font-size: 16px;
+        font-weight: 650;
+        color: #eef2ff;
+        margin-bottom: 4px;
+      }
+      .page-head p {
+        font-size: 12.5px;
+        color: #8b93a7;
+        max-width: 980px;
+      }
+      .page-head code {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #cbd5e1;
+      }
+      .src {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .src span {
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 999px;
+        border: 1px solid #2a3140;
+        background: #141821;
+        color: #9aa3b5;
+        font-size: 11px;
+        display: inline-flex;
+        align-items: center;
+      }
+      .tabs {
+        max-width: 1460px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .tabs button {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: var(--r-pill);
+        border: 1px solid #2a3140;
+        background: #141821;
+        color: #b4bccb;
+        font: inherit;
+        font-size: 12.5px;
+        cursor: pointer;
+      }
+      .tabs button[aria-selected="true"] {
+        background: #1e293b;
+        border-color: #3b82f6;
+        color: #eff6ff;
+      }
+      .stage {
+        max-width: 1460px;
+        width: 100%;
+        margin: 0 auto;
+        min-height: 740px;
+      }
+      .surface {
+        display: none;
+      }
+      .surface.on {
+        display: block;
+      }
+      .surface.center.on {
+        display: grid;
+        place-items: start center;
+      }
+
+      /* —— desktop shell —— */
+      .desk {
+        height: min(800px, calc(100vh - 150px));
+        min-height: 660px;
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid #2a3140;
+        background: var(--shell);
+        color: var(--text);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        display: grid;
+        grid-template-columns: var(--nav-w) minmax(0, 1fr);
+      }
+      .desk.settings {
+        grid-template-columns: var(--settings-nav) minmax(0, 1fr);
+      }
+
+      /* sidebar from left-sidebar.tsx */
+      .nav {
+        background: var(--nav);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+      }
+      .nav-top {
+        flex: 0 0 auto;
+        padding: 12px 12px 8px;
+      }
+      .nav-top-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .all-sessions {
+        flex: 1;
+        min-width: 0;
+        height: 32px;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 550;
+        text-align: left;
+        padding: 0 6px;
+        border-radius: var(--r-sm);
+        cursor: pointer;
+      }
+      .all-sessions:hover {
+        background: var(--hover);
+      }
+      .icon-btn {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: var(--r-sm);
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        font-size: 14px;
+        flex: 0 0 auto;
+      }
+      .icon-btn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .new-btn {
+        width: 100%;
+        height: 40px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--active);
+        color: var(--text);
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 550;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+      }
+      .new-btn:hover {
+        background: var(--hover);
+      }
+      .new-btn .plus {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: var(--surface);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+      .nav-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 4px 8px 10px;
+      }
+      .sec {
+        font-size: 11.5px;
+        font-weight: 550;
+        color: var(--muted);
+        padding: 10px 10px 4px;
+      }
+      .proj {
+        font-size: 12.5px;
+        color: var(--text-2);
+        padding: 6px 10px;
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .sess {
+        margin-left: 4px;
+        min-height: 34px;
+        border-radius: 10px;
+        padding: 7px 10px 7px 14px;
+        display: grid;
+        grid-template-columns: 8px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        color: var(--text-2);
+        font-size: 12.5px;
+      }
+      .sess.on {
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 1px 2px rgba(20, 23, 31, 0.04);
+      }
+      .sess .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: transparent;
+      }
+      .sess.running .dot {
+        background: var(--ok);
+      }
+      .sess .t {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sess .m {
+        font-size: 11px;
+        color: var(--faint);
+      }
+      /* footer: host + open project + home + settings — real code */
+      .nav-foot {
+        flex: 0 0 auto;
+        border-top: 1px solid var(--border-soft);
+        padding: 10px 10px 12px;
+        display: grid;
+        gap: 8px;
+      }
+      .host {
+        height: 36px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        font-size: 12.5px;
+      }
+      .host .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      .host .lbl {
+        min-width: 0;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .foot-icons {
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+      }
+      .foot-icons .icon-btn {
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: 10px;
+        color: var(--text-2);
+      }
+      .foot-icons .icon-btn:hover {
+        background: var(--hover);
+      }
+      .foot-cap {
+        font-size: 10px;
+        color: var(--faint);
+        text-align: right;
+        letter-spacing: 0.02em;
+      }
+
+      /* main workspace */
+      .main {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--shell);
+        position: relative;
+        overflow: hidden;
+      }
+      .main::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          900px 400px at 70% 15%,
+          rgba(47, 111, 237, 0.05),
+          transparent 60%
+        );
+        pointer-events: none;
+      }
+      .topbar {
+        flex: 0 0 auto;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px 0 16px;
+        position: relative;
+        z-index: 1;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .topbar .title {
+        min-width: 0;
+        flex: 1;
+        font-size: 13.5px;
+        font-weight: 550;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ctx {
+        height: 30px;
+        padding: 0 10px;
+        border-radius: var(--r-pill);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        max-width: 130px;
+      }
+      .ctx span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .top-tools {
+        display: flex;
+        gap: 2px;
+        align-items: center;
+      }
+      .top-tools .icon-btn {
+        width: 32px;
+        height: 32px;
+      }
+      .top-tools .icon-btn[title]::after {
+        content: none;
+      }
+      .menu-hint {
+        position: absolute;
+        top: 46px;
+        right: 12px;
+        width: 220px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow-soft);
+        padding: 6px;
+        z-index: 5;
+        display: none;
+        font-size: 12.5px;
+      }
+      .menu-hint.on {
+        display: block;
+      }
+      .menu-hint div {
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: var(--text-2);
+      }
+      .menu-hint div:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .menu-hint .sep {
+        height: 1px;
+        background: var(--border-soft);
+        margin: 4px 0;
+        padding: 0;
+      }
+      .stream {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 14px 28px 10px;
+        position: relative;
+        z-index: 1;
+      }
+      .stream-inner {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .run {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 26px;
+        padding: 0 10px;
+        border-radius: var(--r-pill);
+        background: rgba(24, 163, 74, 0.1);
+        color: var(--ok);
+        font-size: 12px;
+        font-weight: 500;
+        margin-bottom: 10px;
+      }
+      .run i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--ok);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+        }
+      }
+      .a {
+        font-size: 14.5px;
+        line-height: 1.65;
+        color: var(--text);
+      }
+      .a p {
+        margin: 0 0 12px;
+      }
+      .tool {
+        margin: 10px 0 14px;
+        padding: 12px 14px;
+        border-radius: var(--r-md);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-soft);
+        font-size: 13px;
+      }
+      .tool .th {
+        font-weight: 550;
+        margin-bottom: 4px;
+      }
+      .tool .meta {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tool .ok {
+        color: var(--ok);
+        font-size: 12px;
+        margin-top: 8px;
+      }
+      .user {
+        display: flex;
+        justify-content: flex-end;
+        margin: 8px 0 16px;
+      }
+      .user-b {
+        max-width: min(460px, 88%);
+        padding: 11px 14px;
+        border-radius: 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-size: 14px;
+        line-height: 1.55;
+        box-shadow: var(--shadow-soft);
+      }
+      .composer-dock {
+        flex: 0 0 auto;
+        padding: 8px 28px 16px;
+        position: relative;
+        z-index: 1;
+      }
+      .composer {
+        max-width: 720px;
+        margin: 0 auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow-composer);
+        min-height: 108px;
+        display: flex;
+        flex-direction: column;
+      }
+      .composer textarea {
+        width: 100%;
+        min-height: 48px;
+        border: 0;
+        outline: none;
+        resize: none;
+        padding: 14px 16px 6px;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 14.5px;
+      }
+      .composer textarea::placeholder {
+        color: var(--faint);
+      }
+      .cbar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px 10px;
+        flex-wrap: wrap;
+      }
+      .cbar .right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .chip {
+        height: 32px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .send {
+        width: 34px;
+        height: 34px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: var(--send);
+        color: var(--send-fg);
+        display: grid;
+        place-items: center;
+        font-weight: 600;
+      }
+
+      /* settings — SIDEBAR_SECTION_ITEMS from settings-screen.tsx */
+      .set-nav {
+        background: var(--nav);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .set-h {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        border-bottom: 1px solid var(--border-soft);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .set-list {
+        flex: 1;
+        overflow: auto;
+        padding: 10px;
+      }
+      .set-item {
+        height: 38px;
+        border-radius: 10px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--text-2);
+      }
+      .set-item.on {
+        background: var(--surface);
+        color: var(--text);
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+      .set-item .g {
+        width: 18px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .set-item .desk-only {
+        margin-left: auto;
+        font-size: 10px;
+        color: var(--faint);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 1px 6px;
+      }
+      .set-main {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      .set-main-h {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        padding: 0 28px;
+        border-bottom: 1px solid var(--border-soft);
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .set-body {
+        flex: 1;
+        overflow: auto;
+        padding: 22px 28px 36px;
+      }
+      .set-col {
+        max-width: 720px;
+      }
+      .lead {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 16px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+        margin-bottom: 12px;
+      }
+      .row {
+        min-height: 56px;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid var(--border-soft);
+      }
+      .row:first-child {
+        border-top: 0;
+      }
+      .row .lbl {
+        min-width: 0;
+        flex: 1;
+      }
+      .row .title {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .row .hint {
+        font-size: 12px;
+        color: var(--faint);
+        margin-top: 2px;
+      }
+      .toggle {
+        width: 44px;
+        height: 26px;
+        border-radius: 999px;
+        background: var(--active);
+        position: relative;
+        flex: 0 0 auto;
+      }
+      .toggle.on {
+        background: var(--accent);
+      }
+      .toggle i {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+      }
+      .toggle.on i {
+        transform: translateX(18px);
+      }
+      .seg {
+        display: inline-flex;
+        padding: 3px;
+        border-radius: 999px;
+        background: var(--shell);
+        border: 1px solid var(--border);
+        gap: 2px;
+      }
+      .seg span {
+        height: 28px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+      }
+      .seg span.on {
+        background: var(--surface);
+        color: var(--text);
+        font-weight: 500;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+      .pill {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--shell);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12.5px;
+      }
+      .badge {
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: rgba(24, 163, 74, 0.1);
+        color: var(--ok);
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      /* phone */
+      .phone {
+        width: var(--phone-w);
+        height: var(--phone-h);
+        border-radius: 36px;
+        background: #1a1d24;
+        padding: 10px;
+        box-shadow: var(--shadow-phone);
+        border: 1px solid #2a3140;
+      }
+      .ps {
+        width: 100%;
+        height: 100%;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--shell);
+        color: var(--text);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      .st {
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 16px 0;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .hi {
+        position: absolute;
+        left: 50%;
+        bottom: 6px;
+        transform: translateX(-50%);
+        width: 110px;
+        height: 4px;
+        border-radius: 4px;
+        background: rgba(20, 23, 31, 0.18);
+        z-index: 6;
+      }
+
+      /* mobile: drawer model, not bottom tabs */
+      .m-app {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      .m-header {
+        flex: 0 0 auto;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px 8px 6px;
+        border-bottom: 1px solid var(--border-soft);
+      }
+      .m-header .mid {
+        min-width: 0;
+        flex: 1;
+      }
+      .m-header .t {
+        font-size: 14px;
+        font-weight: 550;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .m-header .s {
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .m-stream {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 12px 14px 8px;
+      }
+      .m-composer-wrap {
+        flex: 0 0 auto;
+        padding: 8px 12px 18px;
+      }
+      .m-composer {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow-composer);
+        padding: 4px;
+      }
+      .m-composer textarea {
+        width: 100%;
+        min-height: 40px;
+        border: 0;
+        outline: none;
+        resize: none;
+        padding: 10px 12px 4px;
+        background: transparent;
+        font: inherit;
+        font-size: 14.5px;
+        color: var(--text);
+      }
+      .m-composer textarea::placeholder {
+        color: var(--faint);
+      }
+
+      /* mobile drawer overlay */
+      .drawer-bg {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 18, 25, 0.4);
+        z-index: 8;
+        display: none;
+      }
+      .drawer-bg.on {
+        display: block;
+      }
+      .drawer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 86%;
+        max-width: 300px;
+        background: var(--nav);
+        z-index: 9;
+        display: flex;
+        flex-direction: column;
+        transform: translateX(-105%);
+        transition: transform 0.2s ease;
+        box-shadow: 8px 0 28px rgba(0, 0, 0, 0.18);
+      }
+      .drawer.on {
+        transform: translateX(0);
+      }
+      .drawer .nav-top {
+        padding-top: 8px;
+      }
+      .quick {
+        margin: 0 10px 10px;
+        padding: 10px;
+        border-radius: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+      }
+      .quick .ql {
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 550;
+        margin-bottom: 2px;
+      }
+      .quick .qt {
+        font-size: 13px;
+        font-weight: 550;
+        margin-bottom: 8px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .quick-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      .qb {
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--shell);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+      .qb.primary {
+        background: var(--active);
+        border-color: transparent;
+        color: var(--text);
+        font-weight: 550;
+        grid-column: 1 / -1;
+      }
+
+      /* mobile sessions list route */
+      .m-sessions {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .m-list {
+        flex: 1;
+        overflow: auto;
+        padding: 8px 12px 20px;
+      }
+      .m-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+      .m-row {
+        padding: 12px 14px;
+        border-top: 1px solid var(--border-soft);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+      }
+      .m-row:first-child {
+        border-top: 0;
+      }
+      .m-row .t {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .m-row .s {
+        font-size: 12px;
+        color: var(--faint);
+        margin-top: 2px;
+      }
+      .m-row .m {
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      /* mobile settings root list */
+      .m-set {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .m-set-h {
+        height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        border-bottom: 1px solid var(--border-soft);
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .m-set-scroll {
+        flex: 1;
+        overflow: auto;
+        padding: 12px 12px 20px;
+      }
+      .m-sec {
+        font-size: 12px;
+        font-weight: 550;
+        color: var(--muted);
+        margin: 10px 4px 6px;
+      }
+      .m-set .row .title {
+        font-weight: 400;
+      }
+      .chev {
+        color: var(--faint);
+      }
+
+      .notes {
+        max-width: 1460px;
+        width: 100%;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .notes article {
+        border: 1px solid #2a3140;
+        border-radius: 10px;
+        background: #12161f;
+        padding: 11px 12px;
+        font-size: 11.5px;
+        color: #9aa3b5;
+      }
+      .notes h3 {
+        font-size: 12px;
+        color: #eef2ff;
+        margin-bottom: 6px;
+      }
+      .notes ul {
+        margin: 0 0 0 1em;
+      }
+      .notes li {
+        margin: 3px 0;
+      }
+      .notes code {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: #cbd5e1;
+      }
+      @media (max-width: 960px) {
+        .notes {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>ChisaCode · Soft Surfaces（按代码真实能力）</h1>
+        <p>
+          视觉仍是 Soft Workbench；信息架构与入口对齐仓库实现，不臆造底栏三 Tab 或删掉真实 footer
+          按钮。 源：<code>left-sidebar.tsx</code>、<code>settings-screen.tsx</code>、
+          <code>workspace-header.tsx</code>、<code>mobile-sidebar-quick-actions.ts</code>、
+          <code>sessions-screen.tsx</code>。
+        </p>
+        <div class="src">
+          <span>侧栏顶行：所有会话 + 搜索 + 收起</span>
+          <span>主 CTA：新对话</span>
+          <span>Footer：Host · 打开项目 · 主页 · 设置</span>
+          <span>手机：抽屉侧栏 + 当前焦点快捷操作</span>
+          <span>设置分区：general / models / usage / skills / mcp / …</span>
+        </div>
+      </header>
+
+      <div class="tabs" role="tablist">
+        <button type="button" data-s="desk-session" aria-selected="true">桌面 · 使用中</button>
+        <button type="button" data-s="desk-settings" aria-selected="false">桌面 · 设置</button>
+        <button type="button" data-s="m-workspace" aria-selected="false">
+          手机 · 会话（抽屉）
+        </button>
+        <button type="button" data-s="m-sessions" aria-selected="false">手机 · 所有会话</button>
+        <button type="button" data-s="m-settings" aria-selected="false">手机 · 设置</button>
+      </div>
+
+      <div class="stage">
+        <!-- ========== Desktop session ========== -->
+        <div class="surface on" id="desk-session">
+          <div class="desk">
+            <aside class="nav" aria-label="LeftSidebar">
+              <div class="nav-top">
+                <div class="nav-top-row">
+                  <button class="all-sessions" type="button" title="sidebar.allSessions">
+                    所有会话
+                  </button>
+                  <button class="icon-btn" type="button" title="搜索 / Command Center">⌕</button>
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    title="收起侧栏 · common.toggleSidebar"
+                    aria-label="收起左侧栏"
+                  >
+                    «
+                  </button>
+                </div>
+                <button class="new-btn" type="button" title="sidebar.newConversation">
+                  <span class="plus">＋</span>
+                  新对话
+                </button>
+              </div>
+              <div class="nav-scroll">
+                <div class="sec">置顶</div>
+                <div class="sess on running">
+                  <span class="dot"></span>
+                  <div class="t">工作台布局重构方向</div>
+                  <div class="m">进行中</div>
+                </div>
+                <div class="sec">Projects</div>
+                <div class="proj">📁 ChisaCode</div>
+                <div class="sess">
+                  <span class="dot"></span>
+                  <div class="t">session 重连与 i18n</div>
+                  <div class="m">31分</div>
+                </div>
+                <div class="sess">
+                  <span class="dot"></span>
+                  <div class="t">自定义 model provider</div>
+                  <div class="m">2小时</div>
+                </div>
+                <div class="proj">📁 desktop-shell</div>
+                <div class="proj">📁 protocol</div>
+              </div>
+              <div class="nav-foot">
+                <div class="host" title="Host picker">
+                  <span class="dot"></span>
+                  <span class="lbl">Local daemon</span>
+                  <span style="color: var(--faint); font-size: 11px">▾</span>
+                </div>
+                <div class="foot-icons" aria-label="sidebar footer actions">
+                  <button class="icon-btn" type="button" title="打开项目 sidebar.addProject">
+                    📂
+                  </button>
+                  <button class="icon-btn" type="button" title="主页 sidebar.home">⌂</button>
+                  <button class="icon-btn" type="button" title="设置 sidebar.settings">⚙</button>
+                </div>
+                <div class="foot-cap">代码：FolderOpen · House · Settings</div>
+              </div>
+            </aside>
+
+            <section class="main">
+              <div class="topbar">
+                <div class="title">工作台布局重构方向</div>
+                <div class="ctx" title="workspace"><span>ChisaCode</span> ▾</div>
+                <div class="ctx" title="branch"><span>cn-main</span> ▾</div>
+                <div class="top-tools">
+                  <button class="icon-btn" type="button" title="文件浏览器 explorer">▤</button>
+                  <button class="icon-btn" type="button" title="环境面板 environment">⎇</button>
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    id="desk-more"
+                    title="更多 workspace.actions"
+                  >
+                    ⋯
+                  </button>
+                </div>
+                <div class="menu-hint" id="desk-menu">
+                  <div>新建智能体</div>
+                  <div>新建终端</div>
+                  <div>新建浏览器标签页</div>
+                  <div>打开 Git 工作台</div>
+                  <div>打开浏览器上下文</div>
+                  <div class="sep"></div>
+                  <div>导入会话</div>
+                  <div>复制 workspace 路径</div>
+                  <div>复制分支名</div>
+                  <div>显示 Setup</div>
+                </div>
+              </div>
+              <div class="stream">
+                <div class="stream-inner">
+                  <div class="run"><i></i> 运行中 · multi-provider agent</div>
+                  <article class="a">
+                    <p>
+                      使用中态对齐真实 workspace：侧栏能力来自
+                      <code>left-sidebar</code>，顶栏更多菜单来自
+                      <code>workspace-header</code> 动作列表。
+                    </p>
+                    <div class="tool">
+                      <div class="th">✎ Edit · packages/app/…</div>
+                      <div class="meta">soft shell · keep footer actions</div>
+                      <div class="ok">✓ applied</div>
+                    </div>
+                  </article>
+                  <div class="user">
+                    <div class="user-b">一切基于代码和功能本身。</div>
+                  </div>
+                  <article class="a">
+                    <p>Footer 三个图标必须在：打开项目、主页、设置。主 CTA 仍只有「新对话」。</p>
+                  </article>
+                </div>
+              </div>
+              <div class="composer-dock">
+                <div class="composer">
+                  <textarea rows="2" placeholder="向智能体下指令…"></textarea>
+                  <div class="cbar">
+                    <button class="icon-btn" type="button" title="附件">＋</button>
+                    <button class="chip" type="button">模式 ▾</button>
+                    <div class="right">
+                      <button class="chip" type="button">Provider · Model ▾</button>
+                      <button class="icon-btn" type="button" title="语音">♩</button>
+                      <button class="send" type="button">↑</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- ========== Desktop settings ========== -->
+        <div class="surface" id="desk-settings">
+          <div class="desk settings">
+            <aside class="set-nav">
+              <div class="set-h">
+                <button class="icon-btn" type="button">←</button>
+                设置
+              </div>
+              <div class="set-list" aria-label="SIDEBAR_SECTION_ITEMS">
+                <div class="set-item on"><span class="g">◐</span> 通用 general</div>
+                <div class="set-item"><span class="g">◈</span> 模型 models</div>
+                <div class="set-item"><span class="g">▤</span> 使用统计 usage</div>
+                <div class="set-item"><span class="g">✦</span> Skills skills</div>
+                <div class="set-item"><span class="g">⌁</span> MCP mcp</div>
+                <div class="set-item">
+                  <span class="g">⌨</span> 快捷键 shortcuts <span class="desk-only">desktop</span>
+                </div>
+                <div class="set-item">
+                  <span class="g">⛓</span> 集成 integrations
+                  <span class="desk-only">desktop</span>
+                </div>
+                <div class="set-item">
+                  <span class="g">⛨</span> 权限 permissions <span class="desk-only">desktop</span>
+                </div>
+                <div class="set-item"><span class="g">◎</span> 诊断 diagnostics</div>
+                <div class="set-item"><span class="g">✉</span> 反馈 feedback</div>
+                <div class="set-item"><span class="g">ℹ</span> 关于 about</div>
+              </div>
+            </aside>
+            <section class="set-main">
+              <div class="set-main-h">通用</div>
+              <div class="set-body">
+                <div class="set-col">
+                  <p class="lead">
+                    分区 ID 来自 <code>settings-screen.tsx</code> 的
+                    <code>SIDEBAR_SECTION_ITEMS</code
+                    >。主机/项目另有独立路由（settings/hosts、projects）。
+                  </p>
+                  <div class="card">
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">主题</div>
+                        <div class="hint">系统 / 浅色 / 深色 · 产品主题目录</div>
+                      </div>
+                      <div class="seg">
+                        <span>系统</span>
+                        <span class="on">浅色</span>
+                        <span>深色</span>
+                      </div>
+                    </div>
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">产品主题</div>
+                        <div class="hint">light · dark · liquid-neon · chisaki · aemeath</div>
+                      </div>
+                      <button class="pill" type="button">Light ▾</button>
+                    </div>
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">语言</div>
+                        <div class="hint">i18n</div>
+                      </div>
+                      <button class="pill" type="button">简体中文 ▾</button>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">环境面板默认打开</div>
+                        <div class="hint">对应 workspace environment panel 偏好</div>
+                      </div>
+                      <div class="toggle"><i></i></div>
+                    </div>
+                  </div>
+                  <p class="lead" style="margin-top: 6px">主机（独立路由示例）</p>
+                  <div class="card">
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">Local daemon</div>
+                        <div class="hint">host-page · 连接 / 重启 / 更新</div>
+                      </div>
+                      <span class="badge">online</span>
+                      <button class="pill" type="button">管理</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- ========== Mobile workspace + drawer ========== -->
+        <div class="surface center" id="m-workspace">
+          <div class="phone">
+            <div class="ps">
+              <div class="st"><span>9:41</span><span>5G ▮▮▮</span></div>
+              <div class="m-app">
+                <div class="m-header">
+                  <button class="icon-btn" type="button" id="open-drawer" title="打开侧栏">
+                    ☰
+                  </button>
+                  <div class="mid">
+                    <div class="t">工作台布局重构方向</div>
+                    <div class="s">ChisaCode · cn-main</div>
+                  </div>
+                  <button class="icon-btn" type="button" title="workspace.actions">⋯</button>
+                </div>
+                <div class="m-stream">
+                  <div class="run"><i></i> 运行中</div>
+                  <article class="a" style="font-size: 14px">
+                    <p>
+                      手机<strong>没有</strong>底栏「主页/会话/设置」。真实模型是
+                      <strong>抽屉侧栏</strong>（左滑/菜单）+ workspace 全屏会话。
+                    </p>
+                    <div class="tool">
+                      <div class="th">当前焦点快捷操作</div>
+                      <div class="meta">resume · changes · terminal · sessions · close</div>
+                      <div class="ok">见 mobile-sidebar-quick-actions.ts</div>
+                    </div>
+                    <p>点左上角 ☰ 打开真实侧栏能力。</p>
+                  </article>
+                </div>
+                <div class="m-composer-wrap">
+                  <div class="m-composer">
+                    <textarea rows="2" placeholder="发送消息…"></textarea>
+                    <div class="cbar">
+                      <button class="icon-btn" type="button">＋</button>
+                      <div class="right">
+                        <button class="chip" type="button">Model ▾</button>
+                        <button class="send" type="button">↑</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="drawer-bg" id="drawer-bg"></div>
+                <aside class="drawer" id="drawer" aria-label="MobileSidebar">
+                  <div class="nav-top">
+                    <div class="nav-top-row">
+                      <button class="all-sessions" type="button">所有会话</button>
+                      <button class="icon-btn" type="button" title="搜索">⌕</button>
+                      <button class="icon-btn" type="button" id="close-drawer" title="关闭侧栏">
+                        ✕
+                      </button>
+                    </div>
+                    <button class="new-btn" type="button">
+                      <span class="plus">＋</span>
+                      新对话
+                    </button>
+                  </div>
+                  <div class="quick">
+                    <div class="ql">当前焦点</div>
+                    <div class="qt">工作台布局重构方向</div>
+                    <div class="quick-grid">
+                      <button class="qb primary" type="button">继续会话</button>
+                      <button class="qb" type="button">查看变更</button>
+                      <button class="qb" type="button">终端</button>
+                      <button class="qb" type="button">所有会话</button>
+                      <button class="qb" type="button">关闭侧栏</button>
+                    </div>
+                  </div>
+                  <div class="nav-scroll" style="padding-bottom: 0">
+                    <div class="proj">📁 ChisaCode</div>
+                    <div class="sess on running">
+                      <span class="dot"></span>
+                      <div class="t">工作台布局重构方向</div>
+                      <div class="m">现在</div>
+                    </div>
+                    <div class="sess">
+                      <span class="dot"></span>
+                      <div class="t">session 重连与 i18n</div>
+                      <div class="m">31分</div>
+                    </div>
+                  </div>
+                  <div class="nav-foot">
+                    <div class="host">
+                      <span class="dot"></span>
+                      <span class="lbl">Local daemon</span>
+                    </div>
+                    <div class="foot-icons">
+                      <button class="icon-btn" type="button" title="打开项目">📂</button>
+                      <button class="icon-btn" type="button" title="主页">⌂</button>
+                      <button class="icon-btn" type="button" title="设置">⚙</button>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+              <div class="hi"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== Mobile all sessions route ========== -->
+        <div class="surface center" id="m-sessions">
+          <div class="phone">
+            <div class="ps">
+              <div class="st"><span>9:41</span><span>5G ▮▮▮</span></div>
+              <div class="m-sessions">
+                <div class="m-header">
+                  <button class="icon-btn" type="button" title="返回">‹</button>
+                  <div class="mid">
+                    <div class="t">所有会话</div>
+                    <div class="s">sessions-screen · host agents</div>
+                  </div>
+                </div>
+                <div class="m-list">
+                  <div class="m-card">
+                    <div class="m-row">
+                      <div>
+                        <div class="t">工作台布局重构方向</div>
+                        <div class="s">ChisaCode · Claude</div>
+                      </div>
+                      <div class="m">刚刚</div>
+                    </div>
+                    <div class="m-row">
+                      <div>
+                        <div class="t">session 重连与 i18n</div>
+                        <div class="s">ChisaCode · Codex</div>
+                      </div>
+                      <div class="m">31分</div>
+                    </div>
+                    <div class="m-row">
+                      <div>
+                        <div class="t">自定义 model provider</div>
+                        <div class="s">ChisaCode</div>
+                      </div>
+                      <div class="m">2小时</div>
+                    </div>
+                  </div>
+                  <button
+                    class="new-btn"
+                    type="button"
+                    style="
+                      margin-top: 4px;
+                      background: var(--surface);
+                      border: 1px solid var(--border);
+                    "
+                  >
+                    <span class="plus">＋</span>
+                    打开项目 / 新对话
+                  </button>
+                  <p
+                    style="
+                      font-size: 11.5px;
+                      color: var(--faint);
+                      margin-top: 10px;
+                      line-height: 1.45;
+                    "
+                  >
+                    路由：<code>/h/[serverId]/sessions</code>。返回可到 open-project。列表组件
+                    AgentList，可加载更多。
+                  </p>
+                </div>
+              </div>
+              <div class="hi"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== Mobile settings ========== -->
+        <div class="surface center" id="m-settings">
+          <div class="phone">
+            <div class="ps">
+              <div class="st"><span>9:41</span><span>5G ▮▮▮</span></div>
+              <div class="m-set">
+                <div class="m-set-h">
+                  <button class="icon-btn" type="button">‹</button>
+                  设置
+                </div>
+                <div class="m-set-scroll">
+                  <p class="lead" style="margin: 0 2px 10px">
+                    Compact：list → push detail。无桌面双栏。desktopOnly
+                    分区在手机侧栏隐藏（shortcuts / integrations / permissions）。
+                  </p>
+                  <div class="m-sec">分区（与代码 slug 一致）</div>
+                  <div class="m-card">
+                    <div class="row">
+                      <div class="lbl"><div class="title">通用 general</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">模型 models</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">使用统计 usage</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">Skills skills</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">MCP mcp</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">诊断 diagnostics</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">反馈 feedback</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl"><div class="title">关于 about</div></div>
+                      <span class="chev">›</span>
+                    </div>
+                  </div>
+                  <div class="m-sec">其它真实路由</div>
+                  <div class="m-card">
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">主机 hosts</div>
+                        <div class="hint">settings/hosts · host-page</div>
+                      </div>
+                      <span class="chev">›</span>
+                    </div>
+                    <div class="row">
+                      <div class="lbl">
+                        <div class="title">项目 projects</div>
+                        <div class="hint">settings/projects</div>
+                      </div>
+                      <span class="chev">›</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="hi"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section class="notes">
+        <article>
+          <h3>桌面侧栏（真实）</h3>
+          <ul>
+            <li><code>所有会话</code> + 搜索 + <strong>收起侧栏</strong></li>
+            <li>主 CTA 仅 <code>新对话</code></li>
+            <li>收起后：窄 rail + PanelLeft 打开</li>
+            <li>Footer：Host · 打开项目 · 主页 · 设置</li>
+          </ul>
+        </article>
+        <article>
+          <h3>手机（真实）</h3>
+          <ul>
+            <li>抽屉侧栏，非底栏三 Tab</li>
+            <li>当前焦点：继续/变更/终端/会话/关闭</li>
+            <li>所有会话 = sessions 路由</li>
+            <li>设置 = 全宽 list → detail</li>
+          </ul>
+        </article>
+        <article>
+          <h3>设置分区（真实）</h3>
+          <ul>
+            <li>general models usage skills mcp</li>
+            <li>shortcuts integrations permissions（desktopOnly）</li>
+            <li>diagnostics feedback about</li>
+            <li>hosts / projects 独立路由</li>
+          </ul>
+        </article>
+      </section>
+    </div>
+
+    <script>
+      const tabs = document.querySelectorAll(".tabs button");
+      const surfaces = Object.fromEntries(
+        ["desk-session", "desk-settings", "m-workspace", "m-sessions", "m-settings"].map((id) => [
+          id,
+          document.getElementById(id),
+        ]),
+      );
+      function show(id) {
+        tabs.forEach((b) => b.setAttribute("aria-selected", String(b.dataset.s === id)));
+        Object.entries(surfaces).forEach(([k, el]) => el.classList.toggle("on", k === id));
+      }
+      tabs.forEach((b) => b.addEventListener("click", () => show(b.dataset.s)));
+
+      const more = document.getElementById("desk-more");
+      const menu = document.getElementById("desk-menu");
+      more?.addEventListener("click", () => menu.classList.toggle("on"));
+      document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== more) menu.classList.remove("on");
+      });
+
+      const drawer = document.getElementById("drawer");
+      const drawerBg = document.getElementById("drawer-bg");
+      const openDrawer = document.getElementById("open-drawer");
+      const closeDrawer = document.getElementById("close-drawer");
+      function setDrawer(on) {
+        drawer.classList.toggle("on", on);
+        drawerBg.classList.toggle("on", on);
+      }
+      openDrawer?.addEventListener("click", () => setDrawer(true));
+      closeDrawer?.addEventListener("click", () => setDrawer(false));
+      drawerBg?.addEventListener("click", () => setDrawer(false));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+name: Feature request
+description: Propose a capability or behavior change / 提议新能力或行为变更
+type: Feature
+labels: ["kind/feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / 要解决的问题
+      description: What are you trying to do that the app doesn't support?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal / 提议方案
+      description: What should the app do? Alternatives you considered.
+    validations:
+      required: true

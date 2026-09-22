@@ -1,0 +1,11 @@
+# Official home import
+
+Dest is always desktop `userData/dsh-home`. Auto-scan (read-only): `~/.dsh` (sessions, attachments, plugin list, `skills/`, `mcp-servers.yaml`, whitelisted `settings.yaml` sections, referenced `.credentials.yaml` refs, `.agent-presets/`, home `AGENTS.md`) plus `~/.agents/skills`. Extra source dirs are additional roots, not a dest picker.
+
+`runImport` requires checkboxes. Empty selection writes nothing. Plugins reinstall by spec (`dsh plugin add`) through two controlled channels only: `github:owner/repo[#ref]` and registry `name@<semver>`; anything else is pre-marked `unsupported` in the scan (greyed row). Never copy `node_modules`. MCP merges by id into dest YAML (tokens on disk, never in UI/logs). Official `~/.dsh` and `~/.agents` stay read-only. A `phase:'copying'` journal is consumed at cold start: clean `.import-tmp`, hold on import tab, re-run is idempotent (conflict skip).
+
+Settings import is a **section whitelist** (`llm-deepseek`, `llm-pi-ai`, `agent-default-model`, `vision-fallback`, `ui-theme`) moved **verbatim as whole top-level blocks** — no field-level merge, non-whitelist sections never copied. Selecting an llm section also syncs the credential `refs` it references (`apiKeyEnv`, implicit `DEEPSEEK_API_KEY` for `llm-deepseek`) into dest `.credentials.yaml` (0600); secret values never reach UI/logs/journal (ref names only). `records` (OAuth state) and `storages/` are never migrated. Agent presets copy by directory (`.agent-presets/<id>` with `agent.cordis.yml`, official id charset); home `AGENTS.md` copies as one file.
+
+Cold-start gate uses `probeImportHold` (shallow, early-exit; no session meta reads); full `scanImport` is import-page only. Import list may read session header / `session/title` (plain jsonl or Node built-in zstd) for cwd and titles; checkbox and copy keys stay `rel`. Omit harness preset fixtures `_no-cwd/preset-*` from the scan list.
+
+Full card: [docs/features/data-import.md](../../docs/features/data-import.md)

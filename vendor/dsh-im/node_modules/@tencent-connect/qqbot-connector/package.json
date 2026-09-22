@@ -1,0 +1,62 @@
+{
+  "name": "@tencent-connect/qqbot-connector",
+  "version": "1.2.0",
+  "description": "QQ Bot Connector SDK - 扫码连接 QQ 机器人，获取 AppID 与 AppSecret",
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "UNLICENSED",
+  "author": "",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts"
+  ],
+  "scripts": {
+    "build": "tsc -b && tsc -p tsconfig.cjs.json && node scripts/fix-cjs.js && node scripts/obfuscate.js",
+    "typecheck": "tsc --noEmit",
+    "commitlint": "commitlint",
+    "prepack": "npm run build",
+    "posttest": "npm run lint",
+    "lint": "eslint .",
+    "ci:prepare-test-pkg": "node scripts/prepare-test-pkg.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "semantic-release": "semantic-release"
+  },
+  "dependencies": {
+    "qrcode-terminal": "^0.12"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@eslint/js": "^10.0.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@types/node": "^22",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@vitest/coverage-v8": "^4.1.2",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.1.0",
+    "globals": "^17.4.0",
+    "semantic-release": "^25.0.3",
+    "typescript": "^5",
+    "typescript-eslint": "^8.57.2",
+    "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "name": "@chisacode/expo-two-way-audio",
+  "version": "1.0.3",
+  "description": "Native module for two way audio streaming",
+  "keywords": [
+    "ExpoTwoWayAudio",
+    "expo",
+    "expo-two-way-audio",
+    "react-native"
+  ],
+  "homepage": "https://chisacode.sh",
+  "bugs": {
+    "url": "https://github.com/ChisaAlter/ChisaCode/issues"
+  },
+  "license": "MIT",
+  "author": "Ayase <48818288@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChisaAlter/ChisaCode.git",
+    "directory": "packages/expo-two-way-audio"
+  },
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "expo-module clean",
+    "dev": "expo-module build",
+    "lint": "expo-module lint",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run --config ../../vitest.config.ts",
+    "test:watch": "vitest --config ../../vitest.config.ts",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "typecheck": "tsgo --noEmit",
+    "expo-module": "expo-module",
+    "open:ios": "xed examples/basic-usage/ios",
+    "open:android": "open -a \"Android Studio\" examples/basic-usage/android"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "expo-module-scripts": "^56.0.3",
+    "expo-modules-core": "^57.0.3",
+    "vitest": "4.1.10"
+  },
+  "peerDependencies": {
+    "expo": "^57.0.0",
+    "react": "^19.2.3",
+    "react-native": "^0.86.0"
+  }
+}

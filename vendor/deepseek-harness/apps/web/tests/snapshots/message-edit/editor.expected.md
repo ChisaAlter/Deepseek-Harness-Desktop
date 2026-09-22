@@ -1,0 +1,54 @@
+- banner:
+  - navigation "Session hierarchy":
+    - button "Message edit fixture" [disabled]
+  - tablist:
+    - tab "Chat" [selected]
+    - tab "Trajectory"
+- navigation "Turn navigation":
+  - button "Jump to turn 1"
+  - button "Jump to turn 2"
+- text: Original prompt 1 {{clock}}
+- button "Copy":
+  - img
+- paragraph: Original reply 1
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}} Original prompt 2
+- status: Re-editing in the input box below
+- button "Cancel"
+- paragraph: Original reply 2
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
+- status:
+  - text: Re-editing this message
+  - button "Cancel re-edit":
+    - img
+- textbox "Message or run a task... / commands, @ files or sessions":
+  - paragraph: Original prompt 2
+- button "Commands":
+  - img
+- 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Select model":
+  - text: Select model
+  - img
+- button "Send message"
+- text: 2 turns · 2 steps LLM {{duration}}

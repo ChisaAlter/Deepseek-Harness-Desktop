@@ -1,0 +1,30 @@
+/* Boot-page theme table. Light/dark only — feature CSS must not branch on scheme. */
+
+:root {
+  --boot-bg: rgb(247, 246, 243);
+  --boot-ink: rgb(15, 17, 21);
+  --boot-muted: rgb(97, 102, 107);
+  --boot-accent: rgb(15, 17, 21);
+  --boot-alert: rgb(196, 24, 24);
+  --boot-grid: rgba(15, 17, 21, 0.06);
+  --boot-line: rgba(15, 17, 21, 0.16);
+  --boot-scan: transparent;
+  --boot-hazard: rgb(225, 229, 238);
+  --boot-panel: rgb(240, 239, 236);
+  --boot-fill: rgb(15, 17, 21);
+}
+
+html[data-ds-dark-theme],
+body[data-ds-dark-theme] {
+  --boot-bg: rgb(8, 8, 8);
+  --boot-ink: rgb(249, 250, 251);
+  --boot-muted: rgb(173, 178, 184);
+  --boot-accent: rgb(249, 250, 251);
+  --boot-alert: rgb(255, 48, 48);
+  --boot-grid: rgba(249, 250, 251, 0.08);
+  --boot-line: rgba(249, 250, 251, 0.28);
+  --boot-scan: rgba(0, 0, 0, 0.28);
+  --boot-hazard: rgb(40, 8, 8);
+  --boot-panel: rgb(12, 12, 12);
+  --boot-fill: rgb(249, 250, 251);
+}

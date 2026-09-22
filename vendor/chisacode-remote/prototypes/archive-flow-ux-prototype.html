@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode 归档交互重做原型</title>
+    <style>
+      :root {
+        --bg: #fbfbfc;
+        --panel: #ffffff;
+        --panel-soft: #f7f7f8;
+        --panel-hover: #f1f2f4;
+        --text: #1e232b;
+        --muted: #657081;
+        --faint: #a3abb8;
+        --border: #dfe3e8;
+        --primary: #3a5ef0;
+        --primary-soft: #e8edfe;
+        --destructive: #dc5a62;
+        --destructive-soft: #fdecec;
+        --green: #2f9e62;
+        --green-soft: #e2f6eb;
+        --amber-soft: #fdf3dc;
+        --amber: #a5761f;
+        --shadow: 0 16px 40px rgba(25, 32, 44, 0.14);
+        --radius-panel: 14px;
+        --radius-card: 10px;
+        --radius-chip: 999px;
+        font-family:
+          ui-sans-serif,
+          "Segoe UI",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background: var(--bg);
+        padding: 32px 24px 64px;
+      }
+
+      button {
+        font: inherit;
+        border: none;
+        cursor: pointer;
+      }
+
+      .page {
+        max-width: 1080px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 0 0 24px;
+      }
+
+      .stage {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 28px;
+        align-items: start;
+      }
+
+      /* ---------- sidebar mock ---------- */
+      .sidebar {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        overflow: hidden;
+        box-shadow: 0 6px 20px rgba(25, 32, 44, 0.06);
+      }
+
+      .sidebar-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        font-weight: 600;
+        font-size: 14px;
+      }
+
+      .sidebar-header .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .sidebar-body {
+        padding: 12px;
+      }
+
+      /* progress capsule (top of list) */
+      .progress-capsule {
+        display: none;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 12px;
+        margin-bottom: 10px;
+        border-radius: var(--radius-card);
+        font-size: 13px;
+        color: var(--primary);
+        background: var(--primary-soft);
+        border: 1px solid #d7e0fd;
+        transition: opacity 0.25s;
+      }
+
+      .progress-capsule.done {
+        color: var(--green);
+        background: var(--green-soft);
+        border-color: #c9ead6;
+      }
+
+      .progress-capsule.waiting {
+        color: var(--amber);
+        background: var(--amber-soft);
+        border-color: #f0e2c0;
+      }
+
+      .progress-capsule.show {
+        display: flex;
+      }
+
+      .spinner {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(58, 94, 240, 0.25);
+        border-top-color: var(--primary);
+        animation: spin 0.8s linear infinite;
+        flex: none;
+      }
+
+      .progress-capsule.done .spinner {
+        display: none;
+      }
+
+      .progress-capsule.waiting .spinner {
+        border-color: rgba(165, 118, 31, 0.25);
+        border-top-color: var(--amber);
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* section label + rows */
+      .section {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--faint);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin: 14px 4px 6px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border-radius: var(--radius-card);
+        background: var(--panel-soft);
+        margin-bottom: 4px;
+        font-size: 13px;
+        transition:
+          opacity 0.3s,
+          transform 0.3s,
+          background 0.3s;
+      }
+
+      .row.removing {
+        opacity: 0;
+        transform: translateX(8px);
+      }
+
+      .row.flash {
+        background: var(--destructive-soft);
+      }
+
+      .row .favicon {
+        width: 16px;
+        height: 16px;
+        border-radius: 5px;
+        background: linear-gradient(135deg, #6d8dff, #3a5ef0);
+        flex: none;
+      }
+
+      .row .title {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .row .archive-btn {
+        color: var(--faint);
+        background: transparent;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+
+      .row .archive-btn:hover {
+        background: var(--panel-hover);
+        color: var(--muted);
+      }
+
+      .row .retry-tag {
+        display: none;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: var(--destructive);
+        background: var(--destructive-soft);
+        padding: 3px 8px;
+        border-radius: var(--radius-chip);
+      }
+
+      .row.failed .retry-tag {
+        display: inline-flex;
+      }
+
+      .row .retry-tag button {
+        color: var(--destructive);
+        background: transparent;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 0 2px;
+      }
+
+      /* archived section */
+      .archived-section {
+        border-top: 1px dashed var(--border);
+        margin-top: 12px;
+        padding-top: 8px;
+      }
+
+      .row.archived {
+        opacity: 0.62;
+      }
+
+      .row.archived .favicon {
+        filter: grayscale(0.7);
+      }
+
+      /* ---------- right rail ---------- */
+      .rail {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        padding: 20px;
+        box-shadow: 0 6px 20px rgba(25, 32, 44, 0.06);
+      }
+
+      .rail h2 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+
+      .rail p {
+        font-size: 13px;
+        color: var(--muted);
+        line-height: 1.65;
+        margin: 0 0 14px;
+      }
+
+      .rail code {
+        background: var(--panel-soft);
+        padding: 1px 6px;
+        border-radius: 5px;
+        font-size: 12px;
+      }
+
+      .scenario {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .scenario button {
+        text-align: left;
+        padding: 11px 14px;
+        border-radius: var(--radius-card);
+        border: 1px solid var(--border);
+        background: var(--panel-soft);
+        font-size: 13px;
+        transition: all 0.15s;
+      }
+
+      .scenario button:hover {
+        border-color: var(--primary);
+        background: var(--primary-soft);
+      }
+
+      .scenario button .hint {
+        display: block;
+        color: var(--faint);
+        font-size: 11.5px;
+        margin-top: 2px;
+      }
+
+      .steps {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .steps li::before {
+        content: "▸ ";
+        color: var(--primary);
+      }
+
+      /* ---------- merged toast ---------- */
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        max-width: 360px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid #f3c1c5;
+        box-shadow: var(--shadow);
+        font-size: 13px;
+        color: var(--text);
+        opacity: 0;
+        transform: translateY(12px);
+        pointer-events: none;
+        transition: all 0.25s;
+        z-index: 50;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+      }
+
+      .toast .icon {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--destructive-soft);
+        color: var(--destructive);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        flex: none;
+      }
+
+      .toast .msg {
+        flex: 1;
+      }
+
+      .toast .msg b {
+        display: block;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      .toast .msg span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .toast .retry {
+        background: var(--destructive);
+        color: #fff;
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        flex: none;
+      }
+
+      .toast .retry:hover {
+        background: #c94c54;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>归档交互重做原型</h1>
+      <p class="subtitle">
+        多会话归档的用户体验：进行中反馈（顶部胶囊）+ 失败合并提示（人性化 toast，可重试）+
+        超时后台处理（不打扰）
+      </p>
+
+      <div class="stage">
+        <!-- ============ sidebar mock ============ -->
+        <div class="sidebar">
+          <div class="sidebar-header">
+            <span class="dot"></span>
+            项目 · ChisaCode
+          </div>
+          <div class="sidebar-body">
+            <!-- 顶部进度胶囊 -->
+            <div id="capsule" class="progress-capsule">
+              <div class="spinner"></div>
+              <span id="capsule-text">正在归档 3 个会话…</span>
+            </div>
+
+            <div class="section">今天</div>
+            <div id="rows"></div>
+
+            <div class="archived-section">
+              <div class="section">已归档</div>
+              <div id="archived-rows"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============ right rail ============ -->
+        <div class="rail">
+          <h2>演示场景</h2>
+          <p>点击场景按钮观察侧边栏与提示的完整流转。三种场景对应归档的不同结局。</p>
+
+          <div class="scenario">
+            <button id="btn-success">
+              全部成功
+              <span class="hint">3 个会话 → 胶囊转绿确认 → 移入"已归档"</span>
+            </button>
+            <button id="btn-partial">
+              部分失败
+              <span class="hint">3 个会话 → 1 个失败恢复 → 合并 toast「1 个会话归档失败」</span>
+            </button>
+            <button id="btn-timeout">
+              后台处理中
+              <span class="hint">请求超时但 daemon 仍在归档 → 中性提示，不打扰，最终自动收敛</span>
+            </button>
+            <button id="btn-reset">重置</button>
+          </div>
+
+          <h2>设计要点（探索稿）</h2>
+          <p
+            class="hint"
+            style="margin: 0 0 10px; color: var(--muted); font-size: 12.5px; line-height: 1.5"
+          >
+            本 HTML 是早期交互探索。落地实现已偏离：不乐观隐藏、无成功绿胶囊、加载只在归档按钮上。
+            以 <code>docs/modules/app/sidebar-archive-ux.md</code> 为准。
+          </p>
+          <ul class="steps">
+            <li>
+              归档动作发出后，会话<b>立即消失</b>（乐观），顶部出现胶囊「正在归档 N 个会话…」 —
+              <b>未采用</b>
+            </li>
+            <li>全部成功：胶囊短暂转绿「已归档 N 个会话」后消失 — <b>未采用（成功静默）</b></li>
+            <li>
+              真实失败：失败的会话<b>恢复显示</b>，多条失败<b>合并为一条</b>人性化 toast，附重试按钮
+              — <b>已采用</b>
+            </li>
+            <li>
+              超时（daemon
+              仍在处理）：胶囊转中性「正在后台归档，稍后自动同步」，<b>不弹错误</b>，状态由服务器推送收敛
+              — 落地为静默 suppress + 收敛
+            </li>
+            <li>所有提示使用人类语言，<b>不再展示原始技术错误文本</b> — <b>已采用</b></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ merged toast ============ -->
+    <div id="toast" class="toast">
+      <div class="icon">!</div>
+      <div class="msg">
+        <b id="toast-title">1 个会话归档失败</b>
+        <span id="toast-sub">已恢复显示，可重试</span>
+      </div>
+      <button class="retry" id="toast-retry">重试</button>
+    </div>
+
+    <script>
+      const ACTIVE = [
+        { id: "a", title: "Use the read tool on sample.ts" },
+        { id: "b", title: "Archive validation preparation" },
+        { id: "c", title: "Archive validation probe" },
+        { id: "d", title: "思考折叠验收 opencode deepseek" },
+        { id: "e", title: "Reply Exactly OK" },
+      ];
+      const ARCHIVED = [
+        { id: "x", title: "旧会话-模型网关调研" },
+        { id: "y", title: "旧会话-侧边栏 v2 探索" },
+      ];
+
+      const rowsEl = document.getElementById("rows");
+      const archivedEl = document.getElementById("archived-rows");
+      const capsule = document.getElementById("capsule");
+      const capsuleText = document.getElementById("capsule-text");
+      const toast = document.getElementById("toast");
+      const toastTitle = document.getElementById("toast-title");
+      const toastSub = document.getElementById("toast-sub");
+
+      let archivedIds = new Set();
+      let busy = false;
+
+      function rowHtml(item, extra) {
+        return `<div class="row${extra ?? ""}" data-id="${item.id}">
+          <div class="favicon"></div>
+          <div class="title">${item.title}</div>
+          ${extra?.includes("failed") ? `<span class="retry-tag">归档失败 <button>重试</button></span>` : ""}
+        </div>`;
+      }
+
+      function render() {
+        const active = ACTIVE.filter((a) => !archivedIds.has(a.id));
+        rowsEl.innerHTML = active.map((a) => rowHtml(a)).join("");
+        archivedEl.innerHTML = ARCHIVED.filter((a) => archivedIds.has(a.id) || a.id.startsWith("x"))
+          .map((a) => rowHtml(a, " archived"))
+          .join("");
+      }
+
+      function showCapsule(text, kind) {
+        capsule.className = "progress-capsule show" + (kind ? ` ${kind}` : "");
+        capsuleText.textContent = text;
+      }
+
+      function hideCapsule() {
+        capsule.className = "progress-capsule";
+      }
+
+      function showToast(title, sub, showRetry) {
+        toastTitle.textContent = title;
+        toastSub.textContent = sub;
+        document.getElementById("toast-retry").style.display = showRetry ? "" : "none";
+        toast.classList.add("show");
+      }
+
+      function hideToast() {
+        toast.classList.remove("show");
+      }
+
+      function flashRow(id) {
+        const el = rowsEl.querySelector(`[data-id="${id}"]`);
+        if (el) el.classList.add("flash");
+      }
+
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      async function runScenario(kind) {
+        if (busy) return;
+        busy = true;
+        hideToast();
+        // 归档 3 个会话（乐观移除 + 进行中胶囊）
+        const target = ACTIVE.slice(0, 3);
+        showCapsule(`正在归档 ${target.length} 个会话…`);
+        for (const item of target) {
+          archivedIds.add(item.id);
+          render();
+          const el = rowsEl.querySelector(`[data-id="${item.id}"]`);
+          if (el) el.classList.add("removing");
+          await sleep(90);
+        }
+        render();
+
+        if (kind === "success") {
+          await sleep(900);
+          showCapsule(`已归档 ${target.length} 个会话`, "done");
+          await sleep(1300);
+          hideCapsule();
+        } else if (kind === "partial") {
+          // 1 个失败：恢复显示 + 合并 toast
+          const failed = target[1];
+          archivedIds.delete(failed.id);
+          await sleep(700);
+          render();
+          flashRow(failed.id);
+          showToast("1 个会话归档失败", "已恢复显示，可重试", true);
+          showCapsule(`已归档 2 个会话`, "done");
+          await sleep(1400);
+          hideCapsule();
+        } else if (kind === "timeout") {
+          // 超时：daemon 仍在处理 —— 中性提示，不打扰
+          await sleep(900);
+          showCapsule("正在后台归档，稍后自动同步", "waiting");
+          await sleep(2200);
+          // 服务器最终确认 → 收敛
+          showCapsule(`已归档 ${target.length} 个会话`, "done");
+          await sleep(1200);
+          hideCapsule();
+        }
+        busy = false;
+      }
+
+      document
+        .getElementById("btn-success")
+        .addEventListener("click", () => runScenario("success"));
+      document
+        .getElementById("btn-partial")
+        .addEventListener("click", () => runScenario("partial"));
+      document
+        .getElementById("btn-timeout")
+        .addEventListener("click", () => runScenario("timeout"));
+      document.getElementById("btn-reset").addEventListener("click", () => {
+        archivedIds = new Set();
+        hideToast();
+        hideCapsule();
+        render();
+      });
+      document.getElementById("toast-retry").addEventListener("click", () => {
+        hideToast();
+        render();
+        showCapsule("正在重试归档…");
+        setTimeout(() => {
+          hideCapsule();
+        }, 1200);
+      });
+
+      render();
+    </script>
+  </body>
+</html>

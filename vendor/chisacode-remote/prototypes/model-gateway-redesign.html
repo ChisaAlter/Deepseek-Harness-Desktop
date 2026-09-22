@@ -1,0 +1,1212 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode 模型网关重做原型</title>
+    <style>
+      :root {
+        --bg: #fbfbfc;
+        --panel: #ffffff;
+        --panel-soft: #f7f7f8;
+        --panel-hover: #f1f2f4;
+        --panel-strong: #eceef1;
+        --text: #1e232b;
+        --muted: #657081;
+        --faint: #a3abb8;
+        --border: #dfe3e8;
+        --border-strong: #d3d9e1;
+        --primary: #3a5ef0;
+        --primary-soft: #e8edfe;
+        --destructive: #dc5a62;
+        --green: #43d477;
+        --green-soft: #d9f6e4;
+        --amber-soft: #fdf3dc;
+        --amber: #a5761f;
+        --shadow: 0 16px 40px rgba(25, 32, 44, 0.14);
+        --radius-panel: 14px;
+        --radius-card: 10px;
+        --radius-chip: 999px;
+        font-family:
+          ui-sans-serif,
+          "Segoe UI",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background: var(--bg);
+        padding: 32px 24px 64px;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .page {
+        max-width: 780px;
+        margin: 0 auto;
+      }
+
+      .breadcrumb {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .breadcrumb strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+      }
+
+      .section-title {
+        font-size: 17px;
+        font-weight: 650;
+      }
+
+      .add-link {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 8px;
+        user-select: none;
+      }
+
+      .add-link:hover {
+        background: var(--panel-hover);
+        color: var(--text);
+      }
+
+      .section-hint {
+        color: var(--muted);
+        font-size: 12.5px;
+        line-height: 18px;
+        margin: 0 0 18px;
+      }
+
+      .list-heading {
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 600;
+        margin: 20px 0 8px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        overflow: hidden;
+        box-shadow: 0 1px 2px rgba(25, 32, 44, 0.03);
+      }
+
+      .model-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-top: 1px solid #eef0f3;
+      }
+
+      .model-row:first-child {
+        border-top: 0;
+      }
+
+      .model-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+
+      .model-body {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .model-name {
+        font-size: 13.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .model-sub {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-top: 2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        line-height: 14px;
+        padding: 1px 8px;
+        border-radius: var(--radius-chip);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .badge-supply-all {
+        color: var(--primary);
+        border-color: #c9d6fc;
+        background: var(--primary-soft);
+      }
+
+      .badge-supply-matched {
+        color: #4b9a68;
+        border-color: #bfe6cd;
+        background: var(--green-soft);
+      }
+
+      .row-actions {
+        display: flex;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+
+      .icon-btn {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+
+      .icon-btn:hover {
+        background: var(--panel-hover);
+        color: var(--text);
+      }
+
+      .test-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11.5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel-soft);
+        color: var(--muted);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .test-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+
+      .test-btn.testing {
+        opacity: 0.7;
+        cursor: progress;
+      }
+
+      .test-btn.ok {
+        border-color: #bfe6cd;
+        background: var(--green-soft);
+        color: #4b9a68;
+      }
+
+      .test-btn.fail {
+        border-color: #f0c4c7;
+        background: #fdecec;
+        color: var(--destructive);
+      }
+
+      .test-result-pop {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 99;
+        min-width: 260px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+        padding: 12px 14px;
+        font-size: 12.5px;
+        display: none;
+      }
+
+      .test-result-pop.show {
+        display: block;
+      }
+
+      .test-result-pop .pop-title {
+        font-weight: 650;
+        margin-bottom: 4px;
+      }
+
+      .test-result-pop.ok .pop-title {
+        color: #4b9a68;
+      }
+
+      .test-result-pop.fail .pop-title {
+        color: var(--destructive);
+      }
+
+      .test-result-pop .pop-detail {
+        color: var(--muted);
+        line-height: 17px;
+      }
+
+      /* ---------- modal ---------- */
+
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(25, 32, 44, 0.42);
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 9vh 16px 24px;
+        z-index: 50;
+      }
+
+      .overlay.open {
+        display: flex;
+      }
+
+      .sheet {
+        width: 720px;
+        max-width: 100%;
+        max-height: 82vh;
+        background: var(--panel);
+        border-radius: var(--radius-panel);
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .sheet-head {
+        padding: 16px 20px 12px;
+        border-bottom: 1px solid #eef0f3;
+      }
+
+      .sheet-title {
+        font-size: 15px;
+        font-weight: 650;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .sheet-sub {
+        font-size: 12.5px;
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      .sheet-close {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 16px;
+        cursor: pointer;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+      }
+
+      .sheet-close:hover {
+        background: var(--panel-hover);
+        color: var(--text);
+      }
+
+      .sheet-body {
+        padding: 18px 20px 8px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .form-label {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .field-hint {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 16px;
+      }
+
+      .chip-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .chip {
+        padding: 7px 14px;
+        border-radius: var(--radius-chip);
+        border: 1px solid var(--border);
+        background: var(--panel-soft);
+        color: var(--muted);
+        font-size: 12.5px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .chip.selected {
+        border-color: var(--primary);
+        background: var(--primary-soft);
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      .radio-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .radio-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: var(--radius-chip);
+        border: 1px solid var(--border);
+        background: var(--panel-soft);
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .radio-chip.selected {
+        border-color: var(--primary);
+        background: var(--primary-soft);
+      }
+
+      .radio-dot {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 1.5px solid var(--faint);
+        background: var(--panel);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+
+      .radio-chip.selected .radio-dot {
+        border-color: var(--primary);
+      }
+
+      .radio-chip.selected .radio-dot::after {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .radio-chip .radio-label {
+        font-size: 12.5px;
+        color: var(--text);
+      }
+
+      .radio-chip.selected .radio-label {
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      .radio-chip.locked {
+        opacity: 0.78;
+        cursor: not-allowed;
+        background: var(--panel-strong);
+      }
+
+      .radio-chip.locked .radio-label {
+        color: var(--muted);
+      }
+
+      .radio-chip.locked .radio-dot {
+        border-color: var(--faint);
+      }
+
+      .radio-chip.locked.selected .radio-dot::after {
+        background: var(--muted);
+      }
+
+      .lock-note {
+        font-size: 12px;
+        color: var(--muted);
+        background: var(--panel-soft);
+        border: 1px dashed var(--border-strong);
+        border-radius: 8px;
+        padding: 8px 12px;
+        line-height: 17px;
+      }
+
+      .lock-note strong {
+        color: var(--text);
+      }
+
+      .warn-note {
+        font-size: 12px;
+        color: var(--amber);
+        background: var(--amber-soft);
+        border: 1px solid #ecd9a8;
+        border-radius: 8px;
+        padding: 8px 12px;
+        line-height: 17px;
+      }
+
+      .two-col {
+        display: flex;
+        gap: 12px;
+      }
+
+      .two-col .field-group {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .text-input {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--panel-soft);
+        color: var(--text);
+        font-size: 13px;
+        line-height: 18px;
+        padding: 9px 12px;
+        outline: none;
+      }
+
+      .text-input:focus {
+        border-color: var(--primary);
+        background: var(--panel);
+      }
+
+      .advanced-grid {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .thinking-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        column-gap: 34px;
+        row-gap: 10px;
+        max-width: 560px;
+      }
+
+      .thinking-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 20px;
+        color: var(--text);
+        font-size: 13px;
+        line-height: 18px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .thinking-option input {
+        width: 15px;
+        height: 15px;
+        margin: 0;
+        accent-color: #11151b;
+        cursor: pointer;
+      }
+
+      .thinking-option:focus-within {
+        color: var(--primary);
+      }
+
+      @media (max-width: 560px) {
+        .thinking-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          column-gap: 18px;
+        }
+      }
+
+      .check-chip {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 6px;
+        min-width: 140px;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .check-box {
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--panel-soft);
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        color: transparent;
+        flex-shrink: 0;
+      }
+
+      .check-chip.checked .check-box {
+        background: var(--text);
+        border-color: var(--text);
+        color: var(--panel);
+      }
+
+      .check-label {
+        font-size: 13px;
+      }
+
+      .endpoint-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel-soft);
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .endpoint-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .endpoint-title {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .switch {
+        width: 34px;
+        height: 19px;
+        border-radius: 999px;
+        background: var(--border-strong);
+        position: relative;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .switch.on {
+        background: var(--primary);
+      }
+
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        background: #fff;
+        transition: left 120ms ease;
+      }
+
+      .switch.on::after {
+        left: 17px;
+      }
+
+      .endpoint-fields {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .endpoint-fields.hidden {
+        display: none;
+      }
+
+      .sheet-foot {
+        padding: 12px 20px 16px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        border-top: 1px solid #eef0f3;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border-radius: 9px;
+        font-size: 13px;
+        cursor: pointer;
+        border: 1px solid transparent;
+        user-select: none;
+      }
+
+      .btn-secondary {
+        background: var(--panel-soft);
+        border-color: var(--border);
+        color: var(--text);
+      }
+
+      .btn-secondary:hover {
+        background: var(--panel-hover);
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .btn-primary:hover {
+        filter: brightness(0.96);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .prototype-note {
+        margin-top: 28px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-card);
+        background: var(--panel);
+        padding: 14px 16px;
+        font-size: 12.5px;
+        color: var(--muted);
+        line-height: 19px;
+      }
+
+      .prototype-note strong {
+        color: var(--text);
+      }
+
+      .prototype-note li {
+        margin: 4px 0;
+      }
+
+      .sim-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 18px 0 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .sim-btn {
+        font-size: 12px;
+        padding: 5px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        cursor: pointer;
+      }
+
+      .sim-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="breadcrumb">设置 <span>/</span> <strong>自定义模型</strong></div>
+
+      <div class="sim-bar">
+        <span>场景模拟：</span>
+        <button class="sim-btn" onclick="openEditor('new')">新建网关（默认）</button>
+        <button class="sim-btn" onclick="openEditor('matched')">仅匹配协议</button>
+        <button class="sim-btn" onclick="openEditor('custom')">多协议高级模式</button>
+        <button class="sim-btn" onclick="openEditor('legacy')">旧网关回填态</button>
+      </div>
+
+      <div class="section-head">
+        <div class="section-title">自定义模型</div>
+        <div class="add-link" onclick="openEditor('new')">＋ 添加模型</div>
+      </div>
+      <p class="section-hint">
+        配置 Claude Messages、Codex Responses 或 OpenAI 兼容接口的自定义模型。保存后可在各 Agent
+        的模型列表中选择。
+      </p>
+
+      <div class="list-heading">已保存模型</div>
+      <div class="card">
+        <div class="model-row">
+          <div class="model-icon">✦</div>
+          <div class="model-body">
+            <div class="model-name">ZAI GLM-5</div>
+            <div class="model-sub">
+              <span class="badge">OpenAI 兼容（Chat）</span>
+              <span class="badge badge-supply-matched">仅匹配</span>
+              <span class="badge">工具调用</span>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="test-btn" onclick="runTest(this, 'ZAI GLM-5')">⚡ 测试</button>
+            <button class="icon-btn" onclick="openEditor('matched')" title="编辑">✎</button>
+            <button class="icon-btn" title="删除">🗑</button>
+          </div>
+        </div>
+        <div class="model-row">
+          <div class="model-icon">✦</div>
+          <div class="model-body">
+            <div class="model-name">DeepSeek Chat</div>
+            <div class="model-sub">
+              <span class="badge">OpenAI 兼容（Chat）</span>
+              <span class="badge badge-supply-all">全部 Agent</span>
+              <span class="badge">工具调用</span>
+              <span class="badge">图片</span>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="test-btn" onclick="runTest(this, 'DeepSeek Chat')">⚡ 测试</button>
+            <button class="icon-btn" onclick="openEditor('new')" title="编辑">✎</button>
+            <button class="icon-btn" title="删除">🗑</button>
+          </div>
+        </div>
+        <div class="model-row">
+          <div class="model-icon">✦</div>
+          <div class="model-body">
+            <div class="model-name">Haiku mini</div>
+            <div class="model-sub">
+              <span class="badge">Claude（Messages）</span>
+              <span class="badge badge-supply-matched">仅匹配</span>
+              <span class="badge">工具调用</span>
+              <span class="badge">思考</span>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="test-btn" onclick="runTest(this, 'Haiku mini')">⚡ 测试</button>
+            <button class="icon-btn" title="编辑">✎</button>
+            <button class="icon-btn" title="删除">🗑</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- test result toast -->
+      <div class="test-result-pop" id="test-pop">
+        <div class="pop-title" id="test-pop-title">测试通过</div>
+        <div class="pop-detail" id="test-pop-detail"></div>
+      </div>
+
+      <div class="prototype-note">
+        <strong>原型说明（对应实现方案）：</strong>
+        <ul>
+          <li>
+            供给范围升级为 <strong>supplyScope</strong> 语义（全部 Agent / 仅匹配协议），替换旧
+            attachToAllAgents 开关；对旧 daemon 自动回退。
+          </li>
+          <li>
+            <strong>多协议高级模式（customProtocol）</strong>开启时：供给范围锁定为「全部
+            Agent」并显示可见说明（消除旧版静默全挂），下方展开三个上游接口卡片。
+          </li>
+          <li>
+            协议为 <strong>Claude</strong> 时，无论供给范围都显示 WebSearch
+            提示条（网关场景部分服务端工具不可用）。
+          </li>
+          <li>
+            编辑副标题（subtitle）按供给范围变化：全部 → 挂载全部 5 个 Agent；仅匹配 →
+            对应协议说明。
+          </li>
+          <li>
+            已保存模型徽章口径：supplyScope「全部」或协议为 all → 「全部
+            Agent」；否则「仅匹配」（修存量 all 网关误标）。
+          </li>
+          <li>
+            旧网关回填态（无 supplyScope 的存量配置）：编辑时供给范围锁定「全部 Agent」+
+            说明，保存后写入显式 supplyScope 归一化。
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============ editor modal ============ -->
+    <div class="overlay" id="editor-overlay">
+      <div class="sheet">
+        <div class="sheet-head">
+          <div>
+            <div class="sheet-title" id="sheet-title">添加自定义模型</div>
+            <div class="sheet-sub" id="sheet-sub">Chat Completions 协议</div>
+          </div>
+          <button class="sheet-close" onclick="closeEditor()">✕</button>
+        </div>
+
+        <div class="sheet-body">
+          <!-- protocol preset -->
+          <div class="field-group">
+            <div class="form-label">上游协议</div>
+            <div class="field-hint">选择主模型对接的上游 API 协议。</div>
+            <div class="chip-row">
+              <button
+                class="chip selected"
+                data-protocol="openai"
+                onclick="selectProtocol('openai')"
+              >
+                OpenAI 兼容（Chat）
+              </button>
+              <button class="chip" data-protocol="codex" onclick="selectProtocol('codex')">
+                Codex（Responses）
+              </button>
+              <button class="chip" data-protocol="claude" onclick="selectProtocol('claude')">
+                Claude（Messages）
+              </button>
+            </div>
+          </div>
+
+          <!-- supply scope -->
+          <div class="field-group" id="scope-group">
+            <div class="form-label">供给范围</div>
+            <div class="field-hint">选择模型经网关供给哪些 Agent。</div>
+            <div class="radio-row">
+              <div class="radio-chip selected" id="scope-all" onclick="selectScope('all')">
+                <span class="radio-dot"></span>
+                <span class="radio-label">全部 Agent</span>
+              </div>
+              <div class="radio-chip" id="scope-matched" onclick="selectScope('matched')">
+                <span class="radio-dot"></span>
+                <span class="radio-label">仅匹配协议</span>
+              </div>
+            </div>
+            <div class="field-hint" id="scope-hint">
+              经网关协议转换，供给 Claude / Codex / OpenCode / Pi / Kimi Code 全部 Agent。
+            </div>
+          </div>
+
+          <!-- locked supply scope (customProtocol / legacy) -->
+          <div class="field-group" id="scope-locked" style="display: none">
+            <div class="form-label">供给范围</div>
+            <div class="radio-row">
+              <div class="radio-chip locked selected">
+                <span class="radio-dot"></span>
+                <span class="radio-label">全部 Agent</span>
+              </div>
+            </div>
+            <div class="lock-note" id="lock-note-text">
+              <strong>多协议高级模式</strong>下经网关协议转换挂载全部 Agent。
+            </div>
+          </div>
+
+          <!-- claude websearch warn -->
+          <div class="field-group" id="websearch-note" style="display: none">
+            <div class="warn-note">
+              提示：网关场景下部分服务端工具（如 Claude WebSearch）因需原生后端可能不可用。
+            </div>
+          </div>
+
+          <!-- model id + context -->
+          <div class="two-col">
+            <div class="field-group">
+              <div class="form-label">模型名称</div>
+              <input
+                class="text-input"
+                value="gpt-4o"
+                placeholder="输入模型参数值，例如 gpt-4o 或 openai/gpt-4o"
+              />
+            </div>
+            <div class="field-group">
+              <div class="form-label">输入上下文</div>
+              <input class="text-input" value="" placeholder="默认（可选）" />
+            </div>
+          </div>
+
+          <!-- thinking mode -->
+          <div class="field-group">
+            <div class="form-label">支持的思考强度</div>
+            <div class="field-hint">可同时选择多个思考档位；模型会在支持的档位中按请求使用。</div>
+            <div class="thinking-grid" id="thinking-grid">
+              <label class="thinking-option">
+                <input type="checkbox" name="thinking-level" value="low" checked />
+                <span>低 (Low)</span>
+              </label>
+              <label class="thinking-option">
+                <input type="checkbox" name="thinking-level" value="medium" checked />
+                <span>中 (Medium)</span>
+              </label>
+              <label class="thinking-option">
+                <input type="checkbox" name="thinking-level" value="high" checked />
+                <span>高 (High)</span>
+              </label>
+              <label class="thinking-option">
+                <input type="checkbox" name="thinking-level" value="very-high" checked />
+                <span>超高 (Very High)</span>
+              </label>
+              <label class="thinking-option">
+                <input type="checkbox" name="thinking-level" value="max" checked />
+                <span>极致 (Max)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- advanced -->
+          <div class="field-group">
+            <div class="form-label">高级配置</div>
+            <div class="advanced-grid">
+              <div class="check-chip checked" onclick="toggleCheck(this)">
+                <span class="check-box">✓</span>
+                <span class="check-label">工具调用</span>
+              </div>
+              <div class="check-chip" onclick="toggleCheck(this)">
+                <span class="check-box">✓</span>
+                <span class="check-label">图片支持</span>
+              </div>
+              <div class="check-chip" id="custom-protocol-check" onclick="toggleCustomProtocol()">
+                <span class="check-box">✓</span>
+                <span class="check-label">多协议高级模式</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- endpoints (customProtocol) -->
+          <div class="field-group" id="endpoint-stack" style="display: none">
+            <div class="endpoint-card">
+              <div class="endpoint-head">
+                <div class="endpoint-title">Anthropic 接口</div>
+                <div class="switch" onclick="toggleSwitch(this)"></div>
+              </div>
+              <div class="endpoint-fields hidden">
+                <input class="text-input" placeholder="https://api.example.com/anthropic" />
+                <input class="text-input" placeholder="API Key" />
+              </div>
+            </div>
+            <div class="endpoint-card">
+              <div class="endpoint-head">
+                <div class="endpoint-title">OpenAI 兼容接口</div>
+                <div class="switch on" onclick="toggleSwitch(this)"></div>
+              </div>
+              <div class="endpoint-fields">
+                <input class="text-input" placeholder="https://api.example.com/v1" />
+                <input class="text-input" placeholder="API Key" />
+              </div>
+            </div>
+            <div class="endpoint-card">
+              <div class="endpoint-head">
+                <div class="endpoint-title">Responses 接口</div>
+                <div class="switch" onclick="toggleSwitch(this)"></div>
+              </div>
+              <div class="endpoint-fields hidden">
+                <input class="text-input" placeholder="https://api.example.com/v1" />
+                <input class="text-input" placeholder="API Key" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <button class="btn btn-secondary" onclick="closeEditor()">取消</button>
+          <button class="btn btn-primary" onclick="closeEditor()">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const SUBTITLES = {
+        all: "经网关协议转换，供给 Claude / Codex / OpenCode / Pi / Kimi Code 全部 Agent",
+        matched: {
+          openai: "Chat Completions 协议 · 仅供给 OpenAI 兼容系 Agent（OpenCode / Pi / Kimi Code）",
+          codex: "OpenAI Responses 协议 · 仅供给 Codex Agent",
+          claude: "Anthropic Messages 协议 · 仅供给 Claude Agent",
+        },
+        custom: "按所选协议配置上游 API",
+      };
+      const PROTOCOL_HINTS = {
+        openai: "Chat Completions 协议",
+        codex: "OpenAI Responses 协议",
+        claude: "Anthropic Messages 协议",
+      };
+      const SCOPE_HINTS = {
+        all: "经网关协议转换，供给 Claude / Codex / OpenCode / Pi / Kimi Code 全部 Agent",
+        matched: {
+          openai: "仅供给与 Chat Completions 匹配的 Agent（OpenCode / Pi / Kimi Code）。",
+          codex: "仅供给与 OpenAI Responses 匹配的 Codex Agent。",
+          claude: "仅供给与 Anthropic Messages 匹配的 Claude Agent。",
+        },
+      };
+
+      let state = { protocol: "openai", scope: "all", custom: false, legacy: false };
+
+      function openEditor(mode) {
+        state = { protocol: "openai", scope: "all", custom: false, legacy: false };
+        if (mode === "matched") {
+          state.scope = "matched";
+          state.protocol = "openai";
+        }
+        if (mode === "custom") {
+          state.custom = true;
+        }
+        if (mode === "legacy") {
+          state.legacy = true;
+        }
+        render();
+        document.getElementById("editor-overlay").classList.add("open");
+      }
+
+      function closeEditor() {
+        document.getElementById("editor-overlay").classList.remove("open");
+      }
+
+      function selectProtocol(protocol) {
+        if (state.custom) return;
+        state.protocol = protocol;
+        render();
+      }
+
+      function selectScope(scope) {
+        if (state.custom || state.legacy) return;
+        state.scope = scope;
+        render();
+      }
+
+      function toggleCheck(el) {
+        if (el.id === "custom-protocol-check") return;
+        el.classList.toggle("checked");
+      }
+
+      function toggleCustomProtocol() {
+        const el = document.getElementById("custom-protocol-check");
+        state.custom = !state.custom;
+        el.classList.toggle("checked", state.custom);
+        render();
+      }
+
+      function toggleSwitch(el) {
+        el.classList.toggle("on");
+        el.parentElement
+          .querySelector(".endpoint-fields")
+          .classList.toggle("hidden", !el.classList.contains("on"));
+      }
+
+      function runTest(btn, modelName) {
+        if (btn.classList.contains("testing")) return;
+        btn.classList.add("testing");
+        btn.textContent = "测试中…";
+        const pop = document.getElementById("test-pop");
+        pop.classList.remove("ok", "fail");
+        const title = document.getElementById("test-pop-title");
+        const detail = document.getElementById("test-pop-detail");
+        title.textContent = "测试中…";
+        detail.textContent = `${modelName}：正在发送探测请求…`;
+        pop.classList.add("show");
+        // Simulate a connectivity + latency probe.
+        setTimeout(() => {
+          btn.classList.remove("testing");
+          const ok = btn.dataset.fail !== "1" && Math.random() > 0.15;
+          if (ok) {
+            const latency = 40 + Math.floor(Math.random() * 300) + " ms";
+            btn.textContent = "✓ 测试";
+            btn.classList.add("ok");
+            pop.classList.remove("fail");
+            pop.classList.add("ok");
+            title.textContent = "测试通过";
+            detail.textContent = `${modelName}：联通正常，延迟 ${latency}（探测一次轻量补全）`;
+          } else {
+            btn.textContent = "⚡ 测试";
+            btn.classList.add("fail");
+            pop.classList.remove("ok");
+            pop.classList.add("fail");
+            title.textContent = "测试失败";
+            detail.textContent = `${modelName}：无法联通（连接超时 / 401 未授权），请检查 Base URL 与 API Key`;
+          }
+          setTimeout(() => pop.classList.remove("show"), 6000);
+        }, 900);
+      }
+
+      function setSelected(selector, predicate) {
+        document
+          .querySelectorAll(selector)
+          .forEach((el) => el.classList.toggle("selected", predicate(el)));
+      }
+
+      function render() {
+        const { protocol, scope, custom, legacy } = state;
+
+        document.getElementById("sheet-title").textContent = custom
+          ? "编辑自定义模型"
+          : "添加自定义模型";
+
+        // protocol chips
+        setSelected(".chip[data-protocol]", (el) => el.dataset.protocol === protocol && !custom);
+
+        // scope radios
+        const scopeGroup = document.getElementById("scope-group");
+        const scopeLocked = document.getElementById("scope-locked");
+        if (custom || legacy) {
+          scopeGroup.style.display = "none";
+          scopeLocked.style.display = "flex";
+          document.getElementById("lock-note-text").innerHTML = custom
+            ? "<strong>多协议高级模式</strong>下经网关协议转换挂载全部 Agent。"
+            : "此网关由<strong>旧版本配置</strong>创建（未声明供给范围），按「全部 Agent」处理；保存后写入显式供给范围。";
+        } else {
+          scopeGroup.style.display = "flex";
+          scopeLocked.style.display = "none";
+          document.getElementById("scope-all").classList.toggle("selected", scope === "all");
+          document
+            .getElementById("scope-matched")
+            .classList.toggle("selected", scope === "matched");
+          document.getElementById("scope-hint").textContent = SCOPE_HINTS[scope][protocol];
+        }
+
+        // subtitle
+        document.getElementById("sheet-sub").textContent = custom
+          ? SUBTITLES.custom
+          : scope === "all"
+            ? SUBTITLES.all
+            : SUBTITLES.matched[protocol];
+
+        // websearch note: protocol claude, regardless of scope
+        document.getElementById("websearch-note").style.display =
+          protocol === "claude" && !custom ? "flex" : "none";
+
+        // endpoints
+        document.getElementById("endpoint-stack").style.display = custom ? "flex" : "none";
+        const customCheck = document.getElementById("custom-protocol-check");
+        customCheck.classList.toggle("checked", custom);
+      }
+
+      render();
+    </script>
+  </body>
+</html>

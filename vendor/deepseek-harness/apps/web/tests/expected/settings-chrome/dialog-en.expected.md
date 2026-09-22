@@ -1,0 +1,62 @@
+- dialog "Settings":
+  - navigation:
+    - text: Settings
+    - button "General":
+      - img
+      - text: General
+    - button "Appearance":
+      - img
+      - text: Appearance
+    - button "Interface":
+      - img
+      - text: Interface
+    - button "Models":
+      - img
+      - text: Models
+    - button "Built-in plugins":
+      - img
+      - text: Built-in plugins
+    - button "Skills":
+      - img
+      - text: Skills
+    - button "MCP":
+      - img
+      - text: MCP
+    - button "Agent presets":
+      - img
+      - text: Agent presets
+    - button "Archived sessions":
+      - img
+      - text: Archived sessions
+    - button "About":
+      - img
+      - text: About
+  - button "Open configuration file"
+  - button "Close":
+    - img
+    - text: Close
+  - text: Permission Choose the default permission mode for new sessions
+  - button "Workspace Write":
+    - text: Workspace Write
+    - img
+  - text: Language
+  - button "English":
+    - text: English
+    - img
+  - text: Font size Only affects conversation content 14
+  - button "Increase font size":
+    - img
+  - button "Decrease font size":
+    - img
+  - text: px Conversation display Controls process content in completed turns
+  - button "Compact":
+    - text: Compact
+    - img
+  - text: Send behavior while busy What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
+  - button "Queue":
+    - text: Queue
+    - img
+  - text: Custom instructions Set a few standing rules for the agent; they apply to every later task
+  - textbox "Custom instructions":
+    - /placeholder: Write your rules, e.g. always reply in Chinese
+  - text: 0 / 1500

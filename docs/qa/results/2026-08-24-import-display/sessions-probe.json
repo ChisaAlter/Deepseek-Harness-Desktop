@@ -1,0 +1,123 @@
+{
+  "activeCat": "sessions",
+  "clusters": [
+    {
+      "title": "无工作区",
+      "meta": "53 项",
+      "key": "_no-cwd",
+      "expanded": "true"
+    },
+    {
+      "title": "C:/Ai/ChisaTerminal",
+      "meta": "5 项",
+      "key": "--C-Ai-ChisaTerminal--",
+      "expanded": "true"
+    },
+    {
+      "title": "~/.dsh/no-workspace",
+      "meta": "22 项",
+      "key": "--C-Users-48818-.dsh-no-workspace--",
+      "expanded": "true"
+    },
+    {
+      "title": "~/Documents/Deepseek-Harness-Desktop",
+      "meta": "2 项",
+      "key": "--C-Users-48818-Documents-Deepseek-Harness-Desktop--",
+      "expanded": "true"
+    }
+  ],
+  "visibleCount": 82,
+  "visibleSample": [
+    {
+      "title": "ChisaTerminal 渲染层架构评审",
+      "meta": "0fdec604-92a2-4a2b-95d6-c05fcd36c7b2 · 2026/8/21 16:57:55",
+      "group": "--C-Ai-ChisaTerminal--",
+      "value": "--C-Ai-ChisaTerminal--/0fdec604-92a2-4a2b-95d6-c05fcd36c7b2"
+    },
+    {
+      "title": "ChisaTerminal Electron 安全专项审计",
+      "meta": "bdf06d81-c945-4ed0-9ff0-09f77cfc7bf8 · 2026/8/21 16:57:55",
+      "group": "--C-Ai-ChisaTerminal--",
+      "value": "--C-Ai-ChisaTerminal--/bdf06d81-c945-4ed0-9ff0-09f77cfc7bf8"
+    },
+    {
+      "title": "ChisaTerminal 测试与仓库卫生评审",
+      "meta": "fc00af66-06df-49bc-b0e8-ff66dd69b1b5 · 2026/8/21 16:57:55",
+      "group": "--C-Ai-ChisaTerminal--",
+      "value": "--C-Ai-ChisaTerminal--/fc00af66-06df-49bc-b0e8-ff66dd69b1b5"
+    },
+    {
+      "title": "项目全面审查",
+      "meta": "session-2b4f722c-8cb7-4c07-97f3-d0efbc6756dc · 2026/8/21 16:55:34",
+      "group": "--C-Ai-ChisaTerminal--",
+      "value": "--C-Ai-ChisaTerminal--/session-2b4f722c-8cb7-4c07-97f3-d0efbc6756dc"
+    },
+    {
+      "title": "说中文",
+      "meta": "session-535ff9b4-f933-4e18-88b9-c6ee5ee1ca96 · 2026/8/21 18:44:01",
+      "group": "--C-Ai-ChisaTerminal--",
+      "value": "--C-Ai-ChisaTerminal--/session-535ff9b4-f933-4e18-88b9-c6ee5ee1ca96"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 [",
+      "meta": "0954a0a9-f5fa-4012-bdd6-bf4ba79f4bf8 · 2026/8/20 20:48:03",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/0954a0a9-f5fa-4012-bdd6-bf4ba79f4bf8"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 [",
+      "meta": "28b14f84-23fd-4130-9d62-3c402cce9ce8 · 2026/8/20 20:45:43",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/28b14f84-23fd-4130-9d62-3c402cce9ce8"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 Yo",
+      "meta": "4faa841b-e46c-4352-97e6-b76360aea4c9 · 2026/8/20 20:23:59",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/4faa841b-e46c-4352-97e6-b76360aea4c9"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 [",
+      "meta": "5d36a43a-4e3c-4c24-acf9-fa750c226222 · 2026/8/20 20:46:33",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/5d36a43a-4e3c-4c24-acf9-fa750c226222"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 [",
+      "meta": "7bab5f6e-734f-4444-b500-6aad91a970cc · 2026/8/20 20:48:52",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/7bab5f6e-734f-4444-b500-6aad91a970cc"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 [",
+      "meta": "97c5617d-250b-4bbc-848b-12619186e0f6 · 2026/8/20 20:44:13",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/97c5617d-250b-4bbc-848b-12619186e0f6"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 [",
+      "meta": "9de98fd8-1fa6-4232-b5d6-2edd04a36a55 · 2026/8/20 20:49:25",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/9de98fd8-1fa6-4232-b5d6-2edd04a36a55"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 Ea",
+      "meta": "a01b4845-e719-4bab-b64f-8b5dd6903987 · 2026/8/20 20:24:24",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/a01b4845-e719-4bab-b64f-8b5dd6903987"
+    },
+    {
+      "title": "[用户] 大家好 [用户] 大家好 Ea",
+      "meta": "a9b5cdfb-b76f-4b55-8313-7b454934d6d7 · 2026/8/20 20:24:48",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/a9b5cdfb-b76f-4b55-8313-7b454934d6d7"
+    },
+    {
+      "title": "[用户] 大家好 You are the",
+      "meta": "af1b242f-7254-491d-83e5-9a7e235ab20f · 2026/8/20 20:06:36",
+      "group": "--C-Users-48818-.dsh-no-workspace--",
+      "value": "--C-Users-48818-.dsh-no-workspace--/af1b242f-7254-491d-83e5-9a7e235ab20f"
+    }
+  ],
+  "presetVisible": 53
+}

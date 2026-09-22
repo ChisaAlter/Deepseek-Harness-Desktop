@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-06-plan-narrow-viewport-regression.md
+2026-08-06-plan-narrow-viewport-regression.md: b10f59c86655d5e56158e3cca66129815befcea6
+2026-08-06-plan-narrow-viewport-regression.zh.md: 9655629fdfca06de7eb9e9ca0a270ffb2d2b4d92

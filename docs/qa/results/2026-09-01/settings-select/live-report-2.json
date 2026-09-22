@@ -1,0 +1,42 @@
+{
+  "probe": {
+    "opened": true,
+    "switchRole": "switch",
+    "switchChecked": false,
+    "switchLabels": [
+      "Enable auto-restart"
+    ],
+    "nativeSelectCount": 0
+  },
+  "clicked": {
+    "ok": true,
+    "before": false,
+    "after": true,
+    "role": "switch",
+    "savingText": false
+  },
+  "after": {
+    "checked": true,
+    "role": "switch",
+    "savingText": false,
+    "nativeSelectCount": 0
+  },
+  "shotSwitch": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\02-general-switch-clicked.png",
+  "shotSettled": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\03-general-switch-settled.png",
+  "iface": true,
+  "shotIface": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\05-interface-session-cost.png",
+  "prices": {
+    "ok": true,
+    "label": "Set model prices"
+  },
+  "shotPrices": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\06-price-panel.png",
+  "model": {
+    "ok": true,
+    "tag": "BUTTON",
+    "hasPopup": "menu",
+    "menuCount": 0,
+    "menuitems": [],
+    "nativeSelectCount": 0
+  },
+  "shotMenu": "c:\\Ai\\Deepseek-Harness-Desktop\\docs\\qa\\results\\2026-09-01\\settings-select\\07-price-model-menu.png"
+}

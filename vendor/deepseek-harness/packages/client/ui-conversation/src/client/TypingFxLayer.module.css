@@ -1,0 +1,131 @@
+/* Typing-effect overlay: ghost echoes of inserted glyphs plus an optional
+   custom caret. Only opacity/transform move; every duration derives from the
+   shared --ds-motion tokens so prefers-reduced-motion collapses the effects
+   without a second code path (the JS spawn gate also stops at the media
+   query). The layer never intercepts pointer events. */
+
+.root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  /* Match the editable surface's glyph metrics (see .input). */
+  font-family: var(--dsw-font-family);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The caret sits right of the inserted glyph; translateX(-100%) lands the
+   echo box's right edge on the caret, covering the real character. */
+.echo {
+  position: absolute;
+  transform: translateX(-100%);
+  white-space: pre;
+}
+
+.echoGlyph {
+  display: inline-block;
+  color: var(--dsh-typing-fx-echo-color, currentColor);
+  animation-duration: calc(var(--ds-motion-duration-flip) * 100 / var(--dsh-typing-fx-speed, 100));
+  animation-timing-function: var(--ds-ease-in-out);
+  animation-fill-mode: forwards;
+}
+
+/* [data-typing-fx-root] marks either host: the composer overlay root and the
+   settings modal's preview stage both drive the same glyph animations. */
+[data-typing-fx-root][data-effect='drop'] .echoGlyph {
+  animation-name: dsh-typing-fx-drop;
+}
+
+[data-typing-fx-root][data-effect='rise'] .echoGlyph {
+  animation-name: dsh-typing-fx-rise;
+}
+
+[data-typing-fx-root][data-effect='flash'] .echoGlyph {
+  animation-name: dsh-typing-fx-flash;
+}
+
+@keyframes dsh-typing-fx-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.55em) scale(1.18);
+  }
+  35% {
+    opacity: 1;
+  }
+  55% {
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dsh-typing-fx-rise {
+  0% {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-0.7em);
+  }
+}
+
+@keyframes dsh-typing-fx-flash {
+  0% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Custom caret: the box spans the measured caret line; the underline variant
+   draws its bar on the box's bottom edge. Blink period stays token-derived. */
+.caret {
+  position: absolute;
+  width: 0.6em;
+  background: var(--dsh-typing-fx-caret-color, var(--dsw-alias-state-business-primary));
+  border-radius: 1px;
+}
+
+.caret[data-typing-fx-caret='underline'] {
+  background: transparent;
+  border-bottom: 2px solid var(--dsh-typing-fx-caret-color, var(--dsw-alias-state-business-primary));
+  border-radius: 0;
+}
+
+[data-typing-fx-root][data-blink] .caret {
+  animation: dsh-typing-fx-caret-blink calc(var(--ds-motion-duration-flip) * 2.5) step-end infinite;
+}
+
+@keyframes dsh-typing-fx-caret-blink {
+  0%, 45% {
+    opacity: 1;
+  }
+  50%, 95% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* JS never spawns echoes under reduced motion; any survivor stays hidden. */
+  .echoGlyph {
+    animation: none;
+    opacity: 0;
+  }
+
+  .caret {
+    animation: none;
+  }
+}

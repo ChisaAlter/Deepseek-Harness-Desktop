@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "setDraft": {
+    "ok": true,
+    "value": "用一句话回复：你已连通，并给出一个三位数验证码。用标记 INAPP_T1 开头。"
+  },
+  "clickedSend": {
+    "ok": true,
+    "label": "发送消息"
+  },
+  "found": true,
+  "replyTail": "新会话\n项目\nworkspace\n进行中\n用一句话回复：你已连通，并\n刚刚\n设置\n用一句话回复：你已连通，并\n对话\n轨迹\n用一句话回复：你已连通，并给出一个三位数验证码。用标记 INAPP_T1 开头。\n13:04\n等待当前回复结束后编辑\n上下文注入\n@deepseek-ai/dsh-system-prompt\n上下文注入\nskill-catalog\nDeep diving...\nWorkspace Write\ngrok-4.6\nHigh\nUnable to load libghostty-vt (404) — close and reopen the terminal to retry.\n详情\n点击消息流中的工具行查看详情\n打开一个面板\n\n选择要在右侧栏显示的内容。\n\n浏览器\n打开本地应用或 URL。\n终端\n在此工作区启动一个 shell。\n文件\n浏览并阅读工作区文件。\n差异\n查看 git 变更。\n代理\n查看正在运行的代理。\nInitialize Git"
+}

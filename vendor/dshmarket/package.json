@@ -1,0 +1,11 @@
+{
+  "name": "dshmarket",
+  "description": "Attribution stub — upstream dsh-market source snapshot removed; the desktop marketplace is desktop-owned code. See DESKTOP-FORK.md.",
+  "version": "1.14.0",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsh-market/dsh-market.git"
+  }
+}

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-04-relay-pairing-device-name-and-rename.md
+2026-09-04-relay-pairing-device-name-and-rename.md: 18d64b2d26694a3a34e6b4763c3c451c15dcfaab
+2026-09-04-relay-pairing-device-name-and-rename.zh.md: f7e481cc04a1658dd01cc32e237f21d1b699bdd0

@@ -1,0 +1,83 @@
+{
+  "name": "dingtalk-stream",
+  "version": "2.1.4",
+  "description": "Nodejs SDK for DingTalk Stream Mode API, Compared with the webhook mode, it is easier to access the DingTalk",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "typesVersions": {
+    "*": {
+      "*": [
+        "./dist/*",
+        "./dist/index.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "require": "./dist/client.cjs",
+      "import": "./dist/client.mjs"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "require": "./dist/constants.cjs",
+      "import": "./dist/constants.mjs"
+    },
+    "./*": "./*"
+  },
+  "scripts": {
+    "start": "ts-node-esm example/index.ts",
+    "build": "rimraf dist && rollup -c",
+    "dev": "rollup -c --watch --watch.include 'src/**' -m inline",
+    "prepublishOnly": "pnpm build",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-dingtalk/dingtalk-stream-sdk-nodejs.git"
+  },
+  "keywords": [
+    "DingTalk Stream Mode",
+    "Nodejs",
+    "SDK"
+  ],
+  "author": "junlong.hjl@alibaba-inc.com",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/open-dingtalk/dingtalk-stream-sdk-nodejs/issues"
+  },
+  "files": [
+    "dist",
+    "*.d.ts",
+    "*.mjs"
+  ],
+  "homepage": "https://github.com/open-dingtalk/dingtalk-stream-sdk-nodejs#readme",
+  "dependencies": {
+    "axios": "^1.4.0",
+    "debug": "^4.3.4",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-alias": "^5.0.0",
+    "@rollup/plugin-commonjs": "^25.0.4",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.2.0",
+    "@types/debug": "^4.1.8",
+    "@types/node": ">=16",
+    "@types/ws": "^8.5.5",
+    "rimraf": "^5.0.1",
+    "rollup": "^3.28.0",
+    "rollup-plugin-dts": "^6.0.0",
+    "rollup-plugin-esbuild": "^5.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6",
+    "vite": "^4.4.9"
+  }
+}

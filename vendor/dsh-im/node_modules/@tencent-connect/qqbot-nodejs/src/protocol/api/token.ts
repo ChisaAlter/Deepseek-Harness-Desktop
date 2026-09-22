@@ -1,0 +1,271 @@
+/**
+ * Token management for the QQ Open Platform.
+ *
+ * Per-appId token manager with caching, singleflight, and background refresh.
+ * All state encapsulated in the class — no module-level globals.
+ */
+
+import type { Logger } from "../types.js";
+import { formatErrorMessage } from "../utils/format.js";
+
+const DEFAULT_TOKEN_BASE_URL = "https://bots.qq.com";
+const TOKEN_PATH = "/app/getAppAccessToken";
+const DEFAULT_TOKEN_TIMEOUT_MS = 10_000;
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+  appId: string;
+}
+
+export interface BackgroundRefreshOptions {
+  refreshAheadMs?: number;
+  randomOffsetMs?: number;
+  minRefreshIntervalMs?: number;
+  retryDelayMs?: number;
+}
+
+export class TokenManager {
+  private readonly cache = new Map<string, CachedToken>();
+  private readonly fetchPromises = new Map<string, Promise<string>>();
+  private readonly refreshControllers = new Map<string, AbortController>();
+  private readonly logger?: Logger;
+  private readonly resolveUserAgent: () => string;
+  private readonly baseUrl: string;
+
+  constructor(config?: { logger?: Logger; userAgent?: string | (() => string); baseUrl?: string }) {
+    this.logger = config?.logger;
+    const ua = config?.userAgent ?? "qqbot-nodejs/unknown";
+    this.resolveUserAgent = typeof ua === "function" ? ua : () => ua;
+    this.baseUrl = config?.baseUrl ?? DEFAULT_TOKEN_BASE_URL;
+  }
+
+  async getAccessToken(appId: string, clientSecret: string): Promise<string> {
+    const normalizedId = appId.trim();
+    const cached = this.cache.get(normalizedId);
+
+    const refreshAheadMs = cached
+      ? Math.min(FIVE_MINUTES_MS, (cached.expiresAt - Date.now()) / 3)
+      : 0;
+
+    if (cached && Date.now() < cached.expiresAt - refreshAheadMs) {
+      return cached.token;
+    }
+
+    let pending = this.fetchPromises.get(normalizedId);
+    if (pending) {
+      this.logger?.debug?.(`[qqbot:token:${normalizedId}] Fetch in progress, reusing promise`);
+      return pending;
+    }
+
+    pending = (async () => {
+      try {
+        return await this.doFetchToken(normalizedId, clientSecret);
+      } finally {
+        this.fetchPromises.delete(normalizedId);
+      }
+    })();
+
+    this.fetchPromises.set(normalizedId, pending);
+    return pending;
+  }
+
+  clearCache(appId?: string): void {
+    if (appId) {
+      this.cache.delete(appId.trim());
+      this.logger?.debug?.(`[qqbot:token:${appId}] Cache cleared`);
+    } else {
+      this.cache.clear();
+      this.logger?.debug?.(`[token] All caches cleared`);
+    }
+  }
+
+  getStatus(appId: string): {
+    status: "valid" | "expired" | "refreshing" | "none";
+    expiresAt: number | null;
+  } {
+    if (this.fetchPromises.has(appId)) {
+      return { status: "refreshing", expiresAt: this.cache.get(appId)?.expiresAt ?? null };
+    }
+    const cached = this.cache.get(appId);
+    if (!cached) {
+      return { status: "none", expiresAt: null };
+    }
+    const remaining = cached.expiresAt - Date.now();
+    const isValid = remaining > Math.min(FIVE_MINUTES_MS, remaining / 3);
+    return { status: isValid ? "valid" : "expired", expiresAt: cached.expiresAt };
+  }
+
+  startBackgroundRefresh(
+    appId: string,
+    clientSecret: string,
+    options?: BackgroundRefreshOptions,
+  ): void {
+    if (this.refreshControllers.has(appId)) {
+      this.logger?.info?.(`[qqbot:token:${appId}] Background refresh already running`);
+      return;
+    }
+
+    const {
+      refreshAheadMs = 5 * 60 * 1000,
+      randomOffsetMs = 30 * 1000,
+      minRefreshIntervalMs = 60 * 1000,
+      retryDelayMs = 5 * 1000,
+    } = options ?? {};
+
+    const controller = new AbortController();
+    this.refreshControllers.set(appId, controller);
+    const { signal } = controller;
+
+    const loop = async () => {
+      this.logger?.info?.(`[qqbot:token:${appId}] Background refresh started`);
+
+      while (!signal.aborted) {
+        try {
+          await this.getAccessToken(appId, clientSecret);
+          const cached = this.cache.get(appId);
+
+          if (cached) {
+            const expiresIn = cached.expiresAt - Date.now();
+            const randomOffset = Math.random() * randomOffsetMs;
+            const refreshIn = Math.max(
+              expiresIn - refreshAheadMs - randomOffset,
+              minRefreshIntervalMs,
+            );
+            this.logger?.debug?.(
+              `[qqbot:token:${appId}] Next refresh in ${Math.round(refreshIn / 1000)}s`,
+            );
+            await this.abortableSleep(refreshIn, signal);
+          } else {
+            await this.abortableSleep(minRefreshIntervalMs, signal);
+          }
+        } catch (err) {
+          if (signal.aborted) {
+            break;
+          }
+          this.logger?.error?.(
+            `[qqbot:token:${appId}] Background refresh failed: ${formatErrorMessage(err)}`,
+          );
+          await this.abortableSleep(retryDelayMs, signal);
+        }
+      }
+
+      this.refreshControllers.delete(appId);
+      this.logger?.info?.(`[qqbot:token:${appId}] Background refresh stopped`);
+    };
+
+    loop().catch((err) => {
+      if (this.refreshControllers.has(appId)) {
+        this.refreshControllers.delete(appId);
+        this.logger?.error?.(
+          `[qqbot:token:${appId}] Background refresh crashed: ${formatErrorMessage(err)}`,
+        );
+      }
+    });
+  }
+
+  stopBackgroundRefresh(appId?: string): void {
+    if (appId) {
+      const ctrl = this.refreshControllers.get(appId);
+      if (ctrl) {
+        ctrl.abort();
+        this.refreshControllers.delete(appId);
+      }
+    } else {
+      for (const ctrl of this.refreshControllers.values()) {
+        ctrl.abort();
+      }
+      this.refreshControllers.clear();
+    }
+  }
+
+  isBackgroundRefreshRunning(appId?: string): boolean {
+    if (appId) {
+      return this.refreshControllers.has(appId);
+    }
+    return this.refreshControllers.size > 0;
+  }
+
+  private async doFetchToken(appId: string, clientSecret: string): Promise<string> {
+    const url = `${this.baseUrl}${TOKEN_PATH}`;
+    this.logger?.debug?.(`[qqbot:token:${appId}] >>> POST ${url}`);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DEFAULT_TOKEN_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": this.resolveUserAgent(),
+        },
+        body: JSON.stringify({ appId, clientSecret }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      this.logger?.error?.(`[qqbot:token:${appId}] Network error: ${formatErrorMessage(err)}`);
+      throw new Error(`Network error getting access_token: ${formatErrorMessage(err)}`, {
+        cause: err,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const traceId = response.headers.get("x-tps-trace-id") ?? "";
+    this.logger?.debug?.(
+      `[qqbot:token:${appId}] <<< ${response.status}${traceId ? ` | TraceId: ${traceId}` : ""}`,
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      throw new Error(
+        `Token fetch failed: HTTP ${response.status}${errorBody ? ` — ${errorBody.slice(0, 200)}` : ""}`,
+      );
+    }
+
+    let data: { access_token?: string; expires_in?: number };
+    try {
+      const rawBody = await response.text();
+      const logBody = rawBody.replace(/"access_token"\s*:\s*"[^"]+"/g, '"access_token": "***"');
+      this.logger?.debug?.(`[qqbot:token:${appId}] <<< Body: ${logBody}`);
+      data = JSON.parse(rawBody);
+    } catch (err) {
+      throw new Error(`Failed to parse access_token response: ${formatErrorMessage(err)}`, {
+        cause: err,
+      });
+    }
+
+    if (!data.access_token) {
+      throw new Error(`Failed to get access_token: ${JSON.stringify(data)}`);
+    }
+
+    const expiresAt = Date.now() + (data.expires_in ?? 7200) * 1000;
+    this.cache.set(appId, { token: data.access_token, expiresAt, appId });
+    this.logger?.debug?.(
+      `[qqbot:token:${appId}] Cached, expires at: ${new Date(expiresAt).toISOString()}`,
+    );
+
+    return data.access_token;
+  }
+
+  private abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal.aborted) {
+        reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"));
+        return;
+      }
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"));
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+}

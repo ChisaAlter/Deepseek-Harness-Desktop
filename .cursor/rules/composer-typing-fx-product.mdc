@@ -1,0 +1,7 @@
+# Composer typing fx product
+
+Appearance「输入特效」row: opt-in Switch + gear modal (preview / effect / cursor / blink / speed / echo+caret+text colors: theme / 6 built-in schemes / custom triplet / ≤5 presets / `dsh-typing-fx` v1 JSON). Row mounts via `settings.appearance.item` slot; settings persist in the `ui-conversation` namespace — never write `ui-theme`.
+
+Effects render ONLY on a pointer-inert overlay (`TypingFxLayer`): transient echo at the typed glyph's real position + optional block/underline caret (`caret-color: transparent` while active). Lexical-owned text DOM is never split, wrapped, or restyled. No echo for paste / history / seed / in-flight IME composition / bulk inserts; a composition-end commit echoes the whole committed span once, diffed against the composition-start snapshot; echo pool capped; opacity/transform only; `prefers-reduced-motion` stops everything (JS spawn gate + CSS). AI reply rendering stays untouched.
+
+Full card: [docs/features/composer-typing-fx.md](../../docs/features/composer-typing-fx.md)

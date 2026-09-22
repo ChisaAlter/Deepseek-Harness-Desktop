@@ -1,0 +1,188 @@
+/**
+ * Small-file media upload API for the QQ Open Platform.
+ */
+
+import * as fs from "node:fs";
+import {
+  MediaFileType,
+  type ChatScope,
+  type Credentials,
+  type Logger,
+  type MessageResponse,
+  type UploadMediaResponse,
+} from "../types.js";
+import { ApiClient } from "./api-client.js";
+import { UPLOAD_RETRY_POLICY, withRetry } from "./retry.js";
+import { getNextMsgSeq, mediaUploadPath, messagePath } from "./routes.js";
+import { TokenManager } from "./token.js";
+import { MAX_UPLOAD_SIZE } from "../utils/file-utils.js";
+import { formatFileSize } from "../utils/format.js";
+
+/** base64 编码后的大小上限检查（4/3 × 原始大小 + padding，取 1.4 倍系数） */
+const MAX_BASE64_CHECK_SIZE = Math.ceil(MAX_UPLOAD_SIZE * 1.4);
+
+function formatUploadSize(): string {
+  return formatFileSize(MAX_UPLOAD_SIZE);
+}
+
+/** Upload cache adapter. The caller provides the implementation. */
+export interface UploadCacheAdapter {
+  computeHash: (data: string) => string;
+  get: (hash: string, scope: string, targetId: string, fileType: number) => string | null;
+  set: (
+    hash: string,
+    scope: string,
+    targetId: string,
+    fileType: number,
+    fileInfo: string,
+    fileUuid: string,
+    ttl: number,
+  ) => void;
+}
+
+export type SanitizeFileNameFn = (name: string) => string;
+
+export interface MediaApiConfig {
+  logger?: Logger;
+  uploadCache?: UploadCacheAdapter;
+  sanitizeFileName?: SanitizeFileNameFn;
+}
+
+/** Small-file media upload module. */
+export class MediaApi {
+  private readonly client: ApiClient;
+  private readonly tokenManager: TokenManager;
+  private readonly logger?: Logger;
+  private readonly cache?: UploadCacheAdapter;
+  private readonly sanitize: SanitizeFileNameFn;
+
+  constructor(client: ApiClient, tokenManager: TokenManager, config: MediaApiConfig = {}) {
+    this.client = client;
+    this.tokenManager = tokenManager;
+    this.logger = config.logger;
+    this.cache = config.uploadCache;
+    this.sanitize = config.sanitizeFileName ?? ((n) => n);
+  }
+
+  /**
+   * Upload media via base64, URL, buffer, or local file path to a C2C or Group target.
+   */
+  async uploadMedia(
+    scope: ChatScope,
+    targetId: string,
+    fileType: MediaFileType,
+    creds: Credentials,
+    opts: {
+      url?: string;
+      fileData?: string;
+      buffer?: Buffer;
+      localPath?: string;
+      srvSendMsg?: boolean;
+      fileName?: string;
+    },
+  ): Promise<UploadMediaResponse> {
+    const sources = [opts.url, opts.fileData, opts.buffer, opts.localPath].filter(
+      (v) => v !== undefined,
+    );
+    if (sources.length === 0) {
+      throw new Error(`uploadMedia: one of url/fileData/buffer/localPath is required`);
+    }
+    if (sources.length > 1) {
+      throw new Error(
+        `uploadMedia: url/fileData/buffer/localPath are mutually exclusive (got ${sources.length})`,
+      );
+    }
+
+    let fileData = opts.fileData;
+    if (opts.buffer) {
+      fileData = opts.buffer.toString("base64");
+    } else if (opts.localPath) {
+      const buf = await fs.promises.readFile(opts.localPath);
+      fileData = buf.toString("base64");
+    }
+
+    // 前置检查：base64 数据不能超过 QQ 单次上传上限，避免走到 API 才报错
+    if (fileData && fileData.length > MAX_BASE64_CHECK_SIZE) {
+      const sizeMB = (fileData.length / (1024 * 1024)).toFixed(1);
+      throw new Error(
+        `fileData too large (${sizeMB}MB decoded); QQ Bot single upload limit is ${formatUploadSize()}`,
+      );
+    }
+
+    if (fileData && this.cache) {
+      const hash = this.cache.computeHash(fileData);
+      const cached = this.cache.get(hash, scope, targetId, fileType);
+      if (cached) {
+        return { file_uuid: "", file_info: cached, ttl: 0 };
+      }
+    }
+
+    const body: Record<string, unknown> = {
+      file_type: fileType,
+      srv_send_msg: opts.srvSendMsg ?? false,
+    };
+    if (opts.url) {
+      body.url = opts.url;
+    } else if (fileData) {
+      body.file_data = fileData;
+    }
+    if (fileType === MediaFileType.FILE && opts.fileName) {
+      body.file_name = this.sanitize(opts.fileName);
+    }
+
+    const token = await this.tokenManager.getAccessToken(creds.appId, creds.clientSecret);
+    const path = mediaUploadPath(scope, targetId);
+
+    const result = await withRetry(
+      () =>
+        this.client.request<UploadMediaResponse>(token, "POST", path, body, {
+          redactBodyKeys: ["file_data"],
+          uploadRequest: true,
+        }),
+      UPLOAD_RETRY_POLICY,
+      undefined,
+      this.logger,
+    );
+
+    if (fileData && result.file_info && result.ttl > 0 && this.cache) {
+      const hash = this.cache.computeHash(fileData);
+      this.cache.set(
+        hash,
+        scope,
+        targetId,
+        fileType,
+        result.file_info,
+        result.file_uuid,
+        result.ttl,
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Send a media message (post upload) to a C2C or Group target.
+   */
+  async sendMediaMessage(
+    scope: ChatScope,
+    targetId: string,
+    fileInfo: string,
+    creds: Credentials,
+    opts?: {
+      msgId?: string;
+      content?: string;
+    },
+  ): Promise<MessageResponse> {
+    const token = await this.tokenManager.getAccessToken(creds.appId, creds.clientSecret);
+    const msgSeq = opts?.msgId ? getNextMsgSeq(opts.msgId) : 1;
+    const path = messagePath(scope, targetId);
+
+    return this.client.request<MessageResponse>(token, "POST", path, {
+      msg_type: 7,
+      media: { file_info: fileInfo },
+      msg_seq: msgSeq,
+      ...(opts?.content ? { content: opts.content } : {}),
+      ...(opts?.msgId ? { msg_id: opts.msgId } : {}),
+    });
+  }
+}

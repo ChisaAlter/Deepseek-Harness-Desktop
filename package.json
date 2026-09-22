@@ -1,0 +1,180 @@
+{
+  "name": "deepseek-harness-desktop",
+  "productName": "Deepseek-Harness-Desktop",
+  "version": "0.3.2",
+  "description": "Electron desktop shell for DeepSeek Harness Web UI",
+  "author": "Chisa",
+  "license": "MIT",
+  "main": "src/main/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/prestart-ensure.mjs && node scripts/run-electron.js",
+    "icon": "node scripts/run-render-icon.js",
+    "icon:pet": "node scripts/run-render-pet-head.js",
+    "test": "node --test \"src/**/*.test.js\" \"mobile/web/**/*.test.js\" \"scripts/**/*.test.mjs\"",
+    "setup:harness": "node scripts/setup-harness.js",
+    "sync:harness": "node scripts/sync-upstream.js",
+    "prepare:dshd-remote": "node scripts/prepare-dshd-remote.mjs",
+    "pack": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --dir --publish never",
+    "installer:assets": "node scripts/run-render-installer-assets.js",
+    "smoke:source": "node scripts/run-source-smoke.mjs",
+    "qa:source": "node scripts/run-source-qa.mjs",
+    "qa:composer": "node scripts/run-composer-official-qa.mjs",
+    "qa:composer-beam": "electron scripts/run-composer-beam-corners.cjs",
+    "qa:remote": "node scripts/prestart-ensure.mjs && node scripts/run-remote-gate-qa.mjs",
+    "qa:appendix": "node scripts/run-in-app-appendix-a.mjs",
+    "qa:shell": "node scripts/run-shell-p0-qa.mjs",
+    "qa:packaged": "node scripts/run-packaged-p0.mjs",
+    "smoke:packaged": "node scripts/run-packaged-smoke.mjs",
+    "check:governance": "node scripts/run-gates.mjs governance",
+    "prepare": "node scripts/install-git-integrations.mjs",
+    "doc-sync": "node scripts/run-gates.mjs doc-sync",
+    "check:release-version": "node scripts/check-release-version.mjs",
+    "check:remote-flag": "node scripts/check-remote-flag-not-committed.mjs",
+    "qa:remote:v2": "node tools/remote-web-qa/full-web-v2/run.mjs",
+    "refresh:marketplace-snapshot": "node scripts/refresh-marketplace-snapshot.mjs",
+    "dist": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --win --publish never",
+    "dist:mac": "node scripts/prepare-dshd-remote.mjs --force --runtime && node scripts/run-electron-builder.cjs --mac --publish never"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "optionalDependencies": {
+    "node-pty": "1.2.0-beta.15"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "pnpm": "11.22.0",
+    "semver": "^7.8.5"
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "@electron/get": "5.1.0"
+    }
+  },
+  "build": {
+    "appId": "ai.deepseek.harness.gui",
+    "productName": "Deepseek-Harness-Desktop",
+    "copyright": "MIT",
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "!**/*.test.js",
+      "mobile/web/**/*",
+      "!mobile/web/**/*.test.js",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "src/main/dshd-daemon-runner.mjs",
+      "src/main/dshd-daemon-hooks.mjs",
+      "src/shared/dshd-host-tunnel.js",
+      "src/shared/dshd-mux-sse.js",
+      "src/main/pet-growth.js",
+      "src/main/pet-growth-scan-worker.js"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor",
+        "to": "vendor",
+        "filter": [
+          "dsh-usage-panel/**",
+          "dsh-im/**",
+          "dshbot/**",
+          "dsh-whale/**"
+        ]
+      },
+      {
+        "from": "vendor/chisacode-remote",
+        "to": "vendor/dshd-remote",
+        "filter": [
+          "LICENSE",
+          "NOTICE",
+          "AGPL-SHIPPING.md",
+          "WORKER-CHECKLIST.md"
+        ]
+      },
+      {
+        "from": "vendor/chisacode-remote/.tmp/desktop-runtime/node_modules",
+        "to": "vendor/dshd-remote/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraMetadata": {
+      "main": "src/main/index.js"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US",
+      "zh-CN"
+    ],
+    "afterPack": "./scripts/after-pack.js",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ChisaAlter",
+        "repo": "Deepseek-Harness-Desktop"
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Deepseek-Harness-Desktop",
+      "artifactName": "Deepseek-Harness-Desktop-Setup-${version}.${ext}",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "license": "LICENSE",
+      "installerLanguages": [
+        "zh_CN",
+        "en_US"
+      ],
+      "include": "build/installer.nsh"
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "Deepseek-Harness-Desktop-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "artifactName": "Deepseek-Harness-Desktop-${version}-mac-${arch}.${ext}"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  }
+}

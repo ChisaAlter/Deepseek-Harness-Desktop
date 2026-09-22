@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <application
+        android:allowBackup="false"
+        android:icon="@android:drawable/ic_menu_camera"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.DshMobile"
+        android:usesCleartextTraffic="true">
+        <provider
+            android:name=".WebCaptureProvider"
+            android:authorities="${applicationId}.web-capture"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/web_capture_paths" />
+        </provider>
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- One-QR entry split: claim http://*:3180 so the system camera /
+                 link taps offer「用 App 打开＝链接设备 / 用浏览器打开＝web 端」.
+                 Intent filters cannot match URI fragments and the desktop LAN IP
+                 is dynamic, hence the wide host match; MainActivity re-validates
+                 the full offer-v2 grammar (PairingIntent) and junk links only
+                 show a hint. No autoVerify: LAN IPs cannot pass App Links
+                 verification, and the chooser IS the desired UX. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="*" android:port="3180" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

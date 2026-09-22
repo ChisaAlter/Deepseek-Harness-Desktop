@@ -1,0 +1,42 @@
+export interface BuildStringCommandShellInvocationOptions {
+  command: string;
+  platform?: NodeJS.Platform;
+}
+
+export interface StringCommandShellInvocation {
+  shell: string;
+  args: string[];
+}
+
+function buildPowerShellCommand(command: string): string {
+  return [
+    "$global:LASTEXITCODE = $null",
+    `& { ${command} }`,
+    "if ($global:LASTEXITCODE -ne $null) { exit $global:LASTEXITCODE }",
+  ].join("; ");
+}
+
+export function buildStringCommandShellInvocation(
+  options: BuildStringCommandShellInvocationOptions,
+): StringCommandShellInvocation {
+  const platform = options.platform ?? process.platform;
+
+  if (platform === "win32") {
+    return {
+      shell: "powershell",
+      args: [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        buildPowerShellCommand(options.command),
+      ],
+    };
+  }
+
+  return {
+    shell: "/bin/bash",
+    args: ["-lc", options.command],
+  };
+}

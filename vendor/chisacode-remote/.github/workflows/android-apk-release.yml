@@ -1,0 +1,155 @@
+name: Android APK Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "android-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build (e.g. v0.1.0)"
+        required: true
+        type: string
+      checkout_ref:
+        description: "Optional branch/ref to checkout while using tag for release metadata."
+        required: false
+        default: ""
+        type: string
+      publish:
+        description: "Publish the APK to the GitHub Release. Use false to keep it as a workflow artifact."
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+concurrency:
+  group: android-apk-release-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  SOURCE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+  # exact-sha-gate: prefer tag/ref identity; manual branch checkout is discouraged.
+  CHECKOUT_REF: ${{ env.SOURCE_TAG }}
+  SHOULD_PUBLISH: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.publish != 'false' }}
+
+jobs:
+  publish-android-apk:
+    permissions:
+      contents: write
+      packages: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ env.CHECKOUT_REF }}
+
+      - name: Resolve release tag
+        shell: bash
+        run: node scripts/emit-release-env.mjs --source-tag "$SOURCE_TAG" >> "$GITHUB_ENV"
+
+      - name: Ensure GitHub release exists
+        if: env.SHOULD_PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            exit 0
+          fi
+
+          release_args=(
+            release create "$RELEASE_TAG"
+            --repo "${{ github.repository }}"
+            --title "ChisaCode $RELEASE_TAG"
+            --notes ""
+          )
+
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          if ! gh "${release_args[@]}"; then
+            echo "Release creation raced with another workflow; continuing."
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@boudra"
+
+      - name: Install JS dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Build app dependencies
+        run: |
+          npm run build:app-deps
+          npm run build:terminal-webview --workspace=@chisacode/app
+
+      - name: Generate Android native project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd packages/app
+          APP_VARIANT=production npx expo prebuild --platform android --non-interactive
+
+      - name: Build Android APK locally
+        id: build_apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd packages/app/android
+          chmod +x ./gradlew
+
+          ./gradlew --no-daemon :app:assembleRelease \
+            -x lint \
+            -x lintVitalAnalyzeRelease \
+            -x lintVitalRelease \
+            -x generateReleaseLintModel \
+            -x generateReleaseLintVitalModel
+
+          built_apk="app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$built_apk" ]; then
+            echo "Failed to find release APK at $built_apk."
+            find app/build/outputs -type f -name "*.apk" -print || true
+            exit 1
+          fi
+
+          asset_name="chisacode-${RELEASE_TAG}-android.apk"
+          asset_path="$RUNNER_TEMP/$asset_name"
+          cp "$built_apk" "$asset_path"
+
+          echo "asset_name=$asset_name" >> "$GITHUB_OUTPUT"
+          echo "asset_path=$asset_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK to GitHub Release
+        if: env.SHOULD_PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$RELEASE_TAG" "${{ steps.build_apk.outputs.asset_path }}" --clobber --repo "${{ github.repository }}"
+
+      - name: Upload APK to workflow artifacts
+        if: env.SHOULD_PUBLISH != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build_apk.outputs.asset_name }}
+          path: ${{ steps.build_apk.outputs.asset_path }}
+          retention-days: 7

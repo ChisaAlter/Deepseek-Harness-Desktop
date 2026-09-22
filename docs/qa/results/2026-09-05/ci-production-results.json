@@ -1,0 +1,990 @@
+{
+  "date": "2026-09-05",
+  "candidate": "22b3820e1ff45e5009f129f3024a7b64526753cd",
+  "run": 33942243475,
+  "setupSha256": "24d0755402a62912783b481bc3ed9b6acef61d5ba99a8edd1f43acec9274c8a6",
+  "installedPath": "C:/软件/Deepseek-Harness-Desktop",
+  "releaseAllowed": false,
+  "cases": [
+    {
+      "id": "TC-INST-001",
+      "title": "安装包校验、安装并可启动 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-002",
+      "title": "单实例锁 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-003",
+      "title": "冷启动：插件加载留在启动页 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-004",
+      "title": "启动失败：重试与导出日志 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-005",
+      "title": "用户插件弄挂：跳过插件树 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-006",
+      "title": "跳过之后：重试完整插件 · P0（造障，接 005）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-007",
+      "title": "自动重启倒计时与取消 · P1（造障）",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-008",
+      "title": "版本与 Release 备注一致 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-009",
+      "title": "覆盖升级（旧版 → 本包）· P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-010",
+      "title": "卸载 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-011",
+      "title": "官方 `~/.dsh` 插件不能拖死桌面新装 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-011b",
+      "title": "官方 credentials.yaml 毒化不能拖死桌面 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-001",
+      "title": "冷启动只开启动器 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-002",
+      "title": "无更新则自动进桌面 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-003",
+      "title": "有更新点否仍能进桌面 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-004",
+      "title": "空家目录停在导入 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-005",
+      "title": "启动失败留下启动器并可禁用插件 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-006",
+      "title": "托盘与文件菜单可再打开启动器 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-007",
+      "title": "启动器浅色/深色跟官方表，不跟壁纸种子 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-LAUNCH-008",
+      "title": "更新下载失败留在启动器 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-INST-012",
+      "title": "同版本 overlay 必须重解压 Harness · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Same-version CI overlay detected different runtime and re-extracted it; successful installed start recorded.",
+      "evidence": [
+        "dshbot-detachment-release-status.md"
+      ],
+      "verifiedAt": "2026-09-05T05:56:09.222Z"
+    },
+    {
+      "id": "TC-INST-013",
+      "title": "安装包内 Node 与 CI 一致 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Installed resources/node.exe reports v22.22.2, matching candidate .nvmrc and CI.",
+      "evidence": [],
+      "verifiedAt": "2026-09-05T05:56:09.220Z"
+    },
+    {
+      "id": "TC-MODEL-001",
+      "title": "添加自定义网关并保存脱敏 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Created QA Gateway through installed Models UI with supplied endpoint and credential. Reopened editor lists all 7 selected model IDs; stored key is not echoed (empty password field).",
+      "evidence": [
+        "ci-qa-provider-saved-masked.png"
+      ],
+      "verifiedAt": "2026-09-05T06:49:45.399Z"
+    },
+    {
+      "id": "TC-MODEL-002",
+      "title": "获取可用模型（若入口存在）· P1",
+      "priority": "P1",
+      "status": "Pass",
+      "detail": "Installed Fetch available models returned gateway candidates; selected the 7 user-provided IDs into draft, then saved.",
+      "evidence": [],
+      "verifiedAt": "2026-09-05T06:49:45.403Z"
+    },
+    {
+      "id": "TC-MODEL-003",
+      "title": "选中模型作为新会话默认 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-MODEL-004",
+      "title": "第三方思考强度 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-MODEL-005",
+      "title": "识图兜底模型 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Installed desktop: text-only deepseek-v4-flash-0731-oc used codely-core fallback for uploaded red/blue image and read_image green/yellow image; follow-up correctly recalled colors. Exactly two vision/describe events after all three completed turns, one per unique image. Previous invalid opencode-go route replaced through Settings UI.",
+      "evidence": [
+        "gateway-fallback-log-after-reuse.json",
+        "gateway-fallback-reuse-recovered.json"
+      ],
+      "verifiedAt": "2026-09-05T07:15:38.889Z"
+    },
+    {
+      "id": "TC-MODEL-006",
+      "title": "兼容性兜底（按需）· P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-MODEL-007",
+      "title": "无可用模型时 Composer 阻拦 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-WS-001",
+      "title": "选择工作区并进入四栏 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-WS-002",
+      "title": "快捷键：设置 / 右栏 / 终端 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-WS-003",
+      "title": "应用菜单跳转 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-WS-004",
+      "title": "窗口控件 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-WS-005",
+      "title": "非 Git 目录 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-WS-006",
+      "title": "打开已登记的兄弟工作区 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Selected registered sibling workspace via hero picker; persisted session cwd and actual shell output are ChisaTerminal.",
+      "evidence": [
+        "appendix-4-retest.json"
+      ],
+      "verifiedAt": "2026-09-05T06:05:39.485Z"
+    },
+    {
+      "id": "TC-CHAT-001",
+      "title": "附录 A 第 1 轮：连通与验证码 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Real installed-app Ayase/grok-4.6 response returned connected plus code 456.",
+      "evidence": [
+        "appendix-1.json",
+        "appendix-1.png"
+      ],
+      "verifiedAt": "2026-09-05T05:56:09.214Z"
+    },
+    {
+      "id": "TC-CHAT-002",
+      "title": "附录 A 第 2 轮：记忆验证码 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Same session returned exactly 456 without prompting the number again.",
+      "evidence": [
+        "appendix-2.json",
+        "appendix-2.png"
+      ],
+      "verifiedAt": "2026-09-05T05:56:09.219Z"
+    },
+    {
+      "id": "TC-CHAT-003",
+      "title": "附录 A 第 3 轮：读 README · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Original prompt retested after read-path diagnosis; actual new read call and correct ChisaTerminal summary. Initial glob-truncation/model mistake retained as reliability observation.",
+      "evidence": [
+        "appendix-3.json",
+        "appendix-read-diagnostic.json",
+        "appendix-3-retest.json"
+      ],
+      "verifiedAt": "2026-09-05T06:05:39.480Z"
+    },
+    {
+      "id": "TC-CHAT-004",
+      "title": "附录 A 第 4 轮：终端/命令 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Actual shell calls returned C:/Ai/ChisaTerminal; original prompt retested.",
+      "evidence": [
+        "appendix-4.json",
+        "appendix-4-retest.json"
+      ],
+      "verifiedAt": "2026-09-05T06:05:39.484Z"
+    },
+    {
+      "id": "TC-CHAT-005",
+      "title": "附录 A 第 5 轮：综合汇总 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Summary contains matching code 456, Electron terminal product and ChisaTerminal directory. Formatting compressed to one line; content matches all three expected facts.",
+      "evidence": [
+        "appendix-5.json"
+      ],
+      "verifiedAt": "2026-09-05T06:06:16.089Z"
+    },
+    {
+      "id": "TC-CHAT-006",
+      "title": "Composer 官方命令边界 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-CHAT-007",
+      "title": "Files Mention 写入草稿 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-CHAT-008",
+      "title": "文件预览「添加到对话」L 范围 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Selected README source lines 1-2 in installed preview and Add to chat inserted path, L range and fenced content into composer.",
+      "evidence": [
+        "ci-files-add-lines.png"
+      ],
+      "verifiedAt": "2026-09-05T06:28:44.038Z"
+    },
+    {
+      "id": "TC-CHAT-009",
+      "title": "编辑最近用户消息并重发 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-CHAT-010",
+      "title": "已归档取消归档 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-CHAT-011",
+      "title": "主模型附件图（无兜底时）· P2",
+      "priority": "P2",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-CHAT-012",
+      "title": "取消进行中的生成 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-CHAT-013",
+      "title": "已归档删除会话 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SESS-001",
+      "title": "新建 / 切换会话 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SESS-002",
+      "title": "会话列表浏览 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SESS-003",
+      "title": "重启后会话仍在 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APPROVE-001",
+      "title": "批准（Allow once）· P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Read-only write triggered real approval. Allowed once created exact QA marker. Model requested a redundant second write, which requires a new approval (not automatically authorized).",
+      "evidence": [
+        "approval-allow-request.json"
+      ],
+      "verifiedAt": "2026-09-05T06:10:11.489Z"
+    },
+    {
+      "id": "TC-APPROVE-002",
+      "title": "拒绝 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Rejected real approval for QA_REJECTED marker. Assistant ended with 已拒绝 and target file does not exist.",
+      "evidence": [
+        "approval-reject-request.json",
+        "ci-approval-rejected.png"
+      ],
+      "verifiedAt": "2026-09-05T06:13:41.212Z"
+    },
+    {
+      "id": "TC-APPROVE-003",
+      "title": "工具卡可读 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-GIT-001",
+      "title": "状态与分支菜单 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Installed branch menu in ChisaTerminal lists actual master and 111 branches, matching repository, with create action.",
+      "evidence": [
+        "ci-git-branches.png"
+      ],
+      "verifiedAt": "2026-09-05T06:06:40.555Z"
+    },
+    {
+      "id": "TC-GIT-002",
+      "title": "切换或创建分支 · P1",
+      "priority": "P1",
+      "status": "Pass",
+      "detail": "Created and checked out codex/qa-ci-33942243475 using the installed Git branch UI; existing user edits preserved.",
+      "evidence": [],
+      "verifiedAt": "2026-09-05T06:07:34.046Z"
+    },
+    {
+      "id": "TC-GIT-003",
+      "title": "暂存与提交 · P0",
+      "priority": "P0",
+      "status": "Pass",
+      "detail": "Installed commit UI excluded both existing user changes; commit 03b1b54 contains only dshd-qa-33942243475.txt on isolated QA branch. No push.",
+      "evidence": [
+        "ci-git-commit-only-qa.png"
+      ],
+      "verifiedAt": "2026-09-05T06:16:31.638Z"
+    },
+    {
+      "id": "TC-GIT-004",
+      "title": "Push / Pull / 开变更请求 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-GIT-005",
+      "title": "Diff 与工作区一致 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-GIT-006",
+      "title": "Discard / 取消暂存（若有）· P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-GIT-007",
+      "title": "非仓库 Init（若有）· P2",
+      "priority": "P2",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SURF-001",
+      "title": "Files：搜索、预览、送对话 · P0",
+      "priority": "P0",
+      "status": "Fail",
+      "detail": "Installed CI 33942243475 search for README returns unrelated files. Source fix committed as 9a22ba173a501732e7f975da48f912c0d298e82e; 172 ui-files tests and typecheck passed, CI tests 33951095701 and build 33951140932 succeeded. New artifact not installed or reaccepted; current installed failure remains.",
+      "evidence": [
+        "ci-files-search.png"
+      ],
+      "verifiedAt": "2026-09-05T07:22:15.109Z"
+    },
+    {
+      "id": "TC-SURF-002",
+      "title": "Files：保存与系统打开 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SURF-003",
+      "title": "Files：未保存关闭确认 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SURF-004",
+      "title": "Browser：URL 与导航 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SURF-005",
+      "title": "Browser：截图 / PiP / 录制 · P2",
+      "priority": "P2",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SURF-006",
+      "title": "Agents 面板 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-SURF-007",
+      "title": "Tab 关闭在标题右侧 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-TERM-001",
+      "title": "底栏终端可用 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-TERM-002",
+      "title": "选区送对话 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-TERM-003",
+      "title": "多会话 / 分屏 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-TERM-004",
+      "title": "销毁与重建 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-001",
+      "title": "浅色 / 深色 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-002",
+      "title": "Appearance 行能力边界 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-003",
+      "title": "本地选择壁纸并裁切 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-004",
+      "title": "清除壁纸 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-005",
+      "title": "Browse 图库窗口 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-006",
+      "title": "收藏与确认设壁纸 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-007",
+      "title": "图库内源 CRUD · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-008",
+      "title": "Wallhaven 仅 SFW · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-009",
+      "title": "禁源不出现 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-010",
+      "title": "毛玻璃与像素化 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-011",
+      "title": "主题库 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-012",
+      "title": "透明主题 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-013",
+      "title": "透明主题无壁纸惰性 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-APP-014",
+      "title": "透明主题可读性 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-001",
+      "title": "设置分区可达 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-002",
+      "title": "无独立市场窗口 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-003",
+      "title": "市场浏览与刷新 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-004",
+      "title": "安装市场插件 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-005",
+      "title": "卸载插件 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-006",
+      "title": "MCP / Skills 入口 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-007",
+      "title": "dshbot 本体剥离与用户安装保留 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-008",
+      "title": "设置内用量统计 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-EXT-009",
+      "title": "设置内远程双标签 · P1 · **N/A（停放）**",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-001",
+      "title": "关闭进托盘 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-002",
+      "title": "托盘菜单完整 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-003",
+      "title": "关闭行为：直接退出 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-004",
+      "title": "托盘退出 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-005",
+      "title": "检查更新 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-006",
+      "title": "下载并安装更新 · P1（有新版本时）",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-007",
+      "title": "开机启动（若设置项存在）· P2",
+      "priority": "P2",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-008",
+      "title": "Harness 自动重启设置 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-DESK-009",
+      "title": "关于页打开运行目录 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-NEG-001",
+      "title": "远程默认关闭且不监听 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-REM-001",
+      "title": "打开局域网远程并出现二维码 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-REM-002",
+      "title": "第二客户端实机全量（本轮：手机 Web UI）· P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-REM-003",
+      "title": "审批允许一次 / 拒绝 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-NEG-002",
+      "title": "Harness 崩溃恢复 · P0（造障）",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-NEG-003",
+      "title": "错误密钥 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-NEG-004",
+      "title": "离线启动 · P2",
+      "priority": "P2",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-NEG-005",
+      "title": "配置持久化抽检 · P0",
+      "priority": "P0",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    },
+    {
+      "id": "TC-NEG-006",
+      "title": "关闭遮罩 · P1",
+      "priority": "P1",
+      "status": "Not run",
+      "detail": "No evidence for this artifact yet",
+      "evidence": []
+    }
+  ],
+  "latestSource": {
+    "commit": "9a22ba173a501732e7f975da48f912c0d298e82e",
+    "testsRun": 33951095701,
+    "buildRun": 33951140932,
+    "ciConclusion": "success",
+    "installed": false
+  },
+  "cleanup": {
+    "defaultModel": "ayase/grok-4.6",
+    "reasoningEffort": "high",
+    "visionFallback": "qa-gateway/codely-core",
+    "workspaceBranchRestored": "master",
+    "ownedWorkspaceImagesRemoved": true,
+    "originalDirtyFilesPreserved": true,
+    "normalRestart": {
+      "ok": true,
+      "at": "2026-09-05T07:20:19.668Z",
+      "error": ""
+    },
+    "debugPortClosed": true
+  }
+}

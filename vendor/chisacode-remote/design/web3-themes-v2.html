@@ -1,0 +1,2435 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChisaCode · Web3 主题方案 v2</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        line-height: 1;
+      }
+      :root {
+        color-scheme: dark;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Helvetica,
+          Arial,
+          sans-serif;
+      }
+      body {
+        min-height: 100vh;
+        background: #07090d;
+        color: #d7dce6;
+        padding: 38px 20px 76px;
+        line-height: 1.5;
+      }
+      .page-title {
+        text-align: center;
+        font-size: 32px;
+        font-weight: 700;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ff4fd8);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        margin-bottom: 8px;
+      }
+      .page-subtitle {
+        text-align: center;
+        color: #7d8696;
+        font-size: 14px;
+        margin: 0 auto 44px;
+        max-width: 760px;
+      }
+
+      /* Theme tokens */
+      [data-theme="blockchain-light"] {
+        --bg: #f8fafc;
+        --canvas: #ffffff;
+        --rail: #f1f5f9;
+        --surface: #ffffff;
+        --surface2: #f4f7fb;
+        --surface3: #edf2f8;
+        --hover: #eef4ff;
+        --line: #dce5f0;
+        --line2: #cbd7e6;
+        --text: #0f172a;
+        --muted: #64748b;
+        --faint: #94a3b8;
+        --accent: #3b82f6;
+        --accent-bright: #6366f1;
+        --neon: #8b5cf6;
+        --ok: #16a34a;
+        --warn: #f59e0b;
+        --danger: #ef4444;
+        --bubble: linear-gradient(135deg, #3b82f6, #6366f1 56%, #8b5cf6);
+        --shadow: 0 22px 54px rgba(15, 23, 42, 0.12);
+      }
+      [data-theme="cyber-dark"] {
+        --bg: #090b11;
+        --canvas: #0f1219;
+        --rail: #0b0e14;
+        --surface: #121722;
+        --surface2: #171d2a;
+        --surface3: #202838;
+        --hover: #1c2434;
+        --line: #232b3a;
+        --line2: #30394c;
+        --text: #e5e7eb;
+        --muted: #8994a8;
+        --faint: #596579;
+        --accent: #6366f1;
+        --accent-bright: #818cf8;
+        --neon: #3b82f6;
+        --ok: #22c55e;
+        --warn: #eab308;
+        --danger: #ff4772;
+        --bubble: linear-gradient(135deg, rgba(99, 102, 241, 0.92), rgba(59, 130, 246, 0.85));
+        --shadow: 0 28px 70px rgba(0, 0, 0, 0.46), 0 0 36px rgba(99, 102, 241, 0.12);
+      }
+      [data-theme="liquid-glass"] {
+        --bg:
+          radial-gradient(circle at 12% -8%, rgba(0, 163, 255, 0.45), transparent 34%),
+          radial-gradient(circle at 92% 10%, rgba(255, 79, 216, 0.3), transparent 30%),
+          linear-gradient(150deg, #06111f 0%, #071726 46%, #0a0820 100%);
+        --canvas: rgba(8, 18, 32, 0.46);
+        --rail: rgba(255, 255, 255, 0.055);
+        --surface: rgba(255, 255, 255, 0.09);
+        --surface2: rgba(255, 255, 255, 0.13);
+        --surface3: rgba(255, 255, 255, 0.19);
+        --hover: rgba(99, 230, 255, 0.13);
+        --line: rgba(255, 255, 255, 0.18);
+        --line2: rgba(99, 230, 255, 0.32);
+        --text: #f7fbff;
+        --muted: #bfd0ea;
+        --faint: #8fa7c9;
+        --accent: #00a3ff;
+        --accent-bright: #63e6ff;
+        --neon: #a855f7;
+        --neon2: #ff4fd8;
+        --ok: #68f6b4;
+        --warn: #ffe083;
+        --danger: #ff6fbe;
+        --bubble: linear-gradient(
+          135deg,
+          rgba(0, 163, 255, 0.55),
+          rgba(99, 230, 255, 0.32) 48%,
+          rgba(168, 85, 247, 0.45)
+        );
+        --shadow:
+          0 32px 96px rgba(0, 0, 0, 0.62), 0 0 54px rgba(99, 230, 255, 0.2),
+          0 0 74px rgba(168, 85, 247, 0.15);
+      }
+      [data-theme="chisaki"] {
+        --bg: #09070a;
+        --canvas: #120d12;
+        --rail: #0d090d;
+        --surface: #171116;
+        --surface2: #211820;
+        --surface3: #2b2028;
+        --hover: #2a1721;
+        --line: #34242d;
+        --line2: #56303c;
+        --text: #f8eef2;
+        --muted: #b49da7;
+        --faint: #826c76;
+        --accent: #b7132f;
+        --accent-bright: #ff4b67;
+        --neon: #ff3158;
+        --ok: #2dd49d;
+        --warn: #f6b954;
+        --danger: #ff3158;
+        --bubble: linear-gradient(135deg, #b7132f, #ff3158);
+        --shadow: 0 28px 72px rgba(15, 0, 6, 0.58), 0 0 0 1px rgba(86, 48, 60, 0.45);
+      }
+      [data-theme="aemeath"] {
+        --bg: #fbfdff;
+        --canvas: #ffffff;
+        --rail: #fff8fc;
+        --surface: #fffefe;
+        --surface2: #fff7fb;
+        --surface3: #eef9ff;
+        --hover: #f8edf5;
+        --line: #f0e3eb;
+        --line2: #dbeef8;
+        --text: #2b2028;
+        --muted: #806f7c;
+        --faint: #a2939f;
+        --accent: #f2a7c8;
+        --accent-bright: #f6b3d0;
+        --neon: #9bdcf2;
+        --ok: #39af83;
+        --warn: #d9932f;
+        --danger: #d94c78;
+        --bubble: linear-gradient(135deg, #f2a7c8, #9bdcf2);
+        --shadow: 0 22px 58px rgba(242, 167, 200, 0.2), 0 0 0 1px rgba(219, 238, 248, 0.8);
+      }
+
+      /* Section layout */
+      .theme-section {
+        max-width: 1210px;
+        margin: 0 auto 78px;
+      }
+      .theme-heading {
+        font-size: 20px;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin-bottom: 4px;
+      }
+      .theme-desc {
+        font-size: 14px;
+        color: #7d8696;
+        margin-bottom: 16px;
+      }
+      .token-swatches {
+        display: flex;
+        gap: 7px;
+        margin-bottom: 23px;
+      }
+      .swatch {
+        width: 38px;
+        height: 24px;
+        border-radius: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        position: relative;
+      }
+      .swatch::after {
+        content: attr(data-label);
+        position: absolute;
+        left: 50%;
+        bottom: -16px;
+        transform: translateX(-50%);
+        font-size: 10px;
+        color: #778091;
+        white-space: nowrap;
+      }
+      .frames-row {
+        display: flex;
+        gap: 28px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+
+      /* Frame base */
+      .frame {
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--line2);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* Liquid glass special */
+      .liquid .frame {
+        backdrop-filter: blur(24px);
+      }
+      .liquid .frame::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.28),
+          inset 0 -1px 0 rgba(99, 230, 255, 0.18);
+      }
+
+      /* =================== DESKTOP =================== */
+      .desktop {
+        width: 1100px;
+        height: 640px;
+        border-radius: 14px;
+        display: flex;
+      }
+      .d-shell {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        position: relative;
+        z-index: 1;
+      }
+      .liquid .d-shell {
+        background: rgba(7, 14, 27, 0.3);
+      }
+
+      /* Left Sidebar (~200px) */
+      .d-sidebar {
+        width: 200px;
+        background: var(--rail);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+      .d-side-top {
+        padding: 12px 12px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .d-side-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .d-side-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .d-new-chat {
+        height: 36px;
+        border: 1px solid var(--line2);
+        border-radius: 8px;
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--accent) 12%, var(--surface)),
+          var(--surface2)
+        );
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        width: 100%;
+      }
+      .d-search-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      .d-sessions {
+        flex: 1;
+        overflow: hidden;
+        padding: 8px 8px 0;
+      }
+      .d-group {
+        font-size: 11px;
+        color: var(--faint);
+        margin: 10px 8px 4px;
+        padding-left: 2px;
+      }
+      .d-session {
+        height: 40px;
+        border-radius: 8px;
+        display: grid;
+        grid-template-columns: 20px 1fr auto;
+        gap: 6px;
+        align-items: center;
+        padding: 0 6px;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .d-session:hover {
+        background: var(--hover);
+      }
+      .d-session.active {
+        background: color-mix(in srgb, var(--accent) 10%, var(--hover));
+      }
+      .d-session {
+        position: relative;
+      }
+      .d-provider {
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        overflow: hidden;
+      }
+      .d-provider svg {
+        width: 14px;
+        height: 14px;
+      }
+      .d-s-title {
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+      }
+      .d-s-meta {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .d-status {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--ok);
+        flex-shrink: 0;
+      }
+      .d-status.run {
+        background: var(--accent-bright);
+        box-shadow: 0 0 7px var(--accent-bright);
+      }
+      .d-kebab {
+        color: var(--faint);
+        font-size: 13px;
+        padding: 2px;
+      }
+
+      /* Sidebar footer */
+      .d-side-footer {
+        padding: 8px 10px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .d-host-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .d-host-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ok);
+        box-shadow: 0 0 8px var(--ok);
+        flex-shrink: 0;
+      }
+      .d-host-actions {
+        display: flex;
+        gap: 4px;
+      }
+      .d-host-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+      }
+
+      /* Center workspace */
+      .d-workspace {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--canvas);
+      }
+      .liquid .d-workspace {
+        background: rgba(7, 14, 27, 0.25);
+      }
+
+      /* ScreenHeader */
+      .d-screen-header {
+        height: 42px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        flex-shrink: 0;
+      }
+      .d-header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+      }
+      .d-tab-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 12px;
+        flex-shrink: 0;
+      }
+      .d-tab-label {
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .d-header-right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .d-hdr-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .d-hdr-btn:hover,
+      .d-hdr-btn.active {
+        background: var(--hover);
+        border-color: var(--line);
+        color: var(--text);
+      }
+
+      /* DesktopTabsRow */
+      .d-tabs-row {
+        height: 38px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: end;
+        padding: 0 10px;
+        gap: 2px;
+        background: var(--surface);
+        flex-shrink: 0;
+      }
+      .d-tab {
+        height: 30px;
+        min-width: 88px;
+        max-width: 140px;
+        padding: 0 8px;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--muted);
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .d-tab.active {
+        background: var(--canvas);
+        border-color: var(--line);
+        color: var(--text);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      }
+      .d-tab-icon-sm {
+        font-size: 13px;
+        flex-shrink: 0;
+        width: 14px;
+        text-align: center;
+      }
+      .d-tab-text {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 13px;
+      }
+      .d-tab-close {
+        color: var(--faint);
+        font-size: 12px;
+        padding: 0 2px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+      .d-tab-close:hover {
+        background: var(--surface3);
+        color: var(--text);
+      }
+      .d-tab-tools {
+        margin-left: auto;
+        display: flex;
+        gap: 3px;
+        padding-bottom: 4px;
+      }
+      .d-tab-tools .d-hdr-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 13px;
+      }
+
+      /* Content area */
+      .d-content {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* Agent panel */
+      .d-agent-pane {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .d-messages {
+        flex: 1;
+        overflow: hidden;
+        padding: 14px 16px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .d-compaction {
+        margin: 0 auto;
+        width: max-content;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: var(--surface2);
+        border: 1px solid var(--line);
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      /* Messages */
+      .d-msg-user {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .d-user-bubble {
+        max-width: 400px;
+        border-radius: 12px;
+        padding: 9px 12px;
+        font-size: 13px;
+        background: var(--bubble);
+        color: #fff;
+        box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 16%, transparent);
+        line-height: 1.5;
+      }
+      [data-theme="aemeath"] .d-user-bubble {
+        color: #342333;
+      }
+
+      .d-msg-asst {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .d-asst-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .d-ai-badge {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 10px;
+        flex-shrink: 0;
+      }
+      .d-ai-name {
+        font-weight: 600;
+        color: var(--text);
+      }
+      .d-worked {
+        font-size: 11px;
+        color: var(--faint);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .d-asst-body {
+        max-width: 580px;
+        font-size: 13px;
+        color: var(--text);
+        line-height: 1.55;
+      }
+      .d-asst-body p {
+        margin-bottom: 6px;
+      }
+      .d-tool-row {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+      }
+      .d-tool-badge {
+        height: 22px;
+        padding: 0 7px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .d-plan-card {
+        margin-top: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 12px;
+        padding: 8px 10px;
+        max-width: 400px;
+      }
+      .d-plan-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: var(--text);
+      }
+      .d-todo {
+        height: 22px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 3px;
+      }
+      .d-check {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        background: var(--accent);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 9px;
+        flex-shrink: 0;
+      }
+
+      /* Composer */
+      .d-composer {
+        border-top: 1px solid var(--line);
+        background: var(--surface);
+        padding: 10px 14px 12px;
+        flex-shrink: 0;
+      }
+      .d-attach-row {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 6px;
+      }
+      .d-attach {
+        height: 22px;
+        padding: 0 7px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface2);
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .d-input-box {
+        min-height: 48px;
+        border: 1px solid var(--line2);
+        border-radius: 10px;
+        background: var(--canvas);
+        padding: 8px 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .d-placeholder {
+        font-size: 13px;
+        color: var(--faint);
+      }
+      .d-controls {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 6px;
+      }
+      .d-pill {
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .d-pill .arrow {
+        font-size: 9px;
+        color: var(--faint);
+      }
+      .d-ctrl-spacer {
+        flex: 1;
+      }
+      .d-voice-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .d-send-btn {
+        width: 28px;
+        height: 26px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        cursor: pointer;
+        box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent);
+      }
+      .d-hint {
+        font-size: 11px;
+        color: var(--faint);
+        margin-left: 6px;
+      }
+
+      /* Environment Panel Rail (right side, ~240px) */
+      .d-env-panel {
+        width: 240px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+        position: absolute;
+        right: 8px;
+        top: 8px;
+        bottom: 8px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+      }
+      .d-env-header {
+        height: 38px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 10px;
+        flex-shrink: 0;
+      }
+      .d-env-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .d-env-close {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .d-env-close:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      /* Env dock tabs */
+      .d-dock-tabs {
+        height: 36px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 8px;
+        flex-shrink: 0;
+      }
+      .d-dock-tab {
+        height: 28px;
+        padding: 0 7px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .d-dock-tab.active {
+        background: var(--hover);
+        border-color: var(--line2);
+        color: var(--text);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+
+      /* Env body */
+      .d-env-body {
+        flex: 1;
+        overflow: hidden;
+        padding: 12px;
+      }
+      .d-env-section-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .d-branch-chip {
+        height: 22px;
+        padding: 0 7px;
+        border-radius: 6px;
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+        background: color-mix(in srgb, var(--accent) 10%, var(--surface2));
+        color: var(--accent);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .d-diff-summary {
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 8px;
+      }
+      .d-branch-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .d-diff-nums {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .d-diff-nums .plus {
+        color: var(--ok);
+      }
+      .d-diff-nums .minus {
+        color: var(--danger);
+      }
+      .d-callout {
+        border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+        background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+        border-radius: 12px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+      }
+      .d-callout-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .d-callout-title .check-icon {
+        color: var(--ok);
+        font-size: 13px;
+      }
+      .d-callout p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .d-env-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+      .d-env-btn {
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid var(--line2);
+        background: var(--surface2);
+        color: var(--text);
+        font-size: 12px;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+      }
+      .d-env-btn.primary {
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        border: none;
+        color: #fff;
+        box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 20%, transparent);
+      }
+      .d-activity {
+        border-top: 1px solid var(--line);
+        padding-top: 7px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .d-activity-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+      }
+      .d-act-row {
+        height: 24px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .d-act-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        flex-shrink: 0;
+      }
+
+      /* =================== MOBILE =================== */
+      .mobile {
+        width: 320px;
+        height: 660px;
+        border-radius: 30px;
+        display: flex;
+        padding: 8px;
+      }
+      .m-shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        border-radius: 23px;
+        background: var(--canvas);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+      }
+      .liquid .m-shell {
+        background: rgba(7, 14, 27, 0.3);
+      }
+
+      /* Mobile ScreenHeader */
+      .m-header {
+        height: 48px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        flex-shrink: 0;
+      }
+      .m-menu-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .m-branch-switcher {
+        height: 26px;
+        padding: 0 8px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+      }
+      .m-branch-arrow {
+        font-size: 10px;
+        color: var(--faint);
+      }
+      .m-header-spacer {
+        flex: 1;
+      }
+      .m-kebab-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .m-subtitle {
+        font-size: 12px;
+        color: var(--muted);
+        padding: 4px 12px 0;
+      }
+
+      /* Mobile tab switcher */
+      .m-tab-switcher {
+        padding: 0 10px;
+        margin-top: 6px;
+        flex-shrink: 0;
+      }
+      .m-tab-trigger {
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 7px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--text);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        width: fit-content;
+      }
+      .m-tab-arrow {
+        font-size: 10px;
+        color: var(--faint);
+      }
+
+      /* Mobile messages */
+      .m-body {
+        flex: 1;
+        overflow: hidden;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .m-msg-user {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .m-user-bubble {
+        max-width: 230px;
+        border-radius: 12px;
+        padding: 8px 10px;
+        font-size: 12px;
+        background: var(--bubble);
+        color: #fff;
+        line-height: 1.5;
+      }
+      [data-theme="aemeath"] .m-user-bubble {
+        color: #342333;
+      }
+      .m-msg-asst {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .m-asst-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .m-ai-badge {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-size: 9px;
+        flex-shrink: 0;
+      }
+      .m-ai-name {
+        font-weight: 600;
+        color: var(--text);
+        font-size: 12px;
+      }
+      .m-asst-body {
+        font-size: 12px;
+        color: var(--text);
+        line-height: 1.5;
+      }
+      .m-tool-badge {
+        display: inline-flex;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 5px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--muted);
+        font-size: 11px;
+        align-items: center;
+        gap: 3px;
+        margin-top: 5px;
+        margin-right: 4px;
+      }
+
+      /* Mobile composer */
+      .m-composer {
+        border-top: 1px solid var(--line);
+        padding: 8px 10px;
+        background: var(--surface);
+        flex-shrink: 0;
+      }
+      .m-input-row {
+        height: 40px;
+        border: 1px solid var(--line2);
+        border-radius: 12px;
+        background: var(--canvas);
+        display: flex;
+        align-items: center;
+        padding: 0 6px;
+        gap: 6px;
+      }
+      .m-input-row span {
+        flex: 1;
+        color: var(--faint);
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .m-voice {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .m-send {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: none;
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+
+      /* Frame labels */
+      .frame-label {
+        font-size: 13px;
+        color: #7d8696;
+        margin: 24px 0 12px;
+        font-weight: 600;
+      }
+
+      /* =================== DESKTOP SETTINGS =================== */
+      .ds-shell {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        position: relative;
+        z-index: 1;
+      }
+      .liquid .ds-shell {
+        background: rgba(7, 14, 27, 0.3);
+      }
+
+      /* Settings Left Sidebar (~220px) */
+      .ds-sidebar {
+        width: 220px;
+        background: var(--rail);
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+      }
+      .ds-back {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        color: var(--muted);
+        font-size: 13px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--line);
+      }
+      .ds-back:hover {
+        color: var(--text);
+      }
+      .ds-back svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+      }
+      .ds-nav {
+        flex: 1;
+        overflow: hidden;
+        padding: 8px 6px;
+      }
+      .ds-nav-item {
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        color: var(--text);
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .ds-nav-item:hover {
+        background: var(--hover);
+      }
+      .ds-nav-item.active {
+        background: var(--hover);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .ds-nav-item svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        color: var(--muted);
+      }
+      .ds-nav-item.active svg {
+        color: var(--accent);
+      }
+      .ds-sep {
+        height: 1px;
+        background: var(--line);
+        margin: 8px 10px;
+      }
+      .ds-host-item {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .ds-host-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ok);
+        box-shadow: 0 0 6px var(--ok);
+        flex-shrink: 0;
+      }
+      .ds-host-dot.offline {
+        background: var(--faint);
+        box-shadow: none;
+      }
+      .ds-add-host {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        font-size: 13px;
+        color: var(--accent);
+        cursor: pointer;
+      }
+      .ds-add-host:hover {
+        text-decoration: underline;
+      }
+      .ds-add-host svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* Settings Right Content */
+      .ds-content {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--canvas);
+        overflow: hidden;
+      }
+      .liquid .ds-content {
+        background: rgba(7, 14, 27, 0.25);
+      }
+      .ds-header {
+        height: 44px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 20px;
+        flex-shrink: 0;
+      }
+      .ds-header-badge {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--accent) 15%, var(--surface2));
+        border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        flex-shrink: 0;
+      }
+      .ds-header-badge svg {
+        width: 14px;
+        height: 14px;
+      }
+      .ds-header-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .ds-body {
+        flex: 1;
+        overflow: auto;
+        padding: 24px 24px;
+      }
+      .ds-body-inner {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .ds-group-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+      }
+      .ds-card {
+        background: var(--surface);
+        border: 1px solid var(--border, var(--line));
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .ds-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px;
+        min-height: 54px;
+      }
+      .ds-row + .ds-row {
+        border-top: 1px solid var(--line);
+      }
+      .ds-row-left {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      .ds-row-label {
+        font-size: 15px;
+        color: var(--text);
+        font-weight: 500;
+      }
+      .ds-row-hint {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .ds-row-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .ds-dropdown {
+        height: 32px;
+        padding: 0 10px;
+        border-radius: 8px;
+        border: 1px solid var(--line2);
+        background: var(--surface2);
+        color: var(--text);
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .ds-dropdown svg {
+        width: 12px;
+        height: 12px;
+        color: var(--faint);
+      }
+      .ds-theme-preview {
+        width: 20px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid var(--line2);
+        background: var(--surface3);
+        position: relative;
+        overflow: hidden;
+      }
+      .ds-theme-accent {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--accent), var(--neon));
+      }
+      .ds-switch {
+        width: 40px;
+        height: 22px;
+        border-radius: 11px;
+        background: var(--surface3);
+        border: 1px solid var(--line);
+        position: relative;
+        cursor: pointer;
+      }
+      .ds-switch.on {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .ds-switch-knob {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #fff;
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      .ds-switch.on .ds-switch-knob {
+        left: 20px;
+      }
+      .ds-segmented {
+        display: flex;
+        border-radius: 8px;
+        border: 1px solid var(--line2);
+        overflow: hidden;
+      }
+      .ds-seg-item {
+        height: 30px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted);
+        cursor: pointer;
+        border-right: 1px solid var(--line2);
+      }
+      .ds-seg-item:last-child {
+        border-right: none;
+      }
+      .ds-seg-item.active {
+        background: var(--hover);
+        color: var(--text);
+        font-weight: 600;
+      }
+      .ds-input {
+        width: 64px;
+        height: 30px;
+        border-radius: 8px;
+        border: 1px solid var(--line2);
+        background: var(--surface2);
+        color: var(--text);
+        font-size: 13px;
+        text-align: center;
+        outline: none;
+        padding: 0 6px;
+        font-family: inherit;
+      }
+
+      /* =================== MOBILE DRAWER =================== */
+      .md-frame {
+        width: 320px;
+        height: 660px;
+        border-radius: 30px;
+        padding: 8px;
+      }
+      .md-shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        border-radius: 23px;
+        background: var(--canvas);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+      }
+      .liquid .md-shell {
+        background: rgba(7, 14, 27, 0.3);
+      }
+      .md-drawer-wrapper {
+        position: relative;
+        width: 320px;
+        height: 660px;
+        border-radius: 30px;
+        overflow: hidden;
+      }
+      .md-drawer-wrapper::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        border-radius: 30px;
+        border: 8px solid var(--canvas);
+        pointer-events: none;
+      }
+      .md-drawer-overlay {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 33.33%;
+        z-index: 1;
+        background: rgba(0, 0, 0, 0.42);
+      }
+      .md-drawer-panel {
+        position: absolute;
+        left: 0;
+        top: 8px;
+        bottom: 8px;
+        width: calc(66.67% - 4px);
+        z-index: 3;
+        border-radius: 0 20px 20px 0;
+        background: var(--canvas);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+        border-left: none;
+      }
+      .ms-overlay {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 33.33%;
+        z-index: 1;
+        background: rgba(0, 0, 0, 0.42);
+        border-radius: 0 30px 30px 0;
+      }
+      .ms-panel {
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        bottom: 8px;
+        width: calc(66.67% - 4px);
+        z-index: 3;
+        border-radius: 0 20px 20px 0;
+        background: var(--canvas);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--line);
+        border-left: none;
+      }
+      .ms-header {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+      }
+      .ms-back {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: none;
+        background: transparent;
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+      }
+      .ms-header-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .ms-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px 0;
+      }
+      .ms-list {
+        display: flex;
+        flex-direction: column;
+      }
+      .ms-item {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+        color: var(--muted);
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .ms-item.active {
+        color: var(--accent);
+        background: var(--hover);
+      }
+      .ms-item svg {
+        opacity: 0.7;
+      }
+      .ms-item.active svg {
+        opacity: 1;
+      }
+      .ms-fullscreen {
+        width: 100%;
+        height: 100%;
+        background: var(--canvas);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 30px;
+      }
+      .md-close {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 0 12px;
+        flex-shrink: 0;
+      }
+      .md-close-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface2);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .md-focus {
+        padding: 14px 16px 10px;
+        flex-shrink: 0;
+      }
+      .md-focus-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .md-focus-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .md-quick {
+        padding: 0 16px 14px;
+        flex-shrink: 0;
+      }
+      .md-quick-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .md-quick-btn {
+        height: 56px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        cursor: pointer;
+        border: none;
+        font-family: inherit;
+      }
+      .md-quick-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+      .md-quick-btn span {
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .md-quick-btn.primary {
+        background: linear-gradient(135deg, var(--accent), var(--neon));
+        color: #fff;
+        box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 30%, transparent);
+      }
+      .md-quick-btn.secondary {
+        background: var(--surface2);
+        border: 1px solid var(--line);
+        color: var(--text);
+      }
+      .md-drawer-sessions {
+        flex: 1;
+        overflow: hidden;
+        border-top: 1px solid var(--line);
+        padding: 0 10px;
+      }
+      .md-drawer-group {
+        font-size: 11px;
+        color: var(--faint);
+        margin: 10px 6px 4px;
+        padding-left: 2px;
+        font-weight: 600;
+      }
+      .md-drawer-session {
+        height: 42px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 6px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .md-drawer-session:hover {
+        background: var(--hover);
+      }
+      .md-drawer-session .d-provider {
+        width: 20px;
+        height: 20px;
+      }
+      .md-drawer-session .d-provider svg {
+        width: 15px;
+        height: 15px;
+      }
+      .md-drawer-session .d-s-title {
+        font-size: 12px;
+      }
+      .md-drawer-session .d-s-meta {
+        font-size: 11px;
+      }
+      .md-drawer-session .d-status {
+        width: 6px;
+        height: 6px;
+      }
+      .md-drawer-footer {
+        border-top: 1px solid var(--line);
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+      .md-drawer-host {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text);
+        font-weight: 500;
+      }
+      .md-drawer-host .d-host-dot {
+        width: 7px;
+        height: 7px;
+      }
+      .md-drawer-actions {
+        display: flex;
+        gap: 6px;
+      }
+      .md-drawer-actions .d-host-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="page-title">ChisaCode · Web3 主题方案 v2</h1>
+    <p class="page-subtitle">
+      基于源码 workspace-screen / left-sidebar
+      结构还原：桌面含左栏会话列表、ScreenHeader、DesktopTabsRow、Agent 面板、Composer 与
+      Environment Panel Rail；移动端为 ScreenHeader + MobileTabSwitcher + 紧凑会话。
+    </p>
+    <div id="app"></div>
+    <script>
+      const themes = [
+        {
+          id: "blockchain-light",
+          name: "Blockchain Light",
+          desc: "蓝紫轻量主题，保留 #3B82F6 / #6366F1 / #8B5CF6 的清爽方向。",
+          colors: ["#3B82F6", "#6366F1", "#8B5CF6", "#FFFFFF"],
+        },
+        {
+          id: "cyber-dark",
+          name: "Cyber Dark",
+          desc: "蓝紫暗色主题，突出 #6366F1 / #3B82F6 / #8B5CF6 的终端感。",
+          colors: ["#6366F1", "#3B82F6", "#8B5CF6", "#0A0C10"],
+        },
+        {
+          id: "liquid-glass",
+          name: "Liquid Glass",
+          desc: "增强棱镜玻璃方向，保持五套方案中最华丽的视觉表现。",
+          colors: ["#00A3FF", "#63E6FF", "#A855F7", "#FF4FD8"],
+        },
+        {
+          id: "chisaki",
+          name: "Chisaki",
+          desc: "深玫瑰黑主题，使用 #B7132F / #FF3158 强调活跃状态。",
+          colors: ["#B7132F", "#FF3158", "#09070A", "#F8EEF2"],
+        },
+        {
+          id: "aemeath",
+          name: "Aemeath",
+          desc: "柔和粉蓝主题，沿用 #F2A7C8 / #9BDCF2 的温和方向。",
+          colors: ["#F2A7C8", "#9BDCF2", "#FFF7FB", "#2B2028"],
+        },
+      ];
+
+      function desktopHTML() {
+        return `<div class="frame desktop"><div class="d-shell">
+  <!-- Left Sidebar (from left-sidebar.tsx, separate from workspace) -->
+  <aside class="d-sidebar">
+    <div class="d-side-top">
+      <div class="d-side-actions">
+        <span class="d-side-label">所有会话</span>
+        <button class="d-search-btn">&#x2315;</button>
+      </div>
+      <button class="d-new-chat">&#x2b; 新对话</button>
+    </div>
+    <div class="d-sessions">
+      <div class="d-group">置顶</div>
+      <div class="d-session active">
+        <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div>
+        <div><div class="d-s-title">你好啊</div></div>
+        <span class="d-kebab">&#x22ef;</span>
+      </div>
+      <div class="d-session">
+        <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></div>
+        <div><div class="d-s-title">主题预览校准</div></div>
+        <span class="d-kebab">&#x22ef;</span>
+      </div>
+      <div class="d-group">pi-desktop</div>
+      <div class="d-session">
+        <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></div>
+        <div><div class="d-s-title">新项目入口</div></div>
+        <span class="d-kebab">&#x22ef;</span>
+      </div>
+      <div class="d-session">
+        <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10h16V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="1"/></svg></div>
+        <div><div class="d-s-title">修复 dock 状态</div></div>
+        <span class="d-kebab">&#x22ef;</span>
+      </div>
+      <div class="d-group">最近</div>
+      <div class="d-session">
+        <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10h16V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="1"/></svg></div>
+        <div><div class="d-s-title">浏览器上下文</div></div>
+        <span class="d-kebab">&#x22ef;</span>
+      </div>
+      <div class="d-session">
+        <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div>
+        <div><div class="d-s-title">重构 session</div></div>
+        <span class="d-kebab">&#x22ef;</span>
+      </div>
+    </div>
+    <div class="d-side-footer">
+      <div class="d-host-row"><span class="d-host-dot"></span> pi-desktop &middot; daemon.local</div>
+      <div class="d-host-actions">
+        <button class="d-host-btn">&#x1f5c1;</button>
+        <button class="d-host-btn">&#x2302;</button>
+        <button class="d-host-btn">&#x2699;</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Center workspace (from workspace-screen.tsx) -->
+  <main class="d-workspace">
+    <!-- ScreenHeader: tab icon + tab label + right toggle buttons -->
+    <header class="d-screen-header">
+      <div class="d-header-left">
+        <div class="d-tab-icon">&#x2726;</div>
+        <span class="d-tab-label">你好啊</span>
+      </div>
+      <div class="d-header-right">
+        <button class="d-hdr-btn" title="Explorer">&#x2261;</button>
+        <button class="d-hdr-btn active" title="环境面板">&#x2262;</button>
+        <button class="d-hdr-btn" title="菜单">&#x22ef;</button>
+      </div>
+    </header>
+
+    <!-- DesktopTabsRow -->
+    <div class="d-tabs-row">
+      <div class="d-tab active">
+        <span class="d-tab-icon-sm">&#x2726;</span>
+        <span class="d-tab-text">你好啊</span>
+        <span class="d-tab-close">&times;</span>
+      </div>
+      <div class="d-tab">
+        <span class="d-tab-icon-sm">&#x25b8;</span>
+        <span class="d-tab-text">终端</span>
+        <span class="d-tab-close">&times;</span>
+      </div>
+      <div class="d-tab">
+        <span class="d-tab-icon-sm">&#x25ce;</span>
+        <span class="d-tab-text">浏览器</span>
+        <span class="d-tab-close">&times;</span>
+      </div>
+      <div class="d-tab-tools">
+        <button class="d-hdr-btn" title="新建 Agent">&#x2b;</button>
+        <button class="d-hdr-btn" title="分屏">&#x229e;</button>
+        <button class="d-hdr-btn" title="更多">&#x22ef;</button>
+      </div>
+    </div>
+
+    <!-- Content: agent pane + env panel -->
+    <div class="d-content">
+      <div class="d-agent-pane">
+        <div class="d-messages">
+          <div class="d-compaction">已压缩早期上下文</div>
+          <div class="d-msg-user"><div class="d-user-bubble">把这个主题预览改得更像最新版 ChisaCode 的真实布局结构。</div></div>
+          <div class="d-msg-asst">
+            <div class="d-asst-meta">
+              <div class="d-ai-badge">&#x2699;</div>
+              <span class="d-ai-name">AI</span>
+              <span class="d-worked">Worked for 8s &#x25be;</span>
+            </div>
+            <div class="d-asst-body">
+              <p>我会对照源码中的 workspace-screen 和 left-sidebar 组件还原真实布局：左栏会话列表、ScreenHeader、DesktopTabsRow、Agent 面板、Composer 与 Environment Panel Rail。</p>
+              <div class="d-tool-row">
+                <span class="d-tool-badge">&#x25be; Read left-sidebar.tsx</span>
+                <span class="d-tool-badge">&#x25be; Read workspace-screen.tsx</span>
+                <span class="d-tool-badge">&#x25be; 编辑 HTML</span>
+              </div>
+              <div class="d-plan-card">
+                <div class="d-plan-title">计划 / Todos</div>
+                <div class="d-todo"><span class="d-check">&#x2713;</span> 保留 5 套主题色彩方向</div>
+                <div class="d-todo"><span class="d-check">&#x2713;</span> 恢复 provider icon 与状态指示</div>
+                <div class="d-todo"><span class="d-check">&#x2713;</span> 添加 Git / PR / Tasks / Subagents / Browser Dock</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div class="d-composer">
+          <div class="d-attach-row">
+            <span class="d-attach">&#x1f4ce; design/web3-themes-v2.html</span>
+            <span class="d-attach">&#x2302; cn-main</span>
+            <span class="d-attach">/skills</span>
+          </div>
+          <div class="d-input-box">
+            <div class="d-placeholder">给智能体发消息，可用 @files、/commands 和 /skills</div>
+            <div class="d-controls">
+              <span class="d-pill">glm-5.1 <span class="arrow">&#x25be;</span></span>
+              <span class="d-pill">Always ask <span class="arrow">&#x25be;</span></span>
+              <span class="d-pill">@files</span>
+              <button class="d-hdr-btn" style="width:24px;height:22px;font-size:12px" title="上下文">&#x2261;</button>
+              <span class="d-ctrl-spacer"></span>
+              <button class="d-voice-btn" title="语音">&#x1f3a4;</button>
+              <button class="d-send-btn" title="发送">&#x27a4;</button>
+            </div>
+          </div>
+          <div style="margin-top:4px"><span class="d-hint">Ctrl+L 聚焦输入框</span></div>
+        </div>
+      </div>
+
+      <!-- Environment Panel Rail (right, toggleable) -->
+      <aside class="d-env-panel">
+        <div class="d-env-header">
+          <span class="d-env-title">环境面板</span>
+          <button class="d-env-close">&times;</button>
+        </div>
+        <div class="d-dock-tabs">
+          <div class="d-dock-tab active">&#x2263; Git</div>
+          <div class="d-dock-tab">PR</div>
+          <div class="d-dock-tab">&#x2713; Tasks</div>
+          <div class="d-dock-tab">&#x25c7; Subagents</div>
+          <div class="d-dock-tab">&#x25ce; Browser</div>
+        </div>
+        <div class="d-env-body">
+          <div class="d-env-section-title">
+            <span>Git</span>
+            <span class="d-branch-chip">&#x2263; cn-main</span>
+          </div>
+          <div class="d-diff-summary">
+            <div class="d-branch-line"><span>当前分支</span><b style="font-size:11px;color:var(--text)">origin/cn-main</b></div>
+            <div class="d-diff-nums"><span class="plus">+1,510</span>&ensp;<span class="minus">-162</span></div>
+          </div>
+          <div class="d-callout">
+            <div class="d-callout-title"><span class="check-icon">&#x2713;</span> Review completed work</div>
+            <p>已完成主题预览结构复核，可查看变更或继续提交。</p>
+          </div>
+          <div class="d-env-actions">
+            <button class="d-env-btn primary">查看变更</button>
+            <button class="d-env-btn">提交或推送</button>
+          </div>
+          <div class="d-activity">
+            <div class="d-activity-title">最近活动</div>
+            <div class="d-act-row"><span class="d-act-dot"></span> design/web3-themes-v2.html</div>
+            <div class="d-act-row"><span class="d-act-dot"></span> packages/app/src/workspace-screen.tsx</div>
+            <div class="d-act-row"><span class="d-act-dot"></span> packages/app/src/left-sidebar.tsx</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div></div>`;
+      }
+
+      function mobileHTML() {
+        return `<div class="frame mobile"><div class="m-shell">
+  <!-- Mobile ScreenHeader -->
+  <header class="m-header">
+    <button class="m-menu-btn">&#x2630;</button>
+    <div class="m-branch-switcher">&#x2263; cn-main <span class="m-branch-arrow">&#x25be;</span></div>
+    <span class="m-header-spacer"></span>
+    <button class="m-kebab-btn">&#x22ef;</button>
+  </header>
+  <div class="m-subtitle">pi-desktop</div>
+
+  <!-- MobileTabSwitcher -->
+  <div class="m-tab-switcher">
+    <div class="m-tab-trigger">&#x25be; 你好啊</div>
+  </div>
+
+  <!-- Messages -->
+  <div class="m-body">
+    <div class="m-msg-user"><div class="m-user-bubble">移动端也要像真实 Agent，而不是把桌面右栏硬塞进来。</div></div>
+    <div class="m-msg-asst">
+      <div class="m-asst-meta">
+        <div class="m-ai-badge">&#x2699;</div>
+        <span class="m-ai-name">AI</span>
+        <span>Worked for 8s &#x25be;</span>
+      </div>
+      <div class="m-asst-body">已切换为紧凑布局：ScreenHeader + MobileTabSwitcher + 消息流 + Composer。环境面板通过菜单访问。</div>
+      <span class="m-tool-badge">&#x25be; Read workspace-screen.tsx</span>
+      <span class="m-tool-badge">&#x25be; 编辑 HTML</span>
+    </div>
+  </div>
+
+  <!-- Mobile Composer -->
+  <div class="m-composer">
+    <div class="m-input-row">
+      <button class="m-voice">&#x1f3a4;</button>
+      <span>给智能体发消息，可用 @files、/commands 和 /skills</span>
+      <button class="m-send">&#x27a4;</button>
+    </div>
+  </div>
+</div></div>`;
+      }
+
+      function buildDesktopSettingsFrame() {
+        const chevron =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+        return `<div class="frame desktop"><div class="ds-shell">
+  <aside class="ds-sidebar">
+    <div class="ds-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+      <span>返回工作区</span>
+    </div>
+    <div class="ds-nav">
+      <div class="ds-nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <span>通用</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>项目</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2z"/></svg>
+        <span>模型</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <span>用量</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        <span>技能</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
+        <span>MCP 服务器</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        <span>快捷键</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+        <span>集成</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+        <span>权限</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <span>诊断</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>反馈</span>
+      </div>
+      <div class="ds-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>关于</span>
+      </div>
+    </div>
+    <div class="ds-sep"></div>
+    <div class="ds-host-item">
+      <span class="ds-host-dot"></span>
+      <span>daemon.local</span>
+    </div>
+    <div class="ds-host-item">
+      <span class="ds-host-dot offline"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--faint);flex-shrink:0"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/></svg>
+      <span>remote-server</span>
+    </div>
+    <div class="ds-add-host">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+      <span>添加 Host</span>
+    </div>
+  </aside>
+
+  <div class="ds-content">
+    <div class="ds-header">
+      <div class="ds-header-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </div>
+      <span class="ds-header-title">通用</span>
+    </div>
+    <div class="ds-body">
+      <div class="ds-body-inner">
+        <div class="ds-group-title">外观</div>
+        <div class="ds-card">
+          <div class="ds-row">
+            <div class="ds-row-left">
+              <span class="ds-row-label">主题</span>
+            </div>
+            <div class="ds-row-right">
+              <div class="ds-dropdown">
+                <div class="ds-theme-preview"><div class="ds-theme-accent"></div></div>
+                <span>浅色</span>
+                ${chevron}
+              </div>
+            </div>
+          </div>
+          <div class="ds-row">
+            <div class="ds-row-left">
+              <span class="ds-row-label">语言</span>
+            </div>
+            <div class="ds-row-right">
+              <div class="ds-dropdown">
+                <span>简体中文</span>
+                ${chevron}
+              </div>
+            </div>
+          </div>
+          <div class="ds-row">
+            <div class="ds-row-left">
+              <span class="ds-row-label">发送行为</span>
+              <span class="ds-row-hint">按 Enter 时的行为</span>
+            </div>
+            <div class="ds-row-right">
+              <div class="ds-segmented">
+                <div class="ds-seg-item active">中断</div>
+                <div class="ds-seg-item">排队</div>
+              </div>
+            </div>
+          </div>
+          <div class="ds-row">
+            <div class="ds-row-left">
+              <span class="ds-row-label">显示思考</span>
+              <span class="ds-row-hint">展示 AI 思考过程</span>
+            </div>
+            <div class="ds-row-right">
+              <div class="ds-switch on"><div class="ds-switch-knob"></div></div>
+            </div>
+          </div>
+          <div class="ds-row">
+            <div class="ds-row-left">
+              <span class="ds-row-label">Service URLs</span>
+            </div>
+            <div class="ds-row-right">
+              <div class="ds-dropdown">
+                <span>询问</span>
+                ${chevron}
+              </div>
+            </div>
+          </div>
+          <div class="ds-row">
+            <div class="ds-row-left">
+              <span class="ds-row-label">终端回滚行数</span>
+            </div>
+            <div class="ds-row-right">
+              <input class="ds-input" type="text" value="1000" readonly>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>`;
+      }
+
+      function buildMobileDrawerFrame() {
+        return `<div class="md-drawer-wrapper"><div class="md-drawer-overlay"></div><div class="md-drawer-panel">
+  <div class="md-close">
+    <button class="md-close-btn">&times;</button>
+  </div>
+  <div class="md-focus">
+    <div class="md-focus-label">当前聚焦</div>
+    <div class="md-focus-title">你好啊</div>
+  </div>
+  <div class="md-quick">
+    <div class="md-quick-grid">
+      <button class="md-quick-btn primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 19.6 3.8 20.2"/><path d="m2.1 13 1.6.4"/><path d="m4.7 7.2 1.3.9"/><path d="M9.5 3.6 10 5"/><path d="M15 3.6l-.5 1.4"/><path d="M18.3 7.2l-1.3.9"/><path d="m21.3 13-1.6.4"/><path d="m22 19.6-1.3.6"/><path d="M12 2v4"/><path d="m4.9 16.1 1.8-1.2"/><path d="m17.3 16.1-1.8-1.2"/><path d="M8.6 12l1.8-1.2"/><path d="m14.2 12-1.8-1.2"/><path d="M12 22v-4"/></svg>
+        <span>恢复</span>
+      </button>
+      <button class="md-quick-btn secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
+        <span>变更</span>
+      </button>
+      <button class="md-quick-btn secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+        <span>终端</span>
+      </button>
+      <button class="md-quick-btn secondary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>会话</span>
+      </button>
+    </div>
+  </div>
+  <div class="md-drawer-sessions">
+    <div class="md-drawer-group">置顶</div>
+    <div class="md-drawer-session">
+      <span class="d-status" style="background:var(--ok);box-shadow:0 0 6px var(--ok);width:6px;height:6px;border-radius:50%;flex-shrink:0"></span>
+      <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div>
+      <div><div class="d-s-title">你好啊</div></div>
+    </div>
+    <div class="md-drawer-group">pi-desktop</div>
+    <div class="md-drawer-session">
+      <span class="d-status" style="width:6px;height:6px;border-radius:50%;background:var(--faint);flex-shrink:0"></span>
+      <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></div>
+      <div><div class="d-s-title">主题预览校准</div></div>
+    </div>
+    <div class="md-drawer-session">
+      <span class="d-status" style="width:6px;height:6px;border-radius:50%;background:var(--faint);flex-shrink:0"></span>
+      <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></div>
+      <div><div class="d-s-title">新项目入口</div></div>
+    </div>
+    <div class="md-drawer-group">最近</div>
+    <div class="md-drawer-session">
+      <span class="d-status" style="width:6px;height:6px;border-radius:50%;background:var(--faint);flex-shrink:0"></span>
+      <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10h16V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="1"/></svg></div>
+      <div><div class="d-s-title">修复 dock 状态</div></div>
+    </div>
+    <div class="md-drawer-session">
+      <span class="d-status" style="width:6px;height:6px;border-radius:50%;background:var(--faint);flex-shrink:0"></span>
+      <div class="d-provider"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10h16V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z"/><circle cx="12" cy="15" r="1"/></svg></div>
+      <div><div class="d-s-title">浏览器上下文</div></div>
+    </div>
+  </div>
+  <div class="md-drawer-footer">
+    <div class="md-drawer-host">
+      <span class="d-host-dot"></span>
+      <span>pi-desktop</span>
+    </div>
+    <div class="md-drawer-actions">
+      <button class="d-host-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <button class="d-host-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </button>
+      <button class="d-host-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+</div></div>`;
+      }
+
+      function buildMobileSettingsFrame() {
+        const gearIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
+        const chevron = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex-shrink:0"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>`;
+        const backIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0"><path d="m15 18-6-6 6-6"/></svg>`;
+        const sunIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
+        const botIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
+        const blocksIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>`;
+        const serverIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`;
+        const infoIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`;
+        const bugIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="m8 2 1.88 1.88"/><path d="M14.12 3.88 16 2"/><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9"/><path d="M6.53 9C4.6 8.8 3 7.1 3 5"/><path d="M6 13H2"/><path d="M3 21c0-2.1 1.7-3.9 3.8-4"/><path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/><path d="M22 13h-4"/><path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/></svg>`;
+        const stethIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;flex-shrink:0"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>`;
+        const sections = [
+          { id: "general", label: "通用", icon: gearIcon, active: true },
+          { id: "models", label: "模型", icon: botIcon },
+          { id: "usage", label: "用量", icon: infoIcon },
+          { id: "skills", label: "技能", icon: blocksIcon },
+          { id: "mcp", label: "MCP 服务器", icon: serverIcon },
+          { id: "diagnostics", label: "诊断", icon: stethIcon },
+          { id: "feedback", label: "反馈", icon: bugIcon },
+          { id: "about", label: "关于", icon: infoIcon },
+        ];
+        const sectionItems = sections
+          .map(
+            (s) =>
+              `<div class="ms-item${s.active ? " active" : ""}">${s.icon}<span>${s.label}</span></div>`,
+          )
+          .join("");
+        return `<div class="frame md-frame" style="padding:0;overflow:hidden"><div class="ms-fullscreen">
+  <div class="ms-header">
+    <button class="ms-back">${backIcon}</button>
+    <div class="ms-header-title">设置</div>
+  </div>
+  <div class="ms-content">
+    <div class="ms-list">${sectionItems}</div>
+  </div>
+</div></div>`;
+      }
+
+      function sectionHTML(t) {
+        return `<section class="theme-section ${t.id === "liquid-glass" ? "liquid" : ""}" data-theme="${t.id}">
+  <h2 class="theme-heading">${t.name}</h2>
+  <p class="theme-desc">${t.desc}</p>
+  <div class="token-swatches">${t.colors.map((c, i) => `<span class="swatch" data-label="${["accent", "accent-bright", "neon", "bg"][i] || ""}" style="background:${c}"></span>`).join("")}</div>
+  <div class="frames-row">${desktopHTML()}<div class="frame-label">桌面端 · 设置</div>${buildDesktopSettingsFrame()}${mobileHTML()}<div class="frame-label">移动端 · 侧栏</div>${buildMobileDrawerFrame()}<div class="frame-label">移动端 · 设置</div>${buildMobileSettingsFrame()}</div>
+</section>`;
+      }
+
+      document.getElementById("app").innerHTML = themes.map(sectionHTML).join("");
+    </script>
+  </body>
+</html>

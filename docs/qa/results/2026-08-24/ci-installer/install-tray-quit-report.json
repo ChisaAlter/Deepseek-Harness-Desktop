@@ -1,0 +1,40 @@
+{
+  "at": "2026-08-24T15:35:19.210Z",
+  "productExe": "C:\\Program Files\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/32735432340",
+  "setupSha256": "52EBFCF4B43214988750552A66FF0087B1A70CD43FB6C4430F241917F7C06666",
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "processCount": 0,
+  "pass": true,
+  "logTail": [
+    "",
+    "[DSH_SMOKE] {\"hasFrame\":true,\"gridColumns\":\"280px 640px 0px 520px\",\"hasTitlebar\":true,\"titlebarButtons\":[\"Session log\",\"切换分支\",\"Commit\",\"Git 操作\",\"切换终端抽屉\",\"切换右侧栏\"],\"hasTerminalToggle\":true,\"hasSurfacesToggle\":true,\"hasDragStrip\":false,\"hasDragMark\":false,\"hasHitMark\":false,\"captionRegion\":\"drag\",\"hasHarnessShellApi\":true,\"harnessShellApiIsScoped\":true,\"hasBootShellApi\":true,\"bootShellApiIsScoped\":true,\"pageErrors\":[]}",
+    "[DSH_SMOKE_PTY] echoed:ok",
+    "[DSH_QA] PASS workspace.path — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_QA] PASS workspace.addClicked",
+    "[DSH_QA] PASS workspace.picker",
+    "[DSH_QA] PASS workspace.pickerClosed",
+    "[DSH_QA] PASS workspace.connected — C:\\Ai\\Deepseek-Harness-Desktop",
+    "[DSH_SMOKE_HITS] {\"hits\":{\"surfaces\":1,\"branch\":1,\"git\":1},\"error\":null}",
+    "[DSH_QA_SHELL] PASS shell.desk.trayLabels — 显示窗口 | 打开启动器 | 设置… | 插件市场 | 重启 Harness | separator | 退出",
+    "[DSH_QA_SHELL] PASS shell.shortcut.settings — Ctrl+, menu path opened settings",
+    "[DSH_QA_SHELL] PASS shell.shortcut.surfaces — beforeCollapsed=false; afterCollapsed=true",
+    "[DSH_QA_SHELL] PASS shell.shortcut.terminal — beforeOpen=true; afterOpen=false",
+    "[DSH_QA_SHELL] PASS shell.window.controlsClickable",
+    "[DSH_QA_SHELL] PASS shell.window.maximizeRestore — wasMax=false",
+    "[DSH_QA_SHELL] PASS shell.window.minimizeRestore — minimized then restored",
+    "[DSH_QA_SHELL] PASS shell.desk.closeToTray — visibleBefore=true; destroyed=false; harness=ready",
+    "[DSH_QA_SHELL] PASS shell.desk.trayShow — showMain from tray",
+    "[DSH_QA_SHELL] PASS shell.desk.traySettings — settings from tray",
+    "[DSH_QA_SHELL] PASS shell.desk.trayMarketplace — market section",
+    "[DSH_QA_SHELL] PASS shell.desk.noExtraWindow — windows=2 start=2",
+    "[DSH_QA_SHELL] quit intercepted",
+    "[DSH_QA_SHELL] PASS shell.desk.closeWouldQuit — intercepted=true; destroyed=false",
+    "[DSH_QA_SHELL] PASS shell.persist.write — closeToTray=true; theme=midnight",
+    "[DSH_QA_SHELL] {\"ok\":true,\"failed\":[],\"steps\":[{\"name\":\"shell.desk.trayLabels\",\"ok\":true,\"detail\":\"显示窗口 | 打开启动器 | 设置… | 插件市场 | 重启 Harness | separator | 退出\"},{\"name\":\"shell.shortcut.settings\",\"ok\":true,\"detail\":\"Ctrl+, menu path opened settings\"},{\"name\":\"shell.shortcut.surfaces\",\"ok\":true,\"detail\":\"beforeCollapsed=false; afterCollapsed=true\"},{\"name\":\"shell.shortcut.terminal\",\"ok\":true,\"detail\":\"beforeOpen=true; afterOpen=false\"},{\"name\":\"shell.window.controlsClickable\",\"ok\":true,\"detail\":\"\"},{\"name\":\"shell.window.maximizeRestore\",\"ok\":true,\"detail\":\"wasMax=false\"},{\"name\":\"shell.window.minimizeRestore\",\"ok\":true,\"detail\":\"minimized then restored\"},{\"name\":\"shell.desk.closeToTray\",\"ok\":true,\"detail\":\"visibleBefore=true; destroyed=false; harness=ready\"},{\"name\":\"shell.desk.trayShow\",\"ok\":true,\"detail\":\"showMain from tray\"},{\"name\":\"shell.desk.traySettings\",\"ok\":true,\"detail\":\"settings from tray\"},{\"name\":\"shell.desk.trayMarketplace\",\"ok\":true,\"detail\":\"market section\"},{\"name\":\"shell.desk.noExtraWindow\",\"ok\":true,\"detail\":\"windows=2 start=2\"},{\"name\":\"shell.desk.closeWouldQuit\",\"ok\":true,\"detail\":\"intercepted=true; destroyed=false\"},{\"name\":\"shell.persist.write\",\"ok\":true,\"detail\":\"closeToTray=true; theme=midnight\"}]}",
+    ""
+  ]
+}

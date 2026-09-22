@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>手机远程</title>
+    <link rel="stylesheet" href="./tokens.css?v=20260907-desktop-mobile" />
+    <link rel="stylesheet" href="./app.css?v=20260907-desktop-mobile" />
+</head>
+<body>
+  <div class="phone" id="phone">
+    <section class="screen connect" id="screen-connect">
+      <p class="kicker">手机远程</p>
+      <h2>连接到这台电脑</h2>
+      <p class="lead">扫桌面侧栏远程弹窗里的二维码。密钥在 #offer=，不会进查询串。</p>
+      <p class="row-desc" id="entry-split-hint">用相机 / 浏览器扫码打开本页＝web 端；装了 Android App 的话，在 App 内扫同一张码＝链接设备。</p>
+      <p class="row-desc">完整链接必须带 #offer=；微信 / QQ 打开会丢掉密钥，请改用系统相机或粘贴整段。</p>
+      <div class="device" id="device-line"><span class="live"></span>等待配对</div>
+      <p class="error hidden" id="connect-error"></p>
+      <div class="saved-computers hidden" id="saved-computers"></div>
+      <button class="primary-btn hidden" type="button" id="scan-open">扫描二维码</button>
+      <p class="row-desc hidden" id="scan-unavailable"></p>
+      <input class="paste" id="paste" type="url" placeholder="http://…/#offer=…" autocomplete="off" />
+      <button class="ghost-btn" type="button" id="paste-enter">用链接连接</button>
+    </section>
+
+    <section class="screen scan hidden" id="screen-scan">
+      <div class="scan-stage">
+        <video id="scan-video" playsinline muted autoplay></video>
+        <div class="scan-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      </div>
+      <p class="scan-tip" id="scan-tip">将二维码放入框内</p>
+      <div class="scan-actions">
+        <button class="ghost-btn" type="button" id="scan-cancel">取消</button>
+        <button class="primary-btn hidden" type="button" id="scan-torch">手电筒</button>
+      </div>
+    </section>
+
+    <section class="screen connect hidden" id="screen-permission">
+      <h2>需要相机权限</h2>
+      <p class="lead">扫码要用相机。浏览器拒绝了相机权限；请在浏览器的站点设置里允许本站使用相机，或改用粘贴配对链接。</p>
+      <button class="ghost-btn" type="button" id="permission-paste">改用粘贴链接</button>
+    </section>
+
+    <section class="screen chat hidden" id="screen-chat">
+      <button class="phone-menu" type="button" id="menu" aria-label="打开会话列表">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </button>
+      <header class="header">
+        <h2 class="title" id="chat-title">新会话</h2>
+        <p class="meta">
+          <span class="meta-host" id="host-line">Deepseek-Harness-Desktop</span>
+          <button class="git-pill hidden" type="button" id="git-pill" aria-label="打开 Git 菜单">
+            <span class="git-pill-label" id="git-pill-label"></span>
+            <span class="git-pill-count" id="git-pill-count"></span>
+            <span class="git-pill-chevron" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M5 6l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </button>
+          <span class="run hidden" id="run-flag">运行中</span>
+        </p>
+      </header>
+      <p class="conn-banner hidden" id="conn-banner" role="status"></p>
+      <p class="banner hidden" id="banner"></p>
+      <div class="log" id="log"></div>
+      <div class="blank" id="blank">
+        <h2>新会话</h2>
+        <p class="lead">描述你想要构建的内容。发出第一条消息前可以改工作区。</p>
+        <button class="chip hidden" type="button" id="blank-workspace-chip">工作区</button>
+      </div>
+      <div class="composer-root">
+        <div class="slash-pop hidden" id="slash-pop"></div>
+        <p class="readonly-note hidden" id="readonly-note"></p>
+        <form class="composer" id="composer">
+          <div class="beam-layer" aria-hidden="true">
+            <span class="beam-inner"></span>
+            <span class="beam-stroke"></span>
+            <span class="beam-bloom"></span>
+          </div>
+          <div class="attach-rail hidden" id="attach-rail"></div>
+          <textarea id="draft" rows="2" placeholder="给智能体发消息"></textarea>
+          <div class="composer-row">
+            <div class="composer-side">
+              <button class="icon-btn" type="button" id="attach-toggle" aria-label="添加附件">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              </button>
+              <button class="chip chip-shrink" type="button" id="access-chip"><span class="chip-label">权限</span><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="chip hidden" type="button" id="plan-chip">计划</button>
+            </div>
+            <div class="composer-side">
+              <button class="chip chip-shrink" type="button" id="model-chip"><span class="chip-label">模型</span><svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button class="send" type="submit" id="send-btn" aria-label="发送消息">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="send stop hidden" type="button" id="stop-btn" aria-label="停止运行">
+                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="1.5" width="9" height="9" rx="2" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </div>
+        </form>
+        <div class="approval hidden" id="approval">
+          <div class="strip"><span class="dot"></span>等待审批</div>
+          <div class="approval-body">
+            <p class="headline" id="approval-title">需要审批</p>
+            <p class="command" id="approval-command"></p>
+            <p class="error" id="approval-error" role="alert"></p>
+          </div>
+          <div class="action-row" id="approval-actions"></div>
+        </div>
+      </div>
+    </section>
+
+    <button class="backdrop hidden" type="button" id="backdrop" aria-label="关闭会话列表"></button>
+    <aside class="drawer" id="drawer">
+      <div class="drawer-head">
+        <span class="drawer-brand-mark" aria-hidden="true"></span>
+        <h2 tabindex="-1"><span>deepseek</span> HARNESS</h2>
+        <button class="icon-btn" type="button" id="drawer-close" aria-label="关闭会话列表">×</button>
+      </div>
+      <input class="search" id="search" type="search" placeholder="搜索会话" />
+      <button class="new-session" type="button" id="new-session">新会话</button>
+      <p class="ws" id="workspace-line">Deepseek-Harness-Desktop</p>
+      <div class="session-list" id="session-list"></div>
+      <button class="drawer-foot" type="button" id="open-workspace">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 3a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm0 7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Zm6-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3ZM5 6v4m6-4c0 2-1.5 3-3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        工作区
+      </button>
+      <button class="drawer-foot" type="button" id="open-settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M8 2v1.6M8 12.4V14M2 8h1.6M12.4 8H14M3.8 3.8l1.1 1.1M11.1 11.1l1.1 1.1M12.2 3.8l-1.1 1.1M4.9 11.1l-1.1 1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        设置
+      </button>
+    </aside>
+
+    <section class="settings hidden" id="settings" role="dialog" aria-modal="true" aria-label="设置">
+      <div class="set-head">
+        <button class="icon-btn hidden" type="button" id="settings-back" aria-label="返回">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h2 id="settings-title">设置</h2>
+        <button class="icon-btn" type="button" id="close-settings" aria-label="关闭">×</button>
+      </div>
+      <div class="options" id="options"></div>
+    </section>
+
+    <div id="sheet-root"></div>
+    <div id="dialog-root"></div>
+    <div id="toast-root"></div>
+    <div id="lightbox-root"></div>
+
+    <input type="file" accept="image/*" capture="environment" id="file-camera" hidden />
+    <input type="file" accept="image/*" multiple id="file-gallery" hidden />
+  </div>
+    <script type="module" src="./app.js?v=20260907-desktop-mobile"></script>
+</body>
+</html>

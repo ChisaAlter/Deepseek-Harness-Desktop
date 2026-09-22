@@ -1,0 +1,13 @@
+Pass - M0-pair
+Pass - TC-MREM-201/203 D=P grouped
+Pass - TC-MREM-204/206 flat equals grouped set
+Pass - TC-MREM-209 live menu has no delete
+Pass - TC-MREM-207 subagent readonly
+Pass - TC-MREM-401 existing workspace
+Pass - TC-MREM-402/406 no-folder + presets from list
+Pass - TC-MREM-403/404/S09 browse + mkdir + workspace
+Fail - TC-MREM-308 rename throwaway workspace: rename missing: dshd-ws-live-1788272260237|dshd-qa-ws-2026-08-30|Deepseek-Harness-Desktop|Deepseek-Harness-Desktop|ChisaTerminal
+Pass - TC-MREM-S09 five rounds on the new session
+Fail - TC-MREM-303/304/305/306 fork then archive/delete only the fork: deleted fork still in archived: 确认连通并生成验证码
+Pass - TC-MREM-307 move inside throwaway
+Pass - TC-MREM-308 unlist throwaway only

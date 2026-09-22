@@ -1,0 +1,44 @@
+name: Deploy App
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "!v*-beta.*"
+      - "app-v*"
+      - "!app-v*-beta.*"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@boudra"
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build app dependencies
+        run: npm run build:app-deps
+
+      - name: Typecheck
+        run: npm run typecheck --workspace=@chisacode/app
+
+      - name: Security audit before deploy
+        run: npm audit --audit-level=critical
+
+      - name: Build and deploy to Cloudflare Pages
+        run: npm run deploy:web --workspace=@chisacode/app
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: 10ed39a1dbf316e30abd0c409bed40d6

@@ -1,0 +1,72 @@
+{
+  "at": "2026-08-24T13:08:41.530Z",
+  "productExe": "C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\\Deepseek-Harness-Desktop.exe",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/32727819174",
+  "setupSha256": "602DC9C01AADC87AE0928BD49B2DCCB0CB9E75218BFD73E9872B6BD0FEE12B27",
+  "setupBytes": 506442522,
+  "bundledNode": "v22.23.2",
+  "checks": [
+    {
+      "id": "TC-LAUNCH-001",
+      "pass": true,
+      "urls": [
+        "file:///C:/Users/48818/AppData/Local/Programs/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/launcher.html"
+      ]
+    },
+    {
+      "id": "TC-LAUNCH-002-manual-start",
+      "pass": true,
+      "ok": true,
+      "sample": {
+        "btnStart": "关闭桌面端",
+        "homeStatus": "当前版本 0.2.7 · 桌面端已就绪",
+        "hint": "",
+        "state": "ready",
+        "baseUrl": "http://127.0.0.1:3080"
+      },
+      "urls": [
+        "http://127.0.0.1:3080/",
+        "file:///C:/Users/48818/AppData/Local/Programs/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/launcher.html",
+        "file:///C:/Users/48818/AppData/Local/Programs/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/boot.html"
+      ]
+    },
+    {
+      "id": "TC-INST-001-version",
+      "pass": true,
+      "versionCard": {
+        "installed": "\n            \n              本机已安装 v0.2.7\n              C:\\Users\\48818\\AppData\\Local\\Programs\\Deepseek-Harness-Desktop\n              \n            \n            卸载本机应用\n          ",
+        "about": ""
+      }
+    },
+    {
+      "id": "stop-desktop",
+      "pass": true,
+      "ok": true,
+      "sample": {
+        "btnStart": "启动桌面端",
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行",
+        "hint": "",
+        "state": "idle",
+        "baseUrl": "http://127.0.0.1:3080"
+      },
+      "urls": [
+        "file:///C:/Users/48818/AppData/Local/Programs/Deepseek-Harness-Desktop/resources/app.asar/src/renderer/launcher.html"
+      ]
+    },
+    {
+      "id": "parked-remote-dshbot",
+      "pass": true,
+      "remoteProbe": {
+        "hasRemote": false,
+        "dshbotTab": false
+      }
+    },
+    {
+      "id": "TC-INST-013-bundled-node",
+      "pass": true,
+      "bundledNode": "v22.23.2"
+    }
+  ],
+  "pass": true
+}

@@ -1,0 +1,72 @@
+{
+  "at": "2026-08-24T10:14:16.604Z",
+  "probes": [
+    {
+      "name": "launcher-first",
+      "pass": true,
+      "sample": {
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行",
+        "btnStart": "启动桌面端",
+        "visible": "visible"
+      },
+      "urls": [
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+      ]
+    },
+    {
+      "name": "direct-start",
+      "pass": true,
+      "startedHarness": true,
+      "sample": {
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行",
+        "btnStart": "启动桌面端"
+      },
+      "urls": [
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/boot.html",
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html"
+      ],
+      "logTail": [
+        "",
+        "",
+        "DevTools listening on ws://127.0.0.1:9452/devtools/browser/49e01287-96f6-4989-9842-8df197d83c88",
+        ""
+      ]
+    },
+    {
+      "name": "stop-desktop",
+      "pass": false,
+      "fails": [
+        "boot.html still in CDP targets after stop",
+        "status after stop: 当前版本 0.2.7 · 桌面端异常 · 当前跳过用户插件 · 上次启动失败：dsh 进程结束（code 1, signal none）"
+      ],
+      "beforeStop": {
+        "state": "starting",
+        "homeStatus": "当前版本 0.2.7 · 桌面端未运行",
+        "btnStart": "启动桌面端"
+      },
+      "after": {
+        "homeStatus": "当前版本 0.2.7 · 桌面端异常 · 当前跳过用户插件 · 上次启动失败：dsh 进程结束（code 1, signal none）",
+        "btnStart": "启动桌面端",
+        "hint": "dsh 进程结束（code 1, signal none）"
+      },
+      "urlsAfter": [
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/launcher.html",
+        "file:///C:/Ai/Deepseek-Harness-Desktop/src/renderer/boot.html"
+      ],
+      "logTail": [
+        "",
+        "",
+        "DevTools listening on ws://127.0.0.1:9453/devtools/browser/e311be8e-8d4c-42c0-8084-3e31e0086079",
+        ""
+      ]
+    },
+    {
+      "name": "config-sync",
+      "pass": true,
+      "before": true,
+      "afterChecked": false,
+      "saved": false
+    }
+  ],
+  "pass": false
+}

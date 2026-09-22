@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>桌面宠物</title>
+    <link rel="stylesheet" href="dsh-webui-tokens.css">
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #pet {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      /* Quick-chat dialog — a real mini conversation card that follows her
+         head (the renderer re-anchors it every frame). Flat fill + hairline,
+         dsw tokens only: a drop shadow compounds into a black halo on this
+         layered window. */
+      #pet-chat {
+        position: fixed;
+        z-index: 11;
+        width: 248px;
+        background: var(--dsw-alias-bg-layer-1);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: 12px;
+        font-family: var(--dsw-font-family);
+        color: var(--dsw-alias-label-primary);
+        font-size: 12px;
+        box-sizing: border-box;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      #pet-chat[hidden] { display: none; }
+      #pet-chat .pc-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px 6px;
+        border-bottom: 1px solid var(--dsw-alias-border-l2);
+      }
+      #pet-chat .pc-avatar { font-size: 14px; line-height: 1; }
+      #pet-chat .pc-name { font-weight: 600; font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      #pet-chat .pc-x, #pet-chat .pc-tool {
+        border: 0;
+        background: transparent;
+        color: var(--dsw-alias-label-primary);
+        cursor: pointer;
+        font-size: 11px;
+        opacity: 0.6;
+        padding: 2px 4px;
+        line-height: 1;
+      }
+      #pet-chat .pc-x:hover, #pet-chat .pc-tool:hover { opacity: 1; }
+      /* Model bar — a quiet text row, not a boxed control: muted labels +
+         borderless selects that pick up a hover pill. One hairline above
+         the row separates thread from controls; the compose area carries
+         no second line. appearance:none + custom chevrons so a long model
+         id is never eaten by the native arrow; overflow ellipsizes and the
+         full name rides title. */
+      #pet-chat .pc-models {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        margin-top: 2px;
+        padding: 5px 10px 1px;
+        border-top: 1px solid var(--dsw-alias-border-l2);
+      }
+      #pet-chat .pc-models[hidden] { display: none; }
+      #pet-chat .pc-pick {
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-width: 0;
+        border-radius: 7px;
+      }
+      #pet-chat .pc-pick[hidden] { display: none; }
+      #pet-chat .pc-pick:hover {
+        background: var(--dsw-alias-bg-layer-2, rgba(128, 128, 128, 0.12));
+      }
+      #pet-chat .pc-pick::before {
+        flex: none;
+        font-size: 10px;
+        opacity: 0.45;
+        padding-left: 6px;
+      }
+      #pet-chat .pc-pick-model { flex: 1; }
+      #pet-chat .pc-pick-model::before { content: '模型'; }
+      #pet-chat .pc-pick-effort { flex: none; }
+      #pet-chat .pc-pick-effort::before { content: '推理'; }
+      #pet-chat .pc-pick::after {
+        content: '';
+        position: absolute;
+        right: 7px;
+        top: 50%;
+        width: 5px;
+        height: 5px;
+        border-right: 1.5px solid var(--dsw-alias-label-primary);
+        border-bottom: 1.5px solid var(--dsw-alias-label-primary);
+        transform: translateY(-70%) rotate(45deg);
+        opacity: 0.4;
+        pointer-events: none;
+      }
+      #pet-chat .pc-pick select {
+        appearance: none;
+        -webkit-appearance: none;
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        background: transparent;
+        color: var(--dsw-alias-label-primary);
+        font-family: inherit;
+        font-size: 11px;
+        line-height: 1.5;
+        padding: 3px 16px 3px 4px;
+        outline: none;
+        cursor: pointer;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+        opacity: 0.8;
+      }
+      #pet-chat .pc-pick-effort select { flex: none; width: 72px; }
+      #pet-chat .pc-pick select:disabled { opacity: 0.5; cursor: default; }
+      #pet-chat .pc-pick select option,
+      #pet-chat .pc-pick select optgroup {
+        color: #333;
+        background: #fff;
+      }
+      #pet-chat .pc-thread {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 8px 10px;
+        max-height: 148px;
+        overflow-y: auto;
+        scrollbar-width: none;
+        flex: none;
+      }
+      #pet-chat .pc-thread::-webkit-scrollbar { display: none; }
+      #pet-chat .pc-empty {
+        color: var(--dsw-alias-label-primary);
+        opacity: 0.45;
+        font-size: 11px;
+        text-align: center;
+        padding: 8px 0 10px;
+      }
+      #pet-chat .pc-msg {
+        max-width: 86%;
+        padding: 5px 9px;
+        border-radius: 10px;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: text;
+        -webkit-user-select: text;
+      }
+      #pet-chat .pc-msg.pc-user {
+        align-self: flex-end;
+        background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent);
+        border-bottom-right-radius: 4px;
+      }
+      #pet-chat .pc-msg.pc-her {
+        align-self: flex-start;
+        background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.12));
+        border-bottom-left-radius: 4px;
+      }
+      #pet-chat .pc-msg.pc-err {
+        align-self: center;
+        background: transparent;
+        color: var(--dsw-alias-state-error-primary, #e5534b);
+        font-size: 11px;
+        padding: 2px 4px;
+      }
+      #pet-chat .pc-msg.pc-typing {
+        align-self: flex-start;
+        background: var(--dsw-alias-bg-layer-2, rgba(128,128,128,.12));
+        border-bottom-left-radius: 4px;
+        color: var(--dsw-alias-label-primary);
+        opacity: 0.7;
+        letter-spacing: 2px;
+      }
+      #pet-chat .pc-compose {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        padding: 6px 10px 10px;
+      }
+      #pet-chat textarea {
+        flex: 1;
+        resize: none;
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: 9px;
+        background: transparent;
+        color: var(--dsw-alias-label-primary);
+        font-family: inherit;
+        font-size: 12px;
+        line-height: 1.5;
+        padding: 5px 8px;
+        outline: none;
+        max-height: 66px;
+        box-sizing: border-box;
+        user-select: text;
+        -webkit-user-select: text;
+        overflow-y: auto;
+        scrollbar-width: none;
+      }
+      #pet-chat textarea::-webkit-scrollbar { display: none; }
+      #pet-chat textarea:focus { border-color: var(--dsw-alias-state-business-primary); }
+      #pet-chat .pc-send {
+        flex: none;
+        width: 26px;
+        height: 26px;
+        border: 0;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        line-height: 1;
+        cursor: pointer;
+        background: var(--dsw-alias-state-business-primary);
+        color: var(--dsw-alias-bg-layer-1, #fff);
+      }
+      #pet-chat .pc-send:disabled {
+        background: var(--dsw-alias-border-l2);
+        opacity: 0.55;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="pet"></canvas>
+    <div id="pet-chat" hidden>
+      <div class="pc-head">
+        <span class="pc-avatar" aria-hidden="true">🐳</span>
+        <span class="pc-name">鲸鱼娘</span>
+        <button id="pc-open" class="pc-tool" type="button" hidden title="在助理中打开" aria-label="在助理中打开">↗</button>
+        <button id="pc-close" class="pc-x" type="button" aria-label="关闭">✕</button>
+      </div>
+      <div id="pc-thread" class="pc-thread"><div class="pc-empty" id="pc-empty">和她说点什么…</div></div>
+      <div id="pc-models" class="pc-models" hidden>
+        <div class="pc-pick pc-pick-model">
+          <select id="pc-model" aria-label="模型"></select>
+        </div>
+        <div class="pc-pick pc-pick-effort" id="pc-effort-box" hidden>
+          <select id="pc-effort" aria-label="推理强度"></select>
+        </div>
+      </div>
+      <div class="pc-compose">
+        <textarea id="pc-input" rows="1" maxlength="200" placeholder="说点什么…" autocomplete="off"></textarea>
+        <button id="pc-send" class="pc-send" type="button" disabled aria-label="发送">↑</button>
+      </div>
+    </div>
+    <script src="pet-live2d/ort/ort.all.min.js"></script>
+    <script src="pet-physics.js"></script>
+    <script src="pet-dialogue.js"></script>
+    <script src="pet-wander.js"></script>
+    <script src="pet-live2d.js"></script>
+  </body>
+</html>

@@ -1,0 +1,77 @@
+import { describe, it, expect } from "vitest";
+import { PersistedConfigSchema } from "./persisted-config.js";
+import { isHostnameAllowed, mergeHostnames, parseHostnamesEnv } from "./hostnames.js";
+
+describe("hostname authority", () => {
+  it("allows localhost by default", () => {
+    expect(isHostnameAllowed("localhost:6767", undefined)).toBe(true);
+  });
+
+  it("allows subdomains of .localhost by default", () => {
+    expect(isHostnameAllowed("foo.localhost:6767", undefined)).toBe(true);
+  });
+
+  it("allows loopback IP addresses by default", () => {
+    expect(isHostnameAllowed("127.0.0.1:6767", undefined)).toBe(true);
+    expect(isHostnameAllowed("127.42.0.9:6767", undefined)).toBe(true);
+    expect(isHostnameAllowed("[::1]:6767", undefined)).toBe(true);
+    expect(isHostnameAllowed("[0:0:0:0:0:0:0:1]:6767", undefined)).toBe(true);
+    expect(isHostnameAllowed("[::ffff:127.0.0.1]:6767", undefined)).toBe(true);
+  });
+
+  it("requires non-loopback IP addresses to be explicitly configured", () => {
+    expect(isHostnameAllowed("192.168.1.20:6767", undefined)).toBe(false);
+    expect(isHostnameAllowed("203.0.113.10:6767", undefined)).toBe(false);
+    expect(isHostnameAllowed("[2001:db8::10]:6767", undefined)).toBe(false);
+    expect(isHostnameAllowed("192.168.1.20:6767", ["192.168.1.20"])).toBe(true);
+    expect(isHostnameAllowed("[2001:db8::10]:6767", ["2001:db8::10"])).toBe(true);
+  });
+
+  it.each([
+    "[::1]evil.example:6767",
+    "[::1]:not-a-port",
+    "localhost:6767:evil",
+    "localhost:not-a-port",
+    "localhost:70000",
+  ])("rejects malformed Host authorities: %s", (hostHeader) => {
+    expect(isHostnameAllowed(hostHeader, true)).toBe(false);
+  });
+
+  it("rejects non-default hosts when no allowlist is provided", () => {
+    expect(isHostnameAllowed("evil.com:6767", undefined)).toBe(false);
+  });
+
+  it("allows any host when set to true", () => {
+    expect(isHostnameAllowed("evil.com:6767", true)).toBe(true);
+  });
+
+  it("supports leading-dot patterns", () => {
+    const hostnames = [".example.com"];
+    expect(isHostnameAllowed("example.com:6767", hostnames)).toBe(true);
+    expect(isHostnameAllowed("foo.example.com:6767", hostnames)).toBe(true);
+    expect(isHostnameAllowed("foo.bar.example.com:6767", hostnames)).toBe(true);
+    expect(isHostnameAllowed("notexample.com:6767", hostnames)).toBe(false);
+  });
+
+  it("merges arrays (append + de-dupe) and short-circuits on true", () => {
+    expect(mergeHostnames([["a"], ["a", "b"]])).toEqual(["a", "b"]);
+    expect(mergeHostnames([["a"], true, ["b"]])).toBe(true);
+  });
+
+  it("parses env var values", () => {
+    expect(parseHostnamesEnv(undefined)).toBeUndefined();
+    expect(parseHostnamesEnv("")).toBeUndefined();
+    expect(parseHostnamesEnv("true")).toBe(true);
+    expect(parseHostnamesEnv("localhost,.example.com")).toEqual(["localhost", ".example.com"]);
+  });
+
+  it("normalizes persisted allowedHosts into hostnames for backward compatibility", () => {
+    const parsed = PersistedConfigSchema.parse({
+      daemon: {
+        allowedHosts: [".example.com"],
+      },
+    });
+
+    expect(parsed.daemon?.hostnames).toEqual([".example.com"]);
+  });
+});

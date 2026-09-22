@@ -1,0 +1,77 @@
+/**
+ * Error-handler middleware — catch downstream errors and send a friendly reply.
+ *
+ * Add this **first** in the chain (before any other middleware) so it sees
+ * errors from all downstream stages.
+ *
+ * @example
+ * ```ts
+ * bot.use(errorHandler({
+ *   format: (err) => `抱歉，处理消息时出错：${err.message}`,
+ * }));
+ * bot.use(slashCommand(...));
+ * ```
+ */
+
+import { ApiError } from "../protocol/types.js";
+import type { Middleware, MiddlewareContext } from "./types.js";
+
+export interface ErrorHandlerOptions {
+  /** Build a user-facing reply from the caught error. */
+  format?: (err: Error, ctx: MiddlewareContext) => string;
+  /**
+   * If true, also re-throw the error so `bot.on("error")` listeners fire.
+   * Defaults to `false` (consume the error after replying).
+   */
+  rethrow?: boolean;
+  /**
+   * Filter — only handle errors that match. Defaults to all `Error`
+   * instances. Useful to skip e.g. ApiError 4xx (let the user see them).
+   */
+  filter?: (err: Error) => boolean;
+}
+
+const DEFAULT_FORMAT = (err: Error): string => {
+  if (err instanceof ApiError) {
+    if (err.bizMessage) return `[QQ ${err.bizCode ?? err.httpStatus}] ${err.bizMessage}`;
+    return `[QQ ${err.httpStatus}] ${err.message}`;
+  }
+  return err.message || "Unknown error";
+};
+
+/**
+ * Build an error-handler middleware. The middleware **wraps** the rest of
+ * the chain — if any downstream middleware (or the `message` listener)
+ * throws, it catches the error, sends a reply, and optionally re-emits.
+ */
+export function errorHandler(options: ErrorHandlerOptions = {}): Middleware {
+  const format = options.format ?? DEFAULT_FORMAT;
+  const rethrow = options.rethrow ?? false;
+  const filter = options.filter ?? (() => true);
+
+  return async (ctx, next) => {
+    try {
+      await next();
+    } catch (err) {
+      const e = err instanceof Error ? err : new Error(String(err));
+      if (!filter(e)) {
+        if (rethrow) throw e;
+        return;
+      }
+      ctx.log.error?.(`[error-handler] caught: ${e.message}`);
+
+      try {
+        const reply = format(e, ctx);
+        if (reply) {
+          await ctx.bot.sendText(ctx.replyTarget, reply);
+        }
+      } catch (sendErr) {
+        ctx.log.error?.(
+          `[error-handler] failed to send error reply: ${sendErr instanceof Error ? sendErr.message : String(sendErr)}`,
+        );
+      }
+
+      if (rethrow) throw e;
+    }
+  };
+}

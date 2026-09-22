@@ -1,0 +1,5 @@
+{
+  "$comment": "Canonical closed sets for docs/decisions/ paths: {lifecycle}/{class}/yyyy-mm-dd-slug.md. Adding a class or lifecycle requires updating this file AND docs/decisions/README.md.",
+  "lifecycle": ["proposed", "implemented", "rejected", "archived"],
+  "class": ["product", "architecture", "process", "bug-fix", "testing"]
+}

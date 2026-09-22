@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChisaCode 侧栏按状态校准 — 字体对齐按项目 + T3 卡片结构 + 切换动画</title>
+    <style>
+      :root {
+        /* ChisaCode Soft Workbench tokens */
+        --surface0: #ffffff;
+        --surface1: #e8eaef;
+        --surface2: #eef0f4;
+        --surface3: #e2e5ec;
+        --surfaceSidebar: #f0f1f5;
+        --surfaceSidebarHover: #e8eaef;
+        --surfaceWorkspace: #f4f5f8;
+        --foreground: #14171f;
+        --foregroundMuted: #6f7686;
+        --foregroundFaint: #9aa1b0;
+        --foregroundSubtleText: #3d4452;
+        --border: #e4e6ec;
+        --secondary: #eef0f4;
+        --accent: #2a6cf0;
+        --accentBright: #3d7dff;
+        --destructive: #ef4444;
+        --success: #18a34a;
+        --statusWarning: #d97706;
+        --statusWarningBg: rgba(217, 119, 6, 0.12);
+        --etch-ring: inset 0 0 0 1px rgba(20, 23, 31, 0.04);
+        --selected-shadow: 0 1px 2px rgba(20, 23, 31, 0.04);
+
+        /* Status hues — match t3code convention */
+        --sky: #2563eb;
+        --amber: #b45309;
+        --indigo: #4f46e5;
+        --red: #b91c1c;
+        --emerald: #15803d;
+
+        font-family: -apple-system, "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        background: var(--surfaceWorkspace);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 28px 20px 48px;
+        gap: 20px;
+      }
+
+      .note {
+        width: min(940px, 100%);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        line-height: 1.6;
+      }
+      .note strong {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .note code {
+        background: var(--surface1);
+        border-radius: 4px;
+        padding: 0 4px;
+        font-size: 11.5px;
+      }
+
+      .proto-col {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+      }
+      .proto-label {
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        font-weight: 500;
+        text-align: center;
+      }
+      .proto-row {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      /* ═══════════════ Shared shell ═══════════════ */
+      .sidebar {
+        width: 300px;
+        height: 680px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgba(20, 23, 31, 0.06);
+        border: 1px solid var(--border);
+        background: var(--surfaceSidebar);
+      }
+
+      /* Top: 新对话 + 搜索 + 项目/状态切换 */
+      .top {
+        padding: 10px 12px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .new-btn {
+        min-height: 40px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--foreground);
+        box-shadow: var(--etch-ring);
+      }
+      .search-row {
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px;
+        color: var(--foregroundFaint);
+        font-size: 13px;
+        background: var(--surfaceSidebar);
+      }
+
+      /* 项目/状态 分段切换 — 短文本 + 滑片动画 */
+      .view-switcher {
+        position: relative;
+        display: flex;
+        margin-top: 2px;
+        background: var(--surface1);
+        border-radius: 8px;
+        padding: 2px;
+        gap: 0;
+        flex-shrink: 0;
+        user-select: none;
+      }
+      .switcher-track {
+        position: relative;
+        display: flex;
+        flex: 1;
+        min-width: 0;
+      }
+      .switcher-thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        bottom: 2px;
+        width: calc(50% - 2px);
+        background: var(--surface0);
+        border-radius: 6px;
+        box-shadow: var(--etch-ring);
+        transition: transform 180ms cubic-bezier(0.33, 1, 0.68, 1);
+      }
+      .switcher-track[data-mode="by-status"] .switcher-thumb {
+        transform: translateX(100%);
+      }
+      .view-tab {
+        flex: 1;
+        min-width: 0;
+        min-height: 28px;
+        padding: 0 6px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 500;
+        color: var(--foregroundMuted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        position: relative;
+        z-index: 1;
+        white-space: nowrap;
+      }
+      .view-tab.active {
+        color: var(--foreground);
+      }
+
+      .scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 4px 8px 12px;
+      }
+      .scroll::-webkit-scrollbar {
+        width: 4px;
+      }
+      .scroll::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 4px;
+      }
+
+      /* 切换内容动画: 旧列表淡出上移, 新列表淡入 */
+      .mode-pane {
+        display: none;
+      }
+      .mode-pane.active {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      @keyframes pane-in {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .mode-pane.active {
+        animation: pane-in 180ms cubic-bezier(0.33, 1, 0.68, 1);
+      }
+
+      .footer {
+        height: 88px;
+        padding: 10px;
+        border-top: 1px solid var(--secondary);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+      .host {
+        height: 36px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        box-shadow: var(--etch-ring);
+      }
+      .host-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+      }
+      .foot-icons {
+        display: flex;
+        gap: 4px;
+      }
+      .foot-btn {
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: transparent;
+        color: var(--foregroundMuted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--etch-ring);
+      }
+
+      /* ═══════════════ 按项目 (当前 ChisaCode, 保持不动) ═══════════════ */
+      .cc-section {
+        margin: 10px 10px 4px;
+        color: var(--foregroundMuted);
+        font-size: 11.5px;
+        font-weight: 500;
+      }
+      .cc-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 10px 4px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        font-weight: 500;
+      }
+      .cc-row {
+        min-height: 34px;
+        margin-left: 4px;
+        padding: 7px 10px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .cc-row:hover {
+        background: var(--surfaceSidebarHover);
+      }
+      .cc-row.selected {
+        background: var(--surface0);
+        box-shadow: var(--selected-shadow);
+      }
+      .cc-title {
+        flex: 1;
+        font-size: 12.5px;
+        line-height: 18px;
+        color: var(--foregroundSubtleText);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .cc-row.selected .cc-title {
+        color: var(--foreground);
+      }
+      .cc-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .cc-time {
+        font-size: 11px;
+        color: var(--foregroundFaint);
+      }
+      .cc-settled {
+        opacity: 0.55;
+      }
+
+      /* ═══════════════ 按状态 (校准后: 字体对齐按项目 + T3 卡片) ═══════════════ */
+      /* Shelf header — 对齐按项目 .cc-group 12.5px, 不加粗 */
+      .shelf-header {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 10px 10px 4px;
+        color: var(--foregroundMuted);
+        font-size: 12.5px;
+        font-weight: 500;
+        cursor: pointer;
+        user-select: none;
+      }
+      .shelf-header .divider {
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+      .shelf-header .chev {
+        color: var(--foregroundMuted);
+        display: flex;
+      }
+      .shelf-header.snoozed .shelf-label {
+        color: var(--accent);
+      }
+
+      /* Active card — 三段式, 字体与按项目一致 */
+      .card {
+        padding: 10px;
+        min-height: 78px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        cursor: pointer;
+        position: relative;
+      }
+      .card:hover {
+        background: var(--surfaceSidebarHover);
+      }
+      .card.selected {
+        background: var(--surface0);
+        box-shadow: var(--selected-shadow);
+      }
+      .card.receded {
+        opacity: 0.72;
+      }
+      .card.receded:hover {
+        opacity: 1;
+      }
+      .card-line1 {
+        display: flex;
+        align-items: center;
+        min-height: 18px;
+      }
+      .card-project {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .card-project-name {
+        flex: 1;
+        min-width: 0;
+        font-size: 12.5px;
+        line-height: 16px;
+        color: var(--foregroundMuted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* 状态标签: 12px medium, 与按项目次要行同一体系 */
+      .card-status {
+        flex-shrink: 0;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 16px;
+        margin-left: 8px;
+      }
+      .card-status.sky {
+        color: var(--sky);
+      }
+      .card-status.amber {
+        color: var(--amber);
+      }
+      .card-status.indigo {
+        color: var(--indigo);
+      }
+      .card-status.red {
+        color: var(--red);
+      }
+      .card-status.emerald {
+        color: var(--emerald);
+      }
+      .card-time {
+        flex-shrink: 0;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--foregroundMuted);
+        margin-left: 8px;
+      }
+      .card-title {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--foreground);
+        line-height: 18px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 28px;
+      }
+      .card-line3 {
+        display: flex;
+        align-items: center;
+        min-height: 18px;
+      }
+      .card-branch {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding-right: 28px;
+      }
+      .card-branch-text {
+        flex: 1;
+        min-width: 0;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--foregroundMuted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card-settle {
+        position: absolute;
+        right: 10px;
+        bottom: 12px;
+        width: 22px;
+        height: 22px;
+        border: none;
+        background: transparent;
+        color: var(--foregroundFaint);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .card-settle:hover {
+        color: var(--foregroundMuted);
+        background: var(--surface1);
+      }
+
+      /* Settled / Snoozed slim rows — 保持现有 */
+      .slim-row {
+        min-height: 34px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .slim-row:hover {
+        background: var(--surfaceSidebarHover);
+      }
+      .slim-circle {
+        width: 16px;
+        height: 16px;
+        border: 1.5px solid var(--foregroundFaint);
+        border-radius: 999px;
+        flex-shrink: 0;
+      }
+      .slim-title {
+        flex: 1;
+        font-size: 12.5px;
+        line-height: 18px;
+        color: var(--foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .slim-time {
+        font-size: 13px;
+        color: var(--foregroundMuted);
+        flex-shrink: 0;
+      }
+      .slim-wake {
+        font-size: 12px;
+        color: var(--statusWarning);
+        flex-shrink: 0;
+      }
+      .show-more {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--foregroundMuted);
+        font-size: 12px;
+        padding: 8px 0 4px;
+        cursor: pointer;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+      }
+      .show-more:hover {
+        background: var(--surfaceSidebarHover);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="note">
+      <strong>本次校准要点</strong><br />
+      1) 按状态字体对齐按项目：shelf 标题 <code>12.5px medium muted</code>（原 12px 600
+      且带分隔线）、项目名 <code>13px muted</code>、卡片标题 <code>15px semibold</code>、分支
+      <code>13px muted</code>、状态标签 <code>13px medium</code> 彩色。<br />
+      2) 状态色沿用 t3code 惯例：<code
+        >sky Working / amber Approval·Woke / indigo Input / red Failed / emerald Done</code
+      >。<br />
+      3) 切换按钮短文本「项目 / 状态」，选中态用滑片 (thumb) 平移过渡，内容区淡入上移。<br />
+      4)
+      下方左右两栏可对比：左=当前按项目（不动），右=校准后的按状态。点击顶部「项目/状态」可切换看动画。
+    </div>
+
+    <div class="proto-row">
+      <!-- ═══════ 单栏可交互演示: 项目 ⇄ 状态 切换 ═══════ -->
+      <div class="proto-col">
+        <div class="proto-label">切换动画演示（点「项目 / 状态」）</div>
+        <div class="sidebar" id="demo">
+          <div class="top">
+            <div class="new-btn">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M5 12h14" />
+                <path d="M12 5v14" />
+              </svg>
+              新对话
+            </div>
+            <div class="search-row">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              搜索会话…
+            </div>
+            <div class="view-switcher">
+              <div class="switcher-track" id="demo-track" data-mode="by-project">
+                <div class="switcher-thumb"></div>
+                <button class="view-tab active" data-mode="by-project">项目</button>
+                <button class="view-tab" data-mode="by-status">状态</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mode-pane active" data-pane="by-project" style="flex: 1; min-height: 0">
+            <div class="scroll" style="height: 100%">
+              <div class="cc-section">项目</div>
+              <div class="cc-group">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2v16Z" />
+                </svg>
+                ChisaCode
+              </div>
+              <div class="cc-row selected">
+                <span class="cc-title">侧栏治理：shelf 融合</span><span class="cc-dot"></span>
+              </div>
+              <div class="cc-row">
+                <span class="cc-title">首次发送启动延迟优化</span><span class="cc-time">2h</span>
+              </div>
+              <div class="cc-row cc-settled">
+                <span class="cc-title">desktop daemon 强绑定</span><span class="cc-time">2d</span>
+              </div>
+              <div class="cc-group">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2v16Z" />
+                </svg>
+                my-project
+              </div>
+              <div class="cc-row"><span class="cc-title">重构 auth 模块</span></div>
+              <div class="cc-row cc-settled">
+                <span class="cc-title">CI pipeline 修复</span><span class="cc-time">5d</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mode-pane" data-pane="by-status" style="flex: 1; min-height: 0">
+            <div class="scroll" style="height: 100%">
+              <div class="shelf-header" style="pointer-events: none">
+                <span class="shelf-label">会话 (3)</span>
+              </div>
+              <div class="card selected">
+                <div class="card-line1">
+                  <div class="card-project">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                      />
+                    </svg>
+                    <span class="card-project-name">ChisaCode</span>
+                  </div>
+                  <span class="card-status red">Failed</span>
+                </div>
+                <div class="card-title">这俩选择有啥区别</div>
+                <div class="card-line3">
+                  <div class="card-branch">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M6 3v12" />
+                      <circle cx="18" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <path d="M18 9a9 9 0 0 1-9 9" />
+                    </svg>
+                    <span class="card-branch-text">cn-main</span>
+                  </div>
+                </div>
+                <button class="card-settle" title="Settle">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <circle cx="12" cy="12" r="8" />
+                  </svg>
+                </button>
+              </div>
+              <div class="card receded">
+                <div class="card-line1">
+                  <div class="card-project">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                      />
+                    </svg>
+                    <span class="card-project-name">ChisaCode</span>
+                  </div>
+                  <span class="card-time">1d</span>
+                </div>
+                <div class="card-title">你好?</div>
+                <div class="card-line3">
+                  <div class="card-branch">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M6 3v12" />
+                      <circle cx="18" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <path d="M18 9a9 9 0 0 1-9 9" />
+                    </svg>
+                    <span class="card-branch-text">master</span>
+                  </div>
+                </div>
+                <button class="card-settle" title="Settle">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <circle cx="12" cy="12" r="8" />
+                  </svg>
+                </button>
+              </div>
+              <div class="card">
+                <div class="card-line1">
+                  <div class="card-project">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+                      />
+                    </svg>
+                    <span class="card-project-name">my-project</span>
+                  </div>
+                  <span class="card-status sky">Working</span>
+                </div>
+                <div class="card-title">重构 auth 模块</div>
+                <div class="card-line3">
+                  <div class="card-branch">
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path d="M6 3v12" />
+                      <circle cx="18" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <path d="M18 9a9 9 0 0 1-9 9" />
+                    </svg>
+                    <span class="card-branch-text">feat/auth</span>
+                  </div>
+                </div>
+                <button class="card-settle" title="Settle">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <circle cx="12" cy="12" r="8" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="shelf-header snoozed">
+                <span class="shelf-label">Snoozed (1)</span>
+                <span class="divider"></span>
+                <span class="chev">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </span>
+              </div>
+              <div class="slim-row">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  style="color: var(--statusWarning)"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+                <span class="slim-title">CI pipeline 修复</span>
+                <span class="slim-wake">2h</span>
+              </div>
+
+              <div class="shelf-header">
+                <span class="shelf-label">Settled (2)</span>
+                <span class="divider"></span>
+                <span class="chev">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="m18 15-6-6-6 6" />
+                  </svg>
+                </span>
+              </div>
+              <div class="slim-row">
+                <span class="slim-circle"></span>
+                <span class="slim-title">看看这个项目</span>
+                <span class="slim-time">3d</span>
+              </div>
+              <div class="slim-row">
+                <span class="slim-circle"></span>
+                <span class="slim-title">desktop daemon 强绑定</span>
+                <span class="slim-time">2d</span>
+              </div>
+              <button class="show-more">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M5 12h14" />
+                  <path d="M12 5v14" />
+                </svg>
+                显示更多
+              </button>
+            </div>
+          </div>
+
+          <div class="footer">
+            <div class="host"><span class="host-dot"></span>38.76.185.154</div>
+            <div class="foot-icons">
+              <div class="foot-btn">📁</div>
+              <div class="foot-btn">⌂</div>
+              <div class="foot-btn">⚙</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const track = document.getElementById("demo-track");
+      const panes = document.querySelectorAll("[data-pane]");
+      const tabs = document.querySelectorAll(".view-tab");
+      tabs.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const mode = btn.dataset.mode;
+          track.dataset.mode = mode;
+          tabs.forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+          panes.forEach((pane) => {
+            const isTarget = pane.dataset.pane === mode;
+            if (isTarget) {
+              pane.classList.remove("active");
+              void pane.offsetWidth; // restart animation
+              pane.classList.add("active");
+            } else {
+              pane.classList.remove("active");
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

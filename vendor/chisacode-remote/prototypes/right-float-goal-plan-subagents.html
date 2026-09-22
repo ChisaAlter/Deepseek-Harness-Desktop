@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>右悬浮窗 · 目标 / 计划 / 子代理 + 栏头避让</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --workspace: #fbfbfc;
+        --surface: #ffffff;
+        --surface-1: #f1f2f4;
+        --surface-2: #e8eaee;
+        --text: #1e232b;
+        --muted: #657081;
+        --faint: #9aa3b2;
+        --border: #dfe3e8;
+        --accent: #3d7eff;
+        --accent-soft: #e8f0ff;
+        --green: #1f9d55;
+        --green-soft: #e3f7ec;
+        --amber: #b78103;
+        --amber-soft: #fff4d6;
+        --red: #dc5a62;
+        --shadow-soft: 0 10px 28px rgba(20, 23, 31, 0.1), 0 1px 0 rgba(20, 23, 31, 0.04);
+        --topbar-h: 48px;
+        --caption-w: 138px; /* 3 × 46 Win caption buttons */
+        --caption-h: 48px;
+        --float-w: 272px;
+        --float-inset: 8px;
+        --right-panel-w: 360px;
+        --left-w: 280px;
+        font-family:
+          ui-sans-serif,
+          "Segoe UI",
+          "Microsoft YaHei",
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background: #d8dde6;
+      }
+
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+        padding: 0;
+      }
+
+      /* Outer mock desktop chrome */
+      .stage {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        gap: 16px;
+      }
+
+      .meta {
+        width: min(1280px, 100%);
+        color: #334155;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .meta h1 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        font-weight: 650;
+        color: #0f172a;
+      }
+
+      .meta p {
+        margin: 0 0 8px;
+        color: #475569;
+      }
+
+      .meta code {
+        font-size: 12px;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: #e2e8f0;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .chip {
+        border: 1px solid #cbd5e1;
+        background: #fff;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12.5px;
+        color: #334155;
+      }
+
+      .chip[aria-pressed="true"] {
+        border-color: #93c5fd;
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+
+      .chip:hover {
+        background: #f8fafc;
+      }
+
+      /* App window */
+      .window {
+        position: relative;
+        width: min(1280px, 100%);
+        height: min(820px, calc(100vh - 160px));
+        min-height: 560px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--bg);
+        box-shadow:
+          0 30px 80px rgba(15, 23, 42, 0.18),
+          0 0 0 1px rgba(15, 23, 42, 0.08);
+      }
+
+      /* Win caption buttons — absolute top-right like production DesktopWindowControls */
+      .window-controls {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 1000;
+        height: var(--caption-h);
+        width: var(--caption-w);
+        display: flex;
+        align-items: stretch;
+      }
+
+      .caption-btn {
+        width: 46px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1;
+      }
+
+      .caption-btn:hover {
+        background: var(--surface-1);
+        color: var(--text);
+      }
+
+      .caption-btn.close:hover {
+        background: var(--red);
+        color: #fff;
+      }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: var(--left-w) minmax(0, 1fr);
+        height: 100%;
+        min-height: 0;
+      }
+
+      body.left-collapsed .app-shell {
+        grid-template-columns: 64px minmax(0, 1fr);
+      }
+
+      .left-rail {
+        border-right: 1px solid var(--border);
+        background: var(--surface);
+        padding: 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .left-title {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      body.left-collapsed .left-title span {
+        display: none;
+      }
+
+      .session-item {
+        border-radius: 10px;
+        padding: 10px 10px;
+        background: var(--surface-1);
+        font-size: 12.5px;
+      }
+
+      .session-item.active {
+        outline: 1px solid #c7d7f5;
+        background: var(--accent-soft);
+      }
+
+      body.left-collapsed .session-item {
+        text-align: center;
+        font-size: 11px;
+        padding: 10px 4px;
+      }
+
+      /* Center + optional right panel row */
+      .work-row {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+      }
+
+      .center {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--workspace);
+      }
+
+      .topbar {
+        height: var(--topbar-h);
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(251, 251, 252, 0.92);
+        backdrop-filter: blur(8px);
+      }
+
+      /* When right panel closed, reserve caption strip on center topbar */
+      body:not(.right-open) .topbar {
+        padding-right: calc(12px + var(--caption-w));
+      }
+
+      .breadcrumb {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13.5px;
+        font-weight: 500;
+      }
+
+      .breadcrumb .sep {
+        color: var(--faint);
+      }
+
+      .breadcrumb .muted {
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      .top-tools {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+
+      .icon-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+      }
+
+      .icon-btn:hover,
+      .icon-btn[aria-pressed="true"] {
+        background: var(--surface-1);
+        color: var(--text);
+      }
+
+      .messages {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 20px 28px 16px;
+      }
+
+      .bubble {
+        max-width: 720px;
+        margin: 0 0 14px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-size: 13.5px;
+        line-height: 1.55;
+        box-shadow: 0 1px 0 rgba(20, 23, 31, 0.03);
+      }
+
+      .bubble.user {
+        margin-left: auto;
+        background: #eef2ff;
+        border-color: #d9e2ff;
+      }
+
+      .composer {
+        margin: 0 16px 16px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow-soft);
+        padding: 12px 14px;
+        color: var(--faint);
+        font-size: 13.5px;
+      }
+
+      /* Floating stack: goal / plan / subagents — pinned to center column */
+      .float-rail {
+        position: absolute;
+        top: calc(var(--topbar-h) + var(--float-inset));
+        right: var(--float-inset);
+        width: var(--float-w);
+        max-height: calc(100% - var(--topbar-h) - var(--float-inset) * 2);
+        overflow: auto;
+        z-index: 80;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition:
+          opacity 140ms ease,
+          transform 140ms ease;
+      }
+
+      body.float-closed .float-rail,
+      body.right-open .float-rail {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(10px);
+      }
+
+      .float-card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
+      }
+
+      .card-head {
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--surface-2);
+      }
+
+      .card-title {
+        font-size: 13.5px;
+        font-weight: 600;
+      }
+
+      .card-meta {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 500;
+      }
+
+      .card-body {
+        padding: 8px;
+        display: grid;
+        gap: 4px;
+      }
+
+      .goal-objective {
+        margin: 4px 4px 8px;
+        font-size: 13.5px;
+        line-height: 1.45;
+        color: var(--text);
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 0 4px 6px;
+      }
+
+      .badge {
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 11.5px;
+        font-weight: 600;
+      }
+
+      .badge.active {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .badge.usage {
+        background: var(--surface-1);
+        color: var(--muted);
+      }
+
+      .badge.blocked {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .row {
+        min-height: 34px;
+        border-radius: 10px;
+        padding: 6px 8px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .row:hover {
+        background: var(--surface-1);
+      }
+
+      .row .mark {
+        width: 16px;
+        flex-shrink: 0;
+        text-align: center;
+        color: var(--muted);
+        margin-top: 1px;
+      }
+
+      .row.done .mark {
+        color: var(--green);
+      }
+
+      .row.done .label {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+
+      .row.progress .mark {
+        color: var(--accent);
+      }
+
+      .progress-track {
+        height: 6px;
+        margin: 2px 4px 8px;
+        border-radius: 999px;
+        background: var(--surface-2);
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        height: 100%;
+        width: 50%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #5b8cff, #3d7eff);
+      }
+
+      .sub-row {
+        min-height: 40px;
+        border-radius: 10px;
+        padding: 8px;
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+        text-align: left;
+      }
+
+      .sub-row:hover {
+        background: var(--surface-1);
+      }
+
+      .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: #111827;
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      .avatar.codex {
+        background: #0f766e;
+      }
+
+      .avatar.claude {
+        background: #b45309;
+      }
+
+      .sub-copy {
+        min-width: 0;
+      }
+
+      .sub-title {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 550;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .sub-meta {
+        display: block;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--green);
+      }
+
+      .status-dot.busy {
+        background: var(--accent);
+        box-shadow: 0 0 0 3px rgba(61, 126, 255, 0.18);
+      }
+
+      .status-dot.attention {
+        background: var(--amber);
+      }
+
+      .card-action {
+        margin: 4px;
+        height: 30px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .card-action:hover {
+        background: var(--surface-1);
+        color: var(--text);
+      }
+
+      .card-action.danger:hover {
+        background: #fef2f2;
+        color: var(--red);
+        border-color: #fecaca;
+      }
+
+      /* Docked right panel — full height sibling; header must clear captions */
+      .right-panel {
+        width: var(--right-panel-w);
+        flex-shrink: 0;
+        height: 100%;
+        border-left: 1px solid var(--border);
+        background: var(--workspace);
+        box-shadow: -8px 0 24px rgba(20, 23, 31, 0.04);
+        display: none;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      body.right-open .right-panel {
+        display: flex;
+      }
+
+      .right-header {
+        height: 48px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        /* Production fix: 14 + caption width so panel X never sits under window × */
+        padding: 0 calc(14px + var(--caption-w)) 0 14px;
+        border-bottom: 1px solid var(--surface-2);
+        background: var(--workspace);
+      }
+
+      body.bad-overlap .right-header {
+        /* Demo: broken layout before fix */
+        padding-right: 14px;
+      }
+
+      .right-header-title {
+        font-size: 13.5px;
+        font-weight: 500;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .panel-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        flex-shrink: 0;
+      }
+
+      .panel-close:hover {
+        background: var(--surface-1);
+        color: var(--text);
+      }
+
+      .right-body {
+        flex: 1;
+        min-height: 0;
+        padding: 24px 16px;
+        overflow: auto;
+      }
+
+      .surface-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .surface-card {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        padding: 14px 12px;
+        text-align: left;
+      }
+
+      .surface-card:hover {
+        background: var(--surface-1);
+      }
+
+      .surface-card strong {
+        display: block;
+        font-size: 13.5px;
+        margin-bottom: 4px;
+      }
+
+      .surface-card span {
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+
+      .empty-title {
+        text-align: center;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .empty-sub {
+        text-align: center;
+        margin-top: 6px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+
+      .audit {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        z-index: 1100;
+        max-width: 360px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.88);
+        color: #e2e8f0;
+        font-size: 12px;
+        line-height: 1.45;
+        pointer-events: none;
+      }
+
+      .audit strong {
+        color: #fff;
+      }
+
+      .audit.ok strong {
+        color: #86efac;
+      }
+
+      .audit.bad strong {
+        color: #fca5a5;
+      }
+
+      .hit-guide {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: var(--caption-w);
+        height: var(--caption-h);
+        border: 2px dashed rgba(220, 90, 98, 0.85);
+        pointer-events: none;
+        z-index: 1001;
+        display: none;
+      }
+
+      body.show-guides .hit-guide {
+        display: block;
+      }
+
+      .panel-close-guide {
+        position: absolute;
+        border: 2px dashed rgba(61, 126, 255, 0.9);
+        pointer-events: none;
+        z-index: 1002;
+        display: none;
+      }
+
+      body.show-guides .panel-close-guide {
+        display: block;
+      }
+
+      @media (max-width: 960px) {
+        .stage {
+          padding: 12px;
+        }
+        .window {
+          height: min(900px, calc(100vh - 120px));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="meta">
+        <h1>右悬浮窗 · 目标 / 计划 / 子代理 + 右边栏关闭避让</h1>
+        <p>
+          Soft Workbench 像素原型：砍掉假「环境信息」卡；悬浮栈只展示真实
+          <strong>目标 / 计划(任务) / 子代理</strong>。全高右边栏栏头为 Win 自定义 −□× 预留
+          <code>14 + 138px</code>，避免与窗口关闭键重叠。缩放窗口时悬浮层贴中栏右缘。
+        </p>
+        <div class="chips" role="toolbar" aria-label="原型切换">
+          <button class="chip" data-toggle="float" aria-pressed="true">悬浮栈</button>
+          <button class="chip" data-toggle="right" aria-pressed="false">打开右边栏</button>
+          <button class="chip" data-toggle="left" aria-pressed="false">折叠左栏</button>
+          <button class="chip" data-toggle="overlap" aria-pressed="false">演示坏重叠</button>
+          <button class="chip" data-toggle="guides" aria-pressed="false">显示热区框</button>
+          <button class="chip" data-toggle="goal" aria-pressed="true">有目标</button>
+          <button class="chip" data-toggle="plan" aria-pressed="true">有计划</button>
+          <button class="chip" data-toggle="subs" aria-pressed="true">有子代理</button>
+        </div>
+      </div>
+
+      <div class="window" id="window">
+        <div class="window-controls" aria-label="窗口控制" id="window-controls">
+          <button class="caption-btn" type="button" aria-label="最小化">–</button>
+          <button class="caption-btn" type="button" aria-label="最大化">□</button>
+          <button class="caption-btn close" type="button" aria-label="关闭窗口" id="window-close">
+            ×
+          </button>
+        </div>
+        <div class="hit-guide" aria-hidden="true"></div>
+        <div class="panel-close-guide" id="panel-close-guide" aria-hidden="true"></div>
+
+        <div class="app-shell">
+          <aside class="left-rail" aria-label="会话列表">
+            <div class="left-title"><span>会话</span></div>
+            <div class="session-item active">修右边栏与悬浮窗</div>
+            <div class="session-item">模型网关设置</div>
+          </aside>
+
+          <div class="work-row">
+            <section class="center" id="center" aria-label="主工作区">
+              <header class="topbar">
+                <div class="breadcrumb">
+                  <span>ChisaCode</span>
+                  <span class="sep">/</span>
+                  <span class="muted">修右边栏与悬浮窗</span>
+                </div>
+                <div class="top-tools">
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    data-toggle="float"
+                    aria-pressed="true"
+                    title="目标/计划/子代理"
+                    aria-label="切换悬浮栈"
+                  >
+                    ◫
+                  </button>
+                  <button
+                    class="icon-btn"
+                    type="button"
+                    data-toggle="right"
+                    aria-pressed="false"
+                    title="右边栏"
+                    aria-label="切换右边栏"
+                  >
+                    ▤
+                  </button>
+                </div>
+              </header>
+
+              <div class="messages">
+                <div class="bubble user">右边栏关闭键和悬浮窗问题很大…</div>
+                <div class="bubble">
+                  生产方向：右边栏关闭键避让窗口 caption；右悬浮窗识别并展示当前 agent
+                  的<strong>目标</strong>、<strong>计划/任务进度</strong>与<strong>子代理</strong>。假环境信息卡移除。缩放窗口时进度栈贴中栏右上。
+                </div>
+                <div class="bubble">
+                  打开右边栏时悬浮栈互斥隐藏；栏头关闭 X 必须落在红色 caption
+                  热区左侧（可开「显示热区框」验收）。
+                </div>
+              </div>
+              <div class="composer">给智能体发消息…</div>
+
+              <aside class="float-rail" id="float-rail" aria-label="目标计划与子代理">
+                <section class="float-card" data-card="goal" id="goal-card">
+                  <div class="card-head">
+                    <div class="card-title">目标</div>
+                    <button
+                      class="icon-btn"
+                      type="button"
+                      data-toggle="float"
+                      aria-label="关闭悬浮栈"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div class="card-body">
+                    <div class="goal-objective">
+                      修掉桌面右边栏关闭与窗口 × 重叠，并把右悬浮窗做成目标 / 计划 / 子代理真展示。
+                    </div>
+                    <div class="badge-row">
+                      <span class="badge active">进行中</span>
+                      <span class="badge usage">12 / 40 turns</span>
+                      <span class="badge usage">~180k tokens</span>
+                    </div>
+                    <button class="card-action danger" type="button">取消目标</button>
+                  </div>
+                </section>
+
+                <section class="float-card" data-card="plan" id="plan-card">
+                  <div class="card-head">
+                    <div class="card-title">计划</div>
+                    <div class="card-meta">2 / 4</div>
+                  </div>
+                  <div class="card-body">
+                    <div class="progress-track" aria-hidden="true">
+                      <div class="progress-fill"></div>
+                    </div>
+                    <div class="row done">
+                      <span class="mark">✓</span>
+                      <span class="label">定位关闭键与 caption 重叠根因</span>
+                    </div>
+                    <div class="row done">
+                      <span class="mark">✓</span>
+                      <span class="label">确认目标 / 计划 / 子代理数据源</span>
+                    </div>
+                    <div class="row progress">
+                      <span class="mark">●</span>
+                      <span class="label">HTML 原型对齐 Soft 几何</span>
+                    </div>
+                    <div class="row">
+                      <span class="mark">○</span>
+                      <span class="label">生产接线与真机验收</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="float-card" data-card="subs" id="subs-card">
+                  <div class="card-head">
+                    <div class="card-title">子代理</div>
+                    <div class="card-meta">3</div>
+                  </div>
+                  <div class="card-body">
+                    <button class="sub-row" type="button">
+                      <span class="avatar">Ex</span>
+                      <span class="sub-copy">
+                        <span class="sub-title">Explore · 关闭重叠根因</span>
+                        <span class="sub-meta">已完成 · 2m ago</span>
+                      </span>
+                      <span class="status-dot" title="idle"></span>
+                    </button>
+                    <button class="sub-row" type="button">
+                      <span class="avatar codex">Cx</span>
+                      <span class="sub-copy">
+                        <span class="sub-title">Research · 目标/计划数据</span>
+                        <span class="sub-meta">运行中</span>
+                      </span>
+                      <span class="status-dot busy" title="running"></span>
+                    </button>
+                    <button class="sub-row" type="button">
+                      <span class="avatar claude">Op</span>
+                      <span class="sub-copy">
+                        <span class="sub-title">UI · 悬浮卡视觉</span>
+                        <span class="sub-meta">需要注意</span>
+                      </span>
+                      <span class="status-dot attention" title="attention"></span>
+                    </button>
+                  </div>
+                </section>
+              </aside>
+            </section>
+
+            <aside class="right-panel" id="right-panel" aria-label="右边栏">
+              <div class="right-header">
+                <div class="right-header-title">打开一个面板</div>
+                <button
+                  class="panel-close"
+                  type="button"
+                  id="panel-close"
+                  data-toggle="right"
+                  aria-label="关闭右边栏"
+                >
+                  ×
+                </button>
+              </div>
+              <div class="right-body">
+                <div class="empty-title">打开一个面板</div>
+                <div class="empty-sub">选择 Browser / Terminal / Files / Diff</div>
+                <div class="surface-grid">
+                  <button class="surface-card" type="button">
+                    <strong>Browser</strong>
+                    <span>工作区浏览器会话</span>
+                  </button>
+                  <button class="surface-card" type="button">
+                    <strong>Terminal</strong>
+                    <span>侧栏终端</span>
+                  </button>
+                  <button class="surface-card" type="button">
+                    <strong>Files</strong>
+                    <span>文件树</span>
+                  </button>
+                  <button class="surface-card" type="button">
+                    <strong>Diff</strong>
+                    <span>变更 diff</span>
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="audit" id="audit" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <script>
+      const body = document.body;
+      const panelClose = document.getElementById("panel-close");
+      const windowClose = document.getElementById("window-close");
+      const guide = document.getElementById("panel-close-guide");
+      const audit = document.getElementById("audit");
+      const goalCard = document.getElementById("goal-card");
+      const planCard = document.getElementById("plan-card");
+      const subsCard = document.getElementById("subs-card");
+
+      const state = {
+        float: true,
+        right: false,
+        left: false,
+        overlap: false,
+        guides: false,
+        goal: true,
+        plan: true,
+        subs: true,
+      };
+
+      function rectsOverlap(a, b, pad = 1) {
+        return (
+          a.left < b.right - pad &&
+          a.right > b.left + pad &&
+          a.top < b.bottom - pad &&
+          a.bottom > b.top + pad
+        );
+      }
+
+      function applyState() {
+        body.classList.toggle("float-closed", !state.float);
+        body.classList.toggle("right-open", state.right);
+        body.classList.toggle("left-collapsed", state.left);
+        body.classList.toggle("bad-overlap", state.overlap);
+        body.classList.toggle("show-guides", state.guides);
+
+        goalCard.hidden = !state.goal;
+        planCard.hidden = !state.plan;
+        subsCard.hidden = !state.subs;
+
+        document.querySelectorAll("[data-toggle]").forEach((el) => {
+          const key = el.getAttribute("data-toggle");
+          if (key && key in state) {
+            el.setAttribute("aria-pressed", String(state[key]));
+          }
+        });
+
+        requestAnimationFrame(runAudit);
+      }
+
+      function runAudit() {
+        const w = windowClose.getBoundingClientRect();
+        let html = "";
+
+        if (state.right) {
+          const p = panelClose.getBoundingClientRect();
+          const overlap = rectsOverlap(w, p);
+          const win = document.getElementById("window").getBoundingClientRect();
+          guide.style.left = `${p.left - win.left}px`;
+          guide.style.top = `${p.top - win.top}px`;
+          guide.style.width = `${p.width}px`;
+          guide.style.height = `${p.height}px`;
+
+          if (overlap || state.overlap) {
+            audit.className = "audit bad";
+            html =
+              "<strong>重叠失败</strong><br/>右边栏关闭 X 与窗口 × 热区相交。关闭「演示坏重叠」或保持栏头 padding-right = 14 + 138。";
+          } else {
+            audit.className = "audit ok";
+            html = `<strong>避让通过</strong><br/>panelClose.right=${Math.round(p.right - win.left)} · windowClose.left=${Math.round(w.left - win.left)} · 间隙 ${Math.round(w.left - p.right)}px`;
+          }
+        } else {
+          guide.style.width = "0";
+          guide.style.height = "0";
+          audit.className = "audit ok";
+          const visibleCards = [state.goal, state.plan, state.subs].filter(Boolean).length;
+          html = state.float
+            ? `<strong>悬浮栈</strong><br/>${visibleCards} 张卡贴中栏右上（top=48+8, right=8）。拖动浏览器窗口缩放时仍贴右缘。`
+            : "<strong>悬浮已关</strong><br/>打开「悬浮栈」或顶栏 ◫ 可再显示。";
+        }
+
+        audit.innerHTML = html;
+      }
+
+      document.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-toggle]");
+        if (!btn) return;
+        const key = btn.getAttribute("data-toggle");
+        if (!key || !(key in state)) return;
+        state[key] = !state[key];
+        applyState();
+      });
+
+      window.addEventListener("resize", () => requestAnimationFrame(runAudit));
+      applyState();
+    </script>
+  </body>
+</html>

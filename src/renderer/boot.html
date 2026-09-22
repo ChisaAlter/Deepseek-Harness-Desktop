@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-boot-theme>
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Deepseek-Harness-Desktop</title>
+  <link rel="stylesheet" href="../shared/dsh-webui-tokens.css" />
+  <link rel="stylesheet" href="boot-tokens.css" />
+  <link rel="stylesheet" href="boot.css" />
+  <link rel="stylesheet" href="window-controls.css" />
+</head>
+<body data-state="starting">
+  <div class="caption" aria-hidden="true"></div>
+  <div class="window-controls"></div>
+  <div class="scan" aria-hidden="true"></div>
+  <main class="stage">
+    <span class="rail rail-tl" aria-hidden="true"></span>
+    <span class="rail rail-tr" aria-hidden="true"></span>
+    <span class="rail rail-bl" aria-hidden="true"></span>
+    <span class="rail rail-br" aria-hidden="true"></span>
+    <header class="meta">
+      <span class="code">DSH-DESKTOP</span>
+      <div class="stamp-block">
+        <span class="stamp-code" id="stamp-code">BOOT</span>
+        <span class="stamp" id="stamp">启动中</span>
+      </div>
+    </header>
+    <div class="core">
+      <div class="mark" aria-hidden="true">
+        <img class="mark-img mark-anim" src="../../assets/whale-spin.svg" alt="" />
+        <img class="mark-img mark-still" src="../../assets/whale-head.png" alt="" />
+      </div>
+      <p class="brand">Deepseek-Harness-Desktop</p>
+      <p class="status" id="status" role="status">正在启动运行时</p>
+      <p class="hint" id="hint">本机 dsh web 启动中。关闭应用时服务一并退出。</p>
+      <p class="failure" id="failure" hidden></p>
+      <p class="recovery" id="recovery" aria-live="polite" hidden></p>
+      <div class="actions" id="actions" hidden>
+        <button type="button" class="primary" id="retry">重试</button>
+        <button type="button" class="ghost" id="cancel-restart" hidden>取消自动重启</button>
+        <button type="button" class="ghost" id="open-launcher" hidden>回启动器排查</button>
+        <button type="button" class="ghost" id="save-log">下载日志</button>
+      </div>
+    </div>
+    <div class="log-dock">
+      <ol class="log" id="log" aria-label="最近日志" aria-live="polite"></ol>
+    </div>
+  </main>
+  <script src="theme.js"></script>
+  <script src="window-controls.js"></script>
+  <script src="boot-recovery.js"></script>
+  <script src="boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-16-titlebar-branch-picker.md
+2026-08-16-titlebar-branch-picker.md: cd4d2cf2f46310c5ddbc486d18dd967e2d019638
+2026-08-16-titlebar-branch-picker.zh.md: 34269aee51bb348f16413d40a58575f2641d5a98

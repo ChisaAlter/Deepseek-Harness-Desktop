@@ -1,0 +1,87 @@
+{
+  "name": "dsh-usage-panel",
+  "version": "0.2.0",
+  "description": "DeepSeek Harness 消耗统计插件：设置页「消耗统计」展示 Token 用量 KPI、半年窗口内按月活跃热力图、按模型堆叠柱状图与模型环形图（Host 投影聚合 + 只读重算会话日志，永不写回）",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/host/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/host/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ],
+      "immediately": false
+    }
+  },
+  "files": [
+    "lib/",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "test": "node scripts/run-tests.mjs",
+    "check-pack": "node scripts/check-pack.mjs",
+    "prepublishOnly": "npm run check-pack"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis-plugin-timer": "^1.1.3",
+    "@deepseek-ai/dsh-client-connection": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-compaction": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm-retry": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session-projection": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session-projection-cache": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session-query": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-session-title": "^0.1.0-rc.6",
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.2"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AlfredChaos/dsh-usage-panel.git"
+  },
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "token-usage",
+    "agent-analytics",
+    "typescript",
+    "usage-statistics"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

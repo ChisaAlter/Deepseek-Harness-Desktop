@@ -1,0 +1,9 @@
+- region "Temporary review":
+  - button "Copy":
+    - img
+  - heading "Temporary review" [level=1]
+  - paragraph: Review without a tool invocation.
+  - heading "Implementation" [level=2]
+  - list:
+    - listitem: Keep the complete document readable.
+    - listitem: Ask before implementation.

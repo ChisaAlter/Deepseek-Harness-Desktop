@@ -1,0 +1,323 @@
+/* Wallpaper layer + translucent chrome. Activated by html[data-dsh-wallpaper]. */
+
+#dsh-wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * The inner canvas carries a cover-cropped bitmap drawn at cssSize / factor;
+ * CSS stretches it back up and `image-rendering: pixelated` keeps the blocks.
+ * The 48px bleed per side matches WALLPAPER_BLEED so blur has no edge halo.
+ * The background-image is the pre-decode fallback painted until the bitmap
+ * lands (and permanently under jsdom, which has no 2d context).
+ */
+#dsh-wallpaper-inner {
+  position: absolute;
+  left: -48px;
+  top: -48px;
+  width: calc(100% + 96px);
+  height: calc(100% + 96px);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  image-rendering: pixelated;
+  filter: blur(var(--dsh-wallpaper-blur, 0px));
+}
+
+html[data-dsh-wallpaper],
+html[data-dsh-wallpaper] body,
+html[data-dsh-wallpaper] #root,
+html[data-dsh-gradient],
+html[data-dsh-gradient] body,
+html[data-dsh-gradient] #root {
+  background: transparent;
+}
+
+#dsh-wallpaper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  pointer-events: none;
+}
+
+/*
+ * Transparent theme (透明主题): the dim mask over the bitmap is dropped so
+ * the wallpaper colors show through the fully see-through chrome unmasked.
+ * The mixed surface tokens are already 0% via TRANSPARENT_GLASS_SOLIDITY.
+ */
+html[data-dsh-transparent] #dsh-wallpaper::after {
+  background: transparent;
+}
+
+html[data-dsh-wallpaper] #root,
+html[data-dsh-gradient] #root {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * Ambient "flowing gradient" backdrop (背景特效), painted inside the shared
+ * fixed layer while html[data-dsh-gradient] is on — only when no wallpaper
+ * image is set. Colors default to the --dsw-specific-gradient-* theme tokens;
+ * the user's stored overrides arrive as inline --dsh-gradient-* custom
+ * properties on the element (and --dsh-gradient-speed divides the authored
+ * durations). `data-variant` picks the bloom shape: `orbs` (the default
+ * glowing balls below), `aurora` ribbons, `chaos` blobs, or `rays` beams.
+ * Blooms move transform only and stop under prefers-reduced-motion.
+ */
+#dsh-gradient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    40deg,
+    var(--dsh-gradient-start, var(--dsw-specific-gradient-start)),
+    var(--dsh-gradient-end, var(--dsw-specific-gradient-end))
+  );
+}
+
+/* The blur isolates the hard-light blooms into one composited group. */
+#dsh-gradient-blobs {
+  position: absolute;
+  inset: 0;
+  filter: blur(64px);
+}
+
+#dsh-gradient-blobs > [data-blob] {
+  position: absolute;
+  top: calc(50% - 40%);
+  left: calc(50% - 40%);
+  width: 80%;
+  height: 80%;
+  background-repeat: no-repeat;
+  mix-blend-mode: hard-light;
+  opacity: 0.8;
+}
+
+#dsh-gradient-blobs > [data-blob='1'] {
+  top: calc(40% - 40%);
+  left: calc(45% - 40%);
+  background: radial-gradient(circle at center, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 50%);
+  animation: dsh-gradient-vertical calc(30s / var(--dsh-gradient-speed, 1)) ease infinite;
+}
+
+#dsh-gradient-blobs > [data-blob='2'] {
+  top: calc(55% - 40%);
+  left: calc(38% - 40%);
+  transform-origin: calc(50% - 400px);
+  background: radial-gradient(circle at center, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 0%, transparent 50%);
+  animation: dsh-gradient-circle calc(20s / var(--dsh-gradient-speed, 1)) reverse infinite;
+}
+
+#dsh-gradient-blobs > [data-blob='3'] {
+  top: calc(48% - 40%);
+  left: calc(62% - 40%);
+  transform-origin: calc(50% + 400px);
+  background: radial-gradient(circle at center, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 0%, transparent 50%);
+  animation: dsh-gradient-circle calc(40s / var(--dsh-gradient-speed, 1)) linear infinite;
+}
+
+#dsh-gradient-blobs > [data-blob='4'] {
+  top: calc(62% - 40%);
+  left: calc(55% - 40%);
+  transform-origin: calc(50% - 200px);
+  background: radial-gradient(circle at center, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 0%, transparent 50%);
+  animation: dsh-gradient-horizontal calc(40s / var(--dsh-gradient-speed, 1)) ease infinite;
+  opacity: 0.7;
+}
+
+#dsh-gradient-blobs > [data-blob='5'] {
+  top: calc(35% - 40%);
+  left: calc(58% - 40%);
+  transform-origin: calc(50% - 800px) calc(50% - 800px);
+  background: radial-gradient(circle at center, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 0%, transparent 50%);
+  animation: dsh-gradient-circle calc(20s / var(--dsh-gradient-speed, 1)) ease infinite;
+}
+
+/*
+ * Variant: aurora ribbons (极光带) — wide elliptical blooms drifting
+ * horizontally at staggered heights.
+ */
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs {
+  filter: blur(44px);
+}
+
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob] {
+  top: calc(50% - 18%);
+  left: calc(50% - 70%);
+  width: 140%;
+  height: 36%;
+  opacity: 0.55;
+  transform-origin: center;
+}
+
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='1'] {
+  top: calc(38% - 18%);
+  background: radial-gradient(ellipse at center, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 55%);
+  animation: dsh-gradient-drift calc(36s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
+}
+
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='2'] {
+  top: calc(55% - 18%);
+  background: radial-gradient(ellipse at center, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 0%, transparent 55%);
+  animation: dsh-gradient-drift calc(44s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
+}
+
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='3'] {
+  top: calc(30% - 18%);
+  background: radial-gradient(ellipse at center, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 0%, transparent 55%);
+  animation: dsh-gradient-drift calc(30s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
+}
+
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='4'] {
+  top: calc(66% - 18%);
+  background: radial-gradient(ellipse at center, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 0%, transparent 55%);
+  animation: dsh-gradient-drift calc(48s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
+}
+
+#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='5'] {
+  top: calc(48% - 18%);
+  background: radial-gradient(ellipse at center, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 0%, transparent 55%);
+  animation: dsh-gradient-drift calc(40s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
+}
+
+/*
+ * Variant: chaos (混沌) — smaller blooms on erratic multi-axis paths with
+ * pulsing scale and mixed directions.
+ */
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs {
+  filter: blur(30px);
+}
+
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob] {
+  top: calc(50% - 30%);
+  left: calc(50% - 30%);
+  width: 60%;
+  height: 60%;
+  opacity: 0.75;
+  transform-origin: center;
+}
+
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='1'] {
+  top: calc(40% - 40%);
+  left: calc(45% - 40%);
+  background: radial-gradient(circle at center, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 55%);
+  animation: dsh-gradient-chaos calc(14s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
+}
+
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='2'] {
+  top: calc(38% - 30%);
+  left: calc(60% - 30%);
+  background: radial-gradient(circle at center, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 0%, transparent 55%);
+  animation: dsh-gradient-chaos calc(18s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
+}
+
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='3'] {
+  top: calc(62% - 30%);
+  left: calc(42% - 30%);
+  background: radial-gradient(circle at center, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 0%, transparent 55%);
+  animation: dsh-gradient-chaos calc(11s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
+}
+
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='4'] {
+  top: calc(30% - 30%);
+  left: calc(55% - 30%);
+  background: radial-gradient(circle at center, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 0%, transparent 55%);
+  animation: dsh-gradient-chaos calc(16s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
+}
+
+#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='5'] {
+  top: calc(56% - 30%);
+  left: calc(34% - 30%);
+  background: radial-gradient(circle at center, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 0%, transparent 55%);
+  animation: dsh-gradient-chaos calc(13s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
+}
+
+/*
+ * Variant: rays (光束) — conic-gradient wedges sweeping around the layer
+ * center like soft light beams.
+ */
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs {
+  filter: blur(18px);
+}
+
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob] {
+  top: calc(50% - 75%);
+  left: calc(50% - 75%);
+  width: 150%;
+  height: 150%;
+  opacity: 0.45;
+  transform-origin: center;
+}
+
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='1'] {
+  top: calc(40% - 40%);
+  left: calc(45% - 40%);
+  background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 40deg, transparent 80deg);
+  animation: dsh-gradient-circle calc(30s / var(--dsh-gradient-speed, 1)) linear infinite;
+}
+
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='2'] {
+  background: conic-gradient(from 90deg at 50% 50%, transparent 0deg, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 35deg, transparent 70deg);
+  animation: dsh-gradient-circle calc(40s / var(--dsh-gradient-speed, 1)) linear infinite reverse;
+}
+
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='3'] {
+  background: conic-gradient(from 180deg at 50% 50%, transparent 0deg, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 50deg, transparent 100deg);
+  animation: dsh-gradient-circle calc(24s / var(--dsh-gradient-speed, 1)) linear infinite;
+}
+
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='4'] {
+  background: conic-gradient(from 270deg at 50% 50%, transparent 0deg, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 30deg, transparent 60deg);
+  animation: dsh-gradient-circle calc(36s / var(--dsh-gradient-speed, 1)) linear infinite reverse;
+}
+
+#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='5'] {
+  background: conic-gradient(from 45deg at 50% 50%, transparent 0deg, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 45deg, transparent 90deg);
+  animation: dsh-gradient-circle calc(28s / var(--dsh-gradient-speed, 1)) linear infinite;
+}
+
+@keyframes dsh-gradient-vertical {
+  0% { transform: translateY(-50%); }
+  50% { transform: translateY(50%); }
+  100% { transform: translateY(-50%); }
+}
+
+@keyframes dsh-gradient-circle {
+  0% { transform: rotate(0deg); }
+  50% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes dsh-gradient-horizontal {
+  0% { transform: translateX(-50%) translateY(-10%); }
+  50% { transform: translateX(50%) translateY(10%); }
+  100% { transform: translateX(-50%) translateY(-10%); }
+}
+
+/* Aurora ribbons: horizontal drift with a slight tilt. */
+@keyframes dsh-gradient-drift {
+  0% { transform: translateX(-45%) translateY(-6%) rotate(-3deg); }
+  50% { transform: translateX(45%) translateY(6%) rotate(3deg); }
+  100% { transform: translateX(-45%) translateY(-6%) rotate(-3deg); }
+}
+
+/* Chaos blooms: erratic multi-axis translate with pulsing scale. */
+@keyframes dsh-gradient-chaos {
+  0% { transform: translate(-30%, -35%) scale(1); }
+  25% { transform: translate(35%, 5%) scale(1.3); }
+  50% { transform: translate(-15%, 40%) scale(0.75); }
+  75% { transform: translate(25%, -30%) scale(1.15); }
+  100% { transform: translate(-30%, -35%) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #dsh-gradient-blobs > [data-blob] {
+    animation: none;
+  }
+}

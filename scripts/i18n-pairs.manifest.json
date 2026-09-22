@@ -1,0 +1,12 @@
+{
+  "$comment": "Non-decisions pairs registered for bilingual pairing. docs/decisions/** pairs are discovered automatically and need no entry.",
+  "pairs": [
+    "docs/i18n/README",
+    "docs/design-language",
+    "docs/motion",
+    ".github/release-notes",
+    "CONTRIBUTING",
+    "README",
+    "docs/maintenance/README"
+  ]
+}

@@ -1,0 +1,4 @@
+#!/bin/sh
+# DSHD pre-push: full documentation governance (pairing freshness, links,
+# budgets, archive seals). `npm test` stays manual/CI — too heavy for a hook.
+exec node scripts/run-gates.mjs doc-sync

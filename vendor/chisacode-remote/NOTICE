@@ -1,0 +1,31 @@
+ChisaCode Notices
+
+ChisaCode is a modified version derived from Paseo.
+
+Original project:
+https://github.com/getpaseo/paseo
+
+Original copyright:
+Copyright (c) 2025-present Mohamed Boudra
+
+ChisaCode modifications:
+Copyright (c) 2026-present ChisaCode contributors
+Modification period: 2026-present
+
+ChisaCode is independently renamed and modified from Paseo. Unless separately
+stated by the upstream project, ChisaCode is not affiliated with, sponsored by,
+or endorsed by Paseo or its original author.
+
+The ChisaCode modifications include, but are not limited to, project branding,
+package names, application identifiers, desktop and mobile release metadata,
+provider integrations, user interface behavior, documentation, and release
+workflows.
+
+License:
+ChisaCode is licensed under AGPL-3.0-or-later. See LICENSE for the full license
+text.
+
+Corresponding source:
+When ChisaCode is distributed as binaries or made available for remote network
+interaction, the corresponding source code for that exact version must be made
+available under AGPL-3.0-or-later.

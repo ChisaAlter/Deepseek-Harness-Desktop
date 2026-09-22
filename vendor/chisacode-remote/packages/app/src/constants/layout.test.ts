@@ -1,0 +1,154 @@
+import { describe, expect, it } from "vitest";
+import {
+  DESKTOP_WINDOW_CONTROLS_HEIGHT,
+  SETTINGS_CONTROL_HEIGHT,
+  SETTINGS_DESKTOP_BACK_HEIGHT,
+  SETTINGS_DESKTOP_BODY_PADDING,
+  SETTINGS_DESKTOP_CONTENT_OUTER_MAX_WIDTH,
+  SETTINGS_DESKTOP_HEADER_HEIGHT,
+  SETTINGS_DESKTOP_NAV_ITEM_HEIGHT,
+  SETTINGS_DESKTOP_SIDEBAR_WIDTH,
+  SETTINGS_INPUT_WIDTH,
+  SETTINGS_LIQUID_CONTENT_BACKGROUND,
+  SETTINGS_ROW_HORIZONTAL_PADDING,
+  SETTINGS_ROW_TITLE_FONT_SIZE,
+  SETTINGS_ROW_TITLE_LINE_HEIGHT,
+  SETTINGS_HINT_LINE_HEIGHT,
+  SETTINGS_SWITCH_HEIGHT,
+  SETTINGS_SWITCH_WIDTH,
+  SIDEBAR_FOOTER_HEIGHT,
+  WORKBENCH_ASSISTANT_MESSAGE_MAX_WIDTH,
+  WORKBENCH_BODY_FONT_SIZE,
+  WORKBENCH_BODY_LINE_HEIGHT,
+  WORKBENCH_COMPOSER_CONTEXT_ROW_HEIGHT,
+  WORKBENCH_COMPOSER_CONTROL_HEIGHT,
+  WORKBENCH_COMPOSER_INPUT_GAP,
+  WORKBENCH_COMPOSER_HINT_FONT_SIZE,
+  WORKBENCH_COMPOSER_INPUT_PADDING_VERTICAL,
+  WORKBENCH_COMPOSER_TEXTAREA_HEIGHT,
+  WORKBENCH_COMPOSER_HEIGHT,
+  WORKBENCH_ENVIRONMENT_BRANCH_LINE_HEIGHT,
+  WORKBENCH_ENVIRONMENT_CALLOUT_HEIGHT,
+  WORKBENCH_ENVIRONMENT_CALLOUT_TEXT_LINE_HEIGHT,
+  WORKBENCH_ENVIRONMENT_ACTION_GAP,
+  WORKBENCH_ENVIRONMENT_ACTION_MARGIN_BOTTOM,
+  WORKBENCH_ENVIRONMENT_CALLOUT_TITLE_LINE_HEIGHT,
+  WORKBENCH_ENVIRONMENT_DIFF_SUMMARY_HEIGHT,
+  WORKBENCH_ENVIRONMENT_PANEL_SHADOW,
+  WORKBENCH_ENVIRONMENT_SECTION_GAP,
+  WORKBENCH_ENVIRONMENT_TAB_HEIGHT,
+  WORKBENCH_ENVIRONMENT_TAB_RADIUS,
+  WORKBENCH_MESSAGE_LINE_HEIGHT,
+  WORKBENCH_META_FONT_SIZE,
+  WORKBENCH_META_LINE_HEIGHT,
+  WORKBENCH_MICRO_FONT_SIZE,
+  WORKBENCH_MICRO_LINE_HEIGHT,
+  MIN_INTERACTIVE_TARGET_SIZE,
+  WORKBENCH_HEADER_HORIZONTAL_PADDING,
+  WORKBENCH_NEW_CHAT_RADIUS,
+  WORKBENCH_PANE_CONTENT_RIGHT_INSET,
+  WORKBENCH_FRAME_HAIRLINE_OFFSET,
+  WORKBENCH_SIDEBAR_GROUP_LINE_HEIGHT,
+  WORKBENCH_TAB_ESTIMATED_CHAR_WIDTH,
+  WORKBENCH_TAB_GAP,
+  WORKBENCH_TAB_MAX_WIDTH,
+  WORKBENCH_TAB_MIN_WIDTH,
+  WORKBENCH_USER_MESSAGE_MAX_WIDTH,
+  resolveConversationColumnMaxWidth,
+  resolveConversationColumnSize,
+} from "./layout";
+
+describe("workbench layout constants", () => {
+  it("locks the Soft Workbench desktop settings geometry", () => {
+    expect(SETTINGS_DESKTOP_SIDEBAR_WIDTH).toBe(240);
+    expect(SETTINGS_DESKTOP_BACK_HEIGHT).toBe(36);
+    expect(SETTINGS_DESKTOP_NAV_ITEM_HEIGHT).toBe(38);
+    expect(SETTINGS_DESKTOP_HEADER_HEIGHT).toBe(52);
+    expect(SETTINGS_DESKTOP_BODY_PADDING).toBe(22);
+    expect(SETTINGS_DESKTOP_CONTENT_OUTER_MAX_WIDTH).toBe(720);
+    expect(SETTINGS_ROW_HORIZONTAL_PADDING).toBe(16);
+    expect(SETTINGS_ROW_TITLE_FONT_SIZE).toBe(14);
+    expect(SETTINGS_ROW_TITLE_LINE_HEIGHT).toBe(20);
+    expect(SETTINGS_HINT_LINE_HEIGHT).toBe(16);
+    expect(SETTINGS_CONTROL_HEIGHT).toBe(32);
+    expect(SETTINGS_INPUT_WIDTH).toBe(64);
+    expect(SETTINGS_LIQUID_CONTENT_BACKGROUND).toBe("rgba(7, 14, 27, 0.25)");
+    expect(SETTINGS_SWITCH_WIDTH).toBe(44);
+    // Soft .toggle: 44 × 26 (design).
+    expect(SETTINGS_SWITCH_HEIGHT).toBe(26);
+  });
+
+  it("locks the reference workbench typography and message widths", () => {
+    expect(WORKBENCH_BODY_FONT_SIZE).toBe(14);
+    expect(WORKBENCH_BODY_LINE_HEIGHT).toBe(22);
+    expect(WORKBENCH_META_FONT_SIZE).toBe(12.5);
+    expect(WORKBENCH_META_LINE_HEIGHT).toBe(16);
+    expect(WORKBENCH_MICRO_FONT_SIZE).toBe(11);
+    expect(WORKBENCH_MICRO_LINE_HEIGHT).toBe(14);
+    expect(MIN_INTERACTIVE_TARGET_SIZE).toBe(28);
+    expect(WORKBENCH_MESSAGE_LINE_HEIGHT).toBe(22);
+    expect(WORKBENCH_ASSISTANT_MESSAGE_MAX_WIDTH).toBe(800);
+    expect(WORKBENCH_USER_MESSAGE_MAX_WIDTH).toBe(460);
+  });
+
+  it("locks the Soft Workbench chrome geometry", () => {
+    expect(DESKTOP_WINDOW_CONTROLS_HEIGHT).toBe(48);
+    expect(WORKBENCH_NEW_CHAT_RADIUS).toBe(12);
+    expect(WORKBENCH_SIDEBAR_GROUP_LINE_HEIGHT).toBe(16);
+    expect(SIDEBAR_FOOTER_HEIGHT).toBe(100);
+    expect(WORKBENCH_TAB_MIN_WIDTH).toBe(160);
+    expect(WORKBENCH_TAB_MAX_WIDTH).toBe(220);
+    expect(WORKBENCH_TAB_GAP).toBe(5);
+    expect(WORKBENCH_TAB_ESTIMATED_CHAR_WIDTH).toBeCloseTo(35 / 3);
+    expect(WORKBENCH_FRAME_HAIRLINE_OFFSET).toBeCloseTo(2 / 3);
+    expect(WORKBENCH_COMPOSER_HEIGHT).toBe(133);
+    expect(WORKBENCH_COMPOSER_HINT_FONT_SIZE).toBe(11);
+    expect(WORKBENCH_COMPOSER_CONTEXT_ROW_HEIGHT).toBe(28);
+    expect(WORKBENCH_ENVIRONMENT_TAB_HEIGHT).toBe(28);
+    expect(WORKBENCH_COMPOSER_TEXTAREA_HEIGHT).toBe(28);
+    expect(WORKBENCH_COMPOSER_INPUT_GAP).toBe(6);
+    expect(WORKBENCH_COMPOSER_INPUT_PADDING_VERTICAL).toBe(8);
+    expect(WORKBENCH_COMPOSER_CONTROL_HEIGHT).toBe(28);
+    expect(WORKBENCH_HEADER_HORIZONTAL_PADDING).toBe(14);
+    expect(WORKBENCH_ENVIRONMENT_TAB_RADIUS).toBe(8);
+    expect(WORKBENCH_ENVIRONMENT_DIFF_SUMMARY_HEIGHT).toBe(72);
+    expect(WORKBENCH_ENVIRONMENT_CALLOUT_HEIGHT).toBeCloseTo(57 + 1 / 3);
+    expect(WORKBENCH_ENVIRONMENT_SECTION_GAP).toBe(8);
+    expect(WORKBENCH_ENVIRONMENT_ACTION_GAP).toBe(6);
+    expect(WORKBENCH_ENVIRONMENT_ACTION_MARGIN_BOTTOM).toBe(10);
+    expect(WORKBENCH_ENVIRONMENT_BRANCH_LINE_HEIGHT).toBe(16);
+    expect(WORKBENCH_ENVIRONMENT_CALLOUT_TITLE_LINE_HEIGHT).toBe(18);
+    expect(WORKBENCH_ENVIRONMENT_CALLOUT_TEXT_LINE_HEIGHT).toBe(16);
+    expect(WORKBENCH_ENVIRONMENT_PANEL_SHADOW).toBe(
+      // Soft floating inspector: soft ink veil readable against the work surface.
+      "0 1px 2px rgba(20, 23, 31, 0.05), 0 8px 24px rgba(20, 23, 31, 0.08), 0 16px 40px rgba(20, 23, 31, 0.06)",
+    );
+  });
+
+  it("keeps messages and the composer full width beneath the floating inspector", () => {
+    expect(WORKBENCH_PANE_CONTENT_RIGHT_INSET).toBe(0);
+  });
+
+  it("sizes the left-aligned conversation column at max 1:1 without blocking shrink", () => {
+    expect(resolveConversationColumnSize(1600, 800)).toEqual({
+      width: 800,
+      minWidth: Math.round(800 / 3),
+      maxWidth: 800,
+    });
+    // Narrower than height → fill the pane (still left-aligned under max).
+    expect(resolveConversationColumnSize(500, 900)).toEqual({
+      width: 500,
+      minWidth: 300,
+      maxWidth: 900,
+    });
+    // Below the soft 1:3 hint → still track the pane so the window can shrink.
+    expect(resolveConversationColumnSize(200, 900)).toEqual({
+      width: 200,
+      minWidth: 300,
+      maxWidth: 900,
+    });
+    expect(resolveConversationColumnMaxWidth(1600, 800)).toBe(800);
+    expect(resolveConversationColumnSize(0, 800)).toBeNull();
+    expect(resolveConversationColumnSize(1200, 0)).toBeNull();
+  });
+});

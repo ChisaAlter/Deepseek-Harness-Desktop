@@ -1,0 +1,402 @@
+.frame {
+  position: relative; /* anchors the drag handles, which straddle column borders */
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-base);
+  /* Collapse/expand animates the tracks on the deepsuite sider curve
+     (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
+  transition:
+    grid-template-columns var(--ds-transition-duration-slow) var(--ds-ease-in-out),
+    grid-template-rows var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+/* Dragging writes widths at pointer cadence; easing them would detach the
+   column from the handle. */
+.frame[data-dragging] {
+  transition: none;
+}
+
+/* The Windows caption row remains outside every conversation and file panel. */
+:global([data-windows-titlebar]) .frame {
+  --dsh-windows-content-radius: 16px;
+  box-sizing: border-box;
+  padding-top: var(--dsh-windows-titlebar-height);
+  background: var(--dsw-specific-sidebar-fill);
+}
+
+:global([data-windows-titlebar]) .centerCol {
+  background: var(--dsw-alias-bg-base);
+  border-radius: var(--dsh-windows-content-radius) 0 0 0;
+  corner-shape: round;
+}
+
+:global([data-windows-titlebar]) .frame::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--dsh-windows-titlebar-height);
+  background: var(--dsw-specific-sidebar-fill);
+  -webkit-app-region: no-drag;
+}
+
+:global([data-windows-titlebar]) .sidebarCol {
+  border-right: none;
+}
+
+:global([data-windows-titlebar]) .handle {
+  top: var(--dsh-windows-titlebar-height);
+}
+
+/* macOS desktop lets the window vibrancy reach the sidebar while the
+   conversation canvas remains opaque. */
+:global([data-platform='darwin']) .frame {
+  background: transparent;
+}
+
+:global([data-platform='darwin']) .sidebarCol {
+  background: color-mix(in srgb, var(--dsw-specific-sidebar-fill) 60%, transparent);
+  border-right: none;
+}
+
+:global([data-platform='darwin']) .centerCol {
+  background: var(--dsw-alias-bg-base);
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+:global([data-platform='darwin']) [data-sidebar-collapsed] .centerCol {
+  border-left: none;
+}
+
+/* Fullscreen covers the frame while its underlying columns enter or exit. */
+.frame[data-rightbar-fullscreen],
+.frame[data-rightbar-fullscreen] .handle,
+.frame[data-rightbar-instant],
+.frame[data-rightbar-instant] .handle {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame {
+    transition: none;
+  }
+}
+
+.sidebarCol {
+  grid-column: 1;
+  grid-row: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  /* Indirection: ui-theme rebinds --dsh-sidebar-rail-fill to transparent while
+     the sidebar mask is hidden, so the frame canvas shows through. */
+  background: var(--dsh-sidebar-rail-fill, var(--dsw-specific-sidebar-fill));
+  border-right: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+.centerCol {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+  /* Contain conversation z-index (sticky composer 7, ContextMeter 100) so
+     those layers cannot paint over the phone overlay drawer. */
+  isolation: isolate;
+}
+
+.terminalDrawerCol {
+  grid-column: 2;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+/*
+ * The right column (the dockable rightbar seat) never clips: its occupant
+ * anchors a fixed-width panel to the column's right edge (which never moves)
+ * and lets the track decide whether the centre makes room. With no track the
+ * panel hangs over the centre from a zero-width column, and while the track
+ * animates the panel stays where it is. The occupant draws its own left border,
+ * so the column paints none; the class name is the desktop chrome contract
+ * name for column 3 (caption holes, phone drawer).
+ */
+.detailsCol {
+  grid-column: 3;
+  grid-row: 2 / -1;
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+}
+
+.surfacesCol {
+  grid-column: 4;
+  grid-row: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 0.5px solid var(--dsw-alias-border-l3);
+}
+
+/* No seam while the third column has no track: the column paints no border at
+   all (the occupant draws its own left edge), so `data-details-collapsed` only
+   records the state for chrome consumers (phone drawer, apps/web e2e). */
+.frame[data-surfaces-collapsed] .surfacesCol {
+  border-left: none;
+}
+
+.frame[data-terminal-drawer-collapsed] .terminalDrawerCol {
+  border-top: none;
+}
+
+/* Drag handles are frame children (columns clip overflow): an 8px hit strip
+   centered on the column border via inline left, above column content. Details
+   and surfaces add a visible 12x32 pill at vertical center; sidebar keeps only
+   the hit strip. The right handle sits above the right panel (which states
+   z-index 10) so it stays grabbable when the panel hangs over the centre. */
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  margin-left: -4px;
+  cursor: col-resize;
+  z-index: 11;
+  touch-action: none;
+  /* The strip crosses the caption band's top 48px; without the hole that
+     segment would drag the window instead of resizing the column. */
+  -webkit-app-region: no-drag;
+  /* Rides the same curve as the tracks so the pill stays on the moving
+     border during collapse/expand; paused while dragging (frame rule). */
+  transition: left var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-dragging] .handle {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .handle {
+    transition: none;
+  }
+}
+
+.handle[data-side='rightbar']::after,
+.handle[data-side='surfaces']::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 32px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  background: var(--dsw-alias-button-floating-fill);
+  border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
+  /* Hover affordance: the pill hides until the pointer is over its column,
+     the strip itself, or a drag. */
+  opacity: 0;
+  transition:
+    opacity var(--ds-transition-duration-slow) var(--ds-ease-in-out),
+    background var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.detailsCol:hover ~ .handle[data-side='rightbar']::after,
+.handle[data-side='rightbar']:hover::after,
+.handle[data-side='rightbar'][data-dragging='true']::after,
+.surfacesCol:hover ~ .handle[data-side='surfaces']::after,
+.handle[data-side='surfaces']:hover::after,
+.handle[data-side='surfaces'][data-dragging='true']::after {
+  opacity: 1;
+}
+
+.handle[data-side='rightbar']:hover::after,
+.handle[data-side='rightbar'][data-dragging='true']::after,
+.handle[data-side='surfaces']:hover::after,
+.handle[data-side='surfaces'][data-dragging='true']::after {
+  background: var(--dsw-alias-button-floating-hover);
+  border-color: var(--dsw-alias-border-l3);
+}
+
+/* First grid child so column paint order keeps this band behind Session log,
+   Git, surface tabs, and window controls. Electron collects the rectangle as
+   the sole caption drag region, including the sidebar logo row; later
+   no-drag boxes punch holes. */
+.captionDrag {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  align-self: start;
+  height: 48px;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.overlayLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.overlayLayer > * {
+  pointer-events: auto;
+  /* Entries can float over the caption band; drag regions are geometric, so
+     each interactive entry must punch its own hole. */
+  -webkit-app-region: no-drag;
+}
+
+/* Shared titlebar band over the rightbar column only. Height comes from the
+   conversation header via centerCol subgrid (row 1 = auto). Hairline matches
+   conversation header::after (1px up from the row bottom). Surfaces spans
+   row 1 itself; its tab bar is the right-column top edge. */
+.titlebarBand {
+  grid-column: 3 / 4;
+  grid-row: 1;
+  position: relative;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.titlebarBand::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  left: 0;
+  height: 0.5px;
+  background: var(--dsw-alias-border-l2);
+  pointer-events: none;
+}
+
+.titlebarTrailing {
+  grid-column: 2 / -1;
+  grid-row: 1;
+  justify-self: end;
+  align-self: start;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  max-width: 100%;
+  height: 32px;
+  margin-top: 12px;
+  margin-right: var(--dshd-wco-controls, 8px);
+  -webkit-app-region: no-drag;
+}
+
+/* Open surfaces occupies the titlebar row in column 4; keep Session log / Git /
+   panel toggles in columns 2–3. Window controls sit on the surfaces tab bar. */
+.frame:not([data-surfaces-collapsed]) .titlebarTrailing {
+  grid-column: 2 / 4;
+  margin-right: 8px;
+}
+
+/* Phone overlay and portrait-narrow frames: Session log / Git / panel toggles
+   sit in this cluster and would paint over the session title. Do not key this
+   off CSS orientation — a phone keyboard flips that media query. Landscape
+   and wide desktop keep the cluster. */
+.frame[data-phone] .titlebarTrailing,
+.frame[data-compact-header] .titlebarTrailing {
+  display: none;
+}
+
+/* Phone overlay shell: conversation owns the grid; sidebar and rightbar leave
+   the tracks and paint as drawers. Handles stay unmounted (AppFrame.tsx). */
+.phoneMenu {
+  position: absolute;
+  top: max(10px, env(safe-area-inset-top, 0px));
+  left: max(10px, env(safe-area-inset-left, 0px));
+  z-index: 12;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--dsw-alias-button-floating-fill);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-shadow-lv2);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.phoneMenu:hover {
+  background: var(--dsw-alias-button-floating-hover);
+}
+
+.phoneBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  padding: 0;
+  border: none;
+  background: var(--dsw-alias-bg-mask-1);
+  backdrop-filter: var(--dsw-mask-blur);
+  cursor: pointer;
+  /* Close-on-tap must win over the caption band it covers. */
+  -webkit-app-region: no-drag;
+}
+
+.frame[data-phone] .sidebarCol {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 11;
+  width: min(320px, calc(100% - 48px));
+  pointer-events: none;
+  transform: translateX(-100%);
+  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  padding-top: env(safe-area-inset-top, 0px);
+  /* Opaque canvas under sidebar-fill: wallpaper glass must mix with the
+     drawer, not with the dimmed conversation showing through. */
+  background-color: var(--dsw-alias-bg-base);
+  background-image: linear-gradient(
+    var(--dsh-sidebar-rail-fill, var(--dsw-specific-sidebar-fill)),
+    var(--dsh-sidebar-rail-fill, var(--dsw-specific-sidebar-fill))
+  );
+}
+
+/* Open drawers overlap the caption band (the phone grid keeps column 2 at
+   x = 0); the hole applies only while open so the closed, translated drawer
+   cannot subtract a band segment. */
+.frame[data-phone-sidebar] .sidebarCol {
+  pointer-events: auto;
+  transform: none;
+  -webkit-app-region: no-drag;
+}
+
+.frame[data-phone] .detailsCol {
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  width: auto;
+  pointer-events: none;
+  background: var(--dsw-alias-bg-base);
+  transform: translateX(100%);
+  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.frame[data-phone-details] .detailsCol {
+  pointer-events: auto;
+  transform: none;
+  -webkit-app-region: no-drag;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-phone] .sidebarCol,
+  .frame[data-phone] .detailsCol {
+    transition: none;
+  }
+}

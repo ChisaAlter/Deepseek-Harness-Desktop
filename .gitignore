@@ -1,0 +1,89 @@
+node_modules/
+!vendor/dsh-usage-panel/node_modules/
+!vendor/dsh-usage-panel/node_modules/**
+!vendor/dsh-im/node_modules/
+!vendor/dsh-im/node_modules/**
+!vendor/dshbot/node_modules/
+!vendor/dshbot/node_modules/**
+!vendor/dsh-whale/node_modules/
+!vendor/dsh-whale/node_modules/**
+vendor/deepseek-harness/node_modules/
+vendor/deepseek-harness/apps/web/dist/
+# host-side tsc emits declaration/map artifacts beside the sources; keep the
+# sources tracked and ignore the emitted build droppings.
+vendor/deepseek-harness/**/src/*.js
+vendor/deepseek-harness/**/src/*.js.map
+vendor/deepseek-harness/**/src/*.d.ts
+vendor/deepseek-harness/**/src/*.d.ts.map
+# Hand-written CSS module declarations are source, not tsc droppings; without
+# them a fresh checkout cannot typecheck or build the client packages.
+!vendor/deepseek-harness/**/src/css-modules.d.ts
+dist/
+!vendor/dsh-usage-panel/node_modules/**/dist/
+!vendor/dsh-usage-panel/node_modules/**/dist/**
+!vendor/dsh-im/node_modules/**/dist/
+!vendor/dsh-im/node_modules/**/dist/**
+!vendor/dshbot/node_modules/**/dist/
+!vendor/dshbot/node_modules/**/dist/**
+!vendor/dsh-whale/node_modules/**/dist/
+!vendor/dsh-whale/node_modules/**/dist/**
+dist-release/
+out/
+/release/
+*.log
+# Windows reserved device name — git-bash `> nul` creates a real file that
+# breaks `git checkout` on Windows if it ever gets committed.
+nul
+NUL
+.DS_Store
+Thumbs.db
+.env
+**/__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.iml
+.pack-v2/
+.pack-tmp*/
+.pack-v*/
+/release*/
+/resources/
+.worktrees/
+vendor/dsh-usage-panel/.tmp/
+vendor/dsh-usage-panel/tests-dist/
+apps/mobile/.expo/
+apps/mobile/dist/
+
+# Local agent/QA artifacts
+gui-test-screenshots/
+.codely-cli/
+CODELY.md
+.cursor/*
+!.cursor/rules/
+.cursor/rules/*
+!.cursor/rules/*.mdc
+!.cursor/environment.json
+!.cursor/install.sh
+.tmp/
+docs/qa/results/**/*.orig
+docs/qa/results/**/ci-installer/*.exe
+docs/qa/results/**/ci-installer/*.exe.blockmap
+docs/qa/results/**/ci-installer/*.dmg
+docs/qa/results/**/ci-installer/artifact/
+.zcode/
+plugins/
+.final-gates/
+mobile/android/.gradle/
+mobile/android/**/build/
+mobile/android/local.properties
+
+tmp/
+
+# Agent / QA tool dirs (local-only, generated)
+.omc/
+.workbuddy-ai/
+_pin-ws/
+logs/
+
+# Local test/QA artifacts (large binaries, logs)
+.artifacts/

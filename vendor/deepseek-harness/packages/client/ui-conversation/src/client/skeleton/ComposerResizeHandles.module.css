@@ -1,0 +1,60 @@
+/* Edge hit strips for Interface Settings composerResize. The pill hides
+   until hover so the capsule stays the same when the switch is on but idle. */
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 8px;
+  margin-top: -4px;
+  cursor: ns-resize;
+  z-index: 4;
+  touch-action: none;
+  user-select: none;
+}
+
+.resizeHandle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 3px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: var(--dsw-alias-border-l3);
+  opacity: 0;
+  transition: opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.resizeHandle:hover::after {
+  opacity: 1;
+}
+
+.resizeHandleWest,
+.resizeHandleEast {
+  top: 8px;
+  bottom: 0;
+  width: 8px;
+  height: auto;
+  margin-top: 0;
+  cursor: ew-resize;
+}
+
+.resizeHandleWest {
+  left: 0;
+  right: auto;
+  margin-left: -4px;
+}
+
+.resizeHandleEast {
+  left: auto;
+  right: 0;
+  margin-right: -4px;
+}
+
+.resizeHandleWest::after,
+.resizeHandleEast::after {
+  width: 3px;
+  height: 32px;
+}

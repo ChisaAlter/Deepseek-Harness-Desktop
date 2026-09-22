@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src http://127.0.0.1:* data:; media-src http://127.0.0.1:*; frame-src http://127.0.0.1:*;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>File preview</title>
+    <link rel="stylesheet" href="../shared/dsh-webui-tokens.css" />
+    <link rel="stylesheet" href="file-preview.css" />
+    <script src="file-preview.js" defer></script>
+  </head>
+  <body>
+    <main id="preview" class="preview" aria-live="polite">
+      <p class="status">正在载入预览…</p>
+    </main>
+  </body>
+</html>

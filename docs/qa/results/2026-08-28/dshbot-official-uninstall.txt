@@ -1,0 +1,6 @@
+
+dependencies:
+- dshbot github:ChisaAlter/Deepseek-Harness-Desktop#path:/vendor/dshbot
+
+Already up to date
+Done in 210ms using pnpm v10.33.3

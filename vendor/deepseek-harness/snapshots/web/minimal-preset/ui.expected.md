@@ -1,0 +1,55 @@
+- banner:
+  - navigation "Session hierarchy":
+    - button "Use the bash tool to" [disabled]
+  - img
+  - text: Minimal mode
+  - button "More actions":
+    - img
+  - button "Open right sidebar":
+    - img
+  - tablist:
+    - tab "Chat" [selected]
+    - tab "Trajectory"
+- button "System prompt":
+  - img
+  - img
+  - text: System prompt
+- text: "Use the bash tool to run exactly: printf 'MINIMAL_BASH_CARD_OK\\n'. Then reply exactly MINIMAL_PRESET_REQUEST_OK and stop. {{clock}}"
+- button "Copy":
+  - img
+- button "1 tool call" [expanded]:
+  - text: 1 tool call
+  - img
+- button "Bash printf 'MINIMAL_BASH_CARD_OK\\n'" [expanded]:
+  - img
+  - text: Bash printf 'MINIMAL_BASH_CARD_OK\n'
+- text: "IN { \"command\": \"printf 'MINIMAL_BASH_CARD_OK\\\\n'\" } OUT MINIMAL_BASH_CARD_OK [Command finished with exit code 0]"
+- button "Inspect"
+- paragraph: MINIMAL_PRESET_REQUEST_OK
+- button "Copy":
+  - img
+- button "Good response":
+  - img
+- button "Bad response":
+  - img
+- button "Branch into a new conversation":
+  - img
+- button "Ran for {{duration}}":
+  - img
+  - text: Ran for {{duration}}
+- text: {{clock}}
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands":
+  - img
+- 'button "Access mode, current: Workspace Write"': Workspace Write
+- button "Select model, current DeepSeek-V4-Flash":
+  - text: DeepSeek-V4-Flash
+  - img
+- button "Send message" [disabled]
+- button "1 turns 2 steps · {{throughput}} tok/s":
+  - img
+  - text: 1 turns 2 steps{{throughput}} tok/s
+- button "28 tok · Cache hit 0%":
+  - img
+  - text: 28 tokCache hit 0%
+- button "0% of context used": 0%

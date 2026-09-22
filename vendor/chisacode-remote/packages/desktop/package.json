@@ -1,0 +1,51 @@
+{
+  "name": "@chisacode/desktop",
+  "version": "1.0.3",
+  "private": true,
+  "description": "ChisaCode desktop app (Electron wrapper)",
+  "homepage": "https://chisacode.sh",
+  "license": "AGPL-3.0-or-later",
+  "author": {
+    "name": "ChisaCode contributors"
+  },
+  "contributors": [
+    {
+      "name": "Mohamed Boudra",
+      "url": "https://github.com/getpaseo/paseo"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChisaAlter/ChisaCode.git"
+  },
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "npm --prefix ../.. run build:server && npm run build:main && node scripts/build.js",
+    "build:x64": "npm --prefix ../.. run build:server && npm run build:main && cd ../app && cross-env CHISACODE_WEB_PLATFORM=electron npx expo export --platform web && cd ../desktop && node scripts/build-x64.js",
+    "build:main": "tsc -p tsconfig.json",
+    "dev": "./scripts/dev.sh",
+    "dev:win": "powershell ./scripts/dev.ps1",
+    "test": "vitest run",
+    "typecheck": "tsgo --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@chisacode/cli": "*",
+    "@chisacode/server": "*",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.6.2",
+    "ws": "8.21.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "24.6.0",
+    "@types/ws": "^8.5.14",
+    "app-builder-lib": "26.8.1",
+    "builder-util-runtime": "9.5.1",
+    "electron": "41.2.0",
+    "electron-builder": "26.8.1",
+    "typescript": "^5.9.3",
+    "unzip-crx-3": "^0.2.0",
+    "vitest": "^4.1.6",
+    "wait-on": "8.0.5"
+  }
+}

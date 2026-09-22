@@ -1,0 +1,2913 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChisaCode · Web3 原创主题方案</title>
+    <style>
+      /* ===== PAGE WRAPPER ===== */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #0a0d0f;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: #c8ccd0;
+        line-height: 1.5;
+        overflow-x: hidden;
+      }
+
+      .page-header {
+        text-align: center;
+        padding: 60px 20px 40px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .page-title {
+        font-size: 36px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #20744a 0%, #00b4d8 45%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 12px;
+        letter-spacing: -0.5px;
+      }
+      .page-subtitle {
+        font-size: 14px;
+        color: #6b7280;
+        font-weight: 300;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      /* ===== SECTION LAYOUT ===== */
+      .theme-section {
+        max-width: 1200px;
+        margin: 0 auto 80px;
+        padding: 0 20px;
+      }
+      .theme-meta {
+        margin-bottom: 24px;
+      }
+      .theme-label {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #4b5563;
+        margin-bottom: 6px;
+      }
+      .theme-name {
+        font-size: 28px;
+        font-weight: 700;
+        color: #e5e7eb;
+        margin-bottom: 8px;
+      }
+      .theme-desc {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.6;
+        max-width: 700px;
+      }
+      .theme-tokens {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .token-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-family: "Courier New", monospace;
+        color: #9ca3af;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 4px 10px;
+        border-radius: 4px;
+      }
+      .token-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+
+      .frames-row {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .frame-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #4b5563;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+      .frame-col-desktop,
+      .frame-col-mobile {
+        flex-shrink: 0;
+      }
+
+      /* ===== THEME 1: AURORA GRID ===== */
+      .aurora-frame {
+        width: 1100px;
+        height: 620px;
+        background: #fafbfc;
+        border-radius: 16px;
+        overflow: hidden;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        position: relative;
+        box-shadow:
+          0 0 0 1px #e2e8f0,
+          0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+      .aurora-frame .ag-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 18px;
+        background: #ffffff;
+        border-bottom: 1px solid #e8ece9;
+      }
+      .ag-logo {
+        font-size: 15px;
+        font-weight: 700;
+        color: #20744a;
+        letter-spacing: -0.3px;
+      }
+      .ag-logo span {
+        color: #00b4d8;
+        font-weight: 400;
+      }
+      .ag-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .ag-status-dot {
+        width: 7px;
+        height: 7px;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        background: #3fb950;
+      }
+      .ag-status-text {
+        font-size: 11px;
+        color: #6b7280;
+      }
+      .ag-settings {
+        width: 22px;
+        height: 22px;
+        border: 1.5px solid #d1d5db;
+        border-radius: 4px;
+        position: relative;
+      }
+      .ag-settings::before {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 8px;
+        border: 1.5px solid #9ca3af;
+        border-radius: 50%;
+      }
+
+      /* Aurora Grid Layout */
+      .aurora-frame .ag-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        grid-template-rows: auto auto auto 1fr auto;
+        gap: 10px;
+        padding: 12px 14px 8px;
+        height: calc(100% - 44px);
+      }
+      .ag-grid > * {
+        background: #ffffff;
+        border-radius: 10px;
+        border: 1px solid #edf2ef;
+        padding: 12px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Gradient divider */
+      .ag-div {
+        height: 2px;
+        grid-column: 1/-1;
+        background: linear-gradient(90deg, #20744a, #00b4d8, #20744a);
+        background-size: 200% 100%;
+        animation: agDivShift 4s linear infinite;
+        border: none;
+        padding: 0;
+        border-radius: 1px;
+      }
+      @keyframes agDivShift {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+
+      /* Metric cards row */
+      .ag-metrics {
+        grid-column: span 3;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .ag-metric-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #9ca3af;
+        font-weight: 600;
+      }
+      .ag-metric-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: #111827;
+        font-family: "Courier New", monospace;
+        font-variant-numeric: tabular-nums;
+      }
+      .ag-metric-bar {
+        height: 4px;
+        border-radius: 2px;
+        margin-top: 4px;
+        background: linear-gradient(90deg, #20744a 0%, #00b4d8 100%);
+        position: relative;
+      }
+      .ag-metric-bar::after {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: -2px;
+        width: 2px;
+        height: 8px;
+        background: #20744a;
+        border-radius: 1px;
+      }
+
+      /* Network topology mini-map */
+      .ag-topo {
+        grid-column: span 3;
+        background: #f0f7f2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .ag-topo-title {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #20744a;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .ag-topo-nodes {
+        position: relative;
+        width: 120px;
+        height: 60px;
+      }
+      .ag-node {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .ag-node::before {
+        content: "";
+        position: absolute;
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1px;
+        height: 10px;
+      }
+      .ag-node-main {
+        background: #20744a;
+        left: 56px;
+        top: 26px;
+      }
+      .ag-node-a {
+        background: #00b4d8;
+        left: 20px;
+        top: 8px;
+      }
+      .ag-node-b {
+        background: #00b4d8;
+        left: 92px;
+        top: 8px;
+      }
+      .ag-node-c {
+        background: #e0e7ff;
+        border: 1.5px solid #818cf8;
+        left: 20px;
+        top: 44px;
+      }
+      .ag-node-d {
+        background: #e0e7ff;
+        border: 1.5px solid #818cf8;
+        left: 92px;
+        top: 44px;
+      }
+      .ag-link {
+        position: absolute;
+        height: 1px;
+        background: #d1d5db;
+        transform-origin: left center;
+      }
+
+      /* Agent session cards */
+      .ag-sessions {
+        grid-column: span 6;
+      }
+      .ag-sessions-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .ag-sessions-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #111827;
+      }
+      .ag-sessions-count {
+        font-size: 9px;
+        background: #f0f7f2;
+        color: #20744a;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .ag-session {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        border: 1px solid #f3f4f6;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .ag-session:hover {
+        background: #f0f7f2;
+      }
+      .ag-session:last-child {
+        margin-bottom: 0;
+      }
+      .ag-s-hex {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .ag-s-hex.openai {
+        background: #10a37f;
+      }
+      .ag-s-hex.anthropic {
+        background: #d4a574;
+      }
+      .ag-s-hex.google {
+        background: #4285f4;
+      }
+      .ag-s-hex-inner {
+        width: 36px;
+        height: 36px;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .ag-s-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .ag-s-provider {
+        font-size: 11px;
+        color: #374151;
+        font-weight: 600;
+      }
+      .ag-s-title {
+        font-size: 12px;
+        color: #111827;
+        font-weight: 500;
+      }
+      .ag-s-file {
+        font-size: 10px;
+        color: #9ca3af;
+        font-family: "Courier New", monospace;
+      }
+      .ag-s-status {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+      .ag-s-status.running {
+        background: #dcfce7;
+        color: #16a34a;
+      }
+      .ag-s-status.thinking {
+        background: #fef3c7;
+        color: #d97706;
+      }
+      .ag-s-status.done {
+        background: #f3f4f6;
+        color: #6b7280;
+      }
+      .ag-s-status.idle {
+        background: #e0e7ff;
+        color: #6366f1;
+      }
+
+      /* Active session detail */
+      .ag-detail {
+        grid-column: span 9;
+      }
+      .ag-detail-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .ag-detail-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #111827;
+      }
+      .ag-detail-badges {
+        display: flex;
+        gap: 4px;
+      }
+      .ag-badge {
+        font-size: 9px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .ag-badge.file {
+        background: #dbeafe;
+        color: #2563eb;
+      }
+      .ag-badge.git {
+        background: #f3e8ff;
+        color: #9333ea;
+      }
+      .ag-badge.terminal {
+        background: #fef3c7;
+        color: #d97706;
+      }
+      .ag-detail-output {
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+        color: #4b5563;
+        line-height: 1.7;
+        background: #f9fafb;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 10px;
+        border: 1px solid #f3f4f6;
+      }
+      .ag-detail-output .ag-line-green {
+        color: #20744a;
+      }
+      .ag-detail-output .ag-line-dim {
+        color: #9ca3af;
+      }
+      .ag-detail-progress {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .ag-progress-bar {
+        flex: 1;
+        height: 6px;
+        background: #f3f4f6;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .ag-progress-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #20744a, #00b4d8);
+        animation: agPulse 2s ease-in-out infinite;
+      }
+      @keyframes agPulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+      }
+      .ag-progress-text {
+        font-size: 10px;
+        color: #20744a;
+        font-weight: 600;
+        font-family: "Courier New", monospace;
+      }
+
+      /* Context panel */
+      .ag-context {
+        grid-column: span 3;
+      }
+      .ag-ctx-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .ag-ctx-row:last-child {
+        border-bottom: none;
+      }
+      .ag-ctx-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #9ca3af;
+        font-weight: 600;
+      }
+      .ag-ctx-value {
+        font-size: 11px;
+        color: #374151;
+        font-family: "Courier New", monospace;
+        font-weight: 600;
+      }
+
+      /* Command palette (bottom bar) */
+      .ag-palette {
+        grid-column: 1/-1;
+        background: #ffffff;
+        border: 1.5px solid #20744a;
+        border-radius: 10px;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .ag-palette-icon {
+        width: 16px;
+        height: 16px;
+        position: relative;
+      }
+      .ag-palette-icon::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 10px;
+        height: 1.5px;
+        background: #20744a;
+      }
+      .ag-palette-icon::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 4px;
+        width: 12px;
+        height: 1.5px;
+        background: #00b4d8;
+      }
+      .ag-palette-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 12px;
+        color: #111827;
+        font-family: "Courier New", monospace;
+        background: transparent;
+      }
+      .ag-palette-input::placeholder {
+        color: #d1d5db;
+      }
+      .ag-palette-hint {
+        font-size: 9px;
+        color: #9ca3af;
+        letter-spacing: 0.5px;
+      }
+      .ag-palette-kbd {
+        font-size: 9px;
+        background: #f3f4f6;
+        color: #6b7280;
+        padding: 1px 5px;
+        border-radius: 3px;
+        border: 1px solid #e5e7eb;
+        font-family: "Courier New", monospace;
+      }
+
+      /* Aurora mobile */
+      .aurora-mobile {
+        width: 320px;
+        height: 660px;
+        background: #fafbfc;
+        border-radius: 20px;
+        overflow: hidden;
+        font-family: system-ui, sans-serif;
+        box-shadow:
+          0 0 0 1px #e2e8f0,
+          0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+      .am-header {
+        padding: 12px 16px;
+        background: #fff;
+        border-bottom: 1px solid #e8ece9;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .am-logo {
+        font-size: 14px;
+        font-weight: 700;
+        color: #20744a;
+      }
+      .am-status {
+        width: 7px;
+        height: 7px;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        background: #3fb950;
+      }
+      .am-body {
+        padding: 12px;
+        overflow: hidden;
+        height: calc(100% - 44px);
+      }
+      .am-session {
+        padding: 10px;
+        border: 1px solid #edf2ef;
+        border-radius: 10px;
+        background: #fff;
+        margin-bottom: 8px;
+      }
+      .am-s-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .am-s-hex {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .am-s-hex-inner {
+        width: 28px;
+        height: 28px;
+        clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .am-s-info {
+        flex: 1;
+      }
+      .am-s-provider {
+        font-size: 10px;
+        color: #6b7280;
+        font-weight: 600;
+      }
+      .am-s-title {
+        font-size: 12px;
+        color: #111827;
+        font-weight: 600;
+      }
+      .am-s-status {
+        font-size: 8px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .am-s-file {
+        font-size: 9px;
+        color: #9ca3af;
+        font-family: "Courier New", monospace;
+        margin-top: 4px;
+      }
+      .am-detail {
+        padding: 10px;
+        background: #f0f7f2;
+        border-radius: 10px;
+        margin-bottom: 8px;
+      }
+      .am-detail-title {
+        font-size: 11px;
+        font-weight: 700;
+        color: #20744a;
+        margin-bottom: 6px;
+      }
+      .am-detail-text {
+        font-size: 10px;
+        font-family: "Courier New", monospace;
+        color: #4b5563;
+        line-height: 1.6;
+      }
+      .am-progress-bar {
+        height: 4px;
+        background: #d1fae5;
+        border-radius: 2px;
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .am-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #20744a, #00b4d8);
+        border-radius: 2px;
+        animation: agPulse 2s ease-in-out infinite;
+      }
+      .am-input {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        background: #fff;
+        border: 1.5px solid #20744a;
+        border-radius: 10px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .am-input-text {
+        flex: 1;
+        font-size: 11px;
+        color: #9ca3af;
+        font-family: "Courier New", monospace;
+      }
+
+      /* ===== THEME 2: TERMINAL FORGE ===== */
+      .terminal-frame {
+        width: 1100px;
+        height: 620px;
+        background: #0d1117;
+        border-radius: 12px;
+        overflow: hidden;
+        font-family: "Courier New", Consolas, monospace;
+        position: relative;
+        box-shadow:
+          0 0 0 1px #30363d,
+          0 20px 60px rgba(0, 0, 0, 0.5);
+      }
+
+      /* CRT Scanline overlay */
+      .tf-scanlines {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 10;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(0, 0, 0, 0.03) 2px,
+          rgba(0, 0, 0, 0.03) 4px
+        );
+      }
+
+      /* Top command bar */
+      .tf-cmdbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        font-size: 12px;
+      }
+      .tf-cmdlogo {
+        color: #58a6ff;
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .tf-cmdlogo span {
+        color: #3fb950;
+      }
+      .tf-cmd-sep {
+        color: #30363d;
+      }
+      .tf-cmdbadge {
+        color: #8b949e;
+        font-size: 10px;
+        padding: 2px 8px;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .tf-cmdbranch {
+        color: #58a6ff;
+      }
+      .tf-cmdchanges {
+        color: #d29922;
+      }
+      .tf-cmdright {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .tf-kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        color: #8b949e;
+        border: 1px solid #30363d;
+        border-top: 2px solid #484f58;
+        border-radius: 4px;
+        padding: 2px 6px;
+        background: #21262d;
+        box-shadow: 0 1px 0 #30363d;
+        font-weight: 600;
+      }
+
+      /* Horizontal tab strip */
+      .tf-tabs {
+        display: flex;
+        background: #0d1117;
+        border-bottom: 1px solid #30363d;
+        padding: 0 8px;
+        gap: 2px;
+      }
+      .tf-tab {
+        font-size: 11px;
+        padding: 8px 16px;
+        color: #8b949e;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: color 0.15s;
+      }
+      .tf-tab.active {
+        color: #58a6ff;
+        border-bottom-color: #58a6ff;
+      }
+      .tf-tab:hover {
+        color: #c9d1d9;
+      }
+
+      /* Main content area */
+      .tf-main {
+        display: flex;
+        height: calc(100% - 85px);
+        position: relative;
+      }
+
+      /* Agent log stream */
+      .tf-stream {
+        flex: 1;
+        padding: 12px 16px;
+        overflow: hidden;
+        font-size: 12px;
+        line-height: 1.8;
+      }
+      .tf-log {
+        display: flex;
+        gap: 12px;
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+      }
+      .tf-log:last-child {
+        border-bottom: none;
+      }
+      .tf-log-hash {
+        color: #d29922;
+        font-weight: 700;
+        flex-shrink: 0;
+        width: 52px;
+      }
+      .tf-log-time {
+        color: #484f58;
+        flex-shrink: 0;
+        width: 60px;
+      }
+      .tf-log-body {
+        flex: 1;
+        color: #c9d1d9;
+      }
+      .tf-log-body .tf-green {
+        color: #3fb950;
+      }
+      .tf-log-body .tf-blue {
+        color: #58a6ff;
+      }
+      .tf-log-body .tf-dim {
+        color: #484f58;
+      }
+      .tf-log-status {
+        flex-shrink: 0;
+        width: 80px;
+        text-align: right;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .tf-log-status.running {
+        color: #3fb950;
+      }
+      .tf-log-status.thinking {
+        color: #d29922;
+      }
+      .tf-log-status.done {
+        color: #484f58;
+      }
+      .tf-log-status.idle {
+        color: #58a6ff;
+      }
+
+      /* Active session detail (expanded log) */
+      .tf-active {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 8px;
+      }
+      .tf-active-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #30363d;
+        margin-bottom: 8px;
+      }
+      .tf-active-hash {
+        color: #d29922;
+        font-weight: 700;
+      }
+      .tf-active-title {
+        color: #c9d1d9;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .tf-active-badges {
+        display: flex;
+        gap: 4px;
+        margin-left: auto;
+      }
+      .tf-active-badge {
+        font-size: 9px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        border: 1px solid;
+      }
+      .tf-active-badge.file {
+        color: #58a6ff;
+        border-color: #1f6feb30;
+        background: #1f6feb15;
+      }
+      .tf-active-badge.git {
+        color: #bc8cff;
+        border-color: #8957e530;
+        background: #8957e515;
+      }
+      .tf-active-badge.terminal {
+        color: #d29922;
+        border-color: #9e6a0310;
+        background: #9e6a0315;
+      }
+      .tf-active-output {
+        color: #8b949e;
+        font-size: 11px;
+        line-height: 1.7;
+        padding: 6px 0;
+      }
+      .tf-active-output .tf-out-green {
+        color: #3fb950;
+      }
+      .tf-active-output .tf-out-dim {
+        color: #484f58;
+      }
+
+      /* Forge progress bar */
+      .tf-forge {
+        margin-top: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .tf-forge-bar {
+        flex: 1;
+        height: 8px;
+        background: #21262d;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .tf-forge-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ff6a00, #ff3d00, #d63384, #3fb950);
+        background-size: 300% 100%;
+        animation: tfForgeFlow 3s linear infinite;
+        border-radius: 4px;
+      }
+      @keyframes tfForgeFlow {
+        0% {
+          background-position: 0% 50%;
+        }
+        100% {
+          background-position: 100% 50%;
+        }
+      }
+      .tf-forge-pct {
+        color: #3fb950;
+        font-size: 10px;
+        font-weight: 700;
+        min-width: 36px;
+        text-align: right;
+      }
+
+      /* Right context panel */
+      .tf-context {
+        width: 220px;
+        border-left: 1px solid #30363d;
+        padding: 12px;
+        background: #0d1117;
+        font-size: 11px;
+      }
+      .tf-ctx-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #484f58;
+        font-weight: 600;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #30363d;
+        margin-bottom: 10px;
+      }
+      .tf-ascii-border {
+        border: 1px solid #30363d;
+        padding: 10px;
+        margin-bottom: 10px;
+        position: relative;
+      }
+      .tf-ascii-border::before {
+        content: "╔════════════════╗";
+        position: absolute;
+        top: -1px;
+        left: -1px;
+        font-size: 9px;
+        color: #30363d;
+      }
+      .tf-ascii-border::after {
+        content: "╚════════════════╝";
+        position: absolute;
+        bottom: -1px;
+        left: -1px;
+        font-size: 9px;
+        color: #30363d;
+      }
+      .tf-ctx-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+      }
+      .tf-ctx-label {
+        color: #484f58;
+      }
+      .tf-ctx-value {
+        color: #c9d1d9;
+        font-weight: 600;
+      }
+      .tf-ctx-value.green {
+        color: #3fb950;
+      }
+      .tf-ctx-value.blue {
+        color: #58a6ff;
+      }
+      .tf-ctx-value.yellow {
+        color: #d29922;
+      }
+
+      /* Token meter */
+      .tf-token-meter {
+        margin-top: 12px;
+      }
+      .tf-token-bar {
+        height: 4px;
+        background: #21262d;
+        border-radius: 2px;
+        overflow: hidden;
+        margin: 4px 0 2px;
+      }
+      .tf-token-fill {
+        height: 100%;
+        width: 62%;
+        background: linear-gradient(90deg, #3fb950, #d29922);
+        border-radius: 2px;
+      }
+
+      /* Bottom input */
+      .tf-input-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: #161b22;
+        border-top: 1px solid #30363d;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        font-size: 12px;
+      }
+      .tf-prompt {
+        color: #58a6ff;
+        font-weight: 700;
+      }
+      .tf-input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #3fb950;
+        font-family: inherit;
+        font-size: 12px;
+        caret-color: #3fb950;
+      }
+      .tf-input::placeholder {
+        color: #30363d;
+      }
+      /* Blinking block cursor */
+      .tf-cursor {
+        display: inline-block;
+        width: 8px;
+        height: 14px;
+        background: #3fb950;
+        animation: tfBlink 1s step-end infinite;
+        vertical-align: middle;
+      }
+      @keyframes tfBlink {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0;
+        }
+      }
+      .tf-input-hint {
+        color: #30363d;
+        font-size: 10px;
+      }
+
+      /* Data stream animation */
+      .tf-datastream {
+        position: absolute;
+        right: 240px;
+        top: 85px;
+        bottom: 36px;
+        width: 24px;
+        overflow: hidden;
+        opacity: 0.04;
+        pointer-events: none;
+        z-index: 1;
+      }
+      .tf-stream-col {
+        font-size: 9px;
+        line-height: 1.2;
+        color: #3fb950;
+        animation: tfStreamDrop 8s linear infinite;
+      }
+      @keyframes tfStreamDrop {
+        0% {
+          transform: translateY(-100%);
+        }
+        100% {
+          transform: translateY(100%);
+        }
+      }
+
+      /* Terminal mobile */
+      .terminal-mobile {
+        width: 320px;
+        height: 660px;
+        background: #0d1117;
+        border-radius: 16px;
+        overflow: hidden;
+        font-family: "Courier New", Consolas, monospace;
+        box-shadow:
+          0 0 0 1px #30363d,
+          0 20px 60px rgba(0, 0, 0, 0.5);
+        position: relative;
+      }
+      .tm-header {
+        padding: 10px 14px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+      .tm-logo {
+        color: #58a6ff;
+        font-weight: 700;
+      }
+      .tm-logo span {
+        color: #3fb950;
+      }
+      .tm-status {
+        color: #3fb950;
+        font-size: 10px;
+      }
+      .tm-body {
+        padding: 10px 12px;
+        overflow: hidden;
+        height: calc(100% - 84px);
+      }
+      .tm-log {
+        display: flex;
+        gap: 6px;
+        padding: 5px 0;
+        border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+        font-size: 10px;
+      }
+      .tm-hash {
+        color: #d29922;
+        width: 36px;
+        flex-shrink: 0;
+      }
+      .tm-body-text {
+        color: #c9d1d9;
+        flex: 1;
+      }
+      .tm-log-status {
+        font-size: 8px;
+        text-transform: uppercase;
+        flex-shrink: 0;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        width: 40px;
+        text-align: right;
+      }
+      .tm-active {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 4px;
+        padding: 8px;
+        margin-top: 6px;
+      }
+      .tm-active-title {
+        color: #c9d1d9;
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .tm-active-text {
+        color: #8b949e;
+        font-size: 9px;
+        line-height: 1.5;
+      }
+      .tm-forge-bar {
+        height: 5px;
+        background: #21262d;
+        border-radius: 2px;
+        margin-top: 6px;
+        overflow: hidden;
+      }
+      .tm-forge-fill {
+        height: 100%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #ff6a00, #ff3d00, #d63384, #3fb950);
+        background-size: 300% 100%;
+        animation: tfForgeFlow 3s linear infinite;
+      }
+      .tm-input {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 8px 14px;
+        background: #161b22;
+        border-top: 1px solid #30363d;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+      }
+      .tm-prompt {
+        color: #58a6ff;
+        font-weight: 700;
+      }
+      .tm-input-text {
+        color: #3fb950;
+      }
+
+      /* ===== THEME 3: LIQUID PRISM ===== */
+      .prism-frame {
+        width: 1100px;
+        height: 620px;
+        background: #0a0e1a;
+        border-radius: 24px;
+        overflow: hidden;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        position: relative;
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.06),
+          0 20px 60px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Floating blobs background */
+      .lp-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(60px);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .lp-blob-1 {
+        width: 300px;
+        height: 300px;
+        top: -60px;
+        left: -80px;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.25), transparent);
+        animation: lpBlob1 12s ease-in-out infinite;
+      }
+      .lp-blob-2 {
+        width: 250px;
+        height: 250px;
+        top: 200px;
+        right: -60px;
+        background: radial-gradient(circle, rgba(236, 72, 153, 0.2), transparent);
+        animation: lpBlob2 15s ease-in-out infinite;
+      }
+      .lp-blob-3 {
+        width: 200px;
+        height: 200px;
+        bottom: -40px;
+        left: 40%;
+        background: radial-gradient(circle, rgba(245, 158, 11, 0.15), transparent);
+        animation: lpBlob3 10s ease-in-out infinite;
+      }
+      @keyframes lpBlob1 {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(30px, 20px) scale(1.1);
+        }
+      }
+      @keyframes lpBlob2 {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(-20px, -30px) scale(1.15);
+        }
+      }
+      @keyframes lpBlob3 {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(20px, -15px) scale(0.9);
+        }
+      }
+
+      /* Glass header */
+      .lp-header {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 22px;
+        backdrop-filter: blur(20px) saturate(1.8);
+        -webkit-backdrop-filter: blur(20px) saturate(1.8);
+        background: rgba(255, 255, 255, 0.04);
+        margin: 10px 14px 0;
+        border-radius: 30% 70% 60% 40% / 50% 30% 70% 60%;
+        padding: 14px 28px;
+      }
+      .lp-logo {
+        font-size: 16px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #6366f1, #ec4899, #f59e0b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .lp-header-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .lp-conn {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      /* Main layout - asymmetric organic */
+      .lp-main {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        gap: 12px;
+        padding: 12px 14px;
+        height: calc(100% - 72px);
+      }
+
+      /* Glass panel base */
+      .lp-glass {
+        backdrop-filter: blur(20px) saturate(1.8);
+        -webkit-backdrop-filter: blur(20px) saturate(1.8);
+        background: rgba(255, 255, 255, 0.06);
+        padding: 16px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Prism edge border effect */
+      .lp-glass::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1.5px;
+        background: linear-gradient(135deg, #6366f1, #ec4899, #f59e0b, #6366f1);
+        background-size: 300% 300%;
+        animation: lpPrismSpin 6s linear infinite;
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+        pointer-events: none;
+      }
+      @keyframes lpPrismSpin {
+        0% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+        100% {
+          background-position: 0% 50%;
+        }
+      }
+
+      /* Chromatic heading */
+      .lp-chromatic {
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.95);
+        text-shadow:
+          -2px 0 rgba(255, 0, 0, 0.3),
+          2px 0 rgba(0, 255, 255, 0.3),
+          0 2px rgba(0, 255, 0, 0.3);
+        mix-blend-mode: normal;
+      }
+
+      /* Left column - sessions */
+      .lp-sessions {
+        width: 280px;
+        flex-shrink: 0;
+        border-radius: 30% 70% 50% 50% / 40% 40% 60% 60%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .lp-sess-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: rgba(255, 255, 255, 0.4);
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .lp-sess {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border-radius: 40% 60% 50% 50% / 50% 40% 60% 40%;
+        background: rgba(255, 255, 255, 0.03);
+        transition:
+          transform 0.2s,
+          background 0.2s;
+        cursor: pointer;
+      }
+      .lp-sess:hover {
+        transform: perspective(400px) rotateY(2deg);
+        background: rgba(255, 255, 255, 0.08);
+      }
+      /* Glass marble status */
+      .lp-marble {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        position: relative;
+      }
+      .lp-marble::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 5px;
+        width: 8px;
+        height: 6px;
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 50%;
+        filter: blur(2px);
+      }
+      .lp-marble.running {
+        background: radial-gradient(circle at 40% 35%, #4ade80, #16a34a);
+        box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
+        animation: lpMarbleGlow 2s ease-in-out infinite;
+      }
+      .lp-marble.thinking {
+        background: radial-gradient(circle at 40% 35%, #fbbf24, #d97706);
+        box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+      }
+      .lp-marble.done {
+        background: radial-gradient(circle at 40% 35%, #94a3b8, #64748b);
+        box-shadow: 0 0 8px rgba(148, 163, 184, 0.2);
+      }
+      .lp-marble.idle {
+        background: radial-gradient(circle at 40% 35%, #818cf8, #6366f1);
+        box-shadow: 0 0 8px rgba(129, 140, 248, 0.2);
+      }
+      @keyframes lpMarbleGlow {
+        0%,
+        100% {
+          box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+        }
+      }
+
+      .lp-sess-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .lp-sess-provider {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-weight: 300;
+      }
+      .lp-sess-name {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.9);
+        font-weight: 500;
+      }
+      .lp-sess-file {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.3);
+        font-family: "Courier New", monospace;
+        margin-top: 2px;
+      }
+
+      /* Center column - active detail */
+      .lp-center {
+        flex: 1;
+        border-radius: 40% 60% 50% 50% / 60% 40% 50% 50%;
+        display: flex;
+        flex-direction: column;
+      }
+      .lp-detail-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+      .lp-detail-title {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9);
+      }
+      .lp-badges {
+        display: flex;
+        gap: 6px;
+      }
+      .lp-badge {
+        font-size: 9px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+      .lp-badge.file {
+        background: rgba(99, 102, 241, 0.2);
+        color: #a5b4fc;
+        border: 1px solid rgba(99, 102, 241, 0.3);
+      }
+      .lp-badge.git {
+        background: rgba(236, 72, 153, 0.2);
+        color: #f9a8d4;
+        border: 1px solid rgba(236, 72, 153, 0.3);
+      }
+      .lp-badge.terminal {
+        background: rgba(245, 158, 11, 0.2);
+        color: #fcd34d;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+      }
+
+      .lp-output {
+        font-family: "Courier New", monospace;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.6);
+        line-height: 1.7;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 20% 80% 60% 40% / 50% 40% 60% 50%;
+        padding: 14px;
+        flex: 1;
+        margin-bottom: 12px;
+      }
+      .lp-out-line {
+        display: block;
+      }
+      .lp-out-dim {
+        color: rgba(255, 255, 255, 0.25);
+      }
+
+      /* Spectrum analyzer */
+      .lp-spectrum {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 30px;
+        margin-bottom: 12px;
+      }
+      .lp-spec-bar {
+        flex: 1;
+        border-radius: 3px 3px 0 0;
+        background: linear-gradient(to top, #6366f1, #ec4899, #f59e0b);
+        animation: lpSpecPulse var(--dur, 1.5s) ease-in-out infinite;
+        animation-delay: var(--delay, 0s);
+      }
+      @keyframes lpSpecPulse {
+        0%,
+        100% {
+          height: var(--h-min, 8px);
+        }
+        50% {
+          height: var(--h-max, 28px);
+        }
+      }
+
+      /* Progress */
+      .lp-progress {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .lp-prog-bar {
+        flex: 1;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      .lp-prog-fill {
+        height: 100%;
+        width: 72%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #6366f1, #ec4899, #f59e0b);
+        background-size: 200% 100%;
+        animation: lpPrismSpin 3s linear infinite;
+      }
+      .lp-prog-text {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.5);
+        font-family: "Courier New", monospace;
+      }
+
+      /* Right column - context */
+      .lp-context {
+        width: 220px;
+        flex-shrink: 0;
+        border-radius: 50% 50% 40% 60% / 60% 40% 60% 40%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .lp-ctx-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: rgba(255, 255, 255, 0.35);
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .lp-ctx-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+      }
+      .lp-ctx-label {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.3);
+        font-weight: 300;
+      }
+      .lp-ctx-value {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+        font-weight: 700;
+        font-family: "Courier New", monospace;
+      }
+
+      /* Bottom input */
+      .lp-input {
+        position: absolute;
+        bottom: 14px;
+        left: 14px;
+        right: 14px;
+        z-index: 3;
+      }
+      .lp-input-inner {
+        backdrop-filter: blur(20px) saturate(1.8);
+        -webkit-backdrop-filter: blur(20px) saturate(1.8);
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 50% 50% 40% 60% / 40% 60% 50% 50%;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        position: relative;
+        overflow: hidden;
+      }
+      .lp-input-inner::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1.5px;
+        background: linear-gradient(135deg, #6366f1, #ec4899, #f59e0b);
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+      }
+      .lp-input-icon {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 14px;
+      }
+      .lp-input-text {
+        flex: 1;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 12px;
+        font-weight: 300;
+      }
+      .lp-input-text::placeholder {
+        color: rgba(255, 255, 255, 0.2);
+      }
+      .lp-input-hint {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.2);
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      /* Prism mobile */
+      .prism-mobile {
+        width: 320px;
+        height: 660px;
+        background: #0a0e1a;
+        border-radius: 28px;
+        overflow: hidden;
+        font-family: system-ui, sans-serif;
+        box-shadow:
+          0 0 0 1px rgba(255, 255, 255, 0.06),
+          0 20px 60px rgba(0, 0, 0, 0.5);
+        position: relative;
+      }
+      .pm-blob {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(50px);
+        pointer-events: none;
+      }
+      .pm-blob-1 {
+        width: 160px;
+        height: 160px;
+        top: -40px;
+        left: -40px;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.2), transparent);
+        animation: lpBlob1 12s ease-in-out infinite;
+      }
+      .pm-blob-2 {
+        width: 120px;
+        height: 120px;
+        bottom: 100px;
+        right: -30px;
+        background: radial-gradient(circle, rgba(236, 72, 153, 0.15), transparent);
+        animation: lpBlob2 15s ease-in-out infinite;
+      }
+      .pm-header {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+      }
+      .pm-logo {
+        font-size: 14px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #6366f1, #ec4899, #f59e0b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .pm-status {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.4);
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .pm-body {
+        position: relative;
+        z-index: 2;
+        padding: 0 14px;
+        overflow: hidden;
+        height: calc(100% - 80px);
+      }
+      .pm-sess {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(10px);
+        border-radius: 40% 60% 50% 50% / 50% 40% 60% 40%;
+        margin-bottom: 8px;
+      }
+      .pm-marble {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        position: relative;
+      }
+      .pm-marble::after {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 4px;
+        width: 6px;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 50%;
+        filter: blur(1px);
+      }
+      .pm-marble.running {
+        background: radial-gradient(circle at 40% 35%, #4ade80, #16a34a);
+        box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+        animation: lpMarbleGlow 2s ease-in-out infinite;
+      }
+      .pm-marble.thinking {
+        background: radial-gradient(circle at 40% 35%, #fbbf24, #d97706);
+      }
+      .pm-marble.done {
+        background: radial-gradient(circle at 40% 35%, #94a3b8, #64748b);
+      }
+      .pm-marble.idle {
+        background: radial-gradient(circle at 40% 35%, #818cf8, #6366f1);
+      }
+      .pm-sess-info {
+        flex: 1;
+      }
+      .pm-sess-provider {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.4);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .pm-sess-name {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 500;
+      }
+      .pm-detail {
+        background: rgba(255, 255, 255, 0.04);
+        backdrop-filter: blur(10px);
+        border-radius: 40% 60% 50% 50% / 50% 40% 60% 40%;
+        padding: 10px;
+        margin-bottom: 8px;
+      }
+      .pm-detail-title {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.7);
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .pm-detail-text {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.4);
+        font-family: "Courier New", monospace;
+        line-height: 1.5;
+      }
+      .pm-spec {
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+        height: 20px;
+        margin: 8px 0;
+      }
+      .pm-spec-bar {
+        flex: 1;
+        border-radius: 2px 2px 0 0;
+        background: linear-gradient(to top, #6366f1, #ec4899, #f59e0b);
+        animation: lpSpecPulse var(--dur, 1.5s) ease-in-out infinite;
+        animation-delay: var(--delay, 0s);
+      }
+      .pm-prog-bar {
+        height: 3px;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 2px;
+        margin-top: 6px;
+        overflow: hidden;
+      }
+      .pm-prog-fill {
+        height: 100%;
+        width: 72%;
+        border-radius: 2px;
+        background: linear-gradient(90deg, #6366f1, #ec4899, #f59e0b);
+      }
+      .pm-input {
+        position: absolute;
+        bottom: 14px;
+        left: 14px;
+        right: 14px;
+        z-index: 3;
+        backdrop-filter: blur(16px);
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 50% 50% 40% 60% / 40% 60% 50% 50%;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pm-input-text {
+        flex: 1;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.3);
+        font-weight: 300;
+      }
+
+      /* ===== UTILITY ===== */
+      .frames-row {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-header">
+      <div class="page-title">ChisaCode · Web3 原创主题方案</div>
+      <div class="page-subtitle">
+        三套完全原创的 Web3 风格主题，每套使用不同的布局结构、交互模式和视觉语言
+      </div>
+    </div>
+
+    <!-- ============================== -->
+    <!-- THEME 1: AURORA GRID           -->
+    <!-- ============================== -->
+    <div class="theme-section">
+      <div class="theme-meta">
+        <div class="theme-label">Theme 01</div>
+        <div
+          class="theme-name"
+          style="
+            background: linear-gradient(135deg, #20744a, #00b4d8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          "
+        >
+          Aurora Grid
+        </div>
+        <div class="theme-desc">
+          浅色极光网格主题。基于 CSS Grid
+          的数据仪表盘布局，卡片模块跨列排列，六边形状态指示器、微型柱状图、网络拓扑小地图、底部浮动命令面板。色彩体系以白色为底，绿色和青色为主调。
+        </div>
+        <div class="theme-tokens">
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #fafbfc"></span>#FAFBFC</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #f0f7f2"></span>#F0F7F2</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #20744a"></span>#20744A</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #00b4d8"></span>#00B4D8</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #e0e7ff"></span>#E0E7FF</span
+          >
+        </div>
+      </div>
+      <div class="frames-row">
+        <div class="frame-col-desktop">
+          <div class="frame-label">Desktop 1100x620</div>
+          <div class="aurora-frame">
+            <div class="ag-header">
+              <div class="ag-logo">ChisaCode<span>.dev</span></div>
+              <div class="ag-status">
+                <div class="ag-status-dot"></div>
+                <span class="ag-status-text">已连接 · 3 个活跃会话</span>
+              </div>
+              <div class="ag-settings"></div>
+            </div>
+            <div class="ag-grid">
+              <!-- Metric cards -->
+              <div class="ag-metrics">
+                <div class="ag-metric-label">Token 消耗</div>
+                <div class="ag-metric-value">42,817</div>
+                <div class="ag-metric-bar" style="width: 68%"></div>
+              </div>
+              <div class="ag-metrics">
+                <div class="ag-metric-label">已完成任务</div>
+                <div class="ag-metric-value">127</div>
+                <div
+                  class="ag-metric-bar"
+                  style="width: 85%; background: linear-gradient(90deg, #00b4d8, #e0e7ff)"
+                ></div>
+              </div>
+              <div class="ag-metrics">
+                <div class="ag-metric-label">活跃时间</div>
+                <div class="ag-metric-value">3:42:18</div>
+                <div
+                  class="ag-metric-bar"
+                  style="width: 52%; background: linear-gradient(90deg, #e0e7ff, #20744a)"
+                ></div>
+              </div>
+
+              <!-- Gradient divider -->
+              <div class="ag-div"></div>
+
+              <!-- Network topology -->
+              <div class="ag-topo">
+                <div class="ag-topo-title">Agent 拓扑</div>
+                <div class="ag-topo-nodes">
+                  <div class="ag-node ag-node-main"></div>
+                  <div class="ag-node ag-node-a"></div>
+                  <div class="ag-node ag-node-b"></div>
+                  <div class="ag-node ag-node-c"></div>
+                  <div class="ag-node ag-node-d"></div>
+                  <!-- SVG lines for connections -->
+                  <svg
+                    style="position: absolute; inset: 0; width: 100%; height: 100%"
+                    viewBox="0 0 120 60"
+                  >
+                    <line x1="60" y1="30" x2="24" y2="12" stroke="#d1d5db" stroke-width="0.8" />
+                    <line x1="60" y1="30" x2="96" y2="12" stroke="#d1d5db" stroke-width="0.8" />
+                    <line x1="60" y1="30" x2="24" y2="48" stroke="#d1d5db" stroke-width="0.8" />
+                    <line x1="60" y1="30" x2="96" y2="48" stroke="#d1d5db" stroke-width="0.8" />
+                    <line
+                      x1="24"
+                      y1="12"
+                      x2="96"
+                      y2="12"
+                      stroke="#e5e7eb"
+                      stroke-width="0.5"
+                      stroke-dasharray="2"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Agent sessions list -->
+              <div class="ag-sessions">
+                <div class="ag-sessions-header">
+                  <div class="ag-sessions-title">Agent 会话</div>
+                  <div class="ag-sessions-count">4 个活跃</div>
+                </div>
+                <div class="ag-session">
+                  <div class="ag-s-hex openai"><div class="ag-s-hex-inner">OA</div></div>
+                  <div class="ag-s-info">
+                    <div class="ag-s-provider">OpenAI · GPT-4o</div>
+                    <div class="ag-s-title">重构鉴权模块</div>
+                    <div class="ag-s-file">auth/session.ts</div>
+                  </div>
+                  <div class="ag-s-status running">运行中</div>
+                </div>
+                <div class="ag-session">
+                  <div class="ag-s-hex anthropic"><div class="ag-s-hex-inner">AN</div></div>
+                  <div class="ag-s-info">
+                    <div class="ag-s-provider">Anthropic · Claude 4</div>
+                    <div class="ag-s-title">补全类型定义</div>
+                    <div class="ag-s-file">types/agent.ts</div>
+                  </div>
+                  <div class="ag-s-status thinking">思考中</div>
+                </div>
+                <div class="ag-session">
+                  <div class="ag-s-hex google"><div class="ag-s-hex-inner">GG</div></div>
+                  <div class="ag-s-info">
+                    <div class="ag-s-provider">Google · Gemini 2.5</div>
+                    <div class="ag-s-title">优化查询性能</div>
+                    <div class="ag-s-file">db/queries.sql</div>
+                  </div>
+                  <div class="ag-s-status done">已完成</div>
+                </div>
+                <div class="ag-session">
+                  <div class="ag-s-hex openai"><div class="ag-s-hex-inner">OA</div></div>
+                  <div class="ag-s-info">
+                    <div class="ag-s-provider">OpenAI · GPT-4o</div>
+                    <div class="ag-s-title">生成 API 文档</div>
+                    <div class="ag-s-file">docs/api.md</div>
+                  </div>
+                  <div class="ag-s-status idle">空闲</div>
+                </div>
+              </div>
+
+              <!-- Active detail -->
+              <div class="ag-detail">
+                <div class="ag-detail-header">
+                  <div class="ag-detail-title">重构鉴权模块 — 进行中</div>
+                  <div class="ag-detail-badges">
+                    <span class="ag-badge file">FILE</span>
+                    <span class="ag-badge git">GIT</span>
+                    <span class="ag-badge terminal">TERM</span>
+                  </div>
+                </div>
+                <div class="ag-detail-output">
+                  <div>
+                    <span class="ag-line-green">&gt;</span> 正在分析 auth/session.ts 中的鉴权逻辑...
+                  </div>
+                  <div>
+                    <span class="ag-line-dim">&nbsp;&nbsp;检测到 3 处重复的 token 验证代码</span>
+                  </div>
+                  <div>
+                    <span class="ag-line-green">&gt;</span> 提取公共方法 verifyToken() 并重构调用点
+                  </div>
+                </div>
+                <div class="ag-detail-progress">
+                  <div class="ag-progress-bar">
+                    <div class="ag-progress-fill" style="width: 72%"></div>
+                  </div>
+                  <div class="ag-progress-text">72%</div>
+                </div>
+              </div>
+
+              <!-- Context panel -->
+              <div class="ag-context">
+                <div class="ag-ctx-row">
+                  <span class="ag-ctx-label">分支</span>
+                  <span class="ag-ctx-value">feat/auth</span>
+                </div>
+                <div class="ag-ctx-row">
+                  <span class="ag-ctx-label">变更</span>
+                  <span class="ag-ctx-value" style="color: #d97706">+47 / -23</span>
+                </div>
+                <div class="ag-ctx-row">
+                  <span class="ag-ctx-label">Token</span>
+                  <span class="ag-ctx-value">42.8K</span>
+                </div>
+                <div class="ag-ctx-row">
+                  <span class="ag-ctx-label">延迟</span>
+                  <span class="ag-ctx-value" style="color: #20744a">128ms</span>
+                </div>
+                <div class="ag-ctx-row">
+                  <span class="ag-ctx-label">缓存</span>
+                  <span class="ag-ctx-value" style="color: #00b4d8">86%</span>
+                </div>
+                <div class="ag-ctx-row">
+                  <span class="ag-ctx-label">模型</span>
+                  <span class="ag-ctx-value">GPT-4o</span>
+                </div>
+              </div>
+
+              <!-- Command palette -->
+              <div class="ag-palette">
+                <div class="ag-palette-icon"></div>
+                <input class="ag-palette-input" placeholder="输入命令或搜索会话... (Cmd+K)" />
+                <span class="ag-palette-hint"><span class="ag-palette-kbd">Esc</span> 关闭</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-col-mobile">
+          <div class="frame-label">Mobile 320x660</div>
+          <div class="aurora-mobile">
+            <div class="am-header">
+              <div class="am-logo">ChisaCode</div>
+              <div class="am-status"></div>
+            </div>
+            <div class="am-body" style="position: relative">
+              <div class="am-session">
+                <div class="am-s-top">
+                  <div class="am-s-hex" style="background: #10a37f">
+                    <div class="am-s-hex-inner">OA</div>
+                  </div>
+                  <div class="am-s-info">
+                    <div class="am-s-provider">OpenAI · GPT-4o</div>
+                    <div class="am-s-title">重构鉴权模块</div>
+                  </div>
+                  <div class="am-s-status running" style="background: #dcfce7; color: #16a34a">
+                    运行
+                  </div>
+                </div>
+                <div class="am-s-file">auth/session.ts</div>
+              </div>
+              <div class="am-session">
+                <div class="am-s-top">
+                  <div class="am-s-hex" style="background: #d4a574">
+                    <div class="am-s-hex-inner">AN</div>
+                  </div>
+                  <div class="am-s-info">
+                    <div class="am-s-provider">Anthropic · Claude 4</div>
+                    <div class="am-s-title">补全类型定义</div>
+                  </div>
+                  <div class="am-s-status thinking" style="background: #fef3c7; color: #d97706">
+                    思考
+                  </div>
+                </div>
+                <div class="am-s-file">types/agent.ts</div>
+              </div>
+              <div class="am-session">
+                <div class="am-s-top">
+                  <div class="am-s-hex" style="background: #4285f4">
+                    <div class="am-s-hex-inner">GG</div>
+                  </div>
+                  <div class="am-s-info">
+                    <div class="am-s-provider">Google · Gemini 2.5</div>
+                    <div class="am-s-title">优化查询性能</div>
+                  </div>
+                  <div class="am-s-status done" style="background: #f3f4f6; color: #6b7280">
+                    完成
+                  </div>
+                </div>
+                <div class="am-s-file">db/queries.sql</div>
+              </div>
+              <div class="am-detail">
+                <div class="am-detail-title">重构鉴权模块 — 进行中</div>
+                <div class="am-detail-text">
+                  &gt; 正在分析鉴权逻辑...<br />&nbsp;&nbsp;检测到 3 处重复验证代码<br />&gt;
+                  提取公共方法并重构
+                </div>
+                <div class="am-progress-bar">
+                  <div class="am-progress-fill" style="width: 72%"></div>
+                </div>
+              </div>
+              <div class="am-input">
+                <div class="am-input-text">输入命令或搜索...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== -->
+    <!-- THEME 2: TERMINAL FORGE        -->
+    <!-- ============================== -->
+    <div class="theme-section">
+      <div class="theme-meta">
+        <div class="theme-label">Theme 02</div>
+        <div
+          class="theme-name"
+          style="
+            background: linear-gradient(135deg, #58a6ff, #3fb950);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          "
+        >
+          Terminal Forge
+        </div>
+        <div class="theme-desc">
+          深色终端铸造主题。全宽控制台美学，无侧边栏。顶部命令栏 + 水平标签条 +
+          终端输出流式内容区域。CRT 扫描线叠加效果、锻造进度可视化（熔融金属冷却渐变）、ASCII
+          艺术边框、数据流背景动画、闪烁光标。
+        </div>
+        <div class="theme-tokens">
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #0d1117"></span>#0D1117</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #161b22"></span>#161B22</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #30363d"></span>#30363D</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #58a6ff"></span>#58A6FF</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #3fb950"></span>#3FB950</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #d29922"></span>#D29922</span
+          >
+        </div>
+      </div>
+      <div class="frames-row">
+        <div class="frame-col-desktop">
+          <div class="frame-label">Desktop 1100x620</div>
+          <div class="terminal-frame">
+            <div class="tf-scanlines"></div>
+
+            <!-- Data stream animation column -->
+            <div class="tf-datastream">
+              <div class="tf-stream-col">
+                01001110<br />10110101<br />11001011<br />00110110<br />11100010<br />01011101<br />10010110<br />01101011<br />11010100<br />00111010<br />10100101<br />01011011<br />11101000<br />00010111<br />11010010<br />01110101<br />10001011<br />00101110<br />11010001<br />01001101<br />10111010<br />01100011<br />10011100<br />00101101<br />11001010<br />01010111<br />10110001<br />01101000<br />10000111<br />01011010<br />10100111<br />01110010<br />11001101<br />00101011<br />10111000<br />01000110<br />11101001<br />00011010<br />10110100<br />01001011<br />11000101<br />00110101<br />11100011<br />01001110
+              </div>
+            </div>
+
+            <!-- Command bar -->
+            <div class="tf-cmdbar">
+              <div class="tf-cmdlogo">Chisa<span>Code</span></div>
+              <div class="tf-cmd-sep">|</div>
+              <div class="tf-cmdbadge"><span class="tf-cmdbranch">feat/auth</span></div>
+              <div class="tf-cmdbadge"><span class="tf-cmdchanges">+47 -23</span></div>
+              <div class="tf-cmdright">
+                <span class="tf-kbd">Ctrl+K</span>
+                <span class="tf-kbd">Ctrl+`</span>
+                <span class="tf-kbd">F5</span>
+              </div>
+            </div>
+
+            <!-- Tab strip -->
+            <div class="tf-tabs">
+              <div class="tf-tab active">Sessions</div>
+              <div class="tf-tab">Output</div>
+              <div class="tf-tab">Git</div>
+              <div class="tf-tab">Files</div>
+              <div class="tf-tab">Terminal</div>
+            </div>
+
+            <!-- Main content -->
+            <div class="tf-main">
+              <div class="tf-stream">
+                <!-- Agent logs (git log style) -->
+                <div class="tf-log">
+                  <span class="tf-log-hash">a3f7c2d</span>
+                  <span class="tf-log-time">14:32:08</span>
+                  <span class="tf-log-body"
+                    ><span class="tf-green">&gt;</span> OpenAI/GPT-4o ·
+                    <span class="tf-blue">重构鉴权模块</span>
+                    <span class="tf-dim">— auth/session.ts</span></span
+                  >
+                  <span class="tf-log-status running">Running</span>
+                </div>
+                <div class="tf-log">
+                  <span class="tf-log-hash">e91ab4f</span>
+                  <span class="tf-log-time">14:28:45</span>
+                  <span class="tf-log-body"
+                    ><span class="tf-green">&gt;</span> Anthropic/Claude-4 ·
+                    <span class="tf-blue">补全类型定义</span>
+                    <span class="tf-dim">— types/agent.ts</span></span
+                  >
+                  <span class="tf-log-status thinking">Thinking</span>
+                </div>
+                <div class="tf-log">
+                  <span class="tf-log-hash">7b2d8e1</span>
+                  <span class="tf-log-time">14:15:22</span>
+                  <span class="tf-log-body"
+                    ><span class="tf-green">&gt;</span> Google/Gemini-2.5 ·
+                    <span class="tf-blue">优化查询性能</span>
+                    <span class="tf-dim">— db/queries.sql</span></span
+                  >
+                  <span class="tf-log-status done">Done</span>
+                </div>
+                <div class="tf-log">
+                  <span class="tf-log-hash">c5d3f9a</span>
+                  <span class="tf-log-time">13:58:10</span>
+                  <span class="tf-log-body"
+                    ><span class="tf-green">&gt;</span> OpenAI/GPT-4o ·
+                    <span class="tf-blue">生成 API 文档</span>
+                    <span class="tf-dim">— docs/api.md</span></span
+                  >
+                  <span class="tf-log-status idle">Idle</span>
+                </div>
+
+                <!-- Expanded active session -->
+                <div class="tf-active">
+                  <div class="tf-active-header">
+                    <span class="tf-active-hash">a3f7c2d</span>
+                    <span class="tf-active-title">重构鉴权模块 — 进行中</span>
+                    <div class="tf-active-badges">
+                      <span class="tf-active-badge file">FILE</span>
+                      <span class="tf-active-badge git">GIT</span>
+                      <span class="tf-active-badge terminal">TERM</span>
+                    </div>
+                  </div>
+                  <div class="tf-active-output">
+                    <div>
+                      <span class="tf-out-green">&gt;</span> 正在分析 auth/session.ts 中的鉴权逻辑
+                    </div>
+                    <div>
+                      <span class="tf-out-dim"
+                        >&nbsp;&nbsp;[SCAN] 检测到 3 处重复的 token 验证代码块</span
+                      >
+                    </div>
+                    <div>
+                      <span class="tf-out-green">&gt;</span> 提取公共方法 verifyToken()
+                      并重构所有调用点
+                    </div>
+                  </div>
+                  <div class="tf-forge">
+                    <div class="tf-forge-bar">
+                      <div class="tf-forge-fill" style="width: 72%"></div>
+                    </div>
+                    <span class="tf-forge-pct">72%</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right context panel with ASCII border -->
+              <div class="tf-context">
+                <div class="tf-ctx-title">// 环境信息</div>
+                <div class="tf-ascii-border">
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">分支</span>
+                    <span class="tf-ctx-value blue">feat/auth</span>
+                  </div>
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">变更</span>
+                    <span class="tf-ctx-value yellow">+47 / -23</span>
+                  </div>
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">Token</span>
+                    <span class="tf-ctx-value green">42.8K</span>
+                  </div>
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">延迟</span>
+                    <span class="tf-ctx-value green">128ms</span>
+                  </div>
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">缓存</span>
+                    <span class="tf-ctx-value blue">86%</span>
+                  </div>
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">模型</span>
+                    <span class="tf-ctx-value">GPT-4o</span>
+                  </div>
+                  <div class="tf-ctx-row">
+                    <span class="tf-ctx-label">Provider</span>
+                    <span class="tf-ctx-value">OpenAI</span>
+                  </div>
+                </div>
+                <div class="tf-token-meter">
+                  <div class="tf-ctx-label">Token 使用量</div>
+                  <div class="tf-token-bar"><div class="tf-token-fill"></div></div>
+                  <div style="display: flex; justify-content: space-between">
+                    <span class="tf-ctx-label">42,817 / 128,000</span>
+                    <span class="tf-ctx-value" style="font-size: 10px">33%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom input -->
+            <div class="tf-input-bar">
+              <span class="tf-prompt">&gt;</span>
+              <input class="tf-input" placeholder="输入任务指令..." />
+              <span class="tf-cursor"></span>
+              <span class="tf-input-hint">Enter 执行 | Tab 补全</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-col-mobile">
+          <div class="frame-label">Mobile 320x660</div>
+          <div class="terminal-mobile">
+            <div class="tf-scanlines" style="border-radius: 16px"></div>
+            <div class="tm-header">
+              <div class="tm-logo">Chisa<span>Code</span></div>
+              <div class="tm-status">3 ACTIVE</div>
+            </div>
+            <div class="tm-body" style="position: relative">
+              <div class="tm-log">
+                <span class="tm-hash">a3f7c2d</span>
+                <span class="tm-body-text"
+                  >OpenAI · <span style="color: #58a6ff">重构鉴权模块</span></span
+                >
+                <span class="tm-log-status running" style="color: #3fb950">RUN</span>
+              </div>
+              <div class="tm-log">
+                <span class="tm-hash">e91ab4f</span>
+                <span class="tm-body-text"
+                  >Anthropic · <span style="color: #58a6ff">补全类型定义</span></span
+                >
+                <span class="tm-log-status thinking" style="color: #d29922">THK</span>
+              </div>
+              <div class="tm-log">
+                <span class="tm-hash">7b2d8e1</span>
+                <span class="tm-body-text"
+                  >Google · <span style="color: #58a6ff">优化查询性能</span></span
+                >
+                <span class="tm-log-status done" style="color: #484f58">END</span>
+              </div>
+              <div class="tm-active">
+                <div class="tm-active-title">重构鉴权模块 — 进行中</div>
+                <div class="tm-active-text">
+                  <span style="color: #3fb950">&gt;</span> 正在分析鉴权逻辑...<br />
+                  <span style="color: #484f58">&nbsp;&nbsp;[SCAN] 3 处重复验证代码</span><br />
+                  <span style="color: #3fb950">&gt;</span> 提取公共方法并重构
+                </div>
+                <div class="tm-forge-bar"><div class="tm-forge-fill" style="width: 72%"></div></div>
+              </div>
+              <div class="tm-input">
+                <span class="tm-prompt">&gt;</span>
+                <span class="tm-input-text">输入任务指令...</span>
+                <span class="tf-cursor" style="width: 6px; height: 12px"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================== -->
+    <!-- THEME 3: LIQUID PRISM           -->
+    <!-- ============================== -->
+    <div class="theme-section">
+      <div class="theme-meta">
+        <div class="theme-label">Theme 03</div>
+        <div
+          class="theme-name"
+          style="
+            background: linear-gradient(135deg, #6366f1, #ec4899, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          "
+        >
+          Liquid Prism
+        </div>
+        <div class="theme-desc">
+          液态棱镜主题。玻璃拟态深色主题，有机流体形态和色散效果。所有容器使用不规则 border-radius
+          创建 blob 形状。色差标题效果、棱镜边缘、流动背景
+          blob、频谱分析器动画、玻璃弹珠状态指示器、悬停透视变换。无直线，无矩形。
+        </div>
+        <div class="theme-tokens">
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #0a0e1a"></span>#0A0E1A</span
+          >
+          <span class="token-chip"
+            ><span
+              class="token-dot"
+              style="
+                background: rgba(255, 255, 255, 0.06);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+              "
+            ></span
+            >glass 6%</span
+          >
+          <span class="token-chip"
+            ><span
+              class="token-dot"
+              style="background: linear-gradient(135deg, #6366f1, #ec4899, #f59e0b)"
+            ></span
+            >prism</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #6366f1"></span>#6366F1</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #ec4899"></span>#EC4899</span
+          >
+          <span class="token-chip"
+            ><span class="token-dot" style="background: #f59e0b"></span>#F59E0B</span
+          >
+        </div>
+      </div>
+      <div class="frames-row">
+        <div class="frame-col-desktop">
+          <div class="frame-label">Desktop 1100x620</div>
+          <div class="prism-frame">
+            <!-- Background blobs -->
+            <div class="lp-blob lp-blob-1"></div>
+            <div class="lp-blob lp-blob-2"></div>
+            <div class="lp-blob lp-blob-3"></div>
+
+            <!-- Glass header -->
+            <div class="lp-header">
+              <div class="lp-logo">ChisaCode</div>
+              <div class="lp-header-right">
+                <div class="lp-conn">已连接</div>
+              </div>
+            </div>
+
+            <!-- Main layout -->
+            <div class="lp-main">
+              <!-- Sessions column -->
+              <div class="lp-sessions lp-glass">
+                <div class="lp-sess-title lp-chromatic">Agent 会话</div>
+                <div class="lp-sess">
+                  <div class="lp-marble running"></div>
+                  <div class="lp-sess-info">
+                    <div class="lp-sess-provider">OpenAI · GPT-4o</div>
+                    <div class="lp-sess-name">重构鉴权模块</div>
+                    <div class="lp-sess-file">auth/session.ts</div>
+                  </div>
+                </div>
+                <div class="lp-sess">
+                  <div class="lp-marble thinking"></div>
+                  <div class="lp-sess-info">
+                    <div class="lp-sess-provider">Anthropic · Claude 4</div>
+                    <div class="lp-sess-name">补全类型定义</div>
+                    <div class="lp-sess-file">types/agent.ts</div>
+                  </div>
+                </div>
+                <div class="lp-sess">
+                  <div class="lp-marble done"></div>
+                  <div class="lp-sess-info">
+                    <div class="lp-sess-provider">Google · Gemini 2.5</div>
+                    <div class="lp-sess-name">优化查询性能</div>
+                    <div class="lp-sess-file">db/queries.sql</div>
+                  </div>
+                </div>
+                <div class="lp-sess">
+                  <div class="lp-marble idle"></div>
+                  <div class="lp-sess-info">
+                    <div class="lp-sess-provider">OpenAI · GPT-4o</div>
+                    <div class="lp-sess-name">生成 API 文档</div>
+                    <div class="lp-sess-file">docs/api.md</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Center detail -->
+              <div class="lp-center lp-glass">
+                <div class="lp-detail-head">
+                  <div class="lp-detail-title lp-chromatic">重构鉴权模块</div>
+                  <div class="lp-badges">
+                    <span class="lp-badge file">FILE</span>
+                    <span class="lp-badge git">GIT</span>
+                    <span class="lp-badge terminal">TERM</span>
+                  </div>
+                </div>
+
+                <div class="lp-output">
+                  <span class="lp-out-line"
+                    ><span style="color: rgba(99, 102, 241, 0.8)">&gt;</span> 正在分析
+                    auth/session.ts 中的鉴权逻辑</span
+                  >
+                  <span class="lp-out-line"
+                    ><span class="lp-out-dim"
+                      >&nbsp;&nbsp;[SCAN] 检测到 3 处重复的 token 验证代码块</span
+                    ></span
+                  >
+                  <span class="lp-out-line"
+                    ><span style="color: rgba(99, 102, 241, 0.8)">&gt;</span> 提取公共方法
+                    verifyToken() 并重构所有调用点</span
+                  >
+                </div>
+
+                <!-- Spectrum analyzer -->
+                <div class="lp-spectrum">
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.2s; --delay: 0s; --h-min: 6px; --h-max: 24px; height: 18px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.5s; --delay: 0.1s; --h-min: 8px; --h-max: 28px; height: 22px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1s; --delay: 0.2s; --h-min: 5px; --h-max: 20px; height: 12px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.8s; --delay: 0.15s; --h-min: 7px; --h-max: 26px; height: 20px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.3s; --delay: 0.3s; --h-min: 4px; --h-max: 18px; height: 10px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.6s; --delay: 0.05s; --h-min: 6px; --h-max: 24px; height: 16px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.1s; --delay: 0.25s; --h-min: 8px; --h-max: 28px; height: 24px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.4s; --delay: 0.35s; --h-min: 5px; --h-max: 22px; height: 14px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.7s; --delay: 0.1s; --h-min: 7px; --h-max: 26px; height: 18px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.2s; --delay: 0.2s; --h-min: 4px; --h-max: 16px; height: 8px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1.5s; --delay: 0.15s; --h-min: 6px; --h-max: 22px; height: 14px"
+                  ></div>
+                  <div
+                    class="lp-spec-bar"
+                    style="--dur: 1s; --delay: 0.3s; --h-min: 8px; --h-max: 28px; height: 22px"
+                  ></div>
+                </div>
+
+                <!-- Progress -->
+                <div class="lp-progress">
+                  <div class="lp-prog-bar"><div class="lp-prog-fill"></div></div>
+                  <div class="lp-prog-text">72%</div>
+                </div>
+              </div>
+
+              <!-- Right context -->
+              <div class="lp-context lp-glass">
+                <div class="lp-ctx-title lp-chromatic">环境</div>
+                <div class="lp-ctx-row">
+                  <span class="lp-ctx-label">分支</span>
+                  <span class="lp-ctx-value">feat/auth</span>
+                </div>
+                <div class="lp-ctx-row">
+                  <span class="lp-ctx-label">变更</span>
+                  <span class="lp-ctx-value" style="color: #fbbf24">+47 / -23</span>
+                </div>
+                <div class="lp-ctx-row">
+                  <span class="lp-ctx-label">Token</span>
+                  <span class="lp-ctx-value">42.8K</span>
+                </div>
+                <div class="lp-ctx-row">
+                  <span class="lp-ctx-label">延迟</span>
+                  <span class="lp-ctx-value" style="color: #4ade80">128ms</span>
+                </div>
+                <div class="lp-ctx-row">
+                  <span class="lp-ctx-label">缓存</span>
+                  <span class="lp-ctx-value" style="color: #818cf8">86%</span>
+                </div>
+                <div class="lp-ctx-row">
+                  <span class="lp-ctx-label">模型</span>
+                  <span class="lp-ctx-value">GPT-4o</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom input -->
+            <div class="lp-input">
+              <div class="lp-input-inner">
+                <span class="lp-input-icon">+</span>
+                <input class="lp-input-text" placeholder="输入任务指令或描述需求..." />
+                <span class="lp-input-hint">Enter 发送</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame-col-mobile">
+          <div class="frame-label">Mobile 320x660</div>
+          <div class="prism-mobile">
+            <div class="pm-blob pm-blob-1"></div>
+            <div class="pm-blob pm-blob-2"></div>
+            <div class="pm-header">
+              <div class="pm-logo">ChisaCode</div>
+              <div class="pm-status">已连接</div>
+            </div>
+            <div class="pm-body" style="position: relative">
+              <div class="pm-sess">
+                <div class="pm-marble running"></div>
+                <div class="pm-sess-info">
+                  <div class="pm-sess-provider">OpenAI · GPT-4o</div>
+                  <div class="pm-sess-name">重构鉴权模块</div>
+                </div>
+              </div>
+              <div class="pm-sess">
+                <div class="pm-marble thinking"></div>
+                <div class="pm-sess-info">
+                  <div class="pm-sess-provider">Anthropic · Claude 4</div>
+                  <div class="pm-sess-name">补全类型定义</div>
+                </div>
+              </div>
+              <div class="pm-sess">
+                <div class="pm-marble done"></div>
+                <div class="pm-sess-info">
+                  <div class="pm-sess-provider">Google · Gemini 2.5</div>
+                  <div class="pm-sess-name">优化查询性能</div>
+                </div>
+              </div>
+              <div class="pm-detail">
+                <div class="pm-detail-title">重构鉴权模块 — 进行中</div>
+                <div class="pm-detail-text">
+                  <span style="color: rgba(99, 102, 241, 0.8)">&gt;</span> 正在分析鉴权逻辑<br />
+                  <span style="color: rgba(255, 255, 255, 0.25)"
+                    >&nbsp;&nbsp;[SCAN] 3 处重复验证</span
+                  ><br />
+                  <span style="color: rgba(99, 102, 241, 0.8)">&gt;</span> 提取公共方法并重构
+                </div>
+                <div class="pm-spec">
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.2s; --delay: 0s; --h-min: 4px; --h-max: 16px; height: 10px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.5s; --delay: 0.1s; --h-min: 5px; --h-max: 18px; height: 14px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1s; --delay: 0.2s; --h-min: 3px; --h-max: 14px; height: 8px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.8s; --delay: 0.15s; --h-min: 5px; --h-max: 16px; height: 12px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.3s; --delay: 0.3s; --h-min: 4px; --h-max: 14px; height: 6px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.6s; --delay: 0.05s; --h-min: 5px; --h-max: 18px; height: 16px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.1s; --delay: 0.25s; --h-min: 3px; --h-max: 16px; height: 10px"
+                  ></div>
+                  <div
+                    class="pm-spec-bar"
+                    style="--dur: 1.4s; --delay: 0.35s; --h-min: 4px; --h-max: 14px; height: 8px"
+                  ></div>
+                </div>
+                <div class="pm-prog-bar"><div class="pm-prog-fill"></div></div>
+              </div>
+              <div class="pm-input">
+                <span class="lp-input-icon" style="color: rgba(255, 255, 255, 0.3); font-size: 12px"
+                  >+</span
+                >
+                <span class="pm-input-text">输入任务指令...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

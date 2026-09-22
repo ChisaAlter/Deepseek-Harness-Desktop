@@ -1,0 +1,5 @@
+# Cursor effects
+
+Appearance「指针特效」是收束行（标题 + 说明 + 齿轮 + Switch，与背景特效 / 输入特效同款），齿轮开 `Modal`：特效二选一卡片（像素拖尾 / 流体飞溅）+ 画布实时预览 + 预设方案卡片（跟随主题 / 彩虹 / 极光 / 晚霞 / 海洋 / 樱花 / 自定义）+ 常显自定义（6 色槽留空回主题 accent、速度 20–300%、大小 25–300%）+ 重置 / 取消 / 保存（保存即应用：写回草稿并置 enabled）。Host `ui-theme` 字段：`cursorEffectEnabled`（默认 false，开关只写这一位、不丢所选特效）、`cursorEffect`（`trail | splash`，首版遗留 slug `pixel-trail`/`splash-cursor` 经 `normalizeCursorEffect` 迁移）、`cursorEffectColors`（≤6 槽 `#rrggbb`）、`cursorEffectSpeed`（20–300）、`cursorEffectSize`（25–300）、`cursorEffectPreset`（预设 id 或 `custom`，非法回退 `custom`）；`setCursorFx` 唯一写入路径。`#dsh-cursor-fx` 固定全屏层 `pointer-events: none`、z-index 9999，画在 UI 之上；切特效重建 canvas，tunables 走引擎 `update` 热通道。弹窗按打开次数 remount（草稿不随发布重置），预览 canvas 按 effect 加 key——canvas 绑过 `2d`/`webgl` 后换型 `getContext` 必返 null。`trail` 是 2D canvas 网格拖尾（ReactBits `PixelTrail` 等价移植），`splash` 是 WebGL Navier-Stokes 染料模拟（ReactBits `SplashCursor` / Pavel Dobryakov MIT 流体）；rAF 4s 闲置停帧 + `document.hidden` 暂停，reduced-motion 不挂载，无 Canvas/WebGL 静默不挂、无 DOM 残留。禁止 three.js / 动画库、颜色字面量、明暗分支。
+
+Full card: [docs/features/cursor-effects.md](../../docs/features/cursor-effects.md)

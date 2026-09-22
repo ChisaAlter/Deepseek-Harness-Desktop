@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-18-button-sheen-default-off.md
+2026-09-18-button-sheen-default-off.md: 3f687355319c74c6f519bd6928820435c35296a5
+2026-09-18-button-sheen-default-off.zh.md: a399ffd3bd09b1a7e17a042979e428011124dd40

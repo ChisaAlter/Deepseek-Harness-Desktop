@@ -1,0 +1,10 @@
+{
+  "at": "2026-09-01T02:04:00.000Z",
+  "userData": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop",
+  "dshHomeSessions": "C:\\Users\\48818\\AppData\\Roaming\\Deepseek-Harness-Desktop\\dsh-home\\sessions",
+  "sessionJsonl": 0,
+  "sessionJsonlZstd": 85,
+  "setupSha256": "F2C571D285B68E730FEFF5E8FB1362F48484761278D939D84E2BFD1298562856",
+  "ciRun": "https://github.com/ChisaAlter/Deepseek-Harness-Desktop/actions/runs/33455954068",
+  "note": "TC-SESS-003: session files persist across relaunch. Packed walker on this SHA counted only session.jsonl."
+}

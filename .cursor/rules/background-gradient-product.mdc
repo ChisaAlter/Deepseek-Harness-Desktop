@@ -1,0 +1,5 @@
+# Background gradient effect
+
+Appearance「背景特效」是收束行（标题 + 说明 + 齿轮 + Switch，与输入特效同款），齿轮开 `Modal`：预览 + 预设方案卡片（跟随主题/极光/晚霞/海洋/樱花/自定义）+ 常显自定义控件 + 重置/取消/保存。`backgroundEffect` `'none' | 'gradient'` 存 Host `ui-theme`，默认 `gradient`（极光预设、190% 速度，安装即开）；配置项 `backgroundEffectColors`（≤7 槽 `#rrggbb` 或空=主题 token）、`backgroundEffectSpeed`（20–300）、`backgroundEffectCount`（1–5）、`backgroundEffectPreset`（预设 id 或 `custom`，非法回退 `custom`）、`backgroundEffectVariant`（光斑形态 orbs/aurora/chaos/rays，非法回退 orbs，`#dsh-gradient[data-variant]` 切换：orbs 光球 / aurora 横向飘带 / chaos 多轴乱序脉动 / rays conic 楔形光束）；预设是纯配色包（定义在 `effect-presets.ts`），速度 / 数量 / 形态常显可调，运行时消费四个 tunables。只在没有背景图时绘制：复用 `#dsh-wallpaper` 固定层挂 `#dsh-gradient`，`data-dsh-gradient` 与 `data-dsh-wallpaper` 互斥，共享透明底 / `--dsw-alias-bg-mask-1` 压暗 / `#root` 抬层与 `mixWallpaperSurfaces` 玻璃混合；透明主题仍只认图片。默认颜色只走 `design-platform.css` 的 `--dsw-specific-gradient-*`（明暗两半各一份），用户覆盖是元素内联 `--dsh-gradient-*` 变量 + `var()` 回退链；动画只动 transform（20–40s ÷ 速度系数，进 motion.md 指示器家族）；`prefers-reduced-motion` 全停。会话侧 `.composerSeat` 遮罩带对特效放开、`.scrollBody` 滑块默认隐藏悬停才显示。禁止颜色字面量、明暗分支、动画库。
+
+Full card: [docs/features/background-gradient.md](../../docs/features/background-gradient.md)

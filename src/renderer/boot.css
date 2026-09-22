@@ -1,0 +1,402 @@
+@import '../shared/dsh-webui-tokens.css';
+
+:root {
+  --caption-h: 48px;
+  --boot-rail-inset: 16px;
+  --boot-rail-size: 28px;
+  --boot-log-inset: 64px;
+  --boot-log-max: 12rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--boot-bg);
+  color: var(--boot-ink);
+  font-family: var(--dsw-font-family);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.caption {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  height: var(--caption-h);
+  width: 100%;
+  -webkit-app-region: drag;
+}
+
+/* BrowserView sits on top of boot.html; Electron still hit-tests this
+   caption's drag region on the parent window and swallows Web UI clicks
+   except where boot window-controls are no-drag. */
+body[data-harness-covered] .caption {
+  -webkit-app-region: no-drag;
+  pointer-events: none;
+}
+
+/* While the view covers the window, blank this document: minimize→restore
+   can present this layer for a frame before the view's surface returns, and
+   a transparent canvas falls through to the window background (synced to the
+   harness page bg) instead of flashing the boot canvas. */
+html:has(body[data-harness-covered]),
+body[data-harness-covered] {
+  background: transparent;
+}
+
+body[data-harness-covered] {
+  visibility: hidden;
+}
+
+.scan {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    var(--boot-scan) 2px,
+    var(--boot-scan) 3px
+  );
+}
+
+.stage {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(48px + var(--caption-h)) 32px calc(var(--boot-log-inset) + var(--boot-log-max) + 16px);
+  background-image:
+    linear-gradient(var(--boot-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.rail {
+  position: fixed;
+  z-index: 2;
+  width: var(--boot-rail-size);
+  height: var(--boot-rail-size);
+  pointer-events: none;
+}
+
+.rail-tl {
+  top: var(--boot-rail-inset);
+  left: var(--boot-rail-inset);
+  border-top: 2px solid var(--boot-accent);
+  border-left: 2px solid var(--boot-accent);
+}
+
+.rail-tr {
+  top: var(--boot-rail-inset);
+  right: var(--boot-rail-inset);
+  border-top: 2px solid var(--boot-accent);
+  border-right: 2px solid var(--boot-accent);
+}
+
+.rail-bl {
+  bottom: var(--boot-rail-inset);
+  left: var(--boot-rail-inset);
+  border-bottom: 2px solid var(--boot-accent);
+  border-left: 2px solid var(--boot-accent);
+}
+
+.rail-br {
+  bottom: var(--boot-rail-inset);
+  right: var(--boot-rail-inset);
+  border-bottom: 2px solid var(--boot-accent);
+  border-right: 2px solid var(--boot-accent);
+}
+
+.meta {
+  position: absolute;
+  top: calc(var(--caption-h) + 20px);
+  left: 48px;
+  right: 48px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: none;
+}
+
+.code,
+.stamp-code {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--boot-muted);
+}
+
+.stamp-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 7.5rem;
+  padding: 4px 12px;
+  border: 2px solid var(--boot-accent);
+  color: var(--boot-accent);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+}
+
+body[data-state="idle"] .stamp,
+body[data-state="starting"] .stamp,
+body[data-state="stopping"] .stamp {
+  animation: pulse 1.2s var(--ds-ease-in-out) infinite;
+}
+
+body[data-state="error"] .stamp,
+body[data-state="error"] .stamp-code {
+  color: var(--boot-alert);
+  border-color: var(--boot-alert);
+}
+
+.core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.mark {
+  position: relative;
+  z-index: 2;
+  width: 112px;
+  height: 112px;
+  color: var(--boot-ink);
+  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) both;
+}
+
+.mark svg,
+.mark-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.mark-still {
+  display: none;
+}
+
+body[data-state="error"] .mark,
+body[data-state="error"] .status {
+  color: var(--boot-alert);
+}
+
+.brand {
+  margin: 24px 0 0;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) 80ms both;
+}
+
+.status {
+  margin: 8px 0 0;
+  max-width: 36rem;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--boot-muted);
+  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) 120ms both;
+}
+
+.status.ready {
+  color: var(--boot-accent);
+}
+
+.status.error {
+  color: var(--boot-alert);
+}
+
+.hint {
+  margin: 8px 0 0;
+  max-width: 36rem;
+  color: var(--boot-muted);
+  font-size: 12px;
+  line-height: 18px;
+  animation: rise var(--ds-transition-duration) var(--ds-ease-in-out) 160ms both;
+}
+
+.failure,
+.recovery {
+  margin: 8px 0 0;
+  max-width: 42rem;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.failure {
+  color: var(--boot-alert);
+}
+
+.recovery {
+  color: var(--boot-accent);
+}
+
+.failure[hidden],
+.recovery[hidden] {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+  -webkit-app-region: no-drag;
+}
+
+.actions[hidden] {
+  display: none;
+}
+
+.actions button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--boot-accent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--boot-accent);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.actions .primary {
+  background: var(--boot-accent);
+  color: var(--boot-bg);
+}
+
+.actions .primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--boot-accent) 88%, var(--boot-ink));
+}
+
+.actions .ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--boot-accent) 12%, transparent);
+}
+
+.actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.actions button:focus-visible {
+  outline: 2px solid var(--boot-accent);
+  outline-offset: 2px;
+}
+
+.log-dock {
+  position: fixed;
+  z-index: 2;
+  left: var(--boot-log-inset);
+  right: var(--boot-log-inset);
+  bottom: var(--boot-log-inset);
+  max-height: var(--boot-log-max);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-family: var(--ds-font-family-code);
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--boot-muted);
+}
+
+.log li {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: fade var(--ds-transition-duration) var(--ds-ease-in-out);
+}
+
+body[data-state="error"] .stage {
+  background-image:
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0 18px,
+      color-mix(in srgb, var(--boot-alert) 10%, transparent) 18px 20px
+    ),
+    linear-gradient(var(--boot-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .brand,
+  .status,
+  .hint,
+  .stamp,
+  .log li {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Hide the external animated image and show the static brand head. */
+  .mark-anim {
+    display: none;
+  }
+  .mark-still {
+    display: block;
+  }
+}

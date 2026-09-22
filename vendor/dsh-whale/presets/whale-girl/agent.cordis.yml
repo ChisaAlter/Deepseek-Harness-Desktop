@@ -1,0 +1,48 @@
+# The `whale-girl` agent preset: desktop whale assistant composition.
+#
+# Persona text is NOT baked here — the dsh-whale host plugin injects a
+# `dsh-whale:persona` systemPrompt section resolved from the live settings
+# catalog, so renaming / re-personalizing takes effect without rewriting this
+# file. This row only disables the deployment default persona.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    includeRuntimeContext: false
+    complete: true
+    prefix: ''
+
+# AGENTS.md / MEMORY.md inside the whale home (session cwd) are picked up
+# automatically — that file is her persistent memory.
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# She needs fs to maintain her own memory files and skill dirs.
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+# Skills live under the whale home skills dir (toggled via the settings page
+# by moving SKILL.md folders between skills/ and skills-disabled/).
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  config:
+    includeDefaultRoots: false
+    customSkillDirs: ['__WHALE_SKILLS_DIR__']
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+# Preset-scoped orchestration tools (list/send/new/usage/pet/notify). These
+# register into this preset's tools layer only — no global visibility.
+- id: whale-tools
+  name: 'dsh-whale/tools'

@@ -1,0 +1,346 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-08-22T09:09:46.415Z",
+  "generator": "scripts/generate-modular-knowledge-graphs.mjs",
+  "project": {
+    "name": "chisacode",
+    "description": "Local-first control surface for Claude, Codex, OpenCode, Pi, Kimi Code, and Grok Build",
+    "packageManager": "npm workspaces",
+    "moduleCount": 9
+  },
+  "modules": [
+    {
+      "id": "app",
+      "packageName": "@chisacode/app",
+      "path": "packages/app",
+      "description": "Expo React Native client for mobile, browser web, and the desktop renderer UI.",
+      "ownership": [
+        "cross-platform React Native UI",
+        "host/session runtime state",
+        "workspace and agent screens",
+        "composer, voice, settings, and desktop renderer UI"
+      ],
+      "graphPath": "docs/modules/app/knowledge-graph.json",
+      "handoffPath": "docs/modules/app/README.md",
+      "dependsOn": ["client", "expo-two-way-audio", "highlight", "protocol"],
+      "dependedOnBy": [],
+      "fileCount": 1326,
+      "categories": {
+        "config": 42,
+        "test": 409,
+        "support": 77,
+        "docs": 2,
+        "source": 796
+      }
+    },
+    {
+      "id": "cli",
+      "packageName": "@chisacode/cli",
+      "path": "packages/cli",
+      "description": "ChisaCode CLI - control your AI coding agents from the command line",
+      "ownership": [
+        "terminal command surface",
+        "daemon control commands",
+        "agent import/run/log workflows",
+        "machine-readable output renderers"
+      ],
+      "graphPath": "docs/modules/cli/knowledge-graph.json",
+      "handoffPath": "docs/modules/cli/README.md",
+      "dependsOn": ["client", "protocol", "server"],
+      "dependedOnBy": [],
+      "fileCount": 179,
+      "categories": {
+        "config": 2,
+        "docs": 1,
+        "test": 60,
+        "source": 108,
+        "support": 8
+      }
+    },
+    {
+      "id": "client",
+      "packageName": "@chisacode/client",
+      "path": "packages/client",
+      "description": "ChisaCode client SDK package",
+      "ownership": [
+        "daemon WebSocket transport",
+        "request/response correlation",
+        "relay E2EE client transport",
+        "SDK facade boundaries"
+      ],
+      "graphPath": "docs/modules/client/knowledge-graph.json",
+      "handoffPath": "docs/modules/client/README.md",
+      "dependsOn": ["protocol", "relay"],
+      "dependedOnBy": ["app", "cli", "server"],
+      "fileCount": 58,
+      "categories": {
+        "support": 4,
+        "docs": 2,
+        "config": 4,
+        "source": 30,
+        "test": 18
+      }
+    },
+    {
+      "id": "desktop",
+      "packageName": "@chisacode/desktop",
+      "path": "packages/desktop",
+      "description": "ChisaCode desktop app (Electron wrapper)",
+      "ownership": [
+        "Electron main/preload processes",
+        "managed daemon subprocess",
+        "desktop-specific routing and windows",
+        "renderer export packaging"
+      ],
+      "graphPath": "docs/modules/desktop/knowledge-graph.json",
+      "handoffPath": "docs/modules/desktop/README.md",
+      "dependsOn": ["server"],
+      "dependedOnBy": [],
+      "fileCount": 75,
+      "categories": {
+        "config": 3,
+        "docs": 1,
+        "support": 7,
+        "test": 23,
+        "source": 41
+      }
+    },
+    {
+      "id": "expo-two-way-audio",
+      "packageName": "@chisacode/expo-two-way-audio",
+      "path": "packages/expo-two-way-audio",
+      "description": "Native module for two way audio streaming",
+      "ownership": [
+        "native audio module surface",
+        "iOS/Android two-way streaming bridge",
+        "Expo module packaging"
+      ],
+      "graphPath": "docs/modules/expo-two-way-audio/knowledge-graph.json",
+      "handoffPath": "docs/modules/expo-two-way-audio/README.md",
+      "dependsOn": [],
+      "dependedOnBy": ["app"],
+      "fileCount": 35,
+      "categories": {
+        "support": 5,
+        "config": 18,
+        "docs": 5,
+        "test": 2,
+        "source": 5
+      }
+    },
+    {
+      "id": "highlight",
+      "packageName": "@chisacode/highlight",
+      "path": "packages/highlight",
+      "description": "Shared syntax highlighting utilities used by client-facing packages.",
+      "ownership": [
+        "syntax tokenization",
+        "shared highlighting output",
+        "renderer-safe code display support"
+      ],
+      "graphPath": "docs/modules/highlight/knowledge-graph.json",
+      "handoffPath": "docs/modules/highlight/README.md",
+      "dependsOn": [],
+      "dependedOnBy": ["app", "server"],
+      "fileCount": 13,
+      "categories": {
+        "config": 2,
+        "docs": 1,
+        "test": 4,
+        "source": 6
+      }
+    },
+    {
+      "id": "protocol",
+      "packageName": "@chisacode/protocol",
+      "path": "packages/protocol",
+      "description": "ChisaCode shared protocol schemas and wire types",
+      "ownership": [
+        "WebSocket message schemas",
+        "provider config schemas",
+        "binary frame codecs",
+        "append-only compatibility rules"
+      ],
+      "graphPath": "docs/modules/protocol/knowledge-graph.json",
+      "handoffPath": "docs/modules/protocol/README.md",
+      "dependsOn": [],
+      "dependedOnBy": ["app", "cli", "client", "server"],
+      "fileCount": 109,
+      "categories": {
+        "config": 4,
+        "docs": 1,
+        "test": 48,
+        "source": 56
+      }
+    },
+    {
+      "id": "relay",
+      "packageName": "@chisacode/relay",
+      "path": "packages/relay",
+      "description": "ChisaCode relay for bridging daemon and client connections",
+      "ownership": [
+        "encrypted client/daemon channels",
+        "relay server adapters",
+        "handshake and crypto primitives",
+        "remote connectivity threat boundary"
+      ],
+      "graphPath": "docs/modules/relay/knowledge-graph.json",
+      "handoffPath": "docs/modules/relay/README.md",
+      "dependsOn": [],
+      "dependedOnBy": ["client", "server"],
+      "fileCount": 44,
+      "categories": {
+        "support": 27,
+        "config": 3,
+        "docs": 1,
+        "source": 7,
+        "test": 6
+      }
+    },
+    {
+      "id": "server",
+      "packageName": "@chisacode/server",
+      "path": "packages/server",
+      "description": "ChisaCode backend server",
+      "ownership": [
+        "daemon bootstrap and session routing",
+        "agent lifecycle and timeline storage",
+        "provider runtime adapters",
+        "MCP server and local services"
+      ],
+      "graphPath": "docs/modules/server/knowledge-graph.json",
+      "handoffPath": "docs/modules/server/README.md",
+      "dependsOn": ["client", "highlight", "protocol", "relay"],
+      "dependedOnBy": ["cli", "desktop"],
+      "fileCount": 856,
+      "categories": {
+        "config": 28,
+        "docs": 4,
+        "support": 15,
+        "test": 361,
+        "source": 448
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "module:app",
+      "target": "module:client",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:app",
+      "target": "module:expo-two-way-audio",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:app",
+      "target": "module:highlight",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:app",
+      "target": "module:protocol",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:cli",
+      "target": "module:client",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:cli",
+      "target": "module:protocol",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:cli",
+      "target": "module:server",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:client",
+      "target": "module:protocol",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:client",
+      "target": "module:relay",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:desktop",
+      "target": "module:server",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:server",
+      "target": "module:client",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:server",
+      "target": "module:highlight",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:server",
+      "target": "module:protocol",
+      "type": "depends_on"
+    },
+    {
+      "source": "module:server",
+      "target": "module:relay",
+      "type": "depends_on"
+    }
+  ],
+  "crossCuttingTopics": [
+    {
+      "id": "provider-plumbing",
+      "title": "Provider Plumbing",
+      "modules": ["protocol", "server", "client", "app", "cli"],
+      "docs": ["docs/providers.md", "docs/custom-providers.md"],
+      "reason": "Provider changes usually cross manifest/config schemas, daemon runtime adapters, app settings, client requests, and verification paths."
+    },
+    {
+      "id": "daemon-agent-lifecycle",
+      "title": "Daemon And Agent Lifecycle",
+      "modules": ["server", "protocol", "client", "app", "cli", "desktop"],
+      "docs": ["docs/architecture.md", "docs/agent-lifecycle.md", "docs/data-model.md"],
+      "reason": "Agent state is daemon-owned, protocol-visible, client-consumed, and surfaced through app/CLI/desktop workflows."
+    },
+    {
+      "id": "websocket-rpc-protocol",
+      "title": "WebSocket RPC Protocol",
+      "modules": ["protocol", "server", "client", "app", "cli", "desktop"],
+      "docs": ["docs/rpc-namespacing.md", "docs/architecture.md"],
+      "reason": "New RPCs must be schema-compatible, server-routed, client-correlated, and UI/CLI-consumed through one wire contract."
+    },
+    {
+      "id": "desktop-daemon-spawn",
+      "title": "Desktop Daemon Spawn",
+      "modules": ["desktop", "server", "app", "client", "protocol"],
+      "docs": ["docs/development.md", "docs/architecture.md"],
+      "reason": "Desktop behavior crosses Electron main/preload code, exported web app, daemon process management, and local WebSocket transport."
+    },
+    {
+      "id": "app-platform-boundaries",
+      "title": "App Platform Boundaries",
+      "modules": ["app", "desktop", "expo-two-way-audio", "client", "protocol"],
+      "docs": [
+        "docs/coding-standards.md",
+        "docs/hover.md",
+        "docs/unistyles.md",
+        "docs/floating-panels.md"
+      ],
+      "reason": "App code must remain native/web/electron safe while still sharing host/session state and client protocol behavior."
+    },
+    {
+      "id": "relay-security-boundaries",
+      "title": "Relay Security Boundaries",
+      "modules": ["relay", "server", "client", "app", "desktop"],
+      "docs": ["SECURITY.md", "docs/architecture.md"],
+      "reason": "Relay work changes E2EE transport assumptions across daemon, client transport, pairing, and remote access UX."
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+import { beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import pino from "pino";
+
+import { OpenCodeAgentClient } from "../agent/providers/opencode-agent.js";
+import { createTestChisaCodeDaemon } from "../test-utils/chisacode-daemon.js";
+import { DaemonClient } from "../test-utils/daemon-client.js";
+import { isProviderAvailable } from "./agent-configs.js";
+
+const OPENCODE_REAL_TEST_MODEL = "opencode/big-pickle";
+
+function tmpCwd(): string {
+  return mkdtempSync(path.join(tmpdir(), "daemon-real-opencode-init-prompt-"));
+}
+
+async function createHarness(): Promise<{
+  client: DaemonClient;
+  daemon: Awaited<ReturnType<typeof createTestChisaCodeDaemon>>;
+}> {
+  const logger = pino({ level: "silent" });
+  const daemon = await createTestChisaCodeDaemon({
+    agentClients: { opencode: new OpenCodeAgentClient(logger) },
+    logger,
+  });
+  const client = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws` });
+  await client.connect();
+  await client.fetchAgents({ subscribe: { subscriptionId: "opencode-init-prompt" } });
+  return { client, daemon };
+}
+
+describe("daemon E2E (real opencode) - initial prompt wait", () => {
+  let canRun = false;
+
+  beforeAll(async () => {
+    canRun = await isProviderAvailable("opencode");
+  });
+
+  beforeEach((context) => {
+    if (!canRun) {
+      context.skip();
+    }
+  });
+
+  test("waitForFinish does not resolve before an initial prompt using opencode/big-pickle actually completes", async () => {
+    const cwd = tmpCwd();
+    const { client, daemon } = await createHarness();
+
+    try {
+      const models = await client.listProviderModels("opencode");
+      expect(models.models.some((model) => model.id === OPENCODE_REAL_TEST_MODEL)).toBe(true);
+
+      const agent = await client.createAgent({
+        provider: "opencode",
+        cwd,
+        title: "OpenCode initial prompt wait regression",
+        model: OPENCODE_REAL_TEST_MODEL,
+        initialPrompt: "Reply with exactly: BIG_PICKLE_OK",
+      });
+
+      const finish = await client.waitForFinish(agent.id, 60_000);
+      expect(finish.status).toBe("idle");
+      expect(finish.lastMessage).toContain("BIG_PICKLE_OK");
+
+      const snapshot = await client.fetchAgent(agent.id);
+      expect(snapshot.agent?.status).toBe("idle");
+
+      const timeline = await client.fetchAgentTimeline(agent.id, {
+        direction: "tail",
+        limit: 0,
+        projection: "projected",
+      });
+      const assistantMessages = timeline.entries.filter(
+        (entry) => entry.item.type === "assistant_message",
+      );
+
+      expect(assistantMessages.length).toBeGreaterThan(0);
+      expect(assistantMessages.some((entry) => entry.item.text.includes("BIG_PICKLE_OK"))).toBe(
+        true,
+      );
+    } finally {
+      await client.close().catch(() => undefined);
+      await daemon.close();
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }, 90_000);
+});

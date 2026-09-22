@@ -1,0 +1,15 @@
+{
+  "sample": {
+    "shell": "official",
+    "boot": false,
+    "dark": false,
+    "tokenBg": "rgb(255, 255, 255)",
+    "htmlBg": "rgb(255, 255, 255)",
+    "bodyBg": "rgb(255, 255, 255)"
+  },
+  "fails": [
+    "missing data-ds-dark-theme",
+    "bg rgb(255, 255, 255) != rgb(21, 21, 23)"
+  ],
+  "pass": false
+}

@@ -1,0 +1,112 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_macos:
+        description: Build the optional macOS artifact
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # engines 要求 ^22.19.0 || >=24（node:sqlite 等）；.nvmrc 是唯一钉版来源
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      # .npmrc 设置了 electron_skip_binary_download，CI 需显式拉取 Electron 二进制
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Prepare vendored harness (clone + pnpm install + build)
+        run: node scripts/setup-harness.js
+
+      - name: Build NSIS setup installer
+        run: npm run dist
+
+      # Release acceptance for the actual artifact: boot dist/win-unpacked —
+      # the exact tree the NSIS Setup installs — with the embedded DSH_SMOKE
+      # assertions (window + titlebar hit-testing + PTY echo + dsh-home
+      # isolation). This is NOT a repeat of test.yml quality gates: it can
+      # only exist after `npm run dist` produced the artifact, so it lives in
+      # the release chain and BLOCKS publishing — a Setup that cannot boot
+      # must not ship, and a red gate here never blocks PR merges (release is
+      # tag/dispatch-triggered).
+      # Flake policy: the step makes two attempts — one retry absorbs a
+      # single-shot flake (slow runner, first-boot caches); two consecutive
+      # failures fail the job. Re-run the job for infra-level noise;
+      # recurring red means a real packaging regression. Validate this step
+      # itself via workflow_dispatch before promoting a release candidate.
+      - name: Packaged smoke gate (win-unpacked, blocking, 2 attempts)
+        shell: pwsh
+        env:
+          # CI cold starts are slower than the 300s local default.
+          DSH_SMOKE_TIMEOUT_MS: '600000'
+        run: |
+          npm run smoke:packaged
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host '::warning::Packaged smoke attempt 1 failed; retrying once per the documented flake policy.'
+            npm run smoke:packaged
+          }
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: DeepSeek-Harness-windows-x64
+          path: |
+            dist/Deepseek-Harness-Desktop-Setup-*.exe
+            dist/Deepseek-Harness-Desktop-Setup-*.exe.blockmap
+            dist/latest.yml
+          if-no-files-found: error
+
+  macos:
+    # Manual candidate builds are Windows-only unless explicitly requested.
+    # macOS remains an optional artifact from the same candidate run.
+    if: ${{ inputs.include_macos }}
+    runs-on: macos-latest
+    timeout-minutes: 120
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Reject macOS icon below electron-builder minimum
+        run: node scripts/check-mac-icon.js
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Prepare vendored harness (clone + pnpm install + build)
+        run: node scripts/setup-harness.js
+
+      - name: Build macOS DMG
+        run: npm run dist:mac
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: DeepSeek-Harness-macos-arm64
+          path: dist/Deepseek-Harness-Desktop-*.dmg
+          if-no-files-found: error

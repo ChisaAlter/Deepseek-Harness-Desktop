@@ -1,0 +1,12 @@
+version: 1
+scenario: subagent-report
+profile: sdk
+composition: subagent-report
+recording: authored
+header:
+  class: subagent-report
+  pin: true
+  systemPromptSource: session/text-turn
+  toolSchemasSource: session/text-turn
+  childSystemPrompts: [1]
+  childToolSchemas: [1]

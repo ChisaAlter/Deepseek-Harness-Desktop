@@ -1,0 +1,5 @@
+# Sidebar mask
+
+Appearance「玻璃透明度」区块内、「透明主题」之下的「隐藏侧栏遮罩」开关；`sidebarMaskHidden` boolean 存 Host `ui-theme`，默认 true（安装即隐藏）。生效 = `composeActive` 把 rail 铬面间接 token `--dsh-sidebar-rail-fill`（`SIDEBAR_RAIL_FILL_TOKEN`）写为 `transparent`（`SIDEBAR_UNMASKED_FILL`），落在壁纸/特效 `mixWallpaperSurfaces`、override 层之后；rail 铬面（`.sidebarCol` / `SidebarRoot` / phone drawer / 会话列表 fade）按 `var(--dsh-sidebar-rail-fill, var(--dsw-specific-sidebar-fill))` 解析，透明透出 `.frame` `bg-base` 与工作区精确对齐，只留右缘分割线。必须 `transparent`：rail 故意叠两层 fill，半透明画布色会二次加深。`--dsw-specific-sidebar-fill` 本体不动（TrajectoryTable 吸顶表头仍读它）。boot payload `tokensFor` 嵌同一写入，预插件区间不闪回。不动 mask-1、玻璃滑杆、sidebar 混合曲线、分割线。
+
+Full card: [docs/features/sidebar-mask.md](../../docs/features/sidebar-mask.md)

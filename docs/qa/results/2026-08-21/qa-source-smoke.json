@@ -1,0 +1,388 @@
+{
+  "ok": false,
+  "result": {
+    "hasFrame": true,
+    "gridColumns": "280px 1160px 0px 0px",
+    "hasTitlebar": true,
+    "titlebarButtons": [
+      "Session log",
+      "切换分支",
+      "Commit",
+      "Git 操作",
+      "切换终端抽屉",
+      "切换右侧栏"
+    ],
+    "hasTerminalToggle": true,
+    "hasSurfacesToggle": true,
+    "hasDragStrip": false,
+    "hasDragMark": false,
+    "hasHitMark": false,
+    "captionRegion": "drag",
+    "hasHarnessShellApi": true,
+    "harnessShellApiIsScoped": true,
+    "hasBootShellApi": true,
+    "bootShellApiIsScoped": true,
+    "workspaceConnect": [
+      {
+        "name": "workspace.path",
+        "ok": true,
+        "detail": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-source-qa-ySHMSg\\workspace",
+        "optional": true
+      },
+      {
+        "name": "workspace.addClicked",
+        "ok": true,
+        "detail": "",
+        "optional": true
+      },
+      {
+        "name": "workspace.picker",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "workspace.pickerClosed",
+        "ok": true,
+        "detail": "",
+        "optional": true
+      },
+      {
+        "name": "workspace.connected",
+        "ok": true,
+        "detail": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-source-qa-ySHMSg\\workspace"
+      }
+    ],
+    "titlebarHits": {
+      "hits": {
+        "surfaces": 1,
+        "branch": 1,
+        "git": 1
+      },
+      "error": null
+    },
+    "qa": {
+      "ok": false,
+      "failed": [
+        "terminal.drawer",
+        "terminal.new",
+        "agents.panel",
+        "agents.empty",
+        "diff.panel",
+        "browser.panel",
+        "browser.url",
+        "terminal.surface"
+      ],
+      "steps": [
+        {
+          "name": "workspace.picker",
+          "ok": true,
+          "detail": "connected before titlebar hits"
+        },
+        {
+          "name": "workspace.connected",
+          "ok": true,
+          "detail": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-source-qa-ySHMSg\\workspace"
+        },
+        {
+          "name": "frame.fourColumn",
+          "ok": true,
+          "detail": "280px 1160px 0px 0px"
+        },
+        {
+          "name": "composer.card",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.textarea",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.commands",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.send",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.access",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "composer.skillMenuAbsent",
+          "ok": true,
+          "detail": "typed=$fo; menuitem=true"
+        },
+        {
+          "name": "composer.pathSourceAbsent",
+          "ok": true,
+          "detail": "typed=@"
+        },
+        {
+          "name": "remote.unavailable",
+          "ok": true,
+          "detail": "{\"available\":false,\"enabled\":false,\"listening\":false}"
+        },
+        {
+          "name": "remote.notListening",
+          "ok": true,
+          "detail": "listening=false"
+        },
+        {
+          "name": "remote.footerAbsent",
+          "ok": true,
+          "detail": "no remote footer",
+          "optional": true
+        },
+        {
+          "name": "composer.commandsMenu",
+          "ok": true,
+          "detail": "opened",
+          "optional": true
+        },
+        {
+          "name": "titlebar.sessionLog",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.branch",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.commit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.git",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.terminal",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.surfaces",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "titlebar.branchMenu",
+          "ok": true,
+          "detail": "opened"
+        },
+        {
+          "name": "titlebar.gitMenu",
+          "ok": true,
+          "detail": "opened"
+        },
+        {
+          "name": "terminal.drawer",
+          "ok": false,
+          "detail": "drawer did not open"
+        },
+        {
+          "name": "terminal.new",
+          "ok": false,
+          "detail": ""
+        },
+        {
+          "name": "surfaces.open",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "surfaces.emptyCards",
+          "ok": true,
+          "detail": "浏览器打开本地应用或 URL。 | 终端在此工作区启动一个 shell。 | 文件浏览并阅读工作区文件。 | 差异查看 git 变更。 | 代理查看正在运行的代理。",
+          "optional": true
+        },
+        {
+          "name": "surfaces.browserEnabled",
+          "ok": true,
+          "detail": "",
+          "optional": true
+        },
+        {
+          "name": "surfaces.diffEnabled",
+          "ok": true,
+          "detail": "",
+          "optional": true
+        },
+        {
+          "name": "files.panel",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.search",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.readme",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.note",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "files.mentionVisible",
+          "ok": true,
+          "detail": "visible"
+        },
+        {
+          "name": "files.mentionAppended",
+          "ok": true,
+          "detail": "@ [note.md](note.md)"
+        },
+        {
+          "name": "files.searchFilter",
+          "ok": true,
+          "detail": "note.md",
+          "optional": true
+        },
+        {
+          "name": "agents.panel",
+          "ok": false,
+          "detail": ""
+        },
+        {
+          "name": "agents.empty",
+          "ok": false,
+          "detail": "empty copy missing"
+        },
+        {
+          "name": "diff.panel",
+          "ok": false,
+          "detail": ""
+        },
+        {
+          "name": "browser.panel",
+          "ok": false,
+          "detail": ""
+        },
+        {
+          "name": "browser.url",
+          "ok": false,
+          "detail": ""
+        },
+        {
+          "name": "terminal.surface",
+          "ok": false,
+          "detail": ""
+        },
+        {
+          "name": "settings.trigger",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.choose",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.browse",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "appearance.noSourceDump",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gallery.dialog",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gallery.sources",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "gallery.addSource",
+          "ok": true,
+          "detail": "hint visible"
+        },
+        {
+          "name": "mcp.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mcp.search",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mcp.add",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "skills.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "skills.add",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "plugins.heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "market.section",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "market.discover",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "market.installed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "plugin.dshbot.market",
+          "ok": false,
+          "detail": "preset Cordis plugin, not a market catalog row",
+          "optional": true
+        },
+        {
+          "name": "plugin.dshbot.tab",
+          "ok": true,
+          "detail": "plugin sidebar contribution"
+        },
+        {
+          "name": "plugin.dshbot.page",
+          "ok": true,
+          "detail": ""
+        }
+      ]
+    }
+  },
+  "ptyStatus": "echoed:ok",
+  "pageErrors": []
+}

@@ -1,0 +1,1284 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChisaCode Design Language · Soft Workbench</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --font:
+          "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+
+        --r-sm: 8px;
+        --r-md: 12px;
+        --r-lg: 16px;
+        --r-xl: 20px;
+        --r-pill: 999px;
+
+        --nav-w: 268px;
+
+        /* Soft light craft — airy, not IDE */
+        --bg: #eceef2;
+        --shell: #f4f5f8;
+        --nav: #f0f1f5;
+        --surface: #ffffff;
+        --hover: #e8eaef;
+        --active: #e2e5ec;
+        --border: #e4e6ec;
+        --border-soft: #eef0f4;
+        --text: #14171f;
+        --text-2: #3d4452;
+        --muted: #6f7686;
+        --faint: #9aa1b0;
+        --accent: #2a6cf0;
+        --accent-soft: #eaf1ff;
+        --ok: #18a34a;
+        --send: #1a1d26;
+        --send-fg: #ffffff;
+        --shadow-soft: 0 1px 2px rgba(20, 23, 31, 0.04), 0 8px 28px rgba(20, 23, 31, 0.06);
+        --shadow-composer: 0 2px 8px rgba(20, 23, 31, 0.04), 0 16px 40px rgba(20, 23, 31, 0.07);
+      }
+
+      [data-theme="dark"] {
+        --bg: #0b0d12;
+        --shell: #12151c;
+        --nav: #151922;
+        --surface: #1a1f2a;
+        --hover: #222836;
+        --active: #2a3140;
+        --border: #2c3342;
+        --border-soft: #232a38;
+        --text: #e9edf6;
+        --text-2: #b6becd;
+        --muted: #8b93a7;
+        --faint: #6b7386;
+        --accent: #6ea0ff;
+        --accent-soft: rgba(110, 160, 255, 0.14);
+        --ok: #4ade80;
+        --send: #e9edf6;
+        --send-fg: #12151c;
+        --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.25), 0 10px 28px rgba(0, 0, 0, 0.35);
+        --shadow-composer: 0 4px 20px rgba(0, 0, 0, 0.4);
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        font-family: var(--font);
+        background: #0a0c10;
+        color: #d5dae6;
+        line-height: 1.5;
+      }
+
+      .page {
+        height: 100%;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+        gap: 10px;
+        overflow: auto;
+      }
+
+      .page-head {
+        flex: 0 0 auto;
+        max-width: 1380px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      .page-head h1 {
+        font-size: 16px;
+        font-weight: 650;
+        color: #eef2ff;
+        margin-bottom: 3px;
+      }
+
+      .page-head p {
+        font-size: 12.5px;
+        color: #8b93a7;
+        max-width: 960px;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .meta span {
+        height: 24px;
+        padding: 0 9px;
+        border-radius: var(--r-pill);
+        border: 1px solid #2a3140;
+        background: #141821;
+        color: #b4bccb;
+        font-size: 11.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .meta strong {
+        color: #e8ecf4;
+        font-weight: 600;
+      }
+
+      .toolbar {
+        flex: 0 0 auto;
+        max-width: 1380px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .toolbar button {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: var(--r-sm);
+        border: 1px solid #2a3140;
+        background: #141821;
+        color: #d7dce6;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .toolbar button[aria-pressed="true"] {
+        border-color: #3b82f6;
+        background: #1e293b;
+        color: #eff6ff;
+      }
+
+      .toolbar .hint {
+        font-size: 12px;
+        color: #6b7386;
+      }
+
+      .stage {
+        flex: 1 1 auto;
+        min-height: 600px;
+        max-width: 1380px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+      }
+
+      /* ——— Soft app shell ——— */
+      .app {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        display: grid;
+        grid-template-columns: var(--nav-w) minmax(0, 1fr);
+        grid-template-rows: 100%;
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--shell);
+        color: var(--text);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        border: 1px solid #2a3140;
+      }
+
+      /* ——— Sidebar: soft, list-first ——— */
+      .nav {
+        min-width: 0;
+        min-height: 0;
+        background: var(--nav);
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid var(--border);
+      }
+
+      .nav-top {
+        flex: 0 0 auto;
+        padding: 14px 14px 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        border-radius: 9px;
+        background: linear-gradient(145deg, #1f2430, #3a4154);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      [data-theme="dark"] .brand-mark {
+        background: linear-gradient(145deg, #e8ecf4, #a8b0c0);
+        color: #12151c;
+      }
+
+      .brand-text {
+        min-width: 0;
+      }
+
+      .brand-text .name {
+        font-size: 13.5px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+
+      .brand-text .ver {
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      .nav-top .icons {
+        margin-left: auto;
+        display: flex;
+        gap: 2px;
+      }
+
+      .ni {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: var(--r-sm);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font-size: 13px;
+      }
+
+      .ni:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .nav-primary {
+        flex: 0 0 auto;
+        padding: 0 12px 10px;
+      }
+
+      .new-btn {
+        width: 100%;
+        height: 40px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--active);
+        color: var(--text);
+        font: inherit;
+        font-size: 13.5px;
+        font-weight: 550;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+      }
+
+      .new-btn:hover {
+        background: var(--hover);
+      }
+
+      .new-btn .plus {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+        background: var(--surface);
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        color: var(--text-2);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+
+      .nav-scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 4px 10px 12px;
+      }
+
+      .sec {
+        margin-top: 12px;
+      }
+
+      .sec-h {
+        height: 28px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px;
+        font-size: 12px;
+        font-weight: 550;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .sec-h .chev {
+        font-size: 10px;
+        opacity: 0.7;
+      }
+
+      .sec-h .count {
+        margin-left: auto;
+        font-weight: 400;
+        color: var(--faint);
+        font-size: 11px;
+      }
+
+      .space {
+        margin-top: 2px;
+      }
+
+      .space-h {
+        height: 32px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        color: var(--text-2);
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .space-h:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .space-h .folder {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .space-h .chev {
+        margin-left: auto;
+        font-size: 10px;
+        color: var(--faint);
+      }
+
+      .sess {
+        min-height: 34px;
+        margin-left: 8px;
+        border-radius: 10px;
+        padding: 7px 10px 7px 18px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        cursor: pointer;
+        color: var(--text-2);
+        font-size: 12.5px;
+      }
+
+      .sess:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .sess.on {
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 1px 2px rgba(20, 23, 31, 0.04);
+      }
+
+      [data-theme="dark"] .sess.on {
+        background: var(--active);
+        box-shadow: none;
+      }
+
+      .sess .t {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.3;
+      }
+
+      .sess .m {
+        font-size: 11px;
+        color: var(--faint);
+        white-space: nowrap;
+      }
+
+      .nav-foot {
+        flex: 0 0 auto;
+        padding: 10px 12px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-top: 1px solid var(--border-soft);
+      }
+
+      .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: var(--r-pill);
+        background: linear-gradient(135deg, #34d399, #22d3ee);
+        flex: 0 0 auto;
+      }
+
+      .who {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .who .n {
+        font-size: 12.5px;
+        font-weight: 550;
+        line-height: 1.15;
+      }
+
+      .who .h {
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      /* ——— Main: soft canvas ——— */
+      .main {
+        min-width: 0;
+        min-height: 0;
+        background: var(--shell);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* subtle ambient */
+      .main::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(900px 420px at 70% 20%, rgba(47, 111, 237, 0.05), transparent 60%),
+          radial-gradient(700px 380px at 30% 80%, rgba(16, 185, 129, 0.04), transparent 55%);
+        pointer-events: none;
+      }
+
+      [data-theme="dark"] .main::before {
+        background:
+          radial-gradient(900px 420px at 70% 20%, rgba(110, 160, 255, 0.07), transparent 60%),
+          radial-gradient(700px 380px at 30% 80%, rgba(52, 211, 153, 0.04), transparent 55%);
+      }
+
+      .main-top {
+        flex: 0 0 auto;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 0 16px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .promo {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: var(--r-pill);
+        border: 0;
+        background: var(--surface);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .promo:hover {
+        color: var(--text);
+      }
+
+      .main-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* HOME: spacious centered empty state */
+      .home {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px 28px 40px;
+        min-height: 100%;
+      }
+
+      .home-inner {
+        width: min(720px, 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .home-kicker {
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 10px;
+        text-align: center;
+      }
+
+      .home-title {
+        font-size: clamp(28px, 4vw, 40px);
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.15;
+        text-align: center;
+        color: var(--text);
+        margin-bottom: 6px;
+      }
+
+      .home-sub {
+        font-size: clamp(22px, 3vw, 32px);
+        font-weight: 650;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        text-align: center;
+        color: var(--text);
+        margin-bottom: 22px;
+      }
+
+      .segments {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .seg {
+        height: 34px;
+        padding: 0 14px;
+        border-radius: var(--r-pill);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .seg:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .seg.on {
+        background: var(--text);
+        border-color: var(--text);
+        color: var(--shell);
+      }
+
+      [data-theme="dark"] .seg.on {
+        background: var(--text);
+        color: var(--bg);
+      }
+
+      .chips {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 22px;
+      }
+
+      .chip {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: var(--r-pill);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12.5px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .chip:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      /* Floating composer — hero of empty state */
+      .composer-float {
+        width: 100%;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow-composer);
+        padding: 4px;
+        min-height: 128px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .composer-float:focus-within {
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+        box-shadow:
+          var(--shadow-composer),
+          0 0 0 3px var(--accent-soft);
+      }
+
+      .composer-float textarea {
+        width: 100%;
+        min-height: 64px;
+        max-height: 180px;
+        border: 0;
+        outline: none;
+        resize: none;
+        padding: 14px 16px 8px;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .composer-float textarea::placeholder {
+        color: var(--faint);
+      }
+
+      .composer-tools {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px 10px;
+        flex-wrap: wrap;
+      }
+
+      .composer-tools .right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .t-btn {
+        height: 32px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12.5px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+
+      .t-btn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .t-icon {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: var(--r-sm);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font-size: 16px;
+      }
+
+      .t-icon:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .send {
+        width: 34px;
+        height: 34px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: var(--send);
+        color: var(--send-fg);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .send:hover {
+        opacity: 0.92;
+      }
+
+      .composer-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+        justify-content: center;
+      }
+
+      .foot-chip {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: var(--r-pill);
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .foot-chip:hover {
+        background: var(--surface);
+        color: var(--text-2);
+      }
+
+      /* SESSION view: reading + docked soft composer */
+      .session {
+        display: none;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      .app.mode-session .home {
+        display: none;
+      }
+
+      .app.mode-session .session {
+        display: flex;
+      }
+
+      .session-bar {
+        flex: 0 0 auto;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 18px;
+      }
+
+      .session-bar .title {
+        min-width: 0;
+        flex: 1;
+        font-size: 14px;
+        font-weight: 550;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ctx {
+        height: 30px;
+        padding: 0 11px;
+        border-radius: var(--r-pill);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        max-width: 150px;
+      }
+
+      .ctx:hover {
+        background: var(--hover);
+      }
+
+      .ctx span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .stream {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 8px 28px 12px;
+      }
+
+      .stream-inner {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+
+      .role-a {
+        font-size: 14.5px;
+        line-height: 1.65;
+        color: var(--text);
+      }
+
+      .role-a p {
+        margin: 0 0 12px;
+      }
+
+      .role-a h2 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 16px 0 8px;
+      }
+
+      .role-a ol {
+        margin: 0 0 12px 1.2em;
+      }
+
+      .role-a li {
+        margin: 4px 0;
+      }
+
+      .file-card {
+        margin: 10px 0 14px;
+        padding: 12px 14px;
+        border-radius: var(--r-md);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .file-card .ico {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--shell);
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+      }
+
+      .file-card .nm {
+        font-size: 13px;
+        font-weight: 550;
+      }
+
+      .file-card .sub {
+        font-size: 11.5px;
+        color: var(--faint);
+      }
+
+      .user {
+        display: flex;
+        justify-content: flex-end;
+        margin: 8px 0 16px;
+      }
+
+      .user-b {
+        max-width: min(460px, 88%);
+        padding: 11px 14px;
+        border-radius: 16px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-size: 14px;
+        line-height: 1.55;
+        box-shadow: var(--shadow-soft);
+      }
+
+      .composer-dock {
+        flex: 0 0 auto;
+        padding: 8px 28px 18px;
+      }
+
+      .composer-dock .composer-float {
+        max-width: 720px;
+        margin: 0 auto;
+        min-height: 108px;
+      }
+
+      .composer-dock .composer-float textarea {
+        min-height: 48px;
+      }
+
+      /* Spec */
+      .spec {
+        flex: 0 0 auto;
+        max-width: 1380px;
+        width: 100%;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .spec article {
+        border: 1px solid #2a3140;
+        border-radius: 10px;
+        background: #12161f;
+        padding: 11px 12px;
+      }
+
+      .spec h3 {
+        font-size: 12px;
+        font-weight: 650;
+        color: #eef2ff;
+        margin-bottom: 6px;
+      }
+
+      .spec ul {
+        margin: 0 0 0 1em;
+        font-size: 11.5px;
+        color: #9aa3b5;
+      }
+
+      .spec li {
+        margin: 3px 0;
+      }
+
+      @media (max-width: 1000px) {
+        .spec {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 860px) {
+        .page {
+          height: auto;
+        }
+        .stage {
+          height: 780px;
+          flex: 0 0 auto;
+        }
+        .app {
+          grid-template-columns: 1fr;
+          grid-template-rows: 240px minmax(0, 1fr);
+        }
+        .spec {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>ChisaCode Design Language · Soft Workbench</h1>
+        <p>
+          参考 WorkBuddy 的 craft：大留白、软表面、居中空态、悬浮输入卡——但 IA 仍是
+          ChisaCode（project / session / host / multi-provider）。不是 ZCode 密对话壳，也不是
+          WorkBuddy 功能克隆。
+        </p>
+        <div class="meta">
+          <span><strong>气质</strong> soft · spacious · calm</span>
+          <span><strong>空态</strong> 居中 hero + 悬浮 composer</span>
+          <span><strong>会话</strong> 阅读流 + 底栏同款输入卡</span>
+          <span><strong>侧栏</strong> 轻导航 + project 树</span>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <button type="button" id="btn-theme" aria-pressed="false">深色</button>
+        <button type="button" id="btn-mode" aria-pressed="false">切换到会话态</button>
+        <span class="hint">先看空态是否「松」；再看会话态是否仍统一、不回到 IDE 墙。</span>
+      </div>
+
+      <div class="stage">
+        <div class="app mode-home" id="app" data-theme="light">
+          <aside class="nav" aria-label="导航">
+            <div class="nav-top">
+              <div class="brand-mark">C</div>
+              <div class="brand-text">
+                <div class="name">ChisaCode</div>
+                <div class="ver">local · ready</div>
+              </div>
+              <div class="icons">
+                <button class="ni" type="button" title="搜索">⌕</button>
+                <button class="ni" type="button" title="筛选">☰</button>
+              </div>
+            </div>
+
+            <div class="nav-primary">
+              <button class="new-btn" type="button" title="新建对话">
+                <span class="plus">＋</span>
+                新建对话
+              </button>
+            </div>
+
+            <div class="nav-scroll">
+              <div class="sec">
+                <div class="sec-h">
+                  <span class="chev">▾</span> 置顶 <span class="count">1</span>
+                </div>
+                <div class="sess on">
+                  <div class="t">工作台布局重构方向</div>
+                  <div class="m">刚刚</div>
+                </div>
+              </div>
+
+              <div class="sec">
+                <div class="sec-h">
+                  <span class="chev">▾</span> Projects <span class="count">4</span>
+                </div>
+
+                <div class="space">
+                  <div class="space-h">
+                    <span class="folder">📁</span> ChisaCode <span class="chev">▾</span>
+                  </div>
+                  <div class="sess">
+                    <div class="t">session 重连与 i18n</div>
+                    <div class="m">31分</div>
+                  </div>
+                  <div class="sess">
+                    <div class="t">自定义 model provider</div>
+                    <div class="m">2小时</div>
+                  </div>
+                </div>
+
+                <div class="space">
+                  <div class="space-h">
+                    <span class="folder">📁</span> desktop-shell <span class="chev">▸</span>
+                  </div>
+                </div>
+
+                <div class="space">
+                  <div class="space-h">
+                    <span class="folder">📁</span> protocol <span class="chev">▸</span>
+                  </div>
+                </div>
+
+                <div class="space">
+                  <div class="space-h">
+                    <span class="folder">📁</span> relay <span class="chev">▸</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="nav-foot">
+              <div class="avatar" aria-hidden="true"></div>
+              <div class="who">
+                <div class="n">Ayase</div>
+                <div class="h">Local daemon</div>
+              </div>
+              <button class="ni" type="button" title="通知">◌</button>
+              <button class="ni" type="button" title="设置">⚙</button>
+            </div>
+          </aside>
+
+          <section class="main" aria-label="主区">
+            <div class="main-top">
+              <button class="promo" type="button">多智能体 · 自托管</button>
+            </div>
+
+            <!-- HOME / empty workspace -->
+            <div class="main-body">
+              <div class="home">
+                <div class="home-inner">
+                  <div class="home-kicker">在真实 project 上编排 coding agents</div>
+                  <div class="home-title">ChisaCode</div>
+                  <div class="home-sub">你的多智能体工作台</div>
+
+                  <div class="segments" role="tablist">
+                    <button class="seg" type="button">日常开发</button>
+                    <button class="seg on" type="button">代码审查</button>
+                    <button class="seg" type="button">重构迁移</button>
+                  </div>
+
+                  <div class="chips">
+                    <button class="chip" type="button">修 bug</button>
+                    <button class="chip" type="button">写测试</button>
+                    <button class="chip" type="button">解释架构</button>
+                    <button class="chip" type="button">更多</button>
+                  </div>
+
+                  <div class="composer-float" role="form" aria-label="新建对话">
+                    <textarea
+                      rows="3"
+                      placeholder="今天在哪个 workspace 上做什么？可 @ 文件、切换 provider"
+                    ></textarea>
+                    <div class="composer-tools">
+                      <button class="t-icon" type="button" title="附件">＋</button>
+                      <button class="t-btn" type="button">选择 workspace ▾</button>
+                      <button class="t-btn" type="button">权限 ▾</button>
+                      <div class="right">
+                        <button class="t-btn" type="button">Claude · Opus ▾</button>
+                        <button class="t-icon" type="button" title="语音">♩</button>
+                        <button class="send" type="button" title="发送" aria-label="发送">↑</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="composer-foot">
+                    <button class="foot-chip" type="button">打开 project</button>
+                    <button class="foot-chip" type="button">导入会话</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- SESSION -->
+              <div class="session">
+                <div class="session-bar">
+                  <div class="title">工作台布局重构方向</div>
+                  <button class="ctx" type="button"><span>ChisaCode</span> ▾</button>
+                  <button class="ctx" type="button"><span>cn-main</span> ▾</button>
+                  <button class="ni" type="button" title="环境">⎇</button>
+                  <button class="ni" type="button" title="更多">⋯</button>
+                </div>
+                <div class="stream">
+                  <div class="stream-inner">
+                    <article class="role-a">
+                      <p>
+                        会话态延续同一套软表面：消息像阅读，输入仍是<strong>圆角悬浮卡</strong>钉在底部——与空态同一组件语法，只是从「页面中央」落到「工作台底栏」。
+                      </p>
+                      <h2>和 WorkBuddy 学什么</h2>
+                      <ol>
+                        <li>大留白与软背景，而不是密 chrome</li>
+                        <li>主 CTA 在侧栏是浅底大按钮，不是硬边工具条</li>
+                        <li>空态用居中标题 + 分类 + 大输入卡</li>
+                        <li>阴影只给真正浮起的卡片（composer / 选中会话）</li>
+                      </ol>
+                      <div class="file-card">
+                        <div class="ico">📄</div>
+                        <div>
+                          <div class="nm">chisacode-design-language.md</div>
+                          <div class="sub">设计语言 · Soft Workbench</div>
+                        </div>
+                      </div>
+                    </article>
+                    <div class="user">
+                      <div class="user-b">设计的还是太像 zcode 了，参考一下 WorkBuddy 这张。</div>
+                    </div>
+                    <article class="role-a">
+                      <p>下面输入区应完整可见：文本 + 控件行，圆角大卡，不裁切。</p>
+                    </article>
+                  </div>
+                </div>
+                <div class="composer-dock">
+                  <div class="composer-float" role="form" aria-label="会话输入">
+                    <textarea rows="2" placeholder="继续描述布局感觉，或指出还糙的区域…"></textarea>
+                    <div class="composer-tools">
+                      <button class="t-icon" type="button" title="附件">＋</button>
+                      <button class="t-btn" type="button">代理模式 ▾</button>
+                      <div class="right">
+                        <button class="t-btn" type="button">Claude · Opus ▾</button>
+                        <button class="t-icon" type="button" title="语音">♩</button>
+                        <button class="send" type="button" title="发送">↑</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <section class="spec">
+        <article>
+          <h3>从 WorkBuddy 借</h3>
+          <ul>
+            <li>软灰底 + 白卡片</li>
+            <li>空态居中、大气标题</li>
+            <li>大圆角悬浮输入卡</li>
+            <li>侧栏浅选中、轻列表</li>
+          </ul>
+        </article>
+        <article>
+          <h3>Chisa 自己的</h3>
+          <ul>
+            <li>侧栏仅「新建对话」主 CTA</li>
+            <li>Project / session 树</li>
+            <li>Host + daemon footer</li>
+            <li>Multi-provider composer</li>
+          </ul>
+        </article>
+        <article>
+          <h3>明确不抄</h3>
+          <ul>
+            <li>ZCode 密对话双栏壳</li>
+            <li>WorkBuddy 任务/空间 IA</li>
+            <li>吉祥物 / 运营 Banner 体系</li>
+            <li>IDE 厚 tab + 常驻右栏</li>
+          </ul>
+        </article>
+        <article>
+          <h3>两态一体</h3>
+          <ul>
+            <li>Home：居中 hero composer</li>
+            <li>Session：同款卡钉底</li>
+            <li>同一圆角 / 阴影 / 控件</li>
+            <li>环境面板仍按需</li>
+          </ul>
+        </article>
+      </section>
+    </div>
+
+    <script>
+      const app = document.getElementById("app");
+      const btnTheme = document.getElementById("btn-theme");
+      const btnMode = document.getElementById("btn-mode");
+
+      function setTheme(dark) {
+        app.setAttribute("data-theme", dark ? "dark" : "light");
+        btnTheme.setAttribute("aria-pressed", String(dark));
+        btnTheme.textContent = dark ? "浅色" : "深色";
+      }
+
+      function setSession(on) {
+        app.classList.toggle("mode-session", on);
+        app.classList.toggle("mode-home", !on);
+        btnMode.setAttribute("aria-pressed", String(on));
+        btnMode.textContent = on ? "回到空态（Home）" : "切换到会话态";
+      }
+
+      btnTheme.addEventListener("click", () => setTheme(app.getAttribute("data-theme") !== "dark"));
+      btnMode.addEventListener("click", () => setSession(!app.classList.contains("mode-session")));
+
+      // Clicking active session in sidebar also goes session mode
+      document.querySelectorAll(".sess").forEach((el) => {
+        el.addEventListener("click", () => {
+          document.querySelectorAll(".sess").forEach((s) => s.classList.remove("on"));
+          el.classList.add("on");
+          setSession(true);
+        });
+      });
+
+      setTheme(false);
+      setSession(false);
+    </script>
+  </body>
+</html>

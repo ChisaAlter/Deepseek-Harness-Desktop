@@ -1,0 +1,50 @@
+{
+  "rows": [
+    {
+      "name": "packaged.ghostty.wasm",
+      "ok": true,
+      "detail": "200 http://127.0.0.1:3080/plugins/@deepseek-ai/dsh-client-ui-user-terminal/assets/ghostty-vt.wasm"
+    },
+    {
+      "name": "cdp.page",
+      "ok": true,
+      "detail": "确认连接并生成验证码 — DSH Local Build http://127.0.0.1:3080/"
+    },
+    {
+      "name": "electron.preload",
+      "ok": true,
+      "detail": "remote=false"
+    },
+    {
+      "name": "about.version",
+      "ok": true,
+      "detail": "{\"appVersion\":\"0.2.7\",\"closeToTray\":true}"
+    },
+    {
+      "name": "settings.about",
+      "ok": true,
+      "detail": "设置 通用设置 外观 界面设置 模型 插件 技能 MCP Agent 预设 插件市场 关于 打开配置文件 关闭 关于 本桌面应用与官方 Harness。 Deepseek-Harness-Desktop 当前版本 0.2.7 github.com/ChisaAlter/Deepseek-Harness-Desktop 正在检测更新… 检测更新 在线安装 GitHub 发行版 官方 Harness"
+    },
+    {
+      "name": "workspace.chisa",
+      "ok": true,
+      "detail": "{\"visible\":true,\"ok\":true,\"current\":\"master\",\"names\":[\"111\",\"master\",\"origin/111\",\"origin/master\"]}"
+    },
+    {
+      "name": "files.listing",
+      "ok": true,
+      "detail": "{\"names\":[\".cnb\",\".codebuddy\",\".github\",\".pi\",\".zcode\",\"ardot-chunks\",\"build\",\"docs\",\"hooks\",\"logs\",\"resources\",\"scripts\"],\"text\":\".cnb .codebuddy .github .pi .zcode ardot-chunks build docs hooks logs resources scripts src test .cnb.yml @ .commands-scripts-result.json @ .gitignore @ ardot-authorize-url.txt @ ardot-oauth-capture.mjs @ ardot-oauth-chunks.txt @ ardot-oaut\",\"empty\":false}"
+    },
+    {
+      "name": "terminal.echo",
+      "ok": true,
+      "detail": "CANVAS dshd-027-1787468021699"
+    },
+    {
+      "name": "composer.grokPing",
+      "ok": true,
+      "detail": "pong"
+    }
+  ],
+  "failed": []
+}

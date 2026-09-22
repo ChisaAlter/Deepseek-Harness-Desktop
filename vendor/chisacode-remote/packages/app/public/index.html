@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#181B1A" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="ChisaCode" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
+    />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>%WEB_TITLE%</title>
+    <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      /* Prevent white flash before React mounts */
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background-color: #181b1a;
+        }
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+    <style>
+      button,
+      a,
+      input,
+      textarea,
+      select,
+      [role="button"],
+      [role="link"],
+      [role="textbox"],
+      [role="combobox"],
+      [role="tab"],
+      [role="switch"],
+      [role="checkbox"],
+      [role="slider"],
+      [role="menuitem"],
+      [tabindex],
+      [contenteditable="true"] {
+        -webkit-app-region: no-drag !important;
+      }
+
+      /* Suppress the browser's default focus outline — it appears on mouse
+         clicks and looks out of place against our themed surfaces. Keep a
+         themed ring for keyboard users via :focus-visible. */
+      *:focus {
+        outline: none;
+      }
+      *:focus-visible {
+        outline: 2px solid #20744a;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

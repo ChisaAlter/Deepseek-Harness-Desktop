@@ -1,0 +1,258 @@
+{
+  "name": "@chisacode/protocol",
+  "version": "1.0.3",
+  "description": "ChisaCode shared protocol schemas and wire types",
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    "./agent-attention-notification": {
+      "types": "./dist/agent-attention-notification.d.ts",
+      "default": "./dist/agent-attention-notification.js"
+    },
+    "./agent/attachments": {
+      "types": "./dist/agent/attachments.d.ts",
+      "default": "./dist/agent/attachments.js"
+    },
+    "./agent/extensions": {
+      "types": "./dist/agent/extensions.d.ts",
+      "default": "./dist/agent/extensions.js"
+    },
+    "./agent/messages": {
+      "types": "./dist/agent/messages.d.ts",
+      "default": "./dist/agent/messages.js"
+    },
+    "./agent/state": {
+      "types": "./dist/agent/state.d.ts",
+      "default": "./dist/agent/state.js"
+    },
+    "./agent-labels": {
+      "types": "./dist/agent-labels.d.ts",
+      "default": "./dist/agent-labels.js"
+    },
+    "./agent-lifecycle": {
+      "types": "./dist/agent-lifecycle.d.ts",
+      "default": "./dist/agent-lifecycle.js"
+    },
+    "./agent-presets": {
+      "types": "./dist/agent-presets.d.ts",
+      "default": "./dist/agent-presets.js"
+    },
+    "./agent-state-bucket": {
+      "types": "./dist/agent-state-bucket.d.ts",
+      "default": "./dist/agent-state-bucket.js"
+    },
+    "./agent-title-limits": {
+      "types": "./dist/agent-title-limits.d.ts",
+      "default": "./dist/agent-title-limits.js"
+    },
+    "./agent-types": {
+      "types": "./dist/agent-types.d.ts",
+      "default": "./dist/agent-types.js"
+    },
+    "./automation/messages": {
+      "types": "./dist/automation/messages.d.ts",
+      "default": "./dist/automation/messages.js"
+    },
+    "./binary-frames/file-transfer": {
+      "types": "./dist/binary-frames/file-transfer.d.ts",
+      "default": "./dist/binary-frames/file-transfer.js"
+    },
+    "./binary-frames/index": {
+      "types": "./dist/binary-frames/index.d.ts",
+      "default": "./dist/binary-frames/index.js"
+    },
+    "./binary-frames/terminal": {
+      "types": "./dist/binary-frames/terminal.d.ts",
+      "default": "./dist/binary-frames/terminal.js"
+    },
+    "./branch-slug": {
+      "types": "./dist/branch-slug.d.ts",
+      "default": "./dist/branch-slug.js"
+    },
+    "./chat/rpc-schemas": {
+      "types": "./dist/chat/rpc-schemas.d.ts",
+      "default": "./dist/chat/rpc-schemas.js"
+    },
+    "./chat/types": {
+      "types": "./dist/chat/types.d.ts",
+      "default": "./dist/chat/types.js"
+    },
+    "./cindy/messages": {
+      "types": "./dist/cindy/messages.d.ts",
+      "default": "./dist/cindy/messages.js"
+    },
+    "./chisacode-config-schema": {
+      "types": "./dist/chisacode-config-schema.d.ts",
+      "default": "./dist/chisacode-config-schema.js"
+    },
+    "./checkout/messages": {
+      "types": "./dist/checkout/messages.d.ts",
+      "default": "./dist/checkout/messages.js"
+    },
+    "./client-capabilities": {
+      "types": "./dist/client-capabilities.d.ts",
+      "default": "./dist/client-capabilities.js"
+    },
+    "./connection-offer": {
+      "types": "./dist/connection-offer.d.ts",
+      "default": "./dist/connection-offer.js"
+    },
+    "./relay-device-auth": {
+      "types": "./dist/relay-device-auth.d.ts",
+      "default": "./dist/relay-device-auth.js"
+    },
+    "./daemon-endpoints": {
+      "types": "./dist/daemon-endpoints.d.ts",
+      "default": "./dist/daemon-endpoints.js"
+    },
+    "./daemon/messages": {
+      "types": "./dist/daemon/messages.d.ts",
+      "default": "./dist/daemon/messages.js"
+    },
+    "./error-utils": {
+      "types": "./dist/error-utils.d.ts",
+      "default": "./dist/error-utils.js"
+    },
+    "./generative-ui/component-manifest": {
+      "types": "./dist/generative-ui/component-manifest.d.ts",
+      "default": "./dist/generative-ui/component-manifest.js"
+    },
+    "./generative-ui/rpc-schemas": {
+      "types": "./dist/generative-ui/rpc-schemas.d.ts",
+      "default": "./dist/generative-ui/rpc-schemas.js"
+    },
+    "./git-remote": {
+      "types": "./dist/git-remote.d.ts",
+      "default": "./dist/git-remote.js"
+    },
+    "./goal/rpc-schemas": {
+      "types": "./dist/goal/rpc-schemas.d.ts",
+      "default": "./dist/goal/rpc-schemas.js"
+    },
+    "./host-connection-schema": {
+      "types": "./dist/host-connection-schema.d.ts",
+      "default": "./dist/host-connection-schema.js"
+    },
+    "./importable-providers": {
+      "types": "./dist/importable-providers.d.ts",
+      "default": "./dist/importable-providers.js"
+    },
+    "./literal-union": {
+      "types": "./dist/literal-union.d.ts",
+      "default": "./dist/literal-union.js"
+    },
+    "./learn/rpc-schemas": {
+      "types": "./dist/learn/rpc-schemas.d.ts",
+      "default": "./dist/learn/rpc-schemas.js"
+    },
+    "./loop/rpc-schemas": {
+      "types": "./dist/loop/rpc-schemas.d.ts",
+      "default": "./dist/loop/rpc-schemas.js"
+    },
+    "./messages": {
+      "types": "./dist/messages.d.ts",
+      "default": "./dist/messages.js"
+    },
+    "./migration/rpc-schemas": {
+      "types": "./dist/migration/rpc-schemas.d.ts",
+      "default": "./dist/migration/rpc-schemas.js"
+    },
+    "./path-utils": {
+      "types": "./dist/path-utils.d.ts",
+      "default": "./dist/path-utils.js"
+    },
+    "./provider-config": {
+      "types": "./dist/provider-config.d.ts",
+      "default": "./dist/provider-config.js"
+    },
+    "./provider-manifest": {
+      "types": "./dist/provider-manifest.d.ts",
+      "default": "./dist/provider-manifest.js"
+    },
+    "./provider/messages": {
+      "types": "./dist/provider/messages.d.ts",
+      "default": "./dist/provider/messages.js"
+    },
+    "./project-context/rpc-schemas": {
+      "types": "./dist/project-context/rpc-schemas.d.ts",
+      "default": "./dist/project-context/rpc-schemas.js"
+    },
+    "./schedule/rpc-schemas": {
+      "types": "./dist/schedule/rpc-schemas.d.ts",
+      "default": "./dist/schedule/rpc-schemas.js"
+    },
+    "./schedule/types": {
+      "types": "./dist/schedule/types.d.ts",
+      "default": "./dist/schedule/types.js"
+    },
+    "./snapshot/rpc-schemas": {
+      "types": "./dist/snapshot/rpc-schemas.d.ts",
+      "default": "./dist/snapshot/rpc-schemas.js"
+    },
+    "./terminal-input-mode": {
+      "types": "./dist/terminal-input-mode.d.ts",
+      "default": "./dist/terminal-input-mode.js"
+    },
+    "./terminal-key-input": {
+      "types": "./dist/terminal-key-input.d.ts",
+      "default": "./dist/terminal-key-input.js"
+    },
+    "./terminal/messages": {
+      "types": "./dist/terminal/messages.d.ts",
+      "default": "./dist/terminal/messages.js"
+    },
+    "./terminal-snapshot": {
+      "types": "./dist/terminal-snapshot.d.ts",
+      "default": "./dist/terminal-snapshot.js"
+    },
+    "./terminal-stream-protocol": {
+      "types": "./dist/terminal-stream-protocol.d.ts",
+      "default": "./dist/terminal-stream-protocol.js"
+    },
+    "./team/rpc-schemas": {
+      "types": "./dist/team/rpc-schemas.d.ts",
+      "default": "./dist/team/rpc-schemas.js"
+    },
+    "./tool-call-display": {
+      "types": "./dist/tool-call-display.d.ts",
+      "default": "./dist/tool-call-display.js"
+    },
+    "./tool-name-normalization": {
+      "types": "./dist/tool-name-normalization.d.ts",
+      "default": "./dist/tool-name-normalization.js"
+    },
+    "./usage/messages": {
+      "types": "./dist/usage/messages.d.ts",
+      "default": "./dist/usage/messages.js"
+    },
+    "./voice/messages": {
+      "types": "./dist/voice/messages.d.ts",
+      "default": "./dist/voice/messages.js"
+    },
+    "./workspace/messages": {
+      "types": "./dist/workspace/messages.d.ts",
+      "default": "./dist/workspace/messages.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{ recursive: true, force: true })\" && tsc -p tsconfig.json --incremental false",
+    "prepack": "npm run build",
+    "typecheck": "tsgo --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0",
+    "typescript": "^5.2.2",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,1444 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChisaCode · Workbench Craft Spec v3</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        color-scheme: light;
+        --font:
+          "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC",
+          "Microsoft YaHei", sans-serif;
+        --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+        --r-control: 6px;
+        --r-chip: 8px;
+        --r-input: 12px;
+        --r-panel: 12px;
+        --r-pill: 999px;
+
+        --sidebar-w: 252px;
+        --header-h: 48px;
+        --content-max: 720px;
+        --page-pad-x: 32px;
+
+        --bg: #f3f4f6;
+        --sidebar: #f7f8fa;
+        --canvas: #ffffff;
+        --chrome: #ffffff;
+        --hover: #eef0f3;
+        --active: #e8eaee;
+        --border: #e5e7eb;
+        --border-soft: #eef0f3;
+        --text: #111827;
+        --text-2: #4b5563;
+        --muted: #6b7280;
+        --faint: #9ca3af;
+        --accent: #2563eb;
+        --ok: #16a34a;
+        --danger: #dc2626;
+        --user-bg: #f3f4f6;
+        --code-bg: #f8fafc;
+        --composer-bg: #ffffff;
+        --composer-border: #d1d5db;
+        --send-bg: #111827;
+        --send-fg: #ffffff;
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0f1115;
+        --sidebar: #12151b;
+        --canvas: #161a21;
+        --chrome: #161a21;
+        --hover: #1c212b;
+        --active: #232936;
+        --border: #2a3140;
+        --border-soft: #222833;
+        --text: #e8ecf4;
+        --text-2: #b4bccb;
+        --muted: #8b93a7;
+        --faint: #6b7386;
+        --accent: #60a5fa;
+        --ok: #4ade80;
+        --danger: #f87171;
+        --user-bg: #1c222d;
+        --code-bg: #0f131a;
+        --composer-bg: #1c212b;
+        --composer-border: #3a4254;
+        --send-bg: #e5e7eb;
+        --send-fg: #111827;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        font-family: var(--font);
+        background: #0b0d12;
+        color: #d7dce6;
+        line-height: 1.5;
+      }
+
+      /*
+        Page = column:
+          head (auto)
+          toolbar (auto)
+          stage (1fr)  ← app fills remaining viewport, never clips composer
+          spec (auto)
+      */
+      .page {
+        height: 100%;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 16px 16px 20px;
+        gap: 12px;
+        overflow: auto;
+      }
+
+      .page-head {
+        flex: 0 0 auto;
+        max-width: 1320px;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      .page-head h1 {
+        font-size: 18px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+        color: #eef2ff;
+        margin-bottom: 4px;
+      }
+
+      .page-head p {
+        color: #8b93a7;
+        font-size: 13px;
+        max-width: 900px;
+      }
+
+      .page-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 9px;
+        border-radius: var(--r-pill);
+        border: 1px solid #2a3140;
+        background: #141821;
+        color: #b4bccb;
+        font-size: 11.5px;
+      }
+
+      .chip strong {
+        color: #e8ecf4;
+        font-weight: 600;
+      }
+
+      .toolbar {
+        flex: 0 0 auto;
+        max-width: 1320px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .toolbar button {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: var(--r-control);
+        border: 1px solid #2a3140;
+        background: #141821;
+        color: #d7dce6;
+        font: inherit;
+        font-size: 12.5px;
+        cursor: pointer;
+      }
+
+      .toolbar button[aria-pressed="true"] {
+        background: #1e293b;
+        border-color: #3b82f6;
+        color: #eff6ff;
+      }
+
+      .toolbar .hint {
+        color: #6b7386;
+        font-size: 12px;
+      }
+
+      /* Stage holds the app frame and must consume remaining height */
+      .stage {
+        flex: 1 1 auto;
+        min-height: 560px;
+        max-width: 1320px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+      }
+
+      /* ——— App frame: full stage height, no mystery clipping ——— */
+      .app {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        display: grid;
+        grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+        grid-template-rows: 100%;
+        border: 1px solid #2a3140;
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--bg);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        color: var(--text);
+      }
+
+      .app.inspector-open {
+        grid-template-columns: var(--sidebar-w) minmax(0, 1fr) 280px;
+      }
+
+      /* ——— Left sidebar ——— */
+      .sidebar {
+        min-width: 0;
+        min-height: 0;
+        background: var(--sidebar);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .sb-top {
+        flex: 0 0 auto;
+        height: var(--header-h);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+      }
+
+      .brand {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        background: #111827;
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-size: 12px;
+        font-weight: 700;
+        flex: 0 0 auto;
+      }
+
+      [data-theme="dark"] .brand {
+        background: #e5e7eb;
+        color: #111827;
+      }
+
+      .nav-icon {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .nav-icon:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .sb-actions {
+        flex: 0 0 auto;
+        padding: 2px 10px 8px;
+        display: grid;
+        gap: 1px;
+      }
+
+      .sb-action {
+        height: 36px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 10px;
+        font: inherit;
+        font-size: 13.5px;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .sb-action:hover {
+        background: var(--hover);
+      }
+
+      .sb-action .kbd {
+        margin-left: auto;
+        color: var(--faint);
+        font-size: 11.5px;
+      }
+
+      .sb-action .glyph {
+        width: 16px;
+        color: var(--muted);
+        text-align: center;
+        flex: 0 0 auto;
+        font-size: 14px;
+      }
+
+      .sb-section {
+        flex: 0 0 auto;
+        padding: 8px 12px 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .seg {
+        display: inline-flex;
+        padding: 2px;
+        border-radius: var(--r-pill);
+        background: var(--active);
+        gap: 2px;
+      }
+
+      .seg button {
+        height: 26px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 12px;
+        padding: 0 10px;
+        cursor: pointer;
+      }
+
+      .seg button[aria-selected="true"] {
+        background: var(--canvas);
+        color: var(--text);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      }
+
+      [data-theme="dark"] .seg button[aria-selected="true"] {
+        background: var(--hover);
+        box-shadow: none;
+      }
+
+      .sb-tools {
+        margin-left: auto;
+        display: flex;
+        gap: 2px;
+      }
+
+      .sb-tools button {
+        width: 28px;
+        height: 28px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .sb-tools button:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .sb-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 4px 8px 12px;
+      }
+
+      .project {
+        margin-top: 10px;
+      }
+
+      .project:first-child {
+        margin-top: 2px;
+      }
+
+      .project-h {
+        height: 28px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px;
+        color: var(--muted);
+        font-size: 12.5px;
+        font-weight: 500;
+      }
+
+      .session {
+        min-height: 34px;
+        border-radius: 8px;
+        padding: 7px 8px 7px 22px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: start;
+        cursor: pointer;
+        color: var(--text-2);
+      }
+
+      .session:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .session.active {
+        background: var(--active);
+        color: var(--text);
+      }
+
+      .session .title {
+        font-size: 13px;
+        line-height: 1.35;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .session .meta {
+        font-size: 11.5px;
+        color: var(--faint);
+        white-space: nowrap;
+        padding-top: 1px;
+      }
+
+      .sb-foot {
+        flex: 0 0 auto;
+        border-top: 1px solid var(--border);
+        height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        background: var(--sidebar);
+      }
+
+      .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: var(--r-pill);
+        background: linear-gradient(135deg, #6366f1, #22d3ee);
+        flex: 0 0 auto;
+      }
+
+      .sb-foot .who {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .sb-foot .who .name {
+        font-size: 12.5px;
+        font-weight: 550;
+        line-height: 1.2;
+        color: var(--text);
+      }
+
+      .sb-foot .who .host {
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      .sb-foot .icon-btn {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .sb-foot .icon-btn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      /* ——— Main column: header / stream / composer ——— */
+      .main {
+        min-width: 0;
+        min-height: 0;
+        background: var(--canvas);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .topbar {
+        flex: 0 0 auto;
+        height: var(--header-h);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px 0 16px;
+        background: var(--chrome);
+      }
+
+      .crumb {
+        min-width: 0;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow: hidden;
+      }
+
+      .crumb .title {
+        font-size: 13.5px;
+        font-weight: 550;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text);
+      }
+
+      .pill {
+        height: 26px;
+        padding: 0 10px;
+        border-radius: var(--r-pill);
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        cursor: pointer;
+        flex: 0 0 auto;
+      }
+
+      .pill:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex: 0 0 auto;
+      }
+
+      .top-actions button {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+      }
+
+      .top-actions button:hover,
+      .top-actions button[aria-pressed="true"] {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .tabs-noise {
+        flex: 0 0 auto;
+        height: 36px;
+        border-bottom: 1px solid var(--border);
+        align-items: center;
+        gap: 6px;
+        padding: 0 12px;
+        background: var(--chrome);
+        overflow: hidden;
+      }
+
+      .tab-chip {
+        height: 26px;
+        padding: 0 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        color: var(--muted);
+        border: 1px solid var(--border);
+      }
+
+      .tab-chip.on {
+        background: var(--active);
+        border-color: transparent;
+        color: var(--text);
+      }
+
+      /* Stream scrolls; composer stays pinned */
+      .stream {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 22px var(--page-pad-x) 12px;
+      }
+
+      .stream-inner {
+        max-width: var(--content-max);
+        margin: 0 auto;
+      }
+
+      .assistant {
+        color: var(--text);
+        font-size: 14.5px;
+        line-height: 1.65;
+      }
+
+      .assistant h2 {
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin: 18px 0 10px;
+      }
+
+      .assistant h2:first-child {
+        margin-top: 0;
+      }
+
+      .assistant p {
+        margin: 0 0 12px;
+      }
+
+      .assistant ol,
+      .assistant ul {
+        margin: 0 0 12px 1.15em;
+      }
+
+      .assistant li {
+        margin: 4px 0;
+        padding-left: 2px;
+      }
+
+      .assistant strong {
+        font-weight: 600;
+      }
+
+      .assistant code {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        background: var(--code-bg);
+        border: 1px solid var(--border-soft);
+        border-radius: 4px;
+        padding: 1px 5px;
+      }
+
+      .inline-file {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 10px 0 14px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--canvas);
+      }
+
+      .inline-file .ico {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--user-bg);
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        flex: 0 0 auto;
+      }
+
+      .inline-file .meta {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .inline-file .name {
+        font-size: 13.5px;
+        font-weight: 550;
+      }
+
+      .inline-file .sub {
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .inline-file button {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: var(--r-control);
+        border: 1px solid var(--border);
+        background: var(--canvas);
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .inline-file button:hover {
+        background: var(--hover);
+      }
+
+      .msg-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        margin: 2px 0 18px;
+      }
+
+      .msg-actions button {
+        width: 28px;
+        height: 28px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--faint);
+        cursor: pointer;
+      }
+
+      .msg-actions button:hover {
+        background: var(--hover);
+        color: var(--muted);
+      }
+
+      .msg-actions .time {
+        margin-left: 6px;
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .user-row {
+        display: flex;
+        justify-content: flex-end;
+        margin: 8px 0 18px;
+      }
+
+      .user-bubble {
+        max-width: min(520px, 88%);
+        padding: 10px 14px;
+        border-radius: 14px;
+        background: var(--user-bg);
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      /*
+        Composer: ALWAYS fully visible.
+        flex-shrink: 0 + solid padding + full control row.
+        Matches ZCode / WorkBuddy pen-bar structure.
+      */
+      .composer-dock {
+        flex: 0 0 auto;
+        padding: 8px var(--page-pad-x) 16px;
+        background: var(--canvas);
+        border-top: 0;
+      }
+
+      .composer {
+        max-width: var(--content-max);
+        margin: 0 auto;
+        border: 1px solid var(--composer-border);
+        border-radius: var(--r-input);
+        background: var(--composer-bg);
+        display: flex;
+        flex-direction: column;
+        min-height: 96px;
+      }
+
+      .composer:focus-within {
+        border-color: color-mix(in srgb, var(--accent) 55%, var(--composer-border));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+      }
+
+      .composer-input {
+        display: block;
+        width: 100%;
+        min-height: 48px;
+        max-height: 160px;
+        padding: 14px 16px 8px;
+        border: 0;
+        outline: none;
+        resize: none;
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 14.5px;
+        line-height: 1.45;
+      }
+
+      .composer-input::placeholder {
+        color: var(--faint);
+      }
+
+      .composer-bar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        padding: 4px 10px 10px;
+      }
+
+      .composer-bar .left,
+      .composer-bar .right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .composer-bar .right {
+        margin-left: auto;
+        flex: 0 0 auto;
+      }
+
+      .icon-quiet {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--muted);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+      }
+
+      .icon-quiet:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .mode-btn {
+        height: 32px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: transparent;
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .mode-btn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .mode-btn .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 1.5px solid currentColor;
+        opacity: 0.7;
+      }
+
+      .model-btn {
+        height: 32px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: transparent;
+        color: var(--text-2);
+        font: inherit;
+        font-size: 12.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .model-btn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .send {
+        width: 32px;
+        height: 32px;
+        border: 0;
+        border-radius: var(--r-pill);
+        background: var(--send-bg);
+        color: var(--send-fg);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        flex: 0 0 auto;
+      }
+
+      .send:hover {
+        opacity: 0.92;
+      }
+
+      /* ——— Inspector (default hidden) ——— */
+      .inspector {
+        display: none;
+        min-width: 0;
+        min-height: 0;
+        border-left: 1px solid var(--border);
+        background: var(--sidebar);
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .app.inspector-open .inspector {
+        display: flex;
+      }
+
+      .ins-h {
+        flex: 0 0 auto;
+        height: var(--header-h);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        font-size: 13px;
+        font-weight: 550;
+        color: var(--text);
+      }
+
+      .ins-h button {
+        width: 30px;
+        height: 30px;
+        border: 0;
+        border-radius: var(--r-control);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .ins-h button:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+
+      .ins-body {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+        padding: 12px;
+        font-size: 13px;
+      }
+
+      .ins-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: var(--canvas);
+        margin-bottom: 10px;
+      }
+
+      .ins-card .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 4px 0;
+        color: var(--text);
+      }
+
+      .ins-card .label {
+        color: var(--muted);
+      }
+
+      .ins-card .plus {
+        color: var(--ok);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .ins-card .minus {
+        color: var(--danger);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .ins-actions {
+        display: grid;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .ins-actions button {
+        height: 34px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--canvas);
+        color: var(--text);
+        font: inherit;
+        font-size: 12.5px;
+        text-align: left;
+        padding: 0 10px;
+        cursor: pointer;
+      }
+
+      .ins-actions button:hover {
+        background: var(--hover);
+      }
+
+      /* Spec notes */
+      .spec {
+        flex: 0 0 auto;
+        max-width: 1320px;
+        width: 100%;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .spec-card {
+        border: 1px solid #2a3140;
+        border-radius: 12px;
+        background: #12161f;
+        padding: 12px 14px;
+        color: #c9d0de;
+      }
+
+      .spec-card h3 {
+        font-size: 12.5px;
+        font-weight: 650;
+        color: #eef2ff;
+        margin-bottom: 8px;
+      }
+
+      .spec-card ul {
+        margin: 0 0 0 1.05em;
+        font-size: 12px;
+        color: #9aa3b5;
+      }
+
+      .spec-card li {
+        margin: 3px 0;
+      }
+
+      .spec-card code {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #cbd5e1;
+      }
+
+      .do {
+        color: #86efac;
+      }
+
+      .dont {
+        color: #fca5a5;
+      }
+
+      @media (max-width: 980px) {
+        .spec {
+          grid-template-columns: 1fr;
+        }
+
+        .page {
+          height: auto;
+          min-height: 100vh;
+          overflow: auto;
+        }
+
+        .stage {
+          min-height: 720px;
+          height: 720px;
+          flex: 0 0 auto;
+        }
+
+        .app {
+          grid-template-columns: 1fr;
+          grid-template-rows: 240px minmax(0, 1fr);
+        }
+
+        .app.inspector-open {
+          grid-template-columns: 1fr;
+          grid-template-rows: 200px minmax(0, 1fr) 220px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>Workbench Craft Spec v3 · 对话工作台原型</h1>
+        <p>
+          默认：轻侧栏 + 文档流 + <strong>完整可见</strong> pen-bar 输入。右栏默认隐藏。
+          本页布局保证 composer 钉在中栏底部，不会被裁切。
+        </p>
+        <div class="page-meta">
+          <span class="chip"><strong>形态</strong> 对话工作台</span>
+          <span class="chip"><strong>右栏</strong> 默认隐藏</span>
+          <span class="chip"><strong>真值</strong> Codex-class 安静语法</span>
+          <span class="chip"><strong>输入</strong> 完整 pen bar</span>
+        </div>
+      </header>
+
+      <div class="toolbar">
+        <button type="button" id="btn-theme" aria-pressed="false">切换深色</button>
+        <button type="button" id="btn-inspector" aria-pressed="false">打开右栏（Git）</button>
+        <button type="button" id="btn-tabs" aria-pressed="false">模拟多 Tab 噪音</button>
+        <span class="hint">输入框必须完整露出两行：文本区 + 控件行。若被裁切就是壳层 bug。</span>
+      </div>
+
+      <div class="stage">
+        <div class="app" id="app" data-theme="light">
+          <aside class="sidebar" aria-label="会话导航">
+            <div class="sb-top">
+              <div class="brand">C</div>
+              <button class="nav-icon" type="button" title="返回" aria-label="返回">←</button>
+              <button class="nav-icon" type="button" title="前进" aria-label="前进">→</button>
+              <div style="flex: 1"></div>
+              <button class="nav-icon" type="button" title="面板" aria-label="面板">⧉</button>
+            </div>
+
+            <div class="sb-actions">
+              <button class="sb-action" type="button">
+                <span class="glyph">＋</span> 新建任务 <span class="kbd">Ctrl+N</span>
+              </button>
+              <button class="sb-action" type="button">
+                <span class="glyph">⌕</span> 搜索 <span class="kbd">Ctrl+K</span>
+              </button>
+              <button class="sb-action" type="button"><span class="glyph">✦</span> 技能</button>
+            </div>
+
+            <div class="sb-section">
+              <div class="seg" role="tablist">
+                <button type="button" aria-selected="false"># 分组</button>
+                <button type="button" aria-selected="true">📁 项目</button>
+              </div>
+              <div class="sb-tools">
+                <button type="button" title="排序">≡</button>
+                <button type="button" title="归档">▭</button>
+              </div>
+            </div>
+
+            <div class="sb-list">
+              <div class="project">
+                <div class="project-h">📁 srm_qt</div>
+                <div class="session">
+                  <div class="title">质检提交闪退原因排查</div>
+                  <div class="meta">31分</div>
+                </div>
+              </div>
+              <div class="project">
+                <div class="project-h">📁 CodeBuddyGUI</div>
+                <div class="session">
+                  <div class="title">你感觉这项目可用性咋样？</div>
+                  <div class="meta">1小时</div>
+                </div>
+                <div class="session">
+                  <div class="title">全方位遍历审查项目代码</div>
+                  <div class="meta">3小时</div>
+                </div>
+              </div>
+              <div class="project">
+                <div class="project-h">📁 pi-desktop</div>
+                <div class="session">
+                  <div class="title">看看这个项目吧</div>
+                  <div class="meta">1小时</div>
+                </div>
+                <div class="session">
+                  <div class="title">项目代码全面遍历审查</div>
+                  <div class="meta">1小时</div>
+                </div>
+                <div class="session">
+                  <div class="title">合并提交推送并清理分支</div>
+                  <div class="meta">11小时</div>
+                </div>
+              </div>
+              <div class="project">
+                <div class="project-h">📁 ChisaCode</div>
+                <div class="session active">
+                  <div class="title">我现在有点迷茫了。主要是改和优化了好多版…</div>
+                  <div class="meta">刚刚</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sb-foot">
+              <div class="avatar" aria-hidden="true"></div>
+              <div class="who">
+                <div class="name">Ayase</div>
+                <div class="host">local · ready</div>
+              </div>
+              <button class="icon-btn" type="button" title="主机">▣</button>
+              <button class="icon-btn" type="button" title="设置">⚙</button>
+            </div>
+          </aside>
+
+          <section class="main" aria-label="对话">
+            <header class="topbar">
+              <div class="crumb">
+                <div class="title">
+                  我现在有点迷茫了。主要是改和优化了好多版，感觉怎么就是不对味…
+                </div>
+                <button class="pill" type="button">Chi…</button>
+                <button class="pill" type="button">⎇ cn-main ▾</button>
+              </div>
+              <div class="top-actions">
+                <button type="button" title="更多">⋯</button>
+                <button type="button" title="资源管理器">📁</button>
+                <button type="button" id="top-git" title="Git / 环境" aria-pressed="false">
+                  ⎇
+                </button>
+                <button type="button" title="分屏">▥</button>
+              </div>
+            </header>
+
+            <div class="tabs-noise" id="tabs-noise" hidden>
+              <span class="tab-chip on">对话</span>
+              <span class="tab-chip">terminal</span>
+              <span class="tab-chip">browser</span>
+              <span class="tab-chip">diff</span>
+              <span style="color: var(--faint); font-size: 12px; margin-left: 4px"
+                >+ 多一层 chrome = 立刻变 IDE</span
+              >
+            </div>
+
+            <div class="stream">
+              <div class="stream-inner">
+                <article class="assistant">
+                  <p>
+                    你这个判断很准。粗糙感通常不是功能少，而是
+                    <strong>界面语言不统一、壳太重、主次不分</strong>。 默认工作台应压成「对话 +
+                    输入」。
+                  </p>
+                  <ol>
+                    <li>第一眼是否只看到 <strong>对话 + 输入</strong>？</li>
+                    <li>静止状态有没有超过 <strong>1 条主分隔线</strong> 在抢戏？</li>
+                    <li>同一高度带上，按钮/图标是否像同一套？</li>
+                    <li>会话列表是否像「笔记列表」而不是「资源管理器」？</li>
+                    <li>消息区是否像「文档」而不是「聊天气泡 + 卡片堆」？</li>
+                    <li>关掉右栏 / 少 tab 后，是否立刻顺眼很多？</li>
+                  </ol>
+
+                  <h2>已拍板的产品决定</h2>
+                  <ol>
+                    <li>默认形态：对话工作台</li>
+                    <li>右栏：默认隐藏</li>
+                    <li>真值：布局跟 Codex-class 安静语法；颜色可继续 web3</li>
+                  </ol>
+
+                  <div class="inline-file">
+                    <div class="ico">📄</div>
+                    <div class="meta">
+                      <div class="name">design.md</div>
+                      <div class="sub">文档 · MD · 产品性格真值</div>
+                    </div>
+                    <button type="button">打开 ▾</button>
+                  </div>
+
+                  <div class="msg-actions" aria-label="消息操作">
+                    <button type="button" title="复制">⧉</button>
+                    <button type="button" title="赞">👍</button>
+                    <button type="button" title="踩">👎</button>
+                    <button type="button" title="分享">↗</button>
+                    <span class="time">12:54</span>
+                  </div>
+                </article>
+
+                <div class="user-row">
+                  <div class="user-bubble">
+                    默认形态：对话工作台，右栏：默认隐藏。你产出一页原型我看看。
+                  </div>
+                </div>
+
+                <article class="assistant">
+                  <p>
+                    下方输入区必须完整露出：上层可输入文本，下层
+                    <strong>＋ · 权限 · 模型 · 发送</strong> 一行控件。
+                    若你仍看到裁切，请硬刷新（Ctrl+F5）后再看本文件。
+                  </p>
+                </article>
+              </div>
+            </div>
+
+            <!-- Full pen bar: never flex-shrink, never clipped by stream -->
+            <div class="composer-dock">
+              <div class="composer" role="form" aria-label="消息输入">
+                <textarea
+                  class="composer-input"
+                  rows="2"
+                  placeholder="继续描述你想要的工作台感觉，或指出还糙的区域…"
+                ></textarea>
+                <div class="composer-bar">
+                  <div class="left">
+                    <button class="icon-quiet" type="button" title="附件" aria-label="附件">
+                      ＋
+                    </button>
+                    <button class="mode-btn" type="button" title="权限">
+                      <span class="dot" aria-hidden="true"></span>
+                      完全访问 ▾
+                    </button>
+                  </div>
+                  <div class="right">
+                    <button class="model-btn" type="button" title="模型">grok-4.5 ▾</button>
+                    <button class="send" type="button" title="发送" aria-label="发送">↑</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="inspector" aria-label="环境面板" id="inspector">
+            <div class="ins-h">
+              <span>Git 工具</span>
+              <button type="button" id="ins-close" title="关闭">✕</button>
+            </div>
+            <div class="ins-body">
+              <div class="ins-card">
+                <div class="row">
+                  <span class="label">更改</span>
+                  <span><span class="plus">+1388</span> <span class="minus">-1046</span></span>
+                </div>
+                <div class="row">
+                  <span class="label">分支</span>
+                  <span>cn-main ▾</span>
+                </div>
+                <div class="ins-actions">
+                  <button type="button">查看变更</button>
+                  <button type="button">提交或推送</button>
+                </div>
+              </div>
+              <div class="ins-card">
+                <div class="row">
+                  <span class="label">进程</span>
+                  <span>2 / 3</span>
+                </div>
+                <div
+                  style="margin-top: 8px; color: var(--muted); font-size: 12.5px; line-height: 1.45"
+                >
+                  ✓ Explore workspace layout<br />
+                  ✓ Review roadmap<br />
+                  → Craft direction
+                </div>
+              </div>
+              <p style="color: var(--faint); font-size: 12px; line-height: 1.45">
+                右栏能力保留，默认不与消息流抢第一眼。
+              </p>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <section class="spec" aria-label="规范摘要">
+        <div class="spec-card">
+          <h3>Do · 默认该看见</h3>
+          <ul>
+            <li class="do">左：新建 / 搜索 / 项目会话 / 轻 footer</li>
+            <li class="do">中：单层 topbar</li>
+            <li class="do">消息：助手文档流，用户轻 bubble</li>
+            <li class="do">底：完整 pen bar（文本 + 控件行）</li>
+            <li class="do">分隔：1px border；shadow 仅浮层</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h3>Don’t · 默认不该看见</h3>
+          <ul>
+            <li class="dont">常驻右栏 inspector</li>
+            <li class="dont">双层主 header + 厚 tab 墙</li>
+            <li class="dont">中栏大卡片 / 多重 shadow</li>
+            <li class="dont">消息三种 UI 语言并行</li>
+            <li class="dont">侧栏做成后台能力目录</li>
+          </ul>
+        </div>
+        <div class="spec-card">
+          <h3>落地切片</h3>
+          <ul>
+            <li><code>P0</code> 右栏默认关 + 中栏平面化</li>
+            <li><code>P1</code> topbar 单层；tab 降权</li>
+            <li><code>P2</code> composer pen bar；消息阅读化</li>
+            <li><code>P3</code> 侧栏导航化</li>
+            <li><code>P4</code> craft token 收口</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const app = document.getElementById("app");
+      const btnTheme = document.getElementById("btn-theme");
+      const btnInspector = document.getElementById("btn-inspector");
+      const btnTabs = document.getElementById("btn-tabs");
+      const topGit = document.getElementById("top-git");
+      const insClose = document.getElementById("ins-close");
+      const tabsNoise = document.getElementById("tabs-noise");
+
+      function setInspector(open) {
+        app.classList.toggle("inspector-open", open);
+        btnInspector.setAttribute("aria-pressed", String(open));
+        topGit.setAttribute("aria-pressed", String(open));
+        btnInspector.textContent = open ? "关闭右栏（Git）" : "打开右栏（Git）";
+      }
+
+      function setTheme(dark) {
+        app.setAttribute("data-theme", dark ? "dark" : "light");
+        btnTheme.setAttribute("aria-pressed", String(dark));
+        btnTheme.textContent = dark ? "切换浅色" : "切换深色";
+      }
+
+      function setTabs(on) {
+        btnTabs.setAttribute("aria-pressed", String(on));
+        tabsNoise.hidden = !on;
+        tabsNoise.style.display = on ? "flex" : "none";
+        btnTabs.textContent = on ? "关掉多 Tab 噪音" : "模拟多 Tab 噪音";
+      }
+
+      btnTheme.addEventListener("click", () => {
+        setTheme(app.getAttribute("data-theme") !== "dark");
+      });
+      btnInspector.addEventListener("click", () => {
+        setInspector(!app.classList.contains("inspector-open"));
+      });
+      topGit.addEventListener("click", () => {
+        setInspector(!app.classList.contains("inspector-open"));
+      });
+      insClose.addEventListener("click", () => setInspector(false));
+      btnTabs.addEventListener("click", () => {
+        setTabs(btnTabs.getAttribute("aria-pressed") !== "true");
+      });
+
+      setInspector(false);
+      setTabs(false);
+      setTheme(false);
+    </script>
+  </body>
+</html>

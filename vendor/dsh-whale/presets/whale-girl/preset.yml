@@ -1,0 +1,4 @@
+name: 鲸鱼娘助理
+description: 桌面鲸鱼娘助理会话用的内置预设——人格提示词由 dsh-whale 插件按设置运行时注入；工具面为文件读写 + 技能 + 统筹工具。
+order: 90
+hidden: true

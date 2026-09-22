@@ -1,0 +1,26 @@
+== .agent-presets ==
+total 8
+drwxr-xr-x 2 ubuntu ubuntu 4096 Aug 26 08:14 .
+drwxr-xr-x 7 ubuntu ubuntu 4096 Aug 26 08:14 ..
+== profiles/web/package.json ==
+{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app"
+      ]
+    }
+  }
+}
+== desktop-plugins ==
+total 16
+drwxr-xr-x 4 ubuntu ubuntu 4096 Aug 26 08:10 .
+drwxr-xr-x 4 ubuntu ubuntu 4096 Aug 26 08:13 ..
+drwxr-xr-x 9 ubuntu ubuntu 4096 Aug 26 08:10 dsh-usage-panel
+drwxr-xr-x 2 ubuntu ubuntu 4096 Aug 26 08:10 install-dsh-plugin
+== node_modules dshbot ==
+ls: cannot access '/tmp/dsh-dshbot-phaseB-Ajf4nI/user-data/dsh-home/profiles/web/node_modules/dshbot': No such file or directory
+== grep dshbot in profile manifest/lock ==

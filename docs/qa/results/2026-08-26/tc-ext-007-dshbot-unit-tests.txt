@@ -1,0 +1,485 @@
+TAP version 13
+# Subtest: clampAgentMessage trims and caps length
+ok 1 - clampAgentMessage trims and caps length
+  ---
+  duration_ms: 8.380105
+  ...
+# Subtest: prioritizeAgentInbound puts priority first
+ok 2 - prioritizeAgentInbound puts priority first
+  ---
+  duration_ms: 0.83416
+  ...
+# Subtest: resolveSendToAgentTarget rejects self and allows group targets
+ok 3 - resolveSendToAgentTarget rejects self and allows group targets
+  ---
+  duration_ms: 0.256438
+  ...
+# Subtest: buildAgentInboundWakePrompt includes cue segments
+ok 4 - buildAgentInboundWakePrompt includes cue segments
+  ---
+  duration_ms: 0.300126
+  ...
+# Subtest: inbox drain host does not clear catalog inside systemPrompt assemble
+ok 5 - inbox drain host does not clear catalog inside systemPrompt assemble
+  ---
+  duration_ms: 0.421467
+  ...
+# Subtest: memory read/write round-trips under a temp home
+ok 6 - memory read/write round-trips under a temp home
+  ---
+  duration_ms: 4.446201
+  ...
+# Subtest: buildAgentDirectoryPrompt lists teammates and rooms, hides hidden bots
+ok 7 - buildAgentDirectoryPrompt lists teammates and rooms, hides hidden bots
+  ---
+  duration_ms: 0.847351
+  ...
+# Subtest: index.js wires the teammates directory into the 1:1 system prompt
+ok 8 - index.js wires the teammates directory into the 1:1 system prompt
+  ---
+  duration_ms: 0.152015
+  ...
+# Subtest: defaultBlobAvatar is stable for the same seed
+ok 9 - defaultBlobAvatar is stable for the same seed
+  ---
+  duration_ms: 11.675814
+  ...
+# Subtest: defaultBlobAvatar picks a known shape and color
+ok 10 - defaultBlobAvatar picks a known shape and color
+  ---
+  duration_ms: 0.332112
+  ...
+# Subtest: defaultBlobAvatar can differ across seeds
+ok 11 - defaultBlobAvatar can differ across seeds
+  ---
+  duration_ms: 1.241205
+  ...
+# Subtest: normalizeAvatar falls back to a hashed blob when raw is missing
+ok 12 - normalizeAvatar falls back to a hashed blob when raw is missing
+  ---
+  duration_ms: 0.228276
+  ...
+# Subtest: normalizeAvatar keeps a valid blob
+ok 13 - normalizeAvatar keeps a valid blob
+  ---
+  duration_ms: 0.199312
+  ...
+# Subtest: normalizeAvatar rejects an unknown blob shape
+ok 14 - normalizeAvatar rejects an unknown blob shape
+  ---
+  duration_ms: 0.167119
+  ...
+# Subtest: normalizeAvatar keeps a valid image
+ok 15 - normalizeAvatar keeps a valid image
+  ---
+  duration_ms: 0.260019
+  ...
+# Subtest: assertImageAvatar accepts a short jpeg data URL
+ok 16 - assertImageAvatar accepts a short jpeg data URL
+  ---
+  duration_ms: 0.169177
+  ...
+# Subtest: assertImageAvatar rejects a non-image URL
+ok 17 - assertImageAvatar rejects a non-image URL
+  ---
+  duration_ms: 1.440235
+  ...
+# Subtest: assertImageAvatar rejects an oversized data URL
+ok 18 - assertImageAvatar rejects an oversized data URL
+  ---
+  duration_ms: 0.434348
+  ...
+# Subtest: blobPath rest and squash share the same command count
+ok 19 - blobPath rest and squash share the same command count
+  ---
+  duration_ms: 0.942814
+  ...
+# Subtest: blobPath squash=1 flattens the top and bulges the sides
+ok 20 - blobPath squash=1 flattens the top and bulges the sides
+  ---
+  duration_ms: 0.352753
+  ...
+# Subtest: blobPath squash=-1 stretches taller and tucks the sides
+ok 21 - blobPath squash=-1 stretches taller and tucks the sides
+  ---
+  duration_ms: 0.178345
+  ...
+# Subtest: blobPath lean shears the top sideways
+ok 22 - blobPath lean shears the top sideways
+  ---
+  duration_ms: 0.135173
+  ...
+# Subtest: client.js avatar copy stays in lockstep with lib/avatar.js
+ok 23 - client.js avatar copy stays in lockstep with lib/avatar.js
+  ---
+  duration_ms: 1.658782
+  ...
+# Subtest: filterItems matches name and title case-insensitively
+ok 24 - filterItems matches name and title case-insensitively
+  ---
+  duration_ms: 12.239466
+  ...
+# Subtest: avatarInitial uses the first non-space character
+ok 25 - avatarInitial uses the first non-space character
+  ---
+  duration_ms: 0.311975
+  ...
+# Subtest: avatarHue is stable for the same name
+ok 26 - avatarHue is stable for the same name
+  ---
+  duration_ms: 0.206955
+  ...
+# Subtest: canChangeWorkspace is only true for blank sessions
+ok 27 - canChangeWorkspace is only true for blank sessions
+  ---
+  duration_ms: 0.157018
+  ...
+# Subtest: upsertItem replaces by id and touchItem updates the timestamp
+ok 28 - upsertItem replaces by id and touchItem updates the timestamp
+  ---
+  duration_ms: 0.778184
+  ...
+# Subtest: removeItem drops the matching id
+ok 29 - removeItem drops the matching id
+  ---
+  duration_ms: 0.212167
+  ...
+# Subtest: emptyRoster lists room members or the 1:1 bot for a catalog session
+ok 30 - emptyRoster lists room members or the 1:1 bot for a catalog session
+  ---
+  duration_ms: 0.263759
+  ...
+# Subtest: personaText injects only 1:1 bot descriptions for the live session
+ok 31 - personaText injects only 1:1 bot descriptions for the live session
+  ---
+  duration_ms: 0.206744
+  ...
+# Subtest: resolveAskTarget requires a room parent and a member bot
+ok 32 - resolveAskTarget requires a room parent and a member bot
+  ---
+  duration_ms: 0.666384
+  ...
+# Subtest: memberDisplayName maps catalog id or unique member name to the display name
+ok 33 - memberDisplayName maps catalog id or unique member name to the display name
+  ---
+  duration_ms: 0.414506
+  ...
+# Subtest: childPersonaText is peer-equal Grok system prompt without later-seat bias
+ok 34 - childPersonaText is peer-equal Grok system prompt without later-seat bias
+  ---
+  duration_ms: 1.021105
+  ...
+# Subtest: roomTurnPromptForSpeaker is peer-equal for second member
+ok 35 - roomTurnPromptForSpeaker is peer-equal for second member
+  ---
+  duration_ms: 0.664616
+  ...
+# Subtest: lastAssistantText reads the last non-empty assistant message
+ok 36 - lastAssistantText reads the last non-empty assistant message
+  ---
+  duration_ms: 0.2913
+  ...
+# Subtest: lastUserText reads the last non-empty user message
+ok 37 - lastUserText reads the last non-empty user message
+  ---
+  duration_ms: 0.123419
+  ...
+# Subtest: roomSpeakerIds uses @mentions otherwise every member
+ok 38 - roomSpeakerIds uses @mentions otherwise every member
+  ---
+  duration_ms: 0.874661
+  ...
+# Subtest: groupTranscript folds named user and member lines in log order
+ok 39 - groupTranscript folds named user and member lines in log order
+  ---
+  duration_ms: 1.018352
+  ...
+# Subtest: parseRoomNext / stripRoomNext only strip legacy NEXT for display
+ok 40 - parseRoomNext / stripRoomNext only strip legacy NEXT for display
+  ---
+  duration_ms: 0.323405
+  ...
+# Subtest: groupTranscript omits pass replies and legacy NEXT footers
+ok 41 - groupTranscript omits pass replies and legacy NEXT footers
+  ---
+  duration_ms: 0.219451
+  ...
+# Subtest: isPassContent and memberVisibleText accept pass variants
+ok 42 - isPassContent and memberVisibleText accept pass variants
+  ---
+  duration_ms: 0.128198
+  ...
+# Subtest: orderRoundSpeakers rotates by round index
+ok 43 - orderRoundSpeakers rotates by round index
+  ---
+  duration_ms: 0.12986
+  ...
+# Subtest: nextRoomSpeakerId walks round-robin and honors @mentions
+ok 44 - nextRoomSpeakerId walks round-robin and honors @mentions
+  ---
+  duration_ms: 0.514935
+  ...
+# Subtest: nextRoomSpeakerId stops when every member passes a round
+ok 45 - nextRoomSpeakerId stops when every member passes a round
+  ---
+  duration_ms: 0.173757
+  ...
+# Subtest: nextRoomSpeakerId ignores legacy NEXT footers for scheduling
+ok 46 - nextRoomSpeakerId ignores legacy NEXT footers for scheduling
+  ---
+  duration_ms: 0.242124
+  ...
+# Subtest: nextRoomSpeakerId empty-stops at maxSpeaks and maxRounds
+ok 47 - nextRoomSpeakerId empty-stops at maxSpeaks and maxRounds
+  ---
+  duration_ms: 0.177673
+  ...
+# Subtest: isRoomConversationRequest skips 1:1 bots and auxiliary purposes
+ok 48 - isRoomConversationRequest skips 1:1 bots and auxiliary purposes
+  ---
+  duration_ms: 0.139573
+  ...
+# Subtest: roomDispatchChunks emits one ask_participant then empty stop
+ok 49 - roomDispatchChunks emits one ask_participant then empty stop
+  ---
+  duration_ms: 0.422896
+  ...
+# Subtest: sessionCreatePayload stamps origin and prefers workspace over scratch cwd
+ok 50 - sessionCreatePayload stamps origin and prefers workspace over scratch cwd
+  ---
+  duration_ms: 1.47958
+  ...
+# Subtest: client registers the bots tab, overlay, and ask_participant toolview
+ok 51 - client registers the bots tab, overlay, and ask_participant toolview
+  ---
+  duration_ms: 1.137807
+  ...
+# Subtest: profile host apply short-circuits room llm/stream and registers ask_participant
+ok 52 - profile host apply short-circuits room llm/stream and registers ask_participant
+  ---
+  duration_ms: 0.323714
+  ...
+# Subtest: room preset tool registers ask_participant as a one-shot child
+ok 53 - room preset tool registers ask_participant as a one-shot child
+  ---
+  duration_ms: 0.418422
+  ...
+# Subtest: send_to_agent omits required:false so defineTool accepts optional priority
+ok 54 - send_to_agent omits required:false so defineTool accepts optional priority
+  ---
+  duration_ms: 0.233386
+  ...
+# Subtest: room preset mounts ask_participant without a dispatcher persona
+ok 55 - room preset mounts ask_participant without a dispatcher persona
+  ---
+  duration_ms: 0.255502
+  ...
+# Subtest: room preset metadata is not a session-picker group name
+ok 56 - room preset metadata is not a session-picker group name
+  ---
+  duration_ms: 0.118775
+  ...
+# Subtest: orderRoundSpeakers rotates by round
+ok 57 - orderRoundSpeakers rotates by round
+  ---
+  duration_ms: 8.291158
+  ...
+# Subtest: parseGroupMentions uses word boundaries and everyone
+ok 58 - parseGroupMentions uses word boundaries and everyone
+  ---
+  duration_ms: 0.752016
+  ...
+# Subtest: resolveResponders uses last user window and peer-equal all when no mention
+ok 59 - resolveResponders uses last user window and peer-equal all when no mention
+  ---
+  duration_ms: 0.475028
+  ...
+# Subtest: messagesSinceMemberLastSpoke slices after last member line
+ok 60 - messagesSinceMemberLastSpoke slices after last member line
+  ---
+  duration_ms: 0.24973
+  ...
+# Subtest: buildGroupTurnPrompt has no later-seat pass bias
+ok 61 - buildGroupTurnPrompt has no later-seat pass bias
+  ---
+  duration_ms: 0.403056
+  ...
+# Subtest: isPassContent and isPotentialPassPrefix
+ok 62 - isPassContent and isPotentialPassPrefix
+  ---
+  duration_ms: 0.297914
+  ...
+# Subtest: member system prompt matches the talking-circle toolFilter
+ok 63 - member system prompt matches the talking-circle toolFilter
+  ---
+  duration_ms: 0.245006
+  ...
+# Subtest: the unwired GroupChatOrchestrator parallel implementation stays deleted
+ok 64 - the unwired GroupChatOrchestrator parallel implementation stays deleted
+  ---
+  duration_ms: 0.633864
+  ...
+# Subtest: planCreateGroup requires one member and opens duplicate set
+ok 65 - planCreateGroup requires one member and opens duplicate set
+  ---
+  duration_ms: 6.2296
+  ...
+# Subtest: turn epoch bumps and isCurrent flips
+ok 66 - turn epoch bumps and isCurrent flips
+  ---
+  duration_ms: 0.475431
+  ...
+# Subtest: resolveSendToAgentTarget allows group ids
+ok 67 - resolveSendToAgentTarget allows group ids
+  ---
+  duration_ms: 5.977383
+  ...
+# Subtest: live catalog without dshbot still lists the first-party dshbot row
+ok 68 - live catalog without dshbot still lists the first-party dshbot row
+  ---
+  duration_ms: 2.447927
+  ...
+# Subtest: a registry row with the same id overrides the first-party dshbot row
+ok 69 - a registry row with the same id overrides the first-party dshbot row
+  ---
+  duration_ms: 0.843035
+  ...
+# Subtest: getMarketplacePlugin resolves dshbot cold with no fetch and no cache
+ok 70 - getMarketplacePlugin resolves dshbot cold with no fetch and no cache
+  ---
+  duration_ms: 0.952861
+  ...
+# Subtest: the dshbot \#path: spec passes the marketplace allow list but not Host installPlugin
+ok 71 - the dshbot \#path: spec passes the marketplace allow list but not Host installPlugin
+  ---
+  duration_ms: 1.130661
+  ...
+# Subtest: installMarketplacePlugin(ChisaAlter/dshbot) hands the \#path: spec to the plugin CLI
+ok 72 - installMarketplacePlugin(ChisaAlter/dshbot) hands the \#path: spec to the plugin CLI
+  ---
+  duration_ms: 4.706094
+  ...
+# Subtest: dshbot dev preset is config opt-in and off by default
+ok 73 - dshbot dev preset is config opt-in and off by default
+  ---
+  duration_ms: 2.619593
+  ...
+# Subtest: ensureDshbotPlugin copies the package and inserts a managed patch, but no preset
+ok 74 - ensureDshbotPlugin copies the package and inserts a managed patch, but no preset
+  ---
+  duration_ms: 5.447811
+  ...
+# Subtest: ensureDshbotPlugin refreshes the dev copy on later starts
+ok 75 - ensureDshbotPlugin refreshes the dev copy on later starts
+  ---
+  duration_ms: 4.773408
+  ...
+# Subtest: ensureDshbotPlugin skips the patch insert when the profile already lists the bundle
+ok 76 - ensureDshbotPlugin skips the patch insert when the profile already lists the bundle
+  ---
+  duration_ms: 3.859263
+  ...
+# Subtest: ensureDshbotPlugin does not replace a pnpm-installed dshbot directory
+ok 77 - ensureDshbotPlugin does not replace a pnpm-installed dshbot directory
+  ---
+  duration_ms: 2.413031
+  ...
+# Subtest: ensureDshbotPlugin fails closed when the workspace package is missing
+ok 78 - ensureDshbotPlugin fails closed when the workspace package is missing
+  ---
+  duration_ms: 0.381151
+  ...
+# Subtest: repo keeps the standalone dshbot package publishable
+ok 79 - repo keeps the standalone dshbot package publishable
+  ---
+  duration_ms: 0.271342
+  ...
+# Subtest: removeDshbotPreset removes patch block, copy, link, and orphan preset
+ok 80 - removeDshbotPreset removes patch block, copy, link, and orphan preset
+  ---
+  duration_ms: 3.001509
+  ...
+# Subtest: removeDshbotPreset keeps a user-installed dshbot and its preset
+ok 81 - removeDshbotPreset keeps a user-installed dshbot and its preset
+  ---
+  duration_ms: 1.036463
+  ...
+# Subtest: removeDshbotPreset is a no-op on a clean profile
+ok 82 - removeDshbotPreset is a no-op on a clean profile
+  ---
+  duration_ms: 0.656284
+  ...
+# Subtest: dshbot is publishable: public, MIT, semver, no private flag
+ok 83 - dshbot is publishable: public, MIT, semver, no private flag
+  ---
+  duration_ms: 0.672245
+  ...
+# Subtest: every dshbot export target exists and is covered by the files manifest
+ok 84 - every dshbot export target exists and is covered by the files manifest
+  ---
+  duration_ms: 0.399643
+  ...
+# Subtest: the publish preflight script passes and enforces the dshbot-v tag shape
+ok 85 - the publish preflight script passes and enforces the dshbot-v tag shape
+  ---
+  duration_ms: 49.40553
+  ...
+# Subtest: ensureRoomPreset provisions .agent-presets/dshbot-room from the package
+ok 86 - ensureRoomPreset provisions .agent-presets/dshbot-room from the package
+  ---
+  duration_ms: 8.916835
+  ...
+# Subtest: ensureRoomPreset refreshes byte-different files on upgrade
+ok 87 - ensureRoomPreset refreshes byte-different files on upgrade
+  ---
+  duration_ms: 2.069363
+  ...
+# Subtest: ensureRoomPreset fails soft without a home or source
+ok 88 - ensureRoomPreset fails soft without a home or source
+  ---
+  duration_ms: 1.470907
+  ...
+# Subtest: apply provisions the room preset before registering tools
+ok 89 - apply provisions the room preset before registering tools
+  ---
+  duration_ms: 0.15819
+  ...
+# Subtest: turn epochs are monotonic and stale tokens never validate after restart
+ok 90 - turn epochs are monotonic and stale tokens never validate after restart
+  ---
+  duration_ms: 7.843301
+  ...
+# Subtest: inbox peek never mutates the catalog and ack clears exactly once
+ok 91 - inbox peek never mutates the catalog and ack clears exactly once
+  ---
+  duration_ms: 2.587929
+  ...
+# Subtest: a crash between peek and ack redelivers the batch (at-least-once)
+ok 92 - a crash between peek and ack redelivers the batch (at-least-once)
+  ---
+  duration_ms: 2.162692
+  ...
+# Subtest: duplicate drain injection peeks the same batch and a single ack settles it
+ok 93 - duplicate drain injection peeks the same batch and a single ack settles it
+  ---
+  duration_ms: 1.867645
+  ...
+# Subtest: messages arriving between peek and ack survive the ack
+ok 94 - messages arriving between peek and ack survive the ack
+  ---
+  duration_ms: 1.312431
+  ...
+# Subtest: priority messages are peeked ahead of older non-priority mail
+ok 95 - priority messages are peeked ahead of older non-priority mail
+  ---
+  duration_ms: 1.666066
+  ...
+1..95
+# tests 95
+# suites 0
+# pass 95
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 208.147207

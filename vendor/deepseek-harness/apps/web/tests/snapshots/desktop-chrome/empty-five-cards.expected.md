@@ -1,0 +1,17 @@
+- heading "Open a surface" [level=3]
+- paragraph: Choose what to show in the right panel.
+- button "Browser Open a local app or URL." [disabled]:
+  - img
+  - text: Browser Open a local app or URL.
+- button "Terminal Start a shell in this workspace.":
+  - img
+  - text: Terminal Start a shell in this workspace.
+- button "Files Browse and read workspace files.":
+  - img
+  - text: Files Browse and read workspace files.
+- button "Diff Review git changes." [disabled]:
+  - img
+  - text: Diff Review git changes.
+- button "Agents Inspect running agents.":
+  - img
+  - text: Agents Inspect running agents.

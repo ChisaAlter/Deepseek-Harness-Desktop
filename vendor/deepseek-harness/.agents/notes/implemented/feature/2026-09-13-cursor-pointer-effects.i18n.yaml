@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-13-cursor-pointer-effects.md
+2026-09-13-cursor-pointer-effects.md: fb4116b194c403aa2c4ce5400727f8f8053c23bf
+2026-09-13-cursor-pointer-effects.zh.md: 2c2cb0c167e1306233fc4cd48a54aebdc1db8898

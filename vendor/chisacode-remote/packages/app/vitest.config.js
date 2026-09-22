@@ -1,0 +1,119 @@
+import { defineConfig, configDefaults } from "vitest/config";
+import { playwright } from "@vitest/browser-playwright";
+import path from "path";
+import fs from "fs";
+const appNodeModules = path.resolve(__dirname, "node_modules");
+const rootNodeModules = path.resolve(__dirname, "../../node_modules");
+const resolvePackageEntry = (packageName) => {
+  const appPackagePath = path.resolve(appNodeModules, packageName);
+  return fs.existsSync(appPackagePath)
+    ? appPackagePath
+    : path.resolve(rootNodeModules, packageName);
+};
+export default defineConfig({
+  test: {
+    environment: "node",
+    exclude: [...configDefaults.exclude, "e2e/**"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          environment: "node",
+          include: ["src/**/*.{test,spec}.{ts,tsx}"],
+          setupFiles: [path.resolve(__dirname, "vitest.setup.ts")],
+          exclude: [...configDefaults.exclude, "e2e/**", "src/**/*.browser.{test,spec}.{ts,tsx}"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "browser",
+          include: ["src/**/*.browser.{test,spec}.{ts,tsx}"],
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            connectTimeout: 180_000,
+            instances: [{ browser: "chromium" }],
+            screenshotDirectory: ".vitest-screenshots",
+          },
+        },
+      },
+    ],
+    /**
+     * Expo pulls in native tooling (xcode, etc.) that executes files relying on `process.send`.
+     * Vitest's default worker pool uses worker_threads, which intentionally stub that API and
+     * immediately throw `Unexpected call to process.send`. Running the suite in forked processes
+     * keeps `process.send` intact so the app tests can boot before hitting the intentional failures.
+     */
+    pool: "forks",
+    maxWorkers: 2,
+    server: {
+      deps: {
+        fallbackCJS: true,
+        inline: ["zustand", "@tanstack/react-query", "react-native-web"],
+      },
+    },
+  },
+  resolve: {
+    extensions: [
+      ".web.mjs",
+      ".web.js",
+      ".web.mts",
+      ".web.ts",
+      ".web.jsx",
+      ".web.tsx",
+      ".mjs",
+      ".js",
+      ".mts",
+      ".ts",
+      ".jsx",
+      ".tsx",
+      ".json",
+    ],
+    alias: [
+      {
+        find: /^@chisacode\/relay\/e2ee$/,
+        replacement: path.resolve(__dirname, "../relay/src/e2ee.ts"),
+      },
+      {
+        find: /^@chisacode\/relay$/,
+        replacement: path.resolve(__dirname, "../relay/src/index.ts"),
+      },
+      {
+        find: /^@\/contexts\/toast-context$/,
+        replacement: path.resolve(__dirname, "test-stubs/toast-context.tsx"),
+      },
+      { find: "@", replacement: path.resolve(__dirname, "src") },
+      // Point to the ESM build so Vite can transform its imports and apply the
+      // react alias below (the CJS build uses require('react') which bypasses
+      // Vite alias resolution).
+      {
+        find: "react-native",
+        replacement: path.resolve(rootNodeModules, "react-native-web/dist/index.js"),
+      },
+      {
+        find: /^react-native-svg$/,
+        replacement: path.resolve(__dirname, "test-stubs/react-native-svg-web.ts"),
+      },
+      {
+        find: /^react-native-safe-area-context$/,
+        replacement: path.resolve(__dirname, "test-stubs/react-native-safe-area-context.tsx"),
+      },
+      { find: "react", replacement: resolvePackageEntry("react") },
+      {
+        find: "react-dom",
+        replacement: resolvePackageEntry("react-dom"),
+      },
+      {
+        find: /^@xterm\/addon-ligatures\/lib\/addon-ligatures\.mjs$/,
+        replacement: path.resolve(__dirname, "test-stubs/xterm-addon-ligatures.ts"),
+      },
+      {
+        find: /^@xterm\/addon-ligatures$/,
+        replacement: path.resolve(__dirname, "test-stubs/xterm-addon-ligatures.ts"),
+      },
+    ],
+  },
+});

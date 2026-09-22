@@ -1,0 +1,467 @@
+import { describe, expect, it } from "vitest";
+
+import { AGENT_LIFECYCLE_STATUSES } from "./agent-manager.js";
+import {
+  toAgentPayload,
+  toRecentProviderSessionDescriptorPayload,
+  toStoredAgentRecord,
+  type ManagedAgent,
+} from "./agent-projections.js";
+import type { AgentSession } from "./agent-sdk-types.js";
+import type {
+  AgentFeature,
+  AgentPermissionRequest,
+  AgentPersistenceHandle,
+  AgentSessionConfig,
+  PersistedAgentDescriptor,
+} from "./agent-sdk-types.js";
+
+type ManagedAgentOverrides = Omit<Partial<ManagedAgent>, "config" | "pendingPermissions"> & {
+  config?: Partial<AgentSessionConfig>;
+  pendingPermissions?: Map<string, AgentPermissionRequest>;
+};
+
+function createManagedAgent(overrides: ManagedAgentOverrides = {}): ManagedAgent {
+  const now = new Date("2025-01-01T00:00:00.000Z");
+  const baseConfig: AgentSessionConfig = {
+    provider: "claude",
+    cwd: "/tmp/project",
+    modeId: "plan",
+    model: "claude-3.5-sonnet",
+    extra: {
+      claude: { tone: "friendly" },
+    },
+  };
+
+  const basePersistence: AgentPersistenceHandle = {
+    provider: "claude",
+    sessionId: "persist-1",
+    metadata: { branch: "feature/refactor" },
+  };
+
+  const configOverrides = overrides.config ?? {};
+  const {
+    config: _ignoredConfig,
+    pendingPermissions: pendingPermissionsOverride,
+    lifecycle = "idle",
+    ...restOverrides
+  } = overrides;
+
+  const sessionValue =
+    lifecycle === "closed" ? null : (restOverrides.session ?? ({} as AgentSession));
+  const activeForegroundTurnIdValue =
+    restOverrides.activeForegroundTurnId ?? (lifecycle === "running" ? "test-turn-id" : null);
+  const lastErrorValue =
+    restOverrides.lastError ?? (lifecycle === "error" ? "encountered error" : undefined);
+
+  const agent: ManagedAgent = {
+    id: "agent-123",
+    provider: "claude",
+    cwd: "/tmp/project",
+    session: sessionValue,
+    sessionId: "session-123",
+    capabilities: {
+      supportsStreaming: true,
+      supportsSessionPersistence: true,
+      supportsDynamicModes: true,
+      supportsMcpServers: true,
+      supportsReasoningStream: true,
+      supportsToolInvocations: true,
+    },
+    config: { ...baseConfig, ...configOverrides },
+    lifecycle,
+    createdAt: now,
+    updatedAt: now,
+    availableModes: [
+      { id: "plan", label: "Planning" },
+      { id: "build", label: "Building", description: "Detailed" },
+    ],
+    currentModeId: "plan",
+    pendingPermissions: pendingPermissionsOverride ?? new Map<string, AgentPermissionRequest>(),
+    activeForegroundTurnId: activeForegroundTurnIdValue,
+    foregroundTurnWaiters: new Set(),
+    unsubscribeSession: null,
+    timeline: [],
+    runtimeInfo: {
+      provider: "claude",
+      sessionId: "session-123",
+      model: "claude-3.5-sonnet",
+      modeId: "plan",
+    },
+    persistence: { ...basePersistence },
+    lastUsage: undefined,
+    lastError: lastErrorValue,
+    historyPrimed: true,
+    lastUserMessageAt: now,
+    attention: { requiresAttention: false },
+  };
+
+  return {
+    ...agent,
+    ...restOverrides,
+    lifecycle,
+    config: agent.config,
+    pendingPermissions: agent.pendingPermissions,
+  };
+}
+
+function createPermission(overrides: Partial<AgentPermissionRequest> = {}): AgentPermissionRequest {
+  const base: AgentPermissionRequest = {
+    id: "perm-1",
+    provider: "claude",
+    name: "execute_command",
+    kind: "tool",
+    title: "Run command",
+    description: "Execute shell command",
+    input: { command: "ls", args: undefined },
+    suggestions: [{ behavior: "allow" }],
+    metadata: { requestedAt: new Date("2025-02-01T12:00:00.000Z") },
+  };
+  return { ...base, ...overrides };
+}
+
+function createFeature(overrides: Partial<AgentFeature> = {}): AgentFeature {
+  return {
+    type: "toggle",
+    id: "fast_mode",
+    label: "Fast mode",
+    value: true,
+    ...overrides,
+  };
+}
+
+describe("toStoredAgentRecord", () => {
+  it("captures lifecycle metadata, config, and persistence", () => {
+    const agent = createManagedAgent({
+      currentModeId: "focus",
+      persistence: {
+        provider: "claude",
+        sessionId: "persist-2",
+        metadata: { resumedAt: new Date("2025-01-05T00:00:00.000Z"), note: "warm" },
+      },
+    });
+
+    const record = toStoredAgentRecord(agent, { title: "Refactor Agent" });
+
+    expect(record).toMatchObject({
+      id: agent.id,
+      provider: agent.provider,
+      cwd: agent.cwd,
+      title: "Refactor Agent",
+      lastStatus: agent.lifecycle,
+      lastModeId: "focus",
+    });
+    expect(record.createdAt).toBe(agent.createdAt.toISOString());
+    expect(record.updatedAt).toBe(agent.updatedAt.toISOString());
+    expect(record.lastActivityAt).toBe(agent.updatedAt.toISOString());
+    expect(record.lastUserMessageAt).toBe(agent.lastUserMessageAt?.toISOString());
+    expect(record.persistence).toEqual({
+      provider: "claude",
+      sessionId: "persist-2",
+      metadata: {
+        resumedAt: "2025-01-05T00:00:00.000Z",
+        note: "warm",
+      },
+    });
+    expect(record.runtimeInfo).toEqual({
+      provider: "claude",
+      sessionId: "session-123",
+      model: "claude-3.5-sonnet",
+      modeId: "plan",
+    });
+    expect(record.config).toEqual({
+      modeId: agent.config.modeId,
+      model: agent.config.model,
+      extra: { claude: { tone: "friendly" } },
+    });
+
+    record.config!.extra!.claude!.tone = "serious";
+    expect(agent.config.extra!.claude!.tone).toBe("friendly");
+    record.persistence!.sessionId = "mutated";
+    expect(agent.persistence!.sessionId).toBe("persist-2");
+  });
+
+  it("falls back to config mode when current mode is null and handles null title", () => {
+    const agent = createManagedAgent({
+      currentModeId: null,
+      config: { modeId: "auto" },
+      lastUserMessageAt: null,
+    });
+
+    const record = toStoredAgentRecord(agent);
+    expect(record.title).toBeNull();
+    expect(record.lastModeId).toBe("auto");
+    expect(record.lastUserMessageAt).toBeNull();
+  });
+
+  it("omits config when no serializable fields exist", () => {
+    const agent = createManagedAgent({
+      config: {
+        modeId: undefined,
+        model: undefined,
+        extra: undefined,
+      },
+    });
+
+    const record = toStoredAgentRecord(agent);
+    expect(record.config).toBeNull();
+  });
+
+  it("propagates lifecycle status for all states", () => {
+    for (const status of AGENT_LIFECYCLE_STATUSES) {
+      const agent = createManagedAgent({ lifecycle: status });
+      const record = toStoredAgentRecord(agent);
+      expect(record.lastStatus).toBe(status);
+    }
+  });
+});
+
+describe("toAgentPayload", () => {
+  it("serializes dates, clones arrays, and hides session", () => {
+    const permissionA = createPermission({ id: "perm-a" });
+    const permissionB = createPermission({
+      id: "perm-b",
+      provider: "codex",
+      metadata: { requestedAt: new Date("2025-02-02T00:00:00.000Z"), extra: { flag: true } },
+    });
+    const pending = new Map([
+      [permissionA.id, permissionA],
+      [permissionB.id, permissionB],
+    ]);
+    const agent = createManagedAgent({
+      pendingPermissions: pending,
+      lastUsage: { inputTokens: 10, outputTokens: 20 },
+      lastError: "boom",
+    });
+
+    const payload = toAgentPayload(agent, { title: "UI Payload" });
+
+    expect(payload.createdAt).toBe(agent.createdAt.toISOString());
+    expect(payload.updatedAt).toBe(agent.updatedAt.toISOString());
+    expect(payload.lastUserMessageAt).toBe(agent.lastUserMessageAt?.toISOString());
+    expect(payload.title).toBe("UI Payload");
+    expect(payload.model).toBe(agent.config.model);
+    expect(payload.thinkingOptionId).toBeNull();
+    expect(payload.pendingPermissions.map((item) => item.id)).toEqual(["perm-a", "perm-b"]);
+    expect(payload.pendingPermissions[0]).not.toBe(permissionA);
+    expect(payload.pendingPermissions[0].input).toEqual({ command: "ls" });
+    expect(payload.pendingPermissions[1].metadata).toEqual({
+      requestedAt: "2025-02-02T00:00:00.000Z",
+      extra: { flag: true },
+    });
+    expect(payload.runtimeInfo).toEqual(agent.runtimeInfo);
+    expect(payload.runtimeInfo).not.toBe(agent.runtimeInfo);
+    expect(payload.availableModes).not.toBe(agent.availableModes);
+    expect(payload.availableModes).toEqual(agent.availableModes);
+    expect(payload.capabilities).not.toBe(agent.capabilities);
+    expect(payload.capabilities).toEqual(agent.capabilities);
+    expect(payload.lastUsage).toEqual(agent.lastUsage);
+    expect(payload.lastUsage).not.toBe(agent.lastUsage);
+    expect(payload.lastError).toBe("boom");
+    expect((payload as unknown as { session?: unknown }).session).toBeUndefined();
+
+    payload.availableModes[0].label = "Changed";
+    expect(agent.availableModes[0].label).toBe("Planning");
+    payload.capabilities.supportsStreaming = false;
+    expect(agent.capabilities.supportsStreaming).toBe(true);
+    payload.pendingPermissions[0].title = "Mutated title";
+    expect(permissionA.title).toBe("Run command");
+  });
+
+  it("omits usage when any numeric usage field is NaN", () => {
+    const fields = [
+      "inputTokens",
+      "cachedInputTokens",
+      "outputTokens",
+      "totalCostUsd",
+      "contextWindowMaxTokens",
+      "contextWindowUsedTokens",
+    ] as const;
+
+    for (const field of fields) {
+      const agent = createManagedAgent({
+        lastUsage: {
+          inputTokens: 10,
+          cachedInputTokens: 5,
+          outputTokens: 20,
+          totalCostUsd: 0.5,
+          contextWindowMaxTokens: 200_000,
+          contextWindowUsedTokens: 100_000,
+          [field]: Number.NaN,
+        },
+      });
+
+      const payload = toAgentPayload(agent);
+      expect(payload.lastUsage).toBeUndefined();
+    }
+  });
+
+  it("produces null title and current mode even without overrides", () => {
+    const agent = createManagedAgent({ currentModeId: null, lastUserMessageAt: null });
+    const payload = toAgentPayload(agent);
+    expect(payload.title).toBeNull();
+    expect(payload.currentModeId).toBeNull();
+    expect(payload.lastUserMessageAt).toBeNull();
+    expect(payload.pendingPermissions).toEqual([]);
+  });
+
+  it("propagates lifecycle status for all states", () => {
+    for (const status of AGENT_LIFECYCLE_STATUSES) {
+      const agent = createManagedAgent({ lifecycle: status });
+      const payload = toAgentPayload(agent);
+      expect(payload.status).toBe(status);
+    }
+  });
+
+  it("keeps persistence handles sanitized and detached", () => {
+    const agent = createManagedAgent({
+      persistence: {
+        provider: "codex",
+        sessionId: "persist-99",
+        nativeHandle: { id: "native" } as unknown,
+        metadata: { restored: new Date("2025-03-01T00:00:00.000Z"), empty: {} },
+      },
+    });
+    const payload = toAgentPayload(agent);
+    expect(payload.persistence).toEqual({
+      provider: "codex",
+      sessionId: "persist-99",
+      nativeHandle: { id: "native" },
+      metadata: { restored: "2025-03-01T00:00:00.000Z" },
+    });
+    (payload.persistence as AgentPersistenceHandle).sessionId = "mutated";
+    expect(agent.persistence!.sessionId).toBe("persist-99");
+  });
+
+  it("omits lastUsage when not available", () => {
+    const agent = createManagedAgent({ lastUsage: undefined });
+    const payload = toAgentPayload(agent);
+    expect(payload).not.toHaveProperty("lastUsage");
+  });
+
+  it("preserves context window usage fields when they are valid numbers", () => {
+    const agent = createManagedAgent({
+      lastUsage: {
+        inputTokens: 10,
+        contextWindowMaxTokens: 200_000,
+        contextWindowUsedTokens: 42_000,
+      },
+    });
+
+    const payload = toAgentPayload(agent);
+
+    expect(payload.lastUsage).toEqual({
+      inputTokens: 10,
+      contextWindowMaxTokens: 200_000,
+      contextWindowUsedTokens: 42_000,
+    });
+  });
+
+  it("omits lastUsage when context window usage fields are invalid", () => {
+    const agent = createManagedAgent({
+      lastUsage: {
+        inputTokens: 10,
+        contextWindowMaxTokens: "200000" as unknown as number,
+        contextWindowUsedTokens: NaN,
+      },
+    });
+
+    const payload = toAgentPayload(agent);
+
+    expect(payload).not.toHaveProperty("lastUsage");
+  });
+
+  it("keeps existing lastUsage behavior when context window fields are absent", () => {
+    const agent = createManagedAgent({
+      lastUsage: {
+        inputTokens: 10,
+        outputTokens: 20,
+        totalCostUsd: 1.25,
+      },
+    });
+
+    const payload = toAgentPayload(agent);
+
+    expect(payload.lastUsage).toEqual({
+      inputTokens: 10,
+      outputTokens: 20,
+      totalCostUsd: 1.25,
+    });
+  });
+
+  it("includes features in the snapshot payload", () => {
+    const features = [createFeature()];
+    const agent = createManagedAgent({ features });
+
+    const payload = toAgentPayload(agent);
+
+    expect(payload.features).toEqual(features);
+  });
+});
+
+describe("toRecentProviderSessionDescriptorPayload", () => {
+  it("projects persisted descriptors to provider-opaque public recent sessions", () => {
+    const descriptor: PersistedAgentDescriptor = {
+      provider: "codex-custom",
+      sessionId: "legacy-session-id",
+      cwd: "/tmp/project",
+      title: "Import me",
+      lastActivityAt: new Date("2026-04-30T12:34:56.000Z"),
+      persistence: {
+        provider: "codex-custom",
+        sessionId: "legacy-session-id",
+        nativeHandle: "provider-native-handle",
+      },
+      timeline: [
+        { type: "assistant_message", text: "Ready" },
+        { type: "user_message", text: "  First prompt\n\nwith spacing  " },
+        { type: "user_message", text: "Second prompt" },
+      ],
+    };
+
+    const payload = toRecentProviderSessionDescriptorPayload(descriptor, {
+      providerLabel: "Custom Codex",
+    });
+
+    expect(payload).toEqual({
+      providerId: "codex-custom",
+      providerLabel: "Custom Codex",
+      providerHandleId: "provider-native-handle",
+      cwd: "/tmp/project",
+      title: "Import me",
+      firstPromptPreview: "First prompt with spacing",
+      lastPromptPreview: "Second prompt",
+      lastActivityAt: "2026-04-30T12:34:56.000Z",
+    });
+    expect(payload).not.toHaveProperty("providerKind");
+    expect(payload).not.toHaveProperty("sessionId");
+    expect(payload).not.toHaveProperty("nativeHandle");
+  });
+
+  it("falls back to persistence session id when no provider native handle exists", () => {
+    const descriptor: PersistedAgentDescriptor = {
+      provider: "claude-custom",
+      sessionId: "descriptor-session-id",
+      cwd: "/tmp/project",
+      title: null,
+      lastActivityAt: new Date("2026-04-30T12:34:56.000Z"),
+      persistence: {
+        provider: "claude-custom",
+        sessionId: "persistence-session-id",
+      },
+      timeline: [],
+    };
+
+    expect(
+      toRecentProviderSessionDescriptorPayload(descriptor, {
+        providerLabel: "Custom Claude",
+      }),
+    ).toMatchObject({
+      providerId: "claude-custom",
+      providerLabel: "Custom Claude",
+      providerHandleId: "persistence-session-id",
+      firstPromptPreview: null,
+      lastPromptPreview: null,
+    });
+  });
+});

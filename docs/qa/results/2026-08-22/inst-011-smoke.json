@@ -1,0 +1,53 @@
+{
+  "ok": false,
+  "result": {
+    "hasFrame": true,
+    "gridColumns": "280px 1160px 0px 0px",
+    "hasTitlebar": true,
+    "titlebarButtons": [
+      "Session log",
+      "切换分支",
+      "Commit",
+      "Git 操作",
+      "切换终端抽屉",
+      "切换右侧栏"
+    ],
+    "hasTerminalToggle": true,
+    "hasSurfacesToggle": true,
+    "hasDragStrip": false,
+    "hasDragMark": false,
+    "hasHitMark": false,
+    "captionRegion": "drag",
+    "hasHarnessShellApi": true,
+    "harnessShellApiIsScoped": true,
+    "hasBootShellApi": true,
+    "bootShellApiIsScoped": true,
+    "titlebarHits": {
+      "hits": {
+        "surfaces": 1,
+        "branch": 1,
+        "git": 0
+      },
+      "error": "branch menu did not open"
+    }
+  },
+  "ptyStatus": "echoed:ok",
+  "pageErrors": [],
+  "desktopHome": "C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\user-data\\dsh-home",
+  "homeLog": "[app] Harness 家目录 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\user-data\\dsh-home",
+  "electronEnv": {
+    "DSH_HOME": "",
+    "DSHD_HOME": ""
+  },
+  "bootLogs": [
+    "[app] Harness 家目录 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\user-data\\dsh-home",
+    "[app] 检测端口 127.0.0.1:62960",
+    "[app] 端口 62960 空闲",
+    "[app] 工作区 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\workspace",
+    "[app] 启动本机服务 http://127.0.0.1:62960",
+    "[app] 从官方源码启动 C:\\Ai\\Deepseek-Harness-Desktop\\vendor\\deepseek-harness\\apps\\cli\\lib\\bin.js",
+    "[dsh] dsh web: http://127.0.0.1:62960",
+    "[app] Web UI 就绪 http://127.0.0.1:62960",
+    "[app] 已注册工作区 C:\\Users\\48818\\AppData\\Local\\Temp\\dsh-inst-011-5uxyXY\\workspace"
+  ]
+}

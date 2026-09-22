@@ -1,0 +1,34 @@
+{
+  "ok": true,
+  "pageUrl": "http://127.0.0.1:3099/",
+  "before": {
+    "url": "http://127.0.0.1:3099/",
+    "hasFrame": true,
+    "terminalOpen": true,
+    "surfaceTabs": []
+  },
+  "clickedTerminal": {
+    "ok": true,
+    "label": "新建终端"
+  },
+  "afterTerminal": {
+    "xterm": false,
+    "terminalish": true,
+    "bodyTextHasEcho": true
+  },
+  "surfaces": {
+    "clicked": true
+  },
+  "clickedDiff": true,
+  "diffState": {
+    "hasDiff": true
+  },
+  "clickedBrowser": true,
+  "browserState": {
+    "hasUrl": false
+  },
+  "clickedAgents": true,
+  "agentsState": {
+    "textHit": true
+  }
+}
