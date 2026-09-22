@@ -132,6 +132,29 @@ npm pack --dry-run   # 发布前人工确认清单
 
 **症状**：面板「Updated at {time} · UTC」冻结在一个旧时刻；覆盖度固定报 N 个会话「读取失败」且永不减少。**机理**：vendored `sessionQuery.readSession` 读完全量日志后用 `Session.create`（fork 快照构造器）做 replay 校验——它要求 `seed.length === inheritedEventCount`（seed 只能是继承前缀）；而持久化的 seeded 日志 = 前缀 + `session/end-seed` + 自身事件，**任何 fork 过的会话落盘后即不可读**，必抛 `seeded session constructor seed must equal its inherited prefix`。这些会话每轮扫描都失败、永不成为 `deltaScan` 的 changed → `changed.length===0` 时直接返回旧 payload → `updatedAt` 冻结（日志完全健康）。**修复**（vendored 侧，Agent Note `2026-09-18-session-query-seeded-restore`）：replay 校验改 `Session.fromRestore`（完整存储日志恢复构造器，detached + 持久化 `inheritedEventCount`）；真实 25 会话语料 4 失败全为 seeded，修复后 25/25。**同坑另一处**：`locateSessionArtifact` 曾只认 `session.jsonl.zstd`/`session.jsonl`——持久化层早已代际化（`session.vN.jsonl.zstd`，后端取最高 canonical 代），修复按钮会去重写迁移遗留的 v0 旧代而非实读工件；现按后端语法解析目录选最高代（`.v0`/前导零/`.bak-*`/`.tmp` 均非 canonical）。**规则**：面板依赖 vendored 读路径的任何「全部/固定子集读取失败」，先用真实持久化层直放语料分辨「日志坏了」还是「读路径坏了」——后者绝不能进修复流程。
 
+### 6.7 价格记录并入会话设置段（2026-09-13，方向反转后重做）
+
+唯一价格记录 = harness 会话设置段 `ui-conversation.sessionCostPrices`（输入框状态条正是从该段重新计价，所以记录不能搬）；本插件的「计费设置」弹层是唯一编辑器，自有域 `dsh_usage_panel_billing` 降级为一次性导入。以下是这一轮**真实踩到**与**分析确认后写进代码/单测**的坑：
+
+- **`settings/updated` 的 `next` 是"整段已解析值"，不是补丁——缺字段意味着"用户没有任何自定义价"**（真实踩到：单测先写成"载荷缺字段就忽略"，`adoptSection({})` 之后 snapshot 仍返回旧价，断言直接红）。规则：事件载荷整体覆盖缓存；只有"载荷不是对象"才忽略。段未注册时 `settings.get` 返回 `undefined`（不抛），而 `settings.update` 对未注册命名空间直接 reject（不是 no-op）——读路径要容忍并惰性重读，写路径要把"段已注册"当前置条件。
+- **`settings` 服务不能进全局 `Events` 合并**：本包不依赖 `@deepseek-ai/dsh-settings`，而在一个程序里把 `'settings/updated'` 合并进 cordis `Events` 会与 harness 自己的声明撞车 → 沿用 `src/host/types.ts` 的 `Host*` 结构化 face（`HostSettings` / `HostSettingsEventSource`），调用点一次 `as unknown as` 断言。`inject` 因此新增 `'settings'`（服务缺失时插件保持 pending）。
+- **memory 期读过一次就"永远没有旧价格"**（分析确认，单测锁死）：`BillingStore.load()` 缓存首次结果，`attachMedium` 又刻意保留缓存 → 导入的闸门必须是 `mode === 'durable'`，且闸门之前**连读都不读**。域未挂载 / 段未注册都是**推迟**，在后续 `billing.get` 重试，绝不标记完成。
+- **先写段、后清旧记录**（单测锁事件序 `['section','clear']`）：反序在写段失败时直接丢数据——旧域是这些价格的唯一副本。
+- **导入绝不把异常抛进 RPC**：`billing.get` 是弹层唯一读路径；失败只 warn（同一原因去重，避免每次 GET 刷屏）+ 下次重试。纯函数 `mergeLegacyPrices` 提供"设置段胜出"的合并语义（键冲突以段为准，只补旧域独有的键）。
+- **双语词典成对编辑必须用"删除式"编辑**（真实踩到）：把 8 个键用插入式替换"搬走"会留下重复键——对象字面量重复键 TS 不报错、后者覆盖前者，`npm test` 照样绿；改完必须 grep 复核两本词典（这次 grep 才发现 refTitle…peakIdle 各存在两份）。
+- **harness 侧该字段是刻意宽松的**（`z.any().required(false)`，避免 `z.dict` 把空对象写进注册默认值）：段不校验我们的记录，`parseSessionCostPrices` 是读/写两侧唯一的校验入口——一条坏记录会让整段价格按"无价格"处理（这是刻意的整体失败，不半应用）。
+- **改 host 半后必须 `npm run build`**：桌面加载的是 `lib/`，`typecheck` / `test` 都不产出它，漏构建等于改动没上线（client 半同理）。
+
+### 6.8 峰谷开关的"跟随已存记录"与 flat 记录的助记列（2026-09-13，弹层修复这一轮真实踩到）
+
+- **开关状态必须是已存记录的函数，不能是常量**（真实缺陷：`bufferFromCustom()` 无条件 `idleChecked: true`，用户关了「峰谷计价」保存后再打开弹层，开关又亮了）。四种形状的优先级要在纯函数里写死、单测逐个锁：`flat === true` → 关（单行显示该记录自身三元组）；显式 `idle`（且非 flat）→ 开；两者都无（legacy 单列）→ 开且空闲行填"高峰的一半"——**这条绝不能改判为 flat**，harness 对该形状本来就推导一半，改判等于把谷段价翻倍；无记录 + 有官方列 → 开（官方是两列价，关掉的单列表示不了它）；无记录 + 无官方列 → 关、空、等用户填。`flat` 必须**先于** `idle` 判断（旧代码先查 `idle`）。
+- **harness 记录里没有 `flat` 字段**：三个顶层数字被读作**高峰列**，`idle` 缺失时谷段按一半推导。因此"单价格"记录写成 `{hit,miss,out, flat:true}`（无 `idle`）时，用户填的价在谷段被计成**半价**（本机真实记录 `hohai/gpt-6-astra {inputCacheHit:2, inputCacheMiss:0.12, output:12, flat:true}` 就是这个形状）。现行合同：关开关时**两列都写**（顶层三元组 + `idle` 同值 + `flat: true` 标记），`flat` 仅作本插件恢复开关的标记、harness 忽略它。
+- **修一次要分三处，缺一不可**：纯函数 `repairFlatEntries`（`src/shared/pricing.ts`，返回 `{prices, changed}`，二次运行 `changed:false`）→ ①`prices-source.save()` 每次写都过一遍（新坏形状不可再现）→ ②启动时对会话设置段做一次修复（`src/host/prices-repair.ts`）。**不要修非 flat 的单列记录**（它的"一半"就是语义），也不要动已带 `idle` 的 flat 记录。
+- **一次性修复沿用 legacy import 的闸门**（这不是重复代码，是同一组陷阱）：段未注册 → 只 warn 一次（同一原因去重）并**推迟**，靠后续 `billing.get` 重试；**写完才算 done**（写失败保持 done=false，否则坏记录活到进程结束）；异常一律不进 RPC 路径。读路径不必修：`resolveModelPrice` 对 flat 本来就把三元组当两段价。
+- **模型下拉一旦去掉占位项，"空选中"只剩一种成因**：provider 有 0 个模型（弹层从已存价合成的 `(unknown)`，或 `listModels` 失败/超时）。默认模型必须**走 `selectModel()`**（它就是播种价格行的那条路径，单设 `modelName` 会让下拉有值而输入框全空），且 `commitModel` 的 `modelName === ''` 分支要留着——它是该成因的唯一写入者，不能靠强选一个不存在的模型来"消灭"它。
+- **行标签与颜色是同一个周期断言**：开关关掉后主行不再是谷段价，文案改「价格」（`billing.periodSingle`），`is-idle` 绿色类只在该行真的是谷段列时才挂——绿色等于宣称"谷段"，单价格行没这个断言。
+- **双语词典成对增删后要跑一次脚本核对**（键数 + 重复键 + 左右差集），别靠肉眼看：本轮删除 `billing.pickModel` / `billing.pickModelHint` 并新增 3 个键，脚本一次给出 `zh 138 / en 138、无重复、无单边键`。
+
 ## 7. 文档同步义务
 
 - 改功能必同步 README.md + README.zh-CN.md（双语等价、口径声明、安装方式不变）。

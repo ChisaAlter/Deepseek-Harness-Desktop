@@ -34,6 +34,30 @@ export interface HostLlm {
     /** Adapter-known models for one provider (may be unavailable on some adapters). */
     listModels?(provider: string): Promise<LlmModelInfoLike[]>;
 }
+/** `ctx.settings` — one registered namespace's resolved value plus its write path. */
+export interface HostSettings {
+    /**
+     * Resolved value of a registered namespace (composition base → user layer →
+     * schema defaults), or `undefined` while that namespace is unregistered.
+     */
+    get(ns: string): unknown;
+    /**
+     * Merge a patch into one namespace's user section. REJECTS (it does not
+     * no-op) while the namespace is unregistered — callers must treat
+     * "registered" as a precondition, never as a guarantee.
+     */
+    update(ns: string, patch: object): Promise<void>;
+}
+/**
+ * `ctx.on('settings/updated', …)` — the settings service's commit event.
+ * The listener signature is declared locally because merging this event into
+ * the global cordis `Events` map would collide with the harness's own
+ * declaration of the same event inside one program; the call site casts the
+ * context once instead.
+ */
+export interface HostSettingsEventSource {
+    on(event: 'settings/updated', listener: (ns: unknown, next: unknown, prev: unknown, source: unknown) => void): () => void;
+}
 /** Header subset the projection-cache identity binds (createdAt / cwd / lineage). */
 export interface HostSessionHeader {
     id: string;

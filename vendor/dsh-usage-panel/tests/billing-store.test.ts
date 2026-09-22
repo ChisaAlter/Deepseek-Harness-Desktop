@@ -1,6 +1,8 @@
-// Locks the billing-preferences store: durable-medium roundtrip, semantic
-// rejection, memory fail-soft, the late medium attach upgrade, and the
-// tolerance for legacy v0.3 strip fields (retired composer cost strip).
+// Locks the RETIRED (legacy) billing store, now a reader plus the import's
+// cleanup write: durable-medium roundtrip, semantic rejection on load, the
+// memory fail-soft mode, the late medium attach (whose kept cache is exactly
+// why the one-time import must gate on `mode`), and the tolerance for legacy
+// v0.3 strip fields (retired composer cost strip).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { BillingStore, billingGlobalSchema, type BillingMedium } from '../src/host/billing-store.ts'
@@ -57,29 +59,15 @@ test('legacy v0.3 records with strip fields load and drop them', async () => {
   assert.equal('peakHintVisible' in loaded, false)
 })
 
-test('save writes through to the medium and is reflected on a fresh load', async () => {
-  const medium = fakeMedium(undefined)
+test('clearPrices drops the prices through the medium and keeps the record valid', async () => {
+  const medium = fakeMedium(SETTINGS)
   const store = new BillingStore(medium, () => {})
-  const saved = await store.save(SETTINGS)
-  assert.deepEqual(saved, SETTINGS)
+  await store.clearPrices()
   assert.equal(medium.writes, 1)
-  assert.deepEqual(medium.stored, SETTINGS)
-  const fresh = new BillingStore(medium, () => {})
-  assert.deepEqual(await fresh.load(), SETTINGS)
-})
-
-test('invalid prices are refused on save and never reach the medium', async () => {
-  const medium = fakeMedium(undefined)
-  const store = new BillingStore(medium, () => {})
-  await assert.rejects(
-    () => store.save({ ...SETTINGS, prices: { 'a/b': { inputCacheHit: -1, inputCacheMiss: 3, output: 9 } } }),
-    /invalid prices/,
-  )
-  await assert.rejects(
-    () => store.save({ ...SETTINGS, peakValleyEnabled: 'yes' as never }),
-    /peakValleyEnabled must be a boolean/,
-  )
-  assert.equal(medium.writes, 0)
+  assert.deepEqual(medium.stored, { prices: {}, peakValleyEnabled: true })
+  assert.deepEqual(await store.load(), { prices: {}, peakValleyEnabled: true })
+  // A fresh reader (the next process) sees the cleared record too.
+  assert.deepEqual(await new BillingStore(medium, () => {}).load(), { prices: {}, peakValleyEnabled: true })
 })
 
 test('a corrupted medium degrades to defaults (warned) instead of throwing', async () => {
@@ -92,16 +80,17 @@ test('a corrupted medium degrades to defaults (warned) instead of throwing', asy
   assert.match(warns[0]!, /failed validation/)
 })
 
-test('memory mode persists nothing but keeps working, then upgrades on attach', async () => {
+test('memory mode reads an empty record, writes nothing, and keeps that cache across the attach', async () => {
   const store = new BillingStore(undefined, () => {})
   assert.equal(store.mode, 'memory')
-  await store.save(SETTINGS)
-  assert.deepEqual(await store.load(), SETTINGS)
-  const medium = fakeMedium(undefined)
+  assert.deepEqual(await store.load(), { prices: {}, peakValleyEnabled: true })
+  await store.clearPrices() // no medium: nothing is persisted, nothing throws
+  const medium = fakeMedium({ prices: { 'a/b': { inputCacheHit: 0.1, inputCacheMiss: 3, output: 9 } }, peakValleyEnabled: true })
   store.attachMedium(medium)
   assert.equal(store.mode, 'durable')
-  assert.deepEqual(await store.load(), SETTINGS) // cache survives the attach
-  const next: BillingSettings = { ...SETTINGS, peakValleyEnabled: true }
-  await store.save(next)
-  assert.deepEqual(medium.stored, next)
+  // The attach deliberately KEEPS the memory-phase cache — the record just
+  // written does NOT appear, which is why the one-time import must never take a
+  // memory-phase read as evidence that there are no legacy prices.
+  assert.deepEqual(await store.load(), { prices: {}, peakValleyEnabled: true })
+  assert.equal(medium.writes, 0)
 })

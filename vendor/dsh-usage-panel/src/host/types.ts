@@ -1,7 +1,8 @@
 // dsh-usage-panel · host-side structural types for services the plugin uses
 // at runtime but whose host-side type packages are not public: the Cordis
-// `connection` service (RPC) and the `llm` service (provider directory).
-// The runtime shapes below are exactly what v0.1.0 already exercised.
+// `connection` service (RPC), the `llm` service (provider directory), and the
+// user-settings service (`settings`). The runtime shapes below are exactly
+// what the plugin exercises.
 
 // `ctx.interval` comes from @deepseek-ai/cordis-plugin-timer at runtime.
 // The augmentation is declared locally so the built bundle has NO runtime
@@ -46,6 +47,41 @@ export interface HostLlm {
   listProviders(): Promise<LlmProviderInfoLike[]> | LlmProviderInfoLike[]
   /** Adapter-known models for one provider (may be unavailable on some adapters). */
   listModels?(provider: string): Promise<LlmModelInfoLike[]>
+}
+
+// --- User-settings face (harness `ctx.settings`) ---
+//
+// The plugin does not depend on `@deepseek-ai/dsh-settings`: the desktop
+// runtime provides the service, the npm type packages do not. The faces below
+// are structural, same precedent as the connection/llm faces above.
+
+/** `ctx.settings` — one registered namespace's resolved value plus its write path. */
+export interface HostSettings {
+  /**
+   * Resolved value of a registered namespace (composition base → user layer →
+   * schema defaults), or `undefined` while that namespace is unregistered.
+   */
+  get(ns: string): unknown
+  /**
+   * Merge a patch into one namespace's user section. REJECTS (it does not
+   * no-op) while the namespace is unregistered — callers must treat
+   * "registered" as a precondition, never as a guarantee.
+   */
+  update(ns: string, patch: object): Promise<void>
+}
+
+/**
+ * `ctx.on('settings/updated', …)` — the settings service's commit event.
+ * The listener signature is declared locally because merging this event into
+ * the global cordis `Events` map would collide with the harness's own
+ * declaration of the same event inside one program; the call site casts the
+ * context once instead.
+ */
+export interface HostSettingsEventSource {
+  on(
+    event: 'settings/updated',
+    listener: (ns: unknown, next: unknown, prev: unknown, source: unknown) => void,
+  ): () => void
 }
 
 // --- Vendored harness read faces (dsh-v0.1.2-rc.1) ---
