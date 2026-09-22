@@ -68,6 +68,33 @@ const titleUnit = {
 
 const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url))
 
+/**
+ * Case budget for this file. Every case is real filesystem I/O (mkdtemp, the
+ * per-record load/bootstrap, and the atomic checkpoint replace) through the
+ * shared temp directory, while the lane runs another spec beside it
+ * (`--maxWorkers 2` over 205 files, in a job that also runs 573 GUI files) and
+ * a competing `subagent-codex/real-product` case holds whole `dsh` child trees
+ * for the same minute. Sibling cases in one failing CI run finished in
+ * 79-188ms while another case in the same file was censored at 5000ms, so wall
+ * clock here follows host I/O scheduling, not this file's ~0.5s of work. This
+ * budget is 6x that censored value and ~120x the slowest of 280 locally
+ * measured case executions (243ms); the nested wait budget below stays smaller
+ * so a genuine hang still reports its own timer rather than this one.
+ */
+const FIXTURE_CASE_TIMEOUT_MS = 30_000
+
+/** Budget for each `vi.waitFor` poll loop; far above the observed stall. */
+const REWRITE_WAIT_TIMEOUT_MS = 10_000
+
+/**
+ * Teardown pays the same contention as the cases: `afterEach` disposes every
+ * context in the file and removes its temp tree, so it takes the case budget
+ * rather than the runner's 10s hook default. The already-retrying deletes stay
+ * as the mechanism that absorbs Windows handle-release lag; this only stops a
+ * contended removal from reporting as a hook timeout after the assertions ran.
+ */
+vi.setConfig({ hookTimeout: FIXTURE_CASE_TIMEOUT_MS })
+
 /** One archived per-record document (`{version, record}`). */
 interface FixtureDoc {
   version: number
@@ -136,7 +163,7 @@ async function assertRewrite(ctx: Context, root: string, id: SessionId): Promise
       inheritedEventCount: 0,
     })
     expect(doc.record.rows['title']?.val).toBe('重写标题')
-  }, { timeout: 5_000 })
+  }, { timeout: REWRITE_WAIT_TIMEOUT_MS })
 }
 
 afterEach(async () => {
@@ -144,7 +171,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })))
 })
 
-describe('archived version recovery', () => {
+describe('archived version recovery', { timeout: FIXTURE_CASE_TIMEOUT_MS }, () => {
   it('recovers the v3 whole-unit archive through the legacy bootstrap', async () => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-projcache-fx-'))
     await cp(join(FIXTURES, 'v3-single-unit.json'), join(root, `${projectionCacheDomainSpec.name}.json`))
