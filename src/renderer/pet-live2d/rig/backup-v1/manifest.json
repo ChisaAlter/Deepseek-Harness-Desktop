@@ -1,0 +1,131 @@
+{
+ "master": "master-v1.png",
+ "char_bbox": [
+  767,
+  271,
+  1269,
+  966
+ ],
+ "body": {
+  "file": "body.png",
+  "bbox_in_master": [
+   769,
+   274,
+   1266,
+   966
+  ],
+  "neck": [
+   1018,
+   621
+  ]
+ },
+ "tail": {
+  "file": "tail.png",
+  "bbox_in_master": [
+   775,
+   663,
+   1261,
+   909
+  ],
+  "root": [
+   1152,
+   741
+  ]
+ },
+ "heads": {
+  "neutral": {
+   "file": "head-neutral.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "eyes-closed": {
+   "file": "head-eyes-closed.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "happy": {
+   "file": "head-happy.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "worried": {
+   "file": "head-worried.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "angry": {
+   "file": "head-angry.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "mouth-open": {
+   "file": "head-mouth-open.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "half-closed": {
+   "file": "head-half-closed.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1267,
+    736
+   ]
+  },
+  "wail": {
+   "file": "head-wail.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  },
+  "wink": {
+   "file": "head-wink.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1267,
+    736
+   ]
+  },
+  "surprised": {
+   "file": "head-surprised.png",
+   "bbox_in_master": [
+    767,
+    271,
+    1269,
+    736
+   ]
+  }
+ },
+ "head_neck": [
+  1018,
+  621
+ ]
+}

@@ -30,6 +30,7 @@ import { createTextStore } from './store.ts'
 import { en, zh } from './locales.ts'
 import { DocumentPreviewRegistry } from './document/registry.ts'
 import { documentTabInfoFactory } from './document/contract.ts'
+import { documentActionsTabInfoFactory } from './document/actions.ts'
 import { apply as registerText } from './text/index.ts'
 import { apply as registerMarkdown } from './markdown/index.ts'
 import { apply as registerHtml } from './html/index.ts'
@@ -49,6 +50,7 @@ export type { ReadDocumentBytes, DocumentFileBytes, ReadWorkspaceFilePage, Sessi
 export type { TextPage, TextState, TextStore, TextTabState } from './store.ts'
 export type { DocumentContent, DocumentPreviewProps, DocumentTextPage } from './document/contract.ts'
 export type { DocumentLoadMode, DocumentPreviewDefinition } from './document/registry.ts'
+export type { DocumentActionsOwner } from './document/actions.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -106,6 +108,11 @@ export function apply(ctx: ClientContext): void {
       name: 'sidebar.right.pane.tab', key: TEXTPREVIEW_ID, locale: NS, store,
       children: {
         'sidebar.right.tab.document': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: documentTabInfoFactory } } },
+        'sidebar.right.tab.document.actions': {
+          kind: 'list',
+          scope: 'session',
+          inject: { hooks: { tabInfo: documentActionsTabInfoFactory } },
+        },
       },
       inject: (sessionId, actions): TextPreviewInjected => ({
         ...face(sessionId, actions), hooks: { documentPreviews: source },

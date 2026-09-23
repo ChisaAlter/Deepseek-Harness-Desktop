@@ -12,9 +12,10 @@
  * any session's store by id and syncs the Tab domain from that store's commits.
  *
  * A tab's own actions (`tabActions`) aim at the session the tab is in, not at
- * the mounted one: they run through that session's adopted store, so a callback
- * fired after the user switched sessions still lands where its tab is, and they
- * do nothing for a session whose store was never minted.
+ * the mounted one: navigation runs through that session's adopted store, or
+ * its live binding before adoption catches up, so a callback fired after the
+ * user switched sessions still lands where its tab is. A session with neither
+ * cannot accept navigation; close remains adopted-only.
  *
  * `openResource` and `openTab` are the navigation controller, and every way
  * into the column is a call to one of them: the conversation's file links, a
@@ -169,6 +170,28 @@ export interface ISidebarRight {
    */
   openTab<K extends string>(kind: K, options?: SidebarRightOpenTabOptions<K>): void
   /**
+   * Open a resource in one Session instead of borrowing the currently mounted seat.
+   * @param sessionId - the Session whose Sidebar receives the resource.
+   * @param address - a `dsh-resource://<type>/…` address.
+   * @param options - placement, the opening type, and navigation parameters.
+   */
+  openResourceIn(
+    sessionId: SessionId,
+    address: string,
+    options?: SidebarRightOpenResourceOptions,
+  ): boolean
+  /**
+   * Open a page type in one Session instead of borrowing the currently mounted seat.
+   * @param sessionId - the Session whose Sidebar receives the page.
+   * @param kind - the page type's kind.
+   * @param options - placement and that kind's navigation parameters.
+   */
+  openTabIn<K extends string>(
+    sessionId: SessionId,
+    kind: K,
+    options?: SidebarRightOpenTabOptions<K>,
+  ): boolean
+  /**
    * Close one tab of the mounted session; the sole docked guide remains open.
    * @param tabId - the tab to close.
    */
@@ -299,29 +322,33 @@ export class SidebarRightController implements ISidebarRight {
   }
 
   /**
-   * Open a resource in one session, for a tab's own action; nothing happens
-   * for a session whose store was never adopted or whose adoption was released.
-   * Not part of `ISidebarRight`: the Tab domain's path.
+   * Open a resource in one session, for a tab's own action. The session's
+   * adopted store wins; a live same-session binding is the fallback before
+   * adoption catches up. Nothing happens when neither can accept the open.
    * @param sessionId - the session the acting tab is in.
    * @param address - a `dsh-resource://<type>/…` address.
    * @param options - placement, the opening type, and navigation parameters.
    */
-  openResourceIn(sessionId: SessionId, address: string, options: SidebarRightOpenResourceOptions = {}): void {
-    const actions = this.actionsFor(sessionId)
-    if (actions !== undefined) this.placeResource(sessionId, actions, address, options)
+  openResourceIn(sessionId: SessionId, address: string, options: SidebarRightOpenResourceOptions = {}): boolean {
+    const actions = this.actionsForOpen(sessionId)
+    if (actions === undefined) return false
+    this.placeResource(sessionId, actions, address, options)
+    return true
   }
 
   /**
-   * Open a page type in one session, for a tab's own action; nothing happens
-   * for a session whose store was never adopted or whose adoption was released.
-   * Not part of `ISidebarRight`: the Tab domain's path.
+   * Open a page type in one session, for a tab's own action. The session's
+   * adopted store wins; a live same-session binding is the fallback before
+   * adoption catches up. Nothing happens when neither can accept the open.
    * @param sessionId - the session the acting tab is in.
    * @param kind - the page type's kind.
    * @param options - placement and that kind's navigation parameters.
    */
-  openTabIn<K extends string>(sessionId: SessionId, kind: K, options: SidebarRightOpenTabOptions<K> = {}): void {
-    const actions = this.actionsFor(sessionId)
-    if (actions !== undefined) this.placeTab(sessionId, actions, kind, options)
+  openTabIn<K extends string>(sessionId: SessionId, kind: K, options: SidebarRightOpenTabOptions<K> = {}): boolean {
+    const actions = this.actionsForOpen(sessionId)
+    if (actions === undefined) return false
+    this.placeTab(sessionId, actions, kind, options)
+    return true
   }
 
   /**
@@ -532,6 +559,16 @@ export class SidebarRightController implements ISidebarRight {
    */
   private actionsFor(sessionId: SessionId): SurfaceActions | undefined {
     return this.adopted.get(sessionId)?.store.actions
+  }
+
+  /**
+   * The actions an explicit Session open can write through: that Session's
+   * adopted store, or its mounted binding when the seat is already live and
+   * runtime adoption has not yet caught up.
+   */
+  private actionsForOpen(sessionId: SessionId): SurfaceActions | undefined {
+    return this.actionsFor(sessionId)
+      ?? (this.binding?.sessionId === sessionId ? this.binding.actions : undefined)
   }
 
   private require(): SidebarRightBinding {

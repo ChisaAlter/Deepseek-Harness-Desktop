@@ -3,6 +3,8 @@
 /** Optional jump-to-line carried beside a workspace path. */
 export interface OpenPathOptions {
   line?: number
+  /** Originating session; absent callers use the retained main-view session. */
+  sessionId?: string
 }
 
 /** Minimal workspaces face the interceptor replaces. */
@@ -65,11 +67,12 @@ export function wrapOpenPath(workspaces: Partial<OpenPathService>, deps: OpenPat
     options?: OpenPathOptions,
   ): Promise<void> {
     if (!deps.takeoverEnabled()) return previous.call(workspaces, path)
-    const sessionId = deps.currentSessionId()
+    const sessionId = options?.sessionId ?? deps.currentSessionId()
     if (sessionId === undefined) return previous.call(workspaces, path)
-    const accepted = options === undefined
+    const takeoverOptions = options?.line === undefined ? undefined : { line: options.line }
+    const accepted = takeoverOptions === undefined
       ? await deps.openInSurfaces(path, sessionId)
-      : await deps.openInSurfaces(path, sessionId, options)
+      : await deps.openInSurfaces(path, sessionId, takeoverOptions)
     if (!accepted) return previous.call(workspaces, path)
   }
   workspaces.openPath = wrapped

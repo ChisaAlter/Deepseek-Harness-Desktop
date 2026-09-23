@@ -163,11 +163,32 @@ describe('createTerminalSessionStore', () => {
     const handle = createTerminalSessionStore()
     const instance = handle.create('session-1')
     instance.actions.newTerminal('pty-1', '/work')
-    handle.dispatchData('pty-1', 'hello')
-    handle.dispatchData('pty-1', '!')
+    expect(handle.dispatchData('pty-1', 'hello', 1)).toBe(1)
+    expect(handle.dispatchData('pty-1', '!', 2)).toBe(2)
     expect(instance.getSnapshot().sessions[0]?.buffer).toBe('hello!')
     handle.dispatchExit('pty-1')
     expect(instance.getSnapshot().sessions).toHaveLength(0)
+  })
+
+  it('reports nothing consumed for an id no instance owns', () => {
+    const handle = createTerminalSessionStore()
+    const instance = handle.create('session-1')
+    instance.actions.newTerminal('pty-1', '/work')
+    // A frame for a session this handle never opened must stay unacknowledged,
+    // so the main process keeps the backend paused instead of queuing output
+    // nobody stores.
+    expect(handle.dispatchData('pty-other', 'orphan', 7)).toBe(0)
+    expect(instance.getSnapshot().sessions[0]?.buffer).toBe('')
+  })
+
+  it('reports the sequence only for instances that actually stored the frame', () => {
+    const handle = createTerminalSessionStore()
+    const owner = handle.create('session-1')
+    const idle = handle.create('session-1')
+    owner.actions.newTerminal('pty-1', '/work')
+    expect(handle.dispatchData('pty-1', 'owned', 3)).toBe(3)
+    expect(owner.getSnapshot().sessions[0]?.buffer).toBe('owned')
+    expect(idle.getSnapshot().sessions).toHaveLength(0)
   })
 })
 

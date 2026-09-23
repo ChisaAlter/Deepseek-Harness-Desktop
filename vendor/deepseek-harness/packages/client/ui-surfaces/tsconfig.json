@@ -40,6 +40,18 @@
     },
     {
       "path": "../../api/workspace-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-sidebar-right"
+    },
+    {
+      "path": "../ui-sidebar-browser"
+    },
+    {
+      "path": "../ui-sidebar-documentpreview/tsconfig.client.json"
+    },
+    {
+      "path": "../../util/workspace-path"
     }
   ]
 }

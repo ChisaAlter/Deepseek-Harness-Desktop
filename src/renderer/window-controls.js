@@ -55,7 +55,11 @@ function mountWindowControls(host) {
 
   const maxBtn = host.querySelector('[data-act="maximize"]');
   const applyState = (state) => {
-    if (!maxBtn || !state) {
+    if (!state) {
+      return;
+    }
+    document.documentElement.toggleAttribute('data-window-maximized', Boolean(state.maximized));
+    if (!maxBtn) {
       return;
     }
     maxBtn.innerHTML = state.maximized ? iconRestore() : iconMax();

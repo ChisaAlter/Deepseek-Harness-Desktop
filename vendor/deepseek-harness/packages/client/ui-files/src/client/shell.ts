@@ -44,17 +44,17 @@ export interface FilesShellInjected {
   readFileMedia: (cwd: string, relativePath: string) => Promise<ReadFileMediaResult>
   writeFile: (cwd: string, relativePath: string, text: string) => Promise<WriteFileResult>
   mentionFile: (sessionId: string, relativePath: string) => void
-  appendComposerText?: (sessionId: string, text: string) => void
-  listEditors?: () => Promise<{ id: string, label: string }[]>
-  openInEditor?: (input: {
+  appendComposerText?: ((sessionId: string, text: string) => void) | undefined
+  listEditors?: (() => Promise<{ id: string, label: string }[]>) | undefined
+  openInEditor?: ((input: {
     editor: string
     cwd: string
     relativePath: string
     line?: number
     column?: number
-  }) => Promise<{ ok: boolean, message?: string }>
-  showItemInFolder?: (cwd: string, relativePath: string) => Promise<{ ok: boolean, message?: string }>
-  openWithSystemDefault?: (cwd: string, relativePath: string) => Promise<{ ok: boolean, message?: string }>
+  }) => Promise<{ ok: boolean, message?: string }>) | undefined
+  showItemInFolder?: ((cwd: string, relativePath: string) => Promise<{ ok: boolean, message?: string }>) | undefined
+  openWithSystemDefault?: ((cwd: string, relativePath: string) => Promise<{ ok: boolean, message?: string }>) | undefined
 }
 
 interface FilesShell {

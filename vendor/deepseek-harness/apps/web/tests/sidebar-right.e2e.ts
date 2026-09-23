@@ -42,6 +42,23 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `${SHOT_DIR}/${name}.png`, fullPage: true })
 }
 
+/** Give the browser lane the desktop capabilities the real preload exposes. */
+async function installDesktopShell(page: Page): Promise<void> {
+  await page.addInitScript(({ name, text }) => {
+    const holder = window as Window & { shell?: Record<string, unknown> }
+    holder.shell = {
+      ...(holder.shell && typeof holder.shell === 'object' ? holder.shell : {}),
+      listDir: async (_cwd: string, relativePath?: string) => ({
+        ok: true,
+        entries: relativePath === undefined || relativePath === ''
+          ? [{ name, kind: 'file' }]
+          : [],
+      }),
+      readFile: async () => ({ ok: true, text }),
+    }
+  }, { name: SAMPLE_NAME, text: SAMPLE_TEXT })
+}
+
 /** Centre of a rendered element, in viewport coordinates. */
 async function centre(locator: Locator): Promise<{ x: number; y: number }> {
   const box = await locator.boundingBox()
@@ -192,7 +209,7 @@ async function setPanelWidth(page: Page, target: number): Promise<void> {
  * the first match in document order is the prose's.
  */
 function proseChip(root: Page): Locator {
-  return root.getByRole('button', { name: `Open ${SAMPLE_NAME}` }).first()
+  return root.locator('[data-chat-flow]').getByRole('button', { name: `Open ${SAMPLE_NAME}` }).first()
 }
 
 async function tabTitles(root: Locator): Promise<string[]> {
@@ -231,6 +248,7 @@ describe('web e2e: shipped right Sidebar', () => {
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
+    await installDesktopShell(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
   }, 180_000)
@@ -308,7 +326,10 @@ describe('web e2e: shipped right Sidebar', () => {
         step: 1,
         message: createMessage({
           role: 'assistant',
-          content: [{ type: 'text', text: `Ready. Wrote \`${SAMPLE_NAME}\`.` }],
+          content: [{
+            type: 'text',
+            text: `Ready. Wrote [${SAMPLE_NAME}](${SAMPLE_NAME}#L2) and \`${SAMPLE_NAME}\`.`,
+          }],
           source: { kind: 'model', provider: 'fixture', model: 'fixture' },
         }),
       }, { surfaceOp: 'append' })
@@ -377,8 +398,8 @@ describe('web e2e: shipped right Sidebar', () => {
       await expand.click()
       await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(1)
+      await expect.poll(async () => await width(column)).toBeGreaterThan(0)
       const panelWidth = await width(column)
-      expect(panelWidth).toBeGreaterThan(0)
       expect(await width(conversation)).toBe(centerBefore - panelWidth)
       await expect.poll(async () => await expand.count()).toBe(0)
       // The corner seat collapses with its button, so the utilities' right edge
@@ -719,7 +740,7 @@ describe('web e2e: shipped right Sidebar', () => {
 
     it('opens content once, splits, and floats it outside the column', async () => {
       onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-right-content'))
-      const column = page.locator('[data-rightbar-col]')
+      const column = await resetSidebar(page)
       const panes = column.locator('[data-dockkit-pane]')
       const floats = page.locator('[data-sidebar-right-float-host] [data-dockkit-float]')
 
@@ -817,6 +838,38 @@ describe('web e2e: shipped right Sidebar', () => {
       expect(tripwire.warnings).toEqual([])
     })
 
+    it('routes an explicit Markdown citation and a produced-file mention to the same file resource', async () => {
+      onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-right-citation'))
+      const column = await resetSidebar(page)
+      const panes = column.locator('[data-dockkit-pane]')
+      const citation = page.locator('[data-chat-flow]')
+        .getByRole('button', { name: SAMPLE_NAME, exact: true }).first()
+
+      // The seeded assistant prose now carries both product forms: an explicit
+      // settled Markdown file citation with a line fragment, and the
+      // produced-file inline-code mention. Both are the real click path, not a
+      // direct call to the interception seam.
+      await citation.click()
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', SAMPLE_NAME])
+      await expect.poll(async () => await column.locator('[data-textpreview-target]').getAttribute('data-textpreview-target'))
+        .toBe('2')
+
+      // Repeated activation reuses the same file tab instead of duplicating it.
+      await citation.click()
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', SAMPLE_NAME])
+
+      // The produced-file mention lands on the same resource route and reuses
+      // that tab as well.
+      await proseChip(page).click()
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', SAMPLE_NAME])
+      expect(await panes.count()).toBe(1)
+      await expect.poll(async () => await column.locator('pre').first().innerText())
+        .toContain('second line')
+
+      expect(tripwire.pageErrors).toEqual([])
+      expect(tripwire.warnings).toEqual([])
+    }, 90_000)
+
     // §9.2 (an explicit second copy of the same content) has no control on the
     // panel by product decision, and copy has no service method yet:
     // `duplicateTab` is a store/kit intent only, which service.client.spec.ts covers.
@@ -826,6 +879,7 @@ describe('web e2e: shipped right Sidebar', () => {
       const fxTripwire = watchConsole(fx)
       onTestFailed(() => saveFailureShot(fx, 'web-e2e-sidebar-right-sessions'))
       try {
+        await installDesktopShell(fx)
         await fx.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
         const settled = fx.getByRole('treeitem', { name: /Show the right sidebar\./u }).first()
         await settled.click()
@@ -877,7 +931,7 @@ describe('web e2e: shipped right Sidebar', () => {
         expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)
         await fx.locator('[data-sidebar-right-expand]').click()
         await expect.poll(records, { timeout: 15_000 }).toEqual(before)
-        expect(await width(column)).toBeGreaterThan(0)
+        await expect.poll(async () => await width(column)).toBeGreaterThan(0)
         await column.locator('[data-sidebar-right-panel]').evaluate(async (node) => {
           await Promise.allSettled(node.getAnimations().map(animation => animation.finished))
         })
@@ -1089,6 +1143,7 @@ describe('web e2e: shipped right Sidebar', () => {
       const zhTripwire = watchConsole(zhPage)
       onTestFailed(() => saveFailureShot(zhPage, 'web-e2e-sidebar-right-zh'))
       try {
+        await installDesktopShell(zhPage)
         await zhPage.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
         await zhPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
         // A fresh page opens the workspace on a blank session's hero, which has

@@ -33,7 +33,8 @@ export type { TranscriptViewMode } from '../chat-settings.ts'
 export type {
   AssistantActionOwnerProps, ChatFileMentions, ChatNodeOwnerProps, ChatNodeTurnDataInjected,
   ChatNodeViewProps, ChatScrollPosition, ChatStore, ChatViewInjected, ChatViewSlotProps,
-  CommandRowOwnerProps, CommandRowProps, MessageImagesProps, OpenFileOptions,
+  CommandRowOwnerProps, CommandRowProps, ImagePreviewOwnerProps, ImagePreviewProps,
+  MessageImagesProps, OpenFileOptions,
   TurnProcessOwnerProps, TurnTailOwnerProps, UseChat, UseChatNodeTurnData,
   UserActionContentBlock, UserActionOwnerProps, UserEditorOwnerProps,
 } from './contract/slots.ts'

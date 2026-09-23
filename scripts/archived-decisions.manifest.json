@@ -1,3 +1,10 @@
 {
-  "files": {}
+  "files": {
+    "docs/decisions/archived/product/2026-09-20-pet-live-head-states.en.md": "f9350c708b4f623a3f65b3a137fd1ab9d35d8cce7703cb6d072ed665e0dad1f7",
+    "docs/decisions/archived/product/2026-09-20-pet-live-head-states.i18n.yaml": "e60f8526150d2d656b5b09d52f058b06fdf01e2db57cb6402af7512ce1a0ea4d",
+    "docs/decisions/archived/product/2026-09-20-pet-live-head-states.md": "29b425e7d4b0e7dde6443d740273756eedd9759268554f11628464d2f386d795",
+    "docs/decisions/archived/product/2026-09-20-pet-part-rig.en.md": "ee3f7e4051b8e765f63cd1bf044b4e887509f5a90f9ec7841d6e37b3e354870a",
+    "docs/decisions/archived/product/2026-09-20-pet-part-rig.i18n.yaml": "3fd6121374cb473acb31d289962a80ef49f8a6c2e7115c7fc2bbd688bd4fe746",
+    "docs/decisions/archived/product/2026-09-20-pet-part-rig.md": "4c35f5cfcebe6b6fb4a6c3969560045c70adf81d3badb5a210923885e4ab1104"
+  }
 }

@@ -16,11 +16,30 @@ html,
 body {
   margin: 0;
   height: 100%;
-  background: var(--boot-bg);
   color: var(--boot-ink);
   font-family: var(--dsw-font-family);
   font-size: 14px;
   line-height: 22px;
+}
+
+/* The main window is transparent: the silhouette is drawn by the rounded
+   .stage card, so html/body paint no background of their own (a body
+   background would propagate to the canvas and fill the corners square). */
+html,
+body {
+  background: transparent;
+}
+
+/* Without an html overflow, body's overflow:hidden propagates to the
+   viewport and body itself computes to visible — the rounded clip would
+   never apply and .stage would paint a square under the harness view. */
+html {
+  overflow: hidden;
+}
+
+body {
+  border-radius: 20px;
+  overflow: hidden;
 }
 
 .caption {
@@ -46,6 +65,7 @@ body[data-harness-covered] .caption {
   position: fixed;
   inset: 0;
   z-index: 1;
+  border-radius: 20px;
   background: repeating-linear-gradient(
     to bottom,
     transparent 0,
@@ -58,11 +78,13 @@ body[data-harness-covered] .caption {
 .stage {
   position: relative;
   min-height: 100%;
+  border-radius: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: calc(48px + var(--caption-h)) 32px calc(var(--boot-log-inset) + var(--boot-log-max) + 16px);
+  background-color: var(--boot-bg);
   background-image:
     linear-gradient(var(--boot-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--boot-grid) 1px, transparent 1px);
@@ -386,4 +408,11 @@ body[data-state="error"] .stage {
   .mark-still {
     display: block;
   }
+}
+
+/* Maximized windows lose the rounded silhouette (native corners square). */
+html[data-window-maximized] body,
+html[data-window-maximized] .scan,
+html[data-window-maximized] .stage {
+  border-radius: 0;
 }

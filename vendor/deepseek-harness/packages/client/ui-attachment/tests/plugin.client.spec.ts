@@ -4,6 +4,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { apply as applyHost } from '../src/index.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { ComposerAttachments } from '../src/client/ComposerAttachments.tsx'
+import { ImagePreview } from '../src/client/ImagePreview.tsx'
 import { MessageImages } from '../src/client/MessageImages.tsx'
 
 async function bench() {
@@ -16,6 +17,7 @@ async function bench() {
       'conversation.message.images': { kind: 'single', scope: 'session' },
       'conversation.trajectory.images': { kind: 'single', scope: 'session' },
       'tool.call.images': { kind: 'single', scope: 'session' },
+      'conversation.image.preview': { kind: 'single', scope: 'session' },
     },
   } as never, () => null)
   const fiber = ctx.plugin({ inject: [...inject], apply })
@@ -47,6 +49,10 @@ describe('attachment plugin', () => {
       locale: 'conversation',
       component: MessageImages,
     }])
+    expect(ctx.slots.entries('conversation.image.preview')).toMatchObject([{
+      locale: 'conversation',
+      component: ImagePreview,
+    }])
 
     await fiber.dispose()
 
@@ -54,5 +60,6 @@ describe('attachment plugin', () => {
     expect(ctx.slots.entries('conversation.message.images')).toHaveLength(0)
     expect(ctx.slots.entries('conversation.trajectory.images')).toHaveLength(0)
     expect(ctx.slots.entries('tool.call.images')).toHaveLength(0)
+    expect(ctx.slots.entries('conversation.image.preview')).toHaveLength(0)
   })
 })

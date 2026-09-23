@@ -63,7 +63,7 @@ function parseCookieNameValue(pair) {
 
 /**
  * @param {string} url
- * @param {{ fetchImpl?: typeof fetch }} [options]
+ * @param {{ fetchImpl?: typeof fetch, signal?: AbortSignal }} [options]
  */
 async function redeemBrowserSession(url, options = {}) {
   const fetchImpl = options.fetchImpl || fetch;
@@ -71,7 +71,7 @@ async function redeemBrowserSession(url, options = {}) {
   if (!token) {
     return { cookie: '', origin: originFromUrl(url) };
   }
-  const response = await fetchImpl(url, { redirect: 'manual' });
+  const response = await fetchImpl(url, { redirect: 'manual', signal: options.signal });
   const cookie = cookieFromResponse(response);
   return { cookie, origin: originFromUrl(url), status: response.status };
 }
@@ -81,15 +81,39 @@ async function redeemBrowserSession(url, options = {}) {
  * redeems a Cookie and retries the origin.
  *
  * @param {string} url
- * @param {{ fetchImpl?: typeof fetch, timeoutMs?: number }} [options]
+ * @param {{ fetchImpl?: typeof fetch, timeoutMs?: number, signal?: AbortSignal }} [options]
  */
 async function probeHarnessReady(url, options = {}) {
   const fetchImpl = options.fetchImpl || fetch;
   const timeoutMs = options.timeoutMs || 1500;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const callerSignal = options.signal;
+  if (callerSignal?.aborted) {
+    throw callerSignal.reason;
+  }
+
+  const timeoutController = new AbortController();
+  const timeoutError = new Error(`harness readiness timed out after ${timeoutMs}ms`);
+  timeoutError.name = 'TimeoutError';
+  const timer = setTimeout(() => timeoutController.abort(timeoutError), timeoutMs);
+  const onCallerAbort = () => timeoutController.abort(callerSignal.reason);
+  if (callerSignal) {
+    callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    if (callerSignal.aborted) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+      clearTimeout(timer);
+      throw callerSignal.reason;
+    }
+  }
+  const signal = timeoutController.signal;
+  const throwIfCallerAborted = () => {
+    if (callerSignal?.aborted) {
+      throw callerSignal.reason;
+    }
+  };
+
   try {
-    const first = await fetchImpl(url, { redirect: 'manual', signal: controller.signal });
+    const first = await fetchImpl(url, { redirect: 'manual', signal });
+    throwIfCallerAborted();
     if (first.ok) {
       return { ok: true, cookie: cookieFromResponse(first) };
     }
@@ -99,7 +123,10 @@ async function probeHarnessReady(url, options = {}) {
     }
     let cookie = cookieFromResponse(first);
     if (!cookie && launchTokenFromUrl(url)) {
-      const redeemed = await redeemBrowserSession(url, { fetchImpl });
+      // Share the readiness AbortSignal: a stalled redemption must not outlive
+      // the caller's readiness budget (or keep a cancelled startup alive).
+      const redeemed = await redeemBrowserSession(url, { fetchImpl, signal });
+      throwIfCallerAborted();
       cookie = redeemed.cookie;
     }
     if (!cookie) {
@@ -108,14 +135,19 @@ async function probeHarnessReady(url, options = {}) {
     const originUrl = `${originFromUrl(url)}/`;
     const second = await fetchImpl(originUrl, {
       redirect: 'manual',
-      signal: controller.signal,
+      signal,
       headers: { Cookie: cookie },
     });
+    throwIfCallerAborted();
     return { ok: second.ok, cookie };
-  } catch {
+  } catch (error) {
+    if (callerSignal?.aborted) {
+      throw callerSignal.reason;
+    }
     return { ok: false, cookie: '' };
   } finally {
     clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
   }
 }
 

@@ -218,7 +218,15 @@ function snapshot(extra = {}) {
   };
 }
 
-async function checkUpdate() {
+/**
+ * In-flight single-flight for the cold-start gate: the gate no longer waits for
+ * this request, so a user opening the launcher while the first check is still
+ * running must not start a second one. Settled results are NOT cached here —
+ * an explicit refresh always issues a fresh request.
+ */
+let checkUpdateInFlight = null;
+
+async function runUpdateCheck() {
   try {
     const release = await githubJson(RELEASES_LATEST);
     if (!release) {
@@ -253,6 +261,21 @@ async function checkUpdate() {
       assetUrl: '',
       message: error.message || String(error),
     });
+  }
+}
+
+async function checkUpdate() {
+  if (checkUpdateInFlight) {
+    return checkUpdateInFlight;
+  }
+  const pending = runUpdateCheck();
+  checkUpdateInFlight = pending;
+  try {
+    return await pending;
+  } finally {
+    if (checkUpdateInFlight === pending) {
+      checkUpdateInFlight = null;
+    }
   }
 }
 

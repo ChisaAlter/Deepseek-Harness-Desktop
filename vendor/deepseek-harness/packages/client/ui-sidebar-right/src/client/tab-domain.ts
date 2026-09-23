@@ -26,7 +26,8 @@ import type { SidebarRightOpenResourceOptions, SidebarRightOpenTabOptions, Sideb
 
 /**
  * The navigation face a tab's actions call back into, aimed at the session the
- * tab is in; nothing happens for a session whose store is not adopted.
+ * tab is in. Opens use that session's adopted store or its live same-session
+ * binding as a fallback; close is adopted-only.
  */
 export interface SidebarRightNavigator {
   /** Open a resource in one session; see `ISidebarRight.openResource`. */

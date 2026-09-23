@@ -300,6 +300,20 @@
   object-fit: contain;
 }
 
+/* Activatable arm: the button adds no chrome of its own; the affordance rides the cursor. */
+.imageButton {
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: zoom-in;
+}
+
 /* Inline file mention: the same link language this sheet gives anchors (and
    thereby URL-promoted inline code) — link-blue at rest, dotted underline only
    on hover/focus. An underline at rest reads badly inside the code chip, where

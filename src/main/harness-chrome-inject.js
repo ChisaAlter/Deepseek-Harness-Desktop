@@ -3,6 +3,7 @@
   const CONTROLS_ID = 'dshd-shell-controls';
   const CONTROL_SIZE = 32;
   const CONTROL_GAP = 0;
+  const FRAME_CANVAS_ID = 'dshd-frame-canvas';
   const EDGE = 8;
   const CLUSTER = 8;
   /** Full titlebar height so the no-drag plate covers drag padding around the 32px buttons. */
@@ -65,7 +66,10 @@
       document.documentElement.appendChild(style);
     }
     const css = `
-      :root { --dshd-wco-controls: ${windowControlsRight()}px; }
+      :root {
+        --dshd-wco-controls: ${windowControlsRight()}px;
+        --dshd-wco-caption: ${CAPTION_HEIGHT}px;
+      }
       #${CONTROLS_ID} {
         position: fixed;
         top: 0;
@@ -118,13 +122,63 @@
       [data-sidebar-right-expand] {
         display: none;
       }
+      /* Transparent-window silhouette: the page itself draws the rounded
+         outer frame. html/body stay transparent so nothing paints the
+         native corners; #dshd-frame-canvas supplies the interior surface
+         color inside the rounded clip, and the fixed wallpaper layer gets
+         its own matching radius (fixed elements escape body's overflow clip). */
+      html, body {
+        background: transparent !important;
+      }
+      html {
+        /* Without this, body's overflow:hidden propagates to the viewport
+           and body computes to visible — the rounded clip would silently
+           never apply to in-flow descendants. */
+        overflow: hidden;
+      }
+      body {
+        /* relative so absolutely-positioned descendants (frame canvas,
+           overlay layers) use body as containing block and fall inside the
+           rounded overflow clip — a static body would let them escape it. */
+        position: relative;
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      #${FRAME_CANVAS_ID} {
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: var(--dsw-alias-bg-base);
+        border-radius: 20px;
+        pointer-events: none;
+      }
+      #dsh-wallpaper {
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      html[data-window-maximized] body,
+      html[data-window-maximized] #dsh-wallpaper,
+      html[data-window-maximized] #${FRAME_CANVAS_ID} {
+        border-radius: 0;
+      }
     `;
     if (style.textContent !== css) {
       style.textContent = css;
     }
   }
 
+  function ensureFrameCanvas() {
+    if (!document.body || document.getElementById(FRAME_CANVAS_ID)) {
+      return;
+    }
+    const el = document.createElement('div');
+    el.id = FRAME_CANVAS_ID;
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+  }
+
   function ensureControls() {
+    ensureFrameCanvas();
     let host = document.getElementById(CONTROLS_ID);
     if (host) {
       return host;
@@ -193,6 +247,12 @@
     const host = ensureControls();
     placeControls(host);
     document.documentElement.style.setProperty('--dshd-wco-controls', `${windowControlsRight()}px`);
+    document.documentElement.style.setProperty('--dshd-wco-caption', `${CAPTION_HEIGHT}px`);
+    if (window.__dshShellMaximized) {
+      document.documentElement.setAttribute('data-window-maximized', '');
+    } else {
+      document.documentElement.removeAttribute('data-window-maximized');
+    }
     applyControlTheme(host, Boolean(window.__dshShellMaximized));
     const sample = { bg: opaqueBg(document.body) };
     if (window.shell && typeof window.shell.reportChrome === 'function') {

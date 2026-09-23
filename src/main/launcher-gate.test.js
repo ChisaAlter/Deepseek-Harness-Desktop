@@ -15,6 +15,12 @@ const {
   recordLastDesktopStart,
   stickySkipActive,
   runColdStartGate,
+  takeParkedUpdateCheck,
+  parkUpdateCheck,
+  peekParkedUpdateCheck,
+  resetParkedUpdateCheck,
+  createParkedUpdateDrainer,
+  presentUpdateAsk,
 } = require('./launcher-gate');
 
 test('shouldPromptUpdate asks only for a newer non-error check when the setting is on', () => {
@@ -148,9 +154,12 @@ test('cold-start gate auto-starts the desktop when there is nothing to hold on',
   }
 });
 
-test('cold-start gate opens the launcher before the update prompt', async () => {
+test('cold-start gate opens the launcher before the update prompt when it stays there', async () => {
   const order = [];
   const { deps, calls, dir } = gateDeps({
+    // Auto-start off: the gate stays in the launcher, so the ask still runs and
+    // must sit on a visible window.
+    config: { askOnUpdate: true, autoStartDesktop: false },
     checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
     confirmUpdate: async () => {
       order.push('confirm');
@@ -163,17 +172,70 @@ test('cold-start gate opens the launcher before the update prompt', async () => 
   };
   try {
     const result = await runColdStartGate(deps);
-    // Declined update: auto start proceeds, but the prompt sat on a visible window.
-    assert.equal(result.outcome, 'desktop');
+    assert.equal(result.outcome, 'launcher');
     assert.deepEqual(order, ['openLauncher', 'confirm']);
-    assert.equal(calls.startDesktop, 1);
+    assert.equal(calls.startDesktop, 0);
   } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('cold-start gate parks a late update result instead of blocking auto-start', async () => {
+  const { deps, calls, dir } = gateDeps({
+    checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
+    confirmUpdate: async () => {
+      throw new Error('auto-start must not prompt inside the gate');
+    },
+  });
+  try {
+    const result = await runColdStartGate(deps);
+    // Auto-start proceeds without waiting for (or acting on) the update check.
+    assert.equal(result.outcome, 'desktop');
+    assert.equal(calls.startDesktop, 1);
+    assert.equal(calls.openLauncher, 0, 'a late result must not open the launcher');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(takeParkedUpdateCheck()?.latest, '9.9.9');
+  } finally {
+    resetParkedUpdateCheck();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('cold-start gate starts the desktop before a deferred update check settles', async () => {
+  let settle = null;
+  const order = [];
+  const { deps, calls, dir } = gateDeps({
+    checkUpdate: () => new Promise((resolve) => {
+      settle = resolve;
+      order.push('checkStarted');
+    }),
+    startDesktop: async () => {
+      calls.startDesktop += 1;
+      order.push('startDesktop');
+    },
+  });
+  try {
+    const gate = runColdStartGate(deps);
+    // Let the synchronous part of the gate run; the check stays pending.
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(settle !== null, true, 'update check must have started');
+    assert.equal(calls.startDesktop, 1, 'desktop must start while the check is pending');
+    assert.deepEqual(order, ['checkStarted', 'startDesktop']);
+    settle({ status: 'available', latest: '9.9.9' });
+    const result = await gate;
+    assert.equal(result.outcome, 'desktop');
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(calls.startDesktop, 1, 'a late check must not start a second desktop');
+    assert.equal(calls.openLauncher, 0);
+  } finally {
+    resetParkedUpdateCheck();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test('cold-start gate falls back to the launcher home when the update download fails', async () => {
   const { deps, calls, dir } = gateDeps({
+    config: { askOnUpdate: true, autoStartDesktop: false },
     checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
     confirmUpdate: async () => true,
     installUpdate: async () => { throw new Error('下载超时（15 分钟）'); },
@@ -196,6 +258,7 @@ test('cold-start gate falls back to the launcher home when the update download f
 
 test('cold-start gate ends at the installer only when packaged and launched', async () => {
   const { deps, calls, dir } = gateDeps({
+    config: { askOnUpdate: true, autoStartDesktop: false },
     checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
     confirmUpdate: async () => true,
     installUpdate: async () => ({ launched: true }),
@@ -212,6 +275,7 @@ test('cold-start gate ends at the installer only when packaged and launched', as
 
 test('cold-start gate stays on the launcher after a source-run installer launch', async () => {
   const { deps, calls, dir } = gateDeps({
+    config: { askOnUpdate: true, autoStartDesktop: false },
     checkUpdate: async () => ({ status: 'available', latest: '9.9.9' }),
     confirmUpdate: async () => true,
     installUpdate: async () => ({ launched: true }),
@@ -255,5 +319,163 @@ test('cold-start gate holds at import and at a failed last start', async () => {
     assert.deepEqual(tab.payload, { tab: 'home' });
   } finally {
     fs.rmSync(failedCase.dir, { recursive: true, force: true });
+  }
+});
+
+function drainerDeps(overrides = {}) {
+  const state = { visible: true, quitting: false, generation: 'win-1', asked: [] };
+  const deps = {
+    readConfig: () => ({ askOnUpdate: true }),
+    isVisible: () => state.visible,
+    isQuitting: () => state.quitting,
+    isCurrentGeneration: (generation) => generation === undefined || generation === state.generation,
+    present: async (check) => {
+      state.asked.push(check);
+      return { updateFlowHold: true };
+    },
+    ...overrides,
+  };
+  return { deps, state };
+}
+
+test('a hidden launcher status poll does not consume the parked update check', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  const { deps, state } = drainerDeps({ isVisible: () => false });
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    const result = await drainer.drain({ generation: 'win-1' });
+    assert.equal(result.drained, false);
+    assert.equal(result.reason, 'hidden');
+    // Still parked: the user can still be asked when the window really opens.
+    assert.equal(peekParkedUpdateCheck()?.latest, '9.9.9');
+    assert.equal(state.asked.length, 0);
+  } finally {
+    resetParkedUpdateCheck();
+  }
+});
+
+test('a visible drain asks exactly once per parked check', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  const { deps, state } = drainerDeps();
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    const first = await drainer.drain({ generation: 'win-1' });
+    const second = await drainer.drain({ generation: 'win-1' });
+    assert.equal(first.drained, true);
+    assert.equal(second.drained, false);
+    assert.equal(second.reason, 'none');
+    assert.equal(state.asked.length, 1, 'the same check must not be asked twice');
+  } finally {
+    resetParkedUpdateCheck();
+  }
+});
+
+test('concurrent drains share one in-flight ask', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  let release = null;
+  const asked = [];
+  const { deps } = drainerDeps({
+    present: (check) => new Promise((resolve) => {
+      asked.push(check);
+      release = () => resolve({ updateFlowHold: true });
+    }),
+  });
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    const a = drainer.drain({ generation: 'win-1' });
+    const b = drainer.drain({ generation: 'win-1' });
+    assert.equal(asked.length, 1, 'the second drain joins the first');
+    release();
+    await Promise.all([a, b]);
+    assert.equal(asked.length, 1);
+  } finally {
+    resetParkedUpdateCheck();
+  }
+});
+
+test('askOnUpdate=false consumes the parked check without asking', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  const { deps, state } = drainerDeps({ readConfig: () => ({ askOnUpdate: false }) });
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    const result = await drainer.drain({ generation: 'win-1' });
+    assert.equal(result.drained, false);
+    assert.equal(result.reason, 'not-promptable');
+    assert.equal(state.asked.length, 0);
+    assert.equal(peekParkedUpdateCheck(), null, 'the refused check must not resurface');
+  } finally {
+    resetParkedUpdateCheck();
+  }
+});
+
+test('a drain abandoned by a stale launcher window re-parks the check', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  const { deps } = drainerDeps({ isCurrentGeneration: () => false });
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    const result = await drainer.drain({ generation: 'win-closed' });
+    assert.equal(result.drained, false);
+    assert.equal(result.reason, 'stale');
+    assert.equal(peekParkedUpdateCheck()?.latest, '9.9.9');
+  } finally {
+    resetParkedUpdateCheck();
+  }
+});
+
+test('a window that closes mid-confirm abandons the flow instead of installing', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  const state = { visible: true, quitting: false, generation: 'win-1', asked: [] };
+  let installed = false;
+  const { deps } = drainerDeps({
+    isVisible: () => state.visible,
+    isQuitting: () => state.quitting,
+    isCurrentGeneration: () => state.generation === 'win-1',
+    present: async (check, context) => presentUpdateAsk({
+      config: { askOnUpdate: true },
+      isPackaged: true,
+      check,
+      confirmUpdate: async () => {
+        // User closes the launcher while the dialog is up.
+        state.generation = 'win-2';
+        state.visible = false;
+        return true;
+      },
+      installUpdate: async () => {
+        installed = true;
+        return { launched: true };
+      },
+      openLauncher: async () => {},
+      sendToLauncher: () => {},
+      alreadyVisible: true,
+      shouldContinue: () => !state.quitting && deps.isCurrentGeneration(context.generation),
+    }),
+  });
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    await drainer.drain({ generation: 'win-1' });
+    assert.equal(installed, false, 'a closed launcher must not install an update');
+  } finally {
+    resetParkedUpdateCheck();
+  }
+});
+
+test('quitting abandons the drain before any ask', async () => {
+  resetParkedUpdateCheck();
+  parkUpdateCheck({ status: 'available', latest: '9.9.9' });
+  const { deps, state } = drainerDeps({ isQuitting: () => true });
+  try {
+    const drainer = createParkedUpdateDrainer(deps);
+    const result = await drainer.drain({ generation: 'win-1' });
+    assert.equal(result.reason, 'quitting');
+    assert.equal(state.asked.length, 0);
+    assert.equal(peekParkedUpdateCheck()?.latest, '9.9.9');
+  } finally {
+    resetParkedUpdateCheck();
   }
 });

@@ -31,13 +31,15 @@ async function bench() {
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
-  const layout = { toggleSurfaces: vi.fn(), toggleTerminalDrawer: vi.fn() }
+  const layout = { toggleTerminalDrawer: vi.fn() }
+  const sidebarRight = { toggleExpanded: vi.fn() }
   ctx.provide('layout', layout)
+  ctx.provide('sidebarRight', sidebarRight as never)
   ctx.provide('locale', new LocaleRuntime(ctx))
   provideSettings(ctx)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, layout }
+  return { ctx, slots, declaration, fiber, layout, sidebarRight }
 }
 
 describe('ui-titlebar apply', () => {
@@ -52,9 +54,9 @@ describe('ui-titlebar apply', () => {
     expect(entry?.options).toMatchObject({ id: 'panel-toggles', order: 40 })
     const injected = (entry?.inject as unknown as () => PanelTogglesInjected)()
     injected.toggleTerminalDrawer()
-    injected.toggleSurfaces()
+    injected.toggleRightPanel()
     expect(b.layout.toggleTerminalDrawer).toHaveBeenCalledOnce()
-    expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.sidebarRight.toggleExpanded).toHaveBeenCalledOnce()
     const rows = b.slots.entries('settings.interface.item')
     expect(rows.map(row => row.options.id)).toEqual(['terminal-toggle', 'surfaces-toggle'])
     expect(rows[0]?.component).toBe(TerminalToggleRow)
@@ -69,6 +71,16 @@ describe('ui-titlebar apply', () => {
     await b.fiber.dispose()
     expect(b.slots.entries('shell.titlebar.trailing')).toHaveLength(0)
     expect(b.slots.entries('settings.interface.item')).toHaveLength(0)
+  })
+
+  it('treats a missing session surface as a harmless no-op', async () => {
+    const b = await bench()
+    b.sidebarRight.toggleExpanded.mockImplementation(() => {
+      throw new Error('sidebarRight: no session surface is mounted')
+    })
+    const entry = b.slots.entries('shell.titlebar.trailing')[0]
+    const injected = (entry?.inject as unknown as () => PanelTogglesInjected)()
+    expect(() => { injected.toggleRightPanel() }).not.toThrow()
   })
 
   it('re-registers after the declaring titlebar slot collapses and returns', async () => {

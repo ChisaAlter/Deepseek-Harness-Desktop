@@ -1,6 +1,6 @@
 const { app, dialog, session } = require('electron');
 const fs = require('fs');
-const { loadConfig, saveConfig, REMOTE_FEATURE_ENABLED, parkRemoteSnapshot, publicConfig, normalizeRendererConfigPatch, normalizeRemotePatch } = require('./config');
+const { loadConfig, saveConfig, REMOTE_FEATURE_ENABLED, parkRemoteSnapshot, publicConfig, normalizeRendererConfigPatch, normalizeRemotePatch, readConfigSnapshot, configRevision } = require('./config');
 const { setDesktopDshHome, desktopDshHomeFromUserData, sanitizePackagedDshHomeEnv } = require('../shared/dsh-home');
 const { DshManager, ensureOwnedPort } = require('./dsh');
 const { HarnessController } = require('./harness-controller');
@@ -11,6 +11,7 @@ const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin } = require('./dshbot-desktop');
 const { ensureDesktopDshWhale } = require('./dsh-whale-desktop');
+const { ensureDesktopDshRemote } = require('./dsh-remote-desktop');
 const { ensureDesktopMarket } = require('./dsh-market-desktop');
 const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
@@ -31,6 +32,8 @@ const {
   writeLastDesktopStart,
   recordLastDesktopStart,
   runColdStartGate: runLauncherColdStartGate,
+  createParkedUpdateDrainer,
+  presentUpdateAsk,
 } = require('./launcher-gate');
 const {
   startDesktopInstallControl,
@@ -158,14 +161,25 @@ let quitting = false;
 let stoppingForQuit = false;
 let desktopResources = null;
 let qaQuitIntercepted = false;
+/**
+ * The launcher window a parked update ask belongs to. A stale ask (window
+ * closed/recreated, app quitting, install already started) must never keep
+ * going on a window the user can no longer see.
+ */
+let launcherWindowToken = null;
 
-async function resolveLaunchTarget() {
-  const config = loadConfig();
+/**
+ * Resolve the port from the start's config snapshot. The revision is handed
+ * back so `performStartOnce` can prove the port still belongs to the config
+ * the rest of the start read.
+ */
+async function resolveLaunchTarget(snapshot) {
+  const config = snapshot ? snapshot.config : loadConfig();
   const host = config.host || '127.0.0.1';
   const wanted = Number(config.port) || 3080;
   dsh.log(`检测端口 ${host}:${wanted}`);
   const port = await ensureOwnedPort(host, wanted, (line) => dsh.log(line));
-  return { port };
+  return { port, configRevision: snapshot ? snapshot.revision : undefined };
 }
 
 const mainCloseBound = new WeakSet();
@@ -200,6 +214,14 @@ function bindLauncherClose(win) {
     return win;
   }
   launcherCloseBound.add(win);
+  // A late check can also settle while the launcher is already on screen.
+  win.on('show', () => {
+    launcherWindowToken = win;
+    void drainParkedUpdateCheck.drain({ generation: win });
+  });
+  win.on('closed', () => {
+    if (launcherWindowToken === win) launcherWindowToken = null;
+  });
   win.on('close', (event) => {
     if (quitting) {
       return;
@@ -216,6 +238,10 @@ function bindLauncherClose(win) {
 async function openLauncher() {
   const win = await showLauncher();
   bindLauncherClose(win);
+  launcherWindowToken = win;
+  // Visible launcher: this is the moment a parked late update check may be
+  // presented, pinned to the window the user is actually looking at.
+  void drainParkedUpdateCheck.drain({ generation: win });
   return win;
 }
 
@@ -325,6 +351,8 @@ const harness = new HarnessController({
   isBootLoaded,
   getHarnessWebContents,
   resolveLaunchTarget,
+  readConfigSnapshot,
+  currentConfigRevision: configRevision,
   stripDroppedPlugins,
   ensureDesktopInstallPlugin,
   removeDshMarketPreset,
@@ -333,6 +361,7 @@ const harness = new HarnessController({
   ensureDshImPlugin,
   ensureDshbotPlugin,
   ensureDshWhalePlugin: ensureDesktopDshWhale,
+  ensureDshRemotePlugin: ensureDesktopDshRemote,
   ensureDesktopMarket,
   removeLegacyDshbotPreset,
   applyDisabledBundles,
@@ -402,6 +431,57 @@ function ignoreFailure(promise) {
     dsh.log(error.message || String(error), 'error');
   });
 }
+
+/**
+ * Turn a parked late update check into an ask, but only while the launcher is
+ * genuinely on screen. `shell:launcher-status` runs from a pre-created hidden
+ * window, so consuming the parked check there lost it before the user ever saw
+ * it. The window-identity guard abandons an in-flight ask if that window goes
+ * away (or the app is quitting / already installing).
+ */
+const drainParkedUpdateCheck = createParkedUpdateDrainer({
+  readConfig: () => loadConfig(),
+  isVisible: () => {
+    const win = getLauncherWindow();
+    return Boolean(win && !win.isDestroyed() && win.isVisible());
+  },
+  isQuitting: () => quitting || stoppingForQuit,
+  isCurrentGeneration: (generation) => {
+    if (generation === undefined) return true;
+    const win = getLauncherWindow();
+    return Boolean(win && win === generation && win.isVisible());
+  },
+  log: (message) => dsh.log(message, 'error'),
+  present: (check, { generation }) => presentUpdateAsk({
+    config: loadConfig(),
+    isPackaged: app.isPackaged,
+    check,
+    confirmUpdate: async (pending) => {
+      const result = await dialog.showMessageBox(getLauncherWindow() || undefined, {
+        type: 'question',
+        buttons: ['更新', '稍后'],
+        defaultId: 0,
+        cancelId: 1,
+        title: '发现新版本',
+        message: `是否更新到 ${pending.latest || pending.version || ''}？`,
+        noLink: true,
+      });
+      return result.response === 0;
+    },
+    installUpdate: (onProgress) => installUpdate(onProgress, {
+      confirmUnverified: confirmUnverifiedColdStart,
+    }),
+    openLauncher,
+    sendToLauncher,
+    alreadyVisible: true,
+    // `presentUpdateAsk` re-checks this after its awaits.
+    shouldContinue: () => {
+      if (quitting || stoppingForQuit) return false;
+      const win = getLauncherWindow();
+      return Boolean(win && win.isVisible() && (generation === undefined || generation === win));
+    },
+  }),
+});
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {

@@ -53,7 +53,7 @@ describe('PanelToggleRow', () => {
   it('writes the surfaces Switch', () => {
     const b = props()
     render(<SurfacesToggleRow {...b.value} />)
-    fireEvent.click(screen.getByRole('switch', { name: 'Right panel toggle' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Right Sidebar button' }))
     expect(b.setVisible).toHaveBeenCalledWith(false)
   })
 })

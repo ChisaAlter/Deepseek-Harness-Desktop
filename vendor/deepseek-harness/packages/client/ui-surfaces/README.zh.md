@@ -2,17 +2,15 @@
 
 [English](README.md) | 中文
 
-右边栏壳：占用布局 `surfaces` 列（`single`，`session-maybe`）。标签条即使在没有 surface 时也保持挂载，作为标题栏拖拽区（没有 surface 时不显示 +）；每个 Tab 的关闭控件在标题右侧。2×N 空态卡片（浏览器 / 终端 / 文件 / 差异 / 代理）填满主体，直到打开一个 surface。点卡片会调用 `createSurfacesStore()` 的 `open(kind)` 以及 `layout.openSurfaces()`。已有 surface 时，壳保持每个已打开 occupant 挂载，并用 `hidden` 藏起非活动项，因此 Browser 历史与未保存的 Files 草稿在切 Tab 后仍在。未保存的文件草稿与 Tab 列表一起写入 localStorage，刷新或退出后再打开仍能恢复。约定：[slot 系统标准](../../../.agents/notes/implemented/architecture/2026-07-22-slot-type-chain-implementation.zh.md)。
+桌面导航适配层：唯一可见右栏是 `@deepseek-ai/dsh-client-ui-sidebar-right`。本包不注册任何 `surfaces` occupant，也不发布空态；apply 时同步调用 `ctx.layout.closeSurfaces()`，让持久化的旧宽度无法制造第二列，然后包装 `workspaces.openPath`。约定见[单右栏决策](../../../docs/decisions/proposed/architecture/2026-09-22-single-visible-right-sidebar.md)。
 
-store 用 `sessionId` 做 key（`bySession`）。`open` 会 upsert 单例的 files／diff／agents、一个 preview、以及一个 terminal 占位。`openFile` 保留 files 资源管理器并并列加上 `file:` Tab。`activate`／`close`／`closeOthers`／`closeToRight`／`closeAll` 只改该会话的列表。标题栏 `toggleSurfaces` 只写布局宽度，不清这个 store。当 pin 的 Workspace Controller 没有 `openPath` 时，ui-surfaces 会先安装一份由 Host RPC 支撑的基线方法，再包装它。桌面包装器接管当前 Session cwd 内的路径：根目录打开 Files 资源管理器；其它路径打开 `file:` Tab；`.html`、`.htm`、`.xhtml`、`.pdf` 还会 await `previewWorkspaceFile`，成功后用 loopback URL 激活 Browser。SVG 与其它图片、媒体、文本和源码留在 Files。预览 IPC 缺失或失败时只留 Files，不回落到操作系统打开器；非桌面与工作区外路径使用 Host 基线操作。
+当 pin 的 Workspace Controller 没有 `openPath` 时，本包会先安装一份由 Host RPC 支撑的基线方法，再包装它。桌面包装器解析发起 Session（Chat 显式传入 `sessionId`，缺失时才用保留的主视图 Session），并交给原生右栏：根目录打开其 Files 页；普通文件经 `sidebarRight.openResourceIn(sessionId, fileAddressFor(...))` 打开，行号以 `{ params: { line } }` 传递；`.html`、`.htm`、`.xhtml`、`.pdf` 保留该文件资源页，再 await `previewWorkspaceFile` 并把成功后的 token URL 交给 Sidebar Browser。Sidebar 服务缺失，或目标 Session 没有 adopted store 且没有 matching live binding 时走原始 Host 打开器。已命中 Sidebar 目标后导航抛错时向上传播，不静默改道。非桌面与工作区外路径使用 Host 基线操作。
 
-声明的子座都是 `single` + `session-maybe`：`surfaces.browser`（owner `active` 和 `occluded`）、`surfaces.terminal`、`surfaces.files`、`surfaces.file`、`surfaces.diff`、`surfaces.agents`。`surfaces.terminal` 与 ui-user-terminal 的 inject 一致，现有 Terminal occupant 才能挂上。`surfaces.files` 的 owner 是 `openFile(relativePath)`；`surfaces.file` 的 owner 是 `relativePath`、`active` 以及 dirty／save 缓冲区回调。当前会话没有 cwd，或 `gitStatus(cwd)` 为 null 时禁用差异空态卡。DiffPanel 在 cwd 不是 Git 仓库时显示「差异仅适用于 Git 仓库。」没有桌面 `window.shell.previewOpen` 时禁用浏览器卡，理由是 `Browser previews are only available in the desktop app.` surface 菜单和未保存文件对话框会设置 `occluded`，防止原生 BrowserView 穿透渲染进程 chrome 接收点击。occupant 内容由后续包注入。
-
-`/client` 导出表层只包含插件主体（`apply`／`inject`）、store 工厂及约定类型；SurfacesRoot、EmptyState 与 SurfaceTabs 仍由 slot 注册封装在包内。
+休眠的 `surfaces.*` 槽位声明与 owner 类型保留在本包，只为上游布局契约与 fork 包继续通过类型检查；没有任何注册，也不渲染任何 UI。`/client` 只导出插件主体（`apply`／`inject`）与 `desktopListingAvailable`。
 
 ## 模型体验
 
-无。右边栏壳只拥有查看状态与布局列几何；这里没有任何内容进入模型请求。
+无。本适配层只把打开动作路由到右栏；这里没有任何内容进入模型请求。
 
 #### KV Cache 影响
 
@@ -20,6 +18,6 @@ store 用 `sessionId` 做 key（`bySession`）。`open` 会 upsert 单例的 fil
 
 ## 已知限制与暂缓事项
 
-- **occupant 不在本包实现**：Files、Diff、Browser、Agents 卡片只调用 `open(kind)` 与 `openSurfaces()`；后续包注入槽位内容。
+- **旧壳已退役**：Files、Diff、Browser、Agents 各自在自己的包注册原生 `ui-sidebar-right` 页类型；休眠槽位仅作兼容。
 
-不发布运行时 invariant companion；本包不拥有独立的持久事件关系，UI 或服务行为由聚焦的包测试覆盖。
+不发布运行时 invariant companion；本包不拥有独立的持久事件关系，路由行为由聚焦的包测试覆盖。

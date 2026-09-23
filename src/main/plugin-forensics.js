@@ -5,6 +5,7 @@ const { DESKTOP_PACKAGES } = require('../shared/harness-desktop-forks');
 const { DSH_IM_ALIASES } = require('./dsh-im-desktop');
 const { DSHBOT_ALIASES } = require('./dshbot-desktop');
 const { DSH_WHALE_ALIASES } = require('./dsh-whale-desktop');
+const { DSH_REMOTE_ALIASES } = require('./dsh-remote-desktop');
 const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 
 const GENERIC_OOM = /heap out of memory|js heap|allocation failed|oom\b/i;
@@ -29,7 +30,7 @@ const EVIDENCE_PATTERNS = [
 // desktop built-in modules now (not disableable), but the `preset` marker
 // only gates removal; disable is blocked separately via IPC and config
 // alias-stripping.
-const PRESET_PLUGINS = new Set(['dsh-usage-panel', '@xmanrui/dsh-im', 'dsh-im', 'xmanrui-dsh-im', ...DSHBOT_ALIASES, ...DSH_WHALE_ALIASES]);
+const PRESET_PLUGINS = new Set(['dsh-usage-panel', '@xmanrui/dsh-im', 'dsh-im', 'xmanrui-dsh-im', ...DSHBOT_ALIASES, ...DSH_WHALE_ALIASES, ...DSH_REMOTE_ALIASES]);
 const EVIDENCE_LINE_MAX = 240;
 
 // In-box names cover the harness fork packages plus the desktop built-in
@@ -41,6 +42,7 @@ const IN_BOX_PACKAGE_NAMES = new Set([
   ...DSH_IM_ALIASES,
   ...DSHBOT_ALIASES,
   ...DSH_WHALE_ALIASES,
+  ...DSH_REMOTE_ALIASES,
   ...USAGE_PANEL_ALIASES,
 ]);
 

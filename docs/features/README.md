@@ -82,3 +82,5 @@ Gate: <卡上 gates>
 | [custom-instructions](custom-instructions.md) | 设置→通用自定义指令，作为系统提示词末段随每次请求发送 | `ui-conversation.customInstructions` / `SystemPromptProjection` | ui-conversation 定向测试 + 真实模型验证 |
 | [session-cost-display](session-cost-display.md) | 会话累计费用显示与按峰谷分桶计价；开关关闭时整行隐藏 | `PeakValleyRow` / `billedUsage` 投影 / `ui-model-selection` | vendor client specs + 设置开关回归 |
 | [skills-groups](skills-groups.md) | 技能分组多选 tag picker 与分组开关批量切换 | vendor skills 设置（fork） | vendor 51/51 + fork 门禁 |
+| [remote-workspace](remote-workspace.md) | SSH 远程工作区内置：机器管理 + picker 远程 tab + 镜像工作区 + rw_* 工具 | `dsh-remote-desktop` / `vendor/dsh-remote` / picker fork | ensure/overlay/skip-compose + 真机验收 |
+| [desktop-build-runtime](desktop-build-runtime.md) | 桌面清单与打包运行时契约：scripts/依赖/build 字段、vendor 资源与 afterPack 装配 | `package.json` / `package-contract.test.js` / `after-pack.js` | 结构契约测试 + packaged smoke |

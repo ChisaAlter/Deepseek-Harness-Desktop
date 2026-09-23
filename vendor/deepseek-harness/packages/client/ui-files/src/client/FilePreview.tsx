@@ -3,12 +3,14 @@ import clsx from 'clsx'
 import {
   Button,
   IconChevronRightOutline14,
-  IconGlobeOutline14,
-  IconRightUpOutline16,
   MarkdownText,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type { UseSessions } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { parseFileAddress, sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import {
   formatFileCommentRange,
   normalizeFileCommentRange,
@@ -16,37 +18,55 @@ import {
   type SelectedLineRange,
 } from './fileCommentAnnotations.ts'
 import { installFileEditorDismissal } from './fileEditorDismissal.ts'
+import { FloatingPreviewButton } from './FloatingPreviewButton.tsx'
 import { fileBreadcrumbs } from './filePath.ts'
 import { clampFileLine, resolveCenteredFileLineScrollTop } from './fileLineReveal.ts'
 import { isMarkdownPreviewFile } from './filePreviewMode.ts'
 import { FileSaveCoordinator, type FileSaveResult } from './fileSaveCoordinator.ts'
 import { NS } from './locales.ts'
 import type { FilesShellInjected } from './shell.ts'
-import { isWorkspaceBrowserPreviewPath, isWorkspaceImagePreviewPath } from './workspacePreview.ts'
+import { isWorkspaceImagePreviewPath } from './workspacePreview.ts'
+import {
+  type DesktopFileBuffer,
+  readDesktopFileBuffer,
+  writeDesktopFileBuffer,
+} from './desktop-files.ts'
 import css from './FilePreview.module.css'
 
-export type FilePreviewProps =
-  & PropsRuntime<'surfaces.file'>
+/** Everything the editor reads: its file identity, buffer, IPC, and copy. */
+export interface FilePreviewProps extends PropsLocale<typeof NS>, FilesShellInjected {
+  sessionId: string | undefined
+  useSessions: UseSessions
+  relativePath: string
+  revealLine?: number | undefined
+  revealRequestId?: number | undefined
+  active: boolean
+  onDirtyChange: (dirty: boolean) => void
+  readBuffer: () => DesktopFileBuffer | undefined
+  writeBuffer: (buffer: DesktopFileBuffer | null) => void
+  registerSave: (save: (() => Promise<boolean>) | null) => void
+  /** Workspace root override for a caller that owns the file's Session (the Sidebar adapter). */
+  workspaceCwd?: string | undefined
+}
+
+/** Props the Sidebar adapter needs from its tab plus the shared shell face. */
+export type SidebarFilePreviewProps =
+  & UseSidebarRightTabInfoProps
   & PropsLocale<typeof NS>
-  & InjectFace<FilesShellInjected>
+  & FilesShellInjected
+  & { useSessions: UseSessions }
+
+/** The one framework seat the adapter needs from the keyed tab slot. */
+type UseSidebarRightTabInfoProps = { useTabInfo: () => { readonly tab: SidebarTabRecord } }
+type SidebarTabRecord = {
+  readonly contentId: string
+  readonly visible: boolean
+  readonly navigation: { readonly params?: unknown; readonly revision: number }
+}
 
 const RENDER_MARKDOWN_KEY = 'dshd.renderMarkdown'
 const FILE_WORD_WRAP_KEY = 'dshd.fileWordWrap'
 const FILE_SAVE_DEBOUNCE_MS = 500
-const OPEN_SURFACE_EVENT = 'dshd-open-surface'
-const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
-
-interface DesktopPreviewShell {
-  previewWorkspaceFile?: (input: {
-    cwd: string
-    relativePath: string
-  }) => Promise<{ ok?: boolean, url?: string } | null | undefined>
-  previewOpenFileWindow?: (input: {
-    cwd: string
-    relativePath: string
-  }) => Promise<{ ok?: boolean, message?: string } | null | undefined>
-}
-
 function currentCwd(useSessions: FilePreviewProps['useSessions']): string | undefined {
   return useSessions((s) => {
     const id = Object.values(s.byId)
@@ -54,6 +74,62 @@ function currentCwd(useSessions: FilePreviewProps['useSessions']): string | unde
     const next = id === undefined ? undefined : s.byId[id]?.cwd
     return next ? next : undefined
   })
+}
+
+/**
+ * Adapt one Sidebar file tab to the existing editor.
+ *
+ * The editor's implementation is unchanged: this only translates the tab's
+ * stable address into the session/relative-path pair it already consumes and
+ * binds that tab's draft slot.
+ * @param props - live tab information, shell face, and copy.
+ * @returns the editable file viewer.
+ */
+export function SidebarFilePreview(props: SidebarFilePreviewProps): ReactNode {
+  const {
+    useTabInfo, useSessions, listDir, readFile, readFileMedia, mentionFile, writeFile,
+    listEditors, openInEditor, showItemInFolder, openWithSystemDefault, t,
+  } = props
+  const { tab } = useTabInfo()
+  const parsed = parseFileAddress(tab.contentId)
+  const sessionId = parsed?.scope === 'session' ? parsed.sessionId : undefined
+  const relativePath = parsed?.path ?? tab.contentId
+  const revealLine = typeof tab.navigation.params === 'object'
+    && tab.navigation.params !== null
+    && 'line' in tab.navigation.params
+    && typeof tab.navigation.params.line === 'number'
+    ? tab.navigation.params.line
+    : undefined
+  const workspaceCwd = useSessions(state => sessionId === undefined
+    ? undefined
+    : state.byId[sessionId as SessionId]?.cwd || undefined)
+  const address = tab.contentId
+  return (
+    <FilePreview
+      useSessions={useSessions}
+      sessionId={sessionId}
+      relativePath={relativePath}
+      revealLine={revealLine}
+      revealRequestId={tab.navigation.revision}
+      active={tab.visible}
+      workspaceCwd={workspaceCwd}
+      onDirtyChange={() => {}}
+      readBuffer={() => readDesktopFileBuffer(address)}
+      writeBuffer={(buffer: DesktopFileBuffer | null) => { writeDesktopFileBuffer(address, buffer) }}
+      registerSave={() => {}}
+      listDir={listDir}
+      readFile={readFile}
+      readFileMedia={readFileMedia}
+      mentionFile={mentionFile}
+      writeFile={writeFile}
+      listEditors={listEditors}
+      openInEditor={openInEditor}
+      showItemInFolder={showItemInFolder}
+      openWithSystemDefault={openWithSystemDefault}
+      appendComposerText={(targetSessionId, text) => { mentionFile(targetSessionId, text) }}
+      t={t}
+    />
+  )
 }
 
 function fileName(relativePath: string): string {
@@ -90,58 +166,6 @@ function writeStoredFlag(key: string, value: boolean): void {
     localStorage.setItem(key, value ? '1' : '0')
   } catch {
     // Quota / private mode: the in-memory toggle still applies this session.
-  }
-}
-
-/**
- * @returns desktop `window.shell`, or undefined outside the renderer.
- */
-function readPreviewShell(): DesktopPreviewShell | undefined {
-  /* v8 ignore next -- browser-only module; Node coverage never sees a missing window. */
-  if (typeof window === 'undefined') return undefined
-  return (window as Window & { shell?: DesktopPreviewShell }).shell
-}
-
-/**
- * Write the pending preview URL and open the Browser surface, matching terminal.
- * @param url - loopback http(s) the guest should load.
- */
-function openPreviewSurface(url: string): void {
-  try {
-    sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url)
-  } catch {
-    // Quota / SecurityError: Preview still listens for the event when mounted.
-  }
-  window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, { detail: { kind: 'preview', url } }))
-}
-
-/**
- * Load a browser-renderable workspace file in Browser.
- * Missing or failing IPC leaves Files in place and does not throw.
- * @param cwd - session workspace root.
- * @param relative - path inside cwd.
- */
-async function previewBrowserDocument(cwd: string, relative: string): Promise<void> {
-  const preview = readPreviewShell()?.previewWorkspaceFile
-  if (typeof preview !== 'function' || !isWorkspaceBrowserPreviewPath(relative)) return
-  try {
-    const result = await preview({ cwd, relativePath: relative })
-    if (result?.ok === true && typeof result.url === 'string' && result.url.length > 0) {
-      openPreviewSurface(result.url)
-    }
-  } catch {
-    // Files already open; preview is optional.
-  }
-}
-
-/** Open a workspace file in the desktop's single always-on-top viewer. */
-async function previewFloatingFile(cwd: string, relative: string): Promise<void> {
-  const preview = readPreviewShell()?.previewOpenFileWindow
-  if (typeof preview !== 'function') return
-  try {
-    await preview({ cwd, relativePath: relative })
-  } catch {
-    // Files remains usable when the optional desktop viewer cannot open.
   }
 }
 
@@ -201,15 +225,17 @@ export function FilePreview({
   readFileMedia,
   writeFile,
   appendComposerText,
+  workspaceCwd,
   t,
 }: FilePreviewProps): ReactNode {
-  const cwd = currentCwd(useSessions)
+  const selectedCwd = currentCwd(useSessions)
+  const cwd = workspaceCwd ?? selectedCwd
   const isImage = isWorkspaceImagePreviewPath(relativePath)
   const isMarkdown = isMarkdownPreviewFile(relativePath)
-  const canOpenInBrowser = cwd !== undefined
-    && isWorkspaceBrowserPreviewPath(relativePath)
-  const canOpenFloating = cwd !== undefined
-    && typeof readPreviewShell()?.previewOpenFileWindow === 'function'
+  const floatingPreviewAddress = sessionId === undefined
+    ? undefined
+    : sessionFileAddress(sessionId, relativePath)
+  const sessions = useSessions(state => state)
   const projectName = cwd === undefined ? '' : basenameOf(cwd)
   const crumbs = fileBreadcrumbs(projectName, relativePath)
   const seed = readBuffer()
@@ -575,36 +601,13 @@ export function FilePreview({
             {t('preview.wrap')}
           </Button>
         ) : null}
-        {canOpenInBrowser ? (
-          <Tooltip label={t('preview.browser')} side="bottom">
-            <button
-              type="button"
-              className={css.iconButton}
-              aria-label={t('preview.browser')}
-              onClick={() => {
-                if (cwd === undefined) return
-                void previewBrowserDocument(cwd, relativePath)
-              }}
-            >
-              <IconGlobeOutline14 />
-            </button>
-          </Tooltip>
-        ) : null}
-        {canOpenFloating ? (
-          <Tooltip label={t('preview.floating')} side="bottom">
-            <button
-              type="button"
-              className={css.iconButton}
-              aria-label={t('preview.floating')}
-              onClick={() => {
-                if (cwd === undefined) return
-                void previewFloatingFile(cwd, relativePath)
-              }}
-            >
-              <IconRightUpOutline16 size={14} />
-            </button>
-          </Tooltip>
-        ) : null}
+        {floatingPreviewAddress === undefined ? null : (
+          <FloatingPreviewButton
+            resourceAddress={floatingPreviewAddress}
+            sessions={sessions}
+            t={t}
+          />
+        )}
         {selectedLineRange !== null && showEditor && !showRenderedMarkdown ? (
           <Tooltip label={t('preview.comment')} side="bottom">
             <Button

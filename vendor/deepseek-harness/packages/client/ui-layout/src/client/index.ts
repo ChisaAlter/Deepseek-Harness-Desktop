@@ -65,6 +65,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     /**
      * Central panel selected by sidebar entry id. The reserved `conversation`
      * key hosts the Conversation; other keys receive no Session binding.
+     * The Conversation spans the centre column's titlebar and content rows;
+     * every other key renders inside the content row only.
      */
     'main': { kind: 'keyed'; scope: 'root' }
     /**
@@ -160,6 +162,8 @@ export interface TerminalDrawerOwnerProps {}
 export interface TitlebarTrailingOwnerProps {
   /** Surfaces column width in px (0 when closed). */
   surfaces: number
+  /** True while the upstream rightbar track is shown (desktop right Sidebar). */
+  rightbarShown: boolean
   /** Terminal drawer height in px (0 when closed). */
   terminalDrawer: number
   /** True when the current Session uses plugin-managed presentation. */

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `windows-installer` |
 | **status** | `active` |
-| **last verified** | 2026-09-18 — 应用、窗口/任务栏、托盘、安装器共用用户提供的头像 `assets/whale-head.png`，包在白色圆角方形底板内（22% 圆角、四边 4% 内缩）；`npm run icon` 生成 PNG/多尺寸 ICO，`installer:assets` 生成品牌 BMP。宠物生成器不再改写应用图标；32 项定向测试与治理/文档门禁通过，源图 hash 一致，桌面/开始菜单快捷方式图标已更新。旧记录：2026-09-12 — 新增 `customInit` 注册表净化（死 InstallLocation/UninstallString 记录删除 + `$INSTDIR` 按 `/D`>活记录>卸载器目录>默认 重算 + 绝对性兜底），修复损坏/陈旧安装记录劫持升级目标的问题（事故：mangled 记录把 0.3.0 装进 `tmp\inst-verify`）。真实 Setup 七场景 29 项实机验证全过（fresh `/D`、drive-relative 记录、wiped-tmp 记录、原地升级、UninstallString 兜底、mangled `/D`、带空格 `/D`、静默卸载自清）；makensis 编译通过。旧记录：2026-09-06 — Windows `v0.2.9` 已按维护者明确授权公开为 Latest。固定源码 `583b6fa92d93df2ee56363e96e2891b356af75b9` 的 Desktop tests `34015974835` attempt 2 与 Windows build/packaged smoke `34015983516` 均成功；Setup SHA256 `1eb5bd7c3769e1d09a6e863f8948706359f255a91608f0989e7982d19c380117`，版本资源 `0.2.9`，未做 Authenticode 签名。三个发布资产与本机已校验 CI 文件逐项匹配；自动触发的重复构建 `34018917540` 已取消。新包完整实机 P0 未完成，不继承 [旧 e11fb52 安装验证](../qa/results/2026-09-06/candidate-e11fb52/WINDOWS-CANDIDATE.md)。授权与发布证明见 [发布记录](../qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md)。 |
+| **last verified** | 2026-09-20 — 晋级前资产核对收敛到共享只读校验器 `scripts/check-release-assets.mjs`（32 项单测含四条变异检验全绿；`ci-isolation.test.js` 静态钉住 publish.yml 顺序 / 稀疏检出 / `npm ci --ignore-scripts` / 无 `npx` / 缺 helper 时显式失败），`release.yml` 与 `publish.yml` 的 action 引用钉到不可变 SHA。本轮**未**调度 `publish.yml`（需真实候选 run 与 tag），也**未**做安装器实机走查。旧记录：2026-09-18 — 应用、窗口/任务栏、托盘、安装器共用用户提供的头像 `assets/whale-head.png`，包在白色圆角方形底板内（22% 圆角、四边 4% 内缩）；`npm run icon` 生成 PNG/多尺寸 ICO，`installer:assets` 生成品牌 BMP。宠物生成器不再改写应用图标；32 项定向测试与治理/文档门禁通过，源图 hash 一致，桌面/开始菜单快捷方式图标已更新。旧记录：2026-09-12 — 新增 `customInit` 注册表净化（死 InstallLocation/UninstallString 记录删除 + `$INSTDIR` 按 `/D`>活记录>卸载器目录>默认 重算 + 绝对性兜底），修复损坏/陈旧安装记录劫持升级目标的问题（事故：mangled 记录把 0.3.0 装进 `tmp\inst-verify`）。真实 Setup 七场景 29 项实机验证全过（fresh `/D`、drive-relative 记录、wiped-tmp 记录、原地升级、UninstallString 兜底、mangled `/D`、带空格 `/D`、静默卸载自清）；makensis 编译通过。旧记录：2026-09-06 — Windows `v0.2.9` 已按维护者明确授权公开为 Latest。固定源码 `583b6fa92d93df2ee56363e96e2891b356af75b9` 的 Desktop tests `34015974835` attempt 2 与 Windows build/packaged smoke `34015983516` 均成功；Setup SHA256 `1eb5bd7c3769e1d09a6e863f8948706359f255a91608f0989e7982d19c380117`，版本资源 `0.2.9`，未做 Authenticode 签名。三个发布资产与本机已校验 CI 文件逐项匹配；自动触发的重复构建 `34018917540` 已取消。新包完整实机 P0 未完成，不继承 [旧 e11fb52 安装验证](../qa/results/2026-09-06/candidate-e11fb52/WINDOWS-CANDIDATE.md)。授权与发布证明见 [发布记录](../qa/results/2026-09-06/candidate-583b6fa/RELEASE-STATUS.md)。 |
 
 ## User paths
 
@@ -23,7 +23,8 @@
 - 许可页读根 `LICENSE`（MIT）原文。
 - 安装器/卸载器图标 = `assets/icon.ico`（与应用同一白色圆角底板鲸鱼头像，`icon.svg` → `npm run icon` 生成）。
 - 发布链产物验收：windows job 的 packaged smoke 门禁（`smoke:packaged` on `dist/win-unpacked`）位于 `npm run dist` 之后、artifact 上传之前，**阻断**发版；步骤内置两次尝试（连续两次失败=真问题），不设 `continue-on-error`。`workflow_dispatch` 默认只构建 Windows；macOS 仅在显式 `include_macos=true` 时构建。本版 Windows 发布不上传 DMG。不得把该步骤改造成重复 test.yml 的质量门（`npm test` / `test:gui` 仍禁止进 release.yml）。
-- 发布晋级必须使用 `.github/workflows/publish.yml`：仅接受 `release.yml` 在 `main` 分支的成功候选运行，核对同一 SHA 的 Desktop tests、Setup SHA256 与版本化文件名，从该运行下载原始资产并生成 `SHA512SUMS.txt` / provenance；晋级步骤不得重新执行 `setup-harness` 或 `npm run dist`。
+- 发布晋级必须使用 `.github/workflows/publish.yml`：仅接受 `release.yml` 在 `main` 分支的成功候选运行，核对同一 SHA 的 Desktop tests，从该运行下载原始资产并生成 `SHA512SUMS.txt` / provenance；晋级步骤不得重新执行 `setup-harness` 或 `npm run dist`。
+- 资产核对由 `scripts/check-release-assets.mjs` 单点执行（workflow、测试、本地排障共用同一实现，禁止在 workflow 里重写一套）：恰好一个版本化 Setup + 同名 `.exe.blockmap` + `latest.yml`，三者都是普通文件且不逃出资产目录；Setup 文件名 / tag / package 版本 / 元数据版本四者一致；Setup SHA256 等于操作者摘要；`latest.yml` 的 `files[]` 只引用本地那个 Setup 且大小与 base64 sha512 与字节一致；旧式顶层 `path`/`sha512` 可缺失但存在时必须一致。校验器只读、离线、不读凭据、有界。它**不**证明 `.blockmap` 与 Setup 的密码学对应——v26 元数据没有该字段，不得发明。
 
 ## Allowed touch
 
@@ -45,12 +46,13 @@
 
 | Kind | What |
 | --- | --- |
-| Automated | `node --test src/main/installer-branding.test.js src/main/ci-isolation.test.js`（随 `npm test`）：nsis 契约、BMP 几何/位深、nsh 宏白名单、release.yml glob 对齐；手动候选默认 Windows-only；packaged smoke 位于 dist 后、上传前，两次尝试且无 `continue-on-error`；publish.yml 只晋级 main 同 SHA 候选、校验 Setup 版本名 / SHA256 并禁止重建；release CI 实跑 `smoke:packaged`（win-unpacked 实启 + 内嵌 DSH_SMOKE 断言，阻断发版） |
+| Automated | `node --test src/main/installer-branding.test.js src/main/ci-isolation.test.js`（随 `npm test`）：nsis 契约、BMP 几何/位深、nsh 宏白名单、release.yml glob 对齐；手动候选默认 Windows-only；packaged smoke 位于 dist 后、上传前，两次尝试且无 `continue-on-error`；publish.yml 只晋级 main 同 SHA 候选、在 checksum/provenance 之前调用校验器、稀疏检出带 helper 与锁文件、`npm ci --ignore-scripts` 且无 `npx`、缺 helper 时显式失败、并禁止重建；release CI 实跑 `smoke:packaged`（win-unpacked 实启 + 内嵌 DSH_SMOKE 断言，阻断发版） |
+| Automated | `node --test scripts/check-release-assets.test.mjs`：32 项，含合法 v26/缺 legacy 通过、SHA256/大小/版本/tag/元数据 sha512/blockmap stem/重复 Setup/重复键/畸形 YAML/类型错误/遍历/远程与绝对 URL/超大元数据/缺失资产/符号链接/目录顶替/读取失败全部拒绝，以及四条**变异检验**（禁用 SHA256、SHA512、`files[].url` 名称比对、`files[].size` 比对后，变异副本必须接受出厂版会拒绝的坏资产集、且仍接受合法资产集） |
 | Manual / QA | `TC-INST-001`（GUI 安装走查）、`TC-INST-009`（`/S` 覆盖升级）、`TC-INST-010`（卸载）、`TC-INST-012/013` in [production-acceptance-test-cases.md](../qa/production-acceptance-test-cases.md)；每次改品牌位图后对 CI windows artifact 目检欢迎/许可/目录/完成/卸载五页——实机执行清单（artifact 下载/SHA256/逐页 checklist/zh_CN）固化在 [TC-INST-RUNBOOK.md](../qa/results/2026-08-25/installer-branding/TC-INST-RUNBOOK.md) |
 
 ## Sources
 
-- Decision: [统一鲸鱼品牌资源](../decisions/implemented/product/2026-09-18-whale-brand-assets.md)
+- Decision: [统一鲸鱼品牌资源](../decisions/implemented/product/2026-09-18-whale-brand-assets.md)，[晋级前由共享的只读校验器核对发布资产](../decisions/proposed/process/2026-09-20-release-asset-validation.md)，[发布与晋级工作流使用不可变 action 版本](../decisions/proposed/process/2026-09-19-workflow-action-sha-pinning.md)
 
 - Design: [design-language.md](../design-language.md)（官方浅色表 / 品牌蓝仅强调 / 鲸鱼娘大头徽标；安装器 chrome 对齐「桌面启动器」一节，不是启动页仪器画布），[dsh-webui-tokens.css](../../src/shared/dsh-webui-tokens.css)，`assets/whale-head.png`（用户提供的品牌源图）
 - Spec: electron-builder NSIS 选项（assisted installer 默认无欢迎页、默认 `nsis3-metro.bmp` 侧栏——本卡替换为品牌资产）

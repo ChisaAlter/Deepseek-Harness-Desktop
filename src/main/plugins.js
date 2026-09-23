@@ -26,6 +26,9 @@ const DROPPED = [
   'dshbot',
   // The whale-girl assistant ships first-party from vendor/dsh-whale.
   'dsh-whale',
+  // Remote workspaces (SSH) ship first-party from vendor/dsh-remote.
+  // Reject marketplace installs of the same package to avoid a second mount.
+  'dsh-remote',
 ];
 // Exact unscoped basenames of the dropped families. A rename that only moves
 // the package to a new scope (e.g. `@changfenhuang/dsh-genui`) or a new
@@ -40,6 +43,7 @@ const DROPPED_BASENAMES = [
   'dsh-usage-panel',
   'dshbot',
   'dsh-whale',
+  'dsh-remote',
 ];
 
 /** The npm name without its scope (`@scope/name` → `name`). */

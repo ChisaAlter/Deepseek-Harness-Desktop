@@ -60,6 +60,13 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-settings-general/src/client/AutoStartDesktopRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-settings-general/src/client/HarnessRestartRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-settings-general/src/client/AboutSection.tsx', includes: ['openDshHome'] },
+  // Remote workspace (SSH) toggle: desktop-only Interface row + config field
+  // + dictionaries riding the upstream settings-general files.
+  { file: 'packages/client/ui-settings-general/src/client/RemoteWorkspaceRow.tsx', includes: ['remoteWorkspaceEnabled'] },
+  { file: 'packages/client/ui-settings-general/src/client/RemoteWorkspaceRow.module.css', includes: [] },
+  { file: 'packages/client/ui-settings-general/src/client/index.ts', includes: ['RemoteWorkspaceRow'] },
+  { file: 'packages/client/ui-settings-general/src/client/locales.ts', includes: ['remoteWorkspace.title'] },
+  { file: 'packages/client/ui-settings-general/src/client/desktop-shell.ts', includes: ['remoteWorkspaceEnabled'] },
   { file: 'packages/client/locale/src/client/LanguageRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-conversation/src/client/settings/EnterBehaviorRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-permission-presets/src/client/PermissionRow.tsx', includes: ['SettingsSelect'] },
@@ -118,10 +125,13 @@ const FORK_FILE_MARKERS = [
   // Desktop fork: the shipped web-app composition carries the browse rows, so
   // the scaffold's upstream -auto disable+insert pair must stay removed (it
   // duplicates the shipped client browse row and fails every boot sweep).
-  // Right-column empty-state picker: square tiles (docs/design-language.md,
-  // Layout paragraph). Upstream ships horizontal strips; keep the tile
-  // geometry so a sync resolved towards upstream cannot silently revert it.
-  { file: 'packages/client/ui-surfaces/src/client/EmptyState.module.css', includes: ['max-width: 320px', 'aspect-ratio: 1 / 1'] },
+  // Desktop keeps the upstream rightbar and leaves the legacy surfaces track
+  // dormant. The titlebar consumes the owner fact instead of reopening it.
+  { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['rightbarShown: boolean'] },
+  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['rightbarShown: layoutInfo.rightbarShown'] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['closeSurfaces', 'openInRightSidebar'], excludes: ["name: 'surfaces'", 'openSurfaces()'] },
+  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['toggleExpanded'], excludes: ['layout.toggleSurfaces'] },
+  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['rightbarShown'] },
   { file: 'apps/web/tests/scaffold.ts', excludes: ['directory-picker-browse'] },
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
   // Desktop fork: input.dock panels follow the drag-resized composer card.
@@ -166,6 +176,20 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/host/directory-picker/src/index.ts', includes: ['WINDOWS_VOLUME_ROOT'] },
   { file: 'packages/host/directory-picker-browse/src/index.ts', includes: ['WINDOWS_VOLUME_ROOT', 'volumeListing'] },
   { file: 'packages/host/directory-picker-browse/tests/service.spec.ts', includes: ['WINDOWS_VOLUME_ROOT'] },
+  // Global main panels get the content row only: only the Conversation owns
+  // the shared titlebar row through the centerCol subgrid. Without the
+  // row-2 seat a panel lands in row 1, inflates the caption band's track,
+  // and buries its top under the titlebar chrome and the window-drag strip
+  // (upstream AppFrame files; a sync resolved towards upstream must keep
+  // the desktop seat).
+  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['css.mainPanel', 'data-main-panel'] },
+  { file: 'packages/client/ui-layout/src/client/AppFrame.module.css', includes: ['.mainPanel {', 'grid-row: 2;'] },
+  { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['every other key renders inside the content row only'] },
+  // The lightbox close control drops below the frameless caption band
+  // (--dshd-wco-caption, published by harness-chrome-inject) instead of
+  // stacking under the window close button; the fallback keeps plain-browser
+  // placement unchanged.
+  { file: 'packages/client/ui-attachment/src/ImageLightbox.module.css', includes: ['--dshd-wco-caption'] },
 ];
 
 function readRel(vendorRoot, rel) {

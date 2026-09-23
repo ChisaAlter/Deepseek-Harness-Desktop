@@ -42,7 +42,7 @@ const {
 const { scanImport, probeImportHold, runImport } = require('./data-import');
 const { inspectPlugins, isPresetPlugin } = require('./plugin-forensics');
 const { isPluginTreeFailure } = require('./plugin-tree-failure');
-const { readLastDesktopStart, recordLastDesktopStart, stickySkipActive } = require('./launcher-gate');
+const { readLastDesktopStart, recordLastDesktopStart, stickySkipActive, peekParkedUpdateCheck } = require('./launcher-gate');
 const { listWallpaperCatalog, downloadWallpaper } = require('./wallpaper-catalog');
 const { gitBranchList, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, openWorkspacePath } = require('./git');
 const { gitIpcNull, guardGitIpc } = require('./git-ipc-guard');
@@ -381,9 +381,11 @@ function registerIpc({
   // Every shell:git-* listener is guarded: a thrown handler error resolves to
   // the channel's failure payload instead of rejecting the renderer invoke,
   // which would strand the titlebar progress toast in the loading state.
-  handle('shell:git-status', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitStatus(cwd), gitIpcNull));
-  handle('shell:git-fetch-status', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitFetchForStatus(cwd), gitIpcNull));
-  handle('shell:git-pull-request', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitReadPullRequest(cwd)));
+  // The webContents id owns the refresh read context: the three sibling reads
+  // of one titlebar refresh share it, and no other window can pick it up.
+  handle('shell:git-status', HARNESS_ONLY, guardGitIpc((event, cwd) => gitStatus(cwd, event.sender.id), gitIpcNull));
+  handle('shell:git-fetch-status', HARNESS_ONLY, guardGitIpc((event, cwd) => gitFetchForStatus(cwd, event.sender.id), gitIpcNull));
+  handle('shell:git-pull-request', HARNESS_ONLY, guardGitIpc((event, cwd) => gitReadPullRequest(cwd, event.sender.id)));
   handle('shell:git-init', HARNESS_ONLY, guardGitIpc((_event, cwd) => gitInit(cwd)));
   handle('shell:git-diff', HARNESS_ONLY, guardGitIpc((_event, cwd, options) => gitDiff(cwd, options), gitIpcNull));
   const sendGitProgress = (event, actionId) => (progress) => {
@@ -587,6 +589,11 @@ function registerIpc({
   handle('shell:launcher-status', LAUNCHER_ONLY, () => {
     const lastStart = readLastDesktopStart(app.getPath('userData'));
     const forensics = collectForensics();
+    // Peek only: this poll also runs from the pre-created *hidden* launcher,
+    // and the previous drain-on-status lost a late result before the user ever
+    // saw the window. The main process drains it when the window is really
+    // visible (`openLauncher` / window `show`), which is also where the ask's
+    // generation and quit guards live.
     return {
       config: configPayload(loadConfig()),
       desktop: harness ? harness.snapshot() : dsh.snapshot(),
@@ -595,6 +602,7 @@ function registerIpc({
       forensicsSummary: forensics.summary,
       forensics,
       version: currentVersion(),
+      pendingUpdateCheck: peekParkedUpdateCheck(),
     };
   });
 

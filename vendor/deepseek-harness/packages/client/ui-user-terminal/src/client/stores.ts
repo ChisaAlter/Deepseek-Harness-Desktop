@@ -77,7 +77,15 @@ type TerminalSessionActions = {
 
 /** Handle that fans PTY events to every live instance created from it. */
 export type TerminalSessionStoreHandle = EngineStoreHandle<TerminalSessionState, TerminalSessionActions> & {
-  dispatchData: (id: string, data: string) => void
+  /**
+   * Apply one ordered output frame to every live instance and report the
+   * highest sequence number that was actually stored.
+   *
+   * The returned value is what the caller acknowledges to the main process: a
+   * frame for an id this handle does not know is *not* consumed here, so the
+   * acknowledgement must reflect only what a store really took in.
+   */
+  dispatchData: (id: string, data: string, seq: number) => number
   dispatchExit: (id: string) => void
 }
 
@@ -235,8 +243,18 @@ export function createTerminalSessionStore(): TerminalSessionStoreHandle {
       instanceByActions.set(inst.actions, inst)
       return inst
     },
-    dispatchData(id: string, data: string) {
-      for (const inst of live) inst.actions.appendData(id, data)
+    dispatchData(id: string, data: string, seq: number) {
+      let consumed = 0
+      for (const inst of live) {
+        const before = inst.getSnapshot().sessions.find(session => session.id === id)
+        if (before === undefined) continue
+        inst.actions.appendData(id, data)
+        const after = inst.getSnapshot().sessions.find(session => session.id === id)
+        // Only report consumption when the row survived the append: a store
+        // that closed the session mid-flight must not vouch for the frame.
+        if (after !== undefined && after.buffer !== before.buffer) consumed = seq
+      }
+      return consumed
     },
     dispatchExit(id: string) {
       for (const inst of live) inst.actions.close(id)

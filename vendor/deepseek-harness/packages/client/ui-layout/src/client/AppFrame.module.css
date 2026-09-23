@@ -6,7 +6,7 @@
   min-width: 0;
   height: 100%;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
@@ -23,7 +23,7 @@
 
 /* The Windows caption row remains outside every conversation and file panel. */
 :global([data-windows-titlebar]) .frame {
-  --dsh-windows-content-radius: 16px;
+  --dsh-windows-content-radius: 20px;
   box-sizing: border-box;
   padding-top: var(--dsh-windows-titlebar-height);
   background: var(--dsw-specific-sidebar-fill);
@@ -109,6 +109,20 @@
   /* Contain conversation z-index (sticky composer 7, ContextMeter 100) so
      those layers cannot paint over the phone overlay drawer. */
   isolation: isolate;
+}
+
+/* A non-conversation main panel's seat: the content row only. The
+   Conversation owns the shared titlebar row through the centerCol subgrid
+   (header row 1, body row 2); a global panel auto-placed into row 1 would
+   inflate the caption band's auto track to its full content height, burying
+   its top under the titlebar chrome and the Electron window-drag strip and
+   dropping its scroll container out of the column. */
+.mainPanel {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .terminalDrawerCol {

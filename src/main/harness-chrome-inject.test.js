@@ -30,6 +30,7 @@ test('injected chrome owns only the window-control plate', () => {
   assert.match(injectSource, /addEventListener\('pointerdown'/);
   assert.match(injectSource, /pointer-events:\s*none/);
   assert.match(injectSource, /--dshd-wco-controls/);
+  assert.match(injectSource, /--dshd-wco-caption/);
   assert.doesNotMatch(injectSource, /--dshd-wco-pad/);
   assert.doesNotMatch(injectSource, /dshd-shell-drag-strip/);
   assert.doesNotMatch(injectSource, /data-dshd-shell-drag/);
@@ -52,11 +53,12 @@ test('injected chrome script can be evaluated twice in one realm', () => {
   assert.equal(hosts.length, 1);
 });
 
-test('injected measure publishes only the window-control inset', () => {
+test('injected measure publishes only the window-control insets', () => {
   const cssVars = {};
   const context = vm.createContext(createInjectSandbox({ cssVars }));
   vm.runInContext(injectSource, context);
   assert.equal(cssVars['--dshd-wco-controls'], '112px');
+  assert.equal(cssVars['--dshd-wco-caption'], '48px');
   assert.equal(cssVars['--dshd-wco-pad'], undefined);
   assert.equal(context.document.getElementById('dshd-shell-drag-strip'), null);
   assert.equal(context.document.querySelector('[data-dshd-shell-drag]'), null);

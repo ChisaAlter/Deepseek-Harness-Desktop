@@ -37,6 +37,8 @@ Chat 中的一条用户消息把文件与图片放在同一个靠右、可换行
 
 Trajectory 附件行使用 48px 方形缩略图，完整缩放图片而不裁剪。加载与重试图标保持相同尺寸，提供本地化的工具提示和可访问名称；图片打开同一个灯箱。插槽持有方可以为缩略图与灯箱提供仅用于展示的图片名称，而不改变持久化引用或缓存查询。
 
+Chat 中 Markdown 撰写的图片（助手正文与展开的思考行）激活同一个预览：chat 的 Markdown delegate 上抛解析后的图源，本包的 `conversation.image.preview` 条目用它打开灯箱。
+
 ### 拖放遮罩
 
 文件拖到页面上方时，全视口遮罩显示拖放提示，包括插画和标题；接受拖放时还会显示一行限制说明。遮罩只呈现状态——是否接受由持有方的文档级监听器决定。
@@ -49,7 +51,7 @@ Trajectory 附件行使用 48px 方形缩略图，完整缩放图片而不裁剪
 <details>
 <summary>实现细节——点击展开</summary>
 
-插件通过 `ctx.slots.inject` 等待 `conversation.input.attachments`、`conversation.message.images`、`conversation.trajectory.images` 与 `tool.call.images`。随后它注册 composer rail、文档拖放目标、供 Chat、Trajectory 与工具结果共用的历史图片 gallery，以及原图灯箱。呈现组件仅依赖 props：slot 持有方提供附件数据、图片加载、回调与语言包翻译器；包入口不导出任何组件。
+插件通过 `ctx.slots.inject` 等待 `conversation.input.attachments`、`conversation.message.images`、`conversation.trajectory.images`、`tool.call.images` 与 `conversation.image.preview`。随后它注册 composer rail、文档拖放目标、供 Chat、Trajectory 与工具结果共用的历史图片 gallery，以及原图灯箱。呈现组件仅依赖 props：slot 持有方提供附件数据、图片加载、回调与语言包翻译器；包入口不导出任何组件。
 
 | 文件 | 职责 |
 |---|---|
@@ -57,6 +59,7 @@ Trajectory 附件行使用 48px 方形缩略图，完整缩放图片而不裁剪
 | [`src/client/drop-events.ts`](src/client/drop-events.ts) | 每个已挂载附件视图的 effect 安装的 document 拖放监听 |
 | [`src/AttachmentRail.tsx`](src/AttachmentRail.tsx) | 附件横向溢出、滚轮转换、边缘箭头 |
 | [`src/client/MessageImages.tsx`](src/client/MessageImages.tsx) | 每消息画廊＋灯箱的组装 |
+| [`src/client/ImagePreview.tsx`](src/client/ImagePreview.tsx) | Markdown 图片预览插槽条目 → 灯箱 |
 | [`src/MessageImage.tsx`](src/MessageImage.tsx) | 单图尺寸、加载／重试、点击打开；本地提交回显预览直接显示其 object URL |
 | [`src/ImageLightbox.tsx`](src/ImageLightbox.tsx) | 铺在共享遮罩上的文档级模态预览 |
 | [`src/DropOverlay.tsx`](src/DropOverlay.tsx) | 不接收指针事件的拖放提示 portal |

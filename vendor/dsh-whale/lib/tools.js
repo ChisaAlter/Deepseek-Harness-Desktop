@@ -13,6 +13,7 @@ import { whaleHomeDir, appendPetOutbox } from './preset.js';
 import { controllerFrom, genericOutput, rowSummary, sessionRowsFrom } from './shared.js';
 import { registerSessionTools } from './session-tools.js';
 import { registerDesktopTools } from './desktop-tools.js';
+import { registerStickerTools } from './sticker-tools.js';
 
 export const name = 'dsh-whale-tools';
 export const inject = ['tools', 'agents'];
@@ -311,4 +312,5 @@ export function apply(ctx) {
 
   registerSessionTools(ctx);
   registerDesktopTools(ctx);
+  registerStickerTools(ctx);
 }

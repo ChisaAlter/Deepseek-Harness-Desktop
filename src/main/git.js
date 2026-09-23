@@ -13,6 +13,7 @@ const {
   withTruncationMarker,
   inferHookName,
   resolveInsideWorkspace,
+  isPathInside,
   safeRefName,
   COMMIT_TIMEOUT_MS,
   PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES,
@@ -25,6 +26,7 @@ const {
   FETCH_TIMEOUT_MS,
   GH_TIMEOUT_MS,
   GIT_MAX_OUTPUT_BYTES,
+  runGitUncached,
 } = require('./git-exec');
 const {
   normalizeGitRemoteUrl,
@@ -53,6 +55,13 @@ const {
   resetLastKnownPrCache,
 } = require('./git-pullrequest');
 const { fetchForStatus, resetFetchCooldowns } = require('./git-fetch');
+const {
+  createGitReadContext,
+  armReadContext,
+  acquireReadContext,
+  touchReadContext,
+  invalidateReadContext,
+} = require('./git-read-context');
 const { parseUnifiedDiff, gitDiff } = require('./git-diff');
 const { readPrTemplate, resolvePrBaseBranch, setGhDefaultBranchResolver } = require('./git-templates');
 
@@ -161,12 +170,12 @@ function mergeNumstatMaps(rows) {
   }));
 }
 
-async function readWorkingTreeNumstat(root) {
-  const head = await runGit(root, ['diff', 'HEAD', '--numstat']);
+async function readWorkingTreeNumstat(root, run = runGit) {
+  const head = await run(root, ['diff', 'HEAD', '--numstat']);
   if (head.code === 0) return parseNumstatEntries(head.stdout);
   if (isUnbornHeadStderr(head.stderr)) {
-    const unstaged = await runGit(root, ['diff', '--numstat']);
-    const staged = await runGit(root, ['diff', '--cached', '--numstat']);
+    const unstaged = await run(root, ['diff', '--numstat']);
+    const staged = await run(root, ['diff', '--cached', '--numstat']);
     return mergeNumstatMaps([
       ...parseNumstatEntries(staged.stdout),
       ...parseNumstatEntries(unstaged.stdout),
@@ -196,15 +205,86 @@ function buildWorkingTree(numstatEntries, porcelainPaths) {
   return { files, insertions, deletions };
 }
 
-async function gitStatus(cwd) {
+/**
+ * The read seam of one refresh. `gitStatus` owns the context; the sibling
+ * `gitFetchForStatus` / `gitReadPullRequest` calls of that same refresh acquire
+ * it by (owner, worktree) and read through `context.run`.
+ *
+ * The defaults keep every non-refresh caller on a plain uncached spawn, so a
+ * helper can never pick up another refresh's memory.
+ */
+const uncachedRun = (cwd, args, limits) => runGitUncached(cwd, args, limits);
+
+/**
+ * Run one refresh inside a fresh context.
+ * @param {{ owner?: string | number }} [options]
+ * @param {string} root resolved worktree root
+ * @param {(context: object) => Promise<any>} work
+ */
+async function withReadContext(root, work, options = {}) {
+  // A new refresh supersedes any context this owner left behind.
+  invalidateReadContext(root);
+  const context = armReadContext(options.owner, root, { runGitImpl: runGitUncached });
+  try {
+    const result = await work(context);
+    context.setStatus(result);
+    // A slow status walk must not expire its own sibling calls' window.
+    touchReadContext(options.owner, root, context);
+    return result;
+  } catch (error) {
+    invalidateReadContext(root);
+    throw error;
+  }
+}
+
+/**
+ * Wrap a mutating git operation: run it, then drop this worktree's read
+ * context so the next read can never answer from pre-write memory. The
+ * invalidation runs on failure too — a partially applied write must not leave
+ * a memo that claims the old state.
+ * @template T
+ * @param {string} root
+ * @param {() => Promise<T>} work
+ * @returns {Promise<T>}
+ */
+async function withWriteInvalidation(root, work) {
+  try {
+    return await work();
+  } finally {
+    invalidateReadContext(root);
+  }
+}
+
+async function gitStatus(cwd, owner) {
   const root = asCwd(cwd);
   if (!root) return null;
-  const inside = await runGit(root, ['rev-parse', '--is-inside-work-tree']);
+  return statusForRoot(root, owner);
+}
+
+/**
+ * The status walk for an already-authorized worktree root.
+ *
+ * `asCwd` re-stats the candidate and re-reads the registered-workspace list on
+ * every call. Refresh internals already hold a canonical root, so they come
+ * through here instead of paying that authorization cost again.
+ * @param {string} root canonical authorized worktree root
+ * @param {string | number} [owner]
+ */
+async function statusForRoot(root, owner) {
+  // Every status call opens a new refresh: arm a fresh context so a reuse
+  // window can never serve a previous refresh's answer, then let the sibling
+  // fetch/PR calls of this same refresh reuse it.
+  return withReadContext(root, context => readGitStatus(root, context.run), { owner });
+}
+
+/** The unmemoized status walk; `gitStatus` owns the context lifetime. */
+async function readGitStatus(root, run = runGit) {
+  const inside = await run(root, ['rev-parse', '--is-inside-work-tree']);
   if (inside.missing || inside.code !== 0 || inside.stdout.trim() !== 'true') {
     return notARepoStatus();
   }
 
-  const porcelain = await runGit(root, ['status', '--porcelain=v2', '--branch']);
+  const porcelain = await run(root, ['status', '--porcelain=v2', '--branch']);
   if (porcelain.code !== 0) return null;
   let refName = null;
   let upstreamRef = null;
@@ -239,28 +319,28 @@ async function gitStatus(cwd) {
     }
   }
 
-  const remotes = await runGit(root, ['remote']);
+  const remotes = await run(root, ['remote']);
   const remoteNames = remotes.code === 0
     ? remotes.stdout.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
     : [];
   const hasPrimaryRemote = remoteNames.includes('origin');
-  const defaultRef = await defaultRefName(root, hasPrimaryRemote);
+  const defaultRef = await defaultRefName(root, hasPrimaryRemote, run);
   const isDefaultRef = refName !== null && (
     refName === defaultRef || (defaultRef === null && (refName === 'main' || refName === 'master'))
   );
   // Porcelain v2 omits `# branch.ab` when the listed upstream is gone.
   const hasUsableUpstream = upstreamRef !== null && sawAheadBehind;
   const vsDefault = refName && (!isDefaultRef || !hasUsableUpstream)
-    ? await computeAheadCountAgainstBase(root, refName)
+    ? await computeAheadCountAgainstBase(root, refName, run)
     : { count: 0, unreliable: false };
   if (!hasUsableUpstream && refName) {
     aheadCount = vsDefault.count;
     behindCount = 0;
   }
   const aheadOfDefaultCount = isDefaultRef ? 0 : vsDefault.count;
-  const selected = await selectProviderContext(root);
+  const selected = await selectProviderContext(root, run);
   const sourceControlProvider = selected?.provider;
-  const numstatEntries = await readWorkingTreeNumstat(root);
+  const numstatEntries = await readWorkingTreeNumstat(root, run);
 
   return {
     refName,
@@ -289,6 +369,9 @@ async function gitInit(cwd) {
   if (!root) return fail('Git status is unavailable.');
   const inside = await runGit(root, ['rev-parse', '--is-inside-work-tree']);
   if (inside.code === 0 && inside.stdout.trim() === 'true') return ok();
+  // Revoke before the write: a `git init` that fails halfway still moved the
+  // on-disk state, so no reader may keep answering from the pre-write memo.
+  invalidateReadContext(root);
   const inited = await runGit(root, ['init', '-b', 'main']);
   if (inited.missing) return fail('Git is unavailable.');
   if (inited.timedOut) return fail('Git command timed out.');
@@ -428,6 +511,19 @@ async function readHeadSha(cwd) {
 }
 
 /**
+ * Current branch name, or null on detached/unborn HEAD. Cheap enough to run
+ * inside a refresh context instead of recomputing the whole status walk.
+ * @param {string} cwd
+ * @returns {Promise<string | null>}
+ */
+async function readCurrentBranch(cwd, run = runGit) {
+  const head = await run(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  if (head.code !== 0) return null;
+  const name = head.stdout.trim();
+  return name.length > 0 ? name : null;
+}
+
+/**
  * First line is the subject; remaining lines are the body.
  * @param {unknown} raw
  * @returns {{ subject: string, body: string } | null}
@@ -507,6 +603,9 @@ async function gitCommit(cwd, message, filePaths, onProgress, options = {}) {
   const text = suggestion.body
     ? `${suggestion.subject}\n\n${suggestion.body}`
     : suggestion.subject;
+  // A commit (or its hooks) may have moved the index/HEAD even when it exits
+  // non-zero, so drop the refresh memo before the write, not only after it.
+  invalidateReadContext(root);
   const commit = await runGitWithProgress(root, commitArgs(text), emit, {
     timeoutMs: COMMIT_TIMEOUT_MS,
   });
@@ -527,11 +626,38 @@ async function gitCommit(cwd, message, filePaths, onProgress, options = {}) {
  * @param {unknown} cwd
  * @returns {Promise<object | null>}
  */
-async function gitFetchForStatus(cwd) {
+async function gitFetchForStatus(cwd, owner) {
   const root = asCwd(cwd);
   if (!root) return null;
-  await fetchForStatus(root);
-  return gitStatus(root);
+  const context = acquireReadContext(owner, root);
+  if (!context) {
+    await fetchForStatus(root, uncachedRun);
+    return statusForRoot(root, owner);
+  }
+  const fetched = await fetchForStatus(root, context.run);
+  if (context.isRevoked()) {
+    // A concurrent fresh status call superseded this refresh mid-fetch. Its
+    // memo is gone, so rebuild the snapshot on a fresh context rather than
+    // reading half-revoked entries.
+    return statusForRoot(root, owner);
+  }
+  // A fetch that outlived the 2s idle window still belongs to this refresh.
+  touchReadContext(owner, root, context);
+  if (!fetched || fetched.fetched !== true) {
+    // Fetch was skipped inside its cooldown, so nothing it could affect has
+    // moved: reuse the status this refresh already computed instead of walking
+    // porcelain and numstat a second time.
+    return context.getStatus() ?? readGitStatus(root, context.run);
+  }
+  // A real fetch moved remote-tracking refs, so anything derived from them
+  // (branch.ab, rev-list/show-ref/symbolic-ref) must not come from memory.
+  // The working-tree diff stays memoized: a fetch cannot change it.
+  context.forget((args) => args[0] !== 'diff');
+  const refreshed = await readGitStatus(root, context.run);
+  // Keep the refresh's snapshot current: the PR sibling reads this branch name.
+  context.setStatus(refreshed);
+  touchReadContext(owner, root, context);
+  return refreshed;
 }
 
 /**
@@ -540,14 +666,30 @@ async function gitFetchForStatus(cwd) {
  * @param {unknown} cwd
  * @returns {Promise<{ ok: boolean, pr?: object | null, message?: string }>}
  */
-async function gitReadPullRequest(cwd) {
+async function gitReadPullRequest(cwd, owner) {
   const root = asCwd(cwd);
   if (!root) return fail('Git status is unavailable.');
-  const status = await gitStatus(cwd);
-  if (!status?.refName) return ok({ pr: null });
-  const branchKey = `${root}\u0000${status.refName}`;
-  const looked = await lookupOpenPullRequest(root, status.refName);
-  const headContext = looked.headContext || await resolveBranchHeadContext(root, status.refName);
+  // The refresh's status call already resolved the branch (and armed its read
+  // context). Only the branch name is needed here — the PR lookup must not walk
+  // the whole status path a third time.
+  let context = acquireReadContext(owner, root);
+  // The status call of this same refresh already resolved the branch; only
+  // fall back to a real status walk when there is no armed context.
+  const status = context ? context.getStatus() : await statusForRoot(root, owner);
+  if (!context) {
+    // `gitStatus` just armed a context for this owner; pick it up so the PR
+    // lookup reuses the same child processes instead of spawning its own.
+    context = acquireReadContext(owner, root);
+  }
+  const refName = context && !context.getStatus()
+    ? await readCurrentBranch(root, context.run)
+    : status?.refName;
+  if (!refName) return ok({ pr: null });
+  const branchKey = `${root}\u0000${refName}`;
+  // `gh` must not run through the git read context.
+  const readRun = context ? context.run : uncachedRun;
+  const looked = await lookupOpenPullRequest(root, refName, readRun);
+  const headContext = looked.headContext || await resolveBranchHeadContext(root, refName, readRun);
   const current = {
     upstreamRef: headContext.upstreamRef,
     headBranch: headContext.headBranch,
@@ -631,6 +773,9 @@ async function gitPush(cwd, onProgress) {
   const limits = { timeoutMs: COMMIT_TIMEOUT_MS };
   let pushed;
   let upstreamBranch = null;
+  // A push may update tracking refs before failing (partial refspec, rejected
+  // updates); drop the memo up front so no reader survives a failed push.
+  invalidateReadContext(root);
   if (status.hasUpstream) {
     const upstream = await resolveCurrentUpstream(root);
     upstreamBranch = upstream?.upstreamRef || null;
@@ -660,26 +805,30 @@ async function gitPull(cwd, onProgress) {
   emit({ kind: 'phase', title: 'Pulling...' });
   const root = asCwd(cwd);
   if (!root) return fail('Git status is unavailable.');
-  await fetchForStatus(root);
-  const status = await gitStatus(cwd);
-  if (!status?.refName) return fail('Cannot pull from detached HEAD.');
-  if (!status.hasUpstream) {
-    return fail('Current branch has no upstream configured. Push with upstream first.');
-  }
-  const beforeSha = await readHeadSha(root);
-  const pulled = await runGitWithProgress(root, ['pull', '--ff-only'], emit, {
-    timeoutMs: COMMIT_TIMEOUT_MS,
-  });
-  if (pulled.missing) return fail('Git is unavailable.');
-  if (pulled.timedOut) return fail('Git command timed out.');
-  if (pulled.code !== 0) return fail(gitFailureMessage(pulled, 'git pull failed.'));
-  const afterSha = await readHeadSha(root);
-  const upstream = await resolveCurrentUpstream(root);
-  const pullStatus = beforeSha && beforeSha === afterSha ? 'up_to_date' : 'pulled';
-  return ok({
-    status: pullStatus,
-    refName: status.refName,
-    upstreamRef: upstream?.upstreamRef || null,
+  return withWriteInvalidation(root, async () => {
+    await fetchForStatus(root, uncachedRun);
+    const status = await gitStatus(cwd);
+    if (!status?.refName) return fail('Cannot pull from detached HEAD.');
+    if (!status.hasUpstream) {
+      return fail('Current branch has no upstream configured. Push with upstream first.');
+    }
+    const beforeSha = await readHeadSha(root);
+    // The pull (and its merge hooks) may move HEAD before reporting failure.
+    invalidateReadContext(root);
+    const pulled = await runGitWithProgress(root, ['pull', '--ff-only'], emit, {
+      timeoutMs: COMMIT_TIMEOUT_MS,
+    });
+    if (pulled.missing) return fail('Git is unavailable.');
+    if (pulled.timedOut) return fail('Git command timed out.');
+    if (pulled.code !== 0) return fail(gitFailureMessage(pulled, 'git pull failed.'));
+    const afterSha = await readHeadSha(root);
+    const upstream = await resolveCurrentUpstream(root);
+    const pullStatus = beforeSha && beforeSha === afterSha ? 'up_to_date' : 'pulled';
+    return ok({
+      status: pullStatus,
+      refName: status.refName,
+      upstreamRef: upstream?.upstreamRef || null,
+    });
   });
 }
 
@@ -880,6 +1029,9 @@ async function gitPublishRepository(cwd, input, onProgress) {
   const headProbe = await runGit(root, ['rev-parse', '--verify', 'HEAD']);
   const hasCommits = headProbe.code === 0;
   if (remoteUrl) {
+    // An `origin` that appears before the add reports failure still changed
+    // the remote config; drop the memo before the write.
+    invalidateReadContext(root);
     const added = await runGit(root, ['remote', 'add', 'origin', remoteUrl]);
     if (added.code !== 0) return fail(gitFailureMessage(added, 'git remote add failed.'));
     // Empty repo → remote_added without push (avoids opaque HEAD refspec failure).
@@ -897,6 +1049,8 @@ async function gitPublishRepository(cwd, input, onProgress) {
     '--yes',
   ];
   if (hasCommits) createArgs.push('--push');
+  // `gh repo create --remote=origin` writes the remote as part of its work.
+  invalidateReadContext(root);
   const created = await run('gh', createArgs, root, { timeoutMs: COMMIT_TIMEOUT_MS });
   if (created.missing) return fail('gh is unavailable.');
   if (created.code !== 0) return fail(created.stderr.trim() || created.stdout.trim() || 'gh repo create failed.');
@@ -952,7 +1106,10 @@ function resolveGitPath(cwd, relativePath) {
   const target = resolveInsideWorkspace(cwd, relativePath);
   if (!target) return { root, rel: null };
   const rel = path.relative(root, target).replaceAll('\\', '/');
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return { root, rel: null };
+  // `!isPathInside(...)` rather than `rel.startsWith('..')`: a real child named
+  // `..notes` produces exactly that prefix and must stay addressable. Failures
+  // already collapse to a null rel above, so only containment is decided here.
+  if (!rel || !isPathInside(root, target)) return { root, rel: null };
   return { root, rel };
 }
 
@@ -960,6 +1117,9 @@ async function gitPathOp(cwd, relativePath, args, failVerb) {
   const { root, rel } = resolveGitPath(cwd, relativePath);
   if (!root) return fail('Git status is unavailable.');
   if (!rel) return fail('Path is outside the workspace.');
+  // `git add`/`reset`/`checkout`/`clean` can touch the index or working tree
+  // before exiting non-zero; invalidate up front so failure is fail-closed.
+  invalidateReadContext(root);
   const result = await runGit(root, [...args, '--', rel]);
   if (result.missing) return fail('Git is unavailable.');
   if (result.timedOut) return fail('Git command timed out.');
@@ -1075,6 +1235,9 @@ async function gitSwitchBranch(cwd, ref) {
     const remoteRef = await runGit(root, ['show-ref', '--verify', '--quiet', `refs/remotes/${name}`]);
     if (remoteRef.code === 0) args.push('--track');
   }
+  // A checkout that fails after writing the index or a partly detached HEAD
+  // must not leave the old memo serving pre-checkout answers.
+  invalidateReadContext(root);
   const result = await runGit(root, [...args, name]);
   if (result.missing) return fail('Git is unavailable.');
   if (result.timedOut) return fail('Git command timed out.');
@@ -1088,6 +1251,7 @@ async function gitCreateBranch(cwd, name) {
   const branch = safeRefName(name);
   if (!root) return fail('Git status is unavailable.');
   if (!branch) return fail(UNSUPPORTED_REF_NAME_MESSAGE);
+  invalidateReadContext(root);
   const result = await runGit(root, ['checkout', '-b', branch]);
   if (result.missing) return fail('Git is unavailable.');
   if (result.timedOut) return fail('Git command timed out.');

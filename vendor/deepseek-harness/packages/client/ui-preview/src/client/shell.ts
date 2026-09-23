@@ -97,6 +97,7 @@ export interface DiscoveredServer {
 /** Injected preview callbacks. */
 export interface PreviewShellInjected {
   previewAvailable: boolean
+  subscribeOpenPreviewUrl: (handler: (url: string) => void) => () => void
   previewOpen: (input: { url: string; bounds?: PreviewBounds; scope?: string }) => Promise<PreviewResult>
   previewNavigate: (id: string, url: string) => Promise<PreviewResult>
   previewBack: (id: string) => Promise<PreviewNavState>
@@ -142,6 +143,7 @@ export interface PreviewShellInjected {
 }
 
 interface PreviewShell {
+  onOpenPreviewUrl?: (handler: (payload: { url?: string }) => void) => () => void
   previewOpen?: PreviewShellInjected['previewOpen']
   previewNavigate?: PreviewShellInjected['previewNavigate']
   previewBack?: PreviewShellInjected['previewBack']
@@ -193,6 +195,13 @@ export function readPreviewShell(): PreviewShellInjected {
     : (window as Window & { shell?: PreviewShell }).shell
   return {
     previewAvailable: typeof shell?.previewOpen === 'function',
+    subscribeOpenPreviewUrl: handler => (
+      typeof shell?.onOpenPreviewUrl === 'function'
+        ? shell.onOpenPreviewUrl((payload) => {
+            if (typeof payload?.url === 'string' && payload.url.length > 0) handler(payload.url)
+          })
+        : () => {}
+    ),
     previewOpen: input => shell?.previewOpen?.(input) ?? Promise.resolve(missing()),
     previewNavigate: (id, url) => shell?.previewNavigate?.(id, url) ?? Promise.resolve(missing()),
     previewBack: id => shell?.previewBack?.(id) ?? Promise.resolve(missing()),

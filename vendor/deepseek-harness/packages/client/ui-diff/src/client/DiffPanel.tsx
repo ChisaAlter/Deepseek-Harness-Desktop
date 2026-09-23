@@ -11,17 +11,13 @@ import {
 import css from './DiffPanel.module.css'
 
 export type DiffPanelProps =
-  & PropsRuntime<'surfaces.diff'>
+  & PropsRuntime<'sidebar.right.pane.tab'>
   & PropsLocale<typeof NS>
-  & InjectFace<DiffShellInjected>
+  & InjectFace<DiffPanelInjected>
 
-function currentCwd(useSessions: DiffPanelProps['useSessions']): string | undefined {
-  return useSessions((s) => {
-    const id = Object.values(s.byId)
-      .find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
-    const next = id === undefined ? undefined : s.byId[id]?.cwd
-    return next ? next : undefined
-  })
+/** The git probes plus the session-bound workspace path opener. */
+export interface DiffPanelInjected extends DiffShellInjected {
+  openFile: (relativePath: string) => Promise<void>
 }
 
 function marker(kind: 'context' | 'add' | 'del'): string {
@@ -46,12 +42,13 @@ export function pickBranchBase(branches: readonly DiffBranchRef[], defaultRef: s
 }
 
 /**
- * Workspace diff occupant of `surfaces.diff`. Not a git repository shows the
+ * Workspace diff body of the right Sidebar. Not a git repository shows the
  * Diff disabled reason.
- * @param props - session-maybe seats, git IPC, openFile, and copy.
+ * @param props - session seats, git IPC, openFile, and copy.
  * @returns the diff panel.
  */
 export function DiffPanel({
+  sessionId,
   useSessions,
   openFile,
   gitStatus,
@@ -63,7 +60,10 @@ export function DiffPanel({
   gitBranchList,
   t,
 }: DiffPanelProps): ReactNode {
-  const cwd = currentCwd(useSessions)
+  const cwd = useSessions((state) => {
+    const next = state.byId[sessionId]?.cwd
+    return next ? next : undefined
+  })
   const [available, setAvailable] = useState(false)
   const [files, setFiles] = useState<DiffFile[]>([])
   const [entries, setEntries] = useState<GitStatusEntry[] | null>(null)
@@ -186,7 +186,7 @@ export function DiffPanel({
       key={path}
       onClick={(event: MouseEvent<HTMLDivElement>) => {
         const target = event.target as HTMLElement
-        if (target.closest(`.${css.fileTitle}`) !== null) openFile(path)
+        if (target.closest(`.${css.fileTitle}`) !== null) void openFile(path)
       }}
     >
       <DisclosureRow

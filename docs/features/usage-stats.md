@@ -8,6 +8,8 @@
 
 ## User paths
 
+> 2026-09-22 补充（挂载改链接）：`ensureDesktopUsagePanel` 不再把 ~6k 文件 bundle 复制进 profile，改为把 `profiles/web/node_modules/dsh-usage-panel` 链到 runtime 目录；实测稳态 1129 ms → 9 ms（首次 13928 ms → 9.5 ms）。`usage-panel-preset.test.js` 14/14（含「稳态不重建链接」「运行时不复制」「legacy 副本迁移」「缺依赖仍 fail closed」）。附带：`desktop-plugins/dsh-usage-panel/` 现在只存 overlay。
+
 1. 设置 → 「用量统计」（`usage-stats`）：KPI（含估算费用卡）、半年窗口内按月可选 UTC 热力图、按模型柱/环、Top 会话（含费用列）、导出（含费用列）、「设置」弹层（模型多选 + 峰谷开关 + 自定义价）。
 2. 会话输入框下方的峰谷状态 / 当前会话费用行**不属于本插件**：由 harness 侧 `PeakValleyRow` 独占（[session-cost-display](session-cost-display.md)，界面设置「会话累计费用」开关）。本插件不得再向 `conversation.composer.dock` 注册条目，否则同一信息会出现两行。
 3. 无计费用量（含仅空白会话）走空态文案；扫描失败仍出仪表盘，不挡启动。
@@ -27,6 +29,7 @@
 - **损坏日志修复(用户授权,只读承诺的唯一例外)**:扫描失败的会话 id 在覆盖度中列出;页面显式「自动修复」→ 仅重写该损坏工件——即后端实读的**最高 canonical 代**(`session.vN.jsonl.zstd`,v0 为 `session.jsonl.zstd`),不碰迁移遗留旧代(解码全部行→0 基连续重编号→重打包 zstd→原子替换,先备份 `.bak-<ts>`);解码失败即中止;健康日志永不触碰;仅桌面运行时可用(standalone npm 优雅报错)。
 - 安装落点是桌面 `dsh-home/profiles/web`，不是 `~/.dsh`（见 [dsh-home](dsh-home.md)）。
 - 预置失败硬失败，挡 `dsh web`（桌面运行时损坏，skip 模式无法修复）。
+- **挂载用链接，不维护 profile 副本（2026-09-22）**：`profiles/web/node_modules/dsh-usage-panel` 是指向 runtime 目录（`vendor/dsh-usage-panel`，打包后为 resources 内同路径）的 junction/symlink；`desktop-plugins/dsh-usage-panel/` 只存 overlay 文件。前提是**面板运行时代码只读**——可写状态（`prices` / `peakValleyEnabled`）只落 `dsh_usage_panel_billing` storage domain，不得写进自身安装目录。链接目标未变时不得 unlink/relink。旧版本留在 `desktop-plugins/dsh-usage-panel` 的整份副本在首次启动删除（迁移）。`missingRuntimeFiles` 的 fail-closed 依赖检查不因链接而放宽。
 
 ## Allowed touch
 
@@ -50,7 +53,7 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [用量统计面板改挂运行时链接，不再维护 profile 副本](../decisions/proposed/architecture/2026-09-22-usage-panel-runtime-link.md)
 
 - Handbook：[../handbook/modules/usage-stats.md](../handbook/modules/usage-stats.md)
 - Spec：[../superpowers/specs/2026-08-23-usage-stats-design.md](../superpowers/specs/2026-08-23-usage-stats-design.md)

@@ -3,10 +3,25 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+
+// `git-exec.js` destructures `spawn` when it is first required, so the counting
+// hook has to be installed before any production module below is loaded.
+// Only the async spawn is wrapped; the synchronous `git()` fixture helper in
+// this file still uses the real `spawnSync`.
+const childProcess = require('node:child_process');
+const { spawnSync } = childProcess;
+const realSpawn = childProcess.spawn;
+const gitSpawnLog = [];
+let countingGitSpawns = false;
+childProcess.spawn = function countingSpawn(command, args, options) {
+  if (countingGitSpawns && command === 'git') gitSpawnLog.push(args.join(' '));
+  return realSpawn.call(this, command, args, options);
+};
+
 const { createWorkspaceAuthority } = require('./workspace-authority');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
-const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
+const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
+const { resetReadContexts } = require('./git-read-context.js');
 const { parseRepositoryNameWithOwnerFromNormalized } = require('./git-pullrequest');
 const { setTextGenerator } = require('./git-generate.js');
 
@@ -587,6 +602,33 @@ test('gitStage rejects a path outside the workspace', async () => {
     git(cwd, ['init']);
     const escaped = await gitStage(cwd, path.join('..', 'outside.txt'));
     assert.equal(escaped.ok, false);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitStage stages real names that merely begin with two dots', async () => {
+  // `resolveGitPath` used to treat any `rel.startsWith('..')` as an escape, so
+  // files named `..notes` (and `sub/..cache`) could not be staged even though
+  // they are ordinary children of the workspace.
+  const cwd = makeTempDir();
+  try {
+    git(cwd, ['init']);
+    git(cwd, ['config', 'user.email', 'git-test@example.com']);
+    git(cwd, ['config', 'user.name', 'Git Test']);
+    fs.writeFileSync(path.join(cwd, '..notes'), 'a\n');
+    fs.mkdirSync(path.join(cwd, 'sub'));
+    fs.writeFileSync(path.join(cwd, 'sub', '..cache'), 'b\n');
+
+    assert.equal((await gitStage(cwd, '..notes')).ok, true, '..notes 必须可暂存');
+    assert.equal((await gitStage(cwd, path.join('sub', '..cache'))).ok, true, 'sub/..cache 必须可暂存');
+    const staged = git(cwd, ['diff', '--cached', '--name-only']);
+    assert.match(staged, /\.\.notes/);
+
+    // Real traversal is still refused.
+    assert.equal((await gitStage(cwd, path.join('..', 'outside.txt'))).ok, false);
+    assert.equal((await gitStage(cwd, path.join('sub', '..', '..', 'outside.txt'))).ok, false);
   } finally {
     setWorkspaceAuthority(null);
     fs.rmSync(cwd, { recursive: true, force: true });
@@ -2039,5 +2081,107 @@ test('gitBranchList lists branches for a harness-registered sibling of the boot 
     fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(boot, { recursive: true, force: true });
     fs.rmSync(sibling, { recursive: true, force: true });
+  }
+});
+
+/**
+ * One titlebar refresh is `gitStatus` + `gitFetchForStatus` + `gitReadPullRequest`.
+ * The read context has to collapse the three status walks into one, so the
+ * spawn counts below are asserted against the exact commands, not just totals.
+ */
+test('one titlebar refresh runs a single status walk and a single numstat', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-refresh-'));
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-refresh-bare-'));
+  try {
+    git(bare, ['init', '--bare']);
+    git(root, ['init', '-b', 'main']);
+    git(root, ['config', 'user.email', 't@local']);
+    git(root, ['config', 'user.name', 'T']);
+    for (let i = 0; i < 40; i += 1) {
+      fs.writeFileSync(path.join(root, `file-${i}.txt`), `line ${i}\n`);
+    }
+    git(root, ['add', '.']);
+    git(root, ['commit', '-m', 'base']);
+    git(root, ['remote', 'add', 'origin', bare]);
+    git(root, ['push', '-u', 'origin', 'main']);
+    for (let i = 0; i < 10; i += 1) {
+      fs.appendFileSync(path.join(root, `file-${i}.txt`), `dirty ${i}\n`);
+    }
+    setWorkspaceAuthority(createWorkspaceAuthority({ workspace: root }));
+    // Warm the fetch cooldown first: the target is a *steady-state* refresh,
+    // where the fetch is skipped and the status must come from the read
+    // context. The first pass legitimately pays one real fetch + re-read.
+    await gitStatus(root);
+    await gitFetchForStatus(root);
+
+    gitSpawnLog.length = 0;
+    countingGitSpawns = true;
+    try {
+      const [status, fetched, pr] = await Promise.all([
+        gitStatus(root),
+        gitFetchForStatus(root),
+        gitReadPullRequest(root),
+      ]);
+      assert.equal(status?.isRepo, true);
+      assert.equal(fetched?.isRepo, true);
+      assert.equal(pr.ok, true);
+    } finally {
+      countingGitSpawns = false;
+    }
+
+    const porcelain = gitSpawnLog.filter((line) => line.startsWith('status --porcelain=v2')).length;
+    const numstat = gitSpawnLog.filter((line) => line === 'diff HEAD --numstat').length;
+    assert.equal(porcelain, 1, gitSpawnLog.join('\n'));
+    assert.equal(numstat, 1, gitSpawnLog.join('\n'));
+    assert.ok(
+      gitSpawnLog.length <= 11,
+      `expected the warm refresh to stay within 11 local git children, saw ${gitSpawnLog.length}:\n${gitSpawnLog.join('\n')}`,
+    );
+
+    // The refresh leaves the status memo armed for its 2s handoff window; a
+    // real window blur/quit would expire it, but a test that deletes the temp
+    // repo must not leave `git.js` holding a context for a directory that is
+    // about to disappear.
+    resetReadContexts();
+  } finally {
+    resetFetchCooldowns();
+    setWorkspaceAuthority(null);
+    // Windows can still hold the pack/index handles opened by the background
+    // fetch for a beat after the child exits.
+    fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(bare, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+
+test('a git write invalidates the read context so status cannot answer from pre-write memory', async () => {
+  const cwd = makeTempDir();
+  try {
+    git(cwd, ['init', '-b', 'main']);
+    git(cwd, ['config', 'user.email', 't@local']);
+    git(cwd, ['config', 'user.name', 'T']);
+    fs.writeFileSync(path.join(cwd, 'README.md'), 'hello\n');
+    git(cwd, ['add', 'README.md']);
+    git(cwd, ['commit', '-m', 'base']);
+
+    const before = await gitStatus(cwd);
+    assert.equal(before.hasWorkingTreeChanges, false);
+    assert.equal(before.workingTree.files.length, 0);
+
+    // Claim the staged change right after the status above published a memo for
+    // this worktree; the write must drop it or the next status reports a clean
+    // tree from the pre-stage answer.
+    fs.writeFileSync(path.join(cwd, 'README.md'), 'hello staged\n');
+    const staged = await gitStage(cwd, 'README.md');
+    assert.equal(staged.ok, true, staged.message);
+
+    const after = await gitStatus(cwd);
+    assert.equal(after.hasWorkingTreeChanges, true, 'status must see the staged change');
+    const entry = after.workingTree.files.find((item) => item.path === 'README.md');
+    assert.ok(entry, JSON.stringify(after.workingTree.files));
+    assert.equal(entry.insertions, 1);
+    assert.equal(entry.deletions, 1);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
   }
 });

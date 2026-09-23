@@ -969,3 +969,67 @@ test('dsh log lines are batched into one shell:log send per flush window', async
   assert.deepEqual(sends.filter((row) => row.channel === 'shell:log').map((row) => row.payload).flat(),
     ['[app] one', '[app] two', '[app] three', '[app] late']);
 });
+
+test('a start reads one config snapshot for port, toggles, and dsh options', async () => {
+  const revisions = [];
+  let configRevision = 7;
+  let currentConfig = {
+    workspace: 'C:/workspace',
+    harnessAutoRestart: true,
+    harnessRestartMaxAttempts: 3,
+    harnessRestartBaseDelayMs: 1000,
+    openDevTools: false,
+    dshbotEnabled: true,
+    disabledPlugins: ['a'],
+  };
+  const f = fixture({
+    loadConfig: () => currentConfig,
+    readConfigSnapshot: () => {
+      revisions.push(configRevision);
+      return { config: { ...currentConfig }, revision: configRevision };
+    },
+    currentConfigRevision: () => configRevision,
+    resolveLaunchTarget: async (snapshot) => ({ port: 3100, configRevision: snapshot.revision }),
+    ensureDshbotPlugin: async (options) => {
+      // The built-in toggle must come from the snapshot, not a fresh config read.
+      assert.equal(options.enabled, true);
+      return { ok: true, overlayFile: 'C:/overlay/bot.yml' };
+    },
+    applyDisabledBundles: (disabled) => {
+      assert.deepEqual(disabled, ['a']);
+      return { ok: true, changed: false };
+    },
+  });
+  await f.controller.start();
+  assert.equal(revisions.length, 1, 'one snapshot read when nothing changes mid-start');
+  assert.equal(f.dsh.startOptions[0].port, 3100);
+  assert.equal(f.dsh.startOptions[0].configSnapshot.dshbotEnabled, true);
+});
+
+test('a config save during port resolution re-reads instead of mixing two versions', async () => {
+  let configRevision = 1;
+  let currentConfig = {
+    workspace: 'C:/workspace',
+    harnessAutoRestart: true,
+    harnessRestartMaxAttempts: 3,
+    harnessRestartBaseDelayMs: 1000,
+    openDevTools: false,
+    dshbotEnabled: false,
+  };
+  const f = fixture({
+    loadConfig: () => currentConfig,
+    readConfigSnapshot: () => ({ config: { ...currentConfig }, revision: configRevision }),
+    currentConfigRevision: () => configRevision,
+    resolveLaunchTarget: async (snapshot) => {
+      if (snapshot.revision === 1) {
+        // A Settings save lands while the port is being resolved.
+        configRevision = 2;
+        currentConfig = { ...currentConfig, dshbotEnabled: true };
+      }
+      return { port: 3080, configRevision: snapshot.revision };
+    },
+  });
+  await f.controller.start();
+  // The start must use the post-save snapshot, never a mix of the two.
+  assert.equal(f.dsh.startOptions[0].configSnapshot.dshbotEnabled, true);
+});

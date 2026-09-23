@@ -50,7 +50,12 @@ function CenterColumn(props: { children?: ReactNode }) {
 /** Subscribe to the main key without subscribing the column frame to each panel id. */
 function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'usePanelInfo'> & PropsRenderSlots<'main'>) {
   const panelId = usePanelInfo(info => info.activePanelId)
-  return renderSlot('main', {}, { entryKey: panelId ?? 'conversation' })
+  const entryKey = panelId ?? 'conversation'
+  const panel = renderSlot('main', {}, { entryKey })
+  // Only the Conversation owns the shared titlebar row through the centerCol
+  // subgrid; every other panel gets the content row (see .mainPanel).
+  if (entryKey === 'conversation') return panel
+  return <div className={css.mainPanel} data-main-panel>{panel}</div>
 }
 
 /**
@@ -486,6 +491,7 @@ export function AppFrame({
       >
         {renderSlot('shell.titlebar.trailing', {
           surfaces: layoutInfo.surfaces,
+          rightbarShown: layoutInfo.rightbarShown,
           terminalDrawer: layoutInfo.terminalDrawer,
           managedSession,
           density: titlebarDensity,

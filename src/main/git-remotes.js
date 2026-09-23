@@ -107,14 +107,21 @@ function providerFromRemoteUrl(url) {
   return { kind: 'unknown', name: host, baseUrl: `https://${host}` };
 }
 
-async function listRemoteNames(cwd) {
-  const listed = await runGit(cwd, ['remote']);
+/**
+ * Every helper below takes an optional `run` seam: a refresh passes the
+ * read-context runner so sibling IPC calls reuse one set of child processes,
+ * while every other caller keeps spawning directly.
+ * @param {string} cwd
+ * @param {(cwd: string, args: string[], limits?: object) => Promise<object>} [run]
+ */
+async function listRemoteNames(cwd, run = runGit) {
+  const listed = await run(cwd, ['remote']);
   if (listed.code !== 0) return [];
   return listed.stdout.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
 }
 
-async function resolvePrimaryRemoteName(cwd) {
-  const remotes = await listRemoteNames(cwd);
+async function resolvePrimaryRemoteName(cwd, run = runGit) {
+  const remotes = await listRemoteNames(cwd, run);
   if (remotes.includes('origin')) return 'origin';
   return remotes[0] || null;
 }
@@ -124,11 +131,11 @@ async function resolvePrimaryRemoteName(cwd) {
  * @param {string} cwd
  * @returns {Promise<{ provider: object, remoteName: string, remoteUrl: string } | null>}
  */
-async function selectProviderContext(cwd) {
-  const names = await listRemoteNames(cwd);
+async function selectProviderContext(cwd, run = runGit) {
+  const names = await listRemoteNames(cwd, run);
   const candidates = [];
   for (const name of names) {
-    const urlResult = await runGit(cwd, ['remote', 'get-url', name]);
+    const urlResult = await run(cwd, ['remote', 'get-url', name]);
     if (urlResult.code !== 0 || !urlResult.stdout.trim()) continue;
     const provider = providerFromRemoteUrl(urlResult.stdout);
     if (!provider) continue;
@@ -147,12 +154,12 @@ function changeRequestTerms(provider) {
   return { shortLabel: 'PR', singular: 'pull request' };
 }
 
-async function defaultRefName(cwd, hasPrimaryRemote) {
+async function defaultRefName(cwd, hasPrimaryRemote, run = runGit) {
   // Default branch from the primary remote, not a hardcoded origin.
   if (hasPrimaryRemote) {
-    const primary = await resolvePrimaryRemoteName(cwd);
+    const primary = await resolvePrimaryRemoteName(cwd, run);
     if (primary) {
-      const symbolic = await runGit(cwd, ['symbolic-ref', '--quiet', `refs/remotes/${primary}/HEAD`]);
+      const symbolic = await run(cwd, ['symbolic-ref', '--quiet', `refs/remotes/${primary}/HEAD`]);
       if (symbolic.code === 0) {
         const prefix = `refs/remotes/${primary}/`;
         const raw = symbolic.stdout.trim();
@@ -162,7 +169,7 @@ async function defaultRefName(cwd, hasPrimaryRemote) {
     }
   }
   for (const candidate of ['main', 'master']) {
-    const probe = await runGit(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${candidate}`]);
+    const probe = await run(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${candidate}`]);
     if (probe.code === 0) return candidate;
   }
   return null;
@@ -177,10 +184,10 @@ const DEFAULT_BASE_BRANCH_CANDIDATES = ['main', 'master'];
  * @param {string} refName
  * @returns {Promise<string | null>}
  */
-async function resolveBaseBranchForNoUpstream(cwd, refName) {
-  const configured = await runGit(cwd, ['config', '--get', `branch.${refName}.gh-merge-base`]);
-  const primary = await resolvePrimaryRemoteName(cwd);
-  const defaultRef = await defaultRefName(cwd, Boolean(primary));
+async function resolveBaseBranchForNoUpstream(cwd, refName, run = runGit) {
+  const configured = await run(cwd, ['config', '--get', `branch.${refName}.gh-merge-base`]);
+  const primary = await resolvePrimaryRemoteName(cwd, run);
+  const defaultRef = await defaultRefName(cwd, Boolean(primary), run);
   const candidates = [
     configured.code === 0 ? configured.stdout.trim() : '',
     defaultRef,
@@ -195,30 +202,30 @@ async function resolveBaseBranchForNoUpstream(cwd, refName) {
     }
     if (!normalized || normalized === refName) continue;
     if (primary) {
-      const remote = await runGit(cwd, ['show-ref', '--verify', '--quiet', `refs/remotes/${primary}/${normalized}`]);
+      const remote = await run(cwd, ['show-ref', '--verify', '--quiet', `refs/remotes/${primary}/${normalized}`]);
       if (remote.code === 0) return `${primary}/${normalized}`;
     }
-    const local = await runGit(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${normalized}`]);
+    const local = await run(cwd, ['show-ref', '--verify', '--quiet', `refs/heads/${normalized}`]);
     if (local.code === 0) return normalized;
   }
   return null;
 }
 
-async function computeAheadCountAgainstBase(cwd, refName) {
-  const baseRef = await resolveBaseBranchForNoUpstream(cwd, refName);
+async function computeAheadCountAgainstBase(cwd, refName, run = runGit) {
+  const baseRef = await resolveBaseBranchForNoUpstream(cwd, refName, run);
   if (!baseRef) return { count: 0, unreliable: false };
-  const listed = await runGit(cwd, ['rev-list', '--count', `${baseRef}..HEAD`]);
+  const listed = await run(cwd, ['rev-list', '--count', `${baseRef}..HEAD`]);
   if (listed.code !== 0) return { count: 0, unreliable: true };
   const count = Number(listed.stdout.trim());
   if (!Number.isFinite(count)) return { count: 0, unreliable: true };
   return { count: Math.max(0, count), unreliable: false };
 }
 
-async function resolveCurrentUpstream(cwd) {
-  const up = await runGit(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
+async function resolveCurrentUpstream(cwd, run = runGit) {
+  const up = await run(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']);
   const ref = up.stdout.trim();
   if (up.code !== 0 || !ref || ref === '@{upstream}') return null;
-  const remotes = await listRemoteNames(cwd);
+  const remotes = await listRemoteNames(cwd, run);
   for (const remote of remotes) {
     const prefix = `${remote}/`;
     if (ref.startsWith(prefix)) {

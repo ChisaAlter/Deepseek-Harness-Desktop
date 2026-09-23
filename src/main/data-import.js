@@ -1300,6 +1300,7 @@ async function importSessions({
   scan: providedScan,
   signal,
   onProgress,
+  deferJournalDone = false,
 } = {}) {
   const scan = providedScan || scanImport({ sourceHome, destHome: dest, extraSkillDirs, agentsSkillsRoot });
   const chosen = Array.isArray(selectedRels) ? selectedRels : scan.sessions.map((row) => row.rel);
@@ -1345,7 +1346,13 @@ async function importSessions({
   let attachments = 'absent';
   const shouldCopyAttachments = importAttachments !== false;
   const sourceAttachments = path.join(scan.sourceHome, 'attachments');
-  if (!cancelled && shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
+  if (!cancelled && importIsCancelled(signal)) {
+    cancelled = true;
+  }
+  if (cancelled) {
+    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile };
+  }
+  if (shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
     emitImportProgress(onProgress, { phase: 'attachments', done: 0, total: 1 });
     try {
       await copyDirAtomic(sourceAttachments, path.join(scan.destHome, 'attachments'));
@@ -1356,18 +1363,17 @@ async function importSessions({
     emitImportProgress(onProgress, { phase: 'attachments', done: 1, total: 1 });
   }
 
-  if (cancelled) {
-    // Leave the journal at 'copying': a deliberate cancel is recoverable
-    // exactly like an interrupted import.
-    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile };
+  // runImport() commits the journal only after every phase lands; an
+  // interrupted later phase must remain recoverable instead of looking done.
+  if (!deferJournalDone) {
+    writeJournal(journalFile, {
+      phase: 'done',
+      sourceHome: scan.sourceHome,
+      destHome: scan.destHome,
+      items: results,
+      attachments,
+    });
   }
-  writeJournal(journalFile, {
-    phase: 'done',
-    sourceHome: scan.sourceHome,
-    destHome: scan.destHome,
-    items: results,
-    attachments,
-  });
   return { ok: results.every((row) => row.status !== 'failed'), sessions: results, attachments, journal: journalFile };
 }
 
@@ -1680,6 +1686,7 @@ async function runImport(options = {}) {
     importAttachments,
     signal,
     onProgress,
+    deferJournalDone: true,
   });
   const skills = importIsCancelled(signal)
     ? []

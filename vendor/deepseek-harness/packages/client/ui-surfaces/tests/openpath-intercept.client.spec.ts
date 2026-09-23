@@ -179,6 +179,20 @@ describe('wrapOpenPath', () => {
     expect(original).not.toHaveBeenCalled()
   })
 
+  it('uses an explicit originating Session instead of the retained main-view Session', async () => {
+    const original = vi.fn(async () => {})
+    const openInSurfaces = vi.fn(() => true)
+    const workspaces = service(original)
+    wrapOpenPath(workspaces, {
+      takeoverEnabled: () => true,
+      currentSessionId: () => 'sess-main-view',
+      openInSurfaces,
+    })
+    await workspaces.openPath('/tmp/origin/a.ts', { line: 10, sessionId: 'sess-origin' })
+    expect(openInSurfaces).toHaveBeenCalledWith('/tmp/origin/a.ts', 'sess-origin', { line: 10 })
+    expect(original).not.toHaveBeenCalled()
+  })
+
   it('ignores line options when falling through to the original openPath', async () => {
     const original = vi.fn(async () => {})
     const workspaces = service(original)

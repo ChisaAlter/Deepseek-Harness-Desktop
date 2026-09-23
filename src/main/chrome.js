@@ -9,8 +9,16 @@ const TITLEBAR_HEIGHT = 48;
 const injectScript = fs.readFileSync(path.join(__dirname, 'harness-chrome-inject.js'), 'utf8');
 let ipcBound = false;
 const chromeRoles = new WeakMap();
+const transparentWindows = new WeakSet();
+
+function markWindowTransparent(win) {
+  transparentWindows.add(win);
+}
 
 function chromeBackgroundFor(win, theme = currentTheme()) {
+  if (transparentWindows.has(win)) {
+    return '#00000000';
+  }
   const role = chromeRoles.get(win);
   let url;
   try {
@@ -52,7 +60,7 @@ function isHarnessUrl(url) {
 }
 
 function paintBackground(win, color) {
-  if (!win || win.isDestroyed() || !color) {
+  if (!win || win.isDestroyed() || !color || transparentWindows.has(win)) {
     return;
   }
   win.setBackgroundColor(color);
@@ -254,5 +262,7 @@ module.exports = {
   syncHarnessChrome,
   currentTheme,
   isHarnessUrl,
+  markWindowTransparent,
+  paintBackground,
   officialShellBackground,
 };

@@ -66,7 +66,7 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [远端 CLI 身份文件回落到绝对 home](../decisions/proposed/bug-fix/2026-09-19-remote-home-identity-isolation.md)
 
 - [2026-09-08 ayase.cn 远程服务器迁移](../qa/results/2026-09-08/remote-ayase-deployment.md)
 - Plan：gateway_product_redo / fix_qr_pairing / [2026-08-28-remote-epipe-hardening](../superpowers/plans/2026-08-28-remote-epipe-hardening.md)

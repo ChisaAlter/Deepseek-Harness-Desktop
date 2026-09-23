@@ -192,6 +192,48 @@ describe('MarkdownText', () => {
     expect(second).toHaveBeenCalledOnce()
   })
 
+  it('delegates rendered images through openImage while linked images keep their anchor', () => {
+    const openImage = vi.fn<(image: { src: string; alt: string; destination: string }) => void>()
+    const source = [
+      '![diagram](https://example.com/a.png)',
+      '',
+      '[![badge](https://example.com/b.png)](https://example.com/target)',
+      '',
+      '![](https://example.com/no-alt.png)',
+    ].join('\n')
+    const { container } = render(
+      <MarkdownDelegateProvider openImage={openImage}>
+        <MarkdownText text={source} />
+      </MarkdownDelegateProvider>,
+    )
+
+    const diagram = screen.getByRole('button', { name: 'diagram' })
+    fireEvent.click(diagram)
+    expect(openImage.mock.calls).toEqual([[
+      { src: 'https://example.com/a.png', alt: 'diagram', destination: 'https://example.com/a.png' },
+    ]])
+
+    // An image-only anchor stays navigation, not a nested preview button.
+    const linked = screen.getByRole('link', { name: 'badge' })
+    expect(linked.querySelector('button')).toBeNull()
+    expect(linked.querySelector('img')?.getAttribute('src')).toBe('https://example.com/b.png')
+
+    // An empty alt names the button by its authored destination.
+    expect(screen.getByRole('button', { name: 'https://example.com/no-alt.png' })
+      .querySelector('img')).not.toBeNull()
+    expect(container.querySelectorAll('img')).toHaveLength(3)
+  })
+
+  it('keeps images as plain elements without an openImage delegate', () => {
+    const { container } = render(
+      <MarkdownDelegateProvider openExternalLink={vi.fn()}>
+        <MarkdownText text={'![diagram](https://example.com/a.png)'} />
+      </MarkdownDelegateProvider>,
+    )
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://example.com/a.png')
+  })
+
   it('links inline code through the file-mention resolver: URL first, settled only, never inside links', () => {
     const opened: string[] = []
     const fileMentions = {
@@ -233,6 +275,24 @@ describe('MarkdownText', () => {
       <MarkdownText text={'`index.html`\n\nmore\n\n'} streaming fileMentions={fileMentions} />,
     )
     expect(streamed.container.querySelector('button')).toBeNull()
+  })
+
+  it('opens local Markdown links with their line fragment through the file delegate', () => {
+    const openFile = vi.fn<(path: string, options?: { line?: number }) => void>()
+    render(
+      <MarkdownDelegateProvider openFile={openFile}>
+        <MarkdownText text={'[first](src/a.ts#L24) [range](src/b.ts#L24-L30)'} />
+      </MarkdownDelegateProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'first' }))
+    fireEvent.click(screen.getByRole('button', { name: 'range' }))
+
+    // A range keeps the product contract: open at its first line.
+    expect(openFile.mock.calls).toEqual([
+      ['src/a.ts', { line: 24 }],
+      ['src/b.ts', { line: 24 }],
+    ])
   })
 
   it('exposes the CJK strong syntax as a micromark extension needing CommonMark attention markers', () => {

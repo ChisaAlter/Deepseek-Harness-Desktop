@@ -1216,6 +1216,39 @@ describe('ChatView', () => {
     })
   })
 
+  it('a Markdown image in prose or a Think row activates the preview slot', () => {
+    const h = makeHarness({
+      nodes: [
+        user(1, 'go'),
+        assistant(2, 'see ![shot](https://example.com/a.png)'),
+        reasoningAssistant(3, 'think ![inner](https://example.com/b.png) first'),
+      ],
+    })
+    const baseRenderSlot = h.props.renderSlot
+    const renderSlot = ((key: string, owner: object, opts?: { fallback?: React.ReactNode }) => {
+      if (key !== 'conversation.image.preview') return baseRenderSlot(key as never, owner as never, opts as never)
+      const { src, alt, open, onClose } = owner as {
+        src: string
+        alt: string
+        open: boolean
+        onClose: () => void
+      }
+      return <button type="button" data-testid="image-preview" onClick={onClose}>{`${src}|${alt}|${String(open)}`}</button>
+    }) as unknown as ChatViewSlotProps['renderSlot']
+    const view = render(<h.ChatView {...{ ...h.props, renderSlot }} />)
+
+    // Prose image: the delegate wraps it in an activator named by its alt.
+    fireEvent.click(view.getByRole('button', { name: 'shot' }))
+    expect(view.getByTestId('image-preview').textContent).toBe('https://example.com/a.png|shot|true')
+    fireEvent.click(view.getByTestId('image-preview'))
+    expect(view.getByTestId('image-preview').textContent).toBe('https://example.com/a.png|shot|false')
+
+    // Expanded Think row: same activation path inside the reasoning body.
+    fireEvent.click(view.getByText('思考'))
+    fireEvent.click(view.getByRole('button', { name: 'inner' }))
+    expect(view.getByTestId('image-preview').textContent).toBe('https://example.com/b.png|inner|true')
+  })
+
   it('a mixed echo renders the Web file card between its selected images', () => {
     const h = makeHarness(
       { nodes: [] },

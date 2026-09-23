@@ -1,7 +1,3 @@
-/** Browser plugin owning the right-panel surfaces shell. */
+/** Browser plugin routing desktop file opens into the native right Sidebar. */
 
 export { apply, desktopListingAvailable, inject } from './apply.ts'
-export type {
-  FileOwnerProps, FilesOwnerProps, OpenableKind, Surface, SurfaceKind, SurfacesKey, SurfacesRootInjected, SurfacesRootProps, SurfacesState,
-} from './apply.ts'
-export { createSurfacesStore } from './apply.ts'

@@ -75,6 +75,34 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+/* Local/remote switcher: the Pill pair seated in the title row, present only
+ * while a remote-workspace flow occupies the dialog's remote hole. */
+.tabBar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+/* A pane filling the dialog's body slot (header keeps its own flex-none
+ * seat): a real flex column so content/footer inside it lay out exactly as
+ * they did as direct card children. The remote occupant's pane is the same
+ * shape — its component owns everything inside. */
+.localPane,
+.remotePane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* The keep-alive seat: the remote pane stays mounted (its SSH/machine state
+ * survives tab switches and dialog closes) but paints nothing while the
+ * local tab shows or the dialog is closed. */
+.paneHidden {
+  display: none;
+}
+
 /* The bar IS the editor's box in both modes: it carries the rounded outline
  * and the inner padding, the crumbs and the input sit inside it, and hovering
  * the edit zone lights the whole row rather than the remainder right of the

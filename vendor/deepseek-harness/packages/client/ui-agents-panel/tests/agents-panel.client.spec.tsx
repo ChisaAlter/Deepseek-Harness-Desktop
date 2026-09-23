@@ -202,12 +202,21 @@ describe('AgentsPanel', () => {
     expect(screen.queryByText('failed')).toBeNull()
   })
 
-  it('lists no jobs when the session id cannot be resolved', () => {
+  it('reads agents and jobs from the tab session instead of a main-view fallback', () => {
     const state = sessionList({})
+    state.jobsBySession = {
+      [PARENT]: [{
+        id: 'bash-parent' as never,
+        kind: 'bash',
+        label: 'parent job',
+        status: 'running',
+        startedAt: 1,
+      }],
+    }
     for (const row of Object.values(state.byId)) state.byId[row.id] = { ...row, retainedBy: {} }
     render(
       <AgentsPanel {...({
-        sessionId: undefined,
+        sessionId: PARENT,
         useSession: neverHook,
         useSessions: (sel: (s: SessionListState) => unknown) => sel(state),
         useWorkspaces: neverHook,
@@ -217,6 +226,7 @@ describe('AgentsPanel', () => {
       } as unknown as AgentsPanelProps)} />,
     )
     expect(screen.getByText('No agents yet')).toBeTruthy()
-    expect(screen.queryByText('Background jobs')).toBeNull()
+    expect(screen.getByText('Background jobs')).toBeTruthy()
+    expect(screen.getByText('parent job')).toBeTruthy()
   })
 })

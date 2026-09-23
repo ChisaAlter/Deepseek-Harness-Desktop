@@ -35,6 +35,8 @@ export type UseChatNodeProcess = KeyedSnapshotSelectorHook<ChatTurnProcessPresen
 export interface OpenFileOptions {
   /** 1-based line to reveal; absent = the file's beginning. */
   readonly line?: number
+  /** Session that owns the citation; desktop takeover must not infer it from the retained seat. */
+  readonly sessionId?: SessionId
 }
 
 /** Owner currency of the completed-Turn extension chain. */
@@ -76,6 +78,18 @@ export interface UserEditorOwnerProps {
   content: readonly UserActionContentBlock[]
   /** Restore the static bubble and IconActions row. */
   cancelEdit: () => void
+}
+
+/** Owner currency of the document-level Markdown image preview. */
+export interface ImagePreviewOwnerProps {
+  /** Displayable source of the image under preview. */
+  src: string
+  /** Authored alt text carried into the preview. */
+  alt: string
+  /** Whether the preview is showing; false drives the occupant's exit hold. */
+  open: boolean
+  /** Dismiss the preview. */
+  onClose: () => void
 }
 
 /** Optional prose file-mention provider consumed by Chat. */
@@ -190,13 +204,16 @@ export interface ChatViewInjected {
 /** Full Chat view props. */
 export type ChatViewSlotProps =
   PropsRuntime<'conversation.view'>
-  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images'>
+  & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images' | 'conversation.image.preview'>
   & PropsStore<ChatStore>
   & InjectFace<ChatViewInjected>
   & PropsLocale<'chat'>
 
 /** Full props of the durable-message image renderer. */
 export type MessageImagesProps = PropsRuntime<'conversation.message.images'> & PropsLocale<'conversation'>
+
+/** Full props of the Markdown image preview renderer. */
+export type ImagePreviewProps = PropsRuntime<'conversation.image.preview'> & PropsLocale<'conversation'>
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SessionStandardProps {
@@ -229,6 +246,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registration replaces the shipped gallery; without one, images are omitted.
      */
     'conversation.message.images': { kind: 'single'; scope: 'session'; owner: MessageImagesOwnerProps }
+    /**
+     * Document-level preview for one Markdown-authored image activated from
+     * chat content (assistant text or reasoning). The owner supplies the
+     * resolved source, alt text, open state, and dismiss callback. A
+     * registration supplies the preview surface; without one activations
+     * render nothing.
+     */
+    'conversation.image.preview': { kind: 'single'; scope: 'session'; owner: ImagePreviewOwnerProps }
     /**
      * Command row keyed by the command name. The component receives the folded
      * command lifecycle and linked compaction when present. Reusing a key

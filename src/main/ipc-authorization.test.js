@@ -4,7 +4,10 @@ const { IPC_ROLES, ipcSenderRole, assertIpcSender } = require('./ipc-authorizati
 
 function contents(url) {
   const mainFrame = { url };
-  return { mainFrame };
+  return {
+    mainFrame,
+    isDestroyed: () => false,
+  };
 }
 
 function eventFor(sender, frame = sender.mainFrame) {
@@ -71,4 +74,32 @@ test('assertIpcSender enforces per-surface capabilities', () => {
     () => assertIpcSender(eventFor(policy.surfaces.boot), [IPC_ROLES.HARNESS], policy),
     (error) => error.code === 'ERR_DSH_IPC_SENDER',
   );
+});
+
+test('ipcSenderRole rejects destroyed senders even while their URL still matches', () => {
+  const policy = options();
+  const harness = policy.surfaces.harness;
+  harness.isDestroyed = () => true;
+  assert.equal(ipcSenderRole(eventFor(harness), policy), null);
+  assert.throws(
+    () => assertIpcSender(eventFor(harness), [IPC_ROLES.HARNESS], policy),
+    (error) => error.code === 'ERR_DSH_IPC_SENDER',
+  );
+});
+
+test('ipcSenderRole rejects a sender that has been replaced by a new surface instance', () => {
+  const policy = options();
+  const replacement = contents(policy.surfaces.harness.mainFrame.url);
+  policy.surfaces.harness = replacement;
+  assert.equal(ipcSenderRole(eventFor(replacement), policy), IPC_ROLES.HARNESS);
+  const stale = contents('http://127.0.0.1:3080/chat');
+  assert.equal(ipcSenderRole(eventFor(stale), policy), null);
+});
+
+test('ipcSenderRole rejects a stale frame and a changed origin after navigation', () => {
+  const policy = options();
+  const harness = policy.surfaces.harness;
+  assert.equal(ipcSenderRole(eventFor(harness, { url: 'http://127.0.0.1:3080/chat' }), policy), null);
+  harness.mainFrame.url = 'http://127.0.0.1:5173/chat';
+  assert.equal(ipcSenderRole(eventFor(harness), policy), null);
 });

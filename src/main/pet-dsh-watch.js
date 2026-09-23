@@ -97,6 +97,39 @@ function decodeAppended(slice, frameSizeOf = zstdFrameSize) {
   return { lines, consumed: off };
 }
 
+// Sticker outbox lines carry `path` (absolute image file the whale_sticker
+// tool just picked). Read it here and ship the bytes as a data URL so the
+// renderer can paint the picture inside her bubble — the pet page runs on
+// the pet:// scheme and cannot reach arbitrary disk paths itself.
+const STICKER_IMAGE_MIME = {
+  '.webp': 'image/webp',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+};
+const STICKER_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+function outboxImageOf(ev) {
+  if (ev?.kind !== 'sticker' || typeof ev.path !== 'string') {
+    return '';
+  }
+  const file = ev.path;
+  const mime = STICKER_IMAGE_MIME[path.extname(file).toLowerCase()];
+  if (!mime) {
+    return '';
+  }
+  try {
+    const stat = fs.statSync(file);
+    if (!stat.isFile() || stat.size > STICKER_IMAGE_MAX_BYTES) {
+      return '';
+    }
+    return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
+
 // Plain-jsonl variant of decodeAppended for the pet outbox: consumes only
 // newline-terminated lines; a torn trailing line keeps its offset so the
 // next poll re-reads it once the writer finishes.
@@ -347,7 +380,7 @@ function createDshWatch({
           const text = typeof ev?.text === 'string' ? ev.text.slice(0, 512) : '';
           if (text) {
             const kind = typeof ev?.kind === 'string' ? ev.kind.slice(0, 32) : '';
-            emit(EV_WHALE, { summary: text, kind });
+            emit(EV_WHALE, { summary: text, kind, image: outboxImageOf(ev) });
             dsh.lastSeenAt = t;
           }
           continue;

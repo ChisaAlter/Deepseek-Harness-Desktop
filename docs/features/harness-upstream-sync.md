@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `harness-upstream-sync` |
 | **status** | `active` |
-| **last verified** | 2026-09-18 — alpha.2 正式构建、GUI 7906 通过/1 跳过、桌面 1775 通过/2 跳过、同步契约 67 通过；源码冒烟通过并已重启桌面应用 |
+| **last verified** | 2026-09-19 — main-panel 行契约修复：非会话 `main` 面板（插件管理等）收进 `AppFrame.mainPanel` 内容行，不再上探标题栏行；`FORK_FILE_MARKERS` 新增 `AppFrame.tsx` / `AppFrame.module.css` 标记。ui-layout 80 测、fork 校验 15 测、typecheck 全绿；实机 CDP 验证插件页 top=48、卡片→详情→返回正常。此前 2026-09-18 — alpha.2 正式构建、GUI 7906 通过/1 跳过、桌面 1775 通过/2 跳过、同步契约 67 通过；源码冒烟通过并已重启桌面应用 |
 
 ## User paths
 

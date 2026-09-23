@@ -18,8 +18,39 @@ function asCwd(cwd) {
 // Copied from the external desktop `apps/server/src/terminal/Manager.ts`.
 const DEFAULT_OPEN_COLS = 120;
 const DEFAULT_OPEN_ROWS = 30;
+const MIN_TERMINAL_COLUMNS = 1;
+const MIN_TERMINAL_ROWS = 1;
+const MAX_TERMINAL_COLUMNS = 1_000;
+const MAX_TERMINAL_ROWS = 1_000;
 const TERMINAL_ENV_BLOCKLIST = new Set(['PORT', 'ELECTRON_RENDERER_PORT', 'ELECTRON_RUN_AS_NODE']);
 const leftoverEnvPrefix = ['T', '3CODE_'].join('');
+
+/**
+ * Terminal output coalescing window. A build or `cat` of a large file emits
+ * thousands of small backend chunks; publishing each one crosses the IPC
+ * boundary and re-copies the renderer replay buffer once per chunk. The first
+ * chunk of a burst still goes out immediately so an interactive shell never
+ * waits on this window at all.
+ */
+const PTY_OUTPUT_COALESCE_MS = 8;
+/** UTF-8 byte ceiling for one coalesced payload; the window alone is unbounded. */
+const PTY_OUTPUT_COALESCE_BYTES = 32 * 1024;
+
+/**
+ * Unacknowledged-byte ceiling before the backend PTY is paused, and the mark
+ * it must fall back to before reads resume. Coalescing alone only reduces the
+ * message count; it leaves the queue unbounded when the renderer cannot keep
+ * up. Pausing the backend is what actually constrains the producer, and
+ * `pause()`/`resume()` were measured to stop delivery (zero bytes arrive while
+ * paused) rather than merely buffer in this process.
+ *
+ * The high mark sits well above one coalesced frame so ordinary bursts never
+ * touch it and interactive echo keeps its latency. Lowering it below a single
+ * frame would pause on every frame and turn backpressure into a stutter.
+ */
+const PTY_OUTPUT_HIGH_WATER_BYTES = 256 * 1024;
+/** Resume mark. The gap to the high mark avoids pause/resume thrashing. */
+const PTY_OUTPUT_LOW_WATER_BYTES = 64 * 1024;
 
 function shouldExcludeTerminalEnvKey(key) {
   const normalizedKey = key.toUpperCase();
@@ -292,6 +323,15 @@ function defaultSpawn() {
       resize(nextCols, nextRows) {
         term.resize(nextCols, nextRows);
       },
+      // node-pty's pause()/resume() stop and restart delivery from the backend.
+      // Measured on Windows ConPTY: while paused, zero bytes arrive; the wall
+      // clock of a 200k-line producer stretched by exactly the hold time.
+      pause() {
+        if (typeof term.pause === 'function') term.pause();
+      },
+      resume() {
+        if (typeof term.resume === 'function') term.resume();
+      },
       kill() {
         term.kill();
         return new Promise((resolve) => {
@@ -308,6 +348,20 @@ function defaultSpawn() {
 
 const BACKEND_UNAVAILABLE = 'terminal backend unavailable';
 
+function validTerminalDimension(value, fallback, minimum, maximum) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(maximum, Math.max(minimum, Math.trunc(parsed)));
+}
+
+function normalizeTerminalDimensions(cols, rows) {
+  return {
+    cols: validTerminalDimension(cols, DEFAULT_OPEN_COLS, MIN_TERMINAL_COLUMNS, MAX_TERMINAL_COLUMNS),
+    rows: validTerminalDimension(rows, DEFAULT_OPEN_ROWS, MIN_TERMINAL_ROWS, MAX_TERMINAL_ROWS),
+  };
+}
+
 /**
  * In-process PTY table used by Electron IPC. Tests inject a fake spawn that
  * echoes writes; production lazy-loads node-pty / conpty on the first create
@@ -319,6 +373,81 @@ function createPtyController(options = {}) {
   const emit = options.emit ?? (() => {});
   const sessions = new Map();
   const eventListeners = new Set();
+  /** Per-PTY output batching state; see {@link PTY_OUTPUT_COALESCE_MS}. */
+  const outputStates = new Map();
+  /**
+   * PTYs that may still publish output. A backend may deliver a late `onData`
+   * after `onExit`/`kill()`; without this guard that callback would recreate
+   * batching state for a session the controller has already retired. The set
+   * is keyed by live id, so it cannot grow across the process lifetime.
+   */
+  const activeOutputIds = new Set();
+  const coalesceMs = Number.isFinite(options.coalesceMs) ? Math.max(0, options.coalesceMs) : PTY_OUTPUT_COALESCE_MS;
+  const coalesceBytes = Number.isFinite(options.coalesceBytes) && options.coalesceBytes > 0
+    ? options.coalesceBytes
+    : PTY_OUTPUT_COALESCE_BYTES;
+  const highWaterBytes = Number.isFinite(options.highWaterBytes) && options.highWaterBytes > 0
+    ? options.highWaterBytes
+    : PTY_OUTPUT_HIGH_WATER_BYTES;
+  const lowWaterBytes = Number.isFinite(options.lowWaterBytes) && options.lowWaterBytes >= 0
+    ? Math.min(options.lowWaterBytes, highWaterBytes)
+    : Math.min(PTY_OUTPUT_LOW_WATER_BYTES, highWaterBytes);
+
+  /**
+   * Unacknowledged output bytes per PTY, plus the paused flag.
+   *
+   * `pending` counts every byte this process has published but the renderer
+   * has not yet confirmed consuming. It is bounded by construction: once it
+   * reaches {@link highWaterBytes} the backend is paused, so a producer that
+   * ignores the socket's own buffering still cannot grow it without limit.
+   */
+  const flowStates = new Map();
+
+  function flowState(id) {
+    let state = flowStates.get(id);
+    if (!state) {
+      state = { unackedBytes: 0, paused: false, nextSeq: 1, inflight: [] };
+      flowStates.set(id, state);
+    }
+    return state;
+  }
+
+  /**
+   * Record one published frame and apply the watermarks.
+   *
+   * The frame is tracked before flow control runs so the pause decision sees
+   * the byte that just crossed the mark. A frame the renderer never
+   * acknowledges simply keeps the PTY paused, which is the correct failure
+   * mode: the producer waits instead of the queue growing.
+   */
+  function trackPublishedFrame(id, data, session) {
+    const state = flowState(id);
+    const seq = state.nextSeq++;
+    const bytes = Buffer.byteLength(data, 'utf8');
+    state.unackedBytes += bytes;
+    state.inflight.push({ seq, bytes });
+    applyFlowControl(id, session);
+    return seq;
+  }
+
+  /**
+   * Apply the watermarks to the backend. Called after every publish and every
+   * acknowledgement, so the producer is held exactly while the backlog is
+   * above the high mark and released once it is back under the low one.
+   */
+  function applyFlowControl(id, session) {
+    const state = flowStates.get(id);
+    if (!state || !session || typeof session.pause !== 'function') return;
+    if (!state.paused && state.unackedBytes >= highWaterBytes) {
+      state.paused = true;
+      session.pause();
+      return;
+    }
+    if (state.paused && state.unackedBytes <= lowWaterBytes) {
+      state.paused = false;
+      session.resume();
+    }
+  }
 
   function publish(channel, payload) {
     emit(channel, payload);
@@ -338,6 +467,162 @@ function createPtyController(options = {}) {
     if (typeof spawn === 'function') return spawn;
     spawn = defaultSpawn();
     return spawn;
+  }
+
+  function outputState(id) {
+    let state = outputStates.get(id);
+    if (!state) {
+      state = { pending: [], pendingBytes: 0, timer: null, lastPublishAt: 0 };
+      outputStates.set(id, state);
+    }
+    return state;
+  }
+
+  function clearOutputTimer(state) {
+    if (state.timer !== null) {
+      clearTimeout(state.timer);
+      state.timer = null;
+    }
+  }
+
+  function flushOutput(id) {
+    const state = outputStates.get(id);
+    if (!state) return;
+    clearOutputTimer(state);
+    if (state.pending.length === 0) return;
+    const data = state.pending.join('');
+    state.pending = [];
+    state.pendingBytes = 0;
+    state.lastPublishAt = Date.now();
+    publishData(id, data);
+  }
+
+  /** Publish one ordered output frame, tagging it for renderer acknowledgement. */
+  function publishData(id, data) {
+    const seq = trackPublishedFrame(id, data, sessions.get(id));
+    publish('shell:pty-data', { id, data, seq });
+  }
+
+  function scheduleFlush(id, state) {
+    if (state.timer !== null) return;
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      flushOutput(id);
+    }, coalesceMs);
+  }
+
+  /**
+   * Split a payload into frames whose UTF-8 length never exceeds `budget`.
+   * Iterates by code point so a multi-byte character is never cut in half.
+   * @param {string} text
+   * @param {number} budget
+   * @returns {string[]}
+   */
+  function splitTextByByteBudget(text, budget) {
+    const frames = [];
+    let current = '';
+    let currentBytes = 0;
+    for (const char of text) {
+      const charBytes = Buffer.byteLength(char, 'utf8');
+      if (currentBytes + charBytes > budget && current.length > 0) {
+        frames.push(current);
+        current = '';
+        currentBytes = 0;
+      }
+      current += char;
+      currentBytes += charBytes;
+    }
+    if (current.length > 0) frames.push(current);
+    return frames;
+  }
+
+  /**
+   * Publish backend output without one IPC message per backend chunk. A chunk
+   * arriving after an idle gap goes out immediately, so keystroke echo never
+   * pays the window; chunks that follow a recent publish are joined until the
+   * window (or the byte ceiling) is reached.
+   *
+   * The ceiling is enforced before a chunk is appended: two individually
+   * small chunks must not produce an oversized payload, and a single chunk
+   * larger than the ceiling is split on code-point boundaries.
+   */
+  function publishOutput(id, data) {
+    if (!activeOutputIds.has(id)) return;
+    const text = String(data);
+    if (text.length === 0) return;
+    const state = outputState(id);
+    const bytes = Buffer.byteLength(text, 'utf8');
+    if (state.pending.length === 0 && Date.now() - state.lastPublishAt >= coalesceMs) {
+      state.lastPublishAt = Date.now();
+      if (bytes <= coalesceBytes) {
+        publishData(id, text);
+        return;
+      }
+      for (const frame of splitTextByByteBudget(text, coalesceBytes)) {
+        publishData(id, frame);
+      }
+      return;
+    }
+    // Make room before appending: an oversized frame is never produced by
+    // joining two individually compliant chunks.
+    if (state.pending.length > 0 && state.pendingBytes + bytes > coalesceBytes) {
+      flushOutput(id);
+    }
+    if (bytes > coalesceBytes) {
+      for (const frame of splitTextByByteBudget(text, coalesceBytes)) {
+        publishData(id, frame);
+      }
+      state.lastPublishAt = Date.now();
+      return;
+    }
+    state.pending.push(text);
+    state.pendingBytes += bytes;
+    if (state.pendingBytes >= coalesceBytes) flushOutput(id);
+    else scheduleFlush(id, state);
+  }
+
+  /** Flush whatever is buffered for this PTY; safe when nothing is pending. */
+  function endOutputBurst(id) {
+    flushOutput(id);
+  }
+
+  /** Retire a PTY so late backend callbacks cannot resurrect batching state. */
+  function retireOutput(id) {
+    endOutputBurst(id);
+    activeOutputIds.delete(id);
+    dropOutputState(id);
+    flowStates.delete(id);
+  }
+
+  /**
+   * Confirm that the renderer finished consuming everything up to `seq`.
+   *
+   * The acknowledgement is cumulative: frames are ordered and delivered in
+   * order, so consuming frame `n` implies every earlier frame was consumed.
+   * Unknown or already-acknowledged sequences are ignored rather than
+   * throwing, because a late acknowledgement racing an exit is normal.
+   */
+  function acknowledgeOutput(id, seq) {
+    const state = flowStates.get(id);
+    if (!state) return;
+    const confirmed = Number(seq);
+    if (!Number.isFinite(confirmed) || confirmed < 1) return;
+    let index = 0;
+    while (index < state.inflight.length && state.inflight[index].seq <= confirmed) {
+      state.unackedBytes -= state.inflight[index].bytes;
+      index += 1;
+    }
+    if (index === 0) return;
+    state.inflight.splice(0, index);
+    if (state.unackedBytes < 0) state.unackedBytes = 0;
+    applyFlowControl(id, sessions.get(id));
+  }
+
+  function dropOutputState(id) {
+    const state = outputStates.get(id);
+    if (!state) return;
+    clearOutputTimer(state);
+    outputStates.delete(id);
   }
 
   function requireSession(id) {
@@ -362,21 +647,28 @@ function createPtyController(options = {}) {
         throw new Error(BACKEND_UNAVAILABLE);
       }
       const id = randomUUID();
+      // Register before spawn: a backend is allowed to emit synchronously.
+      activeOutputIds.add(id);
       let session;
       try {
+        const dimensions = normalizeTerminalDimensions(input.cols, input.rows);
         session = backend({
           cwd,
-          cols: input.cols,
-          rows: input.rows,
+          cols: dimensions.cols,
+          rows: dimensions.rows,
           onData(data) {
-            publish('shell:pty-data', { id, data: String(data) });
+            publishOutput(id, data);
           },
           onExit(code) {
+            // Exit must not overtake buffered output: the tail of a command is
+            // exactly what the user is waiting to see.
+            retireOutput(id);
             sessions.delete(id);
             publish('shell:pty-exit', { id, code: Number(code) || 0 });
           },
         });
       } catch (error) {
+        activeOutputIds.delete(id);
         console.error('[pty] spawn failed:', error && error.message ? error.message : error);
         throw new Error(BACKEND_UNAVAILABLE);
       }
@@ -388,13 +680,23 @@ function createPtyController(options = {}) {
       requireSession(id).write(String(data ?? ''));
     },
 
+    /**
+     * Record the renderer's confirmation that it consumed output up to `seq`.
+     * Exposed for `registerPtyIpc`; safe when the PTY already exited.
+     */
+    acknowledge(id, seq) {
+      acknowledgeOutput(id, seq);
+    },
+
     async resize(id, cols, rows) {
-      requireSession(id).resize(Number(cols) || DEFAULT_OPEN_COLS, Number(rows) || DEFAULT_OPEN_ROWS);
+      const dimensions = normalizeTerminalDimensions(cols, rows);
+      requireSession(id).resize(dimensions.cols, dimensions.rows);
     },
 
     async kill(id) {
       const session = sessions.get(id);
       if (!session) return;
+      retireOutput(id);
       await session.kill();
       sessions.delete(id);
     },
@@ -410,6 +712,9 @@ function createPtyController(options = {}) {
     /** Kill every live PTY (app quit, harness restart, renderer teardown). */
     killAll() {
       const cleanup = [];
+      for (const id of [...outputStates.keys()]) {
+        retireOutput(id);
+      }
       for (const session of sessions.values()) {
         try {
           cleanup.push(Promise.resolve(session.kill()).catch(() => {}));
@@ -430,20 +735,25 @@ function createPtyController(options = {}) {
  */
 function registerPtyIpc(ipcMain, controller, options = {}) {
   const authorize = typeof options.authorize === 'function' ? options.authorize : () => {};
-  const senders = new Set();
+  const senderStates = new Map();
   /** PTY id -> owning webContents, so a dead renderer's PTYs can be reaped. */
   const owners = new Map();
   const live = controller ?? createPtyController({
-    emit(channel, payload) {
-      for (const sender of senders) {
-        if (!sender.isDestroyed()) sender.send(channel, payload);
-      }
-    },
+    emit() {},
   });
 
   if (typeof live.onEvent === 'function') {
     live.onEvent((channel, payload) => {
-      if (channel === 'shell:pty-exit' && payload) owners.delete(payload.id);
+      if (!payload || typeof payload.id !== 'string') return;
+      const owner = owners.get(payload.id);
+      if (channel === 'shell:pty-exit') owners.delete(payload.id);
+      if (
+        owner
+        && typeof owner.send === 'function'
+        && !(typeof owner.isDestroyed === 'function' && owner.isDestroyed())
+      ) {
+        owner.send(channel, payload);
+      }
     });
   }
 
@@ -455,37 +765,88 @@ function registerPtyIpc(ipcMain, controller, options = {}) {
     }
   }
 
+  function invalidateSender(sender) {
+    const state = senderStates.get(sender);
+    if (state) state.generation += 1;
+    reapSender(sender);
+  }
+
   function track(event) {
     authorize(event);
     const sender = event.sender;
-    if (sender && !senders.has(sender)) {
-      senders.add(sender);
+    if (!sender || (typeof sender.isDestroyed === 'function' && sender.isDestroyed())) {
+      const error = new Error('Unauthorized IPC sender');
+      error.code = 'ERR_DSH_IPC_SENDER';
+      throw error;
+    }
+    let state = senderStates.get(sender);
+    if (!state) {
+      state = { sender, generation: 0 };
+      senderStates.set(sender, state);
       if (typeof sender.on === 'function') {
         // A cross-document navigation (reload included) or a crashed renderer
         // destroys the JS context that owned these PTYs; reap them so main
         // keeps no orphan shells. Same-document navigation fires
         // did-navigate-in-page instead and leaves the sessions alone.
-        sender.on('render-process-gone', () => reapSender(sender));
-        sender.on('did-navigate', () => reapSender(sender));
+        sender.on('render-process-gone', () => invalidateSender(sender));
+        sender.on('did-navigate', () => invalidateSender(sender));
       }
       sender.once('destroyed', () => {
-        senders.delete(sender);
+        senderStates.delete(sender);
         reapSender(sender);
       });
     }
-    return live;
+    return { live, sender, state, generation: state.generation };
+  }
+
+  function isCurrent(context) {
+    return senderStates.get(context.sender) === context.state
+      && context.state.generation === context.generation
+      && !(typeof context.sender.isDestroyed === 'function' && context.sender.isDestroyed());
+  }
+
+  function unauthorized() {
+    const error = new Error('Unauthorized IPC sender');
+    error.code = 'ERR_DSH_IPC_SENDER';
+    return error;
+  }
+
+  function requireOwner(context, id) {
+    if (owners.get(id) === context.sender) return;
+    throw new Error(`unknown pty id: ${id}`);
   }
 
   ipcMain.handle('shell:pty-create', async (event, input) => {
-    const created = await track(event).create(input);
-    if (created && typeof created.id === 'string' && event.sender) {
-      owners.set(created.id, event.sender);
+    const context = track(event);
+    const created = await context.live.create(input);
+    if (!created || typeof created.id !== 'string') return created;
+    if (!isCurrent(context)) {
+      void Promise.resolve(context.live.kill(created.id)).catch(() => {});
+      throw unauthorized();
     }
+    owners.set(created.id, context.sender);
     return created;
   });
-  ipcMain.handle('shell:pty-write', (event, id, data) => track(event).write(id, data));
-  ipcMain.handle('shell:pty-resize', (event, id, cols, rows) => track(event).resize(id, cols, rows));
-  ipcMain.handle('shell:pty-kill', (event, id) => track(event).kill(id));
+  ipcMain.handle('shell:pty-write', (event, id, data) => {
+    const context = track(event);
+    requireOwner(context, id);
+    return context.live.write(id, data);
+  });
+  ipcMain.handle('shell:pty-ack', (event, id, seq) => {
+    const context = track(event);
+    requireOwner(context, id);
+    return context.live.acknowledge(id, seq);
+  });
+  ipcMain.handle('shell:pty-resize', (event, id, cols, rows) => {
+    const context = track(event);
+    requireOwner(context, id);
+    return context.live.resize(id, cols, rows);
+  });
+  ipcMain.handle('shell:pty-kill', (event, id) => {
+    const context = track(event);
+    if (owners.has(id)) requireOwner(context, id);
+    return context.live.kill(id);
+  });
   return live;
 }
 

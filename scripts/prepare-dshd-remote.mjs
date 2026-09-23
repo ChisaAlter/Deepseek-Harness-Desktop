@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  createScanMemo,
+  REMOTE_PRUNED_DIRS,
+} from './source-scan.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const upstreamRoot = path.join(root, 'vendor', 'chisacode-remote');
@@ -142,16 +146,15 @@ function pruneNodePtyRuntime() {
   }
 }
 
+// With `--force` both builds run unconditionally, so the freshness scans are
+// never read. Skip them entirely instead of paying for results no caller wants.
+const sourceScans = force
+  ? { scan: () => 0, scanFile: () => 0, calls: new Map() }
+  : createScanMemo({ skipDirs: REMOTE_PRUNED_DIRS, includeDirMtime: true });
+
+/** Newest mtime under `target`, memoized per input directory for this run. */
 function newestMtime(target) {
-  if (!fs.existsSync(target)) return 0;
-  const stat = fs.statSync(target);
-  if (!stat.isDirectory()) return stat.mtimeMs;
-  let newest = stat.mtimeMs;
-  for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.tmp') continue;
-    newest = Math.max(newest, newestMtime(path.join(target, entry.name)));
-  }
-  return newest;
+  return sourceScans.scan(target);
 }
 
 function directorySize(target) {
@@ -308,11 +311,20 @@ if (!fs.existsSync(typescript)) {
   run(npm, ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], upstreamRoot);
 }
 
+// Each subtree feeds both the server stack and the mobile bundle. Scan each
+// directory once and reuse the result: the previous version walked protocol and
+// client twice per invocation.
+const sourceMtimes = {
+  server: newestMtime(path.join(upstreamRoot, 'packages', 'server', 'src')),
+  relay: newestMtime(path.join(upstreamRoot, 'packages', 'relay', 'src')),
+  protocol: newestMtime(path.join(upstreamRoot, 'packages', 'protocol', 'src')),
+  client: newestMtime(path.join(upstreamRoot, 'packages', 'client', 'src')),
+};
 const serverSourceMtime = Math.max(
-  newestMtime(path.join(upstreamRoot, 'packages', 'server', 'src')),
-  newestMtime(path.join(upstreamRoot, 'packages', 'relay', 'src')),
-  newestMtime(path.join(upstreamRoot, 'packages', 'protocol', 'src')),
-  newestMtime(path.join(upstreamRoot, 'packages', 'client', 'src')),
+  sourceMtimes.server,
+  sourceMtimes.relay,
+  sourceMtimes.protocol,
+  sourceMtimes.client,
 );
 const serverBuildMtime = fs.existsSync(sourceServerExport) ? fs.statSync(sourceServerExport).mtimeMs : 0;
 if (force || serverSourceMtime > serverBuildMtime) {
@@ -321,9 +333,9 @@ if (force || serverSourceMtime > serverBuildMtime) {
 }
 
 const mobileSourceMtime = Math.max(
-  newestMtime(path.join(root, 'mobile', 'web', 'chisacode', 'entry.mjs')),
-  newestMtime(path.join(upstreamRoot, 'packages', 'protocol', 'src')),
-  newestMtime(path.join(upstreamRoot, 'packages', 'client', 'src')),
+  sourceScans.scanFile(path.join(root, 'mobile', 'web', 'chisacode', 'entry.mjs')),
+  sourceMtimes.protocol,
+  sourceMtimes.client,
 );
 const mobileBuildMtime = fs.existsSync(mobileBundle) ? fs.statSync(mobileBundle).mtimeMs : 0;
 if (force || mobileSourceMtime > mobileBuildMtime) {

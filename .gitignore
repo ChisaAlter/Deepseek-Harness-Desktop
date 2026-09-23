@@ -7,6 +7,11 @@ node_modules/
 !vendor/dshbot/node_modules/**
 !vendor/dsh-whale/node_modules/
 !vendor/dsh-whale/node_modules/**
+!vendor/dsh-remote/node_modules/
+!vendor/dsh-remote/node_modules/**
+vendor/dsh-remote/node_modules/cpu-features/
+vendor/dsh-remote/node_modules/buildcheck/
+vendor/dsh-remote/node_modules/nan/
 vendor/deepseek-harness/node_modules/
 vendor/deepseek-harness/apps/web/dist/
 # host-side tsc emits declaration/map artifacts beside the sources; keep the
@@ -27,6 +32,8 @@ dist/
 !vendor/dshbot/node_modules/**/dist/**
 !vendor/dsh-whale/node_modules/**/dist/
 !vendor/dsh-whale/node_modules/**/dist/**
+!vendor/dsh-remote/node_modules/**/dist/
+!vendor/dsh-remote/node_modules/**/dist/**
 dist-release/
 out/
 /release/
@@ -84,3 +91,4 @@ tmp/
 .workbuddy-ai/
 _pin-ws/
 logs/
+/cli-client-id
