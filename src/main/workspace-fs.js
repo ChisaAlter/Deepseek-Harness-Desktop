@@ -347,6 +347,7 @@ module.exports = {
   createWorkspaceFileReader,
   readFileMedia,
   writeFile,
+  createWorkspaceFileReader,
   setWorkspaceAuthority,
   MAX_WRITE_BYTES,
 };

@@ -18,6 +18,8 @@ const {
   createFilePreviewWindowController,
 } = require('./preview-file-window.js');
 const { createWorkspaceAuthority } = require('./workspace-authority.js');
+const { scratchWorkspacePath } = require('./workspace-authority.js');
+const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home.js');
 const {
   PREVIEW_PIP_FRAME_CHANNEL,
   PREVIEW_PIP_FRAME_INTERVAL_MS,
@@ -546,6 +548,45 @@ test('closeAll destroys every live view', async () => {
   assert.deepEqual(fake.destroyed.sort(), [first.id, second.id].sort());
   assert.equal(fake.views.length, 2); // destroy() marks the fake, the table is what cleared
   await assert.rejects(() => preview.navigate(first.id, 'http://127.0.0.1:3000'), /unknown preview id/);
+});
+
+test('workspace-file IPC serves a no-workspace session file through the production scratch authority', async (t) => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'dshd-preview-home-'));
+  const boot = await fs.mkdtemp(path.join(os.tmpdir(), 'dshd-preview-boot-'));
+  const configPath = require.resolve('./config');
+  const previousConfig = require.cache[configPath];
+  const handlers = new Map();
+  const ipcMain = { handle(channel, fn) { handlers.set(channel, fn); } };
+  setDesktopDshHome(home);
+  require.cache[configPath] = {
+    id: configPath,
+    filename: configPath,
+    loaded: true,
+    exports: { loadConfig: () => ({ workspace: boot }) },
+  };
+  const live = registerPreviewIpc(ipcMain, { closeAll: async () => {} }, { authorize() {} });
+  t.after(async () => {
+    await live.closeAll();
+    if (previousConfig) require.cache[configPath] = previousConfig;
+    else delete require.cache[configPath];
+    clearDesktopDshHome();
+    await fs.rm(home, { recursive: true, force: true });
+    await fs.rm(boot, { recursive: true, force: true });
+  });
+
+  const scratch = scratchWorkspacePath(home);
+  await fs.mkdir(scratch, { recursive: true });
+  await fs.writeFile(path.join(scratch, 'pelican-bike.html'), '<h1>scratch</h1>');
+
+  const opened = await handlers.get('shell:preview-workspace-file')(
+    { sender: { id: 1 } },
+    { cwd: scratch, relativePath: 'pelican-bike.html' },
+  );
+  assert.equal(opened.ok, true);
+  assert.match(opened.url, /^http:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_-]+\/pelican-bike\.html$/);
+  const served = await fetch(opened.url);
+  assert.equal(served.status, 200);
+  assert.equal(await served.text(), '<h1>scratch</h1>');
 });
 
 test('registerPreviewIpc exposes workspace-file and closeAll closes that server', async () => {

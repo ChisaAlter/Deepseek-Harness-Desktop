@@ -216,9 +216,10 @@ test('fileUrl refuses a cwd outside the authorized workspace', async () => {
   }
 });
 
-test('fileUrl serves scratch html and its assets under one token while parent paths stay denied', async () => {
+test('fileUrl serves scratch html and its assets under one token while parent, .git, and link escapes stay denied', async (t) => {
   const workspace = makeTempDir();
   const scratch = makeTempDir();
+  const outside = makeTempDir();
   const preview = createWorkspacePreviewController({
     authority: createWorkspaceAuthority({ workspace, extraWorkspaces: [scratch] }),
   });
@@ -226,6 +227,9 @@ test('fileUrl serves scratch html and its assets under one token while parent pa
     fs.writeFileSync(path.join(scratch, 'index.html'), '<link rel="stylesheet" href="site.css"><img src="pixel.png">');
     fs.writeFileSync(path.join(scratch, 'site.css'), 'body { color: red; }');
     fs.writeFileSync(path.join(scratch, 'pixel.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    fs.mkdirSync(path.join(scratch, '.git'));
+    fs.writeFileSync(path.join(scratch, '.git', 'config'), 'secret');
+    fs.writeFileSync(path.join(outside, 'secret.html'), 'leaked');
     const opened = await preview.fileUrl({ cwd: scratch, relativePath: 'index.html' });
     assert.equal(opened.ok, true);
     const parsed = new URL(opened.url);
@@ -234,11 +238,23 @@ test('fileUrl serves scratch html and its assets under one token while parent pa
     assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/site.css`)).status, 200);
     assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/pixel.png`)).status, 200);
     assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/../index.html`)).status, 404);
+    assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/%2e%2e%2findex.html`)).status, 404);
+    assert.equal((await request(`http://127.0.0.1:${parsed.port}/${token}/.git/config`)).status, 404);
+    assert.equal((await preview.fileUrl({ cwd: scratch, relativePath: '.git/config' })).ok, false);
     assert.equal((await preview.fileUrl({ cwd: path.dirname(scratch), relativePath: 'index.html' })).ok, false);
+    const link = path.join(scratch, 'escape.html');
+    try {
+      fs.symlinkSync(path.join(outside, 'secret.html'), link);
+      assert.equal((await preview.fileUrl({ cwd: scratch, relativePath: 'escape.html' })).ok, false);
+    } catch (error) {
+      if (error.code !== 'EPERM' && error.code !== 'ENOTSUP') throw error;
+      t.diagnostic('symlink creation is not permitted on this host');
+    }
   } finally {
     await preview.close();
     fs.rmSync(workspace, { recursive: true, force: true });
     fs.rmSync(scratch, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
   }
 });
 
