@@ -17,22 +17,23 @@ function declare(slots: SlotRegistry): () => void {
     name: 'root',
     children: {
       'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },
-      'surfaces.terminal': { kind: 'single', scope: 'session-maybe' },
     },
   } as never, () => null)
 }
 
-async function bench() {
+async function bench(sidebarRightOverride?: { openTabIn: ReturnType<typeof vi.fn> } | null) {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
-  const layout = { toggleTerminalDrawer: vi.fn(), setTerminalDrawer: vi.fn(), openSurfaces: vi.fn() }
+  const layout = { toggleTerminalDrawer: vi.fn(), setTerminalDrawer: vi.fn() }
+  const sidebarRight = sidebarRightOverride === undefined ? { openTabIn: vi.fn(() => true) } : sidebarRightOverride
   ctx.provide('layout', layout)
   ctx.provide('locale', new LocaleRuntime(ctx))
+  if (sidebarRight !== null) ctx.provide('sidebarRight', sidebarRight)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, layout }
+  return { ctx, slots, declaration, fiber, layout, sidebarRight }
 }
 
 describe('ui-user-terminal apply', () => {
@@ -46,14 +47,12 @@ describe('ui-user-terminal apply', () => {
     expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
     await b.fiber.dispose()
     expect(b.slots.entries('shell.terminalDrawer')).toHaveLength(0)
-    expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
   })
 
-  it('re-registers after the declaring slots collapse and return', async () => {
+  it('re-registers the drawer after the declaring slot collapses and returns', async () => {
     const b = await bench()
     b.declaration()
     expect(b.slots.entries('shell.terminalDrawer')).toHaveLength(0)
-    expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
     const redeclare = declare(b.slots)
     await Promise.resolve()
     expect(b.slots.entries('shell.terminalDrawer')[0]?.component).toBe(TerminalDrawer)
@@ -62,17 +61,18 @@ describe('ui-user-terminal apply', () => {
     await b.fiber.dispose()
   })
 
-  it('mentions a fenced selection and opens a workspace path', async () => {
+  it('routes a loopback URL to the originating Session Sidebar Browser', async () => {
     const b = await bench()
     const setDraft = vi.fn()
     b.ctx.provide('conversation', {
       input: { for: () => ({ setDraft, state: { getSnapshot: () => ({ draft: '' }) } }) },
     })
-    b.ctx.provide('sessions', { scope: () => ({}) })
+    b.ctx.provide('sessions', { scope: () => ({}), list: { getSnapshot: () => ({ byId: {} }) } })
     const openPath = vi.fn(async () => {})
     b.ctx.provide('workspaces', { openPath })
-    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
-      (sessionId: string) => TerminalShellInjected)(SID)
+    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as (
+      sessionId: string,
+    ) => TerminalShellInjected)('sess')
     injected.mentionTerminal('sess', '\n')
     expect(setDraft).not.toHaveBeenCalled()
     injected.mentionTerminal('sess', 'ls\n')
@@ -81,6 +81,12 @@ describe('ui-user-terminal apply', () => {
     expect(openPath).toHaveBeenCalledWith('/tmp/proj/a.ts')
     injected.openWorkspacePath('/tmp/proj/src/a.ts', { line: 10 })
     expect(openPath).toHaveBeenCalledWith('/tmp/proj/src/a.ts', { line: 10 })
+    injected.openLocalUrl('http://127.0.0.1:5173')
+    expect(b.sidebarRight?.openTabIn).toHaveBeenCalledWith(
+      'sess',
+      'browser',
+      { params: { url: 'http://127.0.0.1:5173' } },
+    )
     const openExternal = vi.fn(async () => {})
     Object.defineProperty(window, 'shell', { configurable: true, value: { openExternal } })
     injected.openExternal('https://example.com/docs')
@@ -91,22 +97,18 @@ describe('ui-user-terminal apply', () => {
   })
 
   it('opens a loopback URL as a Browser tab in the originating Session', async () => {
-    const b = await bench()
     const openTabIn = vi.fn(() => true)
-    b.ctx.provide('sidebarRight', { openTabIn })
+    const b = await bench({ openTabIn })
     const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
       (sessionId: string) => TerminalShellInjected)(SID)
     injected.openLocalUrl('http://127.0.0.1:5173')
     expect(openTabIn).toHaveBeenCalledWith(SID, 'browser', { params: { url: 'http://127.0.0.1:5173' } })
-    // The retired surfaces shell's layout handoff is gone.
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
   it('reports a refused Browser open without dispatching the legacy event', async () => {
-    const b = await bench()
     const openTabIn = vi.fn(() => false)
-    b.ctx.provide('sidebarRight', { openTabIn })
+    const b = await bench({ openTabIn })
     const notify = vi.fn()
     b.ctx.provide('conversation', { input: { for: () => ({ notify }) } })
     b.ctx.provide('sessions', { scope: () => ({}) })
@@ -115,12 +117,11 @@ describe('ui-user-terminal apply', () => {
     injected.openLocalUrl('http://127.0.0.1:5173')
     expect(openTabIn).toHaveBeenCalledWith(SID, 'browser', { params: { url: 'http://127.0.0.1:5173' } })
     expect(notify).toHaveBeenCalledWith('error', en['error.openLink'])
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
   it('keeps the drawer usable when the Sidebar plugin is absent', async () => {
-    const b = await bench()
+    const b = await bench(null)
     const notify = vi.fn()
     b.ctx.provide('conversation', { input: { for: () => ({ notify }) } })
     b.ctx.provide('sessions', { scope: () => ({}) })
@@ -128,19 +129,16 @@ describe('ui-user-terminal apply', () => {
       (sessionId: string) => TerminalShellInjected)(SID)
     expect(() => { injected.openLocalUrl('http://127.0.0.1:5173') }).not.toThrow()
     expect(notify).toHaveBeenCalledWith('error', en['error.openLink'])
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
   it('does not route a URL when the drawer has no Session', async () => {
-    const b = await bench()
     const openTabIn = vi.fn(() => true)
-    b.ctx.provide('sidebarRight', { openTabIn })
+    const b = await bench({ openTabIn })
     const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
       (sessionId: undefined) => TerminalShellInjected)(undefined)
     injected.openLocalUrl('http://127.0.0.1:5173')
     expect(openTabIn).not.toHaveBeenCalled()
-    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 })

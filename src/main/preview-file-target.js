@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 
 function fail(message) {
@@ -79,7 +80,8 @@ function normalizeAbsolute(absolutePath, authority) {
     return fail('absolutePath must be absolute.');
   }
 
-  const target = path.resolve(absolutePath);
+  const target = canonicalizeTarget(path.resolve(absolutePath));
+  if (target === null) return fail('Path is outside the workspace.');
   const roots = authority
     .authorizedRoots()
     .filter((root) => typeof root === 'string' && root.trim() !== '')
@@ -103,6 +105,36 @@ function normalizeAbsolute(absolutePath, authority) {
     return { ok: true, cwd, relativePath };
   }
   return fail('Path is outside the workspace.');
+}
+
+/**
+ * Canonicalize a target even when its leaf does not exist yet: find the
+ * deepest existing ancestor, resolve that real path, then append the missing
+ * suffix. This keeps the target on the same path plane as canonical roots
+ * (for example macOS `/var` -> `/private/var`) without weakening containment.
+ * @param {string} target
+ * @returns {string | null}
+ */
+function canonicalizeTarget(target) {
+  let node = target;
+  while (true) {
+    const real = realPathOrNull(node);
+    if (real !== null) {
+      const suffix = path.relative(node, target);
+      return suffix === '' ? real : path.join(real, suffix);
+    }
+    const parent = path.dirname(node);
+    if (parent === node) return null;
+    node = parent;
+  }
+}
+
+function realPathOrNull(target) {
+  try {
+    return fs.realpathSync(target);
+  } catch {
+    return null;
+  }
 }
 
 module.exports = { normalizePreviewFileTarget };

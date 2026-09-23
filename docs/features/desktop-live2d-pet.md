@@ -8,10 +8,10 @@
 
 ## User paths
 
-1. Harness ready 后桌面上出现一个置顶、透明、无边框的伙伴窗（DeepSeek 鲸鱼娘 / THA4 神经动画）；空闲时呼吸/眨眼/头部微动，视线跟随鼠标。
+1. 桌宠默认关闭；用户通过设置或托盘主动开启后，Harness ready 时桌面上出现一个置顶、透明、无边框的伙伴窗（DeepSeek 鲸鱼娘 / THA4 神经动画）；空闲时呼吸/眨眼/头部微动，视线跟随鼠标。已有明确保存的 `enabled=true` 保持开启。
 2. 指针悬停在角色上时窗口恢复交互（可拖拽、点按触发反应动画）；指针移开后恢复点击穿透，不遮挡桌面操作。
 3. 拖拽超过阈值提交新位置并持久化（`config.live2dPet.x/y`），重启后恢复；小位移视为点按。
-4. 托盘/菜单开关控制 `live2dPet.enabled`；关闭时不创建窗口。
+4. 托盘/菜单开关控制 `live2dPet.enabled`；默认关闭时不创建窗口或启动成长扫描、日志尾随和光标轮询；从开启切到关闭时关闭窗口并停止上述定时任务。已在途的扫描允许完成。
 5. 跨屏拖动正常但跳屏有去抖：光标须在目标显示器上**连续两次 relocate 轮询**（≈300ms）才 `setBounds` 跳屏——快速甩出擦过屏幕边缘不再把她丢到用户看不到的显示器上；轮询间隔超过 ~400ms 视为新拖拽会话、计数清零，防止上一次甩尾的擦边与本次首个越屏轮询叠加成单轮询跳屏。显示器拔除后持久化位置 clamp 回可见工作区。
 6. 角色头部上方出现圆角对话气泡（本地离线、按场景分类的台词库）：拖拽/抛掷/落地/摸头/喂食/呼唤/逗弄/连戳生气/入睡/睡醒/点按/到点闲聊各有专属池；台词按类洗牌循环，一轮内不重复，且跨轮不出现首尾同句。头顶空间不足时气泡翻到角色下方并换指向；整只气泡（含尾巴与描边）始终限定在当前显示器内。
 7. 右键角色弹出宠物游戏式状态卡（画布内绘制，游戏 UI 设计：分区线 + 槽填充结构 + 等级主题色）：头像裁切 + 名字 + **等级徽章**（填充当前级主题色，带描边）；亲密心形行；**成长进度条**（深色槽 + 等级色填充 + 10 个等间距阶梯节点标记，已达成节点实色/当前节点环形/未来节点暗色，填充=本级内进度）；**算力投喂区**——今日消耗 + 已投喂 + **[投喂 +N]** CTA 按钮（等级色渐变填充 + 描边 + 悬停加亮，无算力时置灰）；三条养成属性条（饱食/心情/亲密，深色槽 + 彩色填充，固定分栏防撞，QQ 宠物式配色——低于警戒线红、满值绿）；底部 2×3 动作格（💬 聊聊 / 👀 看看 / 🫳 摸摸头 / 💤 睡觉·叫醒 / ⚙ 设置 / 🫥 隐藏收尾，悬停时等级色描边；玩耍/逗她的数值收益仍在但入口收敛到直接交互；摸摸头走 `runAction('pat')`——与点她头顶扫动同一个摸头动作）。成长阶梯十级主题色：幼鲸淡蓝→小鲸海蓝→干饭鲸青→鲸鱼娘靛→大肥鱼紫→干饭大王绯→米饭女帝朱→鲸吞四海琥珀→星海饭皇金→干饭真神亮金，整张卡的色调随她成长而变。token 数字按 万/亿 简写显示。
@@ -22,6 +22,7 @@
 ## Invariants
 
 - 宠物是桌面壳拥有的独立 `BrowserWindow`（`transparent`、`frame:false`、`alwaysOnTop`、`skipTaskbar`、`focusable:false`），不注入 Harness DOM、不作为 BrowserView 挂在主窗内。
+- `live2dPet.enabled` 是显式 opt-in：缺失、非布尔或非 `true` 值归一化为关闭；已经持久化的布尔 `true` 不被迁移覆盖。
 - 渲染页只经特权 `pet://` scheme 加载；protocol handler 只映射 `src/renderer/pet-live2d/**` 打包资产，拒绝路径穿越与未授权导航。
 - 推理在渲染进程内进行：onnxruntime-web 优先 WebGPU（graph capture + GPU-buffer I/O），失败回落 WASM；不向主进程回传每帧数据。
 - 角色渲染是 **live-first 双引擎**：主引擎 THA4 实时推理（`stepPose()` 45 维姿态通道→模型逐帧变形渲染，灵动感的原生来源），叠 Anime4K WebGL 着色器对裁剪区 390×492 做 2× 超分（`pet-live2d/anime4k.js` vendored，MIT；RGB 两轮模糊渗透防透明边暗晕、alpha 双线性 destination-in 保羽化边）。状态层是 `LIVE_STATES` 程序——往 pose 通道写目标值（表情在姿态空间里 morph，不是贴图跳变）+ 整帧变换 `liveFx`（旋转/位移/挤压/抓取点 pivot）覆盖睡觉/拎起/奔跑等模型表达不了的姿势；`stillCtl.alpha` 包络作插值权重，`LIVE_ENTRY` 标记入口统一门控/命中/弹道盒。**禁止**把状态改回静态贴图或刚性部件木偶作主渲染——用户已否决；`rig/` 部件与 `states/*.webp` 只作 live 初始化失败的降级链。推理节流 ~50ms（省电 110ms），ONNX 输出张量逐帧 dispose（泄漏曾 ~1MB/帧），整幅 clearRect（脏矩形漏清=透明窗上的可见碎片）。
@@ -45,6 +46,7 @@
 ## Allowed touch
 
 - `src/main/desktop-live2d.js`, `src/main/desktop-live2d.test.js` — 窗口生命周期、`pet://` 协议、IPC 授权、位置持久化与 clamp。
+- `src/main/config.js`, `src/main/config.test.js` — `live2dPet` 默认值、归一化与持久化。
 - `src/main/pet-growth.js`, `src/main/pet-growth.test.js` — token 扫描/去重/成长模型与投喂。
 - `src/main/pet-stats.js`, `src/main/pet-stats.test.js` — 养成属性（饱食/心情/亲密）衰减、增量、冷却与称号。
 - `src/main/pet-settings.js`, `src/main/pet-settings.test.js` — 宠物设置默认值/规范化/钳制（纯函数）。
@@ -75,6 +77,8 @@
 ## Sources
 
 - Decision: [2026-09-20-pet-part-rig](../decisions/archived/product/2026-09-20-pet-part-rig.md)
+- Decision: [2026-09-18-pet-default-off](../decisions/implemented/product/2026-09-18-pet-default-off.md)
+
 - Decision: [2026-09-17-pet-growth-scan-off-main-thread](../decisions/implemented/bug-fix/2026-09-17-pet-growth-scan-off-main-thread.md)
 
 - Implementation entry: `src/main/desktop-live2d.js`, `src/renderer/pet-live2d.js`

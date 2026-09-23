@@ -30,7 +30,9 @@ function setWorkspaceAuthority(authority) {
 }
 
 function authority() {
-  if (workspaceAuthority === null) workspaceAuthority = loadWorkspaceAuthority();
+  if (workspaceAuthority === null) {
+    workspaceAuthority = loadWorkspaceAuthority({ allowScratchCwd: true });
+  }
   return workspaceAuthority;
 }
 
@@ -342,10 +344,9 @@ async function writeFile(cwd, relativePath, text) {
 module.exports = {
   listDir,
   readFile,
+  createWorkspaceFileReader,
   readFileMedia,
   writeFile,
-  createWorkspaceFileReader,
   setWorkspaceAuthority,
   MAX_WRITE_BYTES,
 };
-

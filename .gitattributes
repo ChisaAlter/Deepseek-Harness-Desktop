@@ -4,3 +4,4 @@
 
 # Shell scripts and hooks must keep LF on Windows checkouts.
 scripts/git-hooks/* text eol=lf
+docs/decisions/archived/** text eol=lf

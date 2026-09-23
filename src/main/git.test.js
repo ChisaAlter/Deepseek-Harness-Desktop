@@ -20,7 +20,7 @@ childProcess.spawn = function countingSpawn(command, args, options) {
 
 const { createWorkspaceAuthority } = require('./workspace-authority');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
-const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
+const { COMMIT_TIMEOUT_MS, FETCH_TIMEOUT_MS, GH_TIMEOUT_MS, commitArgs, gitBranchList, gitCheckLargeFiles, gitChildEnv, gitCommit, gitCreateBranch, gitCreateChangeRequest, gitDiff, gitDiscard, gitFailureMessage, gitFetchForStatus, gitInit, gitPublishRepository, gitPull, gitPush, gitReadPullRequest, gitStage, gitStatus, gitStatusEntries, gitSwitchBranch, gitUnstage, inferHookName, isGitAdviceLine, isNtfsReservedGitPath, matchesBranchHeadContext, normalizeGitRemoteUrl, parseCustomCommitMessage, parseGhPullRequestRow, parseGitHubRepositoryNameWithOwner, parsePorcelainZ, parseUnifiedDiff, providerFromRemoteUrl, readPrTemplate, readRangeContext, rememberLastKnownPr, resetFetchCooldowns, resetLastKnownPrCache, resolveBaseBranchForNoUpstream, resolveBranchHeadContext, resolveLastKnownPr, resolvePrBaseBranch, resolvePreferredHeadSelector, run, sanitizeProgressText, setGhDefaultBranchResolver, setLookupOpenPullRequest, setWorkspaceAuthority, summarizeCommitMessage } = require('./git.js');
 const { resetReadContexts } = require('./git-read-context.js');
 const { parseRepositoryNameWithOwnerFromNormalized } = require('./git-pullrequest');
 const { setTextGenerator } = require('./git-generate.js');
@@ -2183,5 +2183,178 @@ test('a git write invalidates the read context so status cannot answer from pre-
   } finally {
     setWorkspaceAuthority(null);
     fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+const MIB = 1024 * 1024;
+
+/**
+ * Create a sparse file of `bytes` without writing the payload.
+ * @param {string} target - absolute path.
+ * @param {number} bytes - resulting size.
+ */
+function makeSparseFile(target, bytes) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const fd = fs.openSync(target, 'w');
+  fs.ftruncateSync(fd, bytes);
+  fs.closeSync(fd);
+}
+
+/**
+ * Initialize a repository with one commit so `git status` has a baseline.
+ * @param {string} cwd - repo root.
+ */
+function initRepoWithBase(cwd) {
+  git(cwd, ['init', '-b', 'main']);
+  git(cwd, ['config', 'user.email', 't@local']);
+  git(cwd, ['config', 'user.name', 'T']);
+  fs.writeFileSync(path.join(cwd, 'README.md'), 'base\n');
+  git(cwd, ['add', 'README.md']);
+  git(cwd, ['commit', '-m', 'base']);
+}
+
+test('gitCheckLargeFiles flags only files strictly over 100 MB', async () => {
+  const cwd = makeTempDir();
+  try {
+    initRepoWithBase(cwd);
+    makeSparseFile(path.join(cwd, 'at-limit.bin'), 100 * MIB);
+    makeSparseFile(path.join(cwd, 'over-limit.bin'), 100 * MIB + 1);
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, [{ path: 'over-limit.bin', size: 100 * MIB + 1 }]);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles reports spaces and non-ASCII paths verbatim', async () => {
+  const cwd = makeTempDir();
+  try {
+    initRepoWithBase(cwd);
+    makeSparseFile(path.join(cwd, 'a dir', 'ünï code.bin'), 101 * MIB);
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, [{ path: 'a dir/ünï code.bin', size: 101 * MIB }]);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles skips ignored paths', async () => {
+  const cwd = makeTempDir();
+  try {
+    initRepoWithBase(cwd);
+    fs.writeFileSync(path.join(cwd, '.gitignore'), 'ignored.bin\nignored-dir/\n');
+    makeSparseFile(path.join(cwd, 'ignored.bin'), 120 * MIB);
+    makeSparseFile(path.join(cwd, 'ignored-dir', 'nested.bin'), 120 * MIB);
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, []);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles does not follow symlinks and never stages', async () => {
+  const cwd = makeTempDir();
+  try {
+    initRepoWithBase(cwd);
+    makeSparseFile(path.join(cwd, 'real.bin'), 101 * MIB);
+    let linked = true;
+    try {
+      fs.symlinkSync(path.join(cwd, 'real.bin'), path.join(cwd, 'link.bin'));
+    } catch {
+      // Windows may require Developer Mode for symlinks; the size rule below
+      // is still pinned by the real file.
+      linked = false;
+    }
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    // A link is skipped by lstat even when it points at an oversized target.
+    assert.deepEqual(result.files, [{ path: 'real.bin', size: 101 * MIB }]);
+    assert.equal(linked, true, 'symlink fixture unavailable on this host');
+    const staged = git(cwd, ['diff', '--cached', '--name-only']).trim();
+    assert.equal(staged, '');
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles covers the whole repo when the cwd is an authorized subdirectory', async () => {
+  const cwd = makeTempDir();
+  try {
+    initRepoWithBase(cwd);
+    const sub = path.join(cwd, 'sub');
+    makeSparseFile(path.join(sub, 'big.bin'), 101 * MIB);
+    // `git add -A` from `sub` stages the whole tree, so an oversized file
+    // above the cwd is still a commit candidate.
+    makeSparseFile(path.join(cwd, 'root-big.bin'), 101 * MIB);
+    const result = await gitCheckLargeFiles(sub);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, [
+      { path: 'root-big.bin', size: 101 * MIB },
+      { path: 'sub/big.bin', size: 101 * MIB },
+    ]);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles stays inside the authorized root when it is a subdirectory', async () => {
+  const boot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-lf-boot-'));
+  const sub = path.join(boot, 'sub');
+  try {
+    initRepoWithBase(boot);
+    makeSparseFile(path.join(boot, 'root-big.bin'), 101 * MIB);
+    makeSparseFile(path.join(sub, 'sub-big.bin'), 101 * MIB);
+    // Only the subdirectory is registered: the repository root above it is
+    // outside the workspace, so its candidate must not be reported.
+    setWorkspaceAuthority(createWorkspaceAuthority({ workspace: sub }));
+    const result = await gitCheckLargeFiles(sub);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, [{ path: 'sub/sub-big.bin', size: 101 * MIB }]);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(boot, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles skips a listed path that is gone from disk', async () => {
+  const cwd = makeTempDir();
+  try {
+    initRepoWithBase(cwd);
+    fs.writeFileSync(path.join(cwd, 'tracked-then-deleted.txt'), 'gone\n');
+    git(cwd, ['add', 'tracked-then-deleted.txt']);
+    git(cwd, ['commit', '-m', 'add file']);
+    // `git status` still lists the deletion, but lstat now fails.
+    fs.rmSync(path.join(cwd, 'tracked-then-deleted.txt'));
+    const result = await gitCheckLargeFiles(cwd);
+    assert.equal(result.ok, true, result.message);
+    assert.deepEqual(result.files, []);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('gitCheckLargeFiles refuses an unauthorized cwd', async () => {
+  const boot = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-lf-boot-'));
+  const outsider = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-git-lf-out-'));
+  try {
+    initRepoWithBase(outsider);
+    makeSparseFile(path.join(outsider, 'big.bin'), 101 * MIB);
+    setWorkspaceAuthority(createWorkspaceAuthority({ workspace: boot }));
+    const result = await gitCheckLargeFiles(outsider);
+    assert.equal(result.ok, false);
+    assert.equal(result.message, 'Git status is unavailable.');
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(boot, { recursive: true, force: true });
+    fs.rmSync(outsider, { recursive: true, force: true });
   }
 });

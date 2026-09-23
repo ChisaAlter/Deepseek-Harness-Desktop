@@ -86,7 +86,7 @@ export const Config: z<Config> = z.object({
 
 /** Per-session write-behind bookkeeping (live sessions only; dropped at retire). */
 interface DirtyState {
-  /** Committed events since the last durable write. */
+  /** Committed events no delivered durable write has folded yet. */
   pending: number
   /** Interval trigger armed at the first dirty event after a clean write. */
   timer: ReturnType<typeof setTimeout> | undefined
@@ -99,7 +99,9 @@ interface DirtyState {
  * session creation, `turn/end`, and session disposal (the live-to-cold
  * moment) — and serves the
  * cached rows for a session header. Every durable write is fail-soft:
- * failures log a warning and the cache self-heals on the next write.
+ * failures log a warning and the cache self-heals on the next write. A failed
+ * write leaves its session dirty with an armed interval, so the cut that did
+ * not land is retried instead of being dropped as though it had.
  */
 export class SessionProjectionCache extends Service {
   static inject = ['storageDomain', 'sessionProjections', 'sessions']
@@ -254,8 +256,10 @@ export class SessionProjectionCache extends Service {
    * @returns resolution after durability and event emission.
    */
   async write(session: Session): Promise<void> {
+    // Events counted up to this cut are the ones the new rows fold, so exactly
+    // that many may be released once the replacement lands.
+    const covered = this.dirty.get(session)?.pending ?? 0
     const rows = this.ctx.sessionProjections.checkpoint(session)
-    this.markClean(session)
     // Durability barrier: the checkpoint cut was taken above, so flushing
     // AFTER it guarantees every event inside the cut is durably logged
     // before the cache row lands — a crash can leave the cache behind the
@@ -264,11 +268,20 @@ export class SessionProjectionCache extends Service {
     // already gone; persistence's own retirement drain covers that path and
     // any residual overreach is caught by the cold read's anchored floor.
     if (this.ctx.sessions.get(session.id) === session) await this.ctx.sessions.flush(session)
-    await this.put(
-      session.id,
-      identityOf(session.header, session.inheritedEventCount),
-      rows,
-    )
+    try {
+      await this.put(
+        session.id,
+        identityOf(session.header, session.inheritedEventCount),
+        rows,
+      )
+    } catch (error) {
+      // Nothing durable holds this cut, so the session stays dirty and owed.
+      // Re-arming is what carries it back to the medium when no further event
+      // arrives; without a trigger the stored row stays stale forever.
+      this.armInterval(session)
+      throw error
+    }
+    this.releaseDelivered(session, covered)
   }
 
   /**
@@ -324,9 +337,7 @@ export class SessionProjectionCache extends Service {
         void this.flushSoft(session, 'count threshold')
         return
       }
-      state.timer ??= setTimeout(() => {
-        void this.flushSoft(session, 'interval')
-      }, this.config.writeIntervalMs)
+      this.armInterval(session)
     })
 
     // Creation is the FIRST mandatory point: a session that never talks (a
@@ -340,12 +351,18 @@ export class SessionProjectionCache extends Service {
 
     // Detach (the live-to-cold moment): the final mandatory point. After
     // this write the cold-read ladder serves the session from the cache.
-    // flushSoft's synchronous prefix reads and resets the dirty state, so
-    // dropping it (timer already cleared by markClean) right after is safe.
+    // The entry is dropped outright rather than left to the write: a retired
+    // session emits no further event and no lifecycle trigger follows, so a
+    // retry armed for it would hold a timer and a Map entry nothing retires.
+    // A failed detach therefore logs and is not rewritten — the cold read
+    // refolds the whole log instead, which the durability barrier in `write`
+    // keeps valid because a failed `put` never advanced past the flush.
     this.ctx.on('session/disposed', (session: Session) => {
-      void this.flushSoft(session, 'detach')
-      this.markClean(session)
+      // Retiring owns the bookkeeping: clear it first so the write below sees
+      // no dirty state and a failure cannot re-arm onto a removed entry.
+      this.clearDirty(session)
       this.dirty.delete(session)
+      void this.flushSoft(session, 'detach')
     })
 
     // With the plugin (their sessions outlive the cache): clear pending
@@ -363,8 +380,8 @@ export class SessionProjectionCache extends Service {
 
   /**
    * One fail-soft durable checkpoint. Every caller has work by construction:
-   * the throttle triggers only fire dirty (markClean clears the timer with
-   * the counter) and the mandatory points write unconditionally.
+   * the throttle triggers only fire dirty (a delivered replacement clears the
+   * timer with the counter) and the mandatory points write unconditionally.
    */
   private async flushSoft(session: Session, trigger: string): Promise<void> {
     try {
@@ -374,8 +391,44 @@ export class SessionProjectionCache extends Service {
     }
   }
 
+  /**
+   * Drop the dirty work one delivered replacement folded. `covered` events are
+   * inside the rows just written, so only they may be released; anything
+   * committed since stays owed and keeps its interval. The timer is cleared
+   * only when nothing remains, which is what makes the next committed event
+   * arm a fresh interval.
+   * @param session - the session whose replacement landed.
+   * @param covered - committed count the delivered rows folded.
+   */
+  private releaseDelivered(session: Session, covered: number): void {
+    const state = this.dirty.get(session)
+    if (state === undefined) return
+    state.pending -= covered
+    if (state.pending > 0) return
+    state.pending = 0
+    if (state.timer !== undefined) {
+      clearTimeout(state.timer)
+      state.timer = undefined
+    }
+  }
+
+  /**
+   * Ensure one session has an interval armed to rewrite its owed cut. The
+   * spent handle is dropped before the write runs, so this timer, the next
+   * committed event, and a failed write's re-arm all see `timer === undefined`
+   * and a false value never masquerades as an armed trigger.
+   */
+  private armInterval(session: Session): void {
+    const state = this.dirty.get(session)
+    if (state === undefined) return
+    state.timer ??= setTimeout(() => {
+      state.timer = undefined
+      void this.flushSoft(session, 'interval')
+    }, this.config.writeIntervalMs)
+  }
+
   /** Reset one session's dirty bookkeeping (its checkpoint is being written). */
-  private markClean(session: Session): void {
+  private clearDirty(session: Session): void {
     const state = this.dirty.get(session)
     if (state === undefined) return
     state.pending = 0

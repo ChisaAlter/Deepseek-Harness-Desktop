@@ -16,13 +16,22 @@ vendor/deepseek-harness/node_modules/
 vendor/deepseek-harness/apps/web/dist/
 # host-side tsc emits declaration/map artifacts beside the sources; keep the
 # sources tracked and ignore the emitted build droppings.
-vendor/deepseek-harness/**/src/*.js
-vendor/deepseek-harness/**/src/*.js.map
-vendor/deepseek-harness/**/src/*.d.ts
-vendor/deepseek-harness/**/src/*.d.ts.map
+vendor/deepseek-harness/**/src/**/*.js
+vendor/deepseek-harness/**/src/**/*.js.map
+vendor/deepseek-harness/**/src/**/*.d.ts
+vendor/deepseek-harness/**/src/**/*.d.ts.map
 # Hand-written CSS module declarations are source, not tsc droppings; without
 # them a fresh checkout cannot typecheck or build the client packages.
 !vendor/deepseek-harness/**/src/css-modules.d.ts
+!vendor/deepseek-harness/**/src/**/css-modules.d.ts
+# Hand-written ambient/asset module declarations, not emitted by tsc. These
+# have no sibling .ts/.tsx and would otherwise be caught as build droppings.
+!vendor/deepseek-harness/apps/web/src/vite-env.d.ts
+!vendor/deepseek-harness/packages/client/ui-renderer/src/client/use-sync-external-store.d.ts
+!vendor/deepseek-harness/packages/client/ui-settings-remote/src/uqr.d.ts
+!vendor/deepseek-harness/packages/client/ui-sidebar-documentpreview/src/client/pdf/asset-imports.d.ts
+!vendor/deepseek-harness/packages/fs/tool-fs-search/src/ripgrep.d.ts
+!vendor/deepseek-harness/packages/web/tool-web/src/turndown-plugin-gfm.d.ts
 dist/
 !vendor/dsh-usage-panel/node_modules/**/dist/
 !vendor/dsh-usage-panel/node_modules/**/dist/**
@@ -92,3 +101,6 @@ tmp/
 _pin-ws/
 logs/
 /cli-client-id
+
+# Local test/QA artifacts (large binaries, logs)
+.artifacts/

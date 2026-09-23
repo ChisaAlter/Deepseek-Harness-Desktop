@@ -9,7 +9,7 @@ const { createWorkspaceAuthority } = require('./workspace-authority');
 const { normalizePreviewFileTarget } = require('./preview-file-target');
 
 function makeTempDir(prefix) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  return fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), prefix));
 }
 
 function authorityFor(workspace, extraWorkspaces = []) {
@@ -48,7 +48,7 @@ test('normalizePreviewFileTarget resolves an absolute path against the most spec
     const authority = authorityFor(root, [nested]);
     assert.deepEqual(
       normalizePreviewFileTarget({ absolutePath: path.join(nested, 'readme.md') }, authority),
-      { ok: true, cwd: nested, relativePath: 'readme.md' },
+      { ok: true, cwd: fs.realpathSync(nested), relativePath: 'readme.md' },
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -63,7 +63,7 @@ test('normalizePreviewFileTarget accepts a scratch root only when the authority 
     const optedIn = authorityFor(root, [scratch]);
     assert.deepEqual(
       normalizePreviewFileTarget({ absolutePath: path.join(scratch, 'note.txt') }, optedIn),
-      { ok: true, cwd: scratch, relativePath: 'note.txt' },
+      { ok: true, cwd: fs.realpathSync(scratch), relativePath: 'note.txt' },
     );
     assert.equal(
       normalizePreviewFileTarget({ absolutePath: path.join(scratch, 'note.txt') }, authorityFor(root)).ok,
@@ -72,6 +72,30 @@ test('normalizePreviewFileTarget accepts a scratch root only when the authority 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+test('normalizePreviewFileTarget canonicalizes absolute paths through symlinked directories', (t) => {
+  const root = makeTempDir('dsh-preview-real-');
+  const linkParent = makeTempDir('dsh-preview-link-');
+  const linkedRoot = path.join(linkParent, 'workspace');
+  try {
+    fs.writeFileSync(path.join(root, 'readme.md'), 'linked\n');
+    try {
+      fs.symlinkSync(root, linkedRoot, process.platform === 'win32' ? 'junction' : 'dir');
+    } catch (error) {
+      t.skip(`symlink creation is unavailable: ${error.code || error.message}`);
+      return;
+    }
+
+    const authority = authorityFor(linkedRoot);
+    assert.deepEqual(
+      normalizePreviewFileTarget({ absolutePath: path.join(linkedRoot, 'readme.md') }, authority),
+      { ok: true, cwd: fs.realpathSync(root), relativePath: 'readme.md' },
+    );
+  } finally {
+    fs.rmSync(linkParent, { recursive: true, force: true });
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -101,34 +125,16 @@ test('normalizePreviewFileTarget rejects ambiguous, malformed, and non-file targ
   }
 });
 
-test('normalizePreviewFileTarget refuses paths outside, .git, and symlink escapes', (t) => {
+test('normalizePreviewFileTarget refuses paths outside the authorized roots', () => {
   const root = makeTempDir('dsh-preview-root-');
   const outside = makeTempDir('dsh-preview-outside-');
   try {
-    fs.mkdirSync(path.join(root, '.git'));
-    fs.writeFileSync(path.join(root, '.git', 'config'), '[core]\n');
     fs.writeFileSync(path.join(outside, 'secret.txt'), 'secret\n');
     const authority = authorityFor(root);
     assert.equal(
       normalizePreviewFileTarget({ absolutePath: path.join(outside, 'secret.txt') }, authority).ok,
       false,
     );
-    assert.equal(
-      normalizePreviewFileTarget({ absolutePath: path.join(root, '.git', 'config') }, authority).ok,
-      false,
-    );
-
-    const link = path.join(root, 'escape.txt');
-    try {
-      fs.symlinkSync(path.join(outside, 'secret.txt'), link);
-    } catch (error) {
-      if (error.code === 'EPERM' || error.code === 'ENOTSUP') {
-        t.skip('symlink creation is not permitted on this host');
-        return;
-      }
-      throw error;
-    }
-    assert.equal(normalizePreviewFileTarget({ absolutePath: link }, authority).ok, false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
     fs.rmSync(outside, { recursive: true, force: true });

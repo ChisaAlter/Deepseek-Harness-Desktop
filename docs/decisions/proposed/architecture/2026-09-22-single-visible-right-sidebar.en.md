@@ -27,7 +27,7 @@ Desktop shows exactly one visible right panel, and `@deepseek-ai/dsh-client-ui-s
 
 Upstream-maintenance constraint: shared-upstream files may change only in two tiny increments plus one generic seam — `TitlebarTrailingOwnerProps` in `ui-layout/src/client/index.ts` gains `rightbarShown: boolean`, `ui-layout/src/client/AppFrame.tsx` forwards it to `shell.titlebar.trailing`, and `ui-sidebar-documentpreview/src/client/document/actions.ts` adds the platform-neutral `sidebar.right.tab.document.actions` list slot rendered by `TextPreview.tsx`'s document header. That seam carries no Electron API, scratch policy, or Desktop copy, and the header is unchanged with no registrant. `columns.ts`, `stores.ts`, `service.ts`, `persist.ts`, and `packages/bundle/web-app/cordis.patch.yml` receive no change from this decision.
 
-Native floating preview is an explicit deliverable: the Desktop file view and the builtin Document Preview reach one Desktop-owned `ui-files` action; it accepts `{ cwd, relativePath }` and cwd-less `{ absolutePath }`, requires `result.ok === true`, and turns refusal, crash, or malformed response into a localized error while leaving the Sidebar usable — never falling back to the OS opener, `workspaces.openPath`, or a Browser tab. Main uses a preview-scoped `loadWorkspaceAuthority({ allowScratchCwd: true })` and a bounded read-only adapter, so text and HTML in the Host scratch directory can be previewed without broadening ordinary read/write IPC authority.
+Native floating preview is an explicit deliverable: the Desktop file view and the builtin Document Preview reach one Desktop-owned `ui-files` action; it accepts `{ cwd, relativePath }` and cwd-less `{ absolutePath }`, requires `result.ok === true`, and turns refusal, crash, or malformed response into a localized error while leaving the Sidebar usable — never falling back to the OS opener, `workspaces.openPath`, or a Browser tab. Main uses a preview-scoped `loadWorkspaceAuthority({ allowScratchCwd: true })` and a bounded read-only adapter, so text and HTML in the Host scratch directory can be previewed; the document tab reading scratch output through `shell:read-file` / `shell:list-dir` carries the same scratch root ([decision](../../implemented/bug-fix/2026-09-23-scratch-cwd-document-tab-read.en.md)). Both paths extend only to the existing Host scratch root, not arbitrary paths.
 
 ## Alternatives considered
 
@@ -48,7 +48,7 @@ Native floating preview is an explicit deliverable: the Desktop file view and th
 
 - The few shared changes in upstream `ui-layout` and `ui-sidebar-documentpreview` need manual adjudication at the next `sync:harness`; `FORK_FILE_MARKERS` and the `single-right-panel-contract` test catch early regressions.
 - If any Desktop capability was not truly moved to the Sidebar before the old shell retired, it disappears at runtime; the per-package registration tests and the Electron smoke are the release gate.
-- Broadening native floating-preview authority would widen the main-process read surface; the preview-scoped authority contains only the existing Host scratch root and ordinary read/write IPC authority is unchanged.
+- Broadening floating-preview or document-tab scratch authority would widen the main-process read surface; both authorities contain only the existing Host scratch root, and parent directories and arbitrary paths remain refused.
 
 ## Consequences
 

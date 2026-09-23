@@ -104,7 +104,20 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * `id` is added beside the shipped entries instead of replacing them.
      */
     'shell.overlay': { kind: 'list'; scope: 'root' }
+    /**
+     * Ordered controls at the trailing end of the frame title bar. Register a
+     * component that accepts the frame's title-bar owner props, including the
+     * right-panel visibility state. A fresh id adds a control beside existing
+     * entries; an occupied id replaces that entry. With no registrants this
+     * title-bar area stays empty.
+     */
     'shell.titlebar.trailing': { kind: 'list'; scope: 'root'; owner: TitlebarTrailingOwnerProps }
+    /**
+     * Conversation terminal drawer content. Register one component for the
+     * optional current Session; a later registration replaces it. The frame
+     * provides the Session scope and mounts an empty drawer track when nobody
+     * registers.
+     */
     'shell.terminalDrawer': { kind: 'single'; scope: 'session-maybe'; owner: TerminalDrawerOwnerProps }
     /**
      * Window-chrome seat at the frame's top-left, over every main panel.

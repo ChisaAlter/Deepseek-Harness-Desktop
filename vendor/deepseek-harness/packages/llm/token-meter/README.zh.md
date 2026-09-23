@@ -52,7 +52,7 @@ const price = ctx.tokenMeter.estimateMessage(message)
 
 `contextBreakdown` 把 surface 顺序中最后一个非空且存活的 `system/message` 归入 `systemTokens`；休眠的空节点不贡献 token，没有非空系统消息时为零。`messageTokens` 包含其余所有可见节点，包括被取代的提示词。两者之和始终等于 `measure().nodes[].heuristicTokens`，未计量替换、压缩和逐节点清空提示词之后也成立。`toolsTokens` 跟随最新 `request/header`。三个数字都使用固定启发式规则，而非路由图片定价或文件句柄投影；它们是近似构成，不是计费数据或 `projectedTokens`。
 
-`billedUsage` 携带与价格无关的 `peak` 与 `offPeak` 桶（`missInputTokens`、`cacheReadTokens`、`outputTokens`），覆盖完整持久日志并按官方 DeepSeek 计费时刻表分桶（`billing-window.ts`：北京工作日 09:00–12:00 ∪ 14:00–18:00，其余全为空闲）。缓存写入按未命中输入计价；每个样本按其步骤的 `step/start` 时刻计价，跨边界的请求按它开始的时刻计价，没有匹配步骤开始的样本退回自身事件时间。这些桶不带任何价格——套用官方或用户编辑的费率表是读取方的职责，因此改价从不需要重折日志。样本沿用与 `tokenUsage` 相同的按步骤替换规则。浏览器侧的时刻表孪生体位于 ui-conversation 的 `peak-valley.ts`，必须与 `billing-window.ts` 一起修改。
+`billedUsage` 携带与价格无关的 `peak` 与 `offPeak` 桶（`missInputTokens`、`cacheReadTokens`、`outputTokens`），覆盖完整持久日志并按官方 DeepSeek 计费时刻表分桶（`billing-window.ts`：北京工作日 09:00–12:00 ∪ 14:00–18:00，其余全为空闲）。缓存写入按未命中输入计价；每个样本按其步骤的 `step/start` 时刻计价，跨边界的请求按它开始的时刻计价，没有匹配步骤开始的样本退回自身事件时间。每个样本同时归属到派发它的模型路由——`request/context` 给出注册路由，已记录的 `request/header` 用实际发送的 config 覆盖它——因此除会话总计外，视图按 `provider/model` 键逐路由给出一行。一个换过模型的对话不会整体按最新模型的单价折算，同一模型 id 由两个提供方服务时也各自成桶（两者真实单价不同）。同一 `(turn, step)` 的替换样本先从它原先所在的路由与时段扣回，再加到替换样本的路由与时段；归零的路由行被删除。这些桶不带任何价格——套用官方或用户编辑的费率表是读取方的职责，因此改价从不需要重折日志。样本沿用与 `tokenUsage` 相同的按步骤替换规则。浏览器侧的时刻表孪生体位于 ui-conversation 的 `peak-valley.ts`，必须与 `billing-window.ts` 一起修改。
 
 `deriveTurnTokenUsage(events)` 为浏览器消费方把一个完整轮次折叠为精确的逐次尝试与整轮用量。生命周期证据缺失、计数不安全或精确总量矛盾时不返回结果；只有每次参与的尝试都报告可选缓存、推理或路由值时，相应汇总才会出现。
 

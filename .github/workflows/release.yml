@@ -17,11 +17,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     steps:
-      # Supply-chain pinning matches test.yml: release artifacts must be
-      # reproducible from an immutable action revision, not a mutable tag.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           # engines 要求 ^22.19.0 || >=24（node:sqlite 等）；.nvmrc 是唯一钉版来源
           node-version-file: .nvmrc
@@ -66,7 +64,7 @@ jobs:
           }
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: DeepSeek-Harness-windows-x64
           path: |
@@ -84,12 +82,12 @@ jobs:
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Reject macOS icon below electron-builder minimum
         run: node scripts/check-mac-icon.js
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -107,7 +105,7 @@ jobs:
         run: npm run dist:mac
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: DeepSeek-Harness-macos-arm64
           path: dist/Deepseek-Harness-Desktop-*.dmg

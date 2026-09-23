@@ -50,6 +50,12 @@ async function boot() {
           scope: 'session',
           inject: { hooks: { tabInfo: documentTabInfoFactory } },
         },
+        'sidebar.right.tab.document.action': {
+          kind: 'keyed',
+          scope: 'session',
+          inject: { hooks: { tabInfo: documentTabInfoFactory } },
+        },
+        'sidebar.right.tab.document.unpreviewable': { kind: 'list', scope: 'session' },
         'sidebar.right.tab.document.actions': {
           kind: 'list',
           scope: 'session',

@@ -143,7 +143,7 @@ const UI_FEATURES = [
   {
     name: 'assembled post-merge web e2e',
     file: 'apps/web/tests/post-merge-desktop-ui.e2e.ts',
-    includes: ['post-merge assembled desktop UI', 'Mention in composer', 'Browse gallery', 'composerDraft.inputValue()', 'data-source="path"'],
+    includes: ['post-merge assembled desktop UI', 'Mention in composer', 'Browse gallery', 'composerDraft.innerText()', 'data-source="path"'],
   },
   {
     name: 'Files draft uses ctx.get sessions',

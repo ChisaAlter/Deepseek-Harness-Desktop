@@ -9,6 +9,7 @@ import { diffCardModel } from '../models/diff-card-model.ts'
 import { searchCardModel } from '../models/search-card-model.ts'
 import { terminalCardModel, terminalFailed } from '../models/terminal-card-model.ts'
 import { webCardModel } from '../models/web-card-model.ts'
+import { genericImageCardModel } from '../models/image-card-model.ts'
 import { toolRowModel, type ToolRowVariant } from '../models/tool-call-model.ts'
 import { localizeAutoReviewDenial } from '../models/auto-review-denial.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
@@ -29,7 +30,7 @@ export interface GenericToolCardProps extends ToolCallOwnerProps {
   t: ToolTreeProps['t']
 }
 
-export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect, useDisclosure, t }: GenericToolCardProps) {
+export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect, useDisclosure, loadImage, renderToolImages, t }: GenericToolCardProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const autoReview = model.autoReviewDenial === null
     ? null
@@ -39,6 +40,7 @@ export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect,
   const diff = diffCardModel(block)
   const search = searchCardModel(block)
   const web = webCardModel(block)
+  const images = genericImageCardModel(block)
   // A failing exit status is the terminal card's own error signal (the call
   // itself settles isError:false), surfaced through the row's error summary.
   const state = model.state === 'ok' && terminal !== null && terminalFailed(terminal)
@@ -63,6 +65,9 @@ export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect,
       terminal={terminal}
       diff={diff}
       read={read}
+      image={images}
+      loadImage={loadImage}
+      renderToolImages={renderToolImages}
       search={search}
       web={web}
       state={state}

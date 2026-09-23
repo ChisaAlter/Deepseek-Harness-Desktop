@@ -356,6 +356,10 @@ function ensureHarnessView(win) {
       // (injected by harness-chrome-inject) reveal the window's transparent
       // corners instead of an opaque rectangle.
       backgroundColor: '#00000000',
+      // Hidden pages get their compositor surface suspended; on restore the
+      // window's own layer presents first and the view's next frame lags a
+      // beat — the minimize blank-flash. Keep the view producing frames.
+      backgroundThrottling: false,
     },
   });
   win.addBrowserView(harnessView);

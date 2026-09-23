@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '../src/client/index.ts'
 import type { PanelTogglesInjected } from '../src/client/PanelToggles.tsx'
 import { PanelToggles } from '../src/client/PanelToggles.tsx'
@@ -23,7 +23,7 @@ function declare(slots: SlotRegistry): () => void {
 function provideSettings(ctx: Context): void {
   ctx.provide('connection', { api: { settings: {} }, isLoopback: false })
   ctx.provide('remote', { $on: () => () => {} })
-  ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+  ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
 }
 
 async function bench() {
@@ -44,7 +44,7 @@ async function bench() {
 
 describe('ui-titlebar apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'layout', 'locale', 'connection', 'remote', 'settingsScope'])
+    expect(inject).toEqual(['slots', 'layout', 'locale', 'connection', 'remote', 'configForms'])
   })
 
   it('injects panel toggles into shell.titlebar.trailing at order 40', async () => {

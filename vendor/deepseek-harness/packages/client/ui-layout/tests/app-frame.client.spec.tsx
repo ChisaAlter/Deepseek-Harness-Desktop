@@ -808,7 +808,7 @@ describe('AppFrame — surfaces column and terminal drawer', () => {
     expect(frame.querySelector('[data-titlebar-row]')).toBeTruthy()
     expect(frame.querySelector('#dshd-shell-titlebar-trailing')).toBeTruthy()
     expect(trailingOwner()).toEqual({
-      surfaces: 0, terminalDrawer: 0, managedSession: false, density: 'full',
+      surfaces: 0, rightbarShown: false, terminalDrawer: 0, managedSession: false, density: 'full',
     })
   })
 
@@ -816,7 +816,7 @@ describe('AppFrame — surfaces column and terminal drawer', () => {
     selectedSessionManaged.current = true
     const { trailingOwner } = mountFrame()
     expect(trailingOwner()).toEqual({
-      surfaces: 0, terminalDrawer: 0, managedSession: true, density: 'full',
+      surfaces: 0, rightbarShown: false, terminalDrawer: 0, managedSession: true, density: 'full',
     })
   })
 
@@ -902,7 +902,7 @@ describe('AppFrame — titlebar density and conversation reserve', () => {
     act(() => { instance.actions.openSurfaces() })
     expect(frame.getAttribute('data-titlebar-density')).toBe('cozy')
     expect(trailingOwner()).toEqual({
-      surfaces: 540, terminalDrawer: 0, managedSession: false, density: 'cozy',
+      surfaces: 540, rightbarShown: false, terminalDrawer: 0, managedSession: false, density: 'cozy',
     })
   })
 

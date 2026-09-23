@@ -67,19 +67,6 @@ type SidebarTabRecord = {
 const RENDER_MARKDOWN_KEY = 'dshd.renderMarkdown'
 const FILE_WORD_WRAP_KEY = 'dshd.fileWordWrap'
 const FILE_SAVE_DEBOUNCE_MS = 500
-const BROWSER_DOCUMENT_EXTENSIONS = /\.(?:html?|xhtml|pdf)$/i
-
-function desktopBrowserPreview(): ((input: { cwd: string; relativePath: string }) => Promise<{
-  ok?: boolean
-  url?: string
-} | null | undefined>) | undefined {
-  if (typeof window === 'undefined') return undefined
-  return (window as Window & { shell?: { previewWorkspaceFile?: (input: {
-    cwd: string
-    relativePath: string
-  }) => Promise<{ ok?: boolean; url?: string } | null | undefined> } }).shell?.previewWorkspaceFile
-}
-
 function currentCwd(useSessions: FilePreviewProps['useSessions']): string | undefined {
   return useSessions((s) => {
     const id = Object.values(s.byId)
@@ -248,7 +235,6 @@ export function FilePreview({
   const floatingPreviewAddress = sessionId === undefined
     ? undefined
     : sessionFileAddress(sessionId, relativePath)
-  const browserPreview = desktopBrowserPreview()
   const sessions = useSessions(state => state)
   const projectName = cwd === undefined ? '' : basenameOf(cwd)
   const crumbs = fileBreadcrumbs(projectName, relativePath)
@@ -567,18 +553,6 @@ export function FilePreview({
     )
   }
 
-  const openBrowserPreview = async (): Promise<void> => {
-    if (cwd === undefined || browserPreview === undefined) return
-    try {
-      const result = await browserPreview({ cwd, relativePath })
-      if (result?.ok !== true || typeof result.url !== 'string' || result.url === '') return
-      sessionStorage.setItem('dshd-pending-preview-url', result.url)
-      window.dispatchEvent(new CustomEvent('dshd-open-surface', { detail: { kind: 'preview', url: result.url } }))
-    } catch (reason: unknown) {
-      console.warn('workspace file browser preview rejected:', reason)
-    }
-  }
-
   return (
     <div ref={rootRef} className={css.root} data-file-preview>
       <div className={css.toolbar}>
@@ -634,11 +608,6 @@ export function FilePreview({
             t={t}
           />
         )}
-        {cwd !== undefined && browserPreview !== undefined && BROWSER_DOCUMENT_EXTENSIONS.test(relativePath) ? (
-          <Button variant="ghost" size="sm" onClick={() => { void openBrowserPreview() }}>
-            {t('preview.browser')}
-          </Button>
-        ) : null}
         {selectedLineRange !== null && showEditor && !showRenderedMarkdown ? (
           <Tooltip label={t('preview.comment')} side="bottom">
             <Button

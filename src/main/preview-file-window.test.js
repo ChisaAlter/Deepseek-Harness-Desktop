@@ -225,15 +225,15 @@ test('file preview normalizes an absolute target and reads scratch text', async 
 
     // Absolute targets are rebased onto the most specific authorized root.
     await controller.open({ absolutePath: absolute });
-    assert.deepEqual(urls[0], { ok: true, cwd: root, relativePath: 'note.txt' });
+    assert.deepEqual(urls[0], { ok: true, cwd: fs.realpathSync(root), relativePath: 'note.txt' });
 
     const scratchFile = path.join(scratch, 'scratch.txt');
     fs.writeFileSync(scratchFile, 'scratch\n');
     await controller.open({ absolutePath: scratchFile });
-    assert.deepEqual(urls[1], { ok: true, cwd: scratch, relativePath: 'scratch.txt' });
+    assert.deepEqual(urls[1], { ok: true, cwd: fs.realpathSync(scratch), relativePath: 'scratch.txt' });
     assert.deepEqual(reads, [
-      [root, 'note.txt'],
-      [scratch, 'scratch.txt'],
+      [fs.realpathSync(root), 'note.txt'],
+      [fs.realpathSync(scratch), 'scratch.txt'],
     ]);
     assert.equal(windows.length, 1);
   } finally {

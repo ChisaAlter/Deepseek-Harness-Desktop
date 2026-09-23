@@ -66,6 +66,12 @@ const { parseUnifiedDiff, gitDiff } = require('./git-diff');
 const { readPrTemplate, resolvePrBaseBranch, setGhDefaultBranchResolver } = require('./git-templates');
 
 /**
+ * GitHub's hard per-file limit. A file must exceed this to be rejected, so a
+ * file of exactly this size is not a problem: the check is `>`.
+ */
+const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024;
+
+/**
  * Git-for-Windows `core.protectNTFS` rejects these device names in any path
  * component, including `NUL.txt` and trailing dots/spaces.
  * @param {unknown} rel
@@ -695,6 +701,7 @@ async function gitReadPullRequest(cwd, owner) {
     headBranch: headContext.headBranch,
     remoteName: headContext.remoteName,
     headRemoteUrlKey: headContext.headRemoteUrlKey,
+    targetRepositoryUrlKey: headContext.targetRepositoryUrlKey,
   };
   if (looked.failed) {
     return ok({ pr: resolveLastKnownPr(branchKey, current) });
@@ -836,10 +843,11 @@ async function gitPull(cwd, onProgress) {
  * Preferred `--head` for `gh pr create` (fork → `owner:branch`).
  * @param {string} cwd
  * @param {string} refName
+ * @param {object} [targetRepository]
  * @returns {Promise<string>}
  */
-async function resolvePreferredHeadSelector(cwd, refName) {
-  const ctx = await resolveBranchHeadContext(cwd, refName);
+async function resolvePreferredHeadSelector(cwd, refName, targetRepository) {
+  const ctx = await resolveBranchHeadContext(cwd, refName, targetRepository);
   return ctx.preferredHeadSelector;
 }
 
@@ -914,8 +922,9 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
     return fail('Current branch has not been pushed. Push before creating a PR.');
   }
   const existingLookup = await lookupOpenPullRequest(root, status.refName);
+  const targetRepository = existingLookup.targetRepository;
   const headContext = existingLookup.headContext
-    || await resolveBranchHeadContext(root, status.refName);
+    || await resolveBranchHeadContext(root, status.refName, targetRepository);
   const branchKey = `${root}\u0000${status.refName}`;
   // Last-known is status-badge only. Do not remember null (poisons the badge
   // after a successful create when a later list flakes).
@@ -929,6 +938,7 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
       headBranch: headContext.headBranch,
       remoteName: headContext.remoteName,
       headRemoteUrlKey: headContext.headRemoteUrlKey,
+      targetRepositoryUrlKey: headContext.targetRepositoryUrlKey,
     });
   }
   const existing = existingLookup.pr;
@@ -948,13 +958,26 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
   let title = '';
   let body = '';
   // Resolve once and reuse for range copy + `gh pr create --base`.
-  const baseBranch = await resolvePrBaseBranch(root, status.refName, Boolean(status.hasPrimaryRemote));
+  const baseBranch = await resolvePrBaseBranch(root, status.refName, Boolean(status.hasPrimaryRemote), targetRepository);
   if (preserveProvided && providedTitle) {
     title = providedTitle;
     body = providedBody;
   } else {
     emit({ kind: 'phase', title: `Generating ${terms.shortLabel} content...` });
-    const remote = await resolvePrimaryRemoteName(root);
+    let remote = await resolvePrimaryRemoteName(root);
+    if (targetRepository) {
+      remote = null;
+      for (const name of await listRemoteNames(root)) {
+        const url = await runGit(root, ['remote', 'get-url', name]);
+        if (url.code === 0 && normalizeGitRemoteUrl(url.stdout) === normalizeGitRemoteUrl(targetRepository.url)) {
+          remote = name;
+          break;
+        }
+      }
+      if (!remote || (await runGit(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/${remote}/${baseBranch}`])).code !== 0) {
+        return fail('Fetch the pull request target branch before generating PR content.');
+      }
+    }
     const baseRangeRef = remote
       ? ((await runGit(root, ['rev-parse', '--verify', '--quiet', `${remote}/${baseBranch}`])).code === 0
         ? `${remote}/${baseBranch}`
@@ -971,14 +994,15 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
     body = generated.body;
   }
   if (!title) return fail('Change request title is required.');
+  if (!targetRepository) return fail('Could not resolve the pull request target repository.');
 
   emit({ kind: 'phase', title: `Creating ${terms.singular}...` });
   const bodyFile = path.join(os.tmpdir(), `dshd-pr-body-${process.pid}-${Date.now()}.md`);
   fs.writeFileSync(bodyFile, body);
   let created;
   try {
-    const headSelector = await resolvePreferredHeadSelector(root, status.refName);
-    const prArgs = ['pr', 'create', '--title', title, '--body-file', bodyFile, '--head', headSelector];
+    const headSelector = headContext.preferredHeadSelector;
+    const prArgs = ['pr', 'create', '--repo', targetRepository.url, '--title', title, '--body-file', bodyFile, '--head', headSelector];
     // Always pass --base when resolved (never omit when base === head name).
     if (baseBranch) prArgs.push('--base', baseBranch);
     created = await run('gh', prArgs, root, {
@@ -993,7 +1017,7 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
   }
   if (created.missing) return fail('gh is unavailable.');
   if (created.code !== 0) return fail(created.stderr.trim() || created.stdout.trim() || 'gh pr create failed.');
-  const viewed = await readPullRequest(root, status.refName);
+  const viewed = await readPullRequest(root, status.refName, targetRepository);
   const url = viewed?.url || created.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
   // Only remember a real lookup row — do not invent number:0 when list flakes.
   if (viewed?.url && typeof viewed.number === 'number' && viewed.number > 0) {
@@ -1003,6 +1027,7 @@ async function gitCreateChangeRequest(cwd, input, onProgress) {
       headBranch: headContext.headBranch,
       remoteName: headContext.remoteName,
       headRemoteUrlKey: headContext.headRemoteUrlKey,
+      targetRepositoryUrlKey: headContext.targetRepositoryUrlKey,
     });
   }
   return ok({
@@ -1259,6 +1284,67 @@ async function gitCreateBranch(cwd, name) {
   return ok({ refName: branch });
 }
 
+/**
+ * Working-tree files `git add -A` would stage that exceed GitHub's per-file
+ * limit. Path metadata only: nothing is staged, and symlinks are skipped
+ * rather than followed, so a link cannot report its target's size. Ignored
+ * paths never reach this list — `git status` omits them unless asked.
+ * @param {unknown} cwd
+ * @returns {Promise<{ ok: boolean, message?: string, files?: Array<{ path: string, size: number }> }>}
+ */
+async function gitCheckLargeFiles(cwd) {
+  const root = asCwd(cwd);
+  if (!root) return fail('Git status is unavailable.');
+  // `--porcelain` prints paths relative to the repository root even when the
+  // cwd is a subdirectory. `--show-prefix` reports where the cwd sits inside
+  // that root, so the root is derived lexically from the already-authorized
+  // cwd rather than trusted from a second source. When that root is itself
+  // authorized the whole repository is scanned, matching `git add -A` from a
+  // subdirectory (it stages the whole tree); otherwise the scan stays inside
+  // the authorized cwd and paths above it are skipped.
+  const prefix = await runGit(root, ['rev-parse', '--show-prefix']);
+  const cwdPrefix = prefix.code === 0
+    ? prefix.stdout.trim().replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    : '';
+  const cwdDepth = cwdPrefix ? cwdPrefix.split('/').length : 0;
+  // `asCwd` canonicalizes, so an unauthorized ancestor yields null and the
+  // scan falls back to the cwd subtree (dropping the prefix from each path).
+  const repoRoot = cwdDepth > 0 ? asCwd(path.resolve(root, ...Array(cwdDepth).fill('..'))) : root;
+  const scanRoot = repoRoot ?? root;
+  const useRepoPaths = repoRoot !== null;
+  const listed = await runGit(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  if (listed.missing) return fail('Git is unavailable.');
+  if (listed.timedOut) return fail('Git command timed out.');
+  if (listed.code !== 0) return fail(gitFailureMessage(listed, 'git status failed.'));
+  // The path list was cut short, so "no large files" would be a lie.
+  if (listed.truncated) return fail('Too many changed files to check for large files.');
+  const files = [];
+  for (const entry of parsePorcelainZ(listed.stdout)) {
+    // A rename/copy record lists the destination first; that is the path
+    // `git add -A` stages, while its origin is already gone from disk.
+    const repoPath = entry.path;
+    if (!repoPath || isNtfsReservedGitPath(repoPath)) continue;
+    // Without an authorized repository root, only the cwd subtree is in scope.
+    if (!useRepoPaths && !repoPath.startsWith(`${cwdPrefix}/`)) continue;
+    const filePath = useRepoPaths ? repoPath : repoPath.slice(cwdPrefix.length + 1);
+    if (!filePath) continue;
+    const target = resolveInsideWorkspace(scanRoot, filePath);
+    if (!target) continue;
+    try {
+      const stat = fs.lstatSync(target);
+      if (stat.isFile() && stat.size > LARGE_FILE_WARNING_BYTES) {
+        // Report the repository-relative path git itself uses, so the client
+        // can match it against status.workingTree files.
+        files.push({ path: repoPath, size: stat.size });
+      }
+    } catch {
+      // Vanished between `git status` and here, or unreadable: nothing to warn about.
+    }
+  }
+  files.sort((left, right) => left.path.localeCompare(right.path));
+  return ok({ files });
+}
+
 module.exports = {
   gitStatus,
   gitFetchForStatus,
@@ -1278,6 +1364,7 @@ module.exports = {
   gitBranchList,
   gitSwitchBranch,
   gitCreateBranch,
+  gitCheckLargeFiles,
   summarizeCommitMessage,
   sanitizeFeatureBranchName,
   uniqueFeatureBranchName,

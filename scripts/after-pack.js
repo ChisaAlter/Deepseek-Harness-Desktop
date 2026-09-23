@@ -100,6 +100,33 @@ function missingPluginRuntimeClosure(packageDir, options = {}) {
 
 /** Marker returned when the closure audit could not finish within budget. */
 const CLOSURE_INCOMPLETE_MARKER = '<closure-incomplete>';
+/**
+ * npm config keys a `npm run <script>` parent exports from the developer's
+ * user-level `.npmrc`, which a project-scoped install cannot honour:
+ * `allow-scripts` is rejected outright (npm 11 `EALLOWSCRIPTS`: it belongs in
+ * the project's package.json or its own `.npmrc`, and these are vendored
+ * third-party directories we must not write machine-specific config into),
+ * while the other two are pnpm/Electron settings npm only warns about. Every
+ * install below passes `--ignore-scripts`, so no install-script policy can
+ * apply to it and dropping these cannot change what gets built.
+ */
+const INHERITED_NPM_CONFIG_TO_DROP = [
+  'npm_config_allow_scripts',
+  'npm_config_electron_skip_binary_download',
+  'npm_config_trust_policy',
+];
+
+/**
+ * The environment for a spawned npm: the caller's, minus the inherited keys
+ * above. Deletion is case-insensitive because Windows environment blocks are.
+ */
+function spawnEnvWithoutInheritedNpmConfig(base) {
+  const env = { ...base };
+  for (const key of Object.keys(env)) {
+    if (INHERITED_NPM_CONFIG_TO_DROP.includes(key.toLowerCase())) delete env[key];
+  }
+  return env;
+}
 
 function defaultNpmInstall(packageDir) {
   const nm = path.join(packageDir, 'node_modules');
@@ -114,7 +141,7 @@ function defaultNpmInstall(packageDir) {
   const result = spawnSync(npmCmd, args, {
     cwd: packageDir,
     stdio: 'inherit',
-    env: process.env,
+    env: spawnEnvWithoutInheritedNpmConfig(process.env),
     windowsHide: true,
     shell: process.platform === 'win32',
   });

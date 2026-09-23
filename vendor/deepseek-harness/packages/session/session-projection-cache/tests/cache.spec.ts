@@ -362,6 +362,58 @@ describe('SessionProjectionCache write policy', () => {
     await written
     expect((await storedRows(root, session.id))?.['cache-test/marks']?.val).toEqual({ marks: ['y'] })
   })
+
+  it('keeps a session dirty after a failed durable write so the armed interval retries it', async () => {
+    const { ctx, root } = await harness({ config: { writeEveryEvents: 100, writeIntervalMs: 25 } })
+    // The interval trigger is the only remaining work on this session, so a
+    // failure that released the dirty bookkeeping would strand the cut: with
+    // no later event and no armed timer nothing would ever rewrite the row.
+    const id = SessionId('retry-dirty')
+    await mkdir(recordPath(root, id), { recursive: true })
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    const session = ctx.sessions.create(id)
+    mark(session, ['retried'])
+    // The blocked replacement exhausts its Windows retry budget before the
+    // failure surfaces, so this waits on the warning rather than on a duration.
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('interval write for "retry-dirty" failed'))
+    }, { timeout: 10_000 })
+    expect(await storedRows(root, id)).toBeUndefined()
+
+    // Clear the medium failure. Nothing touches the session again: only the
+    // re-armed interval can carry the still-owed cut to disk.
+    await rm(recordPath(root, id), { recursive: true })
+    const written = whenWritten(ctx, session.id)
+    await written
+    expect((await storedRows(root, id))?.['cache-test/marks']?.val).toEqual({ marks: ['retried'] })
+  })
+
+  it('drops a retired session\'s retry bookkeeping even when its final write fails', async () => {
+    const { ctx, root } = await harness({ config: { writeEveryEvents: 100, writeIntervalMs: 30 } })
+    const id = SessionId('retire-dirty')
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    const created = whenWritten(ctx, id)
+    let session: Session | undefined
+    const owner = await ctx.plugin(Object.assign((inner: Context) => {
+      session = inner.sessions.create(id)
+    }, { inject: ['sessions'] }))
+    if (session === undefined) throw new Error('session was not created')
+    await created
+    // The detach write does not land, so the failed-write path wants to re-arm
+    // — but the session leaves the dirty map first and must not be revived.
+    await rm(recordPath(root, id), { force: true })
+    await mkdir(recordPath(root, id), { recursive: true })
+    await owner.dispose()
+    await vi.waitFor(() => {
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('detach write for "retire-dirty" failed'))
+    }, { timeout: 10_000 })
+    expect(await storedRows(root, id)).toBeUndefined()
+    // Nothing retries on a retired session's behalf: the medium can now accept
+    // the write, and waiting well past the interval still lands no row.
+    await rm(recordPath(root, id), { recursive: true })
+    await new Promise(resolve => setTimeout(resolve, 150))
+    expect(await storedRows(root, id)).toBeUndefined()
+  })
 })
 
 describe('SessionProjectionCache listing read', () => {

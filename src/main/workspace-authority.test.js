@@ -102,6 +102,30 @@ test('resolveInside allows real names that merely begin with two dots', () => {
   }
 });
 
+test('resolveInside refuses .git by name and through an inside link', (t) => {
+  const root = makeRoot();
+  try {
+    fs.mkdirSync(path.join(root, '.git'));
+    fs.writeFileSync(path.join(root, '.git', 'config'), 'secret');
+    fs.writeFileSync(path.join(root, '.gitignore'), 'dist\n');
+    const authority = createWorkspaceAuthority({ workspace: root });
+    assert.equal(authority.resolveInside(root, '.git/config'), null);
+    assert.equal(authority.resolveInside(root, '.GIT/config'), null);
+    assert.equal(authority.resolveInside(root, '.gitignore'), path.join(canonical(root), '.gitignore'));
+
+    const link = path.join(root, 'notes');
+    try {
+      makeDirLink(path.join(root, '.git'), link);
+      assert.equal(authority.resolveInside(root, 'notes/config'), null);
+    } catch (error) {
+      if (error.code !== 'EPERM' && error.code !== 'ENOTSUP') throw error;
+      t.diagnostic('directory link creation is not permitted on this host');
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 /** Best-effort directory link: junction on Windows (no privilege needed), dir symlink elsewhere. */
 function makeDirLink(target, link) {
   const type = process.platform === 'win32' ? 'junction' : 'dir';

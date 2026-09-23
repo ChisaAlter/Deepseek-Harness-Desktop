@@ -5,9 +5,10 @@ import {
   TerminalBlock, TextShimmer, WebBlock,
   diffTotals,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { PropsRenderSlots, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OpenFileOptions, UseDisclosure } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { RenderToolImages } from '../../contract/slots.ts'
 import { CHAT_DIFF_MAX_LINES, type DiffCardModel } from '../models/diff-card-model.ts'
 import { CHAT_READ_MAX_LINES, type ReadCardModel } from '../models/read-card-model.ts'
 import type { ImageCardModel } from '../models/image-card-model.ts'
@@ -65,11 +66,11 @@ export interface ToolRowProps {
    */
   image?: ImageCardModel | null | undefined
   /**
-   * Dispatch the image gallery through the tool-owned `tool.call.images`
-   * slot, supplied by the toolview that owns this row together with the
-   * session-authorized loader.
+   * Render the image gallery through the parent Tool node's `tool.call.images`
+   * slot. Supplied by the chat-node owner together with the session-authorized
+   * loader.
    */
-  renderSlot?: PropsRenderSlots<'tool.call.images'>['renderSlot'] | undefined
+  renderToolImages?: RenderToolImages | undefined
   /** Session-authorized image URL loader for the gallery slot. */
   loadImage?: MessageImageLoader | undefined
   search?: SearchCardModel | null | undefined
@@ -124,7 +125,7 @@ export const ToolRow = memo(function ToolRow({
   diff,
   read,
   image,
-  renderSlot,
+  renderToolImages,
   loadImage,
   search,
   web,
@@ -147,7 +148,7 @@ export const ToolRow = memo(function ToolRow({
     : localizeTerminalCardModel(terminal, t), [terminal, t])
   const diffBody = diff ?? null
   const readBody = read ?? null
-  const imageBody = image !== undefined && image !== null && renderSlot !== undefined && loadImage !== undefined
+  const imageBody = image !== undefined && image !== null && renderToolImages !== undefined && loadImage !== undefined
     ? image
     : null
   const searchBody = search ?? null
@@ -180,6 +181,8 @@ export const ToolRow = memo(function ToolRow({
   }, [diffBody])
   const settledWithCue = state === 'error' || state === 'stopped'
   const suffix = settledWithCue ? null : summarySuffix ?? diffStat
+  const imageSuffix = settledWithCue || imageBody === null ? null : `${t('image.label')} (${imageBody.images.length})`
+  const displayedSuffix = imageSuffix ?? suffix
   const openFile = useMemo(() => filePath !== undefined && onOpenFile !== undefined && !settledWithCue
     ? (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation()
@@ -222,11 +225,11 @@ export const ToolRow = memo(function ToolRow({
           <TextShimmer active={running}>{summaryText}</TextShimmer>
         </span>
       )}
-      {suffix !== null && (
-        <TextShimmer className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)} active={running}>{suffix}</TextShimmer>
+      {displayedSuffix !== null && (
+        <TextShimmer className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)} active={running}>{displayedSuffix}</TextShimmer>
       )}
     </>
-  ), [diffStat, fileLinkKeyDown, openFile, running, state, suffix, summaryText])
+  ), [diffStat, displayedSuffix, fileLinkKeyDown, openFile, running, state, summaryText])
   const expandedContent = useMemo(() => open ? (
     <div className={clsx(css.bodyWrap, detailsBody !== null && css.detailsBodyWrap)}>
       {askQuestionBody !== null
@@ -255,10 +258,9 @@ export const ToolRow = memo(function ToolRow({
                      attachment slot can render nothing, and then this line is the
                      only evidence an image was returned. */
                   <div className={css.imageBody}>
-                    <div className={css.imageLabel}>{imageBody.label}</div>
-                    {renderSlot !== undefined && loadImage !== undefined && renderSlot('tool.call.images', {
+                    {imageBody.label !== undefined && <div className={css.imageLabel}>{imageBody.label}</div>}
+                    {renderToolImages !== undefined && loadImage !== undefined && renderToolImages({
                       images: imageBody.images,
-                      loadImage,
                       align: 'start',
                     })}
                     <div className={css.imageMeta}>{imageBody.text}</div>
@@ -328,7 +330,7 @@ export const ToolRow = memo(function ToolRow({
     </div>
   ) : undefined, [
     open, detailsBody, askQuestionBody, terminalBody, terminalLabels, diffBody, diffLabels, readBody, readLabels,
-    imageBody, renderSlot, loadImage, searchBody, searchLabels, webBody, webLabels, inspect, t, onOpenFile,
+    imageBody, renderToolImages, loadImage, searchBody, searchLabels, webBody, webLabels, inspect, t, onOpenFile,
     variant, bodyText, cardBody, outputText, state,
   ])
   return (

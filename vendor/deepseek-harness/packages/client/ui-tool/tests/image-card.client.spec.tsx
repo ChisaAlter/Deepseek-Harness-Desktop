@@ -21,10 +21,9 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
-import type { ToolImagesOwnerProps, ToolTreeProps } from '../src/client/contract/slots.ts'
+import type { RenderToolImages, ToolImagesOwnerProps, ToolTreeProps } from '../src/client/contract/slots.ts'
 import { imageCardModel } from '../src/client/tool/models/image-card-model.ts'
 import { ReadImageRow, readImageToolview } from '../src/client/tool/toolviews/read-image-row.tsx'
 
@@ -84,8 +83,8 @@ const settled = (over?: Partial<ToolResultNode>): ToolResultNode => ({
  * `MessageImageSource` is a union of a durable attachment arm and a
  * submission-echo preview arm, so the stub renders both.
  */
-const stubRenderSlot = (): PropsRenderSlots<'tool.call.images'>['renderSlot'] => (
-  vi.fn((_key: 'tool.call.images', owner: ToolImagesOwnerProps) => (
+const stubRenderToolImages = (): RenderToolImages => (
+  vi.fn((owner: ToolImagesOwnerProps) => (
     <div data-images>
       {owner.images.map((image, index) => (
         'attachment' in image ? (
@@ -95,7 +94,7 @@ const stubRenderSlot = (): PropsRenderSlots<'tool.call.images'>['renderSlot'] =>
         )
       ))}
     </div>
-  )) as unknown as PropsRenderSlots<'tool.call.images'>['renderSlot']
+  )) as unknown as RenderToolImages
 )
 
 /** Session-authorized loader stand-in; the stub gallery never resolves it. */
@@ -276,10 +275,10 @@ describe('ReadImageRow keyed toolview', () => {
 
   const rowProps = (
     block: RunningToolCall | ToolResultNode,
-    renderSlot?: PropsRenderSlots<'tool.call.images'>['renderSlot'],
+    renderToolImages?: RenderToolImages,
     loader: MessageImageLoader = loadImage,
   ): Parameters<typeof ReadImageRow>[0] => ({
-    useDisclosure, callId: 'c1', toolName: 'read_image', block, openFile: vi.fn(), renderSlot, loadImage: loader,
+    useDisclosure, callId: 'c1', toolName: 'read_image', block, openFile: vi.fn(), renderToolImages, loadImage: loader,
     sessionId: SID, useSessions: bindSnapshotSelector(list()),
     t,
   } as Parameters<typeof ReadImageRow>[0])
@@ -293,7 +292,7 @@ describe('ReadImageRow keyed toolview', () => {
     // (FILE_PATH_VARIANTS covers only read/write/edit), so the openable path the
     // row advertises would never be openable.
     const openFile = vi.fn()
-    const view = render(<ReadImageRow {...rowProps(settled(), stubRenderSlot())} openFile={openFile} />)
+    const view = render(<ReadImageRow {...rowProps(settled(), stubRenderToolImages())} openFile={openFile} />)
     expect(view.container.querySelector('[data-variant]')?.getAttribute('data-variant')).toBe('read')
     const link = view.container.querySelector('button[class*="fileLink"]')
     expect(link).not.toBeNull()
@@ -302,14 +301,13 @@ describe('ReadImageRow keyed toolview', () => {
   })
 
   it('expands to the image, dispatched through the tool-owned image slot', () => {
-    const renderSlot = stubRenderSlot()
-    const view = render(<ReadImageRow {...rowProps(settled(), renderSlot)} />)
+    const renderToolImages = stubRenderToolImages()
+    const view = render(<ReadImageRow {...rowProps(settled(), renderToolImages)} />)
     expect(view.container.querySelector('[data-images]')).toBeNull()
     toggleRow(view)
     expect(view.container.querySelector('[data-images]')).not.toBeNull()
-    expect(renderSlot).toHaveBeenLastCalledWith('tool.call.images', {
+    expect(renderToolImages).toHaveBeenLastCalledWith({
       images: [{ attachment: sampleImage }],
-      loadImage,
       align: 'start',
     })
     expect(view.container.querySelector(`[data-image-id="${sampleImage.attachmentId}"]`)).not.toBeNull()
@@ -318,7 +316,7 @@ describe('ReadImageRow keyed toolview', () => {
   it('never prints the raw attachment object under the picture', () => {
     // The row's flattened output JSON.stringifies the image block the real content
     // carries, so the card takes its text from the derived envelope instead.
-    const view = render(<ReadImageRow {...rowProps(settled(), stubRenderSlot())} />)
+    const view = render(<ReadImageRow {...rowProps(settled(), stubRenderToolImages())} />)
     toggleRow(view)
     const text = view.container.textContent ?? ''
     expect(text).not.toContain('"attachmentId"')
@@ -344,27 +342,27 @@ describe('ReadImageRow keyed toolview', () => {
   })
 
   it('a running call renders the summary row alone', () => {
-    const renderSlot = stubRenderSlot()
-    const view = render(<ReadImageRow {...rowProps(running(), renderSlot)} />)
+    const renderToolImages = stubRenderToolImages()
+    const view = render(<ReadImageRow {...rowProps(running(), renderToolImages)} />)
     expect(view.container.querySelector('[data-images]')).toBeNull()
-    expect(renderSlot).not.toHaveBeenCalled()
+    expect(renderToolImages).not.toHaveBeenCalled()
   })
 
   it('a refusal renders its error without an image card', () => {
     // read_image refuses a text-only route, a missing attachment service, and an
     // unreadable file. Claiming the key means this row owns those shapes too.
-    const renderSlot = stubRenderSlot()
+    const renderToolImages = stubRenderToolImages()
     const view = render(<ReadImageRow {...rowProps(settled({
       isError: true,
       meta: undefined,
       content: [{ type: 'text', text: 'Error: model "x" does not declare image input' }],
-    } as never), renderSlot)} />)
+    } as never), renderToolImages)} />)
     expect(view.container.querySelector('[data-images]')).toBeNull()
-    expect(renderSlot).not.toHaveBeenCalled()
+    expect(renderToolImages).not.toHaveBeenCalled()
     expect(view.container.textContent).toContain('does not declare image input')
   })
 
-  it('registers under the read_image key of the keyed toolview slot, declaring the image slot', () => {
+  it('registers under the read_image key of the keyed toolview slot', () => {
     const registered: { name: unknown; key?: unknown; children?: unknown }[] = []
     const ctx = { slots: {
       inject: (_name: string, callback: () => () => void) => callback(),
@@ -378,7 +376,6 @@ describe('ReadImageRow keyed toolview', () => {
       name: 'tool.call.toolview',
       key: 'read_image',
       locale: 'conversation',
-      children: { 'tool.call.images': { kind: 'single', scope: 'session' } },
     }])
     expect(readImageToolview.inject).toEqual(['slots'])
   })

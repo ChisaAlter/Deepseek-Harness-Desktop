@@ -15,8 +15,10 @@ import {
   officialPriceFor,
   parseSessionCostPrices,
   priceText,
+  repairFlatEntries,
   resolveModelPrice,
 } from '../src/shared/pricing.ts'
+import type { SessionCostPrices } from '../src/shared/pricing.ts'
 
 test('official table carries the published 2026-08-17 values verbatim', () => {
   assert.equal(OFFICIAL_PRICES_AS_OF, '2026-08-17')
@@ -129,6 +131,50 @@ test('a relay serving an official model id bills the official column', () => {
   const price = resolveModelPrice('relay', 'deepseek-v4-flash', {})
   assert.ok(price)
   assert.equal(price.source, 'official')
+})
+
+test('repairFlatEntries gives every flat record an explicit idle column', () => {
+  const before: SessionCostPrices = {
+    // The defective shape (the live record on this machine had exactly this):
+    // the harness halves the peak triple for off-peak when `idle` is absent.
+    'hohai/gpt-6-astra': { inputCacheHit: 2, inputCacheMiss: 0.12, output: 12, flat: true },
+    // Already carried by the fixed editor, and a peak/valley record: untouched.
+    'relay/flat-fixed': { inputCacheHit: 1, inputCacheMiss: 2, output: 3, idle: { inputCacheHit: 1, inputCacheMiss: 2, output: 3 }, flat: true },
+    'relay/peak-valley': { inputCacheHit: 4, inputCacheMiss: 8, output: 16, idle: { inputCacheHit: 1, inputCacheMiss: 2, output: 3 } },
+    // Non-flat single column: the derived half IS its semantics, never repaired.
+    'relay/legacy-single': { inputCacheHit: 4, inputCacheMiss: 8, output: 16 },
+  }
+  const frozen = structuredClone(before)
+  const { prices, changed } = repairFlatEntries(before)
+  assert.equal(changed, true)
+  assert.deepEqual(prices['hohai/gpt-6-astra'], {
+    inputCacheHit: 2,
+    inputCacheMiss: 0.12,
+    output: 12,
+    idle: { inputCacheHit: 2, inputCacheMiss: 0.12, output: 12 },
+    flat: true,
+  })
+  assert.deepEqual(prices['relay/flat-fixed'], before['relay/flat-fixed'])
+  assert.deepEqual(prices['relay/peak-valley'], before['relay/peak-valley'])
+  assert.deepEqual(prices['relay/legacy-single'], before['relay/legacy-single'])
+  assert.deepEqual(before, frozen, 'the input record is never mutated')
+
+  // Idempotent: a second run over the first run's output has nothing to do.
+  const again = repairFlatEntries(prices)
+  assert.equal(again.changed, false)
+  assert.deepEqual(again.prices, prices)
+
+  // A repaired flat record bills the entered price in BOTH periods, which is
+  // what the harness reads back: idle wins over the derived half.
+  const price = resolveModelPrice('hohai', 'gpt-6-astra', prices)
+  assert.ok(price)
+  assert.equal(price.flat, true)
+  assert.deepEqual(price.peak, { inputCacheHit: 2, inputCacheMiss: 0.12, output: 12 })
+  assert.deepEqual(price.idle, price.peak)
+
+  // Nothing to repair: no flat entry, no write.
+  assert.equal(repairFlatEntries({ 'a/b': { inputCacheHit: 1, inputCacheMiss: 2, output: 3 } }).changed, false)
+  assert.deepEqual(repairFlatEntries({}).prices, {})
 })
 
 test('parseSessionCostPrices accepts a valid record and rejects bad shapes', () => {

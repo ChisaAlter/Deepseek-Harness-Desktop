@@ -56,11 +56,56 @@ export interface BrowserOwnerProps {
  */
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
+    /**
+     * The upstream surfaces-column Browser seat. A registrant passes the
+     * component that drives its own native guest and receives
+     * {@link BrowserOwnerProps} so the renderer chrome can hide that guest
+     * while chrome overlaps the hit-test area. As a `single` slot, a new
+     * registration replaces the previous occupant. Desktop registers nobody:
+     * the seat stays declared only so the fork packages keep type-checking,
+     * and absence leaves the dormant surfaces track empty (it is held at zero
+     * width, and Browser now lives in the native right Sidebar).
+     */
     'surfaces.browser': { kind: 'single'; scope: 'session-maybe'; owner: BrowserOwnerProps }
+    /**
+     * The upstream surfaces-column terminal seat, whose component takes no
+     * owner props. A `single` registration replaces any previous occupant.
+     * Desktop registers nobody: the bottom terminal drawer owns this surface
+     * instead, and absence simply leaves the dormant track empty.
+     */
     'surfaces.terminal': { kind: 'single'; scope: 'session-maybe'; owner: {} }
+    /**
+     * The upstream surfaces-column Workspace file-tree seat. A registrant
+     * passes its tree component and receives {@link FilesOwnerProps} (the
+     * session-scoped shell face plus the open callback). A `single`
+     * registration replaces the previous occupant. Desktop registers nobody,
+     * so absence leaves the dormant track empty; Files is served by the
+     * native right Sidebar tab of the same name.
+     */
     'surfaces.files': { kind: 'single'; scope: 'session-maybe'; owner: FilesOwnerProps }
+    /**
+     * The upstream single-file preview seat. A registrant passes the preview
+     * component and receives {@link FileOwnerProps} — the active-file
+     * identity, dirty/save plumbing, and the buffer memory that survives
+     * occupant remounts. A `single` registration replaces the previous
+     * occupant. Desktop registers nobody; absence leaves the dormant track
+     * empty, and single-file preview belongs to the Sidebar Document Preview.
+     */
     'surfaces.file': { kind: 'single'; scope: 'session-maybe'; owner: FileOwnerProps }
+    /**
+     * The upstream surfaces-column Diff seat. A registrant passes its diff
+     * component and receives the same {@link FilesOwnerProps} shell face the
+     * file tree uses. A `single` registration replaces the previous occupant.
+     * Desktop registers nobody: absence leaves the dormant track empty, and
+     * Diff is served by the native right Sidebar tab.
+     */
     'surfaces.diff': { kind: 'single'; scope: 'session-maybe'; owner: FilesOwnerProps }
+    /**
+     * The upstream surfaces-column Agents seat, whose component takes no
+     * owner props. A `single` registration replaces any previous occupant.
+     * Desktop registers nobody: absence leaves the dormant track empty, and
+     * the Agents panel is served by the native right Sidebar tab.
+     */
     'surfaces.agents': { kind: 'single'; scope: 'session-maybe'; owner: {} }
   }
 }
