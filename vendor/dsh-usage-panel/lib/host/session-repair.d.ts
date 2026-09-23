@@ -5,6 +5,8 @@ interface SessionEventLike {
 }
 /** Where this build keeps the harness home (desktop sets DSH_HOME explicitly). */
 export declare function resolveDshHome(): string;
+/** Repair is limited to ids reported by this scan, never arbitrary RPC input. */
+export declare function isRepairableSessionId(sessionId: unknown, failedSessionIds: readonly string[]): sessionId is string;
 /**
  * Locate a session's artifact beneath `<home>/sessions`: dirs are
  * `<project>/<encoded-session-id>` and the file is the HIGHEST canonical
@@ -12,8 +14,8 @@ export declare function resolveDshHome(): string;
  * `session.jsonl.zstd` as the unversioned name) — never an obsolete earlier
  * generation left behind by a format migration. Compressed candidates win
  * over uncompressed ones; the uncompressed set is only a graceful fallback
- * (the rebuild rejects it later). The id may arrive either as the full
- * `session-<uuid>` (coverage failed-ids) or the bare uuid.
+ * (the rebuild rejects it later). The exact persisted id is preferred; old
+ * callers that supply a bare UUID may still resolve a `session-` directory.
  */
 export declare function locateSessionArtifact(home: string, sessionId: string): Promise<string | null>;
 export interface RebuildResult {

@@ -1,7 +1,4 @@
-// dsh-usage-panel · activity heatmap (UTC calendar month within the half-year window).
-// GitHub-contribution layout for one month: weeks as columns, weekdays as rows,
-// quartile levels over that month's non-zero days; ‹ › switches months in-window.
-// Hover shows the day's tokens AND estimated cost (per-model priced).
+// Compact UTC month calendar with a bounded date filter.
 import { useState } from 'react'
 import type { DayRecord } from '../../shared/contract.ts'
 import type { SessionCostPrices } from '../../shared/pricing.ts'
@@ -11,13 +8,25 @@ import { formatCost } from '../../shared/pricing.ts'
 import { keyOfDateUTC, listMonthKeys, monthKeyUTC } from '../../shared/usage.ts'
 import type { I18n } from '../locales.ts'
 import type { Tip } from '../hooks.ts'
+import * as UiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'
 import * as React from 'react'
+
+// The vendored desktop pin exports these atoms; the published rc.6 type face
+// used by this plugin's standalone typecheck predates them.
+const { Button, Input, SettingsSelect } = UiPrimitives as typeof UiPrimitives & {
+  Input: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>
+  SettingsSelect: React.ComponentType<{
+    value: string
+    options: readonly { id: string; label: string }[]
+    onChange: (id: string) => void
+    'aria-label': string
+  }>
+}
 
 interface HeatmapProps {
   days: DayRecord[]
   i18n: I18n
   onTip: (tip: Tip | null) => void
-  /** Billing context for the per-day cost line (prices applied here). */
   prices?: SessionCostPrices
   peakValley?: boolean
   modelProviders?: Record<string, string>
@@ -27,153 +36,121 @@ export function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelPro
   const t = i18n.t
   const locale = i18n.locale
   const months = listMonthKeys(days)
-  const [picked, setPicked] = useState<string | null>(null)
-  const monthKey = picked && months.includes(picked) ? picked : (months[months.length - 1] ?? '')
-  const monthIndex = months.indexOf(monthKey)
-  const canPrev = monthIndex > 0
-  const canNext = monthIndex >= 0 && monthIndex < months.length - 1
+  const minDate = days[0]?.date ?? ''
+  const maxDate = days[days.length - 1]?.date ?? ''
+  const [pickedMonth, setPickedMonth] = useState<string | null>(null)
+  const [pickedStart, setPickedStart] = useState<string | null>(null)
+  const [pickedEnd, setPickedEnd] = useState<string | null>(null)
+  const monthKey = pickedMonth && months.includes(pickedMonth) ? pickedMonth : (months[months.length - 1] ?? '')
+  const start = pickedStart && pickedStart >= minDate && pickedStart <= maxDate ? pickedStart : minDate
+  const end = pickedEnd && pickedEnd >= start && pickedEnd <= maxDate ? pickedEnd : maxDate
+  const byDate = new Map(days.map((day) => [day.date, day]))
+  const monthDays = days.filter((day) => monthKeyUTC(day.date) === monthKey)
+  const selected = days.filter((day) => day.date >= start && day.date <= end && monthKeyUTC(day.date) === monthKey)
+  const q = quartileThresholds(monthDays.filter((day) => day.total > 0).map((day) => day.total))
+  const selectedTotal = selected.reduce((sum, day) => sum + day.total, 0)
+  const activeDays = selected.filter((day) => day.total > 0).length
 
-  const byDate: Record<string, DayRecord> = {}
-  const nonzero: number[] = []
-  for (const d of days) {
-    if (monthKeyUTC(d.date) !== monthKey) continue
-    byDate[d.date] = d
-    if (d.total > 0) nonzero.push(d.total)
+  const showTip = (element: HTMLElement, rec: DayRecord) => {
+    const rect = element.getBoundingClientRect()
+    const lines: Tip['lines'] = []
+    if (prices !== undefined) {
+      const rows = Object.keys(rec.modelCosts).map((model) => ({
+        model,
+        provider: modelProviders[model] ?? 'unknown',
+        cost: rec.modelCosts[model]!,
+      }))
+      const cents = totalCostCents(rows, prices, peakValley)
+      lines.push({
+        label: t('heat.cost'),
+        value: cents === null ? t('heat.costNone') : formatCost(cents),
+        color: cents === null ? 'var(--dsw-alias-label-tertiary)' : 'var(--dsw-alias-state-success-primary)',
+      })
+    }
+    onTip({
+      left: rect.left + rect.width / 2,
+      top: rect.top - 6,
+      title: t('heat.day', { date: dateCN(rec.date, locale), tokens: fmtTokens(rec.total, locale) }),
+      lines,
+    })
   }
-  const q = quartileThresholds(nonzero)
-  const levelOf = (total: number): number => heatLevel(total, q)
 
-  const gridCells: JSX.Element[] = []
-  const weekLabels: string[] = []
-  let heatWeeks = 0
+  const cells: JSX.Element[] = []
   if (monthKey) {
-    const parts = monthKey.split('-')
-    const year = Number(parts[0])
-    const month = Number(parts[1])
-    const firstKey = monthKey + '-01'
-    const lead = weekdayIndexUTC(firstKey)
-    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
-    heatWeeks = Math.ceil((lead + daysInMonth) / 7)
-    for (let w = 0; w < heatWeeks; w++) {
-      const monday = new Date(Date.UTC(year, month - 1, 1 - lead + w * 7))
-      let weekLabel = ''
-      for (let r = 0; r < 7; r++) {
-        const cur = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + r))
-        const key = keyOfDateUTC(cur)
-        const inMonth = cur.getUTCFullYear() === year && cur.getUTCMonth() === month - 1
-        if (!inMonth) {
-          gridCells.push(<div key={key + '-pad'} className="dsw-ust-heat-cell dsw-ust-heat-blank" />)
-          continue
-        }
-        if (!weekLabel) weekLabel = String(cur.getUTCDate())
-        const rec = byDate[key]
-        if (!rec) {
-          // Day falls outside the half-year window (partial first month).
-          gridCells.push(<div key={key + '-blank'} className="dsw-ust-heat-cell dsw-ust-heat-blank" />)
-          continue
-        }
-        const level = levelOf(rec.total)
-        gridCells.push(
-          <div
-            key={key}
-            className={'dsw-ust-heat-cell dsw-ust-h' + level}
-            style={{ animationDelay: (w * 0.018).toFixed(4) + 's' }}
-            onMouseEnter={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect()
-              const lines: Tip['lines'] = []
-              if (prices !== undefined) {
-                const rows = Object.keys(rec.modelCosts).map((model) => ({
-                  model,
-                  provider: modelProviders[model] ?? 'unknown',
-                  cost: rec.modelCosts[model]!,
-                }))
-                const cents = totalCostCents(rows, prices, peakValley)
-                lines.push({
-                  label: t('heat.cost'),
-                  value: cents === null ? t('heat.costNone') : formatCost(cents),
-                  color: cents === null ? 'var(--dsw-alias-label-tertiary)' : 'var(--dsw-alias-state-success-primary)',
-                })
-              }
-              onTip({
-                left: rect.left + rect.width / 2,
-                top: rect.top - 6,
-                title: t('heat.day', { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) }),
-                lines,
-              })
-            }}
-            onMouseLeave={() => onTip(null)}
-          />,
-        )
+    const [year, month] = monthKey.split('-').map(Number)
+    const lead = weekdayIndexUTC(monthKey + '-01')
+    const count = new Date(Date.UTC(year!, month!, 0)).getUTCDate()
+    const slots = Math.ceil((lead + count) / 7) * 7
+    for (let slot = 0; slot < slots; slot++) {
+      const date = new Date(Date.UTC(year!, month! - 1, slot - lead + 1))
+      const key = keyOfDateUTC(date)
+      const rec = monthKeyUTC(key) === monthKey ? byDate.get(key) : undefined
+      if (!rec) {
+        cells.push(<span key={key + '-blank'} className="dsw-ust-calendar-blank" aria-hidden="true" />)
+        continue
       }
-      weekLabels.push(weekLabel)
+      const outside = key < start || key > end
+      const level = heatLevel(rec.total, q)
+      cells.push(
+        <button
+          key={key}
+          type="button"
+          className={'dsw-ust-calendar-day dsw-ust-h' + level + (outside ? ' is-outside' : '')}
+          aria-label={t('heat.day', { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) })}
+          aria-pressed={start === key && end === key}
+          onClick={() => { setPickedStart(key); setPickedEnd(key) }}
+          onMouseEnter={(event) => showTip(event.currentTarget, rec)}
+          onMouseLeave={() => onTip(null)}
+          onFocus={(event) => showTip(event.currentTarget, rec)}
+          onBlur={() => onTip(null)}
+        >{date.getUTCDate()}</button>,
+      )
     }
   }
-
-  const weekdays = locale === 'zh-CN' ? ['一', '', '三', '', '五', '', ''] : ['M', '', 'W', '', 'F', '', '']
-  const minWidth = heatWeeks > 0 ? heatWeeks * 12 + (heatWeeks - 1) * 3 : 0
-  const sub = monthKey ? t('heat.sub', { month: monthLabel(monthKey, locale) }) : t('heat.sub.fallback')
-
+  const weekdays = locale === 'zh-CN' ? ['一', '二', '三', '四', '五', '六', '日'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   return (
-    <div className="dsw-ust-card">
+    <div className="dsw-ust-card dsw-ust-heat-card">
       <div className="dsw-ust-card-head">
         <div className="dsw-ust-card-title">
           <h3>{t('heat.title')}</h3>
-          <span className="dsw-ust-card-sub">{sub}</span>
-        </div>
-        <div className="dsw-ust-heat-tools">
-          <div className="dsw-ust-month-nav" role="group" aria-label={t('heat.monthNav')}>
-            <button
-              type="button"
-              disabled={!canPrev}
-              aria-label={t('heat.prev')}
-              onClick={() => {
-                if (canPrev) setPicked(months[monthIndex - 1]!)
-              }}
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              disabled={!canNext}
-              aria-label={t('heat.next')}
-              onClick={() => {
-                if (canNext) setPicked(months[monthIndex + 1]!)
-              }}
-            >
-              ›
-            </button>
-          </div>
-          <div className="dsw-ust-heat-legend">
-            <span>{t('heat.less')}</span>
-            {[0, 1, 2, 3, 4].map((l) => (
-              <i key={l} className={'dsw-ust-heat-swatch dsw-ust-h' + l} />
-            ))}
-            <span>{t('heat.more')}</span>
-          </div>
+          <span className="dsw-ust-card-sub">{t('heat.sub.fallback')}</span>
         </div>
       </div>
-      <div className="dsw-ust-heat-wrap">
-        <div className="dsw-ust-heat-weekdays">
-          {weekdays.map((w, i) => (
-            <span key={i}>{w}</span>
-          ))}
+      <div className="dsw-ust-calendar-controls">
+        <label className="dsw-ust-calendar-field">
+          <span>{t('heat.month')}</span>
+          <SettingsSelect value={monthKey} options={months.map((key) => ({ id: key, label: monthLabel(key, locale) }))} onChange={setPickedMonth} aria-label={t('heat.month')} />
+        </label>
+        <label className="dsw-ust-calendar-field">
+          <span>{t('heat.start')}</span>
+          <Input type="date" value={start} min={minDate} max={maxDate} onChange={(event) => {
+            const value = event.currentTarget.value
+            if (value) { setPickedStart(value); if (value > end) setPickedEnd(value); setPickedMonth(monthKeyUTC(value)) }
+          }} />
+        </label>
+        <label className="dsw-ust-calendar-field">
+          <span>{t('heat.end')}</span>
+          <Input type="date" value={end} min={minDate} max={maxDate} onChange={(event) => {
+            const value = event.currentTarget.value
+            if (value) { setPickedEnd(value); if (value < start) setPickedStart(value); setPickedMonth(monthKeyUTC(value)) }
+          }} />
+        </label>
+        <Button variant="ghost" size="sm" onClick={() => { setPickedStart(null); setPickedEnd(null) }}>{t('heat.reset')}</Button>
+      </div>
+      <div className="dsw-ust-heat-layout">
+        <div className="dsw-ust-calendar" role="group" aria-label={monthLabel(monthKey, locale)}>
+          <div className="dsw-ust-calendar-weekdays">{weekdays.map((day, index) => <span key={index}>{day}</span>)}</div>
+          <div className="dsw-ust-calendar-grid">{cells}</div>
         </div>
-        <div className="dsw-ust-heat-main">
-          <div
-            className="dsw-ust-heat-months"
-            style={{ gridTemplateColumns: 'repeat(' + Math.max(heatWeeks, 1) + ', minmax(12px, 1fr))', minWidth }}
-          >
-            {weekLabels.map((label, i) => (
-              <span key={i} className="dsw-ust-heat-month">
-                {label}
-              </span>
-            ))}
-          </div>
-          <div
-            className="dsw-ust-heat"
-            style={{ gridTemplateColumns: 'repeat(' + Math.max(heatWeeks, 1) + ', minmax(12px, 1fr))', minWidth }}
-          >
-            {gridCells}
+        <div className="dsw-ust-heat-summary" aria-live="polite">
+          <span className="dsw-ust-heat-summary-label">{monthLabel(monthKey, locale)}</span>
+          <strong>{fmtTokens(selectedTotal, locale)}</strong>
+          <span className="dsw-ust-heat-summary-unit">Tokens</span>
+          <span className="dsw-ust-heat-summary-detail">{t('heat.summary', { active: activeDays, total: selected.length })}</span>
+          <div className="dsw-ust-heat-legend">
+            <span>{t('heat.less')}</span>
+            {[0, 1, 2, 3, 4].map((level) => <i key={level} className={'dsw-ust-heat-swatch dsw-ust-h' + level} />)}
+            <span>{t('heat.more')}</span>
           </div>
         </div>
       </div>

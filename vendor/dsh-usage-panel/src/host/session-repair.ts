@@ -33,6 +33,13 @@ export function resolveDshHome(): string {
   return join(homedir(), '.dsh')
 }
 
+/** Repair is limited to ids reported by this scan, never arbitrary RPC input. */
+export function isRepairableSessionId(sessionId: unknown, failedSessionIds: readonly string[]): sessionId is string {
+  return typeof sessionId === 'string' &&
+    sessionId !== '' && sessionId !== '.' && sessionId !== '..' &&
+    !/[\x00/\\]/u.test(sessionId) && failedSessionIds.includes(sessionId)
+}
+
 // Canonical generation filenames, mirroring the backend grammar
 // (`parseGenerationLogFilename`): v0 keeps `session.jsonl`, later generations
 // carry `.vN` (N ≥ 1, no leading zeros); `.zstd` marks the compressed
@@ -53,11 +60,10 @@ function generationVersion(name: string, pattern: RegExp): number | undefined {
  * `session.jsonl.zstd` as the unversioned name) — never an obsolete earlier
  * generation left behind by a format migration. Compressed candidates win
  * over uncompressed ones; the uncompressed set is only a graceful fallback
- * (the rebuild rejects it later). The id may arrive either as the full
- * `session-<uuid>` (coverage failed-ids) or the bare uuid.
+ * (the rebuild rejects it later). The exact persisted id is preferred; old
+ * callers that supply a bare UUID may still resolve a `session-` directory.
  */
 export async function locateSessionArtifact(home: string, sessionId: string): Promise<string | null> {
-  const needle = sessionId.startsWith('session-') ? sessionId : 'session-' + sessionId
   const sessionsRoot = join(home, 'sessions')
   let projects: string[] = []
   try {
@@ -65,7 +71,8 @@ export async function locateSessionArtifact(home: string, sessionId: string): Pr
   } catch {
     return null
   }
-  for (const project of projects) {
+  const needles = sessionId.startsWith('session-') ? [sessionId] : [sessionId, 'session-' + sessionId]
+  for (const needle of needles) for (const project of projects) {
     const projectDir = join(sessionsRoot, project)
     let entries: import('node:fs').Dirent[] = []
     try {

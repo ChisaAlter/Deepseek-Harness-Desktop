@@ -326,6 +326,10 @@ The launcher is the cold-start gate window, not the instrument canvas. Sources: 
 
 Product pages use this language's tokens and `ui-primitives`. Mobile remote Web (`mobile/web`) is a documented exception: it copies `--dsw-alias-*`, does not embed the baseline plugin tree, and does not use the boot instrument canvas. The Settings marketplace is the desktop-owned `ui-settings-market` package's `settings.section` (id `market`) and must use the same tokens / primitives as the baseline settings pages. The usage-stats panel is the preinstalled reworked `dsh-usage-panel` (id `usage-stats`) and must use the same tokens / primitives as the baseline settings pages, not the upstream plugin palette. Do not open a `--bg` / `--accent` palette. The desktop boot page is the documented instrument-canvas exception; see [Desktop boot page](#desktop-boot-page). Do not spread that sheet. The cold-start launcher uses baseline tokens; see [Desktop launcher](#desktop-launcher). It is not a second exception.
 
+The usage-stats activity heatmap uses a compact monthly calendar: weekdays are columns and weeks are rows, with fixed small cells that never grow into oversized color blocks as the Settings panel widens. Place month selection and UTC start/end date filters below the title; show the selected range with clear bounds and a summary, and de-emphasize dates outside it while preserving their calendar positions. Controls wrap in narrow panels and the calendar never overflows horizontally. Colors, borders, buttons, and forms follow the Settings tokens and primitives.
+
+Usage KPIs give total tokens and estimated cost the first tier as two wide cards. Session count, top model, and cache hit rate form a second tier of three supporting cards. When two columns no longer fit, the layout falls back to one column without clipping values or descriptions.
+
 ### Marketplace feature migration
 
 The marketplace extension uses the "Discover / Favorites / Installed / Activity" tabs. Sorting and time-range controls reuse Menu, and favorites use icon buttons with Tooltip;

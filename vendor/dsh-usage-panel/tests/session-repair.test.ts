@@ -9,7 +9,14 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { compressZstdFrame, decompressZstdFrame, scanZstdFrames } from '../src/host/zstd-frames.ts'
-import { locateSessionArtifact, rebuildSessionLog, repairSessionLog } from '../src/host/session-repair.ts'
+import { isRepairableSessionId, locateSessionArtifact, rebuildSessionLog, repairSessionLog } from '../src/host/session-repair.ts'
+
+test('repair accepts a failed whale session id and rejects unrelated or path-like ids', () => {
+  const failed = ['session-whale-12d39638-d90c-4272-b2dd-123456789abc']
+  assert.equal(isRepairableSessionId(failed[0], failed), true)
+  assert.equal(isRepairableSessionId('session-healthy', failed), false)
+  assert.equal(isRepairableSessionId('../session-whale-12d39638-d90c-4272-b2dd-123456789abc', failed), false)
+})
 
 /** Fake storage rows: `{seq: n}` = single event; `{packed: [seqs]}` = packed run. */
 function fakeDecode(value: unknown): unknown[] {
@@ -133,6 +140,19 @@ test('locateSessionArtifact selects the highest canonical generation, not a stal
   await writeFile(join(dir, 'session.v9.jsonl.zstd.bak-1'), await bytesOf(text))
   await writeFile(join(dir, 'session.v9.jsonl.zstd.tmp'), await bytesOf(text))
   assert.equal(await locateSessionArtifact(home, 'x'), v2)
+  await rm(home, { recursive: true, force: true })
+})
+
+test('locateSessionArtifact resolves the exact whale id and an older bare uuid directory', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'dsh-repair-'))
+  const whaleId = 'session-whale-12d39638-d90c-4272-b2dd-123456789abc'
+  const bareId = '47bc7ce9-1baa-4370-b606-2813bce927d5'
+  for (const id of [whaleId, bareId]) {
+    const dir = join(home, 'sessions', '--proj--', id)
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'session.jsonl.zstd'), await bytesOf(HEADER + '\n{"seq":0}\n'))
+    assert.equal(await locateSessionArtifact(home, id), join(dir, 'session.jsonl.zstd'))
+  }
   await rm(home, { recursive: true, force: true })
 })
 

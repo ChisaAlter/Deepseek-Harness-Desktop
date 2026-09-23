@@ -95,6 +95,7 @@ npm pack --dry-run   # 发布前人工确认清单
 - **`mergeSessionValue` 是纯函数**：返回值必须重新赋值（`a = mergeSessionValue(a, …)`），漏掉会静默丢数据——scan.ts 与 index.ts 都踩过。
 - **zod v4 的 `z.record` 签名变了**：`z.record(valueSchema)` 在 v4 里被当作 key schema；必须 `z.record(z.string(), valueSchema)`。
 - **`SessionId` 是品牌类型**：`readSession/readTitle/coldSnapshot` 拒绝裸 `string`；用 `header.id` 本体，别 `String()`。
+- **修复 RPC 不得假设会话 ID 是 UUID**：桌面受管会话可用 `session-whale-<uuid>` 等前缀。校验应以本轮 `failedSessionIds` 的原始身份为准，并拒绝路径分隔符；工件目录先查完整 ID，旧 bare UUID 再兼容 `session-` 前缀。只靠 `/[0-9a-f-]+/` 会让页面修复按钮直接报 `invalid session id`。
 - **`@deepseek-ai/cordis` 版本是 `^4.0.1`**（cordis v4 fork），不是 rc.6 号段；所有 dsh 包的 peer 都要求它。
 - **投影状态里 `totals` 无 `total` 字段**（四桶即状态，total 是视图层派生）；断言/测试别直接读 `state.totals.total`。
 - **TS 经典 JSX transform 需要 `import * as React`**（否则 TS2686 UMD global）；esbuild 产物引用 wrapper 的 `var React`，两者同一模块实例。

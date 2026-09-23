@@ -1456,6 +1456,9 @@ function resolveDshHome() {
   if (env !== void 0 && env.trim() !== "") return resolve(env.trim());
   return join(homedir(), ".dsh");
 }
+function isRepairableSessionId(sessionId, failedSessionIds) {
+  return typeof sessionId === "string" && sessionId !== "" && sessionId !== "." && sessionId !== ".." && !/[\x00/\\]/u.test(sessionId) && failedSessionIds.includes(sessionId);
+}
 var CANONICAL_ZSTD_NAME = /^session(?:\.v([1-9][0-9]*))?\.jsonl\.zstd$/u;
 var CANONICAL_PLAIN_NAME = /^session(?:\.v([1-9][0-9]*))?\.jsonl$/u;
 function generationVersion(name2, pattern) {
@@ -1464,7 +1467,6 @@ function generationVersion(name2, pattern) {
   return match[1] === void 0 ? 0 : Number(match[1]);
 }
 async function locateSessionArtifact(home, sessionId) {
-  const needle = sessionId.startsWith("session-") ? sessionId : "session-" + sessionId;
   const sessionsRoot = join(home, "sessions");
   let projects = [];
   try {
@@ -1472,7 +1474,8 @@ async function locateSessionArtifact(home, sessionId) {
   } catch {
     return null;
   }
-  for (const project of projects) {
+  const needles = sessionId.startsWith("session-") ? [sessionId] : [sessionId, "session-" + sessionId];
+  for (const needle of needles) for (const project of projects) {
     const projectDir = join(sessionsRoot, project);
     let entries = [];
     try {
@@ -2102,7 +2105,7 @@ function apply(ctx) {
   }
   async function repairSession(payload) {
     const sessionId = payload.sessionId;
-    if (!sessionId || !/^(?:session-)?[0-9a-f-]+$/i.test(sessionId)) {
+    if (!isRepairableSessionId(sessionId, failedSessionIds)) {
       throw new Error("invalid session id");
     }
     const codec = await runtimeCodec();

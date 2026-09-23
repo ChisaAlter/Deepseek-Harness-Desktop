@@ -68,7 +68,12 @@ window.__ModuleLoader__.load({
       "sessions.cost.none": "\u8BE5\u4F1A\u8BDD\u6A21\u578B\u672A\u5B9A\u4EF7",
       "heat.title": "\u6D3B\u8DC3\u70ED\u529B\u56FE",
       "heat.sub": "{month} \xB7 UTC",
-      "heat.sub.fallback": "UTC",
+      "heat.sub.fallback": "\u6700\u8FD1 182 \u5929 \xB7 UTC",
+      "heat.month": "\u6708\u4EFD",
+      "heat.start": "\u5F00\u59CB\u65E5\u671F",
+      "heat.end": "\u7ED3\u675F\u65E5\u671F",
+      "heat.reset": "\u91CD\u7F6E\u65E5\u671F",
+      "heat.summary": "\u6D3B\u8DC3 {active} \u5929 \xB7 \u5DF2\u9009 {total} \u5929",
       "heat.monthNav": "\u5207\u6362\u6708\u4EFD",
       "heat.prev": "\u4E0A\u4E00\u6708",
       "heat.next": "\u4E0B\u4E00\u6708",
@@ -211,7 +216,12 @@ window.__ModuleLoader__.load({
       "sessions.cost.none": "This session has unpriced models",
       "heat.title": "Activity heatmap",
       "heat.sub": "{month} \xB7 UTC",
-      "heat.sub.fallback": "UTC",
+      "heat.sub.fallback": "Last 182 days \xB7 UTC",
+      "heat.month": "Month",
+      "heat.start": "From",
+      "heat.end": "To",
+      "heat.reset": "Reset dates",
+      "heat.summary": "{active} active days \xB7 {total} selected",
       "heat.monthNav": "Switch month",
       "heat.prev": "Previous month",
       "heat.next": "Next month",
@@ -414,7 +424,7 @@ window.__ModuleLoader__.load({
     // src/client/styles.ts
     var STYLE_ID = "dsh-usage-panel/styles";
     var CSS = [
-      ".dsw-ust-root{position:relative;display:flex;flex-direction:column;gap:16px;padding:16px 20px 28px;min-width:0}",
+      ".dsw-ust-root{position:relative;display:flex;flex-direction:column;gap:16px;padding:16px 20px 28px;min-width:0;container-type:inline-size}",
       ".dsw-ust-tooltip{position:fixed;left:0;top:0;transform:translate(-50%,-110%);background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);padding:8px 12px;border-radius:8px;font-size:12px;line-height:18px;white-space:nowrap;pointer-events:none;box-shadow:var(--dsw-shadow-lv2);opacity:0;transition:opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out);z-index:9999}",
       ".dsw-ust-tooltip.show{opacity:1}",
       ".dsw-ust-tooltip-title{font-size:12px;line-height:18px;font-weight:600;color:var(--dsw-alias-label-primary);margin-bottom:4px;white-space:nowrap}",
@@ -439,7 +449,11 @@ window.__ModuleLoader__.load({
       ".dsw-ust-card-head h3{margin:0}",
       ".dsw-ust-card-title{display:flex;align-items:baseline;gap:8px;min-width:0}",
       ".dsw-ust-card-sub{font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-label-secondary)}",
-      ".dsw-ust-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px}",
+      ".dsw-ust-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}",
+      ".dsw-ust-kpi:nth-child(-n+2){grid-column:span 3}",
+      ".dsw-ust-kpi:nth-child(n+3){grid-column:span 2}",
+      "@container (max-width:460px){.dsw-ust-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dsw-ust-kpi:nth-child(n){grid-column:span 1}}",
+      "@container (max-width:320px){.dsw-ust-kpis{grid-template-columns:minmax(0,1fr)}}",
       ".dsw-ust-kpi{background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:12px 16px;min-width:0}",
       ".dsw-ust-kpi .l{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
       ".dsw-ust-kpi .v{margin-top:8px;font-size:16px;line-height:24px;font-weight:700;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;word-break:break-all}",
@@ -473,35 +487,36 @@ window.__ModuleLoader__.load({
       ".dsw-ust-mpct{width:52px;text-align:right;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}",
       ".dsw-ust-empty{background:var(--dsw-alias-bg-layer-1);border:1px dashed var(--dsw-alias-border-l2);border-radius:8px;padding:32px 20px;text-align:center;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px}",
       ".dsw-ust-empty-title{font-size:14px;line-height:22px;font-weight:600;color:var(--dsw-alias-label-primary);margin-bottom:4px}",
-      ".dsw-ust-heat-wrap{position:relative;display:flex;gap:0;align-items:flex-start;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;-ms-overflow-style:none}",
-      ".dsw-ust-heat-wrap::-webkit-scrollbar{display:none}",
-      ".dsw-ust-heat-weekdays{position:absolute;left:0;top:16px;bottom:4px;display:grid;grid-template-rows:repeat(7,1fr);gap:4px;width:12px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);margin:0}",
-      ".dsw-ust-heat-weekdays span{display:flex;align-items:center;align-self:center;height:12px;line-height:12px}",
-      ".dsw-ust-heat-main{min-width:0;flex:1 1 auto;margin-left:20px}",
-      ".dsw-ust-heat-months{display:grid;gap:4px;width:100%;height:16px;margin-bottom:4px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
-      ".dsw-ust-heat-month{white-space:nowrap;min-width:0}",
-      ".dsw-ust-heat{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,auto);width:100%;min-width:max-content;gap:4px}",
-      ".dsw-ust-heat-cell{aspect-ratio:1/1;border-radius:4px;cursor:default;animation:dsw-ust-heat-in .45s linear both}",
-      ".dsw-ust-heat-cell:hover{box-shadow:var(--dsw-shadow-lv1)}",
-      ".dsw-ust-heat-blank{background:transparent;cursor:default;animation:none}",
+      ".dsw-ust-heat-card{overflow:hidden}",
+      ".dsw-ust-calendar-controls{display:flex;align-items:end;gap:8px 12px;flex-wrap:wrap;padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--dsw-alias-border-l1)}",
+      ".dsw-ust-calendar-field{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
+      ".dsw-ust-calendar-field input{width:110px;max-width:100%;font-size:12px;line-height:18px}",
+      ".dsw-ust-heat-layout{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap}",
+      ".dsw-ust-calendar{width:224px;flex:0 0 224px;max-width:100%}",
+      ".dsw-ust-calendar-weekdays,.dsw-ust-calendar-grid{display:grid;grid-template-columns:repeat(7,24px);gap:6px 8px}",
+      ".dsw-ust-calendar-weekdays{margin-bottom:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;text-align:center}",
+      ".dsw-ust-calendar-day,.dsw-ust-calendar-blank{width:24px;height:24px;border-radius:4px}",
+      ".dsw-ust-calendar-day{padding:0;border:0;color:var(--dsw-alias-label-primary);font:500 11px/24px var(--dsw-font-family);text-align:center;cursor:pointer;transition:opacity var(--ds-transition-duration-fast) var(--ds-ease-in-out),box-shadow var(--ds-transition-duration-fast) var(--ds-ease-in-out)}",
+      ".dsw-ust-calendar-day.dsw-ust-h3,.dsw-ust-calendar-day.dsw-ust-h4{color:var(--dsw-alias-bg-layer-1)}",
+      ".dsw-ust-calendar-day.is-outside{opacity:.3}",
+      ".dsw-ust-calendar-day:hover,.dsw-ust-calendar-day:focus-visible{opacity:1;outline:2px solid var(--dsw-alias-state-link-primary);outline-offset:2px}",
+      ".dsw-ust-calendar-day[aria-pressed=true]{outline:2px solid var(--dsw-alias-state-link-primary);outline-offset:2px}",
+      ".dsw-ust-heat-summary{display:flex;flex-direction:column;align-items:flex-start;min-width:160px;flex:1;padding-top:24px}",
+      ".dsw-ust-heat-summary-label,.dsw-ust-heat-summary-unit,.dsw-ust-heat-summary-detail{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary)}",
+      ".dsw-ust-heat-summary strong{margin-top:6px;font-size:22px;line-height:28px;font-weight:600;color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}",
+      ".dsw-ust-heat-summary-detail{margin-top:8px}",
       ".dsw-ust-h0{background:color-mix(in srgb, var(--dsw-alias-label-secondary) 14%, var(--dsw-alias-bg-layer-1));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l2)}",
       ".dsw-ust-h1{background:var(--dsw-static-deepseek-100)}",
       ".dsw-ust-h2{background:var(--dsw-static-deepseek-300)}",
       ".dsw-ust-h3{background:var(--dsw-static-deepseek-500)}",
       ".dsw-ust-h4{background:var(--dsw-static-deepseek-600)}",
-      ".dsw-ust-heat-tools{display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap}",
-      ".dsw-ust-month-nav{display:inline-flex;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;overflow:hidden;flex-shrink:0}",
-      ".dsw-ust-month-nav button{border:none;background:transparent;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:18px;padding:4px 10px;cursor:pointer}",
-      ".dsw-ust-month-nav button:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}",
-      ".dsw-ust-month-nav button:disabled{opacity:0.35;cursor:default}",
-      ".dsw-ust-heat-legend{display:flex;align-items:center;gap:4px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);flex-shrink:0}",
+      ".dsw-ust-heat-legend{display:flex;align-items:center;gap:4px;margin-top:18px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary);flex-shrink:0}",
       ".dsw-ust-heat-swatch{width:12px;height:12px;border-radius:4px;display:inline-block}",
       ".dsw-ust-bar-seg{transform-origin:bottom;transform-box:fill-box;animation:dsw-ust-bar-grow .9s cubic-bezier(.16,1,.3,1) both}",
       ".dsw-ust-donut-seg{transform-box:fill-box;transform-origin:center;animation:dsw-ust-donut-spin .9s cubic-bezier(.16,1,.3,1) both}",
       "@keyframes dsw-ust-bar-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}",
       "@keyframes dsw-ust-donut-spin{from{transform:rotate(-90deg)}to{transform:rotate(270deg)}}",
-      "@keyframes dsw-ust-heat-in{from{opacity:0}to{opacity:1}}",
-      "@media (prefers-reduced-motion:reduce){.dsw-ust-heat-cell,.dsw-ust-bar-seg,.dsw-ust-donut-seg{animation:none}}",
+      "@media (prefers-reduced-motion:reduce){.dsw-ust-bar-seg,.dsw-ust-donut-seg{animation:none}}",
       ".dsw-ust-srow{display:flex;align-items:center;gap:12px;padding:8px 4px;font-size:12px;line-height:18px;min-width:0}",
       ".dsw-ust-srow+.dsw-ust-srow{border-top:1px solid var(--dsw-alias-border-l1)}",
       ".dsw-ust-table-head{display:flex;align-items:center;gap:12px;padding:4px 4px 6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary)}",
@@ -1178,132 +1193,108 @@ window.__ModuleLoader__.load({
 
     // src/client/components/Heatmap.tsx
     var import_react3 = require("react");
+    var UiPrimitives = __toESM(require("@deepseek-ai/dsh-client-ui-primitives"), 1);
     var React3 = __toESM(require("react"), 1);
+    var { Button, Input, SettingsSelect } = UiPrimitives;
     function Heatmap({ days, i18n, onTip, prices, peakValley = true, modelProviders = {} }) {
       const t = i18n.t;
       const locale = i18n.locale;
       const months = listMonthKeys(days);
-      const [picked, setPicked] = (0, import_react3.useState)(null);
-      const monthKey = picked && months.includes(picked) ? picked : months[months.length - 1] ?? "";
-      const monthIndex = months.indexOf(monthKey);
-      const canPrev = monthIndex > 0;
-      const canNext = monthIndex >= 0 && monthIndex < months.length - 1;
-      const byDate = {};
-      const nonzero = [];
-      for (const d of days) {
-        if (monthKeyUTC(d.date) !== monthKey) continue;
-        byDate[d.date] = d;
-        if (d.total > 0) nonzero.push(d.total);
-      }
-      const q = quartileThresholds(nonzero);
-      const levelOf = (total) => heatLevel(total, q);
-      const gridCells = [];
-      const weekLabels = [];
-      let heatWeeks = 0;
+      const minDate = days[0]?.date ?? "";
+      const maxDate = days[days.length - 1]?.date ?? "";
+      const [pickedMonth, setPickedMonth] = (0, import_react3.useState)(null);
+      const [pickedStart, setPickedStart] = (0, import_react3.useState)(null);
+      const [pickedEnd, setPickedEnd] = (0, import_react3.useState)(null);
+      const monthKey = pickedMonth && months.includes(pickedMonth) ? pickedMonth : months[months.length - 1] ?? "";
+      const start = pickedStart && pickedStart >= minDate && pickedStart <= maxDate ? pickedStart : minDate;
+      const end = pickedEnd && pickedEnd >= start && pickedEnd <= maxDate ? pickedEnd : maxDate;
+      const byDate = new Map(days.map((day) => [day.date, day]));
+      const monthDays = days.filter((day) => monthKeyUTC(day.date) === monthKey);
+      const selected = days.filter((day) => day.date >= start && day.date <= end && monthKeyUTC(day.date) === monthKey);
+      const q = quartileThresholds(monthDays.filter((day) => day.total > 0).map((day) => day.total));
+      const selectedTotal = selected.reduce((sum, day) => sum + day.total, 0);
+      const activeDays = selected.filter((day) => day.total > 0).length;
+      const showTip = (element, rec) => {
+        const rect = element.getBoundingClientRect();
+        const lines = [];
+        if (prices !== void 0) {
+          const rows = Object.keys(rec.modelCosts).map((model) => ({
+            model,
+            provider: modelProviders[model] ?? "unknown",
+            cost: rec.modelCosts[model]
+          }));
+          const cents = totalCostCents(rows, prices, peakValley);
+          lines.push({
+            label: t("heat.cost"),
+            value: cents === null ? t("heat.costNone") : formatCost(cents),
+            color: cents === null ? "var(--dsw-alias-label-tertiary)" : "var(--dsw-alias-state-success-primary)"
+          });
+        }
+        onTip({
+          left: rect.left + rect.width / 2,
+          top: rect.top - 6,
+          title: t("heat.day", { date: dateCN(rec.date, locale), tokens: fmtTokens(rec.total, locale) }),
+          lines
+        });
+      };
+      const cells = [];
       if (monthKey) {
-        const parts = monthKey.split("-");
-        const year = Number(parts[0]);
-        const month = Number(parts[1]);
-        const firstKey = monthKey + "-01";
-        const lead = weekdayIndexUTC(firstKey);
-        const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-        heatWeeks = Math.ceil((lead + daysInMonth) / 7);
-        for (let w = 0; w < heatWeeks; w++) {
-          const monday = new Date(Date.UTC(year, month - 1, 1 - lead + w * 7));
-          let weekLabel = "";
-          for (let r = 0; r < 7; r++) {
-            const cur = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + r));
-            const key = keyOfDateUTC(cur);
-            const inMonth = cur.getUTCFullYear() === year && cur.getUTCMonth() === month - 1;
-            if (!inMonth) {
-              gridCells.push(/* @__PURE__ */ React3.createElement("div", { key: key + "-pad", className: "dsw-ust-heat-cell dsw-ust-heat-blank" }));
-              continue;
-            }
-            if (!weekLabel) weekLabel = String(cur.getUTCDate());
-            const rec = byDate[key];
-            if (!rec) {
-              gridCells.push(/* @__PURE__ */ React3.createElement("div", { key: key + "-blank", className: "dsw-ust-heat-cell dsw-ust-heat-blank" }));
-              continue;
-            }
-            const level = levelOf(rec.total);
-            gridCells.push(
-              /* @__PURE__ */ React3.createElement(
-                "div",
-                {
-                  key,
-                  className: "dsw-ust-heat-cell dsw-ust-h" + level,
-                  style: { animationDelay: (w * 0.018).toFixed(4) + "s" },
-                  onMouseEnter: (e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const lines = [];
-                    if (prices !== void 0) {
-                      const rows = Object.keys(rec.modelCosts).map((model) => ({
-                        model,
-                        provider: modelProviders[model] ?? "unknown",
-                        cost: rec.modelCosts[model]
-                      }));
-                      const cents = totalCostCents(rows, prices, peakValley);
-                      lines.push({
-                        label: t("heat.cost"),
-                        value: cents === null ? t("heat.costNone") : formatCost(cents),
-                        color: cents === null ? "var(--dsw-alias-label-tertiary)" : "var(--dsw-alias-state-success-primary)"
-                      });
-                    }
-                    onTip({
-                      left: rect.left + rect.width / 2,
-                      top: rect.top - 6,
-                      title: t("heat.day", { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) }),
-                      lines
-                    });
-                  },
-                  onMouseLeave: () => onTip(null)
-                }
-              )
-            );
+        const [year, month] = monthKey.split("-").map(Number);
+        const lead = weekdayIndexUTC(monthKey + "-01");
+        const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        const slots = Math.ceil((lead + count) / 7) * 7;
+        for (let slot = 0; slot < slots; slot++) {
+          const date = new Date(Date.UTC(year, month - 1, slot - lead + 1));
+          const key = keyOfDateUTC(date);
+          const rec = monthKeyUTC(key) === monthKey ? byDate.get(key) : void 0;
+          if (!rec) {
+            cells.push(/* @__PURE__ */ React3.createElement("span", { key: key + "-blank", className: "dsw-ust-calendar-blank", "aria-hidden": "true" }));
+            continue;
           }
-          weekLabels.push(weekLabel);
+          const outside = key < start || key > end;
+          const level = heatLevel(rec.total, q);
+          cells.push(
+            /* @__PURE__ */ React3.createElement(
+              "button",
+              {
+                key,
+                type: "button",
+                className: "dsw-ust-calendar-day dsw-ust-h" + level + (outside ? " is-outside" : ""),
+                "aria-label": t("heat.day", { date: dateCN(key, locale), tokens: fmtTokens(rec.total, locale) }),
+                "aria-pressed": start === key && end === key,
+                onClick: () => {
+                  setPickedStart(key);
+                  setPickedEnd(key);
+                },
+                onMouseEnter: (event) => showTip(event.currentTarget, rec),
+                onMouseLeave: () => onTip(null),
+                onFocus: (event) => showTip(event.currentTarget, rec),
+                onBlur: () => onTip(null)
+              },
+              date.getUTCDate()
+            )
+          );
         }
       }
-      const weekdays = locale === "zh-CN" ? ["\u4E00", "", "\u4E09", "", "\u4E94", "", ""] : ["M", "", "W", "", "F", "", ""];
-      const minWidth = heatWeeks > 0 ? heatWeeks * 12 + (heatWeeks - 1) * 3 : 0;
-      const sub = monthKey ? t("heat.sub", { month: monthLabel(monthKey, locale) }) : t("heat.sub.fallback");
-      return /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-head" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-title" }, /* @__PURE__ */ React3.createElement("h3", null, t("heat.title")), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-card-sub" }, sub)), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-tools" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-month-nav", role: "group", "aria-label": t("heat.monthNav") }, /* @__PURE__ */ React3.createElement(
-        "button",
-        {
-          type: "button",
-          disabled: !canPrev,
-          "aria-label": t("heat.prev"),
-          onClick: () => {
-            if (canPrev) setPicked(months[monthIndex - 1]);
-          }
-        },
-        "\u2039"
-      ), /* @__PURE__ */ React3.createElement(
-        "button",
-        {
-          type: "button",
-          disabled: !canNext,
-          "aria-label": t("heat.next"),
-          onClick: () => {
-            if (canNext) setPicked(months[monthIndex + 1]);
-          }
-        },
-        "\u203A"
-      )), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-legend" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.less")), [0, 1, 2, 3, 4].map((l) => /* @__PURE__ */ React3.createElement("i", { key: l, className: "dsw-ust-heat-swatch dsw-ust-h" + l })), /* @__PURE__ */ React3.createElement("span", null, t("heat.more"))))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-wrap" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-weekdays" }, weekdays.map((w, i) => /* @__PURE__ */ React3.createElement("span", { key: i }, w))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-main" }, /* @__PURE__ */ React3.createElement(
-        "div",
-        {
-          className: "dsw-ust-heat-months",
-          style: { gridTemplateColumns: "repeat(" + Math.max(heatWeeks, 1) + ", minmax(12px, 1fr))", minWidth }
-        },
-        weekLabels.map((label, i) => /* @__PURE__ */ React3.createElement("span", { key: i, className: "dsw-ust-heat-month" }, label))
-      ), /* @__PURE__ */ React3.createElement(
-        "div",
-        {
-          className: "dsw-ust-heat",
-          style: { gridTemplateColumns: "repeat(" + Math.max(heatWeeks, 1) + ", minmax(12px, 1fr))", minWidth }
-        },
-        gridCells
-      ))));
+      const weekdays = locale === "zh-CN" ? ["\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D", "\u65E5"] : ["M", "T", "W", "T", "F", "S", "S"];
+      return /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card dsw-ust-heat-card" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-head" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-card-title" }, /* @__PURE__ */ React3.createElement("h3", null, t("heat.title")), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-card-sub" }, t("heat.sub.fallback")))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar-controls" }, /* @__PURE__ */ React3.createElement("label", { className: "dsw-ust-calendar-field" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.month")), /* @__PURE__ */ React3.createElement(SettingsSelect, { value: monthKey, options: months.map((key) => ({ id: key, label: monthLabel(key, locale) })), onChange: setPickedMonth, "aria-label": t("heat.month") })), /* @__PURE__ */ React3.createElement("label", { className: "dsw-ust-calendar-field" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.start")), /* @__PURE__ */ React3.createElement(Input, { type: "date", value: start, min: minDate, max: maxDate, onChange: (event) => {
+        const value = event.currentTarget.value;
+        if (value) {
+          setPickedStart(value);
+          if (value > end) setPickedEnd(value);
+          setPickedMonth(monthKeyUTC(value));
+        }
+      } })), /* @__PURE__ */ React3.createElement("label", { className: "dsw-ust-calendar-field" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.end")), /* @__PURE__ */ React3.createElement(Input, { type: "date", value: end, min: minDate, max: maxDate, onChange: (event) => {
+        const value = event.currentTarget.value;
+        if (value) {
+          setPickedEnd(value);
+          if (value < start) setPickedStart(value);
+          setPickedMonth(monthKeyUTC(value));
+        }
+      } })), /* @__PURE__ */ React3.createElement(Button, { variant: "ghost", size: "sm", onClick: () => {
+        setPickedStart(null);
+        setPickedEnd(null);
+      } }, t("heat.reset"))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-layout" }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar", role: "group", "aria-label": monthLabel(monthKey, locale) }, /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar-weekdays" }, weekdays.map((day, index) => /* @__PURE__ */ React3.createElement("span", { key: index }, day))), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-calendar-grid" }, cells)), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-summary", "aria-live": "polite" }, /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-heat-summary-label" }, monthLabel(monthKey, locale)), /* @__PURE__ */ React3.createElement("strong", null, fmtTokens(selectedTotal, locale)), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-heat-summary-unit" }, "Tokens"), /* @__PURE__ */ React3.createElement("span", { className: "dsw-ust-heat-summary-detail" }, t("heat.summary", { active: activeDays, total: selected.length })), /* @__PURE__ */ React3.createElement("div", { className: "dsw-ust-heat-legend" }, /* @__PURE__ */ React3.createElement("span", null, t("heat.less")), [0, 1, 2, 3, 4].map((level) => /* @__PURE__ */ React3.createElement("i", { key: level, className: "dsw-ust-heat-swatch dsw-ust-h" + level })), /* @__PURE__ */ React3.createElement("span", null, t("heat.more"))))));
     }
 
     // src/client/components/BarChart.tsx

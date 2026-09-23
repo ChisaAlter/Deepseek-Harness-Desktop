@@ -52,7 +52,7 @@ import { BillingStore, openBillingMedium } from './billing-store.ts'
 import { createLegacyBillingImport } from './legacy-billing-import.ts'
 import { CONVERSATION_SETTINGS_NS, createPricesSource } from './prices-source.ts'
 import { createPricesRepair } from './prices-repair.ts'
-import { repairSessionLog, resolveDshHome, runtimeCodec } from './session-repair.ts'
+import { isRepairableSessionId, repairSessionLog, resolveDshHome, runtimeCodec } from './session-repair.ts'
 import { openStatsCache, statsCacheKey, type StatsCache } from './stats-cache.ts'
 import { scanPacer, withTimeout } from './pacing.ts'
 import type { HostConnection, HostLlm, HostProjectionCache, HostSessionQuery, HostSettings, HostSettingsEventSource, LlmProviderInfoLike } from './types.ts'
@@ -617,7 +617,7 @@ export function apply(ctx: Context): void {
    */
   async function repairSession(payload: { sessionId?: string }): Promise<RepairResult> {
     const sessionId = payload.sessionId
-    if (!sessionId || !/^(?:session-)?[0-9a-f-]+$/i.test(sessionId)) {
+    if (!isRepairableSessionId(sessionId, failedSessionIds)) {
       throw new Error('invalid session id')
     }
     const codec = await runtimeCodec()
