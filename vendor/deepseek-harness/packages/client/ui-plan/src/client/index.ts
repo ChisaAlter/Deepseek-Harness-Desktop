@@ -17,7 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-resources/client'
 import { extractMarkdownPlainText } from '@deepseek-ai/dsh-client-ui-primitives'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
-import { PlanCards, PlanReviewOpen, type PlanOpenInjected, type PlanReviewOpenInjected } from './PlanCard.tsx'
+import { PlanCards, PlanReviewOpen, type PlanCardsInjected, type PlanOpenInjected, type PlanReviewOpenInjected } from './PlanCard.tsx'
 import { PlanPreview, PlanTitle } from './PlanPreview.tsx'
 import { planDefinition } from './plan-definition.ts'
 import { planResourceProvider } from './plan-resource.ts'
@@ -71,23 +71,39 @@ export function apply(ctx: ClientContext): void {
     openPlan: (callId) => {
       const child = ctx.sessions.subagentAddress(sessionId)
       const session = child === undefined ? { kind: 'session' as const, sessionId } : { kind: 'subagent' as const, ...child }
-      ctx.sidebarRight.openResourceIn(sessionId, planAddress({ session, callId }))
+      ctx.sidebarRight.openResource(planAddress({ session, callId }))
     },
   })
   const reviewWindow = randomUUID()
   const reviewStore = createPlanReviewStore()
   ctx.slots.inject('conversation.chat.turnTail', () => ctx.slots.register({
-    name: 'conversation.chat.turnTail', id: previewId, locale: NS, inject: open,
+    name: 'conversation.chat.turnTail', id: previewId, locale: NS,
+    inject: (sessionId: SessionId): PlanCardsInjected => {
+      const binding = ctx.sessions.binding(sessionId)
+      if (binding === undefined) throw new Error(`ui-plan: unknown session "${sessionId}"`)
+      const chat = ctx.uiConversation.binding(binding).target('chat')
+      return {
+        ...open(sessionId),
+        keyedHooks: {
+          plans: (turn) => {
+            const snapshot = chat.getSnapshot()
+            if (snapshot === undefined) throw new Error('ui-plan: Chat target is unavailable')
+            return snapshot.nodes.turnDataSource(Number(turn), 'submitted-plan')
+          },
+        },
+      }
+    },
   }, PlanCards))
   ctx.slots.inject('conversation.plan-review.actions', () => ctx.slots.register({
     name: 'conversation.plan-review.actions', id: previewId, locale: NS, store: reviewStore,
     inject: (sessionId: SessionId): PlanReviewOpenInjected => ({
       openReview: (review, requestKey) => {
         if (review.callId !== undefined) { open(sessionId).openPlan(review.callId); return }
-        ctx.sidebarRight.openResourceIn(sessionId, reviewPreviewAddress(sessionId, `${reviewWindow}:${requestKey}`), {
+        ctx.sidebarRight.openResource(reviewPreviewAddress(sessionId, `${reviewWindow}:${requestKey}`), {
           params: { planReview: { markdown: review.plan, title: extractMarkdownPlainText(review.plan, { mode: 'first-line' }) } },
         })
       },
+      hooks: { sidebarMounted: ctx.sidebarRight.mounted },
     }),
   }, PlanReviewOpen))
   ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({

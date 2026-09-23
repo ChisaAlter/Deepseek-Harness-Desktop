@@ -33,6 +33,33 @@ describe('archived Agent Notes', () => {
     expect(validateArchiveArtifacts(fixture())).toEqual([])
   })
 
+  it.each(['# Agent Note：示例', '# Historical decision'])('preserves historical formatting: %s', (title) => {
+    const artifacts = fixture()
+    const base = '2026-07-26-example'
+    const source = Buffer.from(`${title}\nStatus: implemented\nArchived: 2026-07-26\n[中文版本](${base}.zh.md)\n`)
+    artifacts.set(`process/${base}.md`, source)
+    const zh = artifacts.get(`process/${base}.zh.md`)!
+    artifacts.set(`process/${base}.i18n.yaml`, Buffer.from(`${base}.md: ${gitBlobHash(source)}\n${base}.zh.md: ${gitBlobHash(zh)}\n`))
+    expect(validateArchiveArtifacts(artifacts)).toEqual([])
+  })
+
+  it.each([
+    ['Status: proposed\nArchived: 2026-07-26', /requires `Status: implemented`/],
+    ['Status: implemented\n\nArchived: 2026-07-26', /immediately after the status/],
+    ['Status: implemented\nArchived: 2026-02-30', /valid date/],
+    ['Status: implemented\nArchived: 2026-07-25', /predates the note filename/],
+    ['Status: implemented\nArchived: 2026-07-27', /English and Chinese archive dates differ/],
+    ['Archived: 2026-07-26\nStatus: implemented\nArchived: 2026-07-27', /English and Chinese archive dates differ/],
+  ])('rejects invalid archive metadata: %s', (metadata, error) => {
+    const artifacts = fixture()
+    const base = '2026-07-26-example'
+    const source = Buffer.from(`# Historical decision\n${metadata}\n`)
+    artifacts.set(`process/${base}.md`, source)
+    const zh = artifacts.get(`process/${base}.zh.md`)!
+    artifacts.set(`process/${base}.i18n.yaml`, Buffer.from(`${base}.md: ${gitBlobHash(source)}\n${base}.zh.md: ${gitBlobHash(zh)}\n`))
+    expect(validateArchiveArtifacts(artifacts).join('\n')).toMatch(error)
+  })
+
   it('rejects incomplete triplets and invalid archive headers', () => {
     const artifacts = fixture()
     artifacts.delete('process/2026-07-26-example.i18n.yaml')

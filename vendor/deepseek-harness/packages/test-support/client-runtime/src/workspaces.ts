@@ -1,7 +1,7 @@
 /** Test-owned workspaces face: the renderer standard-kit observable plus recorded actions. */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type {
-  IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
+  IWorkspaces, WorkspaceId, WorkspaceInitializeDefaultRequest, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -34,6 +34,13 @@ export class TestWorkspaces implements IWorkspaces {
 
   /** Calls observed on the action face, newest last. */
   readonly calls: { method: string; args: unknown[] }[] = []
+
+  applyArchivedEcho(sessionIds: readonly SessionId[]): void {
+    this.calls.push({ method: 'applyArchivedEcho', args: [sessionIds] })
+    this.list.update(draft => {
+      draft.archivedSessionIds = [...sessionIds]
+    })
+  }
 
   /** Replaceable action seat: feature tests may stub richer behavior. */
   private readonly stubs = new Map<WorkspaceAction, (...args: unknown[]) => unknown>()
@@ -78,6 +85,18 @@ export class TestWorkspaces implements IWorkspaces {
       path: input.path,
       sessionIds: [],
     } as unknown as WorkspaceView
+  }
+
+  /**
+   * Initialize the default Workspace through a test stub; defaults to an ineligible first use.
+   * @param request - initial directory name and title.
+   * @param signal - caller lifetime.
+   * @returns the stubbed Workspace, or undefined when initialization is ineligible.
+   */
+  async initializeDefault(request: WorkspaceInitializeDefaultRequest, signal?: AbortSignal): Promise<WorkspaceView | undefined> {
+    this.calls.push({ method: 'initializeDefault', args: [request, signal] })
+    const stub = this.stubs.get('initializeDefault')
+    return await (stub?.(request, signal) as Promise<WorkspaceView | undefined> | undefined)
   }
 
   /**
@@ -161,18 +180,39 @@ export class TestWorkspaces implements IWorkspaces {
   }
 
   /**
-   * Install an archive-set echo (recorded). The default replaces the archive set.
-   * @param archivedSessionIds - complete Host archive set.
+   * Pin a session (recorded). The default mirrors the production face's
+   * observable effect: the id leads the list state's pin set.
+   * @param sessionId - session to pin.
    */
-  applyArchivedEcho(archivedSessionIds: readonly SessionId[]): void {
-    this.calls.push({ method: 'applyArchivedEcho', args: [archivedSessionIds] })
-    const stub = this.stubs.get('applyArchivedEcho')
+  async pinSession(sessionId: SessionId): Promise<void> {
+    this.calls.push({ method: 'pinSession', args: [sessionId] })
+    const stub = this.stubs.get('pinSession')
     if (stub !== undefined) {
-      stub(archivedSessionIds)
+      await (stub(sessionId) as Promise<void>)
       return
     }
-    this.list.update((draft) => {
-      draft.archivedSessionIds = [...archivedSessionIds]
+    await this.update((draft) => {
+      draft.pinnedSessionIds = [
+        sessionId,
+        ...draft.pinnedSessionIds.filter(id => id !== sessionId),
+      ]
+    })
+  }
+
+  /**
+   * Unpin a session (recorded). The default mirrors the production face's
+   * observable effect: the id leaves the list state's pin set.
+   * @param sessionId - session to unpin.
+   */
+  async unpinSession(sessionId: SessionId): Promise<void> {
+    this.calls.push({ method: 'unpinSession', args: [sessionId] })
+    const stub = this.stubs.get('unpinSession')
+    if (stub !== undefined) {
+      await (stub(sessionId) as Promise<void>)
+      return
+    }
+    await this.update((draft) => {
+      draft.pinnedSessionIds = draft.pinnedSessionIds.filter(id => id !== sessionId)
     })
   }
 }

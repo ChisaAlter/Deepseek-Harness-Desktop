@@ -146,10 +146,10 @@ describe('StatsPills', () => {
     values: Record<string, unknown> = { tokenUsage: USAGE },
   ): StatsPillsProps {
     return {
+      usePerformanceUsage: selector => selector('detailed'),
       useChat: bindSnapshotSelector(source),
       useProjection: projections(values),
-      useSession: sel => sel({ running: false }),
-      useStatsLine: sel => sel(true),
+      useStatsLine: selector => selector(true),
       t: tEn,
     }
   }
@@ -162,6 +162,27 @@ describe('StatsPills', () => {
   const timedStep = (): AssistantMessageNode => ({
     ...assistant(1, 1, { outputTokens: 60 }),
     timing: { stepStartTime: 1_000, firstTokenTime: 1_800, completedTime: 4_800 },
+  })
+
+  it('compact keeps only speed and cache hit, with no interactive statistics', () => {
+    const { source } = makeSource({ nodes: [timedStep()] })
+    const view = render(<StatsPills {...props(source)} usePerformanceUsage={selector => selector('compact')} />)
+    expect(view.container.textContent).toBe('20 tok/sCache hit 90%')
+    expect(view.queryByRole('button')).toBeNull()
+    fireEvent.mouseOver(view.getByText('20 tok/s'))
+    expect(view.queryByRole('dialog')).toBeNull()
+    view.rerender(<StatsPills {...props(source)} />)
+    expect(view.getAllByRole('button')).toHaveLength(2)
+    fireEvent.click(view.getAllByRole('button')[0]!)
+    expect(view.getByRole('dialog')).toBeTruthy()
+    view.rerender(<StatsPills {...props(source)} usePerformanceUsage={selector => selector('compact')} />)
+    expect(view.queryByRole('dialog')).toBeNull()
+  })
+
+  it('compact omits unavailable metrics instead of showing counts', () => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {})} usePerformanceUsage={selector => selector('compact')} />)
+    expect(view.container.textContent).toBe('')
   })
 
   it('renders the counts reading and usage pill and hides a brand-new empty session', () => {
@@ -184,27 +205,26 @@ describe('StatsPills', () => {
     expect(emptyView.container.textContent).toBe('')
   })
 
-  it('keeps the stats row gap while a turn is running before any closed step', () => {
+  it('keeps the stats row gap before any closed step', () => {
     const empty = makeSource()
     const view = render(<StatsPills {...props(empty.source, {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
       sessionStats: sessionStats({}),
-    })} useSession={sel => sel({ running: true })} />)
+    })} />)
     const row = view.container.querySelector('[data-stats-line="pending"]')
     expect(row).not.toBeNull()
-    expect(row?.getAttribute('aria-hidden')).toBe('true')
     expect(row?.textContent).toBe('')
   })
 
-  it('keeps the stats row gap while running even when statsLine is off', () => {
+  it('keeps the stats row gap without counts when statsLine is off', () => {
     const empty = makeSource()
     const view = render(<StatsPills {...props(empty.source, {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
       sessionStats: sessionStats({}),
-    })} useSession={sel => sel({ running: true })} useStatsLine={sel => sel(false)} />)
+    })} useStatsLine={sel => sel(false)} />)
     const row = view.container.querySelector('[data-stats-line="hidden"]')
     expect(row).not.toBeNull()
-    expect(row?.getAttribute('aria-hidden')).toBe('true')
+    expect(row?.textContent).toBe('')
   })
 
   it('keeps the stats row gap and hides the figures when statsLine is off', () => {
@@ -213,17 +233,16 @@ describe('StatsPills', () => {
     const row = view.container.querySelector('[data-stats-line="hidden"]')
     expect(row).not.toBeNull()
     expect(row?.getAttribute('data-stats-line')).toBe('hidden')
-    expect(row?.getAttribute('aria-hidden')).toBe('true')
-    expect(row?.textContent).toContain('1 turns')
+    expect(row?.textContent).toBe('')
     expect(view.container.querySelector('[role="tooltip"]')).toBeNull()
   })
 
-  it('keeps settled figures while a later turn is running', () => {
+  it('keeps settled figures from the durable projection', () => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsPills {...props(source, {
       tokenUsage: USAGE,
       sessionStats: sessionStats({ turns: 1, steps: 1, llmMs: 3_800 }),
-    })} useSession={sel => sel({ running: true })} />)
+    })} />)
     const timePill = view.getAllByRole('button')[0]!
     expect(timePill.textContent).toBe('1 turns 1 steps')
     // The settled wall time stays readable in the counts pill's dialog.
@@ -231,12 +250,12 @@ describe('StatsPills', () => {
     expect(view.getByRole('dialog').textContent).toContain('LLM time3.8s')
   })
 
-  it('keeps no row on an empty session even when statsLine is off', () => {
+  it('keeps an empty hidden row when statsLine is off', () => {
     const empty = makeSource()
     const view = render(<StatsPills {...props(empty.source, {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
     })} useStatsLine={sel => sel(false)} />)
-    expect(view.container.querySelector('[data-stats-line]')).toBeNull()
+    expect(view.container.querySelector('[data-stats-line="hidden"]')).not.toBeNull()
     expect(view.container.textContent).toBe('')
   })
 

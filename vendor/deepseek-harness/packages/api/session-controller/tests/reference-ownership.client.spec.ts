@@ -36,7 +36,7 @@ async function bench(mock: RemoteMock, start: () => Promise<TestClient>, listed 
   mock.stream(FOLLOW, followScript(EMPTY_HISTORY))
   const feed = async (include: boolean): Promise<void> => {
     mock.remote.session.list.mockResolvedValue(ok({ items: include
-      ? [{ sessionId: ID, updatedAt: 1, running: false, blank: true }]
+      ? [{ sessionId: ID, updatedAt: 1, running: false, blank: true, agentAvailable: true }]
       : [] }))
     await svc.refresh()
   }
@@ -119,7 +119,7 @@ describe('Client reference sources', () => {
     expect(b.svc.list.getSnapshot().byId[ID]?.retainedBy).toBe(snapshot.retainedBy)
     b.svc.handleSessionRemoved(ID)
     await vi.waitFor(() => {
-      expect(b.svc.list.getSnapshot().byId[ID]?.retainedBy).toBe(snapshot.retainedBy)
+      expect(b.svc.list.getSnapshot().byId[ID]).toBeUndefined()
     })
     expect(b.svc.list.getSnapshot().ids).not.toContain(ID)
     expect(source.getSnapshot()).toBe(snapshot)
@@ -138,9 +138,9 @@ describe('Client reference sources', () => {
     expect(reference.binding.session.getSnapshot().openState).toBe('cold')
     expect(source.getSnapshot()).toEqual({ referenceCount: 1, retainedBy: { gateway: 1 } })
     expect(b.svc.list.getSnapshot().ids).not.toContain(ID)
-    expect(b.svc.list.getSnapshot().byId[ID]?.retainedBy).toEqual({ gateway: 1 })
+    expect(b.svc.list.getSnapshot().byId[ID]).toBeUndefined()
     expect(mock.log.requests(FOLLOW)).toHaveLength(0)
-    expect(mock.remote.subagents.list).not.toHaveBeenCalled()
+    expect(mock.remote.session.projections).not.toHaveBeenCalled()
     await b.feed(true)
     expect(b.svc.list.getSnapshot().byId[ID]?.retainedBy).toEqual({ gateway: 1 })
   })

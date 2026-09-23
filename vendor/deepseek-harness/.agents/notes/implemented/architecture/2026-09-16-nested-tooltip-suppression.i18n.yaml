@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-16-nested-tooltip-suppression.md
-2026-09-16-nested-tooltip-suppression.md: 1b06a3a1a4f754aa78e821ee8a1479dab19873ff
-2026-09-16-nested-tooltip-suppression.zh.md: 96063f78b281deb3561045bb73fcffa64a2c1ef8

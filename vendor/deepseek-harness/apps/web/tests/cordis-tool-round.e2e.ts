@@ -54,6 +54,10 @@ describe.skipIf(MODE === 'record')('web e2e: historical Cordis cards', () => {
     const stop = page.locator('[data-tool="cordis_stop"]').first()
     await expandOwningTurnProcess(page, stop)
     await expect.poll(() => stop.getAttribute('data-state')).toBe('ok')
+    // The golden shows a reader above the tail; tool expansion can leave scroll sampling pending.
+    const scrollport = page.locator('[data-conversation-scroll]')
+    await scrollport.evaluate((element) => { element.scrollTop = 0 })
+    await page.getByRole('button', { name: 'Back to bottom', exact: true }).waitFor()
     const snapshot = (await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd))
       .split(SEED_ID).join('{{seededId}}')
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)

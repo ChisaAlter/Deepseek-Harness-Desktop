@@ -1,5 +1,5 @@
 /**
- * listSessionAgents: catalog skip, label fallbacks, lineage, empty parent.
+ * listSessionAgents: catalog order, label fallbacks, lineage, empty parent.
  */
 import { describe, expect, it } from 'vitest'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -13,10 +13,8 @@ function emptyState(overrides: Partial<SessionListState> = {}): SessionListState
   return {
     ids: [],
     byId: {},
-
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
 
     ...overrides,
   }
@@ -29,7 +27,6 @@ describe('listSessionAgents', () => {
 
   it('uses the main-view retained session when sessionId is omitted', () => {
     const state = emptyState({
-
       byId: {
         [PARENT]: { id: PARENT, displayTitle: 'parent', retainedBy: { mainView: 1 }, running: false, blank: false, updatedAt: 0 },
         [CHILD]: {
@@ -48,30 +45,28 @@ describe('listSessionAgents', () => {
     ])
   })
 
-  it('skips non-child catalog entries and falls back for blank labels', () => {
+  it('uses catalog order and falls back for blank labels and unknown modes', () => {
     const state = emptyState({
-      subagentsByParent: {
+      byId: {
+        [CHILD]: {
+          id: CHILD, displayTitle: 'writer', retainedBy: {}, running: true,
+          blank: false, updatedAt: 1, parentId: PARENT,
+        },
+      },
+      projectionsBySession: {
         [PARENT]: {
-          entries: [
-            { kind: 'diagnostic', id: PARENT, reason: 'unavailable' },
-            { kind: 'child', id: CHILD, activity: 'inactive', hasChildren: false, mode: 'continuable', label: '' },
-            {
-              kind: 'child',
-              id: 'orphan' as SessionId,
-              activity: 'running',
-              hasChildren: false,
-              mode: 'one-shot',
-            },
-          ],
-          parentAvailable: true,
+          values: { subagentCatalog: [
+            { id: CHILD, createdAt: 1, mode: 'continuable', label: '' },
+            { id: 'orphan' as SessionId, createdAt: 2, mode: 'unknown' },
+          ] },
           state: 'ready',
           error: null,
         },
       },
     })
     expect(listSessionAgents(state, PARENT)).toEqual([
-      { id: CHILD, label: String(CHILD), activity: 'inactive', mode: 'continuable' },
-      { id: 'orphan' as SessionId, label: 'orphan', activity: 'running', mode: 'one-shot' },
+      { id: CHILD, label: 'writer', activity: 'running', mode: 'continuable' },
+      { id: 'orphan' as SessionId, label: 'orphan', activity: 'inactive' },
     ])
   })
 })

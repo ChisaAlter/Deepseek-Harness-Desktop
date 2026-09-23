@@ -1,47 +1,14 @@
 - dialog "设置":
   - navigation:
     - text: 设置
-    - button "通用设置":
-      - img
-      - text: 通用设置
-    - button "外观":
-      - img
-      - text: 外观
-    - button "界面设置":
-      - img
-      - text: 界面设置
-    - button "模型":
-      - img
-      - text: 模型
-    - button "内置插件":
-      - img
-      - text: 内置插件
-    - button "技能":
-      - img
-      - text: 技能
-    - button "MCP":
-      - img
-      - text: MCP
-    - button "Agent 预设":
-      - img
-      - text: Agent 预设
-    - button "已归档会话":
-      - img
-      - text: 已归档会话
-    - button "关于":
-      - img
-      - text: 关于
+    - button "通用设置"
+    - button "模型"
+    - button "内置插件"
+    - button "Agent 预设"
   - button "打开配置文件"
-  - button "关闭":
-    - img
-    - text: 关闭
+  - button "关闭"
   - heading "模型" [level=2]
-  - paragraph: 填入各提供方的 API 密钥即可使用其模型。
-  - text: 识图模型
-  - button "识图模型":
-    - text: 不启用
-    - img
-  - paragraph: 主模型不支持图片时，先由该模型识别图片内容，再把描述交给主模型处理。请选择一个支持图片输入的模型。
+  - paragraph: 填入各提供商的 API 密钥即可使用其模型。
   - list:
     - listitem:
       - text: minimax-cn
@@ -65,9 +32,10 @@
           - /placeholder: https://gateway.acme.example/v1
           - text: https://gateway.acme.example/v1
         - text: API 协议
-        - button "API 协议":
-          - text: openai-completions
-          - img
+        - combobox "API 协议":
+          - option "OpenAI Chat Completions" [selected]
+          - option "OpenAI Responses"
+          - option "Anthropic Messages"
         - region "模型目录":
           - text: 模型目录 已自定义模型目录
           - button "恢复默认模型"
@@ -77,10 +45,8 @@
             - text: acme-large
           - textbox "显示名称 1":
             - /placeholder: 显示名称
-          - button "模型选项 1" [expanded]:
-            - img
-          - button "删除模型 1":
-            - img
+          - button "模型选项 1" [expanded]
+          - button "删除模型 1"
           - text: 上下文窗口
           - textbox "上下文窗口 1":
             - /placeholder: 256K
@@ -93,30 +59,7 @@
             - text: 文本
             - checkbox "图片" [checked]
             - text: 图片
-          - group "Supported thinking intensity":
-            - text: Supported thinking intensity
-            - checkbox "Off 1"
-            - text: "Off"
-            - checkbox "Minimal 1"
-            - text: Minimal
-            - checkbox "Low 1"
-            - text: Low
-            - checkbox "Medium 1"
-            - text: Medium
-            - checkbox "High 1"
-            - text: High
-            - checkbox "Extra High 1"
-            - text: Extra High
-            - checkbox "Max 1"
-            - text: Max
-          - button "添加模型":
-            - img
-            - text: 添加模型
+          - button "添加模型"
       - button "取消"
       - button "保存"
-  - button "添加提供方":
-    - img
-    - text: 添加提供方
-  - button "添加自定义提供方":
-    - img
-    - text: 添加自定义提供方
+  - button "添加模型提供商"

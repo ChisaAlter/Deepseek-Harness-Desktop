@@ -97,7 +97,7 @@ function piAiNamespace(
     value: { providers },
     base: { providers: baseProviders },
     user: { providers: userProviders },
-    applies: 'live',
+    autoGenerate: true, applies: 'live',
     secrets: [],
     revision: 3,
   }
@@ -192,7 +192,7 @@ interface MutateCall {
 
 /** The latest interrogation payload; fails the case when nothing was asked. */
 function lastProbe(discover: ReturnType<typeof vi.fn>): unknown {
-  const call = (discover.mock.calls as unknown as [string, Record<string, unknown>][]).at(-1)
+  const call = (discover.mock.calls as [string, Record<string, unknown>][]).at(-1)
   if (call === undefined) throw new Error('no interrogation was recorded')
   return { settingsNs: call[0], ...call[1] }
 }
@@ -234,6 +234,12 @@ function openEditor(provider: string): void {
   const summary = document.querySelector('summary')
   if (summary === null) throw new Error('no customized fold')
   fireEvent.click(summary)
+}
+
+/** Open the add card from the section and switch it to the custom-API mode. */
+function openCustomMode(): void {
+  fireEvent.click(screen.getByRole('button', { name: en.add }))
+  fireEvent.click(screen.getByRole('tab', { name: en.addCustom }))
 }
 
 /** The button carrying `label`, typed so its disabled/title state is readable. */
@@ -671,6 +677,8 @@ describe('endpoint interrogation', () => {
 
     fireEvent.click(screen.getByText(en.fetchModels))
     await screen.findByText(en.fetchTitle)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Fresh' }).checked).toBe(true)
+    expect(screen.queryByRole('checkbox', { name: 'fresh' })).toBeNull()
     // The already-configured row starts unchecked; the new one starts checked.
     // Scoped to the adopt dialog: the model rows behind it carry their own
     // thinking-intensity checkboxes.
@@ -917,6 +925,8 @@ describe('endpoint interrogation', () => {
     fireEvent.click(screen.getByText(en.fetchModels))
     const dialog = await screen.findByRole('dialog')
     const search = screen.getByLabelText<HTMLInputElement>(en.fetchSearch)
+    expect(dialog.textContent).toContain('Beta Display')
+    expect(dialog.textContent).not.toContain('opaque-id')
     expect([...dialog.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
       .map(box => box.checked)).toEqual([true, true, true])
 
@@ -924,9 +934,12 @@ describe('endpoint interrogation', () => {
     expect(dialog.textContent).toContain('alpha')
     expect(dialog.textContent).not.toContain('opaque-id')
 
-    // The display name is searchable even though adoption and the row use id.
     fireEvent.change(search, { target: { value: 'beta' } })
-    expect(dialog.textContent).toContain('opaque-id')
+    expect(dialog.textContent).toContain('Beta Display')
+    expect(dialog.textContent).not.toContain('alpha')
+
+    fireEvent.change(search, { target: { value: 'opaque' } })
+    expect(dialog.textContent).toContain('Beta Display')
     expect(dialog.textContent).not.toContain('alpha')
 
     fireEvent.click(within_(dialog, en.fetchDeselectAll))
@@ -1189,9 +1202,9 @@ describe('hand-declared providers', () => {
     openEditor('acme-gateway')
 
     const protocol = screen.getByLabelText(en.customApi)
-    expect(protocol.textContent).toContain('openai-completions')
+    expect(protocol.textContent).toContain(en.protocolOpenAiCompletions)
     fireEvent.click(protocol)
-    fireEvent.click(screen.getByRole('menuitem', { name: 'anthropic-messages' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: en.protocolAnthropicMessages }))
     fireEvent.click(screen.getByText(en.apply))
 
     await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
@@ -1567,11 +1580,20 @@ describe('hand-declared providers', () => {
 
   it('creates with the chosen protocol and no display name', async () => {
     const { mutate, onClose } = mountCard()
+    const baseUrl = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
+    const protocol = screen.getByLabelText(en.customApi)
+
+    expect(baseUrl.placeholder).toBe('https://gateway.example/v1')
+    fireEvent.click(protocol)
+    fireEvent.click(screen.getByRole('menuitem', { name: en.protocolOpenAiResponses }))
+    expect(baseUrl.placeholder).toBe('https://gateway.example/v1')
 
     fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'acme' } })
-    fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://acme.test/v1' } })
-    fireEvent.click(screen.getByLabelText(en.customApi))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'anthropic-messages' }))
+    fireEvent.change(baseUrl, { target: { value: 'https://acme.test/anthropic' } })
+    fireEvent.click(protocol)
+    fireEvent.click(screen.getByRole('menuitem', { name: en.protocolAnthropicMessages }))
+    expect(baseUrl.placeholder).toBe('https://gateway.example')
+    expect(baseUrl.value).toBe('https://acme.test/anthropic')
     fireEvent.click(screen.getByRole('button', { name: en.addModel }))
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
     fireEvent.click(screen.getByText(en.create))
@@ -1583,7 +1605,7 @@ describe('hand-declared providers', () => {
     // nothing ever sets. The with-key case is covered above.
     expect(firstMutate(mutate).ops[0]?.value).toEqual({
       api: 'anthropic-messages',
-      baseURL: 'https://acme.test/v1',
+      baseURL: 'https://acme.test/anthropic',
       models: [{ id: 'm' }],
     })
   })
@@ -1608,27 +1630,39 @@ describe('hand-declared providers', () => {
     expect(buttonNamed(en.create).disabled).toBe(true)
   })
 
-  it('closes the create card when an existing row is opened for editing', async () => {
+  it('closes the add card when an existing row is opened for editing', async () => {
     await mountSection({ providers: { openai: { baseURL: 'https://proxy.example/v1' } } })
 
-    fireEvent.click(screen.getByRole('button', { name: en.customAdd }))
-    expect(screen.getByText(en.customTitle)).toBeTruthy()
+    openCustomMode()
+    expect(screen.getByRole('textbox', { name: en.customRoute })).toBeTruthy()
 
     // Two cards at once would each be closable by the other: whichever one is
     // dismissed clears the shared state and discards the other's draft.
     openEditor('openai')
-    expect(screen.queryByText(en.customTitle)).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('textbox', { name: en.customRoute })).toBeNull()
   })
 
-  it('reaches the card from the section and returns to the button on cancel', async () => {
+  it('reaches the custom form from the section and returns to the button on cancel', async () => {
     await mountSection()
 
-    fireEvent.click(screen.getByRole('button', { name: en.customAdd }))
-    expect(screen.getByText(en.customTitle)).toBeTruthy()
+    openCustomMode()
+    expect(screen.getByRole('textbox', { name: en.customRoute })).toBeTruthy()
 
     fireEvent.click(screen.getByText(en.cancel))
-    await waitFor(() => { expect(screen.queryByText(en.customTitle)).toBeNull() })
-    expect(screen.getByRole('button', { name: en.customAdd })).toBeTruthy()
+    await waitFor(() => { expect(screen.queryByRole('textbox', { name: en.customRoute })).toBeNull() })
+    expect(screen.getByRole('button', { name: en.add })).toBeTruthy()
+  })
+
+  it('names each protocol by its product name and falls back to the identifier of an unknown one', () => {
+    mountCard({ protocols: [...PROTOCOLS, 'google-generative-ai'] })
+    fireEvent.click(screen.getByLabelText(en.customApi))
+    expect(screen.getAllByRole('menuitem').map(option => option.textContent)).toEqual([
+      en.protocolOpenAiCompletions,
+      en.protocolOpenAiResponses,
+      en.protocolAnthropicMessages,
+      'google-generative-ai',
+    ])
   })
 
   it('refuses an unusable key on the field and blocks creation', () => {
@@ -1799,15 +1833,15 @@ describe('API key field', () => {
     const { controller, mutate } = await mountSection()
     const load = vi.spyOn(controller, 'load')
 
-    fireEvent.click(screen.getByRole('button', { name: en.customAdd }))
-    fireEvent.change(screen.getByLabelText(en.customRoute), { target: { value: 'acme' } })
-    fireEvent.change(screen.getByLabelText(en.baseUrl), { target: { value: 'https://acme.test/v1' } })
+    openCustomMode()
+    fireEvent.change(screen.getByRole('textbox', { name: en.customRoute }), { target: { value: 'acme' } })
+    fireEvent.change(screen.getByRole('textbox', { name: en.baseUrl }), { target: { value: 'https://acme.test/v1' } })
     fireEvent.click(screen.getByRole('button', { name: en.addModel }))
     fireEvent.change(screen.getByLabelText(`${en.modelId} 1`), { target: { value: 'm' } })
     fireEvent.click(screen.getByText(en.create))
 
     await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
     await waitFor(() => { expect(load).toHaveBeenCalledOnce() })
-    expect(screen.queryByText(en.customTitle)).toBeNull()
+    expect(screen.queryByRole('textbox', { name: en.customRoute })).toBeNull()
   })
 })

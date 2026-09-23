@@ -36,7 +36,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { SessionLogDownloadEntry, SessionLogDownloadState } from './controller.ts'
 
 /** Services required by the titlebar Session-log capsule and Interface row. */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'configForms']
 
 /**
  * Provide the download controller, mount the titlebar capsule, and contribute
@@ -53,7 +53,7 @@ export function apply(ctx: ClientContext): void {
   })
 
   const chrome = new ChromeVisibility<SessionLogExportSettings>(
-    ctx.settingsScope.bind<SessionLogExportSettings>({ namespace: SESSION_LOG_EXPORT_SETTINGS_NAMESPACE }),
+    ctx.configForms.get<SessionLogExportSettings>(SESSION_LOG_EXPORT_SETTINGS_NAMESPACE),
     TITLEBAR_ACTION_FIELD,
   )
 

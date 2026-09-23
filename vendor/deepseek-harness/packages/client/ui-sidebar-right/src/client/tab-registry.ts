@@ -101,6 +101,8 @@ export interface SidebarRightTabDefinition {
   readonly kind: string
   /** Each open by kind creates independent content; omission keeps one page per kind in each pane. */
   readonly multiple?: boolean
+  /** Lazily keep a visited body mounted through hiding, Session changes and docking; default false. */
+  readonly keepMounted?: boolean
   /**
    * Resource-address globs this type recognizes; omit for a page type, which is
    * opened by kind and recognizes no address.

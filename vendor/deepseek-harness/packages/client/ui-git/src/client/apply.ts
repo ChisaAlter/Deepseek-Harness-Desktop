@@ -86,7 +86,7 @@ function readGitShell(): Omit<GitActionsInjected, 'hooks'> {
 }
 
 /** Services required by the git plugin. */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'configForms']
 
 /**
  * Register the dictionaries, inject the Git split button at order 20, and
@@ -97,7 +97,7 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-git: dictionaries')
 
   const gitChrome = new ChromeVisibility<GitSettings>(
-    ctx.settingsScope.bind<GitSettings>({ namespace: GIT_SETTINGS_NAMESPACE }),
+    ctx.configForms.get<GitSettings>(GIT_SETTINGS_NAMESPACE),
     TITLEBAR_GIT_FIELD,
   )
 

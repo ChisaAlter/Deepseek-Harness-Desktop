@@ -42,8 +42,7 @@ function sessionList(cwd: string | undefined, mainView = true): SessionListState
     ids: Object.keys(byId) as SessionId[],
     byId,
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   }
 }
 

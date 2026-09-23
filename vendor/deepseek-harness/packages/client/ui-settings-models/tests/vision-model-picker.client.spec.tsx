@@ -18,6 +18,7 @@ function namespace(value: Record<string, string> = {}): SettingsNamespaceView {
     ns: VISION_FALLBACK_NS,
     schema: {},
     value,
+    autoGenerate: true,
     applies: 'live',
     secrets: [],
     revision: 0,

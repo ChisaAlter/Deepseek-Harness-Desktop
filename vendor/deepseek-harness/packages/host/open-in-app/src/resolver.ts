@@ -17,7 +17,7 @@ import { readdir, readFile, stat } from 'node:fs/promises'
 import { homedir, platform as osPlatform } from 'node:os'
 import { dirname, isAbsolute, join } from 'node:path'
 import {
-  canOpenNativePath, openNativePath, runNativeCommand, type NativeCommandRunner,
+  canOpenNativePath, openNativePath, runNativeCommand, desktopEntryFields, desktopDataDirectories, type NativeCommandRunner,
 } from '@deepseek-ai/dsh-native-command'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import {
@@ -379,24 +379,12 @@ export interface DesktopEntry {
  * @returns the recognized fields; keys outside the entry section are ignored.
  */
 export function parseDesktopEntry(text: string): DesktopEntry {
-  let inEntry = false
-  const fields: { exec?: string; tryExec?: string; icon?: string } = {}
-  for (const line of text.split(/\r?\n/)) {
-    const trimmed = line.trim()
-    if (trimmed.startsWith('[')) {
-      inEntry = trimmed === '[Desktop Entry]'
-      continue
-    }
-    if (!inEntry) continue
-    const separator = trimmed.indexOf('=')
-    if (separator < 0) continue
-    const key = trimmed.slice(0, separator).trim()
-    const value = trimmed.slice(separator + 1).trim()
-    if (key === 'Exec') fields.exec = value
-    else if (key === 'TryExec') fields.tryExec = value
-    else if (key === 'Icon') fields.icon = value
+  const fields = desktopEntryFields(text)
+  return {
+    ...(fields.Exec === undefined ? {} : { exec: fields.Exec }),
+    ...(fields.TryExec === undefined ? {} : { tryExec: fields.TryExec }),
+    ...(fields.Icon === undefined ? {} : { icon: fields.Icon }),
   }
-  return fields
 }
 
 /**
@@ -405,9 +393,7 @@ export function parseDesktopEntry(text: string): DesktopEntry {
  * @returns the data directories, freedesktop defaults applied.
  */
 export function xdgDataDirectories(internals: ResolvedInternals): readonly string[] {
-  const dataHome = internals.env['XDG_DATA_HOME'] ?? join(internals.home, '.local', 'share')
-  const dataDirs = internals.env['XDG_DATA_DIRS'] ?? '/usr/local/share:/usr/share'
-  return [dataHome, ...dataDirs.split(':').filter(dir => dir !== '')]
+  return desktopDataDirectories(internals.home, internals.env)
 }
 
 /**

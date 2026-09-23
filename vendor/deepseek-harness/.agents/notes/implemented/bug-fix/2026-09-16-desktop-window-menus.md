@@ -12,7 +12,7 @@ The Desktop shell replaces Electron's default application menu with a custom tem
 
 On macOS the template declares `{ role: 'fileMenu' }` before the Edit menu and `{ role: 'windowMenu' }` after it, and a separator-delimited run of `hide`, `hideOthers`, and `unhide` before Quit in the application submenu. Those roles contribute only the standard items; no Services submenu, window list, or other macOS default is declared. Windows and Linux keep the application and Edit menus.
 
-Electron's role labels are English string literals inside Electron (`lib/browser/api/menu-item-roles.ts`, `filemenu`, `windowmenu`, `close`, `minimize`, `hide`) with no locale lookup, and Electron re-applies them to the native menu items before the menu is shown, so a non-English Desktop shows them in English; the existing Edit menu behaves the same way. No custom close, minimize, or hide code is added: ⌘W destroys the window through Electron's own role.
+Electron supplies English defaults for the File, Window, and Edit roles. Explicit labels override role defaults while retaining native actions and shortcuts; the localized application commands are documented in the [Desktop README](../../../../apps/desktop/README.md). No custom close, minimize, or hide code is added: ⌘W destroys the window through Electron's own role.
 
 ## Alternatives considered
 
@@ -28,8 +28,8 @@ Electron's role labels are English string literals inside Electron (`lib/browser
 
 ## Consequences
 
-macOS regains the window and application commands the custom menu suppressed, at the cost of four menu roles. The labels stay English on a non-English Desktop.
+macOS regains the window and application commands the custom menu suppressed. File, Window, and Edit retain Electron’s default English labels; application commands use the Desktop locale.
 
 ## Testing
 
-A `apps/desktop/tests/main-startup.spec.ts` case pins the declared menu roles per platform, including the macOS hide commands. Role-based menu items execute natively, so a programmatic `click()` and the vitest Electron mock cannot exercise the shortcuts; a real Electron 44 run of the same template showed the standard File, Window, and application items present only after this change, with the same English labels while `app.getLocale()`, `getSystemLocale()`, and `getPreferredSystemLanguages()` all reported `zh-CN`.
+`apps/desktop/tests/main-startup.spec.ts` verifies the declared menu roles per platform and records English and Chinese application-label snapshots. Role-based menu items execute natively, so a programmatic `click()` and the Vitest Electron mock cannot exercise the shortcuts. The isolated Electron 44 demo confirms that explicit application labels appear in native menus; the template snapshots do not qualify native shortcut execution.

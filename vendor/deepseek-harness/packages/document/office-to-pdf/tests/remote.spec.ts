@@ -11,7 +11,7 @@ import OfficeToPdf from '../src/index.ts'
 const scope = { sessionId: SessionId('document-test'), workspaceRoot: '/workspace' }
 const source = { absolutePath: '/workspace/report.DOCX', version: 'source-v1', bytes: 4 }
 const rawSource = { ...source, data: new Uint8Array([80, 75, 3, 4]) }
-const wireSource = { ...source, offset: 0, eof: true, data: 'UEsDBA==' }
+const wireSource = { ...source, offset: 0, eof: true, data: rawSource.data }
 let generation: OfficeToPdf['generation']
 const cacheKey = OfficeToPdfKey('test-result')
 const pdf = new Uint8Array([37, 80, 68, 70, 45])
@@ -31,7 +31,7 @@ beforeEach(async () => {
   fileInfo = vi.fn<FileSystem['stat']>().mockResolvedValue(sourceInfo)
   processPath = vi.fn<FileSystem['processPath']>().mockReturnValue(source.absolutePath)
   ctx.provide('fs', { resolve: vi.fn().mockResolvedValue(target), stat: fileInfo, processPath, readBytes: read } as never)
-  authorize = vi.fn<WorkspaceFiles['readBytes']>().mockResolvedValue(wireSource)
+  authorize = vi.fn<WorkspaceFiles['readBytes']>().mockResolvedValue({ ...wireSource, eof: false, data: rawSource.data.subarray(0, 1) })
   metadata = vi.fn<WorkspaceFiles['stat']>().mockResolvedValue(source)
   await ctx.plugin(OfficeToPdf)
   generation = ctx.officeToPdf.generation
@@ -48,10 +48,10 @@ it.each(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'])('converts authorized %s b
   const path = `report.${extension.toUpperCase()}`
   const result = await ctx.officeToPdf.render(scope, path, 'foreground', new AbortController().signal)
   expect(read).toHaveBeenCalledExactlyOnceWith(target, expect.any(AbortSignal), 4)
-  expect(authorize).toHaveBeenCalledExactlyOnceWith(scope, path, { offset: 0, length: 1 }, expect.any(AbortSignal))
+  expect(authorize).toHaveBeenCalledExactlyOnceWith(scope, path, { range: { offset: 0, length: 1 } }, expect.any(AbortSignal))
   expect(render).toHaveBeenCalledOnce()
   expect(render.mock.calls[0]?.[0]).toMatchObject({ extension, priority: 'foreground', source: { version: source.version, bytes: 4 } })
-  expect(result).toEqual({ ...wireSource, data: Buffer.from(pdf).toString('base64'), bytes: pdf.length, missingFonts: ['Missing Serif'], generation })
+  expect(result).toEqual({ ...wireSource, data: pdf, bytes: pdf.length, missingFonts: ['Missing Serif'], generation })
   expect(ctx.get('agents')).toBeUndefined()
 })
 

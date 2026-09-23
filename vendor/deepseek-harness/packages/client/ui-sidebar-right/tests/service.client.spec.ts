@@ -111,6 +111,26 @@ describe('SidebarRightController — opening', () => {
     expect(() => { controller.dock('pane1' as PaneId) }).toThrow('no session surface is mounted')
   })
 
+  it('publishes the mounted session only on real transitions of the seat binding', () => {
+    const h = harness()
+    const seen: (string | undefined)[] = []
+    const unsubscribe = h.controller.mounted.subscribe(() => { seen.push(h.controller.mounted.getSnapshot()) })
+    try {
+      expect(h.controller.mounted.getSnapshot()).toBeUndefined()
+      const first = h.publish()
+      expect(h.controller.mounted.getSnapshot()).toBe(SESSION)
+      // The seat republishes on every store commit; the same session is silent.
+      const second = h.publish()
+      expect(seen).toEqual([SESSION])
+      // A stale release — the first seat's, after a newer one took over — changes nothing.
+      first()
+      expect(h.controller.mounted.getSnapshot()).toBe(SESSION)
+      second()
+      expect(h.controller.mounted.getSnapshot()).toBeUndefined()
+      expect(seen).toEqual([SESSION, undefined])
+    } finally { unsubscribe() }
+  })
+
   it('refuses an address no registered type claims, before touching the surface', () => {
     const { controller, publish, titles } = harness()
     publish()

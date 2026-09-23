@@ -8,7 +8,7 @@
 
 import { pathToFileURL } from 'node:url'
 import { readFileSync } from 'node:fs'
-import { parseEnv } from 'node:util'
+import { inspect, parseEnv } from 'node:util'
 import { basename, dirname, isAbsolute, resolve } from 'node:path'
 import * as yaml from 'js-yaml'
 import { Context, type FiberState } from '@deepseek-ai/cordis'
@@ -19,6 +19,10 @@ import { dshHomePath, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { createLaunchEnvironmentSnapshot, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 export { readProfilePatches, resolveTelemetryPatch, type ProfileContext, type ProfilePnpmInvocation } from './profile-context.ts'
 export { sanitizeProfile } from './profile-sanitize.ts'
+export { readPluginMeta } from './package-meta.ts'
+export { generateConfigSchema, type ConfigSchemaDump, type NativeConfigSchema } from './config-schema/index.ts'
+export { createConfigProjector, LOADER_EXPRESSION_SCHEMA, type ConfigProjection } from './config-schema/projector.ts'
+export { isNativeConfigSchema } from './config-schema/native.ts'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
 export {
@@ -31,17 +35,26 @@ declare module '@deepseek-ai/cordis' {
     /** Harness-home path resolver available to Loader `!!js` config expressions. */
     dshHomePath?: typeof dshHomePath
   }
+
+  interface Events {
+    /**
+     * Profile patches were reconciled into the running Loader tree: every entry update settled and no new
+     * inactive entry was introduced. Carries no diff; listeners re-read Loader entries.
+     * @mode emit
+     */
+    'app-boot/config-reload'(): void
+  }
 }
 
 export {
   composeEntries,
-  createProfileResolutionGeneration,
+  createRuntimeResolution,
   DEFAULT_PROFILE_BUNDLES,
   OPTIONAL_BUNDLES,
-  healProfilesModuleFallback,
-  healIsolatedProfileModuleFallback,
-  unlinkProfileModuleFallback,
+  bundlePatchFiles,
+  bundlePatchPaths,
   initProfile,
+  removeLinkProjections,
   loadProfile,
   loadProfileDirectory,
   PROFILE_PATCH_FILENAME,
@@ -54,10 +67,10 @@ export {
   type Profile,
   type ProfileLayer,
   type ProfileManifest,
-  type ProfileModuleFallbackOptions,
-  type ProfileResolutionEntry,
-  type ProfileResolutionGeneration,
-  type ProfileResolutionMode,
+  type LinkedRoot,
+  type RuntimeResolutionOptions,
+  type RuntimeResolutionEntry,
+  type RuntimeResolution,
   type ProfileTemplate,
 } from './profile.ts'
 export {
@@ -272,6 +285,7 @@ export async function reconcileProfilePatches(
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected' && !previousFibers[index]?.failed) throw result.reason
   }
+  ctx.emit('app-boot/config-reload')
   return failures.map(inactiveDiagnostic)
 }
 
@@ -552,13 +566,16 @@ export async function mountRootInclude(
   return entry
 }
 
+/** The two process events {@link installFailLoud} turns into a fatal exit. */
+export type FailLoudEvent = 'unhandledRejection' | 'uncaughtException'
+
 /**
  * The slice of `process` {@link installFailLoud} needs — injectable so tests
  * exercise the handler without registering on (or exiting) the real process.
  */
 export interface FailLoudProcess {
-  on(event: 'unhandledRejection', handler: (err: unknown) => void): unknown
-  off(event: 'unhandledRejection', handler: (err: unknown) => void): unknown
+  on(event: FailLoudEvent, handler: (err: unknown) => void): unknown
+  off(event: FailLoudEvent, handler: (err: unknown) => void): unknown
   stderr: { write(chunk: string): unknown }
   /**
    * Terminate the process. Callers treat this as the end of the run, as
@@ -602,11 +619,22 @@ async function observeLoaderRejectionCheckpoint(reasons: readonly unknown[]): Pr
 export const FAIL_LOUD_RELEASE_TIMEOUT_MS = 2_000
 
 /**
- * Install before boot to turn a late unhandled plugin-init rejection into one
- * labelled stderr diagnostic and `exit(1)`. A rejection already included by
- * {@link auditStartupEntries} is ignored during its process checkpoint;
- * every other rejection remains fatal. Stdout remains untouched for ACP; the
- * returned function removes the handler.
+ * Install before boot to turn an unhandled rejection or an uncaught exception,
+ * at any point in the process lifetime, into one labelled stderr diagnostic and
+ * `exit(1)`. A rejection already included by {@link auditStartupEntries} is
+ * ignored during its process checkpoint; every other rejection and every
+ * uncaught exception remains fatal. Control never returns to the failed
+ * operation after either: only the throw site knows which state is intact, and
+ * a listener that threw mid-update (a stream `'data'` handler, a half-applied
+ * registry write) leaves silently wrong results behind if it were resumed. The
+ * event loop keeps running only until the release hook settles or times out.
+ * Stdout remains untouched for ACP; the returned function removes both handlers.
+ *
+ * The diagnostic is `util.inspect(err)`, not `err.stack`: a `node:fs` error's
+ * `code`, `syscall`, and `path` and any `cause` chain are enumerable properties
+ * that the stack line omits, and they are what a crash report needs. Once a
+ * handler is installed Node prints nothing of its own, so this line is the
+ * only record of the failure.
  *
  * The Loader mounts entries concurrently, so a surface that owns the terminal
  * can already hold it when a sibling entry rejects. Exiting straight from the
@@ -628,7 +656,7 @@ export const FAIL_LOUD_RELEASE_TIMEOUT_MS = 2_000
  * @param release - optional teardown awaited before exit, used by a
  *   terminal-owning surface to restore the terminal. Its own failure is
  *   swallowed because the pending fatal exit already owns the outcome.
- * @returns the uninstaller that removes the rejection handler.
+ * @returns the uninstaller that removes both handlers.
  */
 export function installFailLoud(
   binName: string,
@@ -636,14 +664,13 @@ export function installFailLoud(
   release?: () => Promise<void> | void,
 ): () => void {
   let exiting = false
-  const handler = (err: unknown): void => {
-    if (assembledActivationRejections.has(err)) return
-    // A release in flight already owns the exit. Swallow later rejections
+  const report = (err: unknown, label: string): void => {
+    // A release in flight already owns the exit. Swallow later failures
     // (teardown's own included) rather than reporting a second failure over the
     // real one or letting Node kill the process before the terminal is back.
     if (exiting) return
     exiting = true
-    proc.stderr.write(`${binName}: fatal load failure: ${err instanceof Error ? err.stack ?? err.message : String(err)}\n`)
+    proc.stderr.write(`${binName}: ${label}: ${inspect(err, { depth: 4, maxArrayLength: 50 })}\n`)
     if (release === undefined) {
       proc.exit(1)
       return
@@ -667,8 +694,18 @@ export function installFailLoud(
       proc.exit(1)
     })()
   }
-  const uninstall = (): void => void proc.off('unhandledRejection', handler)
-  proc.on('unhandledRejection', handler)
+  const onRejection = (err: unknown): void => {
+    if (assembledActivationRejections.has(err)) return
+    // Label kept stable: the Web profile expected-output e2e tests match it.
+    report(err, 'fatal load failure')
+  }
+  const onException = (err: unknown): void => { report(err, 'fatal uncaught exception') }
+  const uninstall = (): void => {
+    proc.off('unhandledRejection', onRejection)
+    proc.off('uncaughtException', onException)
+  }
+  proc.on('unhandledRejection', onRejection)
+  proc.on('uncaughtException', onException)
   return uninstall
 }
 

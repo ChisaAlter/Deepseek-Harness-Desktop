@@ -35,7 +35,7 @@ it('ignores a late catalog response after the provider changes', async () => {
   const onChange = vi.fn()
   const props = {
     models: [{ id: 'm' }], onChange, operations: actions,
-    disabled: false, t: (key: keyof typeof en) => en[key],
+    disabled: false, t: (key: keyof typeof en) => en[key], onBusyChange: () => {},
   }
   const { rerender } = render(<ModelListEditor {...props} catalogProvider="old" probe={{ settingsNs: 'llm-pi-ai', provider: 'old' }} />)
   fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
@@ -52,7 +52,7 @@ it('uses provider input defaults for a model absent from the installed catalog',
   const onChange = vi.fn()
   render(<ModelListEditor
     models={[{ id: 'custom' }]} onChange={onChange} defaultInput={['image']} catalogProvider="openai"
-    probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }} disabled={false} t={key => en[key]}
+    probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }} disabled={false} t={key => en[key]} onBusyChange={() => {}}
     operations={operations(() => Promise.resolve({ kind: 'found', models: [] }))}
   />)
   fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
@@ -68,7 +68,7 @@ it('inherits catalog inputs once an incomplete draft has a model id', async () =
   const props = {
     onChange, catalogProvider: 'openai',
     probe: { settingsNs: 'llm-pi-ai', provider: 'openai' },
-    disabled: false, t: (key: keyof typeof en) => en[key],
+    disabled: false, t: (key: keyof typeof en) => en[key], onBusyChange: () => {},
     operations: operations(() => Promise.resolve({
       kind: 'found', models: [{ id: 'vision', inputModalities: ['text', 'image'] }],
     })),
@@ -97,7 +97,7 @@ it('restores inherited image input after a failed catalog read is retried manual
   const onChange = vi.fn()
   render(<ModelListEditor
     models={[{ id: 'vision' }]} onChange={onChange} catalogProvider="openai"
-    probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }} disabled={false} t={key => en[key]}
+    probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }} disabled={false} t={key => en[key]} onBusyChange={() => {}}
     operations={operations(discover)}
   />)
   await screen.findByText('Catalog unavailable')

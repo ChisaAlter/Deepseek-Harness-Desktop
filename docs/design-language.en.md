@@ -2,7 +2,7 @@
 
 [中文](design-language.md) | English
 
-DSHD (Deepseek-Harness-Desktop — the desktop application in this repository; distinct from the `dsh` CLI and from the dshd daemon in `src/main`) defines its design language in this document: it is the sole visual authority for every visible surface of DSHD. The language's baseline is pinned to the vendored `vendor/deepseek-harness` Web UI — currently `dsh-v0.1.6-alpha.2` (`ddefc45fbc7f8e46dd73185e68295696d1297887`), recorded in [`vendor/harness-upstream.json`](../vendor/harness-upstream.json) and updated by `npm run sync:harness`. The desktop chrome, closing overlay, title-bar injection, right-hand surfaces, the Web UI page opened by phone remote, and any new frontend all implement the same language. Do not invent a second skin.
+DSHD (Deepseek-Harness-Desktop — the desktop application in this repository; distinct from the `dsh` CLI and from the dshd daemon in `src/main`) defines its design language in this document: it is the sole visual authority for every visible surface of DSHD. The language's baseline is pinned to the vendored `vendor/deepseek-harness` Web UI — currently `dsh-v0.1.7-alpha.2` (`00102833dfaee1da9f48a3a8eae9d34005a75218`), recorded in [`vendor/harness-upstream.json`](../vendor/harness-upstream.json) and updated by `npm run sync:harness`. The desktop chrome, closing overlay, title-bar injection, right-hand surfaces, the Web UI page opened by phone remote, and any new frontend all implement the same language. Do not invent a second skin.
 
 "Matching the baseline" is not a judgement call. It is three hard criteria, all anchored in real artifacts:
 
@@ -34,7 +34,7 @@ Terminal, diff, and code blocks keep the baseline monospace / no-wrap rules. Tha
 
 New Session keeps the existing entry points, draft canvas, and composer, and reuses only ordinary blank drafts without a prior identity. Titled sessions, sessions previously managed by a plugin, and forks retain their identity and are not opened as new drafts. No controls or visual styling are added.
 
-The Harness alpha.2 integration retains this document's visual contract. New upstream components reuse the same tokens and primitives; migrations of layout services, slots, or props must preserve the desktop title bar, work surfaces, transparent wallpaper, linked composer width, and typing effects. Surface tab close controls remain to the right of the title; the boot-page exception keeps its existing scope.
+The Harness 0.1.7-alpha.2 integration retains this document's visual contract. New upstream components reuse the same tokens and primitives; migrations of layout services, slots, or props must preserve the desktop title bar, work surfaces, transparent wallpaper, linked composer width, and typing effects. Surface tab close controls remain to the right of the title; the boot-page exception keeps its existing scope.
 
 Window controls (`window-controls.css`) carry one deliberate system-color exception: minimize/maximize hover uses the `--dsw-alias-interactive-bg-hover` token, but the close button hover uses the Windows system semantic color `#e81123` (red) with a `#fff` foreground — a platform-level "danger/close" convention, not a theme color. This is intentional; do not convert it to a token.
 
@@ -52,7 +52,7 @@ Remote connection mode uses the existing segmented control with LAN / Server lab
 
 The plugin marketplace does not inject a first-party dshbot recommendation card. Registry sources, card primitives, and generic plugin management stay unchanged.
 
-1. **Reuse before drawing.** Buttons, fields, menus, dialogs, tooltips, and disclosure rows use `ui-primitives`. Do not restyle their radius, height, or hover.
+1. **Reuse before drawing.** Buttons, fields, menus, dialogs, tooltips, and disclosure rows use `ui-primitives`. Do not restyle their radius, height, or hover. A disabled menu item may explain its reason with a left-side Tooltip using the primitive's existing style.
 2. **Colors are `--dsw-alias-*` / `--dsw-specific-*` only.** Feature CSS must not contain `#hex`, `rgb()`, or a private `--bg` / `--accent` sheet. Missing tokens are added to the theme sheets first, then consumed as semantic aliases.
 3. **Light/dark lives only in the theme tables.** Feature CSS must not branch on `[data-theme]`, `[data-ds-dark-theme]`, or `prefers-color-scheme`.
 4. **The accent is not electric blue.** Default primary buttons are near-black (light) / near-white (dark): `--dsw-alias-button-primary-fill` (`rgb(15, 17, 21)` in light). Brand blue is `--dsw-static-deepseek-500` (`rgb(65, 118, 230)`) and its aliases (`--dsw-alias-button-info-fill`, `--dsw-alias-state-business-primary`) for info emphasis, user bubbles, and selection. Do not introduce `#2b5cff`, `#6ea8ff`, or `#3964fe`.

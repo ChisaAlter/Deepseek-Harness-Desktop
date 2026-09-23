@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-09-19-retire-prompt-registry-change-event.md
+2026-09-19-retire-prompt-registry-change-event.md: 1103675525e30c7f6c345a1fe92f07cbd0bcce4a
+2026-09-19-retire-prompt-registry-change-event.zh.md: a49df2eebad7134b7b038ee2e6ab54610bd4c635

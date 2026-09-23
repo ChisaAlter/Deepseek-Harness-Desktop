@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { IconAgentPresetOutline16, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionJob as JobView } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { JobView } from '@deepseek-ai/dsh-jobs/view'
+import type { IJobs } from '@deepseek-ai/dsh-api-job-controller/client'
 import { listSessionAgents } from './agents.ts'
 import { NS, type AgentsKey } from './locales.ts'
 import css from './AgentsPanel.module.css'
@@ -10,6 +11,8 @@ import css from './AgentsPanel.module.css'
 /** Injected navigation into a child session. */
 export interface AgentsPanelInjected {
   openAgent: (id: SessionId) => void
+  jobs: IJobs['state']
+  watchJobs: (sessionId: SessionId) => () => void
 }
 
 export type AgentsPanelProps =
@@ -31,9 +34,12 @@ const JOB_STATUS_KEY = {
  * @param props - session seats, openAgent, and copy.
  * @returns the agents surface.
  */
-export function AgentsPanel({ sessionId, useSessions, openAgent, t }: AgentsPanelProps): ReactNode {
+export function AgentsPanel({ sessionId, useSessions, openAgent, jobs: jobsSource, watchJobs, t }: AgentsPanelProps): ReactNode {
   const agents = useSessions(state => listSessionAgents(state, sessionId))
-  const jobs = useSessions(state => state.jobsBySession[sessionId] ?? [])
+  useEffect(() => watchJobs(sessionId), [sessionId, watchJobs])
+  const subscribeJobs = useCallback((listener: () => void) => jobsSource.subscribe(listener), [jobsSource])
+  const getJobsSnapshot = useCallback(() => jobsSource.getSnapshot(), [jobsSource])
+  const jobs = useSyncExternalStore(subscribeJobs, getJobsSnapshot).rows[sessionId] ?? []
 
   return (
     <div className={css.root} data-agents-panel>

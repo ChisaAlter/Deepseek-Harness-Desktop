@@ -36,7 +36,7 @@
       "path": "../../goal/goal"
     },
     {
-      "path": "../../preset/agent-presets"
+      "path": "../../preset/agent-preset-registry"
     },
     {
       "path": "../../extensions/cordis-host-runner"
@@ -79,6 +79,9 @@
     },
     {
       "path": "../../host/plugin-inventory"
+    },
+    {
+      "path": "../account-controller"
     }
   ]
 }

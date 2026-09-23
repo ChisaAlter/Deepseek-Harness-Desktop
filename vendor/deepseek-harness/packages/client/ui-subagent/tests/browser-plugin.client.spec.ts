@@ -1,6 +1,7 @@
 /** ui-subagent browser half: catalog actions and read-only composer routing. */
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { Context } from '@deepseek-ai/cordis'
-import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { describe, expect, it } from 'vitest'
 import type {
   SessionListState, SessionSnapshot, SessionSummary,
@@ -22,6 +23,7 @@ function summary(partial: Partial<SessionSummary> & { id: SessionId }): SessionS
   return {
     displayTitle: partial.id,
     running: false,
+    retainedBy: {},
     updatedAt: 0,
     ...partial,
   } as SessionSummary
@@ -33,20 +35,25 @@ const sid = (id: string) => id as SessionId
 function sessionsWith(sessions: SessionSummary[]) {
   const byId: Record<string, SessionSummary> = {}
   for (const s of sessions) byId[s.id] = s
-  const snapshot = { ids: sessions.map(s => s.id), byId, current: undefined } as unknown as SessionListState
+  const snapshot: SessionListState = { ids: sessions.map(s => s.id), byId, phase: 'ready', projectionsBySession: {} }
   const actionCalls: { method: string; args: unknown[] }[] = []
+  const address: SubagentAddress = {
+    parentSessionId: sid('parent'),
+    childSessionId: sid('c1'),
+    mode: 'continuable',
+  }
   return {
     list: {
       getSnapshot: () => snapshot,
       subscribe: () => () => {},
     },
     actionCalls,
-    refreshSubagents: (parentSessionId: SessionId) => {
-      actionCalls.push({ method: 'refreshSubagents', args: [parentSessionId] })
+    subagentAddress: (childSessionId: SessionId) => childSessionId === address.childSessionId
+      ? address
+      : undefined,
+    refreshProjections: (parentSessionId: SessionId) => {
+      actionCalls.push({ method: 'refreshProjections', args: [parentSessionId] })
       return Promise.resolve()
-    },
-    setSubagentCatalogOpen: (parentSessionId: SessionId, open: boolean) => {
-      actionCalls.push({ method: 'setSubagentCatalogOpen', args: [parentSessionId, open] })
     },
   }
 }
@@ -57,6 +64,7 @@ async function provideSlotFaces(ctx: Context): Promise<void> {
     name: 'root',
     children: {
       'conversation.session.header.lineage': { kind: 'single', scope: 'session' },
+      'conversation.session.header.actions': { kind: 'list', scope: 'session' },
       'conversation.composer': { kind: 'chain', scope: 'session' },
     },
   } as never, () => null)
@@ -78,7 +86,7 @@ async function fullBench(sessions: SessionSummary[]) {
     },
   } as never)
   ctx.provide('remote', { $on: () => () => {} } as never)
-  ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+  ctx.provide('configForms', { developerTools: { enabled: createSnapshotStore(true) }, get: () => stubConfigForm().scope } as never)
   await provideSlotFaces(ctx)
   await ctx.plugin({ inject: localeInject, apply: applyLocale }).await()
   await ctx.plugin({ inject: [...inject], apply }).await()
@@ -112,8 +120,7 @@ describe('apply', () => {
     }
     actions.openChild(address)
     actions.openChildAside(address)
-    actions.refresh(sid('parent'))
-    actions.setCatalogOpen(sid('parent'), true)
+    actions.refreshProjection(sid('parent'))
     expect(face.actionCalls).toEqual([
       { method: 'openSession', args: [address] },
       {
@@ -123,9 +130,15 @@ describe('apply', () => {
           { kind: 'subagentchat', preferNewPane: true },
         ],
       },
-      { method: 'refreshSubagents', args: [sid('parent')] },
-      { method: 'setSubagentCatalogOpen', args: [sid('parent'), true] },
+      { method: 'refreshProjections', args: [sid('parent')] },
     ])
+
+    // The root-session catalog seat registers in the actions band with the
+    // same business face, ordered after the task list.
+    const actionEntry = ctx.slots.entries('conversation.session.header.actions')
+      .find(entry => entry.options.id === 'subagent-catalog')!
+    expect(actionEntry.options.order).toBe(30)
+    expect(actionEntry.inject).toBe(catalogEntry.inject)
 
     const composerEntry = ctx.slots.entries('conversation.composer')
       .find(entry => entry.component === SubagentReadOnlyComposer)!
@@ -147,6 +160,8 @@ describe('apply', () => {
     // One-shot stays read-only even while running: it has no stop action.
     expect(select(owner({ address: { ...address, mode: 'one-shot' }, parentAvailable: true }, true)))
       .toEqual({ reason: 'one-shot' })
+    expect(select(owner({ address: { ...address, mode: 'unknown' }, parentAvailable: true })))
+      .toEqual({ reason: 'unknown' })
     expect(select(owner({ address }))).toBeNull()
     expect(select(owner({ address, parentAvailable: true }))).toBeNull()
     expect(select(owner({ address, parentAvailable: false })))

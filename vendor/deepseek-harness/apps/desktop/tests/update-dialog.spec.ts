@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrowserWindow } from 'electron'
 import { DesktopUpdateDialog, UPDATE_DIALOG_IPC } from '../src/update-dialog.ts'
-import { resolveDesktopLocale } from '../src/locale.ts'
+import { resolveDesktopLocale, type DesktopLocale } from '../src/locale.ts'
 
 const fixture = await vi.hoisted(async () => {
   const { EventEmitter } = await import('node:events')
@@ -10,11 +10,13 @@ const fixture = await vi.hoisted(async () => {
   class FakeWindow extends EventEmitter {
     destroyed = false
     readonly webContents = Object.assign(new EventEmitter(), {
+      send: vi.fn(),
       mainFrame: { url: 'dsh-app://shell/update-dialog.html' },
       setWindowOpenHandler: vi.fn(),
       insertCSS: vi.fn(async () => 'blur'),
       removeInsertedCSS: vi.fn(async () => {}),
     })
+    readonly focus = vi.fn()
     readonly show = vi.fn()
     readonly setBounds = vi.fn()
     readonly loadURL = vi.fn(async () => {})
@@ -33,6 +35,7 @@ vi.mock('electron', () => ({ BrowserWindow: fixture.FakeWindow, ipcMain: {
 
 let dialogs: DesktopUpdateDialog | undefined
 afterEach(() => {
+  vi.useRealTimers()
   dialogs?.dispose()
   dialogs = undefined
   for (const window of fixture.windows) if (!window.isDestroyed()) window.destroy()
@@ -40,15 +43,17 @@ afterEach(() => {
   fixture.handlers.clear()
 })
 
-function setup() {
+function setup(locale: DesktopLocale | (() => DesktopLocale) = resolveDesktopLocale('zh-CN')) {
   const parent = new fixture.FakeWindow({})
-  dialogs = new DesktopUpdateDialog('preload-update-dialog.cjs', resolveDesktopLocale('zh-CN'))
+  dialogs = new DesktopUpdateDialog('preload-update-dialog.cjs', locale)
   const show = (signal?: AbortSignal) => dialogs!.show(parent as unknown as BrowserWindow, {
     message: '下载完成', buttons: ['安装并重启'], cancelId: 1, ...(signal === undefined ? {} : { signal }),
   })
   const invoke = (channel: string, ...args: unknown[]) => {
     const window = fixture.windows.at(-1)!
-    return fixture.handlers.get(channel)!({ sender: window.webContents, senderFrame: window.webContents.mainFrame }, ...args)
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const view = fixture.handlers.get(UPDATE_DIALOG_IPC.status)!(event) as { revision: number }
+    return fixture.handlers.get(channel)!(event, ...(channel === UPDATE_DIALOG_IPC.respond ? [view.revision, ...args] : args))
   }
   return { parent, show, invoke }
 }
@@ -73,7 +78,7 @@ it('follows the parent geometry and removes listeners when closed or replaced', 
   const f = setup()
   const first = f.show()
   const window = fixture.windows.at(-1)!
-  expect(window.options).toMatchObject({ frame: false, transparent: true, modal: true, width: 900, height: 650 })
+  expect(window.options).toMatchObject({ frame: false, transparent: true, modal: process.platform !== 'darwin', width: 900, height: 650 })
   window.emit('ready-to-show')
   expect(window.show).toHaveBeenCalledOnce()
   f.parent.emit('resize')
@@ -85,7 +90,7 @@ it('follows the parent geometry and removes listeners when closed or replaced', 
   expect((await next).response).toBe(1)
   expect(f.parent.listenerCount('resize')).toBe(0)
   expect(f.parent.listenerCount('move')).toBe(0)
-  expect(f.parent.webContents.removeInsertedCSS).toHaveBeenCalledTimes(2)
+  expect(f.parent.webContents.removeInsertedCSS).toHaveBeenCalledTimes(1)
 })
 
 it('cancels on abort, renderer failure, disposal, or an already-closed parent', async () => {
@@ -131,4 +136,75 @@ it('supplies localized disclosure copy without putting diagnostics in the ordina
     technicalDetails: 'exit 0; shutdown acknowledged false', technicalDetailsLabel: '查看技术详情' })
   dialogs!.cancel()
   await pending
+})
+
+it('replaces content without releasing the backdrop and rejects a response from the previous prompt', async () => {
+  const f = setup()
+  const abort = new AbortController()
+  const first = f.show(abort.signal)
+  const window = fixture.windows.at(-1)!
+  const old = f.invoke(UPDATE_DIALOG_IPC.status) as { revision: number }
+  const next = f.show()
+  expect((await first).response).toBe(1)
+  expect(fixture.windows).toHaveLength(2)
+  expect(window.loadURL).toHaveBeenCalledOnce()
+  expect(window.webContents.send.mock.calls).toEqual([[UPDATE_DIALOG_IPC.changed, f.invoke(UPDATE_DIALOG_IPC.status)]])
+  expect(f.parent.webContents.removeInsertedCSS).not.toHaveBeenCalled()
+  abort.abort()
+  expect(() => fixture.handlers.get(UPDATE_DIALOG_IPC.respond)!({
+    sender: window.webContents, senderFrame: window.webContents.mainFrame,
+  }, old.revision, 0)).toThrow(/stale/)
+  f.invoke(UPDATE_DIALOG_IPC.respond, 0)
+  expect((await next).response).toBe(0)
+})
+
+it('fades out before releasing the backdrop and cancels pending removal when another prompt opens', async () => {
+  vi.useFakeTimers()
+  const f = setup()
+  const first = f.show()
+  const window = fixture.windows.at(-1)!
+  dialogs!.cancel()
+  await first
+  expect(window.isDestroyed()).toBe(false)
+  expect(window.webContents.send).toHaveBeenLastCalledWith(UPDATE_DIALOG_IPC.changed, null)
+  const next = f.show()
+  await vi.advanceTimersByTimeAsync(150)
+  expect(window.isDestroyed()).toBe(false)
+  dialogs!.cancel()
+  await next
+  await vi.advanceTimersByTimeAsync(150)
+  expect(window.isDestroyed()).toBe(true)
+  expect(f.parent.listenerCount('focus')).toBe(0)
+  expect(f.parent.webContents.listenerCount('before-input-event')).toBe(0)
+})
+
+it.runIf(process.platform === 'darwin')('blocks parent keyboard input and redirects focus without a native sheet', async () => {
+  const f = setup()
+  const pending = f.show()
+  const window = fixture.windows.at(-1)!
+  const event = { preventDefault: vi.fn() }
+  f.parent.webContents.emit('before-input-event', event)
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  f.parent.emit('focus')
+  expect(window.focus).toHaveBeenCalledTimes(2)
+  dialogs!.dispose()
+  await pending
+  expect(f.parent.webContents.listenerCount('before-input-event')).toBe(0)
+})
+
+it('reads the current locale for each presentation', async () => {
+  let locale = resolveDesktopLocale('en')
+  const f = setup(() => locale)
+  for (const language of ['zh-CN', 'en']) {
+    locale = resolveDesktopLocale(language)
+    const pending = f.show()
+    const window = fixture.windows.at(-1)!
+    const event = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    expect(fixture.handlers.get(UPDATE_DIALOG_IPC.status)!(event)).toMatchObject({
+      locale: locale.id, closeLabel: locale.messages.updateClose,
+      technicalDetailsLabel: locale.messages.updateTechnicalDetails,
+    })
+    dialogs!.cancel()
+    await pending
+  }
 })

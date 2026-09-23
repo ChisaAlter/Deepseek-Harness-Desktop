@@ -462,7 +462,8 @@ describe('DockSurface', () => {
     expect(document.querySelector('[data-dockkit-split-button]')).toBeNull()
   })
 
-  it('names the chip box\'s hidden sides in data-dockkit-strip-scroll as it scrolls', () => {
+  it.each([true, false])('names the chip box\'s hidden sides as it scrolls with resize observation: %s', (observed) => {
+    if (!observed) vi.stubGlobal('ResizeObserver', undefined)
     let scrollLeft = 0
     const descriptors = ['scrollLeft', 'scrollWidth', 'clientWidth'].map(name =>
       [name, Object.getOwnPropertyDescriptor(Element.prototype, name)] as const)

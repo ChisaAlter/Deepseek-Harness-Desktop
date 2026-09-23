@@ -11,6 +11,18 @@ export const CHANGES_DIFF_PATH = '/api/changes.diff'
 /** Authenticated POST route for opening a changed file on the Host desktop. */
 export const CHANGES_OPEN_PATH = '/api/changes.open'
 
+/**
+ * Browser-relative form of {@link CHANGED_FILES_PATH}; see
+ * .agents/notes/implemented/architecture/2026-09-14-web-document-relative-app-routes.md.
+ */
+export const CHANGED_FILES_ROUTE = CHANGED_FILES_PATH.slice(1)
+
+/** Browser-relative form of {@link CHANGES_DIFF_PATH}. */
+export const CHANGES_DIFF_ROUTE = CHANGES_DIFF_PATH.slice(1)
+
+/** Browser-relative form of {@link CHANGES_OPEN_PATH}. */
+export const CHANGES_OPEN_ROUTE = CHANGES_OPEN_PATH.slice(1)
+
 /** Resource-address prefix of a turn's review tab in the right Sidebar. */
 export const CHANGES_REVIEW_ADDRESS = 'dsh-resource://changes-review/session/'
 
@@ -94,10 +106,10 @@ export function isChangesEvent(value: unknown): value is { turn: number } {
  * Build authenticated coordinates for the summary one `workspace/changes` event announced.
  * @param sessionId - owning Session.
  * @param seq - event sequence.
- * @returns same-origin summary URL.
+ * @returns document-relative summary route.
  */
 export function changesSummaryUrl(sessionId: SessionId, seq: number): string {
-  return `${CHANGED_FILES_PATH}?${new URLSearchParams({ sessionId, seq: String(seq) })}`
+  return `${CHANGED_FILES_ROUTE}?${new URLSearchParams({ sessionId, seq: String(seq) })}`
 }
 
 /**
@@ -105,10 +117,10 @@ export function changesSummaryUrl(sessionId: SessionId, seq: number): string {
  * @param sessionId - owning Session.
  * @param seq - workspace/changes event sequence.
  * @param index - original index in the summary's files array.
- * @returns same-origin comparison URL.
+ * @returns document-relative comparison route.
  */
 export function changesDiffUrl(sessionId: SessionId, seq: number, index: number): string {
-  return `${CHANGES_DIFF_PATH}?${new URLSearchParams({ sessionId, seq: String(seq), index: String(index) })}`
+  return `${CHANGES_DIFF_ROUTE}?${new URLSearchParams({ sessionId, seq: String(seq), index: String(index) })}`
 }
 
 /**
@@ -116,10 +128,10 @@ export function changesDiffUrl(sessionId: SessionId, seq: number, index: number)
  * @param sessionId - owning Session.
  * @param seq - workspace/changes event sequence.
  * @param index - original index in the summary's files array.
- * @returns same-origin action URL.
+ * @returns document-relative action route.
  */
 export function changedFileUrl(sessionId: SessionId, seq: number, index: number): string {
-  return `${CHANGES_OPEN_PATH}?${new URLSearchParams({ sessionId, seq: String(seq), index: String(index) })}`
+  return `${CHANGES_OPEN_ROUTE}?${new URLSearchParams({ sessionId, seq: String(seq), index: String(index) })}`
 }
 
 /**

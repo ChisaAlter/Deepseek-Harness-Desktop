@@ -11,7 +11,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-instructions'
 import {
   BlockAssembler,
-  createUserMessage,
   type ContentBlock,
   type GenerateOptions,
   type MessageSource,
@@ -185,7 +184,8 @@ function isProjectInstruction(source: MessageSource): boolean {
 
 /** Whether this source is a compaction checkpoint. */
 function isCheckpoint(source: MessageSource): boolean {
-  return source.kind === 'plugin' && source.plugin === 'compact'
+  const kind: string = source.kind
+  return kind === 'compact-checkpoint'
 }
 
 /** Whether this message was durably attributed to the child's direct parent. */
@@ -242,8 +242,7 @@ function filteredUserEntries(
   initialPromptSeq: SessionEvent['seq'] | undefined,
   parentSession: string | undefined,
 ): HistoricalUserMessage[] {
-  const retained = content.filter(block => block.type !== 'tool-result')
-  return retained.map(block => ({
+  return content.map(block => ({
     kind: 'user-message',
     role: block.type === 'text'
       ? textRole(source, seq, initialPromptSeq, parentSession)
@@ -424,7 +423,7 @@ function snapshotAutoReview(agent: Agent, exec: ToolExecution): ReviewSnapshot {
     if (event.type === 'user/message') {
       if (event.data.source.kind === 'tool') continue
       if (isProjectInstruction(event.data.source)) {
-        const content = event.data.content.filter(block => block.type !== 'tool-result')
+        const content = event.data.content
         if (content.length > 0) {
           projectInstructions.push({
             kind: 'user-message',
@@ -616,14 +615,15 @@ async function classifyRisk(
   signal: AbortSignal,
 ): Promise<AutoReviewDecision> {
   const snapshot = snapshotAutoReview(agent, exec)
+  // This review prompt is sent only through ctx.llm.stream and never enters a Session log.
   const options: GenerateOptions = deepFreeze({
     provider: snapshot.provider,
     model: snapshot.model,
     system: REVIEW_POLICY,
-    messages: [createUserMessage({
+    messages: [{
+      role: 'user',
       content: [{ type: 'text', text: reviewUserText(snapshot) }],
-      source: { kind: 'plugin', plugin: 'dsh-experimental-auto-review' },
-    })],
+    }],
     temperature: 0,
     signal,
   })

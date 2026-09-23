@@ -81,6 +81,9 @@
 }
 
 .addressUnknown {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+
   color: var(--dsw-alias-label-tertiary);
   background: var(--dsw-alias-bg-layer-2);
 }
@@ -119,6 +122,83 @@
   min-height: 0;
   border: 0;
   background: var(--dsw-alias-bg-base);
+}
+
+.content {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.viewport {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.restore {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px;
+  overflow: auto;
+  text-align: center;
+}
+
+.restoreLabel {
+  margin: auto 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.restoreTitle {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: var(--dsw-font-xs-13);
+  font-weight: 500;
+}
+
+.restoreUrl {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.restore > :last-child {
+  flex-shrink: 0;
+  margin-bottom: auto;
+}
+
+.webview {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* Native guest input must not consume a docking gesture's window events. */
+:global(html:has([data-dockkit-pointer])) .webview {
+  pointer-events: none;
 }
 
 .start {

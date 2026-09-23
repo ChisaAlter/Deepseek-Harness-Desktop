@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
-import { Button, extractMarkdownPlainText, IconEditOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  Button, extractMarkdownPlainText, IconEditOutlineRegular, StateDot,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
 import css from './PlanReviewPanel.module.css'
 
@@ -48,9 +50,9 @@ export function PlanReviewPanel({ pending, review, t, renderSlot }: PlanReviewPa
 
   return (
     <div className={css.frame} data-plan-review-key={pending.key}>
-      <section className={css.card} aria-label={review.question}>
+      <section className={css.card} aria-label={review.question} aria-busy={busy}>
         <div className={css.strip}>
-          <span className={css.dot} />
+          <StateDot state={busy ? 'ongoing' : 'warning'} />
           {t('plan.header')}
           <div className={css.previewActions}>
             {renderSlot('conversation.plan-review.actions', { review, requestKey: pending.key })}
@@ -64,7 +66,7 @@ export function PlanReviewPanel({ pending, review, t, renderSlot }: PlanReviewPa
           <div className={css.feedback} role="status">{error}</div>
           <div className={css.actions}>
             <Button
-              variant="outline" className={css.discuss} icon={<IconEditOutline16 size={14} />}
+              variant="outline" className={css.discuss} icon={<IconEditOutlineRegular size={14} />}
               disabled={busy} onClick={() => { settle(() => pending.cancel()) }}
             >
               {t('plan.discuss')}

@@ -4,8 +4,9 @@ import {
 import { createPortal } from 'react-dom'
 import type { ScheduleRecord } from '@deepseek-ai/dsh-schedule/client'
 import {
-  IconAlarmClockOutline16,
-  IconChevronDownOutline14,
+  IconAlarmClockOutlineRegular,
+  IconChevronDownOutlineRegular,
+  StateDot,
   useAnchoredPosition,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -159,9 +160,9 @@ export function ScheduleCatalogAction({ useSession, useProjection, t }: Schedule
       aria-label={countLabel}
       onClick={toggleCatalog}
     >
-      <IconAlarmClockOutline16 size={14} />
+      <IconAlarmClockOutlineRegular size={12} />
       <span className={css.count}>{countLabel}</span>
-      <IconChevronDownOutline14 className={open ? css.triggerOpen : undefined} />
+      <IconChevronDownOutlineRegular size={12} className={open ? css.triggerOpen : undefined} />
     </button>
   )
   const catalog = open
@@ -180,7 +181,7 @@ export function ScheduleCatalogAction({ useSession, useProjection, t }: Schedule
               className={overdue ? `${css.row} ${css.rowOverdue}` : css.row}
             >
               <span className={css.status}>
-                <span className={css.statusDot} aria-hidden="true" />
+                <StateDot state={overdue ? 'warning' : 'idle'} />
                 <span>{t(overdue ? 'status.overdue' : 'status.scheduled')}</span>
               </span>
               <span className={css.prompt}>{record.prompt}</span>

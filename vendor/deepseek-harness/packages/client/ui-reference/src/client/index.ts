@@ -2,6 +2,8 @@
  * Unified Web `@` reference source. File and session discovery run through
  * the cancellable generated Remote namespaces in parallel with deterministic
  * ordering and labels.
+ * Candidate requests retain an existing Client Session through completion
+ * and wait for its initial history open to succeed before contacting the Host.
  *
  * Rows carry only what distinguishes them: a file names its parent directory
  * (nothing at the workspace root), a directory listing names none because its
@@ -28,6 +30,13 @@ import type { SessionReferenceMentionCandidate } from '@deepseek-ai/dsh-session-
 import { abbreviateHomePath, fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { en, NS, zh, type ReferenceKey } from './locales.ts'
 
+declare module '@deepseek-ai/dsh-api-session-controller/client' {
+  interface SessionReferenceSourceMap {
+    /** File and Session candidates waiting for initial history and their RPC results. */
+    referenceCandidates: unknown
+  }
+}
+
 /** Required services: the trigger registry, the Remote namespaces, and the copy. */
 export const inject = [
   'inputTriggers', 'locale', 'sessions', 'remote', 'remote.fileReferences',
@@ -47,13 +56,27 @@ export function apply(ctx: ClientContext): void {
     name: 'reference',
     showGroupTitle: false,
     async candidates(session: ClientSessionContext, { query, quoted, drilled, signal }) {
-      const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal)
-        .then(result => result.ok ? result.value : [])
-      const sessionLookup = quoted === true
-        ? Promise.resolve([] as SessionReferenceMentionCandidate[])
-        : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal)
-          .then(result => result.ok ? result.value : [])
-      const [fileItems, sessionItems] = await Promise.all([fileLookup, sessionLookup])
+      if (sessions.binding(session.sessionId) === undefined) {
+        throw new Error(`reference candidates require a retained session "${session.sessionId}"`)
+      }
+      const [fileItems, sessionItems] = await sessions.using(
+        session.sessionId,
+        { source: 'referenceCandidates', signal },
+        async (reference) => {
+          signal.throwIfAborted()
+          const state = reference.binding.session.getSnapshot()
+          if (state.openState !== 'open') {
+            throw state.openError ?? new Error(`session "${session.sessionId}" is not open`)
+          }
+          const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal)
+            .then(result => result.ok ? result.value : [])
+          const sessionLookup = quoted === true
+            ? Promise.resolve([] as SessionReferenceMentionCandidate[])
+            : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal)
+              .then(result => result.ok ? result.value : [])
+          return Promise.all([fileLookup, sessionLookup])
+        },
+      )
       if (signal.aborted) return []
       // The header already names the directory being listed; rows repeat it only
       // when there is no header to carry it.

@@ -2,7 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 
 export const name = 'subagent-activation-limit'
-export const inject = ['agents', 'settings', 'subagents']
+export const inject = ['agents', 'loader', 'subagents']
 
 /** Order parent admission and child completion without elapsed-time assumptions. */
 export function apply(ctx: Context): void {
@@ -13,7 +13,11 @@ export function apply(ctx: Context): void {
   })
   ctx.on('agent/pre-step', async ({ agent }, next) => {
     if (agent.session.header.parentSession !== undefined) await parentClosed.promise
-    else await ctx.settings.update('subagent', { maxActiveSubagents: 1 })
+    else {
+      const entry = [...ctx.loader.entries()].find(entry => entry.options.id === 'subagent')
+      if (entry === undefined) throw new Error('Missing subagent fixture entry')
+      await entry.update({ config: { maxActiveSubagents: 1 } })
+    }
     return next()
   })
 }

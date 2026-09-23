@@ -7,3 +7,5 @@
 - id: settings-controller
   config:
     nativeOpen: true
+- id: ui-sidebar-browser
+  disabled: false

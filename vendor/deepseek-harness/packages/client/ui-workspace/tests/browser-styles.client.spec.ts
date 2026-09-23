@@ -45,7 +45,7 @@ describe('WorkspaceBrowser.module.css list', () => {
 
   it('counts the themed scrollbar inside the shell trailing inset', () => {
     expect(root?.get('--dsh-session-list-edge-inset')).toBe('var(--dsh-sidebar-inline-padding)')
-    expect(root?.get('--dsh-session-list-scrollbar-width')).toBe('8px')
+    expect(root?.get('--dsh-session-list-scrollbar-width')).toBe('5px')
     expect(root?.get('--dsh-session-list-scrollbar-offset')).toBe('2px')
     expect(root?.get('padding-right')).toBe('var(--dsh-session-list-edge-inset)')
     expect(listArea?.get('margin-left')).toBe('-4px')
@@ -112,13 +112,20 @@ describe('WorkspaceBrowser.module.css list', () => {
       .toBe('var(--dsw-alias-interactive-bg-hover)')
   })
 
-  it('reveals a clipped session title by scrolling it on row hover', () => {
-    // Smooth versus reduced motion is pinned as a computed style in
-    // apps/web/tests/sidebar-title-hover-scroll.e2e.ts: this helper merges
-    // same-selector rules across media queries, so the reduce override would
-    // mask the smooth declaration here.
+  it('marquees a clipped session title on row hover', () => {
+    // The crawl itself is scripted in Rows.tsx frame by frame, so the title
+    // declares no scroll-behavior; the stylesheet keeps the hovered cell
+    // unclipped and fades whichever edges cut text mid-travel, on the title
+    // span itself so the status slot beside it keeps its full color.
     expect(rowDeclarations('.sessionRow .title')?.get('flex')).toBe('1')
+    expect(rowDeclarations('.sessionRow .title')?.get('scroll-behavior')).toBeUndefined()
     expect(rowDeclarations('.sessionRow:hover .title')?.get('text-overflow')).toBe('clip')
+    expect(rowDeclarations('.sessionRow .title[data-scrolled]')?.get('mask-image'))
+      .toBe('linear-gradient(to right, transparent, #000 12px)')
+    expect(rowDeclarations('.sessionRow .title[data-clipped]')?.get('mask-image'))
+      .toBe('linear-gradient(to left, transparent, #000 12px)')
+    expect(rowDeclarations('.sessionRow .title[data-scrolled][data-clipped]')?.get('mask-image'))
+      .toBe('linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent)')
   })
 
   it('pins both rail controls to the shared left anchor during the column slide', () => {

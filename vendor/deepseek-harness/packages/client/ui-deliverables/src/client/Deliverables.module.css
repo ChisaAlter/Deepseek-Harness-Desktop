@@ -18,18 +18,14 @@
 .description { overflow: hidden; color: var(--dsw-alias-label-tertiary); font-size: 10px; font-weight: 400; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .description[data-error='true'] { color: var(--dsw-alias-state-error-primary); }
 .previewHint { display: none; }
-.file:hover .secondaryText { display: none; }
-.file:hover .previewHint { display: inline; }
-.split { display: inline-flex; flex: none; align-items: stretch; box-sizing: border-box; height: 28px; overflow: hidden; pointer-events: auto; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 10px; background: var(--dsw-alias-button-floating-fill); }
-.menuAnchor { align-self: stretch; }
-.open, .chevron { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--dsw-alias-label-primary); cursor: pointer; font-family: var(--dsw-font-family); }
-.open { padding: 4px 8px; font-size: 12px; line-height: 18px; }
-.chevron { padding: 4px 5px; border-left: 0.5px solid var(--dsw-alias-border-l3); color: var(--dsw-alias-label-secondary); }
-.open:hover, .open:focus-visible, .chevron:hover:not(:disabled), .chevron:focus-visible { background: var(--dsw-alias-interactive-bg-hover); }
-.chevron:disabled { color: var(--dsw-alias-label-dimmed); cursor: not-allowed; }
-.menuActionIcon { display: block; width: 16px; height: 16px; }
+.file:hover .description:not([role='status']) .secondaryText { display: none; }
+.file:hover .description:not([role='status']) .previewHint { display: inline; }
 .toggle { align-self: center; display: inline-flex; align-items: center; gap: 4px; min-width: 0; padding: 1px 11px; border: 0; border-radius: 8px; background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; font: inherit; font-size: 12px; line-height: 18px; }
 .toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .toggle svg { flex: none; width: 14px; height: 14px; }
 @container (max-width: 620px) { .presented { grid-template-columns: minmax(0, 1fr); } }
-@media (pointer: coarse) { .split { min-height: 44px; } .open, .chevron { min-width: 44px; } }
+.actions { display: inline-flex; flex: none; pointer-events: auto; }
+
+.secondaryText[data-success] { animation-name: success-fade; animation-timing-function: ease-out; animation-fill-mode: forwards; }
+@keyframes success-fade { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .secondaryText[data-success] { animation-name: none; } }

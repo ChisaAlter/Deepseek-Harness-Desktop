@@ -8,9 +8,11 @@ import SessionStore, {
   SessionSeq,
   type CreateSessionOptions,
   type SessionEvent,
+  type SessionHeader,
 } from '@deepseek-ai/dsh-session'
+import { createSessionFormatCatalogWithChildren } from '@deepseek-ai/dsh-session-format-catalog'
 import DeepSeekLlmApiExtensionRegistry from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import { createAssistantMessage, createSystemMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createDeveloperMessage, createAssistantMessage, createSystemMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import * as SessionLogDeepSeek from '../src/index.ts'
 import type { DeepSeekSessionLogExtension, DeepSeekSessionLogWireEvent, DeepSeekSessionLogWireSurfaceOp } from '../src/types.ts'
@@ -83,6 +85,19 @@ describe('incremental DeepSeek session-log upload', () => {
     }>()
   })
 
+  it('uploads developer changes with their placement and source-event references', async () => {
+    const { ctx, session } = await harness('wire-developer')
+    const message = createDeveloperMessage({ content: [{ type: 'tool-addition', toolName: 'search' }], source: { kind: 'tool-registry' } })
+    const headerSeq = session.append('request/header', { reason: 'initial', header: { config: { provider: 'test', model: 'test' }, tools: [{ name: 'search', description: 'Search', parameters: {} }] } }).seq
+    const first = session.append('developer/message', { turn: 1, step: 1, headerSeq, message }, { surfaceOp: 'append' })
+    session.append('developer/message', {
+      turn: 1, step: 1,
+      message: createDeveloperMessage({ content: [{ type: 'tool-removal', toolName: 'search' }], source: { kind: 'tool-registry' } }),
+    }, { surfaceOp: { op: 'replace', startSeq: first.seq, endSeq: first.seq }, sourceEventSeqs: [first.seq] })
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: session.id })
+    expect(prepared.fields.dsh_session_log?.events).toEqual(session.snapshotEvents())
+  })
+
   it('uploads Assistant provider metadata only through its embedded stream', async () => {
     const { ctx, session } = await harness('wire-assistant')
     const assistant = session.append('assistant/message', {
@@ -108,13 +123,13 @@ describe('incremental DeepSeek session-log upload', () => {
 
   it('uploads system append and replacement placement with unchanged data and source-event references', async () => {
     const { ctx, session } = await harness('wire-system')
-    const headData = { turn: 1, step: 1, message: createSystemMessage('head', 'fixture'), extra: { retained: true } }
+    const headData = { turn: 1, step: 1, message: createSystemMessage('head'), extra: { retained: true } }
     const head = session.append('system/message', headData, { surfaceOp: 'append' })
     session.append('system/message', {
-      turn: 1, step: 2, message: createSystemMessage('later', 'fixture'),
+      turn: 1, step: 2, message: createSystemMessage('later'),
     }, { surfaceOp: 'append' })
     session.append('system/message', {
-      turn: 1, step: 3, message: createSystemMessage('new head', 'fixture'),
+      turn: 1, step: 3, message: createSystemMessage('new head'),
     }, { surfaceOp: { op: 'replace', startSeq: head.seq, endSeq: head.seq }, sourceEventSeqs: [head.seq] })
     const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: session.id })
     expect(prepared.fields.dsh_session_log?.events).toEqual(session.snapshotEvents())
@@ -213,6 +228,36 @@ describe('incremental DeepSeek session-log upload', () => {
     expect(SessionLogDeepSeek.acceptedThrough(fork.session)).toBe(-1)
     const forkPayload = await fork.ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: fork.session.id })
     expect(forkPayload.fields.dsh_session_log).toMatchObject({ afterSeq: -1, throughSeq: fork.session.seq - 1 })
+  })
+
+  it('uploads a migrated V3 log from the beginning before resuming current-generation acknowledgements', async () => {
+    const id = SessionId('migrated-v3-delivery')
+    const reader = createSessionFormatCatalogWithChildren([]).createRestore({
+      type: 'session', version: 3, id, createdAt: 1, isSeeded: false, delegationDepth: 0,
+    }, { recovery: 'strict', validation: 'current' })
+    reader.decodeRow({ type: 'feedback/record', seq: 0, time: 2, data: { text: 'retained' } })
+    reader.decodeRow({
+      type: 'session-log-deepseek/delivery-accepted', seq: 1, time: 3,
+      data: { sessionId: id, throughSeq: 0, sessionFormatVersion: 3 },
+    })
+    const artifact = reader.finish()
+    const session = Session.fromRestore(id, artifact.events as SessionEvent[],
+      artifact.header as unknown as SessionHeader, SessionLogOffset(artifact.inheritedEventCount), 'detached')
+    const { ctx } = await harness('delivery-migration-owner')
+    ctx.effect(() => ctx.sessions.enter(session))
+
+    const first = await ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: id })
+    expect(first.fields.dsh_session_log).toMatchObject({ sessionFormatVersion: SESSION_FORMAT_VERSION, afterSeq: -1 })
+    expect(first.fields.dsh_session_log?.events[0]?.seq).toBe(0)
+    expect(first.fields.dsh_session_log?.events[1]).toMatchObject({ data: { sessionFormatVersion: 3, throughSeq: 0 } })
+    const throughSeq = session.seq - 1
+    await first.accept()
+    expect(session.snapshotEvents().at(-1)?.data).toEqual({ sessionId: id, sessionFormatVersion: SESSION_FORMAT_VERSION, throughSeq })
+
+    const second = await ctx.deepseekLlmApiExtensions.prepare({ body: body(), signal: SIGNAL, sessionId: id })
+    expect(second.fields.dsh_session_log?.afterSeq).toBe(throughSeq)
+    expect(second.fields.dsh_session_log?.events.map(event => event.seq)).toEqual([throughSeq + 1])
+    expect(session.eventAt(SessionSeq(1))?.data).toMatchObject({ sessionFormatVersion: 3, throughSeq: 0 })
   })
 
   it('takes the maximum watermark when concurrent acceptances settle out of order', async () => {

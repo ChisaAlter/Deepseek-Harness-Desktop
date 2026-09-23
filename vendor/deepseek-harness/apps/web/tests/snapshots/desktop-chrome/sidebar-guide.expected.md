@@ -1,0 +1,6 @@
+- button "Files"
+- button "File viewer"
+- button "New terminal"
+- button "Choose shell"
+- button "Workspace diff"
+- button "Agents and jobs"

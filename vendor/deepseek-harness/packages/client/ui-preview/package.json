@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-preview",
   "description": "Right-panel Browser surface: desktop-only local URL preview",
-  "version": "0.1.6-alpha.2",
+  "version": "0.1.7-alpha.2",
   "publishConfig": {
     "access": "public"
   },

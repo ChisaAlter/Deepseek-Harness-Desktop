@@ -49,7 +49,7 @@
 - id: spill-policy
   name: '@deepseek-ai/dsh-spill-policy'
   config:
-    maxInlineBytes: 800
+    maxInlineTokens: 200
 
 - insert:
     - id: snapshot-spill-locators

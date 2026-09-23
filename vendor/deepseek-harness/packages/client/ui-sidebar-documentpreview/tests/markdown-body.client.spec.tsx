@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Markdown preview uses one accumulated document across page arrivals and EOF. */
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { MarkdownBody, type MarkdownBodyProps } from '../src/client/markdown/MarkdownBody.tsx'
 import { en, zh } from '../src/client/markdown/locales.ts'
@@ -20,12 +20,45 @@ function content(pageTexts: readonly string[], eof: boolean): DocumentContent {
   return { kind: 'text', text: pageTexts.join('\n'), pages, eof }
 }
 
-// The body reads content and locale only; the other standard seats belong to the slot integration tests.
-function props(value: DocumentContent, t: MarkdownBodyProps['t'] = makeTranslate(en)): MarkdownBodyProps {
-  return { resourceAddress: 'dsh-resource://file/session/markdown/notes.md', content: value, wrap: false, t } as MarkdownBodyProps
+// Unused framework seats belong to the slot integration tests.
+function props(value: DocumentContent, t: MarkdownBodyProps['t'] = makeTranslate(en), absolutePath?: string): MarkdownBodyProps {
+  return {
+    resourceAddress: 'dsh-resource://file/session/markdown/notes.md', content: value, wrap: false, t,
+    useResource: () => ({
+      status: absolutePath === undefined ? 'loading' : 'live',
+      value: absolutePath === undefined ? undefined : { absolutePath, version: 'v1' },
+      failure: undefined,
+    }),
+  } as MarkdownBodyProps
 }
 
 describe('MarkdownBody', () => {
+  it('loads local images beside the Host document and retains external images and failure text', () => {
+    const text = '![relative](images/a.png) ![absolute](/tmp/a.png) ![external](https://example.test/a.png)'
+    const view = render(<MarkdownBody {...props(content([text], true), undefined, '/work/guide/notes.md')} />)
+    expect(new URL(view.getByAltText('relative').getAttribute('src')!).searchParams.get('path'))
+      .toBe('/work/guide/images/a.png')
+    expect(new URL(view.getByAltText('absolute').getAttribute('src')!).searchParams.get('path')).toBe('/tmp/a.png')
+    expect(view.getByAltText('external').getAttribute('src')).toBe('https://example.test/a.png')
+    fireEvent.error(view.getByAltText('relative'))
+    expect(view.getByText('relative').tagName).toBe('SPAN')
+  })
+
+  it('resolves reference images at EOF and updates their directory when metadata changes', () => {
+    const first = '![figure][image]'
+    const second = '\n[image]: images/a.png'
+    const view = render(<MarkdownBody {...props(content([first], false))} />)
+    view.rerender(<MarkdownBody {...props(content([first, second], false), undefined, '/work/guide/notes.md')} />)
+    expect(view.container.querySelector('img')).toBeNull()
+    view.rerender(<MarkdownBody {...props(content([first, second], true))} />)
+    expect(view.container.querySelector('img')).toBeNull()
+    for (const directory of ['/work/guide', '/other']) {
+      view.rerender(<MarkdownBody {...props(content([first, second], true), undefined, `${directory}/notes.md`)} />)
+      expect(new URL(view.getByAltText('figure').getAttribute('src')!).searchParams.get('path'))
+        .toBe(`${directory}/images/a.png`)
+    }
+  })
+
   it('renders GFM headings, tables, task lists, strikeout, and localized code and footnote chrome', () => {
     const text = [
       '# Notes', '', '| Item | Value |', '| --- | --- |', '| a | 1 |', '',

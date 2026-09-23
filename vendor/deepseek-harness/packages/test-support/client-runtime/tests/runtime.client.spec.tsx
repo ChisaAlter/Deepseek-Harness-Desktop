@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { stubSettingsScope } from '../src/settings-scope.ts'
+import { stubConfigForm } from '../src/config-form.ts'
 import { act, cleanup } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import { createSnapshotStore, defineStore } from '@deepseek-ai/dsh-client-store'
@@ -177,6 +177,27 @@ describe('sessions', () => {
     await runtime.dispose()
   })
 
+  it('resolves loaded parent projection addresses without retaining a session', async () => {
+    const runtime = await runtimeWithFrame()
+    try {
+      const parent = 'parent' as SessionId
+      const child = 'child' as SessionId
+      runtime.sessions.list.update((draft) => {
+        draft.projectionsBySession = {
+          [parent]: { state: 'ready', error: null, values: { subagentCatalog: [{ createdAt: 1, id: child, mode: 'continuable', label: 'worker' }] } },
+        }
+      })
+      expect(runtime.sessions.subagentAddress(child)).toEqual({
+        parentSessionId: parent, childSessionId: child, mode: 'continuable',
+      })
+      expect(runtime.sessions.subagentAddress(parent)).toBeUndefined()
+      expect(runtime.sessions.binding(child)).toBeUndefined()
+      expect(runtime.sessions.binding(parent)).toBeUndefined()
+    } finally {
+      await runtime.dispose()
+    }
+  })
+
   it('accepts explicit addresses without a catalog and keeps them independent of references', async () => {
     const runtime = await runtimeWithFrame()
     await runtime.sessions.add({ id: 's1' })
@@ -192,8 +213,7 @@ describe('sessions', () => {
     await runtime.sessions.updateSummary('s1', { displayTitle: 'renamed', running: true })
     expect(runtime.sessions.list.getSnapshot().byId['s1' as SessionId])
       .toMatchObject({ displayTitle: 'renamed', running: true })
-    runtime.sessions.setSubagentCatalogOpen('s2' as SessionId, true)
-    await runtime.sessions.refreshSubagents('s2' as SessionId)
+    await runtime.sessions.refreshProjections('s2' as SessionId)
     reference.release()
     expect(runtime.sessions.binding('s1')).toBeUndefined()
     expect(runtime.sessions.subagentAddress('s1' as SessionId)).toEqual(address)
@@ -201,8 +221,7 @@ describe('sessions', () => {
       sessionId: 's1' as SessionId, atSeq: 7, increaseTitle: true,
     })).resolves.toBe('s1')
     expect(runtime.sessions.calls).toEqual([
-      { method: 'setSubagentCatalogOpen', args: ['s2', true] },
-      { method: 'refreshSubagents', args: ['s2'] },
+      { method: 'refreshProjections', args: ['s2'] },
       { method: 'fork', args: [{ sessionId: 's1', atSeq: 7, increaseTitle: true }] },
     ])
     await runtime.dispose()
@@ -213,13 +232,13 @@ describe('sessions', () => {
     const parentId = 'parent' as SessionId
     await runtime.sessions.add({ id: 'child' })
     runtime.sessions.list.update((draft) => {
-      draft.subagentsByParent = {
+      draft.projectionsBySession = {
         [parentId]: {
-          state: 'ready', error: null, parentAvailable: true,
-          entries: [
-            { kind: 'child', id: 'other' as SessionId, mode: 'one-shot', activity: 'inactive', hasChildren: false },
-            { kind: 'child', id: 'child' as SessionId, mode: 'continuable', label: 'Child', activity: 'inactive', hasChildren: false },
-          ],
+          state: 'ready', error: null,
+          values: { subagentCatalog: [
+            { createdAt: 1, id: 'other' as SessionId, mode: 'one-shot' },
+            { createdAt: 2, id: 'child' as SessionId, mode: 'continuable', label: 'Child' },
+          ] },
         },
       }
     })
@@ -228,6 +247,8 @@ describe('sessions', () => {
       parentSessionId: parentId, childSessionId: 'child', mode: 'continuable',
     })
     expect(runtime.sessions.subagentAddress('missing' as SessionId)).toBeUndefined()
+    expect(runtime.sessions.binding(parentId)).toBeUndefined()
+    expect(runtime.sessions.binding('child')).toBeUndefined()
     await runtime.dispose()
   })
 
@@ -536,6 +557,28 @@ describe('workspaces', () => {
     expect(view.container.textContent).toContain('ws:pending')
     await runtime.dispose()
   })
+  it('skips default initialization without a fixture and forwards a configured request and lifetime', async () => {
+    const runtime = await SlotTestRuntime.create()
+    try {
+      const request = { directoryName: 'default-workspace', title: 'Default workspace' }
+      const signal = new AbortController().signal
+      await expect(runtime.workspaces.initializeDefault(request, signal)).resolves.toBeUndefined()
+      const workspace = {
+        workspaceId: 'default' as WorkspaceId, title: request.title, path: '/default', sessionIds: [],
+        createdAt: '2026-09-20T00:00:00Z', updatedAt: '2026-09-20T00:00:00Z',
+      }
+      const initialize = vi.fn(async () => workspace)
+      runtime.workspaces.stub('initializeDefault', initialize)
+      await expect(runtime.workspaces.initializeDefault(request, signal)).resolves.toBe(workspace)
+      expect(initialize).toHaveBeenCalledWith(request, signal)
+      expect(runtime.workspaces.calls).toEqual([
+        { method: 'initializeDefault', args: [request, signal] },
+        { method: 'initializeDefault', args: [request, signal] },
+      ])
+    } finally {
+      await runtime.dispose()
+    }
+  })
 })
 
 describe('feature mount and disposal', () => {
@@ -756,6 +799,41 @@ describe('fixture session face', () => {
 })
 
 describe('workspaces action face', () => {
+  it('records pin and unpin actions, updates the ordered set, and honors stubs', async () => {
+    const runtime = await SlotTestRuntime.create()
+    try {
+      const ws = runtime.workspaces
+      const first = 'first' as SessionId
+      const second = 'second' as SessionId
+      await ws.pinSession(first)
+      await ws.pinSession(second)
+      await ws.pinSession(first)
+      expect(ws.list.getSnapshot().pinnedSessionIds).toEqual([first, second])
+      await ws.unpinSession(first)
+      expect(ws.list.getSnapshot().pinnedSessionIds).toEqual([second])
+
+      const pin = vi.fn(async () => {})
+      const unpin = vi.fn(async () => {})
+      ws.stub('pinSession', pin)
+      ws.stub('unpinSession', unpin)
+      await ws.pinSession(first)
+      await ws.unpinSession(second)
+      expect(pin).toHaveBeenCalledWith(first)
+      expect(unpin).toHaveBeenCalledWith(second)
+      expect(ws.list.getSnapshot().pinnedSessionIds).toEqual([second])
+      expect(ws.calls).toEqual([
+        { method: 'pinSession', args: [first] },
+        { method: 'pinSession', args: [second] },
+        { method: 'pinSession', args: [first] },
+        { method: 'unpinSession', args: [first] },
+        { method: 'pinSession', args: [first] },
+        { method: 'unpinSession', args: [second] },
+      ])
+    } finally {
+      await runtime.dispose()
+    }
+  })
+
   it('records every IWorkspaces verb with inert defaults and honors stubs', async () => {
     const runtime = await SlotTestRuntime.create()
     const ws = runtime.workspaces
@@ -834,7 +912,7 @@ describe('single-slot mounting edge arms', () => {
 
 describe('stubbed settings scope', () => {
   it('records both write kinds and publishes a Host acceptance to its listeners', async () => {
-    const host = stubSettingsScope<{ preference: string }>()
+    const host = stubConfigForm<{ preference: string }>()
     let notified = 0
     const stop = host.scope.subscribe(() => { notified += 1 })
     expect(host.listenerCount()).toBe(1)
@@ -843,7 +921,8 @@ describe('stubbed settings scope', () => {
     })
 
     await host.scope.set('preference', 'dark')
-    await host.scope.unset('preference')
+    await expect(host.scope.unset('preference')).resolves.toBe(true)
+    await expect(host.scope.mutate([{ op: 'set', path: ['preference'], value: 'dark' }])).resolves.toBe(true)
     host.publish({
       status: 'ready',
       value: { preference: 'system' },

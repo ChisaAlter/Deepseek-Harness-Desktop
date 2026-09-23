@@ -1,5 +1,5 @@
 /**
- * Site marks for well-known external link hosts. {@link LinkIcon} renders one in
+ * Site marks for well-known external link hosts. {@link LinkIconMedium} renders one in
  * the leading glyph seat, so a familiar destination leads with its own mark
  * instead of the generic globe. The marks are the `simple-icons` artwork set
  * (CC0-1.0), pinned by this package's dependency on it; each mark takes the

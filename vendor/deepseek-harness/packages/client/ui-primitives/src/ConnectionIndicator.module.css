@@ -77,14 +77,6 @@
   text-align: left;
 }
 
-.spinner {
-  animation: spinner-rotate 0.9s linear infinite;
-}
-
-@keyframes spinner-rotate {
-  to { transform: rotate(360deg); }
-}
-
 .dots {
   display: inline-block;
   width: 1em;
@@ -112,8 +104,7 @@
 @media (prefers-reduced-motion: reduce) {
   .indicator,
   .secondDot,
-  .thirdDot,
-  .spinner {
+  .thirdDot {
     animation: none;
   }
 

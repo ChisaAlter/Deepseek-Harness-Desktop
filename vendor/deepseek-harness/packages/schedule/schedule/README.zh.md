@@ -53,7 +53,7 @@ dsh web --patch apps/cli/config/examples/schedule/cordis.yml
 
 ### 提醒何时触发
 
-到期提醒会在会话空闲后作为普通 follow-up 消息出现；agent 绝不会中断正在运行的轮次。已经 live 且空闲的 agent 可以认领 maintenance 并立即交付，无需再次恢复。一次性提醒先于任何重复批次触发；同时到期的多条重复提醒会按时间顺序合并为一条消息。如果会话在提醒到期时已关闭或 cold，提醒会保持逾期，直到未来的 live 根 agent 恢复会话——会话之外不会发送任何内容。错过若干间隔的重复提醒只展示最新一个到期发生时点，不展示积压。可选 Web 目录只显示活动记录，并不充当交付回执；dispatch 表示 follow-up 已入队并被记录，不表示模型成功或用户已读取回答。
+到期提醒会在会话空闲后作为普通 follow-up 消息出现；agent 绝不会中断正在运行的轮次。已经 live 且空闲的 agent 可以认领 maintenance 并立即交付，无需再次恢复。一次性提醒先于任何重复批次触发；同时到期的多条重复提醒会按时间顺序合并为一条消息。如果会话在提醒到期时已关闭或 cold，提醒会保持逾期，直到未来的 live 根 agent 恢复会话——会话之外不会发送任何内容。错过若干间隔的重复提醒只展示最新一个到期发生时点，不展示积压。可选 Web 目录只显示活动记录，并不充当交付回执；dispatch 表示 follow-up 已入队并被记录，不表示模型成功或用户已读取回答。归档仍有活动提醒的活会话会被拒绝，直到这些提醒停止；选择停止它们会删除全部活动提醒，取消归档不会把它们带回来。
 
 -----
 
@@ -110,6 +110,7 @@ projection 只携带持久记录。它不持久化或传输 scheduled／overdue 
 
 日历规范化是确定性的。夏令时缺口内的本地时间会被拒绝；重叠时选择第一次出现的较早时刻。Schedule 的时间校验不会读取浏览器、Session header 中的时区字段、模型 time-context、连接或进程时区，因此回放永不依赖环境时区状态。
 
+<a id="management-pipeline"></a>
 ### 管理流水线
 
 一条 agent 范围的队列把每项已接纳的管理事务与 live owner 的到期事务从 preflight 到任何 post-append barrier 全程串行化。`schedule_create` 建立检查点、分配永不复用的 id、追加 create 事件，再次建立检查点；被取消的调用方在追加前停止。每次成功的管理 preflight 还会要求 live owner 重新计算，这会在先前的 post-append barrier 返回 `persistence_uncertain` 后恢复所保留的 create 或 delete 批次。
@@ -121,6 +122,8 @@ projection 只携带持久记录。它不持久化或传输 scheduled／overdue 
 owner 把长等待拆分为有界的 timer 段，并在每次唤醒后重新读取墙钟。到期工作认领 idle maintenance phase、采样一个决策时点、在 `followup()` 之前构造完整的转义 framing、只在同步入队返回后追加 dispatch、释放 maintenance，然后等待持久化。错过的固定速率间隔永远不会被枚举：整数运算选择每条记录最新一个已到期且与创建锚点对齐的发生时点，并直接推进到第一个未来目标。
 
 逾期提醒首先为持久化建立检查点，然后通过 `runMaintenance()` 认领 agent 的 idle maintenance phase；如果某个轮次或另一项 maintenance task 已占用 agent，认领会失败，记录保持活动，owner 在 `whenIdle()` 后重试。获准的 maintenance task 会重新折叠、采样一个决策时点、构造固定 framing、同步将 `followup()` 入队，并在释放 phase 前追加 dispatch。dispatch 表示 follow-up 已入队并被记录，不表示模型成功或用户已读取回答。framing 构造或同步 follow-up 失败不会写入 dispatch；追加失败会使 owner 进入故障状态，因为消息可能已经入队；barrier 拒绝则把 dispatch 留给后续普通 preflight。agent 或插件执行资源释放时取消 timer 并停止新工作，但不删除持久记录。
+
+本插件为每个它拥有 runtime 的会话回答 Workspace 注册表的归档准入（[接缝](../../workspace/workspace/README.zh.md)），答案来自该 owner 对活日志的自有 fold——投影注册表是 Client 视图，这里不读它：`workspace/session-activity` 把会话自身后缀中的活动记录作为 `schedule` 族报告，每条提醒一项、以其 prompt 作名称；`workspace/session-stop` 是与工具处于[同一串行事务与屏障](#management-pipeline)之下的管理删除：先 await `ctx.sessions.flush(session)` 再读取 fold，为每条活动提醒追加与 `schedule_delete` 工具所记录的相同的 `delete` 变更，请求 owner 重新驱动以清除其 timer，然后在追加之后 await 第二道屏障。屏障失败会让该 stop 拒绝；注册表记录日志并保留归档，这些提醒留给已归档会话的 `agent/pre-step` 门禁在触发时拦下。注册表先写入归档再派发 stop，因此在该写入与删除屏障之间崩溃会留下一个提醒仍被记录的已归档会话；下次取消归档时它们会再次出现，与从未请求过 stop 时完全一样。没有活 agent 的会话，或没有归属 runtime 的活 agent（在本插件加载前发布，或其 runtime 已停止、已故障），不报告任何内容也没有可停的东西，因为它没有任何已武装、可触发的提醒。
 
 </details>
 

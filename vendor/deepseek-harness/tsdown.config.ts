@@ -1,10 +1,22 @@
 import { defineConfig } from 'tsdown'
+import { globSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
 
 function isBuildFaceClient(value: unknown): boolean {
   if (value === undefined || value === 'host') return false
   if (value === 'client') return true
   throw new Error(`tsdown: --env.DSH_BUILD_FACE must be host or client, received ${String(value)}`)
+}
+
+function workspacePackages(client: boolean): string[] {
+  const patterns = [
+    'vendor/*/package.json',
+    'packages/*/*/package.json',
+    client ? 'apps/cli/package.json' : 'apps/{cli,desktop,desktop-host}/package.json',
+  ]
+  return patterns.flatMap(pattern => globSync(pattern, { cwd: import.meta.dirname })
+    .map(manifest => dirname(manifest).replaceAll('\\', '/'))).sort()
 }
 
 /**
@@ -16,9 +28,9 @@ function isBuildFaceClient(value: unknown): boolean {
 export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
   return {
-    workspace: client
-      ? ['vendor/*', 'packages/*/*', 'apps/cli']
-      : ['vendor/*', 'packages/*/*', 'apps/cli', 'apps/desktop', 'apps/desktop-host'],
+    // A deleted package may leave lib/ and node_modules/ behind locally. Only
+    // manifest-bearing workspaces are eligible for the inherited entry glob.
+    workspace: workspacePackages(client),
     // Some alpha.4 bundles intentionally have no invariant companion
     // (notably headless/base). Package-local configs build invariant entries
     // where they exist; the workspace aggregate must not require a missing

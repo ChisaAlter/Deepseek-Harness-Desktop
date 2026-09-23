@@ -197,13 +197,9 @@ export interface CompactionSummaryNode {
 }
 
 /**
- * Fallback for surface events this UI version does not know: the documented
- * default arm of `SessionEventMap`, which is merge-extensible, so the
- * projection's switch cannot end in `assertNever`. No event produces this node
- * because `isAppendSurfaceEvent` admits only the four types in core's
- * `SurfaceEventType`, and each has its own arm (`system/message` is claimed by
- * a Chat Definition that renders no transcript row) — and it exists so widening
- * that set core-side degrades to a raw row instead of dropping the event silently.
+ * Fallback for unclaimed append-surface events. The merge-extensible
+ * SessionEventMap permits unfamiliar events to retain a raw presentation.
+ * Known unsupported developer events throw before fallback selection.
  */
 export interface UnknownSurfaceNode {
   kind: 'unknown'

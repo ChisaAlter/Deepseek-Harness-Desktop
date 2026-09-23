@@ -12,6 +12,15 @@ import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-a
 import { createSessionTestRemote } from './test-remote.ts'
 import type { SessionRequestId } from '../src/types.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'edit-test': { kind: 'edit-test' }
+    'edit-instructions': { kind: 'edit-instructions'; form?: 'instructions' }
+    'edit-state': { kind: 'edit-state'; form: 'snapshot'; sections: readonly [] }
+    'edit-notice': { kind: 'edit-notice'; form: 'notice'; summary: string }
+  }
+}
+
 const contexts: Context[] = []
 afterEach(async () => { await Promise.all(contexts.splice(0).map(ctx => ctx.fiber.dispose())) })
 
@@ -89,7 +98,7 @@ describe('same-session message editing', () => {
       expect((await b.send('invalid', target)).ok).toBe(false)
       expect(b.agent.session.snapshotEvents()).toEqual(prefix)
     }
-    b.agent.inject(createUserMessage({ content: [{ type: 'text', text: 'pending context' }], source: { kind: 'plugin', plugin: 'test' } }))
+    b.agent.inject(createUserMessage({ content: [{ type: 'text', text: 'pending context' }], source: { kind: 'edit-test' } }))
     expect((await b.send('pending edit', latest)).ok).toBe(false)
     expect(b.texts()).not.toContain('pending edit')
     expect(b.ctx.agents.list()).toHaveLength(1)
@@ -130,7 +139,7 @@ describe('same-session message editing', () => {
       if (!inject || result.kind !== 'enter') return result
       inject = false
       return { ...result, messages: [...result.messages,
-        createUserMessage({ content: [{ type: 'text', text: 'retained instructions' }], source: { kind: 'plugin', plugin: 'instructions' } }),
+        createUserMessage({ content: [{ type: 'text', text: 'retained instructions' }], source: { kind: 'edit-instructions' } }),
         createUserMessage({ content: [{ type: 'text', text: 'steering' }], source: { kind: 'user' } }),
       ] }
     })
@@ -152,9 +161,9 @@ describe('same-session message editing', () => {
       const text = round === 1 ? 'base instructions' : 'new file instructions'
       const state = round === 1 ? 'old runtime state' : 'fresh runtime state'
       return { ...result, messages: [...result.messages,
-        createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'instructions', form: 'instructions' } }),
-        createUserMessage({ content: [{ type: 'text', text: state }], source: { kind: 'plugin', plugin: 'state', form: 'snapshot', sections: [] } }),
-        ...(round === 1 ? [createUserMessage({ content: [{ type: 'text', text: 'old one-off notice' }], source: { kind: 'plugin', plugin: 'notice', form: 'notice', summary: 'notice' } })] : []),
+        createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'edit-instructions', form: 'instructions' } }),
+        createUserMessage({ content: [{ type: 'text', text: state }], source: { kind: 'edit-state', form: 'snapshot', sections: [] } }),
+        ...(round === 1 ? [createUserMessage({ content: [{ type: 'text', text: 'old one-off notice' }], source: { kind: 'edit-notice', form: 'notice', summary: 'notice' } })] : []),
       ] }
     })
     await b.send('original')

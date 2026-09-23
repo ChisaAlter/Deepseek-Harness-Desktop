@@ -1,6 +1,7 @@
 /** Content-block structure helpers. @module @deepseek-ai/dsh-llm/content */
 
 import type { ContentBlock, ImageBlock, LlmImageRequestBudget } from './types.ts'
+import type { RequestMessage } from './types.ts'
 import type { Message } from './message.ts'
 import type {
   AttachmentStore, FileAttachmentRef, ImageAttachmentRef, ImageMediaType, RequestImageAttachment,
@@ -148,29 +149,25 @@ export function offloadedImageText(
 }
 
 /**
- * True when typed model content contains an image block, walking nested
- * tool-result content. This is the one recursive image walk shared by every
- * image policy (capability gating, text-only serialization, compaction
- * survey), so a consumer cannot silently diverge on nesting depth.
+ * True when typed model content contains an image block. This is the one image
+ * walk shared by every image policy (capability gating, text-only
+ * serialization, compaction survey), so a consumer cannot silently diverge.
  * @param content - typed model content blocks.
- * @returns whether any nested block is an image.
+ * @returns whether any block is an image.
  */
 export function contentHasImage(content: readonly ContentBlock[]): boolean {
-  return content.some(block => block.type === 'image'
-    || (block.type === 'tool-result' && contentHasImage(block.content)))
+  return content.some(block => block.type === 'image')
 }
 
 /**
- * True when typed model content contains a file block, walking nested
- * tool-result content on the same recursion every file policy shares.
+ * True when typed model content contains a file block.
  * Reads current content on every call without retaining scan results.
  * @param content - typed model content blocks.
- * @returns whether any nested block is a file.
+ * @returns whether any block is a file.
  */
 export function contentHasFile(content: readonly ContentBlock[]): boolean {
   for (const block of content) {
-    if (block.type === 'file'
-      || (block.type === 'tool-result' && contentHasFile(block.content))) return true
+    if (block.type === 'file') return true
   }
   return false
 }
@@ -192,7 +189,7 @@ export function fileHandleText(ref: FileAttachmentRef, readonlyPath: string | un
   return `[${identity}: verbatim read-only copy saved at ${quoted(readonlyPath)}. Read that path with your file tools when its contents are needed; copy it to a writable location before modifying it. When delegating file work, include this saved path in the delegation prompt; only subagents sharing this execution environment can read it.]`
 }
 
-/** Replace every file occurrence, including nested tool results, with handle text. */
+/** Replace every file occurrence with handle text. */
 function replaceFilesWithHandles(
   blocks: readonly ContentBlock[],
   resolvePath: (ref: FileAttachmentRef) => string | undefined,
@@ -204,21 +201,13 @@ function replaceFilesWithHandles(
       next.push({ type: 'text', text: fileHandleText(block.attachment, resolvePath(block.attachment)) })
       continue
     }
-    if (block.type === 'tool-result') {
-      const content = replaceFilesWithHandles(block.content, resolvePath)
-      if (content !== block.content) {
-        next ??= blocks.slice(0, index)
-        next.push({ ...block, content })
-        continue
-      }
-    }
     next?.push(block)
   }
   return next ?? blocks as ContentBlock[]
 }
 
 /**
- * Project durable file history into deterministic handle text for every model
+ * Project request file content into deterministic handle text for every model
  * route. Unlike images, no provider receives file blocks natively, so this
  * projection is unconditional in request assembly.
  * @param messages - complete request history.
@@ -228,7 +217,21 @@ function replaceFilesWithHandles(
 export function projectFilesToText(
   messages: readonly Message[],
   resolvePath: (ref: FileAttachmentRef) => string | undefined,
-): readonly Message[] {
+): readonly Message[]
+/**
+ * Project file content in mixed durable and request-only inputs.
+ * @param messages - complete request inputs.
+ * @param resolvePath - resolve a reference's execution-world read path.
+ * @returns original inputs without files, otherwise copies with handle text.
+ */
+export function projectFilesToText(
+  messages: readonly RequestMessage[],
+  resolvePath: (ref: FileAttachmentRef) => string | undefined,
+): readonly RequestMessage[]
+export function projectFilesToText(
+  messages: readonly RequestMessage[],
+  resolvePath: (ref: FileAttachmentRef) => string | undefined,
+): readonly RequestMessage[] {
   if (!messages.some(message => contentHasFile(message.content))) return messages
   return messages.map((message) => {
     const content = replaceFilesWithHandles(message.content, resolvePath)
@@ -242,19 +245,17 @@ function base64Length(bytes: number): number {
 }
 
 /**
- * Visit every image occurrence of typed content in message order, including
- * nested tool-result content.
+ * Visit every image occurrence of typed content in message order.
  * @param content - typed model content blocks.
  * @param visit - called once per occurrence.
  */
 function visitImageBlocks(content: readonly ContentBlock[], visit: (block: ImageBlock) => void): void {
   for (const block of content) {
     if (block.type === 'image') visit(block)
-    else if (block.type === 'tool-result') visitImageBlocks(block.content, visit)
   }
 }
 
-/** Replace every offloaded occurrence, including nested tool results, with its placeholder. */
+/** Replace every offloaded occurrence with its placeholder. */
 function replaceOffloadedImages(
   blocks: readonly ContentBlock[],
   placeholder: (ref: ImageAttachmentRef) => string,
@@ -265,14 +266,6 @@ function replaceOffloadedImages(
       next ??= blocks.slice(0, index)
       next.push({ type: 'text', text: placeholder(block.attachment) })
       continue
-    }
-    if (block.type === 'tool-result') {
-      const content = replaceOffloadedImages(block.content, placeholder)
-      if (content !== block.content) {
-        next ??= blocks.slice(0, index)
-        next.push({ ...block, content })
-        continue
-      }
     }
     next?.push(block)
   }
@@ -290,7 +283,21 @@ function replaceOffloadedImages(
 export function projectOffloadedImages(
   messages: readonly Message[],
   placeholder: (ref: ImageAttachmentRef) => string,
-): readonly Message[] {
+): readonly Message[]
+/**
+ * Project offloaded images in mixed durable and request-only inputs.
+ * @param messages - complete request inputs.
+ * @param placeholder - replacement text for an offloaded attachment.
+ * @returns original messages or shallow copies with placeholders.
+ */
+export function projectOffloadedImages(
+  messages: readonly RequestMessage[],
+  placeholder: (ref: ImageAttachmentRef) => string,
+): readonly RequestMessage[]
+export function projectOffloadedImages(
+  messages: readonly RequestMessage[],
+  placeholder: (ref: ImageAttachmentRef) => string,
+): readonly RequestMessage[] {
   return messages.map((message) => {
     const content = replaceOffloadedImages(message.content, placeholder)
     return content === message.content ? message : { ...message, content }
@@ -341,7 +348,7 @@ function offloadedImagePrefixCount(
  * @returns how many more leading retained occurrences to offload.
  */
 export function requiredImageOffload(
-  messages: readonly Message[],
+  messages: readonly RequestMessage[],
   budget: Pick<LlmImageRequestBudget, 'representation' | 'maxBytes' | 'maxImages' | 'byteQuantum' | 'countQuantum'>,
   versionBytes: (block: ImageBlock) => number,
 ): number {
@@ -356,7 +363,7 @@ export function requiredImageOffload(
   return offloadedImagePrefixCount(lengths, budget)
 }
 
-/** Replace every image occurrence, including nested tool results, for a text-only model. */
+/** Replace every image occurrence for a text-only model. */
 function replaceImagesForTextModel(blocks: readonly ContentBlock[]): ContentBlock[] {
   let next: ContentBlock[] | undefined
   for (const [index, block] of blocks.entries()) {
@@ -365,25 +372,24 @@ function replaceImagesForTextModel(blocks: readonly ContentBlock[]): ContentBloc
       next.push({ type: 'text', text: textOnlyImageText(block.attachment) })
       continue
     }
-    if (block.type === 'tool-result') {
-      const content = replaceImagesForTextModel(block.content)
-      if (content !== block.content) {
-        next ??= blocks.slice(0, index)
-        next.push({ ...block, content })
-        continue
-      }
-    }
     next?.push(block)
   }
   return next ?? blocks as ContentBlock[]
 }
 
 /**
- * Project durable image history into deterministic text for an exact text-only model.
+ * Project request image content into deterministic text for an exact text-only model.
  * @param messages - complete request history.
  * @returns the original list without images, otherwise shallow message copies with stable placeholders.
  */
-export function projectImagesForTextModel(messages: readonly Message[]): readonly Message[] {
+export function projectImagesForTextModel(messages: readonly Message[]): readonly Message[]
+/**
+ * Project image content in mixed durable and request-only inputs for a text-only model.
+ * @param messages - complete request inputs.
+ * @returns original inputs without images, otherwise copies with stable placeholders.
+ */
+export function projectImagesForTextModel(messages: readonly RequestMessage[]): readonly RequestMessage[]
+export function projectImagesForTextModel(messages: readonly RequestMessage[]): readonly RequestMessage[] {
   if (!messages.some(message => contentHasImage(message.content))) return messages
   return messages.map((message) => {
     const content = replaceImagesForTextModel(message.content)

@@ -366,7 +366,7 @@ describe('experimental Inspector Client plugin', () => {
       rev: 'graph',
       entries: [{
         id: '@deepseek-ai/dsh-experimental-inspector',
-        url: '/plugins/@deepseek-ai/dsh-experimental-inspector/client.js?rev=bundle-rev',
+        url: 'plugins/@deepseek-ai/dsh-experimental-inspector/client.js?rev=bundle-rev',
         rev: 'bundle-rev',
       }],
     })

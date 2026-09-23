@@ -2,26 +2,14 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import LlmRuntime, { LlmAdapter, contentHasImage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { LlmAdapter, contentHasImage, createToolResultMessage, createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ImageBlock, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import VisionFallback from '@deepseek-ai/dsh-llm-vision-fallback'
 import SessionStore, { KNOWN_SESSION_EVENT_TYPES, Session, SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import { SettingsProvider } from '@deepseek-ai/dsh-settings'
-import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { textResponse } from './mock-adapter.ts'
-
-class MemorySettings extends SettingsProvider {
-  private doc: Record<string, unknown> = {}
-  get writable(): boolean { return true }
-  protected load(): Promise<Record<string, unknown>> { return Promise.resolve(this.doc) }
-  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
-    this.doc = { ...this.doc, [ns]: structuredClone(section) }
-    return Promise.resolve()
-  }
-}
 
 class Adapter extends LlmAdapter {
   requests: GenerateOptions[] = []
@@ -65,18 +53,16 @@ async function setup(model = 'text', timeoutMs = 1000) {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(MemorySettings)
-  await ctx.plugin(VisionFallback, { maxOutputTokens: 128, timeoutMs })
+  await ctx.plugin(VisionFallback, { maxOutputTokens: 128, timeoutMs, provider: 'mock', model: 'vision' })
   await ctx.plugin(AgentLoop, { agents: [] })
   const adapter = new Adapter()
   ctx.llm.registerAdapter(['mock'], adapter)
-  await ctx.settings.update('vision-fallback', { provider: 'mock', model: 'vision' })
   const agent = await ctx.agentLoop.create(SessionId('vision-integration'), { provider: 'mock', model })
   return { ctx, adapter, agent }
 }
 
 describe('vision fallback request integration', () => {
-  it('consumes saved settings, logs descriptions before dispatch, and reuses them after reload', async () => {
+  it('consumes the configured route, logs descriptions before dispatch, and reuses them after reload', async () => {
     const { ctx, adapter, agent } = await setup()
     adapter.onRequest = options => {
       if (options.model === 'text') {
@@ -140,12 +126,9 @@ describe('vision fallback request integration', () => {
       .toMatchObject({ data: { reason: { kind: 'error', error: { code: 'VISION_DESCRIBE_TIMEOUT' } } } })
   })
 
-  it('rewrites nested tool-result images without mutating the original result', async () => {
+  it('rewrites tool-result images without mutating the original result', async () => {
     const { ctx, adapter, agent } = await setup()
-    const messages = [createUserMessage({
-      content: [{ type: 'tool-result', toolCallId: 'read-1' as never, content: [image] }],
-      source: { kind: 'tool', callId: 'read-1' as never },
-    })]
+    const messages = [createToolResultMessage({ callId: ToolCallId('read-1'), content: [image], isError: false })]
     const original = JSON.stringify(messages)
     const rewritten = await ctx.visionFallback.rewriteMessages(agent.session, { provider: 'mock', model: 'text' }, messages, new AbortController().signal)
     expect(rewritten.some(message => contentHasImage(message.content))).toBe(false)

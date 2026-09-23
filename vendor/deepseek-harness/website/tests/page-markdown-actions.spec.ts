@@ -12,6 +12,8 @@ vi.mock('vitepress/theme', () => ({ default: { Layout: {
   setup: (_props: unknown, { slots }: { slots: Slots }) => () => h('main', null, slots['doc-before']?.()),
 } } }))
 vi.mock('../.vitepress/theme/mermaid-viewer.ts', () => ({ installMermaidViewer: () => ({ refresh() {}, dispose() {} }) }))
+vi.mock('../.vitepress/theme/image-viewer.ts', () => ({ ImageViewer: class { refresh() {} dispose() {} } }))
+vi.mock('../.vitepress/theme/media-viewer.ts', () => ({ MediaViewer: class { close() {} } }))
 
 const data = {
   lang: ref('en-US'), isDark: ref(false),

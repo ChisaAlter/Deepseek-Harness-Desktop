@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 /** The review tab type: its addresses, its store, the row pairing of the split view, and the states its body draws. */
+import { renderFileActions } from './file-actions.tsx'
 import { useSyncExternalStore } from 'react'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -17,8 +18,9 @@ import { ChangesDiffStore } from '../src/client/changes-diff.ts'
 import { ChangesSummaryStore } from '../src/client/changes-summary.ts'
 import { PresentedOpenController } from '../src/client/present-open.ts'
 import {
-  hunkRows, MAX_RENDERED_LINES, renderedHunks, ReviewTab, splitRows, type ReviewInjected, type ReviewTabProps,
+  ReviewTab, type ReviewInjected, type ReviewTabProps,
 } from '../src/client/ReviewTab.tsx'
+import { hunkRows, MAX_RENDERED_LINES, renderedHunks, splitRows } from '../src/client/FileDiff.tsx'
 import { changesReviewDefinition } from '../src/client/review-definition.ts'
 import { createReviewStore } from '../src/client/review-store.ts'
 import { en, zh } from '../src/client/locales.ts'
@@ -84,12 +86,12 @@ describe('review store', () => {
   it('seeds a tab on its first navigation, applies later ones, toggles views, and forgets', () => {
     const store = createReviewStore().create()
     store.actions.navigated(TAB, 1, 2)
-    expect(store.getSnapshot().byTab[TAB]).toEqual({ index: 2, split: false, wrap: false, navigated: 1 })
+    expect(store.getSnapshot().byTab[TAB]).toEqual({ index: 2, split: true, wrap: false, navigated: 1 })
     store.actions.toggledSplit(TAB)
     store.actions.toggledWrap(TAB)
     store.actions.selected(TAB, 0)
     store.actions.navigated(TAB, 2, 1)
-    expect(store.getSnapshot().byTab[TAB]).toEqual({ index: 1, split: true, wrap: true, navigated: 2 })
+    expect(store.getSnapshot().byTab[TAB]).toEqual({ index: 1, split: false, wrap: true, navigated: 2 })
     store.actions.forget(TAB)
     expect(store.getSnapshot().byTab[TAB]).toBeUndefined()
     expect(() => { store.actions.selected(TAB, 0) }).toThrow('no review state')
@@ -158,11 +160,17 @@ describe('ReviewTab', () => {
       loadChangesSummary: vi.fn<ReviewInjected['loadChangesSummary']>(() => Promise.resolve()),
       loadChangesDiff: vi.fn<ReviewInjected['loadChangesDiff']>(() => Promise.resolve()),
       reloadPresentedHost: vi.fn<ReviewInjected['reloadPresentedHost']>(() => Promise.resolve()),
-      openChanged: vi.fn<ReviewInjected['openChanged']>(() => Promise.resolve()),
+      openChanged: vi.fn<ReviewInjected['openChanged']>(() => Promise.resolve(null)),
     }
-    const sessions = { byId: { [SESSION]: { cwd: options.cwd ?? '/work/app' } } } as unknown as SessionListState
+    const sessions: SessionListState = {
+      ids: [SESSION],
+      byId: { [SESSION]: { id: SESSION, displayTitle: 'Workspace', cwd: options.cwd ?? '/work/app',
+        running: false, retainedBy: {}, blank: false, updatedAt: 0 } },
+      phase: 'ready', projectionsBySession: {},
+    }
     const navigation = { address: options.address ?? ADDRESS, params: options.params, revision: options.revision ?? 1 }
     const runtime = {
+      renderSlot: renderFileActions,
       useTabInfo: () => ({
         sidebar: { expanded: true, fullscreen: false }, panel: { id: 'pane-1' },
         tab: { id: TAB, kind: 'changes-review', contentId: options.address ?? ADDRESS, title: 'Review', visible: true, navigation, signal: aborter.signal, actions: tabActions },
@@ -177,7 +185,7 @@ describe('ReviewTab', () => {
       usePresentedHost: hookOf(controller.host),
       t: makeTranslate(options.locale ?? en),
       ...injected,
-    } as unknown as ReviewTabProps
+    } as ReviewTabProps
     const view = render(<ReviewTab {...runtime} />)
     return {
       view, injected, tabActions, store, aborter, summaries, diffs, controller,
@@ -214,6 +222,8 @@ describe('ReviewTab', () => {
     expect(view.getByRole('button', { name: en['review.selectFile'] }).getAttribute('data-review-file')).toBe('src/app/main.ts')
     expect(injected.loadChangesDiff).toHaveBeenLastCalledWith('viewed', 5, 0)
     act(() => { diffs.state.set({ [changesDiffUrl(SESSION, 5, 0)]: text }) })
+    expect(view.container.querySelector('[data-review-view]')?.getAttribute('data-review-view')).toBe('split')
+    fireEvent.click(view.getByRole('button', { name: en['review.splitAria'] }))
     const lines = [...view.container.querySelectorAll('[data-diff-line]')]
     expect(lines.map(line => line.getAttribute('data-diff-line'))).toEqual(['context', 'del', 'add', 'add', 'context', 'del', 'add', 'del'])
     expect(lines[1]?.textContent).toBe('2-b')
@@ -221,14 +231,13 @@ describe('ReviewTab', () => {
     expect(view.container.querySelector('[data-review-view]')?.getAttribute('data-review-view')).toBe('unified')
   })
 
-  it('draws the split view and wraps lines on request, and keeps both choices in the tab store', () => {
+  it('draws the split view by default and wraps lines on request, and keeps both choices in the tab store', () => {
     const summaries = new ChangesSummaryStore()
     summaries.state.set({ [SUMMARY_URL]: summary })
     const diffs = new ChangesDiffStore()
     diffs.state.set({ [changesDiffUrl(SESSION, 5, 0)]: text })
     const { view, store } = mount({ summaries, diffs })
     expect(store.getSnapshot().byTab[TAB]?.index).toBe(0)
-    fireEvent.click(view.getByRole('button', { name: en['review.splitAria'] }))
     expect(store.getSnapshot().byTab[TAB]?.split).toBe(true)
     const body = view.container.querySelector('[data-review-view]')
     expect(body?.getAttribute('data-review-view')).toBe('split')
@@ -238,14 +247,24 @@ describe('ReviewTab', () => {
     expect(side('left').map(line => line.getAttribute('data-diff-line'))).toEqual(['context', 'del', 'add', 'context', 'del', 'del'])
     expect(side('left').map(line => line.textContent)).toEqual(['1a', '2b', '', '3d', '10x', '20z'])
     expect(side('right').map(line => line.textContent)).toEqual(['1a', '2B', '3c', '4d', '11y', ''])
-    // The two sides scroll sideways together, whichever side the reader drags.
+    // The two sides scroll together on both axes, whichever side the reader drags.
     const [left, right] = ['left', 'right'].map(name => view.container.querySelector(`[data-diff-side="${name}"]`) as HTMLDivElement)
-    fireEvent.scroll(left!, { target: { scrollLeft: 40 } })
-    expect(right!.scrollLeft).toBe(40)
+    fireEvent.scroll(left!, { target: { scrollLeft: 40, scrollTop: 66 } })
+    expect([right!.scrollLeft, right!.scrollTop]).toEqual([40, 66])
     fireEvent.scroll(right!, { target: { scrollLeft: 15 } })
-    expect(left!.scrollLeft).toBe(15)
-    fireEvent.scroll(right!, { target: { scrollLeft: 15 } })
-    expect(left!.scrollLeft).toBe(15)
+    expect([left!.scrollLeft, left!.scrollTop]).toEqual([15, 66])
+    fireEvent.scroll(right!, { target: { scrollTop: 22 } })
+    expect([left!.scrollLeft, left!.scrollTop]).toEqual([15, 22])
+    fireEvent.scroll(right!, { target: { scrollLeft: 15, scrollTop: 22 } })
+    expect([left!.scrollLeft, left!.scrollTop]).toEqual([15, 22])
+    // A short peer clamps horizontal writes to zero, including the resulting scroll event.
+    Object.defineProperty(right, 'scrollLeft', { configurable: true, get: () => 0, set: () => {} })
+    fireEvent.scroll(left!, { target: { scrollLeft: 100 } })
+    fireEvent.scroll(right!)
+    expect(left!.scrollLeft).toBe(100)
+    fireEvent.scroll(left!, { target: { scrollTop: 44 } })
+    fireEvent.scroll(right!)
+    expect([left!.scrollLeft, right!.scrollTop]).toEqual([100, 44])
     expect(view.getByRole('button', { name: en['review.splitAria'] }).getAttribute('aria-pressed')).toBe('true')
     // Wrapped lines vary in height, so both sides share one row per pair.
     fireEvent.click(view.getByRole('button', { name: en['review.wrapAria'] }))
@@ -259,6 +278,39 @@ describe('ReviewTab', () => {
     expect(store.getSnapshot().byTab[TAB]).toMatchObject({ split: true, wrap: true })
   })
 
+  it('syntax-highlights recognized source files with the shared code grammar', () => {
+    const summaries = new ChangesSummaryStore()
+    summaries.state.set({ [SUMMARY_URL]: summary })
+    const diffs = new ChangesDiffStore()
+    diffs.state.set({
+      [changesDiffUrl(SESSION, 5, 0)]: {
+        ...text,
+        hunks: [{ oldStart: 1, oldLines: 2, newStart: 1, newLines: 2, lines: ['-const before = 1', '-', '+const after = 2', '+'] }],
+      },
+    })
+    const { view } = mount({ summaries, diffs })
+    const highlighted = [...view.container.querySelectorAll('[data-diff-code]')]
+    expect(highlighted.map(line => line.textContent)).toEqual(['const before = 1', '', 'const after = 2', ''])
+    expect(view.container.querySelectorAll('[data-diff-code] span[style]').length).toBeGreaterThan(2)
+  })
+
+  it('keeps unknown source files as plain text', () => {
+    const summaries = new ChangesSummaryStore()
+    summaries.state.set({ [SUMMARY_URL]: { ...summary, files: [{ ...summary.files[0]!, path: 'notes.unknown' }] } })
+    const diffs = new ChangesDiffStore()
+    diffs.state.set({
+      [changesDiffUrl(SESSION, 5, 0)]: {
+        ...text,
+        path: 'notes.unknown',
+        hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-before', '+after'] }],
+      },
+    })
+    const { view } = mount({ summaries, diffs })
+    expect(view.container.querySelector('[data-diff-code]')).toBeNull()
+    expect(view.getByText('before')).toBeTruthy()
+    expect(view.getByText('after')).toBeTruthy()
+  })
+
   it('opens the whole file in the sidebar and the native open only with a desktop', () => {
     const summaries = new ChangesSummaryStore()
     summaries.state.set({ [SUMMARY_URL]: summary })
@@ -266,21 +318,21 @@ describe('ReviewTab', () => {
     controller.host.set({ name: 'desktop', available: true, fileManager: 'finder' })
     const { view, injected, tabActions } = mount({ summaries, controller, params: { index: 1 } })
     expect(injected.reloadPresentedHost).not.toHaveBeenCalled()
+    expect(view.container.querySelector('[data-review-tool="open-file"] svg')?.getAttribute('width')).toBe('12')
     fireEvent.click(view.getByRole('button', { name: 'Open ~/out/big.bin in sidebar' }))
     expect(tabActions.openResource).toHaveBeenCalledWith(fileAddressFor(SESSION, '/work/app', '/tmp/out/big.bin'))
-    fireEvent.click(view.getByRole('button', { name: 'Open ~/out/big.bin in default app' }))
-    expect(injected.openChanged).toHaveBeenCalledWith('viewed', 5, 1)
-    act(() => { controller.state.set({ '/api/changes.open?sessionId=viewed&seq=5&index=1': 'opening' }) })
-    expect((view.getByRole('button', { name: 'Open ~/out/big.bin in default app' }) as HTMLButtonElement).disabled).toBe(true)
-    act(() => { controller.state.set({ '/api/changes.open?sessionId=viewed&seq=5&index=1': 'error' }) })
-    expect(view.getByRole('button', { name: 'Open ~/out/big.bin in default app' }).hasAttribute('data-error')).toBe(true)
-    act(() => { controller.state.set({ '/api/changes.open?sessionId=viewed&seq=5&index=1': 'nativeUnavailable' }) })
-    expect(view.queryByRole('button', { name: 'Open ~/out/big.bin in default app' })).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: 'Native file action' }))
+    expect(injected.openChanged).toHaveBeenCalledWith('viewed', 5, 1, 'open', undefined)
+    act(() => { controller.state.set({ 'api/changes.open?sessionId=viewed&seq=5&index=1': 'opening' }) })
+    expect((view.getByRole('button', { name: 'Native file action' }) as HTMLButtonElement).disabled).toBe(true)
+    act(() => { controller.state.set({ 'api/changes.open?sessionId=viewed&seq=5&index=1': 'error' }) })
+    act(() => { controller.state.set({ 'api/changes.open?sessionId=viewed&seq=5&index=1': 'nativeUnavailable' }) })
+    expect(view.queryByRole('button', { name: 'Native file action' })).toBeNull()
     act(() => {
       controller.state.set({})
       controller.host.set({ name: 'server', available: false, fileManager: null })
     })
-    expect(view.queryByRole('button', { name: 'Open ~/out/big.bin in default app' })).toBeNull()
+    expect(view.queryByRole('button', { name: 'Native file action' })).toBeNull()
     expect(view.getByText(en['changes.oversized'])).toBeTruthy()
   })
 
@@ -316,7 +368,7 @@ describe('ReviewTab', () => {
     act(() => {
       diffs.state.set({ [url]: { ...text, hunks: [{ oldStart: 1, oldLines: 0, newStart: 1, newLines: long.length, lines: long }] } })
     })
-    expect(view.container.querySelectorAll('[data-diff-line]')).toHaveLength(MAX_RENDERED_LINES)
+    expect(view.container.querySelectorAll('[data-diff-side="right"] [data-diff-line]')).toHaveLength(MAX_RENDERED_LINES)
     expect(view.container.querySelector('[data-diff-truncated]')?.textContent).toBe(`只显示前 ${MAX_RENDERED_LINES} 行`)
   })
 

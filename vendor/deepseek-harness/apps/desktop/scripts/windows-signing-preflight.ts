@@ -30,7 +30,7 @@ async function compileProbe(compiler: string, source: string, output: string, en
 /**
  * Sign one newly compiled, never-executed probe and verify its timestamp and configured certificate.
  * @param options Supervised evidence directory, file-owned settings and isolated test adapters.
- * @returns Resolves after one signature and verification; failures retain evidence and never retry or unlock a token.
+ * @returns Resolves after one signature and verification; failures retain evidence; timestamp attempts never repeat hardware signing.
  */
 export async function preflightWindowsSigning(options: SigningPreflightOptions): Promise<void> {
   const { environment, runDirectory } = options

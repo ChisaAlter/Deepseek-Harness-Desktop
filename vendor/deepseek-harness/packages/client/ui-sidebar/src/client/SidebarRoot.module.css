@@ -178,7 +178,8 @@
 
 /* macOS hiddenInset titlebar: the strip spans the column's top edge (negative
    margins cancel the root padding) so it clears the traffic lights at
-   (16, 18) and doubles as the window drag region; the toggle opts out. */
+   (16, 18). Window dragging over this run comes from ui-layout's .leadingBand
+   (same 52px geometry); the toggle subtracts via the base.css rule. */
 .topStrip {
   flex: none;
   display: flex;
@@ -187,12 +188,16 @@
   height: 52px;
   box-sizing: border-box;
   margin: -6px calc(-1 * var(--dsh-sidebar-inline-padding)) 0;
-  padding: 0 12px;
-  -webkit-app-region: no-drag;
+  /* The 2px foot centres the 28px toggle at y 25, level with the collapsed
+     seat (ui-layout .leadingSeat, top 11) and the conversation title row, so
+     collapse/expand never shifts it vertically. */
+  padding: 0 12px 2px;
 }
 
-.topStrip .iconButton {
-  -webkit-app-region: no-drag;
+/* Window fullscreen hides the traffic lights (html[data-fullscreen], desktop
+   preload): the toggle takes their spot at the strip's left edge. */
+:global([data-fullscreen]) .topStrip {
+  justify-content: flex-start;
 }
 
 /* The strip's full 52px foot leaves the wordmark too low; the content column
@@ -215,7 +220,7 @@
   gap: 8px;
   height: 60px;
   padding: 8px 0 8px 4px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   box-sizing: border-box;
   overflow: hidden;
 }
@@ -225,6 +230,16 @@
   padding: 0;
   margin-bottom: 12px;
   justify-content: flex-start;
+}
+
+/* macOS hiddenInset titlebar: the logo row extends the frame band's drag
+   below 52px, and the brand rides it — SidebarRoot renders the wordmark as a
+   plain span there, so the global interactive no-drag rule never subtracts
+   it; the dedicated New Session button below keeps the pointer and keyboard
+   paths. Safe as a drag source: it precedes the sidebar's overlay slots in
+   document order, so their no-drag still wins. */
+:global([data-platform='darwin']) .logoRow {
+  -webkit-app-region: drag;
 }
 
 /* Brand group (figma I133:7632): the full wordmark rides the text ink
@@ -243,6 +258,12 @@
   color: inherit;
   cursor: pointer;
   -webkit-app-region: no-drag;
+}
+
+/* On macOS the brand is a window-drag surface, not a New Session button;
+   a pointer cursor would promise a click that drags the window instead. */
+:global([data-platform='darwin']) .brand {
+  cursor: default;
 }
 
 /* Mark and name are independent slots; the shell owns their shared baseline,
@@ -396,15 +417,23 @@
   background: var(--dsw-alias-button-floating-hover);
 }
 
-/* macOS: the solid elevated fill reads as a foreign slab on the vibrancy
-   sidebar; letting a quarter of the material through keeps the card visible
-   while it sits in the glass. */
+/* macOS: the themed elevated fill reads as a foreign slab on the vibrancy
+   sidebar; a white wash sits in the glass like native macOS sidebar
+   controls. Dark keeps the same white ink at lower alpha. */
 :global([data-platform='darwin']) .newSession {
-  background: color-mix(in srgb, var(--dsw-alias-button-elevated-fill) 75%, transparent);
+  background: rgb(255 255 255 / 0.55);
 }
 
 :global([data-platform='darwin']) .newSession:hover {
-  background: color-mix(in srgb, var(--dsw-alias-button-floating-hover) 75%, transparent);
+  background: rgb(255 255 255 / 0.3);
+}
+
+:global([data-platform='darwin']) :global([data-ds-dark-theme]) .newSession {
+  background: rgb(255 255 255 / 0.15);
+}
+
+:global([data-platform='darwin']) :global([data-ds-dark-theme]) .newSession:hover {
+  background: rgb(255 255 255 / 0.2);
 }
 
 .collapsed .newSession {

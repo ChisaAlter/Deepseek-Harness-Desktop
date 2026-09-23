@@ -33,6 +33,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface DocumentActionsOwner {
   /** The file resource address currently shown by the document preview. */
   readonly resourceAddress: string
+  /** Absolute path in the file's execution environment. */
+  readonly absolutePath: string
 }
 
 /**

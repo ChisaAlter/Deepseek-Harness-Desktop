@@ -10,11 +10,11 @@ Replacing a dsh prerelease identifier with the update channel name loses the bas
 
 ## Decision
 
-The [Desktop release rules](../../../../apps/desktop/README.md#release-versions) preserve the complete dsh base for production and derive dated, indexed test versions from that base. Final release-family package versions remain equal. The base is retained separately before manifests are retagged, so another test release cannot append a second date suffix.
+The [Desktop release rules](../../../../apps/desktop/README.md#release-versions) preserve the complete dsh base for production and derive dated, indexed test versions from that base. The derived version is [passed to packaging as an argument](2026-09-21-desktop-build-version-as-input.md) rather than written into manifests, and it is derived from the dsh base so another test release cannot append a second date suffix.
 
 The fixed Nightly feed is a distribution address, independent of version derivation. Existing clients continue to use that address with prerelease updates enabled and downgrades disabled. Test distribution does not publish the unsuffixed base. Operators check existing release records and objects before assigning an index.
 
-The packaging decision retains runtime/version equality; the installed-update materials decision retains private identities and data isolation. Their Nightly naming examples do not define the test version policy. Historical release receipts and frozen archived records remain evidence of what was actually built.
+The installed-update materials decision retains private identities and data isolation. Its Nightly naming examples do not define the test version policy. Historical release receipts and frozen archived records remain evidence of what was actually built.
 
 ## Alternatives considered
 

@@ -1,17 +1,23 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { LinkIcon, classifyLinkPath, type LinkIconKind } from '@deepseek-ai/dsh-client-ui-primitives'
+import { LinkIconMedium, LinkIconRegular, classifyLinkPath, type LinkIconKind } from '@deepseek-ai/dsh-client-ui-primitives'
 
 afterEach(cleanup)
 
 describe('classifyLinkPath', () => {
   it.each([
     ['src/markdown/render.tsx', 'code'],
+    ['styles/site.scss', 'code'],
     ['site/index.html', 'code'],
-    ['data/export.CSV', 'code'],
+    ['data/export.CSV', 'document'],
+    ['data/export.tsv', 'document'],
     ['shots/hero.png', 'image'],
     ['report.xlsm', 'document'],
+    ['report.xlsb', 'document'],
+    ['template.xltx', 'document'],
+    ['sheet.ods', 'document'],
+    ['template.ots', 'document'],
     ['budget.numbers', 'document'],
     ['deck.key', 'document'],
     ['letter.rtf', 'document'],
@@ -35,8 +41,8 @@ describe('classifyLinkPath', () => {
 describe('LinkIcon', () => {
   const kinds: LinkIconKind[] = ['url', 'folder', 'code', 'image', 'document', 'other']
 
-  it.each(kinds)('%s renders a distinct aria-hidden svg with currentColor fills only', (kind) => {
-    const { container } = render(<LinkIcon kind={kind} />)
+  it.each(kinds)('%s renders a distinct aria-hidden svg with currentColor artwork only', (kind) => {
+    const { container } = render(<LinkIconRegular kind={kind} />)
     const svg = container.querySelector('svg')!
     expect(svg).not.toBeNull()
     expect(svg.getAttribute('aria-hidden')).toBe('true')
@@ -47,20 +53,25 @@ describe('LinkIcon', () => {
 
   it('every kind draws its own glyph', () => {
     const paths = kinds.map((kind) => {
-      const { container } = render(<LinkIcon kind={kind} />)
+      const { container } = render(<LinkIconRegular kind={kind} />)
       return container.querySelector('path')!.getAttribute('d')
     })
     expect(new Set(paths).size).toBe(kinds.length)
   })
 
   it('defaults to the 14px inline link seat; size and className land on the svg', () => {
-    const { container } = render(<LinkIcon kind="url" />)
+    const { container } = render(<LinkIconRegular kind="url" />)
     expect(container.querySelector('svg')!.getAttribute('width')).toBe('14')
-    const sized = render(<LinkIcon kind="folder" size={20} className="x" />)
+    const sized = render(<LinkIconRegular kind="folder" size={20} className="x" />)
     const svg = sized.container.querySelector('svg')!
     expect(svg.getAttribute('width')).toBe('20')
     expect(svg.getAttribute('height')).toBe('20')
     expect(svg.classList.contains('x')).toBe(true)
+  })
+
+  it('offers medium artwork with a 1.3px stroke', () => {
+    const { container } = render(<LinkIconMedium kind="url" />)
+    expect(container.querySelector('svg')?.getAttribute('stroke-width')).toBe('1.3')
   })
 })
 
@@ -107,13 +118,13 @@ const SITE_URLS: string[] = [
 
 /** The single path data of the mark a URL renders. */
 function glyphPath(href: string): string {
-  const { container } = render(<LinkIcon kind="url" href={href} />)
+  const { container } = render(<LinkIconMedium kind="url" href={href} />)
   return container.querySelector('path')!.getAttribute('d')!
 }
 
 describe('LinkIcon site marks', () => {
   it('draws each mapped site its own mark, not the globe', () => {
-    const globe = render(<LinkIcon kind="url" />).container.querySelector('path')!.getAttribute('d')
+    const globe = render(<LinkIconMedium kind="url" />).container.querySelector('path')!.getAttribute('d')
     const marks = SITE_URLS.map(glyphPath)
     expect(marks).not.toContain(globe)
     // Thirty-seven destinations, thirty-four mapped sites: the three extra
@@ -148,17 +159,17 @@ describe('LinkIcon site marks', () => {
     ['a destination that is not a URL', 'src/index.ts'],
     ['a single-label host', 'https:///a'],
   ])('keeps the globe for %s', (_case, href) => {
-    const globe = render(<LinkIcon kind="url" />).container.querySelector('svg')!.outerHTML
-    expect(render(<LinkIcon kind="url" href={href} />).container.querySelector('svg')!.outerHTML).toBe(globe)
+    const globe = render(<LinkIconMedium kind="url" />).container.querySelector('svg')!.outerHTML
+    expect(render(<LinkIconMedium kind="url" href={href} />).container.querySelector('svg')!.outerHTML).toBe(globe)
   })
 
   it('ignores the destination for file categories', () => {
-    const plain = render(<LinkIcon kind="code" />).container.querySelector('svg')!.outerHTML
-    expect(render(<LinkIcon kind="code" href="https://github.com/a" />).container.querySelector('svg')!.outerHTML).toBe(plain)
+    const plain = render(<LinkIconMedium kind="code" />).container.querySelector('svg')!.outerHTML
+    expect(render(<LinkIconMedium kind="code" href="https://github.com/a" />).container.querySelector('svg')!.outerHTML).toBe(plain)
   })
 
   it('sizes the site mark through the shared seat', () => {
-    const { container } = render(<LinkIcon kind="url" href="https://github.com/a" size={20} className="x" />)
+    const { container } = render(<LinkIconMedium kind="url" href="https://github.com/a" size={20} className="x" />)
     const svg = container.querySelector('svg')!
     expect(svg.getAttribute('width')).toBe('20')
     expect(svg.getAttribute('height')).toBe('20')

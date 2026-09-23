@@ -179,7 +179,7 @@ describe.skipIf(MODE === 'record')('web e2e: GitHub ready-for-review', () => {
     expect(agent).toBeDefined()
     const workspace = await scaffold.ctx.workspaceRegistry.resolveByPath(scaffold.workspaceCwd)
     expect(workspace?.sessionIds).toContain(agent?.id)
-    const webhookMessage = adapter.requests[0]?.messages.find(message => message.source.kind === 'webhook')
+    const webhookMessage = adapter.requests[0]?.messages.find(message => message.role === 'user' && message.source?.kind === 'webhook')
     expect(webhookMessage?.content).toHaveLength(1)
     const [content] = webhookMessage?.content ?? []
     expect(content?.type).toBe('text')

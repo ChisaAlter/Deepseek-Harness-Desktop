@@ -1,21 +1,17 @@
-- button "返回插件列表":
-  - img
-  - text: 插件列表
+- button "返回插件列表": 插件列表
 - heading "Subagent" [level=3]
 - paragraph: 设置 Subagent 的递归层级、数量和模型。
 - region "运行限制":
   - heading "运行限制" [level=3]
   - text: 最大递归深度
-  - button "最大递归深度说明":
-    - img
+  - button "最大递归深度说明"
   - text: 已覆盖
   - button "恢复默认"
   - textbox "最大递归深度":
     - /placeholder: ""
     - text: "2"
   - text: Subagent 并行数量上限
-  - button "Subagent 并行数量上限说明":
-    - img
+  - button "Subagent 并行数量上限说明"
   - text: 已覆盖
   - button "恢复默认"
   - textbox "Subagent 并行数量上限":

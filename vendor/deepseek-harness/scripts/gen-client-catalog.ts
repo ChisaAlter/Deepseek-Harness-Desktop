@@ -336,6 +336,8 @@ function keyDomainOf(declaration: SlotDeclaration, occupants: readonly SlotRegis
 
 /** A runnable minimal registration for one slot, per cardinality. */
 function exampleOf(declaration: SlotDeclaration): string {
+  const authored = blockTag(declaration.jsDoc, 'example')
+  if (authored !== undefined) return authored
   const options = [`name: '${declaration.key}'`, ...KIND_EXAMPLE[declaration.kind] ?? []].join(', ')
   return [
     'return {',
@@ -348,6 +350,21 @@ function exampleOf(declaration: SlotDeclaration): string {
     '  },',
     '}',
   ].join('\n')
+}
+
+/** One multiline JSDoc block tag, without comment decoration. */
+function blockTag(jsDoc: string, name: string): string | undefined {
+  const lines = jsDoc.replace(/^\/\*\*/, '').replace(/\*\/$/, '').split('\n')
+    .map(line => line.replace(/^\s*\*?\s?/, '').replace(/\s+$/, ''))
+  const start = lines.findIndex(line => line === `@${name}` || line.startsWith(`@${name} `))
+  if (start < 0) return undefined
+  const body = [lines[start]?.slice(name.length + 1).trimStart() ?? '']
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith('@')) break
+    body.push(line)
+  }
+  const value = body.join('\n').trim()
+  return value === '' ? undefined : value
 }
 
 /** Extra example options per cardinality. */

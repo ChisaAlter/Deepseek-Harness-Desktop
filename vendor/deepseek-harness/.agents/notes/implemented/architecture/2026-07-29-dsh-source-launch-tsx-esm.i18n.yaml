@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-29-dsh-source-launch-tsx-esm.md
-2026-07-29-dsh-source-launch-tsx-esm.md: 5401b0257faa69eaf76b11e7b51d06afd7ec2b8c
-2026-07-29-dsh-source-launch-tsx-esm.zh.md: f32fa3ece91bf7b9829d7012ceb090cabaa833a9
+2026-07-29-dsh-source-launch-tsx-esm.md: 700577cb9b137d67f20baeb639f99f4c0877011d
+2026-07-29-dsh-source-launch-tsx-esm.zh.md: 4d322d3dcf49442ee62f82203f17bd2ab16467fe

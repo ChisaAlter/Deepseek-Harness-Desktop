@@ -1,35 +1,17 @@
-- button "系统提示词":
-  - img
-  - img
-  - text: 系统提示词
 - text: 简单画一个 SVG 表示冯诺依曼架构, 保存为 von-neumann.svg {{clock}}
-- button "复制":
-  - img
-- button "2 次工具调用 · 1 条消息" [expanded]:
-  - text: 2 次工具调用 · 1 条消息
-  - img
-- button "上下文注入 @deepseek-ai/dsh-system-prompt":
-  - img
-  - img
-  - text: 上下文注入 @deepseek-ai/dsh-system-prompt
-- button "思考 The user wants a simple SVG diagram of the von Neumann architecture, saved as von-neumann.svg. Let me create a clean SVG showing CPU (control unit, ALU), memory, input, and output with bidirectional data/control buses.":
-  - img
-  - img
-  - text: 思考 The user wants a simple SVG diagram of the von Neumann architecture, saved as von-neumann.svg. Let me create a clean SVG showing CPU (control unit, ALU), memory, input, and output with bidirectional data/control buses.
+- button "复制"
+- status: 已完成工作
+- button "用时 {{duration}}" [expanded]
+- button "已完成分析" [expanded]
+- button "思考"
 - paragraph: 我来创建一个冯诺依曼架构的 SVG 示意图。
+- button "修改了文件并已调用工具" [expanded]
 - button "写入 von-neumann.svg +83 -0":
-  - img
-  - img
   - text: 写入
   - button "von-neumann.svg"
   - text: +83 -0
-- button "思考 The file is created. Let me present it as a deliverable.":
-  - img
-  - img
-  - text: 思考 The file is created. Let me present it as a deliverable.
-- button "交付文件 已交付 von-neumann.svg":
-  - img
-  - text: 交付文件 已交付 von-neumann.svg
+- button "思考"
+- button "交付文件 已交付 von-neumann.svg"
 - paragraph:
   - text: 已创建
   - code:
@@ -56,21 +38,9 @@
 - text: 此主机没有可用的桌面，无法使用外部程序打开文件或文件夹；文件仍可在侧边栏预览
 - button "在侧边栏预览 von-neumann.svg"
 - text: von-neumann.svg 冯诺依曼架构示意图 SVG
-- button "在侧边栏打开 von-neumann.svg": 打开
-- button "von-neumann.svg 的更多文件操作" [disabled]:
-  - img
-- button "复制":
-  - img
-- button "好的回答":
-  - img
-- button "有问题的回答":
-  - img
-- button "在新对话中分支":
-  - img
-- button "用量 32K tok":
-  - img
-  - text: 用量 32K tok
-- button "用时 {{duration}}":
-  - img
-  - text: 用时 {{duration}}
+- button "复制"
+- button "好的回答"
+- button "有问题的回答"
+- button "在新对话中分支"
+- button "用量 32K tok"
 - text: {{clock}}

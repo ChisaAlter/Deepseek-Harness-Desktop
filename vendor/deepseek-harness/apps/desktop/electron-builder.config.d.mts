@@ -1,6 +1,10 @@
+import type { AfterPackContext, BeforePackContext } from 'app-builder-lib'
+
 /** Electron-builder fields asserted by the Desktop release tests. */
 export interface DesktopElectronBuilderConfig {
   readonly appId: string
+  readonly artifactName: string
+  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness'; readonly schemes: readonly ['dsh'] }]
   readonly directories: {
     readonly output: string
   }
@@ -19,6 +23,7 @@ export interface DesktopElectronBuilderConfig {
     { readonly from: string, readonly to: 'icon.png' },
   ]
   readonly mac: {
+    readonly extendInfo: { readonly NSMicrophoneUsageDescription: string }
     readonly identity: string | undefined
     readonly forceCodeSigning: boolean
     readonly notarize: boolean
@@ -45,7 +50,9 @@ export interface DesktopElectronBuilderConfig {
     readonly installerLanguages: readonly ['en_US', 'zh_CN']
   }
   readonly beforeBuild: () => Promise<boolean>
-  readonly beforePack: (context: { readonly appOutDir: string }) => Promise<void>
+  readonly beforePack: (context: BeforePackContext) => Promise<void>
+  readonly afterPack: (context: AfterPackContext) => Promise<void>
+  readonly afterSign: (context: AfterPackContext) => Promise<void>
   readonly artifactBuildCompleted: (artifact: { readonly file: string }) => Promise<void> | undefined
   readonly publish: readonly [{ readonly provider: 'generic', readonly url: string }] | null
 }
@@ -56,6 +63,7 @@ export interface DesktopElectronBuilderConfig {
  * @param hostPlatform - Build-host platform used when no explicit target is present.
  * @param hostArch - Build-host architecture used when no explicit target is present.
  * @param preparedRuntime - Verified private qualification runtime; ordinary releases use target-owned resources.
+ * @param preparedRuntimeVersion - Version that private runtime declares, which qualification rewrites away from the product version.
  * @returns electron-builder configuration.
  */
 export function createElectronBuilderConfig(
@@ -63,6 +71,7 @@ export function createElectronBuilderConfig(
   hostPlatform?: NodeJS.Platform,
   hostArch?: string,
   preparedRuntime?: string,
+  preparedRuntimeVersion?: string,
 ): DesktopElectronBuilderConfig
 
 declare const electronBuilderConfig: DesktopElectronBuilderConfig

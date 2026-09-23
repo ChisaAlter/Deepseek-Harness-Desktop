@@ -71,8 +71,7 @@ function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBind
     ids: [],
     byId: {},
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   })
   const reference = {
     sessionId: SESSION_ID,
@@ -90,8 +89,7 @@ function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBind
     using: async (_target, _options, operation) => await operation(reference),
     retainInfo: () => createSnapshotStore({ referenceCount: 1, retainedBy: {} }),
     subagentAddress: () => undefined,
-    setSubagentCatalogOpen: () => {},
-    refreshSubagents: () => Promise.reject(new Error('unused fake Sessions operation')),
+    refreshProjections: () => Promise.reject(new Error('unused fake Sessions operation')),
     refresh: () => Promise.reject(new Error('unused fake Sessions operation')),
     search: () => Promise.reject(new Error('unused fake Sessions operation')),
     fork: () => Promise.reject(new Error('unused fake Sessions operation')),

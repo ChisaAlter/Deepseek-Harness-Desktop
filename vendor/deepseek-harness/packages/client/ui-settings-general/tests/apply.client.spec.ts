@@ -13,13 +13,14 @@ import { createClientTest, TestClient, webApp } from '@deepseek-ai/dsh-client-te
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { LOCALE_SETTINGS_NAMESPACE, LocaleSettingsSchema } from '@deepseek-ai/dsh-client-locale/src/locale-settings.ts'
 import { inject } from '../src/client/index.ts'
-import type { SettingsNavigation } from '../src/client/settings-navigation.ts'
+import type { DeveloperToolsRowInjected } from '../src/client/DeveloperToolsRow.tsx'
 import { CloseLabel, HeaderContent, TriggerContent } from '../src/client/chrome.tsx'
 import { GeneralSection } from '../src/client/GeneralSection.tsx'
 import { InterfaceSection } from '../src/client/InterfaceSection.tsx'
 import { AboutSection } from '../src/client/AboutSection.tsx'
 import { HarnessRestartRow } from '../src/client/HarnessRestartRow.tsx'
 import { SettingsDocumentAction } from '../src/client/SettingsDocumentAction.tsx'
+import type { SettingsNavigation } from '../src/client/settings-navigation.ts'
 import type { SettingsDocumentActionInjected } from '../src/client/SettingsDocumentAction.tsx'
 
 const SELF = '@deepseek-ai/dsh-client-ui-settings-general'
@@ -46,7 +47,7 @@ function localeView(preference: string, revision = 0): SettingsNamespaceView {
     // The Remote wire serializes nested Schema values before the client rehydrates them.
     schema: JSON.parse(JSON.stringify(LocaleSettingsSchema.toJSON())) as SettingsNamespaceView['schema'],
     value: { preference },
-    applies: 'live',
+    autoGenerate: true, applies: 'live',
     secrets: [],
     revision,
   }
@@ -57,7 +58,7 @@ async function client(mock: RemoteMock, start: () => Promise<TestClient>, hasDoc
   settings.describe.mockResolvedValue(ok({ writable: true, hasDocument, namespaces: [localeView('zh')] }))
   const c = await start()
   // The locale adopts the Host preference once the describe mirror holds the document.
-  await c.ctx.settingsScope.describe().ensure()
+  await c.ctx.configForms.describe().ensure()
   return { c, settings }
 }
 
@@ -98,10 +99,7 @@ function setPageUrl(url: string): void {
 
 describe('ui-settings-general apply', () => {
   it('declares the services it uses', () => {
-    expect(inject).toEqual([
-      'slots', 'locale', 'connection', 'remote', 'remote.settings', 'remote.session',
-      'settingsScope',
-    ])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms'])
   })
 
   it('fills the seats of the shell it declares, with locale-following section labels', async ({ mock, start }) => {
@@ -125,12 +123,16 @@ describe('ui-settings-general apply', () => {
     expect(about.options).toMatchObject({ id: 'about', order: 90 })
     expect(resolveSlotLabel(about.options.label)).toBe('关于')
     expect(c.ctx.slots.spec('settings.general.item')).toEqual({ kind: 'list', scope: 'root' })
-    expect(c.ctx.slots.spec('settings.interface.item')).toEqual({ kind: 'list', scope: 'root' })
-    // The General/Interface items and the onboarding steps are feature-owned
-    // rows; this plugin seats none of its own without the desktop bridge.
-    expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS)).toEqual([])
-    expect(c.ctx.slots.entries('settings.interface.item').filter(row => row.locale === NS)).toEqual([])
+    // The shared developer-tool control belongs to General; onboarding remains feature-owned.
+    expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS).map(row => row.options.id)).toEqual(['developer-tools', 'current-version'])
     expect(c.ctx.slots.entries('settings.onboarding').filter(row => row.locale === NS)).toEqual([])
+    const developerRow = c.ctx.slots.entries('settings.general.item').find(row => row.options.id === 'developer-tools')!
+    const developer = (developerRow.inject as unknown as () => DeveloperToolsRowInjected)()
+    expect(developer.hooks.developerTools).toBe(c.ctx.configForms.developerTools.enabled)
+    expect(developer.hooks.developerTools.getSnapshot()).toBe(false)
+    const setEnabled = vi.spyOn(c.ctx.configForms.developerTools, 'setEnabled').mockResolvedValue(undefined)
+    await developer.setEnabled(true)
+    expect(setEnabled).toHaveBeenCalledExactlyOnceWith(true)
     const { controller, hooks } = actionInjectedOf(c)
     expect(controller.store.getSnapshot().status).toBe('idle')
     expect(hooks.snapshot).toBe(controller.store)
@@ -157,7 +159,7 @@ describe('ui-settings-general apply', () => {
       expect(settings.mutate.mock.calls).toEqual([
         [LOCALE_SETTINGS_NAMESPACE, [{ op: 'set', path: ['preference'], value: 'en' }], 0],
       ])
-      expect(c.ctx.settingsScope.describe().getSnapshot().view?.namespaces).toEqual([english])
+      expect(c.ctx.configForms.describe().getSnapshot().view?.namespaces).toEqual([english])
     })
     await c.unload(SELF)
     await c.flush()
@@ -190,7 +192,7 @@ describe('ui-settings-general apply', () => {
     expect(resolveSlotLabel(iface().options.label)).toBe('Interface')
     expect(resolveSlotLabel(about().options.label)).toBe('About')
     await vi.waitFor(() => {
-      expect(c.ctx.settingsScope.describe().getSnapshot().view?.namespaces).toEqual([english])
+      expect(c.ctx.configForms.describe().getSnapshot().view?.namespaces).toEqual([english])
     })
     c.ctx.locale.setLocale('zh')
     expect(generalLabel(c)).toBe('通用设置')
@@ -201,7 +203,7 @@ describe('ui-settings-general apply', () => {
         [LOCALE_SETTINGS_NAMESPACE, [{ op: 'set', path: ['preference'], value: 'en' }], 0],
         [LOCALE_SETTINGS_NAMESPACE, [{ op: 'set', path: ['preference'], value: 'zh' }], 1],
       ])
-      expect(c.ctx.settingsScope.describe().getSnapshot().view?.namespaces).toEqual([chinese])
+      expect(c.ctx.configForms.describe().getSnapshot().view?.namespaces).toEqual([chinese])
     })
   })
 
@@ -273,9 +275,7 @@ describe('ui-settings-general apply', () => {
       expect(ownEntries(c, name)[0]).not.toBe(before[index])
     })
     expect(c.ctx.slots.spec('settings.general.item')).toEqual({ kind: 'list', scope: 'root' })
-    expect(c.ctx.slots.spec('settings.interface.item')).toEqual({ kind: 'list', scope: 'root' })
-    expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS)).toEqual([])
-    expect(c.ctx.slots.entries('settings.interface.item').filter(row => row.locale === NS)).toEqual([])
+    expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS).map(row => row.options.id)).toEqual(['developer-tools', 'current-version'])
     // The recovered registrations still ride the locale path.
     const english = localeView('en', 1)
     const chinese = localeView('zh', 2)
@@ -289,7 +289,7 @@ describe('ui-settings-general apply', () => {
         [LOCALE_SETTINGS_NAMESPACE, [{ op: 'set', path: ['preference'], value: 'en' }], 0],
         [LOCALE_SETTINGS_NAMESPACE, [{ op: 'set', path: ['preference'], value: 'zh' }], 1],
       ])
-      expect(c.ctx.settingsScope.describe().getSnapshot().view?.namespaces).toEqual([chinese])
+      expect(c.ctx.configForms.describe().getSnapshot().view?.namespaces).toEqual([chinese])
     })
   })
 
@@ -300,6 +300,7 @@ describe('ui-settings-general apply', () => {
     await c.unload(SELF)
     await c.flush()
     for (const [name] of SEATS) expect(ownEntries(c, name)).toHaveLength(0)
+    expect(c.ctx.slots.entries('settings.general.item').filter(row => row.locale === NS)).toEqual([])
     expect(c.ctx.slots.spec('settings.general.item')).toBeUndefined()
     expect(c.ctx.slots.spec('settings.interface.item')).toBeUndefined()
   })

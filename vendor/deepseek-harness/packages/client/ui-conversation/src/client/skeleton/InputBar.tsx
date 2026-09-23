@@ -236,8 +236,9 @@ export const InputBar = memo(function InputBar({
   // client-side size or count limit and upload as soon as they are picked.
   // The host enforces the same image limits at submit for callers that bypass
   // this composer.
-  const intakeFiles = useCallback((files: readonly File[], rejected: readonly File[] = []): void => {
+  const intakeFiles = useCallback((files: readonly File[], directories?: ReadonlySet<File>): void => {
     if (subagent !== null || addFiles === undefined) return
+    const rejected = directories === undefined ? [] : [...directories]
     // One toast slot: collect every refusal from this batch into a single
     // announcement so a mixed folder + refused-file drop loses neither.
     const notices: string[] = []

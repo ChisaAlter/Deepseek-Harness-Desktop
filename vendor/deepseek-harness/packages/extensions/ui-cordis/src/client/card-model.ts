@@ -60,7 +60,7 @@ function objectAt(source: Record<string, unknown>, key: string): Record<string, 
 
 function parseArgs(argsRaw: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(argsRaw) as unknown
+    const parsed: unknown = JSON.parse(argsRaw)
     return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null
   } catch {
     // Running calls can expose a truncated JSON prefix.

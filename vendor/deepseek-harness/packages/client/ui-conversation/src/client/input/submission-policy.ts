@@ -6,7 +6,7 @@
 import {
   createSnapshotStore, type SnapshotStore,
 } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
@@ -130,7 +130,8 @@ export class ComposerSubmissionPolicy {
   readonly typingFxPresets: SnapshotStore<TypingFxPresets> = createSnapshotStore(DEFAULT_TYPING_FX_PRESETS)
   /** Host writability for the Interface Switch; true when no scope is bound. */
   readonly writable: SnapshotStore<boolean>
-  private readonly host: SettingsScope<ConversationSettings> | undefined
+  private readonly host: ConfigForm<ConversationSettings> | undefined
+  private readonly unsubscribe: (() => void) | undefined
   /** Text queued for or crossing the wire; adoptions leave it alone so keystrokes are never reverted. */
   private pendingCustomInstructions: string | undefined
   private customInstructionsTimer: ReturnType<typeof setTimeout> | undefined
@@ -141,13 +142,18 @@ export class ComposerSubmissionPolicy {
    * the scope's plugin lifetime — a disposed scope never publishes again, so
    * the policy needs no release hook.
    */
-  constructor(host?: SettingsScope<ConversationSettings>) {
+  constructor(host?: ConfigForm<ConversationSettings>) {
     this.host = host
     this.writable = createSnapshotStore(host === undefined)
     if (host !== undefined) {
-      host.subscribe(() => { this.adopt(host) })
+      this.unsubscribe = host.subscribe(() => { this.adopt(host) })
       this.adopt(host)
     }
+  }
+
+  dispose(): void {
+    this.unsubscribe?.()
+    if (this.customInstructionsTimer !== undefined) clearTimeout(this.customInstructionsTimer)
   }
 
   /**
@@ -371,7 +377,7 @@ export class ComposerSubmissionPolicy {
    * Adopt the scope's accepted durable behavior without writing it back.
    * @param host - the constructor-narrowed scope driving this adoption.
    */
-  private adopt(host: SettingsScope<ConversationSettings>): void {
+  private adopt(host: ConfigForm<ConversationSettings>): void {
     const snap = host.getSnapshot()
     if (this.writable.getSnapshot() !== snap.writable) this.writable.set(snap.writable)
     const section = snap.value

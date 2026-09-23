@@ -86,7 +86,7 @@ describe('lifecycle cascade (one axis)', () => {
     core.onMutate((key) => {
       if (key === 'test.single') observed.push(core.specDynamic('test.session'))
     })
-    const registerFactory = core.registerFactory as unknown as (
+    const registerFactory = core.registerFactory as (
       options: object,
       component: unknown,
     ) => () => void

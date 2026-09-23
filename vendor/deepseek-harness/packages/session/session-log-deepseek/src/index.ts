@@ -77,6 +77,7 @@ function wireEvent(event: SessionEvent): DeepSeekSessionLogWireEvent {
     ...event.ignorable === undefined ? {} : { ignorable: event.ignorable },
   }
   switch (event.type) {
+    case 'developer/message':
     case 'system/message':
     case 'user/message':
     case 'tool/result':

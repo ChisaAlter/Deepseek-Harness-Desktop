@@ -1,17 +1,19 @@
-/** Register DeepSeek with protocol selection and request-local settings and credentials. */
+/** Register DeepSeek Messages with live configuration and request-local credentials. */
+import type {} from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-deepseek-account'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Context } from '@deepseek-ai/cordis'
 import { assertUsableApiKey, LlmError, resolveImageAttachmentAccess } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-fs'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import type {} from '@deepseek-ai/dsh-settings'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import { DeepSeekAdapter } from './adapter.ts'
-import { Config, resolveAdapterOptions } from './config.ts'
+import { Config, plainOptions, resolveAdapterOptions } from './config.ts'
 import type { ResolvedDeepSeekOptions } from './config.ts'
 
-export { Config, resolveAdapterOptions, PUBLIC_BASE_URL, MESSAGES_BASE_URL } from './config.ts'
-export type { ResolvedDeepSeekOptions } from './config.ts'
+export { Config, plainOptions, resolveAdapterOptions, PUBLIC_BASE_URL } from './config.ts'
+export type { Options, ResolvedDeepSeekOptions } from './config.ts'
 export {
   DEFAULT_CONTEXT_WINDOW,
   DEFAULT_FILE_EXPIRY_SECONDS,
@@ -24,10 +26,9 @@ export {
   DEFAULT_MAX_INLINE_REQUEST_IMAGE_BYTES,
   DEFAULT_MAX_TOKENS,
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
-} from './common/defaults.ts'
+} from './defaults.ts'
 export { DeepSeekAdapter } from './adapter.ts'
-export type { DeepSeekProtocol } from './common/types.ts'
-export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './common/types.ts'
+export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './types.ts'
 export {
   DEFAULT_LOW_DETAIL_IMAGE_PIXEL_BUDGET,
   DEFAULT_MAX_IMAGES_PER_REQUEST,
@@ -37,18 +38,17 @@ export {
   deepSeekImageRequestPricing,
   resolveRequestImageMaxBytes,
   resolveRequestImageTarget,
-} from './common/request-pricing.ts'
-export { deepSeekImageTokens, deepSeekRequestImageDimensions } from './common/image-tokens.ts'
-export { DeepSeekFileStore, MAX_IMAGE_BYTES } from './common/file-store.ts'
-export type { DeepSeekFileConnection, DeepSeekFilePolicy, DeepSeekFileReference } from './common/file-store.ts'
-export { DeepSeekFilesClient, MAX_FILE_EXPIRY_SECONDS, MAX_FILE_UPLOAD_BYTES, MAX_STORED_FILE_BYTES, MAX_STORED_FILE_COUNT, MIN_FILE_EXPIRY_SECONDS } from './common/files-api.ts'
-export type { DeepSeekFileObject, DeepSeekFilePage } from './common/files-api.ts'
-export { DeepSeekFileId } from './common/file-id.ts'
-export type { DeepSeekFileId as DeepSeekFileIdType } from './common/file-id.ts'
-export { DeepSeekUploadIndex, deepSeekFileScope } from './common/upload-index.ts'
-export type { DeepSeekUploadRecord } from './common/upload-index.ts'
-export type { RequestDefaults } from './common/types.ts'
-export type * from './protocols/chat-completions/types.ts'
+} from './request-pricing.ts'
+export { deepSeekImageTokens, deepSeekRequestImageDimensions } from './image-tokens.ts'
+export { DeepSeekFileStore, MAX_IMAGE_BYTES } from './file-store.ts'
+export type { DeepSeekFileConnection, DeepSeekFilePolicy, DeepSeekFileReference } from './file-store.ts'
+export { DeepSeekFilesClient, MAX_FILE_EXPIRY_SECONDS, MAX_FILE_UPLOAD_BYTES, MAX_STORED_FILE_BYTES, MAX_STORED_FILE_COUNT, MIN_FILE_EXPIRY_SECONDS } from './files-api.ts'
+export type { DeepSeekFileObject, DeepSeekFilePage } from './files-api.ts'
+export { DeepSeekFileId } from './file-id.ts'
+export type { DeepSeekFileId as DeepSeekFileIdType } from './file-id.ts'
+export { DeepSeekUploadIndex, deepSeekFileScope } from './upload-index.ts'
+export type { DeepSeekUploadRecord } from './upload-index.ts'
+export type { RequestDefaults } from './types.ts'
 
 export const name = 'llm-deepseek'
 export const inject = ['llm']
@@ -57,28 +57,8 @@ const NS = 'llm-deepseek'
 const PROVIDER = 'deepseek-official'
 
 export function apply(ctx: Context, config: Config): void {
-  let current: () => Config = () => config
-  let lastRaw: Config | undefined
-  let lastGood: ResolvedDeepSeekOptions | undefined
-  const options = (): ResolvedDeepSeekOptions => {
-    const raw = current()
-    if (raw === lastRaw && lastGood !== undefined) return lastGood
-    try {
-      const next = resolveAdapterOptions(raw, launchEnvironmentOf(ctx))
-      lastRaw = raw
-      lastGood = next
-      return next
-    } catch (error) {
-      // Static composition resolves before anything registers, so this branch
-      // only sees a live settings snapshot failing a beyond-schema bound:
-      // keep serving the last good facts and say so once per bad snapshot.
-      if (lastGood === undefined) throw error
-      lastRaw = raw
-      ctx.logger.error('llm-deepseek: keeping the last good configuration after an invalid settings section')
-      ctx.logger.error(error)
-      return lastGood
-    }
-  }
+  ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
+  const options = (): ResolvedDeepSeekOptions => resolveAdapterOptions(plainOptions(config), launchEnvironmentOf(ctx))
   options()
 
   const resolveApiKey = async (connection: ResolvedDeepSeekOptions): Promise<string> => {
@@ -112,6 +92,7 @@ export function apply(ctx: Context, config: Config): void {
       ctx.logger.warn(`llm-deepseek: unusable Messages replay state on assistant history for route "${provider}/${model}"; sending provider-neutral content (${reason})`)
     },
     resolveApiKey,
+    resolveAccountToken: connection => ctx.get('deepseekAccount')?.resolveToken(connection.baseURL) ?? Promise.resolve(undefined),
     resolveUserId,
     resolveAttachments: () => ctx.get('attachments'),
     resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(
@@ -126,14 +107,21 @@ export function apply(ctx: Context, config: Config): void {
     },
   })
   ctx.llm.registerConfigurableProviders([
-    { provider: PROVIDER, displayName: 'DeepSeek', settingsNs: NS, settingsPath: [] },
+    { provider: PROVIDER, displayName: 'DeepSeek', settingsNs: ctx.fiber.entry?.options.id ?? NS, settingsPath: [] },
   ])
   // Route effects bind to this apply fiber via the stable `ctx` reference,
   // even when a swap runs inside the scoped settings callback below.
   const registration = ctx.llm.registerAdapter([PROVIDER], adapter)
   let registeredPolicy = options().retryPolicy
   const ensureRegistrationFacts = (): void => {
-    const policy = options().retryPolicy
+    let policy: ResolvedDeepSeekOptions['retryPolicy']
+    try {
+      policy = options().retryPolicy
+    } catch (error) {
+      // A stored config the resolver refuses keeps the current registration; each request fails on its own resolve.
+      ctx.logger.warn(error)
+      return
+    }
     if (deepEqualJson(policy, registeredPolicy)) return
     // The registry captures the retry policy at registration, so it is the one
     // fact per-request resolution cannot refresh. `replace` re-reads it in one
@@ -144,12 +132,5 @@ export function apply(ctx: Context, config: Config): void {
     registeredPolicy = policy
   }
 
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, NS, Config, config, {
-      setSource: (source) => {
-        current = source
-      },
-      onChange: ensureRegistrationFacts,
-    })
-  })
+  ctx.on('loader/volatile-update', ensureRegistrationFacts)
 }

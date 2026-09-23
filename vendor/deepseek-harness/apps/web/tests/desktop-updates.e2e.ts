@@ -73,7 +73,7 @@ describe('web e2e: Desktop update workspace chrome', () => {
 
           const progress = presentDesktopUpdate({ phase: 'downloading', version, percent: 58 }, en)
           await publish(progress)
-          const downloading = page.getByRole('button', { name: '58%…', exact: true })
+          const downloading = page.getByRole('button', { name: '58%', exact: true })
           await downloading.waitFor()
           expect(await downloading.getAttribute('aria-disabled')).toBe('true')
           expect(await downloading.locator('svg').count()).toBe(1)
@@ -86,20 +86,20 @@ describe('web e2e: Desktop update workspace chrome', () => {
           const expand = locale === 'zh-CN' ? '打开侧边栏' : 'Open sidebar'
           await page.getByRole('button', { name: collapse, exact: true }).click()
           const toggle = page.getByRole('button', { name: expand, exact: true })
-          const badge = toggle.getByRole('img', { name: '58%…', exact: true })
+          const badge = toggle.getByRole('img', { name: '58%', exact: true })
           await badge.waitFor()
           await expect.poll(() => downloading.count()).toBe(0)
-          expect(await page.getByRole('img', { name: '58%…', exact: true }).count()).toBe(1)
-          const blue = await badge.evaluate(element => getComputedStyle(element).backgroundColor)
+          expect(await page.getByRole('img', { name: '58%', exact: true }).count()).toBe(1)
+          const updateBackground = await badge.evaluate(element => getComputedStyle(element).backgroundColor)
           await page.screenshot({ path: join(evidence, 'collapsed.png') })
 
           const error = presentDesktopUpdate({ phase: 'error', version, failedOperation: 'download', message: 'HTTP 503' }, en)
           await publish(error)
           const errorBadge = toggle.getByRole('img', { name: retryLabel, exact: true })
           await errorBadge.waitFor()
-          expect(await errorBadge.getAttribute('data-error')).toBe('true')
-          const red = await errorBadge.evaluate(element => getComputedStyle(element).backgroundColor)
-          expect(red).not.toBe(blue)
+          // A failure keeps the update palette; only the label distinguishes it.
+          const failedBackground = await errorBadge.evaluate(element => getComputedStyle(element).backgroundColor)
+          expect(failedBackground).toBe(updateBackground)
           await errorBadge.hover()
           const tooltip = page.getByRole('tooltip', { name: errorDetail, exact: true })
           await expect.poll(() => tooltip.evaluateAll(elements => elements.map(element => getComputedStyle(element).opacity))).toEqual(['1'])
@@ -132,7 +132,7 @@ describe('web e2e: Desktop update workspace chrome', () => {
           expect(tripwire.pageErrors).toEqual([])
           expect(tripwire.warnings).toEqual([])
           expect(await page.evaluate(() => (window as FixtureWindow).updateFixture.listeners.size)).toBe(1)
-          await writeFile(join(evidence, 'result.json'), JSON.stringify({ locale, geometry, blue, red,
+          await writeFile(join(evidence, 'result.json'), JSON.stringify({ locale, geometry, updateBackground, failedBackground,
             passed: true, explicitActions: 3, carrier: 'substituted', host: 'real Web composition',
             electron: false, installerExecuted: false }, null, 2) + '\n')
           console.log(`Desktop workspace chrome evidence: ${evidence}`)

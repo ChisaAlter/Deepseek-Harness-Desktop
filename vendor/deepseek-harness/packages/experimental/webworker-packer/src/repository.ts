@@ -14,6 +14,8 @@ import { join, relative } from 'node:path'
 import { DSH_HOME_ENV } from '@deepseek-ai/dsh-home-paths'
 import type { ConfigTree, ImageTree, PackResult } from './pack.ts'
 
+export { packPreviewFixture } from './preview.ts'
+
 /**
  * Repository directories scanned for workspace and vendored packages. The
  * image only ever materializes runtime packages, which live here. The Landlock

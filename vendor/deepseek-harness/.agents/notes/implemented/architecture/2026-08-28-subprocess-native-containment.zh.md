@@ -46,6 +46,8 @@ selector 是 per-spawn locator 或 sentinel，不是凭据或持久格式。Linu
 
 正常 Cordis dispose 会独立启动 direct-result 与 range observation、请求终止，并等待每个自有 range。消费方 teardown 不检查普通 PID；它会保留原始 operation 或 startup error，同时尝试 terminate 与 final wait，并按消费方既有错误顺序保留 cleanup failure。range 一旦被确认为空，就会永久禁止后续向陈旧 identity 发送信号。
 
+原生 Windows fixture 在成功和失败时都通过同一个 Job owner 请求终止并完成最终等待。后代 PID 仅用于观察：进程退出后再执行 `taskkill`，可能终止已复用该编号的无关进程，包括并发运行的其他测试 worker。
+
 在 JavaScript 可观察的 host exit 期间，`LocalSubprocessRuntime` 会同步强制终止每个仍存活的句柄，不使用 Promise 或 timer。Linux 会发送既有 direct fallback kill 与准确 scope kill；Windows 会终止 runner，使其唯一 Job handle 关闭；PTY fallback 扫描仍是 best effort。每个句柄的失败相互隔离，也不改变宿主退出结果。JavaScript 无法运行的终止形态不属于该 listener 的保证。
 
 ## Existing decisions and supersession

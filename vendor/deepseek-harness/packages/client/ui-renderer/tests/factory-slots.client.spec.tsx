@@ -346,8 +346,8 @@ describe('Factory rendering', () => {
     const view = runtime.renderRoot()
     expect(view.container.textContent).toBe('selected')
     if (retainedRender === undefined || retainedChain === undefined) throw new Error('Factory child bindings are missing')
-    const render = retainedRender as unknown as (key: string, owner: object) => ReactNode
-    const renderChain = retainedChain as unknown as (key: string, owner: object) => ReactNode
+    const render = retainedRender as (key: string, owner: object) => ReactNode
+    const renderChain = retainedChain as (key: string, owner: object) => ReactNode
     expect(() => render('renderer.factory.chain', {})).toThrow(/use renderSlotChain/)
     expect(() => renderChain('renderer.factory.child', {})).toThrow(/not 'chain'/)
     dispose()

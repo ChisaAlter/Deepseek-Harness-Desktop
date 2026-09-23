@@ -150,7 +150,7 @@
 | merge | 合并 | | | |
 | message | 消息 | | | |
 | mod | 模组 | | | |
-| model provider | 模型提供方 | | | |
+| model provider | 模型提供商 | | | 指为模型提供 API 的厂商或网关：模型设置页文案、用户指南 providers 与 `ui-settings-models` README 用「提供商」；llm seam 的开发者文档（可配置提供方目录、dormant 等）沿用「提供方」 |
 | model selection | 模型选择 | | 模型目标 | 面向 Agent 的提供方、模型和可选推理强度选择。 |
 | module | 模块 | | | |
 | non-escalation | 非升权 | | 非升级、不可升级 | 仅用于安全与权限语境，指主体不得获得超出既有授权的权限；普通升级不适用此行 |
@@ -168,7 +168,7 @@
 | plugin | 插件 | | | |
 | postmortem | 事故复盘 | 事故复盘（postmortem） | 事后分析、事故记录 | 事故记录与分析文档；目录或路径中的 `postmortem` 保持代码形式 |
 | prompt | 提示词 | | | |
-| provider | 提供方 | | | |
+| provider | 提供方 | | | 泛指的提供方（搜索、检查、settings 文件、subagent 等）；模型厂商或网关见 model provider 行 |
 | provider-neutral | 提供方无关 | | 提供方中立 | |
 | quality gate | 质量门禁 | | | |
 | quiescence | 完全停稳 | | 静默、静止状态 | 指生命周期工作全部结算后的状态 |

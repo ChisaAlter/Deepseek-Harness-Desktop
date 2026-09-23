@@ -32,7 +32,7 @@ export type {
   SessionListPhase,
   SessionListSnapshot,
   SessionSearchResultItem,
-  SubagentCatalogSnapshot,
+  SessionProjectionSnapshot,
 } from './sessions/manager.ts'
 export type { Session } from './sessions/session.ts'
 export type {

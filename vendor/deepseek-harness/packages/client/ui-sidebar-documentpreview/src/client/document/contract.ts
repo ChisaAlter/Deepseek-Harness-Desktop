@@ -23,12 +23,18 @@ export type DocumentContent =
     readonly revision: number
     /** Report the displayed source version; stale revisions cannot update the owner. @param version - loaded source version. */
     readonly loaded: (version: string) => void
+    /** End a failed load; a later file change can start another revision. */
+    readonly failed: () => void
     /** Cancel the current load and start a new revision. */
     readonly reload: () => void
   }
 
 /** Content and viewing inputs shared by document bodies and nested PDF presentation. */
 export interface DocumentBodyOwner {
+  /** Observe a file read by this renderer. @param address - complete file resource address. */
+  readonly addResource: (address: string) => void
+  /** Replace this renderer's dependencies. @param addresses - complete file resource addresses. */
+  readonly setResources: (addresses: readonly string[]) => void
   /** Original file address, also readable through the standard useResource hook. */
   readonly resourceAddress: string
   /** Ordinary file content or a renderer-owned loading request; text accumulates until eof. */
@@ -52,6 +58,26 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
           tabInfo: SlotHookFactory<'sidebar.right.tab.document', UseSidebarRightTabInfo>
         }
       }
+    }
+    /**
+     * Empty-state contributions for a file this preview cannot render,
+     * offered where Retry would stand once the file's Host path is known.
+     */
+    'sidebar.right.tab.document.unpreviewable': {
+      kind: 'list'
+      scope: 'session'
+      owner: {
+        /** Absolute path in the file's execution environment; native actions must verify a Host mapping. */
+        readonly absolutePath: string
+      }
+    }
+    /** Renderer-specific controls before the document toolbar's reload button. */
+    'sidebar.right.tab.document.action': {
+      kind: 'keyed'
+      scope: 'session'
+      owner: { readonly content: DocumentContent }
+      hookContext: UseSidebarRightTabInfo
+      inject: { hooks: { tabInfo: SlotHookFactory<'sidebar.right.tab.document', UseSidebarRightTabInfo> } }
     }
   }
 }

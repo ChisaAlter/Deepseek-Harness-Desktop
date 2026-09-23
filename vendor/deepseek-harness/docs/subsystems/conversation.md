@@ -16,6 +16,7 @@ The Session Controller owns the contiguous loaded logical-event window. Each `Se
 | Context | The engine-owned ordered Matches and current State for one `(kind, id)`. A transient event occupies one update Match; update-only evidence may remain pending until pagination supplies its unique durable start. |
 | Location | The engine-owned Session, Turn, or Step coordinates derived from durable boundary events. Definitions may publish typed data onto one Turn or Step. |
 | View Definition | A target package creates one incremental builder per Session and owns the final snapshot type for that target. |
+| Group Definition | A business package derives one target's root references and group snapshots from materialized Nodes; it owns membership, segmentation, summaries, and incremental caches. |
 | View | A Slot entry such as Chat or Trajectory reads only its target snapshot and renders target-owned nodes. |
 
 Chat and Trajectory may recognize the same durable event family, but each keeps its own Definition State and final node payload. Shared target-neutral machinery is limited to identity routing, ordered replay, Location data, predecessor dependencies, and publication cadence.
@@ -24,7 +25,33 @@ Chat and Trajectory may recognize the same durable event family, but each keeps 
 
 Each Session keeps a monotonic set of active targets. Creating or reading a target source does not activate it. The shell explicitly activates its persisted or newly selected View, while another consumer activates a target through its first source subscription. First activation creates that target's builder and calls `replace()` once from the current target-indexed Contexts. Later flushes call `apply()` for every active target, and unsubscription does not remove one.
 
-The shell owns View selection and resolves the registered preferred View or Chat fallback before rendering when a binding is created or selected as current, and after View-roster changes. The assembler receives only the resolved target id and does not select Chat or another default target. A third-party View participates through the same selection and activation operations.
+The shell owns View selection and resolves the registered preferred View or Chat fallback before rendering when a binding is created or selected as current, and after View-roster changes. The assembler receives only the resolved target id and does not select Chat or another default target. A third-party View participates through the same selection and activation operations. A View Definition may expose `toolCallFocus(callId)`; the shell supplies Inspect only for a visible target that declares this capability, and the target maps the call id to its own focus identity.
+
+<a id="group-definitions"></a>
+## Group Definitions
+
+The optional `ctx.uiConversation.groups.register(definition)` contribution uses the same effect-owned registry lifecycle as event and view registrations. It requires an existing View target and rejects duplicate target registrations without constructing a Builder. Each Session creates its own Group context only when that target activates. Registration replacement discards the old context and clears its observed groups during the existing registry rebuild.
+
+The [group types](../../packages/client/ui-conversation/src/client/contract/groups.ts) define the complete protocol:
+
+| Type | Meaning |
+|---|---|
+| `ConversationGroupDefinition<Node, State, Data>` | `create()` initializes Session-local State; `update(context, input)` returns its next State; `buildGroups(context)` returns pending output or `null`. Replacement input requires entries and a complete group replacement. |
+| `ConversationGroupInput<Node>` | `replace` supplies target order, timeline, and synchronous `readNode`, `readTurn`, and `readPosition` readers. `apply` adds projected `previous/current` Node changes, lifecycle `changedTurns`, and `changedTurnOrders`. Do not retain readers in State. |
+| `GroupNodePosition` | Owning Turn, when present, and immediate previous/next visible Node keys. Neighbours preserve interruptions that a Turn-only key list omits. |
+| `NodeReference` / `GroupReference` | Branded `NodeKey` or `GroupKey`, distinguished by `kind`. A Node reference may select a renderer-owned `groupPart`; omission selects the whole Node. |
+| `GroupSnapshot<Data>` | Immutable group key, business data, and ordered Node references. Groups cannot contain other groups or own source Node data. |
+| `GroupUpdate<Data>` | `entries` replaces the complete root sequence; only apply input may omit it to preserve the sequence. Replacement input requires both `entries` and `groups.replace`. `groups.replace.snapshots` replaces all groups; `groups.apply.upserts/removes` updates only named group records. Removal does not delete Nodes. |
+| `ConversationGroupDataMap` | Declaration-merged target-to-data association shared by registration and `views.grouped(target)`. Undeclared targets have no group payload type. |
+| `ConversationGroupedView<Data>` | Stable root `entries` and keyed `groupSource(key)` readers; a removed group reads as `undefined`. |
+
+The Builder exposes `groupInput()` when grouping is registered; missing input fails at first activation. It records the Node values after its own projections and preserves content-only order identity. The assembler supplies changed Turns with every update; direct ungrouped Builder callers may omit them. Builders with independent sources defer their notifications to `publish()`. First activation and ordinary flush share the same sequence: materialize Location data and Nodes, update the Builder, call the Group Definition, validate and install grouping, then publish every affected target and Location source. The group phase reuses the existing publication cadence.
+
+Target position indexes supply the readers and identify Turns whose visible keys or neighbours changed. `changedTurnOrders` includes both owners of a moved Node and Turns adjacent to inserted or removed unscoped Nodes; lifecycle-only changes remain in `changedTurns`. A business Definition can resegment those Turns and refresh only groups containing changed content. Structural output still replaces the complete root-reference array, without requiring unchanged Node contents to be reread.
+
+The Group store validates the whole submitted result before installation: root Group references and records correspond one-to-one, all referenced Nodes exist, and each `(NodeKey, groupPart)` occupies at most one root or member position. A whole Node cannot coexist with one of its parts. Duplicate upserts, duplicate removals, and simultaneous upsert/removal of a group fail. Data-only upserts retain root and member arrays, do not read Nodes, and notify only changed group sources; full replacement revalidates every reference.
+
+Renderers switch on the two reference kinds and choose components in the owning View, not through a renderer field in group data. Root Node references and referenced group members form the complete render list; unreferenced target Nodes remain stored but do not render. The group body reads members separately from summary data. Presentation modes must retain component types, keys, and member parents; changing data membership may legitimately remount a moved member. The framework does not interpret part completeness, segmentation, or presentation policies.
 
 ## Replayable event families
 

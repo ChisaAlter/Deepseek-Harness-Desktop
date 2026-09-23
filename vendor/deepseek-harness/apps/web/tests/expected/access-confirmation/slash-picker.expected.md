@@ -2,9 +2,7 @@
   - /placeholder: 搜索…
 - listbox "/permission 匹配项":
   - option "仅可查看"
-  - option "工作区内修改" [selected]:
-    - text: 工作区内修改
-    - img
+  - option "工作区内修改" [selected]
   - option "完全权限"
   - option "Auto review EXP":
     - text: Auto review

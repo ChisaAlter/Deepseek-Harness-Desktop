@@ -110,15 +110,18 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* `pre`, not `nowrap`: the prompt row renders the command verbatim, and
-   `nowrap` collapses the repeated spaces, tabs, and alignment of an indented
-   continuation. Both hold the single row and the ellipsis. */
+/* Default `pre`, not `nowrap`: the prompt row renders the command verbatim,
+   and `nowrap` would collapse the repeated spaces, tabs, and alignment of an
+   indented continuation. Hosts opt into wrapping long commands by rebinding
+   the variable to `pre-wrap`; the ellipsis then simply never engages, and
+   overflow-wrap is inert while white-space stays `pre`. */
 .command {
   min-width: 0;
   color: var(--dsw-alias-label-primary);
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: pre;
+  white-space: var(--dsl-terminal-command-whitespace, pre);
+  overflow-wrap: anywhere;
 }
 
 /* Capped to the prompt's line height (Pill's own 24px height would exceed a
@@ -176,10 +179,14 @@
   margin: 6px;
 }
 
-/* No wrapping, no word-break: alignment is the payload of terminal output. */
+/* Default `pre`: alignment is the payload of terminal output. Hosts opt
+   into wrapping long lines by rebinding the variable to `pre-wrap`, which
+   also keeps the output region from ever scrolling sideways; overflow-wrap
+   is inert while white-space stays `pre`. */
 .line {
   min-height: var(--dsl-terminal-line-height);
-  white-space: pre;
+  white-space: var(--dsl-terminal-line-whitespace, pre);
+  overflow-wrap: anywhere;
 }
 
 .expand {

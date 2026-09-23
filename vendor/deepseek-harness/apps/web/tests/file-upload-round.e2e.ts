@@ -318,9 +318,9 @@ describe('web e2e: generic file upload through the real assembly', () => {
         event.type === 'tool/result' && event.data.message.source.callId === readCall.data.callId,
     )
     if (readResult === undefined) throw new Error('the read call produced no durable result')
-    const content = readResult.data.message.content[0]
-    expect(content.isError).toBe(false)
-    expect(content.content.filter(block => block.type === 'text').map(block => block.text).join(''))
+    const message = readResult.data.message
+    expect(message.isError).toBe(false)
+    expect(message.content.filter(block => block.type === 'text').map(block => block.text).join(''))
       .toContain('UPLOAD_ROUND_OK')
 
     const turnEnds = sessionEvents.filter(event => event.type === 'turn/end')

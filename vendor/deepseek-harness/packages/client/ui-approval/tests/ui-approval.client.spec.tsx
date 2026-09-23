@@ -329,10 +329,12 @@ describe('ApprovalPanel', () => {
     render(<ApprovalPanel {...props} />)
 
     expect(screen.getByText('Tool bash asks')).toBeTruthy()
+    expect(document.querySelector('[data-approval-key] [data-state="warning"]')).not.toBeNull()
     expect(screen.getByRole('group', { name: 'Approval details' })).toBeTruthy()
     expect(props.renderSlot).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
 
+    expect(document.querySelector('[data-approval-key]')?.getAttribute('aria-busy')).toBe('true')
     await expect(pending.result).resolves.toBe('rejected')
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Reject' }).disabled).toBe(true)
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Allow once' }).disabled).toBe(true)
@@ -353,6 +355,8 @@ describe('ApprovalPanel', () => {
       callId: 'call-1',
     })
     fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+    expect(document.querySelector('[data-approval-key] [data-state="ongoing"]')).not.toBeNull()
+    expect(document.querySelector('[data-approval-key]')?.getAttribute('aria-busy')).toBe('true')
 
     await expect(pending.result).resolves.toBe('allowed-once')
   })
@@ -367,6 +371,7 @@ describe('ApprovalPanel', () => {
     await waitFor(() => {
       expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Allow once' }).disabled).toBe(false)
     })
+    expect(document.querySelector('[data-approval-key]')?.getAttribute('aria-busy')).toBe('false')
     pending.abort(new Error('test cleanup'))
     await pending.result.catch(() => {})
   })

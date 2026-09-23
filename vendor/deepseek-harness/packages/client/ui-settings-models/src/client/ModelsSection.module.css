@@ -305,26 +305,44 @@
   gap: 12px;
 }
 
-/* The two ways to gain a provider, as equal siblings spanning the same width
-   as the rows above. Wraps rather than shrinking below a legible label. */
+/* The one entry to the add card, spanning the same width as the rows above. */
 .addActions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
 }
 
 .addButton {
-  /* Overrides the shared button base above: these two are not pills sitting in
-     a footer but the last slot of the provider list, so they split the row
-     evenly and repeat the row cards' corner. Dashed, like every other "nothing
-     here yet" affordance on this page, to read as a place rather than a
-     command. */
+  /* Overrides the shared button base above: this is not a pill sitting in a
+     footer but the last slot of the provider list, so it fills the row and
+     repeats the row cards' corner. Dashed, like every other "nothing here yet"
+     affordance on this page, to read as a place rather than a command. */
   flex: 1 1 0;
   min-width: 180px;
   gap: 6px;
   height: 44px;
   border: 1px dashed var(--dsw-alias-border-l3);
   border-radius: 16px;
+}
+
+/* The add card's mode switch with the one-line purpose of the chosen mode
+   beneath it; the switch hugs its labels rather than spanning the card. */
+.addModes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* One panel per mode. Both stay mounted while the card is open; the hidden
+   attribute must win over the panel's own display, or the inactive draft
+   would show beneath the active one. */
+.addPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.addPanel[hidden] {
+  display: none;
 }
 
 .addCard,
@@ -760,11 +778,13 @@
   cursor: pointer;
 }
 
-.candidateId {
+.candidateName {
   flex: 1 1 auto;
-  font-family: var(--ds-font-family-code);
+  min-width: 0;
   font-size: 13px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .candidateEmpty {

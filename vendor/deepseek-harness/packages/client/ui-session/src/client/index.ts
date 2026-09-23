@@ -7,6 +7,7 @@ import type {
   SessionReference,
   SessionRetainInfo,
   SessionSnapshot,
+  SessionSummary,
   UseProjection,
 } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -492,13 +493,15 @@ export class UiSession extends Service {
   private reconcileStatus(): void {
     const list = this.sessions.list.getSnapshot()
     const present = new Set(Object.keys(list.byId) as SessionId[])
-    for (const id of present) {
-      const row = list.byId[id]
-      if (row === undefined) continue
+    // Subagent catalog rows and retained subagent fallback rows do not establish Host running state.
+    for (const id of list.ids) {
+      const row = list.byId[id] as SessionSummary
       const previous = this.running.get(id)
       if (previous === undefined) this.running.set(id, row.running)
       else if (previous !== row.running) this.observeRunning(id, row.running)
-      if ((row.retainedBy.mainView ?? 0) > 0) this.completionUnread.delete(id)
+    }
+    for (const id of present) {
+      if (this.isMain(id)) this.completionUnread.delete(id)
     }
     if (list.phase === 'ready') {
       for (const id of this.running.keys()) {

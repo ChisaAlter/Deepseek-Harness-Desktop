@@ -45,17 +45,6 @@
   font: var(--dsw-font-xxs-12);
 }
 
-.historyLoadingSpinner {
-  width: 10px;
-  height: 10px;
-  box-sizing: border-box;
-  border: 1.5px solid var(--dsw-alias-border-l2);
-  border-top-color: var(--dsw-alias-state-business-primary);
-  border-radius: 50%;
-  corner-shape: round;
-  animation: history-loading-spin 700ms linear infinite;
-}
-
 .table tbody .historyLoadRow td {
   height: 30px;
   padding: 0;
@@ -105,16 +94,6 @@
 
 .table:not([data-scroll-ready='true']) {
   visibility: hidden;
-}
-
-@keyframes history-loading-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .historyLoadingSpinner {
-    animation: none;
-  }
 }
 
 .table {

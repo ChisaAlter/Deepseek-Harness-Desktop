@@ -3,10 +3,7 @@
 }
 
 .trigger,
-.iconButton,
-.smallButton,
-.taskActions button,
-.formActions button {
+.iconButton {
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -24,10 +21,7 @@
 }
 
 .trigger:hover,
-.iconButton:hover,
-.smallButton:hover,
-.taskActions button:hover,
-.formActions button:hover {
+.iconButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -43,27 +37,23 @@
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
+  position: fixed;
   z-index: 110;
   box-sizing: border-box;
   width: min(560px, calc(100vw - 32px));
-  max-height: min(680px, calc(100vh - 120px));
+  max-height: min(680px, calc(100vh - 32px));
   padding: 10px;
   overflow: auto;
   border: 0;
   border-radius: 12px;
   background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   box-shadow: var(--dsw-elevation-prominent);
 }
 
 .toolbar,
-.sectionTitle,
-.taskTitle,
-.taskActions,
-.formActions {
+.taskTitle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -134,30 +124,23 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
-.smallButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 4px 7px;
-  font-size: 11px;
-}
-
 .tasks {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
-.task,
-.form {
+.task {
   padding: 9px;
   border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 9px;
   background: var(--dsw-alias-bg-base);
 }
 
-.taskTitle span {
+.taskState {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-left: auto;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
@@ -176,65 +159,11 @@
   gap: 4px 10px;
 }
 
-.taskActions {
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.taskActions label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-}
-
-.taskActions select,
-.form input,
-.form textarea {
-  box-sizing: border-box;
-  border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 6px;
-  background: var(--dsw-alias-bg-base);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-}
-
-.taskActions button,
-.formActions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px 6px;
-  font-size: 11px;
-}
-
-.taskActions button:disabled,
-.formActions button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.form {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 7px;
-}
-
-.form input,
-.form textarea {
-  width: 100%;
-  padding: 6px 8px;
-  font-size: 12px;
-}
-
-.form textarea {
-  min-height: 58px;
-  resize: vertical;
-}
-
 .notice,
 .error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 9px;
   font-size: 12px;
 }

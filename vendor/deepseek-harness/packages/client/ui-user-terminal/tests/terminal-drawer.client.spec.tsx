@@ -155,8 +155,7 @@ function sessionList(cwd: string | undefined): SessionListState {
     ids: current === undefined ? [] : [SID],
     byId,
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   }
 }
 

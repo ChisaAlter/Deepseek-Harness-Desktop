@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-08-feedback-dialog-and-categories.md
-2026-09-08-feedback-dialog-and-categories.md: ee656946a9e5d2921a02a1b642041e5965661f31
-2026-09-08-feedback-dialog-and-categories.zh.md: ef2b2d4670aad12398125925dd1e1a7e7c10a5f0
+2026-09-08-feedback-dialog-and-categories.md: 1d544e6ef978c10008ac62768b6faaf9eaaf8b73
+2026-09-08-feedback-dialog-and-categories.zh.md: 6e58820bf308a3a9f7d15b64027f90e7e6771bd4

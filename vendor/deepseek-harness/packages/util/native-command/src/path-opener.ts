@@ -80,7 +80,7 @@ async function openInBrowser(
 }
 
 /** Native path-open intent; macOS distinguishes text editing from file association. */
-type PathOpenIntent = 'default' | 'text-editor'
+type PathOpenIntent = 'default' | 'association' | 'text-editor'
 
 /** PowerShell single-quoted literal (doubles embedded quotes). */
 function powershellLiteral(path: string): string {
@@ -186,6 +186,19 @@ export function openNativePath(
   internals: PathOpenerInternals = {},
 ): Promise<void> {
   return openNativePathWithIntent(path, signal, 'default', internals)
+}
+
+/**
+ * Open a filesystem path through its file-type association, including HTML and SVG.
+ * @param path - absolute or host-resolvable path; the caller verifies local access.
+ * @param signal - caller lifetime; abort terminates the native command.
+ * @param internals - platform, environment, and runner facts for adapter tests.
+ * @returns after the associated application accepts the path.
+ */
+export function openNativeAssociatedPath(
+  path: string, signal: AbortSignal, internals: PathOpenerInternals = {},
+): Promise<void> {
+  return openNativePathWithIntent(path, signal, 'association', internals)
 }
 
 /**

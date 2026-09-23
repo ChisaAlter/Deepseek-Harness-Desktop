@@ -30,7 +30,7 @@
       "path": "../../util/workspace-path"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../store"

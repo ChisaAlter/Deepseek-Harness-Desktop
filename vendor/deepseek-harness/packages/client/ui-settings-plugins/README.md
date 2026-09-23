@@ -1,5 +1,5 @@
 ---
-description: "Built-in plugins settings section for the dsh web client, and the official plugin configuration pages that register into the Plugins page."
+description: "Built-in plugins settings section for the dsh web client: the Settings navigation entry and the tab chrome that feature-owned tabs register into."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use the **Built-in plugins** settings section to inspect the plugins this deployment ships, and the **Official** group of the sidebar's Plugins page to configure the host-plane plugins that expose settings. Each configuration page shows which values the user overrode, lets them reset those to deployment defaults, keeps edits local until save, and drops them when the page is left. If the configuration changed after the page loaded, the save is rejected instead of overwriting the newer values.
+Use the **Built-in plugins** settings section to inspect the plugins this deployment ships. The section is a shell: it owns the navigation entry and the tab row, and every tab in it is registered by another plugin — the read-only inventory ships one. Configuring a built-in plugin happens on the sidebar's Plugins page, where each official plugin's own companion package registers its page.
 
 ## Table of Contents
 
@@ -25,25 +25,9 @@ Use the **Built-in plugins** settings section to inspect the plugins this deploy
 <a id="use-this-package"></a>
 ## Use this package
 
-Open **Built-in plugins** in Settings for the read-only inventory; [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) contributes it as the section's one tab, shown as the page itself. To configure a host-plane plugin, select **Plugins** in the sidebar: the Official group lists one card per plugin this deployment composes, in this order — the shell executor (`shell`), the agent loop's tool-call parallelism (`agent-loop`), Subagent delegation limits and model selection (`subagent` and `subagent-model-selection`), and the DeepSeek search provider (`web-search-deepseek`) — and a card opens the plugin's page with its form.
+Open **Built-in plugins** in Settings. [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) contributes the inventory as the section's one tab, shown as the page itself; a second registered tab turns the row into tabs. A deployment whose composition contributes no tab shows the section's empty line.
 
-### What appears here
-
-Each page registers into the Plugins page's `plugins.item` slot while the Host serves its settings namespace, so a deployment that does not compose the owning plugin shows no trace of it, and a namespace the Host starts or stops serving adds or withdraws its page on the next settings-document commit or reconnect. The card's one-liner and the page's form are one entry rendered in the two views the Plugins page asks for.
-
-### Editing and saving
-
-A page stages what the user types and writes it only when they save. Each control renders staged text, so what is on screen is exactly what a save would store. Leaving the page drops the drafts; there is no discard control. A failed save keeps the page as it is, reports the failure, and retains the drafts for correction. A reset stages the composed default rather than writing immediately, and a draft the field does not accept blocks the save instead of being dropped. The Host is the only authority on whether a value was accepted.
-
-The **Subagent** card groups delegation limits and model selection on one page with one save button. **Maximum recursion depth** and **Subagent parallelism limit** appear side by side, stacking on narrow screens. Information buttons reveal a two-row depth example and the shared count rule; validation errors remain visible below the input. Depth retains explicit tool overrides. Capacity counts live continuable descendants across all recursion levels, including waiting children and excluding the root, one-shot runs, and external providers. Saving applies to later delegation attempts; lowering capacity does not stop existing children.
-
-The model selection section stages its permission switch and exact model checkboxes together. Enabling requires at least one selected adapter route. Saving submits `enabled` and `allowedModels` in one mutation fenced by the revision where that draft began; a newer Host revision marks the draft failed instead of restoring a revoked route. Disabling retains the selected routes for later reuse. Available models are grouped by provider, while saved routes absent from the current catalog appear last and remain removable. Adapter names and model descriptions remain live directory metadata and are not stored, and the card refreshes them after adapter changes, settings commits, and reconnects.
-
-Saving the Subagent card validates both sections and writes their drafts through their existing namespaces. These writes are independent: if one fails, the card stays open with that draft retained, and retry writes only the remaining draft. The page appears when either namespace is served and shows only the available sections.
-
-### Secret-role fields
-
-A key control starts blank, reports only whether one is configured, and writes through the credentials domain rather than the settings section; a blank draft writes nothing and keeps the stored key.
+To contribute a tab, register into `settings.plugins.tab` with an `id`, an `order`, and a localized `label`; the section renders the entries in order and mounts a tab on its first selection. Feature copy stays in the registering plugin's dictionary.
 
 -----
 
@@ -53,15 +37,7 @@ A key control starts blank, reports only whether one is configured, and writes t
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The package is one registration rule and one write path: each page is registered while its namespace is served, and saves go through the client settings scope.
-
-### The registration rule
-
-The section declares `settings.plugins.tab`, a root list slot whose labels become ordered tabs; a lone contribution renders as the page itself, and a tab stays mounted after its first selection so search and the inventory snapshot survive switching. The configuration pages are `plugins.item` registrations, one per namespace, made through `ctx.slots.inject` when the shared settings mirror shows the Host serves the namespace and disposed when it stops; registration order is the page order, not the Host's description order, which follows plugin activation and can change between boots. A page owns its controls and copy; the Plugins page draws its title, icon, and crumb.
-
-### The write path
-
-Saving writes staged fields through the client settings scope, which fences each write or ordered mutation with the namespace revision the draft read, so a form that has drifted from the document is refused rather than overwriting a concurrent change. A field's presence in the raw user layer — not its value — is what marks it overridden; a reset clears that field so it re-inherits the composition layer. Secret-role fields never ride a response; the page re-reads on the forwarded `credentials/reference-updated` event for the reference it watches.
+The section declares `settings.plugins.tab`, a root list slot whose labels become ordered tabs; a lone contribution renders as the page itself, and a tab stays mounted after its first selection so search and the inventory snapshot survive switching. The section's `inject` projects the slot's ledger into ordered rows whose labels follow the active locale, cached until the ledger version or the locale revision moves. The Host half is an empty `apply`, present only so the package holds a Loader row the client module system serves the browser half for.
 
 </details>
 
@@ -70,14 +46,10 @@ Saving writes staged fields through the client settings scope, which fences each
 <a id="further-exploration"></a>
 ## Further Exploration
 
-These pages cover the Plugins page, the settings base, the inventory tab, and the durable seams behind the forms.
-
-- [ui-plugin-manager](../ui-plugin-manager/README.md) — the sidebar page whose `plugins.item`, `plugins.bundle.config`, and `plugins.row.config` slots host configuration pages.
-- [ui-settings](../ui-settings/README.md) — the domain base declaring `settings.section` and the settings scope.
-- [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) — the read-only inventory the section shows.
-- [settings](../../settings/README.md) — the durable user-settings seam and its file provider.
-- [credentials](../../credentials/README.md) — the credential-reference seam secret fields write through.
-- [ui-settings-general](../ui-settings-general/README.md) — the settings shell hosting the section.
+- [ui-settings-plugin-inventory](../ui-settings-plugin-inventory/README.md) — the read-only inventory tab.
+- [ui-settings](../ui-settings/README.md) — the domain base declaring `settings.section`.
+- [ui-plugin-manager](../ui-plugin-manager/README.md) — the Plugins page where official plugins are configured.
+- [ui-settings-shell](../ui-settings-shell/README.md), [ui-settings-agent-loop](../ui-settings-agent-loop/README.md), [ui-settings-subagent](../ui-settings-subagent/README.md), [ui-settings-web-search](../ui-settings-web-search/README.md) — the official configuration pages, one companion package each.
 
 -----
 
@@ -94,13 +66,8 @@ None; this package neither assembles nor sends a provider request.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-
-These limits define which plugins get a page and how fresh the group is; they are current package constraints.
-
-- **Only host-plane plugins have a page** — a plugin an agent preset mounts carries its configuration inline in that preset's `agent.cordis.yml` and cannot register a settings namespace at all, so this package registers nothing for it. Editing those values remains the preset editor's job.
-- **A page still needs a browser bundle** — the browser half must be a `dsh.client` package built in the client module system's lazy-CJS factory format, and the `clientBundle` preset that emits it lives in `../../../packages/client/tsdown.client.ts` rather than a published package, so a plugin outside this repository has to reproduce that build itself.
-- **The served namespaces re-read on two signals only** — the wire announces settings-document commits and connection resets, not registrations, so a namespace whose owner registers after the mirror's read joins the Official group on the next document commit or reconnect.
-- **The shell page follows the composed executor** — the POSIX and PowerShell executor families share the `shell` namespace because a host composes exactly one of them, so the served schema differs by platform (PowerShell adds `pwshPath`) even though the page edits the same two fields on both.
+- **The section has no tab of its own** — it renders its empty line until a feature plugin registers one; the shell cannot fill the section alone.
+- **Runtime invariant:** No companion is published. The section owns no relationship beyond the slot ledger it projects.
 
 <a id="dev-note"></a>
 ### Dev Note
@@ -111,5 +78,3 @@ These limits define which plugins get a page and how fresh the group is; they ar
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. This is a browser-side settings surface whose node half owns no event stream or mutable runtime data; the layering and write refusals are Host contracts covered by the owning plugins and the api-proxy.

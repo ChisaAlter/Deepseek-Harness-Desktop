@@ -11,6 +11,10 @@ import type {
   ConversationViewSnapshotStore,
 } from '../contract/conversation.ts'
 import { conversationContextKey } from '../contract/conversation.ts'
+import type {
+  ConversationGroupData, ConversationGroupDefinition, ConversationGroupedView,
+} from '../contract/groups.ts'
+import { ConversationGroupStore } from './group-store.ts'
 import {
   ConversationLocationIndex, type ConversationLocationDataChange,
 } from './location-index.ts'
@@ -46,9 +50,16 @@ interface PendingMatch {
 interface ViewState {
   readonly target: string
   readonly definition: ConversationViewDefinition
+  readonly groupDefinition: ConversationGroupDefinition | undefined
   readonly isActive: ((snapshot: unknown) => boolean) | undefined
   builder: ConversationViewBuilder | undefined
   snapshot: unknown
+}
+
+interface GroupState {
+  readonly definition: ConversationGroupDefinition
+  state: unknown
+  readonly store: ConversationGroupStore<unknown>
 }
 
 const PUBLICATION_RANK: Record<ConversationPublication, number> = {
@@ -152,6 +163,16 @@ export interface ConversationViewDefinitions {
   entries(): readonly ConversationViewDefinition[]
 }
 
+/** Registered grouping rules consumed by the target-neutral assembler. */
+export interface ConversationGroupDefinitions {
+  /** @returns grouping Definitions in registration order. */
+  entries(): readonly ConversationGroupDefinition[]
+  /** @param target - View target. @returns its optional Group Definition. */
+  forTarget(target: string): ConversationGroupDefinition | undefined
+}
+
+const NO_GROUPS: ConversationGroupDefinitions = { entries: () => [], forTarget: () => undefined }
+
 /**
  * Session-owned incremental engine that assembles business Contexts from a
  * contiguous Event window and materializes registered view snapshots.
@@ -168,6 +189,8 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   private readonly revised = new Set<InternalContext>()
   private readonly dependents = new Map<string, Set<InternalContext>>()
   private readonly views = new Map<string, ViewState>()
+  private readonly groups = new Map<string, GroupState>()
+  private readonly pendingGroupStores = new Set<ConversationGroupStore<unknown>>()
   private readonly activeTargets = new Set<string>()
   private hasMore = false
   private replacePending = true
@@ -176,10 +199,12 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   /**
    * @param eventDefinitions - live Event Definition registry.
    * @param viewDefinitions - live view builder registry.
+   * @param groupDefinitions - optional registered grouping rules, independent of presentation modes.
    */
   constructor(
     private readonly eventDefinitions: ConversationEventDefinitions,
     private readonly viewDefinitions: ConversationViewDefinitions,
+    private readonly groupDefinitions: ConversationGroupDefinitions = NO_GROUPS,
   ) {
     this.resetViewBuilders()
   }
@@ -345,28 +370,24 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (!this.replacePending && this.dirty.size === 0 && !this.timelineDirty) return false
     if (this.replacePending) {
       this.replaceLocationData()
-      let published = false
+      const updated: ViewState[] = []
+      const changedTurns = this.locationIndex.takeChangedTurns()
       for (const target of this.activeTargets) {
         const view = this.views.get(target)
         if (view === undefined) continue
-        const builder = view.builder ?? view.definition.create()
-        view.builder = builder
-        view.snapshot = builder.replace({
-          nodes: this.buildTargetNodes(target, this.contextsByTarget.get(target)),
-          timeline: this.locationIndex.snapshot(),
-        })
-        published = true
+        this.updateView(view, true, this.buildTargetNodes(target, this.contextsByTarget.get(target)), changedTurns)
+        updated.push(view)
       }
-      this.locationIndex.publishData()
       this.replacePending = false
       this.dirty.clear()
       this.dirtyByTarget.clear()
       this.timelineDirty = false
-      return published
+      return this.publishViews(updated)
     }
 
-    let published = false
+    const updated: ViewState[] = []
     if (this.applyDirtyLocationData()) this.timelineDirty = true
+    const changedTurns = this.locationIndex.takeChangedTurns()
     const timelineDirty = this.timelineDirty
     for (const target of this.activeTargets) {
       const view = this.views.get(target)
@@ -375,17 +396,13 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
       if (builder === undefined) continue
       const upserts = this.buildTargetUpserts(target, this.dirtyByTarget.get(target))
       if (upserts.length === 0 && !timelineDirty) continue
-      view.snapshot = builder.apply({
-        upserts,
-        timeline: this.locationIndex.snapshot(),
-      })
-      published = true
+      this.updateView(view, false, upserts, changedTurns)
+      updated.push(view)
     }
-    this.locationIndex.publishData()
     this.dirty.clear()
     this.dirtyByTarget.clear()
     this.timelineDirty = false
-    return published
+    return this.publishViews(updated)
   }
 
   /**
@@ -401,6 +418,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     this.activeTargets.add(target)
     if (view === undefined) return published
     this.replaceView(view)
+    this.publishViews([view])
     return true
   }
 
@@ -417,6 +435,12 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     target: Target,
   ): ConversationViewSnapshotMap[Target] | undefined {
     return this.snapshot(target) as ConversationViewSnapshotMap[Target] | undefined
+  }
+
+  grouped<Target extends string>(
+    target: Target,
+  ): ConversationGroupedView<ConversationGroupData<Target>> | undefined {
+    return this.groups.get(target)?.store as ConversationGroupedView<ConversationGroupData<Target>> | undefined
   }
 
   /**
@@ -903,12 +927,55 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   }
 
   private replaceView(view: ViewState): void {
+    this.updateView(view, true, this.buildTargetNodes(view.target, this.contextsByTarget.get(view.target)), [])
+  }
+
+  private updateView(
+    view: ViewState,
+    replacing: boolean,
+    nodes: readonly ConversationViewNode[],
+    changedTurns: readonly number[],
+  ): void {
     const builder = view.builder ?? view.definition.create()
+    const definition = view.groupDefinition
+    if (definition !== undefined && builder.groupInput === undefined) {
+      throw new Error(`conversation group target "${view.target}" requires builder.groupInput()`)
+    }
     view.builder = builder
-    view.snapshot = builder.replace({
-      nodes: this.buildTargetNodes(view.target, this.contextsByTarget.get(view.target)),
-      timeline: this.locationIndex.snapshot(),
-    })
+    const timeline = this.locationIndex.snapshot()
+    const snapshot = replacing
+      ? builder.replace({ nodes, timeline, changedTurns })
+      : builder.apply({ upserts: nodes, timeline, changedTurns })
+    if (definition !== undefined && builder.groupInput !== undefined) {
+      let context = this.groups.get(view.target)
+      const initial = context === undefined
+      if (context === undefined) {
+        context = { definition, state: definition.create(), store: new ConversationGroupStore() }
+      }
+      const input = builder.groupInput()
+      context.state = definition.update(context, input)
+      const change = definition.buildGroups(context)
+      if ((initial || input.kind === 'replace')
+        && (change === null || change.entries === undefined || change.groups.kind !== 'replace')) {
+        throw new Error(`conversation group target "${view.target}" requires complete grouping for replacement input`)
+      }
+      if (change !== null) {
+        context.store.prepareAndInstall(change, input.readNode)
+        this.pendingGroupStores.add(context.store)
+      }
+      this.groups.set(view.target, context)
+    }
+    view.snapshot = snapshot
+  }
+
+  private publishViews(updated: readonly ViewState[]): boolean {
+    const changed = updated.length > 0 || this.pendingGroupStores.size > 0
+    const stores = [...this.pendingGroupStores]
+    this.pendingGroupStores.clear()
+    for (const view of updated) view.builder?.publish?.()
+    for (const store of stores) store.publish()
+    this.locationIndex.publishData()
+    return changed
   }
 
   private buildTargetNodes(
@@ -1001,11 +1068,21 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   }
 
   private resetViewBuilders(): void {
+    const definitions = this.viewDefinitions.entries()
+    const targets = new Set(definitions.map(definition => definition.target))
+    for (const [target, group] of this.groups) {
+      if (!targets.has(target) || this.groupDefinitions.forTarget(target) !== group.definition) {
+        group.store.clear()
+        this.pendingGroupStores.add(group.store)
+        this.groups.delete(target)
+      }
+    }
     this.views.clear()
-    for (const definition of this.viewDefinitions.entries()) {
+    for (const definition of definitions) {
       const view: ViewState = {
         target: definition.target,
         definition,
+        groupDefinition: this.groupDefinitions.forTarget(definition.target),
         isActive: definition.isActive === undefined
           ? undefined
           : snapshot => definition.isActive?.(snapshot) === true,

@@ -11,7 +11,7 @@ import type {
   TypertOwnedValue,
   TypertRemoteEvent,
 } from '@deepseek-ai/dsh-typert-protocol'
-import { isTypertOwnedValue } from '@deepseek-ai/dsh-typert-protocol'
+import { isRemoteJsonValue, isTypertOwnedValue } from '@deepseek-ai/dsh-typert-protocol'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import {
   REMOTE_EVENT_RESULT_ENDPOINT,
@@ -20,7 +20,6 @@ import {
   isRemoteEventAgentId,
   isRemoteEventClientId,
   isRemoteEventId,
-  isRemoteJsonValue,
   projectRemoteEventRejection,
   type RemoteEventClientId,
   type RemoteEventDownlinkFrame,
@@ -93,7 +92,7 @@ export class ClientRemoteEvents {
   ): () => void {
     const dispose = privateEvents(callerCtx).on(
       this.eventKey(event),
-      listener as unknown as RemoteEventListener,
+      listener as RemoteEventListener,
     )
     return () => { dispose() }
   }

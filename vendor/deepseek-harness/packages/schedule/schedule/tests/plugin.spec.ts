@@ -143,6 +143,114 @@ describe('Schedule plugin composition', () => {
     await ctx.fiber.dispose()
   })
 
+  it('reports active reminders as archive activity and deletes them on a stop request', async () => {
+    const ctx = await harness()
+    // Published before the plugin: no owned runtime, so nothing of its log is armed.
+    const existing = await ctx.agents.create({ sessionId: SessionId('schedule-archive-existing') })
+    const plugin = await ctx.plugin(toolSchedule)
+    existing.agent.session.append('schedule/change', {
+      version: 1,
+      operation: 'create',
+      schedule: toolSchedule.createAfterScheduleRecord(toolSchedule.ScheduleId('schedule-1'), 'orphaned', 3_600, Date.now()),
+    })
+    const askExisting = () => ctx.waterfall(
+      'workspace/session-activity', { sessionId: existing.agent.id }, () => Promise.resolve([]),
+    )
+    expect(await askExisting()).toEqual([])
+    await ctx.parallel('workspace/session-stop', { sessionId: existing.agent.id })
+    expect(existing.agent.session.snapshotEvents().filter(event => event.type === 'schedule/change')).toHaveLength(1)
+
+    const root = await ctx.agents.create({ sessionId: SessionId('schedule-archive') })
+    const ask = () => ctx.waterfall(
+      'workspace/session-activity', { sessionId: root.agent.id }, () => Promise.resolve([]),
+    )
+    const listeners = (event: 'workspace/session-activity' | 'workspace/session-stop') =>
+      ctx.events._hooks[event]?.length ?? 0
+    const changes = () => root.agent.session.snapshotEvents().filter(event => event.type === 'schedule/change')
+    // How many schedule/change events the log held at each persistence barrier of the root session.
+    const barriers: number[] = []
+    const stopFlush = ctx.on('session/flush', (session) => {
+      if (session === root.agent.session) barriers.push(changes().length)
+    })
+    expect(await ask()).toEqual([])
+    expect(barriers).toEqual([])
+
+    const created = await ctx.agents.withInitiator(root.agent, () => ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId('schedule-archive-create'),
+      name: 'schedule_create',
+      arguments: { prompt: 'check the build', after_seconds: 3_600 },
+      agent: root.agent,
+    }))
+    expect(created.isError).toBe(false)
+    expect(await ask()).toEqual([
+      { kind: 'schedule', items: [{ id: 'schedule-1', label: 'check the build' }] },
+    ])
+    // A session without a live agent has nothing that could fire.
+    expect(await ctx.waterfall(
+      'workspace/session-activity', { sessionId: SessionId('schedule-cold') }, () => Promise.resolve([]),
+    )).toEqual([])
+
+    barriers.length = 0
+    await ctx.parallel('workspace/session-stop', { sessionId: root.agent.id })
+    // The delete is the same durable change the schedule_delete tool records,
+    // between the same two barriers: one before the fold is read, one after the
+    // append. The runtime re-drive the delete triggers adds its own preflight
+    // barrier, so two barriers see the appended delete.
+    expect(changes().map(event => event.data)).toEqual([
+      expect.objectContaining({ operation: 'create' }),
+      { version: 1, operation: 'delete', id: 'schedule-1' },
+    ])
+    expect(barriers).toEqual([1, 2, 2])
+    expect(await ask()).toEqual([])
+    // A second stop still checkpoints before reading, then has nothing left to delete and records nothing.
+    barriers.length = 0
+    await ctx.parallel('workspace/session-stop', { sessionId: root.agent.id })
+    expect(changes()).toHaveLength(2)
+    expect(barriers).toEqual([2])
+    // A stop for a session without a live agent neither checkpoints nor appends.
+    barriers.length = 0
+    await ctx.parallel('workspace/session-stop', { sessionId: SessionId('schedule-cold') })
+    expect(barriers).toEqual([])
+    // A fold that turns unreadable at the barrier faults the owner, which then answers nothing to delete.
+    const again = await ctx.agents.withInitiator(root.agent, () => ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId('schedule-archive-create-2'),
+      name: 'schedule_create',
+      arguments: { prompt: 'check the deploy', after_seconds: 3_600 },
+      agent: root.agent,
+    }))
+    expect(again.isError).toBe(false)
+    const corruptAtBarrier = ctx.on('session/flush', (session) => {
+      if (session !== root.agent.session) return
+      Object.defineProperty(root.agent.session, 'snapshotEvents', {
+        configurable: true,
+        value: () => { throw new Error('unreadable at the barrier') },
+      })
+    })
+    barriers.length = 0
+    await ctx.parallel('workspace/session-stop', { sessionId: root.agent.id })
+    corruptAtBarrier()
+    delete (root.agent.session as { snapshotEvents?: unknown }).snapshotEvents
+    expect(barriers).toEqual([3])
+    expect(changes()).toHaveLength(3)
+
+    // One listener per event is the composed Agent registry's own `turn` family.
+    expect(listeners('workspace/session-activity')).toBe(2)
+    expect(listeners('workspace/session-stop')).toBe(2)
+    await plugin.dispose()
+    // Disposal withdraws both listeners with the plugin: a stop no longer checkpoints the session.
+    expect(listeners('workspace/session-activity')).toBe(1)
+    expect(listeners('workspace/session-stop')).toBe(1)
+    barriers.length = 0
+    await ctx.parallel('workspace/session-stop', { sessionId: root.agent.id })
+    expect(barriers).toEqual([])
+    stopFlush()
+    await root.dispose()
+    await existing.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('does not checkpoint unrelated idle sessions', async () => {
     const ctx = await harness()
     const plugin = await ctx.plugin(toolSchedule)

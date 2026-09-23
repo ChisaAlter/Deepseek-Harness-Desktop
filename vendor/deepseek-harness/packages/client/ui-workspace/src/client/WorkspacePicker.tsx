@@ -11,7 +11,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Button, IconFolderClose16, IconNewChatOutline16, IconPlusOutline16, Menu, Modal, type MenuEntry,
+  Button, IconFolderCloseRegular, IconNewChatOutlineRegular, IconPlusOutlineRegular, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   WorkspaceId, WorkspaceSnapshot, WorkspaceView,
@@ -109,14 +109,14 @@ export function WorkspacePickFlow({
     if (flowOpen && !flowAvailable) setFlowOpen(false)
   }, [flowOpen, flowAvailable])
   const addEntries: MenuEntry[] = flowAvailable
-    ? [{ id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutline16 size={16} />, disabled: flowBusy }]
+    ? [{ id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutlineRegular size={16} />, disabled: flowBusy }]
     : []
   // Working without a folder is a target like any Workspace, so it sits with
   // the actions rather than among the folder rows: pinned above "Add
   // workspace…" when workspaces are listed, first entry otherwise.
   const noDirectoryEntry: MenuEntry | undefined = onPickNoDirectory === undefined
     ? undefined
-    : { id: NO_DIRECTORY, label: t('menu.noDirectory'), icon: <IconNewChatOutline16 size={16} />, disabled: flowBusy }
+    : { id: NO_DIRECTORY, label: t('menu.noDirectory'), icon: <IconNewChatOutlineRegular size={16} />, disabled: flowBusy }
   const actionEntries: MenuEntry[] = [
     ...(noDirectoryEntry === undefined ? [] : [noDirectoryEntry]),
     ...addEntries,
@@ -128,7 +128,7 @@ export function WorkspacePickFlow({
     ? workspaces.map(workspace => ({
       id: workspace.workspaceId,
       label: workspace.title,
-      icon: <IconFolderClose16 size={16} />,
+      icon: <IconFolderCloseRegular size={16} />,
       disabled: flowBusy,
     }))
     : actionEntries

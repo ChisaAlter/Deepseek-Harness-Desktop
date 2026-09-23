@@ -1,0 +1,48 @@
+/** Account settings copy, owned by the account feature. */
+export const en = {
+  close: 'Close', addApiKey: 'Add API Key', retry: 'Sign in again',
+  loginTitle: 'Start creating', loginDescription: 'Sign in to create, edit, and share your design projects. Everything is saved locally.',
+  browserTitle: 'Waiting for sign in', browserPrompt: 'Page did not open automatically? ', copyLink: 'Copy sign-in link', copiedLink: 'Link copied', copyFailed: 'Copy failed',
+  browserDescription: ', then open it in your browser to finish signing in.',
+  timeoutTitle: 'Sign in timed out', timeoutDescription: 'Sign in again to continue.',
+  failureTitle: 'Could not sign in',
+  platformFailed: 'Could not complete the operation. Try again.', platformRetry: 'Retry',
+  loading: 'Loading…', backToHarness: 'Back to DeepSeek Harness',
+  settings: 'Settings', contactUs: 'Feedback', menu: 'Account menu',
+  nav: 'Account', signedIn: 'Signed in to DeepSeek', signedOut: 'Not signed in',
+  signIn: 'Sign in', signOut: 'Sign out', cancel: 'Cancel', open: 'Open browser',
+  initializing: 'Starting sign in…', waiting: 'Continue in your browser',
+  completing: 'Completing sign in…', expired: 'Sign in expired. Try again.',
+  failed: 'Could not complete the operation. Try again.',
+  settingsSignedOutTitle: 'You are not signed in to DeepSeek Harness',
+  settingsSignedOutDescription: 'Sign in to DeepSeek Harness to get your dedicated API Key',
+  signInDescription: 'Use your DeepSeek account to get started.',
+  profileUnavailable: 'Account details are not available yet.',
+  balance: 'Recharge balance', bonusBalance: 'Bonus balance', balanceUnavailable: 'View on Platform', balanceSignedOut: 'Sign in to view',
+  accountInfo: 'More account information', more: 'More', usage: 'View usage', topUp: 'Top up',
+} as const
+/** Account locale keys. */
+export type AccountKey = keyof typeof en
+/** Chinese account settings copy. */
+export const zh: Record<AccountKey, string> = {
+  close: '关闭', addApiKey: '添加 API Key', retry: '重新登录',
+  loginTitle: '开始你的创作', loginDescription: '登录后即可创建、编辑和分享你的设计项目，所有内容在本地保存。',
+  browserTitle: '等待登录', browserPrompt: '没有自动打开新页面？', copyLink: '复制登录链接', copiedLink: '链接已复制', copyFailed: '复制失败',
+  browserDescription: '，手动打开登录页完成登录。',
+  timeoutTitle: '登录已超时', timeoutDescription: '请重新登录后继续操作。',
+  failureTitle: '登录失败',
+  platformFailed: '操作未完成，请重试', platformRetry: '重试',
+  loading: '加载中…', backToHarness: '返回 DeepSeek Harness',
+  settings: '设置', contactUs: '意见反馈', menu: '账号菜单',
+  nav: '账号与余额', signedIn: '已登录 DeepSeek', signedOut: '尚未登录',
+  signIn: '登录', signOut: '退出登录', cancel: '取消', open: '打开浏览器',
+  initializing: '正在发起登录…', waiting: '请在浏览器中继续',
+  completing: '正在完成登录…', expired: '登录已过期，请重试。',
+  failed: '操作未完成，请重试。',
+  settingsSignedOutTitle: '当前未登录 DeepSeek Harness 账号',
+  settingsSignedOutDescription: '登录 DeepSeek Harness 账号获取专属 API Key',
+  signInDescription: '登录 DeepSeek 账号以开始使用',
+  profileUnavailable: '账号资料暂不可用',
+  balance: '充值余额', bonusBalance: '赠金余额', balanceUnavailable: '前往开放平台查看', balanceSignedOut: '登录后查看',
+  accountInfo: '更多账号信息', more: '更多', usage: '查询用量', topUp: '充值',
+}

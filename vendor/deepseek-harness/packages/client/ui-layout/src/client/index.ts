@@ -1,7 +1,7 @@
 /**
  * Layout plugin, browser half: one register() call contributes AppFrame into
  * the runtime's built-in 'root' slot and, in the same breath, declares the
- * child slots (declaration = exclusive render authority), seats the
+ * five child slots (declaration = exclusive render authority), seats the
  * layout store (panel geometry), and wires the panel-action service face.
  * ctx.layout selects the main panel and controls column geometry; Session
  * selection belongs to the Session Controller. A second effect seats the theme
@@ -48,7 +48,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
   interface SlotMap {
     // The 'root' entry itself is the runtime's built-in slot (declared
-    // there); these are the frame's children, declared by the same
+    // there); these five are the frame's children, declared by the same
     // register() call that contributes AppFrame. Session owners never pass
     // sessionId: the framework injects it as a standard prop.
     /**
@@ -104,21 +104,22 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * `id` is added beside the shipped entries instead of replacing them.
      */
     'shell.overlay': { kind: 'list'; scope: 'root' }
-    /**
-     * Titlebar trailing cluster in the shared titlebar grid row, inset from
-     * the window controls (`margin-right: var(--dshd-wco-controls, 8px)`).
-     * List slot: entries order among themselves. The cluster is
-     * `-webkit-app-region: no-drag` so Session log, Git, and panel toggles
-     * stay clickable over the AppFrame caption drag band. Owner props
-     * are the live layout widths so toggles can derive pressed state.
-     */
     'shell.titlebar.trailing': { kind: 'list'; scope: 'root'; owner: TitlebarTrailingOwnerProps }
-    /**
-     * Terminal drawer track under the conversation column only. Height 0 when
-     * closed keeps the subtree mounted. Session-optional: the occupant owns
-     * both the no-session and live-session states without changing identity.
-     */
     'shell.terminalDrawer': { kind: 'single'; scope: 'session-maybe'; owner: TerminalDrawerOwnerProps }
+    /**
+     * Window-chrome seat at the frame's top-left, over every main panel.
+     * Mounted only while the sidebar column is fully hidden (macOS desktop
+     * collapse; other platforms keep the rail), so the occupant can assume the
+     * frame edge is the window edge and the macOS traffic lights sit before it.
+     * OCCUPIED by ui-sidebar's reopen/New Session controls.
+     *
+     * While the seat is mounted the frame publishes
+     * `--dsh-frame-leading-clearance` (the inline inset the seat's band
+     * occupies, measured from the frame's left edge); a main panel whose
+     * content reaches the top-left corner pads by it so nothing lands under
+     * the lights or the controls.
+     */
+    'shell.leading': { kind: 'single'; scope: 'root' }
   }
 }
 
@@ -180,7 +181,7 @@ export const inject = ['slots', 'theme', 'locale']
 
 /**
  * Client plugin body: provide ctx.layout, then one register() call — AppFrame
- * into 'root' with the child-slot declarations, the layout store seat,
+ * into 'root' with the five child-slot declarations, the layout store seat,
  * and the shared root instance supplying commands and the panel-info source.
  * @param ctx - client root context.
  */
@@ -212,6 +213,7 @@ export function apply(ctx: ClientContext): void {
         'shell.overlay': { kind: 'list', scope: 'root' },
         'shell.titlebar.trailing': { kind: 'list', scope: 'root' },
         'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },
+        'shell.leading': { kind: 'single', scope: 'root' },
       },
       store,
     }, AppFrame)

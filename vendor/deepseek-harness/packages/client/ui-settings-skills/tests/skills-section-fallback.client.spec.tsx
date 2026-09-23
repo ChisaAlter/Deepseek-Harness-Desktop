@@ -39,8 +39,7 @@ function sessionState(cwd?: string, rawId = 'session-1'): SessionListState {
       [id]: { id, displayTitle: 'project', cwd, running: false, retainedBy: { mainView: 1 }, blank: false, updatedAt: 0 },
     },
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   }
 }
 

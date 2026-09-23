@@ -10,9 +10,9 @@ Chat Thinking 包含模型编写的 Markdown，但纯文本渲染直接显示标
 
 ## 决策
 
-[MarkdownText](../../../../packages/client/ui-primitives/src/markdown/MarkdownText.tsx) 拥有紧凑展示变体，供 Chat Thinking 和 Trajectory 思考详情使用。内容沿用次级字号、行高和 tertiary 颜色。各级标题保留语义元素，但统一使用 600 字重和相同字号；段落、列表、引用和代码采用紧凑间距。链接保留默认点状下划线与 tertiary 颜色，作为[共享链接样式](../feature/2026-09-04-web-clickable-link-styles.zh.md)的次级内容例外；代码保留等宽字体和底色。
+[MarkdownText](../../../../packages/client/ui-primitives/src/markdown/MarkdownText.tsx) 拥有紧凑展示变体，供 Chat Thinking 和 Trajectory 思考详情使用。内容沿用次级字号、行高和 tertiary 颜色。各级标题保留语义元素，但统一使用 600 字重和相同字号；段落、列表、引用和代码采用紧凑间距。链接保留默认点状下划线与 tertiary 颜色，作为[共享链接样式](../../../../docs/web-styling.zh.md)的次级内容例外；代码保留等宽字体和底色。
 
-表格和公式继续通过既有解析器启用。其容器限制横向溢出，公式文本继承次级字号。行内公式保留 KaTeX 原生基线，由外层文本块承担溢出处理，短公式不会产生滚动条。紧凑代码栏保持正常文档流，让 [Thinking 折叠标题](../feature/2026-08-03-web-sticky-collapsible-headers.zh.md) 位于滚动内容上方，无需第二条 sticky 栏。
+表格和公式继续通过既有解析器启用。其容器限制横向溢出，公式文本继承次级字号。行内公式保留 KaTeX 原生基线，由外层文本块承担溢出处理，短公式不会产生滚动条。紧凑代码栏保持正常文档流，让 [Thinking 折叠标题](../../../../packages/client/ui-chat/src/client/chat/ReasoningRow.module.css) 位于滚动内容上方，无需第二条 sticky 栏。
 
 Chat 将运行状态传给既有增量 Markdown 渲染器。折叠摘要仍是独立的单行文本投影。解析器、冻结块缓存、存储的推理内容和 Session 格式均保持不变。Trajectory 将 Thinking 固定在检查器的 13px/20px 层级，与 Chat 的内容字号设置无关。其回答输出保留既有排版及其 [Thinking 折叠行为](../feature/2026-09-09-ptc-trajectory-code-inspection.zh.md)。
 

@@ -14,7 +14,7 @@ interface DraftViewGate {
   running: boolean
   steeringAvailable: boolean
   busyEnter: BusyEnterBehavior
-  intakeFiles: (files: readonly File[], rejected?: readonly File[]) => void
+  intakeFiles: (files: readonly File[], directories?: ReadonlySet<File>) => void
   uploadsPending: boolean
   uploadsFailed: boolean
   showToast: (text: string) => void
@@ -137,7 +137,7 @@ export function installDraftKeymap(
         g.steeringAvailable,
       ))
     },
-    intakeFiles: (files, rejected) => { gate.current.intakeFiles(files, rejected) },
+    intakeFiles: (files, directories) => { gate.current.intakeFiles(files, directories) },
     pasteText: (text) => {
       if (gate.current.machineBusy || gate.current.locked) return
       keyboard.paste(text)

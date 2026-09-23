@@ -1,4 +1,4 @@
-/** `open-in-app` namespace dictionaries. */
+/** `open-in-app` namespace dictionaries: the workspace split button and the document-preview path controls. */
 
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'open-in-app'
@@ -39,11 +39,14 @@ const PRODUCT_NAMES = {
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'open.title': '在 {app} 中打开工作目录',
-  'open.tooltip': '在本地打开',
-  'open.error': '打开失败',
-  'menu.toggle': '选择打开方式',
-  'menu.aria': '打开方式',
+  'open.title': '用 {app} 打开',
+  'path.appDefault': '{app}（默认）',
+  'path.appsError': '无法获取应用列表',
+  'path.open': '打开',
+  'path.more': '更多打开方式',
+  'path.reveal': '显示文件位置',
+  'path.openError': '打开失败，请重试',
+  'path.revealError': '无法显示文件位置，请重试',
   ...PRODUCT_NAMES,
   'app.finder': '访达',
   'app.explorer': '文件资源管理器',
@@ -53,11 +56,14 @@ export const zh = {
 
 /** English dictionary, key-identical to the Chinese source of truth. */
 export const en: Record<OpenInAppKey, string> = {
-  'open.title': 'Open workspace in {app}',
-  'open.tooltip': 'Open locally',
-  'open.error': 'Failed to open',
-  'menu.toggle': 'Choose an app to open in',
-  'menu.aria': 'Open in',
+  'open.title': 'Open in {app}',
+  'path.appDefault': '{app} (default)',
+  'path.appsError': 'Could not load applications',
+  'path.open': 'Open',
+  'path.more': 'More ways to open',
+  'path.reveal': 'Show file location',
+  'path.openError': 'Could not open. Try again.',
+  'path.revealError': 'Could not show the file location. Try again.',
   ...PRODUCT_NAMES,
   'app.finder': 'Finder',
   'app.explorer': 'File Explorer',

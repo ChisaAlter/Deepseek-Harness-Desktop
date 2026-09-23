@@ -1,41 +1,58 @@
-import { describe, expect, it, vi } from 'vitest'
-import { IframeImpl } from '../src/client/browser/BrowserFrame.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { IframeImpl } from '../src/client/browser/IframeImpl.ts'
+import { IframePresentation } from '../src/client/view/IframePresentation.ts'
+
+const frames: IframeImpl[] = []
+
+afterEach(async () => {
+  await Promise.all(frames.splice(0).map(frame => frame.dispose()))
+})
 
 describe('IframeImpl', () => {
-  it('owns transient sandbox mode and prepared document state', () => {
-    const changed = vi.fn<(sandboxed: boolean) => void>()
-    const loaded = vi.fn<(revision: number) => void>()
-    const frame = new IframeImpl(changed, loaded)
+  it('owns transient sandbox mode and revision-scoped load state', async () => {
+    const persist = vi.fn()
+    const presentation = new IframePresentation({ loaded: vi.fn(), failed: vi.fn(), remounted: vi.fn() })
+    const frame = new IframeImpl({ initial: undefined, persist, openRequested: vi.fn() }, presentation)
+    frames.push(frame)
     const listener = vi.fn()
     const unsubscribe = frame.subscribe(listener)
+    try {
+      frame.handleLoaded(0)
+      expect(frame.getSnapshot().address).toBe('empty')
+      frame.sandbox.setEnabled(false)
+      frame.sandbox.setEnabled(false)
+      expect(frame.getSnapshot().sandboxEnabled).toBe(false)
+      expect(frame.getSnapshot().target).toBeUndefined()
 
-    frame.toggleSandbox()
-    expect(frame.getSnapshot().sandboxed).toBe(false)
-    expect(changed).toHaveBeenCalledWith(false)
+      const target = { kind: 'https' as const, url: 'https://example.test/', title: 'example.test' }
+      frame.handleLoadFailed(1)
+      expect(frame.getSnapshot().error).toBeUndefined()
+      frame.loadUrl(target)
+      frame.handleLoadFailed(0)
+      expect(frame.getSnapshot().error).toBeUndefined()
+      frame.handleLoadFailed(1)
+      frame.handleLoadFailed(1)
+      expect(frame.getSnapshot()).toMatchObject({ target, error: { code: undefined, description: undefined }, loading: false })
+      frame.handleLoaded(1)
+      expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ navigation: { status: 'known', revision: 1 } }))
+      frame.reload()
+      expect(frame.getSnapshot()).toMatchObject({ target, error: undefined, loading: true })
+      frame.handleLoadFailed(1)
+      expect(frame.getSnapshot().error).toBeUndefined()
+      expect(listener).toHaveBeenCalled()
 
-    const document = {
-      target: { kind: 'https' as const, url: 'https://example.test/', title: 'example.test' },
-      src: 'https://example.test/',
-      revision: 4,
+      await frame.dispose()
+      const stopped = frame.getSnapshot()
+      frame.handleLoadFailed(2)
+      frame.handleLoaded(2)
+      frame.reload()
+      frame.loadUrl(target)
+      frame.goBack()
+      frame.goForward()
+      frame.sandbox.setEnabled(true)
+      expect(frame.getSnapshot()).toBe(stopped)
+    } finally {
+      unsubscribe()
     }
-    frame.reportLoadFailed(4)
-    expect(frame.getSnapshot().loadFailed).toBe(false)
-    frame.setDocument(document)
-    frame.reportLoadFailed(3)
-    expect(frame.getSnapshot().loadFailed).toBe(false)
-    frame.reportLoadFailed(4)
-    frame.reportLoadFailed(4)
-    expect(frame.getSnapshot().loadFailed).toBe(true)
-    frame.reportLoaded(4)
-    expect(loaded).toHaveBeenCalledWith(4)
-    frame.setDocument({ ...document, revision: 5 })
-    expect(frame.getSnapshot().loadFailed).toBe(false)
-    frame.clearDocument()
-    expect(frame.getSnapshot().document).toBeUndefined()
-    frame.reportLoadFailed(5)
-    expect(frame.getSnapshot().loadFailed).toBe(false)
-    frame.clearDocument()
-    expect(listener).toHaveBeenCalled()
-    unsubscribe()
   })
 })

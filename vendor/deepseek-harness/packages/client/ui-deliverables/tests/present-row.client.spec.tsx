@@ -20,6 +20,8 @@ it('discloses the saved result and offers call inspection', () => {
   const view = render(<PresentRow {...props(settled, inspect)} />)
   expect(view.getByText('Delivered')).toBeTruthy()
   expect(view.getByText('report.txt')).toBeTruthy()
+  expect(view.container.querySelector('[data-tool="present"] svg')).not.toBeNull()
+  expect(view.container.querySelector('[data-tool="present"] [data-state]')).toBeNull()
   expect(view.queryByText('Presented report.txt (4 bytes)')).toBeNull()
   const row = view.getByRole('button')
   fireEvent.keyDown(row, { key: 'Enter' })
@@ -37,6 +39,8 @@ it.each([
 ] as const)('renders call lifecycle without claiming failed delivery', (block, state, label) => {
   const view = render(<PresentRow {...props(block)} />)
   expect(view.container.querySelector('[data-tool="present"]')?.getAttribute('data-state')).toBe(state)
+  expect(view.container.querySelector('[data-tool="present"] svg')).not.toBeNull()
+  expect(view.container.querySelector('[data-tool="present"] [data-state]')).toBeNull()
   expect(view.getByText(label)).toBeTruthy()
   expect(view.queryByText('Delivered')).toBeNull()
 })

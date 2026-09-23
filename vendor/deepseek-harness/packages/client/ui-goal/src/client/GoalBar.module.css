@@ -17,6 +17,8 @@
 }
 
 .bar {
+  position: relative;
+  isolation: isolate;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -32,9 +34,21 @@
   height: 36px;
   margin: 0 auto;
   padding: 4px 5px 4px 12px;
-  border: 0.5px solid var(--dsw-alias-border-l1);
+  border: 0;
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   border-radius: 12px;
-  background: var(--dsw-specific-tip);
+  box-shadow: var(--dsw-elevation-panel);
+}
+
+.bar::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  content: '';
+  pointer-events: none;
 }
 
 .goalGlyph {

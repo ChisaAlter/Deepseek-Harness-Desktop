@@ -1,6 +1,6 @@
 /** Shell launch menu owned by the terminal provider's guide entry. */
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, IconChevronDownOutline14, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TerminalLaunchShells } from '@deepseek-ai/dsh-api-terminal-controller/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
@@ -67,7 +67,7 @@ export function TerminalGuide({ title, description, kind, useTabInfo, loadShells
       }}
       anchor={<Button variant="ghost" className={css.trigger} aria-label={t('shell')} aria-haspopup="menu" aria-expanded={open}
         onClick={() => { setState({ phase: 'loading' }); setOpen(value => !value) }}>
-        <IconChevronDownOutline14 />
+        <IconChevronDownOutlineRegular />
       </Button>}
     />
   </div>

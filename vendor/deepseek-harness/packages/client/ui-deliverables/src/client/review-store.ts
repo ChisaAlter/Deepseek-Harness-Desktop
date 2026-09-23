@@ -11,7 +11,7 @@ import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 export interface ReviewTabState {
   /** Original index of the shown file in the summary's files array. */
   index: number
-  /** Whether deletions and additions are drawn in two columns. */
+  /** Whether deletions and additions are drawn in two columns; new tabs start enabled. */
   split: boolean
   /** Whether long lines wrap instead of scrolling. */
   wrap: boolean
@@ -49,7 +49,7 @@ export function createReviewStore(): EngineStoreHandle<ReviewState, ReviewAction
     init: (): ReviewState => ({ byTab: {} }),
     actions: {
       /**
-       * Apply a navigation: seed the tab on its first one, then show the navigated file.
+       * Apply a navigation: seed a side-by-side, unwrapped tab on its first one, then show the navigated file.
        * @param d - draft state.
        * @param tabId - the tab being drawn.
        * @param revision - the navigation revision being applied.
@@ -57,7 +57,7 @@ export function createReviewStore(): EngineStoreHandle<ReviewState, ReviewAction
        */
       navigated: (d, tabId: TabId, revision: number, index: number) => {
         const tab = d.byTab[tabId]
-        if (tab === undefined) d.byTab[tabId] = { index, split: false, wrap: false, navigated: revision }
+        if (tab === undefined) d.byTab[tabId] = { index, split: true, wrap: false, navigated: revision }
         else { tab.index = index; tab.navigated = revision }
       },
       /**

@@ -71,19 +71,30 @@ async function columns(page: Page): Promise<number[]> {
     getComputedStyle(element).gridTemplateColumns.split(' ').map(value => Math.round(Number.parseFloat(value))))
 }
 
+/** Select panes by visual column rather than retained-host DOM order. */
+function paneAt(column: Locator, index: number): Locator {
+  return column.locator(`[data-dockkit-pane][data-dockkit-column="${index}"]`)
+}
+
 /** Tab order and selection inside each docked pane, independent of generated ids. */
 async function paneSnapshot(page: Page) {
-  return await page.locator('[data-rightbar-col] [data-dockkit-pane]').evaluateAll(panes => panes.map(pane => ({
-    active: pane.hasAttribute('data-dockkit-pane-active'),
-    tabs: [...pane.querySelectorAll('[data-dockkit-tab]')].map(tab => ({
-      title: tab.querySelector('[data-dockkit-tab-title]')?.textContent?.trim(),
-      selected: tab.getAttribute('aria-selected') === 'true',
-    })),
-  })))
+  return await page.locator('[data-rightbar-col] [data-dockkit-pane]').evaluateAll(panes => panes
+    .sort((left, right) => Number(left.getAttribute('data-dockkit-column')) - Number(right.getAttribute('data-dockkit-column')))
+    .map(pane => ({
+      active: pane.hasAttribute('data-dockkit-pane-active'),
+      tabs: [...pane.querySelectorAll('[data-dockkit-tab]')].map(tab => ({
+        title: tab.querySelector('[data-dockkit-tab-title]')?.textContent?.trim(),
+        selected: tab.getAttribute('aria-selected') === 'true',
+      })),
+    })))
 }
 
 /** Product-visible geometry, pane state, and expanded Files directories at a settled checkpoint. */
 async function sidebarSnapshot(page: Page) {
+  // A toggle holds data-animating until transitionend or its 600ms fallback
+  // (ui-layout AppFrame); computed transition values are stable only after it
+  // drops, so capturing earlier races the settle window.
+  await expect.poll(() => appFrame(page).evaluate(frame => frame.hasAttribute('data-animating'))).toBe(false)
   const geometry = await appFrame(page).evaluate((frame) => {
     const panel = frame.querySelector<HTMLElement>('[data-sidebar-right-panel]')
     if (panel === null) throw new Error('Sidebar panel is not mounted')
@@ -307,16 +318,15 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
         await Promise.allSettled(frame.getAnimations().map(animation => animation.finished))
       })
       await expect.poll(() => detailsTrack(page)).toBe(0)
-      await panel.waitFor({ state: 'hidden' })
+      await panel.locator('[data-dockkit-pane]').first().waitFor({ state: 'hidden' })
     }
 
     await select(original, 'LIGHTHOUSE')
     await open()
     await column.locator('[data-sidebar-right-guide-entry="files"]').click()
-    // The content-box panel adds its one rendered border pixel outside the
-    // CSS width assigned by the grid solver.
+    // Pane borders stay inside the grid width; the shared panel owns no border.
     await expect.poll(() => sidebarSnapshot(page), { timeout: 5_000 })
-      .toMatchObject({ mode: 'push', panelContentWidth: normalWidth, panelOuterWidth: normalWidth + 1, resizeHandleWidth: 8 })
+      .toMatchObject({ mode: 'push', panelContentWidth: normalWidth, panelOuterWidth: normalWidth, resizeHandleWidth: 8 })
     await expect.poll(async () => ({
       filesVisible: await column.locator('[data-files-state="tree"]').isVisible(),
       errors: tripwire.pageErrors,
@@ -326,9 +336,9 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await expect.poll(() => split.isDisabled()).toBe(false)
     await split.click()
     await expect.poll(() => panes.count()).toBe(2)
-    await panes.last().locator('[data-sidebar-right-guide-entry="files"]').click()
-    await panes.first().locator('[data-dockkit-tab]').filter({ hasText: 'Files' }).click()
-    await expect.poll(() => panes.first().locator('[data-files-state="tree"]').count()).toBe(1)
+    await paneAt(column, 1).locator('[data-sidebar-right-guide-entry="files"]').click()
+    await paneAt(column, 0).locator('[data-dockkit-tab]').filter({ hasText: 'Files' }).click()
+    await expect.poll(() => paneAt(column, 0).locator('[data-files-state="tree"]').count()).toBe(1)
     const retainedA = await paneSnapshot(page)
     expect(retainedA.map(pane => pane.tabs.map(tab => tab.title))).toEqual([['Files', 'Start'], ['Files']])
     await checkpoint('A normal: two panes')

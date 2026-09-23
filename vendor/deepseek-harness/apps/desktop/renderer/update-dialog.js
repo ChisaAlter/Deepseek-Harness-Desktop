@@ -5,7 +5,7 @@ let responding = false
 function respond(index) {
   if (responding || view === undefined) return
   responding = true
-  void api.respond(index).catch(() => { responding = false })
+  void api.respond(view.revision, index).catch(() => { responding = false })
 }
 document.getElementById('close').addEventListener('click', () => { respond(view.cancelId) })
 document.addEventListener('keydown', event => {
@@ -18,7 +18,14 @@ document.addEventListener('keydown', event => {
   event.preventDefault()
   controls[next].focus()
 })
-void api.status().then(state => {
+function render(state) {
+  if (state === null) {
+    responding = true
+    document.body.classList.remove('visible')
+    return
+  }
+  if (view !== undefined && state.revision <= view.revision) return
+  responding = false
   view = state
   document.documentElement.lang = state.locale
   document.title = state.title
@@ -29,6 +36,8 @@ void api.status().then(state => {
   document.getElementById('technical-details').hidden = state.technicalDetails === ''
   document.getElementById('technical-details-label').textContent = state.technicalDetailsLabel
   document.getElementById('technical-details-content').textContent = state.technicalDetails
+  document.getElementById('technical-details').open = false
+  document.getElementById('actions').replaceChildren()
   for (const [index, label] of state.buttons.entries()) {
     const button = document.createElement('button')
     button.type = 'button'
@@ -38,5 +47,11 @@ void api.status().then(state => {
     document.getElementById('actions').append(button)
   }
   document.querySelector('main').hidden = false
+  document.getElementById('dialog').scrollTop = 0
+  document.body.classList.add('visible')
   document.getElementById('dialog').focus()
-})
+}
+let received = false
+const unsubscribe = api.subscribe(state => { received = true; render(state) })
+window.addEventListener('pagehide', unsubscribe, { once: true })
+void api.status().then(state => { if (!received) render(state) })

@@ -44,6 +44,7 @@ MCP_TEXT = "MCP client smoke ok"
 PROFILE_PLUGIN_PROMPT = "Verify the Python-installed dsh profile plugin."
 PROFILE_PLUGIN_TEXT = "profile plugin smoke ok"
 PROFILE_PLUGIN_MARKER = "PYTHON_INSTALLED_DSH_PROFILE_PLUGIN"
+AUTHORING_PROMPT = "Query the packaged Python environment for Office authoring."
 IS_WINDOWS = sys.platform == "win32"
 MINIMAL_SHELL_TOOL = "pwsh" if IS_WINDOWS else "bash"
 MINIMAL_SHELL_COMMAND = (
@@ -77,6 +78,8 @@ LEGACY_CUSTOM_DISABLED_ROWS = (
     "plan-mode",
     "skill",
     "skill-filesystem",
+    "skill-office",
+    "workspace-dependencies",
     "tool-fs",
     "tool-fs-search",
     "tool-goal",
@@ -315,6 +318,10 @@ def completion_chunks(body: dict[str, object]) -> list[dict[str, object]]:
         result = tool_results[-1]
         call_id, tool_name = latest_tool_call(messages, result.get("tool_use_id"))
         tool_text = message_text(result.get("content"))
+        if tool_name == "load_workspace_dependencies":
+            if result.get("is_error") or "python" not in json.loads(tool_text):
+                raise AssertionError(f"packaged Python query failed: {tool_text}")
+            return text_chunks(EXPECTED_TEXT)
         mcp = mcp_tool_followup(call_id, tool_name, tool_text)
         if mcp is not None:
             return mcp
@@ -366,6 +373,7 @@ def completion_chunks(body: dict[str, object]) -> list[dict[str, object]]:
         RESTART_FIRST_PROMPT,
         RESTART_SECOND_PROMPT,
         PROFILE_PLUGIN_PROMPT,
+        AUTHORING_PROMPT,
     }
     prompt = next(
         (candidate for candidate in user_prompts if candidate in scenario_prompts),
@@ -373,6 +381,9 @@ def completion_chunks(body: dict[str, object]) -> list[dict[str, object]]:
     )
     if prompt == SNAPSHOT_DIRECT_CHILD_PROMPT:
         return text_chunks("DIRECT_CHILD_OK")
+    if prompt == AUTHORING_PROMPT:
+        assert_advertised_tool(body, "load_workspace_dependencies")
+        return tool_call_chunks("authoring-runtime", "load_workspace_dependencies", {})
     if prompt == SNAPSHOT_WORKFLOW_CHILD_PROMPT:
         return text_chunks("WORKFLOW_CHILD_OK")
     if prompt == SNAPSHOT_PROMPT:
@@ -709,7 +720,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--scenario",
-        choices=("all", "sdk-default", "sdk-custom", "sdk-minimal", "sdk-minimal-in-history", "sdk-fs-search", "sdk-spawn-node", "sdk-mcp", "sdk-snapshot", "sdk-restart", "sdk-profile-plugin", "sdk-office", "sdk-live", "runner", "direct"),
+        choices=("all", "sdk-default", "sdk-custom", "sdk-minimal", "sdk-minimal-in-history", "sdk-fs-search", "sdk-spawn-node", "sdk-mcp", "sdk-snapshot", "sdk-restart", "sdk-profile-plugin", "sdk-office", "sdk-authoring", "sdk-live", "runner", "direct"),
         default="all",
     )
     parser.add_argument("--exe", type=Path)
@@ -728,10 +739,10 @@ def main() -> None:
         parser.error("--scenario sdk-profile-plugin requires --installed-wheel")
     if args.installed_wheel:
         args.exe = assert_installed_wheel_environment()
-    if args.scenario in {"all", "sdk-custom", "sdk-minimal", "sdk-minimal-in-history", "sdk-fs-search", "sdk-spawn-node", "sdk-snapshot", "sdk-restart", "sdk-office", "runner", "direct"} and args.exe is None:
+    if args.scenario in {"all", "sdk-custom", "sdk-minimal", "sdk-minimal-in-history", "sdk-fs-search", "sdk-spawn-node", "sdk-snapshot", "sdk-restart", "sdk-office", "sdk-authoring", "runner", "direct"} and args.exe is None:
         parser.error("--exe is required for custom, minimal, fs-search, spawn-node, snapshot, restart, office, runner, and direct scenarios")
-    if args.update_snapshots and args.scenario not in {"all", "sdk-minimal", "sdk-minimal-in-history", "sdk-snapshot", "sdk-restart"}:
-        parser.error("--update-snapshots requires --scenario sdk-minimal, sdk-minimal-in-history, sdk-snapshot, sdk-restart, or all")
+    if args.update_snapshots and args.scenario not in {"all", "sdk-minimal", "sdk-minimal-in-history", "sdk-snapshot", "sdk-restart", "sdk-authoring"}:
+        parser.error("--update-snapshots requires --scenario sdk-minimal, sdk-minimal-in-history, sdk-snapshot, sdk-restart, sdk-authoring, or all")
     if args.exe is not None and not args.exe.is_file():
         parser.error(f"runtime executable does not exist: {args.exe}")
 
@@ -755,6 +766,9 @@ def main() -> None:
         return
 
     with MockModel() as model:
+        if args.scenario in {"all", "sdk-authoring"}:
+            assert args.exe is not None
+            smoke_sdk_authoring(model.url, args.exe.resolve(), args.update_snapshots)
         if args.scenario in {"all", "sdk-default"}:
             smoke_sdk_default(model.url)
         if args.scenario in {"all", "sdk-custom"}:
@@ -790,6 +804,65 @@ def main() -> None:
     print(f"smoke-python-runtime: {args.scenario} passed")
 
 
+def smoke_sdk_authoring(base_url: str, executable: Path, update_snapshots: bool) -> None:
+    """Query the bundled Python and switch skills without replacing that environment."""
+    from deepseek_harness import DeepSeekHarness
+
+    resources = executable.with_name(executable.name.removeprefix("deepseek-harness-sdk-runtime-").removesuffix(".exe"))
+    manifest = json.loads((resources / "primary-runtime/runtime.json").read_text())
+    for mode in ("default", "replacement", "disabled"):
+        with tempfile.TemporaryDirectory(prefix="dsh-sdk-authoring-") as temporary:
+            root = Path(temporary).resolve()
+            home = root / "home"
+            if mode == "replacement":
+                skill = home / "skills/office-docx/SKILL.md"
+                skill.parent.mkdir(parents=True)
+                skill.write_text("---\nname: office-docx\ndescription: CUSTOM_OFFICE_DOCX\n---\nUse the bundled Python for custom document work.\n")
+            patch = root / "skills.patch.yml"
+            patch.write_text(json.dumps([{"id": "skill-office", "disabled": True}] if mode == "disabled" else []))
+            first = len(MockModelHandler.requests)
+            with DeepSeekHarness(
+                provider="deepseek-official", model="smoke-model", cwd=str(root),
+                dsh_bin=str(executable), dsh_home=str(home), patches=(str(patch),),
+                api_key="sk-keyless-smoke", base_url=base_url,
+                env={"DSH_PERMISSION_MODE": "danger-full-access", "DSH_TELEMETRY_DISABLED": "1"},
+                request_timeout_seconds=60,
+            ) as harness:
+                result = harness.run(AUTHORING_PROMPT, session_id="authoring")
+            assert result.final_response == EXPECTED_TEXT, result.final_response
+            requests = MockModelHandler.requests[first:]
+            assert len(requests) == 2, requests
+            prompt = json.dumps(requests[0], ensure_ascii=False)
+            for name in ("office-docx", "office-pptx", "office-xlsx"):
+                assert (name in prompt) == (mode != "disabled"), (mode, name)
+            assert ("CUSTOM_OFFICE_DOCX" in prompt) == (mode == "replacement"), mode
+            tool_result = next(block for message in requests[1]["messages"]
+                               for block in message.get("content", [])
+                               if isinstance(block, dict) and block.get("tool_use_id") == "authoring-runtime")
+            dependencies = json.loads(message_text(tool_result["content"]))
+            python = Path(dependencies["python"])
+            assert python.is_relative_to(resources), dependencies
+            assert "node" not in dependencies and "pnpm" not in dependencies, dependencies
+            assert dependencies["pythonDistributions"] == manifest["pythonPackages"], dependencies
+            assert not (home / "dsh-runtimes").exists()
+            if mode == "default":
+                subprocess.run([
+                    str(python), "-I", "-B", str(Path(__file__).parent / "primary-runtime/smoke.py"),
+                    json.dumps(manifest["pythonPackages"]), manifest["python"],
+                    str(resources / "office-skills/scripts/check_office.py"),
+                ], check=True, timeout=120,
+                    env={name: value for name, value in os.environ.items()
+                         if not re.search(r"KEY|SECRET|TOKEN|PASSWORD", name, re.I)})
+                schema = next(tool for tool in requests[0]["tools"] if tool.get("name") == "load_workspace_dependencies")
+                visible = {"tool": schema, "result": {**dependencies, "python": "{{python}}", "pythonPackages": "{{site-packages}}"}}
+                compare_snapshot_files(
+                    {"model-visible.json": json.dumps(visible, indent=2, ensure_ascii=False) + "\n"},
+                    update_snapshots, Path(__file__).parent / "snapshots/python-sdk-single-exe/authoring",
+                    ("model-visible.json",),
+                )
+    print("smoke-python-runtime: bundled Python, default skills, replacement and disabled skills passed")
+
+
 def smoke_sdk_office(executable: Path) -> None:
     """Relocate the wheel payload and convert a real DOCX with the target platform engine."""
     from deepseek_harness import DeepSeekHarness
@@ -798,7 +871,8 @@ def smoke_sdk_office(executable: Path) -> None:
         root = Path(temporary).resolve()
         relocated = root / executable.name
         stem = executable.name.removesuffix(".exe")
-        for source in executable.parent.glob(f"{stem}*"):
+        resources = executable.with_name(stem.removeprefix("deepseek-harness-sdk-runtime-"))
+        for source in [*executable.parent.glob(f"{stem}*"), resources]:
             destination = root / source.name
             if source.is_dir():
                 shutil.copytree(source, destination)
@@ -843,6 +917,8 @@ def smoke_sdk_office(executable: Path) -> None:
             api_key="sk-keyless-smoke",
             base_url="http://127.0.0.1:9",
             env={"DSH_PERMISSION_MODE": "danger-full-access", "DSH_TELEMETRY_DISABLED": "1"},
+            # The startup plugin awaits a converter with a 120-second deadline before JSON-RPC is ready.
+            initialize_timeout_seconds=180,
             request_timeout_seconds=180,
         ):
             pass
@@ -1423,6 +1499,7 @@ def smoke_sdk_snapshot(base_url: str, executable: Path, update_snapshots: bool) 
         files = build_snapshot_files(result, logs, child_ids, root)
         compare_snapshot_files(
             files, update_snapshots, ADVANCED_SNAPSHOT_DIRECTORY, ADVANCED_SNAPSHOT_FILENAMES,
+            native_writer_output=True,
         )
 
 
@@ -1489,6 +1566,7 @@ def smoke_sdk_restart_snapshot(base_url: str, executable: Path, update_snapshots
         )
         compare_snapshot_files(
             files, update_snapshots, RESTART_SNAPSHOT_DIRECTORY, RESTART_SNAPSHOT_FILENAMES,
+            native_writer_output=True,
         )
 
 
@@ -2227,7 +2305,7 @@ def normalize_snapshot_value(
                 dt = member.get("dt")
                 if isinstance(dt, list):
                     member["dt"] = [0] * len(dt)
-    if isinstance(normalized.get("id"), str) and normalized.get("role") in ("assistant", "system", "user"):
+    if isinstance(normalized.get("id"), str) and normalized.get("role") in ("assistant", "system", "user", "tool", "developer"):
         if not normalized["id"].startswith("{{message:"):
             normalized["id"] = "{{messageId}}"
     if normalized.get("type") in ("feedback/message-put", "feedback/message-delete"):
@@ -2292,6 +2370,7 @@ def project_session_snapshot(records: list[dict[str, object]]) -> list[dict[str,
 
 
 SESSION_FORMAT_TOKEN = "{{sessionFormatVersion}}"
+NATIVE_DELIVERY_FORMAT_TOKEN = "{{sourceSessionFormatVersion}}"
 
 
 def expand_snapshot_stream_member(member: object) -> list[dict[str, object]]:
@@ -2414,7 +2493,31 @@ def normalize_session_format_comparison(
     return normalized
 
 
-def normalize_snapshot_comparison_text(name: str, content: str) -> str:
+def normalize_native_delivery_record(value: object, source_version: int) -> object:
+    """Tokenize a native delivery qualifier in one Session event or SDK notification."""
+    if not isinstance(value, dict):
+        return value
+    if value.get("method") == "session.event":
+        for key in ("payload", "params"):
+            wrapper = value.get(key)
+            if isinstance(wrapper, dict) and "event" in wrapper:
+                return {**value, key: {
+                    **wrapper,
+                    "event": normalize_native_delivery_record(wrapper["event"], source_version),
+                }}
+    data = value.get("data")
+    if value.get("type") != "session-log-deepseek/delivery-accepted" or not isinstance(data, dict):
+        return value
+    if data.get("sessionFormatVersion") != source_version:
+        return value
+    return {**value, "data": {**data, "sessionFormatVersion": NATIVE_DELIVERY_FORMAT_TOKEN}}
+
+
+def normalize_snapshot_comparison_text(
+    name: str,
+    content: str,
+    native_writer_version: int | None = None,
+) -> str:
     """Normalize Session generation metadata only while comparing committed expected outputs."""
     if name.startswith("session") and name.endswith(".jsonl"):
         parsed = [json.loads(line) for line in content.splitlines() if line]
@@ -2422,6 +2525,8 @@ def normalize_snapshot_comparison_text(name: str, content: str) -> str:
         source_version = header.get("version") if isinstance(header, dict) else None
         if not isinstance(source_version, int):
             raise AssertionError(f"{name}: snapshot Session header has no integer format version")
+        if native_writer_version is not None:
+            parsed = [normalize_native_delivery_record(record, native_writer_version) for record in parsed]
         records = [
             normalize_session_format_comparison(expanded, source_version)
             for record in parsed
@@ -2429,8 +2534,18 @@ def normalize_snapshot_comparison_text(name: str, content: str) -> str:
         ]
         return render_jsonl(records)
     if name.endswith(".json"):
+        value = json.loads(content)
+        if name == "result.json" and native_writer_version is not None and isinstance(value, dict):
+            value = {
+                **value,
+                **{
+                    key: [normalize_native_delivery_record(record, native_writer_version) for record in value[key]]
+                    for key in ("events", "notifications")
+                    if isinstance(value.get(key), list)
+                },
+            }
         return json.dumps(
-            normalize_session_format_comparison(json.loads(content)),
+            normalize_session_format_comparison(value),
             indent=2,
             ensure_ascii=False,
         ) + "\n"
@@ -2442,8 +2557,10 @@ def compare_snapshot_files(
     update: bool,
     directory: Path,
     filenames: tuple[str, ...],
+    *,
+    native_writer_output: bool = False,
 ) -> None:
-    """Compare ordered artifact roles and Session content across generations, or write generated filenames."""
+    """Compare artifact roles and content, optionally matching each side's native delivery generation."""
     scenario = directory.name
 
     def role_name(name: str) -> str:
@@ -2495,12 +2612,24 @@ def compare_snapshot_files(
             f"{scenario} snapshot Session roles differ: "
             f"expected={sorted(selected_expected)}, actual={sorted(actual_sessions)}",
         )
+    actual_native_version = expected_native_version = None
+    if native_writer_output:
+        def common_generation(contents: list[tuple[str, str]]) -> int:
+            versions = {session_header_version(content, name) for name, content in contents}
+            if len(versions) != 1:
+                raise AssertionError(f"{scenario}: native writer comparison requires one Session generation across all roles")
+            return versions.pop()
+
+        actual_native_version = common_generation(list(actual_sessions.values()))
+        expected_native_version = common_generation([
+            (path.name, path.read_text(encoding="utf-8")) for path in selected_expected.values()
+        ])
     for name, actual in files.items():
         parsed = parse_snapshot_session_filename(name)
         expected_path = directory / name if parsed is None else selected_expected[parsed[0]]
         expected_text = expected_path.read_text(encoding="utf-8")
-        compared_actual = normalize_snapshot_comparison_text(name, actual)
-        compared_expected = normalize_snapshot_comparison_text(expected_path.name, expected_text)
+        compared_actual = normalize_snapshot_comparison_text(name, actual, actual_native_version)
+        compared_expected = normalize_snapshot_comparison_text(expected_path.name, expected_text, expected_native_version)
         if compared_actual == compared_expected:
             continue
         diff = "".join(difflib.unified_diff(

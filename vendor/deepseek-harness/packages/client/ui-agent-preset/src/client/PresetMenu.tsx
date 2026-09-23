@@ -56,7 +56,7 @@ export function PresetMenu({
           id: option.id,
           // All preset surfaces resolve copy the same way; the id is addressing,
           // not a label, except where no display name exists.
-          label: option.trust === 'user' ? `${name} · ${t('userTrust')}` : name,
+          label: name,
         }
       })}
       selectedId={selectedId}

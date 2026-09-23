@@ -1,6 +1,4 @@
-- button "Think" [expanded]:
-  - img
-  - text: Think
+- button "Think" [expanded]
 - heading "Compact reasoning with a deliberately long summary with a deliberately long summary with a deliberately long summary with a deliberately long summary with a deliberately long summary with a deliberately long summary with a deliberately long summary with a deliberately long summary" [level=2]
 - paragraph:
   - text: A paragraph with
@@ -216,6 +214,7 @@
   - text: .
 - math: a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + a + 1 1 + 1 x
 - text: typescript
+- button "Wrap lines" [pressed]
 - button "Copy"
 - code: const value = "reasoning code"
 - paragraph: {{longToken}}

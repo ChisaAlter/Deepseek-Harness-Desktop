@@ -17,7 +17,7 @@ export type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 /** Tool-call row variants selected by the generic atomic renderer. */
 export type ToolRowVariant = 'search' | 'read' | 'bash' | 'write' | 'edit' | 'code' | 'others'
 
-/** Row state semantic; colors self-supplied via StateDot (design gives none). */
+/** Row lifecycle state used by summary styling and accessible status text. */
 export type ToolRowState = 'running' | 'ok' | 'error' | 'stopped'
 
 /** Locale-neutral structured fact consumed only by the user-facing Tool row. */

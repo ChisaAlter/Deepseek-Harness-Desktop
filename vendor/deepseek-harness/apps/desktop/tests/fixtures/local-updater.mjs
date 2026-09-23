@@ -1,5 +1,8 @@
 /** Actual Electron HTTP/download qualification; installer execution is forbidden. */
+import { mandatoryFrame } from './mandatory-frame.mjs'
+import { setTimeout as delay } from 'node:timers/promises'
 import assert from 'node:assert/strict'
+import { once } from 'node:events'
 import fs from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join, sep } from 'node:path'
@@ -225,18 +228,19 @@ async function main() {
     })
     await scenario('mandatory-real-window-policy-download-retry-and-clear', async () => {
       protocol.handle('dsh-app', async request => {
+        if (new URL(request.url).hostname === 'app') return new Response('<!doctype html><title>Updater qualification</title>', { headers: { 'content-type': 'text/html' } })
         const path = new URL(request.url).pathname.slice(1)
-        assert.ok(['mandatory-update.html', 'mandatory-update.js', 'mandatory-update.css', 'update-dialog.css'].includes(path))
+        assert.ok(['mandatory-update-frame.js', 'mandatory-update.html', 'mandatory-update.js', 'mandatory-update.css', 'update-dialog.css'].includes(path))
         const mime = path.endsWith('.js') ? 'text/javascript' : path.endsWith('.css') ? 'text/css' : 'text/html'
         return new Response(await readFile(new URL(`../../renderer/${path}`, import.meta.url)), { headers: { 'content-type': mime } })
       })
-      const parent = new BrowserWindow({ show: true, width: 900, height: 650 })
-      await parent.loadURL('data:text/html;charset=utf-8,<title>Local updater qualification</title>')
+      const parent = new BrowserWindow({ show: true, width: 900, height: 650, webPreferences: { preload: fileURLToPath(new URL('../../lib/preload-app.cjs', import.meta.url)), sandbox: true, contextIsolation: true } })
+      await parent.loadURL('dsh-app://app/')
       const f = await fixture('hold-download')
       const config = resolveDesktopPolicyConfig({ origin: server.url, allowedPageOrigins: ['https://downloads.example.com'],
         intervalMs: 600_000, timeoutMs: 1000 }, true)
       let modal
-      const policy = new DesktopMandatoryUpdatePolicy(config, { platform: 'desktop-win', arch: 'x64',
+      const policy = new DesktopMandatoryUpdatePolicy(config, { platform: 'win32', arch: 'x64',
         version: '1.0.0', bundledDshVersion: '1.0.0', bundleId: 'com.deepseek.dsh', locale: 'zh-CN' }, () => { modal?.sync() })
       modal = new DesktopMandatoryUpdateWindow({
         preload: fileURLToPath(new URL('../../lib/preload-mandatory.cjs', import.meta.url)),
@@ -262,51 +266,46 @@ async function main() {
         server.policy('force')
         await policy.check('launch')
         const window = modal.confirmationWindow
-        assert.ok(window?.isModal())
+        assert.ok(window)
+        const contents = process.platform === 'win32' ? await mandatoryFrame(parent) : window.webContents
+        assert.equal(window.isModal(), false)
+        assert.equal(parent.isEnabled(), true)
         window.webContents.on('console-message', event => { console.log('mandatory renderer:', event.message) })
         window.webContents.on('preload-error', (_event, _path, error) => { console.error('mandatory preload:', error) })
         async function until(expression) {
-          try { return await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+          try { return await contents.executeJavaScript(`new Promise((resolve, reject) => {
             const observer = new MutationObserver(check);
             const deadline = setTimeout(() => { observer.disconnect(); reject(new Error('Modal DOM condition timed out')); }, 10000);
             function check() { if (${expression}) { observer.disconnect(); clearTimeout(deadline); resolve(true); } }
             observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true }); check();
           })`) } catch (error) {
-            console.error('Modal condition:', expression, await window.webContents.executeJavaScript('({ url: location.href, text: document.body?.innerText, bridge: typeof window.dshMandatoryUpdate })'))
+            console.error('Modal condition:', expression, await contents.executeJavaScript('({ url: location.href, text: document.body?.innerText, bridge: typeof window.dshMandatoryUpdate })'))
             throw error
           }
         }
         await until("document.getElementById('title')?.textContent === '需要更新'")
-        assert.equal(await window.webContents.executeJavaScript("document.querySelector('#title b') === null"), true)
+        assert.equal(await contents.executeJavaScript("document.querySelector('#title b') === null"), true)
         if (process.platform === 'win32') {
-          assert.equal(window.isMovable(), true)
-          assert.equal(window.isResizable(), true)
-          assert.equal(window.isMaximizable(), true)
-          const bounds = window.getBounds()
-          window.setPosition(bounds.x + 20, bounds.y + 20)
-          assert.notDeepEqual(window.getBounds(), bounds)
-          window.maximize()
-          assert.equal(window.isMaximized(), true)
-          window.unmaximize()
-          assert.equal(window.isMaximized(), false)
+          assert.equal(window, parent)
+          assert.equal(parent.getChildWindows().length, 0)
         }
-        assert.equal(await window.webContents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))"), false)
+        assert.equal(await contents.executeJavaScript("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }))"), false)
         assert.equal(window.isDestroyed(), false)
         assert.equal(f.installations.length, 0)
-        await window.webContents.executeJavaScript("document.getElementById('page').click()")
+        await contents.executeJavaScript("document.getElementById('page').click()")
         await until("document.getElementById('browser-message').textContent.includes('无法打开浏览器')")
         assert.deepEqual(opened, ['https://downloads.example.com/desktop'])
-        await window.webContents.executeJavaScript("document.getElementById('copy').click()")
+        await contents.executeJavaScript("document.getElementById('copy').click()")
         await copyComplete.promise
         await until("document.getElementById('copy').textContent === '已复制链接'")
         assert.deepEqual(copied, opened)
         await f.coordinator.check()
         modal.sync()
         await until("!document.getElementById('update').hidden")
-        await window.webContents.executeJavaScript("document.getElementById('update').click()")
+        await contents.executeJavaScript("document.getElementById('update').click()")
         await server.arrived()
         assert.equal(f.coordinator.state.phase, 'downloading')
-        assert.equal(await window.webContents.executeJavaScript("document.getElementById('page').hidden"), true)
+        assert.equal(await contents.executeJavaScript("document.getElementById('page').hidden"), true)
         server.release()
         await until("document.getElementById('update').textContent === '停止任务并更新' && !document.getElementById('update').disabled")
         assert.equal(f.installations.length, 0)
@@ -314,14 +313,14 @@ async function main() {
         server.policy('stall')
         await policy.check('manual', true)
         assert.equal(window.isDestroyed(), false)
-        assert.equal(await window.webContents.executeJavaScript("document.getElementById('error').hidden"), true)
-        const snapshot = await window.webContents.executeJavaScript(`({
+        assert.equal(await contents.executeJavaScript("document.getElementById('error').hidden"), true)
+        const snapshot = await contents.executeJavaScript(`({
           title: document.getElementById('title').textContent, detail: document.getElementById('detail').textContent,
           status: document.getElementById('status').textContent, version: document.getElementById('version').textContent,
           buttons: [...document.querySelectorAll('button')].filter(button => button.getClientRects().length > 0).map(button => button.textContent),
         })`)
         assert.deepEqual(snapshot, JSON.parse(await readFile(new URL('../expected/mandatory-update-zh.json', import.meta.url), 'utf8')))
-        await window.webContents.executeJavaScript("document.getElementById('later').click()")
+        await contents.executeJavaScript("document.getElementById('later').click()")
         await until("document.getElementById('update').textContent === '继续安装更新' && !document.getElementById('update').disabled")
         assert.equal(f.installations.length, 0)
         let capture
@@ -333,19 +332,19 @@ async function main() {
         }
         const restartRequested = Promise.withResolvers()
         f.restart(async () => { restartRequested.resolve(); return false })
-        await window.webContents.executeJavaScript("document.getElementById('update').click()")
+        await contents.executeJavaScript("document.getElementById('update').click()")
         await restartRequested.promise
         await until("!document.getElementById('update').disabled")
         assert.equal(f.installations.length, 0)
         assert.equal(policy.state.blocking, true)
         f.restart(async () => { throw new DesktopUpdatePreparationError('stop-failed', resolveDesktopLocale('zh-CN').messages.updateStopFailed,
           'exit 0; shutdown acknowledged false') })
-        await window.webContents.executeJavaScript("document.getElementById('update').click()")
+        await contents.executeJavaScript("document.getElementById('update').click()")
         await until("!document.getElementById('technical-details').hidden && !document.getElementById('update').disabled")
-        assert.equal(await window.webContents.executeJavaScript("document.getElementById('technical-details').open"), false)
+        assert.equal(await contents.executeJavaScript("document.getElementById('technical-details').open"), false)
         for (const expanded of [false, true]) {
           if (expanded) {
-            assert.equal(await window.webContents.executeJavaScript("document.getElementById('technical-details-label').click(); document.getElementById('technical-details').open"), true)
+            assert.equal(await contents.executeJavaScript("document.getElementById('technical-details-label').click(); document.getElementById('technical-details').open"), true)
           }
           const name = expanded ? 'mandatory-error-expanded.png' : 'mandatory-error-collapsed.png'
           await writeFile(join(root, name), (await window.webContents.capturePage()).toPNG())
@@ -354,14 +353,20 @@ async function main() {
         assert.equal(policy.state.blocking, true)
         assert.equal(f.installations.length, 0)
         server.policy('clear')
+        const closed = process.platform === 'win32' ? undefined : once(window, 'closed')
         await policy.check('manual', true)
-        assert.equal(window.isDestroyed(), true)
+        if (closed) { await closed; assert.equal(window.isDestroyed(), true) }
+        else {
+          const deadline = Date.now() + 10000
+          while (!contents.detached && Date.now() < deadline) await delay(20)
+          assert.equal(contents.detached, true)
+        }
         assert.equal(parent.isDestroyed(), false)
       } finally {
         server.release()
+        parent.destroy()
         modal.dispose()
         await policy.dispose()
-        parent.destroy()
         shell.openExternal = originalOpen
         clipboard.writeText = originalCopy
         clipboard.readText = originalRead

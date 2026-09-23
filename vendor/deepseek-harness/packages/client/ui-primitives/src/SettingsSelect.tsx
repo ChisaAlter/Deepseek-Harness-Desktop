@@ -8,7 +8,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { FlipText } from './FlipText.tsx'
-import { IconChevronDownOutline14 } from './icons/index.tsx'
+import { IconChevronDownOutlineRegular } from './icons/index.tsx'
 import { Menu } from './Menu.tsx'
 import css from './SettingsSelect.module.css'
 
@@ -111,7 +111,7 @@ export function SettingsSelect({
               className={clsx(css.label, selected === undefined && value === '' && placeholder !== '' && css.placeholder)}
               text={label}
             />
-            <IconChevronDownOutline14 className={css.chevron} />
+            <IconChevronDownOutlineRegular className={css.chevron} size={14} />
           </button>
         )}
       />

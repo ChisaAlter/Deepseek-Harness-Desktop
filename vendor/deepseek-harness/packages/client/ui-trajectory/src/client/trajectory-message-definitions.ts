@@ -136,9 +136,13 @@ const trajectoryInboxDefinition: ConversationNodeDefinition<InboxState> = {
 const trajectoryMessageDefinition: ConversationNodeDefinition<MessageNode> = {
   kind: 'trajectory-input-message',
   target: 'trajectory',
-  match: event => event.type === 'user/message'
-    ? { id: String(event.seq), role: 'start' }
-    : null,
+  match: (event) => {
+    // Developer history is persisted for V4; presentation is intentionally deferred.
+    if (event.type === 'developer/message') throw new Error('Trajectory developer messages are not supported yet')
+    return event.type === 'user/message'
+      ? { id: String(event.seq), role: 'start' }
+      : null
+  },
   start: (_context, match, reader) => {
     if (match.event.type !== 'user/message') {
       throw new Error('trajectory-input-message start requires user/message')

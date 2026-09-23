@@ -99,7 +99,7 @@ describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach th
     await page.keyboard.press('Tab')
     await expect.poll(() => levels.count(), { timeout: 10_000 }).toBe(0)
     await expect.poll(
-      async () => readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8'),
+      async () => readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8'),
       { timeout: 10_000 },
     ).toContain('reasoningEffort: high')
     await expect.poll(() => trigger.getAttribute('aria-label'), { timeout: 10_000 })

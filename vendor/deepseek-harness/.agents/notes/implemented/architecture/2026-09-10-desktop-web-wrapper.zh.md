@@ -14,7 +14,7 @@ Status: implemented
 
 私有 Desktop Host 针对独立归属的 Desktop profile 调用 CLI 的共享 profile runner。完整 Web 组合负责认证、HTTP 路由、客户端资源、RPC 与响应流。Electron 在子进程就绪前加载打包静态 Web 资源。子进程 IPC 承载就绪、结构化启动注入与关闭。[立即显示窗口决策](2026-09-09-desktop-immediate-window-and-direct-start.zh.md)规定本地文档 HTTP 转发与认证 WebSocket 访问；Web 保留应用分派与流帧处理。
 
-共享 runner 负责 profile 与 Harness-home patch、代理设置、遥测默认值、模块补全、配置重载和应用生命周期。Desktop 从共享 Web 模板初始化 profile，并在主应用中使用其插件管理器。Electron 负责窗口、菜单、原生目录选择、恢复和发布更新。
+共享 runner 负责 profile 与 Harness-home patch、代理设置、遥测默认值、runtime resolution、配置重载和应用生命周期。Desktop 从共享 Web 模板初始化 profile，并在主应用中使用其插件管理器。Electron 负责窗口、菜单、原生目录选择、恢复和发布更新。
 
 [内置运行时决策](2026-09-08-desktop-bundled-runtime-and-external-plugins.zh.md)保留独立运行时与插件存储、内置 pnpm，以及明确的包归属。公开 CLI 继续拒绝保留的 Desktop profile。Electron profile 准备和原生恢复在 Host 不可用时仍可执行。
 
@@ -22,7 +22,7 @@ Status: implemented
 
 共享 Web 插件管理器负责安装、激活、错误和重启要求。Electron 不提供独立插件管理渲染器、preload、shell 资源路由、插件 IPC 或包变更执行器。打包明确选择主入口和应用 preload，避免旧构建产物重新带入已删除的桥接。
 
-共享 `initProfile` 创建缺失的 profile 文件并保留现有内容。Host 的 `healIsolatedProfileModuleFallback` 是安装包与 bundle 投影的唯一归属方；包操作在 pnpm 前通过共享 `unlinkProfileModuleFallback` 仅分离它自己拥有的链接。pnpm 管理的目录保持优先。Desktop 不维护第二套运行时状态、锁文件哈希或链接协调机制。`desktop-runtime-state.json` 的一次性清理仅移除与记录匹配的链接，并清除该元数据。
+共享 `initProfile` 创建缺失的 profile 文件并保留现有内容。Host 通过 `createRuntimeResolution` 计算 runtime resolution，并通过 `PluginPackages` 安装它，不写入 fallback 链接。pnpm 管理的目录保持优先。Desktop 不维护第二套运行时状态、锁文件哈希或链接协调机制。
 
 本记录部分取代[打包决策](2026-08-25-electron-desktop-packaging-and-updates.zh.md)中的私有组合与无端口传输。该设计避免监听端口，并使用分帧字节管道避免 Base64 膨胀与跨版本 V8 序列化。共享 HTTP 放弃无端口保证，将服务与认证交给已有 Web 实现。发布身份、签名、进程归属及原生壳功能仍是有效决策。
 
@@ -36,7 +36,7 @@ Status: implemented
 
 **合并 CLI 与 Desktop 插件安装。** 共享启动代码不要求共享可执行依赖。独立安装允许分别验收发布与插件版本，共享会话和设置则仍由已有数据归属方负责。
 
-**保留 Desktop 链接账本与 manifest 协调器。** 这些机制重复共享 profile 逻辑，并可能因派生元数据漂移而拒绝原本可用的安装。单一模块补全归属方可以保护 pnpm 目录，无需在插件 profile 中维护发布身份。
+**保留 Desktop 链接账本与 manifest 协调器。** 这些机制重复共享 profile 逻辑，并可能因派生元数据漂移而拒绝原本可用的安装。单一 runtime resolution 归属方可以保护 pnpm 目录，无需在插件 profile 中维护发布身份。
 
 **保留独立原生插件管理页。** 它可以在 Web Host 不可用时运行，但重复维护包操作、渲染器 IPC、本地化和后端重启处理。原生恢复已能在没有 Host 时禁用第三方 bundle 并备份 profile patch。只有出现此恢复方式无法提供的修复操作时，才应重新引入。
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-09-consumer-owned-startup-strictness.md
-2026-09-09-consumer-owned-startup-strictness.md: 2f16078c7051b4038c1d48120b500f0fcd465aef
-2026-09-09-consumer-owned-startup-strictness.zh.md: c0fe61e5f708f79f6a5b903f3157ee358c3086bc
+2026-09-09-consumer-owned-startup-strictness.md: bbe975e13b251e2e0d18c4e002efbf1d362548f3
+2026-09-09-consumer-owned-startup-strictness.zh.md: 4bd2bfe026a13ccbd46215d2c0165b5a8c5327f7

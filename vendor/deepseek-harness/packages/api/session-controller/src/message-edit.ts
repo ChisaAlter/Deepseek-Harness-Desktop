@@ -87,14 +87,16 @@ export function installMessageEdits(ctx: Context): void {
       surfaceIntents = { ...surfaceIntents, [message.id]: edit.intent }
       // Retain injected instructions whose session-local dedupe prevents reinjection.
       // Fresh snapshots replace older copies, but incremental file instructions accumulate.
-      const refreshedPlugins = new Set(decision.messages.flatMap(candidate =>
-        candidate.source.kind === 'plugin' ? [candidate.source.plugin] : []))
+      const refreshedSources = new Set(decision.messages
+        .filter(candidate => candidate.source.kind !== 'user')
+        .map(candidate => candidate.source.kind))
       const retained = (edit.intent.sourceEventSeqs ?? []).flatMap((seq) => {
         const event = agent.session.eventAt(seq)
-        if (event?.type !== 'user/message' || event.data.source.kind !== 'plugin') return []
+        if (event?.type !== 'user/message' || event.data.source.kind === 'user') return []
         const context = event.data.source
-        if (context.form === 'notice' || context.form === 'relay' || context.form === 'recall') return []
-        if (context.form !== 'instructions' && refreshedPlugins.has(context.plugin)) return []
+        const form = 'form' in context ? context.form : undefined
+        if (form === 'notice' || form === 'relay' || form === 'recall') return []
+        if (form !== 'instructions' && refreshedSources.has(context.kind)) return []
         const copy = createUserMessage({ content: event.data.content, source: event.data.source })
         surfaceIntents = { ...surfaceIntents, [copy.id]: { surfaceOp: 'append', sourceEventSeqs: [seq] } }
         return [copy]

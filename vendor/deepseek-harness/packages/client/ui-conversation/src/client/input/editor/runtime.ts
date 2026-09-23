@@ -211,6 +211,19 @@ export class DraftEditorRuntime {
   }
 
   /**
+   * Insert an asynchronous text result as one independent undo operation.
+   * @param span - owner-validated insertion range.
+   * @param text - text sanitized with the same rules as paste.
+   * @returns whether the range mapped and the edit applied.
+   */
+  insertAsyncText(span: DetectSpan, text: string): boolean {
+    let applied = false
+    const clean = text.replace(REFERENCE_PLACEHOLDER_RE, '')
+    this.applyEdit(() => { applied = $replaceDetectSpanWithText(span, clean) }, PASTE_TAG)
+    return applied
+  }
+
+  /**
    * Insert a reference chip with the existing trailing-space rule.
    * @param span - detect-coordinate range.
    * @param ref - reference fields.
@@ -225,6 +238,25 @@ export class DraftEditorRuntime {
         : [$createReferenceChipNode(ref), $createTextNode(' ')]
       applied = $replaceDetectSpanWithNodes(span, nodes)
     })
+    return applied
+  }
+
+  /**
+   * Insert an ordered file-reference batch after the live selection without deleting it.
+   * @param references - validated references in source order.
+   * @returns whether the live insertion position accepted the batch.
+   */
+  insertFileReferences(references: readonly ReferenceInsert[]): boolean {
+    if (references.length === 0) return true
+    let applied = false
+    this.applyEdit(() => {
+      const projection = $projectComposer(key => this.occurrenceIdOf(key))
+      const at = projection.selection?.end ?? projection.detectText.length
+      const before = projection.detectText.slice(0, at)
+      const nodes = references.flatMap(ref => [$createReferenceChipNode(ref), $createTextNode(' ')])
+      if (before !== '' && !/\s$/u.test(before)) nodes.unshift($createTextNode(' '))
+      applied = $replaceDetectSpanWithNodes({ start: at, end: at }, nodes)
+    }, PASTE_TAG)
     return applied
   }
 

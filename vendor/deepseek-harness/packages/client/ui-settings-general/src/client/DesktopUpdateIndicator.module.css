@@ -1,28 +1,30 @@
-/* The entry's seat is the Settings foot row, which bleeds 2px past the sidebar
-   content box for the Settings hover surface. The New Session bar and panel
-   rows instead keep a 2px inset inside that box, so this entry gives back both
-   2px offsets and ends on their trailing edge rather than flush against the
-   sidebar edge. */
 .indicator {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: 14px max-content;
   align-items: center;
-  gap: 6px;
+  column-gap: 4px;
   flex: none;
-  margin-inline-end: 4px;
-  padding: 1px 8px;
+  height: 28px;
+  padding: 0 8px;
+  box-sizing: border-box;
   border: 1px solid color-mix(in srgb, var(--dsw-alias-brand-primary-new-colorprimary-new-color) 20%, transparent);
-  border-radius: 6px;
+  border-radius: 13px;
   color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
   background: color-mix(in srgb, var(--dsw-alias-brand-primary-new-colorprimary-new-color) 8%, transparent);
-  font: inherit;
+  font-family: inherit;
   font-size: 12px;
-  line-height: 20px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
 }
 
-.indicator[data-error] {
-  color: var(--dsw-alias-state-error-primary);
+.icon {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
 }
 
 .badge {
@@ -36,8 +38,7 @@
   background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
 }
 
-.badge[data-error], .errorDot { background: var(--dsw-alias-state-error-primary); }
-.errorDot { width: 6px; height: 6px; border-radius: 50%; corner-shape: round; }
+.errorDot { background: currentColor; width: 6px; height: 6px; border-radius: 50%; corner-shape: round; }
 .spinner { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

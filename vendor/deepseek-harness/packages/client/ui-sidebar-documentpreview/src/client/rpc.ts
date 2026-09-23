@@ -81,25 +81,13 @@ export function createReadPage(remote: WorkspaceFilesReadRemote): ReadWorkspaceF
   return (sessionId, path, offset, signal) => remote.workspaceFiles.read(sessionId, path, { offset }, signal)
 }
 
-/** Complete document bytes borrowed read-only by renderers; copy before transferring to a Worker. */
-export type DocumentFileBytes = Omit<WorkspaceFileBytes, 'data'> & { readonly data: Uint8Array<ArrayBuffer> }
+/** Document bytes borrowed read-only by renderers; copy before transferring to a Worker. */
+export type DocumentFileBytes = WorkspaceFileBytes<Uint8Array<ArrayBuffer>>
 
 /**
  * Read a complete file through the Host endpoint.
  * @param file - Session and path decoded from the tab address.
  * @param signal - owning tab lifetime.
- * @returns complete binary bytes, including declared failures.
+ * @returns complete native bytes, including declared failures.
  */
 export type ReadDocumentBytes = (file: SessionFile, signal: AbortSignal) => Promise<RemoteResult<DocumentFileBytes>>
-
-/**
- * Decode one successful Remote byte result for document renderers.
- * @param file - Host byte result with base64 data.
- * @returns the same metadata with native bytes; malformed base64 throws.
- */
-export function documentFileBytes(file: WorkspaceFileBytes): DocumentFileBytes {
-  const binary = atob(file.data)
-  const data = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index++) data[index] = binary.charCodeAt(index)
-  return { ...file, data }
-}

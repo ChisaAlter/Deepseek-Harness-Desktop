@@ -1,5 +1,5 @@
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionListState, SubagentCatalogSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 /** One current-session subagent row derived from the existing snapshot. */
 export interface AgentRow {
   id: SessionId
@@ -9,19 +9,18 @@ export interface AgentRow {
 }
 
 function fromCatalog(
-  catalog: SubagentCatalogSnapshot,
+  catalog: NonNullable<SessionListState['projectionsBySession'][SessionId]>['values']['subagentCatalog'],
   byId: SessionListState['byId'],
 ): AgentRow[] {
   const rows: AgentRow[] = []
-  for (const entry of catalog.entries) {
-    if (entry.kind !== 'child') continue
+  for (const entry of catalog ?? []) {
     const summary = byId[entry.id]
-    const labeled = 'label' in entry ? entry.label : undefined
+    const labeled = entry.label
     rows.push({
       id: entry.id,
       label: labeled && labeled.length > 0 ? labeled : summary?.displayTitle ?? String(entry.id),
-      activity: entry.activity,
-      mode: entry.mode,
+      activity: summary?.running === true ? 'running' : 'inactive',
+      ...entry.mode === 'unknown' ? {} : { mode: entry.mode },
     })
   }
   return rows
@@ -39,7 +38,7 @@ function fromLineage(parent: SessionId, state: SessionListState): AgentRow[] {
 
 /**
  * List current-session subagents from the existing session snapshot.
- * Prefers `subagentsByParent`; falls back to `byId` children of the parent.
+ * Prefers the parent's `subagentCatalog` projection; falls back to `byId` children.
  * @param state - live session list snapshot.
  * @param sessionId - surfaces session, or the session retained by the main view.
  * @returns rows in catalog / list order; empty when none.
@@ -47,7 +46,7 @@ function fromLineage(parent: SessionId, state: SessionListState): AgentRow[] {
 export function listSessionAgents(state: SessionListState, sessionId: SessionId | undefined): AgentRow[] {
   const parent = sessionId ?? Object.values(state.byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
   if (parent === undefined) return []
-  const catalog = state.subagentsByParent[parent]
+  const catalog = state.projectionsBySession[parent]?.values.subagentCatalog
   if (catalog !== undefined) return fromCatalog(catalog, state.byId)
   return fromLineage(parent, state)
 }

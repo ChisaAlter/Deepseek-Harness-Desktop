@@ -20,6 +20,7 @@ import { DESKTOP_RUNTIME_FILE, type DesktopRuntimeDescriptor } from '../src/runt
 interface PackageManifest {
   readonly name?: string
   readonly version?: string
+  readonly dependencies?: Readonly<Record<string, string>>
 }
 
 /** Inputs whose locations differ between the launcher and isolated tests. */
@@ -86,6 +87,32 @@ function mirrorDependencyLinks(sourceRoot: string, destinationRoot: string): str
   return names
 }
 
+/** Configured workspace plugins must resolve from the profile even when pnpm does not hoist them. */
+function mirrorWorkspaceDependencies(roots: readonly string[], destinationRoot: string): string[] {
+  const names: string[] = []
+  const visited = new Set<string>()
+  const visit = (directory: string): void => {
+    const source = realpathSync(directory)
+    if (visited.has(source)) return
+    visited.add(source)
+    const manifest = readManifest(join(source, 'package.json'))
+    for (const [name, specifier] of Object.entries(manifest.dependencies ?? {})) {
+      if (!specifier.startsWith('workspace:')) continue
+      const dependency = join(source, 'node_modules', ...name.split('/'))
+      if (!existsSync(dependency)) {
+        throw new Error(`desktop development: ${name} is missing from ${source}; run pnpm install`)
+      }
+      const destination = join(destinationRoot, ...name.split('/'))
+      removeOwnedPath(destination)
+      linkDirectory(dependency, destination)
+      names.push(name)
+      visit(dependency)
+    }
+  }
+  for (const directory of roots) visit(directory)
+  return names
+}
+
 /**
  * Replace one disposable project with links to the current built workspace.
  * @param options - Project destination, CLI package, and release identity.
@@ -117,7 +144,10 @@ export function prepareDevelopmentProject(options: DevelopmentProjectOptions): s
   createDevelopmentProjectMetadata(options.projectDir, options.release)
   const destinationModules = join(options.projectDir, 'node_modules')
   mkdirSync(destinationModules, { recursive: true })
-  const names = mirrorDependencyLinks(options.dependencyDir, destinationModules)
+  const names = [
+    ...mirrorDependencyLinks(options.dependencyDir, destinationModules),
+    ...mirrorWorkspaceDependencies([options.cliDir, options.hostDir], destinationModules),
+  ]
   const dshLink = join(destinationModules, '@deepseek-ai', 'dsh')
   removeOwnedPath(dshLink)
   linkDirectory(options.cliDir, dshLink)

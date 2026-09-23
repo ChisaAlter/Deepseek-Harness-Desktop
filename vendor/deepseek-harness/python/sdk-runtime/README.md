@@ -12,6 +12,19 @@ Production executables are named `deepseek-harness-sdk-runtime-<platform>-<arch>
 
 Each target also requires `<executable-stem>-office/`, where the stem excludes `.exe`. This directory contains the complete installed Office packages and their dependencies, preserving engine resources, manifests, licenses, source inventories, and helper permissions. Copy this directory together with the executable. A missing target engine fails the sidecar build with its npm package name and target platform/architecture.
 
+Each wheel also includes `<platform>-<arch>/primary-runtime/` (CPython and the locked Office Python libraries) and sibling `office-skills/` (three default workflows and their shared checker). These are ordinary relocatable files, not bytes embedded in the executable. The shared builder selects target-native archives for all five wheel targets and executes its smoke on the native build host. Packaging and installed-runtime lookup reject missing resources, wrong-platform metadata, and lost Python executable permissions. The short platform directory avoids repeating the executable name in Python DLL paths on Windows.
+
+The packaged bootstrap supplies `DSH_BUNDLED_PRIMARY_RUNTIME` as a carrier default. The `sdk` profile uses it when `DSH_PRIMARY_RUNTIME` is unset; an explicit path overrides it, and an empty string disables the query and Office provider. External payloads retain the `primary-runtime/` plus sibling `office-skills/` layout. The SDK reads Python in place without copying it into `DSH_HOME`. Source and dev-only Node carriers have no bundled default; they use an explicit `DSH_PRIMARY_RUNTIME`.
+
+Skill selection is independent of delivery: project, custom-directory, and user filesystem skills override same-name bundled skills. An SDK patch can disable only the Office provider while retaining the Python query:
+
+```yaml
+- id: skill-office
+  disabled: true
+```
+
+To replace the three Office workflows and shared checker as a set, patch `skill-office.config.assetRoot` to another absolute resource directory. Use the filesystem skill provider for arbitrary skill collections. Configuration patches apply at process startup; changing skills does not require rebuilding the runtime wheel or Python environment.
+
 Repository builds also materialize a dev-only `runtime/node/` carrier. It runs `node runtime/node/node_modules/@deepseek-ai/dsh/lib/bin.js` on system Node 22.19 or newer. It is never selected automatically and is excluded from wheels and sdists.
 
 Both carriers execute the same `dsh` grammar and shipped profiles, including the standalone `sdk-minimal` tree and the full `web` profile with its frontend assets. The private `dsh-python-runtime-closure` manifest defines the packaged dependency closure; there is no Python-specific Node application or checked-in default `cordis.yml`.
@@ -27,7 +40,7 @@ Unsupported platforms and missing executables or sidecars raise `FileNotFoundErr
 
 ## Packaged profile resolution
 
-`dsh` initializes shipped profiles under the explicit home, composes their bundle patches, and loads bundled plugins from the executable's virtual filesystem. Because operating-system symlinks cannot enter that filesystem, packaged launches maintain small real ESM proxy packages under `$DSH_HOME/profiles/node_modules`. Each proxy mirrors explicit runtime exports, records the original package identity, and re-exports the virtual module URL. Built-in rows and external plugin peers therefore share one Cordis/module instance. Native shared libraries and Windows ConPTY addons are packaged with native addons, while ripgrep and the macOS PTY helper remain executable sidecars.
+`dsh` initializes shipped profiles under the explicit home, composes their bundle patches, and loads bundled plugins from the executable's virtual filesystem. Runtime resolution uses an in-memory generation instead of disk symlinks or proxy packages. Fallback imports use recorded declaring-package paths, including paths inside the executable's virtual filesystem, so built-in rows and external plugin peers share the bundled Cordis/module instance. Native shared libraries and Windows ConPTY addons are packaged with native addons, while ripgrep and the macOS PTY helper remain executable sidecars.
 
 The Python bootstrap resolves the Office kit from its adjacent directory so native helpers and URL Workers use real filesystem paths. The kit owns engine selection and validation; the Python bootstrap adds no runtime download or compilation.
 

@@ -29,6 +29,21 @@ describe('Markdown file links', () => {
     expect(view.container.querySelector('a')).toBeNull()
   })
 
+  it.each(['/workspace/chart.png', 'C:/work/chart.png'])('keeps %s accessible when inline images are unavailable', (path) => {
+    const openFile = vi.fn()
+    const view = render(
+      <MarkdownDelegateProvider openFile={openFile}>
+        <MarkdownText
+          text={`![Preview](${path}) [Open image](${path})`}
+          pathImages={{ resolve: () => undefined }}
+        />
+      </MarkdownDelegateProvider>,
+    )
+    expect(view.container.querySelector('img')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: 'Open image' }))
+    expect(openFile).toHaveBeenCalledExactlyOnceWith(path, undefined)
+  })
+
   it.each(['', '![](https://example.com/image.png)'])('names an empty label %s with the decoded path', (label) => {
     const view = render(
       <MarkdownDelegateProvider openFile={vi.fn()}>

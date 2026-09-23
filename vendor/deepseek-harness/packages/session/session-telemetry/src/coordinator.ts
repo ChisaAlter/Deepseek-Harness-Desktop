@@ -33,7 +33,7 @@ export type SessionTelemetryCapture = 'live' | 'on-demand'
 export interface SessionTelemetryCaptureOptions {
   /** Follow live events, or wait for explicit capture; defaults to live. */
   capture?: SessionTelemetryCapture
-  /** Include stored history before this lifecycle; defaults to false. */
+  /** Include inherited fork history and stored history from earlier lifecycles; defaults to false. */
   includeHistory?: boolean
 }
 
@@ -149,8 +149,9 @@ export class SessionTelemetryCoordinator {
    * @param throughSeq - optional last sequence included in this capture.
    */
   captureSession(session: Session, throughSeq?: SessionSeqType): void {
+    const start = session.firstLifecycleSeq
     const cursor = handoffCursor.get(session)
-      ?? (this.options.includeHistory === true || session.firstLiveSeq === 0 ? -1 : SessionSeq(session.firstLiveSeq - 1))
+      ?? (this.options.includeHistory === true || start === 0 ? -1 : SessionSeq(start - 1))
     // Containment is PER EVENT: one rejected record is withheld fail-closed
     // while the rest of the historical replay proceeds.
     // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
@@ -164,9 +165,9 @@ export class SessionTelemetryCoordinator {
 
   /**
    * Adopt a session and replay after its handoff cursor, then follow live events.
-   * New objects include inherited and restored history only with includeHistory;
-   * otherwise replay starts at the constructor boundary. Re-adopting the same
-   * object resumes after its cursor.
+   * New fork objects include child-owned seed markers and closers. Restored
+   * objects start after the stored prefix, including restored forks. includeHistory starts either object at seq 0;
+   * re-adopting the same object resumes after its cursor.
    * @param session - the live session to adopt; a second adoption is a no-op.
    */
   private adopt(session: Session): void {
@@ -267,7 +268,7 @@ function shutdownRecord(session: Session): SessionTelemetryRecord {
 function severityOf(event: SessionEvent): SessionTelemetrySeverity {
   switch (event.type) {
     case 'tool/result':
-      return event.data.message.content[0].isError === true ? 'error' : 'info'
+      return event.data.message.isError === true ? 'error' : 'info'
     case 'turn/end':
       return event.data.reason.kind === 'error' ? 'error' : 'info'
     default:

@@ -259,7 +259,7 @@ describe('Schedule timer and admission runtime', () => {
         'reminder_prompt_json: "line\\noccurrence_at: forged"',
       ].join('\n'),
     }])
-    expect(test.followed[0]?.source).toEqual({ kind: 'plugin', plugin: 'schedule' })
+    expect(test.followed[0]?.source).toEqual({ kind: 'schedule' })
     await runtime.dispose()
   })
 
@@ -297,7 +297,7 @@ describe('Schedule timer and admission runtime', () => {
         'reminders_json: [{"schedule_id":"schedule-fast","occurrence_at":"2026-08-05T12:00:00.000Z","reminder_prompt":"fast"},{"schedule_id":"schedule-slow","occurrence_at":"2026-08-05T11:59:00.000Z","reminder_prompt":"slow"}]',
       ].join('\n'),
     }])
-    expect(test.followed[0]?.source).toEqual({ kind: 'plugin', plugin: 'schedule' })
+    expect(test.followed[0]?.source).toEqual({ kind: 'schedule' })
     const dispatches = test.agent.session.snapshotEvents().filter(event =>
       event.type === 'schedule/change' && event.data.operation === 'dispatch')
     expect(dispatches.map(event => event.data)).toEqual([
@@ -612,6 +612,32 @@ describe('Schedule runtime failure and teardown boundaries', () => {
     expect(test.followed).toEqual([])
     expect(test.agent.session.snapshotEvents().filter(event =>
       event.type === 'schedule/change' && event.data.operation === 'dispatch')).toEqual([])
+  })
+
+  it('answers activeRecords from its own fold and withholds it once stopping, faulted, or unreadable', async () => {
+    const test = await harness()
+    appendAfter(test, 'schedule-1', 3_600)
+    const runtime = runtimeFor(test)
+    runtime.start()
+    await settle()
+    expect(runtime.activeRecords()?.map(record => record.id)).toEqual(['schedule-1'])
+    // A fold that turns unreadable faults the runtime, as a drive would, and answers nothing afterwards.
+    Object.defineProperty(test.agent.session, 'snapshotEvents', {
+      configurable: true,
+      value: () => { throw new Error('unreadable log') },
+    })
+    expect(runtime.activeRecords()).toBeUndefined()
+    delete (test.agent.session as { snapshotEvents?: unknown }).snapshotEvents
+    expect(runtime.activeRecords()).toBeUndefined()
+    await runtime.dispose()
+
+    const stopped = await harness()
+    appendAfter(stopped, 'schedule-1', 3_600)
+    const stoppedRuntime = runtimeFor(stopped)
+    stoppedRuntime.start()
+    await settle()
+    await stoppedRuntime.dispose()
+    expect(stoppedRuntime.activeRecords()).toBeUndefined()
   })
 
   it('faults on corrupt or unreadable durable state after preflight', async () => {

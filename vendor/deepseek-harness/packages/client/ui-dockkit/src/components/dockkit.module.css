@@ -129,6 +129,82 @@
   min-height: 0;
 }
 
+/* Every tab remains a sibling. Explicit tracks determine placement; order only
+   changes painting, so raising a float never moves a connected DOM ancestor. */
+.tabLayout {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.tabCell,
+.emptyTabHost {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  z-index: var(--dsh-dockkit-dock-layer, 10);
+}
+
+.tabCell[hidden] {
+  display: none;
+}
+
+/* A zero-sized Grid item supplies a stacking context, not a containing block
+   for its fixed child. Floats share one layer and use Grid paint order within it. */
+.floatingCell {
+  width: 0;
+  height: 0;
+  z-index: var(--dsh-dockkit-float-layer, 60);
+}
+
+.tabHost {
+  min-width: 0;
+  min-height: 0;
+  pointer-events: auto;
+}
+
+.tabHost:not(.float),
+.emptyTabHost {
+  background: var(--dsw-alias-bg-base);
+}
+
+.tabCell[data-dockkit-host='dock'][data-dockkit-column='0'] > .tabHost {
+  border-left: 0.5px solid var(--dsw-alias-border-l4);
+}
+
+.tabHostHeader {
+  flex: none;
+}
+
+.tabHostBody {
+  position: relative;
+  min-width: 0;
+}
+
+.tabLayoutDivider {
+  width: 0;
+  cursor: col-resize;
+  z-index: calc(var(--dsh-dockkit-dock-layer, 10) + 1);
+  pointer-events: auto;
+}
+
+.tabLayoutDivider::before {
+  top: 0;
+  bottom: 0;
+  left: -0.25px;
+  width: 0.5px;
+}
+
+.tabLayoutDivider::after {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+  background: linear-gradient(to bottom, transparent, var(--dsw-alias-label-caption) 50%, transparent) center / 1px 100% no-repeat;
+}
+
 /* A body that overflows scrolls inside its pane; nothing escapes the pane. */
 .pane {
   display: flex;
@@ -219,6 +295,24 @@
   align-items: center;
   height: 28px;
   margin-left: 4px;
+}
+
+/* macOS desktop: an embedder may pin this surface under the window's top drag
+   band (ui-layout .leadingBand — full-window geometry that Electron composes
+   in DOM order, not by stacking). The chip run, the strip-end chrome, the
+   pane body, and the split divider subtract their whole boxes so tabs,
+   controls, content, and the resize grab stay usable even where they overlap
+   the band; the strip's blank fill and top inset keep the band's drag, so the
+   row moves the window like a native tab bar. The divider must be named here:
+   it is a plain div, so ui-web base.css's interactive-element subtraction
+   never matches it. Hidden surfaces contribute nothing: Blink skips
+   non-visible boxes when it collects draggable regions. */
+:global(html[data-platform='darwin']) .stripTabs,
+:global(html[data-platform='darwin']) .stripChrome,
+:global(html[data-platform='darwin']) .paneBody,
+:global(html[data-platform='darwin']) .float,
+:global(html[data-platform='darwin']) .divider {
+  -webkit-app-region: no-drag;
 }
 
 /* The slot between two chips: a 10px box with a hairline down its centre.
@@ -452,10 +546,11 @@
   display: flex;
   flex-direction: column;
   min-width: 96px;
-  padding: 4px;
-  background: var(--dsw-alias-bg-layer-3);
+  padding: 3px;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .menu:not(:has([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'])) {
@@ -463,13 +558,13 @@
 }
 
 .menuItem {
-  padding: 5px 8px;
+  padding: 4px 7px;
   color: var(--dsw-alias-label-primary);
-  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
   text-align: left;
   background: transparent;
   border: none;
-  border-radius: 4px;
+  border-radius: 5px;
   cursor: pointer;
 }
 

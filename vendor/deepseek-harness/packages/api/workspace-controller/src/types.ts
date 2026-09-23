@@ -6,9 +6,12 @@
  */
 
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { SessionActivity, WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 
 export type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+export type {
+  SessionActivity, SessionActivityItem, SessionActivityKind, SessionActivityKindMap,
+} from '@deepseek-ai/dsh-workspace/types'
 export type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-host-directory-picker/types'
 
 /** One durable Workspace projected for browser consumers. */
@@ -32,6 +35,15 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'workspace/invalid-path': { readonly path: string }
     /** Another Workspace already uses the requested name. */
     'workspace/name-conflict': { readonly name: string }
+    /**
+     * The Session still has running work — its own turn, a subagent, a
+     * background job, or an active schedule — so archiving was refused
+     * without a write; `activity` names what must stop first.
+     */
+    'workspace/session-active': {
+      readonly sessionId: SessionId
+      readonly activity: readonly SessionActivity[]
+    }
     /** The Session or its anchor is not in the Workspace's manual order. */
     'workspace/move-invalid': {
       readonly workspaceId: WorkspaceId
@@ -54,6 +66,14 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 /** Existing directory requested for Workspace adoption. */
 export interface WorkspaceCreateRequest {
   readonly path: string
+}
+
+/** Names chosen by the first-use Client before default Workspace initialization. */
+export interface WorkspaceInitializeDefaultRequest {
+  /** Host rejects blank names, separators, colon, NUL, surrounding whitespace, and trailing dots; OS filename restrictions also apply. */
+  readonly directoryName: string
+  /** Initial display title, retained across language changes. */
+  readonly title: string
 }
 
 /** Created or previously registered Workspace. */
@@ -104,6 +124,14 @@ export interface WorkspaceInsertSessionBeforeRequest {
 /** Session requested for archival from Workspace grouping surfaces. */
 export interface WorkspaceArchiveSessionRequest {
   readonly sessionId: SessionId
+  /**
+   * Stop the Session's running work — its turn, subagent descendants, owned
+   * background jobs, and active schedules — instead of refusing the archive
+   * as `workspace/session-active`. The stops are requested before the
+   * archive write and are not awaited; the response arrives once the archive
+   * set is durable.
+   */
+  readonly stopActivity?: boolean
 }
 
 /** Session requested for restoration from the archived Session list. */
@@ -116,16 +144,28 @@ export interface WorkspaceArchiveValue {
   readonly archivedSessionIds: readonly SessionId[]
 }
 
+/** Session requested for pinning ahead of unpinned Sessions on grouping surfaces. */
+export interface WorkspacePinSessionRequest {
+  readonly sessionId: SessionId
+}
+
+/** Session requested for removal from the pin set. */
+export interface WorkspaceUnpinSessionRequest {
+  readonly sessionId: SessionId
+}
+
+/** Complete pinned Session set after a mutation, most recently pinned first. */
+export interface WorkspacePinValue {
+  readonly pinnedSessionIds: readonly SessionId[]
+}
+
 /** Complete reconnect baseline for Workspace browser state. */
 export interface WorkspaceBaseline {
   readonly items: readonly WorkspaceView[]
   readonly archivedSessionIds: readonly SessionId[]
-  /**
-   * Host-owned directory (`$DSH_HOME/no-workspace`) that Sessions without a
-   * Workspace membership run in. A Session whose cwd equals this path is a
-   * no-directory task; any other unaccounted Session belongs to a Workspace
-   * that is not (or no longer) registered and stays out of grouping surfaces.
-   */
+  /** Registry-global pin set, most recently pinned first. */
+  readonly pinnedSessionIds: readonly SessionId[]
+  /** Host-owned cwd for Sessions without a Workspace. */
   readonly scratchCwd: string
 }
 
@@ -135,6 +175,7 @@ export type WorkspaceFollowIncrement =
   | { readonly type: 'remove'; readonly workspaceId: WorkspaceId }
   | { readonly type: 'order'; readonly workspaceIds: readonly WorkspaceId[] }
   | { readonly type: 'archived'; readonly archivedSessionIds: readonly SessionId[] }
+  | { readonly type: 'pinned'; readonly pinnedSessionIds: readonly SessionId[] }
 
 /** Workspace state stream; every generation starts with exactly one baseline. */
 export type WorkspaceFollowFrame =

@@ -48,8 +48,8 @@
    inset, plus the 1px transparent reserve border — so no row below may grow
    past its figure. */
 .header {
-  position: relative;
-  grid-row: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   flex: none;
   min-width: 0;
   padding: 12px 28px 0 20px;
@@ -127,9 +127,15 @@
   display: none;
 }
 
+.header:where(:not(:has(.tabs))) {
+  min-height: 0;
+  padding-bottom: 10px;
+}
+
 /* Blank Sessions retain navigation controls without conversation title or tabs. */
 .headerBlank {
   min-height: 0;
+  padding-bottom: 0;
   border-bottom: none;
 }
 
@@ -137,13 +143,22 @@
   margin-left: auto;
 }
 
-/* Desktop keeps dragging in AppFrame's caption band; the title row remains interactive. */
-:global([data-platform='darwin']) .titleRow {
-  -webkit-app-region: no-drag;
+/* Only the macOS titlebar needs reserved drag space before a Session exists. */
+:global(html:not([data-platform='darwin'])) .headerSessionless {
+  padding-top: 0;
 }
 
-:global([data-platform='darwin']) .titleRow button,
-:global([data-platform='darwin']) .titleRow a,
+:global(html:not([data-platform='darwin'])) .headerSessionless .titleRow {
+  min-height: 0;
+}
+
+/* macOS hiddenInset titlebar: window dragging comes from ui-layout's
+   .leadingBand (the frame's first child), never from this header. Electron
+   composes app-regions in document order ignoring stacking, so a drag rule
+   here would keep eating clicks through overlays mounted earlier in the DOM
+   (the settings modal lives in the sidebar column). The title-row clusters
+   overlap the band and subtract their whole boxes; individual controls are
+   covered by the base.css interactive-element rule. */
 :global([data-platform='darwin']) .headerLeading,
 :global([data-platform='darwin']) .headerActions,
 :global([data-platform='darwin']) .headerUtilities,
@@ -164,17 +179,16 @@
 }
 
 .titleRow {
+  grid-column: 2;
   display: flex;
   align-items: center;
   gap: 0;
-}
-
-.crumb:not(:disabled),
-.headerActions,
-.headerUtilities,
-.headerCorner,
-.tabs {
-  -webkit-app-region: no-drag;
+  min-height: 30px;
+  /* Clears the frame's window-chrome band (traffic lights + shell.leading
+     controls, ui-layout AppFrame) when it is published; the header already
+     pads 20px of it. Zero everywhere else (the fallback makes the max
+     negative). */
+  padding-inline-start: max(0px, calc(var(--dsh-frame-leading-clearance, 0px) - 20px));
 }
 
 .titleCluster {
@@ -185,19 +199,15 @@
   min-width: 0;
 }
 
-/* Leading seat before the breadcrumbs; laid out only while its occupant
-   renders something, and the occupant owns its own trailing gap (a CSS-hidden
-   occupant keeps the seat non-empty, so a seat-owned margin would push the
-   breadcrumbs while nothing shows). */
+/* The auto grid column collapses with an empty or CSS-hidden occupant.
+   The occupant owns its trailing gap so hidden controls reserve no space. */
 .headerLeading {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
-}
-
-.headerLeading:empty {
-  display: none;
 }
 
 .crumbs {
@@ -224,6 +234,7 @@
 }
 
 .crumb {
+  display: inline-block;
   max-width: 220px;
   overflow: hidden;
   padding: 4px 8px;
@@ -243,7 +254,7 @@
   line-height: 18px;
 }
 
-.crumb:hover:not(:disabled) {
+button.crumb:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -296,6 +307,7 @@
 /* figma Tab_Group 34:11441: 35px strip, gap 36, pad-left 8, tabs bottom-aligned.
    Positioned above the header's own paint, so the active bar covers the rule. */
 .tabs {
+  grid-column: 1 / -1;
   position: relative;
   z-index: 1;
   display: flex;
@@ -382,14 +394,14 @@
   left: calc(50% + var(--dsh-chat-content-width) / 2 + 24px);
 }
 
-/* The glow: a short 2px bar riding the pointer's Y, centered in the strip
+/* The glow: a short 2px bar following the captured pointer's Y, centered in the strip
    (29px from the content column), not a full-height rule — a 16px solid core
    centered on the pointer
-   (published by pointermove as --dsh-width-handle-pointer-y), fading to
+   (published during drag as --dsh-width-handle-pointer-y), fading to
    transparent over 28px each side (72px total). A solid CORE, not a single
    solid stop: a lone peak washes out over the fade. The resting scrollbar
    tint keeps this secondary affordance quiet in both themes. Before the first
-   move the fallback centers the glow at 50% height. */
+   drag move the fallback centers the glow at 50% height; hover leaves its position unchanged. */
 .widthHandle::after {
   content: '';
   position: absolute;

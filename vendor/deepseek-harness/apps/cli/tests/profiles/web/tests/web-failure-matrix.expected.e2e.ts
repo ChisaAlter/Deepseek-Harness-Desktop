@@ -138,7 +138,7 @@ function start(f: ReturnType<typeof fixture>, extra: string[] = []) {
     expect(response.status).toBe(200)
     const html = await response.text()
     expect(html).toContain('__DSH_BOOT__')
-    const bundlePath = /<script src="(\/plugins\/[^"]+)"/u.exec(html)?.[1]?.replaceAll('&amp;', '&')
+    const bundlePath = /<script src="(plugins\/[^"]+)"/u.exec(html)?.[1]?.replaceAll('&amp;', '&')
     if (!bundlePath) throw new Error('Missing bootstrap bundle URL')
     const bundle = await fetch(new URL(bundlePath, url), { headers: { cookie }, signal: AbortSignal.timeout(10_000) })
     expect(bundle.status).toBe(200)

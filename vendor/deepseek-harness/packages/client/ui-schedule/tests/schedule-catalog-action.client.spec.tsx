@@ -165,6 +165,8 @@ describe('ScheduleCatalogAction rows', () => {
     const rows = screen.getAllByRole('listitem')
     expect(within(rows[0]!).getByText('Overdue', { exact: true })).toBeDefined()
     expect(within(rows[1]!).getByText('Scheduled', { exact: true })).toBeDefined()
+    expect(rows[0]?.querySelector('[data-state="warning"]')).not.toBeNull()
+    expect(rows[1]?.querySelector('[data-state="idle"]')).not.toBeNull()
     expect(rows[0]?.textContent).toContain('Once')
     expect(rows[0]?.textContent).toContain('1 minute overdue')
     expect(rows[1]?.textContent).toContain('Every 5 minutes')

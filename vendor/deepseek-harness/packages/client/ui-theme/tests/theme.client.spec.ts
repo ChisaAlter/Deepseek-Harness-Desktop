@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm, type StubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import type {
   ThemeSettings,
   ThemeSnapshot,
@@ -22,11 +22,11 @@ function section(overrides: Partial<ThemeSettings> = {}): ThemeSettings {
   return { ...DEFAULT_THEME_SETTINGS, customThemes: [], ...overrides }
 }
 
-const make = (host = stubSettingsScope<ThemeSettings>()): {
+const make = (host = stubConfigForm<ThemeSettings>()): {
   ctx: Context
   theme: ThemeRuntime
   events: ThemeSnapshot[]
-  host: StubSettingsScope<ThemeSettings>
+  host: StubConfigForm<ThemeSettings>
 } => {
   const ctx = new Context()
   const events: ThemeSnapshot[] = []
@@ -39,7 +39,7 @@ const make = (host = stubSettingsScope<ThemeSettings>()): {
  * (unmixed) token assertions stay about their own feature.
  */
 const makeBare = (): ReturnType<typeof make> => {
-  const host = stubSettingsScope<ThemeSettings>()
+  const host = stubConfigForm<ThemeSettings>()
   host.publish({
     status: 'ready',
     value: section({ backgroundEffect: 'none', sidebarMaskHidden: false }),
@@ -150,8 +150,8 @@ describe('ThemeRuntime', () => {
   })
 
   it('adopts a section already standing at construction', () => {
-    const host = stubSettingsScope<ThemeSettings>()
-    host.publish({ status: 'ready', value: section({ preference: 'dark' }), revision: 1, writable: true })
+    const host = stubConfigForm<ThemeSettings>()
+    host.publish({ status: 'ready', value: section({ preference: 'dark', fontSize: 14 }), revision: 1, writable: true })
     const { theme } = make(host)
     expect(theme.getTheme().preference).toBe('dark')
   })

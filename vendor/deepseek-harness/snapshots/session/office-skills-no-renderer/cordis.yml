@@ -6,7 +6,6 @@
 
 - id: llm-deepseek
   config:
-    protocol: chat-completions
     thinking: enabled
     reasoningEffort: high
     maxTokens: 8192

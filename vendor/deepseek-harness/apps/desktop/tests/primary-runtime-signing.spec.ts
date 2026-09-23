@@ -2,8 +2,10 @@ import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { signWindowsPrimaryRuntime, windowsRuntimeCode } from '../scripts/sign-primary-runtime.ts'
-import { inspectWindowsRuntimeSignature, preserveWindowsRuntimeSignature } from '../scripts/windows-runtime-signature.mjs'
+import { signWindowsPrimaryRuntime, signWindowsDesktopRuntime } from '../scripts/sign-primary-runtime.ts'
+import { inspectWindowsRuntimeSignature, preserveWindowsRuntimeSignature, windowsRuntimeCode, verifyWindowsCode, signWindowsCode } from '../scripts/windows-runtime-signature.mjs'
+import { runtimeFixture } from './runtime-fixture.ts'
+import { verifyDesktopRuntime } from '../src/runtime-tree.ts'
 import { createPackagingRun } from '../scripts/packaging-run.mjs'
 
 const roots: string[] = []
@@ -24,12 +26,92 @@ async function fixture(names = ['a.exe', 'b.pyd', 'vendor.dll']): Promise<string
 
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
 
+it('bounds overlapping cache restores and verifies all hits before serial hardware misses', async () => {
+  const root = await fixture(['a.exe', 'b.exe', 'c.exe', 'd.exe'])
+  const entered = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  const signed = new Set<string>()
+  const verified = new Set<string>()
+  let active = 0
+  let peak = 0
+  let hits = 0
+  const sign = vi.fn(async ({ path }: { path: string }) => {
+    expect(active).toBe(0)
+    expect(hits).toBe(2)
+    expect(verified.has(join(root, 'a.exe')) && verified.has(join(root, 'b.exe'))).toBe(true)
+    signed.add(path)
+  })
+  const operation = signWindowsCode(root, { thumbprint, record: () => {}, sign,
+    inspect: async (path) => {
+      if (!signed.has(path)) return unsigned
+      verified.add(path)
+      return valid
+    },
+    cache: { concurrency: 2, restore: async ({ path }) => {
+      active++
+      peak = Math.max(peak, active)
+      if (active === 2) entered.resolve(undefined)
+      await release.promise
+      active--
+      if (path.endsWith('a.exe') || path.endsWith('b.exe')) { signed.add(path); hits++; return true }
+      return false
+    } },
+  })
+  try {
+    await Promise.race([entered.promise, operation])
+    expect(sign).not.toHaveBeenCalled()
+  } finally { release.resolve(undefined); await operation }
+  expect(peak).toBe(2)
+  expect(sign.mock.calls.map(([request]) => request.path)).toEqual(['c.exe', 'd.exe'].map(name => join(root, name)))
+})
+
+it.each(['restore', 'verification', 'audit'])('drains active cache restores after %s failure without dispatching more work', async (failure) => {
+  const root = await fixture(['a.exe', 'b.exe', 'c.exe'])
+  const entered = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  const failed = Promise.withResolvers<undefined>()
+  const restored = new Set<string>()
+  const calls: string[] = []
+  const sign = vi.fn(async () => {})
+  let settled = false
+  const operation = signWindowsCode(root, { thumbprint, sign,
+    record: (event) => {
+      if (failure === 'audit' && 'type' in event && event.type === 'windows-code-signature-verified') {
+        failed.resolve(undefined)
+        throw new Error('audit failed')
+      }
+    },
+    inspect: async (path) => {
+      if (!restored.has(path)) return unsigned
+      if (failure === 'verification' && path.endsWith('a.exe')) { failed.resolve(undefined); throw new Error('verification failed') }
+      return valid
+    },
+    cache: { concurrency: 2, restore: async ({ path }) => {
+      calls.push(path)
+      if (path.endsWith('b.exe')) { entered.resolve(undefined); await release.promise; return false }
+      await entered.promise
+      if (failure === 'restore') { failed.resolve(undefined); throw new Error('restore failed') }
+      restored.add(path)
+      return true
+    } },
+  }).then(() => { settled = true; return undefined }, (error: unknown) => { settled = true; return error })
+  try {
+    await Promise.race([failed.promise, operation])
+    await new Promise<void>(resolve => setImmediate(resolve))
+    expect(settled).toBe(false)
+    expect(sign).not.toHaveBeenCalled()
+  } finally { release.resolve(undefined); await operation }
+  expect(await operation).toEqual(new Error(`${failure} failed`))
+  expect(calls).toEqual(['a.exe', 'b.exe'].map(name => join(root, name)))
+  expect(sign).not.toHaveBeenCalled()
+})
+
 it('selects real PE code, including .node, without signing foreign native modules or data', async () => {
-  const root = await fixture(['runtime.node', 'python.exe'])
+  const root = await fixture(['runtime.node', 'python.exe', 'extensionless', 'custom.binary'])
   await mkdir(join(root, 'nested'))
   await writeFile(join(root, 'nested', 'foreign.node'), Buffer.from([0x7f, 0x45, 0x4c, 0x46]))
   await writeFile(join(root, 'readme.txt'), 'text')
-  expect(await windowsRuntimeCode(root)).toEqual([join(root, 'python.exe'), join(root, 'runtime.node')].sort())
+  expect(await windowsRuntimeCode(root)).toEqual(['python.exe', 'runtime.node', 'extensionless', 'custom.binary'].map(name => join(root, name)).sort())
 })
 
 it('refuses malformed executables and root or nested directory links', async () => {
@@ -149,4 +231,61 @@ it('preserves only identical, valid runtime copies and records verification with
   await mkdir(join(sourceRoot, 'linked'))
   await writeFile(join(sourceRoot, 'linked', 'python.exe'), await readFile(join(sourceRoot, 'python.exe')))
   await expect(preserveWindowsRuntimeSignature(join(destinationRoot, 'linked', 'python.exe'), options)).rejects.toThrow('linked copy')
+})
+
+it('rejects a newly added unsigned dependency in the final artifact audit', async () => {
+  const root = await fixture(['new-dependency.node', 'vendor.dll'])
+  await expect(verifyWindowsCode(root, async path => path.endsWith('.node') ? unsigned : valid)).rejects.toThrow('NotSigned')
+  await expect(verifyWindowsCode(root, async () => valid)).resolves.toBeUndefined()
+})
+
+it('records signed dependency bytes before smoke and rejects changes after smoke', async () => {
+  const root = await fixture(['dependency.node'])
+  runtimeFixture(root)
+  let signed = false
+  const options = { thumbprint, record: () => {},
+    inspect: async () => signed ? valid : unsigned,
+    sign: async ({ path }: { path: string }) => {
+      await writeFile(path, Buffer.concat([await readFile(path), Buffer.from('signature')]))
+      signed = true
+    },
+    smoke: vi.fn(async () => { await verifyDesktopRuntime(root, '1.0.0') }),
+  }
+  await signWindowsDesktopRuntime(root, '1.0.0', options)
+  expect(options.smoke).toHaveBeenCalledOnce()
+  await expect(signWindowsDesktopRuntime(root, '1.0.0', { ...options,
+    smoke: async () => { await writeFile(join(root, 'dependency.node'), 'mutated') },
+  })).rejects.toThrow('integrity')
+})
+
+it('bounds public-key inspection to four files and drains a failed batch before returning', async () => {
+  const root = await fixture(['a.node', 'b.node', 'c.node', 'd.node', 'e.node'])
+  const started = Promise.withResolvers<undefined>()
+  const finish = Promise.withResolvers<undefined>()
+  let active = 0
+  let maximum = 0
+  const calls: string[] = []
+  const inspect = async (path: string) => {
+    calls.push(path)
+    active += 1
+    maximum = Math.max(maximum, active)
+    if (active === 4) started.resolve(undefined)
+    try {
+      await finish.promise
+      if (path.endsWith('a.node')) throw new Error('inspection failed')
+      return unsigned
+    } finally { active -= 1 }
+  }
+  const sign = vi.fn()
+  const pending = signWindowsCode(root, { thumbprint, inspect, sign, record: () => {} })
+  const rejected = expect(pending).rejects.toThrow('inspection failed')
+  try {
+    await started.promise
+    expect(calls).toHaveLength(4)
+    expect(sign).not.toHaveBeenCalled()
+  } finally { finish.resolve(undefined); await rejected }
+  expect(maximum).toBe(4)
+  expect(active).toBe(0)
+  expect(calls).toHaveLength(4)
+  expect(sign).not.toHaveBeenCalled()
 })

@@ -73,12 +73,14 @@ export async function qualifyUpdateDialogs(root, fixture) {
       const name = active ? 'update-active-tasks.png' : 'update-ready.png'
       await writeFile(join(root, name), (await window.webContents.capturePage()).toPNG())
       screenshots.push(name)
+      const closed = once(window, 'closed', { signal: AbortSignal.timeout(10_000) })
       if (active) {
         await window.webContents.executeJavaScript("setTimeout(() => document.querySelector('.primary').click(), 0); undefined")
       } else {
         window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
       }
       const result = await pending
+      await closed
       assert.equal(window.isDestroyed(), true)
       assert.equal(result.phase, active ? 'installing' : 'ready')
       assert.equal(f.installations.length, active ? 1 : 0)

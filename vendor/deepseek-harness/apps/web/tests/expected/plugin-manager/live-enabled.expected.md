@@ -1,36 +1,37 @@
 - heading "插件" [level=1]
 - paragraph: 添加和管理插件
 - button "刷新"
-- button "添加插件":
-  - img
-  - text: 添加插件
+- button "添加插件"
 - heading "官方" [level=3]
 - text: "6"
 - list:
   - listitem:
     - button "查看 智能体团队": 智能体团队
-    - text: Beta 启用智能体团队协作与团队工具。
+    - text: Beta 启用团队协作、团队工具、成员列表和共享任务看板。
     - switch "启用 智能体团队"
   - listitem:
-    - button "查看 智能体团队 Web 界面": 智能体团队 Web 界面
-    - text: Beta 在浏览器中查看团队成员、任务看板和成员会话。
-    - switch "启用 智能体团队 Web 界面"
+    - button "查看 语音输入": 语音输入
+    - text: Beta 在本机使用 SenseVoice 转写录音；首次使用需安装依赖
+    - switch "启用 语音输入"
   - listitem:
     - button "查看 终端": 终端
-    - text: 限制 agent 运行的每一条命令。
+    - text: 限制每条命令最多能跑多久、最多输出多少内容。
   - listitem:
     - button "查看 Agent 循环": Agent 循环
-    - text: Agent 如何派发工具调用。
+    - text: 控制 Agent 派发工具调用的方式。
   - listitem:
     - button "查看 Subagent": Subagent
     - text: 设置 Subagent 的递归层级、数量和模型。
   - listitem:
     - button "查看 网页搜索": 网页搜索
-    - text: DeepSeek 搜索提供方。
+    - text: 设置 DeepSeek 的搜索提供方。
 - heading "已安装" [level=3]
-- text: "1"
+- text: "2"
 - list:
   - listitem:
-    - button "查看 bundle": bundle
-    - text: "Web e2e fixture: a bundle whose one row is an inert plugin."
-    - switch "启用 bundle" [checked]
+    - button "查看 @fixture/bundle": "@fixture/bundle"
+    - text: Registry description for the fixture bundle.
+    - switch "启用 @fixture/bundle" [checked]
+  - listitem:
+    - button "查看 dsh-web-scaffold-defaults": dsh-web-scaffold-defaults
+    - switch "启用 dsh-web-scaffold-defaults" [checked]

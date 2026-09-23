@@ -10,7 +10,7 @@ Chat Completions 将工具参数保留为字符串，其中可能包含失败调
 
 ## 决策
 
-[Messages 序列化器](../../../../packages/llm/llm-deepseek/src/protocols/messages/serialize.ts) 遵循 [pi-ai 历史转换](../../../../packages/llm/llm-pi-ai/src/replay.ts)的做法：只在发出的历史工具输入中，将非法 JSON 和非对象值替换为 `{}`。调用 ID、名称、结果和原始 Session 记录保持不变。原生回放元数据有效、缺失或不可用时均采用此规则，也不会重新执行历史调用。
+[Messages 序列化器](../../../../packages/llm/llm-deepseek/src/serialize.ts) 遵循 [pi-ai 历史转换](../../../../packages/llm/llm-pi-ai/src/replay.ts)的做法：只在发出的历史工具输入中，将非法 JSON 和非对象值替换为 `{}`。调用 ID、名称、结果和原始 Session 记录保持不变。原生回放元数据有效、缺失或不可用时均采用此规则，也不会重新执行历史调用。
 
 这取代了 [Messages 适配器决策](../feature/2026-09-07-deepseek-messages-adapter.zh.md)中的历史参数拒绝规则。新生成的 Messages 响应在成功完成前仍要求工具参数是有效对象；达到输出上限时仍按现有规则裁剪。不改变 Session 事件、持久化类型或协议配置。
 

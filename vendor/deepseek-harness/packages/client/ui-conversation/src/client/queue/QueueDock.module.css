@@ -30,13 +30,24 @@
 
 .panel {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   width: 100%;
   padding: 2px 0;
   border-radius: 12px 12px 0 0;
-  background: var(--dsw-specific-tip);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.panel::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  content: '';
+  pointer-events: none;
 }
 
 .panel::after {
@@ -116,7 +127,8 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  height: 36px;
+  /* Grows with the inline editor's content; the other rows stay 36px. */
+  min-height: 36px;
   padding: 4px 5px 4px 12px;
   border-radius: 8px;
 }
@@ -203,13 +215,17 @@
 
 .editor {
   box-sizing: border-box;
-  height: 28px;
-  padding: 0 8px;
+  min-height: 28px;
+  /* Six 20px text lines plus padding and border, then the editor scrolls. */
+  max-height: 127px;
+  padding: 3px 8px;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 6px;
   outline: none;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-primary);
+  overflow-y: auto;
+  resize: none;
 }
 
 .editor:focus {

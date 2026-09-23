@@ -17,9 +17,9 @@
  * is resident. Continuable children never become a {@link SubagentRun}: the
  * continuation manager holds their `AgentHandle` directly and orders every turn
  * through the child's own inbox, so providers contribute only the detached
- * creation spec and see no handle, turn, or teardown. Child and descendant
- * discovery read the live session store and optional session persistence
- * directly and do not require that continuation runtime.
+ * creation spec and see no handle, turn, or teardown. Direct-child
+ * discovery uses the parent catalog; descendant discovery uses the Session
+ * corpus. Neither read requires the continuation runtime.
  *
  * Same-process providers are trusted typed collaborators. Requests, provider
  * descriptors, results, and lifecycle payloads are borrowed immutable values;
@@ -28,10 +28,10 @@
  *
  * @module @deepseek-ai/dsh-subagent
  */
+import type { Volatile } from '@deepseek-ai/cordis'
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
@@ -42,10 +42,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  catalogView, rejectCatalogRead, rejectPrompt, validateControlRequest,
+  rejectPrompt, validateControlRequest,
 } from './control.ts'
 import type {
-  SubagentCatalog,
   SubagentInterruptReceipt,
   SubagentPromptReceipt,
   SubagentPromptRequest,
@@ -73,10 +72,12 @@ import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentContinuationManager from './continuation.ts'
 import type { SubagentDelivery } from './inbox.ts'
 import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
-import type { SubagentDescendantListEntry, SubagentListEntry } from './list-children.ts'
+import type { SubagentDescendantListEntry } from './list-children.ts'
+import { installSubagentArchiveAdmission } from './archive-admission.ts'
 import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
 import { establishCatalogChild, subagentCatalogProjectionDefinition } from './catalog.ts'
+import type { SubagentCatalogEntry } from './projection-types.ts'
 import { deliverSubagentPrompt } from './internal.ts'
 
 export type {} from './catalog.ts'
@@ -112,6 +113,7 @@ export type {
   SubagentDescriptorData,
   SubagentDescriptorInput,
 } from './descriptor.ts'
+export type { SubagentCatalogEntry } from './projection-types.ts'
 export { SubagentError } from './error.ts'
 export { settleRun } from './run-settlement.ts'
 export { assertSubagentMaxDepth, delegationDepthOf } from './depth.ts'
@@ -189,18 +191,17 @@ interface BrowserPromptSource {
 /** Host configuration for continuable subagent capacity. */
 export interface Config {
   /** Maximum live children sharing uninterrupted continuable parent links; defaults to 8. */
-  maxActiveSubagents?: number
+  maxActiveSubagents: Volatile<number>
   /** Default delegation depth for tools without an explicit limit; defaults to 1. */
-  maxDepth?: number
+  maxDepth: Volatile<number>
 }
 
 /** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
 export class SubagentRuntime extends TypertRemoteService {
-  static Config: z<Config> = z.object({
-    maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1),
-    maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8),
+  static Config = z.object({
+    maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
+    maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8).volatile(),
   })
-  private settingsSource: () => Config
   private providers = new Map<string, SubagentProvider>()
   private continuations: SubagentContinuationManager | undefined
   /**
@@ -210,23 +211,14 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   private readonly emitLifecycle: LifecycleEmitter
 
-  constructor(ctx: Context, config: Config) {
+  constructor(ctx: Context, private config: Config) {
     super(ctx, 'subagents')
-    assertSubagentMaxDepth(config.maxDepth)
-    this.settingsSource = () => config
-    ctx.inject(['settings'], (settingsCtx) => {
-      settingsCtx.settings.installSection(ctx, 'subagent', SubagentRuntime.Config, config, {
-        validate: (value) => { assertSubagentMaxDepth(value.maxDepth) },
-        setSource: (source) => { this.settingsSource = source },
-        onChange: () => {},
-      })
-    })
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentContinuationManager(childCtx, {
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
-      }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents)
+      }, () => this.config.maxActiveSubagents.get())
       this.continuations = manager
       childCtx.effect(() => () => {
         /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
@@ -234,10 +226,14 @@ export class SubagentRuntime extends TypertRemoteService {
       }, 'subagents.continuationBinding()')
     })
     ctx.inject(['sessionProjections'], (projectionCtx) => {
-      projectionCtx.sessionProjections.register(subagentCatalogProjectionDefinition)
-      projectionCtx.sessionProjections.register(subagentTimingProjectionDefinition)
-      projectionCtx.sessionProjections.register(subagentIdentityProjectionDefinition)
+      const projections = projectionCtx.sessionProjections
+      projections.register(subagentCatalogProjectionDefinition)
+      projections.register(subagentTimingProjectionDefinition)
+      projections.register(subagentIdentityProjectionDefinition)
     })
+    // Archive admission: this runtime is the owner that knows which live
+    // children descend from a Session and how a parent stops them.
+    ctx.inject(['agents'], (agentsCtx: Context) => { installSubagentArchiveAdmission(agentsCtx) })
   }
 
   /**
@@ -247,7 +243,10 @@ export class SubagentRuntime extends TypertRemoteService {
    */
   resolveMaxDepth(configured?: number | 'provider-managed'): number | undefined {
     if (configured === 'provider-managed') return undefined
-    return configured ?? (this.settingsSource() as Required<Config>).maxDepth
+    if (configured !== undefined) return configured
+    const depth = this.config.maxDepth.get()
+    assertSubagentMaxDepth(depth)
+    return depth
   }
 
   /**
@@ -364,23 +363,15 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Enumerate the parent's direct session-backed subagents without loading or
-   * resuming an Agent. The Session query service supplies one live-preferred
-   * corpus and shared point observations; the projection cache supplies
-   * immutable descriptor hits without opening cold logs. The registered
-   * `subagent` projection remains the sole mode/label classifier.
-   *
-   * Every query receives `signal`, and the listing rechecks cancellation
-   * around each await. Read rejections that settle
-   * after an abort become a stable `SubagentError` with code `CANCELLED`.
-   * @param parentSessionId - parent session whose direct children are listed.
-   * @param signal - caller-owned cancellation forwarded to Session queries
-   *   and observed around every read await.
-   * @returns children and per-child diagnostics ordered by `createdAt`, then id.
-   * @throws {@link SubagentError} when the projection registry or the session
-   *   store is not mounted, or the caller cancels the listing.
+   * Read the parent's durable direct-child catalog without loading or resuming an Agent.
+   * The service owns and releases the live-preferred Session observation.
+   * @param parentSessionId - parent whose direct children are requested.
+   * @param signal - cancellation forwarded to the Session query.
+   * @returns catalog children in parent event order.
+   * @throws {@link SubagentError} when query or catalog projection is unavailable.
+   * @throws SessionQueryError when the parent cannot be read or the query is cancelled.
    */
-  listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]> {
+  listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]> {
     return listSubagentChildren(this.ctx, parentSessionId, signal)
   }
 
@@ -390,40 +381,17 @@ export class SubagentRuntime extends TypertRemoteService {
    * Agent. Ordinary sessions and one-shot children remain traversal nodes so
    * continuable descendants below them are discovered; each returned entry
    * adds its durable `parentId` and root-relative `depth`. Identity resolution,
-   * diagnostics, optional persistence, and cancellation follow the same
-   * projection-backed contract as {@link listChildren}.
+   * diagnostics, optional persistence, and cancellation use the registered
+   * child identity projection and complete Session corpus.
    * @param rootSessionId - session whose complete descendant tree is listed.
    * @param signal - caller-owned cancellation forwarded to persistence reads
    *   and observed around every read await.
    * @returns children and per-candidate diagnostics with tree position, in
    *   stable pre-order.
-   * @throws {@link SubagentError} under the same conditions as {@link listChildren}.
+   * @throws {@link SubagentError} when listing dependencies are unavailable or the caller cancels.
    */
   listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
     return listSubagentDescendants(this.ctx, rootSessionId, signal)
-  }
-
-  /**
-   * Remote face of {@link listChildren} for one browser: the durable listing
-   * plus live Agent activity and the delivery-time parent availability hint.
-   * Parent availability is a hint; {@link prompt} performs the authoritative
-   * check. Named apart from the provider-name {@link list}, which owns the
-   * member.
-   * @param parentSessionId - parent session whose direct children are listed.
-   * @param signal - carrier cancellation forwarded to Session queries.
-   * @returns the catalog view for that parent.
-   * @throws {RemoteError} `gateway/bad-request` for an empty parent id,
-   *   `gateway/cancelled` for an aborted read, `subagent/projections-unavailable` when
-   *   the deployment has no projection registry, otherwise `gateway/internal`.
-   */
-  @Remote('list')
-  async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog> {
-    validateControlRequest('subagent.list', { parentSessionId })
-    try {
-      return catalogView(this.ctx, parentSessionId, await this.listChildren(parentSessionId, signal))
-    } catch (error: unknown) {
-      return rejectCatalogRead(error, signal)
-    }
   }
 
   /**

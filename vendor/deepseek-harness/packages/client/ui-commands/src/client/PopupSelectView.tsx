@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSyncExternalStore } from 'react'
 import clsx from 'clsx'
-import { IconCheckOutline16, RiskConfirmation, useAnchoredMaxHeight, usePresence } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCheckOutlineRegular, RiskConfirmation, useAnchoredMaxHeight, usePresence } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { filterOptions } from './popup.ts'
 import type { PopupSelectController } from './popup.ts'
@@ -191,7 +191,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
                     {option.badge !== undefined && <sup className={css.badge}>{option.badge}</sup>}
                   </span>
                   {option.detail !== undefined && <span className={css.detail}>{option.detail}</span>}
-                  {option.active === true && <span className={css.check}><IconCheckOutline16 /></span>}
+                  {option.active === true && <span className={css.check}><IconCheckOutlineRegular /></span>}
                 </div>
               ))}
             </div>

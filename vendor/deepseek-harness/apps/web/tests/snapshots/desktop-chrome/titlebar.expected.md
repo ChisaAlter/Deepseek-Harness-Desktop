@@ -1,15 +1,9 @@
-- button "Session log":
-  - text: Session log
-  - img
-- button "Switch branch":
-  - img
-  - text: Select branch
-  - img
+- button "Download session log"
+- button "Switch branch": Select branch
 - button "Commit" [disabled]:
   - img
   - text: Commit
-- button "Git actions":
-  - img
+- button "Git actions"
 - button "Toggle terminal drawer":
   - img
 - button "Toggle right panel":

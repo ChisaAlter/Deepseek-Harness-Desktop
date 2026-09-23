@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /** todo_write atomic Tool presentation and its plan-summary model. */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TodoItem } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
@@ -67,12 +68,14 @@ const resultNode = (argsRaw: string, over?: Partial<ToolResultNode>): ToolResult
 
 function rowProps(block: unknown): TodoRowProps {
   return {
-    callId: 'c1', toolName: 'todo_write', block,
+    useDisclosure, callId: 'c1', toolName: 'todo_write', block,
     openFile: vi.fn(),
     sessionId: 's1',
     useSessions: () => undefined,
+    useTodoHistory: () => undefined,
+    useSession: () => true,
     t,
-  } as unknown as TodoRowProps
+  } as TodoRowProps
 }
 
 describe('TodoRow', () => {
@@ -118,6 +121,7 @@ describe('TodoRow', () => {
   it('falls back to the generic summary on malformed args and marks the error state', () => {
     const view = render(<TodoRow {...rowProps(resultNode('not json', { isError: true }))} />)
     expect(view.container.querySelector('[data-state="error"]')).not.toBeNull()
+    expect(view.container.querySelector('[data-state="error"] svg')).not.toBeNull()
     expect(screen.getByText('todo_write · not json')).toBeTruthy()
   })
 
@@ -126,11 +130,14 @@ describe('TodoRow', () => {
     expect(screen.getByText('todo_write · {"other":1}')).toBeTruthy()
   })
 
-  it('leading toggle expands the raw args body', () => {
+  it('leading toggle expands a read-only checklist', () => {
     render(<TodoRow {...rowProps(resultNode(ARGS))} />)
     fireEvent.click(screen.getByRole('button', { expanded: false }))
     expect(screen.getByRole('button', { expanded: true })).toBeTruthy()
-    expect(screen.getByText(/搭骨架/)).toBeTruthy()
+    expect(screen.getByText('搭骨架')).toBeTruthy()
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getByLabelText('进行中')).toBeTruthy()
+    expect(screen.queryByText('输入')).toBeNull()
   })
 
   it.each([
@@ -149,11 +156,17 @@ describe('TodoRow', () => {
 
   it('injects the keyed toolview declaration directly', () => {
     expect(todoToolview.name).toBe('todo-toolview')
-    expect(todoToolview.inject).toEqual(['slots'])
-    const register = vi.fn(() => () => undefined)
+    expect(todoToolview.inject).toEqual(['slots', 'uiConversation'])
+    const register = vi.fn((_spec: unknown, _component: unknown) => () => undefined)
     const inject = vi.fn((_name: string, callback: () => () => void) => callback())
-    todoToolview.apply({ slots: { inject, register } } as never)
+    todoToolview.apply({
+      slots: { inject, register },
+      uiConversation: { events: { register: vi.fn() }, views: { register: vi.fn() } },
+    } as never)
     expect(inject).toHaveBeenCalledWith('tool.call.toolview', expect.any(Function))
-    expect(register).toHaveBeenCalledWith({ name: 'tool.call.toolview', key: 'todo_write', locale: NS }, TodoRow)
+    const [spec, component] = register.mock.calls[0] ?? []
+    expect(spec).toMatchObject({ name: 'tool.call.toolview', key: 'todo_write', locale: NS })
+    expect((spec as { inject?: unknown } | undefined)?.inject).toEqual(expect.any(Function))
+    expect(component).toBe(TodoRow)
   })
 })

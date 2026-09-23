@@ -44,7 +44,7 @@ export type OfficeToPdfErrorCode =
   | 'input-too-large' | 'output-too-large' | 'invalid-document' | 'unsupported-format'
   | 'invalid-output' | 'timeout' | 'unavailable' | 'failed' | 'busy' | 'source-changed'
 
-/** PDF content carries the original Office file's absolute path and version. */
+/** PDF content carries the original Office file's identity and multipart-transferred bytes. */
 export interface RenderedDocumentBytes extends WorkspaceFileBytes {
   readonly missingFonts: string[]
   readonly generation: OfficeToPdfGeneration

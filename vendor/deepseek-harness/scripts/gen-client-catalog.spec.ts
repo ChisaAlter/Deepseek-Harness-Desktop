@@ -183,6 +183,13 @@ describe('client slot projection', () => {
     expect(entry?.example).toContain("ctx.slots.inject('demo.seat'")
     expect(entry?.example).toContain("id: 'my-entry'")
   })
+
+  it('uses an authored example when a slot interaction needs more than generic markup', () => {
+    const [entry] = resolveSlotEntries([
+      declaration({ jsDoc: '/** A seat.\n * @example\n * return { custom: true }\n */' }),
+    ], [], OWNER_TYPES, kits)
+    expect(entry?.example).toBe('return { custom: true }')
+  })
 })
 
 describe('the per-slot report budget', () => {

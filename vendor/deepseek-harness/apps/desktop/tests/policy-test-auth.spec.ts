@@ -35,7 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   browserSession = makeSession(); window = makeWindow()
   native.partition.mockReturnValue(browserSession); native.create.mockReturnValue(window)
-  auth = new DesktopPolicyTestAuth('https://policy.example.com', resolveDesktopLocale('zh'), () => undefined, record)
+  auth = new DesktopPolicyTestAuth('https://policy.example.com', ['https://login.example.com'], resolveDesktopLocale('zh'), () => undefined, record)
 })
 afterEach(async () => { await auth.dispose() })
 
@@ -64,7 +64,7 @@ it('opens a sandboxed window on explicit action and coalesces logins without aut
   expect(window.loadURL).not.toHaveBeenCalled()
   await vi.waitFor(() => { expect(window.loadURL).toHaveBeenCalledWith('https://policy.example.com/') })
   expect(window.loadFile).toHaveBeenCalledTimes(1)
-  window.webContents.emit('did-navigate', {}, 'https://accounts.feishu.cn/open-apis/authen/v1/index?state=secret')
+  window.webContents.emit('did-navigate', {}, 'https://login.example.com/open-apis/authen/v1/index?state=secret')
   expect(window.isDestroyed()).toBe(false)
   window.webContents.emit('did-navigate', {}, 'https://policy.example.com/')
   expect(await pending).toBe('returned')
@@ -121,7 +121,7 @@ it('cancels a login closed while the placeholder is still loading, without start
 it.each(['will-navigate', 'will-redirect'])('refuses unapproved %s targets without logging OAuth data', async (eventName) => {
   const pending = auth.login()
   const event = { preventDefault: vi.fn() }
-  window.webContents.emit(eventName, event, 'https://accounts.feishu.cn.evil.example/?code=secret')
+  window.webContents.emit(eventName, event, 'https://login.example.com.evil.example/?code=secret')
   expect(event.preventDefault).toHaveBeenCalledOnce()
   expect(await pending).toBe('failed')
   expect(record.mock.calls).toEqual([['opened'], ['failed']])
@@ -144,8 +144,8 @@ it('rejects child-frame escapes, permissions, downloads, new windows and HTTP au
   expect(await pending).toBe('failed')
 })
 
-it.each(['https://open.feishu.cn/', 'https://accounts.feishu.cn/', 'https://passport.feishu.cn/',
-  'https://login.feishu.cn/'])('allows reviewed login documents: %s', (url) => {
+it.each(['https://login.example.com/', 'https://login.example.com/', 'https://login.example.com/',
+  'https://login.example.com/'])('allows reviewed login documents: %s', (url) => {
   const callback = vi.fn()
   browserSession.webRequest.onBeforeRequest.mock.calls[0]![0]({ resourceType: 'mainFrame', url }, callback)
   expect(callback).toHaveBeenCalledWith({ cancel: false })
@@ -157,7 +157,7 @@ it('keeps manual login open until close, reports cancellation once, and permits 
   expect(await pending).toBe('cancelled')
   window = makeWindow(); native.create.mockReturnValue(window)
   const retry = auth.login()
-  window.webContents.emit('did-fail-load', {}, -105, 'raw URL error', 'https://accounts.feishu.cn/?state=secret', true)
+  window.webContents.emit('did-fail-load', {}, -105, 'raw URL error', 'https://login.example.com/?state=secret', true)
   expect(await retry).toBe('failed')
   expect(record.mock.calls).toEqual([['opened'], ['cancelled'], ['opened'], ['failed']])
 })

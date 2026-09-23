@@ -143,7 +143,7 @@ function header(session: Session): void {
 
 function noticeTexts(session: Session): string[] {
   return session.snapshotEvents()
-    .filter(event => event.type === 'user/message' && event.data.source.kind === 'plugin')
+    .filter(event => event.type === 'user/message' && event.data.source.kind !== 'user')
     .map(event => (event.data as { content: { type: string; text?: string }[] }).content.map(block => block.text ?? '').join(''))
 }
 

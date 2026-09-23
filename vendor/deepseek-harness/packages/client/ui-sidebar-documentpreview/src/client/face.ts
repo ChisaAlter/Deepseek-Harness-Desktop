@@ -22,9 +22,15 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ReadDocumentBytes, ReadWorkspaceFilePage, SessionFile } from './rpc.ts'
 import type { TextStore } from './store.ts'
 import type { DocumentLoadMode } from './document/registry.ts'
+import type { Resources } from '@deepseek-ai/dsh-client-resources/client'
+import { ResourceGroup } from './document/resource-group.ts'
 
 /** The preview's injected business face, as the body receives it. */
 export interface TextInjected {
+  /** Observe one renderer dependency. @param tabId - owning tab. @param address - resource address. @param signal - tab lifetime. */
+  readonly addResource: (tabId: TabId, address: string, signal: AbortSignal) => void
+  /** Replace dependency membership. @param tabId - owning tab. @param addresses - resource addresses. @param signal - tab lifetime. */
+  readonly setResources: (tabId: TabId, addresses: readonly string[], signal: AbortSignal) => void
   /**
    * Read one page into the store. A page of a newer file version than the pages
    * held, arriving past the first line, is not kept: the tab's pages are dropped
@@ -84,6 +90,7 @@ export interface TextInjected {
  * which also arms the one abort listener that forgets the tab.
  */
 interface TabReads {
+  group: ResourceGroup
   generation: number
   version: string | undefined
   mode: DocumentLoadMode
@@ -94,12 +101,14 @@ interface TabReads {
 /**
  * Bind the preview's face to one paged read and one complete-byte read.
  * @param read - the bound `workspaceFiles.read` call.
- * @param readAll - ordinary complete-byte Remote read.
+ * @param readAll - complete-byte workspace Remote read.
+ * @param resources - shared metadata sources for the document and its dependencies.
  * @returns the Slot `inject` factory: bound actions in, face out. The slot's session id is unused because the address carries its own.
  */
 export function textFace(
   read: ReadWorkspaceFilePage,
   readAll: ReadDocumentBytes,
+  resources: Resources,
 ): (sessionId: SessionId, actions: BoundActions<TextStore>) => TextInjected {
   return (_sessionId: SessionId, actions: BoundActions<TextStore>): TextInjected => {
     const tabs = new Map<TabId, TabReads>()
@@ -108,10 +117,14 @@ export function textFace(
     const readsOf = (tabId: TabId, signal: AbortSignal): TabReads => {
       const held = tabs.get(tabId)
       if (held !== undefined) return held
-      const created: TabReads = { generation: 0, version: undefined, mode: 'text-pages' }
+      const created: TabReads = {
+        generation: 0, version: undefined, mode: 'text-pages',
+        group: new ResourceGroup(resources, () => { actions.resourceChanged(tabId) }),
+      }
       tabs.set(tabId, created)
       signal.addEventListener('abort', () => {
         created.controller?.abort()
+        created.group.close()
         tabs.delete(tabId)
         actions.forget(tabId)
       }, { once: true })
@@ -191,6 +204,12 @@ export function textFace(
       else loadAll(tabId, file, signal, observedVersion)
     }
     return {
+      addResource: (tabId, address, signal) => {
+        if (!signal.aborted) readsOf(tabId, signal).group.add(address)
+      },
+      setResources: (tabId, addresses, signal) => {
+        if (!signal.aborted) readsOf(tabId, signal).group.set(addresses)
+      },
       loadPage, reloadPages: restart, loadAll,
       prepareRenderer: (tabId, signal, rendererId, observedVersion, reload = false) => {
         if (signal.aborted) return

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/simplification/2026-09-03-minimal-profiles-persistent-shell-only.md
-2026-09-03-minimal-profiles-persistent-shell-only.md: d58210cb890e4264b02d591f213045b592ca6bfc
-2026-09-03-minimal-profiles-persistent-shell-only.zh.md: 481ef479c2dc01ae503f621df976529aeb6bdbe0
+2026-09-03-minimal-profiles-persistent-shell-only.md: 2bc4ef7ada0767d96c0ac448e19e13e8e06a945c
+2026-09-03-minimal-profiles-persistent-shell-only.zh.md: d54e5734ac04825e2d28f59d9104a01b5caf9fb7

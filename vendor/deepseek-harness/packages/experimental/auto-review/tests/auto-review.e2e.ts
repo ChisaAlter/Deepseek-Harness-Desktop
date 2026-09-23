@@ -171,9 +171,9 @@ function orchestrate(ctx: Context, real: boolean) {
     return next()
   })
   ctx.on('llm/stream', (options, next) => {
-    const source = options.messages[0]?.source
-    if (options.system?.startsWith('REVIEW_POLICY\n') === true
-      && source?.kind === 'plugin' && source.plugin === 'dsh-experimental-auto-review') {
+    if (options.system?.startsWith('REVIEW_POLICY\n') === true) {
+      expect(options.messages[0]).not.toHaveProperty('source')
+      expect(options.messages[0]).not.toHaveProperty('id')
       if (expected === undefined || mainAgent === undefined) throw new Error('Unexpected reviewer call outside a case')
       reviewCalls += 1
       expect(options.provider === PROVIDER && options.model === mainAgent.options.model).toBe(true)
@@ -227,7 +227,7 @@ function outcome(events: readonly SessionEvent[], path: Path): { denied: boolean
   const starts = events.filter(event => event.type === 'tool/ptc-dispatch-start')
   expect(starts).toHaveLength(inner.length)
   const result = path === 'native' ? native[0]?.data : inner[0]?.data
-  const isError = path === 'native' ? native[0]?.data.message.content[0]?.isError : inner[0]?.data.isError
+  const isError = path === 'native' ? native[0]?.data.message.isError : inner[0]?.data.isError
   return { denied: result?.error?.code === DENIED && isError === true, success: isError === false }
 }
 

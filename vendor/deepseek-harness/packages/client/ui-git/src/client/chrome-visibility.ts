@@ -5,7 +5,7 @@
  * is the only hide predicate.
  */
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 /**
  * Live visibility plus Host writability for one boolean chrome field.
  * @typeParam T - durable section whose named field is the chrome flag.
@@ -22,7 +22,7 @@ export class ChromeVisibility<T extends { [K in keyof T]: boolean }> {
    * @param field - section field that hides the cluster when explicitly false.
    */
   constructor(
-    private readonly host: SettingsScope<T>,
+    private readonly host: ConfigForm<T>,
     private readonly field: keyof T & string,
   ) {
     host.subscribe(() => { this.adopt() })

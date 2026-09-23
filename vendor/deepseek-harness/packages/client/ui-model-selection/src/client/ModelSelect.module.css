@@ -74,27 +74,17 @@
   color: var(--dsw-alias-label-caption);
 }
 
-/* Stand-in for the whole text below the icon-only cut: the settings page's
-   Models glyph (IconDataOutline16), hidden while any text fits. */
+/* The Models glyph replaces the text when the composer row cannot fit it. */
 .triggerIcon {
-  display: none;
+  display: var(--dsh-composer-model-icon-display, none);
   flex: 0 0 auto;
 }
 
-/* Icon-only floor: past continuous shrink (effort ellipsizes away first, then
-   the name), a 360px composer row leaves the 45cqw cap too little for a
-   legible name, so the text yields to the Models glyph. Same anonymous
-   container as PermissionSelect's 460px cut (InputBar .row); the full name
-   stays reachable through the trigger's title and aria-label. */
-@container (max-width: 360px) {
-  .triggerIcon {
-    display: block;
-  }
-
-  .triggerLabel,
-  .triggerEffort {
-    display: none;
-  }
+/* The composer measures expanded row demand and owns these display variables.
+   Outside a composer, the trigger retains its text. */
+.triggerLabel,
+.triggerEffort {
+  display: var(--dsh-composer-model-text-display, block);
 }
 
 .chevron {
@@ -123,12 +113,13 @@
   max-width: min(420px, calc(100vw - 32px));
   max-height: min(360px, calc(100vh - 96px));
   overflow: hidden;
-  padding: 4px;
+  padding: 3px;
   /* Surface tokens match the Menu primitive card (ui-primitives
    * Menu.module.css) so every dropdown reads as the same material. */
   border: 0;
-  border-radius: 20px;
+  border-radius: 16px;
   background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   box-shadow: var(--dsw-elevation-prominent);
   color: var(--dsw-alias-label-primary);
@@ -143,10 +134,10 @@
 
 .status,
 .empty {
-  padding: 10px;
+  padding: 8px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .error,
@@ -154,14 +145,14 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-  padding: 7px 8px;
-  border-radius: 8px;
+  gap: 6px;
+  margin-bottom: 3px;
+  padding: 6px 7px;
+  border-radius: 7px;
   background: var(--dsw-alias-interactive-bg-hover-danger);
   color: var(--dsw-alias-state-error-primary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .warning {
@@ -186,18 +177,18 @@
 }
 
 .group + .group {
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .groupTitle {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: 5px 8px 3px;
+  padding: 4px 7px 2px;
   background: var(--dsw-specific-menu);
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 16px;
   font-weight: 500;
 }
 
@@ -205,13 +196,13 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: auto;
   min-width: 100%;
-  min-height: 38px;
-  padding: 6px 8px;
+  min-height: 34px;
+  padding: 5px 7px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   outline: none;
   background: transparent;
   color: inherit;
@@ -245,8 +236,8 @@
 .modelName {
   overflow: hidden;
   color: inherit;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 13px;
+  line-height: 18px;
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -255,28 +246,31 @@
 .check {
   display: grid;
   place-items: center;
-  flex: 0 0 18px;
+  flex: 0 0 14px;
   color: var(--dsw-alias-label-primary);
 }
 
-/* Two-level root cells (figma 496:26454 .Menu_cell): 40px row, 10px side
-   padding, 8px gap, 10px radius; 14/22 label in primary, value in the
-   #81858C tertiary tone, right chevron drilling into the sub-list. */
+.check svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Two-level root cells use the same compact rhythm as the model rows. */
 .cell {
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: auto;
   min-width: 100%;
-  height: 40px;
-  padding: 0 10px;
+  height: 34px;
+  padding: 0 8px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 13px;
+  line-height: 20px;
   cursor: pointer;
   text-align: left;
 }
@@ -302,5 +296,7 @@
 
 .cellChevron {
   flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
   color: var(--dsw-alias-label-tertiary);
 }

@@ -21,7 +21,7 @@
       "path": "../ui-layout"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../store"
@@ -45,7 +45,7 @@
       "path": "../ui-sidebar-right"
     },
     {
-      "path": "../ui-sidebar-browser"
+      "path": "../ui-sidebar-browser/tsconfig.client.json"
     },
     {
       "path": "../ui-sidebar-documentpreview/tsconfig.client.json"

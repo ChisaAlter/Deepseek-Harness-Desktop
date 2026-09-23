@@ -12,7 +12,7 @@ Desktop shell 用自定义模板替换了 Electron 的默认应用菜单，该�
 
 macOS 上的模板在 Edit 菜单之前声明 `{ role: 'fileMenu' }`，在其之后声明 `{ role: 'windowMenu' }`，并在应用子菜单的 Quit 之前声明由分隔符隔开的 `hide`、`hideOthers` 和 `unhide`。这些 role 只提供标准菜单项；不声明 Services 子菜单、窗口列表或其他 macOS 默认项。Windows 和 Linux 保留应用菜单和 Edit 菜单。
 
-这些 role 的标签是 Electron 内部的英文常量（`lib/browser/api/menu-item-roles.ts` 的 `filemenu`、`windowmenu`、`close`、`minimize`、`hide`），没有语言查询，而且 Electron 在菜单显示前会把这些标签重新写到本机菜单项上，因此在非英文的 Desktop 上它们仍是英文；现有的 Edit 菜单同样如此。这里不新增任何自定义的关闭、最小化或隐藏代码：⌘W 通过 Electron 自身的 role 销毁窗口。
+Electron 为 File、Window 和 Edit role 提供英文默认标签。显式标签会覆盖 role 的默认标签，同时保留原生命令和快捷键；本地化的应用命令见 [Desktop README](../../../../apps/desktop/README.zh.md)。这里不新增任何自定义的关闭、最小化或隐藏代码：⌘W 通过 Electron 自身的 role 销毁窗口。
 
 ## 考虑过的替代方案
 
@@ -28,8 +28,8 @@ macOS 上的模板在 Edit 菜单之前声明 `{ role: 'fileMenu' }`，在其之
 
 ## 影响
 
-macOS 恢复了自定义菜单压掉的窗口和应用命令，代价是四个菜单 role。在非英文的 Desktop 上这些标签仍是英文。
+macOS 恢复了自定义菜单压掉的窗口和应用命令。File、Window 和 Edit 保留 Electron 的默认英文标签；应用命令使用 Desktop 的语言。
 
 ## 测试
 
-`apps/desktop/tests/main-startup.spec.ts` 中的一个用例固定了各平台声明的菜单 role，包括 macOS 的隐藏命令。基于 role 的菜单项由本机执行，因此程序化的 `click()` 和 vitest 的 Electron mock 都无法触达这些快捷键；用真实 Electron 44 运行同一模板显示，只有在本改动之后才出现标准的 File、Window 和应用菜单项，并且在 `app.getLocale()`、`getSystemLocale()` 和 `getPreferredSystemLanguages()` 都报告 `zh-CN` 时标签保持不变。
+`apps/desktop/tests/main-startup.spec.ts` 验证各平台声明的菜单 role，并记录中英文应用标签快照。基于 role 的菜单项由本机执行，因此程序化的 `click()` 和 Vitest 的 Electron mock 都无法触达这些快捷键。独立 Electron 44 demo 确认显式应用标签会显示在原生菜单中；模板快照不能验证原生快捷键的执行。

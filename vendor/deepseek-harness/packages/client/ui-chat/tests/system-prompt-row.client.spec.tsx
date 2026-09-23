@@ -39,11 +39,7 @@ describe('SystemPromptNodeView', () => {
 
     fireEvent.click(disclosure)
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(
-      container.querySelector('[data-system-prompt-body]')
-        ?.closest('[data-dsh-motion]')
-        ?.getAttribute('aria-hidden'),
-    ).toBe('true')
+    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
   })
 
   it('titles an in-history prompt update as an update of the same row', () => {

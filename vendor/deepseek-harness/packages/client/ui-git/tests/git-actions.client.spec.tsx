@@ -44,8 +44,7 @@ function sessionList(cwd: string | undefined, retainedBy: RetainedBy = cwd === u
     ids: current === undefined ? [] : [SID],
     byId,
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   }
 }
 

@@ -794,7 +794,7 @@
         "event:deliverables/presented.data"
       ],
       "sources": [
-        "packages/deliverables/tool-present/src/types.ts"
+        "packages/fs/tool-present/src/types.ts"
       ]
     },
     {
@@ -2024,10 +2024,10 @@
         ]
       },
       "names": [
-        "packages/deliverables/tool-present/src/types.ts#PresentedFile"
+        "packages/fs/tool-present/src/types.ts#PresentedFile"
       ],
       "sources": [
-        "packages/deliverables/tool-present/src/types.ts"
+        "packages/fs/tool-present/src/types.ts"
       ]
     },
     {

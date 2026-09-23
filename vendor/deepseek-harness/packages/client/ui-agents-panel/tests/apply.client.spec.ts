@@ -49,20 +49,26 @@ async function boot() {
   const sessions = {
     subagentAddress: vi.fn((): SubagentAddress | undefined => undefined),
   }
+  const jobsState = { rows: {}, observed: {} }
+  const jobs = {
+    state: { getSnapshot: () => jobsState, subscribe: () => () => {} },
+    watchRows: vi.fn(() => () => {}),
+  }
   const uiWorkspace = { openSession: vi.fn() }
   ctx.provide('sidebarRightTabs', tabs as never)
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   ctx.provide('sessions', sessions as never)
+  ctx.provide('jobs', jobs as never)
   ctx.provide('uiWorkspace', uiWorkspace as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { tabs, injectedSlots, registered, dictionaries, sessions, uiWorkspace, fiber }
+  return { tabs, injectedSlots, registered, dictionaries, sessions, jobs, uiWorkspace, fiber }
 }
 
 describe('ui-agents-panel apply', () => {
   it('declares only the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale', 'sessions', 'uiWorkspace', 'sidebarRightTabs'])
+    expect(inject).toEqual(['slots', 'locale', 'sessions', 'jobs', 'uiWorkspace', 'sidebarRightTabs'])
   })
 
   it('registers the type, guide, dictionaries, and keyed body under the definition id', async () => {
@@ -79,6 +85,10 @@ describe('ui-agents-panel apply', () => {
     ])
     expect(b.injectedSlots).toEqual(['sidebar.right.pane.tab'])
     expect(b.injectedSlots.some(name => name.startsWith('surfaces.'))).toBe(false)
+    expect(b.registered[0]?.inject().jobs).toBe(b.jobs.state)
+    const release = b.registered[0]!.inject().watchJobs('parent' as SessionId)
+    expect(b.jobs.watchRows).toHaveBeenCalledWith('parent')
+    release()
   })
 
   it('opens a catalog child through workspace navigation with its address', async () => {

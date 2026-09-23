@@ -71,10 +71,10 @@ function denyContext(value: unknown, service: string, env: DynamicCordisGuardEnv
 function guardedService(service: object, name: string, env: DynamicCordisGuardEnv): unknown {
   return new Proxy(service, {
     get(target, prop) {
-      const value = Reflect.get(target, prop, target) as unknown
+      const value: unknown = Reflect.get(target, prop, target)
       if (typeof value !== 'function') return denyContext(value, name, env)
       return (...args: unknown[]): unknown => {
-        const result = Reflect.apply(value, target, args) as unknown
+        const result: unknown = Reflect.apply(value, target, args)
         if (result instanceof Promise) return result.then(resolved => denyContext(resolved, name, env))
         return denyContext(result, name, env)
       }
@@ -96,7 +96,7 @@ interface ErasedSlotOptions {
 function guardedSlots(slots: SlotRegistry, env: DynamicCordisGuardEnv): unknown {
   return new Proxy(slots, {
     get(target, prop) {
-      const value = Reflect.get(target, prop, target) as unknown
+      const value: unknown = Reflect.get(target, prop, target)
       if (prop !== 'register' && prop !== 'registerFactory') {
         if (typeof value !== 'function') return denyContext(value, 'slots', env)
         return (...args: unknown[]): unknown => denyContext(Reflect.apply(value, target, args), 'slots', env)
@@ -130,7 +130,7 @@ function guardedSlots(slots: SlotRegistry, env: DynamicCordisGuardEnv): unknown 
           priority = env.allocatePriority()
           options.priority = priority
         }
-        const register = Reflect.get(target, 'register', target) as unknown as (opts: object, comp: unknown) => () => void
+        const register = Reflect.get(target, 'register', target) as (opts: object, comp: unknown) => () => void
         const dispose = register.call(target, options, component)
         env.ledger.push({ slot, priority })
         // After the registry accepted it: a rejected registration seats no entry,
@@ -155,10 +155,10 @@ function guardedTheme(theme: ThemeRuntime, env: DynamicCordisGuardEnv, ctx: Cont
   return new Proxy(theme, {
     get(target, prop) {
       if (prop !== 'overrideTokens') {
-        const value = Reflect.get(target, prop, target) as unknown
+        const value: unknown = Reflect.get(target, prop, target)
         if (typeof value !== 'function') return denyContext(value, 'theme', env)
         return (...args: unknown[]): unknown => {
-          const result = Reflect.apply(value, target, args) as unknown
+          const result: unknown = Reflect.apply(value, target, args)
           if (result instanceof Promise) return result.then(resolved => denyContext(resolved, 'theme', env))
           return denyContext(result, 'theme', env)
         }
@@ -235,7 +235,7 @@ export function dynamicCordisContext(ctx: Context, env: DynamicCordisGuardEnv): 
     has: (_target, prop) => prop === 'get'
       || (typeof prop === 'string'
         && ((CTX_VERBS.has(prop) && (!TIMER_VERBS.has(prop) || declared.has('timer'))) || declared.has(prop))),
-  }) as unknown as Context
+  }) as Context
 }
 
 function rejectGuard(env: DynamicCordisGuardEnv, message: string): never {

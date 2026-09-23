@@ -85,7 +85,7 @@ async function fenceTree(block: ReturnType<Page['locator']>): Promise<FenceTree>
     const pre = element.querySelector<HTMLPreElement>('pre.shiki')
     if (pre === null) throw new Error('streaming fence did not render through the shiki arm')
     return {
-      language: element.querySelector('[class*="infostring"]')?.textContent ?? '',
+      language: element.querySelector('[data-code-block-banner] [class*="language"]')?.textContent ?? '',
       pre: {
         className: pre.className,
         style: pre.style.cssText,

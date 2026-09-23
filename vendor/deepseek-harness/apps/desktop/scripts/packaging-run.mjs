@@ -1,6 +1,7 @@
 /** Persist redacted packaging evidence and terminate the owned stage tree on fatal signing failures. */
+import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { StringDecoder } from 'node:string_decoder'
 
@@ -59,22 +60,26 @@ export function packagingOutputRedactor(secrets, emit) {
  * Allocate a run whose failures never become release completion records.
  * @param {string} root Parent for retained packaging records.
  * @param {object} metadata Public target/version metadata only.
+ * @param {{parallel?: boolean, secrets?: readonly string[]}} settings Parallel stages are opt-in; secrets include credentials removed from child environments.
  * @returns {{directory: string, run: (stage: string, executable: string, args: readonly string[], options: {cwd: string, env: NodeJS.ProcessEnv, timeoutMs?: number}) => Promise<void>, finish: (success: boolean) => void}} Owned run supervisor; an optional stage deadline records timeout independently of exit status and awaits termination.
  */
-export function createPackagingRun(root, metadata) {
+export function createPackagingRun(root, metadata, settings = {}) {
+  const started = performance.now()
   mkdirSync(root, { recursive: true })
   const directory = realpathSync(mkdtempSync(join(resolve(root), `${new Date().toISOString().replaceAll(':', '-')}-`)))
   for (const name of ['events.jsonl', 'stdout.log', 'stderr.log']) {
     writeFileSync(join(directory, name), '', { flag: 'wx', mode: 0o600 })
   }
-  writeFileSync(join(directory, 'run.json'), `${JSON.stringify({ startedAt: new Date().toISOString(), pid: process.pid, ...metadata })}\n`, { flag: 'wx', flush: true })
+  writeFileSync(join(directory, 'run.json'), `${JSON.stringify({ startedAt: new Date().toISOString(), pid: process.pid, ...metadata })}\n`, { flag: 'wx', mode: 0o600, flush: true })
   let failed = false
-  let active = false
+  let active = 0
   const fatal = join(directory, 'fatal.json')
   async function run(stage, executable, args, options) {
     if (failed || existsSync(fatal)) throw new Error(`desktop package: run is blocked; see ${directory}`)
-    if (active) throw new Error('desktop package: supervised stages must run sequentially')
-    active = true
+    if (active && !settings.parallel) throw new Error('desktop package: supervised stages must run sequentially')
+    active++
+    const stageId = randomUUID()
+    const started = performance.now()
     let child
     let fatalObserved = false
     let launchError = false
@@ -112,22 +117,23 @@ export function createPackagingRun(root, metadata) {
     process.once('SIGINT', interrupted)
     process.once('SIGTERM', interrupted)
     try {
-      recordPackagingEvent(directory, { type: 'stage-start', stage })
+      recordPackagingEvent(directory, { type: 'stage-start', stage, stageId })
       child = spawn(executable, [...args], { cwd: options.cwd, env: { ...options.env, DSH_DESKTOP_PACKAGING_RUN_DIR: directory },
         windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'] })
       closed = new Promise(resolveClose => {
         child.once('error', () => { launchError = true })
         child.once('close', (code, signal) => { stageClosed = true; resolveClose({ code, signal }) })
       })
-      recordPackagingEvent(directory, { type: 'stage-spawn', stage, childPid: child.pid })
+      recordPackagingEvent(directory, { type: 'stage-spawn', stage, stageId, childPid: child.pid })
       if (options.timeoutMs !== undefined) deadline = setTimeout(() => { timedOut = true; stop() }, options.timeoutMs)
-      const secrets = Object.entries(options.env).filter(([name]) => /KEY|SECRET|TOKEN|PASSWORD/iu.test(name)).map(([, value]) => value ?? '')
+      const secrets = [...(settings.secrets ?? []), ...Object.entries(options.env).filter(([name]) => /KEY|SECRET|TOKEN|PASSWORD|APPLE_ID/iu.test(name)).map(([, value]) => value ?? '')]
       const streams = [['stdout', child.stdout, process.stdout], ['stderr', child.stderr, process.stderr]]
       for (const [name, stream, consoleStream] of streams) {
         let notification = ''
         const redactor = packagingOutputRedactor(secrets, text => {
           try {
             appendFileSync(join(directory, `${name}.log`), text, { flush: true })
+            if (settings.parallel) recordPackagingEvent(directory, { type: 'output', stage, stageId, stream: name, text })
             consoleStream.write(text)
           } catch { outputError = true; stop() }
           notification += text
@@ -142,7 +148,7 @@ export function createPackagingRun(root, metadata) {
       const result = await closed
       await termination
       fatalObserved ||= existsSync(fatal)
-      recordPackagingEvent(directory, { type: 'stage-end', stage, ...result, timedOut, fatalObserved, launchError, outputError, terminationCode, terminationError })
+      recordPackagingEvent(directory, { type: 'stage-end', stage, stageId, elapsedMs: performance.now() - started, ...result, timedOut, fatalObserved, launchError, outputError, terminationCode, terminationError })
       if (result.code !== 0 || result.signal !== null || fatalObserved || launchError || outputError || terminationError) {
         failed = true
         throw new Error(`desktop package: ${stage} failed; evidence: ${directory}`)
@@ -157,7 +163,7 @@ export function createPackagingRun(root, metadata) {
       clearTimeout(deadline)
       process.removeListener('SIGINT', interrupted)
       process.removeListener('SIGTERM', interrupted)
-      active = false
+      active--
     }
   }
   return {
@@ -165,7 +171,10 @@ export function createPackagingRun(root, metadata) {
     run,
     finish(success) {
       if (active) throw new Error('desktop package: cannot finish an active run')
-      writeFileSync(join(directory, 'result.json'), `${JSON.stringify({ completedAt: new Date().toISOString(), success: success && !failed && !existsSync(fatal) })}\n`, { flag: 'wx', flush: true })
+      const events = readFileSync(join(directory, 'events.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
+      const stages = events.filter(event => event.type === 'stage-end')
+      const proxy = events.filter(event => event.type === 'notarization-proxy').at(-1)?.status ?? 'not-used'
+      writeFileSync(join(directory, 'result.json'), `${JSON.stringify({ completedAt: new Date().toISOString(), elapsedMs: performance.now() - started, success: success && !failed && !existsSync(fatal), proxy, artifacts: events.filter(event => event.type === 'artifacts').at(-1)?.directory, stages })}\n`, { flag: 'wx', mode: 0o600, flush: true })
     },
   }
 }

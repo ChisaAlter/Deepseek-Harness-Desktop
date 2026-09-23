@@ -30,8 +30,8 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
   // The exemption is deliberately open-state-wide, not loading-only: a
   // summary-blank session is the hero before its open starts (`cold`) and
   // after one fails (`error`) for the same reason — there is no history.
-  // A restored continuable subagent also stays settled until its eagerly
-  // loaded parent catalog establishes availability. This keeps the composer
+  // A restored continuable subagent waits for a Host summary to establish
+  // parent availability. This keeps the composer
   // hidden instead of briefly rendering the parent-offline takeover.
   const parentAvailabilityPending = session?.subagent?.address.mode === 'continuable'
     && session.subagent.parentAvailable === undefined
@@ -45,7 +45,7 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
 
   return (
     <div className={css.root} data-phase={phase}>
-      {sessionId === undefined ? null : renderSlot('conversation.session.header', {})}
+      {renderSlot('conversation.header', {})}
       {renderFactorySlot('conversation.content', {
         variant: 'main',
         phase,

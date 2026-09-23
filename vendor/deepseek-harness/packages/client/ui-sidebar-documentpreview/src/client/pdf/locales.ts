@@ -1,5 +1,8 @@
+import { zoomEn, zoomZh } from '../zoom/locales.ts'
+
 /** Copy owned by the PDF renderer. */
 export const zh = {
+  ...zoomZh,
   title: 'PDF',
   pageImage: 'PDF 第 {page} 页',
   loading: '正在读取…',
@@ -16,6 +19,7 @@ export type PdfLocaleKey = keyof typeof zh
 
 /** English PDF-renderer dictionary. */
 export const en = {
+  ...zoomEn,
   title: 'PDF',
   pageImage: 'PDF page {page}',
   loading: 'Reading…',

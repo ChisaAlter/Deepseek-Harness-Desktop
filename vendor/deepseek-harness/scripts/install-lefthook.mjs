@@ -378,21 +378,30 @@ function releaseInstallLock(lockPath, ownedRecord, ownedStat) {
   }
 }
 
+/** Hold one opt-in fixture stage until its parent explicitly releases it. */
+async function waitForLockTestBarrier(path) {
+  writeFileSync(`${path}.ready`, '')
+  const deadline = Date.now() + INSTALL_LOCK_TIMEOUT_MS
+  while (!existsSync(`${path}.release`)) {
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for installer test barrier ${path}`)
+    await new Promise(resolveWait => setTimeout(resolveWait, INSTALL_LOCK_POLL_MS))
+  }
+}
+
 async function acquireInstallLock(commonDirectory) {
   const lockPath = join(commonDirectory, INSTALL_LOCK)
   const deadline = Date.now() + INSTALL_LOCK_TIMEOUT_MS
   const ownedRecord = `${String(process.pid)} ${randomUUID()}\n`
   let initializingLock
+  let observeBarrier = process.env.DSH_TEST_LEFTHOOK_LOCK_OBSERVE_BARRIER
   while (true) {
     try {
       const lockHandle = openSync(lockPath, 'wx', 0o600)
       let ownedStat
       try {
         ownedStat = fstatSync(lockHandle)
-        const writeDelay = Number(process.env.DSH_TEST_LEFTHOOK_LOCK_WRITE_DELAY_MS ?? 0)
-        if (writeDelay > 0) {
-          await new Promise(resolveWait => setTimeout(resolveWait, writeDelay))
-        }
+        const publicationBarrier = process.env.DSH_TEST_LEFTHOOK_LOCK_PUBLISH_BARRIER
+        if (publicationBarrier !== undefined) await waitForLockTestBarrier(publicationBarrier)
         writeFileSync(lockHandle, ownedRecord)
       } finally {
         closeSync(lockHandle)
@@ -427,6 +436,11 @@ async function acquireInstallLock(commonDirectory) {
       if (owner === undefined) {
         if (!installLockRecordMayBeIncomplete(existingRecord)) {
           throw manualLockRecoveryError(lockPath, 'invalid')
+        }
+        if (observeBarrier !== undefined) {
+          const barrier = observeBarrier
+          observeBarrier = undefined
+          await waitForLockTestBarrier(barrier)
         }
         const now = Date.now()
         if (

@@ -37,3 +37,7 @@ Office 预览和显式文档检查可能请求相同转换。仅缓存已完成�
 Office 预览通过 Workspace Files 检查源文件授权与版本，再使用 `fs.readBytes` 在转换预留容量内读取原始输入。该读取受 Office 输入上限约束。Host 转换路径不分配 base64 源数据；PDF 响应只编码转换后的输出。
 
 受控的源读取和引擎完成验证读取前准入、内容合并、优先级、取消隔离、延迟资源释放、LRU 与别名限额、过期版本及转换器替换。Loader 组合与原生转换检查独立于展示消费者验证共享提供方。
+
+## 相关记录
+
+[后台调度提案](../../proposed/simplification/2026-09-17-defer-office-background-scheduling.zh.md) 质疑没有生产调用方时保留推测性优先级的必要性；本记录仍定义已实现的行为。

@@ -1,5 +1,5 @@
 /** Interface Settings row: whether the sidebar draws the Archived section. */
-import { useId, type ChangeEvent } from 'react'
+import { useId } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { Switch } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { createWorkspaceViewStore } from './stores.ts'
@@ -18,7 +18,7 @@ export type ShowArchivedListRowProps =
  * @returns the preference row.
  */
 export function ShowArchivedListRow({ useStore, actions, t }: ShowArchivedListRowProps) {
-  const show = useStore(state => state.showArchivedList)
+  const show = useStore(state => state.archivedFilter === 'show' || state.archivedFilter === 'only')
   const titleId = useId()
   const title: WorkspaceKey = 'settings.showArchived.title'
   const description: WorkspaceKey = 'settings.showArchived.description'
@@ -32,9 +32,7 @@ export function ShowArchivedListRow({ useStore, actions, t }: ShowArchivedListRo
       <Switch
         checked={show}
         aria-labelledby={titleId}
-        onChange={(event: ChangeEvent<HTMLInputElement>) => {
-          actions.setShowArchivedList(event.target.checked)
-        }}
+        onChange={(event) => { actions.setArchivedFilter(event.target.checked ? 'show' : 'default') }}
       />
     </div>
   )

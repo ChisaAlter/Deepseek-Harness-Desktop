@@ -1,0 +1,29 @@
+- dialog "设置":
+  - navigation:
+    - text: 设置
+    - button "通用设置"
+    - button "模型"
+    - button "内置插件"
+    - button "Agent 预设"
+  - button "打开配置文件"
+  - button "关闭"
+  - text: 权限 选择新会话的默认权限模式
+  - button "工作区内修改"
+  - text: 语言
+  - button "中文"
+  - text: 外观
+  - button "浅色"
+  - button "深色"
+  - button "跟随系统" [pressed]
+  - text: 字号大小 仅影响会话内容的字号 14
+  - button "增大字号"
+  - button "减小字号"
+  - text: px 工作过程展示 控制轮次和步骤的默认展开方式
+  - button "简洁"
+  - text: 性能与用量 选择性能与用量信息展示的详细程度
+  - button "详细"
+  - text: 开发者工具 显示用于调试和排查问题的工具与信息
+  - switch "开发者工具" [checked]
+  - text: 繁忙时的发送行为 智能体运行时 Enter 键和发送按钮的行为；Cmd/Ctrl+Enter 使用另一行为
+  - button "排队发送"
+  - text: 当前版本：{{version}}

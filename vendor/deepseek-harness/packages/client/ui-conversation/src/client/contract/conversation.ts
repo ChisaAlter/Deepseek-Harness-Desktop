@@ -1,5 +1,8 @@
 import type { SessionEventLike } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import type {
+  ConversationGroupData, ConversationGroupedView, ConversationGroupInput,
+} from './groups.ts'
 
 /** Definition-local identity and lifecycle role extracted from one event. */
 export interface ConversationMatchResult {
@@ -141,6 +144,14 @@ export interface ConversationViewSnapshotStore {
   get<Target extends Extract<keyof ConversationViewSnapshotMap, string>>(
     target: Target,
   ): ConversationViewSnapshotMap[Target] | undefined
+  /**
+   * Read grouping for an activated target without activating another target.
+   * @param target - registered View target.
+   * @returns its grouped reader, when a Group Definition is active.
+   */
+  grouped<Target extends string>(
+    target: Target,
+  ): ConversationGroupedView<ConversationGroupData<Target>> | undefined
 }
 
 /** Immutable public view of an assembled business Context. */
@@ -262,6 +273,7 @@ export interface ConversationViewBuilder<Node extends ConversationViewNode = Con
   replace(input: {
     readonly nodes: readonly Node[]
     readonly timeline: ConversationTimelineSnapshot
+    readonly changedTurns?: readonly number[]
   }): Snapshot
   /**
    * Apply only Nodes whose materialized values changed in this transaction.
@@ -271,12 +283,23 @@ export interface ConversationViewBuilder<Node extends ConversationViewNode = Con
   apply(input: {
     readonly upserts: readonly Node[]
     readonly timeline: ConversationTimelineSnapshot
+    readonly changedTurns?: readonly number[]
   }): Snapshot
+  /** @returns the latest target-processed Node inputs; required only for a grouped target. */
+  groupInput?(): ConversationGroupInput<Node>
+  /** Publish local sources after all target snapshots and grouping results have been installed. */
+  publish?(): void
 }
 
 /** Registry contribution that creates an isolated builder when a Session first uses this target. */
 export interface ConversationViewDefinition<Node extends ConversationViewNode = ConversationViewNode, Snapshot = unknown> {
   readonly target: string
+  /**
+   * Address a tool call in this target's inspector; absent for non-inspection views.
+   * @param callId - tool-call identity from the Session.
+   * @returns the target's opaque focus identity.
+   */
+  toolCallFocus?(callId: string): string
   /** @returns a new Session-owned incremental builder. */
   create(): ConversationViewBuilder<Node, Snapshot>
   /**

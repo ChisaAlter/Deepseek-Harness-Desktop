@@ -1,6 +1,4 @@
 - 'region "Add `--greeting` flag to CLI"':
-  - button "Copy":
-    - img
   - heading "Add --greeting flag to CLI" [level=1]:
     - text: Add
     - code: "--greeting"

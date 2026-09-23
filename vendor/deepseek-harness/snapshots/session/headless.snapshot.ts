@@ -60,7 +60,7 @@ const dshBin = join(repoRoot, 'apps/cli/src/bin.ts')
 const tsconfigPath = join(repoRoot, 'tsconfig.json')
 const editingCordisSkill = join(
   repoRoot,
-  'packages/preset/agent-presets/presets/cordis/skills/editing-cordis-compositions/SKILL.md',
+  'packages/preset/agent-preset/skills/editing-cordis-compositions/SKILL.md',
 )
 
 type SnapshotMode = 'replay' | 'record' | 'refresh'
@@ -156,6 +156,21 @@ function records(log: string): JsonObject[] {
     .map(line => JSON.parse(line) as JsonObject)
 }
 
+/** Compare deterministic recorded tool output with raw writer fields; only message ids are volatile. */
+function verifyToolResultWriterParity(fixture: string, actual: string): void {
+  expect(sessionHeaderVersion(fixture, 'retained tool-result input')).toBe(3)
+  expect(sessionHeaderVersion(actual, 'raw tool-result writer')).toBe(SESSION_FORMAT_VERSION)
+  const withoutMessageId = (message: object): JsonObject => Object.fromEntries(
+    Object.entries(message).filter(([key]) => key !== 'id'),
+  )
+  const expected = parseSessionLog(fixture).flatMap(event => event.type === 'tool/result'
+    ? [withoutMessageId(event.data.message)] : [])
+  const written = records(actual).flatMap(event => event.type === 'tool/result'
+    ? [withoutMessageId((event.data as JsonObject).message as JsonObject)] : [])
+  expect(expected.length, 'recorded stock tool results').toBeGreaterThan(0)
+  expect(written, 'native tool-result messages match migration output').toEqual(expected)
+}
+
 function headerOf(log: string): JsonObject {
   return records(log)[0] ?? {}
 }
@@ -196,8 +211,8 @@ async function persistedSessions(cwd: string): Promise<SessionLog[]> {
   })
 }
 
-async function fixtureSessions(scenario: HeadlessScenario): Promise<string[]> {
-  const files = sessionFixtureNames(await readdir(scenario.dir))
+async function fixtureSessions(scenario: HeadlessScenario, selectedFiles?: readonly string[]): Promise<string[]> {
+  const files = selectedFiles ?? sessionFixtureNames(await readdir(scenario.dir))
   return Promise.all(files.map(async (file) => {
     const content = await readFile(join(scenario.dir, file), 'utf8')
     assertSessionFixtureVersion(file, content)
@@ -554,12 +569,35 @@ function pinOf(scenario: HeadlessScenario): HeadlessScenario {
   return pin
 }
 
+function spillReferenceSource(events: readonly JsonObject[], label: string): JsonObject {
+  const messages = events.filter((event) => {
+    const source = (event.data as JsonObject | undefined)?.source as JsonObject | undefined
+    return event.type === 'user/message' && source?.kind === 'session-reference'
+  })
+  expect(messages, `${label}: reference message count`).toHaveLength(1)
+  const source = (messages[0]!.data as JsonObject).source as JsonObject
+  expect(source).toMatchObject({ kind: 'session-reference', form: 'recall', version: 1 })
+  const references = source.references as JsonObject[]
+  expect(references, `${label}: referenced Session count`).toHaveLength(1)
+  expect(references[0]?.sessionId, `${label}: referenced Session id`).toBe('reference-source')
+  return references[0]!
+}
+
+function sessionReferenceSpillExpected(actual: readonly JsonObject[], expectedLog: string, recordedVersion: number): JsonObject[] {
+  const expected = records(expectedLog)
+  const actualReference = spillReferenceSource(actual, 'actual session-reference-spill')
+  const expectedReference = spillReferenceSource(expected, 'expected session-reference-spill')
+  // source-session.ts creates reference-source anew with Session.create() for each run.
+  expect(actualReference.capturedFormatVersion, 'fresh reference-source generation').toBe(SESSION_FORMAT_VERSION)
+  expect(expectedReference.capturedFormatVersion, 'recorded reference-source generation').toBe(recordedVersion)
+  expectedReference.capturedFormatVersion = SESSION_FORMAT_VERSION
+  return expected
+}
+
 /** Require successful verification and the complete canonical event before refresh can write a fixture. */
 async function verifySessionQuerySpill(log: string, spillRoot: string, locatorRoot: string): Promise<void> {
   const events = parseSessionLog(log)
-  const results = events.flatMap(event => event.type === 'tool/result'
-    ? event.data.message.content.filter(block => block.type === 'tool-result')
-    : [])
+  const results = events.flatMap(event => event.type === 'tool/result' ? [event.data.message] : [])
   const readResult = results.find(result => result.toolCallId === 'call_session_query_spill')
   const verification = results.find(result => result.toolCallId === 'call_verify_session_query_spill')
   expect(readResult?.isError).toBe(false)
@@ -584,9 +622,7 @@ async function verifySessionQuerySpill(log: string, spillRoot: string, locatorRo
 /** Require real resource results and literal instructions before recording or replay succeeds. */
 function verifyMcpResources(log: string, ptc: boolean): void {
   const events = parseSessionLog(log)
-  const nativeResults = events.flatMap(event => event.type === 'tool/result'
-    ? event.data.message.content.filter(block => block.type === 'tool-result')
-    : [])
+  const nativeResults = events.flatMap(event => event.type === 'tool/result' ? [event.data.message] : [])
   const dispatches = events.flatMap(event => event.type === 'tool/ptc-dispatch' ? [event.data] : [])
   const results = ptc ? dispatches : nativeResults
   expect(results.length).toBeGreaterThanOrEqual(5)
@@ -635,8 +671,7 @@ function verifyNoMcpServers(log: string, ptc: boolean): void {
 
 /** Require an admitted failed job and zero process allocations before updating its recorded oracle. */
 async function verifyBackgroundConfinementFailure(log: string, cwd: string): Promise<void> {
-  const results = parseSessionLog(log).flatMap(event => event.type === 'tool/result'
-    ? event.data.message.content.filter(block => block.type === 'tool-result') : [])
+  const results = parseSessionLog(log).flatMap(event => event.type === 'tool/result' ? [event.data.message] : [])
   const started = results.find(result => result.toolCallId === 'async-confinement-start')
   const inspected = results.find(result => result.toolCallId === 'async-confinement-result')
   expect(started).toMatchObject({ isError: false, content: [{ type: 'text', text: 'started background job bash-1' }] })
@@ -1003,14 +1038,48 @@ describe('headless recorded-session snapshots', () => {
     }
   })
 
-  for (const scenario of scenarios) {
+  it('session-reference-spill validates captured generations before adapting its fresh source expectation', async () => {
+    const fixture = await readFile(join(snapshotsRoot, 'session-reference-spill/session.v3.jsonl'), 'utf8')
+    const recordedVersion = sessionHeaderVersion(fixture, 'session-reference-spill fixture')
+    expect(recordedVersion).toBe(3)
+    const normalized = normalizeSessionSnapshots([fixture], contextOf([fixture]))[0]!
+    const actual = records(normalized)
+    spillReferenceSource(actual, 'fresh source').capturedFormatVersion = SESSION_FORMAT_VERSION
+
+    expect(sessionReferenceSpillExpected(actual, normalized, recordedVersion)).toEqual(actual)
+    expect(() => sessionReferenceSpillExpected(records(normalized), normalized, recordedVersion))
+      .toThrow('fresh reference-source generation')
+    expect(() => sessionReferenceSpillExpected(actual, normalized, SESSION_FORMAT_VERSION))
+      .toThrow('recorded reference-source generation')
+    expect(spillReferenceSource(records(normalized), 'unchanged fixture').capturedFormatVersion).toBe(3)
+    expect(await readFile(join(snapshotsRoot, 'session-reference-spill/session.v3.jsonl'), 'utf8')).toBe(fixture)
+  })
+
+  it('rejects a native writer that still emits the recorded tool-result wrapper', async () => {
+    const fixture = await readFile(join(snapshotsRoot, 'tool-call-turn/session.v3.jsonl'), 'utf8')
+    const unconverted = records(fixture)
+    unconverted[0]!.version = SESSION_FORMAT_VERSION
+    expect(() => verifyToolResultWriterParity(fixture, unconverted.map(row => JSON.stringify(row)).join('\n')))
+      .toThrow('native tool-result messages match migration output')
+  })
+
+  const runs = scenarios.flatMap((scenario): { scenario: HeadlessScenario; retainedToolInput?: string }[] => [
+    { scenario },
+    // This comparison retains its own V3 input even after the ordinary scenario records a newer generation.
+    ...mode === 'replay' && scenario.name === 'tool-call-turn'
+      ? [{ scenario, retainedToolInput: 'session.v3.jsonl' }] : [],
+  ])
+  for (const { scenario, retainedToolInput } of runs) {
     const skipped = scenario.manifest.platform === 'posix' && process.platform === 'win32'
       || scenario.manifest.platform === 'pwsh' && !hasPwsh
       || mode === 'record' && scenario.manifest.recording === 'authored'
       || mode === 'record' && scenario.manifest.sessionFormat !== undefined
     const scenarioTest = skipped ? it.skip : mode === 'replay' ? it.concurrent : it
-    scenarioTest(`${mode}s ${scenario.name} through dsh --profile headless`, async () => {
-      let fixtures = await fixtureSessions(scenario)
+    const inputLabel = retainedToolInput === undefined ? '' : ' from retained V3 input'
+    scenarioTest(`${mode}s ${scenario.name}${inputLabel} through dsh --profile headless`, async () => {
+      let fixtureFiles = retainedToolInput === undefined
+        ? sessionFixtureNames(await readdir(scenario.dir)) : [retainedToolInput]
+      let fixtures = await fixtureSessions(scenario, fixtureFiles)
       const primaryFixture = fixtures[0]
       if (primaryFixture === undefined) throw new Error(`${scenario.name}: missing primary session fixture`)
       const task = taskFromSession(primaryFixture) ?? scenario.manifest.input?.task
@@ -1025,7 +1094,6 @@ describe('headless recorded-session snapshots', () => {
       const composition = ownerOf(scenario)
       const baseComposition = compositionOwners.get('default')
       if (baseComposition === undefined) throw new Error('headless corpus has no default composition')
-      let fixtureFiles = sessionFixtureNames(await readdir(scenario.dir))
       const replaying = mode !== 'record'
       const compositionPatch = join(composition.dir, replaying ? 'cordis.snapshot.yml' : 'cordis.yml')
       const patchSources = [
@@ -1051,6 +1119,7 @@ describe('headless recorded-session snapshots', () => {
           tempDirPrefix: 'dsh-log-snap-',
           ...(scenario.manifest.workspace?.parent === 'outside-temp' ? { tempDirParent: outsideTempWorkspaceParent() } : {}),
           binScript: dshBin,
+          sourceImport: 'tsx/esm',
           configPath: join(baseComposition.dir, 'cordis.yml'),
           binArgs: [
             '--profile', 'headless',
@@ -1106,6 +1175,9 @@ describe('headless recorded-session snapshots', () => {
           },
           inspect: async (cwd) => {
             actualLogs = await persistedSessions(cwd)
+            if (retainedToolInput !== undefined) {
+              verifyToolResultWriterParity(primaryFixture, actualLogs[0]!.content)
+            }
             if (mcpDemo !== undefined) {
               const log = actualLogs[0]!.content
               expect(log).toContain('mcp__demo__ping')
@@ -1174,14 +1246,22 @@ describe('headless recorded-session snapshots', () => {
         if (mode === 'refresh') await writeSessionFixtures(scenario, actualLogs, fixtures, actualContext)
         expected = await Promise.all(fixtures.map((_, index) => readFile(join(scenario.dir, writerSnapshotName(index)), 'utf8')))
         for (const [index, content] of expected.entries()) {
-          expect(sessionHeaderVersion(content, writerSnapshotName(index))).toBe(SESSION_FORMAT_VERSION)
+          expect(sessionHeaderVersion(content, writerSnapshotName(index))).toBeLessThanOrEqual(SESSION_FORMAT_VERSION)
         }
         expect(await fixtureSessions(scenario), 'historical replay input remains unchanged').toEqual(fixtures)
       }
-      const actualSnapshots = normalizeSessionSnapshots(actualLogs.map(log => log.content), actualContext)
-      const expectedSnapshots = normalizeSessionSnapshots(expected, contextOf(expected))
+      const actualSnapshots = normalizeSessionSnapshots(actualLogs.map(log => log.content), actualContext, { nativeWriterOutput: true })
+      const expectedSnapshots = normalizeSessionSnapshots(expected, contextOf(expected), { nativeWriterOutput: true })
       for (const [index, actual] of actualSnapshots.entries()) {
-        expect(records(actual), `${scenario.name}: session ${index}`).toEqual(records(expectedSnapshots[index] as string))
+        const actualRecords = records(actual)
+        const expectedRecords = scenario.name === 'session-reference-spill' && index === 0
+          ? sessionReferenceSpillExpected(
+            actualRecords,
+            expectedSnapshots[index] as string,
+            sessionHeaderVersion(expected[index] as string, 'session-reference-spill fixture'),
+          )
+          : records(expectedSnapshots[index] as string)
+        expect(actualRecords, `${scenario.name}: session ${index}`).toEqual(expectedRecords)
       }
       await verifyHeaders(scenario, actualLogs, actualContext)
 

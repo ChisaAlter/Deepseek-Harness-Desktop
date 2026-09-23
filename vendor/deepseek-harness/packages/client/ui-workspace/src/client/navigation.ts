@@ -4,6 +4,7 @@ import { Service, type Context } from '@deepseek-ai/cordis'
 import type { ClientRemote, DirectoryListing, RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type {
   ISessions,
+  SessionCreateError,
   SessionReference,
   SessionTarget,
   SessionListState,
@@ -12,10 +13,15 @@ import type {
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type {
-  IWorkspaces, WorkspaceId, WorkspaceView,
+  IWorkspaces, WorkspaceId, WorkspaceSnapshot, WorkspaceView,
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { RowToast } from './contract/slots.ts'
+import { en, zh } from './locales.ts'
+import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
+import type { WorkspaceViewStoreActions } from './stores.ts'
 
 interface MainSelection {
   readonly sessionId?: SessionId
@@ -34,17 +40,14 @@ export interface UiWorkspace {
    * @param workspaceId - target Workspace.
    * @param beforeOpen - optional synchronous preparation for the selected Session, skipped after supersession.
    * @returns completion; a superseded request may create a Session but does not open it.
+   * @throws on failure; a refused creation is also shown through the Workspace
+   * notice unless a later navigation or disposal superseded the request.
    */
   openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void>
   /**
-   * Connect a scratch Session and open it unless a later navigation supersedes it.
-   * @param beforeOpen - optional synchronous preparation run after the target is retained.
-   */
-  openNoDirectory(beforeOpen?: (sessionId: SessionId) => void): Promise<void>
-  /**
-   * Fork a Session and open the child unless a later navigation supersedes it.
+   * Fork a Session without changing the current selection.
    * @param sessionId - source Session.
-   * @returns completion; a superseded request leaves its child available without selecting it.
+   * @returns completion after child creation and inherited-title increment.
    */
   forkSession(sessionId: SessionId): Promise<void>
   /**
@@ -53,40 +56,44 @@ export interface UiWorkspace {
    * @returns a Session already addressable through the Session Controller.
    */
   connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId>
+  /** Reuse or create a Session in the Host-owned no-directory location. */
+  connectNoDirectory(): Promise<SessionId>
+  /** Open a Session without a Workspace directory. */
+  openNoDirectory(beforeOpen?: (sessionId: SessionId) => void): Promise<void>
+  /** Remove a Workspace registration and clear its selected Session. */
+  deleteWorkspace(workspaceId: WorkspaceId): Promise<void>
+  /** Delete a Session and apply the Host archive-set echo. */
+  deleteSession(sessionId: SessionId): Promise<void>
   /**
-   * Start a New Session flow and navigate to its Session.
+   * Start a New Session flow and navigate to its Session; a creation the Host
+   * refuses is shown through the Workspace notice and leaves the selection as it was.
    * @param workspaceId - explicit target; absent inherits the current or most recent Workspace.
    */
   startSession(workspaceId?: WorkspaceId): void
   /**
    * Archive a Session and clear it when it is the current selection.
    * @param sessionId - Session to archive.
+   * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
    */
-  archiveSession(sessionId: SessionId): Promise<void>
+  archiveSession(sessionId: SessionId, options?: { readonly stopActivity?: boolean }): Promise<void>
   /**
    * Unarchive a Session, restoring it to its recorded Workspace position.
    * @param sessionId - Session to unarchive.
    */
   unarchiveSession(sessionId: SessionId): Promise<void>
   /**
-   * Permanently destroy an archived Session's conversation log.
-   * @param sessionId - archived Session to delete.
+   * Pin a Session on the Host, then lead it in its accounts' saved orders
+   * (its Workspace group or Ungrouped, and the flat list). The order write
+   * reads the memberships current at completion, so reorders that landed
+   * while the Host call was pending keep their positions.
+   * @param sessionId - Session to pin.
    */
-  deleteSession(sessionId: SessionId): Promise<void>
+  pinSession(sessionId: SessionId): Promise<void>
   /**
-   * Connect a Session that is not a Workspace member: reuse the blank Session
-   * living in the Host scratch cwd, else create one there. Never registers a
-   * Workspace.
-   * @returns the connected Session id.
+   * Unpin a Session on the Host; saved positions stay as they are.
+   * @param sessionId - Session to unpin.
    */
-  connectNoDirectory(): Promise<SessionId>
-  /**
-   * Delete a Workspace registration. Its Sessions leave every grouping
-   * surface until the same directory is registered again; when the current
-   * Session was one of them the selection clears into the New Session view.
-   * @param workspaceId - Workspace registration to remove.
-   */
-  deleteWorkspace(workspaceId: WorkspaceId): Promise<void>
+  unpinSession(sessionId: SessionId): Promise<void>
   /**
    * Open the Host-native directory picker.
    * @returns the selected directory, or null when cancelled.
@@ -141,12 +148,16 @@ class UiWorkspaceService extends Service implements UiWorkspace {
    * @param directoryPicker - the directory-picking Remote namespace.
    * @param workspaces - pure Workspace Controller.
    * @param sessions - pure Session Controller.
+   * @param view - the browser's viewing-store write set (one instance shared with its registration).
+   * @param notify - show one notice through the Workspace notice channel.
    */
   constructor(
     ctx: Context,
     private readonly directoryPicker: ClientRemote['directoryPicker'],
     private readonly workspaces: IWorkspaces,
     private readonly sessions: ISessions,
+    private readonly view: Pick<WorkspaceViewStoreActions, 'pinSessionOrder'>,
+    private readonly notify: (toast: RowToast) => void,
   ) {
     super(ctx, 'uiWorkspace')
     ctx.effect(() => {
@@ -165,6 +176,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     this.lifetime.signal.throwIfAborted()
     const inflight = this.connecting.get(workspaceId)
     if (inflight !== undefined) return inflight
+
     const pending = Promise.withResolvers<SessionId>()
     const attempt = pending.promise
       .finally(() => { this.connecting.delete(workspaceId) })
@@ -173,14 +185,12 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     return attempt
   }
 
-  /** Inspect candidates without allowing concurrent callers to race creation. */
+  /** Inspect candidates before creating; concurrent callers share this resolution. */
   private async resolveWorkspace(workspaceId: WorkspaceId): Promise<SessionId> {
     const eligible = (id: SessionId): boolean => {
       const state = this.workspaces.list.getSnapshot()
       const workspace = state.items.find(item => item.workspaceId === workspaceId)
-      if (workspace === undefined) {
-        throw new Error(`uiWorkspace.connectWorkspace: unknown workspace ${workspaceId}`)
-      }
+      if (workspace === undefined) throw new Error(`uiWorkspace.connectWorkspace: unknown workspace ${workspaceId}`)
       const summary = this.sessions.list.getSnapshot().byId[id]
       return isOrdinaryBlank(summary) && summary.cwd === workspace.path
         && workspace.sessionIds.includes(id) && !state.archivedSessionIds.includes(id)
@@ -198,28 +208,40 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     return this.sessions.create({ workspaceId })
   }
 
+  private async reuseBlank(workspaceId: WorkspaceId, sessionId: SessionId): Promise<SessionId> {
+    const reusable = await this.sessions.canReuseBlank(sessionId, this.lifetime.signal)
+    this.lifetime.signal.throwIfAborted()
+    return reusable ? sessionId : this.sessions.create({ workspaceId })
+  }
+
   openSession(target: SessionTarget): void {
-    this.replaceMain(target, this.lifetime.signal)
+    this.replaceMain(target, this.lifetime.signal, 'reveal')
   }
 
   async openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
-    const sessionId = await this.connectWorkspace(workspaceId)
+    let sessionId: SessionId
+    try {
+      sessionId = await this.connectWorkspace(workspaceId)
+    } catch (error: unknown) {
+      // Reported here, not in connectWorkspace: startup restoration calls that
+      // directly and stays console-only.
+      if (!navigation.aborted) this.notify({ kind: 'createFailed', message: creationFailureMessage(error) })
+      throw error
+    }
     if (navigation.aborted) return
-    this.replaceMain(sessionId, navigation, beforeOpen)
+    this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
   async openNoDirectory(beforeOpen?: (sessionId: SessionId) => void): Promise<void> {
     const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
     const sessionId = await this.connectNoDirectory()
     if (navigation.aborted) return
-    this.replaceMain(sessionId, navigation, beforeOpen)
+    this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
   async forkSession(sessionId: SessionId): Promise<void> {
-    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
-    const childId = await this.sessions.fork({ sessionId, increaseTitle: true })
-    if (!navigation.aborted) this.replaceMain(childId, navigation)
+    await this.sessions.fork({ sessionId, increaseTitle: true })
   }
 
   startSession(workspaceId?: WorkspaceId): void {
@@ -242,8 +264,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     )
   }
 
-  async archiveSession(sessionId: SessionId): Promise<void> {
-    await this.workspaces.archiveSession(sessionId)
+  async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
+    await this.workspaces.archiveSession(sessionId, options)
     if (this.mainReference?.sessionId === sessionId) this.clearMain()
   }
 
@@ -261,27 +283,22 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const inflight = this.connectingNoDirectory
     if (inflight !== undefined) return inflight
     const pending = Promise.withResolvers<SessionId>()
-    const attempt = pending.promise
-      .finally(() => { this.connectingNoDirectory = undefined })
+    const attempt = pending.promise.finally(() => { this.connectingNoDirectory = undefined })
     this.connectingNoDirectory = attempt
     void this.resolveNoDirectory().then(pending.resolve, pending.reject)
     return attempt
   }
 
-  /** Recheck the live grouping after the Host has inspected durable history. */
   private async resolveNoDirectory(): Promise<SessionId> {
     const scratch = (): string => {
       const cwd = this.workspaces.list.getSnapshot().scratchCwd
-      if (cwd === undefined) {
-        throw new Error('uiWorkspace.connectNoDirectory: the Workspace baseline has not arrived yet')
-      }
+      if (cwd === undefined) throw new Error('uiWorkspace.connectNoDirectory: the Workspace baseline has not arrived yet')
       return cwd
     }
     const eligible = (id: SessionId): boolean => {
-      const cwd = scratch()
       const workspace = this.workspaces.list.getSnapshot()
       const summary = this.sessions.list.getSnapshot().byId[id]
-      return isOrdinaryBlank(summary) && summary.cwd === cwd
+      return isOrdinaryBlank(summary) && summary.cwd === scratch()
         && !workspace.items.some(item => item.sessionIds.includes(id))
         && !workspace.archivedSessionIds.includes(id)
     }
@@ -296,14 +313,28 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   async deleteWorkspace(workspaceId: WorkspaceId): Promise<void> {
-    const workspace = this.workspaces.list.getSnapshot().items
-      .find(item => item.workspaceId === workspaceId)
+    const workspace = this.workspaces.list.getSnapshot().items.find(item => item.workspaceId === workspaceId)
     const current = this.mainReference?.sessionId
     await this.workspaces.delete(workspaceId)
     if (current !== undefined && workspace?.sessionIds.includes(current) === true
-      && this.mainReference?.sessionId === current) {
-      this.clearMain()
-    }
+      && this.mainReference?.sessionId === current) this.clearMain()
+  }
+
+  async pinSession(sessionId: SessionId): Promise<void> {
+    await this.workspaces.pinSession(sessionId)
+    const { items, pinnedSessionIds, archivedSessionIds, scratchCwd } = this.workspaces.list.getSnapshot()
+    const source = pinOrderSource(
+      items, this.sessions.list.getSnapshot(), { pinnedSessionIds, archivedSessionIds }, scratchCwd,
+    )
+    this.view.pinSessionOrder(
+      sessionId,
+      pinOrderAccounts(items, sessionId).filter(key => source.members[key]?.includes(sessionId)),
+      source,
+    )
+  }
+
+  async unpinSession(sessionId: SessionId): Promise<void> {
+    await this.workspaces.unpinSession(sessionId)
   }
 
   async pickDirectory(): Promise<string | null> {
@@ -337,44 +368,17 @@ class UiWorkspaceService extends Service implements UiWorkspace {
         initial = 'done'
         return
       }
-      const saved = this.selection.getSnapshot()
-      const savedTarget = saved.subagentAddress
-        ?? (saved.sessionId !== undefined && sessions.byId[saved.sessionId] !== undefined
-          ? saved.sessionId
-          : undefined)
-      if (savedTarget !== undefined) {
-        initial = 'connecting'
-        try {
-          if (saved.subagentAddress !== undefined) {
-            void this.sessions.refreshSubagents(saved.subagentAddress.parentSessionId)
-          }
-          this.openSession(savedTarget)
-          initial = 'done'
-        } catch (reason: unknown) {
-          initial = 'waiting'
-          console.warn('initial Session restoration failed:', reason)
-        }
-        return
-      }
-      const target = recentWorkspace(workspace.items, sessions.byId)
-      if (target === undefined) {
-        initial = 'done'
-        return
-      }
       initial = 'connecting'
-      void this.connectWorkspace(target).then(
-        (sessionId) => {
-          if (this.mainReference === undefined) this.openSession(sessionId)
-        },
-      ).then(
+      void this.restoreSelection(workspace, sessions).then(
         () => { initial = 'done' },
         (reason: unknown) => {
           if (this.lifetime.signal.aborted) return
           initial = 'waiting'
-          console.warn('initial workspace selection failed:', reason)
+          console.warn('initial Session restoration failed:', reason)
         },
       )
     }
+
     const disposeWorkspaces = this.workspaces.list.subscribe(reconcile)
     const disposeSessions = this.sessions.list.subscribe(reconcile)
     reconcile()
@@ -382,6 +386,51 @@ class UiWorkspaceService extends Service implements UiWorkspace {
       this.lifetime.abort()
       disposeSessions()
       disposeWorkspaces()
+    }
+  }
+
+  private async restoreSelection(workspaces: WorkspaceSnapshot, sessions: SessionListState): Promise<void> {
+    const saved = this.selection.getSnapshot()
+    if (saved.subagentAddress !== undefined) {
+      this.replaceMain(saved.subagentAddress, this.lifetime.signal, 'preserve')
+      return
+    }
+    const summary = saved.sessionId === undefined ? undefined : sessions.byId[saved.sessionId]
+    const workspace = summary === undefined ? undefined
+      : workspaces.items.find(item => item.sessionIds.includes(summary.id))
+    if (summary !== undefined && (!summary.blank || workspace === undefined)) {
+      this.replaceMain(summary.id, this.lifetime.signal, 'preserve')
+      return
+    }
+    const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal])
+    let sessionId: SessionId | undefined
+    if (summary !== undefined && workspace !== undefined && summary.cwd === workspace.path
+      && !workspaces.archivedSessionIds.includes(summary.id)) {
+      sessionId = await this.reuseBlank(workspace.workspaceId, summary.id)
+    }
+    let target = workspace?.workspaceId ?? recentWorkspace(workspaces.items, sessions.byId)
+    if (target === undefined && workspaces.items.length === 0 && sessions.ids.length === 0) {
+      const prepared = await this.initializeDefaultWorkspace(navigation)
+      if (navigation.aborted) return
+      target = prepared?.workspaceId
+    }
+    if (sessionId === undefined && target !== undefined) sessionId = await this.connectWorkspace(target)
+    if (sessionId !== undefined && !navigation.aborted) {
+      this.replaceMain(sessionId, navigation, 'preserve')
+    }
+  }
+
+  private async initializeDefaultWorkspace(signal: AbortSignal): Promise<WorkspaceView | undefined> {
+    const language = this.ctx.locale.getSnapshot().active.toLowerCase().split('-')[0]
+    const title = (language === 'zh' ? zh : en)['defaultWorkspace.title']
+    try {
+      return await this.workspaces.initializeDefault({
+        directoryName: language === 'zh' || language === 'en' ? title : 'default-workspace',
+        title,
+      }, signal)
+    } catch (_error: unknown) {
+      if (!signal.aborted) this.notify({ kind: 'defaultWorkspaceFailed' })
+      return undefined
     }
   }
 
@@ -405,6 +454,7 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   private replaceMain(
     target: SessionTarget,
     signal: AbortSignal,
+    panel: 'reveal' | 'preserve',
     beforeOpen?: (sessionId: SessionId) => void,
   ): void {
     signal.throwIfAborted()
@@ -430,17 +480,28 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     const previous = this.mainReference
     this.mainReference = reference
     previous?.release()
-    void this.sessions.refreshSubagents(reference.sessionId)
-    this.ctx.layout.selectPanel(null)
+    if (panel === 'reveal') this.ctx.layout.selectPanel(null)
   }
 
 }
 
-/** List metadata can reject a candidate, but only Host history can confirm it. */
-function isOrdinaryBlank(summary: SessionSummary | undefined): summary is SessionSummary {
-  return summary !== undefined && summary.blank && !summary.running
-    && summary.title === undefined && summary.parentId === undefined
-    && summary.origin === undefined && summary.presentation === undefined
+/**
+ * `error` as the Session Controller's creation failure, or undefined when it
+ * is not one. Client plugin bundles do not share error-class identity, so the
+ * name decides.
+ */
+function sessionCreateErrorOf(error: unknown): SessionCreateError | undefined {
+  return error instanceof Error && error.name === 'SessionCreateError' ? error as SessionCreateError : undefined
+}
+
+/**
+ * The words a failed Session creation is reported in: a Host refusal keeps its
+ * stable code and message; any other failure keeps its own message.
+ */
+function creationFailureMessage(error: unknown): string {
+  const refused = sessionCreateErrorOf(error)
+  if (refused !== undefined) return `${refused.rpcError.code}: ${refused.rpcError.message}`
+  return error instanceof Error ? error.message : String(error)
 }
 
 /** Stable tie-breaking follows Host Workspace order. */
@@ -468,3 +529,10 @@ function recentWorkspace(
 }
 
 export { UiWorkspaceService }
+
+/** List metadata can reject a candidate, but Host history confirms reuse. */
+function isOrdinaryBlank(summary: SessionSummary | undefined): summary is SessionSummary {
+  return summary !== undefined && summary.blank && !summary.running
+    && summary.title === undefined && summary.parentId === undefined
+    && summary.origin === undefined && summary.presentation === undefined
+}

@@ -12,7 +12,7 @@ const CLIENT_OUT = 'packages/extensions/cordis-client-runner/src/client/api-cata
 const CLIENT_SERVICES: Readonly<Record<string, readonly string[]>> = {
   layout: ['selectPanel', 'beginNavigation', 'toggleSidebar', 'openRightbar', 'closeRightbar'],
   locale: ['getLocale', 'getSnapshot', 'subscribe', 'setLocale', 'addLanguage', 'register', 'bind'],
-  sessions: ['retain', 'using', 'retainInfo', 'setSubagentCatalogOpen', 'refreshSubagents', 'search', 'fork', 'scope', 'binding'],
+  sessions: ['retain', 'using', 'retainInfo', 'refreshProjections', 'search', 'fork', 'scope', 'binding'],
   slots: ['register', 'registerFactory', 'inject'],
   theme: ['getTheme', 'setTheme', 'setFontSize', 'register', 'overrideTokens'],
   uiWorkspace: [

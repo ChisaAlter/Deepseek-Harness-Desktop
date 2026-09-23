@@ -28,7 +28,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Services required by the titlebar plugin. */
-export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'settingsScope']
+export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'configForms']
 
 /** The Sidebar write is best-effort: a composition without it keeps the settings row. */
 function toggleRightPanel(ctx: Context): void {
@@ -51,7 +51,7 @@ function toggleRightPanel(ctx: Context): void {
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-titlebar: dictionaries')
 
-  const host = ctx.settingsScope.bind<TitlebarSettings>({ namespace: TITLEBAR_SETTINGS_NAMESPACE })
+  const host = ctx.configForms.get<TitlebarSettings>(TITLEBAR_SETTINGS_NAMESPACE)
   const terminalChrome = new ChromeVisibility(host, TERMINAL_TOGGLE_FIELD)
   const surfacesChrome = new ChromeVisibility(host, SURFACES_TOGGLE_FIELD)
 

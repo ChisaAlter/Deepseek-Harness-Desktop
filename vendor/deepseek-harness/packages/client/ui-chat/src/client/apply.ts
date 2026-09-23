@@ -4,7 +4,8 @@ import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { IWorkspaces } from '@deepseek-ai/dsh-api-workspace-controller/client'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { GroupKey } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
@@ -21,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {
-  ChatNodeTurnDataInjected, ChatScrollPosition, ChatViewInjected, OpenFileOptions,
+  ChatNodeInjected, ChatScrollPosition, ChatViewInjected, OpenFileOptions,
   TurnTailOwnerProps,
 } from './contract/slots.ts'
 import type { ChatSnapshot } from './contract/snapshot.ts'
@@ -33,29 +34,34 @@ import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { en, NS, zh } from './locale.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createChatStore } from './stores.ts'
-import type { StatsPillsInjected } from './chat/StatsPills.tsx'
 import { TranscriptViewPolicy } from './transcript-view.ts'
-import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
+import { derivePresentationPolicy } from './presentation-policy.ts'
+import { CHAT_SETTINGS_NAMESPACE, DEFAULT_LINK_OPENING, type ChatSettings } from '../chat-settings.ts'
+import type { ConversationSettings } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { LinkOpeningRow, type LinkOpeningRowInjected } from './settings/LinkOpeningRow.tsx'
+import { PerformanceUsageRow, type PerformanceUsageRowInjected } from './settings/PerformanceUsageRow.tsx'
+import { PerformanceUsagePolicy } from './performance-usage.ts'
 import { useTurnDataValue } from './chat/use-turn-data.ts'
+import { bindDisclosure } from './chat/use-disclosure.ts'
+
+const CHAT_NODE_INJECT: ChatNodeInjected = {
+  hooks: {
+    turnData: (_standard, { turnData }) => function useTurnData(key) {
+      return useTurnDataValue(turnData, key)
+    },
+    disclosure: (_standard, { disclosureReset }) => bindDisclosure(disclosureReset),
+  },
+}
 
 interface WorkspacePathOpener {
   openPath?: (path: string, options?: OpenFileOptions) => Promise<void>
 }
 
-const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
-  hooks: {
-    turnData: (_standard, data) => function useTurnData(key) {
-      return useTurnDataValue(data, key)
-    },
-  },
-}
-
 /** Services required by the Chat target and its presentation registrations. */
 export const inject = [
   'slots', 'sessions', 'uiWorkspace', 'uiSession', 'uiConversation', 'locale',
-  'settingsScope', 'remote', 'remote.session', 'sidebarRight', 'workspaces',
+  'configForms', 'remote', 'remote.session', 'sidebarRight', 'workspaces',
 ]
 
 /**
@@ -77,7 +83,6 @@ export function apply(ctx: Context): void {
     return source
   }
   registerConversationNodes(ctx)
-  registerChatNodeRenderers(ctx)
   ctx.uiSession.provide({
     hooks: ['chat'],
     resolve: binding => ({ hooks: { chat: chatSource(binding) } }),
@@ -87,9 +92,51 @@ export function apply(ctx: Context): void {
   const t = ctx.locale.bind(NS)
   const chatStore = createChatStore()
   const chatScrollPositions = new Map<SessionId, ChatScrollPosition>()
-  const transcriptView = new TranscriptViewPolicy(
-    ctx.settingsScope.bind<ChatSettings>({ namespace: CHAT_SETTINGS_NAMESPACE }),
-  )
+  const chatSettings = ctx.configForms.get<ChatSettings>(CHAT_SETTINGS_NAMESPACE)
+  const linkOpening = createSnapshotStore(chatSettings.getSnapshot().value?.linkOpening ?? DEFAULT_LINK_OPENING)
+  ctx.effect(() => chatSettings.subscribe(() => {
+    const accepted = chatSettings.getSnapshot().value?.linkOpening
+    if (accepted !== undefined) linkOpening.set(accepted)
+  }))
+  ctx.inject(['sidebarRightTabs'], (scope) => {
+    const tabs = scope.sidebarRightTabs
+    const browserAvailable: ObservableSnapshot<boolean> = {
+      getSnapshot: () => tabs.get('browser') !== undefined,
+      subscribe: listener => tabs.subscribe(listener),
+    }
+    scope.slots.inject('settings.general.item', () => scope.slots.register({
+      name: 'settings.general.item',
+      id: 'link-opening',
+      order: 14,
+      locale: NS,
+      inject: (): LinkOpeningRowInjected => ({
+        hooks: { linkOpening, browserAvailable },
+        setLinkOpening: (destination) => {
+          linkOpening.set(destination)
+          void chatSettings.set('linkOpening', destination).catch((_error: unknown) => {
+            // The local choice remains usable when persistence is unavailable.
+          })
+        },
+      }),
+    }, LinkOpeningRow))
+  })
+  const transcriptView = new TranscriptViewPolicy(chatSettings)
+  const presentation = derivePresentationPolicy(transcriptView.mode)
+  const performancePolicy = new PerformanceUsagePolicy(chatSettings)
+  ctx.effect(() => () => { transcriptView.dispose(); performancePolicy.dispose() })
+  const performanceUsage = performancePolicy.mode
+  registerChatNodeRenderers(ctx, performanceUsage, presentation)
+
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item',
+    id: 'performance-usage',
+    order: 13,
+    locale: NS,
+    inject: (): PerformanceUsageRowInjected => ({
+      hooks: { performanceUsage },
+      setPerformanceUsage: (mode) => { performancePolicy.setMode(mode) },
+    }),
+  }, PerformanceUsageRow))
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
@@ -120,11 +167,13 @@ export function apply(ctx: Context): void {
         if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
         const session = binding.session
         const chat = chatSource(binding)
+        const conversation = ctx.uiConversation.binding(binding)
         return {
-          hooks: { transcriptView: transcriptView.mode },
+          hooks: { presentation },
           keyedHooks: {
             chatNode: key => chat.getSnapshot().nodes.source(key),
             chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
+            chatGroup: key => conversation.snapshot.getSnapshot().views.grouped('chat')?.groupSource(key as GroupKey),
           },
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner, sessionId),
           // Every chat file open funnels through the shared `workspaces.openPath`
@@ -148,7 +197,7 @@ export function apply(ctx: Context): void {
             ctx.get('inputTriggers')?.sessionOf(scope).openReference('skill', { ref: `/${name}` })
           },
           openExternalLink: (url) => {
-            if (ctx.get('sidebarRightTabs')?.get('browser') !== undefined) {
+            if (linkOpening.getSnapshot() === 'sidebar' && ctx.get('sidebarRightTabs')?.get('browser') !== undefined) {
               ctx.sidebarRight.openTab('browser', { params: { url } })
             } else {
               window.open(url, '_blank', 'noopener,noreferrer')
@@ -181,20 +230,20 @@ export function apply(ctx: Context): void {
   })
 
   const statsLine = createSnapshotStore(true)
-  const statsHost = ctx.settingsScope.bind<{ statsLine?: boolean }>({ namespace: 'ui-conversation' })
+  const statsHost = ctx.configForms.get<ConversationSettings>('ui-conversation')
   const adoptStatsLine = (): void => {
     const section = statsHost.getSnapshot().value
     if (section === undefined) return
     const next = section.statsLine !== false
     if (statsLine.getSnapshot() !== next) statsLine.set(next)
   }
-  statsHost.subscribe(adoptStatsLine)
+  ctx.effect(() => statsHost.subscribe(adoptStatsLine))
   adoptStatsLine()
 
   ctx.slots.inject('conversation.composer.dock', () =>
     ctx.slots.register({
       name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,
-      inject: (): StatsPillsInjected => ({ hooks: { statsLine } }),
+      inject: () => ({ hooks: { performanceUsage, statsLine } }),
     }, StatsPills))
 
   ctx.slots.inject('conversation.approval.detail', () =>

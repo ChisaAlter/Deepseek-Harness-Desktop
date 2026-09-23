@@ -1,10 +1,11 @@
 /** Mandatory-update policy, independent of local business traffic and updater artifacts. */
 
 import { valid } from 'semver'
+import { desktopClientHeaders } from '@deepseek-ai/dsh-deepseek-account'
 
 /** Installed release identity; no field is supplied by a renderer. */
 export interface DesktopPolicyIdentity {
-  readonly platform: 'desktop-win' | 'desktop-mac'
+  readonly platform: 'win32' | 'darwin'
   readonly version: string
   readonly bundledDshVersion: string
   readonly bundleId: string
@@ -16,6 +17,7 @@ export interface DesktopPolicyIdentity {
 export interface DesktopPolicyConfig {
   readonly origin: string
   readonly allowedPageOrigins: readonly string[]
+  readonly allowedAuthOrigins: readonly string[]
   readonly intervalMs: number
   readonly timeoutMs: number
   readonly maxBackoffMs: number
@@ -74,12 +76,20 @@ export function resolveDesktopPolicyConfig(input: unknown, allowLoopback = false
   if (authentication !== 'anonymous' && authentication !== 'feishu-test') {
     throw new Error('desktop policy: authentication must be anonymous or feishu-test')
   }
+  const authOrigins = value.allowedAuthOrigins
+  if (authentication === 'feishu-test' && (!Array.isArray(authOrigins) || authOrigins.length === 0)) {
+    throw new Error('desktop policy: test authentication requires nonempty allowedAuthOrigins')
+  }
+  if (authentication === 'anonymous' && authOrigins !== undefined) {
+    throw new Error('desktop policy: anonymous policy must not configure allowedAuthOrigins')
+  }
   if (typeof jitter !== 'number' || !Number.isFinite(jitter) || jitter < 0 || jitter > 1 || maxBackoffMs < intervalMs) {
     throw new Error('desktop policy: jitter must be in [0, 1] and maxBackoffMs must cover intervalMs')
   }
   return {
     origin: origin(value.origin, authentication === 'anonymous' && allowLoopback),
     allowedPageOrigins: value.allowedPageOrigins.map(item => origin(item, false)),
+    allowedAuthOrigins: authentication === 'feishu-test' ? (authOrigins as unknown[]).map(item => origin(item, false)) : [],
     intervalMs, timeoutMs: duration('timeoutMs', 15_000), maxBackoffMs, jitter, authentication,
   }
 }
@@ -143,9 +153,9 @@ export class DesktopMandatoryUpdatePolicy {
     private readonly random: () => number = Math.random,
   ) {
     if (valid(identity.version) === null || valid(identity.bundledDshVersion) === null || identity.bundleId.trim() === ''
-      || (identity.platform === 'desktop-win' && identity.arch !== 'x64')) throw new Error('desktop policy: invalid installed client identity')
+      || (identity.platform === 'win32' && identity.arch !== 'x64')) throw new Error('desktop policy: invalid installed client identity')
     this.headers = Object.freeze({
-      'x-client-platform': identity.platform, 'x-client-version': identity.version,
+      ...desktopClientHeaders(identity.platform), 'x-client-version': identity.version,
       'x-client-bundle-id': identity.bundleId, 'x-client-locale': identity.locale,
       'x-client-arch': identity.arch, 'x-client-update-channel': 'nightly',
       'x-client-bundled-dsh-version': identity.bundledDshVersion,

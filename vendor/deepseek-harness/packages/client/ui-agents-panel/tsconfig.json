@@ -21,7 +21,7 @@
       "path": "../ui-surfaces"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../store"
@@ -34,6 +34,12 @@
     },
     {
       "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../api/job-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../jobs/jobs"
     },
     {
       "path": "../../core/session"

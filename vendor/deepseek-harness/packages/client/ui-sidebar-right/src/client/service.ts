@@ -7,7 +7,10 @@
  * session id, bound actions, its surface — for exactly as long as it is mounted,
  * and every command on the public face goes through that binding; a command
  * arriving with no seat mounted has no session to act on and fails loudly rather
- * than writing into a surface nobody is drawing. And the plugin adopts each
+ * than writing into a surface nobody is drawing. `mounted` publishes that
+ * binding's session as an observable, so a consumer that wants to open content
+ * as soon as a seat is on screen subscribes to it instead of assuming one is
+ * bound when its own effect runs. And the plugin adopts each
  * session's store instance as the runtime mints it, so the controller reaches
  * any session's store by id and syncs the Tab domain from that store's commits.
  *
@@ -29,6 +32,7 @@
  * callers use the service's navigation methods.
  */
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
+import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { FloatRect, PaneId, TabId, TabRecord } from '@deepseek-ai/dsh-client-ui-dockkit'
 import { activeDockPaneId, canSplit, findContentTab, dockPaneIds, findTabPane, getPane } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
@@ -150,6 +154,15 @@ export type SidebarRightCloseHandler = (sessionId: SessionId, tab: TabRecord) =>
 /** The outward right-Sidebar face (`ctx.sidebarRight`). */
 export interface ISidebarRight {
   /**
+   * The session whose seat is mounted, or `undefined` while no seat is on
+   * screen (a global panel is active, or no session is selected). Moves when a
+   * seat binds or releases, so a component that opens content from its own
+   * mount effect reads it through a bound hook and acts once it is defined:
+   * the frame mounts the Conversation column ahead of the seat, and the seat
+   * publishes its binding from a passive effect of the same commit.
+   */
+  readonly mounted: ObservableSnapshot<SessionId | undefined>
+  /**
    * Open a resource: claim it, place it, reveal the column, record the navigation.
    *
    * Without `options.kind` the registry ranks the types whose globs and
@@ -239,6 +252,9 @@ export interface ISidebarRight {
 export class SidebarRightController implements ISidebarRight {
   /** Open tab metadata across saved and adopted Sessions, independent of visible seats. */
   readonly openTabs: SidebarTabInventory['source']
+  private readonly mountedSession = createSnapshotStore<SessionId | undefined>(undefined)
+  /** The mounted seat's session; see {@link ISidebarRight.mounted}. */
+  readonly mounted: ObservableSnapshot<SessionId | undefined> = this.mountedSession
   private binding: SidebarRightBinding | undefined
   private readonly closeHandlers = new Map<string, SidebarRightCloseHandler>()
 
@@ -294,11 +310,20 @@ export class SidebarRightController implements ISidebarRight {
    */
   bind(binding: SidebarRightBinding): () => void {
     this.binding = binding
+    this.publishMounted()
     return () => {
       // A newer seat may already have taken over; only the binding that is
       // still ours may be cleared.
-      if (this.binding === binding) this.binding = undefined
+      if (this.binding !== binding) return
+      this.binding = undefined
+      this.publishMounted()
     }
+  }
+
+  /** Publish the mounted session only when it changes; a republished binding for the same session is silent. */
+  private publishMounted(): void {
+    const next = this.binding?.sessionId
+    if (this.mountedSession.getSnapshot() !== next) this.mountedSession.set(next)
   }
 
   /**
@@ -453,7 +478,7 @@ export class SidebarRightController implements ISidebarRight {
    * @returns the record, or `undefined` with no mounted surface.
    */
   active(): TabRecord | undefined {
-    const layout = this.mounted()?.layout
+    const layout = this.mountedSurface()?.layout
     if (layout === undefined) return undefined
     const { activeTabId } = getPane(layout, layout.activePaneId)
     return Object.values(layout.tabs).find(tab => tab.id === activeTabId)
@@ -464,7 +489,7 @@ export class SidebarRightController implements ISidebarRight {
    * @returns `true` while expanded; `false` while collapsed or with no mounted surface.
    */
   isExpanded(): boolean {
-    return this.mounted()?.layout.expanded ?? false
+    return this.mountedSurface()?.layout.expanded ?? false
   }
 
   /** Collapse an expanded column, or expand a collapsed one. */
@@ -479,7 +504,7 @@ export class SidebarRightController implements ISidebarRight {
    */
   focus(tabId: TabId): void {
     const { sessionId, actions } = this.require()
-    if (this.mounted()?.layout.tabs[tabId] === undefined) return
+    if (this.mountedSurface()?.layout.tabs[tabId] === undefined) return
     actions.focusTab(sessionId, tabId)
   }
 
@@ -490,7 +515,7 @@ export class SidebarRightController implements ISidebarRight {
    */
   split(paneId?: PaneId): PaneId | undefined {
     const { sessionId, actions, canSplitPane } = this.require()
-    const layout = this.mounted()?.layout
+    const layout = this.mountedSurface()?.layout
     if (layout === undefined) return undefined
     const target = paneId ?? activeDockPaneId(layout)
     const node = layout.nodes[target]
@@ -508,7 +533,7 @@ export class SidebarRightController implements ISidebarRight {
    */
   float(tabId: TabId, rect?: FloatRect): void {
     const { sessionId, actions } = this.require()
-    const layout = this.mounted()?.layout
+    const layout = this.mountedSurface()?.layout
     if (layout === undefined || layout.tabs[tabId] === undefined) return
     if (findTabPane(layout, tabId).host !== 'dock') return
     actions.floatTab(sessionId, tabId, rect)
@@ -520,7 +545,7 @@ export class SidebarRightController implements ISidebarRight {
    */
   dock(paneId: PaneId): void {
     const { sessionId, actions } = this.require()
-    const node = this.mounted()?.layout.nodes[paneId]
+    const node = this.mountedSurface()?.layout.nodes[paneId]
     if (node === undefined || node.kind !== 'pane' || node.host !== 'float') return
     actions.unfloatPane(sessionId, paneId)
   }
@@ -547,7 +572,7 @@ export class SidebarRightController implements ISidebarRight {
   }
 
   /** The mounted session's surface; `undefined` without a seat or before its first open. */
-  private mounted(): SurfaceState | undefined {
+  private mountedSurface(): SurfaceState | undefined {
     const { binding } = this
     return binding === undefined ? undefined : binding.surfaces[binding.sessionId]
   }

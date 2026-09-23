@@ -31,7 +31,9 @@ export type { PluginManagerPageProps } from './PluginManagerPage.tsx'
 export type { ConfigLedger, OfficialItem } from './config-ledger.ts'
 export type { PluginManagerFace } from './manager-store.ts'
 export type { PluginManagerLocaleKey } from './locales.ts'
-export type { PluginConfigViewProps } from './slot-contract.ts'
+export type {
+  ConfigPageForm, PluginActivationOwnerProps, PluginConfigViewProps, PluginDetailProps, PluginPackageRef, PluginRowRef, PluginsSubject,
+} from './slot-contract.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -47,7 +49,7 @@ export const NS = 'pluginManager'
 export const PANEL_ID = 'plugins' as MainPanelId
 
 /** Services required by the sidebar registration and the Remote methods; the inventory says whether the Host manages a profile. */
-export const inject = ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory']
+export const inject = ['slots', 'locale', 'remote', 'remote.pluginManager', 'remote.pluginInventory', 'remote.pluginRegistryProbe', 'configForms']
 
 /**
  * Contribute the Plugins entry to the sidebar with the management page it
@@ -84,11 +86,15 @@ export function apply(ctx: ClientContext): void {
     name: 'main',
     key: PANEL_ID,
     locale: NS,
-    inject: () => controller.inject(configLedger),
+    inject: () => controller.inject(configLedger, text => ctx.locale.resolveText(text)),
     children: {
       'plugins.item': { kind: 'list', scope: 'root' },
+      'plugins.bundle.activation': { kind: 'keyed', scope: 'root' },
       'plugins.bundle.config': { kind: 'keyed', scope: 'root' },
       'plugins.row.config': { kind: 'keyed', scope: 'root' },
+      'plugins.detail.actions': { kind: 'list', scope: 'root' },
+      'plugins.detail.badge': { kind: 'list', scope: 'root' },
+      'plugins.detail.section': { kind: 'list', scope: 'root' },
     },
   }, PluginManagerPage))
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({

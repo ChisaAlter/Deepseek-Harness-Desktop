@@ -1,4 +1,4 @@
-/* Two icon pills side by side under the composer, 13/20 tertiary text tier
+/* Two icon pills side by side under the composer, 12/20 tertiary text tier
    with a hover-pill affordance; each pill's click-open panel wears the shared
    stat-dialog.module.css skin. When the composer card is drag-resized, the
    seat publishes --dsh-composer-resized-width and this row follows it (same
@@ -18,7 +18,7 @@
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
+  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
   line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 

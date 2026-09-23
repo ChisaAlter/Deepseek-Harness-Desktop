@@ -15,8 +15,7 @@
   top: 80px;
   bottom: 0px;
   background: rgba(0, 0, 0, 0.24);
-  /* Mask-blur */
-  backdrop-filter: blur(2px);
+  backdrop-filter: var(--dsw-mask-blur);
 }
 
 .onboardingStage {

@@ -3,9 +3,6 @@ import { randomUUID } from 'node:crypto'
 import { BrowserWindow, session } from 'electron'
 import type { DesktopLocale } from './locale.ts'
 
-const FEISHU_ORIGINS = ['https://open.feishu.cn', 'https://accounts.feishu.cn',
-  'https://passport.feishu.cn', 'https://login.feishu.cn']
-
 /** Packaged placeholder document; it is the window's first document and needs no network. */
 const LOGIN_LOADING_PAGE = 'renderer/policy-login-loading.html'
 
@@ -28,11 +25,13 @@ export class DesktopPolicyTestAuth {
 
   /**
    * @param origin Validated HTTPS policy origin; login always starts at its root with fresh gateway state.
+   * @param allowedAuthOrigins Validated HTTPS origins for login document navigation.
    * @param locale Shell-owned login title.
    * @param parent Current application or mandatory-update window.
    * @param record Fixed, nonsecret login outcomes for diagnostic evidence.
    */
-  constructor(private readonly origin: string, private readonly locale: DesktopLocale,
+  constructor(private readonly origin: string, private readonly allowedAuthOrigins: readonly string[],
+    private readonly locale: DesktopLocale,
     private readonly parent: () => BrowserWindow | undefined,
     private readonly record: (event: 'opened' | DesktopPolicyLoginResult) => void) {
     this.browserSession.setPermissionRequestHandler((_contents, _permission, callback) => { callback(false) })
@@ -144,7 +143,7 @@ export class DesktopPolicyTestAuth {
     let url: URL
     try { url = new URL(value) } catch { return false }
     return url.protocol === 'https:' && url.username === '' && url.password === ''
-      && (url.origin === this.origin || FEISHU_ORIGINS.includes(url.origin))
+      && (url.origin === this.origin || this.allowedAuthOrigins.includes(url.origin))
   }
 
   /**

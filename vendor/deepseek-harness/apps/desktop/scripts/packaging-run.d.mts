@@ -26,9 +26,10 @@ export function packagingOutputRedactor(secrets: readonly string[], emit: (text:
  * Allocate retained evidence and supervise sequential child-process stages.
  * @param root Parent directory for retained records.
  * @param metadata Public target/version metadata only.
+ * @param settings Opt-in parallel stages and additional credentials to redact.
  * @returns A run that blocks later stages after failure and awaits owned process termination.
  */
-export function createPackagingRun(root: string, metadata: object): {
+export function createPackagingRun(root: string, metadata: object, settings?: { parallel?: boolean; secrets?: readonly string[] }): {
   directory: string
   run(stage: string, executable: string, args: readonly string[], options: {
     cwd: string

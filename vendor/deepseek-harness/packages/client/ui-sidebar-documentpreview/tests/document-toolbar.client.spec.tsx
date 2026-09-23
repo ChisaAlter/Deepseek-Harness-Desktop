@@ -151,18 +151,19 @@ describe('document toolbar', () => {
       await pending.promise
     })
     h.bytes.mockReturnValueOnce(pending.promise)
-    const renderSlot = vi.fn(() => null)
+    const renderSlot = vi.fn((_key: string) => null)
+    const documentRenders = (): number => renderSlot.mock.calls.filter(call => call[0] === 'sidebar.right.tab.document').length
     const props: TextPreviewProps = { ...h.props(), useDocumentPreviews: selector => selector([binary]), renderSlot }
     const view = render(<TextPreview {...props} />)
     expect(view.getByRole('status').hasAttribute('data-document-loading')).toBe(true)
     expect(view.getByRole('status').getAttribute('aria-label')).toBe('loading')
     expect(view.container.querySelector('[data-textpreview-body]')?.firstElementChild).toBe(view.getByRole('status'))
-    expect(renderSlot).not.toHaveBeenCalledWith('sidebar.right.tab.document', expect.anything())
+    expect(documentRenders()).toBe(0)
     await act(async () => {
       pending.resolve(result)
       await pending.promise
     })
-    expect(renderSlot).toHaveBeenCalledWith('sidebar.right.tab.document', expect.anything(), expect.anything())
+    expect(documentRenders()).toBeGreaterThan(0)
     expect(view.queryByRole('status')).toBeNull()
   })
 
@@ -173,8 +174,9 @@ describe('document toolbar', () => {
     const renderSlot = vi.fn(() => null)
     view.rerender(<TextPreview {...h.props()} useDocumentPreviews={selector => selector([{ ...binary, loading: 'renderer' }])} renderSlot={renderSlot} />)
     expect(view.container.textContent).not.toContain('previous reader content')
+    const rendererContentMatcher: unknown = expect.objectContaining({ kind: 'renderer' })
     expect(renderSlot).toHaveBeenCalledWith('sidebar.right.tab.document', expect.objectContaining({
-      content: expect.objectContaining({ kind: 'renderer' }) as unknown,
+      content: rendererContentMatcher,
     }), expect.any(Object))
     expect(h.instance.getSnapshot().byTab[TAB_ID]?.complete).toBeUndefined()
     expect(h.bytes).not.toHaveBeenCalled()
@@ -184,7 +186,7 @@ describe('document toolbar', () => {
     const h = harness()
     const result = { ok: true as const, value: { absolutePath: ABSOLUTE_PATH, version: 'v1', offset: 0, data: new TextEncoder().encode('all'), bytes: 3, eof: true } }
     const read = h.bytes.mockResolvedValueOnce({
-      ok: false, error: new RemoteError('workspace-file/not-found', 'Missing file', { path: ABSOLUTE_PATH }),
+      ok: false, error: new RemoteError('gateway/internal', 'socket closed', {}),
     }).mockResolvedValue(result)
     h.useResource.mockReturnValue({ status: 'failed', value: undefined,
       failure: new RemoteError('workspace-file/not-found', 'Missing file', { path: ABSOLUTE_PATH }) })
@@ -302,6 +304,11 @@ describe('document toolbar', () => {
     expect(view.container.querySelector('[data-textpreview-path]')).not.toBeNull()
     expect(view.container.querySelector('[data-document-viewer-menu]')).toBeNull()
     expect(view.container.querySelector('[data-textpreview-tool="reload"]')).toBeNull()
+    // Both handoff seats receive the file once its Host path is known.
+    const header = view.container.querySelector('[data-textpreview-path]')?.parentElement
+    expect(header?.querySelector('[data-slot="sidebar.right.tab.document.actions"]')?.getAttribute('data-slot-path')).toBe(ABSOLUTE_PATH)
+    const empty = view.container.querySelector('[data-textpreview-unsupported]')
+    expect(empty?.querySelector('[data-slot="sidebar.right.tab.document.unpreviewable"]')?.getAttribute('data-slot-path')).toBe(ABSOLUTE_PATH)
     expect(h.read).not.toHaveBeenCalled()
     expect(h.bytes).not.toHaveBeenCalled()
     h.controller.abort()

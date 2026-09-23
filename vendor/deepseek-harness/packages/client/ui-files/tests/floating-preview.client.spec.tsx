@@ -24,8 +24,7 @@ function sessions(rows: Record<string, { cwd?: string }>): SessionListState {
     ids: Object.keys(byId) as SessionId[],
     byId: byId as SessionListState['byId'],
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   }
 }
 

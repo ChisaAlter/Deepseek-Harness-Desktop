@@ -28,6 +28,18 @@
     },
     {
       "path": "../cordis-host-runner"
+    },
+    {
+      "path": "../../../vendor/loader"
+    },
+    {
+      "path": "../../boot/app-boot"
+    },
+    {
+      "path": "../../util/values"
+    },
+    {
+      "path": "../../../vendor/group"
     }
   ]
 }

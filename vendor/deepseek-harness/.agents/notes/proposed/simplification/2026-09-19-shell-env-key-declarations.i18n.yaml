@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/proposed/simplification/2026-09-19-shell-env-key-declarations.md
+2026-09-19-shell-env-key-declarations.md: 7b74e55e6b8602cb488d16040d57fe41d16e14da
+2026-09-19-shell-env-key-declarations.zh.md: 03d7ed9fdee1c1181c529c2b2dd26ceb7c791ef2

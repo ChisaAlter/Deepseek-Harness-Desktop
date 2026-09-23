@@ -78,7 +78,7 @@ seam 建立在一个边界之上：harness 的职责止于 `emit()`。完整事�
 
 ### handoff 游标
 
-模块作用域的 `WeakMap<Session, seq>` 记录已交接而非已投递的最高序号。重新收养同一对象时从该游标之后继续。捕获通常从 `firstLiveSeq` 开始；显式 `includeHistory: true` 从未交接对象的 seq 0 开始，包含恢复或 fork 历史。后端负责捕获授权。存储的历史本身不授权捕获；OTel 后端等待新的显式反馈。接收方按 `(session.id, session.format_version, event.seq)` 对重复记录去重。
+模块级 `WeakMap<Session, seq>` 记录已经移交的最高序号，而不是已送达的最高序号。再次接管同一对象时从该游标之后继续。采集从 `firstLifecycleSeq` 开始：新 fork 包含子会话自有的标记与 fork 结束事件；恢复的 Session 排除已存储前缀，包括先前的子会话轮次。显式 `includeHistory: true` 会让尚未移交的对象从 seq 0 开始，包括恢复或 fork 历史。Backend 负责采集授权；已有存储历史本身不构成授权，OTel backend 等待新的显式反馈。接收方通过 `(session.id, session.format_version, event.seq)` 对重复记录去重。
 
 </details>
 

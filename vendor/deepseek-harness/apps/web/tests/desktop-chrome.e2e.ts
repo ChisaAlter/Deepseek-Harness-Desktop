@@ -1,6 +1,6 @@
 // Web e2e: assembled desktop chrome on the shipped web composition —
 // titlebar trailing cluster (Session log, Git, terminal + surfaces toggles)
-// and the right-panel empty five-card grid. Zero model calls: a connected
+// and the right-panel guide. Zero model calls: a connected
 // workspace unlocks the current Session so Session log mounts; Git IPC is
 // absent in this lane, so the split button stays on the disabled Commit
 // label. A stray stream fails loud on the open llm seam.
@@ -18,10 +18,10 @@ import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './suppor
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/desktop-chrome', import.meta.url))
 const TITLEBAR_EXPECTED = join(SNAPSHOT_DIR, 'titlebar.expected.md')
-const EMPTY_EXPECTED = join(SNAPSHOT_DIR, 'empty-five-cards.expected.md')
+const GUIDE_EXPECTED = join(SNAPSHOT_DIR, 'sidebar-guide.expected.md')
 const MODE = webSnapshotMode()
 
-describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
+describe('web e2e: titlebar cluster and right sidebar guide', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -33,7 +33,7 @@ describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
   }, 120_000)
@@ -47,7 +47,7 @@ describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-desktop-chrome-titlebar'))
     const cluster = page.locator('#dshd-shell-titlebar-trailing')
     await cluster.waitFor({ timeout: 15_000 })
-    const sessionLog = cluster.getByRole('button', { name: 'Session log' })
+    const sessionLog = cluster.getByRole('button', { name: /session log/i })
     const branch = cluster.getByRole('button', { name: 'Switch branch' })
     const git = cluster.getByRole('button', { name: 'Commit' })
     const gitMenu = cluster.getByRole('button', { name: 'Git actions' })
@@ -74,7 +74,7 @@ describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
     }
     const snapshot = await captureStableAria(page, '#dshd-shell-titlebar-trailing', scaffold.workspaceCwd)
     await compareOrRefreshGolden(TITLEBAR_EXPECTED, snapshot, MODE)
-    expect(snapshot).toContain('Session log')
+    expect(snapshot).toMatch(/session log/i)
     expect(snapshot).toContain('Switch branch')
     expect(snapshot).toContain('Commit')
     expect(snapshot).toContain('Git actions')
@@ -110,41 +110,39 @@ describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
     expect(tripwire.pageErrors, tripwire.pageErrors.join('\n')).toEqual([])
   })
 
-  it('opens the right panel on the empty five-card grid', async () => {
+  it('opens the right panel on the shipped guide', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-desktop-chrome-surfaces'))
     const surfaces = page.getByRole('button', { name: 'Toggle right panel' })
     if (await surfaces.getAttribute('aria-pressed') !== 'true') {
       await surfaces.click()
     }
     await expect.poll(() => surfaces.getAttribute('aria-pressed'), { timeout: 10_000 }).toBe('true')
-    const empty = page.locator('[data-surfaces-empty]')
-    await empty.waitFor({ state: 'visible', timeout: 10_000 })
-    const snapshot = await captureStableAria(page, '[data-surfaces-empty]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(EMPTY_EXPECTED, snapshot, MODE)
-    expect(snapshot).toContain('Open a surface')
-    expect(snapshot).toContain('Browser')
-    expect(snapshot).toContain('Terminal')
+    const guide = page.locator('[data-sidebar-right-guide]')
+    await guide.waitFor({ state: 'visible', timeout: 10_000 })
+    const snapshot = await captureStableAria(page, '[data-sidebar-right-guide]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(GUIDE_EXPECTED, snapshot, MODE)
+    expect(snapshot).toContain('File viewer')
+    expect(snapshot).toContain('New terminal')
     expect(snapshot).toContain('Files')
-    expect(snapshot).toContain('Diff')
-    expect(snapshot).toContain('Agents')
+    expect(snapshot).toContain('Workspace diff')
+    expect(snapshot).toContain('Agents and jobs')
     expect(tripwire.pageErrors, tripwire.pageErrors.join('\n')).toEqual([])
   })
 
-  it('opens Files from the empty grid and keeps the add-tab control', async () => {
+  it('opens Files from the guide and keeps the add-tab control', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-desktop-chrome-files-tabs'))
     const surfaces = page.getByRole('button', { name: 'Toggle right panel' })
     if (await surfaces.getAttribute('aria-pressed') !== 'true') {
       await surfaces.click()
     }
-    await page.locator('[data-surfaces-empty]').waitFor({ state: 'visible', timeout: 10_000 }).catch(() => {})
-    const filesCard = page.getByRole('button', { name: /^Files/ }).first()
-    if (await page.locator('[data-surfaces-empty]').isVisible()) {
-      await filesCard.click()
+    if (!await page.locator('[data-sidebar-right-guide]').isVisible()) {
+      await page.locator('[data-dockkit-add-tab]').click()
     }
-    const tabs = page.locator('[data-surfaces-tabs]')
-    await tabs.waitFor({ state: 'visible', timeout: 10_000 })
-    expect(await page.getByRole('button', { name: 'Close Files' }).isVisible()).toBe(true)
-    expect(await page.getByRole('button', { name: 'Open a surface' }).isVisible()).toBe(true)
+    await page.locator('[data-sidebar-right-guide-entry="files"]').click()
+    const tab = page.locator('[data-dockkit-tab]').filter({ hasText: 'Files' })
+    await tab.waitFor({ state: 'visible', timeout: 10_000 })
+    expect(await tab.getAttribute('aria-selected')).toBe('true')
+    expect(await page.locator('[data-dockkit-add-tab]').isVisible()).toBe(true)
     expect(tripwire.pageErrors, tripwire.pageErrors.join('\n')).toEqual([])
   })
 
@@ -156,7 +154,7 @@ describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
     }
     await expect.poll(() => surfaces.getAttribute('aria-pressed'), { timeout: 10_000 }).toBe('true')
     const cluster = page.locator('#dshd-shell-titlebar-trailing')
-    const sessionLog = cluster.getByRole('button', { name: 'Session log' })
+    const sessionLog = cluster.getByRole('button', { name: /session log/i })
     const branch = cluster.getByRole('button', { name: 'Switch branch' })
     const git = cluster.getByRole('button', { name: 'Commit' })
     const boxes = await Promise.all([
@@ -176,6 +174,6 @@ describe('web e2e: titlebar cluster and surfaces empty five cards', () => {
   })
 
   it('commits exactly the fixtures it reads', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['titlebar.expected.md', 'empty-five-cards.expected.md'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['titlebar.expected.md', 'sidebar-guide.expected.md'])
   })
 })

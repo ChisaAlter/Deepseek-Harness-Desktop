@@ -34,6 +34,7 @@ export function toolChatSnapshot(
     nodes: {
       get: key => byKey.get(key),
       source: key => ({ getSnapshot: () => byKey.get(key), subscribe: () => () => {} }),
+      turnDataSource: () => { throw new Error('unused') },
       processSource: () => ({ getSnapshot: () => undefined, subscribe: () => () => {} }),
       values: () => nodes,
     },
@@ -106,14 +107,11 @@ export function toolSessionEvents(nodes: readonly ToolResultNode[]): readonly Se
           step: 1,
           message: {
             id: `result-${node.callId}`,
-            role: 'user',
+            role: 'tool',
             source: { kind: 'tool', callId: node.callId },
-            content: [{
-              type: 'tool-result',
-              toolCallId: node.callId,
-              content: node.content.map(block => ({ ...block })),
-              isError: node.isError,
-            }],
+            toolCallId: node.callId,
+            content: node.content.map(block => ({ ...block })),
+            isError: node.isError,
           },
           ...(node.error === undefined ? {} : { error: node.error }),
           ...(node.meta === undefined ? {} : { meta: node.meta }),

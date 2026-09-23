@@ -10,7 +10,7 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import type { Browser, Page } from 'playwright'
+import type { Browser, ConsoleMessage, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
@@ -96,6 +96,8 @@ describe('web e2e: plan review takeover round trip', () => {
     const selectedRow = page.locator('[role="treeitem"][aria-selected="true"]')
     await expect.poll(() => selectedRow.locator('[data-state="warning"]').count(), { timeout: 10_000 }).toBe(1)
     await expect.poll(() => selectedRow.getByText('Plan awaiting review', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    await expect.poll(() => selectedRow.getByText('Plan review', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    expect(await selectedRow.getByText('now', { exact: true }).count()).toBe(0)
 
     if (MODE !== 'record') {
       const snapshot = await captureStableAria(page, '[data-plan-review-key]', scaffold.workspaceCwd)
@@ -209,6 +211,51 @@ describe('web e2e: plan review takeover round trip', () => {
     }
   }, 60_000)
 
+  it.skipIf(MODE === 'record')('opens a review that arrives while a global panel is active', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-plan-review-panel-return'))
+    const agent = scaffold.ctx.agents.get(reviewedSession)
+    if (agent === undefined) throw new Error('The reviewed Session has no active agent')
+    // The Plugins panel replaces the Conversation and its right Sidebar. The
+    // review arrives while neither is mounted; returning mounts both in one
+    // commit, and the review's automatic open runs before the Sidebar's own
+    // effects. A crash there retires the opener for the rest of the page.
+    await page.getByRole('button', { name: 'Plugins', exact: true }).click()
+    await expect.poll(() => page.locator('[data-composer-input]').count()).toBe(0)
+    const crashes: string[] = []
+    const onConsole = (message: ConsoleMessage): void => {
+      if (message.type() === 'error' && /slot entry crashed/i.test(message.text())) crashes.push(message.text())
+    }
+    page.on('console', onConsole)
+    const controller = new AbortController()
+    const asked = scaffold.ctx.userQuestions.ask({
+      agent, signal: controller.signal,
+      questions: [{ id: 'off-screen', question: 'Approve this plan?',
+        detail: '# Off-screen review\n\nSubmitted while the Plugins panel was open.',
+        options: [{ label: 'Approve' }, { label: 'Keep planning' }], intent: { kind: 'plan-review', approve: 'Approve' },
+      }],
+    })
+    const outcome = asked.then(value => value, (error: unknown) => ({ error }))
+    try {
+      const row = page.locator('[role="treeitem"]').filter({ has: page.locator('[data-state="warning"]') }).first()
+      await row.waitFor({ timeout: 10_000 })
+      await row.click()
+      const card = page.locator('[data-plan-review-key]')
+      await card.waitFor({ timeout: 10_000 })
+      const preview = page.locator('[data-plan-preview^="dsh-resource://plan-review/"]')
+      await preview.waitFor({ state: 'visible', timeout: 10_000 })
+      expect(await preview.getByText('Submitted while the Plugins panel was open.').isVisible()).toBe(true)
+      expect(await card.getByRole('button', { name: 'Open plan in sidebar' }).count()).toBe(1)
+      expect(await page.locator('[data-slot-error]').count()).toBe(0)
+      expect(crashes).toEqual([])
+      expect(tripwire.pageErrors).toEqual([])
+      expect(tripwire.warnings).toEqual([])
+    } finally {
+      page.off('console', onConsole)
+      controller.abort()
+      await outcome
+    }
+  }, 60_000)
+
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'review.expected.md', 'sidebar.expected.md', 'preview.expected.md',
@@ -246,7 +293,7 @@ describe('web e2e: dismissed plan history', () => {
       expect(call).toBeDefined()
       const results = events.filter(event => event.type === 'tool/result')
       const result = results.find(event => event.data.message.source.callId === call?.data.callId)
-      expect(result?.data.message.content[0]).toMatchObject({ type: 'tool-result', isError: true })
+      expect(result?.data.message).toMatchObject({ role: 'tool', toolCallId: call?.data.callId, isError: true })
       expect(JSON.stringify(result)).toContain('dismissed the plan review')
       expect(results.some(event => JSON.stringify(event).includes('Plan approved'))).toBe(false)
       const modes = events.filter(event => event.type === 'plan/mode')

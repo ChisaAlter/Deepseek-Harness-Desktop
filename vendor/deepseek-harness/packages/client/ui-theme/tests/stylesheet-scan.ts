@@ -74,7 +74,8 @@ export function varReferences(value: string): string[] {
 /**
  * Every CSS file shipped as package source, excluding build output and
  * installed dependencies.
- * @returns absolute paths of the stylesheets under packages/.
+ * @returns absolute stylesheet paths under packages/, `/`-separated on every
+ *   platform so specs can match repo-relative suffixes verbatim.
  */
 export function packageStylesheets(): string[] {
   const found: string[] = []
@@ -83,7 +84,7 @@ export function packageStylesheets(): string[] {
       const path = join(dir, entry.name)
       if (entry.isDirectory()) {
         if (entry.name !== 'node_modules' && entry.name !== 'lib' && entry.name !== 'dist') walk(path)
-      } else if (entry.name.endsWith('.css')) found.push(path)
+      } else if (entry.name.endsWith('.css')) found.push(path.replaceAll('\\', '/'))
     }
   }
   walk(PACKAGES_DIR)

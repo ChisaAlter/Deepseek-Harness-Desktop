@@ -16,7 +16,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { expandTurnProcesses, newEnglishPage, saveFailureShot } from './support.ts'
+import { expandTurnProcesses, newEnglishPage, saveFailureShot, scrollIntoView } from './support.ts'
 
 const EXPECTED_DIR = fileURLToPath(new URL('./expected/thinking-markdown', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('./expected/thinking-markdown/ui.expected.md', import.meta.url))
@@ -159,7 +159,7 @@ describe('web e2e: secondary Thinking Markdown', () => {
     expect(await markdown.locator('hr').count()).toBe(1)
     expect(await markdown.locator('table').count()).toBe(1)
     expect(await markdown.locator('.katex').count()).toBe(7)
-    await markdown.locator('pre').scrollIntoViewIfNeeded()
+    await scrollIntoView(markdown.locator('pre'))
     await expect.poll(() => markdown.locator('pre.shiki').count(), { timeout: 15_000 }).toBe(1)
     const snapshot = (await captureStableAria(page, '[data-variant="think"][data-expanded]', scaffold.workspaceCwd))
       .split(LONG_TOKEN).join('{{longToken}}')
@@ -170,6 +170,8 @@ describe('web e2e: secondary Thinking Markdown', () => {
       await page.evaluate(async () => { await document.fonts.ready })
       const styles = await markdown.evaluate((root, secondary) => {
         const elements = [...root.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,p,li,a,strong,em,pre,pre code,pre span,th,td,.katex')]
+        const prose = elements.filter(element => element.closest('pre') === null)
+        const code = elements.filter(element => element.closest('pre') !== null)
         const scrollers = [...root.querySelectorAll<HTMLElement>('[class*="tableScroll"],.katex-display,p:has(.katex),ul:has(.katex)')]
         const shortFormulas = [...root.querySelectorAll('p')].filter(element => element.textContent?.startsWith('Short '))
         // Native KaTeX baselines vary with host fonts; compact adds one pixel for descender ink.
@@ -190,9 +192,13 @@ describe('web e2e: secondary Thinking Markdown', () => {
         const banner = root.querySelector('[data-code-block-banner]')?.parentElement
         const loose = [...root.querySelectorAll('li p')].find(element => element.textContent === 'Loose middle paragraph.')
         return {
-          secondarySize: elements.every(element => getComputedStyle(element).fontSize === secondary.fontSize),
-          secondaryLine: elements.filter(element => !element.classList.contains('katex'))
+          secondarySize: prose.every(element => getComputedStyle(element).fontSize === secondary.fontSize),
+          secondaryLine: prose.filter(element => !element.classList.contains('katex'))
             .every(element => getComputedStyle(element).lineHeight === secondary.lineHeight),
+          codeTypography: code.length > 0 && code.every((element) => {
+            const style = getComputedStyle(element)
+            return style.fontSize === '11px' && style.lineHeight === '19px'
+          }),
           tertiaryColor: elements.every(element => getComputedStyle(element).color === secondary.color),
           tertiaryMarkers: [...root.querySelectorAll('li')]
             .every(element => getComputedStyle(element, '::marker').color === secondary.color),
@@ -216,7 +222,7 @@ describe('web e2e: secondary Thinking Markdown', () => {
         }
       }, summaryStyle)
       expect(styles, `Thinking typography at ${String(width)}px`).toEqual({
-        secondarySize: true, secondaryLine: true, tertiaryColor: true, tertiaryMarkers: true,
+        secondarySize: true, secondaryLine: true, codeTypography: true, tertiaryColor: true, tertiaryMarkers: true,
         contained: true, bannerStatic: true, looseSpacing: true,
         wideContentBounded: true, displayMathScrolls: true,
         shortMathNaturalHeight: true, shortMathNoScrollbar: true, longAtomScrolls: true, mathListMarkerSpace: true,
@@ -226,13 +232,15 @@ describe('web e2e: secondary Thinking Markdown', () => {
       .evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize))
     expect(answerSize).toBeGreaterThan(Number.parseFloat(summaryStyle.fontSize))
     await page.setViewportSize({ width: 1680, height: 1000 })
-    await page.locator('[data-conversation-scroll]').evaluate((host) => {
+    const groupScroll = thinking.locator('xpath=ancestor::*[@data-step-process-body][1]')
+    await scrollIntoView(groupScroll)
+    await groupScroll.evaluate((host) => {
       const row = host.querySelector('[data-variant="think"] tbody tr:nth-child(12)')
       if (row === null) throw new Error('tall Thinking table row missing')
       host.scrollTop += row.getBoundingClientRect().top - host.getBoundingClientRect().top
     })
     await expect.poll(() => toggle.evaluate((button) => {
-      const host = button.closest('[data-conversation-scroll]')
+      const host = button.closest('[data-step-process-body]')
       const table = button.closest('[data-variant="think"]')?.querySelector('table')
       if (host === null || table === null || table === undefined) throw new Error('Thinking scroll context missing')
       const buttonRect = button.getBoundingClientRect()

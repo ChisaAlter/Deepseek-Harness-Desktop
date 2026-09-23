@@ -2,13 +2,15 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AssistantMarkdown, localPathMediaUrl } from '../src/client/chat/AssistantMarkdown.tsx'
+import { useDetailedPresentation } from './presentation-fixture.client.ts'
+import { useDisclosure } from '../src/client/chat/use-disclosure.ts'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../src/client/contract/slots.ts'
 import type { AssistantBlock } from '../src/client/contract/snapshot.ts'
 
 afterEach(cleanup)
 
-const t = ((_key: string) => 'label') as unknown as ChatViewSlotProps['t']
-const renderMessageImages = (() => null) as unknown as ChatNodeOwnerProps['renderMessageImages']
+const t = ((_key: string) => 'label') as ChatViewSlotProps['t']
+const renderMessageImages = (() => null) as ChatNodeOwnerProps['renderMessageImages']
 
 function textBlock(text: string): AssistantBlock {
   return { kind: 'text', text }
@@ -18,38 +20,47 @@ function reasoningBlock(text: string): AssistantBlock {
   return { kind: 'reasoning', text }
 }
 
-const ORIGIN = 'http://127.0.0.1:3080'
+const BASE = 'http://127.0.0.1:3080/'
+const MOUNTED_BASE = 'http://127.0.0.1:3080/tools/dsh/'
 
 describe('localPathMediaUrl', () => {
-  it('maps an absolute POSIX path on an HTTP page to the file API', () => {
-    expect(localPathMediaUrl('http:', ORIGIN, '/tmp/graph.png'))
-      .toBe(`${ORIGIN}/api/file?path=${encodeURIComponent('/tmp/graph.png')}`)
-    expect(localPathMediaUrl('https:', 'https://127.0.0.1:3080', '/tmp/graph.png'))
-      .toBe(`https://127.0.0.1:3080/api/file?path=${encodeURIComponent('/tmp/graph.png')}`)
+  it('maps an absolute POSIX path to the file route of the document, root or mount', () => {
+    const path = encodeURIComponent('/tmp/graph.png')
+    for (const [base, root] of [
+      [BASE, BASE],
+      ['https://127.0.0.1:3080/', 'https://127.0.0.1:3080/'],
+      [MOUNTED_BASE, MOUNTED_BASE],
+      ['http://127.0.0.1:3080/tools/dsh/index.html', MOUNTED_BASE],
+    ]) {
+      expect(localPathMediaUrl(base!, '/tmp/graph.png')).toBe(`${root!}api/file?path=${path}`)
+    }
   })
 
   it('keeps non-HTTP transports inert', () => {
-    expect(localPathMediaUrl('file:', 'file:///app', '/tmp/graph.png')).toBeUndefined()
-    expect(localPathMediaUrl('ws:', ORIGIN, '/tmp/graph.png')).toBeUndefined()
+    expect(localPathMediaUrl('about:blank', '/tmp/graph.png')).toBeUndefined()
+    expect(localPathMediaUrl('dsh-app://app/', '/tmp/graph.png')).toBeUndefined()
+    expect(localPathMediaUrl('file:///app', '/tmp/graph.png')).toBeUndefined()
+    expect(localPathMediaUrl('ws://127.0.0.1:3080/', '/tmp/graph.png')).toBeUndefined()
   })
 
   it('keeps destinations that cannot be Host-served local files inert', () => {
-    expect(localPathMediaUrl('http:', ORIGIN, '')).toBeUndefined()
-    expect(localPathMediaUrl('http:', ORIGIN, '//cdn.example.com/x.png')).toBeUndefined()
-    expect(localPathMediaUrl('http:', ORIGIN, 'relative.png')).toBeUndefined()
-    expect(localPathMediaUrl('http:', ORIGIN, 'C:\\tmp\\x.png')).toBeUndefined()
+    expect(localPathMediaUrl(BASE, '')).toBeUndefined()
+    expect(localPathMediaUrl(BASE, '//cdn.example.com/x.png')).toBeUndefined()
+    expect(localPathMediaUrl(BASE, 'relative.png')).toBeUndefined()
+    expect(localPathMediaUrl(BASE, 'C:\\tmp\\x.png')).toBeUndefined()
   })
 
   it('encodes the full path including spaces', () => {
-    expect(localPathMediaUrl('http:', ORIGIN, '/tmp/my graph.png'))
-      .toBe(`${ORIGIN}/api/file?path=${encodeURIComponent('/tmp/my graph.png')}`)
+    expect(localPathMediaUrl(BASE, '/tmp/my graph.png'))
+      .toBe(`${BASE}api/file?path=${encodeURIComponent('/tmp/my graph.png')}`)
   })
 })
 
 describe('AssistantMarkdown local-path images', () => {
   it('renders a local image path in closing prose through the same-origin API', () => {
     const { container } = render(
-      <AssistantMarkdown
+      <AssistantMarkdown useDisclosure={useDisclosure}
+        usePresentation={useDetailedPresentation}
         blocks={[textBlock('See ![diagram](/tmp/graph.png) for the layout.')]}
         streaming={false}
         renderMessageImages={renderMessageImages}
@@ -65,7 +76,8 @@ describe('AssistantMarkdown local-path images', () => {
 
   it('keeps non-absolute destinations inert', () => {
     const { container } = render(
-      <AssistantMarkdown
+      <AssistantMarkdown useDisclosure={useDisclosure}
+        usePresentation={useDetailedPresentation}
         blocks={[textBlock('See ![diagram](relative.png).')]}
         streaming={false}
         renderMessageImages={renderMessageImages}
@@ -79,6 +91,8 @@ describe('AssistantMarkdown local-path images', () => {
   it('renders a local image path inside an expanded Think row through the same vocabulary', () => {
     const { container } = render(
       <AssistantMarkdown
+        useDisclosure={useDisclosure}
+        usePresentation={useDetailedPresentation}
         blocks={[reasoningBlock('Checking the shot ![shot](/tmp/screen.png) first.')]}
         streaming={false}
         renderMessageImages={renderMessageImages}

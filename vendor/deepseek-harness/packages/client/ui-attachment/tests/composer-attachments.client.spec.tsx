@@ -110,69 +110,42 @@ describe('ComposerAttachments', () => {
     expect(fireEvent.dragOver(document.body, { dataTransfer })).toBe(false)
     expect(dataTransfer.dropEffect).toBe('copy')
     expect(fireEvent.drop(document.body, { dataTransfer })).toBe(false)
-    expect(onAddFiles).toHaveBeenCalledWith([image], [])
+    expect(onAddFiles).toHaveBeenCalledWith([image], new Set())
     expect(view.queryByRole('status')).toBeNull()
   })
 
-  it('reports a dropped folder as rejected instead of drafting an unreadable stub', () => {
-    const onAddFiles = vi.fn()
-    const view = render(<ComposerAttachments {...props({ onAddFiles })} />)
-    const file = fileDraft('kept').file
-    const folder = new File([], 'autoshop-mcp-server-main')
-    const orphan = new File([Uint8Array.of(1)], 'orphan.txt', { type: 'text/plain' })
-    const dataTransfer = {
-      types: ['Files'],
-      files: [file, folder, orphan],
-      dropEffect: 'none',
-      items: [
-        {
-          kind: 'file',
-          getAsFile: () => file,
-          webkitGetAsEntry: () => ({ isFile: true, isDirectory: false, name: 'kept.pdf' }),
-        },
-        {
-          kind: 'file',
-          getAsFile: () => folder,
-          webkitGetAsEntry: () => ({ isFile: false, isDirectory: true, name: 'autoshop-mcp-server-main' }),
-        },
-        { kind: 'string', getAsFile: () => null, webkitGetAsEntry: () => null },
-        { kind: 'file', getAsFile: () => null, webkitGetAsEntry: () => null },
-      ],
-    }
-    expect(fireEvent.drop(document.body, { dataTransfer })).toBe(false)
-    // The files entry no item claimed still lands as a file, never silently lost.
-    expect(onAddFiles).toHaveBeenCalledWith([file, orphan], [folder])
-    view.unmount()
-  })
-
-  it('collects each dropped file once when items and files expose distinct File objects', () => {
+  it('reports dropped directories from the entry API beside the dropped files', () => {
     const onAddFiles = vi.fn()
     render(<ComposerAttachments {...props({ onAddFiles })} />)
-    // Real drag transfers mint a fresh File at every accessor: an item's
-    // getAsFile() never shares identity with the files entry for the same
-    // dragged file, so the intake cannot dedupe by object identity.
-    const dataTransfer = {
-      types: ['Files'],
-      files: [
-        new File([Uint8Array.of(1)], 'a.png'),
-        new File([Uint8Array.of(2)], 'b.png'),
-      ],
-      dropEffect: 'none',
-      items: [
-        { kind: 'file', getAsFile: () => new File([Uint8Array.of(1)], 'a.png'), webkitGetAsEntry: () => null },
-        { kind: 'file', getAsFile: () => new File([Uint8Array.of(2)], 'b.png'), webkitGetAsEntry: () => null },
-      ],
-    }
-    expect(fireEvent.drop(document.body, { dataTransfer })).toBe(false)
-    expect(onAddFiles).toHaveBeenCalledTimes(1)
-    const [accepted, rejected] = onAddFiles.mock.calls[0] ?? []
-    expect(accepted?.map((file: File) => file.name)).toEqual(['a.png', 'b.png'])
-    expect(rejected).toEqual([])
+    const folder = new File([], 'project')
+    const note = new File([Uint8Array.of(1)], 'notes.md', { type: 'text/markdown' })
+    const entry = (isDirectory: boolean | null, file: File) => ({
+      kind: 'file', getAsFile: () => new File([], file.name), webkitGetAsEntry: () => (isDirectory === null ? null : { isDirectory }),
+    })
+    fireEvent.drop(document.body, {
+      dataTransfer: {
+        types: ['Files'],
+        files: [folder, note],
+        items: [entry(true, folder), entry(false, note), { kind: 'string', getAsFile: () => null }],
+        dropEffect: 'none',
+      },
+    })
+    expect(onAddFiles).toHaveBeenCalledWith([folder, note], new Set([folder]))
+    // An entry API that answers nothing, or a browser without it, reports no directories.
+    fireEvent.drop(document.body, {
+      dataTransfer: {
+        types: ['Files'],
+        files: [note],
+        items: [entry(null, note), { kind: 'file', getAsFile: () => note }, entry(true, folder)],
+        dropEffect: 'none',
+      },
+    })
+    expect(onAddFiles).toHaveBeenLastCalledWith([note], new Set())
   })
 
   it('tracks nested file drags and clears an aborted drag', () => {
     const view = render(<ComposerAttachments {...props()} />)
-    const dataTransfer = { types: ['Files'], files: [], dropEffect: 'none' }
+    const dataTransfer = { types: ['Files'], files: [], items: [], dropEffect: 'none' }
     fireEvent.dragLeave(document.body, {
       dataTransfer: { types: ['text/plain'], files: [], dropEffect: 'none' },
     })
@@ -200,7 +173,7 @@ describe('ComposerAttachments', () => {
     const onAddFiles = vi.fn()
     const view = render(<ComposerAttachments {...props({ canAcceptDrop: false, onAddFiles })} />)
     const image = attachment('blocked').file
-    const dataTransfer = { types: ['Files'], files: [image], dropEffect: 'copy' }
+    const dataTransfer = { types: ['Files'], files: [image], items: [], dropEffect: 'copy' }
     fireEvent.dragEnter(document.body, { dataTransfer })
     expect(view.getByRole('status').textContent).toBe('当前无法添加文件或图片')
     fireEvent.dragOver(document.body, { dataTransfer })

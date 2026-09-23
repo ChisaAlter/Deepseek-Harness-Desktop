@@ -52,3 +52,5 @@ Unit and integration coverage pins verbatim and streamed storage, name sanitizat
 ## Related
 
 The [Trajectory attachment presentation decision](../bug-fix/2026-09-15-trajectory-attachment-presentation.md) owns ledger counts and inspector attachment layouts.
+
+The [input echo admission decision](../bug-fix/2026-09-22-input-echo-admission-ownership.md) owns placement-specific retirement and delayed Inbox suppression for submissions with or without attachments.

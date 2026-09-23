@@ -21,7 +21,7 @@
       "path": "../ui-surfaces"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../store"

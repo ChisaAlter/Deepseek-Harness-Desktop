@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import type { ConversationWidthControlsProps } from '../contract/slots.ts'
 import css from './ConversationRoot.module.css'
 
@@ -45,7 +45,7 @@ function WidthHandle(props: {
   onCommit: (width: number) => void
   onEnd: () => void
 }) {
-  const [dragging, setDragging] = useState(false)
+  const dragging = useRef(false)
   const base = useRef(0)
   const origin = useRef(0)
   const latest = useRef(0)
@@ -68,12 +68,14 @@ function WidthHandle(props: {
     origin.current = event.clientX
     latest.current = event.clientX
     base.current = callbacks.current.onStart()
-    setDragging(true)
+    dragging.current = true
+    event.currentTarget.toggleAttribute('data-dragging', true)
   }, [])
   const onPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
     const box = event.currentTarget.getBoundingClientRect()
     event.currentTarget.style.setProperty('--dsh-width-handle-pointer-y', `${event.clientY - box.top}px`)
-    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
     latest.current = event.clientX
     frame.current ??= requestAnimationFrame(() => {
       frame.current = null
@@ -81,19 +83,23 @@ function WidthHandle(props: {
     })
   }, [])
   const onPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) return
+    dragging.current = false
+    event.currentTarget.toggleAttribute('data-dragging', false)
     event.currentTarget.releasePointerCapture(event.pointerId)
     cancelFrame()
     latest.current = event.clientX
     // A press-only gesture must not overwrite a wider preference with its window-clamped display value.
     if (latest.current !== origin.current) callbacks.current.onCommit(outwardWidth())
-    setDragging(false)
     callbacks.current.onEnd()
   }, [])
-  const onPointerCancel = useCallback(() => {
+  const onPointerCancel = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return
+    dragging.current = false
+    event.currentTarget.toggleAttribute('data-dragging', false)
     // Cancellation abandons persistence and restores the saved width through onEnd.
     cancelFrame()
-    setDragging(false)
     callbacks.current.onEnd()
   }, [])
   const onWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
@@ -112,7 +118,6 @@ function WidthHandle(props: {
       className={css.widthHandle}
       data-side={props.side}
       data-width-handle={props.side}
-      data-dragging={dragging || undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

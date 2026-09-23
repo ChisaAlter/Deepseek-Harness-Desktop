@@ -3,25 +3,20 @@ import type {
   HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteHostFacts } from '@deepseek-ai/dsh-api-remotes/client'
-import type { OpenFileOptions, ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { OpenFileOptions, ToolCallBlock, UseDisclosure } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { MessageImageLoader, MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
-     * Keyed atomic Tool call view, dispatched by the wire Tool name. Register
-     * with `key: '<tool name>'` to own how one tool's calls render inside a
-     * turn — the key domain is open (any wire tool name, including a tool your
-     * own package registered), so there is no compile-time key set to pick
-     * from and a typo simply never renders.
+     * Keyed Tool call view dispatched by wire Tool name. Any name is allowed,
+     * including tools registered by your package. Register with
+     * `key: '<tool name>'`; a typo never renders.
      *
-     * A key the shipped composition already covers is replaced, not shared;
-     * an unclaimed key falls back to the generic tool row, so registering is
-     * additive for your own tool and a takeover for a shipped one. The owner
-     * passes the call's identity, its frozen running-or-settled node, and the
-     * expansion state (see ToolCallOwnerProps), so the view stays a pure
-     * function of what the turn already knows.
+     * Registering an occupied key replaces its view; unclaimed keys use the
+     * generic row. The owner supplies the call identity and frozen running
+     * or settled node through ToolCallOwnerProps.
      */
     'tool.call.toolview': { kind: 'keyed'; scope: 'session'; owner: ToolCallOwnerProps }
     /**
@@ -53,6 +48,8 @@ export interface ToolImagesOwnerProps {
 
 /** Standard owner currency supplied to every atomic Tool view. */
 export interface ToolCallOwnerProps {
+  /** Stable injected Hook; each invocation owns its open state and subscribes to enclosing-Turn resets. */
+  useDisclosure: UseDisclosure
   /** Tool call identity, stable across running and settled forms. */
   callId: string
   /** Wire Tool name and keyed dispatch value. */

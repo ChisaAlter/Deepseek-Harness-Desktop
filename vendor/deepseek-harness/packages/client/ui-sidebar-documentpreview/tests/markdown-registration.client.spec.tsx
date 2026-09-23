@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 /** Markdown metadata, deferred slot registration, localization, and unload through the real renderer. */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act } from '@testing-library/react'
+import { act, waitFor } from '@testing-library/react'
+import { apply as resourcesApply, inject as resourcesInject } from '@deepseek-ai/dsh-client-resources/src/client/index.ts'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { UseSidebarRightTabInfo } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
@@ -47,6 +48,13 @@ describe('Markdown implementation registration', () => {
     await runtime.sessions.add({ id: sessionId })
     const reference = runtime.sessions.retainFor(runtime.ctx, sessionId)
     await reference.ready
+    await runtime.mount({ inject: [...resourcesInject], apply: resourcesApply })
+    runtime.ctx.effect(() => runtime.ctx.resources.register({
+      protocol: 'file',
+      open: async function* () {
+        yield { ok: true as const, value: { absolutePath: '/work/guide/notes.md', version: 'v1' } }
+      },
+    }))
     const feature = await runtime.mount({ inject: ['slots', 'locale', 'documentPreviews'], apply })
     expect(previews.getSnapshot().map(definition => definition.id)).toEqual([MARKDOWN_BODY_ID])
     const useTabInfo = vi.fn<UseSidebarRightTabInfo>(() => { throw new Error('Markdown rendering does not need tab actions') })
@@ -58,9 +66,10 @@ describe('Markdown implementation registration', () => {
       <SessionProvider session={reference}>
         {renderSlot('sidebar.right.tab.document', {
           resourceAddress: 'dsh-resource://file/session/markdown-registration/notes.md',
-          content: { kind: 'text', text: '# Notes\n\n```ts\nconst value = 1\n```', pages: [], eof: true },
+          content: { kind: 'text', text: '# Notes\n\n```ts\nconst value = 1\n```\n\n![diagram](images/a.png)', pages: [], eof: true },
           wrap: false,
           scrollportRef: vi.fn(),
+          addResource: vi.fn(), setResources: vi.fn(),
         }, {
           entryKey: MARKDOWN_BODY_ID,
           hookContext: useTabInfo,
@@ -71,6 +80,10 @@ describe('Markdown implementation registration', () => {
     const view = runtime.renderRoot()
     expect(view.getByRole('heading', { name: 'Notes' })).toBeDefined()
     expect(view.getByRole('button', { name: 'Copy' })).toBeDefined()
+    await waitFor(() => {
+      expect(new URL(view.getByAltText('diagram').getAttribute('src')!).searchParams.get('path'))
+        .toBe('/work/guide/images/a.png')
+    })
     expect(runtime.slots.entries('sidebar.right.tab.document')).toHaveLength(1)
     const t = locale.bind('documentMarkdown')
     await act(async () => { locale.setLocale('zh') })

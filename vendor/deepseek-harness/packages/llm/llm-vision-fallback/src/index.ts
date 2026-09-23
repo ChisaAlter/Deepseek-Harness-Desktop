@@ -21,7 +21,6 @@ import z from '@deepseek-ai/schemastery'
 import { BlockAssembler, contentHasImage, createUserMessage, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ImageBlock, Message } from '@deepseek-ai/dsh-llm'
 import type { Session } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-settings'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import { deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { finishError } from './finish-error.ts'
@@ -80,6 +79,9 @@ export interface Config {
   maxOutputTokens: number
   /** End-to-end vision-call deadline in milliseconds. */
   timeoutMs: number
+  /** Optional model route selected in the Models settings page. */
+  provider?: string
+  model?: string
 }
 
 /** Capability-owned timeout reason code for auxiliary vision requests. */
@@ -112,24 +114,14 @@ export class VisionFallback extends Service {
   static Config: z<Config> = z.object({
     maxOutputTokens: z.number().step(1).min(1).required(),
     timeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).required(),
+    provider: z.string().required(false),
+    model: z.string().required(false),
   })
 
   static inject = ['llm']
 
-  private source: () => VisionFallbackSettings
-
   constructor(ctx: Context, private config: Config) {
     super(ctx, 'visionFallback')
-    const entry: VisionFallbackSettings = {}
-    this.source = () => entry
-    ctx.inject(['settings'], (settingsCtx) => {
-      settingsCtx.settings.installSection(ctx, VISION_FALLBACK_SETTINGS_NAMESPACE, VISION_FALLBACK_SETTINGS_SCHEMA, entry, {
-        setSource: (current: () => VisionFallbackSettings) => { this.source = current },
-        // Every consumer reads through selection(), so no registration-level
-        // fact needs rebuilding when the settings document changes.
-        onChange: () => {},
-      })
-    })
   }
 
   /**
@@ -137,7 +129,7 @@ export class VisionFallback extends Service {
    * @returns the designated route, or undefined while unset (disabled).
    */
   selection(): { provider: string; model: string } | undefined {
-    const stored = this.source()
+    const stored = this.config
     if (stored.provider === undefined || stored.provider === ''
       || stored.model === undefined || stored.model === '') return undefined
     return { provider: stored.provider, model: stored.model }
@@ -233,10 +225,6 @@ export class VisionFallback extends Service {
   ): Promise<ContentBlock[]> {
     const blocks: ContentBlock[] = []
     for (const block of content) {
-      if (block.type === 'tool-result' && contentHasImage(block.content)) {
-        blocks.push({ ...block, content: await this.substituteBlocks(session, target, block.content, described, signal, generate) })
-        continue
-      }
       if (block.type !== 'image') {
         blocks.push(block)
         continue
@@ -270,7 +258,7 @@ export class VisionFallback extends Service {
     using callDeadline = deadline(signal, this.config.timeoutMs, VISION_DESCRIBE_TIMEOUT_CODE)
     const messages: Message[] = [createUserMessage({
       content: [block, { type: 'text', text: DESCRIBE_INSTRUCTION }],
-      source: { kind: 'plugin', plugin: 'dsh-llm-vision-fallback' },
+      source: { kind: 'user' },
     })]
     const options: GenerateOptions = deepFreeze({
       provider: target.provider,

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-22-input-echo-admission-ownership.md
+2026-09-22-input-echo-admission-ownership.md: 227857bd8168aa1d7f51b621737c2ed0ab572632
+2026-09-22-input-echo-admission-ownership.zh.md: 1d64de220a3c6d5c9357770175c79266b8f9f063

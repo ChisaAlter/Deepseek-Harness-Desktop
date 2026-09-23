@@ -1,29 +1,12 @@
-- button "Agent Team" [expanded]:
-  - img
-  - text: Agent Team
 - dialog "Agent Team":
   - strong: Agent Team
-  - button "Refresh Team":
-    - img
-  - button "Close":
-    - img
+  - button "Refresh Team"
+  - button "Close"
   - heading "Members" [level=3]
-  - 'button "lead Idle · Model: deepseek-v4-flash" [disabled]'
+  - 'button "lead Inactive · Model: deepseek-v4-flash" [disabled]'
   - heading "Shared tasks" [level=3]
-  - button "New task":
-    - img
-    - text: New task
   - article:
-    - strong: Browser task
-    - text: Pending
-    - paragraph: Created through the assembled browser
-    - text: "task-1 Ready Write scopes: src/web Owner"
-    - combobox "Owner":
-      - option "Unowned" [selected]
-      - option "lead"
-    - button "Edit":
-      - img
-      - text: Edit
-    - button "Delete":
-      - img
-      - text: Delete
+    - strong: Agent task
+    - text: In progress
+    - paragraph: Created by the Team Lead
+    - text: "task-1 Owner: lead Write scopes: src/web"

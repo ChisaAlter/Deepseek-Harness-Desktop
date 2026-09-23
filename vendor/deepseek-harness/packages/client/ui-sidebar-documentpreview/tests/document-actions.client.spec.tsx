@@ -20,7 +20,7 @@ afterEach(async () => {
 
 type HostProps = {
   renderSlot: PropsRenderSlots<
-    'sidebar.right.tab.document' | 'sidebar.right.tab.document.actions'
+    'sidebar.right.tab.document' | 'sidebar.right.tab.document.unpreviewable' | 'sidebar.right.tab.document.action' | 'sidebar.right.tab.document.actions'
   >['renderSlot']
 }
 

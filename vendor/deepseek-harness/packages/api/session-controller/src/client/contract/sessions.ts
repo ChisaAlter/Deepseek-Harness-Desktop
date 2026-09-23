@@ -88,24 +88,21 @@ export interface ISessions {
     cwd?: string
     sessionId?: SessionId
   }): Promise<SessionId>
+  /** Ask the Host whether a blank Session can be reused without opening it. */
+  canReuseBlank(sessionId: SessionId, signal?: AbortSignal): Promise<boolean>
   /**
    * Resolve an already discovered direct-parent address without opening it.
    * @param id - possible addressed child id.
-   * @returns the retained address, when present.
+   * @returns a retained or loaded-catalog address, without retaining a new selection or scope.
    */
   subagentAddress(id: SessionId): SubagentAddress | undefined
+
   /**
-   * Mark whether a catalog menu is consuming live membership updates.
-   * @param parentSessionId - catalog owner.
-   * @param open - current menu state.
-   */
-  setSubagentCatalogOpen(parentSessionId: SessionId, open: boolean): void
-  /**
-   * Refresh one direct-child catalog.
-   * @param parentSessionId - catalog owner.
+   * Load all Session projections once per connection; retry an unsuccessful initial read.
+   * @param sessionId - Session to inspect without opening its conversation.
    * @returns completion of the current or newly started refresh.
    */
-  refreshSubagents(parentSessionId: SessionId): Promise<void>
+  refreshProjections(sessionId: SessionId): Promise<void>
 
   /**
    * Refresh the Host-authoritative Session list.
@@ -124,20 +121,13 @@ export interface ISessions {
     signal: AbortSignal,
   ): Promise<RemoteResult<{ items: SessionSearchResultItem[]; hasMore: boolean }>>
   /**
-   * Ask the Host whether an otherwise blank Session identity is reusable.
-   * The answer is advisory and point-in-time; the Host does not reserve it.
-   * @param sessionId - durable Session identity to inspect.
-   * @param signal - optional cancellation for a cold persistence read.
-   * @returns the Host's reusable bit; RemoteError failures are thrown unchanged.
-   */
-  canReuseBlank(sessionId: SessionId, signal?: AbortSignal): Promise<boolean>
-  /**
-   * Fork a session from a completed-turn prefix of the source; on resolution
-   * the child is in the catalog and may be explicitly retained.
-   * @param opts - source session id, the optional event seq anchoring the
-   *   cut (the boundary is the first turn/end at or after it; an in-log
-   *   anchor in an open turn is unavailable rather than clipped backward),
-   *   and whether to increment an inherited durable title before resolving.
+   * Fork a session from an exact inclusive prefix of the source; on
+   * resolution the child is catalogued and can be explicitly retained.
+   * @param opts - source session id, the optional exact inclusive boundary
+   *   seq (a real event seq the caller already knows; a cut inside an open
+   *   turn is balanced Host-side with synthetic closers, and omission selects
+   *   the latest completed-turn prefix), and whether to increment an
+   *   inherited durable title before resolving.
    * @returns the child session id.
    * @throws when the fork fails, or when a requested child-title rename fails after creation.
    */

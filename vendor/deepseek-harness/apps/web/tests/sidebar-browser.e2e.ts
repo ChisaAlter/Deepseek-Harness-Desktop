@@ -29,7 +29,11 @@ describe.skipIf(MODE === 'record')('web e2e: Sidebar Browser', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, compareReplaySession: false })
+    scaffold = await launchWebScaffold({
+      replayFixture: FIXTURE,
+      compareReplaySession: false,
+      extraOverlayPath: fileURLToPath(new URL('./sidebar-browser.overlay.yml', import.meta.url)),
+    })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     await page.route('https://browser.test/**', async (route) => {

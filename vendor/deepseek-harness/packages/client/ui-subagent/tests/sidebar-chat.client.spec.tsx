@@ -38,6 +38,8 @@ describe('Sidebar chat address', () => {
     expect(parseSubagentChatAddress(resource)).toEqual(ADDRESS)
     expect(parseSubagentChatAddress(subagentChatAddress({ ...ADDRESS, mode: 'one-shot' })))
       .toEqual({ ...ADDRESS, mode: 'one-shot' })
+    expect(parseSubagentChatAddress(subagentChatAddress({ ...ADDRESS, mode: 'unknown' })))
+      .toEqual({ ...ADDRESS, mode: 'unknown' })
   })
 
   it.each([
@@ -47,7 +49,7 @@ describe('Sidebar chat address', () => {
     'dsh-resource://subagentchat/other/child?parent=parent&mode=continuable',
     'dsh-resource://subagentchat/session/child?mode=continuable',
     'dsh-resource://subagentchat/session/child?parent=&mode=continuable',
-    'dsh-resource://subagentchat/session/child?parent=parent&mode=unknown',
+    'dsh-resource://subagentchat/session/child?parent=parent&mode=invalid',
     'dsh-resource://subagentchat/session/%?parent=parent&mode=continuable',
   ])('rejects %s', (address) => {
     expect(parseSubagentChatAddress(address)).toBeUndefined()
@@ -64,7 +66,7 @@ describe('Sidebar chat registration', () => {
       [Symbol.dispose]: release,
     } as unknown as SessionReference
     const retain = vi.fn(() => reference)
-    const refreshSubagents = vi.fn(() => Promise.resolve())
+    const refreshProjections = vi.fn(() => Promise.resolve())
     const list = {
       getSnapshot: () => ({
         ids: [],
@@ -75,7 +77,7 @@ describe('Sidebar chat registration', () => {
           },
         },
         phase: 'ready',
-        subagentsByParent: {},
+        projectionsBySession: {},
         jobsBySession: {},
       } as unknown as SessionListState),
       subscribe: () => () => {},
@@ -84,7 +86,7 @@ describe('Sidebar chat registration', () => {
     let definition: SidebarRightTabDefinition | undefined
     const registrations: { options: Record<string, unknown>; component: unknown }[] = []
     const ctx = {
-      sessions: { retain, refreshSubagents, list } as unknown as ISessions,
+      sessions: { retain, refreshProjections, list } as unknown as ISessions,
       resources: { register: (value: ResourceProvider<'subagentchat'>) => { provider = value; return () => {} } },
       sidebarRightTabs: { register: (value: SidebarRightTabDefinition) => { definition = value; return () => {} } },
       slots: {
@@ -114,7 +116,7 @@ describe('Sidebar chat registration', () => {
     const controller = new AbortController()
     const stream = provider!.open(subagentChatAddress(ADDRESS), { signal: controller.signal })[Symbol.asyncIterator]()
     expect(await stream.next()).toEqual({ done: false, value: { ok: true, value: { address: ADDRESS, reference } } })
-    expect(refreshSubagents).toHaveBeenCalledWith(PARENT)
+    expect(refreshProjections).not.toHaveBeenCalled()
     expect(retain).toHaveBeenCalledWith(ADDRESS, { source: 'sidebarChat', signal: controller.signal })
     const completion = stream.next()
     await Promise.resolve()
@@ -128,17 +130,6 @@ describe('Sidebar chat registration', () => {
     abortedAfterYield.abort()
     expect(await yielded.next()).toEqual({ done: true, value: undefined })
     expect(release).toHaveBeenCalledTimes(2)
-
-    let finishRefresh: (() => void) | undefined
-    refreshSubagents.mockImplementationOnce(() => new Promise<void>((resolve) => { finishRefresh = resolve }))
-    const abortedDuringRefresh = new AbortController()
-    const pending = provider!.open(
-      subagentChatAddress(ADDRESS), { signal: abortedDuringRefresh.signal },
-    )[Symbol.asyncIterator]().next()
-    await vi.waitFor(() => { expect(finishRefresh).toBeTypeOf('function') })
-    abortedDuringRefresh.abort()
-    finishRefresh?.()
-    expect(await pending).toEqual({ done: true, value: undefined })
 
     const alreadyAborted = new AbortController()
     alreadyAborted.abort()
@@ -218,7 +209,7 @@ describe('Sidebar chat components', () => {
       useSession: (select: (value: SessionSnapshot) => unknown) => select(snapshot),
       useConversation: (select: (value: { activeTargets: ReadonlySet<string> }) => unknown) => select({ activeTargets: new Set() }),
       useSessions: (select: (value: SessionListState) => unknown) => select({
-        ids: [], byId: { [CHILD]: { blank: summaryBlank } }, phase: 'ready', subagentsByParent: {}, jobsBySession: {},
+        ids: [], byId: { [CHILD]: { blank: summaryBlank } }, phase: 'ready', projectionsBySession: {}, jobsBySession: {},
       } as unknown as SessionListState),
       renderFactorySlot,
     } as unknown as Parameters<typeof ConversationSlotPanel>[0])} />)

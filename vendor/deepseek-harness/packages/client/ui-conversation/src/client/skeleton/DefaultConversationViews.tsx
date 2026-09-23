@@ -12,9 +12,10 @@ import css from './ConversationRoot.module.css'
  */
 export function DefaultConversationViews({
   view, useSession, useSessions, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, renderSlotChain, bindDraftMirror, openView, sessionId,
+  renderSlot, renderSlotChain, bindDraftMirror, openView, sessionId, useInspectCall,
 }: ConversationSessionSlotProps) {
   const tabs = useConversationViews(value => value)
+  const inspectCall = useInspectCall(value => value)
   const selectedId = useStore(s => s.view)
   const session = useSession(s => s)
   const presentation = useSessions(s => s.byId[sessionId]?.presentation)
@@ -39,6 +40,7 @@ export function DefaultConversationViews({
   const viewId = view ?? active?.id
   const resident = viewId !== undefined
     ? renderSlot('conversation.view', {
+      inspectCall,
       viewRequest,
       openView,
       completeViewRequest: actions.completeViewRequest,

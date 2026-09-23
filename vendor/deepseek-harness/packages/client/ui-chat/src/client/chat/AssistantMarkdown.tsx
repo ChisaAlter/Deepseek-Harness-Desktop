@@ -2,7 +2,7 @@ import { Fragment, memo, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { JsonBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownFileMentions, MarkdownPathImages } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
+import type { ChatNodeOwnerProps, ChatViewSlotProps, UseDisclosure, UsePresentation } from '../contract/slots.ts'
 import type { AssistantBlock } from '../contract/snapshot.ts'
 import { markdownLabels } from '../markdown-labels.ts'
 import { ReasoningRow } from './ReasoningRow.tsx'
@@ -10,22 +10,23 @@ import { useSearchableHidden } from './searchable-hidden.ts'
 import css from './AssistantMarkdown.module.css'
 
 /**
- * Map one authored media destination to the same-origin workspace-file URL.
- * @param protocol - `window.location.protocol` at render time.
- * @param origin - `window.location.origin` at render time.
- * @param value - The authored markdown destination, exactly as written.
- * @returns The API URL for an absolute POSIX path on an HTTP(S) page, or
- * undefined when the destination cannot be a Host-served local file
- * (non-HTTP transport such as Electron `file://`, protocol-relative or
- * relative destinations).
+ * Resolve an authored POSIX image path against the document's file API.
+ * @param base - canonical `document.baseURI` at render time.
+ * @param value - authored markdown destination.
+ * @returns an absolute HTTP(S) file-API URL, or undefined for unsupported
+ * protocols and non-local paths.
  */
-export function localPathMediaUrl(protocol: string, origin: string, value: string): string | undefined {
-  if (protocol !== 'http:' && protocol !== 'https:') return undefined
-  if (value.length === 0 || !value.startsWith('/') || value.startsWith('//')) return undefined
-  return `${origin}/api/file?path=${encodeURIComponent(value)}`
+export function localPathMediaUrl(base: string, value: string): string | undefined {
+  if (!value.startsWith('/') || value.startsWith('//')) return undefined
+  if (!base.startsWith('http:') && !base.startsWith('https:')) return undefined
+  return new URL(`api/file?path=${encodeURIComponent(value)}`, base).href
 }
 
 export interface AssistantMarkdownProps {
+  /** Render only the requested business portion, preserving original block indexes. */
+  groupPart?: string | undefined
+  /** Stable Hook forwarded to each independently expandable reasoning block. */
+  useDisclosure: UseDisclosure
   blocks: readonly AssistantBlock[]
   streaming: boolean
   /** Frozen partial of an aborted turn: rendered with a stopped marker. */
@@ -34,7 +35,9 @@ export interface AssistantMarkdownProps {
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   /** Hide reasoning that belongs to the Turn-level process disclosure. */
   reasoningHidden?: boolean | undefined
-  /** Reveal the owning Turn-level process disclosure. */
+  /** Live display policy for reasoning summaries. */
+  usePresentation: UsePresentation
+  /** Reveal the disclosure that hides this reasoning. */
   revealProcess?: (() => void) | undefined
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
@@ -44,18 +47,15 @@ export interface AssistantMarkdownProps {
 
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
-  blocks, streaming, interrupted, renderMessageImages,
-  reasoningHidden = false, revealProcess, mentions, t,
+  blocks, streaming, interrupted, renderMessageImages, groupPart, useDisclosure,
+  reasoningHidden = false, usePresentation, revealProcess, mentions, t,
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's component table every chunk.
   const labels = useMemo(() => markdownLabels(t), [t])
-  // Local media paths in the closing prose rewrite to the same-origin file
-  // API (policy re-validation lives host-side). The vocabulary identity is
-  // stable per page load because MarkdownText memoizes on it.
+  // MarkdownText memoizes its vocabulary; keep its identity stable across renders.
   const pathImages = useMemo<MarkdownPathImages>(() => {
-    const { protocol, origin } = window.location
-    return { resolve: value => localPathMediaUrl(protocol, origin, value) }
+    return { resolve: value => localPathMediaUrl(document.baseURI, value) }
   }, [])
   const last = blocks.length - 1
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
@@ -69,6 +69,8 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
     if (block === undefined) continue
+    if (groupPart === 'reasoning' && block.kind !== 'reasoning') continue
+    if (groupPart === 'response' && block.kind === 'reasoning') continue
     switch (block.kind) {
       case 'text':
         rendered.push(
@@ -89,7 +91,8 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
             hidden={reasoningHidden}
             reveal={revealProcess}
           >
-            <ReasoningRow text={block.text} running={streaming && i === last} pathImages={pathImages} t={t} />
+            <ReasoningRow text={block.text} running={streaming && i === last} pathImages={pathImages} usePresentation={usePresentation}
+              useDisclosure={useDisclosure} t={t} />
           </ProcessReasoning>,
         )
         break
@@ -135,7 +138,9 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     <div className={css.root} data-streaming={streaming || undefined}>
       <div className={css.body}>
         {rendered}
-        {interrupted && <span className={css.stopped}>{t('message.stopped')}</span>}
+        {interrupted && (groupPart === undefined || groupPart === 'response'
+          || !blocks.some(block => block.kind !== 'reasoning' && block.kind !== 'tool-call'))
+          && <span className={css.stopped}>{t('message.stopped')}</span>}
       </div>
     </div>
   )

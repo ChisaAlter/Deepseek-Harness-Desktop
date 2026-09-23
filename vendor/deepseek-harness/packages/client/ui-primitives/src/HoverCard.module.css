@@ -53,3 +53,30 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-elevation-panel);
+  opacity: 1;
+  transition: opacity var(--dsh-hover-preview-fade) linear;
+}
+
+@starting-style {
+  .preview { opacity: 0; }
+}
+
+.preview[data-closing] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview { transition: none; }
+}

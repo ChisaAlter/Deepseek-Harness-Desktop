@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
+import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   ComposerSubmissionPolicy, DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_COMPOSER_BEAM_PRESETS,
   DEFAULT_COMPOSER_BEAM_STYLE, DEFAULT_TYPING_FX_PRESETS, DEFAULT_TYPING_FX_STYLE,
@@ -54,7 +55,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('writes an explicit change through the scope after publishing it locally', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const observed: string[] = []
     let liveBehavior = (): string => 'unconstructed'
     const scope: typeof host.scope = {
@@ -73,7 +74,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('adopts a Host preference without writing it back and leaves an identical write untouched', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     host.publish({ status: 'ready', value: chrome({ busyEnter: 'steer' }), revision: 1, writable: true })
     expect(policy.busyEnter.getSnapshot()).toBe('steer')
@@ -84,14 +85,14 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('adopts a section already standing at construction', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     host.publish({ status: 'ready', value: chrome({ busyEnter: 'steer' }), revision: 1, writable: true })
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.busyEnter.getSnapshot()).toBe('steer')
   })
 
   it('keeps the composer beam on while the Host section is missing and adopts false independently', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.composerBeam.getSnapshot()).toBe(true)
     expect(policy.writable.getSnapshot()).toBe(false)
@@ -114,7 +115,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('treats a missing composerBeam field as shown', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setComposerBeam(false)
     host.publish({
@@ -127,7 +128,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('publishes normalized beam tuning before persisting it and adopts legacy absence', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.composerBeamStyle.getSnapshot()).toBe(DEFAULT_COMPOSER_BEAM_STYLE)
 
@@ -159,7 +160,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('publishes active style and presets in one atomic mutation', async () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     host.publish({ status: 'ready', value: chrome(), revision: 7, writable: true })
     const style = {
@@ -174,16 +175,18 @@ describe('ComposerSubmissionPolicy', () => {
       palette: { kind: 'custom' as const, colors: ['#112233', '#aabbcc'] },
     }
     const presets = { Focus: style }
-    host.mutate.mockImplementation(async (ops: readonly { path: string[]; value?: unknown }[]) => {
+    host.mutate.mockImplementation(async (ops: readonly SettingsPathOpView[]) => {
+      const values = ops.filter(op => op.op === 'set')
       host.publish({
         status: 'ready',
         value: chrome({
-          composerBeamStyle: ops[0]?.value as never,
-          composerBeamPresets: ops[1]?.value as never,
+          composerBeamStyle: values[0]?.value as never,
+          composerBeamPresets: values[1]?.value as never,
         }),
         revision: 8,
         writable: true,
       })
+      return true
     })
     await policy.setComposerBeamConfiguration(style, presets)
     expect(policy.composerBeamStyle.getSnapshot()).toEqual(style)
@@ -216,7 +219,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('reports a rejected atomic mutation instead of claiming that the save succeeded', async () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     host.publish({ status: 'ready', value: chrome(), revision: 2, writable: true })
     await expect(policy.setComposerBeamConfiguration({ ...DEFAULT_COMPOSER_BEAM_STYLE, hue: 90 }, {})).rejects.toThrow()
@@ -224,7 +227,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('keeps composer resize off while the Host section is missing and adopts true independently', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.composerResize.getSnapshot()).toBe(false)
     host.publish({ status: 'unavailable', value: undefined, writable: false, mode: 'memory' })
@@ -252,7 +255,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('remembers a dragged composer size through the Host scope', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setComposerResizeSize({ height: 140, width: 420 })
     expect(host.set).toHaveBeenCalledWith('composerResizeHeight', 140)
@@ -268,7 +271,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('treats a missing composerResize field as off', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setComposerResize(true)
     host.publish({
@@ -281,7 +284,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('keeps statsLine and viewTabs on while the Host section is missing and adopts false independently', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.statsLine.getSnapshot()).toBe(true)
     expect(policy.viewTabs.getSnapshot()).toBe(true)
@@ -308,7 +311,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('treats missing statsLine and viewTabs fields as shown', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setStatsLine(false)
     policy.setViewTabs(false)
@@ -323,7 +326,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('keeps officialPeakValley off while the Host section is missing and adopts true independently', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.officialPeakValley.getSnapshot()).toBe(false)
     host.publish({ status: 'unavailable', value: undefined, writable: false, mode: 'memory' })
@@ -343,7 +346,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('treats a missing officialPeakValley field as detection-only', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setOfficialPeakValley(true)
     host.publish({
@@ -356,7 +359,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('keeps typingFx off while the Host section is missing and adopts true independently', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     expect(policy.typingFx.getSnapshot()).toBe(false)
     host.publish({ status: 'unavailable', value: undefined, writable: false, mode: 'memory' })
@@ -377,7 +380,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('treats missing typingFx fields as the shipped defaults', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     policy.setTypingFx(true)
     host.publish({
@@ -392,7 +395,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('normalizes malformed typing-fx tuning at the adoption boundary', () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     host.publish({
       status: 'ready',
@@ -409,7 +412,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('publishes typing-fx style and presets in one atomic mutation', async () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     host.publish({ status: 'ready', value: chrome(), revision: 7, writable: true })
     const style = {
@@ -417,16 +420,18 @@ describe('ComposerSubmissionPolicy', () => {
       colors: { kind: 'preset' as const, id: 'candy' as const },
     }
     const presets = { Calm: style }
-    host.mutate.mockImplementation(async (ops: readonly { path: string[]; value?: unknown }[]) => {
+    host.mutate.mockImplementation(async (ops: readonly SettingsPathOpView[]) => {
+      const values = ops.filter(op => op.op === 'set')
       host.publish({
         status: 'ready',
         value: chrome({
-          typingFxStyle: ops[0]?.value as never,
-          typingFxPresets: ops[1]?.value as never,
+          typingFxStyle: values[0]?.value as never,
+          typingFxPresets: values[1]?.value as never,
         }),
         revision: 8,
         writable: true,
       })
+      return true
     })
     await policy.setTypingFxConfiguration(style, presets)
     expect(policy.typingFxStyle.getSnapshot()).toEqual(style)
@@ -439,7 +444,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('reports a rejected typing-fx mutation instead of claiming that the save succeeded', async () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     host.publish({ status: 'ready', value: chrome(), revision: 2, writable: true })
     await expect(policy.setTypingFxConfiguration({ ...DEFAULT_TYPING_FX_STYLE, speed: 200 }, {}))
@@ -448,7 +453,7 @@ describe('ComposerSubmissionPolicy', () => {
   })
 
   it('refuses typing-fx configuration writes while the Host is not writable', async () => {
-    const host = stubSettingsScope<ConversationSettings>()
+    const host = stubConfigForm<ConversationSettings>()
     const policy = new ComposerSubmissionPolicy(host.scope)
     await expect(policy.setTypingFxConfiguration({ ...DEFAULT_TYPING_FX_STYLE, speed: 200 }, {}))
       .rejects.toThrow()
@@ -459,7 +464,7 @@ describe('ComposerSubmissionPolicy', () => {
   it('publishes custom instructions immediately and debounces the durable write', async () => {
     vi.useFakeTimers()
     try {
-      const host = stubSettingsScope<ConversationSettings>()
+      const host = stubConfigForm<ConversationSettings>()
       const policy = new ComposerSubmissionPolicy(host.scope)
       policy.setCustomInstructions('first')
       policy.setCustomInstructions('second')
@@ -476,7 +481,7 @@ describe('ComposerSubmissionPolicy', () => {
   it('adopts committed instructions but never reverts a queued or in-flight edit', async () => {
     vi.useFakeTimers()
     try {
-      const host = stubSettingsScope<ConversationSettings>()
+      const host = stubConfigForm<ConversationSettings>()
       const policy = new ComposerSubmissionPolicy(host.scope)
       host.publish({
         status: 'ready',

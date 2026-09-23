@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
-import { stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { SlotRendererHost } from '@deepseek-ai/dsh-client-ui-slots'
@@ -60,7 +61,7 @@ async function bench() {
   ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
   // ui-theme's Appearance row binds a durable scope through these two.
   ctx.provide('remote', { $on: () => () => {} } as never)
-  ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+  ctx.provide('configForms', { developerTools: { enabled: createSnapshotStore(true) }, get: () => stubConfigForm().scope } as never)
   await ctx.plugin({ inject: themeInject, apply: themeApply }).await()
   await slotsFiber.await()
   const slots = ctx.get('slots') as SlotRegistry
@@ -79,7 +80,7 @@ describe('ui-layout client apply', () => {
     expect(inject).toEqual(['slots', 'theme', 'locale'])
   })
 
-  it('provides ctx.layout and declares the frame slots (main, rightbar, surfaces, drawer)', async () => {
+  it('provides ctx.layout and declares the five root-scoped frame slots', async () => {
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -90,8 +91,7 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('rightbar')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('surfaces')).toEqual({ kind: 'single', scope: 'session-maybe' })
     expect(slots.spec('shell.overlay')).toEqual({ kind: 'list', scope: 'root' })
-    expect(slots.spec('shell.titlebar.trailing')).toEqual({ kind: 'list', scope: 'root' })
-    expect(slots.spec('shell.terminalDrawer')).toEqual({ kind: 'single', scope: 'session-maybe' })
+    expect(slots.spec('shell.leading')).toEqual({ kind: 'single', scope: 'root' })
   })
 
   it('shares a pre-created instance between service actions, root rendering, and panelInfo', async () => {
@@ -163,8 +163,7 @@ describe('ui-layout client apply', () => {
     expect(slots.spec('rightbar')).toBeUndefined()
     expect(slots.spec('surfaces')).toBeUndefined()
     expect(slots.spec('shell.overlay')).toBeUndefined()
-    expect(slots.spec('shell.titlebar.trailing')).toBeUndefined()
-    expect(slots.spec('shell.terminalDrawer')).toBeUndefined()
+    expect(slots.spec('shell.leading')).toBeUndefined()
     expect(host.root.getSnapshot().hooks.panelInfo).toBeUndefined()
     // The built-in root declaration survives entry teardown (renderer-owned).
     expect(slots.spec('root')).toEqual({ kind: 'single', scope: 'root' })

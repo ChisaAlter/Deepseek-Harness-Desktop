@@ -68,6 +68,9 @@ export type ApprovalDecision = 'allowed-once' | 'rejected'
 
 let nextApprovalKey = 0
 
+/** Domain discriminator literal carried by {@link PendingApproval.kind}. */
+export type ApprovalInteractionKind = 'approval'
+
 /** One answerable Client presentation of a pending Host waterfall. */
 export class PendingApproval {
   /** Domain discriminator used by Session pending-interaction consumers. */

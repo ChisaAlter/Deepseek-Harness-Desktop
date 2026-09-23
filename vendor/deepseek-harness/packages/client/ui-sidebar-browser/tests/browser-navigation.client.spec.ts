@@ -51,19 +51,14 @@ describe('BrowserNavigation', () => {
     expect(navigation.snapshot.navigation).toEqual({ status: 'loading', revision: reload.revision })
   })
 
-  it('leaves address failures outside navigation', () => {
+  it('ignores frame observations before a controlled request', () => {
     const navigation = new BrowserNavigation()
     navigation.frameLoaded(1)
+    expect(navigation.snapshot).toEqual(BrowserNavigation.empty())
     navigation.navigate(httpsTarget(1))
     const revision = navigation.snapshot.request!.revision
     expect(navigation.snapshot.failure).toBeUndefined()
     navigation.frameLoaded(revision)
     expect(navigation.snapshot.navigation).toEqual({ status: 'known', revision })
-
-    navigation.addressFailed('invalid')
-    expect(navigation.snapshot).toMatchObject({
-      navigation: { status: 'known', revision },
-      failure: { kind: 'address', reason: 'invalid' },
-    })
   })
 })

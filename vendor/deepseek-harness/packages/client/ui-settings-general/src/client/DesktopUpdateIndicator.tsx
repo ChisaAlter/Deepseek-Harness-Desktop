@@ -1,8 +1,8 @@
 /** Optional Electron status presentation; the native shell owns actions and Web owns visible copy. */
-import { IconDownloadOutline16, IconLoadingOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconDownloadOutlineRegular, IconLoadingOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './DesktopUpdateIndicator.module.css'
-import type { DesktopUpdateFailureKind, DesktopUpdatePresentation, DesktopUpdateView } from './desktop-update-bridge.ts'
+import type { DesktopUpdateFailureKind, DesktopUpdatePresentation, DesktopUpdateView } from '../types.ts'
 import type { SettingsRootInjected } from './shell-contract.ts'
 
 type SettingsTranslate = PropsLocale<'settings'>['t']
@@ -46,6 +46,7 @@ function updateCopy(state: DesktopUpdatePresentation, t: SettingsTranslate): { l
 }
 
 /**
+ * Render update status with connection-indicator geometry and brand-blue labels, including retries.
  * @param props - Connection priority, sidebar width, and localized bridge-failure copy.
  * @returns Desktop-only status beside the account button, or nothing in browsers.
  */
@@ -64,10 +65,12 @@ export function DesktopUpdateIndicator({ wide, hidden, t, view, onOpen }: {
   const error = failed || state?.phase === 'error'
   const busy = opening || (state !== undefined && BUSY_PHASES.has(state.phase))
   return <Tooltip label={failed ? retryLabel : copy.detail} side="top">
-    <button type="button" className={css.indicator} data-error={error || undefined}
+    <button type="button" className={css.indicator}
       aria-label={label} aria-disabled={busy} onClick={() => { if (!busy) onOpen() }}>
-      {error ? <span className={css.errorDot} aria-hidden="true" />
-        : busy ? <IconLoadingOutline16 className={css.spinner} size={16} /> : <IconDownloadOutline16 size={14} />}
+      <span className={css.icon} aria-hidden="true">
+        {error ? <span className={css.errorDot} />
+          : busy ? <IconLoadingOutlineRegular className={css.spinner} size={14} /> : <IconDownloadOutlineRegular size={14} />}
+      </span>
       <span>{label}</span>
     </button>
   </Tooltip>
@@ -78,7 +81,7 @@ type BadgeProps = PropsRuntime<'sidebar.toggle.badge'> & PropsLocale<'settings'>
 
 /**
  * @param props - Framework-bound carrier and connection state.
- * @returns A non-interactive notification on the sidebar expand button.
+ * @returns A non-interactive brand-blue notification on the sidebar expand button.
  */
 export function DesktopUpdateBadge({ useDesktopUpdate, useConnectionState, t }: BadgeProps) {
   const { presentation: state, failed } = useDesktopUpdate(value => value)
@@ -89,6 +92,6 @@ export function DesktopUpdateBadge({ useDesktopUpdate, useConnectionState, t }: 
   const copy = state === undefined ? { label: retryLabel, detail: retryLabel } : updateCopy(state, t)
   const label = failed ? retryLabel : copy.label
   return <Tooltip label={failed ? label : copy.detail} side="right">
-    <span role="img" aria-label={label} className={css.badge} data-error={failed || state?.phase === 'error' || undefined} />
+    <span role="img" aria-label={label} className={css.badge} />
   </Tooltip>
 }

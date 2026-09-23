@@ -42,7 +42,7 @@ const scheduleRecord = z.unknown().transform((value, context): ScheduleRecord =>
   }
 })
 
-const scheduleRecords = z.array(scheduleRecord) as unknown as z.ZodType<readonly ScheduleRecord[]>
+const scheduleRecords = z.array(scheduleRecord) as z.ZodType<readonly ScheduleRecord[]>
 
 const scheduleProjectionStateSchema = z.object({
   inheritedEventCount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).transform(SessionLogOffset),
@@ -63,7 +63,7 @@ const scheduleProjectionStateSchema = z.object({
     }
     active.add(record.id)
   }
-}) as unknown as z.ZodType<ScheduleProjectionState>
+}) as z.ZodType<ScheduleProjectionState>
 
 /** Projection definition sharing the Schedule domain's strict transition authority. */
 export const scheduleProjectionDefinition = {

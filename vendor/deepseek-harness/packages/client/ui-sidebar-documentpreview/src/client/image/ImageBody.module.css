@@ -5,6 +5,7 @@
   display: flex;
   box-sizing: border-box;
   width: 100%;
+  min-width: 100%;
   height: max-content;
   min-height: 100%;
   padding: 12px;
@@ -14,20 +15,23 @@
 
 /* A wider image shrinks to the pane's width at its aspect ratio; a smaller
    one keeps its intrinsic size. The auto margins centre it either way. */
-.image {
+.surface {
   display: block;
   flex: none;
-  width: auto;
-  max-width: 100%;
-  height: auto;
-  max-height: none;
+  max-width: none;
   margin: auto;
-  border-radius: 8px;
-  user-select: none;
 }
 
-.image[hidden] {
-  display: none;
+.surface[hidden] { display: none; }
+
+.image {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  border-radius: 8px;
+  user-select: none;
 }
 
 .status {

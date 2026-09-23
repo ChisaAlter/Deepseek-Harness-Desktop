@@ -48,7 +48,7 @@ const NAMESPACES = [
     schema: {},
     value: { apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://base' },
     base: { baseURL: 'https://base' },
-    applies: 'live' as const,
+    autoGenerate: true, applies: 'live' as const,
     secrets: [],
     revision: 0,
   },
@@ -57,7 +57,7 @@ const NAMESPACES = [
     schema: {},
     value: { providers: { openai: { apiKeyEnv: 'OPENAI_API_KEY' } } },
     user: { providers: { openai: { apiKeyEnv: 'OPENAI_API_KEY' } } },
-    applies: 'live' as const,
+    autoGenerate: true, applies: 'live' as const,
     secrets: [],
     revision: 0,
   },
@@ -220,7 +220,7 @@ describe('edge joins', () => {
           ns: 'llm-pi-ai',
           schema: {},
           value: { providers: { weird: 'oops' } },
-          applies: 'live' as const,
+          autoGenerate: true, applies: 'live' as const,
           secrets: [],
           revision: 0,
         }] as never,
@@ -243,7 +243,7 @@ describe('edge joins', () => {
       describeSettings: () => Promise.resolve(remoteOk({
         writable: true,
         hasDocument: false,
-        namespaces: [{ ns: 'llm-pi-ai', schema: {}, value: { providers: {} }, applies: 'live' as const, secrets: [], revision: 0 }] as never,
+        namespaces: [{ ns: 'llm-pi-ai', schema: {}, value: { providers: {} }, autoGenerate: true, applies: 'live' as const, secrets: [], revision: 0 }] as never,
       })),
       providers: () => Promise.resolve(ok({
         providers: [

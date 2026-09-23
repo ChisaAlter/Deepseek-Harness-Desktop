@@ -3,7 +3,7 @@
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import * as officeSkills from '@deepseek-ai/dsh-skill-office'
-import * as workspaceDependencies from './workspace-dependencies.ts'
+import * as workspaceDependencies from '@deepseek-ai/dsh-tool-workspace-dependencies'
 
 /** Loader identity for the application-owned Office composition. */
 export const name = 'desktop-office'

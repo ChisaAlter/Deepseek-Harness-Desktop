@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-07-composer-session-stats-pills.md
-2026-09-07-composer-session-stats-pills.md: 22f78dfdde854baaf1ced8c20c55042952df8c26
-2026-09-07-composer-session-stats-pills.zh.md: 6b71c6e7cf03cbd32fa4da9edf38f6aa4814310c
+2026-09-07-composer-session-stats-pills.md: 50d3d3294ed012773657ba9849e45835c361d8be
+2026-09-07-composer-session-stats-pills.zh.md: 97b91b601e62e8b06ab13a764babb4dd3b25bfce

@@ -126,7 +126,7 @@ describe('facade surface', () => {
     expect('slots' in bench.facade).toBe(true)
     expect('registry' in bench.facade).toBe(false)
     expect(Symbol.iterator in bench.facade).toBe(false)
-    expect((bench.facade as unknown as Record<symbol, unknown>)[Symbol.iterator]).toBeUndefined()
+    expect((bench.facade as Record<symbol, unknown>)[Symbol.iterator]).toBeUndefined()
     expect(() => { bench.facade.slots = 1 }).toThrow(/dynamic ctx is read-only/)
   })
 

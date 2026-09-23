@@ -6,7 +6,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { EveryScheduleRecord, OneShotScheduleRecord } from './types.ts'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'schedule': { kind: 'schedule' } & ContextFormed
+  }
+}
+
+import type { EveryScheduleRecord, OneShotScheduleRecord, ScheduleRecord } from './types.ts'
 import {
   foldScheduleEvents,
   renderEveryReminderBatchFraming,
@@ -97,6 +104,16 @@ export class ScheduleRuntime {
   /** Begin the initial durability preflight and timer derivation. */
   start(): void {
     this.requestDrive()
+  }
+
+  /**
+   * Active records of the exact runtime suffix, folded from the live log the
+   * way every drive folds it: the owner answers for what its timers can fire.
+   * @returns the active records in create order, or nothing while this runtime is stopping, faulted, or reading a corrupt stream.
+   */
+  activeRecords(): readonly ScheduleRecord[] | undefined {
+    if (this.stopping || this.faulted) return undefined
+    return this.readFolded()?.active
   }
 
   /** Recompute the live projection after a committed mutation or idle transition. */
@@ -268,7 +285,7 @@ export class ScheduleRuntime {
             : renderEveryReminderBatchFraming(decision.reminders)
           const message = createUserMessage({
             content: [{ type: 'text', text }],
-            source: { kind: 'plugin', plugin: 'schedule' },
+            source: { kind: 'schedule' },
           })
           this.agent.followup(message)
         } catch (error: unknown) {

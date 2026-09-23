@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
-  IconChevronDownOutline14, IconInspectOutline12, IconSkillOutline16, StateDot,
+  IconChevronDownOutlineRegular, IconInspectOutlineRegular, IconSkillOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -28,7 +28,7 @@ function firstLine(text: string): string {
 /** Skill names are the only call argument the compact row presents. */
 function skillName(argsRaw: string, callId: string): string {
   try {
-    const parsed = JSON.parse(argsRaw) as unknown
+    const parsed: unknown = JSON.parse(argsRaw)
     if (typeof parsed === 'object' && parsed !== null) {
       const name = (parsed as Record<string, unknown>).name
       if (typeof name === 'string' && name !== '') return firstLine(name)
@@ -72,34 +72,24 @@ function skillRowModel(block: ToolCallViewProps['block']): SkillRowModel {
   }
 }
 
-/** State substitution for the collapsed leading slot. */
-function leadingFor(state: SkillRowState): ReactNode {
-  switch (state) {
-    case 'error': return <StateDot state="error" />
-    case 'stopped': return <StateDot state="warning" />
-    default: return <IconSkillOutline16 size={14} />
-  }
-}
-
 /** Leading disclosure slot: state icon at rest, chevron on hover or while open. */
-function disclosureLeading(state: SkillRowState, open: boolean, expandable: boolean): ReactNode {
-  if (open) return <IconChevronDownOutline14 className={css.chevron} />
-  const icon = leadingFor(state)
+function disclosureLeading(open: boolean, expandable: boolean): ReactNode {
+  if (open) return <IconChevronDownOutlineRegular className={css.chevron} />
+  const icon = <IconSkillOutlineRegular size={14} />
   if (!expandable) return icon
   return (
     <>
       <span className={css.iconIdle}>{icon}</span>
-      <IconChevronDownOutline14 className={`${css.chevron} ${css.chevronHover}`} />
+      <IconChevronDownOutlineRegular className={`${css.chevron} ${css.chevronHover}`} />
     </>
   )
 }
 
-/** Visually hidden state copy for the colour-only lifecycle cues. */
+/** Visually hidden state copy for the color-only running sweep and error tone. */
 function stateStatus(state: SkillRowState, t: SkillRowProps['t']): string | null {
   switch (state) {
     case 'running': return t('row.running')
     case 'error': return t('row.failed')
-    case 'stopped': return t('row.stopped')
     default: return null
   }
 }
@@ -115,7 +105,7 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
   const expandable = model.output !== null
   const open = expanded && expandable
   const status = stateStatus(model.state, t)
-  const summary = model.errorSummary ?? model.name
+  const summary = model.state === 'stopped' ? t('row.stopped') : model.errorSummary ?? model.name
   const toggleExpand = (): void => {
     setExpanded(value => !value)
   }
@@ -131,7 +121,7 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
     onClick: toggleExpand,
     onKeyDown: toggleFromKeyboard,
   } : {}
-  const leading = disclosureLeading(model.state, open, expandable)
+  const leading = disclosureLeading(open, expandable)
   return (
     <div className={css.card} data-tool="skill" data-state={model.state}>
       <div
@@ -143,7 +133,10 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
         {status !== null ? <span className={css.visuallyHidden}>{status}</span> : null}
         <span className={css.title}>{t('row.title')}</span>
         <span className={css.separator} aria-hidden />
-        <span className={model.errorSummary === null ? css.summary : `${css.summary} ${css.errorSummary}`}>
+        <span className={`${css.summary}${
+          model.state === 'error' ? ` ${css.errorSummary}`
+            : model.state === 'stopped' ? ` ${css.stoppedSummary}` : ''
+        }`}>
           {summary}
         </span>
       </div>
@@ -155,7 +148,7 @@ export function SkillRow({ block, inspect, t }: SkillRowProps) {
           </section>
           {inspect !== undefined ? (
             <button type="button" className={css.inspectButton} onClick={inspect}>
-              <IconInspectOutline12 />
+              <IconInspectOutlineRegular />
               {t('row.inspect')}
             </button>
           ) : null}

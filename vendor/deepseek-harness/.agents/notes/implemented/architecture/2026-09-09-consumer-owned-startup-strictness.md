@@ -18,7 +18,7 @@ The audit treats a throwing `disabled` expression as an entry failure, not a dis
 
 The audit runs only during initial application boot. Later config HMR remains best effort and keeps the failed candidate visible for repair.
 
-This policy governs [Web host boot](2026-07-24-web-config-tree-boot-and-transport-layering.md), including its [client plugin roster](2026-07-23-client-plugin-loading-model.md). [Per-session presets](2026-08-03-per-session-agent-presets.md) own a separate strict subtree audit.
+This policy governs [Web host boot](2026-07-24-web-config-tree-boot-and-transport-layering.md), including its [client plugin roster](2026-07-23-client-plugin-loading-model.md). [Per-session presets](2026-09-18-declarative-agent-presets.md) own a separate strict subtree audit.
 
 ## Alternatives considered
 

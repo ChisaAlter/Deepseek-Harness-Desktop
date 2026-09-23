@@ -50,6 +50,7 @@ const AUTH_PROVIDER_MESSAGE = 'Authentication Fails, Your api key: sk-preview-se
 // model call.
 const PROMPT = 'Reply with a one-sentence description of event sourcing, then stop.'
 const RUNNING_DRAFT = 'Queue this follow-up while the current turn is running.'
+const RETRY_PARTIAL = 'This partial reply must disappear when the attempt fails.'
 
 /** turn/end reasons observed, in order. */
 function turnEndReasons(events: SessionEvent[]): string[] {
@@ -270,21 +271,44 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(derived).toHaveLength(1)
     await launch(() => ({
       patches: [
-        { at: 0, entry: { kind: 'throw', chunks: [], message: 'upstream 503', code: 'SERVER' } },
+        { at: 0, entry: {
+          kind: 'throw', message: 'upstream 503', code: 'SERVER',
+          chunks: [
+            { type: 'block-start', index: 0, blockType: 'text' },
+            { type: 'text-delta', index: 0, text: RETRY_PARTIAL },
+          ],
+        } },
         // Append the fixture's own success as the retry attempt — single-
         // sourced from the recording, never copied into a committed sidecar.
         { at: 1, entry: derived[0]! },
       ],
     }))
     onTestFailed(() => saveFailureShot(page, 'web-e2e-retry'))
-    // llm-retry backs off ~500ms before the second attempt.
-    const { settled } = await sendPrompt(60_000)
-    await settled
+    const releaseFailure = Promise.withResolvers<undefined>()
+    // Retirement must follow a visible partial, not race the first browser paint.
+    const stopHolding = scaffold!.ctx.on('llm/stream', async function* (_request, next) {
+      for await (const chunk of next()) {
+        yield chunk
+        if (chunk.type === 'text-delta' && chunk.text === RETRY_PARTIAL) await releaseFailure.promise
+      }
+    })
+    try {
+      const { settled } = await sendPrompt(60_000)
+      await page.getByText(RETRY_PARTIAL, { exact: true }).waitFor({ timeout: 15_000 })
+      releaseFailure.resolve(undefined)
+      await settled
+    } finally {
+      releaseFailure.resolve(undefined)
+      stopHolding()
+    }
     expect(turnEndReasons(sessionEvents).at(-1)).toBe('completed')
     // The durable retry record proves the second attempt (request/header logs
     // only on change, so attempt count is invisible there).
     expect(sessionEvents.filter(e => e.type === 'llm/retry').length).toBeGreaterThanOrEqual(1)
     await expect.poll(() => page.getByText('event sourcing', { exact: false }).count(), { timeout: 10_000 }).toBeGreaterThan(0)
+    await expect.poll(() => page.getByText(RETRY_PARTIAL, { exact: true }).count()).toBe(0)
+    expect(tripwire.pageErrors).toEqual([])
+    expect(tripwire.warnings).toEqual([])
     // Golden of the recovered end-state: the discarded partial stays absent,
     // while the settled retry row remains as durable recovery context.
     const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold!.workspaceCwd)

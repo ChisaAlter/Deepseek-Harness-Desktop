@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DesktopUpdateIndicator } from '../src/client/DesktopUpdateIndicator.tsx'
-import type { DesktopUpdateBridge, DesktopUpdatePresentation } from '../src/client/desktop-update-bridge.ts'
+import type { DesktopUpdateBridge, DesktopUpdatePresentation } from '../src/types.ts'
 import { DesktopUpdateSource } from '../src/client/desktop-update-source.ts'
 import { en, zh } from '../src/client/locales.ts'
 
@@ -71,11 +71,10 @@ it('keeps the newest event, hides for connection priority, and invokes only the 
     expect(screen.queryByRole('button')).toBeNull()
     await f.emit({ phase: 'downloading', version: available.version, percent: 58 })
     f.view.rerender(<f.Indicator />)
-    fireEvent.click(screen.getByRole('button', { name: '58%…' }))
+    fireEvent.click(screen.getByRole('button', { name: '58%' }))
     expect(f.open).toHaveBeenCalledOnce()
     await f.emit({ phase: 'error', version: available.version, failure: 'download' })
     const retry = screen.getByRole('button', { name: '重试更新' })
-    expect(retry.getAttribute('data-error')).toBe('true')
     fireEvent.focus(retry)
     expect((await screen.findByRole('tooltip')).textContent).toBe('下载更新失败，请重试。')
     f.view.rerender(<f.Indicator wide={false} />)
@@ -90,7 +89,6 @@ it('keeps bridge failures actionable and ignores status completion after unmount
   f.open.mockRejectedValueOnce(new Error('IPC unavailable'))
   fireEvent.click(screen.getByRole('button', { name: '重试更新' }))
   await act(async () => {})
-  expect(screen.getByRole('button').getAttribute('data-error')).toBe('true')
   f.view.unmount()
   const late = fixture()
   late.view.unmount()
@@ -143,11 +141,11 @@ it('shows fallback progress and error details when the shell omits optional fiel
   const f = fixture()
   try {
     await f.emit({ phase: 'downloading' })
-    const progress = screen.getByRole('button', { name: '0%…' })
+    const progress = screen.getByRole('button', { name: '0%' })
     fireEvent.focus(progress)
-    expect((await screen.findByRole('tooltip')).textContent).toBe('0%…')
+    expect((await screen.findByRole('tooltip')).textContent).toBe('0%')
     await f.emit({ phase: 'downloading', version: '1.0.1' })
-    fireEvent.focus(screen.getByRole('button', { name: '0%…' }))
+    fireEvent.focus(screen.getByRole('button', { name: '0%' }))
     expect((await screen.findByRole('tooltip')).textContent).toContain('1.0.1')
     await f.emit({ phase: 'error' })
     fireEvent.focus(screen.getByRole('button', { name: '重试更新' }))

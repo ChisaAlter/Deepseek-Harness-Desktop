@@ -6,6 +6,9 @@
  * share from the return type.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { reconcileManualOrder, type ArchivedFilter, type SessionRowState } from './tree.ts'
 
 /** Browser-local order account for the hierarchy-free flat Session list. */
 export const FLAT_SESSION_ORDER_KEY = '__flat_session_order__'
@@ -23,8 +26,14 @@ type WorkspaceViewState = {
   groupExpansion: Record<string, boolean>
   /** Saved manual order per Workspace group plus the browser-local flat-list account. */
   sessionOrderByAccount: Record<string, string[]>
-  /** Whether the sidebar renders the Archived section at all (Interface Settings). */
-  showArchivedList: boolean
+  /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
+  archivedFilter?: ArchivedFilter
+}
+
+type SessionOrderSource = {
+  members: Readonly<Record<string, readonly SessionId[]>>
+  summaries: SessionListState['byId']
+  rowState: Pick<SessionRowState, 'pinnedSessionIds' | 'archivedSessionIds'>
 }
 
 /**
@@ -50,7 +59,13 @@ type WorkspaceViewActions = {
     order: readonly string[],
     initialOrders: Readonly<Record<string, readonly string[]>>,
   ) => void
-  setShowArchivedList: (draft: WorkspaceViewState, show: boolean) => void
+  pinSessionOrder: (
+    draft: WorkspaceViewState,
+    sessionId: string,
+    accountKeys: readonly string[],
+    source: SessionOrderSource,
+  ) => void
+  setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
 }
 
 /** Copy read-only projections into the persisted mutable store representation. */
@@ -71,7 +86,7 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
       orderBy: 'updated',
       groupExpansion: {},
       sessionOrderByAccount: {},
-      showArchivedList: true,
+      archivedFilter: 'default',
     }),
     // v5: showArchivedList. Archived expand is session-local in the browser
     // (not persisted) so reloads always start collapsed.
@@ -100,10 +115,21 @@ export function createWorkspaceViewStore(): EngineStoreHandle<WorkspaceViewState
       },
       setSessionOrder: (d, accountKey, order, initialOrders) => {
         if (d.orderBy === 'updated') d.sessionOrderByAccount = copySessionOrders(initialOrders)
+        else Object.assign(d.sessionOrderByAccount, copySessionOrders(initialOrders))
         d.orderBy = 'manual'
         d.sessionOrderByAccount[accountKey] = [...order]
       },
-      setShowArchivedList: (d, show: boolean) => { d.showArchivedList = show },
+      pinSessionOrder: (d, sessionId, accountKeys, source) => {
+        const selected = new Set(accountKeys)
+        d.sessionOrderByAccount = Object.fromEntries(Object.entries(source.members).map(([key, members]) => {
+          const order = reconcileManualOrder(members, d.sessionOrderByAccount[key], source.summaries, source.rowState)
+          return [key, selected.has(key) ? [sessionId, ...order.filter(id => id !== sessionId)] : order]
+        }))
+      },
+      setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
     },
   })
 }
+
+/** The bound write set of one viewing-store instance (what the UiWorkspace service drives). */
+export type WorkspaceViewStoreActions = ReturnType<ReturnType<typeof createWorkspaceViewStore>['create']>['actions']

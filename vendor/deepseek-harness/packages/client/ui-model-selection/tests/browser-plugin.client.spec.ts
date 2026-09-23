@@ -187,7 +187,7 @@ async function bench(
     handle.ctx.effect(() => () => {
       if (bindings.get(id) === binding) bindings.delete(id)
     })
-    return handle
+    return { ...handle, projection }
   }
   return {
     ctx, fiber, mint, calls, remote,
@@ -373,6 +373,68 @@ describe('ui-model-selection dual entry', () => {
     b.mint('s1')
     const face2 = b.seat().inject!(sid('s1'))
     expect(face2.directory).not.toBe(face1.directory)
+  })
+
+  it('keeps the replacement directory block when the previous scope finishes cleanup', async () => {
+    const b = await bench()
+    const first = b.mint('s1')
+    const oldDirectory = b.ctx.modelDirectories.directoryFor(sid('s1'))
+    await oldDirectory.load()
+    const replacement = b.mint('s1')
+    replacement.projection.set({ lastUsed: null, next: { provider: 'missing', model: 'unserved' } })
+    const directory = b.ctx.modelDirectories.directoryFor(sid('s1'))
+    try {
+      expect(directory).not.toBe(oldDirectory)
+      expect(directory.store.getSnapshot().routable).toBe(false)
+      expect(b.blockOf('s1')?.reason).toBe(zh['blocked.composer'])
+      await first.fiber.dispose()
+      expect(b.blockOf('s1')?.reason).toBe(zh['blocked.composer'])
+      await replacement.fiber.dispose()
+      expect(b.blockOf('s1')).toBeUndefined()
+    } finally {
+      await Promise.all([first.fiber.dispose(), replacement.fiber.dispose()])
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it.each([false, true])('ignores late old projection publication while the replacement is routable=%s', async (routable) => {
+    const b = await bench()
+    const first = b.mint('s1')
+    const oldDirectory = b.ctx.modelDirectories.directoryFor(sid('s1'))
+    await oldDirectory.load()
+    const replacement = b.mint('s1')
+    replacement.projection.set({ lastUsed: null,
+      next: { provider: routable ? 'deepseek-official' : 'missing', model: 'replacement' } })
+    const directory = b.ctx.modelDirectories.directoryFor(sid('s1'))
+    try {
+      expect(directory.store.getSnapshot().routable).toBe(routable)
+      const expected = b.blockOf('s1')
+      await Promise.resolve().then(() => {
+        first.projection.set({ lastUsed: null,
+          next: { provider: routable ? 'missing' : 'deepseek-official', model: 'late-old' } })
+      })
+      expect(oldDirectory.store.getSnapshot().routable).toBe(!routable)
+      expect(b.blockOf('s1')).toBe(expected)
+    } finally {
+      await Promise.all([first.fiber.dispose(), replacement.fiber.dispose()])
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it('clears an obsolete block when the new binding has no model directory', async () => {
+    const b = await bench()
+    const first = b.mint('s1')
+    first.projection.set({ lastUsed: null, next: { provider: 'missing', model: 'unserved' } })
+    await b.ctx.modelDirectories.directoryFor(sid('s1')).load()
+    const replacement = b.mint('s1')
+    try {
+      expect(b.blockOf('s1')).toBeDefined()
+      await first.fiber.dispose()
+      expect(b.blockOf('s1')).toBeUndefined()
+    } finally {
+      await Promise.all([first.fiber.dispose(), replacement.fiber.dispose()])
+      await b.ctx.fiber.dispose()
+    }
   })
 
   it('blocks the composer only once the Host reports the route unservable', async () => {

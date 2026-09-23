@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { act } from '@testing-library/react'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+import { CODE_HIGHLIGHT_EXTENSIONS } from '@deepseek-ai/dsh-client-ui-primitives'
 import { apply } from '../src/client/code/index.ts'
 import { CodeBody } from '../src/client/code/CodeBody.tsx'
-import { CODE_EXTENSIONS } from '../src/client/code/languages.ts'
 import { DocumentPreviewRegistry } from '../src/client/document/registry.ts'
 import { documentTabInfoFactory } from '../src/client/document/contract.ts'
 
@@ -39,7 +39,7 @@ describe('code renderer registration', () => {
     const h = await boot()
     await h.rt.mount(plugin)
     expect(h.previews.getSnapshot()).toHaveLength(1)
-    expect(h.previews.getSnapshot()[0]).toMatchObject({ id: ID, extensions: CODE_EXTENSIONS, priority: 'builtin', loading: 'text-pages', wrap: true })
+    expect(h.previews.getSnapshot()[0]).toMatchObject({ id: ID, extensions: CODE_HIGHLIGHT_EXTENSIONS, priority: 'builtin', loading: 'text-pages', wrap: true })
     expect(h.rt.slots.entries(SLOT)).toEqual([])
     await h.declare()
     const entries = h.rt.slots.entries(SLOT)

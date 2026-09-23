@@ -8,6 +8,8 @@
  * not the slot runtime.
  */
 import { onTestFinished, vi } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { ResourceRegistry } from '../../resources/src/client/resources.ts'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { Mock } from 'vitest'
 import { act } from '@testing-library/react'
@@ -19,7 +21,7 @@ import type { WorkspaceFileStat, WorkspaceFileText } from '@deepseek-ai/dsh-api-
 import type { TextPreviewProps } from '../src/client/TextPreview.tsx'
 import { textFace } from '../src/client/face.ts'
 import type { TextInjected } from '../src/client/face.ts'
-import type { ReadDocumentBytes, ReadWorkspaceFilePage, SessionFile } from '../src/client/rpc.ts'
+import type { DocumentFileBytes, ReadDocumentBytes, ReadWorkspaceFilePage, SessionFile } from '../src/client/rpc.ts'
 import { createTextStore } from '../src/client/store.ts'
 import type { TextStore } from '../src/client/store.ts'
 import type { DocumentPreviewProps } from '../src/client/document/contract.ts'
@@ -29,17 +31,17 @@ import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 
 type BodySlot = PropsRenderSlots<'sidebar.right.tab.document'>['renderSlot']
 
-/**
- * Preserve the body-slot callback used by component fixtures. The document
- * preview also owns the toolbar-action child slot; fixtures that only script
- * the body must not answer that dispatch with a document body.
- */
+export function createResources(): ResourceRegistry {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  return new ResourceRegistry(ctx)
+}
+
+/** Preserve the body-slot callback used by component fixtures. */
 export function documentSlots(body: BodySlot): TextPreviewProps['renderSlot'] {
-  return ((key: string, owner: unknown, opts: unknown) => (
-    key === 'sidebar.right.tab.document.actions'
-      ? null
-      : body(key as 'sidebar.right.tab.document', owner as never, opts as never)
-  )) as TextPreviewProps['renderSlot']
+  return (name: string, owner: unknown, options?: unknown) => name === 'sidebar.right.tab.document'
+    ? body(name, owner as Parameters<BodySlot>[1], options as Parameters<BodySlot>[2])
+    : null
 }
 
 export const TAB_ID = 'tab-1' as TabId
@@ -130,7 +132,7 @@ export function harness(script: Record<number, RemoteResult<WorkspaceFileText>> 
   const read = vi.fn<ReadWorkspaceFilePage>((_session, _path, offset) =>
     Promise.resolve(pages[offset] ?? failure('workspace-file/not-found', { path: PATH })))
   const bytes = vi.fn<ReadDocumentBytes>()
-  const face = textFace(read, bytes)(SESSION, instance.actions)
+  const face = textFace(read, bytes, createResources())(SESSION, instance.actions)
   const current = { version: 'v1' as string | undefined, failure: undefined as RemoteFailure | undefined, snapshot: meta('v1', undefined) }
   const refresh = (): void => { current.snapshot = meta(current.version, current.failure) }
   const useResource = vi.fn<() => ResourceSnapshot<WorkspaceFileStat>>(() => current.snapshot)
@@ -138,9 +140,17 @@ export function harness(script: Record<number, RemoteResult<WorkspaceFileText>> 
   onTestFinished(() => { controller.abort() })
   const tabActions = { openResource: vi.fn(), openTab: vi.fn(), close: vi.fn(), replace: vi.fn() }
   const definitions = [textBodyDefinition(() => t('viewer.text'))]
-  const renderSlot = documentSlots((_key, owner, opts) => createElement(TextBody, {
-    ...owner, useTabInfo: opts.hookContext, sessionId: SESSION, useResource,
-  } as unknown as DocumentPreviewProps))
+  // The document seat renders the plain body; the file-handoff seats render a
+  // marker carrying what the owner handed them.
+  const renderSlot: TextPreviewProps['renderSlot'] = (key: string, owner: unknown, opts?: { hookContext?: unknown }) =>
+    key === 'sidebar.right.tab.document'
+      ? createElement(TextBody, {
+        ...owner as object, useTabInfo: opts?.hookContext, sessionId: SESSION, useResource,
+      } as unknown as DocumentPreviewProps)
+      : key === 'sidebar.right.tab.document.action' ? null : createElement('div', {
+        'data-slot': key,
+        'data-slot-path': (owner as { absolutePath: string }).absolutePath,
+      })
   const props = (navigation: { params?: unknown; revision: number } = { revision: 1 }) => ({
     useTabInfo: () => ({
       sidebar: { expanded: true, fullscreen: false },
@@ -160,6 +170,7 @@ export function harness(script: Record<number, RemoteResult<WorkspaceFileText>> 
     reloadPages: face.reloadPages,
     prepareRenderer: face.prepareRenderer, loadAll: face.loadAll,
     reloadAll: face.reloadAll,
+    addResource: face.addResource, setResources: face.setResources,
     useDocumentPreviews: () => definitions,
     renderSlot,
     t,
@@ -177,4 +188,9 @@ export function harness(script: Record<number, RemoteResult<WorkspaceFileText>> 
     setVersion(version) { current.version = version; refresh() },
     setFailure(failure) { current.failure = failure; refresh() },
   }
+}
+
+/** Native byte result returned by the generated workspace Remote. */
+export function byteResult(data = new Uint8Array([0, 1, 255])): RemoteResult<DocumentFileBytes> {
+  return { ok: true, value: { absolutePath: '/host/notes', version: 'v1', offset: 0, eof: true, bytes: data.byteLength, data } }
 }

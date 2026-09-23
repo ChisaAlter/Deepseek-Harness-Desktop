@@ -20,6 +20,7 @@ describe('client SessionSummary presentation projection', () => {
         title: 'Durable title',
         cwd: '/workspace/project',
         projections: {
+          kind: 'sequenced',
           asOfSeq: 0,
           values: {
             sessionListMetadata: { blank: true, lastPromptAt: null, presentation },

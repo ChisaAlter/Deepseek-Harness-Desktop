@@ -90,18 +90,6 @@
   font-weight: 500;
 }
 
-/* The design's ringed green check, not the warning tint the Toast icon seat defaults to. */
-.toastIcon {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid var(--dsw-alias-state-success-primary);
-  border-radius: 50%;
-  corner-shape: round;
-  color: var(--dsw-alias-state-success-primary);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .chip,
   .detail {

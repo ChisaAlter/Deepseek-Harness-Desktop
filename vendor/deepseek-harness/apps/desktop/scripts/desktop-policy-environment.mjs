@@ -30,7 +30,15 @@ export function resolveDesktopPolicyEnvironment(environment) {
   }
   const pages = settings.allowedPageOrigins ?? [selected]
   if (!Array.isArray(pages) || pages.length === 0) throw new Error('desktop package: allowedPageOrigins must be a nonempty array')
+  const authOrigins = settings.allowedAuthOrigins
+  if (deployment === 'test' && (!Array.isArray(authOrigins) || authOrigins.length === 0)) {
+    throw new Error('desktop package: test policy requires nonempty allowedAuthOrigins')
+  }
+  if (deployment === 'production' && authOrigins !== undefined) {
+    throw new Error('desktop package: production policy must not configure allowedAuthOrigins')
+  }
   return { ...settings, origin: selected,
     allowedPageOrigins: pages.map(value => origin(value, 'allowedPageOrigins')),
+    ...(deployment === 'test' ? { allowedAuthOrigins: authOrigins.map(value => origin(value, 'allowedAuthOrigins')) } : {}),
     authentication: deployment === 'test' ? 'feishu-test' : 'anonymous' }
 }

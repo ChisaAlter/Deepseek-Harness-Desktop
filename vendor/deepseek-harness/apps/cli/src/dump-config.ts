@@ -13,6 +13,7 @@ import {
   loadOverlayPatches,
   renderConfigDump,
   type ConfigDumpLayer,
+  type Profile,
 } from '@deepseek-ai/dsh-app-boot'
 import { homePatchPath, prepareProfile, PROFILE_ROOT_FILENAME } from './profile-boot.ts'
 
@@ -78,7 +79,41 @@ export function runDumpConfig(
   skipUserPlugins = false,
   fromDefaultProfile?: string,
 ): void {
-  const composed = dumpConfigLayers(profile, { defaultOnly, patches, skipUserPlugins, fromDefaultProfile })
-  process.stdout.write(renderConfigDump(NAME, composed.root, composed.layers))
+  const { root, layers } = dumpConfigLayers(profile, { defaultOnly, patches, skipUserPlugins, fromDefaultProfile })
+  // The dump anchors on the same empty root file the boot includes.
+  process.stdout.write(renderConfigDump(NAME, root, layers))
+}
+
+/**
+ * Read dump layers in bundle, profile, home, then argv order without composing them.
+ * @param loaded - prepared profile and parsed bundle and profile patches.
+ * @param defaultOnly - omit profile, home, and argv layers without reading their files.
+ * @param patches - overlay paths relative to the invoking directory, in argv order.
+ * @returns the labeled layers shared by YAML and schema dumps.
+ */
+export function collectConfigDumpLayers(
+  loaded: Profile,
+  defaultOnly: boolean,
+  patches: readonly string[],
+): ConfigDumpLayer[] {
+  const layers: ConfigDumpLayer[] = loaded.layers.map(layer => ({
+    label: layer.packageName,
+    patches: layer.patches,
+  }))
+  if (!defaultOnly) {
+    if (existsSync(loaded.patchPath)) {
+      layers.push({ label: loaded.patchPath, patches: loaded.patches })
+    }
+    const homePatchFile = homePatchPath()
+    const homePatches = loadOptionalPatches(NAME, homePatchFile)
+    if (homePatches !== undefined) {
+      layers.push({ label: homePatchFile, patches: homePatches })
+    }
+    for (const file of patches) {
+      const absolute = resolve(file)
+      layers.push({ label: absolute, patches: loadOverlayPatches(NAME, absolute) })
+    }
+  }
+  return layers
 }
 /* v8 ignore stop */

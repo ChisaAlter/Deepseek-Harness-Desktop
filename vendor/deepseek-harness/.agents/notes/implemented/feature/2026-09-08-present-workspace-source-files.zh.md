@@ -12,7 +12,7 @@ Status: implemented
 
 [present 工具](../../../../packages/deliverables/tool-present/README.zh.md)声明交付[Session 文件系统访问策略](2026-09-09-present-filesystem-access.zh.md)允许的已有普通源文件。它记录路径和可选说明，不读取或复制内容。[交付插件](../../../../packages/client/ui-deliverables/README.zh.md)使用 Host 默认应用打开当前工作区源文件。下次打开会看到编辑后的内容；删除或移动文件会使声明不可用。文件内容保留与写时复制存储延期到有持久化设计负责时实现。
 
-工具说明要求在写好用户要求接收的文件后、最终回复前调用 `present`，包括通过 Bash 或代码执行创建的文件。正文中的路径引用不能替代调用。录制的 [SVG 交付场景](../../../../snapshots/web/present-svg/snapshot.yml)使用未提及 `present` 的用户请求，检查生成文件、交付事件和卡片。其 UI 快照覆盖展开后的 Chat 对话内容；导航和输入框控件由各自场景负责，避免无关界面改动使文件交付预期失效。
+[工具说明](../../../../packages/deliverables/tool-present/README.zh.md#model-experience)指导模型选择需要显式交付的文件。交付声明与正文中的文件引用各自独立。录制的 [SVG 交付场景](../../../../snapshots/web/present-svg/snapshot.yml)覆盖生成文件、交付事件和卡片。新录制明确请求独立文件卡片，回放保留录制时的请求。该场景验证显式交付，不要求所有 SVG 都调用 `present`。其 UI 快照覆盖展开后的 Chat 对话内容；导航和输入框控件由各自场景负责，避免无关界面改动使文件交付预期失效。
 
 工具保持为普通包，共享文件系统和工具错误类型。其纯类型入口拥有交付事件，不向浏览器导入 Host 代码。`standard`、`ptc` 与 `cordis` preset 挂载工具；`minimal` 保持两个工具。每个插件实例将其执行与成功的最终 `tools/result` 通知关联，再追加 `deliverables/presented`。原生与嵌套调用遵循同一规则。外层程序随后失败不会撤销已完成的嵌套声明；被阻止的结果不发布声明，同名作用域替换也不能发布其他实例的结果。
 

@@ -5,9 +5,6 @@ export const NS = 'subagent'
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
-  'diagnostic.corrupt': '会话记录损坏',
-  'diagnostic.unsupported': '子代理记录版本不受支持',
-  'diagnostic.unavailable': '会话记录暂不可用',
   'duration.seconds': '{seconds}秒',
   'duration.minutes': '{minutes}分{seconds}秒',
   'duration.hours': '{hours}小时{minutes}分{seconds}秒',
@@ -23,12 +20,14 @@ export const zh = {
   'tokens.million': '{value}M',
   'tokens.total': '{value} tok',
   'loading.label': '正在加载子代理…',
-  'loading.aria': '正在加载子代理',
   'load.error': '无法加载子代理',
   'retry': '重试',
   'mode.oneShot': '一次性',
   'mode.continuable': '可继续',
+  'mode.unknown': '模式未知',
+  'readonly.unknown.body': '读取子会话后才能确定是否可继续。',
   'activity.running': '正在运行',
+  'activity.completed': '已完成',
   'activity.inactive': '当前未运行',
   'branch.collapse': '收起 {label} 的下级子代理',
   'branch.expand': '展开 {label} 的下级子代理',
@@ -48,9 +47,6 @@ export const zh = {
 
 /** English dictionary, key-identical to the Chinese source of truth. */
 export const en: Record<SubagentKey, string> = {
-  'diagnostic.corrupt': 'corrupted session record',
-  'diagnostic.unsupported': 'unsupported subagent record version',
-  'diagnostic.unavailable': 'session record temporarily unavailable',
   'duration.seconds': '{seconds}s',
   'duration.minutes': '{minutes}m {seconds}s',
   'duration.hours': '{hours}h {minutes}m {seconds}s',
@@ -66,12 +62,14 @@ export const en: Record<SubagentKey, string> = {
   'tokens.million': '{value}M',
   'tokens.total': '{value} tok',
   'loading.label': 'Loading subagents…',
-  'loading.aria': 'Loading subagents',
   'load.error': 'Unable to load subagents',
   'retry': 'Retry',
   'mode.oneShot': 'one-shot',
   'mode.continuable': 'continuable',
+  'mode.unknown': 'unknown mode',
+  'readonly.unknown.body': 'Read the child session to determine whether it can be continued.',
   'activity.running': 'running',
+  'activity.completed': 'completed',
   'activity.inactive': 'not running',
   'branch.collapse': 'Collapse {label} descendants',
   'branch.expand': 'Expand {label} descendants',

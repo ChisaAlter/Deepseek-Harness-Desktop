@@ -1,25 +1,45 @@
 /** Display labels and toast sentences for global plugin management. */
 
-import type { ManagementError } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ManagementError, Registry } from '@deepseek-ai/dsh-api-remotes/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PluginManagerLocaleKey } from './locales.ts'
-import type { FailedAction, ManagerNotice, PackageView } from './manager-store.ts'
+import type { FailedAction, ManagerNotice, PackageRow, PackageView, PluginManagerFace } from './manager-store.ts'
 
 /** The translate seat of the manager's dictionary. */
 export type Translate = PropsLocale<'pluginManager'>['t']
 
-/** The official packages with copy of their own, and whether each is a beta feature the page tags as such. */
-const BUILTIN_COPY = new Map<string, { title: PluginManagerLocaleKey; description: PluginManagerLocaleKey; beta: boolean }>([
-  ['@deepseek-ai/dsh-experimental-agent-team-profile', {
-    title: 'builtinAgentTeamTitle', description: 'builtinAgentTeamDescription', beta: true,
-  }],
-  ['@deepseek-ai/dsh-experimental-agent-team-web-profile', {
-    title: 'builtinAgentTeamWebTitle', description: 'builtinAgentTeamWebDescription', beta: true,
-  }],
-  ['@deepseek-ai/dsh-experimental-auto-review', {
-    title: 'builtinAutoReviewTitle', description: 'builtinAutoReviewDescription', beta: true,
-  }],
+/** The registries with a name of their own, by host. */
+const REGISTRY_COPY = new Map<string, PluginManagerLocaleKey>([
+  ['registry.npmmirror.com', 'registryNpmmirror'],
 ])
+
+/** npm's own registry, which pnpm names without any configuration. */
+const OFFICIAL_NPM_HOST = 'registry.npmjs.org'
+
+/**
+ * What a registry reads as: pnpm's own as the default registry, a known mirror by its name, any other registry by
+ * its host; and the host each names, for where the name alone would leave it unsaid.
+ * @param registry - the registry, null for the one pnpm's own configuration names.
+ * @param t - the manager's translate seat.
+ * @param resolved - the URL pnpm's own configuration names, null while unknown, when it reads as npm's own.
+ * @returns the name and the host.
+ */
+export function registryText(registry: Registry, t: Translate, resolved: string | null): { name: string; host: string } {
+  if (registry === null) return { name: t('registryDefault'), host: resolved === null ? OFFICIAL_NPM_HOST : registryHost(resolved) }
+  const host = registryHost(registry)
+  const key = REGISTRY_COPY.get(host)
+  return { name: key === undefined ? host : t(key), host }
+}
+
+/** The host of a registry URL; the URL as written when it does not parse. */
+function registryHost(registry: string): string {
+  try {
+    return new URL(registry).host
+  } catch {
+    // The Host validated its own registries; a remembered one that no longer parses is shown as written.
+    return registry
+  }
+}
 
 /** The sentence each of the Host's refusal codes reads as. */
 const CODE_KEYS = {
@@ -68,18 +88,34 @@ export function shortName(name: string): string {
 }
 
 /**
- * Localize known official packages by exact npm name at render time.
- * @param pkg - original package identity and optional metadata description.
- * @param t - the manager's current translate function.
- * @returns localized copy and whether the package is a beta feature, or the package's short name and original description.
+ * Resolve installed package metadata without changing its technical identity.
+ * @param pkg - package identity and local metadata.
+ * @param resolveText - current-locale package text resolver.
+ * @returns localized copy with a technical-name fallback and the independent beta status.
  */
 export function packageText(
-  pkg: Pick<PackageView, 'name' | 'description'>, t: Translate,
+  pkg: Pick<PackageView, 'name' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
 ): { title: string; description: string | undefined; beta: boolean } {
-  const keys = BUILTIN_COPY.get(pkg.name)
-  return keys === undefined
-    ? { title: shortName(pkg.name), description: pkg.description, beta: false }
-    : { title: t(keys.title), description: t(keys.description), beta: keys.beta }
+  return {
+    title: pkg.meta?.title === undefined ? pkg.name : resolveText(pkg.meta.title),
+    description: pkg.meta?.description === undefined ? undefined : resolveText(pkg.meta.description) || undefined,
+    beta: pkg.name.startsWith('@deepseek-ai/dsh-experimental-'),
+  }
+}
+
+/**
+ * Resolve a bundle row's plugin metadata, using its full module specifier as the final title fallback.
+ * @param row - row identity and local metadata.
+ * @param resolveText - current-locale package text resolver.
+ * @returns the row's display title and optional description.
+ */
+export function rowText(
+  row: Pick<PackageRow, 'moduleName' | 'meta'>, resolveText: PluginManagerFace['resolveText'],
+): { title: string; description: string | undefined } {
+  return {
+    title: row.meta?.title === undefined ? row.moduleName : resolveText(row.meta.title),
+    description: row.meta?.description === undefined ? undefined : resolveText(row.meta.description) || undefined,
+  }
 }
 
 /**
@@ -93,6 +129,10 @@ export function noticeText(notice: ManagerNotice, t: Translate): string {
     case 'restart': return t('restartNotice')
     case 'overridden': return t('overriddenNotice', { name: notice.packageName })
     case 'cancelled': return t('installCancelled')
+    case 'install': return t(({
+      done: 'installBackgroundDone', failed: 'installBackgroundFailed',
+      unconfirmed: 'installBackgroundUnconfirmed', applying: 'installBackgroundApplying', unknown: 'installBackgroundUnknown',
+    } as const)[notice.outcome])
     case 'failed': {
       const reason = notice.code === undefined ? notice.reason : managementText({ code: notice.code, diagnostic: notice.reason }, t)
       return t(FAILED_KEYS[notice.action], { reason: reason === '' ? t('reasonOperationError') : reason })

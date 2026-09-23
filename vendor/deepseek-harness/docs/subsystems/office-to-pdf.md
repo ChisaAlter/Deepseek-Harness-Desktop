@@ -29,9 +29,9 @@ The provider admits the deferred read before allocating source bytes, shares con
 
 ## Preview reads
 
-`RenderedDocumentBytes` extends the workspace byte response with `missingFonts` and `generation`; the original source identity accompanies the converted PDF.
+`RenderedDocumentBytes` carries workspace file metadata, native PDF `data`, `missingFonts`, and `generation`; the original source identity accompanies the converted PDF.
 
-The `officeToPdf.render` Remote method checks source authorization and versions through the Session's [Workspace Files](../../packages/api/workspace-files/README.md) service. After conversion admission, `fs.readBytes` supplies raw input within the reserved byte capacity; Office input limits govern this read. The response carries base64 PDF bytes with the source absolute path and freshness version. Source access failures pass through; size and engine failures expose a classified reason without diagnostics. Conversion does not activate an Agent or append events.
+The `officeToPdf.render` Remote method checks source authorization and versions through the Session's [Workspace Files](../../packages/api/workspace-files/README.md) service. After conversion admission, `fs.readBytes` supplies raw input within the reserved byte capacity; Office input limits govern this read. The binary Remote projects the PDF into a multipart attachment and restores an `ArrayBuffer`-backed `Uint8Array` on the Client. Source access failures pass through; size and engine failures expose a classified reason without diagnostics. Conversion does not activate an Agent or append events.
 
 The `api/remotes` assembly mounts the conversion service's generated Remote descriptor. The shared Document Preview package registers Office formats with complete-byte loading and its existing PDF.js Worker. Each preview read rechecks renderer generation, source authorization, and version before sharing an in-flight conversion or cached PDF. Connection resets and plugin disposal cancel requests and clear cached bytes. Missing services show localized configuration guidance.
 
@@ -71,7 +71,7 @@ convert(request: OfficeToPdfRequest, signal?: AbortSignal): Promise<OfficeToPdfR
  * @param path - absolute or workspace-relative Office path.
  * @param priority - foreground preview or speculative background work.
  * @param signal - Remote cancellation; disposal also cancels outstanding reads and conversions.
- * @returns complete base64 PDF with original source identity and missing font families.
+ * @returns complete PDF bytes with original source identity and missing font families.
  */
 @Remote async render( workspaceFileScope: WorkspaceFileScope, path: string, priority: OfficeToPdfPriority, signal: AbortSignal, ): Promise<RenderedDocumentBytes>
 

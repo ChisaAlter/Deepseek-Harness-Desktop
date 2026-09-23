@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-office-to-pdf/remote'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import { DocumentPreviewRegistry } from '../src/client/document/registry.ts'
 import { apply } from '../src/client/office/index.ts'
+import { officeFace } from '../src/client/office/face.ts'
 import { Config } from '../src/config.ts'
 import { OfficeBody, type OfficeBodyInjected } from '../src/client/office/OfficeBody.tsx'
 import type { OfficeStore } from '../src/client/office/store.ts'
@@ -15,10 +16,15 @@ import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import { en, zh } from '../src/client/office/locales.ts'
 import { en as documentEn } from '../src/client/locales.ts'
 
+vi.mock('../src/client/office/face.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/client/office/face.ts')>()
+  return { ...actual, officeFace: vi.fn(actual.officeFace) }
+})
+
 const file = { sessionId: 's1' as SessionId, path: 'report.DOCX' }
 const generation = ('renderer' as OfficeToPdfGeneration)
-const source = { absolutePath: '/report.docx', version: 'v1', offset: 0, eof: true, bytes: 4, data: 'JVBERg==' }
 const pdf = new Uint8Array([37, 80, 68, 70])
+const source = { absolutePath: '/report.docx', version: 'v1', offset: 0, eof: true, bytes: 4, data: pdf }
 const converted = { ok: true as const, value: { ...source, generation, missingFonts: ['Missing Serif'] } }
 
 it('retains Office view state across remounts and releases it on tab close or plugin disposal', async () => {
@@ -40,8 +46,8 @@ it('retains Office view state across remounts and releases it on tab close or pl
     h.instance.actions.loading(second, 1)
     h.injected.retainTab(second, retained.signal)
     const message = documentEn['error.unavailable'].replace('{message}', 'conversion stopped')
-    expect(h.injected.describeFailure(new RemoteError('gateway/internal', 'conversion stopped', {}))).toBe(message)
-    expect(h.injected.describeFailure({ message: 'conversion stopped' })).toBe(message)
+    expect(h.describeFailure(new RemoteError('gateway/internal', 'conversion stopped', {}))).toBe(message)
+    expect(h.describeFailure({ message: 'conversion stopped' })).toBe(message)
     await h.close()
     expect(h.instance.getSnapshot().byTab[second]).toBeUndefined()
   } finally { closed.abort(); retained.abort(); await h.close() }
@@ -55,7 +61,7 @@ async function harness(config: Partial<Config['office']> = {}, missing?: 'remote
   const render = vi.fn<ClientRemote['officeToPdf']['render']>().mockResolvedValue(converted)
   const rendererGeneration = vi.fn<ClientRemote['officeToPdf']['generation']>().mockResolvedValue({ ok: true, value: generation })
   const stat = vi.fn<ClientRemote['workspaceFiles']['stat']>().mockResolvedValue({ ok: true, value: source })
-  const readBytes = vi.fn<ClientRemote['workspaceFiles']['readBytes']>().mockResolvedValue({ ok: true, value: source })
+  const readBytes = vi.fn<ClientRemote['workspaceFiles']['readBytes']>().mockResolvedValue({ ok: true, value: { ...source, data: pdf.subarray(0, 1), eof: false } })
   const removeNotice = vi.fn()
   const recorded: { options: { name: string; store: OfficeStore; inject: (id: SessionId, actions: ReturnType<OfficeStore['create']>['actions']) => OfficeBodyInjected }; component: unknown }[] = []
   const register = vi.fn((options: typeof recorded[number]['options'], component: unknown) => { recorded.push({ options, component }); return removeNotice })
@@ -74,24 +80,26 @@ async function harness(config: Partial<Config['office']> = {}, missing?: 'remote
   const entry = recorded.find(entry => entry.component === OfficeBody)!.options
   const instance = entry.store.create()
   const injected = entry.inject(file.sessionId, instance.actions)
-  return { ctx, registry, instance, injected, recorded, locale, removeLocale, render, rendererGeneration,
+  const [read, describeFailure] = vi.mocked(officeFace).mock.calls.at(-1)!
+  return { ctx, registry, instance, injected, describeFailure, recorded, locale, removeLocale, render, rendererGeneration,
     stat, readBytes, register, removeNotice,
-    read: (signal = new AbortController().signal, path = file.path) => injected.read({ ...file, path }, signal),
+    read: (signal = new AbortController().signal, path = file.path) => read({ ...file, path }, signal),
     close: () => fiber.dispose(),
   }
 }
 
-it.each(['remote', 'render', 'files'] as const)('keeps Office registration and guidance when %s is absent', async (missing) => {
+it.each(['remote', 'render', 'files'] as const)('keeps Word and PowerPoint registration and guidance when %s is absent', async (missing) => {
   const h = await harness(undefined, missing)
   try {
     expect(h.locale.register).toHaveBeenCalledWith('sidebarOffice', { zh, en })
-    for (const path of ['a.DOC', 'b.DOCX', 'c.XLS', 'd.xlsx', 'e.PPT', 'f.pptx']) {
-      expect(h.registry.candidates(path)[0]!.binaryExtensions).toEqual(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'])
+    for (const path of ['a.DOC', 'b.DOCX', 'c.PPT', 'd.pptx']) {
+      expect(h.registry.candidates(path)[0]!.binaryExtensions).toEqual(['doc', 'docx', 'ppt', 'pptx'])
       expect(h.registry.candidates(path)[0]!.title()).toBe(en.title)
       expect(h.registry.candidates(path)[0]!.loading).toBe('renderer')
       expect(h.registry.candidates(path)[0]).not.toHaveProperty('read')
       await expect(h.read(undefined, path)).rejects.toThrow(en.unavailable)
     }
+    for (const path of ['sheet.XLS', 'sheet.xlsx']) expect(h.registry.candidates(path)).toEqual([])
     expect(h.render).not.toHaveBeenCalled()
   } finally { await h.close() }
   expect(h.registry.getSnapshot()).toEqual([])
@@ -99,7 +107,7 @@ it.each(['remote', 'render', 'files'] as const)('keeps Office registration and g
   expect(h.register).toHaveBeenCalledWith(expect.objectContaining({
     name: 'sidebar.right.tab.document', key: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/office', locale: 'sidebarOffice',
   }), OfficeBody)
-  expect(h.removeNotice).toHaveBeenCalledTimes(2)
+  expect(h.removeNotice).toHaveBeenCalledTimes(3)
 })
 
 it('requests a Host PDF with source identity and borrows the same binary cache result', async () => {
@@ -111,7 +119,7 @@ it('requests a Host PDF with source identity and borrows the same binary cache r
     expect(await h.read()).toBe(result)
     expect(h.stat).toHaveBeenCalledTimes(2)
     expect(h.readBytes).toHaveBeenCalledTimes(2)
-    expect(h.readBytes).toHaveBeenCalledWith(file.sessionId, file.path, { offset: 0, length: 1 }, expect.any(AbortSignal))
+    expect(h.readBytes).toHaveBeenCalledWith(file.sessionId, file.path, { range: { offset: 0, length: 1 } }, expect.any(AbortSignal))
     expect(h.render).toHaveBeenCalledOnce()
   } finally { await h.close() }
 })
@@ -146,8 +154,8 @@ it('refuses Client cached bytes when metadata still succeeds but the read probe 
   try {
     await h.read()
     const failure = new Error('read denied')
-    h.readBytes.mockRejectedValueOnce(failure)
-    await expect(h.read()).rejects.toBe(failure)
+    h.readBytes.mockResolvedValueOnce({ ok: false, error: new RemoteError('gateway/internal', failure.message, {}) })
+    expect(await h.read()).toMatchObject({ ok: false, error: { code: 'gateway/internal', message: failure.message } })
     expect(h.render).toHaveBeenCalledOnce()
     expect(h.stat).toHaveBeenCalledOnce()
   } finally { await h.close() }
@@ -159,7 +167,7 @@ it('returns a declared authorization failure without consulting metadata or cach
     await h.read()
     const denied = { ok: false as const, error: new RemoteError('workspace-file/not-found', 'File missing', { path: file.path }) }
     h.readBytes.mockResolvedValueOnce(denied)
-    expect(await h.read()).toBe(denied)
+    expect(await h.read()).toMatchObject(denied)
     expect(h.stat).toHaveBeenCalledOnce()
     expect(h.render).toHaveBeenCalledOnce()
   } finally { await h.close() }

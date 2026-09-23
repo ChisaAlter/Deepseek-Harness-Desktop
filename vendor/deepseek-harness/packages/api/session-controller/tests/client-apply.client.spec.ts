@@ -18,7 +18,7 @@ const ROSTER = webApp.closure([SELF])
 const it = createClientTest({ roster: ROSTER })
 const EVENTS = '$events'
 const CONTROL = 'session/control'
-const BASELINE = { type: 'baseline', value: { jobs: {}, projections: {} } }
+const BASELINE = { type: 'baseline', value: { projections: {} } }
 /** The first client boot pays the cold module transform of the cone. */
 const COLD_BOOT_TIMEOUT_MS = 60_000
 
@@ -51,7 +51,7 @@ describe('Session Controller Client apply', () => {
     // The first generation's `connection/reset` already ran it; apply itself saw no Host yet.
     await vi.waitFor(() => { expect(connected).toHaveBeenCalledOnce() })
 
-    await emit(mock, 'api-session/added', { sessionId: sid('session-1'), updatedAt: 1, running: false, blank: true })
+    await emit(mock, 'api-session/added', { agentAvailable: true, sessionId: sid('session-1'), updatedAt: 1, running: false, blank: true })
     await vi.waitFor(() => {
       expect(sessions.list.getSnapshot().byId[sid('session-1')]).toMatchObject({ running: false, updatedAt: 1 })
     })
@@ -103,11 +103,11 @@ describe('Session Controller Client apply', () => {
     const connected = vi.spyOn(ClientSessions.prototype, 'handleConnected')
     const sessionId = sid('immediate-baseline')
     mock.remote.session.list.mockResolvedValue(ok({ items: [{
-      sessionId, updatedAt: 1, running: false, blank: false,
+      sessionId, updatedAt: 1, running: false, blank: false, agentAvailable: true,
     }] }))
     let projection = { asOfSeq: 20, values: { title: 'Before restart' } }
     mock.stream(CONTROL, (_args, stream) => {
-      stream.push({ type: 'baseline', value: { jobs: {}, projections: { [sessionId]: projection } } })
+      stream.push({ type: 'baseline', value: { projections: { [sessionId]: projection } } })
     })
     const { client, sessions } = await bench(start)
     await vi.waitFor(() => {
@@ -174,7 +174,7 @@ describe('Session Controller Client apply', () => {
     const { client, sessions } = await bench(start)
     await vi.waitFor(() => { expect(sessions.list.getSnapshot().phase).toBe('ready') })
 
-    await emit(mock, 'api-session/added', { sessionId: sid('agent-1'), updatedAt: 1, running: false, blank: true })
+    await emit(mock, 'api-session/added', { agentAvailable: true, sessionId: sid('agent-1'), updatedAt: 1, running: false, blank: true })
     expect(sessions.scope(sid('agent-1'))).toBeUndefined()
     using reference = sessions.retainAgentScope(sid('agent-1'))
     const scoped = reference.binding.ctx

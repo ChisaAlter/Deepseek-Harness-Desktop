@@ -10,11 +10,11 @@ Status: implemented
 
 ## 决策
 
-[文档渲染能力](../../../../packages/document/README.zh.md)将转换委托给独立发布的 `@deepseek-ai/libreoffice-kit` Node API。[kit 归属决策](2026-09-14-independent-libreoffice-kit.zh.md)负责源码维护、兼容版本和 npm 分发。DSH 负责 Session 文件授权、转换并发、私有临时文件、输出限制和 Remote 传输。[Web bundle](../../../../packages/bundle/web-app/README.zh.md)使用稳定 ID 声明独立的 provider、controller 入口和共享文档预览入口。转换与授权传输仍可独立配置；Office UI 共享文档预览的 Loader 生命周期。
+[文档渲染能力](../../../../packages/document/README.zh.md)将转换委托给独立发布的 `@deepseek-ai/libreoffice-kit` Node API。[kit 归属决策](2026-09-14-independent-libreoffice-kit.zh.md)负责源码维护、兼容版本和 npm 分发。DSH 负责 Session 文件授权、转换并发、私有临时文件、输出限制和 Remote 传输。[Web bundle](../../../../packages/bundle/web-app/README.zh.md)使用稳定 ID 声明转换服务与共享文档预览入口。服务负责带授权的转换 Remote 方法，其描述符由 `api/remotes` 挂载；Office UI 共享文档预览的 Loader 生命周期。
 
 [平台引擎决策](2026-09-15-platform-office-engines.zh.md)要求使用 kit 已声明的原生目标引擎，未声明原生目标时使用 WASM。缺失或无效的必需引擎会拒绝转换。共享的[有界提供方](2026-09-15-bounded-office-conversion.zh.md)负责准入、转换复用以及持续到临时文件清理完成的取消。预览消费该提供方，不注册另一个转换器，也不依赖 Office 创作 skills。
 
-服务、Remote 方法和 Client 注册接受 DOC、DOCX、XLS、XLSX、PPT 和 PPTX。LibreOffice 导入前，kit 校验 OOXML 输入的有界 ZIP 成员和内容类型，以及二进制 Office 输入的 OLE 复合文件头。将文本改为 Office 后缀不能通过校验。kit 不提取二进制格式的字体表，因此这些格式不返回缺失字体诊断。kit 在调用方拥有的私有目录中独占创建新的 PDF。DSH 读取并校验完整输出后才删除临时文件。[服务的 Remote 方法](../../../../packages/document/office-to-pdf/README.zh.md)通过 [Workspace Files](2026-09-09-workspace-file-read-authority.zh.md)授权源文件访问，保留源路径和版本，并返回 PDF 字节。源文件读取上限与生成 PDF 上限相互独立。读取权限探测和延迟读取（包括超限失败后的复查）采用同一个源路径／版本快照，防止转换将字节发布到另一个源身份下。预览字节不会进入 Session 存储或持久缓存。
+服务和 Remote 方法接受 DOC、DOCX、XLS、XLSX、PPT 和 PPTX。Client PDF 预览通过此路径显示 Word 和 PowerPoint；[浏览器表格预览](../feature/2026-09-16-browser-excel-preview.zh.md)独立读取 XLSX、XLS、CSV 和 TSV。LibreOffice 导入前，kit 校验 OOXML 输入的有界 ZIP 成员和内容类型，以及二进制 Office 输入的 OLE 复合文件头。将文本改为 Office 后缀不能通过校验。kit 不提取二进制格式的字体表，因此这些格式不返回缺失字体诊断。kit 在调用方拥有的私有目录中独占创建新的 PDF。DSH 读取并校验完整输出后才删除临时文件。[服务的 Remote 方法](../../../../packages/document/office-to-pdf/README.zh.md)通过 [Workspace Files](2026-09-09-workspace-file-read-authority.zh.md)授权源文件访问，保留源路径和版本，并返回 PDF 字节。源文件读取上限与生成 PDF 上限相互独立。读取权限探测和延迟读取（包括超限失败后的复查）采用同一个源路径／版本快照，防止转换将字节发布到另一个源身份下。预览字节不会进入 Session 存储或持久缓存。
 
 converter 复用首个转换 Worker 返回的字体元数据；原始字体缓冲区和解码后的字符覆盖范围仍只属于单次转换。Worker 读取字体时校验索引中的文件。已安装字体族的精确匹配优先于配置的替代字体，完整的字体族、样式、字重、斜体、宽度、字距、语言与码点请求保留各自的匹配结果。WASM 回调将包含完整字体集合的原始字体文件导入 MEMFS。原生引擎还保留各平台的字体发现能力。两条路径均不下载或安装字体；原生操作系统管理的字体内存不受显式导入预算约束。字体变化后，重新创建 converter 会刷新元数据。
 
@@ -22,9 +22,9 @@ kit 维护 serif、sans-serif 和 monospace 的默认优先组，其中包含中
 
 DSH 按可配置分辨率导出栅格图片，默认 192 DPI，对应共享 PDF 画布在设备像素比 2 时的 96 CSS DPI。文本与矢量仍可缩放；JSON 过滤选项替代隐式选项时，显式书签导出保留引擎默认行为。Node WASM 使用 LibreOffice 的 CPU 过滤器降采样图片。原生转换使用独立的平台引擎。
 
-[Office 查看器](../../../../packages/client/ui-sidebar-documentpreview/README.zh.md#office-preview)位于文档预览的 `client/office/` 目录，与其使用的加载生命周期、PDF 正文和读取器类型同属一个包。这些组件放在同一包中，既减少一个独立 UI 启动入口，也无需跨插件运行时导入。其有界缓存校验已授权的源元数据，在读取方之间共享待完成转换，仅在最后一个读取方离开时取消，不缓存失败，并在连接重置时清空。用户打开预览时才开始转换。缺失的已声明字体族随 PDF 返回，在 Office 滚动区上方显示可关闭的提示；字体表清单与无关的引擎默认字体不构成警告。共享预览入口的 `office` 缓存设置复用页面全局注入通道，因为模块启动图携带包标识而不传递 Loader 配置。重新加载页面后采用更新的 YAML 值。
+[Office 查看器](../../../../packages/client/ui-sidebar-documentpreview/README.zh.md#office-preview)位于文档预览的 `client/office/` 目录，与其使用的加载生命周期、PDF 正文和读取器类型同属一个包。这些组件放在同一包中，既减少一个独立 UI 启动入口，也无需跨插件运行时导入。其有界缓存校验已授权的源元数据，在读取方之间共享待完成转换，仅在最后一个读取方离开时取消，不缓存失败，并在连接重置时清空。用户打开预览时才开始转换。缺失的已声明字体族随 PDF 返回，可通过文档工具栏的警告图标查看；字体表清单与无关的引擎默认字体不构成警告。共享预览入口的 `office` 缓存设置复用页面全局注入通道，因为模块启动图携带包标识而不传递 Loader 配置。重新加载页面后采用更新的 YAML 值。
 
-普通文件读取与 Office 响应共享 `documentFileBytes()`，解码使用一个类型化字节缓冲区，不将二进制字符串物化为 JavaScript 元素数组。即使 PDF 符合 Host 配置的大小限制，元素数组展开也可能耗尽浏览器堆内存。子进程回归测试在固定堆容量内检查字节一致性，构建后的浏览器场景则一起验证传输和 PDF Worker。缓存字节限制不约束临时传输或查看器内存。
+Office 响应使用 Typert 二进制结果投影和 Connection multipart 封装。Client 直接收到一个由 `ArrayBuffer` 支撑的 `Uint8Array`，不会生成 base64 字符串或单独的解码缓冲区。构建后的浏览器场景会同时验证 multipart 附件和 PDF Worker。缓存字节限制不约束临时传输或查看器内存。
 
 [kit 归属决策](2026-09-14-independent-libreoffice-kit.zh.md)定义 npm 分发和随应用打包的离线转换。
 

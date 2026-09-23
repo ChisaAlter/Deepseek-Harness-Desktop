@@ -108,11 +108,11 @@ Projection 的三种交付状态含义不同：
 | Follow opening baseline | 对当前 Host composition 完整 | 精确 opening cursor | Capability 不存在 |
 | Projection frame | 单个完整 key | Frame 携带的 event sequence | 不适用 |
 
-Client 为每个 key 保存带 sequence number 的一行。更新的 hint、baseline 或 frame 会替换 row；相同或更旧的输入被忽略。因此 reconnect 可以替换 event window，而不会回退已经在更晚 sequence 接受的 projection frame。
+Client 为每个 key 保存一行。由建连 Host 算出的行带 sequence number：更新的 baseline 或 frame 会替换它，相同或更旧的输入被忽略，因此 reconnect 可以替换 event window，而不会回退已经在更晚 sequence 接受的 projection frame。从持久化缓存看出来的 list hint 不带可比的 sequence number，让位于所有 Host 排序过的写入（[Projection cache 只读面按 lifecycle 身份匹配，客户端 store 区分 cached 与 sequenced 行](2026-09-19-projection-cache-listing-identity-and-cached-rows.zh.md)）。
 
 List view 与已打开 Session 读取同一个 per-Session store。Hints 可以在 follow 完成前填充 title、preset 和其他 list presentation；opening baseline 随后收敛这份状态，而不会建立第二套 summary-only authority。
 
-每个 Session 的 Client projection store 按一条 higher-sequence-wins 规则接收 list hints、follow baseline 和后续 whole-value frame。它从不折叠 Session event。Baseline 或 frame 可以推进 hinted value，较旧切面不能覆盖较新的 row。
+每个 Session 的 Client projection store 接收 list hints、follow baseline 和后续 whole-value frame。higher-sequence-wins 只在 Host 排序过的值之间生效；cached list hint 排在它们全部之下。它从不折叠 Session event。Baseline 或 frame 可以推进 hinted value，较旧切面不能覆盖较新的 sequenced row。
 
 不由单个 Session 派生的数据不进入 projection。`session/modelCatalog` 持有当前 Host generation 的 model catalog，`agentPresets/list` 持有可配置 preset roster。Selector 只在相应 catalog 与 Session 的 `modelSelection` 或 `agentPreset` projection 均就绪后组合两者。刷新时可以保留上一份完整 catalog；第一次获得完整输入前显示 loading，而不是展示猜测的名称或可用性结论。
 
@@ -120,7 +120,7 @@ Client 本地交互状态也继续留在本地：loading 和 error 状态、打�
 
 ### 领域应用
 
-- **Title 与 list metadata。** Cached projection hints 可以渲染已有 title，并判断 blankness 或 recency。Hints 缺失时这些事实保持未知；listing 期间只有有界小日志策略可以解析它们。
+- **Title 与 list metadata。** Cached projection hints 可以渲染已有 title，并判断 blankness 或 recency。Hints 缺失时这些事实保持未知；listing 期间只有有界小日志策略可以解析它们。Client 使用当前 metadata projection 对账列表行：非空白事实会将 Session 排除在空白复用之外，较晚的 prompt 时间用于最近活动排序。Projection store 的生命周期长于惰性创建的 Client Session 实例，因此实例化时即使尚无列表行，也会读取已保留的元数据。过期列表响应不能覆盖较新的 history 或 control projection。
 - **Model selection。** `model/selection` 记录完整 provider、model 和可选 reasoning effort。`modelSelection` 区分上一请求使用的 route，以及等待 request header 消费的较晚 selection。
 - **Agent preset。** Projection 从不可变 Session metadata 初始化，并随 preset-selection event 推进。对于现有 Session，缺失或 `null` 值不会替换成部署默认值。
 - **Subagent identity。** `subagent` unit 仍是唯一 descriptor interpreter。Listing 从共享 corpus 获得 candidate，并通过 live state、projection cache 或 observation 解析值，不自行扫描 event。

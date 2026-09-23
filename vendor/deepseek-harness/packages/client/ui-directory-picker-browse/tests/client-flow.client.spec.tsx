@@ -71,13 +71,13 @@ function standardProps(): GlobalStandardProps {
   return {
     usePanelInfo: selector => selector({ activePanelId: null }),
     useSessions: bindSnapshotSelector(createSnapshotStore<SessionListState>({
-      ids: [], byId: {}, phase: 'ready', subagentsByParent: {}, jobsBySession: {},
+      ids: [], byId: {}, phase: 'ready', projectionsBySession: {},
     })),
     useSessionStatus: bindSnapshotSelector(createSnapshotStore<SessionStatusSnapshot>(new Map())),
     useSessionRetainInfo: () => undefined,
     useResource,
     useWorkspaces: bindSnapshotSelector(createSnapshotStore<WorkspaceSnapshot>({
-      items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+      items: [], archivedSessionIds: [], pinnedSessionIds: [], state: 'idle', phase: 'ready', error: null,
     })),
   }
 }

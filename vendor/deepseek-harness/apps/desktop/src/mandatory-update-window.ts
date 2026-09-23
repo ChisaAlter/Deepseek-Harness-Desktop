@@ -2,10 +2,10 @@
 
 import { app, BrowserWindow, clipboard, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import type { DesktopLocale } from './locale.ts'
-import type { DesktopUpdateState } from './ipc.ts'
+import { assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
 import { desktopPolicyPage, type DesktopPolicyState } from './mandatory-update-policy.ts'
 import { MANDATORY_IPC } from './mandatory-update-ipc.ts'
-import { createMandatoryUpdateWindow } from './update-overlay.ts'
+import { createUpdateOverlay } from './update-overlay.ts'
 import { DesktopUpdateAttention } from './update-attention.ts'
 
 /** A renderer action never carries a URL or authorizes a different version. */
@@ -43,11 +43,17 @@ export interface MandatoryUpdateWindowOptions {
   readonly install: (version: string) => Promise<DesktopUpdateState>
 }
 
+// main.ts's protocol.handle shell route serves this document and its renderer assets; the modal requires that route.
 const page = 'dsh-app://shell/mandatory-update.html'
 
-/** A modal child blocks the product window without cancelling work in the Host. */
+/** Shell-owned update presentation; Windows embeds it in the main document without a child window. */
 export class DesktopMandatoryUpdateWindow {
+  private readonly embedded = process.platform === 'win32'
+  private embeddedParent: BrowserWindow | undefined
+  private embeddedBlocking = false
+  private readonly publishEmbedded = (): void => { this.embeddedBlocking = false; this.sync() }
   private window: BrowserWindow | undefined
+  private closing: ReturnType<typeof setTimeout> | undefined
   private disposed = false
   private error: string | undefined
   private action: Promise<void> | undefined
@@ -63,6 +69,8 @@ export class DesktopMandatoryUpdateWindow {
   /** @param options - Main-process actions and immutable deployment/navigation settings. */
   constructor(private readonly options: MandatoryUpdateWindowOptions) {
     this.attention = new DesktopUpdateAttention(options.locale)
+    this.embeddedParent = this.embedded ? options.parent() : undefined
+    this.embeddedParent?.webContents.on('did-finish-load', this.publishEmbedded)
     ipcMain.handle(MANDATORY_IPC.status, (event) => { this.assertSender(event); return this.view() })
     ipcMain.handle(MANDATORY_IPC.action, (event, action: unknown, version: unknown, confirmationRevision: unknown) => {
       this.assertSender(event)
@@ -101,7 +109,7 @@ export class DesktopMandatoryUpdateWindow {
   }
 
   /** Active modal used as the owner of shell installation-confirmation dialogs. */
-  get confirmationWindow(): BrowserWindow | undefined { return this.window }
+  get confirmationWindow(): BrowserWindow | undefined { return this.embedded ? this.options.parent() : this.window }
 
   /**
    * @param version - Updater-owned target, already downloaded and verified.
@@ -117,8 +125,9 @@ export class DesktopMandatoryUpdateWindow {
       this.confirmation = { version, active, revision: ++this.confirmationRevision, resolve }
       this.sync()
       const parent = this.options.parent()
-      if (parent !== undefined && this.window !== undefined) {
-        this.attention.ready(version, parent, this.window, () => {
+      const owner = this.confirmationWindow
+      if (parent !== undefined && owner !== undefined) {
+        this.attention.ready(version, parent, owner, () => {
           if (!this.disposed && this.options.policy().blocking && this.confirmation !== undefined) this.focus()
         })
       } else this.finishConfirmation(false)
@@ -135,23 +144,53 @@ export class DesktopMandatoryUpdateWindow {
   /** Publish current status, create the block immediately, or close it only after policy clearance. */
   sync(): void {
     if (this.disposed) return
+    if (this.embedded) {
+      const parent = this.options.parent()
+      if (parent !== this.embeddedParent) {
+        if (this.embeddedParent !== undefined && !this.embeddedParent.isDestroyed()) {
+          this.embeddedParent.webContents.off('did-finish-load', this.publishEmbedded)
+        }
+        this.embeddedBlocking = false
+        this.embeddedParent = parent
+        if (parent !== undefined && !parent.isDestroyed()) parent.webContents.on('did-finish-load', this.publishEmbedded)
+      }
+      if (parent === undefined || parent.isDestroyed()) return
+    }
     if (!this.options.policy().blocking) {
       this.finishConfirmation(false)
       this.attention.reset()
       this.clearNavigation()
       this.restart = undefined
       this.deferred = false
-      this.window?.destroy()
-      this.window = undefined
+      if (this.window !== undefined && this.closing === undefined) {
+        const window = this.window
+        window.webContents.send(MANDATORY_IPC.state, this.view())
+        this.closing = setTimeout(() => {
+          this.closing = undefined
+          if (this.window === window) this.window = undefined
+          window.destroy()
+        }, 150)
+      }
       this.error = undefined
+      if (this.embedded && this.embeddedBlocking) {
+        this.embeddedBlocking = false
+        this.embeddedParent?.webContents.send(MANDATORY_IPC.state, this.view())
+      }
       return
     }
+    clearTimeout(this.closing)
+    this.closing = undefined
     if (this.navigationUrl !== this.options.policy().page) this.clearNavigation()
     if (this.options.update().phase === 'error') this.restart = undefined
+    if (this.embedded) {
+      this.embeddedBlocking = true
+      this.embeddedParent?.webContents.send(MANDATORY_IPC.state, this.view())
+      return
+    }
     if (this.window === undefined) {
       const parent = this.options.parent()
       if (parent === undefined) return
-      const window = createMandatoryUpdateWindow(parent, this.options.preload, this.options.locale.messages.mandatoryTitle)
+      const window = createUpdateOverlay(parent, this.options.preload, this.options.locale.messages.mandatoryTitle, false)
       this.window = window
       window.setMenu(null)
       window.on('close', (event) => { if (!this.disposed && this.options.policy().blocking) { event.preventDefault(); app.quit() } })
@@ -176,20 +215,28 @@ export class DesktopMandatoryUpdateWindow {
   focus(): void {
     this.sync()
     const parent = this.options.parent()
+    if (parent?.isDestroyed()) return
     if (parent?.isMinimized()) parent.restore()
     parent?.show()
+    if (this.embedded) parent?.focus()
     this.window?.show()
     this.window?.focus()
   }
 
-  /** Detach IPC and release the modal during application shutdown. */
+  /** Detach IPC and release the modal during shutdown, including after the main window closes. */
   dispose(): void {
     this.disposed = true
+    clearTimeout(this.closing)
+    this.closing = undefined
     this.finishConfirmation(false)
     this.attention.reset()
     this.clearNavigation()
     ipcMain.removeHandler(MANDATORY_IPC.status)
     ipcMain.removeHandler(MANDATORY_IPC.action)
+    if (this.embeddedParent !== undefined && !this.embeddedParent.isDestroyed()) {
+      this.embeddedParent.webContents.off('did-finish-load', this.publishEmbedded)
+      this.embeddedParent.webContents.send(MANDATORY_IPC.state, { ...this.view(), policy: { blocking: false, checking: false } })
+    }
     this.window?.destroy()
     this.window = undefined
   }
@@ -245,6 +292,15 @@ export class DesktopMandatoryUpdateWindow {
   }
 
   private assertSender(event: IpcMainInvokeEvent): void {
+    if (this.embedded) {
+      const parent = this.options.parent()
+      if (parent === undefined || parent.isDestroyed() || event.sender !== parent.webContents
+        || event.senderFrame !== parent.webContents.mainFrame) {
+        throw new Error('desktop policy: rejected unowned renderer')
+      }
+      assertDesktopSender(event, ['app'])
+      return
+    }
     if (event.sender !== this.window?.webContents || event.senderFrame !== this.window.webContents.mainFrame
       || event.senderFrame.url !== page) throw new Error('desktop policy: rejected unowned renderer')
   }

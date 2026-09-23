@@ -13,7 +13,7 @@ import { RemoteStreamCarrierError } from '@deepseek-ai/dsh-api-gateway/client'
 import { RemoteError, type RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { ok, type RemoteMock } from '@deepseek-ai/dsh-remote-mock'
 import { createClientTest, type TestClient, webApp } from '@deepseek-ai/dsh-client-test-runtime/src/assembly/index.ts'
-import { JUMP_PAGE_MESSAGES, Session } from '../src/client/sessions/session.ts'
+import { Session } from '../src/client/sessions/session.ts'
 import { SessionEventStream } from '../src/client/transport.ts'
 import type { SessionFollowRequest, SessionPage, SessionPageRequest } from '../src/types.ts'
 import { entries, ev, historyValue, plainTurn } from './event-script.client.ts'
@@ -57,6 +57,15 @@ describe('Session open', () => {
     session.handleRunning(true)
     expect(session.getSnapshot()).toMatchObject({ blank: false, running: true })
   }, COLD_BOOT_TIMEOUT_MS)
+
+  it('rejects a blank list hint when current metadata records a started conversation', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    session.projections.apply('sessionListMetadata', { blank: false, lastPromptAt: 1200 }, SessionSeq(8))
+
+    session.handleBlank(true)
+
+    expect(session.getSnapshot()).toMatchObject({ blank: false, promptAttempted: false, running: false })
+  })
 
   it('installs the tail page: cold → loading → open with window and nodes in place', async ({ mock, start }) => {
     const session = await sessionBench(mock, start, SID)
@@ -182,9 +191,9 @@ describe('paging', () => {
     await session.open()
     await session.loadOlder()
     const snapshot = session.getSnapshot()
-    expect(mock.log.requests(FOLLOW)).toHaveLength(1)
-    expect(mock.log.requests(PAGE)).toMatchObject([
-      { address: ADDRESS, throughSeq: 11, beforeSeq: 6 },
+    expect(mock.log.requests(FOLLOW)).toMatchObject([{ maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } }])
+    expect(mock.log.requests(PAGE)).toEqual([
+      { address: ADDRESS, throughSeq: 11, beforeSeq: 6, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } },
     ])
     expect(snapshot.hasMore).toBe(false)
     expect(eventSeqs(session)).toEqual([...older, ...newer].map(event => event.seq))
@@ -245,8 +254,8 @@ describe('paging', () => {
     expect(snapshot.loadingOlder).toBe(false)
     expect(eventSeqs(session)).toEqual([...oldest, ...middle, ...newest].map(event => event.seq))
     expect(mock.log.requests(PAGE)).toMatchObject([
-      { beforeSeq: 12, maxMessages: JUMP_PAGE_MESSAGES },
-      { beforeSeq: 6, maxMessages: JUMP_PAGE_MESSAGES },
+      { beforeSeq: 12, maxMessages: 500, turnWindow: { minMessages: 200, minTurns: 2 } },
+      { beforeSeq: 6, maxMessages: 500, turnWindow: { minMessages: 200, minTurns: 2 } },
     ])
   })
 
@@ -260,6 +269,88 @@ describe('paging', () => {
     await session.loadThrough(SessionSeq(6)) // baseSeq is already 6
     await session.loadThrough(SessionSeq(9)) // inside the window
     expect(mock.log.requests()).toHaveLength(sent)
+  })
+
+  it('publishes jump pages together while live events remain visible', async ({ mock, start }) => {
+    const oldest = plainTurn(SessionSeq(0), 0, 'old', 'answer')
+    const middle = plainTurn(SessionSeq(6), 1, 'middle', 'answer')
+    const newest = plainTurn(SessionSeq(12), 2, 'new', 'answer')
+    const session = await sessionBench(mock, start, SID)
+    mock.stream(FOLLOW, followScript(history(newest, true)))
+    await session.open()
+    const secondRequested = Promise.withResolvers<undefined>()
+    const lastPage = Promise.withResolvers<RemoteResult<SessionPage>>()
+    mock.remote.session.page.mockImplementation(pageRule((request) => {
+      if (request.beforeSeq === 12) return history(middle, true)
+      secondRequested.resolve(undefined)
+      return lastPage.promise
+    }))
+    const changes: string[] = []
+    onTestFinished(session.eventSource.subscribe(() => { changes.push(session.eventSource.getSnapshot().change.kind) }))
+    const jump = session.loadThrough(SessionSeq(0))
+    await secondRequested.promise
+    expect(changes).toEqual([])
+    expect(eventSeqs(session)).toEqual(newest.map(event => event.seq))
+    expect(session.getSnapshot().loadingOlder).toBe(true)
+
+    await pushEvent(mock, ev.turnStart(SessionSeq(18), 3))
+    expect(changes).toEqual(['append'])
+    expect(eventSeqs(session)).toEqual([...newest.map(event => event.seq), 18])
+    const nearerJump = session.loadThrough(SessionSeq(6))
+    expect(nearerJump).toBe(jump)
+
+    lastPage.resolve(history(oldest))
+    await jump
+    expect(changes).toEqual(['append', 'prepend'])
+    expect(eventSeqs(session)).toEqual(Array.from({ length: 19 }, (_, index) => index))
+    expect(session.eventSource.getSnapshot().change).toMatchObject({
+      kind: 'prepend', entries: entries([...oldest, ...middle]),
+    })
+    expect(session.getSnapshot()).toMatchObject({ loadingOlder: false, hasMore: false })
+  })
+
+  it('publishes the successful jump prefix once when a later page fails', async ({ mock, start }) => {
+    const middle = plainTurn(SessionSeq(6), 1, 'middle', 'answer')
+    const newest = plainTurn(SessionSeq(12), 2, 'new', 'answer')
+    const session = await sessionBench(mock, start, SID)
+    mock.stream(FOLLOW, followScript(history(newest, true)))
+    await session.open()
+    const changed = vi.fn()
+    onTestFinished(session.eventSource.subscribe(changed))
+    mock.remote.session.page.mockImplementation(pageRule(request => request.beforeSeq === 12
+      ? history(middle, true)
+      : err(new RemoteError('gateway/internal', 'page unavailable', {}))))
+
+    await session.loadThrough(SessionSeq(0))
+
+    expect(changed).toHaveBeenCalledOnce()
+    expect(eventSeqs(session)).toEqual([...middle, ...newest].map(event => event.seq))
+    expect(session.getSnapshot()).toMatchObject({ loadingOlder: false, hasMore: true })
+  })
+
+  it('discards buffered jump pages when the Session replaces its stream', async ({ mock, start }) => {
+    const newest = plainTurn(SessionSeq(12), 2, 'new', 'answer')
+    const session = await sessionBench(mock, start, SID)
+    mock.stream(FOLLOW, followScript(history(newest, true)))
+    await session.open()
+    const secondRequested = Promise.withResolvers<undefined>()
+    const lastPage = Promise.withResolvers<RemoteResult<SessionPage>>()
+    mock.remote.session.page.mockImplementation(pageRule((request) => {
+      if (request.beforeSeq === 12) return history(plainTurn(SessionSeq(6), 1, 'middle', 'answer'), true)
+      secondRequested.resolve(undefined)
+      return lastPage.promise
+    }))
+    const changes: string[] = []
+    onTestFinished(session.eventSource.subscribe(() => { changes.push(session.eventSource.getSnapshot().change.kind) }))
+    const jump = session.loadThrough(SessionSeq(0))
+    await secondRequested.promise
+    const replacement = session.resync()
+    lastPage.resolve(history(plainTurn(SessionSeq(0), 0, 'old', 'answer')))
+    await Promise.all([jump, replacement])
+
+    expect(changes).toEqual(['replace'])
+    expect(eventSeqs(session)).toEqual(newest.map(event => event.seq))
+    expect(session.getSnapshot().loadingOlder).toBe(false)
   })
 
   it('loadThrough retargets a running jump to the lowest requested seq and shares its completion', async ({ mock, start }) => {
@@ -393,7 +484,7 @@ describe('prompt and cancel errors', () => {
     expect(steered).toEqual({ ok: true, value: { accepted: true } })
     expect(cancelled).toEqual({ ok: true, value: { accepted: true } })
     expect(mock.log.requests(FOLLOW)).toEqual([
-      { address: { kind: 'subagent', ...CHILD }, assistantStream: true, maxMessages: 50 },
+      { address: { kind: 'subagent', ...CHILD }, assistantStream: true, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } },
     ])
     expect(mock.log.requests(PAGE)).toEqual([])
     // The prompt mode crosses the wire as the request's delivery.
@@ -489,7 +580,7 @@ describe('prompt and cancel errors', () => {
     expect(mock.log.requests('subagents/prompt')).toMatchObject([CHILD])
     expect(mock.log.calls('subagents/interruptByParent').map(call => call.args)).toEqual([[SID, PARENT, 'continuable']])
     expect(mock.log.requests(FOLLOW)).toEqual([
-      { address: { kind: 'subagent', ...CHILD, mode: 'one-shot' }, assistantStream: true, maxMessages: 50 },
+      { address: { kind: 'subagent', ...CHILD, mode: 'one-shot' }, assistantStream: true, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } },
     ])
     expect(mock.log.requests(PAGE)).toEqual([])
     expect(mock.log.requests('session/cancel')).toEqual([])
@@ -532,6 +623,30 @@ describe('prompt and cancel errors', () => {
     }])
     session.handleRunning(true)
     expect(session.getSnapshot()).toMatchObject({ running: true, awaitingFirstTurn: false })
+  })
+
+  it('does not await a first turn when the history already contains one', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    session.handleBlank(false)
+    const inFlight = session.prompt([{ type: 'text', text: '继续' }], 'queue')
+    expect(session.getSnapshot()).toMatchObject({ blank: false, promptAttempted: true, awaitingFirstTurn: false })
+    expect((await inFlight).ok).toBe(true)
+    expect(session.getSnapshot()).toMatchObject({ blank: false, awaitingFirstTurn: false })
+  })
+
+  it('keeps an accepted first prompt converted when a later prompt is rejected', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    session.handleBlank(true)
+    expect((await session.prompt([{ type: 'text', text: '第一次' }], 'queue')).ok).toBe(true)
+    session.handleRunning(true)
+    session.handleRunning(false)
+    mock.remote.session.prompt.mockResolvedValue(err(new RemoteError('session/agent-busy', 'busy', { reason: 'x' })))
+
+    expect((await session.prompt([{ type: 'text', text: '第二次' }], 'queue')).ok).toBe(false)
+    expect(session.getSnapshot()).toMatchObject({
+      blank: false, running: false, awaitingFirstTurn: false,
+      promptError: { op: 'send', error: { code: 'session/agent-busy' } },
+    })
   })
 
   it('keeps the attempted-first-prompt state when the Host rejects the prompt', async ({ mock, start }) => {

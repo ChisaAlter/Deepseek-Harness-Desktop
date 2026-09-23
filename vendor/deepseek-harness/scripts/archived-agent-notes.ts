@@ -94,27 +94,21 @@ function pairMeta(content: string): Map<string, string> | undefined {
   return entries
 }
 
-function validateHeader(path: string, content: Buffer, sourceBase: string, chinese: boolean): string[] {
+function validateMetadata(path: string, content: Buffer, sourceBase: string): { errors: string[]; date: string | undefined } {
   const errors: string[] = []
   const lines = content.toString('utf8').split('\n')
-  if (!/^# Agent Note: \S/.test(lines[0] ?? '')) errors.push(`${path}: line 1 must be \`# Agent Note: <title>\``)
-  if (lines[1] !== '') errors.push(`${path}: line 2 must be blank`)
-  if (lines[2] !== 'Status: implemented') errors.push(`${path}: line 3 must be \`Status: implemented\``)
-  const archived = /^Archived: (\d{4}-\d{2}-\d{2})$/.exec(lines[3] ?? '')?.[1]
-  if (archived === undefined || !validDate(archived)) {
-    errors.push(`${path}: line 4 must be \`Archived: YYYY-MM-DD\` with a valid date`)
+  const status = lines.findIndex(line => line.startsWith('Status:'))
+  if (lines[status] !== 'Status: implemented') errors.push(`${path}: requires \`Status: implemented\``)
+  const archived = /^Archived: (\d{4}-\d{2}-\d{2})$/.exec(lines[status + 1] ?? '')?.[1]
+  if (status < 0 || archived === undefined || !validDate(archived)) {
+    errors.push(`${path}: requires \`Archived: YYYY-MM-DD\` with a valid date immediately after the status`)
   } else if (archived < sourceBase.slice(0, 10)) {
     errors.push(`${path}: archive date ${archived} predates the note filename`)
   }
-  if (lines[4] !== '') errors.push(`${path}: line 5 must be blank`)
-  const switcher = chinese
-    ? `[English](${sourceBase}.md) | 中文`
-    : `English | [中文](${sourceBase}.zh.md)`
-  if (lines[5] !== switcher) errors.push(`${path}: line 6 must be ${JSON.stringify(switcher)}`)
-  return errors
+  return { errors, date: archived }
 }
 
-/** Validate the closed kind tree, implemented/archive headers, and complete bilingual triplets. */
+/** Validate the closed kind tree, implemented/archive metadata, and complete bilingual triplets. */
 export function validateArchiveArtifacts(artifacts: ReadonlyMap<string, Buffer>): string[] {
   const errors: string[] = []
   const triplets = new Map<string, Triplet>()
@@ -151,10 +145,9 @@ export function validateArchiveArtifacts(artifacts: ReadonlyMap<string, Buffer>)
       continue
     }
     const sourceBase = basename(key)
-    errors.push(...validateHeader(sourcePath, source, sourceBase, false))
-    errors.push(...validateHeader(zhPath, zh, sourceBase, true))
-    const sourceDate = /^Archived: (\d{4}-\d{2}-\d{2})$/m.exec(source.toString('utf8'))?.[1]
-    const zhDate = /^Archived: (\d{4}-\d{2}-\d{2})$/m.exec(zh.toString('utf8'))?.[1]
+    const { errors: sourceErrors, date: sourceDate } = validateMetadata(sourcePath, source, sourceBase)
+    const { errors: zhErrors, date: zhDate } = validateMetadata(zhPath, zh, sourceBase)
+    errors.push(...sourceErrors, ...zhErrors)
     if (sourceDate !== undefined && zhDate !== undefined && sourceDate !== zhDate) {
       errors.push(`${key}: English and Chinese archive dates differ (${sourceDate} vs ${zhDate})`)
     }

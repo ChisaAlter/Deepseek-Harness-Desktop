@@ -1,0 +1,33 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
+  },
+  "files": [
+    "src/boot-theme.ts",
+    "src/index.ts",
+    "src/theme-settings.ts",
+    "src/builtin-families.ts",
+    "src/derive.ts",
+    "src/theme-family.ts",
+    "src/wallpaper.ts",
+    "src/cursor-fx.ts",
+    "src/cursor-fluid.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../host/webserver"
+    },
+    {
+      "path": "../../settings/settings"
+    }
+  ]
+}

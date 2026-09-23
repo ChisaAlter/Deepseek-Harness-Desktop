@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-windows-embedded-mandatory-update.md
+2026-09-20-windows-embedded-mandatory-update.md: 99577a4d85adc3fe13ea0ae262d5aa1af6128237
+2026-09-20-windows-embedded-mandatory-update.zh.md: abe4a9577d8e11d8de2089dc53ef07433e10bbdb

@@ -1,8 +1,17 @@
 /** Browser Conversation assemble core, React adapter, shell, and input plugin. */
 export { apply, Config, inject } from './apply.ts'
+export { CONVERSATION_SETTINGS_NAMESPACE } from '../submission-settings.ts'
+export type { ConversationSettings } from '../submission-settings.ts'
 export type { Config as ConversationConfig } from './apply.ts'
 export { UiConversation } from './conversation/assembly.ts'
 export type { ConversationBinding } from './conversation/assembly.ts'
+export type { ConversationGroupRegistry } from './conversation/group-registry.ts'
+export type {
+  ConversationGroupContext, ConversationGroupData, ConversationGroupDataMap,
+  ConversationGroupDefinition, ConversationGroupedView, ConversationGroupInput,
+  GroupKey, GroupNodePosition, GroupReference, GroupSnapshot, GroupUpdate, NodeChange, NodeKey,
+  NodeReference, RenderEntry,
+} from './contract/groups.ts'
 export { ConversationController, UnsupportedImageMediaTypeError } from './service.ts'
 export type { IConversation } from './service.ts'
 export type {
@@ -40,7 +49,7 @@ export type { ConversationStoreState, ConversationViewRequest, ViewTab } from '.
 
 export { ConversationNodeAssembler } from './conversation/assembler.ts'
 export type {
-  ConversationEventDefinitions, ConversationViewDefinitions,
+  ConversationEventDefinitions, ConversationGroupDefinitions, ConversationViewDefinitions,
 } from './conversation/assembler.ts'
 export { ConversationDefinitionRegistry } from './conversation/definition-registry.ts'
 export { ConversationEventRegistry } from './conversation/event-registry.ts'

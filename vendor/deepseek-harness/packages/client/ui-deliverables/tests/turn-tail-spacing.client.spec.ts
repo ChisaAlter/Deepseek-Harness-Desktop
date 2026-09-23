@@ -18,7 +18,7 @@ describe('deliverables layout', () => {
     expect(read('PresentedFileCard.tsx')).toMatch(/<FileTypeIcon path=\{file\.path\} size=\{20\} \/>/)
     expect(deliveries).toMatch(/\.fileName\s*\{[^}]*font-size:\s*13px;[^}]*line-height:\s*20px/s)
     expect(deliveries).toMatch(/\.description\s*\{[^}]*font-size:\s*10px;[^}]*line-height:\s*16px/s)
-    expect(deliveries).toMatch(/\.open\s*\{[^}]*padding:\s*4px 8px;[^}]*font-size:\s*12px;[^}]*line-height:\s*18px/s)
     expect(deliveries).toMatch(/\.presented\s*\{[^}]*gap:\s*10px/s)
   })
+
 })

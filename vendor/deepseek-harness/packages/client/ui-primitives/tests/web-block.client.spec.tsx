@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
-import { LinkIcon, WebBlock as LocalizedWebBlock } from '../src/index.ts'
+import { LinkIconMedium, WebBlock as LocalizedWebBlock } from '../src/index.ts'
 import type {
   WebFetchBlockProps, WebSearchBlockProps, WebSourceView,
 } from '../src/index.ts'
@@ -30,7 +30,7 @@ afterEach(cleanup)
 
 /** The path data of the mark a `url` link leads with for one destination. */
 function glyphMark(href: string | undefined): string | null {
-  const { container } = render(<LinkIcon kind="url" href={href} />)
+  const { container } = render(<LinkIconMedium kind="url" href={href} />)
   return container.querySelector('path')!.getAttribute('d')
 }
 

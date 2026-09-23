@@ -61,7 +61,7 @@ async function fixture(body: (context: {
     await writeFile(join(source, 'package.json'), JSON.stringify({ name: `dsh-update-test-${run.id}`, version,
       dshDesktopAppId: run.appId, main: 'qualification-bootstrap.mjs', type: 'module',
       dshMandatoryUpdatePolicy: { origin: 'https://policy.example.com', allowedPageOrigins: ['https://policy.example.com'],
-        authentication: 'feishu-test' } }))
+        authentication: 'feishu-test', allowedAuthOrigins: ['https://login.example.com'] } }))
     for (const name of ['electron-updater', 'semver']) {
       await mkdir(join(source, 'node_modules', name), { recursive: true })
       await cp(require.resolve(`${name}/package.json`), join(source, 'node_modules', name, 'package.json'))

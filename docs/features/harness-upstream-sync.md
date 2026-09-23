@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `harness-upstream-sync` |
 | **status** | `active` |
-| **last verified** | 2026-09-19 — main-panel 行契约修复：非会话 `main` 面板（插件管理等）收进 `AppFrame.mainPanel` 内容行，不再上探标题栏行；`FORK_FILE_MARKERS` 新增 `AppFrame.tsx` / `AppFrame.module.css` 标记。ui-layout 80 测、fork 校验 15 测、typecheck 全绿；实机 CDP 验证插件页 top=48、卡片→详情→返回正常。此前 2026-09-18 — alpha.2 正式构建、GUI 7906 通过/1 跳过、桌面 1775 通过/2 跳过、同步契约 67 通过；源码冒烟通过并已重启桌面应用 |
+| **last verified** | 2026-09-23 — 将 `dsh-v0.1.7-alpha.2` 三方合并至桌面树：原始本地修改已另行提交；官方构建通过；桌面 `npm test` 2215 通过/2 跳过；vendor `ui-primitives` 1226/1226、`ui-workspace` + `ui-files` 558/558、聊天与代理定向测试 577/577、设置定向测试 340/340、Web E2E 15/15；`smoke:source` 的 UI、标题栏及 PTY 探针通过；`check:governance` 6/6、`doc-sync` 8/8。`npm start` 预构建通过，但已安装版持有单实例锁，未替换其窗口；独立数据目录下的源码启动已由冒烟验证。 |
 
 ## User paths
 
@@ -16,7 +16,7 @@
 - 使用以旧 pin 为共同祖先的三方合并，禁止整树覆盖桌面定制。
 - 上游契约优先、桌面特性保真；不弱化断言或 fork 标记来掩盖回归。
 - pin 仅在合并树成功应用后更新；未完成验证不得称为可发布版本。
-- 不创建分支，不提交或发布；同步过程不改写任务开始时的五个文档修改，保留其原始快照及其他任务后续的独立更新。
+- 不创建分支或发布；仅在用户明确要求时提交同步结果。保留任务开始时本地修改的原始快照及其他任务后续的独立更新。
 - 设计语言、关闭按钮在标题右侧、独立桌面家目录和插件恢复契约保持。
 
 ## Allowed touch
@@ -44,4 +44,5 @@
 - Design: [设计语言](../design-language.md)
 - Spec / plan: [上游同步方案](../superpowers/plans/2026-08-18-harness-rc7-vendor-pin.md)
 - Decision: [alpha.2 桌面适配](../decisions/implemented/architecture/2026-09-18-harness-alpha2-desktop-adaptation.md)
+- Decision: [0.1.7-alpha.2 桌面适配](../decisions/implemented/architecture/2026-09-23-harness-017-desktop-adaptation.md)
 - Implementation entry: [harness-sync.js](../../src/shared/harness-sync.js)

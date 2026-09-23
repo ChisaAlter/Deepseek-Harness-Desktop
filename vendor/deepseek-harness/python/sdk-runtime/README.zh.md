@@ -12,6 +12,19 @@ wheel 包会安装 `dsh` 控制台命令和 `deepseek_harness_runtime` Python �
 
 每个目标还要求 `<executable-stem>-office/`，其中 stem 不含 `.exe`。该目录包含完整的已安装 Office 包及其依赖，保留引擎资源、清单、许可证、源码清单与辅助程序权限。复制可执行文件时必须一并复制此目录。缺少目标引擎会使 sidecar 构建失败，错误会指出其 npm 包名与目标平台／架构。
 
+每个 wheel 还包含 `<platform>-<arch>/primary-runtime/`（CPython 与锁定版本的 Office Python 库）及同级 `office-skills/`（三个默认工作流与共用检查脚本）。它们是可重定位的普通文件，不嵌入可执行文件。共享构建器为全部五个 wheel 目标选择原生归档，并在对应构建主机上执行冒烟检查。打包与已安装运行时定位会拒绝缺失资源、平台不符的元数据及 Python 执行权限丢失。 较短的平台目录避免在 Windows Python DLL 路径中重复可执行文件名称。
+
+打包启动器通过 `DSH_BUNDLED_PRIMARY_RUNTIME` 提供载体默认路径。`sdk` profile 在未设置 `DSH_PRIMARY_RUNTIME` 时使用该路径；显式路径覆盖它，空字符串禁用查询与 Office 提供方。外部 payload 保持 `primary-runtime/` 与同级 `office-skills/` 布局。SDK 原位读取 Python，不复制到 `DSH_HOME`。源码与仅供开发的 Node 载体没有随包默认路径，需显式设置 `DSH_PRIMARY_RUNTIME`。
+
+选择 skills 与交付资源相互独立：项目、自定义目录和用户文件系统 skills 优先于同名随包 skills。SDK patch 可以仅禁用 Office 提供方，同时保留 Python 查询：
+
+```yaml
+- id: skill-office
+  disabled: true
+```
+
+要成套替换三个 Office 工作流与共用检查脚本，可将 `skill-office.config.assetRoot` 配置为另一个绝对资源目录。任意 skill 集合通过文件系统 skill 提供方加载。配置 patch 在进程启动时生效；切换 skills 无需重建 runtime wheel 或 Python 环境。
+
 仓库构建还会物化仅限开发的 `runtime/node/` 载体。它在系统 Node 22.19 或更高版本上运行 `node runtime/node/node_modules/@deepseek-ai/dsh/lib/bin.js`。系统不会自动选择它，而且 wheel 包与 sdist 均不包含它。
 
 两种载体执行相同的 `dsh` 语法与随附 profile，包括独立的 `sdk-minimal` 配置树，以及包含前端产物的完整 `web` profile。私有 `dsh-python-runtime-closure` manifest（元数据清单）定义打包依赖闭包；不存在 Python 专用 Node 应用或检入的默认 `cordis.yml`。
@@ -27,7 +40,7 @@ wheel 包会安装 `dsh` 控制台命令和 `deepseek_harness_runtime` Python �
 
 ## 打包后的 profile 解析
 
-`dsh` 在显式指定的主目录下初始化随附 profile、组合其 bundle patch，并从可执行程序的虚拟文件系统加载内置插件。操作系统符号链接无法进入该文件系统，因此打包运行会在 `$DSH_HOME/profiles/node_modules` 下维护小型真实 ESM 代理包。每个代理复现运行时的显式导出项、记录原包身份，并重新导出虚拟模块 URL。因此，内置配置项与外部插件 peer 会共享同一个 Cordis／模块实例。原生共享库与 Windows ConPTY addon 会同其他原生 addon 一起打包；ripgrep 与 macOS PTY helper 仍是可执行伴随程序。
+`dsh` 在显式指定的主目录下初始化随附 profile、组合其 bundle patch，并从可执行程序的虚拟文件系统加载内置插件。运行时解析使用内存中的 generation，不创建磁盘符号链接或代理包。fallback 导入使用记录的声明包路径，包括可执行程序虚拟文件系统内的路径，因此内置配置项与外部插件 peer 共享内置的 Cordis／模块实例。原生共享库与 Windows ConPTY addon 会同其他原生 addon 一起打包；ripgrep 与 macOS PTY helper 仍是可执行伴随程序。
 
 Python bootstrap 从相邻目录解析 Office kit，让原生辅助程序与 URL Worker 使用真实文件系统路径。kit 负责引擎选择与校验；Python bootstrap 不增加运行时下载或编译。
 

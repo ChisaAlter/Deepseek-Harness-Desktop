@@ -697,37 +697,24 @@ const TypingFxStyleSchema: z<TypingFxStyle> = z.object({
 })
 
 /** Durable conversation schema; also the wire envelope the browser scope validates against. */
-export const ConversationSettingsSchema: z<ConversationSettings> = z.object({
+export const ConversationSettingsFields = {
   [BUSY_ENTER_FIELD]: z.union([...BUSY_ENTER_BEHAVIORS]).default(DEFAULT_BUSY_ENTER_BEHAVIOR),
   [COMPOSER_BEAM_FIELD]: z.boolean().default(DEFAULT_COMPOSER_BEAM),
   [COMPOSER_BEAM_STYLE_FIELD]: ComposerBeamStyleSchema.default(DEFAULT_COMPOSER_BEAM_STYLE),
-  // The browser policy enforces the five-entry and name-length caps before
-  // writes; schemastery validates each preset value here.
   [COMPOSER_BEAM_PRESETS_FIELD]: z.dict(ComposerBeamStyleSchema).required(false),
   [COMPOSER_RESIZE_FIELD]: z.boolean().default(DEFAULT_COMPOSER_RESIZE),
   [COMPOSER_RESIZE_HEIGHT_FIELD]: z.number().min(1).required(false),
   [COMPOSER_RESIZE_WIDTH_FIELD]: z.number().min(1).required(false),
   [STATS_LINE_FIELD]: z.boolean().default(DEFAULT_STATS_LINE),
   [OFFICIAL_PEAK_VALLEY_FIELD]: z.boolean().default(DEFAULT_OFFICIAL_PEAK_VALLEY),
-  // Optional without a materialized default: the registered section defaults
-  // keep their pre-cost shape, and an absent field reads as off at adoption.
   [SESSION_COST_FIELD]: z.boolean().required(false),
-  // Optional and intentionally loose at the schema: a schemastery dict would
-  // materialize an empty-object default into the registered section defaults,
-  // and the write path validates positivity at the price panel. Adoption
-  // sanitizes the shape before use.
   [SESSION_COST_PRICES_FIELD]: z.any().required(false),
   [VIEW_TABS_FIELD]: z.boolean().default(DEFAULT_VIEW_TABS),
-  // Optional without a materialized default: an absent field reads as off at
-  // adoption, so opting the feature in never rewrites a document that lacks it.
   [TYPING_FX_FIELD]: z.boolean().required(false),
   [TYPING_FX_STYLE_FIELD]: TypingFxStyleSchema.required(false),
-  // The browser policy enforces the five-entry and name-length caps before
-  // writes; schemastery validates each preset value here.
   [TYPING_FX_PRESETS_FIELD]: z.dict(TypingFxStyleSchema).required(false),
-  // The textarea caps input at the same length before writes; schemastery
-  // remains the durable boundary for direct document edits.
-  [CUSTOM_INSTRUCTIONS_FIELD]: z.string()
-    .max(CUSTOM_INSTRUCTIONS_MAX_LENGTH)
-    .default(DEFAULT_CUSTOM_INSTRUCTIONS),
-})
+  [CUSTOM_INSTRUCTIONS_FIELD]: z.string().max(CUSTOM_INSTRUCTIONS_MAX_LENGTH).default(DEFAULT_CUSTOM_INSTRUCTIONS),
+}
+
+/** Schema for shared configuration values. */
+export const ConversationSettingsSchema = z.object(ConversationSettingsFields)

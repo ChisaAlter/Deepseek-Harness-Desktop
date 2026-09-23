@@ -8,7 +8,7 @@ import { withDefaultWeb, webGet } from './default-web-process.ts'
 
 const experimentalName = '@deepseek-ai/dsh-experimental-client-ui-agent-team'
 
-it('boots the default Web profile without experimental Host modules, mounted plugins, or Client entries', async (test) => {
+it('boots default Web without experimental modules or an active built-in Browser', async (test) => {
   await withDefaultWeb(test, async ({ url, request }) => {
     const auth = await webGet(url, test.signal)
     const cookie = auth.headers['set-cookie']?.[0]?.split(';', 1)[0]
@@ -29,6 +29,11 @@ it('boots the default Web profile without experimental Host modules, mounted plu
     expect(roster.plugins.length).toBeGreaterThan(roster.entries.length)
     expect(roster.modules.some(url => modulePackage(url) === '@deepseek-ai/dsh')).toBe(true)
     expect(roster.client.entries.length).toBeGreaterThan(0)
+    const browserName = '@deepseek-ai/dsh-client-ui-sidebar-browser'
+    const browserEntry = roster.entries.find(entry => entry.name === browserName)
+    expect(browserEntry).toBeDefined()
+    expect(browserEntry!.state).toBeUndefined()
+    expect(delivered.entries.some(entry => entry.id === browserName)).toBe(false)
     expect(experimentalRuntimeReferences(roster)).toEqual([])
 
     const contaminated = await request('mount-experimental')

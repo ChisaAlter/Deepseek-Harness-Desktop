@@ -13,7 +13,7 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
   const modules = join(root, 'node_modules', '@deepseek-ai')
   const hostDirectory = fileURLToPath(new URL('../../desktop-host/', import.meta.url))
   const manifest = JSON.parse(readFileSync(join(hostDirectory, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
-  const stubbed = new Set(['@deepseek-ai/dsh-app-boot', '@deepseek-ai/dsh', '@deepseek-ai/dsh-home-paths', '@deepseek-ai/dsh-tools'])
+  const stubbed = new Set(['@deepseek-ai/dsh-app-boot', '@deepseek-ai/dsh', '@deepseek-ai/dsh-home-paths'])
   for (const name of Object.keys(manifest.dependencies)) {
     const destination = join(root, 'node_modules', name)
     mkdirSync(dirname(destination), { recursive: true })
@@ -22,7 +22,6 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
   }
   for (const [name, source] of [
     ['dsh-home-paths', `export const resolveDshHome = () => ${JSON.stringify(root)}`],
-    ['dsh-tools', 'export const defineTool = value => value'],
   ] as const) {
     writeFileSync(join(modules, name, 'package.json'), '{"type":"module","exports":"./index.js"}')
     writeFileSync(join(modules, name, 'index.js'), source)
@@ -37,7 +36,7 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
       process.send({ type: 'booting', packageManager: options.packageManager });
       return new Promise((resolve, reject) => process.once('disconnect', () => {
         if (${String(fail)}) { reject(new Error('fixture boot failure')); return; }
-        resolve({ ctx: { plugin: async () => {}, effect: () => {}, on: () => {},
+        resolve({ ctx: { plugin: async () => {}, effect: () => {}, on: () => {}, inject: () => {},
           connection: { authenticatedUrl: value => value }, webServer: { port: 19387 } },
           shutdown: { shutdown: async () => writeFileSync(${JSON.stringify(join(root, 'stopped'))}, 'stopped') } });
       }));
@@ -47,7 +46,7 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
   copyFileSync(join(hostDirectory, 'lib', 'index.js'), entry)
   const pnpm = join(root, 'bundled-pnpm.mjs')
   const nodeBin = join(root, 'bin')
-  const child = fork(entry, [root, root, root, 'runtime', pnpm, nodeBin], { execArgv: [], stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
+  const child = fork(entry, [root, root, root, pnpm, nodeBin], { execArgv: [], stdio: ['ignore', 'ignore', 'pipe', 'ipc'] })
   let stderr = ''
   child.stderr!.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk })
   const exited = new Promise<number | null>(resolve => child.once('exit', resolve))
@@ -70,8 +69,10 @@ it.each([false, true])('settles startup after parent IPC disconnect (boot failur
     expect(boot.packageManager.env.ELECTRON_RUN_AS_NODE).toBe('1')
     expect(boot.packageManager.env.PATH).toBe(`${nodeBin}${delimiter}${process.env.PATH ?? ''}`)
     child.disconnect()
-    expect(await exited).toBe(fail ? 1 : 0)
+    const exitCode = await exited
     await drained
+    expect(child.signalCode).toBeNull()
+    expect(exitCode, stderr).toBe(fail ? 1 : 0)
     expect(stderr).not.toContain('ERR_IPC_CHANNEL_CLOSED')
     expect(stderr).not.toContain('Unhandled')
     if (fail) expect(stderr).toContain('fixture boot failure')

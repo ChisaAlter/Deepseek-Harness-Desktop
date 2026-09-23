@@ -44,7 +44,7 @@ node --import tsx apps/desktop/scripts/prepare-installed-update.ts application "
 
 `application` 命令将已构建的主程序/预加载模块、界面文件和准备好的启动入口复制到 `application/files`，并在 `application/result.json` 中记录 SHA-256。它不复制应用根目录的 `.env.windows`，也不冻结 `node_modules` 与构建工具。[验收打包配置](../../scripts/installed-update-builder.ts)校验该清单与选定的独立运行时，选用共享冻结文件和隔离包元数据，并保留常规安装器与签名钩子。其测试替换签名器，并通过固定版本构建器的配置校验；测试不生成安装器。另行授权的受监督构建仍须记录依赖/工具输入，并验证最终包内容及签名。
 
-[打包入口](../../scripts/package-installed-update.ts)默认只检查。保留的签名保护锁会在读取凭据前使其拒绝；入口绝不清除此锁。没有保护锁时，检查会加载 `.env.windows`、校验准备输入，不启动子进程。在仓库根目录使用一个准确版本执行：
+[打包入口](../../scripts/package-installed-update.ts)默认只检查。保留的签名保护锁会在读取凭据前使其拒绝；入口绝不清除此锁。没有保护锁时，检查会加载 `.env.windows`、校验准备输入，不启动子进程。共享构建器要求[测试发布配置](../../README.zh.md#upload-updates)中有效的 `DOWNLOAD_TEST_RELEASE_ID`；资格验收仍使用清单中独立的 `qualification/<id>` 路径发布。在仓库根目录使用一个准确版本执行：
 
 ```powershell
 node --import tsx apps/desktop/scripts/package-installed-update.ts "<run.json>" 0.1.6-alpha.1.20260916.1 --check

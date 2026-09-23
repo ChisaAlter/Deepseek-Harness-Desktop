@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { agentEvents, installModelSelection, type Agent, type ModelSelectionRef } from '@deepseek-ai/dsh-agent'
 import { CompactionId, compactCheckpointSource } from '@deepseek-ai/dsh-compaction'
-import LlmRuntime, { createMessage, createSystemMessage, createToolResultMessage, createUserMessage, LlmError, ToolCallId } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createDeveloperMessage, createMessage, createSystemMessage, createToolResultMessage, createUserMessage, LlmError, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
@@ -18,6 +19,13 @@ import SessionReferenceResolver, {
 } from '@deepseek-ai/dsh-session-reference'
 import { stringifyTagSafeJson } from '../src/serialization.ts'
 import { SpillLocator, SpillStore, type SaveTextSpill, type SpillRef } from '@deepseek-ai/dsh-spill'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'test': { kind: 'test' } & ContextFormed
+    'workspace': { kind: 'workspace' } & ContextFormed
+  }
+}
 
 class TestSessionQueryEngine extends SessionQueryEngine {
   override searchSessions(
@@ -92,7 +100,7 @@ function checkpointSource(id: string) {
 function appendConversation(session: Session): void {
   session.append(
     'system/message',
-    { turn: 1, step: 1, message: createSystemMessage('system prompt secret', 'system-prompt') },
+    { turn: 1, step: 1, message: createSystemMessage('system prompt secret') },
     { surfaceOp: 'append' },
   )
   const oldUser = session.append(
@@ -140,7 +148,7 @@ function appendConversation(session: Session): void {
   session.append(
     'user/message',
     createUserMessage({
-      content: [{ type: 'text', text: 'workspace secret' }], source: { kind: 'plugin', plugin: 'workspace' },
+      content: [{ type: 'text', text: 'workspace secret' }], source: { kind: 'workspace' },
     }),
     { surfaceOp: 'append' },
   )
@@ -156,7 +164,7 @@ function appendConversation(session: Session): void {
     'user/message',
     createUserMessage({
       content: [{ type: 'text', text: 'plugin steer' }],
-      source: { kind: 'plugin', plugin: 'goal' },
+      source: { kind: 'test' },
     }),
     { surfaceOp: 'append' },
   )
@@ -192,7 +200,7 @@ function appendConversation(session: Session): void {
   session.append(
     'user/message',
     createUserMessage({
-      content: [{ type: 'text', text: 'plugin-generated user' }], source: { kind: 'plugin', plugin: 'goal' },
+      content: [{ type: 'text', text: 'plugin-generated user' }], source: { kind: 'test' },
     }),
     { surfaceOp: 'append' },
   )
@@ -769,27 +777,36 @@ describe('session reference discovery and preparation', () => {
       })])
   })
 
-  it('labels a session no projection answers for by its id, still without a log read', async () => {
+  it('labels a cold seeded session from its cached title and an uncached one by id, without a log read', async () => {
     const ctx = await harness()
     const target = ctx.sessions.create(SessionId('target'), { meta: { cwd: '/same' } })
-    const seeded = {
+    const forked = {
       version: 0,
-      id: SessionId('seeded'),
+      id: SessionId('forked'),
       createdAt: 10,
       cwd: '/same',
       isSeeded: true,
     }
-    // Persisted before the cache was composed: the title lives only in its log.
-    withProjectionCache(ctx, { seeded: 'Unsafe body-free title' })
+    const uncached = { ...forked, id: SessionId('uncached'), createdAt: 20 }
+    // The cache binds the fork's lifecycle by its header alone; the resolver
+    // needs no cut to read it. A session the cache never checkpointed keeps
+    // its title in its log only.
+    withProjectionCache(ctx, { forked: 'Forked title' })
     vi.spyOn(ctx.sessionQuery, 'listSessions').mockResolvedValue([
-      { header: seeded, live: false, persisted: true },
+      { header: forked, live: false, persisted: true },
+      { header: uncached, live: false, persisted: true },
     ] as never)
     const readTitles = vi.spyOn(ctx.sessionQuery, 'readTitleSnapshots')
 
     await expect(ctx.sessionReferenceResolver.listCandidates(fakeAgent(target))).resolves.toEqual([
-      { sessionId: seeded.id, label: seeded.id, displayTitle: seeded.id, cwd: '/same', sameWorkspace: true, createdAt: 10 },
+      { sessionId: forked.id, label: 'Forked title', displayTitle: 'Forked title', cwd: '/same', sameWorkspace: true, createdAt: 10 },
+      { sessionId: uncached.id, label: uncached.id, displayTitle: uncached.id, cwd: '/same', sameWorkspace: true, createdAt: 20 },
     ])
-    // Its own title cannot find it, and discovery still never opens the log.
+    // The cached title finds the fork; the uncached session's own title cannot
+    // find it, and discovery still never opens a log.
+    await expect(ctx.sessionReferenceResolver.listCandidates(fakeAgent(target), 'forked title')).resolves.toEqual([
+      expect.objectContaining({ sessionId: forked.id }),
+    ])
     await expect(ctx.sessionReferenceResolver.listCandidates(fakeAgent(target), 'anything')).resolves.toEqual([])
     expect(readTitles).not.toHaveBeenCalled()
     vi.restoreAllMocks()
@@ -863,7 +880,7 @@ describe('session reference discovery and preparation', () => {
     })
     const plugin = createUserMessage({
       content: [{ type: 'text', text: formatSessionReferenceMention({ sessionId: source.id, label: 'Ignored' }) }],
-      source: { kind: 'plugin', plugin: 'test' },
+      source: { kind: 'test' },
     })
     const signal = new AbortController().signal
 
@@ -1007,6 +1024,12 @@ describe('session reference discovery and preparation', () => {
     const ctx = await harness()
     const target = ctx.sessions.create(SessionId('target'))
     const source = ctx.sessions.create(SessionId('source'))
+    source.append('developer/message', {
+      turn: 1, step: 1,
+      message: createDeveloperMessage({
+        content: [{ type: 'tool-removal', toolName: 'private_tool' }], source: { kind: 'test' },
+      }),
+    }, { surfaceOp: 'append' })
     source.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'nested referenced snapshot must not propagate' }],
       source: {

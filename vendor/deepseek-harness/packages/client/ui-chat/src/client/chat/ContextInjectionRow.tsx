@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
-import { DisclosureRow, IconContextInjectionOutline16, ReferenceIcon } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DisclosureRow, IconContextInjectionOutlineRegular, ReferenceIconRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ContextMessageNode } from '../contract/snapshot.ts'
 import { contextBody } from './ContextBody.tsx'
 import css from './ContextInjectionRow.module.css'
@@ -38,8 +38,8 @@ export function ContextInjectionRow({ content, source, producer, form, t }: Cont
     <DisclosureRow
       className={css.root}
       icon={producer.role === 'recall'
-        ? <span data-context-recall-icon><ReferenceIcon kind="session" /></span>
-        : <IconContextInjectionOutline16 size={14} />}
+        ? <span data-context-recall-icon><ReferenceIconRegular kind="session" /></span>
+        : <IconContextInjectionOutlineRegular size={14} />}
       chevronClassName={css.chevron}
       title={t(producer.role === 'recall' ? 'message.contextRecall' : 'message.contextInjection')}
       collapsedContent={producer.label === null ? undefined : (

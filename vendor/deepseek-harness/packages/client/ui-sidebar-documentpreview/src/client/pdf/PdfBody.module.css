@@ -4,7 +4,8 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 0;
-  overflow-x: hidden;
+  min-width: 100%;
+  overflow: visible;
   background: var(--dsw-alias-bg-document-preview);
   font-family: var(--dsw-font, sans-serif);
   white-space: normal;
@@ -14,7 +15,7 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: visible;
 }
 
 /* An unrendered page holds its place as a quiet block; the block itself is
@@ -27,15 +28,15 @@
 
 .canvas {
   display: block;
-  width: min(var(--pdf-page-width), 100%);
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   height: auto;
   margin-inline: auto;
 }
 
 .surface {
   position: relative;
-  max-width: 100%;
+  max-width: none;
   margin-inline: auto;
   box-shadow: var(--dsw-elevation-prominent);
 }
@@ -146,18 +147,4 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
-}
-
-.loadingIcon {
-  display: flex;
-  flex: none;
-  animation: turn 0.8s linear infinite;
-}
-
-@keyframes turn {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .loadingIcon { animation: none; }
 }

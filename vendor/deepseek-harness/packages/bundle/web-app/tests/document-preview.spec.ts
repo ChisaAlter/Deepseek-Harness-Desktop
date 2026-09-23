@@ -105,7 +105,7 @@ it('loads the shipped Office rows with separately patched settings and authorize
   const before = session.seq
   const result = await ctx.officeToPdf.render(scope, 'report.docx', 'foreground', signal)
   expect(result).toEqual({ absolutePath: sourcePath, version, offset: 0, eof: true, bytes: pdf.length,
-    data: pdf.toString('base64'), missingFonts: ['Missing Serif'], generation: ctx.officeToPdf.generation })
+    data: Uint8Array.from(pdf), missingFonts: ['Missing Serif'], generation: ctx.officeToPdf.generation })
   const readAgain = vi.spyOn(ctx.fs, 'readBytes')
   expect(await ctx.officeToPdf.render(scope, 'report.docx', 'foreground', signal)).toEqual(result)
   expect(readAgain).not.toHaveBeenCalled()

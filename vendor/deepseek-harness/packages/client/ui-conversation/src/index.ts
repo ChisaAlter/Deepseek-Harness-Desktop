@@ -1,12 +1,12 @@
 /** Host registration for browser conversation preferences. */
-
-import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-settings'
-import type {} from '@deepseek-ai/dsh-system-prompt'
-import {
-  CONVERSATION_SETTINGS_NAMESPACE, ConversationSettingsSchema, CUSTOM_INSTRUCTIONS_FIELD,
-} from './submission-settings.ts'
-import type { ConversationSettings } from './submission-settings.ts'
+
+import type { Volatile, Context } from '@deepseek-ai/cordis'
+import type { BusyEnterBehavior } from './submission-settings.ts'
+import z from '@deepseek-ai/schemastery'
+import { BUSY_ENTER_FIELD } from './submission-settings.ts'
+
+import { ConversationSettingsFields } from './submission-settings.ts'
 
 export {
   BUSY_ENTER_BEHAVIORS, BUSY_ENTER_FIELD, COMPOSER_BEAM_DIRECTIONS, COMPOSER_BEAM_EASINGS,
@@ -32,37 +32,20 @@ export {
   type TypingFxPresets, type TypingFxStyle,
 } from './submission-settings.ts'
 
-/** Prompt variable carrying the raw user text; substitution is never re-scanned for `{{...}}`. */
-const CUSTOM_INSTRUCTIONS_VARIABLE = 'custom_instructions'
+/** Runtime preferences projected to the browser. */
+export interface Config {
+  /** Enter key behavior while a turn is running. */
+  busyEnter: Volatile<BusyEnterBehavior>
+}
 
-/** Section text emitted while custom instructions are configured. */
-const CUSTOM_INSTRUCTIONS_PROMPT = `The user configured the following custom instructions; they apply to every task.\n{{${CUSTOM_INSTRUCTIONS_VARIABLE}}}`
+/** Live preferences projected to the browser. */
+export const Config = z.object({
+  [BUSY_ENTER_FIELD]: ConversationSettingsFields[BUSY_ENTER_FIELD].volatile(),
+})
 
-/**
- * Register the durable conversation section when a settings provider exists.
- * @param ctx - Host context whose optional settings service owns the section.
+/** Host preferences are consumed through the configuration form projection.
+ * @param ctx Plugin context used for optional settings presentation.
  */
 export function apply(ctx: Context): void {
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.register(
-      CONVERSATION_SETTINGS_NAMESPACE,
-      ConversationSettingsSchema,
-    )
-  })
-  // Separate injection: the durable section registers without a prompt
-  // registry, and the prompt contribution appears only where one is composed.
-  ctx.inject(['settings', 'systemPrompt'], (promptCtx) => {
-    const instructions = (): string => {
-      const section = promptCtx.settings.get(CONVERSATION_SETTINGS_NAMESPACE) as
-        | ConversationSettings
-        | undefined
-      return section?.[CUSTOM_INSTRUCTIONS_FIELD] ?? ''
-    }
-    promptCtx.systemPrompt.variable(CUSTOM_INSTRUCTIONS_VARIABLE, instructions)
-    promptCtx.systemPrompt.section({
-      name: 'ui:custom-instructions',
-      order: promptCtx.systemPrompt.getSectionOrder('USER_INSTRUCTIONS'),
-      text: () => (instructions().trim() === '' ? '' : CUSTOM_INSTRUCTIONS_PROMPT),
-    })
-  })
+  ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
 }

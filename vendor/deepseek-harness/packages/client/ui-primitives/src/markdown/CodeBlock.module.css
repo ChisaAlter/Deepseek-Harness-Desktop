@@ -104,6 +104,21 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.card :where(pre) {
+  padding: 6px 22px 20px;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.card[data-code-wrap='false'] {
+  --dsl-code-block-line-white-space: pre;
+}
+
+.card[data-code-wrap='false'] :where(pre) {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
 .numbered :where(pre) code {
   display: block;
   counter-reset: source-line;

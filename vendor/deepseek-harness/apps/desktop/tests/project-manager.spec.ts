@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDesktopPaths } from '../src/paths.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
@@ -43,16 +43,37 @@ afterEach(() => {
 })
 
 describe('desktop external plugin profile', () => {
-  it('cleans application packages only when preparing a production launch', async () => {
+  it('preserves installed packages, profile state, and the lockfile when preparing a launch', async () => {
     const { manager } = setup()
     await manager.applyRelease()
+    seedPlugin(manager)
+    const profile = manager.paths.profile
     const name = '@deepseek-ai/dsh-web-app'
-    const path = join(manager.paths.profile, 'node_modules', name)
+    const path = join(profile, 'node_modules', name)
     mkdirSync(path, { recursive: true })
-    await manager.applyRelease()
-    expect(existsSync(path)).toBe(true)
-    await manager.applyRelease(true)
-    expect(existsSync(path)).toBe(false)
+    writeFileSync(join(path, 'package.json'), JSON.stringify({ name, version: '1.0.0' }))
+    const manifestPath = join(profile, 'package.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { dependencies: Record<string, string> }
+    manifest.dependencies[name] = '1.0.0'
+    writeFileSync(manifestPath, JSON.stringify(manifest))
+    writeFileSync(join(profile, 'desktop-runtime-state.json'), JSON.stringify({ links: [] }))
+    writeFileSync(join(profile, 'pnpm-lock.yaml'), 'lockfileVersion: 9.0\n')
+    const files = [
+      'package.json',
+      'pnpm-workspace.yaml',
+      'desktop-runtime-state.json',
+      'pnpm-lock.yaml',
+      `node_modules/${name}/package.json`,
+      'node_modules/plugin/package.json',
+      'node_modules/plugin/bundle.yml',
+    ]
+    const before = files.map(file => readFileSync(join(profile, file), 'utf8'))
+
+    await expect(manager.applyRelease()).resolves.toBeUndefined()
+
+    expect(files.map(file => readFileSync(join(profile, file), 'utf8'))).toEqual(before)
+    expect(lstatSync(path).isDirectory()).toBe(true)
+    expect(lstatSync(join(profile, 'node_modules/plugin')).isDirectory()).toBe(true)
   })
   it('reuses plugin files without scanning manifests and can disable them', async () => {
     const { manager } = setup()
@@ -286,5 +307,26 @@ describe.each(['applyRelease', 'disableAllPlugins'] as const)('desktop profile l
     } finally {
       unlinkSync(manager.paths.lock)
     }
+  })
+})
+
+describe('desktop link-backend projections', () => {
+  it('removes .dsh-module-fallback projections when preparing a launch', async () => {
+    const { manager } = setup()
+    await manager.applyRelease()
+    const profile = manager.paths.profile
+    const target = join(profile, 'node_modules', 'my-bundle', 'node_modules', 'bridge')
+    mkdirSync(target, { recursive: true })
+    writeFileSync(join(target, 'package.json'), JSON.stringify({ name: 'bridge', version: '1.0.0' }))
+    const owned = join(profile, '.dsh-module-fallback', 'node_modules', 'bridge')
+    mkdirSync(dirname(owned), { recursive: true })
+    symlinkSync(target, owned, process.platform === 'win32' ? 'junction' : 'dir')
+    symlinkSync(owned, join(profile, 'node_modules', 'bridge'), process.platform === 'win32' ? 'junction' : 'dir')
+
+    await manager.applyRelease()
+
+    expect(existsSync(join(profile, '.dsh-module-fallback'))).toBe(false)
+    expect(lstatSync(join(profile, 'node_modules', 'bridge'), { throwIfNoEntry: false })).toBeUndefined()
+    expect(existsSync(join(target, 'package.json'))).toBe(true)
   })
 })

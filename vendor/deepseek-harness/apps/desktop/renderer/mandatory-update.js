@@ -7,6 +7,8 @@ const element = id => document.getElementById(id)
 const format = (message, values) => message.replaceAll(/\{([^{}]+)\}/gu, (match, key) => values[key] ?? match)
 
 function render(view) {
+  document.body.classList.toggle('visible', view.policy.blocking)
+  if (!view.policy.blocking) return
   const wasConfirming = current?.confirmation !== undefined
   current = view
   const { locale: { id, messages }, policy, update, confirmation, navigation } = view

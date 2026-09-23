@@ -15,7 +15,7 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { newEnglishPage, saveFailureShot, WEB_FIXTURE_TIME } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/markdown-inline-code-links', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('./expected/markdown-inline-code-links/ui.expected.md', import.meta.url))
@@ -27,7 +27,6 @@ const LINK_URL = 'http://127.0.0.1:3199/?demo=1'
 /** Build a settled assistant reply with linkable URL code and inert code controls. */
 function markdownFixture(linkUrl: string): string {
   const session = Session.create(SessionId('markdown-inline-code-links-source'))
-  const eventTimeOrigin = new Date().setHours(12, 0, 0, 0)
   session.append('turn/start', { turn: 1 })
   const user = session.append('user/message', createUserMessage({
     content: [{ type: 'text', text: 'Show the local preview URL.' }],
@@ -79,7 +78,7 @@ function markdownFixture(linkUrl: string): string {
     }),
     ...session.snapshotEvents().map(event => JSON.stringify({
       ...event,
-      time: eventTimeOrigin + event.seq * 1_000,
+      time: WEB_FIXTURE_TIME + event.seq * 1_000,
     })),
     '',
   ].join('\n')
@@ -92,10 +91,13 @@ describe('web e2e: Markdown inline-code links', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({})
-    await seedSession(scaffold, markdownFixture(LINK_URL), SEED_ID)
+    scaffold = await launchWebScaffold({
+      extraOverlayPath: fileURLToPath(new URL('./sidebar-browser.overlay.yml', import.meta.url)),
+    })
+    await seedSession(scaffold, markdownFixture(LINK_URL), SEED_ID, undefined, { createdAt: WEB_FIXTURE_TIME })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
+    await page.clock.setFixedTime(WEB_FIXTURE_TIME)
     await page.route('http://127.0.0.1:3199/**', async route => route.fulfill({
       contentType: 'text/html',
       body: '<h1>Inline-code preview</h1>',

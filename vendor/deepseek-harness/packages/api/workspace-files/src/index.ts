@@ -32,6 +32,7 @@ import { Remote, RemoteError, TypertRemoteService, type TypertLookup } from '@de
 import { WorkspaceChangeFeed } from './changes.ts'
 import type {
   WorkspaceByteRange,
+  WorkspaceByteReadOptions,
   WorkspaceDirectoryEntry,
   WorkspaceDirectoryListing,
   WorkspaceFileBytes,
@@ -245,38 +246,29 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * Read one byte window of a regular file readable by the filesystem backend: raw
-   * bytes, no text decoding and no binary rejection.
+   * Read a complete regular file or one byte range without text decoding.
    * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
-   * @param range - the byte window; omitted fields take the window defaults.
+   * @param path - target path, absolute or workspace-relative; relative to the base file's directory when provided.
+   * @param options - optional base file and range; without a range the complete-file cap applies.
    * @param signal - caller cancellation.
-   * @returns the window in base64, the file's version and size at the stat before it, and whether it reaches the last byte.
+   * @returns native bytes with the file's version and size at the preceding stat, byte offset, and EOF marker.
    */
   @Remote
   async readBytes(
     workspaceFileScope: WorkspaceFileScope,
     path: string,
-    range: WorkspaceByteRange,
+    options: WorkspaceByteReadOptions,
     signal: AbortSignal,
   ): Promise<WorkspaceFileBytes> {
-    const { offset, length } = this.resolveWindow(range, path)
-    const { target, info } = await this.locateFile(workspaceFileScope, path, signal)
-    const data = await this.ctx.fs.readByteRange(target, { offset, length }, signal)
-    const eof = info.size === undefined ? data.length < length : offset + data.length >= info.size
-    return { ...this.statOf(target, info), offset, data: Buffer.from(data).toString('base64'), eof }
-  }
-
-  /**
-   * Read a complete regular file as bytes, subject to the configured full-file cap.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - absolute or workspace-relative file path.
-   * @param signal - caller cancellation.
-   * @returns one complete base64 window with offset zero and eof true; oversized files fail with too-large.
-   */
-  @Remote
-  async readAll(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): Promise<WorkspaceFileBytes> {
-    const { target, info } = await this.locateFile(workspaceFileScope, path, signal)
+    const window = options.range === undefined ? undefined : this.resolveWindow(options.range, path)
+    const resolved = options.baseFile === undefined ? path : await this.relativePath(workspaceFileScope, options.baseFile, path, signal)
+    const { target, info } = await this.locateFile(workspaceFileScope, resolved, signal)
+    if (window !== undefined) {
+      const { offset, length } = window
+      const data = await this.ctx.fs.readByteRange(target, window, signal)
+      const eof = info.size === undefined ? data.length < length : offset + data.length >= info.size
+      return { ...this.statOf(target, info), offset, data, eof }
+    }
     const limit = this.config.maxFileBytes
     const data = await this.ctx.fs.readBytes(target, signal, limit).catch((cause: unknown) => {
       if (typeof cause === 'object' && cause !== null && 'code' in cause && cause.code === 'FS_TOO_LARGE') {
@@ -284,32 +276,7 @@ export class WorkspaceFiles extends TypertRemoteService {
       }
       throw cause
     })
-    return { ...this.statOf(target, info), offset: 0, data: Buffer.from(data).toString('base64'), eof: true }
-  }
-
-  /**
-   * Read a complete file relative to another file's directory, including outside the workspace.
-   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - base file, absolute or workspace-relative.
-   * @param relativePath - relative filesystem path, not a URL or absolute path.
-   * @param signal - caller cancellation.
-   * @returns the complete related file using the ordinary file-size and access checks.
-   */
-  @Remote
-  async readRelated(
-    workspaceFileScope: WorkspaceFileScope,
-    path: string,
-    relativePath: string,
-    signal: AbortSignal,
-  ): Promise<WorkspaceFileBytes> {
-    const relative = relativePath.replace(/\\/g, '/')
-    if (relative.length === 0 || relative.startsWith('/') || /^[a-z][a-z\d+.-]*:/iu.test(relative) || relative.includes(NUL)) {
-      throw new RemoteError('gateway/bad-request', 'relativePath must be a relative filesystem path', {})
-    }
-    const { target } = await this.locateFile(workspaceFileScope, path, signal)
-    const absolute = this.ctx.fs.processPath(target)
-    const paths = absolute.startsWith('/') ? posix : win32
-    return this.readAll(workspaceFileScope, paths.resolve(paths.dirname(absolute), relative), signal)
+    return { ...this.statOf(target, info), offset: 0, data, eof: true }
   }
 
   /**
@@ -352,17 +319,28 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * Stream every `fs/observed` observation of a file inside the Session's
-   * workspace. Only instrumented filesystem operations report here; the OS is
-   * not watched.
+   * Watch one file or a directory's direct entries in the Session's filesystem.
+   * Files use the backend's read authority; directories remain workspace-scoped.
    * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
+   * @param path - target path; the Host determines its type and confines directories to the workspace.
    * @param signal - generation cancellation.
-   * @returns `ready` once the Host observation queue is active and the workspace
-   *   root is resolved, then queued and live observations in emission order.
+   * @returns `ready` once the target watch is active, then current metadata for queued and live invalidations.
+   * @throws RemoteError when watching is unavailable or a directory is outside the workspace.
    */
   @Remote({ mode: 'stream' })
-  changes(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame> {
-    return this.feed.follow(workspaceFileScope.workspaceRoot, signal)
+  changes(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame> {
+    return this.feed.follow(workspaceFileScope.workspaceRoot, path, signal)
+  }
+
+  private async relativePath(scope: WorkspaceFileScope, baseFile: string, path: string, signal: AbortSignal): Promise<string> {
+    const relative = path.replace(/\\/g, '/')
+    if (relative.length === 0 || relative.startsWith('/') || /^[a-z][a-z\d+.-]*:/iu.test(relative) || relative.includes(NUL)) {
+      throw new RemoteError('gateway/bad-request', 'path must be relative when baseFile is provided', {})
+    }
+    const { target } = await this.locateFile(scope, baseFile, signal)
+    const absolute = this.ctx.fs.processPath(target)
+    const paths = absolute.startsWith('/') ? posix : win32
+    return paths.resolve(paths.dirname(absolute), relative)
   }
 
   /** Apply the page defaults and caps here, so the request never carries them implicitly. */

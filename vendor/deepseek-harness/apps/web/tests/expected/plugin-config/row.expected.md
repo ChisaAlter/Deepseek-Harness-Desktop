@@ -1,7 +1,9 @@
-- button "返回 live-client":
-  - img
-  - text: live-client
-- heading "fixture-live-client" [level=3]
+- button "返回 @fixture/live-client": "@fixture/live-client"
+- button "夹具操作"
+- heading "@fixture/live-client" [level=3]
+- text: 夹具标签
+- paragraph:
+  - code: fixture-live-client
 - paragraph:
   - code: "@fixture/live-client"
 - paragraph: 示例配置项
@@ -9,3 +11,6 @@
   - text: 问候语
   - textbox "问候语": 你好
   - button "保存"
+- region "夹具区块":
+  - heading "夹具区块" [level=4]
+  - paragraph: 来自夹具的区块内容

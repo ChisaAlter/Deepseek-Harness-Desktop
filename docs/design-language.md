@@ -2,7 +2,7 @@
 
 中文 | [English](design-language.en.md)
 
-DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.6-alpha.2`（`ddefc45fbc7f8e46dd73185e68295696d1297887`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
+DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` CLI，也区别于 `src/main` 里的 dshd 守护进程）的设计语言定义在本文档：它是 DSHD 全部可见界面的唯一视觉权威。语言的基线固定为随仓库钉版的 `vendor/deepseek-harness` Web UI——当前钉 `dsh-v0.1.7-alpha.2`（`00102833dfaee1da9f48a3a8eae9d34005a75218`），记录在 [`vendor/harness-upstream.json`](../vendor/harness-upstream.json)，由 `npm run sync:harness` 更新。桌面壳、关闭遮罩、标题栏注入、右边栏、手机远程打开的 Web UI 页、以及任何新增前端，都实现同一套语言，不得另起一套皮肤。
 
 「与基线一致」不靠主观印象，按三条硬标准判定，全部落在实物上：
 
@@ -34,7 +34,7 @@ DSHD（Deepseek-Harness-Desktop，本仓库的桌面端应用；区别于 `dsh` 
 
 「新会话」沿用现有入口、草稿画布和输入框，只复用没有历史身份的普通空草稿；已有标题、曾由插件管理或属于分叉的会话保留原身份，不作为新草稿打开。不新增控件或改变视觉样式。
 
-Harness alpha.2 同步保留本页既有视觉合同。新增上游组件复用同一 token 与原语；布局服务、slot 或属性接口迁移不得移除桌面标题栏、工作表面、透明壁纸、输入框宽度联动及键入特效。Surface 页签关闭按钮仍在标题右侧；启动页例外范围不变。
+Harness 0.1.7-alpha.2 同步保留本页既有视觉合同。新增上游组件复用同一 token 与原语；布局服务、slot 或属性接口迁移不得移除桌面标题栏、工作表面、透明壁纸、输入框宽度联动及键入特效。Surface 页签关闭按钮仍在标题右侧；启动页例外范围不变。
 
 窗口控件（`window-controls.css`）的系统色例外：最小化/最大化悬停走 `--dsw-alias-interactive-bg-hover` token；唯独关闭钮悬停用 Windows 系统语义色 `#e81123`（红）+ `#fff` 前景，这是平台级「危险/关闭」约定、非主题色，属有意例外，不得改为 token。
 
@@ -52,7 +52,7 @@ Harness alpha.2 同步保留本页既有视觉合同。新增上游组件复用�
 
 插件市场不额外注入 dshbot 第一方推荐卡；目录来源、卡片原语与通用安装管理保持不变。已安装且目录仍收录的插件在发现卡片与「已安装」行内显示版本或提交差异；有更新时复用小号主按钮提供「更新」。更新状态使用正文 / 次文字与既有成功、警告反馈，不新增彩色卡片、独立进度皮肤或第二套弹窗；更新后仍由桌面 HarnessController 重启生效。
 
-1. **先复用，再绘制。** 按钮、输入、菜单、对话框、Tooltip、开关行，用 `ui-primitives`。不要再造一套圆角、高度、hover。
+1. **先复用，再绘制。** 按钮、输入、菜单、对话框、Tooltip、开关行，用 `ui-primitives`。不要再造一套圆角、高度、hover。禁用的菜单项可用左侧 Tooltip 解释原因；沿用原语的提示样式。
 2. **颜色只走 `--dsw-alias-*` / `--dsw-specific-*`。** 功能 CSS 禁止写 `#hex`、`rgb()`、独立 `--bg` / `--accent`。缺 token 先加主题表，再引用语义别名。
 3. **明暗只发生在主题表。** 功能 CSS 不得写 `[data-theme]`、`[data-ds-dark-theme]`、`prefers-color-scheme` 分支。
 4. **主色不是电光蓝。** 默认主按钮是近黑（浅色）/ 近白（深色）：`--dsw-alias-button-primary-fill`（浅色即 `rgb(15, 17, 21)`）。品牌蓝是 `--dsw-static-deepseek-500`（`rgb(65, 118, 230)`）及其 alias（`--dsw-alias-button-info-fill`、`--dsw-alias-state-business-primary`），用于信息强调、用户气泡、选中态。禁止 `#2b5cff`、`#6ea8ff`、`#3964fe` 这类平行色板。

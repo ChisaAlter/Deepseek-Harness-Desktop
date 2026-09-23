@@ -7,19 +7,40 @@
   },
   "files": [
     "src/archive.ts",
-    "src/export-settings.ts",
-    "src/index.ts"
+    "src/index.ts",
+    "src/routes.ts",
+    "src/export-settings.ts"
   ],
   "references": [
-    { "path": "../../../vendor/cordis" },
-    { "path": "../../../vendor/schemastery" },
-    { "path": "../../attachment/attachment" },
-    { "path": "../../util/brand" },
-    { "path": "../../core/session" },
-    { "path": "../../interaction/commands" },
-    { "path": "../../session/session-format" },
-    { "path": "../../session/session-persistence" },
-    { "path": "../../settings/settings" },
-    { "path": "../session-query" }
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../attachment/attachment"
+    },
+    {
+      "path": "../../util/brand"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../interaction/commands"
+    },
+    {
+      "path": "../../session/session-format"
+    },
+    {
+      "path": "../../session/session-persistence"
+    },
+    {
+      "path": "../../settings/settings"
+    },
+    {
+      "path": "../session-query"
+    }
   ]
 }

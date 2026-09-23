@@ -12,8 +12,9 @@ import ts from 'typescript'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { loadOverlayPatches } from '../packages/boot/app-boot/src/index.ts'
-import { composeEntries } from '../packages/boot/app-boot/src/profile.ts'
-import { isCordisGroupEntry, loadCordisYaml } from './cordis-yaml.ts'
+import { bundlePatchPaths, composeEntries } from '../packages/boot/app-boot/src/profile.ts'
+import type { DshBundleManifest } from '../packages/util/package-manifest/src/types.ts'
+import { isAgentPresetEntry, isCordisGroupEntry, loadCordisYaml } from './cordis-yaml.ts'
 import {
   collectRuntimeLocalSourceSpecifiers,
   collectRuntimeSourceSpecifiers,
@@ -23,7 +24,7 @@ const EXPERIMENTAL_PREFIX = '@deepseek-ai/dsh-experimental-'
 // The independently published entry package owns platform-engine dependencies.
 const EXTERNAL_KIT_PACKAGES = new Set(['@deepseek-ai/libreoffice-kit'])
 const PROFILE_SOURCE = 'packages/boot/app-boot/src/profile.ts'
-const PRESET_PATTERN = 'packages/preset/agent-presets/presets/*/agent.cordis.yml'
+const PRESET_PATTERN = 'packages/bundle/web-app/presets/*.patch.yml'
 const RUNTIME_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const
 
 interface Manifest {
@@ -32,7 +33,7 @@ interface Manifest {
   optionalDependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
   devDependencies?: Record<string, string>
-  dsh?: { bundle?: { patch?: string }; configTrees?: Array<{ path: string }> }
+  dsh?: { bundle?: DshBundleManifest; configTrees?: Array<{ path: string }> }
 }
 
 interface Package {
@@ -185,6 +186,7 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
       if (isCordisGroupEntry(entry) || entry.name === 'cordis:group' && Array.isArray(entry.config)) {
         (entry.config as unknown[]).forEach(visit)
       }
+      if (isAgentPresetEntry(entry)) entry.config.plugins.forEach(visit)
       if (Array.isArray(entry.insert)) entry.insert.forEach(visit)
       if ((entry.name === '@deepseek-ai/cordis-plugin-include' || entry.name === 'cordis:include') && isRecord(entry.config)) {
         if (!composedWeb && Array.isArray(entry.config.patches)) entry.config.patches.forEach(visit)
@@ -238,9 +240,9 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
     }
     const webLayers = selection.webBundles.flatMap((name) => {
       const pkg = packages.get(name)
-      const patch = pkg?.manifest.dsh?.bundle?.patch
-      if (pkg === undefined || patch === undefined) return []
-      return [loadOverlayPatches('verify-default-product-isolation', resolve(pkg.directory, patch))]
+      const bundle = pkg?.manifest.dsh?.bundle
+      if (pkg === undefined || bundle === undefined) return []
+      return [bundlePatchPaths(pkg.directory, bundle).flatMap(file => loadOverlayPatches('verify-default-product-isolation', file))]
     })
     if (webLayers.length !== selection.webBundles.length) {
       failures.push(`${PROFILE_SOURCE}: default Web bundle layers are incomplete`)
@@ -285,7 +287,7 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
         dependency(name, range, pkg, `${manifest.name} ${section}`)
       }
     }
-    if (manifest.dsh?.bundle?.patch !== undefined) scanConfig(resolve(pkg.directory, manifest.dsh.bundle.patch))
+    for (const file of manifest.dsh?.bundle === undefined ? [] : bundlePatchPaths(pkg.directory, manifest.dsh.bundle)) scanConfig(file)
     for (const tree of manifest.dsh?.configTrees ?? []) {
       const treePath = resolve(pkg.directory, tree.path)
       const files = existsSync(treePath) && statSync(treePath).isDirectory()

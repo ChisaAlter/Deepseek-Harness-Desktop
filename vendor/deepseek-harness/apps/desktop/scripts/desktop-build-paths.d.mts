@@ -4,6 +4,7 @@ import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.
 export interface DesktopTargetBuildPaths {
   readonly root: string
   readonly artifacts: string
+  readonly unsignedArtifacts: string
   readonly runtime: string
   readonly packageSet: string
   readonly dsh: string

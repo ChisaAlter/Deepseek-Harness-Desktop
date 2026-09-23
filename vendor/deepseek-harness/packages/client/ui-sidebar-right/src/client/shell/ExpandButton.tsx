@@ -14,7 +14,7 @@
  * on the other edge.
  */
 import type { ReactNode } from 'react'
-import { IconPanelLeftOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPanelLeftOutlineRegular, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { createSidebarRightStore } from '../stores.ts'
@@ -41,7 +41,7 @@ export function ExpandButton({ sessionId, useStore, actions, t }: ExpandButtonPr
         data-sidebar-right-expand
         onClick={() => { actions.setExpanded(sessionId, true) }}
       >
-        <IconPanelLeftOutline16 className={css.icon} />
+        <IconPanelLeftOutlineRegular className={css.icon} />
       </button>
     </Tooltip>
   )

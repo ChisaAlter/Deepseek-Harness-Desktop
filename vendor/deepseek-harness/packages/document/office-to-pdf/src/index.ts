@@ -154,7 +154,7 @@ export class OfficeToPdf extends TypertRemoteService {
    * @param path - absolute or workspace-relative Office path.
    * @param priority - foreground preview or speculative background work.
    * @param signal - Remote cancellation; disposal also cancels outstanding reads and conversions.
-   * @returns complete base64 PDF with original source identity and missing font families.
+   * @returns complete PDF bytes with original source identity and missing font families.
    */
   @Remote
   async render(
@@ -187,7 +187,7 @@ export class OfficeToPdf extends TypertRemoteService {
       const files = this.ctx.get('workspaceFiles')
       const fs = this.ctx.get('fs')
       if (files === undefined || fs === undefined) throw new OfficeToPdfError('unavailable', 'Office file rendering requires workspaceFiles and fs.')
-      const authorized = await files.readBytes(scope, path, { offset: 0, length: 1 }, signal)
+      const authorized = await files.readBytes(scope, path, { range: { offset: 0, length: 1 } }, signal)
       const source = await files.stat(scope, path, signal)
       const assertUnchanged = (current: WorkspaceFileStat): void => {
         if (current.absolutePath !== source.absolutePath || current.version !== source.version) {
@@ -219,7 +219,8 @@ export class OfficeToPdf extends TypertRemoteService {
       } }, signal)
       signal.throwIfAborted()
       return { absolutePath: source.absolutePath, version: source.version,
-        offset: 0, eof: true, bytes: result.pdf.byteLength, data: Buffer.from(result.pdf).toString('base64'), missingFonts: result.missingFonts, generation: result.generation }
+        offset: 0, eof: true, bytes: result.pdf.byteLength, data: result.pdf,
+        missingFonts: result.missingFonts, generation: result.generation }
     } catch (cause) {
       if (signal.aborted) throw new RemoteError('gateway/cancelled', 'The document preview was cancelled.', {}, { cause })
       if (cause instanceof OfficeToPdfError) {

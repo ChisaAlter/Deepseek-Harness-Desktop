@@ -22,7 +22,8 @@ body {
   --dsw-static-deepseek-100: rgb(228, 237, 253);
   --dsw-static-deepseek-200: rgb(211, 226, 255);
   --dsw-static-deepseek-300: rgb(183, 200, 254);
-  --dsw-static-deepseek-400: rgb(103, 158, 254);
+  /* Brightened from the platform rgb(103, 158, 254) at the designer's request: legibility on the dark toast surface. */
+  --dsw-static-deepseek-400: rgb(122, 170, 255);
   --dsw-static-deepseek-450: rgb(86, 134, 254);
   --dsw-static-deepseek-500: rgb(65, 118, 230);
   --dsw-static-deepseek-50: rgb(237, 243, 254);
@@ -33,6 +34,8 @@ body {
   --dsw-static-green-100: rgb(230, 250, 237);
   --dsw-static-green-400: rgb(78, 209, 126);
   --dsw-static-green-500: rgb(34, 197, 94);
+  --dsw-static-green-500-a08: rgb(34 197 94 / 8%);
+  --dsw-static-green-500-a12: rgb(34 197 94 / 12%);
   --dsw-static-green-900: rgb(35, 60, 44);
   --dsw-static-neutral-00: rgb(255, 255, 255);
   --dsw-static-neutral-1000: rgb(0, 0, 0);
@@ -71,9 +74,11 @@ body {
   --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
   --dsw-static-red-100: rgb(254, 226, 226);
   --dsw-static-red-400: rgb(242, 90, 90);
+  --dsw-static-red-400-a12: rgb(242 90 90 / 12%);
   --dsw-static-red-500: rgb(239, 68, 68);
   --dsw-static-red-50: rgb(254, 242, 242);
   --dsw-static-red-600: rgb(236, 19, 19);
+  --dsw-static-red-600-a08: rgb(236 19 19 / 8%);
   --dsw-static-red-900: rgb(87, 12, 12);
 }
 
@@ -98,7 +103,8 @@ body[data-ds-dark-theme] {
   --dsw-static-deepseek-100: rgb(228, 237, 253);
   --dsw-static-deepseek-200: rgb(211, 226, 255);
   --dsw-static-deepseek-300: rgb(183, 200, 254);
-  --dsw-static-deepseek-400: rgb(103, 158, 254);
+  /* Brightened from the platform rgb(103, 158, 254) at the designer's request: legibility on the dark toast surface. */
+  --dsw-static-deepseek-400: rgb(122, 170, 255);
   --dsw-static-deepseek-450: rgb(86, 134, 254);
   --dsw-static-deepseek-500: rgb(65, 118, 230);
   --dsw-static-deepseek-50: rgb(237, 243, 254);
@@ -109,6 +115,8 @@ body[data-ds-dark-theme] {
   --dsw-static-green-100: rgb(230, 250, 237);
   --dsw-static-green-400: rgb(78, 209, 126);
   --dsw-static-green-500: rgb(34, 197, 94);
+  --dsw-static-green-500-a08: rgb(34 197 94 / 8%);
+  --dsw-static-green-500-a12: rgb(34 197 94 / 12%);
   --dsw-static-green-900: rgb(35, 60, 44);
   --dsw-static-neutral-00: rgb(255, 255, 255);
   --dsw-static-neutral-1000: rgb(0, 0, 0);
@@ -147,9 +155,11 @@ body[data-ds-dark-theme] {
   --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
   --dsw-static-red-100: rgb(254, 226, 226);
   --dsw-static-red-400: rgb(242, 90, 90);
+  --dsw-static-red-400-a12: rgb(242 90 90 / 12%);
   --dsw-static-red-500: rgb(239, 68, 68);
   --dsw-static-red-50: rgb(254, 242, 242);
   --dsw-static-red-600: rgb(236, 19, 19);
+  --dsw-static-red-600-a08: rgb(236 19 19 / 8%);
   --dsw-static-red-900: rgb(87, 12, 12);
 }
 
@@ -225,8 +235,11 @@ body {
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-300);
   --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
   --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+  --dsw-alias-code-diff-added: var(--dsw-static-green-500-a08);
+  --dsw-alias-code-diff-deleted: var(--dsw-static-red-600-a08);
   --dsw-alias-state-error-primary: var(--dsw-static-red-600);
   --dsw-alias-state-error-secondary: var(--dsw-static-red-400);
+  --dsw-alias-state-idle-primary: var(--dsw-static-neutral-300);
   --dsw-alias-state-success-primary: var(--dsw-static-green-500);
   --dsw-alias-state-success-secondary: var(--dsw-static-green-400);
   --dsw-alias-state-success-tertiary: var(--dsw-static-green-100);
@@ -241,7 +254,7 @@ body {
   --dsw-alias-glass-opacity: 80%;
   --dsw-specific-input-major: color-mix(in srgb, var(--dsw-static-neutral-bluish-00) var(--dsw-alias-glass-opacity), transparent);
   --dsw-specific-login-input: var(--dsw-static-neutral-bluish-50);
-  --dsw-specific-menu: color-mix(in srgb, var(--dsw-alias-bg-layer-3) var(--dsw-alias-glass-opacity), transparent);
+  --dsw-specific-menu: rgba(248, 249, 250, 0.58);
   --dsw-specific-selector: var(--dsw-static-neutral-bluish-60);
   --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-50);
   --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-deepseek-100);
@@ -330,8 +343,11 @@ body[data-ds-dark-theme] {
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-550);
   --dsw-alias-state-business-primary: var(--dsw-static-deepseek-400);
   --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-800);
+  --dsw-alias-code-diff-added: var(--dsw-static-green-500-a12);
+  --dsw-alias-code-diff-deleted: var(--dsw-static-red-400-a12);
   --dsw-alias-state-error-primary: var(--dsw-static-red-400);
   --dsw-alias-state-error-secondary: var(--dsw-static-red-400);
+  --dsw-alias-state-idle-primary: var(--dsw-static-neutral-600);
   --dsw-alias-state-success-primary: var(--dsw-static-green-500);
   --dsw-alias-state-success-secondary: var(--dsw-static-green-400);
   --dsw-alias-state-success-tertiary: var(--dsw-static-green-900);
@@ -346,7 +362,7 @@ body[data-ds-dark-theme] {
   --dsw-alias-glass-opacity: 80%;
   --dsw-specific-input-major: color-mix(in srgb, var(--dsw-static-neutral-bluish-850) var(--dsw-alias-glass-opacity), transparent);
   --dsw-specific-login-input: var(--dsw-static-neutral-bluish-900);
-  --dsw-specific-menu: color-mix(in srgb, var(--dsw-alias-bg-layer-3) var(--dsw-alias-glass-opacity), transparent);
+  --dsw-specific-menu: rgba(48, 49, 54, 0.5);
   --dsw-specific-selector: var(--dsw-static-neutral-bluish-800);
   --dsw-specific-sidebar-fill: var(--dsw-static-neutral-bluish-900);
   --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-neutral-bluish-800);

@@ -91,25 +91,29 @@
     - id: llm-retry
       name: '@deepseek-ai/dsh-llm-retry'
 
-    # Designated vision model for text-only main models: the Models page
-    # stores the route in the `vision-fallback` settings namespace; unset
-    # means disabled and image prompts to text-only models stay refused.
-    - id: llm-vision-fallback
-      name: '@deepseek-ai/dsh-llm-vision-fallback'
-      config:
-        maxOutputTokens: 2048
-        timeoutMs: 120000
+    # Live Config forms persist through the active profile patch.
 
-    # User-settings document (`$DSH_HOME/settings.yaml`, hot-reloaded): a
-    # `llm-deepseek:` or `llm-pi-ai:` section there overrides the adapter entries
-    # below without a restart, and is what the web Models page writes.
+    # Live configuration forms persist through the launcher's profile.
+    - id: config-editor
+      name: '@deepseek-ai/dsh-config-editor'
+      disabled: !!js "!ctx.get('profileContext')"
+
     - id: settings
-      name: '@deepseek-ai/dsh-settings-file'
+      name: '@deepseek-ai/dsh-settings'
+      disabled: !!js "!ctx.get('profileContext')"
 
     # Credential sources: inherited environment over the managed
     # `$DSH_HOME/.credentials.yaml`, with project and user `.env` fallbacks.
     # Adapters resolve references per request; the Models page writes only the
     # managed document, which is never materialized into the process environment.
+    - id: authorization
+      name: '@deepseek-ai/dsh-authorization'
+
+    - id: deepseek-account
+      name: '@deepseek-ai/dsh-deepseek-account-platform'
+      config:
+        desktopPlatform: !!js "ctx.get('profileContext')?.name === 'desktop' && ['darwin', 'win32'].includes(process.platform) ? process.platform : null"
+
     - id: credentials
       name: '@deepseek-ai/dsh-credentials-local'
 
@@ -405,7 +409,7 @@
     - id: spill-policy
       name: '@deepseek-ai/dsh-spill-policy'
       config:
-        maxInlineBytes: 50000
+        maxInlineTokens: 12500
 
     # Durability checkpoints before each model request and top-level dispatch.
     - id: session-checkpoint-policy
@@ -461,7 +465,7 @@
     # preset; products with a stricter network policy override tool-web. DeepSeek
     # search resolves the same DEEPSEEK_API_KEY
     # credential the Models page manages for chat, at each search; its Messages
-    # endpoint is separate from the chat-completions endpoint, so it takes its own
+    # endpoint is configured independently from the model route, so it takes its own
     # base-URL override. Anonymous fetch accepts only public HTTP(S) destinations,
     # resolves and validates every destination, and pins every actual connection.
     # Search is a full auxiliary model request with server-side retrieval, so this
@@ -522,3 +526,9 @@
     # choice.
     - id: llm-deepseek
       name: '@deepseek-ai/dsh-llm-deepseek'
+
+    - id: llm-vision-fallback
+      name: '@deepseek-ai/dsh-llm-vision-fallback'
+      config:
+        maxOutputTokens: 2048
+        timeoutMs: 120000

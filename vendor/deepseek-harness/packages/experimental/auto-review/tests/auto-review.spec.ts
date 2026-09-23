@@ -128,7 +128,7 @@ function reasoningDecisionChunks(text: string): StreamChunk[] {
 
 async function harness(
   script: ReviewScript[],
-  permissionConfig: PermissionConfig = { presets: PRESETS, defaultPreset: 'workspace-write' },
+  permissionConfig: NonNullable<Parameters<typeof PermissionPresetService.Config>[0]> = { presets: PRESETS, defaultPreset: 'workspace-write' },
 ): Promise<{ ctx: Context; adapter: RecordingAdapter; auto: PluginFiber }> {
   const ctx = new Context()
   contexts.push(ctx)
@@ -278,7 +278,7 @@ describe('native review request', () => {
     })
     appendHeader(session, [loggedSchema])
     session.append('system/message', {
-      turn: 1, step: 1, message: createSystemMessage('main-system secret', 'main'),
+      turn: 1, step: 1, message: createSystemMessage('main-system secret'),
     }, { surfaceOp: 'append' })
     session.append('user/message', createUserMessage({
       content: [
@@ -297,37 +297,15 @@ describe('native review request', () => {
     } as never)
     appendUser(session, 'parent-authored evidence', { kind: 'user' })
     session.append('user/message', createUserMessage({
-      content: [
-        { type: 'text', text: 'plugin evidence' },
-        {
-          type: 'tool-result',
-          toolCallId: ToolCallId('result-source'),
-          content: [{ type: 'text', text: 'tool result secret' }],
-          isError: false,
-        },
-      ],
-      source: { kind: 'plugin', plugin: 'evidence' },
-    }), { surfaceOp: 'append' })
-    session.append('user/message', createUserMessage({
-      content: [{
-        type: 'tool-result',
-        toolCallId: ToolCallId('result-only-source'),
-        content: [{ type: 'text', text: 'tool-result-only secret' }],
-        isError: false,
-      }],
-      source: { kind: 'plugin', plugin: 'tool-result-only' },
+      content: [{ type: 'text', text: 'plugin evidence' }],
+      source: { kind: 'test' },
     }), { surfaceOp: 'append' })
     appendUser(session, 'checkpoint authority', compactCheckpointSource(CompactionId('checkpoint-1')))
     appendUser(session, 'project authority', {
       kind: 'agent-instructions', form: 'instructions', changes: [],
     })
     session.append('user/message', createUserMessage({
-      content: [{
-        type: 'tool-result',
-        toolCallId: ToolCallId('project-result-only'),
-        content: [{ type: 'text', text: 'project-tool-result-only secret' }],
-        isError: false,
-      }],
+      content: [],
       source: { kind: 'agent-instructions', form: 'instructions', changes: [] },
     }), { surfaceOp: 'append' })
     appendUser(session, 'tool-source secret', { kind: 'tool', callId: ToolCallId('result-source') })
@@ -342,6 +320,22 @@ describe('native review request', () => {
     appendNativeCall(session, oldCallId, 'old_probe', '{ "old": true }')
     appendNativeCall(session, outerCallId, RUN_CODE_NAME, '{"code":"call probe"}')
     appendNativeCall(session, currentCallId, 'probe', '{"path":"target"}')
+    for (const [callId, text] of [
+      ['result-source', 'tool result secret'],
+      ['result-only-source', 'tool-result-only secret'],
+      ['project-result-only', 'project-tool-result-only secret'],
+    ] as const) {
+      appendNativeCall(session, ToolCallId(callId), 'probe', '{"path":"target"}')
+      session.append('tool/result', {
+        turn: 1,
+        step: 1,
+        message: createToolResultMessage({
+          callId: ToolCallId(callId),
+          content: [{ type: 'text', text }],
+          isError: false,
+        }),
+      }, { surfaceOp: 'append' })
+    }
     session.append('tool/result', {
       turn: 1,
       step: 1,
@@ -388,7 +382,9 @@ describe('native review request', () => {
     expect(request.maxTokens).toBeUndefined()
     expect(request.tools).toBeUndefined()
     expect(request.messages).toHaveLength(1)
-    expect(request.messages[0]?.source).toEqual({ kind: 'plugin', plugin: 'dsh-experimental-auto-review' })
+    expect(request.messages[0]).not.toHaveProperty('source')
+    expect(request.messages[0]).not.toHaveProperty('id')
+    expect(Object.isFrozen(request.messages[0]?.content[0])).toBe(true)
     expect(Object.isFrozen(request)).toBe(true)
 
     const sections = requestSections(request)
@@ -426,7 +422,7 @@ describe('native review request', () => {
         source: compactCheckpointSource(CompactionId('checkpoint-1')),
       }),
       expect.objectContaining({
-        kind: 'user-message', role: 'fact', source: { kind: 'plugin', plugin: 'evidence' },
+        kind: 'user-message', role: 'fact', source: { kind: 'test' },
         content: [{ type: 'text', text: 'plugin evidence' }],
       }),
       expect.objectContaining({

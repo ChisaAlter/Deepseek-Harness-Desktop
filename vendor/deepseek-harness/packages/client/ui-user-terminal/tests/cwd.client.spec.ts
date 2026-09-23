@@ -30,8 +30,7 @@ function sessions(mainViewId: SessionId | undefined): SessionListState {
       },
     },
     phase: 'ready',
-    subagentsByParent: {},
-    jobsBySession: {},
+    projectionsBySession: {},
   }
 }
 

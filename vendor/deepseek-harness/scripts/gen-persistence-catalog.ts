@@ -102,7 +102,7 @@ export function render(
     '',
     text.envelopeIntro,
     '',
-    ...(schema ? [renderPersistenceSchemaIndex(schema, locale)] : []),
+    ...(schema ? [renderPersistenceSchemaIndex(schema, locale, undefined, 2, 'current')] : []),
     `## ${text.envelope}`,
     '',
     '```' + FENCE,
@@ -121,7 +121,7 @@ export function render(
       lines.push(...renderEvent(e, locale))
     }
   }
-  if (schema) lines.push(renderPersistenceSchemaDefinitions(schema, locale))
+  if (schema) lines.push(renderPersistenceSchemaDefinitions(schema, locale, undefined, 2, 'current'))
   return lines.join('\n')
 }
 

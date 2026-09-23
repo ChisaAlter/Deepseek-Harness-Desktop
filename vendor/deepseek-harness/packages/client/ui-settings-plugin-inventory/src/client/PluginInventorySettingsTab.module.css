@@ -27,6 +27,12 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
+.statusWithDot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .failure button {
   border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 6px;
@@ -172,13 +178,20 @@
   font-weight: 600;
 }
 
+/* The Loader entry id keeps one size in the card subtitle and the row it expands into;
+   the collapsed subtitle stays on the quieter label tier, while the expanded row carries
+   the card's primary value. */
+.cardIdentity,
+.entryValue {
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .cardIdentity {
   display: block;
   width: 100%;
   color: var(--dsw-alias-label-tertiary);
-  font-family: var(--ds-font-family-code);
-  font-size: 11px;
-  line-height: 16px;
 }
 
 .cardTrailing {
@@ -377,9 +390,6 @@
   display: block;
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-primary);
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
 }
 
 .details {

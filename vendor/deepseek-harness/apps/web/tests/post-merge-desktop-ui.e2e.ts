@@ -9,7 +9,7 @@ import type { Browser, Locator, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { launchWebScaffold, watchConsole, type WebScaffold } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, newEnglishPage, saveFailureShot, writeComposerDraft } from './support.ts'
 
 const FIXTURE_SKILL = 'post-merge-ui-fixture'
 
@@ -38,23 +38,22 @@ describe('web e2e: post-merge assembled desktop UI', () => {
   let tripwire: ReturnType<typeof watchConsole>
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold({
-      bundledSkills: [{
-        name: FIXTURE_SKILL,
-        markdown: [
-          '---',
-          `name: ${FIXTURE_SKILL}`,
-          'description: Skill fixture for the post-merge assembled UI walk',
-          'whenToUse: Isolated web e2e only',
-          'disable-model-invocation: true',
-          'user-invocable: true',
-          '---',
-          '',
-          'Keep this fixture inside the temporary scaffold world.',
-          '',
-        ].join('\n'),
-      }],
-    })
+    scaffold = await launchWebScaffold()
+    const bundledSkill = join(scaffold.workspaceCwd, '.bundled-skills', FIXTURE_SKILL)
+    await mkdir(bundledSkill, { recursive: true })
+    await writeFile(join(bundledSkill, 'SKILL.md'), [
+      '---',
+      `name: ${FIXTURE_SKILL}`,
+      'description: Skill fixture for the post-merge assembled UI walk',
+      'whenToUse: Isolated web e2e only',
+      'disable-model-invocation: true',
+      'user-invocable: true',
+      '---',
+      '',
+      'Keep this fixture inside the temporary scaffold world.',
+      '',
+    ].join('\n'))
+    scaffold.ctx.skills.invalidate()
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
@@ -104,14 +103,14 @@ describe('web e2e: post-merge assembled desktop UI', () => {
 
     const composer = page.locator('[data-composer-card]')
     await composer.waitFor({ timeout: 15_000 })
-    await waitVisible(composer.locator('textarea'))
+    await waitVisible(composer.locator('[data-composer-input][contenteditable="true"]'))
     await waitVisible(page.getByRole('button', { name: 'Commands' }))
     await waitVisible(page.getByRole('button', { name: 'Send message' }))
     await waitVisible(page.getByRole('button', { name: /Access mode/ }))
 
     const cluster = page.locator('#dshd-shell-titlebar-trailing')
     await cluster.waitFor({ timeout: 15_000 })
-    await waitVisible(cluster.getByRole('button', { name: 'Session log' }))
+    await waitVisible(cluster.getByRole('button', { name: /session log/i }))
     await waitVisible(cluster.getByRole('button', { name: 'Switch branch' }))
     await waitVisible(cluster.getByRole('button', { name: 'Commit' }))
     await waitVisible(cluster.getByRole('button', { name: 'Git actions' }))
@@ -122,14 +121,14 @@ describe('web e2e: post-merge assembled desktop UI', () => {
 
   it('keeps $skill typing inert without a catalog inject and opens Commands', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-post-merge-composer'))
-    const textarea = page.locator('[data-composer-card] textarea')
-    await textarea.fill('$fo')
+    const input = page.locator('[data-composer-input]')
+    await writeComposerDraft(page, input, '$fo')
     expect(await page.getByRole('menuitem', { name: 'foo-skill' }).count()).toBe(0)
     expect(await page.getByRole('menuitem', { name: FIXTURE_SKILL }).count()).toBe(0)
 
-    await textarea.fill('@')
+    await writeComposerDraft(page, input, '@')
     await expect.poll(() => page.locator('[data-source="path"]').count(), { timeout: 3_000 }).toBe(0)
-    await textarea.fill('')
+    await writeComposerDraft(page, input, '')
 
     const commands = page.getByRole('button', { name: 'Commands' })
     if (await commands.isEnabled()) {
@@ -166,25 +165,21 @@ describe('web e2e: post-merge assembled desktop UI', () => {
     expect(tripwire.pageErrors, tripwire.pageErrors.join('\n')).toEqual([])
   })
 
-  it('opens surfaces on the five-card empty grid, then Files, Agents, and Terminal', async () => {
+  it('opens the sidebar guide, then Files, Agents, and Terminal', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-post-merge-surfaces'))
     await dismissOverlays(page)
     await pressUntilReleased(page, 'Toggle right panel', true)
 
-    const empty = page.locator('[data-surfaces-empty]')
-    if (await empty.isVisible().catch(() => false)) {
-      await waitVisible(empty.getByRole('heading', { name: 'Open a surface' }))
-      expect(await empty.getByRole('button', { name: /^Browser/ }).isDisabled()).toBe(true)
-      expect(await empty.getByRole('button', { name: /^Diff/ }).isDisabled()).toBe(true)
-      expect(await empty.getByRole('button', { name: /^Files/ }).isEnabled()).toBe(true)
-      expect(await empty.getByRole('button', { name: /^Agents/ }).isEnabled()).toBe(true)
-      expect(await empty.getByRole('button', { name: /^Terminal/ }).isEnabled()).toBe(true)
-      await empty.getByRole('button', { name: /^Files/ }).click()
-    }
+    const guide = page.locator('[data-sidebar-right-guide]')
+    await waitVisible(guide)
+    await waitVisible(guide.locator('[data-sidebar-right-guide-entry="files"]'))
+    await waitVisible(guide.locator('[data-sidebar-right-guide-entry="agents"]'))
+    await waitVisible(guide.locator('[data-sidebar-right-guide-entry="terminal"]'))
+    await guide.locator('[data-sidebar-right-guide-entry="files"]').click()
 
-    const tabs = page.locator('[data-surfaces-tabs]')
-    await tabs.waitFor({ state: 'visible', timeout: 10_000 })
-    await waitVisible(page.getByRole('button', { name: 'Close Files' }))
+    const filesTab = page.locator('[data-dockkit-tab]').filter({ hasText: 'Files' })
+    await waitVisible(filesTab)
+    expect(await filesTab.getAttribute('aria-selected')).toBe('true')
     const files = page.locator('[data-files-panel]')
     await files.waitFor({ state: 'visible', timeout: 10_000 })
     const search = files.getByRole('textbox', { name: 'Search files' })
@@ -193,23 +188,23 @@ describe('web e2e: post-merge assembled desktop UI', () => {
     const mention = files.locator('li').filter({ hasText: 'note.md' }).getByRole('button', { name: 'Mention in composer' })
     await waitVisible(mention)
     await mention.click()
-    const composerDraft = page.locator('[data-composer-card] textarea')
-    await expect.poll(() => composerDraft.inputValue(), { timeout: 5_000 }).toMatch(/\[note\.md\]\(note\.md\)/)
+    const composerDraft = page.locator('[data-composer-input]')
+    await expect.poll(() => composerDraft.innerText(), { timeout: 5_000 }).toMatch(/\[note\.md\]\(note\.md\)/)
     expect(tripwire.pageErrors, tripwire.pageErrors.join('\n')).toEqual([])
     await search.fill('note')
     await waitVisible(files.getByRole('button', { name: /note\.md/ }).first())
 
-    await page.getByRole('button', { name: 'Open a surface' }).click()
-    await page.getByRole('menuitem', { name: 'Agents' }).click()
-    await waitVisible(page.getByRole('button', { name: 'Close Agents' }))
+    await page.locator('[data-dockkit-add-tab]').click()
+    await page.locator('[data-sidebar-right-guide-entry="agents"]').click()
+    await waitVisible(page.locator('[data-dockkit-tab]').filter({ hasText: 'Agents' }))
     const agents = page.locator('[data-agents-panel]')
     await agents.waitFor({ state: 'visible', timeout: 10_000 })
     await waitVisible(agents.getByText('No agents yet'))
 
-    await page.getByRole('button', { name: 'Open a surface' }).click()
-    await page.getByRole('menuitem', { name: 'Terminal' }).click()
-    await waitVisible(page.getByRole('button', { name: 'Close Terminal', exact: true }))
-    await waitVisible(page.locator('[data-terminal-owner="surface"]'))
+    await page.locator('[data-dockkit-add-tab]').click()
+    await page.locator('[data-sidebar-right-guide-entry="terminal"]')
+      .getByRole('button', { name: /^New terminal/u }).click()
+    await waitVisible(page.locator('[data-sidebar-terminal]'))
     expect(tripwire.pageErrors, tripwire.pageErrors.join('\n')).toEqual([])
   })
 

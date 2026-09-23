@@ -1,6 +1,6 @@
 /** Read-only Markdown viewer for logged plans and temporary review documents. */
 import { useMemo } from 'react'
-import { IconCopyOutline16, IconPlanOutline14, MarkdownText, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FileTypeIcon, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from './plan-resource.ts'
@@ -11,7 +11,7 @@ import css from './PlanPreview.module.css'
 type PlanPreviewProps = PropsRuntime<'sidebar.right.pane.tab'> & PropsLocale<'plan'>
 
 /**
- * Render the submitted plan with its complete Markdown and a copy action.
+ * Render the submitted plan with its complete Markdown.
  * @param props - Framework-bound tab identity, resource, and copy.
  * @returns the plan document or a localized loading/failure state.
  */
@@ -22,7 +22,7 @@ export function PlanPreview({ useTabInfo, useResource, t }: PlanPreviewProps) {
   const params = tab.tab.navigation.params
   const plan = temporary ? (params !== undefined && 'planReview' in params ? params.planReview : undefined) : resource.value
   const labels = useMemo(() => ({
-    code: { copyLabel: t('copy'), copiedLabel: t('copied') },
+    code: { copyLabel: t('copy'), copiedLabel: t('copied'), toolbarLabels: { codeLabel: t('codeBlock.title'), wrapLabel: t('codeBlock.wrap'), unwrapLabel: t('codeBlock.unwrap') } },
     footnotes: t('markdown.footnotes'),
   }), [t])
   if (plan === undefined) return (
@@ -34,17 +34,15 @@ export function PlanPreview({ useTabInfo, useResource, t }: PlanPreviewProps) {
   )
   return (
     <section className={css.preview} data-plan-preview={'callId' in plan ? plan.callId : tab.tab.navigation.address} aria-label={plan.title}>
-      <div className={css.toolbar}><button type="button" className={css.iconButton} aria-label={t('copy')}
-        onClick={() => { void writeClipboard(plan.markdown) }}><IconCopyOutline16 /></button></div>
       <div className={css.document}><MarkdownText text={plan.markdown} labels={labels} /></div>
     </section>
   )
 }
 
 /**
- * Display a plan icon and the heading in its tab after resource recovery.
+ * Display a plain file icon and the heading in its tab after resource recovery.
  * @param props - Framework-bound tab identity and resource reader.
- * @returns a decorative plan icon followed by the recovered title or initial localized label.
+ * @returns a decorative file icon followed by the recovered title or initial localized label.
  */
 export function PlanTitle({ useTabInfo, useResource }: PropsRuntime<'sidebar.right.pane.tab.title'>) {
   const tab = useTabInfo()
@@ -52,5 +50,5 @@ export function PlanTitle({ useTabInfo, useResource }: PropsRuntime<'sidebar.rig
   const params = tab.tab.navigation.params
   const plan = isReviewPreviewAddress(tab.tab.navigation.address)
     ? (params !== undefined && 'planReview' in params ? params.planReview : undefined) : resource.value
-  return <><span className={css.titleIcon} aria-hidden="true"><IconPlanOutline14 size={16} /></span>{plan?.title ?? tab.tab.title}</>
+  return <><FileTypeIcon kind="other" size={16} className={css.titleIcon} />{plan?.title ?? tab.tab.title}</>
 }

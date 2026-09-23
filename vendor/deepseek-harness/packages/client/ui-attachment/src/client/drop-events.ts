@@ -2,6 +2,24 @@
 import type { ComposerAttachmentsProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 /**
+ * Members of a drop that are directories. The `File` a directory drop yields
+ * is indistinguishable from an empty file, so the entry API is the only
+ * source of that fact; browsers without it report no directories.
+ */
+function droppedDirectories(dataTransfer: DataTransfer, files: readonly File[]): ReadonlySet<File> {
+  const directories = new Set<File>()
+  let fileIndex = 0
+  for (const item of dataTransfer.items) {
+    if (item.kind !== 'file') continue
+    const file = files[fileIndex++]
+    if (typeof item.webkitGetAsEntry !== 'function') continue
+    if (item.webkitGetAsEntry()?.isDirectory !== true) continue
+    if (file !== undefined) directories.add(file)
+  }
+  return directories
+}
+
+/**
  * Install one attachment view's file-drop listeners.
  * @param canAcceptDrop - whether this view accepts the dropped files.
  * @param onAddFiles - attachment intake callback.
@@ -49,30 +67,10 @@ export function installDocumentDropEvents(
     if (dataTransfer === null) return
     event.preventDefault()
     reset()
-    if (!canAcceptDrop) return
-    // A dropped folder arrives as a File stub whose bytes the transport
-    // cannot read; the item's FileSystem entry is the only in-band
-    // classifier, so entries without one pass through as files.
-    const files: File[] = []
-    const rejected: File[] = []
-    // dataTransfer.files mirrors the file-kind items in order, but every
-    // accessor mints a fresh File object — identity cannot match the two
-    // lists, so the sweep skips one leading entry per item that produced a
-    // File and only takes leftovers an unproductive items list would lose.
-    let productive = 0
-    for (const item of dataTransfer.items) {
-      if (item.kind !== 'file') continue
-      const file = item.getAsFile()
-      if (file === null) continue
-      productive += 1
-      if (item.webkitGetAsEntry()?.isDirectory === true) rejected.push(file)
-      else files.push(file)
+    if (canAcceptDrop) {
+      const files = [...dataTransfer.files]
+      onAddFiles(files, droppedDirectories(dataTransfer, files))
     }
-    for (let i = productive; i < dataTransfer.files.length; i += 1) {
-      const file = dataTransfer.files[i]
-      if (file !== undefined) files.push(file)
-    }
-    onAddFiles(files, rejected)
   }
   document.addEventListener('dragenter', onDragEnter)
   document.addEventListener('dragover', onDragOver)

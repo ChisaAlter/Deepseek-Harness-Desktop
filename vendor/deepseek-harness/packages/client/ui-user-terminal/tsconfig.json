@@ -24,7 +24,7 @@
       "path": "../ui-layout"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../store"

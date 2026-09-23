@@ -1,6 +1,6 @@
 /** Present call status and expandable durable result text. */
 import { useState } from 'react'
-import { DisclosureRow, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DisclosureRow, IconDeliverDocRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
@@ -34,7 +34,7 @@ export function PresentRow({ block, inspect, t }: PresentRowProps) {
   const [expanded, setExpanded] = useState(false)
   return <div data-tool="present" data-state={state}>
     <DisclosureRow title={t('row.title')}
-      icon={<StateDot state={state === 'running' ? 'ongoing' : state === 'ok' ? 'done' : state === 'stopped' ? 'warning' : 'error'} />}
+      icon={<IconDeliverDocRegular size={14} />}
       open={expanded && details !== ''} expandable={details !== ''} expandOnRowClick keepContentWhenOpen
       onToggle={() => { setExpanded(value => !value) }}
       collapsedContent={<span className={css.summary}><span>{t(`row.${state}`)}</span><span className={css.paths}>{fileNames(args)}</span></span>}>

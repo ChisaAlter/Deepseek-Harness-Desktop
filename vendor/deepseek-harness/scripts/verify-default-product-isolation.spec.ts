@@ -12,7 +12,7 @@ const experimental = '@deepseek-ai/dsh-experimental-prototype'
 const core = '@deepseek-ai/dsh-core'
 const base = '@deepseek-ai/dsh-base'
 const profile = 'packages/boot/app-boot/src/profile.ts'
-const preset = 'packages/preset/agent-presets/presets/standard/agent.cordis.yml'
+const preset = 'packages/bundle/web-app/presets/standard.patch.yml'
 const patch = 'packages/bundle/base/cordis.patch.yml'
 
 function write(root: string, path: string, value: unknown): void {
@@ -39,7 +39,8 @@ function fixture(): string {
   write(root, 'packages/core/core/src/index.ts', 'export {}\n')
   write(root, 'packages/bundle/base/package.json', { name: base, dsh: { bundle: { patch: './cordis.patch.yml' } } })
   write(root, patch, [{ insert: [{ name: core }] }])
-  write(root, preset, [{ name: core }])
+  write(root, preset, [{ insert: [{ name: '@deepseek-ai/dsh-agent-preset', config: { id: 'standard', plugins: [{ name: core }] } }] }])
+  write(root, 'packages/preset/agent-preset/package.json', { name: '@deepseek-ai/dsh-agent-preset' })
   write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}'] } }\n`
     + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\n`)
   write(root, 'packages/experimental/prototype/package.json', { name: experimental })
@@ -79,7 +80,7 @@ describe('default product isolation', () => {
     write(root, 'apps/web/src/preview.ts', `import '${experimental}'\n`)
     write(root, 'packages/experimental/prototype/cordis.patch.yml', [{ name: experimental }])
 
-    expect(verifyDefaultProductIsolation(root)).toMatchObject({ failures: [], packageCount: 5, configCount: 2 })
+    expect(verifyDefaultProductIsolation(root)).toMatchObject({ failures: [], packageCount: 6, configCount: 2 })
   })
 
   it('ignores dependency trees and directories whose names end in a source extension', () => {
@@ -101,7 +102,7 @@ describe('default product isolation', () => {
     write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}'] } }\n`
       + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\n`
       + `export const OPTIONAL_BUNDLES = ['${layer}']\n`)
-    expect(verifyDefaultProductIsolation(root)).toMatchObject({ failures: [], packageCount: 5 })
+    expect(verifyDefaultProductIsolation(root)).toMatchObject({ failures: [], packageCount: 6 })
 
     // The exception covers the dependency edge alone: a runtime import or a default template still names the product.
     write(root, 'apps/cli/src/bin.ts', `import '${layer}'\n`)

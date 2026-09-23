@@ -12,5 +12,6 @@ describe('LoadingIndicator', () => {
     const status = getByRole('status')
     expect(status.textContent).toBe('')
     expect(status.getAttribute('aria-label')).toBe('Reading…')
+    expect(status.querySelector('[data-state="ongoing"]')).not.toBeNull()
   })
 })

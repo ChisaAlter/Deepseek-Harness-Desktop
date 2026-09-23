@@ -64,7 +64,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.connection` — `HostConnectionHandle`
 
-Host `ctx.connection` shape consumed by transport-independent adapters.
+Host `ctx.connection` members consumed by transport-independent adapters.
 
 ```ts cordis-catalog
 /**
@@ -83,6 +83,14 @@ createSharedFetchHandler(channel: '/api'): ConnectionFetchHandler
 requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
 
 /**
+ * Admit one request: it passes {@link requestRejection} and speaks for the
+ * operator, or it is refused with that status.
+ * @param request - request headers from the HTTP or upgrade request.
+ * @returns the operator Peer, or the rejection status.
+ */
+admit(request: ConnectionTrustRequest): PeerAdmission
+
+/**
  * Authenticate one frontend index request, owning a token redirect or 401.
  * @param request - root or configured-index HTTP request.
  * @param response - response owned when the result is false.
@@ -92,8 +100,8 @@ authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexRespons
 
 /**
  * Add the fresh process token to an ordinary Web application URL.
- * @param baseUrl - clean canonical browser origin.
- * @returns root URL accepted by {@link authorizeIndex} for initial login.
+ * @param baseUrl - clean application URL whose authority and mount are preserved.
+ * @returns tokenized URL for initial login; a mount proxy strips its prefix before {@link authorizeIndex}.
  */
 authenticatedUrl(baseUrl: string): string
 ```

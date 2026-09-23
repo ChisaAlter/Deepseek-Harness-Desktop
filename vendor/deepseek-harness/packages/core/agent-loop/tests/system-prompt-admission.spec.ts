@@ -10,6 +10,12 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { MockAdapter, textResponse } from './mock-adapter.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'test-compaction': { kind: 'test-compaction' } & import('@deepseek-ai/dsh-llm').ContextFormed
+  }
+}
+
 const contexts: Context[] = []
 afterEach(async () => {
   for (const ctx of contexts.splice(0)) await ctx.fiber.dispose()
@@ -151,7 +157,7 @@ describe('prepared-route prompt admission', () => {
         const start = retainOlder ? latest : nodes[1]!
         const replaced = nodes.slice(nodes.indexOf(start), nodes.indexOf(latest) + 1)
         h.agent.session.append('user/message', createUserMessage({
-          content: [{ type: 'text', text: 'compacted history' }], source: { kind: 'plugin', plugin: 'test-compaction' },
+          content: [{ type: 'text', text: 'compacted history' }], source: { kind: 'test-compaction' },
         }), { surfaceOp: { op: 'replace', startSeq: start, endSeq: latest }, sourceEventSeqs: replaced })
         // A retry must retain the assembly accepted for this step, not pick up new sections.
         h.setPrompt('not admitted until next step')
@@ -215,11 +221,11 @@ describe('prepared-route prompt admission', () => {
       [{ type: 'text', text: 'second' }], notice,
     ])
     const notices = h.agent.session.snapshotEvents().filter(event => event.type === 'user/message'
-      && event.data.source.kind === 'plugin' && event.data.source.plugin === 'model-selection')
+      && event.data.source.kind === 'model-selection')
     expect(notices).toHaveLength(1)
     expect(notices[0]!.data).toMatchObject({
       content: notice,
-      source: { kind: 'plugin', plugin: 'model-selection', form: 'notice', summary: 'plain/model → capable/model' },
+      source: { kind: 'model-selection', form: 'notice', summary: 'plain/model → capable/model' },
     })
   })
 
@@ -236,7 +242,7 @@ describe('prepared-route prompt admission', () => {
       if (agent === resumed && replace) {
         const seq = agent.session.surface.nodes.find(seq => agent.session.eventAt(seq)?.type === 'user/message')!
         agent.session.append('user/message', createUserMessage({
-          content: [{ type: 'text', text: 'compacted history' }], source: { kind: 'plugin', plugin: 'test-compaction' },
+          content: [{ type: 'text', text: 'compacted history' }], source: { kind: 'test-compaction' },
         }), { surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq }, sourceEventSeqs: [seq] })
       }
       return next()

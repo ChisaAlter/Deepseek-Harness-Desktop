@@ -1,4 +1,4 @@
-/** Controller wire behavior: host-base resolution, availability filtering, and launch errors. */
+/** Controller wire behavior: document-relative routes, availability filtering, and launch errors. */
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { OpenInAppController } from '../src/client/controller.ts'
@@ -36,20 +36,11 @@ describe('OpenInAppController availability', () => {
     expect(malformed.apps.getSnapshot()).toEqual([])
   })
 
-  it('resolves routes against the page origin when the page has one', async () => {
-    vi.stubGlobal('location', { origin: 'http://dsh.example:8080' })
+  it('requests the document-relative availability route', async () => {
     const fetcher = vi.fn(async (input: string | URL) => { void input; return jsonResponse({ apps: [] }) })
     const controller = new OpenInAppController(fetcher)
     await controller.load()
-    expect(String(fetcher.mock.calls[0]?.[0])).toBe('http://dsh.example:8080/open-in-app/apps')
-  })
-
-  it('falls back to the internal host base under a null origin', async () => {
-    vi.stubGlobal('location', { origin: 'null' })
-    const fetcher = vi.fn(async (input: string | URL) => { void input; return jsonResponse({ apps: [] }) })
-    const controller = new OpenInAppController(fetcher)
-    await controller.load()
-    expect(String(fetcher.mock.calls[0]?.[0])).toBe('http://dsh.internal/open-in-app/apps')
+    expect(fetcher.mock.calls[0]?.[0]).toBe('open-in-app/apps')
   })
 })
 
@@ -72,6 +63,7 @@ describe('OpenInAppController launching', () => {
     const fetcher = vi.fn(async (input: string | URL, init?: RequestInit) => { void input; void init; return jsonResponse({ ok: true }) })
     const controller = new OpenInAppController(fetcher)
     await controller.launch('cursor', '/w/dir')
+    expect(fetcher.mock.calls[0]?.[0]).toBe('open-in-app/open')
     expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
       method: 'POST',
       headers: { 'content-type': 'application/json' },

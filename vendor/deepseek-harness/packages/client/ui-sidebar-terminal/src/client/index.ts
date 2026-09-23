@@ -13,8 +13,8 @@ import { TerminalGuideIcon } from './TerminalIcon.tsx'
 import { TerminalGuide, type TerminalGuideInjected } from './TerminalGuide.tsx'
 import { LazyTerminalBody } from './LazyTerminalBody.tsx'
 import { TerminalTitle } from './TerminalTitle.tsx'
-import { TerminalRecovery, type TerminalRecoveryInjected } from './TerminalRecovery.tsx'
-import { TerminalCleanup, type TerminalCleanupInjected } from './TerminalCleanup.tsx'
+// import { TerminalRecovery, type TerminalRecoveryInjected } from './TerminalRecovery.tsx'
+// import { TerminalCleanup, type TerminalCleanupInjected } from './TerminalCleanup.tsx'
 import type { TerminalBodyInjected, TerminalInjected } from './face.ts'
 import { en, zh } from './locales.ts'
 
@@ -26,9 +26,9 @@ export const inject = ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs', 'w
  * @param ctx - Client root Context with sidebar and terminal services.
  */
 export function apply(ctx: Context): void {
-  let disposed = false
-  const recovered = new Map<SessionId, Promise<void>>()
-  ctx.effect(() => () => { disposed = true; recovered.clear() }, 'ui-sidebar-terminal.lifetime')
+  // let disposed = false
+  // const recovered = new Map<SessionId, Promise<void>>()
+  // ctx.effect(() => () => { disposed = true; recovered.clear() }, 'ui-sidebar-terminal.lifetime')
   ctx.effect(() => {
     const sync = (): void => { ctx.webTerminals.retainTabs(ctx.sidebarRight.openTabs.getSnapshot().filter(tab => tab.kind === 'terminal')) }
     const unsubscribe = ctx.sidebarRight.openTabs.subscribe(sync)
@@ -81,32 +81,32 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register(
     { name: 'sidebar.right.pane.tab.title', key: id, locale: namespace, inject }, TerminalTitle,
   )), 'ui-sidebar-terminal.title')
-  ctx.effect(() => ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
-    name: 'conversation.session.header.actions', id, locale: namespace,
-    inject: (sessionId): TerminalRecoveryInjected => ({
-      restore: () => {
-        let pending = recovered.get(sessionId)
-        if (pending === undefined) {
-          for (const tab of ctx.sidebarRight.tabsIn(sessionId)) {
-            if (tab.kind === 'terminal') view(sessionId, tab.id)
-          }
-          pending = ctx.webTerminals.recover(sessionId).then((terminals) => {
-            if (disposed) return
-            for (const info of terminals) ctx.sidebarRight.openTabIn(sessionId, 'terminal', {
-              params: { terminalId: info.id },
-            })
-          }).catch((error: unknown) => { recovered.delete(sessionId); throw error })
-          recovered.set(sessionId, pending)
-        }
-        return pending
-      },
-    }),
-  }, TerminalRecovery)), 'ui-sidebar-terminal.recovery')
-  ctx.effect(() => ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay', id, locale: namespace,
-    inject: (): TerminalCleanupInjected => ({
-      hooks: { closeFailures: ctx.webTerminals.closeFailures },
-      retryClose: (terminalId) => { ctx.webTerminals.retryClose(terminalId) },
-    }),
-  }, TerminalCleanup)), 'ui-sidebar-terminal.cleanup')
+  // ctx.effect(() => ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
+  //   name: 'conversation.session.header.actions', id, locale: namespace,
+  //   inject: (sessionId): TerminalRecoveryInjected => ({
+  //     restore: () => {
+  //       let pending = recovered.get(sessionId)
+  //       if (pending === undefined) {
+  //         for (const tab of ctx.sidebarRight.tabsIn(sessionId)) {
+  //           if (tab.kind === 'terminal') view(sessionId, tab.id)
+  //         }
+  //         pending = ctx.webTerminals.recover(sessionId).then((terminals) => {
+  //           if (disposed) return
+  //           for (const info of terminals) ctx.sidebarRight.openTabIn(sessionId, 'terminal', {
+  //             params: { terminalId: info.id },
+  //           })
+  //         }).catch((error: unknown) => { recovered.delete(sessionId); throw error })
+  //         recovered.set(sessionId, pending)
+  //       }
+  //       return pending
+  //     },
+  //   }),
+  // }, TerminalRecovery)), 'ui-sidebar-terminal.recovery')
+  // ctx.effect(() => ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+  //   name: 'shell.overlay', id, locale: namespace,
+  //   inject: (): TerminalCleanupInjected => ({
+  //     hooks: { closeFailures: ctx.webTerminals.closeFailures },
+  //     retryClose: (terminalId) => { ctx.webTerminals.retryClose(terminalId) },
+  //   }),
+  // }, TerminalCleanup)), 'ui-sidebar-terminal.cleanup')
 }

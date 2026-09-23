@@ -73,7 +73,7 @@ Controller 将来源计数与每个活跃代的引用共同管理。每个来源
 
 每条已有 Session 列表记录公开只读 `retainedBy`，由来源键映射到正数引用计数。未被持有的记录使用空对象；零计数键不存在。获取失败与释放更新该投影，包括删除最后一个来源键。Host 元数据刷新时，来源计数仍是本地事实，Host 响应不能覆盖它。
 
-即使 Session 尚未进入 Host 目录或其目录元数据已被移除，计数仍由对应代持有。`byId` 为每个活跃代合成本地兜底记录，以便 Provider 与所有权使用方解析它；`ids` 仍表示 Host 列表成员关系与顺序。兜底记录不是 Host 元数据。每条记录的 `retainedBy` 投影均使用活跃代的计数。引用对象与计数均不持久化，也不发送给 Host。
+即使 Session 尚未进入 Host 目录或其目录元数据已被移除，计数仍由对应代持有。`byId` 包含 Host 摘要、子会话目录投影行，以及已保留且具有明确直接父子地址的 subagent 兜底行。获取引用时同步发布缺失的 subagent 行，使 Provider 发现不依赖父目录到达；标题投影和引用来源计数继续更新该行。普通被保留 Session 不合成兜底行。`ids` 仍表示 Host 列表成员关系与顺序。未列出 generation 的使用方直接读取其 binding 与 `retainInfo`。每条记录的 `retainedBy` 投影均使用活跃代的计数。引用对象与计数均不持久化，也不发送给 Host。
 
 例如，`retainedBy = { mainView: 1, gateway: 2 }` 表示主视图与两个 Host 调用持有三份引用。释放主视图引用只移除 `mainView`；Gateway 调用继续持有该代。示例中的来源名是使用方键，不是 Controller 内封闭的枚举。
 
@@ -101,7 +101,7 @@ Controller 将来源计数与每个活跃代的引用共同管理。每个来源
 
 待处理领域保留 `SessionPendingInteractionMap`、请求身份、优先级、发布清理函数与卸载委托。统一状态包含同一个有效请求对象，不复制请求，也不创建第二套待处理注册表。Workspace 状态指示器与 Conversation composer 选择读取 `useSessionStatus`，不再分别读取 `useSessionPendingInteraction` 和 `useCompletedSessionIds` 钩子。
 
-完成跟踪订阅已有 `api-session/status` 事件，避免 running 到 idle 的变化在合批目录快照中丢失。目录快照建立初始与重连基线。pending 状态下的空目录不能证明 Session 已消失。更新规则如下：
+完成跟踪订阅已有 `api-session/status` 事件，避免 running 到 idle 的变化在合批目录快照中丢失。Host 列表行（`ids`）建立初始与重连的 running 基线；目录合成行与 retained 行保留独立观察到的状态。pending 状态下的空目录不能证明 Session 已消失。更新规则如下：
 
 - 初始 idle 基线不产生完成提醒。
 - 观察到 running 时清除旧提醒，并记录运行基线。
@@ -141,7 +141,7 @@ Conversation 的引用属于其视图所有者，不属于 Chat、Trajectory 或
 
 ### 主区域导航与展示
 
-`uiWorkspace.openSession`、`openWorkspace`、`forkSession` 和 `startSession` 仍是导航入口。它们接受或解析明确目标，改变主视图，并按既有导航策略将主区域返回 Conversation。`retain` 本身从不导航。引用所有权不引入 `registerNavigation` 接收者协议，也不引入第二个导航服务。
+`uiWorkspace.openSession`、`openWorkspace` 和 `startSession` 是导航入口。它们接受或解析明确目标，改变主视图，并按既有导航策略将主区域返回 Conversation。侧边栏 `forkSession` 创建并重命名子会话，不 retain 子会话，也不改变选择。`retain` 本身从不导航。引用所有权不引入 `registerNavigation` 接收者协议，也不引入第二个导航服务。
 
 现有 `uiWorkspace` 实现直接持有来源为 `mainView` 的主区域引用与目标。导航方法直接更新该所有者，不调用 Conversation 注册的接收者。`ui-session` 根据来源标记把该引用对应的 binding 注入根 Provider；主 Conversation 和关联右栏只继承 Provider，既不依赖 `uiWorkspace`，也看不到主引用。独立 Sidebar Conversation 以自己的 reference 建立嵌套 Provider，并覆盖本子树的 binding。主引用不是全局标准 prop、子树 Hook 或按 ID 查询的默认值。
 
@@ -160,7 +160,7 @@ DOM 焦点移动或全局面板隐藏仍被持有的视图时，来源元数据�
 
 Conversation 保留 `hero`、`settling`、`active` 组合与既有历史加载和 `openError` 处理。获取引用不增加外层 loading/error 阶段展示、额外隐藏 composer 的条件、Retry 按钮或替换 Sidebar 内容的恢复面板。已有错误处理方继续处理自己的错误；没有错误展示的调用点不增加展示。Promise 拒绝与正确释放引用不意味着额外增加 UI 处理方。
 
-Workspace 连接和 fork 保持既有导航检查与面板切换失效规则。直接打开 Session 不增加全局导航取消策略。Agent Team 刷新保留发起时选择仍然有效的条件，不在刷新前启动全局导航 token。引用获取不扩大取消范围，不影响无关导航或正在执行的操作；本地取消不回滚 Host 效果。
+Workspace 连接保持既有导航检查与面板切换失效规则。侧边栏 fork 不替代尚未完成的导航。直接打开 Session 不增加全局导航取消策略。Agent Team 刷新保留发起时选择仍然有效的条件，不在刷新前启动全局导航 token。引用获取不扩大取消范围，不影响无关导航或正在执行的操作；本地取消不回滚 Host 效果。
 
 ### 预设与创建流程
 
@@ -221,6 +221,6 @@ Gateway 持有本地引用，直到 handler 使用与回复结算均结束。Con
 
 最后一份 reference 释放后，未持久化的 binding 自有状态会被丢弃，包括已加载的历史页、Chat 滚动锚点、预览换行、Files 展开状态、composer 附件和 undo 历史。只有持久化的 Session-keyed Store 值或由另一份 reference 保活的 generation 能跨视图切换保留；runtime 不会清除这些持久值。
 
-每次公开 `retain` 都会启动该 generation 共享的首次历史打开，包括 Session 重命名和 fork 标题设置所用的临时引用。这些元数据操作在使用 Session 前等待 `reference.ready`，因此冷 generation 会承担这次历史 I/O。
+每次公开 `retain` 都会启动该 generation 共享的首次历史打开，包括普通 Session 重命名所用的临时引用。Fork 标题设置直接发送 rename 并应用返回的投影，不获取 Client 引用，也不读取历史。因此，仅修改元数据的 fork 操作不会创建列表临时行或切换主视图。
 
 目录、UI 状态与视图目标由不同所有者管理，可以独立发布。使用方不能仅从通知顺序推断生命周期变化。主视图仍是普通引用所有者，其导航与展示规则留在 UI，不进入引用分配器。

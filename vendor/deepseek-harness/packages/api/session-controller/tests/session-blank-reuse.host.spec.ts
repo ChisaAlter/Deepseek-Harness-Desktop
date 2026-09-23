@@ -187,7 +187,7 @@ describe('session.blankReuse', () => {
     ['system', [
       event('turn/start', { turn: 1 }),
       event('step/start', { turn: 1, step: 1 }, 1),
-      event('system/message', { turn: 1, step: 1, message: createSystemMessage('old', 'fixture') }, 2, { surfaceOp: 'append' }),
+      event('system/message', { turn: 1, step: 1, message: createSystemMessage('old') }, 2, { surfaceOp: 'append' }),
     ]],
     ['tool', [
       event('turn/start', { turn: 1 }),

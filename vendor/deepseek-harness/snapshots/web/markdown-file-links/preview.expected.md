@@ -1,6 +1,4 @@
 - text: {{cwd}}/other/example.txt
-- button "Line wrap" [pressed]:
-  - img
-- button "Read the file again":
-  - img
+- button "Line wrap" [pressed]
+- button "Read the file again"
 - text: other file

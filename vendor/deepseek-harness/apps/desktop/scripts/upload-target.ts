@@ -6,7 +6,8 @@ import type { DesktopPackageTargetName } from './package-target.ts'
 import { createDesktopCos } from './desktop-cos.ts'
 import { resolveDesktopUploadConfig } from './desktop-auto-update-environment.mjs'
 import { loadDesktopPackageEnvironment } from './desktop-package-environment.mjs'
-import { createDesktopUploadPlan } from './desktop-upload-plan.ts'
+import { createDesktopUploadPlan, type DesktopUploadPlan } from './desktop-upload-plan.ts'
+import { desktopReleaseTag, tagDesktopRelease } from './desktop-release-tag.ts'
 import { uploadDesktopRelease } from './desktop-upload-run.ts'
 
 const SUPPORTED_TARGETS = new Set<DesktopPackageTargetName>(['mac-arm64', 'mac-x64', 'win-x64'])
@@ -85,6 +86,33 @@ async function main(): Promise<void> {
   })
   process.stdout.write(`desktop upload: ${plan.target} ${plan.version} -> ${plan.publicUrl}\n`)
   await uploadDesktopRelease(plan, cos, resolve(import.meta.dirname, '../.desktop-build/upload-records'))
+  if (plan.environment === 'production') recordProductionRelease(plan)
+}
+
+/**
+ * Tag the commit an external release was packaged from, after its artifacts are public.
+ * @param plan Completed production upload.
+ */
+function recordProductionRelease(plan: DesktopUploadPlan): void {
+  const tag = desktopReleaseTag(plan.version)
+  if (plan.commit === undefined) {
+    process.stdout.write(`desktop upload: this package was built before builds recorded their commit; tag it by hand as ${tag}\n`)
+    return
+  }
+  if (plan.dirty === true) {
+    // A tag would name a commit whose tree is not what the users received.
+    process.stderr.write(`desktop upload: packaged from ${plan.commit} with uncommitted changes, so ${tag} was not created\n`)
+    return
+  }
+  const result = tagDesktopRelease({ version: plan.version, commit: plan.commit, repositoryRoot: resolve(import.meta.dirname, '../../..') })
+  if (result.status === 'failed') {
+    process.stderr.write(`desktop upload: the release is published but ${result.tag} was not recorded: ${result.detail ?? 'unknown error'}\n`)
+    if (result.recovery !== undefined) {
+      process.stderr.write(`desktop upload: record it with: ${result.recovery.join(' && ')}\n`)
+    }
+    return
+  }
+  process.stdout.write(`desktop upload: ${result.tag} ${result.status === 'created' ? 'records' : 'already recorded'} ${plan.commit}\n`)
 }
 
 if (process.argv[1] !== undefined && import.meta.filename === resolve(process.argv[1])) {

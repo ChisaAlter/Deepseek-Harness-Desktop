@@ -11,7 +11,7 @@ describe('Client inspect providers', () => {
     const ctx = new Context()
     const fiber = ctx.plugin(SlotRegistry)
     await fiber
-    const slots = ctx.slots as unknown as {
+    const slots = ctx.slots as {
       registerFactory(options: object, component: unknown): () => void
     }
     slots.registerFactory({

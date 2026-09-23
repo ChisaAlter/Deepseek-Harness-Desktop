@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import {
-  IconCodeOutline16, IconInspectOutline12, StateDot,
+  IconCodeOutlineRegular, IconInspectOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
@@ -81,7 +81,6 @@ export function CordisRunRow({
   const summary = card.errorSummary
     ?? (card.pluginId === null ? callId : `${card.pluginId}${card.packageId === null ? '' : ` · ${card.packageId}`}`)
   const showBusiness = reading === 'running' && key !== null
-
   return (
     <div
       className={css.card}
@@ -93,20 +92,14 @@ export function CordisRunRow({
       data-cordis-status={reading}
     >
       <div className={css.row}>
-        <span className={css.icon}>
-          {card.state === 'error'
-            ? <StateDot state="error" />
-            : card.state === 'stopped'
-              ? <StateDot state="warning" />
-              : <IconCodeOutline16 size={14} />}
-        </span>
+        <span className={css.icon}><IconCodeOutlineRegular size={14} /></span>
         <span className={css.title}>{t(card.mode === 'update' ? 'row.updateTitle' : 'row.runTitle')}</span>
         <span className={css.separator} aria-hidden />
         <span className={card.errorSummary === null ? css.summary : css.error}>{summary}</span>
         <span className={css.status}>{status}</span>
         {inspect !== undefined && (
           <button type="button" className={css.inspect} aria-label={t('action.inspect')} onClick={inspect}>
-            <IconInspectOutline12 />
+            <IconInspectOutlineRegular />
           </button>
         )}
       </div>

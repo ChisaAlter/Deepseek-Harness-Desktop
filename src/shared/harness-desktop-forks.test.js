@@ -233,7 +233,9 @@ test('assertDesktopForks throws when copy-ghostty-assets drops out of package.js
   assert.throws(() => assertDesktopForks(root, '0.1.0-rc.5'), /copy-ghostty-assets/);
 });
 
-test('assertDesktopForks accepts the current vendor tree at alpha.2', () => {
-  const vendor = path.join(__dirname, '..', '..', 'vendor', 'deepseek-harness');
-  assertDesktopForks(vendor, '0.1.6-alpha.2');
+test('assertDesktopForks accepts the current pinned vendor tree', () => {
+  const root = path.join(__dirname, '..', '..');
+  const vendor = path.join(root, 'vendor', 'deepseek-harness');
+  const pin = JSON.parse(fs.readFileSync(path.join(root, 'vendor', 'harness-upstream.json'), 'utf8'));
+  assertDesktopForks(vendor, pin.npm);
 });

@@ -28,14 +28,6 @@
   line-height: 18px;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--dsw-alias-state-warn-primary);
-}
-
 .body {
   display: flex;
   flex-direction: column;

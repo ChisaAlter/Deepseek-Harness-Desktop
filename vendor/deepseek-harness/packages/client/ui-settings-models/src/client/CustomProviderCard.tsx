@@ -3,12 +3,15 @@
  * gateway, a self-hosted server, or a provider newer than the installed
  * catalog.
  *
- * This is a create, not an edit, which is why it is its own card rather than
+ * This is a create, not an edit, which is why it is its own form rather than
  * the provider editor with extra fields: the route id is being *chosen* here,
- * and the settings address does not exist until it is. One `settings.mutate`
- * sets the whole profile at `providers.<route>`; the key travels separately
- * through `credentials/set` under the reference the profile records, exactly as
- * an existing provider's key does.
+ * and the settings address does not exist until it is. It renders as the
+ * custom-API panel of the section's add card; the card's mode switch names it
+ * when both modes are offered, and with the custom mode alone the card shows
+ * this form directly. One `settings.mutate` sets the whole profile at
+ * `providers.<route>`; the key travels separately through `credentials/set`
+ * under the reference the profile records, exactly as an existing provider's
+ * key does.
  *
  * The three fields a hand-declared route cannot default — endpoint, protocol,
  * and at least one model — are required here rather than at load, so the
@@ -20,7 +23,7 @@
  * wrong — the models under one provider disagree about what they accept.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { SettingsSelect } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -30,6 +33,7 @@ import { validateDeepSeekModels } from './DeepSeekModelsEditor.tsx'
 import { ModelListEditor } from './ModelListEditor.tsx'
 import type { ModelDraft } from './ModelListEditor.tsx'
 import { deriveKeyRef } from './store.ts'
+import { protocolLabel } from './protocol-label.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
@@ -76,6 +80,11 @@ export interface CustomProviderCardProps {
   readOnly: boolean
   /** Close the card; `changed` reports whether a provider was created. */
   onClose: (changed: boolean) => void
+  /**
+   * Called once per change with whether the create or the list's endpoint
+   * interrogation is in flight, so the owner can hold its surface still.
+   */
+  onBusyChange?: (busy: boolean) => void
 }
 
 /**
@@ -84,7 +93,7 @@ export interface CustomProviderCardProps {
  * @returns the creation card.
  */
 export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
-  const { taken, protocols, operations, t } = props
+  const { taken, protocols, operations, t, onBusyChange } = props
   // The write is checked against the revision on which this draft was opened.
   const [openedAt] = useState(() => props.revision)
   const [route, setRoute] = useState('')
@@ -94,6 +103,8 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
   const [keyDraft, setKeyDraft] = useState('')
   const [models, setModels] = useState<readonly ModelDraft[]>([])
   const [busy, setBusy] = useState(false)
+  const [listBusy, setListBusy] = useState(false)
+  useEffect(() => { onBusyChange?.(busy || listBusy) }, [busy, listBusy, onBusyChange])
   const [failure, setFailure] = useState<string | undefined>(undefined)
   /**
    * The profile write landed. Only the key write can still be outstanding, so
@@ -198,9 +209,6 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
 
   return (
     <div className={styles['editor']}>
-      <div className={styles['editorHeader']}>
-        <span className={styles['editorTitle']}>{t('customTitle')}</span>
-      </div>
       <div className={styles['field']}>
         <span className={styles['fieldLabel']}>{t('customRoute')}</span>
         <input
@@ -236,7 +244,9 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           className={styles['input']}
           type="text"
           value={baseURL}
-          placeholder={t('customBaseUrlPlaceholder')}
+          placeholder={t(protocol === 'anthropic-messages'
+            ? 'customAnthropicBaseUrlPlaceholder'
+            : 'customBaseUrlPlaceholder')}
           aria-label={t('baseUrl')}
           aria-invalid={baseUrlInvalid}
           disabled={profileDisabled}
@@ -251,8 +261,8 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           aria-label={t('customApi')}
           value={protocol}
           disabled={profileDisabled}
-          options={protocols.map(choice => ({ id: choice, label: choice }))}
           onChange={setProtocol}
+          options={protocols.map(choice => ({ id: choice, label: protocolLabel(t, choice) }))}
         />
       </div>
       <div className={styles['field']}>
@@ -289,6 +299,7 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
         operations={operations}
         t={t}
         disabled={profileDisabled}
+        onBusyChange={setListBusy}
       />
       {failure !== undefined ? <p className={styles['error']}>{failure}</p> : null}
       {/* Only the gates with something to say render; the route-id gate has its

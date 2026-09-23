@@ -13,20 +13,21 @@
     "src/client/controller.ts",
     "src/client/index.ts",
     "src/client/locales.ts",
-    "src/css-modules.d.ts",
-    "src/export-settings.ts"
+    "src/export-settings.ts",
+    "src/routes.ts",
+    "src/css-modules.d.ts"
   ],
   "references": [
     { "path": "../../../vendor/cordis" },
-    { "path": "../../client/locale" },
+    { "path": "../../client/locale/tsconfig.client.json" },
     { "path": "../../client/store" },
     { "path": "../../client/ui-commands" },
-    { "path": "../../client/ui-conversation" },
-    { "path": "../../client/ui-layout" },
+    { "path": "../../client/ui-conversation/tsconfig.client.json" },
+    { "path": "../../client/ui-message-feedback" },
     { "path": "../../client/ui-primitives" },
     { "path": "../../client/ui-renderer" },
     { "path": "../../client/ui-session" },
-    { "path": "../../client/ui-settings" },
+    { "path": "../../client/ui-settings/tsconfig.client.json" },
     { "path": "../../client/ui-slots" },
     { "path": "../../core/session" }
   ]

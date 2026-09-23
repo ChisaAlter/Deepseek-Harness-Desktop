@@ -1,166 +1,267 @@
-/** Per-tab Browser controller. */
-import type { BoundActions } from '@deepseek-ai/dsh-client-store'
+/** Carrier-independent tab commands and renderer-facing state. */
+import { createSnapshotStore, type BoundActions, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
-import { IframeImpl } from './BrowserFrame.ts'
-import type { BrowserFrame, BrowserFrameState } from './BrowserFrame.ts'
-import { BrowserNavigation } from './BrowserNavigation.ts'
-import type { BrowserTabState } from './BrowserNavigation.ts'
+import type { BrowserFrameState } from './BrowserFrame.ts'
+import type { BrowserPage, BrowserPageFactory } from './BrowserPage.ts'
+import { currentBrowserTarget, type BrowserTabState } from './BrowserPersistence.ts'
 import type { BrowserStore } from './store.ts'
-import { parseBrowserAddress } from './url.ts'
+import { parseBrowserAddress, type BrowserAddressFailure, type BrowserTarget } from './url.ts'
 
-/** Construction dependencies for one tab-scoped Browser controller. */
+/** Live tab state; navigation comes from its provider and draft validation stays local. */
+export interface BrowserControllerState {
+  readonly frame: BrowserFrameState
+  /** Saved address offered for explicit restoration before any page has been requested. */
+  readonly restoreTarget: BrowserTarget | undefined
+  readonly addressFailure: BrowserAddressFailure | undefined
+  readonly addressRevision: number
+}
+
+/** Construction inputs for one tab occurrence. */
 export interface BrowserControllerOptions {
   readonly tabId: TabId
   readonly signal: AbortSignal
   readonly applicationOrigin: string
-  readonly initial?: BrowserTabState
+  readonly initial: BrowserTabState | undefined
   readonly actions: BoundActions<BrowserStore>
+  readonly createPage: BrowserPageFactory
+  readonly openTab: (url: string) => void
 }
 
-/** Owns one Browser tab's URL state, loading lifecycle, and four navigation commands. */
-export class BrowserController {
-  /** Renderer-facing iframe and sandbox state. */
-  readonly frame: BrowserFrame
-  private readonly navigation: BrowserNavigation
+/** Owns input validation and page lifetime without inspecting the carrier type. */
+export class BrowserController implements HostObservable<BrowserControllerState> {
+  private readonly page: BrowserPage
+  private readonly store: SnapshotStore<BrowserControllerState>
+  private readonly unsubscribe: () => void
+  private actions: BoundActions<BrowserStore>
+  private checkpoint: BrowserTabState | undefined
+  private started = false
   private disposed = false
+  private disposal: Promise<void> | undefined
+  private readonly abort = (): void => { void this.dispose() }
+
+  /** @param options - identity, persistence, page factory and source-tab navigation. */
+  constructor(private readonly options: BrowserControllerOptions) {
+    this.actions = options.actions
+    this.checkpoint = options.initial
+    this.page = options.createPage({
+      initial: options.initial,
+      persist: (state) => {
+        if (this.disposed) return
+        this.checkpoint = state
+        this.actions.replace(options.tabId, state)
+      },
+      openRequested: (value) => {
+        if (this.disposed) return
+        const result = parseBrowserAddress(value, options.applicationOrigin)
+        if (!result.ok) { this.addressFailed(result.reason); return }
+        options.openTab(result.target.url)
+      },
+    })
+    this.store = createSnapshotStore({ frame: this.page.frame.getSnapshot(),
+      restoreTarget: currentBrowserTarget(this.checkpoint), addressFailure: undefined, addressRevision: 0 })
+    this.unsubscribe = this.page.frame.subscribe(() => {
+      if (this.disposed) return
+      const current = this.store.getSnapshot()
+      const frame = this.page.frame.getSnapshot()
+      const changed = frame.target?.url !== current.frame.target?.url
+      this.store.set({ frame, restoreTarget: frame.target === undefined ? currentBrowserTarget(this.checkpoint) : undefined,
+        addressFailure: changed ? undefined : current.addressFailure,
+        addressRevision: current.addressRevision + Number(changed) })
+    })
+    options.signal.addEventListener('abort', this.abort, { once: true })
+  }
+
+  /** @returns immutable state for the common toolbar. */
+  getSnapshot = (): BrowserControllerState => this.store.getSnapshot()
+  /** @param listener - state invalidation. @returns unsubscribe callback. */
+  subscribe = (listener: () => void): (() => void) => this.store.subscribe(listener)
 
   /**
-   * @param options - tab identity, persistence writer, URL origin, and lifetime.
+   * Attach the page without transferring ownership of its tab occurrence.
+   * @param viewportId - mounted content container.
+   * @returns physical attachment cleanup only.
    */
-  constructor(private readonly options: BrowserControllerOptions) {
-    this.navigation = new BrowserNavigation(options.initial)
-    this.frame = new IframeImpl(
-      () => { this.reload() },
-      (revision) => { this.frameLoaded(revision) },
-    )
-    options.signal.addEventListener('abort', () => { this.dispose() }, { once: true })
+  mount(viewportId: string): () => void {
+    this.publishSaved()
+    return this.page.presentation.mount(viewportId)
   }
 
   /**
-   * Validate and load one address, replacing a same-address load with Reload.
-   * @param value - address-bar or typed-tab value.
+   * Consume initial navigation once; a saved checkpoint alone never starts a page.
+   * @param initialUrl - explicit typed-open address, or absence.
+   */
+  start(initialUrl: string | undefined): void {
+    if (this.started || this.disposed) return
+    this.started = true
+    if (initialUrl !== undefined) this.loadUrl(initialUrl)
+  }
+
+  /** Load the saved address only after an explicit restore action. */
+  restore(): void {
+    const target = this.store.getSnapshot().restoreTarget
+    if (target !== undefined) this.loadUrl(target.url)
+  }
+
+  /**
+   * Validate an address before navigation, publishing invalid input for correction.
+   * @param value - address-bar or typed-open input.
    */
   loadUrl(value: string): void {
     if (this.disposed) return
     const parsed = parseBrowserAddress(value, this.options.applicationOrigin)
-    if (!parsed.ok) {
-      this.navigation.addressFailed(parsed.reason)
-      this.publish()
-      return
-    }
-    const current = BrowserNavigation.current(this.navigation.snapshot)
-    if (current?.url === parsed.target.url) {
-      this.reload()
-      return
-    }
-    this.start(this.navigation.navigate(parsed.target))
+    if (!parsed.ok) { this.addressFailed(parsed.reason); return }
+    this.command(() => { this.page.frame.loadUrl(parsed.target) })
   }
 
-  /** Move to the preceding application-known address when Web history remains usable. */
-  goBack(): void {
-    if (this.disposed) return
-    const request = this.navigation.back()
-    if (request !== undefined) this.start(request)
-  }
-
-  /** Move to the following application-known address when Web history remains usable. */
-  goForward(): void {
-    if (this.disposed) return
-    const request = this.navigation.forward()
-    if (request !== undefined) this.start(request)
-  }
-
-  /** Reload the last application-known address without adding history. */
+  /** Delegate Back to the page's navigation provider. */
+  goBack(): void { this.command(() => { this.page.frame.goBack() }) }
+  /** Delegate Forward to the page's navigation provider. */
+  goForward(): void { this.command(() => { this.page.frame.goForward() }) }
+  /** Restore a saved address, or reload the already requested page. */
   reload(): void {
-    if (this.disposed) return
-    const request = this.navigation.reload()
-    if (request !== undefined) this.start(request)
+    if (this.store.getSnapshot().restoreTarget !== undefined) this.restore()
+    else this.command(() => { this.page.frame.reload() })
   }
 
-  private start(request: NonNullable<BrowserTabState['request']>): void {
-    this.publish()
-    this.frame.clearDocument()
-    this.frame.setDocument({ target: request.target, src: request.target.url, revision: request.revision })
+  /**
+   * Apply the optional embedding-sandbox control; unsupported providers remain unchanged.
+   * @param enabled - whether to enforce the provider's embedding sandbox.
+   */
+  setSandbox(enabled: boolean): void {
+    const sandbox = this.page.frame.sandbox
+    if (sandbox !== undefined) this.command(() => { sandbox.setEnabled(enabled) })
   }
 
-  private frameLoaded(revision: number): void {
-    if (this.disposed) return
-    const previous = this.navigation.snapshot
-    this.navigation.frameLoaded(revision)
-    if (this.navigation.snapshot !== previous) this.publish()
-  }
+  /**
+   * Redirect future checkpoint writes to a replacement Session binding.
+   * @param actions - replacement persistence writer.
+   */
+  rebind(actions: BoundActions<BrowserStore>): void { this.actions = actions }
 
-  private publish(): void {
-    this.options.actions.replace(this.options.tabId, this.navigation.snapshot)
-  }
-
-  private dispose(): void {
+  /**
+   * Release the page and detach occurrence and state listeners.
+   * @returns after page teardown; repeated callers join the same disposal.
+   */
+  dispose(): Promise<void> {
+    if (this.disposal !== undefined) return this.disposal
     this.disposed = true
-    this.frame.clearDocument()
+    this.options.signal.removeEventListener('abort', this.abort)
+    this.unsubscribe()
+    this.disposal = this.page.frame.dispose()
+    return this.disposal
+  }
+
+  private publishSaved(): void {
+    if (this.checkpoint !== undefined) this.actions.replace(this.options.tabId, this.checkpoint)
+  }
+
+  private addressFailed(reason: BrowserAddressFailure): void {
+    this.store.set({ ...this.store.getSnapshot(), addressFailure: reason })
+  }
+
+  private command(run: () => void): void {
+    if (this.disposed) return
+    const current = this.store.getSnapshot()
+    this.store.set({ ...current, addressFailure: undefined, addressRevision: current.addressRevision + 1 })
+    run()
   }
 }
 
-/** Browser commands and keyed frame state injected into the tab body. */
+/** Values available once a Sidebar body has committed its content container. */
+export interface BrowserMountRequest {
+  readonly tabId: TabId
+  readonly signal: AbortSignal
+  readonly viewportId: string
+  readonly applicationOrigin: string
+  readonly initial: BrowserTabState | undefined
+  readonly initialUrl: string | undefined
+  readonly openTab: (url: string) => void
+}
+
+/** Plain Slot callbacks and a framework-bound state source, not a desktop protocol. */
 export interface BrowserInjected {
   readonly keyedHooks: {
-    readonly browserFrame: (key: string) => HostObservable<BrowserFrameState> | undefined
+    readonly browserState: (key: string) => HostObservable<BrowserControllerState> | undefined
   }
-  /**
-   * @param tabId - tab occurrence.
-   * @param signal - occurrence lifetime.
-   * @param applicationOrigin - current application origin.
-   * @param initial - persisted tab state.
-   */
-  mount(tabId: TabId, signal: AbortSignal, applicationOrigin: string, initial?: BrowserTabState): void
-  /** @param tabId - tab occurrence. @param value - address-bar or typed-open value. */
+  /** @param request - committed tab and container. @returns ends physical attachment without closing the tab. */
+  mount(request: BrowserMountRequest): () => void
+  /** @returns after every page has been disposed. */
+  dispose(): Promise<void>
+  /** @param actions - writer from a recreated Session binding. */
+  rebind(actions: BoundActions<BrowserStore>): void
+  /** @param tabId - owning tab. @param value - address input. */
   loadUrl(tabId: TabId, value: string): void
-  /** @param tabId - tab occurrence. */
+  /** @param tabId - tab whose saved address the user requested to restore. */
+  restore(tabId: TabId): void
+  /** @param tabId - owning tab. */
   goBack(tabId: TabId): void
-  /** @param tabId - tab occurrence. */
+  /** @param tabId - owning tab. */
   goForward(tabId: TabId): void
-  /** @param tabId - tab occurrence. */
+  /** Restore a saved address or reload its page. @param tabId - owning tab. */
   reload(tabId: TabId): void
-  /** @param tabId - tab occurrence. */
-  toggleSandbox(tabId: TabId): void
-  /** @param tabId - tab occurrence. @param revision - rendered document revision. */
-  reportLoaded(tabId: TabId, revision: number): void
-  /** @param tabId - tab occurrence. @param revision - rendered document revision that emitted `error`. */
-  reportLoadFailed(tabId: TabId, revision: number): void
+  /** @param tabId - owning tab. @param enabled - provider's optional sandbox control. */
+  setSandbox(tabId: TabId, enabled: boolean): void
 }
 
 /**
- * Bind Browser controllers to one Session and its persistence writer.
- * @param actions - Browser store mutation face.
- * @returns a per-tab controller registry exposed as plain Slot callbacks.
+ * Own tab-occurrence controllers behind Session-scoped callbacks.
+ * @param actions - persisted view-state writer.
+ * @param createPage - composition-selected provider.
+ * @param isTabOpen - authoritative layout membership, independent of mounted bodies and plugin lifetime.
+ * @returns tab callbacks.
  */
-export function createBrowserControllers(
-  actions: BoundActions<BrowserStore>,
-): BrowserInjected {
-  const controllers = new Map<TabId, { readonly signal: AbortSignal; readonly controller: BrowserController }>()
-  const controller = (tabId: TabId): BrowserController | undefined => controllers.get(tabId)?.controller
+export function createBrowserControllers(actions: BoundActions<BrowserStore>, createPage: BrowserPageFactory,
+  isTabOpen: (tabId: TabId) => boolean): BrowserInjected {
+  let currentActions = actions
+  const controllers = new Map<TabId, {
+    readonly signal: AbortSignal
+    readonly controller: BrowserController
+    readonly forget: () => void
+  }>()
+  const controller = (id: TabId): BrowserController | undefined => controllers.get(id)?.controller
   return {
-    keyedHooks: { browserFrame: key => controller(key as TabId)?.frame },
-    mount(tabId, signal, applicationOrigin, initial) {
-      const held = controllers.get(tabId)
-      if (held?.signal === signal) return
-      const created = new BrowserController({
-        tabId, signal, applicationOrigin, actions,
-        ...(initial === undefined ? {} : { initial }),
-      })
-      controllers.set(tabId, { signal, controller: created })
-      signal.addEventListener('abort', () => {
-        if (controllers.get(tabId)?.controller !== created) return
-        controllers.delete(tabId)
-        actions.forget(tabId)
-      }, { once: true })
+    keyedHooks: { browserState: key => controller(key as TabId) },
+    mount(request) {
+      const { tabId, signal } = request
+      if (signal.aborted) return () => {}
+      let held = controllers.get(tabId)
+      if (held?.signal !== signal) {
+        if (held !== undefined) {
+          held.signal.removeEventListener('abort', held.forget)
+          void held.controller.dispose()
+        }
+        const created = new BrowserController({ ...request, actions: currentActions, createPage })
+        const forget = (): void => {
+          controllers.delete(tabId)
+          // Plugin unload also aborts occurrences; only layout removal deletes saved navigation.
+          if (!isTabOpen(tabId)) currentActions.forget(tabId)
+        }
+        held = { signal, controller: created, forget }
+        controllers.set(tabId, held)
+        signal.addEventListener('abort', forget, { once: true })
+      }
+      const hide = held.controller.mount(request.viewportId)
+      held.controller.start(request.initialUrl)
+      return hide
     },
-    loadUrl: (tabId, value) => { controller(tabId)?.loadUrl(value) },
-    goBack: (tabId) => { controller(tabId)?.goBack() },
-    goForward: (tabId) => { controller(tabId)?.goForward() },
-    reload: (tabId) => { controller(tabId)?.reload() },
-    toggleSandbox: (tabId) => { controller(tabId)?.frame.toggleSandbox() },
-    reportLoaded: (tabId, revision) => { controller(tabId)?.frame.reportLoaded(revision) },
-    reportLoadFailed: (tabId, revision) => { controller(tabId)?.frame.reportLoadFailed(revision) },
+    dispose: async () => {
+      const pending = [...controllers.values()].map(({ signal, controller, forget }) => {
+        signal.removeEventListener('abort', forget)
+        return controller.dispose()
+      })
+      controllers.clear()
+      await Promise.all(pending)
+    },
+    rebind: (actions) => {
+      currentActions = actions
+      for (const { controller } of controllers.values()) controller.rebind(actions)
+    },
+    loadUrl: (id, value) => { controller(id)?.loadUrl(value) },
+    restore: (id) => { controller(id)?.restore() },
+    goBack: (id) => { controller(id)?.goBack() },
+    goForward: (id) => { controller(id)?.goForward() },
+    reload: (id) => { controller(id)?.reload() },
+    setSandbox: (id, enabled) => { controller(id)?.setSandbox(enabled) },
   }
 }

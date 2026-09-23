@@ -348,17 +348,32 @@ describe('worktree-local Lefthook installer', { timeout: 90_000 }, () => {
   it('waits for a concurrent installer to finish publishing its lock record', async () => {
     const fixture = createFixture()
     const lockPath = installLockPath(fixture)
+    const publicationBarrier = join(fixture.container, 'lock-publication')
+    const observationBarrier = join(fixture.container, 'lock-observation')
     const publishing = runInstaller(fixture, fixture.main, {
-      DSH_TEST_LEFTHOOK_LOCK_WRITE_DELAY_MS: '200',
+      DSH_TEST_LEFTHOOK_LOCK_PUBLISH_BARRIER: publicationBarrier,
     })
-    await waitForPath(lockPath)
-    expect(readFileSync(lockPath, 'utf8')).toBe('')
-
-    const waiting = runInstaller(fixture, fixture.linked)
-    const results = await Promise.all([publishing, waiting])
-
-    for (const result of results) expect(result.status, result.stderr).toBe(0)
-    expect(existsSync(lockPath)).toBe(false)
+    let waiting: Promise<CommandResult> | undefined
+    const release = (): void => {
+      writeFileSync(`${publicationBarrier}.release`, '')
+      writeFileSync(`${observationBarrier}.release`, '')
+    }
+    try {
+      await waitForPath(`${publicationBarrier}.ready`)
+      expect(readFileSync(lockPath, 'utf8')).toBe('')
+      waiting = runInstaller(fixture, fixture.linked, {
+        DSH_TEST_LEFTHOOK_LOCK_OBSERVE_BARRIER: observationBarrier,
+      })
+      await waitForPath(`${observationBarrier}.ready`)
+      expect(readFileSync(lockPath, 'utf8')).toBe('')
+      release()
+      const results = await Promise.all([publishing, waiting])
+      for (const result of results) expect(result.status, result.stderr).toBe(0)
+      expect(existsSync(lockPath)).toBe(false)
+    } finally {
+      release()
+      await Promise.allSettled([publishing, ...waiting === undefined ? [] : [waiting]])
+    }
   })
 
   it('repairs its owned absolute hook path after the checkout moves', async () => {

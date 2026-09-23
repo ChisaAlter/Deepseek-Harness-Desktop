@@ -45,7 +45,7 @@ export function installDesktopUpdateTaskControl(ctx: Context): (action: 'inspect
     const liveAgents = agents.list()
     return liveAgents.some(agent => agent.status === 'running'
       || agent.inbox.nextTurn.length > 0 || agent.inbox.nextStep.length > 0)
-      || [undefined, ...liveAgents].some(agent => jobs.list(agent)
+      || [undefined, ...liveAgents].some(agent => jobs.list(agent?.id)
         .some(job => job.status === 'running' || job.status === 'stopping'))
   }
 }

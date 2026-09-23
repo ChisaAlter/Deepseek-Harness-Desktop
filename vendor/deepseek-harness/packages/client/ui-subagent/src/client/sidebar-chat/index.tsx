@@ -73,7 +73,7 @@ export function parseSubagentChatAddress(value: string): SubagentAddress | undef
   if (parts.length !== 2 || parts[0] !== 'session') return undefined
   const parentSessionId = url.searchParams.get('parent')
   const mode = url.searchParams.get('mode')
-  if (parentSessionId === null || parentSessionId === '' || (mode !== 'one-shot' && mode !== 'continuable')) {
+  if (parentSessionId === null || parentSessionId === '' || (mode !== 'one-shot' && mode !== 'continuable' && mode !== 'unknown')) {
     return undefined
   }
   try {
@@ -105,8 +105,6 @@ function subagentChatResourceProvider(sessions: ISessions): ResourceProvider<'su
     async *open(resourceAddress, { signal }) {
       const address = parseSubagentChatAddress(resourceAddress)
       if (address === undefined) throw new Error(`ui-subagent: invalid chat resource address "${resourceAddress}"`)
-      if (isAbortRequested(signal)) return
-      await sessions.refreshSubagents(address.parentSessionId)
       if (isAbortRequested(signal)) return
       const reference = sessions.retain(address, { source: 'sidebarChat', signal })
       try {

@@ -30,7 +30,7 @@ export function apply(ctx: Context): void {
     description:
       'Send a message to a direct continuable child by its agent id. If you are a resident continuable child, '
       + 'you may also target your direct parent. If the target is still working, the message steers its nearest step; '
-      + 'if it is idle, the message starts a turn. This call returns no answer from the agent — only confirmation '
+      + 'if it is inactive, the message starts or resumes a turn. This call returns no answer from the agent — only confirmation '
       + 'that the message was delivered. A failure means the message was NOT delivered.',
     parameters: {
       agent_id: {

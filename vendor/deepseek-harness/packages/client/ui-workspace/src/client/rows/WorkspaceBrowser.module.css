@@ -1,6 +1,6 @@
 .root {
   --dsh-session-list-edge-inset: var(--dsh-sidebar-inline-padding);
-  --dsh-session-list-scrollbar-width: 8px;
+  --dsh-session-list-scrollbar-width: 5px;
   --dsh-session-list-scrollbar-offset: 2px;
   flex: 1;
   min-height: 0;
@@ -32,6 +32,12 @@
 
 .iconButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* View-options dropdown card: labels are short, so a content-sized card reads
+   cramped and its width shifts with the locale — hold a stable floor. */
+.viewOptionsMenu {
+  min-width: 200px;
 }
 
 /* Section header: title, an inline search control, and the two trailing
@@ -341,7 +347,7 @@
 }
 
 /* List: the only scrolling region. Block children keep their design heights
-   under content overflow. The 2px edge offset, stable 8px themed scrollbar,
+   under content overflow. The 2px edge offset, stable 5px themed scrollbar,
    and remaining padding equal the shell's right inset, with or without
    overflow, so moving the bar does not move the rows. */
 .list {
@@ -368,16 +374,64 @@
   margin-top: 2px;
 }
 
-.searchStatus,
-.searchWarning {
+.searchStatus {
   padding: 10px 12px;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
 
-.searchWarning {
-  color: var(--dsw-alias-label-secondary);
+/* Pending content search: skeleton rows on searchResultRow metrics — a round
+   leading glyph beside a title bar and a wider snippet bar, breathing through
+   opacity (same pulse as the input-trigger menu skeleton). */
+.skeletonRow {
+  display: flex;
+  /* Top alignment lines the 16px dot up with the equally tall title bar;
+     the paddings center the 35px content in the 48px row. */
+  align-items: flex-start;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 6px 8px 7px;
+}
+
+.skeletonDot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.skeletonBars {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeletonDot,
+.skeletonBar {
+  background: var(--dsw-alias-bg-skeleton);
+  animation: search-skeleton 2s cubic-bezier(0.36, 0, 0.64, 1) infinite;
+}
+
+.skeletonBar {
+  width: 65%;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeletonBarWide {
+  width: 90%;
+  height: 13px;
+}
+
+@keyframes search-skeleton {
+  0% { opacity: 1; }
+  40% { opacity: 0.6; }
+  80%, 100% { opacity: 1; }
 }
 
 /* One workspace section: header row + a compact expanded session run. */
@@ -502,8 +556,26 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* The stop-and-archive dialog's list of work that will be stopped. */
+.archiveActivity {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.archiveActivity li {
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wide {
+    animation: none;
+  }
+
+  .skeletonDot,
+  .skeletonBar {
     animation: none;
   }
 

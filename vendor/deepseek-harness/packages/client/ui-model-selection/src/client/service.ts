@@ -28,7 +28,7 @@ declare module '@deepseek-ai/cordis' {
 
 /** Live mutable state in one holder (service methods run behind the caller-ctx tracker). */
 interface LiveState {
-  /** Per-session directories; entries are deleted by their scope disposer. */
+  /** Directories keyed by Client binding, removed by their scope disposer. */
   readonly directories: WeakMapWithValues<SessionBinding, ModelDirectory>
 }
 
@@ -213,8 +213,9 @@ export class ModelDirectoryResolver extends Service {
       // republishes, so consumers never hold a stale route or a stale model
       // list: additions and removals in the directory flow through.
       const publish = (): void => {
+        if (sessions.binding(sessionId) !== binding) return
         const snapshot = directory.store.getSnapshot()
-        conversation.blocks.set(sessionId, snapshot.routable === false
+        conversation.blocks.set(sessionId, directory.store.getSnapshot().routable === false
           ? { reason: this.blockReason() }
           : undefined)
         conversation.modelFacts.set(sessionId, { provider: snapshot.current?.provider ?? null })
@@ -226,6 +227,8 @@ export class ModelDirectoryResolver extends Service {
         const stop = directory.store.subscribe(publish)
         return () => {
           stop()
+          const current = sessions.binding(sessionId)
+          if (current !== undefined && current !== binding && live.directories.get(current) !== undefined) return
           conversation.blocks.set(sessionId, undefined)
           conversation.modelFacts.set(sessionId, { provider: null })
           conversation.modelCatalog?.set(sessionId, [])

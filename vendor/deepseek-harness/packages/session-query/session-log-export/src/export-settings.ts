@@ -3,7 +3,7 @@
 import z from '@deepseek-ai/schemastery'
 
 /** Settings namespace owned by the Session-log export plugin. */
-export const SESSION_LOG_EXPORT_SETTINGS_NAMESPACE = 'session-log-export'
+export const SESSION_LOG_EXPORT_SETTINGS_NAMESPACE = 'session-log-download'
 
 /** Field carrying whether the titlebar Session log button is drawn. */
 export const TITLEBAR_ACTION_FIELD = 'titlebarAction'

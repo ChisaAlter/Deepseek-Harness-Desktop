@@ -36,7 +36,7 @@ describe('plan history resource', () => {
     expect(b.page).toHaveBeenCalledWith({ address: { kind: 'session', sessionId: 'session' }, throughSeq: 100, beforeSeq: 80 }, expect.any(AbortSignal))
     expect(b.closed).toHaveBeenCalledOnce()
   })
-  it.each(['one-shot', 'continuable'] as const)('restores a %s subagent plan with its complete parent address on every page', async (mode) => {
+  it.each(['one-shot', 'continuable', 'unknown'] as const)('restores a %s subagent plan with its complete parent address on every page', async (mode) => {
     const b = setup([{ type: 'event', event: { type: 'user/message', seq: 80, data: {} } }], true)
     const address = `dsh-resource://plan/subagent/parent/child/${mode}/call`
     const session = { kind: 'subagent', parentSessionId: 'parent', childSessionId: 'child', mode }
