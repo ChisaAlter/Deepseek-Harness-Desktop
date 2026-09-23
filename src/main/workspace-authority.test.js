@@ -70,6 +70,38 @@ test('resolveInside refuses traversal and absolute targets', () => {
   }
 });
 
+test('resolveInside allows real names that merely begin with two dots', () => {
+  // `path.relative` returns `..notes` for a legitimate child named `..notes`.
+  // A bare `startsWith('..')` rejects it as traversal and also rejects deeper
+  // variants such as `sub/..cache`. Only `..` and `../` are traversal.
+  const root = makeRoot();
+  try {
+    fs.writeFileSync(path.join(root, '..notes'), 'note\n');
+    fs.mkdirSync(path.join(root, 'sub'));
+    fs.writeFileSync(path.join(root, 'sub', '..cache'), 'cache\n');
+    fs.mkdirSync(path.join(root, '..dir'));
+    fs.writeFileSync(path.join(root, '..dir', 'inner.txt'), 'inner\n');
+    const authority = createWorkspaceAuthority({ workspace: root });
+
+    assert.equal(authority.resolveInside(root, '..notes'), path.join(canonical(root), '..notes'));
+    assert.equal(
+      authority.resolveInside(root, path.join('sub', '..cache')),
+      path.join(canonical(root), 'sub', '..cache'),
+    );
+    assert.equal(
+      authority.resolveInside(root, path.join('..dir', 'inner.txt')),
+      path.join(canonical(root), '..dir', 'inner.txt'),
+    );
+
+    // Real traversal is still refused.
+    assert.equal(authority.resolveInside(root, '..'), null);
+    assert.equal(authority.resolveInside(root, path.join('..', 'outside.txt')), null);
+    assert.equal(authority.resolveInside(root, path.join('sub', '..', '..', 'outside.txt')), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 /** Best-effort directory link: junction on Windows (no privilege needed), dir symlink elsewhere. */
 function makeDirLink(target, link) {
   const type = process.platform === 'win32' ? 'junction' : 'dir';
@@ -134,6 +166,119 @@ test('resolveInside keeps directory links that stay inside the workspace', (t) =
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveInside refuses .git reached through an innocuously named link', (t) => {
+  // The lexical `.git` guard is not enough: a link named `notes` that points at
+  // the repository metadata carries no `.git` segment in the request, so a save
+  // would land in `.git/hooks/…` and run on the next git invocation.
+  const root = makeRoot();
+  try {
+    fs.mkdirSync(path.join(root, '.git', 'hooks'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.git', 'hooks', 'pre-commit'), 'sentinel\n');
+    fs.writeFileSync(path.join(root, '.git', 'config'), 'sentinel-config\n');
+    try {
+      makeDirLink(path.join(root, '.git'), path.join(root, 'notes'));
+      // Some hosts only let directory links inside a root be created as file
+      // links, so fall back rather than silently skipping the assertion.
+      fs.symlinkSync(path.join(root, '.git', 'config'), path.join(root, 'config-link'));
+    } catch (error) {
+      t.skip(`directory links unavailable: ${error.code ?? error.message}`);
+      return;
+    }
+    const authority = createWorkspaceAuthority({ workspace: root });
+    assert.equal(authority.resolveInside(root, path.join('notes', 'hooks', 'pre-commit')), null);
+    assert.equal(authority.resolveInside(root, path.join('notes', 'config')), null);
+    assert.equal(authority.resolveInside(root, 'config-link'), null);
+    // The innocuous link itself stays browsable rather than disappearing.
+    assert.equal(authority.resolveInside(root, 'notes'), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveInside refuses .git spelled with mixed case and separators', () => {
+  const root = makeRoot();
+  try {
+    fs.mkdirSync(path.join(root, '.git', 'hooks'), { recursive: true });
+    const authority = createWorkspaceAuthority({ workspace: root });
+    for (const rel of ['.git', '.GIT', '.Git/hooks/pre-commit', 'sub/.git/config', '.git\\config']) {
+      assert.equal(authority.resolveInside(root, rel), null, `${rel} 必须被拒绝`);
+    }
+    // Ordinary names that merely start with `.git` keep working.
+    fs.writeFileSync(path.join(root, '.gitignore'), 'dist/\n');
+    assert.notEqual(authority.resolveInside(root, '.gitignore'), null);
+    assert.notEqual(authority.resolveInside(root, path.join('src', 'git.txt')), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveAuthorizedCwd refuses a cwd anchored inside .git', (t) => {
+  // The `.git` rule must be anchored to the trusted root, not to whichever
+  // base the caller picked. Otherwise `writeFile(<root>/.git, 'hooks/x')`
+  // produces a relative path with no `.git` segment and the metadata
+  // directory becomes writable again.
+  const root = makeRoot();
+  try {
+    fs.mkdirSync(path.join(root, '.git', 'hooks'), { recursive: true });
+    const authority = createWorkspaceAuthority({ workspace: root });
+
+    assert.equal(authority.resolveAuthorizedCwd(path.join(root, '.git')), null);
+    assert.equal(authority.resolveAuthorizedCwd(path.join(root, '.git', 'hooks')), null);
+    assert.equal(authority.resolveInside(path.join(root, '.git'), 'x'), null);
+
+    // An innocuously named alias must not launder the metadata directory.
+    let aliased = false;
+    try {
+      makeDirLink(path.join(root, '.git'), path.join(root, 'notes'));
+      aliased = true;
+    } catch { /* directory links unavailable on this host */ }
+    if (aliased) {
+      assert.equal(authority.resolveAuthorizedCwd(path.join(root, 'notes')), null);
+      assert.equal(authority.resolveInside(path.join(root, 'notes'), 'config'), null);
+    }
+
+    // Ordinary nested project cwds keep working.
+    fs.mkdirSync(path.join(root, 'src', 'nested'), { recursive: true });
+    assert.equal(
+      authority.resolveAuthorizedCwd(path.join(root, 'src', 'nested')),
+      path.join(canonical(root), 'src', 'nested'),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveInside refuses a dangling link instead of treating it as absent', (t) => {
+  // realpath also fails for a link whose destination does not exist. Folding
+  // that failure into "path not created yet" would hand a later write a path
+  // that still follows the link.
+  const root = makeRoot();
+  const outside = makeRoot();
+  try {
+    let linked = false;
+    try {
+      fs.symlinkSync(path.join(outside, 'new-file.txt'), path.join(root, 'note-link'));
+      linked = true;
+    } catch { /* file links unavailable on this host */ }
+    if (!linked) {
+      t.skip('file links unavailable on this host');
+      return;
+    }
+    const authority = createWorkspaceAuthority({ workspace: root });
+    assert.equal(authority.resolveInside(root, 'note-link'), null);
+    assert.equal(authority.resolveInside(root, path.join('note-link', 'child.txt')), null);
+
+    // A genuinely missing name stays a valid creation target.
+    assert.equal(
+      authority.resolveInside(root, 'brand-new.txt'),
+      path.join(canonical(root), 'brand-new.txt'),
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
   }
 });
 

@@ -2,9 +2,11 @@
 export interface PtyShell {
   ptyCreate?: (input: { cwd: string }) => Promise<{ id: string }>
   ptyWrite?: (id: string, data: string) => Promise<void>
+  /** Cumulative acknowledgement: frame `seq` and every earlier frame were consumed. */
+  ptyAck?: (id: string, seq: number) => Promise<void>
   ptyResize?: (id: string, cols: number, rows: number) => Promise<void>
   ptyKill?: (id: string) => Promise<void>
-  onPtyData?: (handler: (payload: { id: string; data: string }) => void) => () => void
+  onPtyData?: (handler: (payload: { id: string; data: string; seq: number }) => void) => () => void
   onPtyExit?: (handler: (payload: { id: string; code: number }) => void) => () => void
 }
 
@@ -12,9 +14,11 @@ export interface PtyShell {
 export interface TerminalShellInjected {
   ptyCreate: (input: { cwd: string }) => Promise<{ id: string }>
   ptyWrite: (id: string, data: string) => Promise<void>
+  /** Cumulative acknowledgement: frame `seq` and every earlier frame were consumed. */
+  ptyAck: (id: string, seq: number) => Promise<void>
   ptyResize: (id: string, cols: number, rows: number) => Promise<void>
   ptyKill: (id: string) => Promise<void>
-  onPtyData: (handler: (payload: { id: string; data: string }) => void) => () => void
+  onPtyData: (handler: (payload: { id: string; data: string; seq: number }) => void) => () => void
   onPtyExit: (handler: (payload: { id: string; code: number }) => void) => () => void
   toggleTerminalDrawer: () => void
   setTerminalDrawer: (px: number) => void
@@ -35,7 +39,7 @@ function unavailable(): Promise<{ id: string }> {
  */
 export function readPtyShell(): Pick<
   TerminalShellInjected,
-  'ptyCreate' | 'ptyWrite' | 'ptyResize' | 'ptyKill' | 'onPtyData' | 'onPtyExit'
+  'ptyCreate' | 'ptyWrite' | 'ptyAck' | 'ptyResize' | 'ptyKill' | 'onPtyData' | 'onPtyExit'
 > {
   /* v8 ignore next -- browser-only module; Node coverage never sees a missing window. */
   const shell = typeof window === 'undefined'
@@ -44,6 +48,7 @@ export function readPtyShell(): Pick<
   return {
     ptyCreate: input => shell?.ptyCreate?.(input) ?? unavailable(),
     ptyWrite: (id, data) => shell?.ptyWrite?.(id, data) ?? Promise.resolve(),
+    ptyAck: (id, seq) => shell?.ptyAck?.(id, seq) ?? Promise.resolve(),
     ptyResize: (id, cols, rows) => shell?.ptyResize?.(id, cols, rows) ?? Promise.resolve(),
     ptyKill: id => shell?.ptyKill?.(id) ?? Promise.resolve(),
     onPtyData: handler => shell?.onPtyData?.(handler) ?? (() => {}),

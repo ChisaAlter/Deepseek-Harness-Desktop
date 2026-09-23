@@ -41,6 +41,13 @@ const {
   DSH_WHALE_END,
 } = require('../src/main/dsh-whale-desktop');
 const {
+  ensureDesktopDshRemote,
+  DSH_REMOTE_PACKAGE,
+  DSH_REMOTE_INSERT_ID,
+  DSH_REMOTE_BEGIN,
+  DSH_REMOTE_END,
+} = require('../src/main/dsh-remote-desktop');
+const {
   ensureSessionSearchOverlay,
 } = require('../src/main/session-search-overlay');
 
@@ -69,6 +76,7 @@ const USAGE_ID = 'usage-stats';
 const MARKET_ID = DSH_MARKET_INSERT_ID;
 const BOT_ID = DSHBOT_INSERT_ID;
 const WHALE_ID = DSH_WHALE_INSERT_ID;
+const REMOTE_ID = DSH_REMOTE_INSERT_ID;
 const SESSION_SEARCH_ID = 'session-query-sqlite';
 const DUMP_TIMEOUT_MS = 120_000;
 
@@ -115,6 +123,18 @@ const LEGACY_DSH_WHALE_BLOCK = [
   `    - id: ${WHALE_ID}`,
   `      name: ${JSON.stringify(DSH_WHALE_PACKAGE)}`,
   DSH_WHALE_END,
+  '',
+].join('\n');
+
+// No desktop version ever upserted a dsh-remote managed block; the fixture
+// still seeds one so the contract proves the strip keeps working if such a
+// row ever lands in the user-owned patch file.
+const LEGACY_DSH_REMOTE_BLOCK = [
+  DSH_REMOTE_BEGIN,
+  '- insert:',
+  `    - id: ${REMOTE_ID}`,
+  `      name: ${JSON.stringify(DSH_REMOTE_PACKAGE)}`,
+  DSH_REMOTE_END,
   '',
 ].join('\n');
 
@@ -211,6 +231,33 @@ function writeDshWhaleFixture(home) {
 }
 
 /**
+ * Minimal first-party dsh-remote fixture: same contract as the dshbot
+ * fixture — the REAL ensureDesktopDshRemote junctions it and emits the
+ * overlay. The remote row is asserted exactly-once when its overlay rides
+ * `--patch` (production gates the overlay on remoteWorkspaceEnabled, default ON).
+ * @param {string} home - the throwaway DSH_HOME.
+ * @returns {string} the fixture source directory.
+ */
+function writeDshRemoteFixture(home) {
+  const dir = path.join(home, 'fixtures', 'dsh-remote');
+  fs.mkdirSync(path.join(dir, 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    name: DSH_REMOTE_PACKAGE,
+    version: '0.0.0-contract',
+    type: 'module',
+    main: './lib/index.js',
+    exports: {
+      '.': './lib/index.js',
+      './cordis.patch.yml': './cordis.patch.yml',
+    },
+    dependencies: {},
+  }, null, 2), 'utf8');
+  fs.writeFileSync(path.join(dir, 'lib', 'index.js'), 'export function apply() {}\n', 'utf8');
+  fs.writeFileSync(path.join(dir, 'cordis.patch.yml'), `- insert:\n    - id: ${REMOTE_ID}\n      name: ${JSON.stringify(DSH_REMOTE_PACKAGE)}\n`, 'utf8');
+  return dir;
+}
+
+/**
  * Pure verdict on one dump-config round. The positive assertion comes first:
  * an empty or truncated dump must fail on the missing desktop rows, never
  * pass because the canary also vanished with everything else. Exactly one
@@ -231,6 +278,7 @@ function composeContractProblems(round, stdout) {
     [MARKET_ID, '桌面内置市场'],
     [BOT_ID, '桌面内置 dshbot'],
     [WHALE_ID, '桌面内置 dsh-whale'],
+    [REMOTE_ID, '桌面内置 dsh-remote'],
   ];
   for (const [id, label] of requiredRows) {
     const count = countRows(text, id);
@@ -310,7 +358,7 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
     const stalePlaceholderHref = 'file:///stale/desktop-plugins/install-dsh-plugin/install-dsh-plugin.mjs';
     fs.writeFileSync(
       path.join(profileDir, 'cordis.patch.yml'),
-      `${CANARY_PATCH}\n${LEGACY_MANAGED_BLOCK(stalePlaceholderHref)}\n${LEGACY_DSH_IM_BLOCK}\n${LEGACY_DSHBOT_BLOCK}\n${LEGACY_DSH_WHALE_BLOCK}`,
+      `${CANARY_PATCH}\n${LEGACY_MANAGED_BLOCK(stalePlaceholderHref)}\n${LEGACY_DSH_IM_BLOCK}\n${LEGACY_DSHBOT_BLOCK}\n${LEGACY_DSH_WHALE_BLOCK}\n${LEGACY_DSH_REMOTE_BLOCK}`,
       'utf8',
     );
     const ensure = ensureDesktopInstallPlugin({ profileDir });
@@ -348,13 +396,20 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
     if (!whaleEnsure || whaleEnsure.ok !== true) {
       throw new Error(`skip compose 契约门禁：ensureDesktopDshWhale 失败（${(whaleEnsure && whaleEnsure.error) || 'unknown'}）`);
     }
+    // The remote overlay composes on every start while remoteWorkspaceEnabled is on
+    // (default ON) — the contract proves the enabled path mounts exactly once.
+    const remoteEnsure = ensureDesktopDshRemote({ sourceDir: writeDshRemoteFixture(home), profileDir, enabled: true });
+    if (!remoteEnsure || remoteEnsure.ok !== true) {
+      throw new Error(`skip compose 契约门禁：ensureDesktopDshRemote 失败（${(remoteEnsure && remoteEnsure.error) || 'unknown'}）`);
+    }
     const searchEnsure = ensureSessionSearchOverlay({ profileDir, dshHome: home });
     if (!searchEnsure || searchEnsure.ok !== true) {
       throw new Error(`skip compose 契约门禁：ensureSessionSearchOverlay 失败（${(searchEnsure && searchEnsure.error) || 'unknown'}）`);
     }
     const migrated = fs.readFileSync(path.join(profileDir, 'cordis.patch.yml'), 'utf8');
     if (migrated.includes(DESKTOP_INSTALL_BEGIN) || migrated.includes(DSH_IM_BEGIN)
-      || migrated.includes(DSHBOT_BEGIN) || migrated.includes(DSH_WHALE_BEGIN)) {
+      || migrated.includes(DSHBOT_BEGIN) || migrated.includes(DSH_WHALE_BEGIN)
+      || migrated.includes(DSH_REMOTE_BEGIN)) {
       throw new Error('skip compose 契约门禁：受管块迁移失败——cordis.patch.yml 仍含桌面受管块');
     }
     if (!migrated.includes(CANARY_ID)) {
@@ -376,6 +431,7 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
       marketEnsure.overlayFile,
       botEnsure.overlayFile,
       whaleEnsure.overlayFile,
+      remoteEnsure.overlayFile,
     ];
     const fullOverlayFiles = [
       ensure.overlayFile,
@@ -385,6 +441,7 @@ async function runSkipComposeContract(harnessRoot, options = {}) {
       marketEnsure.overlayFile,
       botEnsure.overlayFile,
       whaleEnsure.overlayFile,
+      remoteEnsure.overlayFile,
     ];
     for (const { round, args } of composeContractRounds(binJs, overlayFiles, fullOverlayFiles)) {
       log(`dump-config ${round} 轮…`);
@@ -422,6 +479,7 @@ module.exports = {
   MARKET_ID,
   BOT_ID,
   WHALE_ID,
+  REMOTE_ID,
   SESSION_SEARCH_ID,
   composeContractProblems,
   composeContractRounds,

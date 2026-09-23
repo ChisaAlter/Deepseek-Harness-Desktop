@@ -113,17 +113,18 @@ describe('porcelain helpers', () => {
 })
 
 describe('DiffPanel', () => {
-  it('ignores a background workspace after the main-view session is released', () => {
+  it('reads the cwd from the tab session instead of the retained main-view session', async () => {
+    const gitDiff = vi.fn(async () => SAMPLE)
     render(
       <DiffPanel {...({
-        sessionId: undefined,
+        sessionId: SID,
         useSession: neverHook,
         useSessions: (sel: (s: SessionListState) => unknown) => sel(sessionList('/tmp/main', false)),
         useWorkspaces: neverHook,
         useProjection: neverHook,
         openFile: vi.fn(),
         gitStatus: vi.fn(async () => ({ refName: 'main' })),
-        gitDiff: vi.fn(async () => SAMPLE),
+        gitDiff,
         gitStatusEntries: vi.fn(async () => null),
         gitStage: vi.fn(async () => ({ ok: true })),
         gitUnstage: vi.fn(async () => ({ ok: true })),
@@ -132,7 +133,10 @@ describe('DiffPanel', () => {
         t,
       } as unknown as DiffPanelProps)} />,
     )
-    expect(screen.getByText('A workspace is required to review diffs.')).toBeTruthy()
+    await waitFor(() => {
+      expect(gitDiff).toHaveBeenCalledWith('/tmp/main', undefined)
+    })
+    expect(screen.getByText('README.md')).toBeTruthy()
   })
 
   it('shows the disabled reason when the workspace is not a git repository', async () => {

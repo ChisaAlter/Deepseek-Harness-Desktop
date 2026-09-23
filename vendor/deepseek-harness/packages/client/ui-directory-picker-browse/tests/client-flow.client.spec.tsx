@@ -1,14 +1,21 @@
 // @vitest-environment jsdom
 import { Context } from '@deepseek-ai/cordis'
+import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { bindSnapshotSelector, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
+import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DirectoryFlowOwnerProps } from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { apply, inject } from '../src/client/index.ts'
-import { BrowseDirectoryFlow } from '../src/client/flow.ts'
+import { BrowseDirectoryFlowHero, BrowseDirectoryFlowSidebar } from '../src/client/flow.ts'
+import type { RemoteFlowOwnerProps } from '../src/client/contract/slots.ts'
 import { apply as nodeApply } from '../src/index.ts'
 
 // The service reads its initial locale from the browser; these specs assert
@@ -18,6 +25,10 @@ usePinnedBrowserLanguages('zh-CN')
 afterEach(cleanup)
 
 const HOLES = ['conversation.hero.workspace.directoryFlow', 'sidebar.workspaces.directoryFlow'] as const
+const REMOTE_HOLES = [
+  'conversation.hero.workspace.directoryFlow.remote',
+  'sidebar.workspaces.directoryFlow.remote',
+] as const
 
 const HOME = '/home/u'
 const homeListing: DirectoryListing = {
@@ -51,6 +62,46 @@ function owner(overrides: Partial<DirectoryFlowOwnerProps> = {}): DirectoryFlowO
   }
 }
 
+// Every fixture carries the framework's standard props the slot renderer
+// attaches to each entry; the flow components read none of them, so the
+// snapshots stay empty.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
+
+function standardProps(): GlobalStandardProps {
+  return {
+    usePanelInfo: selector => selector({ activePanelId: null }),
+    useSessions: bindSnapshotSelector(createSnapshotStore<SessionListState>({
+      ids: [], byId: {}, phase: 'ready', subagentsByParent: {}, jobsBySession: {},
+    })),
+    useSessionStatus: bindSnapshotSelector(createSnapshotStore<SessionStatusSnapshot>(new Map())),
+    useSessionRetainInfo: () => undefined,
+    useResource,
+    useWorkspaces: bindSnapshotSelector(createSnapshotStore<WorkspaceSnapshot>({
+      items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+    })),
+  }
+}
+
+/**
+ * The framework-wired props a slot entry adds to the owner conversation:
+ * the bound remote-occupancy selector hook and the narrowed renderSlot.
+ * `remoteOwners` collects the owner share each renderSlot call passed, so a
+ * spec can assert the remote occupant's contract verbatim.
+ */
+function slotProps<C extends typeof BrowseDirectoryFlowHero | typeof BrowseDirectoryFlowSidebar>(overrides: {
+  occupied?: boolean
+  renderSlot?: (share: RemoteFlowOwnerProps) => ReactNode
+} = {}): Pick<ComponentProps<C>, 'useRemoteFlow' | 'renderSlot'> & { remoteOwners: RemoteFlowOwnerProps[] } {
+  const remoteOwners: RemoteFlowOwnerProps[] = []
+  const renderSlot = ((_key: string, share: RemoteFlowOwnerProps): ReactNode => {
+    remoteOwners.push(share)
+    return overrides.renderSlot?.(share) ?? null
+  }) as ComponentProps<C>['renderSlot']
+  const useRemoteFlow = (<S,>(selector: (snapshot: boolean) => S): S =>
+    selector(overrides.occupied ?? false))
+  return { useRemoteFlow, renderSlot, remoteOwners }
+}
+
 describe('directory-picker-browse client half', () => {
   it('declares the services it drives', () => {
     expect(inject).toEqual(['slots', 'uiWorkspace', 'locale'])
@@ -72,6 +123,26 @@ describe('directory-picker-browse client half', () => {
     after.declare()
     await Promise.resolve()
     for (const hole of HOLES) expect(after.slots.entries(hole)).toHaveLength(1)
+  })
+
+  it('declares a distinct remote child hole inside each flow entry, released with its fiber', async () => {
+    const b = await bench()
+    b.declare()
+    const fiber = b.ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    // Each remote hole accepts an occupant only because its parent flow
+    // entry declared it — a registration against an undeclared key throws.
+    for (const hole of REMOTE_HOLES) {
+      const dispose = b.slots.register({ name: hole } as never, () => null)
+      expect(b.slots.entries(hole)).toHaveLength(1)
+      dispose()
+    }
+    // Teardown releases the child declarations with the flow entries: a
+    // remote registration against a released hole throws again.
+    await fiber.dispose()
+    for (const hole of REMOTE_HOLES) {
+      expect(() => b.slots.register({ name: hole } as never, () => null)).toThrow()
+    }
   })
 
   it('rolls back the outer injection when the second hole is already occupied', async () => {
@@ -171,6 +242,8 @@ describe('directory-picker-browse client half', () => {
     expect(injected.t('browser.title')).toBe('选择工作区目录')
     expect(injected.t('browser.newFolder')).toBe('新建文件夹')
     expect(injected.t('browser.showHidden')).toBe('显示隐藏文件')
+    expect(injected.t('browser.tabLocal')).toBe('本机')
+    expect(injected.t('browser.tabRemote')).toBe('远程')
   })
 
   it('drives the injected browse calls through the hole entry', async () => {
@@ -193,8 +266,10 @@ describe('directory-picker-browse client half', () => {
     const listDirectory = vi.fn(async (): Promise<DirectoryListing> => homeListing)
     const t = (key: string): string => key
     render(
-      <BrowseDirectoryFlow
+      <BrowseDirectoryFlowHero
         {...props}
+        {...standardProps()}
+        {...slotProps<typeof BrowseDirectoryFlowHero>()}
         listDirectory={listDirectory}
         createDirectory={vi.fn(async () => '')}
         t={t}
@@ -210,10 +285,106 @@ describe('directory-picker-browse client half', () => {
     expect(props.onError).not.toHaveBeenCalled()
   })
 
-  it('renders nothing while the flow is closed', () => {
+  it('shows no tab strip while the remote hole is unoccupied', async () => {
+    const slots = slotProps<typeof BrowseDirectoryFlowSidebar>({ occupied: false })
+    render(
+      <BrowseDirectoryFlowSidebar
+        {...owner()}
+        {...standardProps()}
+        {...slots}
+        listDirectory={vi.fn(async () => homeListing)}
+        createDirectory={vi.fn(async () => '')}
+        t={key => key}
+      />,
+    )
+    await waitFor(() => { expect(screen.getByRole('button', { name: 'browser.open' })).toBeTruthy() })
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(slots.remoteOwners).toEqual([])
+  })
+
+  it('shows the local/remote strip while occupied and feeds the occupant the owner share', async () => {
+    const props = owner()
+    const slots = slotProps<typeof BrowseDirectoryFlowHero>({
+      occupied: true,
+      renderSlot: share => (
+        <div data-testid="remote-pane">
+          {`open:${String(share.open)} active:${String(share.active)} busy:${String(share.busy)}`}
+          <button onClick={() => { share.onPicked('/mirror/ws') }}>remote-pick</button>
+        </div>
+      ),
+    })
+    const flow = (flowProps: DirectoryFlowOwnerProps) => (
+      <BrowseDirectoryFlowHero
+        {...flowProps}
+        {...standardProps()}
+        {...slots}
+        listDirectory={vi.fn(async () => homeListing)}
+        createDirectory={vi.fn(async () => '')}
+        t={key => key}
+      />
+    )
+    const view = render(flow(props))
+    // The strip renders with local selected; the remote pane stays unmounted
+    // until first visited (lazy: an SSH occupant must not connect unseen).
+    expect(screen.getByRole('tablist')).toBeTruthy()
+    expect(screen.queryByTestId('remote-pane')).toBeNull()
+    const localTab = screen.getByRole('tab', { name: 'browser.tabLocal' })
+    const remoteTab = screen.getByRole('tab', { name: 'browser.tabRemote' })
+    expect(localTab.getAttribute('aria-selected')).toBe('true')
+    expect(remoteTab.getAttribute('aria-selected')).toBe('false')
+
+    fireEvent.click(remoteTab)
+    const pane = screen.getByTestId('remote-pane')
+    expect(pane.textContent).toContain('open:true active:true busy:false')
+    // The remote pick carries the owner conversation verbatim.
+    fireEvent.click(screen.getByRole('button', { name: 'remote-pick' }))
+    expect(props.onPicked).toHaveBeenCalledWith('/mirror/ws')
+    // A busy flip mid-interaction reaches the occupant through the share.
+    view.rerender(flow(owner({ ...props, busy: true })))
+    expect(pane.textContent).toContain('busy:true')
+
+    // Switching back hides the pane but keeps it mounted (occupant state
+    // survives): active flips to false on the SAME mounted element. (Tabs
+    // disable while busy, so the flip is withdrawn first.)
+    view.rerender(flow(props))
+    fireEvent.click(localTab)
+    expect(pane.isConnected).toBe(true)
+    expect(pane.textContent).toContain('active:false')
+    expect(screen.getByRole('button', { name: 'browser.open' })).toBeTruthy()
+  })
+
+  it('keeps the remote occupant mounted (hidden) while the dialog is closed', () => {
+    const slots = slotProps<typeof BrowseDirectoryFlowHero>({
+      occupied: true,
+      renderSlot: share => <span data-testid="remote-pane">{`open:${String(share.open)}`}</span>,
+    })
+    const flow = (open: boolean) => (
+      <BrowseDirectoryFlowHero
+        {...owner({ open })}
+        {...standardProps()}
+        {...slots}
+        listDirectory={vi.fn(async () => homeListing)}
+        createDirectory={vi.fn(async () => '')}
+        t={key => key}
+      />
+    )
+    const view = render(flow(true))
+    fireEvent.click(screen.getByRole('tab', { name: 'browser.tabRemote' }))
+    expect(screen.getByTestId('remote-pane').isConnected).toBe(true)
+    // Closing withdraws the request but does not unmount the occupant: its
+    // share flips to open:false on the same mounted element.
+    view.rerender(flow(false))
+    const pane = screen.getByTestId('remote-pane')
+    expect(pane.isConnected).toBe(true)
+    expect(pane.textContent).toBe('open:false')
+  })
+
+  it('renders nothing while the flow is closed and the remote hole was never visited', () => {
     const view = render(
-      <BrowseDirectoryFlow
+      <BrowseDirectoryFlowHero
         {...owner({ open: false })}
+        {...standardProps()}
+        {...slotProps<typeof BrowseDirectoryFlowHero>({ occupied: true })}
         listDirectory={vi.fn(async () => homeListing)}
         createDirectory={vi.fn(async () => '')}
         t={key => key}

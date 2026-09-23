@@ -54,6 +54,10 @@ const DEFAULTS = {
   // Whale assistant (R3) — off by default so it can never silently hijack
   // IM routing or spawn a session before the feature card ships.
   whaleAssistantEnabled: false,
+  // Remote workspaces (SSH) — on by default; toggling restarts Harness so
+  // the dsh-remote overlay composes or drops on the next start. Distinct
+  // from `remoteEnabled`, which gates the phone/LAN remote pairing daemon.
+  remoteWorkspaceEnabled: true,
   pet: {
     enabled: true,
     xRatio: 0.82,
@@ -128,7 +132,7 @@ function normalizeRendererConfigPatch(patch) {
   }
   const next = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (['closeToTray', 'openAtLogin', 'openDevTools', 'harnessAutoRestart', 'autoStartDesktop', 'dshbotEnabled', 'whaleAssistantEnabled'].includes(key)) {
+    if (['closeToTray', 'openAtLogin', 'openDevTools', 'harnessAutoRestart', 'autoStartDesktop', 'dshbotEnabled', 'whaleAssistantEnabled', 'remoteWorkspaceEnabled'].includes(key)) {
       if (typeof value !== 'boolean') {
         throw new TypeError(`${key} must be a boolean`);
       }
@@ -268,12 +272,13 @@ function normalizeDisabledPlugins(list) {
   const { withoutDshImAliases } = require('./dsh-im-desktop');
   const { withoutDshbotAliases } = require('./dshbot-desktop');
   const { withoutDshWhaleAliases } = require('./dsh-whale-desktop');
+  const { withoutDshRemoteAliases } = require('./dsh-remote-desktop');
   const { withoutUsagePanelAliases } = require('./usage-panel-preset');
-  return [...new Set(withoutDshWhaleAliases(withoutDshbotAliases(withoutUsagePanelAliases(withoutDshImAliases(
+  return [...new Set(withoutDshWhaleAliases(withoutDshbotAliases(withoutDshRemoteAliases(withoutUsagePanelAliases(withoutDshImAliases(
     (Array.isArray(list) ? list : [])
       .map((name) => String(name || '').trim())
       .filter(Boolean),
-  )))))];
+  ))))))];
 }
 
 function normalizeLauncherSettings(config) {
@@ -460,6 +465,26 @@ function loadConfig() {
   return config;
 }
 
+/**
+ * Monotonic revision for the on-disk config. A start reads one snapshot and
+ * must not silently mix it with values written by a Settings save that lands
+ * in the middle of the start (port, disabled list, built-in plugin toggles).
+ */
+let configRevisionValue = 0;
+
+function configRevision() {
+  return configRevisionValue;
+}
+
+/**
+ * One consistent config read: the parsed values plus the revision they belong
+ * to. Long-running work keeps the object and compares the revision later.
+ */
+function readConfigSnapshot() {
+  const revision = configRevisionValue;
+  return { config: loadConfig(), revision };
+}
+
 function saveConfig(next) {
   const current = loadConfig();
   const merged = normalizeLauncherSettings(
@@ -484,6 +509,7 @@ function saveConfig(next) {
     remoteRelayToken: remoteRelayToken || '',
     remoteDevices: Array.isArray(remoteDevices) ? remoteDevices : [],
   });
+  configRevisionValue += 1;
   return merged;
 }
 
@@ -539,6 +565,8 @@ module.exports = {
   DEFAULTS,
   REMOTE_FEATURE_ENABLED,
   loadConfig,
+  readConfigSnapshot,
+  configRevision,
   saveConfig,
   publicConfig,
   parkRemoteSnapshot,

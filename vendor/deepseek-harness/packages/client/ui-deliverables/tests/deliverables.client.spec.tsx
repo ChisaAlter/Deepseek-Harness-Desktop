@@ -189,6 +189,37 @@ function result(seq: number, callId: string, isError = false, turn = 1): Session
   })
 }
 
+function ptc(
+  seq: number,
+  name: string,
+  args: Readonly<Record<string, unknown>>,
+  isError = false,
+): SessionLiveEventEntry {
+  return at(seq, 'tool/ptc-dispatch', {
+    rootCallId: 'root',
+    parentCallId: 'root',
+    subCallId: `root:ptc:${seq}`,
+    name,
+    arguments: args,
+    isError,
+    content: [],
+  })
+}
+
+function ptcStart(
+  seq: number,
+  name: string,
+  args: Readonly<Record<string, unknown>>,
+): SessionLiveEventEntry {
+  return at(seq, 'tool/ptc-dispatch-start', {
+    rootCallId: 'root',
+    parentCallId: 'root',
+    subCallId: `root:ptc:${seq}`,
+    name,
+    arguments: args,
+  })
+}
+
 function assembler(entries: readonly SessionLiveEventEntry[], hasMore = false): ConversationNodeAssembler {
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
   value.replaceWindow(entries, hasMore)
@@ -253,6 +284,115 @@ describe('produced-file Turn data', () => {
       'notes/deleted-text.md',
       'notes/inserted.md',
     ])
+  })
+
+  it('folds only successful mutation-shaped PTC children into produced paths', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      ptcStart(2, 'write', { file_path: 'pelican-bike.html', content: '<html></html>' }),
+      ptc(3, 'write', { file_path: 'pelican-bike.html', content: '<html></html>' }),
+      ptcStart(4, 'edit', {
+        file_path: 'scene.css', old_string: 'red', new_string: 'blue', replace_all: false,
+      }),
+      ptc(5, 'edit', {
+        file_path: 'scene.css', old_string: 'red', new_string: 'blue', replace_all: false,
+      }),
+      ptcStart(6, 'str_replace_editor', {
+        command: 'insert', path: 'notes.md', insert_line: 1, new_str: 'line',
+      }),
+      ptc(7, 'str_replace_editor', {
+        command: 'insert', path: 'notes.md', insert_line: 1, new_str: 'line',
+      }),
+      ptcStart(8, 'write', { file_path: 'failed.html', content: 'x' }),
+      ptc(9, 'write', { file_path: 'failed.html', content: 'x' }, true),
+      ptcStart(10, 'read', { file_path: 'input.html' }),
+      ptc(11, 'read', { file_path: 'input.html' }),
+      ptcStart(12, 'custom_edit', { file_path: 'custom.html', content: 'x' }),
+      ptc(13, 'custom_edit', { file_path: 'custom.html', content: 'x' }),
+      ptcStart(14, 'write', { file_path: 'malformed.html' }),
+      ptc(15, 'write', { file_path: 'malformed.html' }),
+    ])
+
+    expect(producedForClosing(deliverablesOf(value))).toEqual([
+      'pelican-bike.html',
+      'scene.css',
+      'notes.md',
+    ])
+  })
+
+  it('attributes PTC mutations from the assembler Location, not an event payload turn', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'turn/end', { turn: 1 }),
+      at(3, 'turn/start', { turn: 2 }),
+      ptcStart(4, 'write', { file_path: 'second-turn.html', content: '<html></html>' }),
+      ptc(5, 'write', { file_path: 'second-turn.html', content: '<html></html>' }),
+    ])
+
+    expect(producedForClosing(deliverablesOf(value, 1))).toEqual([])
+    expect(producedForClosing(deliverablesOf(value, 2))).toEqual(['second-turn.html'])
+  })
+
+  it('does not attribute a PTC mutation whose canonical Location is unresolved', () => {
+    const event = ptc(2, 'write', { file_path: 'orphan.html', content: '<html></html>' }).event
+
+    expect(deliverablesDefinition.match(event, { kind: 'unresolved' })).toBeNull()
+    expect(deliverablesDefinition.match(event, { kind: 'session' })).toBeNull()
+    expect(deliverablesDefinition.match(event)).toBeNull()
+  })
+
+  it('backfills a PTC-produced path when an older page resolves its turn', () => {
+    const recent = [
+      ptcStart(20, 'write', { file_path: 'pelican-bike.html', content: '<html></html>' }),
+      ptc(21, 'write', { file_path: 'pelican-bike.html', content: '<html></html>' }),
+    ]
+    // The recent page has no turn boundary, so nothing may be attributed yet.
+    expect(recent[1]!.event.data).not.toHaveProperty('turn')
+    const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
+    value.replaceWindow(recent, true)
+    value.activateTarget('test')
+    expect(producedForClosing(deliverablesOf(value))).toEqual([])
+
+    value.prepend([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'turn/end', { turn: 1 }),
+      at(3, 'turn/start', { turn: 2 }),
+    ], false)
+    value.flush()
+
+    expect(producedForClosing(deliverablesOf(value, 1))).toEqual([])
+    expect(producedForClosing(deliverablesOf(value, 2))).toEqual(['pelican-bike.html'])
+  })
+
+  it('opens a PTC-produced basename through the complete turn vocabulary', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      ptcStart(2, 'write', { file_path: 'pelican-bike.html', content: '<html></html>' }),
+      ptc(3, 'write', { file_path: 'pelican-bike.html', content: '<html></html>' }),
+    ])
+    const opened: string[] = []
+    const resolver = producedFileMentions(
+      producedForClosing(deliverablesOf(value)),
+      path => { opened.push(path) },
+      path => `Open ${path}`,
+    )
+
+    resolver.resolve('pelican-bike.html')?.open()
+    expect(opened).toEqual(['pelican-bike.html'])
+  })
+
+  it('keeps exact-path and unique-basename PTC mentions clickable without guessing ambiguity', () => {
+    const opened: string[] = []
+    const paths = producedForClosing(produced(
+      [2, 'site/pelican-bike.html'],
+      [3, 'archive/pelican-bike.html'],
+    ))
+    const resolver = producedFileMentions(paths, path => { opened.push(path) }, path => `Open ${path}`)
+
+    expect(resolver.resolve('pelican-bike.html')).toBeUndefined()
+    expect(resolver.resolve('site/pelican-bike.html')?.title).toBe('site/pelican-bike.html')
+    resolver.resolve('site/pelican-bike.html')?.open()
+    expect(opened).toEqual(['site/pelican-bike.html'])
   })
 
   it.each([

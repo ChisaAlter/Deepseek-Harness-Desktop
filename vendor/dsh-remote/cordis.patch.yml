@@ -1,0 +1,9 @@
+# dsh-remote bundle patch: inserts only this plugin into a profile's layer stack.
+#
+# dsh-better-sidebar is deliberately not mounted here and is not a dependency.
+# Users who want that optional Web UI can install its bundle separately;
+# lib/client.js discovers the betterSidebar service dynamically and adds the
+# remote explorer/editor tabs when it is present.
+- insert:
+    - id: dsh-remote
+      name: 'dsh-remote'

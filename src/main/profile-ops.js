@@ -179,9 +179,10 @@ function applyRendererConfigPatch(patch, { app, applyAppTheme, harness, startHar
     harness
     && typeof startHarness === 'function'
     && (Object.prototype.hasOwnProperty.call(safePatch, 'dshbotEnabled')
-      || Object.prototype.hasOwnProperty.call(safePatch, 'whaleAssistantEnabled'))
+      || Object.prototype.hasOwnProperty.call(safePatch, 'whaleAssistantEnabled')
+      || Object.prototype.hasOwnProperty.call(safePatch, 'remoteWorkspaceEnabled'))
   ) {
-    // The Bots / whale-assistant toggles change which overlays the next
+    // The Bots / whale-assistant / remote-workspace toggles change which overlays the next
     // start composes: return the saved config first, then restart Harness
     // off-thread.
     setImmediate(() => {

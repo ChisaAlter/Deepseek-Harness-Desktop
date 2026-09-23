@@ -45,7 +45,8 @@ it('lets a non-Office renderer load content, report its version, and reload thro
     useEffect(() => { if (displayed !== undefined) request?.loaded(displayed.version) }, [displayed, request?.loaded])
     return <p>{displayed?.text ?? 'Loading custom content'}</p>
   }
-  const renderSlot: TextPreviewProps['renderSlot'] = (_name, input) => {
+  const renderSlot: TextPreviewProps['renderSlot'] = (name, input) => {
+    if (name === 'sidebar.right.tab.document.actions') return null
     const owner = input as unknown as OwnerOf<'sidebar.right.tab.document'>
     return <CustomBody content={owner.content} />
   }
@@ -99,7 +100,8 @@ function setup() {
   }
   const describeFailure: OfficeBodyProps['describeFailure'] = error => error.message
   let request: Extract<DocumentContent, { kind: 'renderer' }> | undefined
-  const slots: TextPreviewProps['renderSlot'] = (_key, input, options) => {
+  const slots: TextPreviewProps['renderSlot'] = (key, input, options) => {
+    if (key === 'sidebar.right.tab.document.actions') return null
     const owner = input as unknown as OwnerOf<'sidebar.right.tab.document'>
     if (owner.content.kind !== 'renderer') return <p>Raw bytes</p>
     request = owner.content

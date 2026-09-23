@@ -71,15 +71,23 @@ if (!harnessHasGhosttyAssets(vendor)) {
 }
 console.log(`Ghostty assets: ${ghostty.detail}`);
 
-const { installPluginRuntimeDeps, assertVendoredPluginRuntimeDeps } = require('./after-pack');
+const {
+  installPluginRuntimeDeps,
+  assertVendoredPluginRuntimeDeps,
+  missingPluginRuntimeClosure,
+} = require('./after-pack');
 const usagePanel = path.join(root, 'vendor', 'dsh-usage-panel');
 if (fs.existsSync(path.join(usagePanel, 'package.json'))) {
   installPluginRuntimeDeps(usagePanel, { skipIfComplete: true });
 }
 const dshIm = path.join(root, 'vendor', 'dsh-im');
 if (fs.existsSync(path.join(dshIm, 'package.json'))) {
-  // Never skip a half-broken tree: incomplete exports must force reinstall.
-  installPluginRuntimeDeps(dshIm, { skipIfComplete: false });
+  // Never fully trust a half-broken tree, but do not delete a healthy one: the
+  // deep closure check decides, and any missing entry still forces reinstall.
+  installPluginRuntimeDeps(dshIm, {
+    skipIfComplete: false,
+    verify: missingPluginRuntimeClosure,
+  });
   assertVendoredPluginRuntimeDeps(root, 'dsh-im');
 }
 

@@ -38,7 +38,7 @@ function writeSource(dir) {
   return dir;
 }
 
-test('ensureUsagePanelPlugin copies the bundled package and writes a desktop overlay', async () => {
+test('ensureUsagePanelPlugin links the bundled package and writes a desktop overlay', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -47,10 +47,13 @@ test('ensureUsagePanelPlugin copies the bundled package and writes a desktop ove
     assert.equal(result.ok, true);
     assert.equal(result.added, true);
     const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
-    assert.equal(fs.readFileSync(path.join(dest, 'lib', 'index.js'), 'utf8'), 'export const name = "dsh-usage-panel"\n');
-    assert.equal(fs.existsSync(path.join(dest, 'lib', 'client.js')), true);
     const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
     assert.equal(fs.existsSync(path.join(linked, 'package.json')), true);
+    // The link is a junction to the runtime: the panel's files are read from
+    // the source, and the profile keeps no second copy of the bundle.
+    assert.equal(fs.realpathSync(linked), fs.realpathSync(source));
+    assert.equal(fs.existsSync(path.join(linked, 'lib', 'client.js')), true);
+    assert.equal(fs.existsSync(path.join(dest, 'lib')), false);
     // The insert lives in the overlay; cordis.patch.yml stays user-owned
     // (never created by the desktop).
     assert.equal(result.overlayFile, path.join(dest, 'desktop-usage-panel.patch.yml'));
@@ -104,7 +107,7 @@ test('ensureUsagePanelPlugin migrates the legacy managed block out of the user p
   }
 });
 
-test('ensureUsagePanelPlugin refreshes the bundled copy on later starts', async () => {
+test('ensureUsagePanelPlugin serves runtime edits through the link on later starts', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -115,7 +118,7 @@ test('ensureUsagePanelPlugin refreshes the bundled copy on later starts', async 
     const again = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(again.ok, true);
     assert.equal(again.added, false);
-    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'lib', 'index.js');
+    const dest = path.join(profileDir, 'node_modules', 'dsh-usage-panel', 'lib', 'index.js');
     assert.equal(fs.readFileSync(dest, 'utf8'), 'export const name = "updated"\n');
     // Idempotent overlay: unchanged content is not rewritten differently.
     assert.equal(fs.readFileSync(again.overlayFile, 'utf8'), firstOverlay);
@@ -125,7 +128,7 @@ test('ensureUsagePanelPlugin refreshes the bundled copy on later starts', async 
   }
 });
 
-test('ensureUsagePanelPlugin skips unchanged files and preserves source timestamps', async () => {
+test('ensureUsagePanelPlugin does not re-create the profile link on later starts', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
   const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
   try {
@@ -134,28 +137,31 @@ test('ensureUsagePanelPlugin skips unchanged files and preserves source timestam
     const old = new Date(Date.now() - 86_400_000);
     fs.utimesSync(srcFile, old, old);
     await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
-    const destFile = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'lib', 'client.js');
-    const firstStat = fs.statSync(destFile);
-    assert.ok(Math.abs(firstStat.mtimeMs - fs.statSync(srcFile).mtimeMs) < 1, 'copy preserves source mtime');
-    // A second start must not rewrite an identical file: a rewrite would move
-    // the destination's ctime.
+    const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
+    const firstStat = fs.lstatSync(linked);
+    // A second start must not unlink/relink an already-correct junction:
+    // a re-link would move the link's ctime and briefly leave a window where
+    // the package name does not resolve.
     await new Promise((resolve) => setTimeout(resolve, 20));
     await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
-    const secondStat = fs.statSync(destFile);
-    assert.equal(secondStat.ctimeMs, firstStat.ctimeMs, 'unchanged file is not rewritten');
+    const secondStat = fs.lstatSync(linked);
+    assert.equal(secondStat.ctimeMs, firstStat.ctimeMs, 'unchanged link is not rewritten');
+    assert.equal(fs.realpathSync(linked), fs.realpathSync(source));
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
     fs.rmSync(source, { recursive: true, force: true });
   }
 });
 
-test('ensureDesktopUsagePanel never copies the bundle with a synchronous fs call', () => {
-  // fs.cpSync of the ~6k-file bundle blocked the Electron main thread 4–11 s
-  // per full start; Windows flags a window 未响应 after 5 s.
+test('ensureDesktopUsagePanel links the runtime instead of copying the bundle', () => {
+  // The old copy path was fs.cpSync (4–11 s of blocked main thread), then an
+  // incremental async copy whose steady state was still a ~6k-file stat walk
+  // measured at ~1.1 s per start. Neither may come back.
   const source = fs.readFileSync(path.join(__dirname, 'usage-panel-preset.js'), 'utf8');
   assert.doesNotMatch(source, /\bcpSync\(/);
-  assert.match(source, /fsp\.cp\(/);
-  assert.match(source, /async function ensureDesktopUsagePanel/);
+  assert.doesNotMatch(source, /fsp\.cp\(/);
+  assert.match(source, /function linkToTarget\(/);
+  assert.match(source, /linkIntoProfileModules\(sourceDir, profileDir\)/);
 });
 
 test('ensureDesktopUsagePanel always writes the overlay regardless of profile bundle state', async () => {
@@ -211,7 +217,9 @@ test('ensureUsagePanelPlugin copies bundled node_modules with the package', asyn
     const profileDir = path.join(home, 'profiles', 'web');
     const result = await ensureUsagePanelPlugin({ sourceDir: source, profileDir });
     assert.equal(result.ok, true);
-    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel', 'node_modules', 'zod', 'package.json');
+    // Dependencies resolve through the link into the runtime tree, so the
+    // profile needs no copy of node_modules either.
+    const dest = path.join(profileDir, 'node_modules', 'dsh-usage-panel', 'node_modules', 'zod', 'package.json');
     assert.equal(fs.existsSync(dest), true);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
@@ -323,4 +331,138 @@ test('usage-panel extraResources is nested under vendor so electron-builder keep
   ));
   assert.ok(usage, 'usage-panel extraResources must copy from vendor with filter dsh-usage-panel/**');
   assert.equal(extra.some((entry) => entry && entry.from === 'vendor/dsh-usage-panel'), false);
+});
+
+/** Pre-link profile bundle: a real directory that really is dsh-usage-panel. */
+function writeManagedCopy(destDir) {
+  fs.mkdirSync(path.join(destDir, 'lib'), { recursive: true });
+  fs.writeFileSync(
+    path.join(destDir, 'package.json'),
+    `${JSON.stringify({ name: 'dsh-usage-panel', version: '0.1.0', main: './lib/index.js' })}\n`,
+  );
+  fs.writeFileSync(path.join(destDir, 'lib', 'index.js'), 'module.exports = {}\n');
+}
+
+test('a stale managed copy is quarantined as a recoverable backup, not deleted', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
+    writeManagedCopy(dest);
+    const marker = path.join(dest, 'lib', 'index.js');
+
+    const result = await ensureDesktopUsagePanel({ sourceDir: source, profileDir });
+    assert.equal(result.ok, true);
+    assert.equal(result.added, true);
+    // The old bundle is still on disk, byte-for-byte, under a sibling name.
+    assert.equal(fs.existsSync(path.join(result.quarantinedCopy, 'lib', 'index.js')), true);
+    assert.match(result.quarantinedCopy, /\.managed-backup-/);
+    assert.equal(path.dirname(result.quarantinedCopy), path.dirname(dest), 'backup stays on the same volume');
+    assert.equal(marker.includes('.managed-backup-'), false);
+    // The live directory is now only the overlay.
+    assert.equal(fs.existsSync(path.join(dest, 'lib')), false);
+    assert.equal(fs.existsSync(path.join(dest, 'desktop-usage-panel.patch.yml')), true);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+});
+
+test('unknown user content at the overlay path is never deleted', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
+    fs.mkdirSync(dest, { recursive: true });
+    // Not our package: a user's own directory that happens to sit at the path.
+    fs.writeFileSync(path.join(dest, 'package.json'), '{"name":"someone-elses-plugin"}\n');
+    fs.writeFileSync(path.join(dest, 'keep-me.txt'), 'precious\n');
+
+    const result = await ensureDesktopUsagePanel({ sourceDir: source, profileDir });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /refusing to replace unknown content/);
+    assert.equal(fs.readFileSync(path.join(dest, 'keep-me.txt'), 'utf8'), 'precious\n');
+    assert.equal(fs.readFileSync(path.join(dest, 'package.json'), 'utf8'), '{"name":"someone-elses-plugin"}\n');
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+});
+
+test('a dangling profile link is replaced without leaving the profile unresolved', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  const staleSource = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-stale-'));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
+    fs.mkdirSync(path.dirname(linked), { recursive: true });
+    fs.symlinkSync(staleSource, linked, process.platform === 'win32' ? 'junction' : 'dir');
+    fs.rmSync(staleSource, { recursive: true, force: true });
+
+    const result = await ensureDesktopUsagePanel({ sourceDir: source, profileDir });
+    assert.equal(result.ok, true);
+    assert.equal(result.added, true);
+    assert.equal(fs.realpathSync(linked), fs.realpathSync(source));
+    assert.equal(fs.existsSync(path.join(linked, 'package.json')), true);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+    fs.rmSync(staleSource, { recursive: true, force: true });
+  }
+});
+
+test('a failed link restores the quarantined copy and the previous start state', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage-panel-src-')));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web');
+    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
+    writeManagedCopy(dest);
+    // The managed destination copy is quarantined first, then the link step
+    // fails because unknown user content occupies the node_modules slot.
+    const linked = path.join(profileDir, 'node_modules', 'dsh-usage-panel');
+    fs.mkdirSync(linked, { recursive: true });
+    fs.writeFileSync(path.join(linked, 'package.json'), '{"name":"not-ours"}\n');
+
+    await assert.rejects(
+      () => ensureDesktopUsagePanel({ sourceDir: source, profileDir }),
+      /refusing to replace unknown content/,
+    );
+    // Previous state fully restored: the quarantined bundle is back in place.
+    assert.equal(fs.existsSync(path.join(dest, 'package.json')), true);
+    assert.equal(fs.readFileSync(path.join(dest, 'package.json'), 'utf8').includes('dsh-usage-panel'), true);
+    assert.equal(fs.existsSync(path.join(dest, 'lib', 'index.js')), true);
+    assert.equal(fs.readFileSync(path.join(linked, 'package.json'), 'utf8'), '{"name":"not-ours"}\n');
+    // No half-written overlay (or quarantine directory) survived the rollback.
+    assert.equal(fs.existsSync(path.join(dest, 'desktop-usage-panel.patch.yml')), false);
+    assert.deepEqual(
+      fs.readdirSync(path.dirname(dest)).filter((name) => name.includes('.managed-backup-')),
+      [],
+    );
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
+});
+
+test('profile dirs containing spaces still link, quarantine, and overlay', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh home with spaces '));
+  const source = writeSource(fs.mkdtempSync(path.join(os.tmpdir(), 'usage panel src ')));
+  try {
+    const profileDir = path.join(home, 'profiles', 'web profile');
+    const dest = path.join(profileDir, 'desktop-plugins', 'dsh-usage-panel');
+    writeManagedCopy(dest);
+
+    const result = await ensureDesktopUsagePanel({ sourceDir: source, profileDir });
+    assert.equal(result.ok, true);
+    assert.match(result.quarantinedCopy, /\.managed-backup-/);
+    assert.equal(fs.realpathSync(path.join(profileDir, 'node_modules', 'dsh-usage-panel')), fs.realpathSync(source));
+    assert.ok(fs.readFileSync(result.overlayFile, 'utf8').includes('id: usage-stats'));
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+    fs.rmSync(source, { recursive: true, force: true });
+  }
 });

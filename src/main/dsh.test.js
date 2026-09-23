@@ -175,6 +175,132 @@ test('正常启动：reachable 后进入 ready、清 failure、写 PID、返回 
   }
 });
 
+test('P2A: a probe that resolves after stop() cannot write a stale session cookie', async (t) => {
+  let releaseProbe;
+  const probeGate = new Promise((resolve) => { releaseProbe = resolve; });
+  let probeStarted;
+  const startedProbe = new Promise((resolve) => { probeStarted = resolve; });
+  const h = makeHarness();
+  t.after(h.cleanup);
+  // Drive the REAL `DshManager.isReachable` (not a stub) and only inject the
+  // low-level probe, so the post-await guard is genuinely under test.
+  h.manager._deps.isReachable = (url, guard) => h.manager.isReachable(url, guard);
+  h.manager._deps.probeHarnessReady = async () => {
+    probeStarted();
+    await probeGate;
+    return { ok: true, cookie: 'dsh-auth-stale=secret' };
+  };
+
+  const p = h.manager.start();
+  await waitFor(() => h.spawned.length === 1);
+  h.setReachable(true);
+  await startedProbe;
+
+  // Stop while the readiness probe is still in flight, then let it resolve.
+  const stopping = h.manager.stop();
+  releaseProbe();
+  const outcome = await settle(p);
+  await stopping;
+
+  assert.equal(outcome.ok, false, 'the cancelled start must reject');
+  assert.equal(outcome.error?.code, 'DSH_CANCELLED');
+  assert.equal(h.manager.state, 'idle', 'stop() must own the final state');
+  assert.equal(h.manager.sessionCookie, '', 'a stale probe must not publish a cookie');
+});
+
+test('P2A: production cookie publication obeys the probe guard', async (t) => {
+  let releaseOld;
+  const oldProbe = new Promise((resolve) => { releaseOld = resolve; });
+  let oldStarted;
+  const oldStartedProbe = new Promise((resolve) => { oldStarted = resolve; });
+  let probeCount = 0;
+  const h = makeHarness();
+  t.after(h.cleanup);
+  h.manager._deps.isReachable = (url, guard) => h.manager.isReachable(url, guard);
+  h.manager._deps.probeHarnessReady = async () => {
+    probeCount += 1;
+    if (probeCount === 1) {
+      oldStarted();
+      await oldProbe;
+      return { ok: true, cookie: 'dsh-auth-old=old' };
+    }
+    return { ok: true, cookie: 'dsh-auth-new=new' };
+  };
+
+  const first = h.manager.start();
+  await waitFor(() => h.spawned.length === 1);
+  h.setReachable(true);
+  await oldStartedProbe;
+
+  const stopping = h.manager.stop();
+  releaseOld();
+  const firstOutcome = await settle(first);
+  await stopping;
+  assert.equal(firstOutcome.ok, false);
+  assert.equal(firstOutcome.error?.code, 'DSH_CANCELLED');
+  assert.equal(h.manager.sessionCookie, '', 'stale probe must not publish the old cookie');
+
+  const second = await h.manager.start();
+  assert.equal(second, EXPECTED_URL);
+  assert.equal(h.manager.sessionCookie, 'dsh-auth-new=new', 'a current probe still publishes its cookie');
+});
+
+test('P2A: a stale helper completion cannot clobber the current generation URL or cookie', async (t) => {
+  const OLD_URL = 'http://127.0.0.1:3091';
+  let releaseOldProbe;
+  const oldProbeGate = new Promise((resolve) => {
+    releaseOldProbe = resolve;
+  });
+  let oldProbeStarted;
+  const oldStartedProbe = new Promise((resolve) => {
+    oldProbeStarted = resolve;
+  });
+  let probeCount = 0;
+  const h = makeHarness({ announceReady: false });
+  t.after(h.cleanup);
+  // First call deliberately ignores its guard (a reachability implementation
+  // that resolves `true` for a cancelled generation); only waitUntilReady's own
+  // post-await recheck can reject that stale helper completion.
+  h.manager._deps.isReachable = (url, guard) => {
+    probeCount += 1;
+    if (probeCount === 1) {
+      oldProbeStarted();
+      return oldProbeGate.then(() => true);
+    }
+    return h.manager.isReachable(url, guard);
+  };
+  h.manager._deps.probeHarnessReady = async () => ({ ok: true, cookie: 'dsh-auth-new=new' });
+
+  const first = h.manager.start();
+  await waitFor(() => h.spawned.length === 1);
+  h.lastChild().stdout.emit('data', Buffer.from(`dsh web: ${OLD_URL}\n`));
+  await oldStartedProbe;
+
+  const stopping = h.manager.stop();
+  await stopping;
+
+  // The new generation becomes fully ready while the stale probe is still
+  // parked, so the old continuation resumes after the new URL/cookie exist.
+  const second = h.manager.start();
+  await waitFor(() => h.spawned.length === 2);
+  h.lastChild().stdout.emit('data', Buffer.from(`dsh web: ${EXPECTED_URL}\n`));
+  assert.equal(await second, EXPECTED_URL);
+  assert.equal(h.manager.state, 'ready');
+  assert.equal(h.manager.baseUrl, EXPECTED_URL);
+  assert.equal(h.manager.sessionCookie, 'dsh-auth-new=new');
+
+  releaseOldProbe();
+  const firstOutcome = await settle(first);
+  await tick(10);
+
+  assert.equal(firstOutcome.ok, false, 'the cancelled start must reject');
+  assert.equal(firstOutcome.error?.code, 'DSH_CANCELLED');
+  assert.equal(h.manager.baseUrl, EXPECTED_URL, 'stale helper must not clobber the current URL');
+  assert.equal(h.manager.sessionCookie, 'dsh-auth-new=new', 'stale helper must not clobber the current cookie');
+  assert.equal(h.manager.state, 'ready', 'the current generation must stay ready');
+  assert.equal(probeCount, 2, 'the current generation still succeeds after the stale one');
+});
+
 test('HTTP 探活单独不能标记 ready，必须等 dsh web 行', async (t) => {
   const h = makeHarness({ announceReady: false });
   t.after(h.cleanup);

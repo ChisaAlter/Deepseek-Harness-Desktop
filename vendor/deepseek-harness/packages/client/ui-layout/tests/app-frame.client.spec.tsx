@@ -339,6 +339,15 @@ describe('AppFrame', () => {
     }
   })
 
+  it('seats a non-conversation main panel in the content row only', () => {
+    const { instance, getByTestId } = mountFrame()
+    expect(getByTestId('main-content').closest('[data-main-panel]')).toBeNull()
+    act(() => { instance.actions.selectPanel('plugins' as MainPanelId) })
+    expect(getByTestId('main-content').closest('[data-main-panel]')).not.toBeNull()
+    act(() => { instance.actions.selectPanel(null) })
+    expect(getByTestId('main-content').closest('[data-main-panel]')).toBeNull()
+  })
+
   it('closes the overlay drawer when the current Session changes', () => {
     frameWidth = 390
     const { frame, instance, rerenderFrame } = mountFrame()

@@ -17,29 +17,35 @@ function resetFetchCooldowns() {
 /**
  * Background `git fetch --quiet --no-tags`. A failure must not hide local status.
  * @param {string} cwd
- * @returns {Promise<void>}
+ * @returns {Promise<{ fetched: boolean, ok: boolean }>} whether a real fetch ran.
  */
-async function fetchCooldownKey(cwd, remote) {
-  const common = await runGit(cwd, ['rev-parse', '--git-common-dir']);
+async function fetchCooldownKey(cwd, remote, readRun = runGit) {
+  const common = await readRun(cwd, ['rev-parse', '--git-common-dir']);
   const dir = common.code === 0 && common.stdout.trim()
     ? path.resolve(cwd, common.stdout.trim())
     : cwd;
   return `${dir}\u0000${remote}`;
 }
 
-async function fetchForStatus(cwd) {
+/**
+ * @param {string} cwd
+ * @param {(cwd: string, args: string[], limits?: object) => Promise<object>} [readRun]
+ *   read seam of the enclosing refresh; the fetch itself always spawns anew
+ *   because it mutates remote-tracking refs.
+ */
+async function fetchForStatus(cwd, readRun = runGit) {
   // Fetch the tracking remote, else the primary remote.
-  const upstream = await resolveCurrentUpstream(cwd);
-  const remote = upstream?.remoteName || await resolvePrimaryRemoteName(cwd);
-  if (!remote) return;
-  const key = await fetchCooldownKey(cwd, remote);
+  const upstream = await resolveCurrentUpstream(cwd, readRun);
+  const remote = upstream?.remoteName || await resolvePrimaryRemoteName(cwd, readRun);
+  if (!remote) return { fetched: false, ok: false };
+  const key = await fetchCooldownKey(cwd, remote, readRun);
   const now = Date.now();
   const previous = fetchCooldownByRoot.get(key);
-  if (previous && now - previous.at < previous.delayMs) return;
+  if (previous && now - previous.at < previous.delayMs) return { fetched: false, ok: false };
   const fetched = await runGit(cwd, ['fetch', '--quiet', '--no-tags', remote], { timeoutMs: FETCH_TIMEOUT_MS });
   if (fetched.code === 0) {
     fetchCooldownByRoot.set(key, { at: now, fails: 0, delayMs: FETCH_OK_TTL_MS });
-    return;
+    return { fetched: true, ok: true };
   }
   const fails = (previous?.fails || 0) + 1;
   fetchCooldownByRoot.set(key, {
@@ -47,6 +53,7 @@ async function fetchForStatus(cwd) {
     fails,
     delayMs: Math.min(FETCH_FAIL_MAX_MS, FETCH_FAIL_BASE_MS * (2 ** (fails - 1))),
   });
+  return { fetched: true, ok: false };
 }
 
 module.exports = {

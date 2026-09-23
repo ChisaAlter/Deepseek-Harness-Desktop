@@ -19,6 +19,7 @@ const {
   resolveResourcesDir,
   restoreVendoredPluginNodeModules,
   installPluginRuntimeDeps,
+  missingPluginRuntimeClosure,
 } = require('../../scripts/after-pack');
 
 const RC7_PIN = { npm: '0.1.0-rc.7' };
@@ -574,6 +575,123 @@ test('installPluginRuntimeDeps runs npm install when export files are missing', 
   assertVendoredPluginRuntimeDeps(workspace, 'dshmarket');
 });
 
+test('a verified dsh-im tree is reused instead of deleted and reinstalled', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-reuse-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  const yamlDir = path.join(destPkg, 'node_modules', 'js-yaml');
+  fs.mkdirSync(path.join(destPkg, 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(yamlDir, 'dist'), { recursive: true });
+  fs.writeFileSync(
+    path.join(destPkg, 'package.json'),
+    `${JSON.stringify({
+      name: 'dsh-im',
+      exports: { '.': './lib/index.js' },
+      dependencies: { 'js-yaml': '4.1.1' },
+    })}\n`,
+  );
+  fs.writeFileSync(path.join(destPkg, 'lib', 'index.js'), 'module.exports = {}\n');
+  fs.writeFileSync(path.join(yamlDir, 'package.json'), `${JSON.stringify({
+    name: 'js-yaml',
+    exports: { '.': { import: './dist/js-yaml.mjs' } },
+  })}\n`);
+  fs.writeFileSync(path.join(yamlDir, 'dist', 'js-yaml.mjs'), 'export default {}\n');
+
+  assert.deepEqual(missingPluginRuntimeClosure(destPkg), []);
+  let ran = false;
+  const result = installPluginRuntimeDeps(destPkg, {
+    skipIfComplete: false,
+    verify: missingPluginRuntimeClosure,
+    run: () => {
+      ran = true;
+    },
+  });
+  assert.equal(result.installed, false);
+  assert.equal(result.reason, 'verified-complete');
+  assert.equal(ran, false);
+  // The healthy tree is still on disk after the check.
+  assert.equal(fs.existsSync(path.join(destPkg, 'node_modules', 'js-yaml', 'dist', 'js-yaml.mjs')), true);
+});
+
+test('a deep missing dependency still forces the repair install', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-repair-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  const yamlDir = path.join(destPkg, 'node_modules', 'js-yaml');
+  const nestedDir = path.join(yamlDir, 'node_modules', 'argparse');
+  fs.mkdirSync(path.join(destPkg, 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(yamlDir, 'dist'), { recursive: true });
+  fs.mkdirSync(nestedDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(destPkg, 'package.json'),
+    `${JSON.stringify({
+      name: 'dsh-im',
+      exports: { '.': './lib/index.js' },
+      dependencies: { 'js-yaml': '4.1.1' },
+    })}\n`,
+  );
+  fs.writeFileSync(path.join(destPkg, 'lib', 'index.js'), 'module.exports = {}\n');
+  fs.writeFileSync(path.join(yamlDir, 'package.json'), `${JSON.stringify({
+    name: 'js-yaml',
+    exports: { '.': { import: './dist/js-yaml.mjs' } },
+    dependencies: { argparse: '2.0.1' },
+  })}\n`);
+  fs.writeFileSync(path.join(yamlDir, 'dist', 'js-yaml.mjs'), 'export default {}\n');
+  // argparse exists as a directory but its declared entry file was dropped:
+  // the shallow predicate sees a package.json and would wrongly call this whole.
+  fs.writeFileSync(
+    path.join(nestedDir, 'package.json'),
+    `${JSON.stringify({ name: 'argparse', main: './index.js' })}\n`,
+  );
+
+  const missing = missingPluginRuntimeClosure(destPkg);
+  assert.equal(missing.some(entry => entry.includes('argparse')), true, JSON.stringify(missing));
+  let ran = false;
+  const result = installPluginRuntimeDeps(destPkg, {
+    skipIfComplete: false,
+    verify: missingPluginRuntimeClosure,
+    run: () => {
+      ran = true;
+      // A real install would restore the dropped entry file.
+      fs.writeFileSync(path.join(nestedDir, 'index.js'), 'module.exports = {}\n');
+    },
+  });
+  assert.equal(result.installed, true);
+  assert.equal(ran, true);
+});
+
+test('installPluginRuntimeDeps fails closed when the install does not repair the tree', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-nofix-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  const yamlDir = path.join(destPkg, 'node_modules', 'js-yaml');
+  fs.mkdirSync(path.join(destPkg, 'lib'), { recursive: true });
+  fs.mkdirSync(yamlDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(destPkg, 'package.json'),
+    `${JSON.stringify({
+      name: 'dsh-im',
+      exports: { '.': './lib/index.js' },
+      dependencies: { 'js-yaml': '4.1.1' },
+    })}\n`,
+  );
+  fs.writeFileSync(path.join(destPkg, 'lib', 'index.js'), 'module.exports = {}\n');
+  fs.writeFileSync(path.join(yamlDir, 'package.json'), `${JSON.stringify({
+    name: 'js-yaml',
+    main: './index.js',
+  })}\n`);
+
+  assert.throws(
+    () => installPluginRuntimeDeps(destPkg, {
+      skipIfComplete: false,
+      verify: missingPluginRuntimeClosure,
+      // npm can exit 0 while still leaving the entry file absent.
+      run: () => {},
+    }),
+    /still incomplete after install/,
+  );
+});
+
 test('assertVendoredPluginRuntimeDeps accepts a hoisted nested dependency', (t) => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-hoist-'));
   t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
@@ -598,6 +716,127 @@ test('assertVendoredPluginRuntimeDeps accepts a hoisted nested dependency', (t) 
   );
   fs.writeFileSync(path.join(argparseDir, 'index.js'), 'module.exports = {}\n');
   assert.doesNotThrow(() => assertVendoredPluginRuntimeDeps(workspace, 'dshmarket'));
+});
+
+/** Build a linear chain of packages named depth-0 → depth-N inside `rootDir`. */
+function writeDependencyChain(rootDir, depthCount, { breakAt } = {}) {
+  const writePackage = (dir, name, dependency) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'package.json'), `${JSON.stringify({
+      name,
+      main: './index.js',
+      ...(dependency ? { dependencies: { [dependency]: '1.0.0' } } : {}),
+    })}\n`);
+    fs.writeFileSync(path.join(dir, 'index.js'), 'module.exports = {}\n');
+  };
+  let current = rootDir;
+  for (let level = 0; level <= depthCount; level += 1) {
+    const name = `depth-${level}`;
+    const isBroken = breakAt === level;
+    writePackage(current, name, level === depthCount ? null : `depth-${level + 1}`);
+    if (isBroken) {
+      // The package exists and resolves, but its declared entry never shipped:
+      // exactly the hole a fixed-depth walk can miss.
+      fs.rmSync(path.join(current, 'index.js'));
+    }
+    if (level === depthCount) break;
+    current = path.join(current, 'node_modules', `depth-${level + 1}`);
+  }
+}
+
+test('the closure audit finds a missing entry deeper than the old fixed depth', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-deep-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  // Broken at level 6, well past the previous DEFAULT_CLOSURE_DEPTH = 3.
+  writeDependencyChain(destPkg, 6, { breakAt: 6 });
+  const missing = missingPluginRuntimeClosure(destPkg);
+  assert.equal(
+    missing.some(entry => entry.includes('depth-6/index.js')),
+    true,
+    JSON.stringify(missing),
+  );
+});
+
+test('a dependency cycle terminates and still checks every package once', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-cycle-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  const alpha = path.join(destPkg, 'node_modules', 'alpha');
+  const beta = path.join(alpha, 'node_modules', 'beta');
+  fs.mkdirSync(beta, { recursive: true });
+  fs.writeFileSync(path.join(destPkg, 'package.json'), `${JSON.stringify({
+    name: 'dsh-im',
+    main: './index.js',
+    dependencies: { alpha: '1.0.0' },
+  })}\n`);
+  fs.writeFileSync(path.join(destPkg, 'index.js'), 'module.exports = {}\n');
+  // alpha → beta → alpha: a real resolvable cycle (alpha is hoisted to the
+  // root, so beta's `require('alpha')` climbs back to the same directory).
+  fs.writeFileSync(path.join(alpha, 'package.json'), `${JSON.stringify({
+    name: 'alpha',
+    main: './index.js',
+    dependencies: { beta: '1.0.0' },
+  })}\n`);
+  fs.writeFileSync(path.join(alpha, 'index.js'), 'module.exports = {}\n');
+  fs.writeFileSync(path.join(beta, 'package.json'), `${JSON.stringify({
+    name: 'beta',
+    main: './index.js',
+    dependencies: { alpha: '1.0.0' },
+  })}\n`);
+  fs.writeFileSync(path.join(beta, 'index.js'), 'module.exports = {}\n');
+
+  const missing = missingPluginRuntimeClosure(destPkg);
+  assert.deepEqual(missing, [], JSON.stringify(missing));
+});
+
+test('a symlink loop does not hang or duplicate entries', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-linkloop-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  const loop = path.join(destPkg, 'node_modules', 'loop');
+  fs.mkdirSync(loop, { recursive: true });
+  fs.writeFileSync(path.join(destPkg, 'package.json'), `${JSON.stringify({
+    name: 'dsh-im',
+    main: './index.js',
+    dependencies: { loop: '1.0.0' },
+  })}\n`);
+  fs.writeFileSync(path.join(destPkg, 'index.js'), 'module.exports = {}\n');
+  fs.writeFileSync(path.join(loop, 'package.json'), `${JSON.stringify({
+    name: 'loop',
+    main: './index.js',
+    dependencies: { loop: '1.0.0' },
+  })}\n`);
+  fs.writeFileSync(path.join(loop, 'index.js'), 'module.exports = {}\n');
+  try {
+    // The package resolves itself first at its own node_modules, then falls
+    // back through the ancestor chain; both land on the same canonical dir.
+    fs.mkdirSync(path.join(loop, 'node_modules'), { recursive: true });
+    fs.symlinkSync(loop, path.join(loop, 'node_modules', 'loop'), 'junction');
+  } catch {
+    // Symlink creation needs privileges on Windows; fall back to the hoisted
+    // self-reference, which exercises the same canonical-dedupe path.
+    fs.mkdirSync(path.join(loop, 'node_modules'), { recursive: true });
+    fs.writeFileSync(
+      path.join(loop, 'node_modules', 'loop.json'),
+      '{}\n',
+    );
+  }
+
+  const missing = missingPluginRuntimeClosure(destPkg);
+  assert.equal(missing.filter(entry => entry.includes('loop')).length, 0, JSON.stringify(missing));
+});
+
+test('the closure audit reports incomplete instead of healthy when the budget runs out', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-budget-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const destPkg = path.join(workspace, 'vendor', 'dsh-im');
+  writeDependencyChain(destPkg, 5);
+  const missing = missingPluginRuntimeClosure(destPkg, { maxPackages: 2 });
+  assert.ok(
+    missing.includes('<closure-incomplete>'),
+    `budget exhaustion must stay fail-closed: ${JSON.stringify(missing)}`,
+  );
 });
 
 test('installPluginRuntimeDeps skipIfComplete does not run npm when export files exist', (t) => {

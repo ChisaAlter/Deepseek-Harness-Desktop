@@ -138,6 +138,171 @@ test('L-4: writeFile rejects every path with a .git segment, keeps .gitignore/.g
   }
 });
 
+test('L-4b: writeFile refuses a .git reachable only through an innocuous link', async (t) => {
+  const cwd = makeTempDir();
+  try {
+    fs.mkdirSync(path.join(cwd, '.git', 'hooks'), { recursive: true });
+    fs.writeFileSync(path.join(cwd, '.git', 'hooks', 'pre-commit'), 'SENTINEL-HOOK\n');
+    fs.writeFileSync(path.join(cwd, '.git', 'config'), 'SENTINEL-CONFIG\n');
+
+    // Cover both shapes independently: a directory link to the whole .git and
+    // a file link one hop into it. Each case proves its own fixture was
+    // created and resolves to the intended target before asserting, so a
+    // failed fixture can never pass as a successful denial.
+    let dirLinked = false;
+    try {
+      fs.symlinkSync(
+        path.join(cwd, '.git'),
+        path.join(cwd, 'notes'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      dirLinked = fs.realpathSync(path.join(cwd, 'notes')) === fs.realpathSync(path.join(cwd, '.git'));
+    } catch { /* directory links unavailable on this host */ }
+    let fileLinked = false;
+    try {
+      fs.symlinkSync(path.join(cwd, '.git', 'config'), path.join(cwd, 'config-link'));
+      fileLinked = fs.realpathSync(path.join(cwd, 'config-link')) === fs.realpathSync(path.join(cwd, '.git', 'config'));
+    } catch { /* file links unavailable on this host */ }
+    if (!dirLinked && !fileLinked) {
+      t.skip('directory and file links unavailable');
+      return;
+    }
+
+    if (dirLinked) {
+      for (const rel of [
+        'notes/hooks/pre-commit',
+        'notes/config',
+        path.join('notes', '..', 'notes', 'hooks', 'pre-commit'),
+      ]) {
+        const result = await writeFile(cwd, rel, 'pwned\n');
+        assert.equal(result.ok, false, `${rel} 必须被拒绝`);
+      }
+    }
+    if (fileLinked) {
+      const result = await writeFile(cwd, 'config-link', 'pwned\n');
+      assert.equal(result.ok, false, 'config-link 必须被拒绝');
+    }
+    assert.equal(
+      fs.readFileSync(path.join(cwd, '.git', 'hooks', 'pre-commit'), 'utf8'),
+      'SENTINEL-HOOK\n',
+      '.git/hooks/pre-commit 不得被改写',
+    );
+    assert.equal(
+      fs.readFileSync(path.join(cwd, '.git', 'config'), 'utf8'),
+      'SENTINEL-CONFIG\n',
+      '.git/config 不得被改写',
+    );
+    // git metadata stays hidden from the listing too.
+    const listed = await listDir(cwd, '');
+    assert.equal(listed.ok, true);
+    assert.equal(listed.entries.some((e) => e.name === '.git'), false);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('L-4c: a link swapped in during the async write window cannot redirect a save into .git', async (t) => {
+  const cwd = makeTempDir();
+  try {
+    fs.mkdirSync(path.join(cwd, '.git', 'hooks'), { recursive: true });
+    const sentinel = path.join(cwd, '.git', 'hooks', 'pre-commit');
+    fs.writeFileSync(sentinel, 'SENTINEL-HOOK\n');
+    fs.mkdirSync(path.join(cwd, 'victim'));
+
+    // Deterministic interleaving at the privileged effect: by the time the
+    // implementation calls mkdir it has already passed its containment check
+    // and its stat, so swapping `victim` for a link to `.git` here lands
+    // squarely inside the check-then-use window rather than racing it.
+    const realMkdir = fs.promises.mkdir;
+    let swapped = false;
+    fs.promises.mkdir = async (...args) => {
+      if (!swapped) {
+        fs.rmdirSync(path.join(cwd, 'victim'));
+        fs.symlinkSync(
+          path.join(cwd, '.git'),
+          path.join(cwd, 'victim'),
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+        // Only mark the swap done once the replacement link actually exists;
+        // otherwise a throwing fixture would be reported as a passing denial.
+        swapped = true;
+      }
+      return realMkdir(...args);
+    };
+
+    let result;
+    try {
+      result = await writeFile(cwd, path.join('victim', 'target.txt'), 'pwned\n');
+    } finally {
+      fs.promises.mkdir = realMkdir;
+    }
+    if (!swapped) {
+      t.skip('directory links unavailable on this host');
+      return;
+    }
+
+    assert.equal(
+      fs.realpathSync(path.join(cwd, 'victim')),
+      fs.realpathSync(path.join(cwd, '.git')),
+      'fixture swap must land on .git',
+    );
+    assert.equal(result.ok, false, 'the save must fail closed after the swap');
+    assert.equal(
+      fs.readFileSync(sentinel, 'utf8'),
+      'SENTINEL-HOOK\n',
+      '.git 被经链接改写',
+    );
+    assert.equal(fs.existsSync(path.join(cwd, '.git', 'target.txt')), false);
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('L-4d: writeFile refuses a dangling link instead of writing through it', async (t) => {
+  const cwd = makeTempDir();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-fs-dangling-'));
+  try {
+    const outsideTarget = path.join(outside, 'new-file.txt');
+    const gitTarget = path.join(cwd, '.git', 'new-file.txt');
+    fs.mkdirSync(path.join(cwd, '.git'), { recursive: true });
+
+    const fixtures = [];
+    try {
+      fs.symlinkSync(outsideTarget, path.join(cwd, 'outside-link'));
+      fixtures.push({ rel: 'outside-link', target: outsideTarget });
+    } catch { /* file links unavailable on this host */ }
+
+    if (fixtures.length === 0) {
+      t.skip('file links unavailable on this host');
+      return;
+    }
+
+    // Prove the fixture is a link whose destination really is missing.
+    for (const fixture of fixtures) {
+      assert.equal(fs.lstatSync(path.join(cwd, fixture.rel)).isSymbolicLink(), true);
+      assert.equal(fs.existsSync(fixture.target), false, `${fixture.target} 必须不存在`);
+    }
+
+    for (const fixture of fixtures) {
+      const result = await writeFile(cwd, fixture.rel, 'pwned\n');
+      assert.equal(result.ok, false, `${fixture.rel} 必须被拒绝`);
+      assert.equal(fs.existsSync(fixture.target), false, `${fixture.target} 不得被创建`);
+    }
+    assert.equal(fs.existsSync(gitTarget), false);
+
+    // A genuinely missing file is still a valid creation target.
+    const created = await writeFile(cwd, path.join('nested', 'brand-new.txt'), 'ok\n');
+    assert.equal(created.ok, true);
+    assert.equal(fs.readFileSync(path.join(cwd, 'nested', 'brand-new.txt'), 'utf8'), 'ok\n');
+  } finally {
+    setWorkspaceAuthority(null);
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+});
+
 test('listDir hides gitignored names when git is available', async () => {
   const cwd = makeTempDir();
   try {

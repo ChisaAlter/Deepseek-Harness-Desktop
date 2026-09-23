@@ -8,6 +8,7 @@ import type {
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { InboxState } from '@deepseek-ai/dsh-agent/types'
 import { Button, IconChevronDownOutline14, MarkdownDelegateProvider, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MarkdownPreviewImage } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
 import type { ChatSnapshot } from '../contract/snapshot.ts'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
@@ -300,6 +301,17 @@ export function ChatView({
     owner => renderSlot('conversation.message.images', { ...owner, loadImage }),
     [loadImage, renderSlot],
   )
+  // Markdown-authored image preview: the delegate's openImage lands here from
+  // any chat node (assistant prose or an expanded Think row); the occupant of
+  // 'conversation.image.preview' supplies the surface, so an unoccupied slot
+  // simply renders nothing on activation.
+  const [imagePreview, setImagePreview] = useState<{ src: string; alt: string; open: boolean } | null>(null)
+  const openImage = useCallback((image: MarkdownPreviewImage) => {
+    setImagePreview({ src: image.src, alt: image.alt, open: true })
+  }, [])
+  const closeImagePreview = useCallback(() => {
+    setImagePreview(preview => (preview === null ? null : { ...preview, open: false }))
+  }, [])
   const runningTurnStart = useMemo(() => runningTurnStartTime(timeline), [timeline])
 
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -782,7 +794,11 @@ export function ChatView({
               </button>
             </div>
           )}
-          <MarkdownDelegateProvider openExternalLink={openExternalLink} openFile={requestOpenFile}>
+          <MarkdownDelegateProvider
+            openExternalLink={openExternalLink}
+            openFile={requestOpenFile}
+            openImage={openImage}
+          >
             <ChatNodeList
               order={order}
               useChatNode={useChatNode}
@@ -843,6 +859,10 @@ export function ChatView({
           </div>
         )}
       </div>
+      {imagePreview !== null && renderSlot('conversation.image.preview', {
+        ...imagePreview,
+        onClose: closeImagePreview,
+      })}
       {fileOpenError !== null && (
         <FileOpenErrorDialog
           message={fileOpenError.message}

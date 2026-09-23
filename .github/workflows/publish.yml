@@ -53,16 +53,35 @@ jobs:
           echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
 
       - name: Checkout the exact candidate commit
-        uses: actions/checkout@v4
+        # Supply-chain pinning matches test.yml/release.yml: the promotion job
+        # must run an immutable action revision like the jobs it promotes.
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ steps.candidate.outputs.candidate_sha }}
           fetch-depth: 1
           sparse-checkout: |
             .github/release-notes.md
             .github/release-notes.en.md
+            .nvmrc
+            package-lock.json
             package.json
             scripts/check-release-version.mjs
+            scripts/check-release-assets.mjs
           sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          # .nvmrc is the single Node version source shared with test/release.
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Prepare the validator runtime (lockfile-respecting, scripts disabled)
+        # The validator parses latest.yml with the js-yaml already resolved via
+        # electron-updater. Install exactly what the candidate SHA's lockfile
+        # declares — nothing is fetched ad hoc and no ambient runner packages
+        # are assumed. `--ignore-scripts` keeps the install to declared
+        # packages and forbids lifecycle hooks.
+        run: npm ci --ignore-scripts
 
       - name: Verify tag matches candidate package version
         run: node scripts/check-release-version.mjs "${{ inputs.release_tag }}"
@@ -88,29 +107,26 @@ jobs:
           mkdir -p dist-out
           gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64 --dir dist-out
 
-      - name: Verify candidate assets and Setup SHA256
+      - name: Verify candidate assets, metadata and Setup SHA256
         env:
           EXPECTED_SETUP_SHA256: ${{ inputs.expected_setup_sha256 }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          setups=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe)
-          blockmaps=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap)
-          manifests=(dist-out/latest.yml)
-          (( ${#setups[@]} == 1 )) || { echo "Candidate must contain exactly one Windows Setup executable" >&2; exit 1; }
-          (( ${#blockmaps[@]} == 1 )) || { echo "Candidate must contain exactly one Windows blockmap" >&2; exit 1; }
-          (( ${#manifests[@]} == 1 )) || { echo "Candidate must contain exactly one latest.yml update manifest" >&2; exit 1; }
-          expected_version="${RELEASE_TAG#v}"
-          setup_name=$(basename "${setups[0]}")
-          [[ "$setup_name" == "Deepseek-Harness-Desktop-Setup-${expected_version}.exe" ]] || {
-            echo "Setup filename does not match the requested release tag" >&2
+          # The validator is read-only, offline and uses only the candidate
+          # SHA's own checked-out helper — never code from another revision.
+          if [[ ! -f scripts/check-release-assets.mjs ]]; then
+            echo "scripts/check-release-assets.mjs is missing from candidate SHA; refusing to substitute another revision" >&2
             exit 1
-          }
-          actual_setup_sha256=$(sha256sum "${setups[0]}" | awk '{print tolower($1)}')
-          expected_setup_sha256=$(printf '%s' "$EXPECTED_SETUP_SHA256" | tr '[:upper:]' '[:lower:]')
-          [[ "$actual_setup_sha256" == "$expected_setup_sha256" ]] || {
-            echo "Setup SHA256 does not match the operator-supplied candidate digest" >&2
+          fi
+          # Provenance records the digest the validator actually confirmed, not
+          # the operator string echoed back.
+          validator_output=$(node scripts/check-release-assets.mjs \
+            dist-out "$RELEASE_TAG" "${RELEASE_TAG#v}" "$EXPECTED_SETUP_SHA256")
+          printf '%s\n' "$validator_output"
+          actual_setup_sha256=$(printf '%s\n' "$validator_output" | sed -n 's/.*sha256=\([0-9a-f]\{64\}\).*/\1/p')
+          [[ "$actual_setup_sha256" =~ ^[0-9a-f]{64}$ ]] || {
+            echo "Validator did not report a verified Setup SHA256" >&2
             exit 1
           }
           echo "setup_sha256=$actual_setup_sha256" >> "$GITHUB_ENV"
@@ -123,7 +139,8 @@ jobs:
           set -euo pipefail
           mac_count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN_ID/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "DeepSeek-Harness-macos-arm64" and .expired == false)] | length')
           if [ "$mac_count" -gt 0 ]; then
-            gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-macos-arm64 --dir dist-out
+            mkdir -p macos-out
+            gh run download "$CANDIDATE_RUN_ID" --name DeepSeek-Harness-macos-arm64 --dir macos-out
           fi
 
       - name: Build checksums and provenance notes
@@ -134,11 +151,19 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          cd dist-out
-          files=(Deepseek-Harness-Desktop-Setup-*.exe Deepseek-Harness-Desktop-Setup-*.exe.blockmap Deepseek-Harness-Desktop-*.dmg latest.yml)
-          (( ${#files[@]} >= 2 )) || { echo "No complete candidate asset set to checksum" >&2; exit 1; }
-          sha512sum "${files[@]}" > SHA512SUMS.txt
-          cd ..
+          windows_files=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap dist-out/latest.yml)
+          (( ${#windows_files[@]} >= 3 )) || { echo "No complete Windows candidate asset set to checksum" >&2; exit 1; }
+          (
+            cd dist-out
+            sha512sum Deepseek-Harness-Desktop-Setup-*.exe Deepseek-Harness-Desktop-Setup-*.exe.blockmap latest.yml > SHA512SUMS.txt
+          )
+          macos_files=(macos-out/*.dmg)
+          if (( ${#macos_files[@]} > 0 )); then
+            (
+              cd macos-out
+              sha512sum *.dmg >> ../dist-out/SHA512SUMS.txt
+            )
+          fi
           cat .github/release-notes.md > release-body.md
           printf '\n\n---\n\n' >> release-body.md
           cat .github/release-notes.en.md >> release-body.md
@@ -151,6 +176,15 @@ jobs:
             printf -- '- Release body combines the Chinese and English release notes above.\n'
             printf -- '- Assets were downloaded from that candidate run; this promotion does not rebuild them.\n'
           } >> release-body.md
+
+      - name: Re-verify Windows assets immediately before publication
+        env:
+          EXPECTED_SETUP_SHA256: ${{ inputs.expected_setup_sha256 }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          node scripts/check-release-assets.mjs \
+            dist-out "$RELEASE_TAG" "${RELEASE_TAG#v}" "$EXPECTED_SETUP_SHA256"
 
       - name: Reject an existing tag before publication
         env:
@@ -171,7 +205,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          assets=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap dist-out/Deepseek-Harness-Desktop-*.dmg dist-out/latest.yml dist-out/SHA512SUMS.txt)
+          assets=(dist-out/Deepseek-Harness-Desktop-Setup-*.exe dist-out/Deepseek-Harness-Desktop-Setup-*.exe.blockmap macos-out/Deepseek-Harness-Desktop-*.dmg dist-out/latest.yml dist-out/SHA512SUMS.txt)
           (( ${#assets[@]} >= 4 )) || { echo "Release assets are incomplete" >&2; exit 1; }
           gh release create "$RELEASE_TAG" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \

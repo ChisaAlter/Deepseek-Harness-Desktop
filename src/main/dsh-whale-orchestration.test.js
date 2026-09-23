@@ -19,6 +19,7 @@ const whaleLib = (name) => pathToFileURL(
 let observe;
 let sessionTools;
 let desktopTools;
+let stickerTools;
 
 const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-pulse-'));
 
@@ -68,6 +69,7 @@ test.before(async () => {
   observe = await import(whaleLib('observe.js'));
   sessionTools = await import(whaleLib('session-tools.js'));
   desktopTools = await import(whaleLib('desktop-tools.js'));
+  stickerTools = await import(whaleLib('sticker-tools.js'));
 });
 
 // ── observe: watches / event buffer / schedules ────────────────
@@ -323,6 +325,64 @@ test('whale_watch / whale_schedule tools drive the pulse stores', async () => {
   assert.match((await schedule.execute({ action: 'list' })).detail, new RegExp(id));
   assert.equal((await schedule.execute({ action: 'remove', id })).ok, true);
   assert.equal((await schedule.execute({ action: 'add', text: 'x' })).ok, false);
+});
+
+// ── sticker-tools: markdown image picks ────────────────────────
+
+test('whale_sticker returns a paste-ready root-anchored markdown image', async () => {
+  const saved = process.env.DSH_HOME;
+  process.env.DSH_HOME = tmpHome;
+  try {
+    const { ctx, tools } = stubCtx(makeController());
+    stickerTools.registerStickerTools(ctx);
+    const tool = tools.get('whale_sticker');
+    assert.ok(tool);
+
+    const picked = await tool.execute({});
+    assert.equal(picked.ok, true);
+    const m = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(picked.markdown);
+    assert.ok(m, `markdown shape: ${picked.markdown}`);
+    assert.ok(m[2].startsWith('/'), `root-anchored path: ${m[2]}`);
+    assert.ok(!/^[A-Za-z]:/.test(m[2]), `drive letter stripped: ${m[2]}`);
+    const driveRoot = path.parse(process.cwd()).root;
+    assert.ok(fs.existsSync(path.join(driveRoot, m[2].slice(1))), `file resolves: ${m[2]}`);
+
+    assert.ok(picked.detail.includes(picked.markdown), 'detail must carry the paste-able markdown');
+
+    const matched = await tool.execute({ query: '杂鱼' });
+    assert.equal(matched.ok, true);
+    assert.match(matched.detail, /杂鱼/);
+    assert.ok(matched.detail.includes(matched.markdown));
+
+    const missed = await tool.execute({ query: 'definitely-no-such-mood' });
+    assert.equal(missed.ok, true);
+    assert.match(missed.detail, /No sticker matched/);
+    assert.ok(missed.detail.includes(missed.markdown));
+  } finally {
+    if (saved === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = saved;
+  }
+});
+
+test('whale_sticker picks up images dropped into the whale home stickers dir', async () => {
+  const saved = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'whale-stickers-'));
+  const dir = path.join(home, 'data', 'whale', 'stickers');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '自制表情.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  process.env.DSH_HOME = home;
+  try {
+    const { ctx, tools } = stubCtx(makeController());
+    stickerTools.registerStickerTools(ctx);
+    const tool = tools.get('whale_sticker');
+    const hit = await tool.execute({ query: '自制表情' });
+    assert.equal(hit.ok, true);
+    assert.match(hit.markdown, /\/data\/whale\/stickers\/自制表情\.png\)$/);
+  } finally {
+    if (saved === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = saved;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 // ── desktop-tools: loopback control channel ────────────────────

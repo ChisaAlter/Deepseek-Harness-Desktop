@@ -147,10 +147,11 @@ test('publish workflow promotes only an explicit successful candidate run', () =
   assert.match(yml, /head_branch[\s\S]*== main/);
   assert.match(yml, /actions\/workflows\/test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
   assert.match(yml, /gh run download "\$CANDIDATE_RUN_ID" --name DeepSeek-Harness-windows-x64/);
-  assert.match(yml, /expected_version=.*RELEASE_TAG/);
-  assert.match(yml, /Deepseek-Harness-Desktop-Setup-\$\{expected_version\}\.exe/);
-  assert.match(yml, /sha256sum/);
-  assert.match(yml, /actual_setup_sha256.*expected_setup_sha256/);
+  // Setup naming, SHA256 and metadata agreement moved into the shared
+  // read-only validator; the workflow must invoke it with the tag/version pair
+  // rather than re-implementing the checks inline.
+  assert.match(yml, /node scripts\/check-release-assets\.mjs/);
+  assert.match(yml, /dist-out "\$RELEASE_TAG" "\$\{RELEASE_TAG#v\}" "\$EXPECTED_SETUP_SHA256"/);
   assert.match(yml, /ref: \$\{\{ steps\.candidate\.outputs\.candidate_sha \}\}/);
   assert.match(yml, /\.github\/release-notes\.md/);
   assert.match(yml, /\.github\/release-notes\.en\.md/);
@@ -167,6 +168,73 @@ test('publish workflow promotes only an explicit successful candidate run', () =
   assert.doesNotMatch(yml, /setup-harness/);
   assert.doesNotMatch(yml, /npm run dist\b/);
   assert.doesNotMatch(yml, /npm run dist:mac\b/);
+});
+
+test('publish workflow wires the release-asset validator before checksums and publish', () => {
+  const yml = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8');
+  // Sparse checkout must carry the helper, its lockfile and the Node pin so the
+  // validator exists at the nominated candidate SHA and resolves the same
+  // js-yaml electron-updater already depends on.
+  const sparse = yml.slice(yml.indexOf('sparse-checkout:'), yml.indexOf('sparse-checkout-cone-mode:'));
+  assert.match(sparse, /scripts\/check-release-assets\.mjs/);
+  assert.match(sparse, /package-lock\.json/);
+  assert.match(sparse, /\.nvmrc/);
+
+  // Declared, lockfile-respecting runtime prep with lifecycle scripts disabled;
+  // no ambient packages and no npx downloads.
+  assert.match(yml, /npm ci --ignore-scripts/);
+  assert.doesNotMatch(yml, /\bnpx\b/);
+
+  // The validator must fail closed when the candidate SHA lacks the helper
+  // instead of substituting code from another revision.
+  assert.match(yml, /check-release-assets\.mjs is missing from candidate SHA/);
+  assert.doesNotMatch(yml, /git show[^\n]*check-release-assets/);
+
+  // Ordering: validator -> checksum/provenance -> gh release create.
+  const validatorAt = yml.indexOf('node scripts/check-release-assets.mjs');
+  const checksumAt = yml.indexOf('Build checksums and provenance notes');
+  const publishAt = yml.indexOf('gh release create');
+  assert.ok(validatorAt >= 0, 'validator invocation must exist');
+  assert.ok(checksumAt > validatorAt, 'validator must run before checksum/provenance generation');
+  assert.ok(publishAt > checksumAt, 'validator must run before gh release create');
+
+  // The optional macOS download must never write into the Windows asset
+  // directory after validation. Check the step that downloads to macos-out and
+  // prove that no step ordering can let the validator run before a write to
+  // dist-out. The validator must also be re-run against dist-out immediately
+  // before publication so a post-validation mutation is caught.
+  const macDownloadAt = yml.indexOf('Download optional macOS artifact from the same candidate run');
+  const macDownloadBlock = yml.slice(macDownloadAt, yml.indexOf('\n      - name:', macDownloadAt));
+  const macDownloadTarget = macDownloadBlock.match(/gh run download "[^"]+" --name [^ ]+ --dir ([^\s]+)/);
+  assert.ok(macDownloadTarget, 'optional macOS download must use an explicit --dir');
+  assert.notEqual(macDownloadTarget[1], 'dist-out', 'macOS download must not write into the validated Windows directory');
+  assert.ok(macDownloadAt > validatorAt, 'the Windows validator must run before the optional macOS download');
+
+  const verifyBeforePublishAt = yml.lastIndexOf('node scripts/check-release-assets.mjs');
+  assert.ok(
+    verifyBeforePublishAt > checksumAt,
+    'Windows assets must be re-validated against dist-out after checksum/provenance generation',
+  );
+  assert.ok(
+    verifyBeforePublishAt < publishAt,
+    'the final Windows validation must complete before gh release create',
+  );
+  assert.match(yml, /sha512sum Deepseek-Harness-Desktop-Setup-\*\.exe/);
+  assert.match(yml, /sha512sum \*\.dmg >> \.\.\/dist-out\/SHA512SUMS\.txt/);
+  assert.match(yml, /shopt -s nullglob[\s\S]*macos-out\/Deepseek-Harness-Desktop-\*\.dmg[\s\S]*gh release create/);
+
+  // The validator result, not the operator string, feeds provenance.
+  assert.match(yml, /validator_output=\$\(node scripts\/check-release-assets\.mjs/);
+  assert.match(yml, /actual_setup_sha256=.*sed/);
+
+  // Existing safety rails stay intact.
+  assert.match(yml, /actions\/checkout@11d5960a326750d5838078e36cf38b85af677262/);
+  assert.match(yml, /actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020/);
+  assert.match(yml, /test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
+  assert.match(yml, /sha512sum/);
+  assert.match(yml, /--target "\$CANDIDATE_SHA"/);
+  assert.doesNotMatch(yml, /setup-harness/);
+  assert.doesNotMatch(yml, /npm run dist\b/);
 });
 
 test('test workflow keeps portable quality gates without the viewport-dependent smoke', () => {

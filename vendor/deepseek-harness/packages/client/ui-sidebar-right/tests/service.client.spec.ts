@@ -505,7 +505,7 @@ describe('SidebarRightController — a tab\'s own actions', () => {
       surfaces: other.getSnapshot().bySession,
       canSplitPane: () => true,
     })
-    controller.openResourceIn(SESSION, A_TXT)
+    expect(controller.openResourceIn(SESSION, A_TXT)).toBe(true)
     expect(titles()).toContain('a.txt')
     releaseBinding()
     releaseOwn()
@@ -548,26 +548,98 @@ describe('SidebarRightController — a tab\'s own actions', () => {
     releaseOwn()
   })
 
-  it('do nothing for a session whose store is not adopted, and again once its adoption is released', () => {
+  it('falls back to a live binding only for that binding\'s session, until adoption takes over', () => {
     const { controller, adopt, instance, publish, layout, titles } = harness()
-    publish()
+    const releaseBinding = publish()
     controller.openResource(A_TXT)
-    publish()
     const own = Object.values(layout().tabs).find(tab => tab.title === 'a.txt')
     if (own === undefined) throw new Error('expected the opened tab')
     const { tabActions } = controller.tabDomain.occurrence(SESSION, own)
+    expect(controller.openResourceIn(OTHER, B_TXT)).toBe(false)
+    expect(controller.openTabIn(OTHER, 'guide')).toBe(false)
+    // The mounted binding can accept an explicit open and a same-session
+    // tab action, but not navigation aimed at another session.
+    expect(controller.openResourceIn(SESSION, B_TXT)).toBe(true)
+    expect(titles()).toContain('b.txt')
+    tabActions.openResource(B_TXT)
+    tabActions.openTab('guide')
+    expect(titles()).toContain('tab.guide.title')
+    releaseBinding()
+    expect(controller.openResourceIn(SESSION, B_TXT)).toBe(false)
+    expect(controller.openTabIn(SESSION, 'guide')).toBe(false)
     const before = instance.getSnapshot().bySession
     tabActions.openResource(B_TXT)
     tabActions.openTab('guide')
-    tabActions.close()
     expect(instance.getSnapshot().bySession).toBe(before)
-    // Adopted, they land; released, they stop again.
+    // Adoption alone also accepts explicit opens, and its release stops them.
     const release = adopt(SESSION, instance)
-    tabActions.openResource(B_TXT)
-    expect(titles()).toContain('b.txt')
+    expect(controller.openResourceIn(SESSION, A_TXT)).toBe(true)
     release()
+    expect(controller.openResourceIn(SESSION, B_TXT)).toBe(false)
+    expect(controller.openTabIn(SESSION, 'guide')).toBe(false)
     tabActions.close()
     expect(titles()).toContain('a.txt')
+  })
+
+  it('opens into the mounted same-session store before adoption catches up', () => {
+    const { controller, publish, titles } = harness()
+    const release = publish()
+    try {
+      expect(controller.openResourceIn(SESSION, A_TXT)).toBe(true)
+      expect(titles()).toContain('a.txt')
+      expect(controller.openTabIn(SESSION, 'guide')).toBe(true)
+    } finally {
+      release()
+    }
+  })
+
+  it('keeps a delayed browser navigation on the originating session after the seat switches', () => {
+    const { controller, adopt, instance, layout, expand, tabs } = harness()
+    tabs.register({ id: 'test/browser', kind: 'browser', title: () => 'browser' })
+    const openResource = vi.spyOn(controller, 'openResource')
+    const openTab = vi.spyOn(controller, 'openTab')
+    const other = createSidebarRightStore(() => ({ kind: 'guide', title: 'seed' })).create(OTHER)
+    const releaseOrigin = adopt(SESSION, instance)
+    const releaseOther = adopt(OTHER, other)
+    const releaseOriginBinding = controller.bind({
+      sessionId: SESSION,
+      actions: instance.actions,
+      surfaces: instance.getSnapshot().bySession,
+      canSplitPane: () => true,
+    })
+    try {
+      expand()
+      other.actions.open(OTHER)
+      other.actions.setExpanded(OTHER, true)
+      const otherSurface = other.getSnapshot().bySession[OTHER]
+      if (otherSurface === undefined) throw new Error('expected the other surface')
+
+      // The file resource lands before the preview token. The browser open
+      // below then runs after the live binding has switched sessions.
+      expect(controller.openResourceIn(SESSION, A_TXT, { params: { line: 7 } })).toBe(true)
+      releaseOriginBinding()
+      const releaseOtherBinding = controller.bind({
+        sessionId: OTHER,
+        actions: other.actions,
+        surfaces: other.getSnapshot().bySession,
+        canSplitPane: () => true,
+      })
+      try {
+        expect(controller.openTabIn(SESSION, 'browser', { params: { url: 'http://127.0.0.1:9/tok/a' } })).toBe(true)
+      } finally {
+        releaseOtherBinding()
+      }
+
+      expect(Object.values(layout().tabs).map(tab => tab.kind)).toContain('browser')
+      expect(openResource).not.toHaveBeenCalled()
+      expect(openTab).not.toHaveBeenCalled()
+      // The negative control behind this assertion: routing the delayed open
+      // through either global method would mutate the currently mounted store.
+      expect(other.getSnapshot().bySession[OTHER]).toBe(otherSurface)
+    } finally {
+      releaseOther()
+      releaseOrigin()
+    }
   })
 
   it('adoption syncs the Tab domain on each commit of that store: the seeded guide is pinned, a closed tab aborted', () => {

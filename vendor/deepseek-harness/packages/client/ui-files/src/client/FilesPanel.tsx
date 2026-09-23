@@ -1,6 +1,10 @@
 import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { IconRefreshOutline16, Input, Tooltip, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { UseSessions } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { serializeComposerFileLink } from './composerMention.ts'
 import { filterEntries } from './filter.ts'
 import { FileTree, joinRel, type TreeEntry } from './FileTree.tsx'
@@ -9,13 +13,58 @@ import { getProjectFilePickerMatches, type ProjectEntry } from './projectFilePic
 import type { FilesShellInjected } from './shell.ts'
 import css from './FilesPanel.module.css'
 
-export type FilesPanelProps =
-  & PropsRuntime<'surfaces.files'>
-  & PropsLocale<typeof NS>
-  & InjectFace<FilesShellInjected>
+export interface FilesPanelProps extends PropsLocale<typeof NS>, FilesShellInjected {
+  sessionId: string | undefined
+  useSessions: UseSessions
+  openFile: (relativePath: string) => void
+  /** Workspace root override for a caller that owns the Session (the Sidebar adapter). */
+  workspaceCwd?: string | undefined
+}
 
-function currentCwd(useSessions: FilesPanelProps['useSessions']): string | undefined {
+/** Props the Sidebar adapter needs from its tab plus the shared shell face. */
+export interface SidebarFilesPanelProps extends PropsLocale<typeof NS>, FilesShellInjected {
+  sessionId: string | undefined
+  useSessions: UseSessions
+  useTabInfo: () => { readonly tab: { readonly actions: { openResource(address: string): void } } }
+}
+
+/**
+ * Adapt one Sidebar Files tab to the existing tree panel.
+ *
+ * The tree's own state and behavior are unchanged; only its session and file
+ * open callback come from the tab that owns it, so a click opens the resource
+ * in that same tab's session.
+ * @param props - live tab information, shell face, and copy.
+ * @returns the Desktop file tree.
+ */
+export function SidebarFilesPanel(props: SidebarFilesPanelProps): ReactNode {
+  const { sessionId, useSessions, useTabInfo, t, ...injected } = props
+  const { tab } = useTabInfo()
+  const cwd = useSessions(state => sessionId === undefined
+    ? undefined
+    : state.byId[sessionId as SessionId]?.cwd || undefined)
+  const openFile = (relativePath: string): void => {
+    if (cwd === undefined || sessionId === undefined) return
+    tab.actions.openResource(fileAddressFor(sessionId, cwd, relativePath))
+  }
+  return (
+    <FilesPanel
+      {...injected}
+      useSessions={useSessions}
+      sessionId={sessionId}
+      openFile={openFile}
+      workspaceCwd={cwd}
+      t={t}
+    />
+  )
+}
+
+function currentCwd(
+  sessionId: string | undefined,
+  useSessions: UseSessions,
+): string | undefined {
   return useSessions((s) => {
+    if (sessionId !== undefined) return s.byId[sessionId as SessionId]?.cwd || undefined
     const id = Object.values(s.byId)
       .find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
     const next = id === undefined ? undefined : s.byId[id]?.cwd
@@ -72,9 +121,11 @@ export function FilesPanel({
   openInEditor,
   showItemInFolder,
   openWithSystemDefault,
+  workspaceCwd,
   t,
 }: FilesPanelProps): ReactNode {
-  const cwd = currentCwd(useSessions)
+  const selectedCwd = currentCwd(sessionId, useSessions)
+  const cwd = workspaceCwd ?? selectedCwd
   const [root, setRoot] = useState<TreeEntry[]>([])
   const [listing, setListing] = useState<'pending' | 'settled'>('pending')
   const [childrenByPath, setChildrenByPath] = useState<Record<string, TreeEntry[]>>({})
@@ -260,7 +311,7 @@ export function FilesPanel({
               query={query}
               onToggle={onToggle}
               onOpenFile={openFile}
-              onMention={sessionId === undefined ? undefined : (path) => {
+      onMention={sessionId === undefined ? undefined : (path) => {
                 mentionFile(sessionId, path)
               }}
               onCopyRelative={(path) => { copyPath(path) }}

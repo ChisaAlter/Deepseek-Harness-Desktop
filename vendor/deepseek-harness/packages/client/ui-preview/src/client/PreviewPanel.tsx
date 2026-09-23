@@ -12,7 +12,8 @@ import {
   Tooltip,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { UseSessions } from '@deepseek-ai/dsh-client-ui-session/client'
 import { DeviceToolbar } from './DeviceToolbar.tsx'
 import { NS } from './locales.ts'
 import type { DiscoveredServer, PreviewBounds, PreviewColorScheme, PreviewNavState, PreviewShellInjected } from './shell.ts'
@@ -36,9 +37,29 @@ const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 const DISCOVER_INTERVAL_MS = 3_000
 
 export type PreviewPanelProps =
-  & PropsRuntime<'surfaces.browser'>
+  & {
+    active: boolean
+    occluded?: boolean
+    useSessions: UseSessions
+  }
   & PropsLocale<typeof NS>
   & InjectFace<PreviewShellInjected>
+
+/** Sidebar tab body props, narrowed to the one tab field this adapter needs. */
+export interface SidebarPreviewPanelProps extends Omit<PreviewPanelProps, 'active' | 'occluded'> {
+  useTabInfo: () => { readonly tab: { readonly visible: boolean } }
+}
+
+/** Adapt the native Sidebar tab lifetime to the desktop Browser guest. */
+export function SidebarPreviewPanel({ useTabInfo, ...props }: SidebarPreviewPanelProps): ReactNode {
+  const { tab } = useTabInfo()
+  return <PreviewPanel {...props} active={tab.visible} />
+}
+
+/** Sidebar chip title for the desktop Browser extension. */
+export function SidebarPreviewTitle({ t }: Pick<PreviewPanelProps, 't'>): ReactNode {
+  return t('title')
+}
 
 function currentCwd(useSessions: PreviewPanelProps['useSessions']): string | undefined {
   return useSessions((s) => {

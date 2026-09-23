@@ -1,8 +1,8 @@
-/** Registers the Agents occupant into surfaces.agents. */
+/** Registers the Agents page type in the right Sidebar. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { AgentsPanel } from './AgentsPanel.tsx'
 import type { AgentsPanelInjected } from './AgentsPanel.tsx'
 import { en, NS, zh, type AgentsKey } from './locales.ts'
@@ -22,17 +22,38 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Services required by the agents-panel plugin. */
-export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace']
+export const inject = ['slots', 'locale', 'sessions', 'uiWorkspace', 'sidebarRightTabs']
+
+/** The implementation identity, and the key its body registers under. */
+export const AGENTS_ID = '@deepseek-ai/dsh-client-ui-agents-panel'
+
+/** The page kind opened through the right Sidebar. */
+export const AGENTS_KIND = 'agents'
 
 /**
- * Register dictionaries and inject the Agents occupant.
+ * Register dictionaries and the Agents page type and body.
  * @param ctx - Client root context.
  */
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-agents-panel: dictionaries')
+  const t = ctx.locale.bind(NS)
 
-  ctx.slots.inject('surfaces.agents', () => ctx.slots.register({
-    name: 'surfaces.agents',
+  ctx.effect(() => ctx.sidebarRightTabs.register({
+    id: AGENTS_ID,
+    kind: AGENTS_KIND,
+    priority: 'extension',
+    title: () => t('type.label'),
+    guide: [{
+      id: 'agents',
+      order: 40,
+      title: () => t('guide.title'),
+      description: () => t('guide.description'),
+    }],
+  }), 'ui-agents-panel: page type')
+
+  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+    name: 'sidebar.right.pane.tab',
+    key: AGENTS_ID,
     locale: NS,
     inject: (): AgentsPanelInjected => ({
       openAgent: (id: SessionId) => {
@@ -40,5 +61,5 @@ export function apply(ctx: Context): void {
         ctx.uiWorkspace.openSession(address ?? id)
       },
     }),
-  }, AgentsPanel))
+  }, AgentsPanel)), 'ui-agents-panel: page body')
 }

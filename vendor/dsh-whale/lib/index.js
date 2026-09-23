@@ -257,6 +257,9 @@ function applyImDefault(home, enabled) {
 const PET_HISTORY_MAX = 24;
 const PET_TEXT_MAX = 800;
 const PET_CHAT_TIMEOUT_MS = 120000;
+/** Sticker markdown renders as an image in the conversation view but is
+ * unreadable noise inside the pet card's text bubbles. */
+const MARKDOWN_IMAGE_RE = /!\[[^\]]*\]\([^)]*\)/g;
 
 /** Recent user/assistant tail of the shared session for card backfill. */
 function historyFromRecords(records) {
@@ -270,7 +273,7 @@ function historyFromRecords(records) {
     if (ev.type === 'user/message' && srcKind && srcKind !== 'user') continue;
     // Workspace-instruction wrappers ride inside the user message; strip the
     // reminder block and drop the row when nothing human-facing remains.
-    const text = eventText(ev).replace(SYSTEM_REMINDER_RE, '').trim();
+    const text = eventText(ev).replace(SYSTEM_REMINDER_RE, '').replace(MARKDOWN_IMAGE_RE, '[表情包]').trim();
     if (!text) continue;
     out.push({
       role: ev.type === 'user/message' ? 'user' : 'her',
@@ -356,7 +359,7 @@ function petSessionTurn(ctx, controller, sessionId, { requestId, matchText, cont
             return;
           }
           if (event?.type === 'assistant/message') {
-            const t = eventText({ data: d }).trim();
+            const t = eventText({ data: d }).replace(MARKDOWN_IMAGE_RE, '[表情包]').trim();
             if (t) texts.push(t);
             return;
           }

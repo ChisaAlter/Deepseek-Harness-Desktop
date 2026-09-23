@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AssistantMarkdown, localPathMediaUrl } from '../src/client/chat/AssistantMarkdown.tsx'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../src/client/contract/slots.ts'
@@ -12,6 +12,10 @@ const renderMessageImages = (() => null) as unknown as ChatNodeOwnerProps['rende
 
 function textBlock(text: string): AssistantBlock {
   return { kind: 'text', text }
+}
+
+function reasoningBlock(text: string): AssistantBlock {
+  return { kind: 'reasoning', text }
 }
 
 const ORIGIN = 'http://127.0.0.1:3080'
@@ -70,5 +74,23 @@ describe('AssistantMarkdown local-path images', () => {
     )
     expect(container.querySelector('img')).toBeNull()
     expect(container.textContent).toContain('diagram')
+  })
+
+  it('renders a local image path inside an expanded Think row through the same vocabulary', () => {
+    const { container } = render(
+      <AssistantMarkdown
+        blocks={[reasoningBlock('Checking the shot ![shot](/tmp/screen.png) first.')]}
+        streaming={false}
+        renderMessageImages={renderMessageImages}
+        t={t}
+      />,
+    )
+    // The Think disclosure starts collapsed; open it to reach the image.
+    fireEvent.click(screen.getByText('label'))
+    const image = container.querySelector('img')
+    expect(image?.getAttribute('alt')).toBe('shot')
+    const url = new URL(image?.getAttribute('src') ?? '')
+    expect(url.pathname).toBe('/api/file')
+    expect(url.searchParams.get('path')).toBe('/tmp/screen.png')
   })
 })

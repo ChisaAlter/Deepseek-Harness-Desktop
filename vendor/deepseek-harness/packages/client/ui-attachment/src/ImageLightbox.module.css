@@ -31,7 +31,11 @@
 .close {
   position: fixed;
   -webkit-app-region: no-drag;
-  top: 20px;
+  /* Desktop caption controls: the frameless window-control plate owns the top
+     --dshd-wco-caption (48px) strip (set by the desktop chrome inject, absent
+     in a plain browser), so the close control drops below it instead of
+     stacking under the window close button. */
+  top: calc(20px + var(--dshd-wco-caption, 0px));
   right: 20px;
   z-index: 1;
   display: grid;

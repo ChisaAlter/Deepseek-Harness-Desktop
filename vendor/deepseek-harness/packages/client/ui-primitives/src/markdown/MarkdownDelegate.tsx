@@ -8,6 +8,16 @@ import type { ReactNode } from 'react'
  */
 export type MarkdownExternalLinkHandler = (href: string) => void
 
+/** One rendered Markdown image offered for preview. */
+export interface MarkdownPreviewImage {
+  /** Displayable URL backing the rendered `<img>` (already past the protocol and vocabulary gates). */
+  readonly src: string
+  /** Authored alt text, possibly empty. */
+  readonly alt: string
+  /** Authored destination exactly as written. */
+  readonly destination: string
+}
+
 /** Navigation capabilities supplied by the nearest Markdown owner. */
 export interface MarkdownDelegate {
   /** Ordinary HTTP(S) activation; absent handlers retain native anchor behavior. */
@@ -18,6 +28,12 @@ export interface MarkdownDelegate {
    * @param options - First line to reveal when the destination specifies a line or range.
    */
   readonly openFile?: ((path: string, options?: { line?: number }) => void) | undefined
+  /**
+   * Open the document-level preview for one rendered image; absent handlers keep
+   * plain `<img>` output, and images inside links stay with the anchor's navigation.
+   * @param image - The rendered image's resolved source and authored fields.
+   */
+  readonly openImage?: ((image: MarkdownPreviewImage) => void) | undefined
 }
 
 const MarkdownDelegateContext = createContext<MarkdownDelegate>({})
@@ -37,8 +53,9 @@ export function MarkdownDelegateProvider({
   children,
   openExternalLink,
   openFile,
+  openImage,
 }: MarkdownDelegateProviderProps): ReactNode {
-  const delegate = useMemo(() => ({ openExternalLink, openFile }), [openExternalLink, openFile])
+  const delegate = useMemo(() => ({ openExternalLink, openFile, openImage }), [openExternalLink, openFile, openImage])
   return (
     <MarkdownDelegateContext.Provider value={delegate}>
       {children}

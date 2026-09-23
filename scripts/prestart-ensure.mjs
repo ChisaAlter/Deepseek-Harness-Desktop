@@ -6,48 +6,44 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createFileScanner } from './source-scan.mjs';
+import { readStageCredentials, stagesToRun } from '../vendor/deepseek-harness/scripts/build-stage-credentials.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const harness = path.join(root, 'vendor', 'deepseek-harness');
 const clientBuildRecord = path.join(harness, '.dsh-build', 'client-build-environment.json');
 
-function newestMtime(dir, filter) {
-  let newest = 0;
-  if (!fs.existsSync(dir)) return 0;
-  const walk = (current) => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const full = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (['node_modules', 'lib', 'dist', '.dsh-build', '.git', 'coverage', '.artifacts'].includes(entry.name)) continue;
-        walk(full);
-        continue;
-      }
-      if (filter && !filter(full)) continue;
-      newest = Math.max(newest, fs.statSync(full).mtimeMs);
-    }
-  };
-  walk(dir);
-  return newest;
-}
+const remoteScanner = createFileScanner((file) => /\.(tsx?|css)$/.test(file));
 
-function currentCommit() {
-  const result = spawnSync('git', ['rev-parse', '--short=7', 'HEAD'], {
+/**
+ * The exact public environment an official build at this checkout must embed.
+ *
+ * This is derived from the checkout itself — Git HEAD and the vendored
+ * package.json — never from the build record, so comparing the two is a real
+ * check rather than a tautology.
+ */
+function expectedOfficialEnvironment() {
+  const commit = spawnSync('git', ['rev-parse', '--short=7', 'HEAD'], {
     cwd: root,
     encoding: 'utf8',
     shell: false,
   });
-  return result.status === 0 ? result.stdout.trim() : '';
+  const version = JSON.parse(fs.readFileSync(path.join(harness, 'package.json'), 'utf8')).version;
+  return {
+    DSH_CLIENT_BUILD_PROFILE: 'official',
+    DSH_CLIENT_TITLE: 'DeepSeek Harness',
+    DSH_CLIENT_COMMIT_HASH: commit.status === 0 ? commit.stdout.trim() : '',
+    DSH_CLIENT_VERSION: version,
+  };
 }
 
-function clientSourceMtime() {
-  return newestMtime(harness, (file) => {
-    const normalized = file.replaceAll(path.sep, '/');
-    if (!/(\/packages\/client\/|\/apps\/web\/|\/scripts\/)/.test(normalized)) return false;
-    return /\.(?:tsx?|css|html|json|ya?ml)$/i.test(file);
-  });
-}
-
-function officialBuildReason() {
+/**
+ * Why the official build must run again, or an empty string when it can be
+ * reused. Record and profile checks come first because they are cheap; the
+ * per-stage credential check then decides which stages are stale, so a commit
+ * that touches no build input no longer rebuilds the client at all.
+ */
+async function officialBuildReason() {
   if (!fs.existsSync(clientBuildRecord)) return 'official client build record is missing';
   let record;
   try {
@@ -58,10 +54,23 @@ function officialBuildReason() {
   const environment = record?.environment;
   if (environment?.DSH_CLIENT_BUILD_PROFILE !== 'official') return 'client build is not official';
   if (environment?.DSH_CLIENT_TITLE !== 'DeepSeek Harness') return 'client build title is not official';
-  const commit = currentCommit();
-  if (commit && environment?.DSH_CLIENT_COMMIT_HASH !== commit) return 'client build belongs to an older desktop commit';
-  const recordMtime = fs.statSync(clientBuildRecord).mtimeMs;
-  if (clientSourceMtime() > recordMtime + 500) return 'client sources are newer than the official build';
+  const expected = expectedOfficialEnvironment();
+  const recordedKeys = Object.keys(environment).sort().join(',');
+  if (recordedKeys !== Object.keys(expected).sort().join(',')) {
+    return 'client build environment has a different set of public values';
+  }
+  for (const [name, value] of Object.entries(expected)) {
+    if (environment[name] !== value) return `client build is stale for ${name}`;
+  }
+  let stale;
+  try {
+    stale = await stagesToRun(harness, expected, readStageCredentials(harness));
+  } catch (error) {
+    // Any failure to prove the artifacts are current has to rebuild, exactly
+    // like a failed check: this gate may never skip work on an error.
+    return `build credentials could not be verified (${error instanceof Error ? error.message : String(error)})`;
+  }
+  if (stale.length > 0) return `build stages are stale: ${stale.join(', ')}`;
   return '';
 }
 
@@ -72,7 +81,7 @@ function run(command, args, cwd = root, { shell = process.platform === 'win32' }
   }
 }
 
-const buildReason = officialBuildReason();
+const buildReason = await officialBuildReason();
 if (buildReason) {
   console.log(`[prestart] ${buildReason}; rebuilding official client`);
   const pnpm = path.join(root, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs');
@@ -85,7 +94,7 @@ run(process.execPath, ['scripts/prepare-dshd-remote.mjs'], root, { shell: false 
 const remotePkg = path.join(root, 'vendor', 'deepseek-harness', 'packages', 'client', 'ui-settings-remote');
 const remoteSrc = path.join(remotePkg, 'src');
 const remoteLib = path.join(remotePkg, 'lib', 'client.js');
-const srcNewest = newestMtime(remoteSrc, (f) => /\.(tsx?|css)$/.test(f));
+const srcNewest = remoteScanner(remoteSrc);
 const libMtime = fs.existsSync(remoteLib) ? fs.statSync(remoteLib).mtimeMs : 0;
 if (srcNewest > libMtime + 500) {
   console.log('[prestart] rebuilding ui-settings-remote (src newer than lib)');

@@ -3,7 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const semver = require('semver');
 const { pathToFileURL } = require('url');
-const { missingRuntimeFiles, missingDeclaredEntries } = require('../src/main/plugin-runtime-files');
+const {
+  missingDeclaredEntries,
+  auditRuntimeClosure,
+} = require('../src/main/plugin-runtime-files');
 const { DESKTOP_PACKAGES } = require('../src/shared/harness-desktop-forks');
 const { runSkipComposeContract } = require('./check-skip-compose-contract');
 const {
@@ -67,9 +70,36 @@ const DEV_ONLY_NAMES = new Set([
   'lint-staged',
 ]);
 
-function missingPluginDependencies(packageDir) {
-  return missingRuntimeFiles(packageDir);
+/**
+ * Fail-closed completeness check used before reusing a packaged plugin tree.
+ * Walks the complete production dependency closure at each package's real
+ * resolution position, so depth is no longer a guess. The previous
+ * depth-bounded walk could only prove a tree *broken*; this reports an
+ * explicit incomplete marker when the node budget runs out, which keeps the
+ * caller on the fail-closed side instead of reusing an unaudited tree.
+ * @param {string} packageDir packaged plugin directory.
+ * @param {{ maxPackages?: number }} [options]
+ * @returns {string[]} missing runtime paths, empty when the tree is reusable.
+ */
+function missingPluginRuntimeClosure(packageDir, options = {}) {
+  const manifestPath = path.join(packageDir, 'package.json');
+  if (!fs.existsSync(manifestPath)) {
+    return ['package.json'];
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch {
+    return ['package.json'];
+  }
+  const audit = auditRuntimeClosure(packageDir, options);
+  // `complete: false` means the walk gave up, not that the tree is healthy.
+  // Surface it as a missing marker so every caller treats it as fail-closed.
+  return audit.complete ? audit.missing : [...audit.missing, CLOSURE_INCOMPLETE_MARKER];
 }
+
+/** Marker returned when the closure audit could not finish within budget. */
+const CLOSURE_INCOMPLETE_MARKER = '<closure-incomplete>';
 
 function defaultNpmInstall(packageDir) {
   const nm = path.join(packageDir, 'node_modules');
@@ -107,36 +137,64 @@ function restoreVendoredPluginNodeModules(projectDir, resources, packageName) {
   if (!fs.existsSync(srcNm)) {
     return { restored: false, reason: 'missing-source-node-modules' };
   }
-  const missing = missingPluginDependencies(destPkg);
+  const missing = missingPluginRuntimeClosure(destPkg);
   if (missing.length === 0) {
     return { restored: false, reason: 'already-present' };
   }
   fs.cpSync(srcNm, path.join(destPkg, 'node_modules'), { recursive: true, force: true });
-  return { restored: true, missing };
+  // The same closure check decides whether the copy actually repaired the
+  // tree; a partial vendored node_modules must not read as a restore.
+  const unresolved = missingPluginRuntimeClosure(destPkg);
+  return { restored: true, missing, unresolved };
 }
 
 /**
  * Git-tracked plugin node_modules can omit export files (repo dist/ ignore).
  * Wipe and npm-install from package.json when the packaged tree is incomplete.
  * @param {string} packageDir
- * @param {{ run?: (dir: string) => void, skipIfComplete?: boolean }} [options]
+ * @param {{
+ *   run?: (dir: string) => void,
+ *   skipIfComplete?: boolean,
+ *   verify?: (dir: string) => string[],
+ * }} [options]
+ *   `verify` supplies the completeness evidence; callers that must not reuse a
+ *   half-repaired tree pass {@link missingPluginRuntimeClosure}.
+ *   The same verifier runs again after the install: an installer that exits 0
+ *   without repairing the tree must not be reported as success.
+ * @returns {{ installed: boolean, reason: string, missing?: string[], unresolved?: string[] }}
+ * @throws when a repair was attempted and the tree is still incomplete.
  */
 function installPluginRuntimeDeps(packageDir, options = {}) {
   if (!fs.existsSync(path.join(packageDir, 'package.json'))) {
     return { installed: false, reason: 'missing-package' };
   }
-  const missing = missingPluginDependencies(packageDir);
+  const verify = options.verify || missingPluginRuntimeClosure;
+  const missing = verify(packageDir);
   if (options.skipIfComplete && missing.length === 0) {
     return { installed: false, reason: 'already-present' };
   }
+  if (!options.skipIfComplete && options.verify && missing.length === 0) {
+    // Explicitly verified as complete: reuse instead of deleting a healthy
+    // node_modules and reinstalling it. A failed verification still falls
+    // through to the controlled install path below.
+    return { installed: false, reason: 'verified-complete' };
+  }
   const run = options.run || defaultNpmInstall;
   run(packageDir);
-  return { installed: true, missing };
+  const unresolved = verify(packageDir);
+  if (unresolved.length > 0) {
+    throw new Error(
+      `packaged ${path.basename(packageDir)} is still incomplete after install: ${unresolved.join(', ')}`,
+    );
+  }
+  return { installed: true, reason: 'installed', missing };
 }
 
 function assertVendoredPluginRuntimeDeps(resources, packageName) {
   const destPkg = path.join(resources, 'vendor', packageName);
-  const missing = missingPluginDependencies(destPkg);
+  // The final gate uses the same full closure evidence the reuse decision
+  // uses; a shallow check here would bless what the install step just rejected.
+  const missing = missingPluginRuntimeClosure(destPkg);
   if (missing.length) {
     throw new Error(`packaged ${packageName} is missing node_modules: ${missing.join(', ')}`);
   }
@@ -962,9 +1020,14 @@ module.exports = async function afterPack(context) {
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-usage-panel'), { skipIfComplete: true });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-usage-panel');
   restoreVendoredPluginNodeModules(projectDir, resources, 'dsh-im');
-  // Force install when any runtime export is missing (skipIfComplete can leave
-  // a half-broken tree that silently drops Settings → Remote → Channels).
-  installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-im'), { skipIfComplete: false });
+  // Reuse the tree only when a deep closure check proves it complete. The
+  // shallow `skipIfComplete` predicate must not decide this: it can leave a
+  // half-broken tree that silently drops Settings → Remote → Channels, which is
+  // why the previous revision deleted and reinstalled unconditionally.
+  installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-im'), {
+    skipIfComplete: false,
+    verify: missingPluginRuntimeClosure,
+  });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-im');
   restoreVendoredPluginNodeModules(projectDir, resources, 'dshbot');
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dshbot'), { skipIfComplete: true });
@@ -972,6 +1035,9 @@ module.exports = async function afterPack(context) {
   restoreVendoredPluginNodeModules(projectDir, resources, 'dsh-whale');
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-whale'), { skipIfComplete: true });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-whale');
+  restoreVendoredPluginNodeModules(projectDir, resources, 'dsh-remote');
+  installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-remote'), { skipIfComplete: true });
+  assertVendoredPluginRuntimeDeps(resources, 'dsh-remote');
   await assertDshdRemoteRuntime(resources);
   const harnessDest = path.join(resources, 'vendor', 'deepseek-harness');
   const deployDir = resolveDeployDir(process.env.DSH_DEPLOY_DIR);
@@ -1041,6 +1107,8 @@ module.exports.assertNodePtyPrebuild = assertNodePtyPrebuild;
 module.exports.assertVendoredPluginRuntimeDeps = assertVendoredPluginRuntimeDeps;
 module.exports.assertDshdRemoteRuntime = assertDshdRemoteRuntime;
 module.exports.installPluginRuntimeDeps = installPluginRuntimeDeps;
+module.exports.missingPluginRuntimeClosure = missingPluginRuntimeClosure;
+module.exports.CLOSURE_INCOMPLETE_MARKER = CLOSURE_INCOMPLETE_MARKER;
 module.exports.nodePtyPrebuildRelative = nodePtyPrebuildRelative;
 module.exports.restoreVendoredPluginNodeModules = restoreVendoredPluginNodeModules;
 module.exports.ensureGhosttyAssetsInHarness = ensureGhosttyAssetsInHarness;

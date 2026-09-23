@@ -40,6 +40,10 @@ MIT shell chrome (settings copy, Electron IPC) stays MIT. AGPL covers this tree 
 - `daemon-client.ts` / `daemon-client-checkout-subscriptions.ts` / `daemon-client-agent-interaction.ts` — bare `crypto.randomUUID()` call sites route through the existing `safeRandomId()` (`daemon-client-transport-utils.ts`). The desktop pairing page is `http://<lan-ip>:3180` — **not a secure context** — so browsers do not expose `crypto.randomUUID` there (localhost QA masks this; real phones hit it). The E2EE stack itself is tweetnacl and never needs `crypto.subtle`. Same rule for new client code: no secure-context-only crypto APIs.
 - `daemon-client-connection-controller.ts` — `relayDeviceAuth` config accepts `deviceName` and `buildRelayDeviceAuth` carries it on the first-pairing payload (protocol field is append-only; old daemons ignore it).
 
+## Fork deltas (packages/cli)
+
+- `src/utils/client-id.ts` — the client identity path used to be computed once with `process.env.CHISACODE_HOME ?? join(homedir(), ".chisacode")`, so an empty `CHISACODE_HOME` wrote `cli-client-id` into the process cwd (the repo root, in practice), and a relative value bound identity state to whatever directory the CLI ran from. Home resolution is now a lazy exported `resolveCliClientIdDirectory(env)` that falls back to `~/.chisacode` for unset, empty/whitespace-only, and non-absolute values, while a syntactically absolute path is preserved verbatim. `getOrCreateCliClientId()` keeps its public API and caching.
+
 ## Fork deltas (packages/protocol)
 
 - `messages.ts` — `WSHelloMessageSchema.relayDeviceAuth.deviceName` (optional, trimmed, 1–120 chars): client-reported operator label for first pairing, consumed by the server fork above.

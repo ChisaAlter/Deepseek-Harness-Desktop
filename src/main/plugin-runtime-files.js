@@ -174,8 +174,101 @@ function missingRuntimeFiles(packageDir, options = {}) {
   return missing;
 }
 
+/** Default node budget for {@link auditRuntimeClosure}. */
+const CLOSURE_MAX_PACKAGES = 20_000;
+
+/**
+ * Walk the whole production dependency closure the way Node resolves it.
+ *
+ * `missingRuntimeFiles` is depth-bounded: it can prove a tree broken, never
+ * that it is complete. A fixed depth (the previous `DEFAULT_CLOSURE_DEPTH = 3`)
+ * silently declared deeper trees healthy, so a half-repaired install was
+ * reused and only failed at runtime. This walk follows the real resolution
+ * position of every dependency, dedupes by canonical path so symlink loops and
+ * repeated packages terminate, and reports `complete: false` when the node
+ * budget runs out instead of guessing that the remainder is fine.
+ *
+ * Cycles are safe by construction: a package that has already been visited is
+ * not re-expanded, and its own entries were checked the first time.
+ *
+ * @param {string} packageDir root package directory.
+ * @param {{ resolveRoot?: string, maxPackages?: number }} [options]
+ * @returns {{ missing: string[], complete: boolean, visited: number }}
+ */
+function auditRuntimeClosure(packageDir, options = {}) {
+  const resolveRoot = options.resolveRoot || packageDir;
+  const maxPackages = Number.isInteger(options.maxPackages) && options.maxPackages > 0
+    ? options.maxPackages
+    : CLOSURE_MAX_PACKAGES;
+  /** @type {string[]} */
+  const missing = [];
+  /** @type {Set<string>} */
+  const visited = new Set();
+  /** @type {Set<string>} */
+  const queued = new Set();
+  let incomplete = false;
+  /** @type {{ dir: string, prefix: string }[]} */
+  const queue = [{ dir: packageDir, prefix: '' }];
+
+  const canonicalOf = (dir) => {
+    try {
+      return fs.realpathSync(dir);
+    } catch {
+      return path.resolve(dir);
+    }
+  };
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const canonical = canonicalOf(current.dir);
+    if (visited.has(canonical)) {
+      // Already expanded: a second path to the same canonical package (pnpm
+      // symlink, hoist, or dependency cycle) must not duplicate its entries.
+      continue;
+    }
+    if (visited.size >= maxPackages) {
+      incomplete = true;
+      break;
+    }
+    visited.add(canonical);
+
+    const pkg = readPackageJson(path.join(current.dir, 'package.json'));
+    if (!pkg) {
+      missing.push(posixJoin(current.prefix, 'package.json'));
+      continue;
+    }
+
+    for (const rel of missingDeclaredEntries(current.dir, pkg)) {
+      missing.push(posixJoin(current.prefix, rel.split(path.sep).join('/')));
+    }
+
+    const deps = pkg.dependencies && typeof pkg.dependencies === 'object'
+      ? Object.keys(pkg.dependencies)
+      : [];
+    for (const name of deps) {
+      const depDir = resolveDependencyDir(current.dir, name, resolveRoot);
+      if (!depDir) {
+        missing.push(posixJoin(current.prefix, name));
+        continue;
+      }
+      const depCanonical = canonicalOf(depDir);
+      if (visited.has(depCanonical) || queued.has(depCanonical)) {
+        // A cycle or a repeated hoisted package: expanding it again would
+        // loop forever and cannot reveal a new missing entry.
+        continue;
+      }
+      queued.add(depCanonical);
+      queue.push({ dir: depDir, prefix: posixJoin(current.prefix, name) });
+    }
+  }
+
+  return { missing: [...new Set(missing)], complete: !incomplete, visited: visited.size };
+}
+
 module.exports = {
   declaredEntryRelatives,
   missingDeclaredEntries,
   missingRuntimeFiles,
+  auditRuntimeClosure,
+  CLOSURE_MAX_PACKAGES,
 };

@@ -188,11 +188,12 @@ function mount(opts: {
   let seq = 0
   const ptyCreate = opts.ptyCreate ?? vi.fn(async (_input: { cwd: string }) => ({ id: `pty-${++seq}` }))
   const ptyWrite = vi.fn(async () => {})
+  const ptyAck = vi.fn(async () => {})
   const ptyResize = vi.fn(async () => {})
   const ptyKill = vi.fn(async () => {})
-  const dataHandlers: Array<(payload: { id: string; data: string }) => void> = []
+  const dataHandlers: Array<(payload: { id: string; data: string; seq: number }) => void> = []
   const exitHandlers: Array<(payload: { id: string; code: number }) => void> = []
-  const onPtyData = vi.fn((handler: (payload: { id: string; data: string }) => void) => {
+  const onPtyData = vi.fn((handler: (payload: { id: string; data: string; seq: number }) => void) => {
     dataHandlers.push(handler)
     return () => {}
   })
@@ -227,6 +228,7 @@ function mount(opts: {
     ...store,
     ptyCreate,
     ptyWrite,
+    ptyAck,
     ptyResize,
     ptyKill,
     onPtyData,
@@ -249,7 +251,7 @@ function mount(opts: {
     </>,
   )
   return {
-    ptyCreate, ptyWrite, ptyResize, ptyKill, toggleTerminalDrawer, setTerminalDrawer,
+    ptyCreate, ptyWrite, ptyAck, ptyResize, ptyKill, toggleTerminalDrawer, setTerminalDrawer,
     mentionTerminal, writeClipboard, openWorkspacePath, openLocalUrl, openExternal,
     instance, handle,
     surfaceHandle, surfaceInstance,
@@ -485,11 +487,11 @@ describe('TerminalDrawer', () => {
     const surfaceHandle = createTerminalSessionStore()
     const surfaceInstance = surfaceHandle.create('session-1')
     const b = mount({ cwd: '/work', handle, instance, surface: true, surfaceHandle, surfaceInstance })
-    bindPtyListeners([handle, surfaceHandle], { onPtyData: b.onPtyData, onPtyExit: b.onPtyExit })
+    bindPtyListeners([handle, surfaceHandle], { onPtyData: b.onPtyData, onPtyExit: b.onPtyExit, ptyAck: b.ptyAck })
     fireEvent.click(screen.getAllByRole('button', { name: 'New terminal' })[0]!)
     await screen.findByRole('log', { name: 'pty-1' })
     expect(b.onPtyData).toHaveBeenCalledTimes(1)
-    for (const handler of b.dataHandlers) handler({ id: 'pty-1', data: 'hello' })
+    for (const handler of b.dataHandlers) handler({ id: 'pty-1', data: 'hello', seq: 1 })
     expect(instance.getSnapshot().sessions[0]?.buffer).toBe('hello')
     expect(surfaceInstance.getSnapshot().sessions).toHaveLength(0)
     await waitFor(() => {
@@ -550,7 +552,7 @@ describe('TerminalDrawer', () => {
     const handle = createTerminalSessionStore()
     const instance = handle.create('session-1')
     const b = mount({ cwd: '/work', handle, instance })
-    bindPtyListeners([handle], { onPtyData: b.onPtyData, onPtyExit: b.onPtyExit })
+    bindPtyListeners([handle], { onPtyData: b.onPtyData, onPtyExit: b.onPtyExit, ptyAck: b.ptyAck })
     fireEvent.click(screen.getAllByRole('button', { name: 'New terminal' })[0]!)
     await screen.findAllByRole('log', { name: 'pty-1' })
     for (const handler of b.exitHandlers) handler({ id: 'pty-1', code: 0 })
@@ -793,10 +795,10 @@ describe('TerminalDrawer', () => {
     const handle = createTerminalSessionStore()
     const instance = handle.create('session-1')
     const b = mount({ cwd: '/work', handle, instance })
-    bindPtyListeners([handle], { onPtyData: b.onPtyData, onPtyExit: b.onPtyExit })
+    bindPtyListeners([handle], { onPtyData: b.onPtyData, onPtyExit: b.onPtyExit, ptyAck: b.ptyAck })
     fireEvent.click(screen.getByRole('button', { name: 'New terminal' }))
     await screen.findByRole('log', { name: 'pty-1' })
-    for (const handler of b.dataHandlers) handler({ id: 'pty-1', data: 'hello-seed' })
+    for (const handler of b.dataHandlers) handler({ id: 'pty-1', data: 'hello-seed', seq: 1 })
     fireEvent.click(screen.getByRole('button', { name: 'New terminal' }))
     await screen.findByRole('log', { name: 'pty-2' })
     fireEvent.click(screen.getByRole('button', { name: /^Group 1$/ }))

@@ -189,9 +189,10 @@ export interface ConversationNodeDefinition<State = unknown> {
   /**
    * Extract this Definition's stable business identity from one event.
    * @param event - standard or compact Client history event; no Context or history access is available.
+   * @param location - the event's current Turn/Step Location when the assembler has resolved one.
    * @returns identity and lifecycle role, or null when unrelated.
    */
-  match(event: SessionEventLike): ConversationMatchResult | null
+  match(event: SessionEventLike, location?: ConversationLocation): ConversationMatchResult | null
   /**
    * Create State from the unique start Match.
    * @param context - complete evidence currently collected for the Context.

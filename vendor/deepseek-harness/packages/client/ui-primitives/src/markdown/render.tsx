@@ -644,14 +644,32 @@ function renderImage(url: string, alt: string, key: Key, context: MarkdownRender
   if (imageSrc === undefined) {
     return <span key={key} className={css.imageAlt}>{alt}</span>
   }
-  return <MarkdownImage key={`${key}:${imageSrc}`} src={imageSrc} alt={alt} destination={url} />
+  return (
+    <MarkdownImage
+      key={`${key}:${imageSrc}`}
+      src={imageSrc}
+      alt={alt}
+      destination={url}
+      linked={context.inLink === true}
+    />
+  )
 }
 
-/** Failed loads retain the authored alt or destination; a new source remounts the image. */
-function MarkdownImage({ src, alt, destination }: { src: string; alt: string; destination: string }): ReactNode {
+/**
+ * Failed loads retain the authored alt or destination; a new source remounts
+ * the image. With an `openImage` delegate the still frame becomes a button
+ * that opens the owner's preview; inside a link the anchor keeps the click.
+ */
+function MarkdownImage({ src, alt, destination, linked }: {
+  src: string
+  alt: string
+  destination: string
+  linked: boolean
+}): ReactNode {
+  const { openImage } = useMarkdownDelegate()
   const [failed, setFailed] = useState(false)
   if (failed) return <span className={css.imageAlt}>{alt || destination}</span>
-  return (
+  const image = (
     <img
       className={css.image}
       src={src}
@@ -661,6 +679,17 @@ function MarkdownImage({ src, alt, destination }: { src: string; alt: string; de
       decoding="async"
       referrerPolicy="no-referrer"
     />
+  )
+  if (openImage === undefined || linked) return image
+  return (
+    <button
+      type="button"
+      className={css.imageButton}
+      aria-label={alt || destination}
+      onClick={() => { openImage({ src, alt, destination }) }}
+    >
+      {image}
+    </button>
   )
 }
 

@@ -1090,3 +1090,191 @@ test('say-kind whale lines stay transient and keep the old arbitration', () => {
   pet.run(`onDshEvent({ category: 'dshWhale', summary: '下一句', kind: 'say' })`);
   assert.equal(pet.run('bubble.text'), '下一句');
 });
+
+// The part rig draws every part at ABSOLUTE master coordinates, so the
+// feet pivot must be pre-subtracted in the translate term — otherwise the
+// whole render lands +RIG_FEET*S away from drawPos (observed: +365/+343px,
+// character off-screen and hitbox shifted with it). Replays the recorded
+// transform stream into a real CTM and asserts the feet pixel lands on the
+// drawPos anchor.
+test('rig drawRig anchors the master feet pivot to drawPos', () => {
+  const pet = loadPet();
+  const ctx = pet.canvas.ctx;
+  ctx.translate = (x, y) => ctx.ops.push(['translate', x, y]);
+  ctx.rotate = (r) => ctx.ops.push(['rotate', r]);
+  ctx.scale = (x, y) => ctx.ops.push(['scale', x, y]);
+  pet.run(`rig.ready = true;
+    rig.mf = {
+      char_bbox: [767, 271, 1269, 966],
+      body: { file: 'shell.png', bbox_in_master: [767, 271, 1269, 966] },
+      tail: { file: 'tail.png', bbox_in_master: [767, 271, 1269, 966] },
+      shells: { neutral: { file: 'shell.png', bbox_in_master: [767, 271, 1269, 966] } },
+    };
+    rig.imgs = { body: { naturalWidth: 10 }, tail: { naturalWidth: 10 }, 'shell:neutral': { naturalWidth: 10 } };
+    drawPos = { x: 100, y: 50 };
+    rigT = 0;
+    stillCtl.name = null;
+    stillCtl.alpha = 0;`);
+  pet.run('drawRig()');
+  // Replay the op stream into [a,b,c,d,e,f] CTMs; canvas maps
+  // (x,y) → (a*x + c*y + e, b*x + d*y + f).
+  const mult = (m, op) => {
+    const [a, b, c, d, e, f] = m;
+    if (op[0] === 'translate') {
+      return [a, b, c, d, a * op[1] + c * op[2] + e, b * op[1] + d * op[2] + f];
+    }
+    if (op[0] === 'rotate') {
+      const cos = Math.cos(op[1]); const sin = Math.sin(op[1]);
+      return [a * cos + c * sin, b * cos + d * sin,
+        -a * sin + c * cos, -b * sin + d * cos, e, f];
+    }
+    if (op[0] === 'scale') { return [a * op[1], b * op[1], c * op[2], d * op[2], e, f]; }
+    return m;
+  };
+  let m = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const draws = [];
+  for (const op of ctx.ops) {
+    if (op[0] === 'save') { stack.push(m.slice()); } else if (op[0] === 'restore') { m = stack.pop(); } else if (op[0] === 'drawImage') { draws.push({ m: m.slice(), args: op.slice(1) }); } else { m = mult(m, op); }
+  }
+  // Draw order: tail, then the fused shell (head+body as one piece). In
+  // the shell image the master feet pivot (1018,955) sits at image-local
+  // (1018-767, 955-271) = (251, 684).
+  const body = draws[1];
+  const lx = body.args[1] + 251;
+  const ly = body.args[2] + 684;
+  const [a, b, c, d, e, f] = body.m;
+  const cx = a * lx + c * ly + e;
+  const cy = b * lx + d * ly + f;
+  assert.ok(Math.abs(cx - (100 + 240 / 2)) < 0.5, `feet canvas x ${cx} ≈ anchor 220`);
+  assert.ok(Math.abs(cy - (50 + 260 - 2)) < 0.5, `feet canvas y ${cy} ≈ anchor 308`);
+  // charRect is the drawPos-local hit box from the same manifest math.
+  const cr = pet.run('charRect');
+  assert.ok(Math.abs(cr.x - 30) < 1 && Math.abs(cr.bottom - 262) < 1, 'hit box matches char bbox');
+});
+
+// A state may swap the whole shell via P.body + a manifest `shells` entry —
+// future pose assets (raised arms, curled torso) drop in as assets only.
+// Asserts the override image is drawn and a missing asset falls back.
+test('rig drawRig honours P.body shell override with fallback', () => {
+  const pet = loadPet();
+  const ctx = pet.canvas.ctx;
+  ctx.translate = () => {};
+  pet.run(`rig.ready = true;
+    rig.mf = {
+      char_bbox: [767, 271, 1269, 966],
+      body: { file: 'shell.png', bbox_in_master: [767, 271, 1269, 966] },
+      shells: {
+        neutral: { file: 'shell.png', bbox_in_master: [767, 271, 1269, 966] },
+        pickup: { file: 'shell-pickup.png', bbox_in_master: [767, 271, 1269, 966] },
+      },
+      tail: { file: 'tail.png', bbox_in_master: [767, 271, 1269, 966] },
+    };
+    rig.imgs = {
+      body: { naturalWidth: 10, tag: 'default' },
+      'shell:neutral': { naturalWidth: 10, tag: 'open' },
+      'shell:pickup': { naturalWidth: 10, tag: 'alt' },
+      tail: { naturalWidth: 10 },
+    };
+    RIG_STATES.testswap = (P) => { P.body = 'pickup'; };
+    drawPos = { x: 100, y: 50 };
+    stillCtl.name = 'testswap';
+    stillCtl.alpha = 1;`);
+  const draws = () => pet.canvas.ctx.ops.filter((o) => o[0] === 'drawImage').map((o) => o[1]);
+  pet.run('drawRig()');
+  assert.equal(draws()[1], pet.run(`rig.imgs['shell:pickup']`), 'state shell override drawn');
+  // Missing override asset → default shell, no throw.
+  pet.run(`rig.imgs['shell:pickup'] = {}; stillCtl.name = 'testswap';`);
+  pet.canvas.ctx.ops.length = 0;
+  pet.run('drawRig()');
+  assert.equal(draws()[1], pet.run(`rig.imgs['shell:neutral']`), 'missing asset falls back to expr shell');
+  // No state → neutral shell.
+  pet.run(`stillCtl.name = null; stillCtl.alpha = 0;`);
+  pet.canvas.ctx.ops.length = 0;
+  pet.run('drawRig()');
+  assert.equal(draws()[1], pet.run(`rig.imgs['shell:neutral']`), 'idle draws neutral shell');
+});
+
+// Blink channel is analog: <0.35 open / 0.35-0.78 half-lidded / >0.78 closed.
+test('rig blink maps to three-stage shell selection', () => {
+  const pet = loadPet();
+  pet.canvas.ctx.translate = () => {};
+  pet.run(`rig.ready = true;
+    rig.mf = {
+      char_bbox: [767, 271, 1269, 966],
+      body: { file: 'shell.png', bbox_in_master: [767, 271, 1269, 966] },
+      tail: { file: 'tail.png', bbox_in_master: [767, 271, 1269, 966] },
+      shells: {
+        neutral: { file: 'a', bbox_in_master: [767, 271, 1269, 966] },
+        'half-closed': { file: 'b', bbox_in_master: [767, 271, 1269, 966] },
+        'eyes-closed': { file: 'c', bbox_in_master: [767, 271, 1269, 966] },
+      },
+    };
+    rig.imgs = {
+      body: { naturalWidth: 10 }, tail: { naturalWidth: 10 },
+      'shell:neutral': { naturalWidth: 10, tag: 'open' },
+      'shell:half-closed': { naturalWidth: 10, tag: 'half' },
+      'shell:eyes-closed': { naturalWidth: 10, tag: 'shut' },
+    };
+    drawPos = { x: 100, y: 50 };
+    stillCtl.name = null; stillCtl.alpha = 0;
+    idle.sleepy = 0; idle.blinkState = 0;`);
+  // The shell is the last drawImage (a crossfade may draw the outgoing
+  // shell just before it); the tail draws first.
+  const shellDraw = () => pet.canvas.ctx.ops.filter((o) => o[0] === 'drawImage').map((o) => o[1]).at(-1);
+  pet.run('pose[12] = pose[13] = 0; drawRig()');
+  assert.equal(shellDraw(), pet.run(`rig.imgs['shell:neutral']`), 'open eyes');
+  pet.canvas.ctx.ops.length = 0;
+  pet.run('pose[12] = pose[13] = 0.55; drawRig()');
+  assert.equal(shellDraw(), pet.run(`rig.imgs['shell:half-closed']`), 'half-lidded mid-blink');
+  pet.canvas.ctx.ops.length = 0;
+  pet.run('pose[12] = pose[13] = 1; drawRig()');
+  assert.equal(shellDraw(), pet.run(`rig.imgs['shell:eyes-closed']`), 'fully closed');
+});
+
+// Mid-state expression swaps crossfade: the outgoing shell keeps drawing
+// (fading out) behind the incoming shell for ~140ms instead of hard-cutting.
+test('rig expression swaps crossfade shells', () => {
+  const pet = loadPet();
+  pet.canvas.ctx.translate = () => {};
+  pet.run(`rig.ready = true;
+    rig.mf = {
+      char_bbox: [767, 271, 1269, 966],
+      body: { file: 'shell.png', bbox_in_master: [767, 271, 1269, 966] },
+      tail: { file: 'tail.png', bbox_in_master: [767, 271, 1269, 966] },
+      shells: {
+        neutral: { file: 'a', bbox_in_master: [767, 271, 1269, 966] },
+        angry: { file: 'b', bbox_in_master: [767, 271, 1269, 966] },
+      },
+    };
+    rig.imgs = {
+      body: { naturalWidth: 10 }, tail: { naturalWidth: 10 },
+      'shell:neutral': { naturalWidth: 10, tag: 'open' },
+      'shell:angry': { naturalWidth: 10, tag: 'mad' },
+    };
+    RIG_STATES.mood = (P, t) => { P.expr = (t - rigStateT0) < 0.5 ? 'neutral' : 'angry'; };
+    drawPos = { x: 100, y: 50 };
+    setStill('mood'); stillCtl.alpha = 1;`);
+  // Tail draws first; everything after it is shell work.
+  const shellTags = () => pet.canvas.ctx.ops.filter((o) => o[0] === 'drawImage').map((o) => o[1].tag).slice(1);
+  pet.run('drawRig()');
+  assert.deepEqual(shellTags(), ['open']);
+  pet.canvas.ctx.ops.length = 0;
+  // The flip frame draws the outgoing shell fading behind the new one.
+  pet.run('rigStateT0 -= 10; drawRig()');
+  assert.deepEqual(shellTags(), ['open', 'mad']);
+  pet.canvas.ctx.ops.length = 0;
+  // Once the blend elapses only the current shell remains.
+  pet.run('rigT += 1; drawRig()');
+  assert.deepEqual(shellTags(), ['mad']);
+});
+
+// Waking her plays a brief startle beat (surprised head + jolt hops)
+// instead of silently fading back to idle.
+test('wake plays the startle state', () => {
+  const pet = loadPet();
+  pet.run('sleeping = true; stillCtl.name = "sleep"; stillCtl.alpha = 1;');
+  pet.run('wake()');
+  assert.equal(pet.run('stillCtl.name'), 'startle');
+  assert.ok(pet.run('action && action.until > performance.now()'), 'timed startle');
+});

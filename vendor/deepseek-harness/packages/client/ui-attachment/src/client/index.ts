@@ -6,6 +6,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {} from '@deepseek-ai/dsh-client-ui-trajectory/client'
 import { ComposerAttachments } from './ComposerAttachments.tsx'
+import { ImagePreview } from './ImagePreview.tsx'
 import { MessageImages } from './MessageImages.tsx'
 
 /** Slot registry required by this presentation plugin. */
@@ -21,6 +22,13 @@ export function apply(ctx: ClientContext): void {
     name: 'conversation.message.images',
     locale: 'conversation',
   }, MessageImages))
+  // Markdown-authored images (assistant prose, expanded Think rows) activate
+  // through the chat Markdown delegate; this arm supplies their preview
+  // surface — the same lightbox the galleries open.
+  ctx.slots.inject('conversation.image.preview', () => ctx.slots.register({
+    name: 'conversation.image.preview',
+    locale: 'conversation',
+  }, ImagePreview))
   ctx.slots.inject('conversation.trajectory.images', () => ctx.slots.register({
     name: 'conversation.trajectory.images',
     locale: 'conversation',

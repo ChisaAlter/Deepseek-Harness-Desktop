@@ -135,6 +135,8 @@ function loadWindowModule() {
       prepareHarnessChrome() {},
       syncHarnessChrome() {},
       currentTheme: () => ({ bg: '#ffffff' }),
+      markWindowTransparent() {},
+      paintBackground() {},
     },
   };
   require.cache[pathsPath] = {

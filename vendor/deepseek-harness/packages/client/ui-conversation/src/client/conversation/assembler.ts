@@ -231,7 +231,14 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
         this.timelineDirty = true
         publication = 'immediate'
       }
-      this.replayContexts(this.refreshMatchLocations(changed))
+      const affected = this.refreshMatchLocations(changed)
+      const pending = new Map<string, PendingMatch[]>()
+      publication = maximumPublication(
+        publication,
+        this.collectLocationBackfill(changed, new Set([event.seq]), pending),
+      )
+      this.applyPendingMatches(pending, affected)
+      this.replayContexts(affected)
       if (changed.size > 0) publication = 'immediate'
     } else {
       this.locationIndex.appendNonBoundary(event)
@@ -303,6 +310,11 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (this.locationIndex.snapshot() !== previousTimeline) this.timelineDirty = true
     const affected = this.refreshMatchLocations(changedLocations)
     const pending = new Map<string, PendingMatch[]>()
+    const freshSeqs = new Set(fresh.map(entry => entry.event.seq))
+    publication = maximumPublication(
+      publication,
+      this.collectLocationBackfill(changedLocations, freshSeqs, pending),
+    )
     for (const entry of fresh) {
       publication = maximumPublication(publication, this.collectInput(entry, pending))
     }
@@ -434,19 +446,83 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     input: SessionEventLikeEntry,
     pending: Map<string, PendingMatch[]>,
   ): ConversationPublication {
-    return this.dispatchInput(input, (definition, id, role) => {
-      const key = conversationContextKey(definition.kind, id)
-      const match = conversationMatch(
-        key,
-        input,
-        role,
-        this.locationIndex.locationOf(input.event),
+    return this.dispatchInput(input, (definition, id, role) =>
+      this.collectPendingMatch(definition, id, role, input, pending))
+  }
+
+  private collectPendingMatch(
+    definition: ConversationNodeDefinition,
+    id: string,
+    role: ConversationMatch['role'],
+    input: SessionEventLikeEntry,
+    pending: Map<string, PendingMatch[]>,
+  ): ConversationPublication {
+    const key = conversationContextKey(definition.kind, id)
+    const match = conversationMatch(
+      key,
+      input,
+      role,
+      this.locationIndex.locationOf(input.event),
+    )
+    const matches = pending.get(key) ?? []
+    matches.push({ definition, id, match })
+    pending.set(key, matches)
+    return definition.publication?.(match) ?? 'immediate'
+  }
+
+  /**
+   * Re-evaluate Definitions that previously declined an already-loaded event
+   * after a Location rebuild made that event newly eligible. Only a `null` to
+   * match backfill is collected: Definitions that already own the event keep
+   * their Match, so `mergeMatches` never sees a duplicate.
+   * @param changedSeqs - loaded seqs whose canonical Location changed.
+   * @param excludedSeqs - seqs matched normally by the caller in this pass.
+   * @param pending - collector shared with the caller's normal matching.
+   * @returns highest requested publication cadence.
+   */
+  private collectLocationBackfill(
+    changedSeqs: ReadonlySet<number>,
+    excludedSeqs: ReadonlySet<number>,
+    pending: Map<string, PendingMatch[]>,
+  ): ConversationPublication {
+    let publication: ConversationPublication = 'none'
+    for (const seq of changedSeqs) {
+      if (excludedSeqs.has(seq)) continue
+      const input = this.inputs.get(seq)
+      if (input === undefined) continue
+      const owners = this.contextsBySeq.get(seq) ?? new Set<InternalContext>()
+      const matchedDefinitions = new Set<ConversationNodeDefinition>(
+        [...owners].map(context => context.definition),
       )
-      const matches = pending.get(key) ?? []
-      matches.push({ definition, id, match })
-      pending.set(key, matches)
-      return definition.publication?.(match) ?? 'immediate'
-    })
+      const matchedTargets = new Set<string>()
+      for (const context of owners) {
+        if (context.definition.target !== undefined) matchedTargets.add(context.definition.target)
+      }
+      const event = input.event
+      for (const definition of this.eventDefinitions.entries()) {
+        if (matchedDefinitions.has(definition)) continue
+        const result = definition.match(event, this.locationIndex.locationOf(event))
+        if (result === null) continue
+        if (definition.target !== undefined) matchedTargets.add(definition.target)
+        publication = maximumPublication(
+          publication,
+          this.collectPendingMatch(definition, result.id, result.role, input, pending),
+        )
+      }
+      const fallback = this.eventDefinitions.fallbackEntry()
+      const target = fallback?.target
+      if (fallback !== undefined && target !== undefined
+        && !matchedDefinitions.has(fallback) && !matchedTargets.has(target)) {
+        const result = fallback.match(event, this.locationIndex.locationOf(event))
+        if (result !== null) {
+          publication = maximumPublication(
+            publication,
+            this.collectPendingMatch(fallback, result.id, result.role, input, pending),
+          )
+        }
+      }
+    }
+    return publication
   }
 
   private dispatchInput(
@@ -461,7 +537,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     const matchedTargets = new Set<string>()
     let publication: ConversationPublication = 'none'
     for (const definition of this.eventDefinitions.entries()) {
-      const result = definition.match(event)
+      const result = definition.match(event, this.locationIndex.locationOf(event))
       if (result === null) continue
       if (definition.target !== undefined) matchedTargets.add(definition.target)
       publication = maximumPublication(publication, accept(definition, result.id, result.role))
@@ -469,7 +545,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     const fallback = this.eventDefinitions.fallbackEntry()
     const target = fallback?.target
     if (fallback !== undefined && target !== undefined && !matchedTargets.has(target)) {
-      const result = fallback.match(event)
+      const result = fallback.match(event, this.locationIndex.locationOf(event))
       if (result !== null) {
         publication = maximumPublication(publication, accept(fallback, result.id, result.role))
       }

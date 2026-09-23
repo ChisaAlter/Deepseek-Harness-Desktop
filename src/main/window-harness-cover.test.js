@@ -231,6 +231,8 @@ test('showBoot cancels a plugin boot watch before its first probe', { timeout: 1
       prepareHarnessChrome() {},
       syncHarnessChrome() {},
       currentTheme: () => ({ bg: '#ffffff' }),
+      markWindowTransparent() {},
+      paintBackground() {},
     },
   };
   require.cache[pathsPath] = {

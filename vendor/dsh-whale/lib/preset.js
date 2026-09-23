@@ -10,7 +10,7 @@
  *                                substituted with the absolute home path)
  *   data/whale/                  her "home": AGENTS.md + MEMORY.md +
  *                                skills/ + skills-disabled/ + pet-outbox.jsonl
- *                                + watches.json + schedules.json
+ *                                + watches.json + schedules.json + stickers/
  */
 
 import fs from 'node:fs';
@@ -45,6 +45,10 @@ export function whaleOutboxFile(homeDir) {
   return path.join(whaleHomeDir(homeDir), 'pet-outbox.jsonl');
 }
 
+export function whaleStickersDir(homeDir) {
+  return path.join(whaleHomeDir(homeDir), 'stickers');
+}
+
 const AGENTS_MD = `# 鲸鱼娘的家
 
 这个目录是鲸鱼娘助理的长期住所。
@@ -53,6 +57,7 @@ const AGENTS_MD = `# 鲸鱼娘的家
 - \`skills/\` —— 启用的技能（每个子目录一个 SKILL.md）。
 - \`skills-disabled/\` —— 被用户关闭的技能（不加载）。
 - \`pet-outbox.jsonl\` —— 写给桌面桌宠的留言队列（whale_pet_say / whale_notify 追加到这里）。
+- \`stickers/\` —— 你自己的表情包库：把图片文件丢进来，whale_sticker 就会抽到它们（文件名即表情名）。
 - \`usage-today.json\` —— 桌面端镜像的当日用量快照（whale_usage_today 读它，别手写）。
 - \`watches.json\` —— 盯梢清单（whale_watch 维护，会话回合结束时唤醒她）。
 - \`schedules.json\` —— 定时任务（whale_schedule 维护，到点把文本作为提示词唤醒她）。
@@ -105,6 +110,7 @@ export function ensureWhaleHome(homeDir) {
   const dir = whaleHomeDir(homeDir);
   fs.mkdirSync(whaleSkillsDir(homeDir), { recursive: true });
   fs.mkdirSync(whaleDisabledSkillsDir(homeDir), { recursive: true });
+  fs.mkdirSync(whaleStickersDir(homeDir), { recursive: true });
   for (const [file, body] of [
     ['AGENTS.md', AGENTS_MD],
     ['MEMORY.md', MEMORY_MD],
@@ -150,13 +156,15 @@ export function setWhaleSkillEnabled(homeDir, skillName, enabled) {
 /**
  * Append one line to the pet outbox (plugin → desktop pet one-way bridge).
  * The desktop watcher tails this file and bubbles `text` on the Live2D pet.
+ * `extra` merges extra fields into the line (sticker lines carry `path`).
  */
-export function appendPetOutbox(homeDir, kind, text) {
+export function appendPetOutbox(homeDir, kind, text, extra) {
   const file = whaleOutboxFile(homeDir);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const line = JSON.stringify({
     kind: String(kind ?? 'say').slice(0, 32),
     text: String(text ?? '').slice(0, 512),
+    ...(extra && typeof extra === 'object' ? extra : {}),
     at: Date.now(),
   });
   fs.appendFileSync(file, line + '\n', 'utf8');

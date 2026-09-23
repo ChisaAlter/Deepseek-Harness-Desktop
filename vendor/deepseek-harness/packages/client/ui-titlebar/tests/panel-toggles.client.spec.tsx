@@ -26,19 +26,20 @@ function workspaces(itemCount: number): PanelTogglesProps['useWorkspaces'] {
 }
 
 function mount(opts: {
-  surfaces?: number
+  rightbarShown?: boolean
   terminalDrawer?: number
   workspaceCount?: number
   terminalToggle?: boolean
   surfacesToggle?: boolean
 } = {}) {
-  const toggleSurfaces = vi.fn()
+  const toggleRightPanel = vi.fn()
   const toggleTerminalDrawer = vi.fn()
   render(
     <PanelToggles
       usePanelInfo={panelInfoStub}
       useResource={resourceStub}
-      surfaces={opts.surfaces ?? 0}
+      surfaces={0}
+      rightbarShown={opts.rightbarShown ?? false}
       terminalDrawer={opts.terminalDrawer ?? 0}
       managedSession={false}
       useSessions={neverHook}
@@ -47,12 +48,12 @@ function mount(opts: {
       useWorkspaces={workspaces(opts.workspaceCount ?? 1)}
       useTerminalToggle={sel => sel(opts.terminalToggle !== false)}
       useSurfacesToggle={sel => sel(opts.surfacesToggle !== false)}
-      toggleSurfaces={toggleSurfaces}
+      toggleRightPanel={toggleRightPanel}
       toggleTerminalDrawer={toggleTerminalDrawer}
       t={t}
     />,
   )
-  return { toggleSurfaces, toggleTerminalDrawer }
+  return { toggleRightPanel, toggleTerminalDrawer }
 }
 
 afterEach(cleanup)
@@ -62,18 +63,18 @@ describe('PanelToggles', () => {
     const b = mount()
     fireEvent.click(screen.getByRole('button', { name: 'Toggle terminal drawer' }))
     expect(b.toggleTerminalDrawer).toHaveBeenCalledOnce()
-    expect(b.toggleSurfaces).not.toHaveBeenCalled()
+    expect(b.toggleRightPanel).not.toHaveBeenCalled()
   })
 
-  it('calls toggleSurfaces when the right-panel icon is clicked', () => {
+  it('calls toggleRightPanel when the right-panel icon is clicked', () => {
     const b = mount()
     fireEvent.click(screen.getByRole('button', { name: 'Toggle right panel' }))
-    expect(b.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.toggleRightPanel).toHaveBeenCalledOnce()
     expect(b.toggleTerminalDrawer).not.toHaveBeenCalled()
   })
 
-  it('marks the right-panel toggle pressed when surfaces is open', () => {
-    mount({ surfaces: 400 })
+  it('marks the right-panel toggle pressed from rightbarShown, not track width', () => {
+    mount({ rightbarShown: true })
     expect(screen.getByRole('button', { name: 'Toggle right panel' }).getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByRole('button', { name: 'Toggle terminal drawer' }).getAttribute('aria-pressed')).toBe('false')
   })
@@ -83,10 +84,10 @@ describe('PanelToggles', () => {
     expect(screen.getByRole('button', { name: 'Toggle terminal drawer' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('Ctrl+\\ toggles the surfaces column', () => {
+  it('Ctrl+\\ toggles the right Sidebar', () => {
     const b = mount()
     fireEvent.keyDown(window, { key: '\\', ctrlKey: true })
-    expect(b.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.toggleRightPanel).toHaveBeenCalledOnce()
     expect(b.toggleTerminalDrawer).not.toHaveBeenCalled()
   })
 
@@ -94,7 +95,7 @@ describe('PanelToggles', () => {
     const b = mount()
     fireEvent.keyDown(window, { key: '`', ctrlKey: true })
     expect(b.toggleTerminalDrawer).toHaveBeenCalledOnce()
-    expect(b.toggleSurfaces).not.toHaveBeenCalled()
+    expect(b.toggleRightPanel).not.toHaveBeenCalled()
   })
 
   it('ignores shortcuts while typing in an input', () => {
@@ -103,12 +104,12 @@ describe('PanelToggles', () => {
     document.body.append(input)
     fireEvent.keyDown(input, { key: '\\', ctrlKey: true })
     fireEvent.keyDown(input, { key: '`', ctrlKey: true })
-    expect(b.toggleSurfaces).not.toHaveBeenCalled()
+    expect(b.toggleRightPanel).not.toHaveBeenCalled()
     expect(b.toggleTerminalDrawer).not.toHaveBeenCalled()
     input.remove()
   })
 
-  it('toggles the terminal drawer from the Ghostty pane textarea but not the surfaces column', () => {
+  it('toggles the terminal drawer from the Ghostty pane textarea but not the right Sidebar', () => {
     const b = mount()
     const pane = document.createElement('div')
     pane.setAttribute('data-terminal-pane', 'pty-1')
@@ -118,7 +119,7 @@ describe('PanelToggles', () => {
     fireEvent.keyDown(input, { key: '`', ctrlKey: true })
     expect(b.toggleTerminalDrawer).toHaveBeenCalledOnce()
     fireEvent.keyDown(input, { key: '\\', ctrlKey: true })
-    expect(b.toggleSurfaces).not.toHaveBeenCalled()
+    expect(b.toggleRightPanel).not.toHaveBeenCalled()
     pane.remove()
   })
 
@@ -132,7 +133,7 @@ describe('PanelToggles', () => {
     fireEvent.keyDown(window, { key: '`', ctrlKey: true })
     expect(b.toggleTerminalDrawer).not.toHaveBeenCalled()
     fireEvent.keyDown(window, { key: '\\', ctrlKey: true })
-    expect(b.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.toggleRightPanel).toHaveBeenCalledOnce()
     fireEvent.keyDown(window, { key: 'a', ctrlKey: true })
     expect(b.toggleTerminalDrawer).not.toHaveBeenCalled()
   })
@@ -145,7 +146,7 @@ describe('PanelToggles', () => {
     fireEvent.keyDown(window, { key: '`', ctrlKey: true })
     fireEvent.keyDown(window, { key: '\\', ctrlKey: true })
     expect(b.toggleTerminalDrawer).toHaveBeenCalledOnce()
-    expect(b.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.toggleRightPanel).toHaveBeenCalledOnce()
   })
 
   it('omits only the hidden panel button', () => {

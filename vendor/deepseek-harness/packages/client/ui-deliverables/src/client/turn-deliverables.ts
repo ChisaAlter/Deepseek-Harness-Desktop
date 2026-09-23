@@ -6,9 +6,12 @@
  */
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ConversationLocation, ConversationNodeDefinition,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PresentedFile } from '@deepseek-ai/dsh-tool-present/types'
+import type {} from '@deepseek-ai/dsh-tools/types'
 import { isChangesEvent } from '../changes.ts'
 import { basename, isPresentedData, isPresentedFile } from '../presented.ts'
 
@@ -55,13 +58,7 @@ interface DeliverablesState extends DeliverablesTurnData {
  * @param argsRaw - model-produced JSON arguments.
  * @returns the mutation path, or null when the call is not a supported mutation.
  */
-function mutationPath(name: string, argsRaw: string): string | null {
-  let args: unknown
-  try {
-    args = JSON.parse(argsRaw) as unknown
-  } catch {
-    return null
-  }
+function mutationPath(name: string, args: unknown): string | null {
   if (!isRecord(args)) return null
   switch (name) {
     case 'write':
@@ -73,6 +70,17 @@ function mutationPath(name: string, argsRaw: string): string | null {
     default:
       return null
   }
+}
+
+/** Parse a root `tool/call` argument string before mutation validation. */
+function rootMutationPath(name: string, argsRaw: string): string | null {
+  let args: unknown
+  try {
+    args = JSON.parse(argsRaw) as unknown
+  } catch {
+    return null
+  }
+  return mutationPath(name, args)
 }
 
 /** Validate the fields that an `edit` execution requires. */
@@ -123,11 +131,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Files produced by one Turn data value.
  *
  * The source is the arguments of successful `write`, `edit`, and mutating
- * `str_replace_editor` calls, not the closing prose: a produced file must be
- * listed whether or not the model remembered to name it. Reads, unsupported
- * tools, malformed calls, and failed results contribute nothing. Paths keep
- * first-seen order and appear once, so a file written and then edited in the
- * same turn is one entry.
+  * `str_replace_editor` calls, or one successful PTC child of those tools, not
+  * the closing prose: a produced file must be listed whether or not the model
+  * remembered to name it. Reads, unsupported tools, malformed calls, and
+  * failed results contribute nothing. Paths keep first-seen order and appear
+  * once, so a file written and then edited in the same turn is one entry.
  *
  * The Conversation Location index owns turn membership before this function
  * runs, so paths cannot spill across turns and this derivation does not infer
@@ -164,9 +172,13 @@ export function selectProducedFiles(owner: TurnTailOwnerProps): readonly string[
 /** Turn-local successful mutation accumulator; it publishes no view Node. */
 export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesState> = {
   kind: 'deliverables',
-  match: (event) => {
+  match: (event, location) => {
     if (event.type === 'turn/start') return { id: String(event.data.turn), role: 'start' }
     if (event.type === 'tool/call') return { id: String(event.data.turn), role: 'update' }
+    if (event.type === 'tool/ptc-dispatch') {
+      const turn = turnOf(location)
+      return turn === undefined ? null : { id: String(turn), role: 'update' }
+    }
     if (event.type === 'deliverables/presented') return isPresentedData(event.data) ? { id: String(event.data.turn), role: 'update' } : null
     if (event.type === 'workspace/changes') return isChangesEvent(event.data) ? { id: String(event.data.turn), role: 'update' } : null
     if (event.type === 'tool/result' && isAppendSurfaceEvent(event)) {
@@ -195,9 +207,16 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       const calls = new Map(context.state.calls)
       calls.set(
         String(match.event.data.callId),
-        mutationPath(match.event.data.name, match.event.data.arguments),
+        rootMutationPath(match.event.data.name, match.event.data.arguments),
       )
       return { ...context.state, calls }
+    }
+    if (match.event.type === 'tool/ptc-dispatch') {
+      if (match.event.data.isError) return context.state
+      const path = mutationPath(match.event.data.name, match.event.data.arguments)
+      return path === null
+        ? context.state
+        : { ...context.state, produced: [...context.state.produced, { seq: match.event.seq, path }] }
     }
     if (match.event.type !== 'tool/result') return context.state
     const result = match.event.data.message.content[0]
@@ -227,6 +246,11 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       },
     }
   },
+}
+
+/** The turn number already resolved by the Conversation Location index. */
+function turnOf(location: ConversationLocation | undefined): number | undefined {
+  return location?.kind === 'turn' || location?.kind === 'step' ? location.turn.turn : undefined
 }
 
 /**

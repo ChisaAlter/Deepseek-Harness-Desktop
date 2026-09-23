@@ -1,5 +1,5 @@
 const { spawn } = require('node:child_process');
-const { loadWorkspaceAuthority } = require('./workspace-authority');
+const { loadWorkspaceAuthority, isPathInside } = require('./workspace-authority');
 
 let workspaceAuthority = null;
 
@@ -217,8 +217,20 @@ function run(command, args, cwd, limits = {}) {
   });
 }
 
-function runGit(cwd, args, limits) {
+/**
+ * The single git spawn primitive.
+ *
+ * Read memoization is deliberately *explicit*: `git.js` threads a read
+ * context's `run` seam through the helpers of one refresh. Because no helper
+ * resolves a cache implicitly, a write can never be answered from memory and a
+ * stale context cannot leak into an unrelated call chain.
+ */
+function runGitUncached(cwd, args, limits) {
   return run('git', args, cwd, limits);
+}
+
+function runGit(cwd, args, limits) {
+  return runGitUncached(cwd, args, limits);
 }
 
 function isCrlfAdviceLine(line) {
@@ -282,6 +294,7 @@ module.exports = {
   resolveAuthorizedCwd,
   asCwd,
   resolveInsideWorkspace,
+  isPathInside,
   GIT_TIMEOUT_MS,
   COMMIT_TIMEOUT_MS,
   FETCH_TIMEOUT_MS,
@@ -294,6 +307,7 @@ module.exports = {
   gitChildEnv,
   run,
   runGit,
+  runGitUncached,
   isGitAdviceLine,
   gitFailureMessage,
   sanitizeProgressText,

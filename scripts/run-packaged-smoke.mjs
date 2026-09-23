@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   assertDesktopHarnessHome, assertSmokeResult, createSmokeDirs, electronSpawnEnv,
-  initGitWorkspace, reservePort, writeSmokeConfig,
+  prepareSmokeWorkspace, reservePort, writeSmokeConfig,
 } from './smoke-workspace.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -80,11 +80,16 @@ try {
     throw new Error(`Packaged executable not found: ${executable}`)
   }
 
-  initGitWorkspace(dirs.workspace)
+  const workspacePrep = prepareSmokeWorkspace(dirs)
   const port = await reservePort()
   writeSmokeConfig(dirs.userData, dirs.workspace, port)
 
   console.log(`Packaged smoke: ${executable}`)
+  console.log(`Workspace mode: ${workspacePrep.mode}`)
+  if (workspacePrep.gitIdentity) {
+    console.log(`Workspace: ${workspacePrep.gitIdentity.workspace}`)
+    console.log(`Git identity: ${JSON.stringify(workspacePrep.gitIdentity)}`)
+  }
   const outcome = await run(executable, [`--user-data-dir=${dirs.userData}`, '--no-first-run'], electronSpawnEnv({
     DSH_SMOKE: '1',
     // Packaged builds ignore ambient QA/smoke flags; the rehearsal opts in.

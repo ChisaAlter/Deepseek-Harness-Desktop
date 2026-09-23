@@ -9,8 +9,8 @@ export const zh = {
   'shortcut.surfaces': 'Ctrl+\\',
   'settings.terminalToggle.title': '终端抽屉开关',
   'settings.terminalToggle.description': '在标题栏显示终端抽屉按钮。关闭后仍可使用 Ctrl+` 切换。',
-  'settings.surfacesToggle.title': '右侧面板开关',
-  'settings.surfacesToggle.description': '在标题栏显示右侧栏按钮。关闭后仍可使用 Ctrl+\\ 切换。',
+  'settings.surfacesToggle.title': '右侧栏按钮',
+  'settings.surfacesToggle.description': '在标题栏显示右侧栏按钮。关闭后仍可使用 Ctrl+\\ 开合同一条右栏。',
 } satisfies Record<string, string>
 
 /** The titlebar namespace key union. */
@@ -25,8 +25,8 @@ export const en = {
   'shortcut.surfaces': 'Ctrl+\\',
   'settings.terminalToggle.title': 'Terminal drawer toggle',
   'settings.terminalToggle.description': 'Show the terminal drawer button in the titlebar. Turning this off still leaves Ctrl+` available.',
-  'settings.surfacesToggle.title': 'Right panel toggle',
-  'settings.surfacesToggle.description': 'Show the right-panel button in the titlebar. Turning this off still leaves Ctrl+\\ available.',
+  'settings.surfacesToggle.title': 'Right Sidebar button',
+  'settings.surfacesToggle.description': 'Show the right Sidebar button in the titlebar. Turning this off still leaves Ctrl+\\ for the same Sidebar.',
 } satisfies Record<TitlebarKey, string>
 
 /** Dictionary namespace owned by this plugin. */

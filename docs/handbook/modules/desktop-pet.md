@@ -6,7 +6,7 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 
 ## 职责与非目标
 
-**职责：** 桌面 overlay 角色的完整生命周期——窗口/协议/坐标、神经渲染与立绘混合管线、点击穿透交互、拖拽抛掷物理、台词气泡、状态面板、token 投喂成长、养成属性持久化。
+**职责：** 桌面 overlay 角色的完整生命周期——窗口/协议/坐标、部件木偶渲染管线（THA4 神经渲染为 fallback）、点击穿透交互、拖拽抛掷物理、台词气泡、状态面板、token 投喂成长、养成属性持久化。
 
 **非目标：** 不注入 Harness DOM、不是插件、不是 BrowserView；无宠物商店/氪金/AI 对话/语音/多宠物；成长值只能来自真实 token 消耗，绝不读消息正文。
 
@@ -16,9 +16,9 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 | --- | --- |
 | 启动后 | 工作区右下角出现鲸鱼娘，空闲呼吸/眨眼/微动作，眼睛看向光标 |
 | 悬停 | 窗口从点击穿透切换为可交互（可点按、可抓）；离开约 24px 后恢复穿透 |
-| 点按 | 四种表情轮换；3 秒内连戳 4 次 → 生气立绘 + 喷水 |
-| 拖拽 | 抓起（pick-up 立绘、随速度倾斜）；松手速度慢 → 原地落下；快速甩出 → 弹道飞行、撞边反弹、地面摩擦停下；空中可再次抓住 |
-| 摸头 | 在她头顶 45% 区域来回扫（1.6s 内 3 次变向）→ 摸头立绘 + 爱心 |
+| 点按 | 四种表情轮换；3 秒内连戳 4 次 → 生气状态 + 喷水 |
+| 拖拽 | 抓起（pick-up 悬挂状态、随速度倾斜）；松手速度慢 → 原地落下；快速甩出 → 弹道飞行、撞边反弹、地面摩擦停下；空中可再次抓住 |
+| 摸头 | 在她头顶 45% 区域来回扫（1.6s 内 3 次变向）→ 摸头反应状态 + 爱心 |
 | 右键 | 打开画布内绘制的状态卡（成长/投喂/属性/动作格），再点别处关闭 |
 | 投喂 | 状态卡【投喂 +N】：发光晶体落下 → 她跑过去吃 → 升级时庆祝 |
 | 睡觉 | 4 分钟无互动自动入睡（Zzz）；光标碰她或点按叫醒 |
@@ -57,20 +57,28 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 | 主进程 | `src/main/pet-stats.js` | 纯逻辑：饱食/心情/亲密衰减、增量、冷却、称号 |
 | 主进程 | `src/main/pet-settings.js` | 纯逻辑：设置默认值/规范化/部分合并（非法 patch 保现值不回默认）、活跃三档表、dsh 水位线与 fileEaten 归一化 |
 | preload | `src/preload/index.js` | `pet-live2d` 角色的窄 API（见 IPC 一节） |
-| 渲染器 | `src/renderer/pet-live2d.js` | THA4 推理、姿态控制、立绘层、粒子、气泡仲裁、状态卡、乱逛 FSM、拖拽/命中 |
+| 渲染器 | `src/renderer/pet-live2d.js` | 部件木偶渲染（主路径）、姿态控制、粒子、气泡仲裁、状态卡、乱逛 FSM、拖拽/命中；THA4 推理与立绘层为 fallback |
 | 渲染器 | `src/renderer/pet-physics.js` | 纯函数物理：弹簧、出手速度估计、弹道积分与反弹（`PetPhysics` 全局） |
 | 渲染器 | `src/renderer/pet-wander.js` | 纯函数乱逛：限界随机目标、面朝偏向、ease 插值滑步（`PetWander` 全局） |
 | 渲染器 | `src/renderer/pet-dialogue.js` + `dialogue/whale.json` | 台词库存取、洗牌袋、人格层解析、模板渲染、时段类目 |
-| 资产 | `src/renderer/pet-live2d/` | `avatar/`（model.onnx + character.png）、`ort/`（onnxruntime-web）、`states/*.webp`（10 张立绘） |
+| 资产 | `src/renderer/pet-live2d/` | `rig/`（2048² 主图 + body/tail/六表情头部件 + manifest 锚点，主渲染路径）、`avatar/`（model.onnx + character.png，fallback）、`ort/`（onnxruntime-web，fallback）、`states/*.webp`（10 张立绘，fallback） |
 
 ## 渲染管线
 
-### THA4 神经渲染
+### 部件木偶（part rig，主路径）
+
+- 资产全部出自同一 2048² 主视觉（待机源图 Real-ESRGAN 4×）：`rig/` 下 `body`/`tail` + 六个表情头变体（表情头取自 THA4 离线渲染的表情帧再超分），`manifest.json` 携带主图 bbox 与锚点（颈部/尾根/脚底/抓取点）。
+- `drawRig` 每帧按锚点变换组装部件；`RIG_STATES` 表声明每状态运动程序（表情头选择 + 部件变换 + 全身 pivot：feet 整转 / grab 悬挂）。`stillCtl` 仍是状态持有器，alpha 兼作状态间插值权重。
+- `stepPose()` 45 维 pose 数学层照跑，映射为表情头选择与头部偏移——眨眼/视线/小动作/困倦全部沿用；推理不再参与常态渲染，主循环走 60fps rAF。
+- 变换纪律：部件按主图绝对坐标绘制，pivot 必须在位移项预减（回归测试覆盖：脚点锚定 drawPos，偏差即失败）。
+- 决策与已知局限（举臂/蜷躯干部件待生成、右侧散发归属 body）见 `docs/decisions/archived/product/2026-09-20-pet-part-rig.md`。
+
+### THA4 神经渲染（fallback，rig 资产缺失才启动）
 
 - 模型：`avatar/model.onnx`，输入 `image` `[1,4,512,512]`（预乘 alpha，归一化到 [-1,1]）+ `pose` `[1,45]`，输出 512×512 RGBA。
 - EP 尝试顺序 `webnn → webgpu → wasm`；WebGPU 成功时启用 `enableGraphCapture` + `preferredOutputLocation:'gpu-buffer'`，pose 经 `queue.writeBuffer` 写入常驻 GPU buffer（图捕获要求所有输入是外部 buffer）。
 - 输出帧裁 `{x:60, y:20, w:390, h:492}` 画到 240×260；全透明帧丢弃防闪烁。
-- 推理节拍到 ~20fps（50ms 一帧）——不规则的 8–15fps 读起来是闪烁，稳定慢节奏反而顺滑；立绘 alpha≥0.98 时整帧跳过推理省 GPU。
+- 推理节拍到 ~20fps（50ms 一帧）——不规则的 8–15fps 读起来是闪烁，稳定慢节奏反而顺滑；立绘 alpha≥0.98 时整帧跳过推理省 GPU。（rig 模式下该节不生效——无推理，60fps rAF。）
 - 每 240 个渲染帧重测一次 alpha 剪影盒 `charRect`，命中区跟着角色实际位置走，不留死角。
 
 ### 姿态控制器（45 维 pose）
@@ -82,9 +90,9 @@ Feature card：[../../features/desktop-live2d-pet.md](../../features/desktop-liv
 - **两级视线**：瞳孔快（lerp 16/s 满幅）、头慢（5/s 且只跟一部分）——读起来是眼睛先找到光标、头再跟上。视线锚点是 THA4 头部规范点经裁剪映射，不是拍的。
 - 每 5–10s 随机小动作（歪头/左右看/笑眼/蹦跳/单眨眼）+ 打哈欠；点按四表情轮换（开心/惊讶/得意/生气摇头）。
 
-### 立绘混合层
+### 立绘混合层（fallback）
 
-`states/*.webp` 十张整身立绘（pick-up / running / eat / sleep / react-head / angry / celebrate / star / greet / tail-swing），与 live 模型按 alpha 交叉淡化（7/s）。立绘占主导时命中区、气泡锚点、落地换算全部改用立绘的真实 alpha 盒。`pick-up` 是 `hang` 锚点——拎着时画在光标下方而不是 drawPos。
+`states/*.webp` 十张整身立绘（pick-up / running / eat / sleep / react-head / angry / celebrate / star / greet / tail-swing），与 live 模型按 alpha 交叉淡化（7/s）。立绘占主导时命中区、气泡锚点、落地换算全部改用立绘的真实 alpha 盒。`pick-up` 是 `hang` 锚点——拎着时画在光标下方而不是 drawPos。仅当 rig 资产加载失败时接管；常态下这些状态由 `RIG_STATES` 部件程序呈现。
 
 ### 脏矩形纪律
 
@@ -110,15 +118,15 @@ interactive = rendererInteractive || cursorInPetFrame
 
 ### 拖拽与抛掷
 
-- pointerdown 记录抓取偏移；位移 >4px 进入拖拽（pick-up 立绘 + `pickup` 台词）。拖拽中位置钉在光标上（弹簧跟随实测显 laggy，`springVelocity` 保留在物理层），速度照常采样用于甩出估计。
+- pointerdown 记录抓取偏移；位移 >4px 进入拖拽（pick-up 状态 + `pickup` 台词）。拖拽中位置钉在光标上（弹簧跟随实测显 laggy，`springVelocity` 保留在物理层），速度照常采样用于甩出估计。
 - 松手：`estimateReleaseVelocity` 取拖尾 0.12s 窗口——端点均速定方向、峰值段速与均速各半定幅值、末段加速增益最高 +60%、soft-knee 软上限（standard 档 4800px/s）；松手前停顿 >0.15s 视为原地放下。
 - 合速度 ≥500px/s 死区 → 弹道飞行：重力 1400px/s²、屏幕边缘反弹（恢复系数 0.78）、地面摩擦 2.5/s、静止阈值 vy<40/vx<15；900ms 翻滚 + 落地 500ms 压扁回弹 + 星星。空中 pointerdown 直接抓住取消 thrown。
-- 落地把悬挂立绘的物理点换算回 drawPos（同一条脚底线），live 模型接管，无跳变；`dragCommit` 持久化屏幕坐标。
+- 落地把悬挂状态的物理点换算回 drawPos（同一条脚底线），待机部件渲染接管，无跳变；`dragCommit` 持久化屏幕坐标。
 - 跨屏：拖拽中 150ms 轮询 `shell:live2d-relocate`，光标落到别的显示器时 overlay `setBounds` 跳过去并重发 layout，渲染器按新 origin 保持同一屏幕位置。
 
 ### 睡眠与空闲
 
-4 分钟无互动 → sleep 立绘 + Zzz（1.4–2.2s 一颗）。光标碰到或点按叫醒（`wake` care，心情 -7——吵醒她会闹别扭）。空闲 25–45s 随机小花招（star/celebrate/tail-swing 之一）；3–6 分钟一条闲聊气泡，受养成状态调制（见下）。
+4 分钟无互动 → sleep 状态 + Zzz（1.4–2.2s 一颗）。光标碰到或点按叫醒（`wake` care，心情 -7——吵醒她会闹别扭）。空闲 25–45s 随机小花招（star/celebrate/tail-swing 之一）；3–6 分钟一条闲聊气泡，受养成状态调制（见下）。
 
 ## 状态面板（右键卡）
 
@@ -156,7 +164,7 @@ interactive = rendererInteractive || cursorInPetFrame
 
 动作增量表（`CARE`）：feedToken(+45/+12/+5)、play(−8/+14/+3)、pat(+10/+4)、tease(+6/+2)、come(+4/+3)、throw(−9/+1)、poke(+2/+1)、wake(−7/—)。心情 <25 时逗她反噬：心情 −4、亲密 +0。
 
-亲密五级：陌生(0) → 相识(40) → 亲近(120) → 信赖(260) → 形影不离(520)。状态对行为的调制：**satiety<20 → 闲聊大概率说饿（hungry 池）；mood<25 → 逗她炸毛（angry 立绘 + grumpy 池）；affectionLevel≥4（信赖起）→ 闲聊变黏（clingy 池）**。
+亲密五级：陌生(0) → 相识(40) → 亲近(120) → 信赖(260) → 形影不离(520)。状态对行为的调制：**satiety<20 → 闲聊大概率说饿（hungry 池）；mood<25 → 逗她炸毛（angry 状态 + grumpy 池）；affectionLevel≥4（信赖起）→ 闲聊变黏（clingy 池）**。
 
 ## 对话系统
 

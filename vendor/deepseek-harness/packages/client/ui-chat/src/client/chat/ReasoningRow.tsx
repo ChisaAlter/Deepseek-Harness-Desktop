@@ -1,6 +1,7 @@
 /** Assistant reasoning disclosure, independent of Tool-call presentation. */
 import { useMemo, useState } from 'react'
 import { DisclosureRow, IconThinkOutline14, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { MarkdownPathImages } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { markdownLabels } from '../markdown-labels.ts'
 import a11yCss from './accessibility.module.css'
@@ -23,10 +24,18 @@ function latestLine(text: string): string {
  * the complete Markdown with secondary typography.
  * @param props.text - complete or streaming reasoning text.
  * @param props.running - whether this block is the streaming tail.
+ * @param props.pathImages - the same local-media vocabulary the closing prose
+ * uses, so screenshots the model cites by file path render here too (settled
+ * renders only, per the shared streaming gate).
  * @param props.t - conversation locale seat for status and Markdown actions.
  * @returns the reasoning disclosure.
  */
-export function ReasoningRow({ text, running, t }: { text: string; running: boolean; t: ChatViewSlotProps['t'] }) {
+export function ReasoningRow({ text, running, pathImages, t }: {
+  text: string
+  running: boolean
+  pathImages?: MarkdownPathImages | undefined
+  t: ChatViewSlotProps['t']
+}) {
   const [expanded, setExpanded] = useState(false)
   const labels = useMemo(() => markdownLabels(t), [t])
   const summary = (running ? latestLine(text) : firstLine(text)).replaceAll('**', '')
@@ -60,7 +69,7 @@ export function ReasoningRow({ text, running, t }: { text: string; running: bool
         )}
       >
         <div className={css.thinkBody}>
-          <MarkdownText text={text} streaming={running} labels={labels} variant="compact" />
+          <MarkdownText text={text} streaming={running} labels={labels} pathImages={pathImages} variant="compact" />
         </div>
       </DisclosureRow>
     </div>

@@ -5,6 +5,7 @@ const { loadConfig } = require('./config');
 const { currentTheme, officialShellBackground } = require('./chrome');
 const { rendererFile } = require('./paths');
 const { readFile } = require('./workspace-fs');
+const { normalizePreviewFileTarget } = require('./preview-file-target');
 
 const FILE_PREVIEW_STATE_CHANNEL = 'shell:file-preview-state';
 const IMAGE_EXTENSIONS = new Set(['.avif', '.bmp', '.gif', '.ico', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
@@ -47,6 +48,7 @@ function createFilePreviewWindowController(options = {}) {
   const ipcMain = options.ipcMain;
   const workspacePreview = options.workspacePreview;
   const readWorkspaceFile = options.readFile ?? readFile;
+  const authority = options.authority;
   const createWindow = options.createWindow ?? defaultCreateWindow;
   const getTheme = options.getTheme ?? currentTheme;
   const getLocale = options.getLocale ?? defaultLocale;
@@ -65,7 +67,15 @@ function createFilePreviewWindowController(options = {}) {
   }
 
   ipcMain.handle(FILE_PREVIEW_STATE_CHANNEL, (event) => {
-    if (!previewWindow || previewWindow.isDestroyed() || event?.sender !== previewWindow.webContents) {
+    const sender = event?.sender;
+    const frame = event?.senderFrame;
+    if (
+      !previewWindow
+      || previewWindow.isDestroyed()
+      || sender !== previewWindow.webContents
+      || frame !== sender.mainFrame
+      || (typeof sender.isDestroyed === 'function' && sender.isDestroyed())
+    ) {
       const error = new Error('Unauthorized IPC sender');
       error.code = 'ERR_DSH_IPC_SENDER';
       throw error;
@@ -130,8 +140,10 @@ function createFilePreviewWindowController(options = {}) {
 
   async function open(input = {}) {
     const sequence = ++requestSequence;
-    const relativePath = typeof input.relativePath === 'string' ? input.relativePath : '';
-    const opened = await workspacePreview.fileUrl(input);
+    const target = normalizePreviewFileTarget(input, authority);
+    if (!target.ok) return target;
+    const { cwd, relativePath } = target;
+    const opened = await workspacePreview.fileUrl(target);
     if (sequence !== requestSequence) return { ok: false, message: 'Preview request was replaced.' };
     if (!opened?.ok || typeof opened.url !== 'string') return opened;
 
@@ -140,7 +152,7 @@ function createFilePreviewWindowController(options = {}) {
     let truncated = false;
     let message = null;
     if (kind === 'text') {
-      const result = await readWorkspaceFile(input.cwd, relativePath);
+      const result = await readWorkspaceFile(cwd, relativePath);
       if (sequence !== requestSequence) return { ok: false, message: 'Preview request was replaced.' };
       if (!result?.ok) {
         message = result?.message || 'Could not read the file.';

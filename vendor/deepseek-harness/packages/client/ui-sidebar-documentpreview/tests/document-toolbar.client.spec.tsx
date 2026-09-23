@@ -157,12 +157,12 @@ describe('document toolbar', () => {
     expect(view.getByRole('status').hasAttribute('data-document-loading')).toBe(true)
     expect(view.getByRole('status').getAttribute('aria-label')).toBe('loading')
     expect(view.container.querySelector('[data-textpreview-body]')?.firstElementChild).toBe(view.getByRole('status'))
-    expect(renderSlot).not.toHaveBeenCalled()
+    expect(renderSlot).not.toHaveBeenCalledWith('sidebar.right.tab.document', expect.anything())
     await act(async () => {
       pending.resolve(result)
       await pending.promise
     })
-    expect(renderSlot).toHaveBeenCalled()
+    expect(renderSlot).toHaveBeenCalledWith('sidebar.right.tab.document', expect.anything(), expect.anything())
     expect(view.queryByRole('status')).toBeNull()
   })
 

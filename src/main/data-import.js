@@ -8,9 +8,11 @@ const { getDesktopDshHome, tryGetDesktopDshHome } = require('../shared/dsh-home'
 const { DROPPED, OFFICIAL_TEMPLATE_BUNDLES, listInstalledPlugins } = require('./plugins');
 const { isValidGithubSpec, isValidPackageName } = require('../host/install-dsh-plugin-client');
 
-const SESSION_LOG = /^session\.jsonl(\.zstd)?$/i;
-const SESSION_PLAIN = /^session\.jsonl$/i;
-const SESSION_ZSTD = /^session\.jsonl\.zstd$/i;
+// Harness now persists current sessions as session.v3.jsonl(.zstd); keep the
+// legacy name for older official homes and imported desktop sessions.
+const SESSION_LOG = /^session(?:\.v3)?\.jsonl(?:\.zstd)?$/i;
+const SESSION_PLAIN = /^session(?:\.v3)?\.jsonl$/i;
+const SESSION_ZSTD = /^session(?:\.v3)?\.jsonl\.zstd$/i;
 /** Harness preset/fixture sessions under official `_no-cwd/preset-*`; not user import candidates. */
 const HARNESS_PRESET_SESSION_REL = /^_no-cwd\/preset-/;
 
@@ -1300,6 +1302,7 @@ async function importSessions({
   scan: providedScan,
   signal,
   onProgress,
+  deferJournalDone = false,
 } = {}) {
   const scan = providedScan || scanImport({ sourceHome, destHome: dest, extraSkillDirs, agentsSkillsRoot });
   const chosen = Array.isArray(selectedRels) ? selectedRels : scan.sessions.map((row) => row.rel);
@@ -1345,7 +1348,13 @@ async function importSessions({
   let attachments = 'absent';
   const shouldCopyAttachments = importAttachments !== false;
   const sourceAttachments = path.join(scan.sourceHome, 'attachments');
-  if (!cancelled && shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
+  if (!cancelled && importIsCancelled(signal)) {
+    cancelled = true;
+  }
+  if (cancelled) {
+    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile };
+  }
+  if (shouldCopyAttachments && fs.existsSync(sourceAttachments)) {
     emitImportProgress(onProgress, { phase: 'attachments', done: 0, total: 1 });
     try {
       await copyDirAtomic(sourceAttachments, path.join(scan.destHome, 'attachments'));
@@ -1356,18 +1365,17 @@ async function importSessions({
     emitImportProgress(onProgress, { phase: 'attachments', done: 1, total: 1 });
   }
 
-  if (cancelled) {
-    // Leave the journal at 'copying': a deliberate cancel is recoverable
-    // exactly like an interrupted import.
-    return { ok: false, cancelled: true, sessions: results, attachments, journal: journalFile };
+  // runImport() commits the journal only after every phase lands; an
+  // interrupted later phase must remain recoverable instead of looking done.
+  if (!deferJournalDone) {
+    writeJournal(journalFile, {
+      phase: 'done',
+      sourceHome: scan.sourceHome,
+      destHome: scan.destHome,
+      items: results,
+      attachments,
+    });
   }
-  writeJournal(journalFile, {
-    phase: 'done',
-    sourceHome: scan.sourceHome,
-    destHome: scan.destHome,
-    items: results,
-    attachments,
-  });
   return { ok: results.every((row) => row.status !== 'failed'), sessions: results, attachments, journal: journalFile };
 }
 
@@ -1680,6 +1688,7 @@ async function runImport(options = {}) {
     importAttachments,
     signal,
     onProgress,
+    deferJournalDone: true,
   });
   const skills = importIsCancelled(signal)
     ? []

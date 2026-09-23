@@ -4,7 +4,8 @@
 | --- | --- |
 | **id** | `data-import` |
 | **status** | `active` |
-| **last verified** | 2026-09-15 — 导入改异步可取消（`966bd84`）：拷贝阶段让出事件循环、逐项间响应 `shell:cancel-import`；启动器按阶段显示进度并给可续跑提示。`node --test data-import.test.js ipc.test.js` 81/81 通过。此前 2026-09-05 — 历史会话恢复与插件归因定向检查：Harness 工作区/API/旧缓存 121 项、桌面导入/恢复/打包单测 171 项通过；重新登记已有目录接纳导入历史，缓存格式错误不归咎用户插件。未执行候选安装包升级实测。此前：2026-08-25 — 新增设置白名单节 / 引用凭据 / `.agent-presets` / home `AGENTS.md` 导入；冷启动闸门改 shallow probe；导入页展示「将迁移/不迁移」说明 |
+| **last verified (v3 gate)** | 2026-09-23 — `session.v3.jsonl(.zstd)` 与旧名共同参与浅探针、导入扫描和冲突识别；真实桌面 home 的 `probeImportHold` 为 `hold:false`，`data-import` + `launcher-gate` 51/51 通过。 |
+| **last verified** | 2026-09-20 — C1 性能基线（仅测量，无产品行为变更）：`probeImportHold` / `scanImport` / `listDir` 的函数级测量与判定见 `docs/decisions/proposed/testing/2026-09-20-desktop-performance-measurement.md` 与审计计划 Phase 6。此前 2026-09-20 — B3 持久化负路径：取消发生在最后一个会话拷贝之后或后续 skills/plugins/settings 阶段时，journal 必须保持 `copying` 供冷启动恢复，不能提前写 `done`；未完成会话只留完整已拷贝项与可清理的 `.import-tmp` 暂存目录。`node --test src/main/data-import.test.js` 26/26 通过。此前 2026-09-15 — 导入改异步可取消（`966bd84`）：拷贝阶段让出事件循环、逐项间响应 `shell:cancel-import`；启动器按阶段显示进度并给可续跑提示。`node --test data-import.test.js ipc.test.js` 81/81 通过。此前 2026-09-05 — 历史会话恢复与插件归因定向检查：Harness 工作区/API/旧缓存 121 项、桌面导入/恢复/打包单测 171 项通过；重新登记已有目录接纳导入历史，缓存格式错误不归咎用户插件。未执行候选安装包升级实测。此前：2026-08-25 — 新增设置白名单节 / 引用凭据 / `.agent-presets` / home `AGENTS.md` 导入；冷启动闸门改 shallow probe；导入页展示「将迁移/不迁移」说明 |
 
 ## User paths
 
@@ -19,6 +20,7 @@
 
 ## Invariants
 
+- 桌面 home 中已有 `session.v3.jsonl` 或 `session.v3.jsonl.zstd` 时，首次导入闸门不得误判为空；官方来源的 v3 会话须进入导入扫描，旧 `session.jsonl(.zstd)` 仍受支持。
 - 官方 `~/.dsh` 与 `~/.agents` **只读**：不写、不删、不清理。
 - Harness / PTY / Electron `process.env.DSH_HOME` 仍不准指向官方 home。
 - 不拷工作区工程树、项目 `.dsh/skills`（除非用户把该目录选进来源）、`profiles/`、`storages/` 内部状态、旧 SQLite 会话库。`settings.yaml` 只迁移上述白名单节（整节文本级，非白名单节永不写入）；凭据只同步被所选 llm 节引用的 `refs` 条目，`.credentials.yaml` 的 `records`（OAuth 会话态 / 刷新令牌）与未引用条目不迁移。
@@ -56,6 +58,6 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [v3 会话日志参与桌面导入闸门](../decisions/implemented/bug-fix/2026-09-23-v3-session-import-gate.md)
 
 - Implementation：`src/main/data-import.js`、`src/renderer/launcher.js`

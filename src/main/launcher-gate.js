@@ -123,10 +123,168 @@ function updateStayHint(check, outcome) {
 }
 
 /**
+ * An update result that arrived after auto-start. It is kept in-process (no
+ * disk format, no cross-launch state) so the ask can still happen the next time
+ * the user actually opens the launcher in this process.
+ */
+let parkedUpdateCheck = null;
+
+function parkUpdateCheck(check) {
+  if (!check || check.status !== 'available') {
+    return;
+  }
+  parkedUpdateCheck = check;
+}
+
+function takeParkedUpdateCheck() {
+  const check = parkedUpdateCheck;
+  parkedUpdateCheck = null;
+  return check;
+}
+
+function peekParkedUpdateCheck() {
+  return parkedUpdateCheck;
+}
+
+function resetParkedUpdateCheck() {
+  parkedUpdateCheck = null;
+}
+
+/**
+ * The one place a parked (late) update result is turned into an ask.
+ *
+ * `shell:launcher-status` is polled by a pre-created, possibly *hidden*
+ * launcher window; consuming the parked result there lost it before the user
+ * ever saw the window (and a second status poll could no longer show it).
+ * The drainer only consumes while the launcher is genuinely visible and not
+ * quitting, and it is re-entrant-safe: the same parked result can never be
+ * asked twice, because the first drain takes it.
+ *
+ * @param {{
+ *   readConfig: () => object,
+ *   isVisible: () => boolean,
+ *   isQuitting: () => boolean,
+ *   isCurrentGeneration?: (generation: unknown) => boolean,
+ *   present: (check: object, context: { generation: unknown }) => Promise<object | void>,
+ *   log?: (message: string) => void,
+ * }} deps
+ */
+function createParkedUpdateDrainer({
+  readConfig,
+  isVisible,
+  isQuitting,
+  isCurrentGeneration = () => true,
+  present,
+  log = () => {},
+}) {
+  let inFlight = null;
+
+  return {
+    async drain({ generation } = {}) {
+      if (inFlight) return inFlight;
+      if (isQuitting()) return { drained: false, reason: 'quitting' };
+      if (!isVisible()) return { drained: false, reason: 'hidden' };
+      if (!isCurrentGeneration(generation)) return { drained: false, reason: 'stale' };
+      const check = peekParkedUpdateCheck();
+      if (!check) return { drained: false, reason: 'none' };
+      if (!shouldPromptUpdate({ askOnUpdate: readConfig()?.askOnUpdate, check })) {
+        // The setting is off (or the check has nothing to prompt about):
+        // consume it silently so it cannot resurface on a later open.
+        takeParkedUpdateCheck();
+        return { drained: false, reason: 'not-promptable' };
+      }
+      inFlight = (async () => {
+        const taken = takeParkedUpdateCheck();
+        if (taken !== check) {
+          // A newer check replaced this one between peek and take.
+          return { drained: false, reason: 'superseded' };
+        }
+        // Re-check the world after every await boundary in `present`.
+        if (isQuitting() || !isCurrentGeneration(generation) || !isVisible()) {
+          // Put the result back rather than dropping it: the user hid the
+          // launcher (or a newer window replaced it) but may open it again.
+          // Never clobber a newer parked check that arrived meanwhile.
+          if (!peekParkedUpdateCheck()) parkUpdateCheck(taken);
+          return { drained: false, reason: 'abandoned', check: taken };
+        }
+        try {
+          const outcome = await present(taken, { generation });
+          return { drained: true, check: taken, outcome };
+        } catch (error) {
+          log(`更新提示失败：${error && error.message ? error.message : String(error)}`);
+          return { drained: false, reason: 'error', check: taken };
+        }
+      })().finally(() => {
+        inFlight = null;
+      });
+      return inFlight;
+    },
+    isDraining: () => inFlight !== null,
+  };
+}
+
+/**
+ * The update ask itself: confirm, then download/verify/launch. Shared by the
+ * cold-start gate and the "late result" drain so both keep one contract —
+ * the ask never sits on an invisible window, and only packaged + installer
+ * waits for the app to quit.
+ */
+async function presentUpdateAsk({
+  config,
+  isPackaged,
+  check,
+  confirmUpdate,
+  installUpdate,
+  openLauncher,
+  sendToLauncher,
+  alreadyVisible = false,
+  shouldContinue = () => true,
+}) {
+  if (!shouldPromptUpdate({ askOnUpdate: config.askOnUpdate, check })) {
+    return { updateFlowHold: false, installer: false };
+  }
+  if (!alreadyVisible) {
+    await openLauncher();
+  }
+  if (!(await confirmUpdate(check))) {
+    return { updateFlowHold: false, installer: false };
+  }
+  // The window may have been closed, the app may be quitting, or an install
+  // may have started while the confirm dialog was open. Never carry the flow
+  // past an await boundary on a stale decision.
+  if (!shouldContinue()) {
+    return { updateFlowHold: false, installer: false, abandoned: true };
+  }
+  try {
+    const outcome = await installUpdate((payload) => {
+      sendToLauncher('shell:update-progress', payload);
+    });
+    if (outcome && outcome.launched === true && isPackaged) {
+      return { updateFlowHold: true, installer: true };
+    }
+    sendToLauncher('shell:launcher-hint', { check: updateStayHint(check, outcome) });
+  } catch (error) {
+    const message = error && error.message ? error.message : String(error);
+    sendToLauncher('shell:launcher-hint', {
+      check: {
+        ...check,
+        status: 'error',
+        message,
+        hint: `更新下载失败：${message}。仍可启动桌面端。`,
+      },
+    });
+  }
+  return { updateFlowHold: true, installer: false };
+}
+
+/**
  * Cold-start gate orchestration. All effects are injected so the flow is
  * unit-testable; src/main/index.js supplies the Electron-bound deps.
  *
  * Contract (feature card `desktop-launcher`):
+ * - The online update check runs concurrently with the local start decision and
+ *   never delays auto-start. A late result only ever writes a launcher hint; it
+ *   never opens/focuses the launcher and never starts the desktop a second time.
  * - The update ask and download progress sit on a visible launcher window,
  *   never on the hidden pre-created one.
  * - An accepted update that fails (download/checksum), only opened the
@@ -149,44 +307,15 @@ async function runColdStartGate({
   startDesktop,
   log = () => {},
 }) {
-  let check = { status: 'current' };
-  try {
-    check = await checkUpdate();
-  } catch (error) {
-    check = { status: 'error', message: error && error.message ? error.message : String(error) };
-  }
-  sendToLauncher('shell:launcher-hint', { check });
-
-  let updateFlowHold = false;
-  if (shouldPromptUpdate({ askOnUpdate: config.askOnUpdate, check })) {
-    await openLauncher();
-    if (await confirmUpdate(check)) {
-      updateFlowHold = true;
-      try {
-        const outcome = await installUpdate((payload) => {
-          sendToLauncher('shell:update-progress', payload);
-        });
-        if (outcome && outcome.launched === true && isPackaged) {
-          // update.js schedules app.quit() once the installer is up; the
-          // launcher stays visible until the process exits.
-          return {
-            outcome: 'installer', updateFlowHold, holdForImport: false, lastStartFailed: false,
-          };
-        }
-        sendToLauncher('shell:launcher-hint', { check: updateStayHint(check, outcome) });
-      } catch (error) {
-        const message = error && error.message ? error.message : String(error);
-        sendToLauncher('shell:launcher-hint', {
-          check: {
-            ...check,
-            status: 'error',
-            message,
-            hint: `更新下载失败：${message}。仍可启动桌面端。`,
-          },
-        });
-      }
+  // Start the network check without awaiting it: it must overlap the local
+  // start decision instead of preceding it.
+  const updateCheck = (async () => {
+    try {
+      return await checkUpdate();
+    } catch (error) {
+      return { status: 'error', message: error && error.message ? error.message : String(error) };
     }
-  }
+  })();
 
   let importRecovery = { recovered: false, removedTmp: [] };
   try {
@@ -199,10 +328,11 @@ async function runColdStartGate({
   // the full scanImport stays on the import page.
   const holdForImport = probeImportHold().hold === true || importRecovery.recovered === true;
   const lastStartFailed = readLastDesktopStart(userDataDir).ok === false;
+  const stayAtLauncher = holdForImport || lastStartFailed;
   const autoStart = shouldAutoStartDesktop({
     autoStartDesktop: config.autoStartDesktop,
     holdForImport,
-    updateFlowHold,
+    updateFlowHold: false,
     lastStartFailed,
   });
   if (holdForImport) {
@@ -213,17 +343,62 @@ async function runColdStartGate({
       importResume: { removedTmp: (importRecovery.removedTmp || []).length },
     });
   }
-  if (!holdForImport && (lastStartFailed || updateFlowHold)) {
+  if (!holdForImport && lastStartFailed) {
     sendToLauncher('shell:show-tab', { tab: 'home' });
   }
+
   if (!autoStart) {
+    // Local rules already require the launcher, so the update ask can still run
+    // in a visible window — but the window opens first either way.
     await openLauncher();
   }
+
   if (autoStart) {
     await startDesktop();
+    // Late result: hint only, and park it so the ask happens the next time the
+    // user actually opens the launcher. Never re-open the launcher here (that
+    // would steal focus from the desktop the user asked for) and never start a
+    // second time.
+    void updateCheck.then((check) => {
+      parkUpdateCheck(check);
+      sendToLauncher('shell:launcher-hint', { check });
+    });
+    return {
+      outcome: 'desktop',
+      updateFlowHold: false,
+      holdForImport,
+      lastStartFailed,
+    };
+  }
+
+  const check = await updateCheck;
+  sendToLauncher('shell:launcher-hint', { check });
+
+  const asked = await presentUpdateAsk({
+    config,
+    isPackaged,
+    check,
+    confirmUpdate,
+    installUpdate,
+    openLauncher,
+    sendToLauncher,
+    // The launcher is already on screen whenever auto-start did not proceed.
+    alreadyVisible: !autoStart,
+  });
+  const updateFlowHold = asked.updateFlowHold;
+  if (asked.installer) {
+    // update.js schedules app.quit() once the installer is up; the launcher
+    // stays visible until the process exits.
+    return {
+      outcome: 'installer', updateFlowHold, holdForImport: false, lastStartFailed: false,
+    };
+  }
+
+  if (!stayAtLauncher && updateFlowHold) {
+    sendToLauncher('shell:show-tab', { tab: 'home' });
   }
   return {
-    outcome: autoStart ? 'desktop' : 'launcher', updateFlowHold, holdForImport, lastStartFailed,
+    outcome: 'launcher', updateFlowHold, holdForImport, lastStartFailed,
   };
 }
 
@@ -238,4 +413,10 @@ module.exports = {
   shouldCloseLauncher,
   shouldCloseLauncherAfterDesktopStart,
   runColdStartGate,
+  parkUpdateCheck,
+  takeParkedUpdateCheck,
+  peekParkedUpdateCheck,
+  resetParkedUpdateCheck,
+  createParkedUpdateDrainer,
+  presentUpdateAsk,
 };

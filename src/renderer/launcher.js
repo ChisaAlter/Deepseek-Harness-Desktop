@@ -367,6 +367,23 @@ async function refreshStatus() {
   $('opt-quit').checked = config.quitAfterStart !== false;
   $('opt-auto').checked = config.autoStartDesktop !== false;
   $('opt-ask').checked = config.askOnUpdate !== false;
+  // A late cold-start update result is parked in the main process until the
+  // user actually looks at the launcher. Surface it like any other check.
+  if (status?.pendingUpdateCheck) {
+    renderUpdateCheck(status.pendingUpdateCheck);
+  }
+}
+
+function renderUpdateCheck(check) {
+  if (check?.hint) {
+    setHint(check.hint);
+  } else if (check?.status === 'error') {
+    setHint(`更新检查失败：${check.message || '网络或 GitHub 不可用'}。仍可启动桌面端。`);
+  } else if (check?.status === 'available') {
+    setHint(`发现正式版 ${check.latest || ''}。`);
+  } else {
+    setHint('');
+  }
 }
 
 let importSourceHome;
@@ -1204,15 +1221,10 @@ function bind() {
     api.onLauncherHint((payload) => {
       if (payload?.importResume) {
         setHint('上次导入中断，未完成的临时文件已清理。可重新导入；已存在的内容将按规则跳过。');
-      } else if (payload?.check?.hint) {
-        // Cold-start gate outcome (failed/incomplete update flow): show verbatim.
-        setHint(payload.check.hint);
-      } else if (payload?.check?.status === 'error') {
-        setHint(`更新检查失败：${payload.check.message || '网络或 GitHub 不可用'}。仍可启动桌面端。`);
-      } else if (payload?.check?.status === 'available') {
-        setHint(`发现正式版 ${payload.check.latest || ''}。`);
       } else {
-        setHint('');
+        // Cold-start gate outcome (failed/incomplete update flow): hints are
+        // shown verbatim, everything else falls back to the shared rendering.
+        renderUpdateCheck(payload?.check);
       }
       void refreshStatus();
     });

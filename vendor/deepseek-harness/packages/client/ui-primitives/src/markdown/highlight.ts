@@ -23,6 +23,7 @@ import { createJavaScriptRegexEngine, defaultJavaScriptRegexConstructor } from '
 import langTs from '@shikijs/langs/typescript'
 import langBash from '@shikijs/langs/shellscript'
 import langJson from '@shikijs/langs/json'
+import { HIGHLIGHT_PATTERN_TABLE } from './highlight-pattern-table.generated.ts'
 import type { GrammarState, HighlighterCore, ThemedToken } from 'shiki/core'
 import type { CSSProperties } from 'react'
 
@@ -149,49 +150,199 @@ const cssVariablesTheme = createCssVariablesTheme({
 })
 
 /**
- * The client regex engine compiles each TextMate pattern when its scanner is
- * created. Shiki otherwise defers patterns longer than 3,000 characters until
- * their first match; that compilation counts against Shiki's 500 ms per-line
- * budget and can return a partial token stream under host contention. Eager
- * compilation leaves the same budget in place for scanning user content.
+ * The build-time pattern table as a lookup: TextMate pattern to the JavaScript
+ * `RegExp` source and flags shiki's engine would otherwise derive on the main
+ * thread. Built once at module load by
+ * `scripts/generate-highlight-pattern-table.mjs`.
  */
+const precompiledPatterns = new Map<string, readonly [string, string]>(HIGHLIGHT_PATTERN_TABLE)
+
+/**
+ * Shiki's engine cache, keyed by TextMate pattern. Shiki asks this map for a
+ * pattern before calling {@link resolvePattern}, and keeps whatever it holds, so
+ * a seeded entry lets the scanner build read a ready `RegExp` instead of
+ * translating and compiling one. {@link warmHighlighter} fills it in slices.
+ */
+const patternCache = new Map<string, RegExp>()
+
+/**
+ * Build one pattern's `RegExp`.
+ *
+ * Shiki's JavaScript engine translates each Oniguruma pattern into JavaScript
+ * source when it first builds the scanner that contains it. For the three boot
+ * grammars that translation is ~145 ms of synchronous main-thread work
+ * (measured; see the syntax-highlight scheduling decision record), so the
+ * translated source ships in {@link HIGHLIGHT_PATTERN_TABLE} and this factory
+ * only compiles it.
+ *
+ * Shiki also defers patterns longer than 3,000 characters until their first
+ * match; that compilation counts against shiki's 500 ms per-line budget and can
+ * return a partial token stream under host contention, so the unlisted fallback
+ * compiles eagerly. Unlisted means a lazily loaded read-card grammar, or a
+ * grammar whose patterns changed after a dependency upgrade — both keep working
+ * at the pre-optimization cost rather than failing, and the package's
+ * pattern-table spec fails in CI when the table falls behind the grammars.
+ */
+function resolvePattern(pattern: string): RegExp {
+  const precompiled = precompiledPatterns.get(pattern)
+  if (precompiled !== undefined) return new RegExp(precompiled[0], precompiled[1])
+  return defaultJavaScriptRegexConstructor(pattern, {
+    lazyCompileLength: Number.POSITIVE_INFINITY,
+  })
+}
+
 const regexEngine = createJavaScriptRegexEngine({
   forgiving: true,
-  regexConstructor: pattern => defaultJavaScriptRegexConstructor(pattern, {
-    lazyCompileLength: Number.POSITIVE_INFINITY,
-  }),
+  cache: patternCache,
+  regexConstructor: resolvePattern,
 })
 
 let singleton: HighlighterCore | undefined
 
-/** Representative paths through every boot grammar, compiled before user content is timed. */
-const BOOT_GRAMMAR_WARMUPS = [
-  { lang: 'typescript', code: 'const answer: number = 42' },
-  { lang: 'shellscript', code: 'printf \'%s\\n\' "$HOME"' },
-  { lang: 'json', code: '{"ready":true}' },
-] as const
-
-/** Construct and pre-tokenize the boot grammars outside the user-content scan budget. */
+/**
+ * Construct the singleton. Grammar construction itself is cheap once the
+ * pattern table is available (measured ~4 ms); the per-grammar scanner build
+ * and first tokenize are what cost, and {@link warmHighlighter} schedules those.
+ */
 function createHighlighter(): HighlighterCore {
-  const instance = createHighlighterCoreSync({
+  return createHighlighterCoreSync({
     themes: [cssVariablesTheme],
     langs: LANGS,
     engine: regexEngine,
   })
-  for (const sample of BOOT_GRAMMAR_WARMUPS) {
-    instance.codeToTokens(sample.code, {
-      lang: sample.lang,
-      theme: 'css-variables',
-      tokenizeTimeLimit: 0,
-    })
-  }
-  return instance
 }
 
-/** The synchronous highlighter (one instance per document); pre-warmed below, lazy as the fallback. */
+/** The synchronous highlighter (one instance per document), built on first visible use. */
 function highlighter(): HighlighterCore {
   singleton ??= createHighlighter()
   return singleton
+}
+
+/** True once the singleton exists; warm-up is a no-op after that. */
+export function isHighlighterWarm(): boolean {
+  return singleton !== undefined
+}
+
+/**
+ * Warm-up lines per boot grammar, one scheduled task each.
+ *
+ * A TextMate grammar builds each rule's scanner the first time tokenizing text
+ * descends into that rule, and that construction is the dominant remaining cost
+ * (~50-100 ms for the first line that reaches a large rule set, measured). The
+ * lines below therefore cover the constructs ordinary fences reach — a single
+ * "hello world" line leaves every other rule set to be built inside a later
+ * fence's render. They mirror `scripts/generate-highlight-pattern-table.mjs` and
+ * the pattern-table spec.
+ */
+const BOOT_GRAMMAR_WARMUPS: readonly { readonly lang: string; readonly code: string }[] = [
+  { lang: 'typescript', code: 'const answer: number = 42' },
+  { lang: 'typescript', code: 'export function greet(name: string): string { return `hi ${name}` }' },
+  { lang: 'typescript', code: 'interface User { id: number; tags: string[] }' },
+  { lang: 'typescript', code: 'class Box<T> { constructor(private readonly value: T) {} }' },
+  { lang: 'typescript', code: '// comment\nimport { a } from "mod"' },
+  { lang: 'typescript', code: 'enum E { A = 1 }\ntype R = Record<string, () => Promise<void>>' },
+  { lang: 'shellscript', code: 'printf \'%s\\n\' "$HOME"' },
+  { lang: 'shellscript', code: 'for file in *.txt; do wc -l "$file"; done' },
+  { lang: 'shellscript', code: 'find . -name "*.ts" -print0 | xargs -0 wc -l' },
+  { lang: 'json', code: '{"ready":true}' },
+  { lang: 'json', code: '{"users":[{"id":1,"name":"a"}],"ok":false}' },
+]
+
+/**
+ * How many translated patterns one scheduled task is allowed to prepare.
+ * Preparing the whole table in one task is a long task of its own (measured
+ * ~100 ms; a single pattern's V8 compile can reach ~14 ms), so the table is
+ * seeded in slices and each slice gets its own background task.
+ */
+const PATTERN_PRECOMPILE_SLICE = 24
+
+/**
+ * Text each prepared pattern is run against. V8 compiles a `RegExp` on its
+ * first `exec`, and that compile is the largest single step of a cold
+ * highlighter build, so running every pattern once here pays it in slices
+ * instead of inside the first fence's tokenize.
+ */
+const PATTERN_PRECOMPILE_PROBE = 'const answer: number = 42\necho "$HOME"\n{"ready":true}'
+
+/**
+ * Background-priority scheduling, falling back to a macrotask where the
+ * Scheduler API is unavailable. Node timers are unref'd so a non-browser import
+ * cannot pin the event loop.
+ */
+function scheduleWarmupTask(run: () => void): void {
+  const scheduler = (globalThis as {
+    scheduler?: { postTask?: (cb: () => void, opts?: { priority?: string }) => unknown }
+  }).scheduler
+  if (typeof scheduler?.postTask === 'function') {
+    try {
+      scheduler.postTask(run, { priority: 'background' })
+      return
+    } catch {
+      // Fall through to the timer arm.
+    }
+  }
+  const timer = setTimeout(run, 0)
+  ;(timer as { unref?: () => void }).unref?.()
+}
+
+/**
+ * Warm the singleton off the render path.
+ *
+ * Module load used to schedule `setTimeout(() => highlighter(), 0)`
+ * unconditionally, so every document built the engine and tokenized all three
+ * grammars during boot even when it never rendered a code fence. Initialization
+ * is now requested the first time a code surface with a supported language
+ * mounts (see `useViewportHighlighting`), and the work is split into background
+ * tasks that keep each one short:
+ *
+ * 1. Compile the translated patterns in slices of
+ *    {@link PATTERN_PRECOMPILE_SLICE}, seeding {@link patternCache}. Shiki's
+ *    scanner reuses whatever the cache already holds, so this removes the
+ *    oniguruma-to-JavaScript translation (~145 ms for the boot grammars) from
+ *    the grammar tasks entirely.
+ * 2. Tokenize one representative line per grammar, each in its own task. That
+ *    is what builds a grammar's scanners, and the remaining cost is per-grammar
+ *    rather than per-table.
+ *
+ * A surface that renders or scrolls into view before its grammar's task runs
+ * still builds it synchronously through `highlightToHtml`; correctness never
+ * depends on warm-up, and a sliced task leaves the partially seeded cache in a
+ * state the synchronous path can use.
+ */
+let warmupStarted = false
+
+export function warmHighlighter(): void {
+  if (warmupStarted) return
+  warmupStarted = true
+
+  const patterns = [...precompiledPatterns]
+  const warmGrammar = (index: number): void => {
+    const sample = BOOT_GRAMMAR_WARMUPS[index]
+    if (sample === undefined) return
+    highlighter().codeToTokens(sample.code, { lang: sample.lang, theme: 'css-variables' })
+    scheduleWarmupTask(() => { warmGrammar(index + 1) })
+  }
+  const warmPatterns = (offset: number): void => {
+    if (offset >= patterns.length) {
+      scheduleWarmupTask(() => { warmGrammar(0) })
+      return
+    }
+    for (const [pattern, [source, flags]] of patterns.slice(offset, offset + PATTERN_PRECOMPILE_SLICE)) {
+      if (patternCache.has(pattern)) continue
+      const regex = new RegExp(source, flags)
+      // First exec is where V8 compiles the pattern; do it here, off the
+      // render path, rather than inside the fence that first needs it.
+      regex.lastIndex = 0
+      regex.exec(PATTERN_PRECOMPILE_PROBE)
+      patternCache.set(pattern, regex)
+    }
+    scheduleWarmupTask(() => { warmPatterns(offset + PATTERN_PRECOMPILE_SLICE) })
+  }
+
+  // Build the singleton first: `highlighter()` is cheap, and every later task
+  // needs it.
+  highlighter()
+  scheduleWarmupTask(() => { warmPatterns(0) })
 }
 
 /** Grammar ids whose lazy import is in flight or done, so it is requested once. */
@@ -249,15 +400,6 @@ function ensureGrammar(resolved: string): boolean {
   }
   return false
 }
-
-// Engine + grammar construction costs a long task (~120-175ms); building it
-// during the first finalized fence's render would jank exactly when a stream
-// completes. Warm the singleton in a deferred task at module load (= plugin
-// boot) instead; the lazy path above stays as the correctness fallback for a
-// fence that renders before the timer fires. `unref` (Node-only) keeps a
-// non-browser import from pinning the event loop.
-const warmupTimer = setTimeout(() => { highlighter() }, 0)
-;(warmupTimer as { unref?: () => void }).unref?.()
 
 /**
  * Highlight `code` into shiki's HTML (a single `<pre class="shiki">` tree)

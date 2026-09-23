@@ -58,7 +58,7 @@ Harness alpha.2 同步保留本页既有视觉合同。新增上游组件复用�
 4. **主色不是电光蓝。** 默认主按钮是近黑（浅色）/ 近白（深色）：`--dsw-alias-button-primary-fill`（浅色即 `rgb(15, 17, 21)`）。品牌蓝是 `--dsw-static-deepseek-500`（`rgb(65, 118, 230)`）及其 alias（`--dsw-alias-button-info-fill`、`--dsw-alias-state-business-primary`），用于信息强调、用户气泡、选中态。禁止 `#2b5cff`、`#6ea8ff`、`#3964fe` 这类平行色板。
 5. **描边用透明度，不用实心灰。** 浅色 `rgba(0,0,0,.04/.10/.12)`，深色 `rgba(255,255,255,.06/.12/.16)`，对应 `--dsw-alias-border-l1`～`l3`。栏与栏之间是 1px 发丝线，不是投影卡片墙。
 6. **Hover / Active 用交互 token。** 浅色 `rgba(38, 49, 72, .06 / .10)`，深色 `rgba(255,255,255,.08 / .14)`：`--dsw-alias-interactive-bg-hover` / `active`。不要新造一层实心灰底。
-7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。
+7. **圆角按角色。** 主按钮胶囊 18（高 36）/ 小按钮 14（高 28）；输入 8；菜单 12；对话框 24；Tooltip 8；图标点击区 8。不要 6px 方钮；999px 只给胶囊按钮和开关。桌面壳最外框（`.frame` 外缘与 Windows 标题栏内容角 `--dsh-windows-content-radius`）20；启动器窗口外框 20。两窗均为 `transparent` 窗口：启动器轮廓由 `.shell` 卡片自绘；桌面端剪影由页面自绘——boot 页 `.stage` 圆角卡、harness 页由注入层给 `body`（`position:relative`）圆角裁切并以 `#dshd-frame-canvas` 补底色（最大化归零）：absolute/fixed 全屏层逃逸 body 的圆角裁切，因此 `#dsh-wallpaper`、`#dshd-frame-canvas` 等层各自携带同径圆角。内部控件沿用各自角色值。
 8. **字号必须配行高。** 标题 16/24，正文 14/22，紧凑 12/18，Tooltip 13/20。字重 400 / 500 / 600 / 700；Figma 510 渲染为 500。禁止 `font-weight: 650`。
 9. **间距是 4 的倍数。** 控件内边距、gap、栏间距用 4 / 8 / 12 / 14 / 16 / 20 / 24。
 10. **图标 16px、`currentColor`。** 用 `ui-primitives` 的 `ic_ds_*`。密集标题栏可用 14px。不要引入另一套图标库或彩色填充图标。
@@ -68,6 +68,8 @@ Harness alpha.2 同步保留本页既有视觉合同。新增上游组件复用�
 14. **滚动条用共享样式。** 禁止组件内 `::-webkit-scrollbar`。
 15. **产品文案中文，代码注释英文。** 不要把 VS Code / Material / iOS 的密度和装饰搬进来压过基线 Web UI。
 16. **侧栏品牌跟基线构建。** `setup:harness` 走 vendor 树自带的 `pnpm run build:official`（`DSH_CLIENT_BUILD_PROFILE=official`）；源码 `npm start` 在消费 vendor 产物前也必须确认该官方构建记录，发现旧的普通 `build` 产物时自动补做 official build。侧栏是基线鲸标 + DeepSeek Harness 字标，不是本地构建回退「DSH 本地构建」。改 client 后也用同一条命令重建，不要单独 `build:lib:client` 把品牌打回本地包。
+17. **代码高亮按需、分片，不把长任务搬了个位置。** 会话里没有代码块时，语法高亮器一次都不构造；有代码内容时，原文先可见、可复制、可选中，再在同一位置换成高亮结果，不先显示占位。初始化与每个 grammar 的首次 tokenize 各自独立调度，都是后台任务：单个高亮相关主线程任务必须小于 50 ms，且不得靠 `requestIdleCallback` / `setTimeout` 把同一个长任务原样推迟来「达标」。高亮失败或未就绪时降级为完整等宽原文，绝不显示旧输入的高亮结果。已完成的增量 Markdown 缓存、streaming→settled 的 DOM 语义、复制文本不含行号保持基线不变。
+18. **终端高吞吐输出有界，背压必须真的约束生产者。** PTY 输出先按 burst 合并再跨 IPC，帧带每会话单调序号；renderer 只有在**把该帧写入自己的终端会话状态之后**才回执，收到 IPC 即回执不算消费完成。主进程按未确认字节数设高/低水位：越过上限就暂停后端 PTY 读取，回落到低水位再恢复。暂停期间输入写入与 resize 不受影响；恢复后必须零丢失、零乱序，退出前的尾部输出照常先 flush。不允许用丢弃数据、无上限队列或「只在 renderer 侧丢弃」冒充背压；后端无法真正停读时必须如实标注背压未完成，而不是假装达标。
 
 ## 独立 dshbot 工作流程
 
@@ -112,7 +114,7 @@ Bot 的确定性形状头像沿用 Hermes Bots 的状态化动态脸：空闲时
 | 选中行 | `--dsw-specific-sidebar-nav-item-active`（强调用 `*-accent`） |
 | 字体栈 | `--dsw-font-family`（系统 UI + 苹方 / 雅黑）；代码 `--ds-font-family-code` |
 
-布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。右边栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。右栏空态的面板选择卡（`ui-surfaces` 的 `EmptyState`）是居中**方块瓷砖**：两列、内宽上限 320、`aspect-ratio: 1 / 1`、间距 8、圆角 12，图标 / 标题 / 描述垂直堆叠居中；不是横向长条卡。工作区文件与产物的主点击留在应用工作环内：HTML / HTM / XHTML / PDF 进入右栏 Browser，其余可读文件进入 Files；Files 工具栏的悬浮文件预览是显式次级动作，系统默认程序仅用于右键命令或工作区权威之外的回退。Files 的悬浮文件预览是单实例、只读、置顶的原生子窗口：保留系统标题栏与关闭命中区，内容面直接使用官方 Web UI canvas / `--dsw-alias-*` token，不套卡片、不引入第二套壳层皮肤；图片、音视频按 contain 居中，文本 / HTML / PDF 占满可滚动内容区，打开下一文件原位替换。Browser 另提供 `dshd mini-player`：它是同一 Browser guest 的 renderer 浮层投影，挂在 `shell.overlay`、限定在聊天可视区内，可拖拽和四边/四角缩放；浮层只迁移 guest 的呈现边界，不创建第二个 BrowserView 或外部窗口。浮层工具条使用现有 `ui-primitives` 图标按钮与 `--dsw-alias-*` 角色色，guest 像素区与拖拽/缩放命中区分离，关闭或恢复后回到原 Browser surface 且保留 URL / history。
+布局：`AppFrame` 是栏，不是卡片网格。关着的栏宽度为 0 且不画分隔线。标题栏尾簇是 28×28 图标按钮，给窗口控件留出实测避让，不要自绘一套窗口皮肤。`main` slot 的非会话面板（插件管理等）只挂在标题栏行之下的内容行，由 `AppFrame` 的 `mainPanel` 容器承接；`conversation` 是唯一跨整列两行、自带 subgrid 的面板，其他面板不得把内容伸进标题栏行。桌面只有**一条可见右栏**：`ui-sidebar-right` 是唯一呈现所有者，`Ctrl+\` 与标题栏右面板按钮开合同一条栏；上游 `surfaces` 槽只作为 0 宽度休眠兼容层，桌面包不得在其上注册 occupant 或重新打开它。右栏起始页是原生 Sidebar guide，不是旧 `ui-surfaces/EmptyState` 卡片墙；旧空态几何契约自本版起作废。右栏 surface Tab 的关闭控件在标题**右侧**；未经用户明确要求，不要把它挪到左侧。工作区文件与产物的主点击留在应用工作环内：HTML / HTM / XHTML / PDF 进入右栏 Browser，其余可读文件进入右栏 Document Preview；统一右栏文档预览头部的悬浮预览是显式次级动作，系统默认程序仅用于右键命令或工作区权威之外的回退。悬浮文件预览是单实例、只读、置顶的原生子窗口：保留系统标题栏与关闭命中区，内容面直接使用官方 Web UI canvas / `--dsw-alias-*` token，不套卡片、不引入第二套壳层皮肤；图片、音视频按 contain 居中，文本 / HTML / PDF 占满可滚动内容区，打开下一文件原位替换。它与 DockKit 的页内 float 是不同层级，后者不创建原生窗口。Browser 另提供 `dshd mini-player`：它是同一 Browser guest 的 renderer 浮层投影，挂在 `shell.overlay`、限定在聊天可视区内，可拖拽和四边/四角缩放；浮层只迁移 guest 的呈现边界，不创建第二个 BrowserView 或外部窗口。浮层工具条使用现有 `ui-primitives` 图标按钮与 `--dsw-alias-*` 角色色，guest 像素区与拖拽/缩放命中区分离，关闭或恢复后回到原 Browser surface 且保留 URL / history。
 
 输入条：`InputBar` 胶囊卡（22 圆角）静止态自带整圈轮廓光——`inset 0 0 12px 1px rgba(255, 255, 255, 0.25)`，四条边与四个圆角均匀包裹（inset 光天然跟随 `border-radius`；浅色主题白上加白自然隐形，不写主题分支）。卡片不带外投影（elevation-soft 不上输入条），分离由轮廓光 + 发丝描边承担；壁纸亮部透过玻璃只做环境叠加，轮廓光才是自有合同。运行态思考炫光（beam）参照 Libraries.dev Border Beam 的 Rotate / Large / Colorful 层次叠加在这圈轮廓光之上：未滤镜的命中壳在卡边外扩 4px 并继续 `overflow: hidden`，22px stroke / inner 内缩回原卡边，stroke 以 0.6 透明度、inner 以旋转窗口共同形成移动亮区，masked bloom 光源由外层容器以 `blur(8px)` 模糊并以 0.36 透明度进入这圈圆角光晕；4px 小于 composer stack 的 6px 间距，因此不盖住 dock。空会话 Hero 的 workspace / agent-preset 行与输入卡共享实际宽轴：有已保存宽度时读取 `--dsh-composer-resized-width`，否则回退 `--dsh-composer-card-max-width`，整行在 composer stack 内居中，不能留在外层满宽左缘。静止/运行的层级靠流光对比，不加新色板。壁纸模式下输入条背后不铺座位暗带：输入卡与统计行直接坐在壁纸上，任何带状填充都会读成输入框投下的阴影。
 

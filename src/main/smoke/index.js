@@ -162,7 +162,14 @@ const SMOKE_FRAME_WIDTH_JS = `(() => {
   const caption = document.querySelector('[data-dshd-caption="band"]');
   const frame = caption && caption.parentElement;
   const frameW = frame ? Math.round(frame.getBoundingClientRect().width) : 0;
-  return { inner: window.innerWidth, frameW, collapsed: frame ? frame.hasAttribute('data-surfaces-collapsed') : null };
+  const rightbar = document.querySelector('[data-rightbar-col]');
+  return {
+    inner: window.innerWidth,
+    frameW,
+    collapsed: frame ? frame.hasAttribute('data-rightbar-collapsed') : null,
+    surfacesCollapsed: frame ? frame.hasAttribute('data-surfaces-collapsed') : null,
+    rightbarWidth: rightbar ? Math.round(rightbar.getBoundingClientRect().width) : 0,
+  };
 })()`;
 
 /** Packaged smoke often lands at ~1024px, where the pin auto-closes surfaces. */
@@ -240,11 +247,15 @@ async function probeTitlebarHits(wc) {
       return { hits, error: 'surfaces toggle missing' };
     }
     hits.surfaces += 1;
+    // The single visible right panel is the native rightbar; the retired
+    // surfaces track must stay dormant at zero width either way.
     const surfacesOpenJs = `(() => {
       const caption = document.querySelector('[data-dshd-caption="band"]');
       const frame = caption && caption.parentElement;
-      if (!frame) return false;
-      return !frame.hasAttribute('data-surfaces-collapsed');
+      const rightbar = document.querySelector('[data-rightbar-col]');
+      if (!frame || !rightbar) return false;
+      if (frame.hasAttribute('data-surfaces-collapsed') === false) return false;
+      return !frame.hasAttribute('data-rightbar-collapsed') && rightbar.getBoundingClientRect().width > 0;
     })()`;
     let opened = await waitUntil(() => wc.executeJavaScript(surfacesOpenJs), 10_000);
     if (!opened && surfaces && await clickTitlebarButton(wc, SMOKE_SURFACES)) {
@@ -254,7 +265,7 @@ async function probeTitlebarHits(wc) {
       const sample = await wc.executeJavaScript(SMOKE_FRAME_WIDTH_JS).catch(() => ({}));
       return {
         hits,
-        error: `surfaces did not open inner=${sample.inner} frame=${sample.frameW} collapsed=${sample.collapsed}`,
+        error: `rightbar did not open inner=${sample.inner} frame=${sample.frameW} collapsed=${sample.collapsed} surfacesCollapsed=${sample.surfacesCollapsed} rightbarWidth=${sample.rightbarWidth}`,
       };
     }
 

@@ -419,12 +419,15 @@ test('runImport copies only selected rows and never writes the source', async ()
   writeSkill(path.join(tree.source, 'skills'), 'alpha');
   writeSkill(path.join(tree.source, 'skills'), 'omega');
   fs.writeFileSync(path.join(tree.source, 'mcp-servers.yaml'), MCP_FIXTURE);
+  fs.writeFileSync(path.join(tree.source, 'settings.yaml'), SETTINGS_FIXTURE);
+  fs.mkdirSync(path.join(tree.source, '.agent-presets', 'research'), { recursive: true });
+  fs.writeFileSync(path.join(tree.source, '.agent-presets', 'research', 'agent.cordis.yml'), '- name: research\n');
   const extraRoot = path.join(tree.root, 'extra-skills');
   writeSkill(extraRoot, 'gamma');
   const sourceSkill = fs.readFileSync(path.join(tree.source, 'skills', 'alpha', 'SKILL.md'));
   const sourceMcp = fs.readFileSync(path.join(tree.source, 'mcp-servers.yaml'));
   const sourceSess = fs.readFileSync(path.join(tree.source, 'sessions', 'proj', 'sess-b', 'session.jsonl'));
-  const { runImport } = require('./data-import');
+  const { readImportJournal, runImport } = require('./data-import');
   const empty = await runImport({
     sourceHome: tree.source,
     destHome: tree.dest,
@@ -454,6 +457,8 @@ test('runImport copies only selected rows and never writes the source', async ()
     selectedSkillIds: ['home:alpha', 'extra:gamma'],
     selectedPluginNames: ['good-plugin'],
     selectedMcpIds: ['secret-mcp'],
+    selectedSettingIds: ['ui-theme'],
+    selectedPresetIds: ['research'],
     importAttachments: true,
     overwrite: false,
     installPlugin: async (spec) => {
@@ -468,7 +473,12 @@ test('runImport copies only selected rows and never writes the source', async ()
   assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'alpha', 'SKILL.md')), true);
   assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'omega', 'SKILL.md')), false);
   assert.equal(fs.existsSync(path.join(tree.dest, 'skills', 'gamma', 'SKILL.md')), true);
+  assert.equal(fs.existsSync(path.join(tree.dest, '.agent-presets', 'research', 'agent.cordis.yml')), true);
+  assert.equal(result.settings.find((row) => row.id === 'ui-theme').status, 'copied');
+  assert.equal(result.presets.find((row) => row.id === 'research').status, 'copied');
   assert.deepEqual(calls, ['github:acme/good']);
+  assert.equal(result.ok, true);
+  assert.equal(readImportJournal(tree.userData).phase, 'done', 'all committed stages must finish before done');
   const destMcp = fs.readFileSync(path.join(tree.dest, 'mcp-servers.yaml'), 'utf8');
   assert.match(destMcp, /id: secret-mcp/);
   assert.match(destMcp, /Bearer test-token-not-real/);
@@ -842,6 +852,153 @@ test('runImport honours AbortSignal between session copies and stays resumable',
   const { readImportJournal } = require('./data-import');
   const journal = readImportJournal(tree.userData);
   assert.equal(journal.phase, 'copying', 'a cancelled import must stay recoverable like an interrupted one');
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('a desktop home with v3 compressed sessions is not held for first-run import', () => {
+  const tree = makeTree();
+  const sessionDir = path.join(tree.dest, 'sessions', 'proj', 'existing');
+  fs.mkdirSync(sessionDir, { recursive: true });
+  fs.writeFileSync(path.join(sessionDir, 'session.v3.jsonl.zstd'), Buffer.from([0x28, 0xb5, 0x2f, 0xfd]));
+  const { probeImportHold, scanImport } = require('./data-import');
+  const probe = probeImportHold({ sourceHome: tree.source, destHome: tree.dest });
+  assert.deepEqual(probe, { destEmpty: false, sourceHasData: false, hold: false });
+  assert.equal(scanImport({ sourceHome: tree.source, destHome: tree.dest }).destEmpty, false);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('scanImport includes v3 sessions from a selected source', () => {
+  const tree = makeTree();
+  const source = path.join(tree.root, 'v3-only');
+  const sessionDir = path.join(source, 'sessions', 'proj', 'new-format');
+  fs.mkdirSync(sessionDir, { recursive: true });
+  fs.writeFileSync(path.join(sessionDir, 'session.v3.jsonl'), [
+    JSON.stringify({ type: 'session', version: 3, id: 'v3-id', cwd: 'C:\\work', createdAt: 1_700_000_000_000 }),
+    JSON.stringify({ type: 'session/title', data: { title: 'V3 title' } }),
+    '',
+  ].join('\n'));
+  const { probeImportHold, scanImport } = require('./data-import');
+  assert.equal(probeImportHold({ sourceHome: source, destHome: tree.dest, agentsSkillsRoot: path.join(tree.root, 'no-skills') }).hold, true);
+  const scan = scanImport({ sourceHome: source, destHome: tree.dest, agentsSkillsRoot: path.join(tree.root, 'no-skills') });
+  assert.equal(scan.sessions.length, 1);
+  assert.equal(scan.sessions[0].id, 'v3-id');
+  assert.equal(scan.sessions[0].title, 'V3 title');
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('runImport keeps the journal recoverable when cancelled after the final session copy', async () => {
+  const tree = makeTree();
+  const controller = new AbortController();
+  const { readImportJournal, runImport } = require('./data-import');
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    agentsSkillsRoot: path.join(tree.root, 'no-agents'),
+    userDataDir: tree.userData,
+    selectedRels: ['proj/sess-a'],
+    selectedSkillIds: [],
+    selectedPluginNames: [],
+    selectedMcpIds: [],
+    selectedSettingIds: [],
+    selectedPresetIds: [],
+    importAttachments: true,
+    signal: controller.signal,
+    onProgress: (event) => {
+      if (event.phase === 'sessions' && event.done === 1) {
+        controller.abort();
+      }
+    },
+  });
+  assert.equal(result.cancelled, true);
+  assert.equal(result.ok, false);
+  assert.equal(readImportJournal(tree.userData).phase, 'copying');
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('runImport keeps the journal copying when cancelled in a later plugin stage', async () => {
+  const tree = makeTree();
+  const controller = new AbortController();
+  const { readImportJournal, recoverInterruptedImport, runImport } = require('./data-import');
+  let journalDuringPlugin = null;
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    agentsSkillsRoot: path.join(tree.root, 'no-agents'),
+    userDataDir: tree.userData,
+    selectedRels: ['proj/sess-a'],
+    selectedSkillIds: [],
+    selectedPluginNames: ['good-plugin'],
+    selectedMcpIds: [],
+    selectedSettingIds: [],
+    selectedPresetIds: [],
+    importAttachments: true,
+    signal: controller.signal,
+    installPlugin: async () => {
+      // Sessions and attachments have fully committed; only later stages remain.
+      journalDuringPlugin = readImportJournal(tree.userData);
+      controller.abort();
+      return { ok: true };
+    },
+  });
+  assert.ok(journalDuringPlugin, 'the plugin stage must run after sessions complete');
+  assert.equal(
+    journalDuringPlugin.phase,
+    'copying',
+    'session completion must not commit done before later stages finish',
+  );
+  assert.equal(result.cancelled, true);
+  assert.equal(result.ok, false);
+  assert.equal(readImportJournal(tree.userData).phase, 'copying');
+
+  const completedSession = path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl');
+  assert.equal(fs.existsSync(completedSession), true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'attachments', 'file.bin')), true);
+
+  const staged = path.join(tree.dest, 'sessions', 'proj', 'sess-b.import-tmp');
+  fs.mkdirSync(staged, { recursive: true });
+  fs.writeFileSync(path.join(staged, 'session.jsonl'), 'partial');
+  assert.equal(recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest }).recovered, true);
+  assert.equal(readImportJournal(tree.userData).phase, 'recovered');
+  assert.equal(fs.existsSync(staged), false);
+  assert.equal(fs.existsSync(completedSession), true);
+  fs.rmSync(tree.root, { recursive: true, force: true });
+});
+
+test('a cancelled import leaves only completed sessions and a recoverable staging marker', async () => {
+  const tree = makeTree();
+  const controller = new AbortController();
+  const { readImportJournal, recoverInterruptedImport, runImport } = require('./data-import');
+  const result = await runImport({
+    sourceHome: tree.source,
+    destHome: tree.dest,
+    agentsSkillsRoot: path.join(tree.root, 'no-agents'),
+    userDataDir: tree.userData,
+    selectedRels: ['proj/sess-a', 'proj/sess-b'],
+    selectedSkillIds: [],
+    selectedPluginNames: [],
+    selectedMcpIds: [],
+    selectedSettingIds: [],
+    selectedPresetIds: [],
+    importAttachments: true,
+    signal: controller.signal,
+    onProgress: (event) => {
+      if (event.phase === 'sessions' && event.done === 1) {
+        controller.abort();
+      }
+    },
+  });
+  assert.equal(result.cancelled, true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl')), true);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-b')), false);
+  assert.equal(readImportJournal(tree.userData).phase, 'copying');
+
+  const staged = path.join(tree.dest, 'sessions', 'proj', 'sess-b.import-tmp');
+  fs.mkdirSync(staged, { recursive: true });
+  fs.writeFileSync(path.join(staged, 'session.jsonl'), 'partial');
+  assert.equal(recoverInterruptedImport({ userDataDir: tree.userData, destHome: tree.dest }).recovered, true);
+  assert.equal(readImportJournal(tree.userData).phase, 'recovered');
+  assert.equal(fs.existsSync(staged), false);
+  assert.equal(fs.existsSync(path.join(tree.dest, 'sessions', 'proj', 'sess-a', 'session.jsonl')), true);
   fs.rmSync(tree.root, { recursive: true, force: true });
 });
 

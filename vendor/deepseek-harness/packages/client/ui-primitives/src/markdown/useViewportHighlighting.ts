@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { RefObject } from 'react'
-import { supportsHighlighting } from './highlight.ts'
+import { supportsHighlighting, warmHighlighter } from './highlight.ts'
 
 const noop = (): void => {}
 
@@ -65,6 +65,10 @@ export function useViewportHighlighting(
     const element = target.current
     /* v8 ignore next -- React attaches the host ref before running effects. */
     if (element === null) return
+    // A supported surface exists in this document: schedule the engine build
+    // now so it lands before the element is scrolled into view, without paying
+    // the cost during boot or blocking the current render.
+    warmHighlighter()
     return highlightViewport.observe(element, activate)
   }, [activate, activated, supported, target])
 

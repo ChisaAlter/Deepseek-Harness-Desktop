@@ -1,7 +1,7 @@
 const { BrowserView, BrowserWindow, shell, nativeImage, screen } = require('electron');
 const { rendererFile, assetFile, preloadFile } = require('./paths');
 const { REMOTE_FEATURE_ENABLED } = require('./config');
-const { windowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, officialShellBackground } = require('./chrome');
+const { windowChrome, attachIntegratedChrome, hideNativeMenu, prepareHarnessChrome, syncHarnessChrome, currentTheme, markWindowTransparent, paintBackground } = require('./chrome');
 const { normalizeSettingsSection, buildSettingsSectionScript } = require('./settings-jump');
 const {
   isLoopbackHttpUrl,
@@ -77,6 +77,10 @@ function createMainWindow() {
       show: false,
       icon: iconImage(),
     }),
+    // The window's silhouette is drawn by the loaded page (boot canvas or
+    // harness .frame), so the native surface must stay transparent.
+    transparent: true,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: preloadFile(),
       additionalArguments: ['--dshd-shell-role=boot'],
@@ -87,6 +91,7 @@ function createMainWindow() {
     },
   });
 
+  markWindowTransparent(mainWindow);
   attachIntegratedChrome(mainWindow);
   mainWindow.once('ready-to-show', () => {
     hideNativeMenu(mainWindow);
@@ -347,6 +352,10 @@ function ensureHarnessView(win) {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // Transparent view background so the harness page's rounded corners
+      // (injected by harness-chrome-inject) reveal the window's transparent
+      // corners instead of an opaque rectangle.
+      backgroundColor: '#00000000',
     },
   });
   win.addBrowserView(harnessView);
@@ -393,7 +402,7 @@ function ensureHarnessView(win) {
 function showBoot() {
   const win = createMainWindow();
   hideHarnessView(win);
-  win.setBackgroundColor(currentTheme().bg);
+  paintBackground(win, currentTheme().bg);
   if (isBootLoaded(win)) {
     return Promise.resolve();
   }
@@ -551,7 +560,8 @@ function createLauncherWindow() {
       minHeight: 520,
       show: false,
       icon: iconImage(),
-      backgroundColor: officialShellBackground(currentTheme()),
+      transparent: true,
+      backgroundColor: '#00000000',
     }),
     webPreferences: {
       preload: preloadFile(),
@@ -562,6 +572,7 @@ function createLauncherWindow() {
       spellcheck: false,
     },
   });
+  markWindowTransparent(launcherWindow);
   attachIntegratedChrome(launcherWindow, { role: 'launcher' });
   launcherWindow.once('ready-to-show', () => {
     hideNativeMenu(launcherWindow);

@@ -52,12 +52,12 @@ function appendUnique(values, next) {
  * @param {string} refName
  * @returns {Promise<object>}
  */
-async function resolveBranchHeadContext(cwd, refName) {
-  const configuredRemote = await runGit(cwd, ['config', '--get', `branch.${refName}.remote`]);
+async function resolveBranchHeadContext(cwd, refName, readRun = runGit) {
+  const configuredRemote = await readRun(cwd, ['config', '--get', `branch.${refName}.remote`]);
   const remoteName = configuredRemote.code === 0 && configuredRemote.stdout.trim()
     ? configuredRemote.stdout.trim()
     : null;
-  const upstream = await resolveCurrentUpstream(cwd);
+  const upstream = await resolveCurrentUpstream(cwd, readRun);
   const upstreamRef = upstream?.upstreamRef || null;
   const headBranchFromUpstream = upstream?.branchName || '';
   const headBranch = headBranchFromUpstream || refName;
@@ -65,9 +65,9 @@ async function resolveBranchHeadContext(cwd, refName) {
   const effectiveRemote = remoteName || upstream?.remoteName || null;
 
   const headRemote = effectiveRemote
-    ? await runGit(cwd, ['remote', 'get-url', effectiveRemote])
+    ? await readRun(cwd, ['remote', 'get-url', effectiveRemote])
     : { code: 1, stdout: '' };
-  const originRemote = await runGit(cwd, ['remote', 'get-url', 'origin']);
+  const originRemote = await readRun(cwd, ['remote', 'get-url', 'origin']);
   const headRemoteUrl = headRemote.code === 0 ? headRemote.stdout.trim() : '';
   const originRemoteUrl = originRemote.code === 0 ? originRemote.stdout.trim() : '';
   const headRepo = parseGitHubRepositoryNameWithOwner(headRemoteUrl)
@@ -200,18 +200,18 @@ function parseGhPullRequestRow(parsed) {
  * @param {string} [refName]
  * @returns {Promise<{ pr: object | null, failed: boolean, headContext?: object }>}
  */
-async function lookupOpenPullRequest(cwd, refName) {
+async function lookupOpenPullRequest(cwd, refName, readRun = runGit) {
   if (lookupOpenPullRequestOverride) return lookupOpenPullRequestOverride(cwd);
   const root = asCwd(cwd);
   if (!root) return { pr: null, failed: true };
-  const selected = await selectProviderContext(root);
+  const selected = await selectProviderContext(root, readRun);
   // Only GitHub (including self-hosted) uses `gh`.
   if (selected?.provider?.kind !== 'github') {
     return { pr: null, failed: false };
   }
   const headRef = typeof refName === 'string' && refName.trim() ? refName.trim() : '';
   if (!headRef) return { pr: null, failed: false };
-  const headContext = await resolveBranchHeadContext(root, headRef);
+  const headContext = await resolveBranchHeadContext(root, headRef, readRun);
   const jsonFields = 'number,title,url,baseRefName,headRefName,state,isCrossRepository,headRepository,headRepositoryOwner';
   let sawFailure = false;
   for (const headSelector of headContext.headSelectors) {
@@ -262,8 +262,8 @@ function setLookupOpenPullRequest(resolver) {
   lookupOpenPullRequestOverride = typeof resolver === 'function' ? resolver : null;
 }
 
-async function readPullRequest(cwd, refName) {
-  const looked = await lookupOpenPullRequest(cwd, refName);
+async function readPullRequest(cwd, refName, readRun = runGit) {
+  const looked = await lookupOpenPullRequest(cwd, refName, readRun);
   if (looked.failed) return null;
   return looked.pr;
 }

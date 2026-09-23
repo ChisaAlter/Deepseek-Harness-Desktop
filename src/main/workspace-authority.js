@@ -72,7 +72,13 @@ function createWorkspaceAuthority({
       return null;
     }
     for (const root of authorizedRoots()) {
-      if (containedIn(root, real)) return real;
+      if (!containedIn(root, real)) continue;
+      // The `.git` rule is anchored to the trusted root, never to the caller's
+      // chosen base. Without this, `writeFile(cwd, 'hooks/pre-commit')` with
+      // cwd = <root>/.git produces a relative path that no longer contains the
+      // segment, and the metadata directory becomes writable again.
+      if (hasGitDirSegment(path.relative(root, real))) continue;
+      return real;
     }
     return null;
   }
@@ -82,6 +88,12 @@ function createWorkspaceAuthority({
    * symlink escapes: the deepest existing node on the target chain must stay
    * inside the base after realpath normalization. Symlinks that stay inside
    * the workspace (pnpm store links) keep working.
+   *
+   * Paths that spell or *land in* a `.git` directory are refused here so every
+   * caller (files, git, editors, preview) shares one rule. The spelled form is
+   * not enough: a link with an innocent name (`notes` -> `.git`) resolves into
+   * the repository metadata, and a save there escalates to code execution
+   * through hooks. See `hasGitDirSegment`.
    * @param {unknown} cwd - the renderer-supplied cwd (authorized first).
    * @param {unknown} relativePath - path relative to the cwd.
    * @returns {string | null} the canonical target, or null.
@@ -92,13 +104,23 @@ function createWorkspaceAuthority({
     const rel = typeof relativePath === 'string' ? relativePath : '';
     const target = path.resolve(base, rel);
     const fromBase = path.relative(base, target);
-    if (fromBase.startsWith('..') || path.isAbsolute(fromBase)) return null;
+    if (escapesBase(fromBase)) return null;
+    if (hasGitDirSegment(fromBase)) return null;
     let node = target;
     while (true) {
       const nodeReal = realPathOrNull(node);
       if (nodeReal !== null) {
-        return containedIn(base, nodeReal) ? target : null;
+        if (!containedIn(base, nodeReal)) return null;
+        // Canonical form: catches `.git` reached through a link whose own name
+        // is innocuous, and `.GIT` on case-insensitive filesystems.
+        if (hasGitDirSegment(path.relative(base, nodeReal))) return null;
+        return target;
       }
+      // realpath failed. Only a genuinely absent node may be folded into a
+      // not-yet-existing path: an existing link whose destination cannot be
+      // resolved is a dangling link, and a later write would follow it to a
+      // destination this check never authorized.
+      if (!isAbsentNode(node)) return null;
       const parent = path.dirname(node);
       if (parent === node) return null;
       node = parent;
@@ -163,9 +185,68 @@ function realPathOrNull(target) {
   }
 }
 
+/**
+ * True when `node` genuinely does not exist. `realpath` also fails for a
+ * dangling link (and for unreadable nodes), which must not be mistaken for an
+ * absent path component.
+ * @param {string} node
+ * @returns {boolean}
+ */
+function isAbsentNode(node) {
+  try {
+    fs.lstatSync(node);
+    return false;
+  } catch (error) {
+    return error.code === 'ENOENT' || error.code === 'ENOTDIR';
+  }
+}
+
 function containedIn(root, candidate) {
   const fromRoot = path.relative(root, candidate);
-  return !fromRoot.startsWith('..') && !path.isAbsolute(fromRoot);
+  return !escapesBase(fromRoot);
+}
+
+/**
+ * `path.relative()` reports a path outside the base either as absolute (other
+ * drive/UNC) or as a string starting with `..`. A bare `startsWith('..')`
+ * over-rejects real names: a child literally called `..notes` (or `..cache`
+ * under a subdirectory) yields exactly that relative form. Only `..` itself and
+ * a `..<separator>` prefix are actual traversal.
+ */
+function escapesBase(fromBase) {
+  if (path.isAbsolute(fromBase)) return true;
+  return fromBase === '..' || fromBase.startsWith(`..${path.sep}`);
+}
+
+/**
+ * True when `candidate` is `root` itself or one of its descendants. Both are
+ * resolved first, so this is a lexical containment test; callers that accept
+ * untrusted input must realpath first (see {@link createWorkspaceAuthority}).
+ *
+ * Use this instead of `relative(root, candidate).startsWith('..')`, which
+ * over-rejects real names such as `..notes`.
+ * @param {string} root
+ * @param {string} candidate
+ * @returns {boolean}
+ */
+function isPathInside(root, candidate) {
+  const fromRoot = path.relative(path.resolve(root), path.resolve(candidate));
+  return !escapesBase(fromRoot);
+}
+
+/**
+ * True when any segment of a relative path is `.git` (case-insensitive, both
+ * separator styles). A `.git` directory holds hooks, config, and refs: writing
+ * there runs attacker-chosen code on the next git invocation, so the desktop
+ * surface never addresses it. Names that merely start with `.git` (`.gitignore`,
+ * `.github`, `git.txt`) are ordinary files and stay reachable.
+ * @param {string} relativePath
+ * @returns {boolean}
+ */
+function hasGitDirSegment(relativePath) {
+  return String(relativePath)
+    .split(/[\\/]+/)
+    .some((segment) => segment.toLowerCase() === '.git');
 }
 
 function dshHome() {
@@ -335,4 +416,6 @@ module.exports = {
   isHighRiskWorkspaceRoot,
   highRiskAnchorPaths,
   scratchWorkspacePath,
+  hasGitDirSegment,
+  isPathInside,
 };

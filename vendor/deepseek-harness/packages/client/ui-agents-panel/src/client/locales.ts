@@ -2,6 +2,9 @@
 
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
+  'type.label': '代理',
+  'guide.title': '代理与后台任务',
+  'guide.description': '查看当前会话的子代理和后台任务。',
   'empty.title': '还没有子代理',
   'empty.body': '当前会话生成子代理后，会显示在这里。',
   'activity.running': '正在运行',
@@ -23,6 +26,9 @@ export type AgentsKey = keyof typeof zh
 
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
+  'type.label': 'Agents',
+  'guide.title': 'Agents and jobs',
+  'guide.description': 'Review subagents and background jobs in this session.',
   'empty.title': 'No agents yet',
   'empty.body': 'When this session spawns subagents, they show up here.',
   'activity.running': 'running',

@@ -30,7 +30,13 @@ function defaultSurfaces() {
 function ipcSenderRole(event, options = {}) {
   const sender = event?.sender;
   const frame = event?.senderFrame;
-  if (!sender || !frame || frame !== sender.mainFrame || typeof frame.url !== 'string') {
+  if (
+    !sender
+    || (typeof sender.isDestroyed === 'function' && sender.isDestroyed())
+    || !frame
+    || frame !== sender.mainFrame
+    || typeof frame.url !== 'string'
+  ) {
     return null;
   }
 

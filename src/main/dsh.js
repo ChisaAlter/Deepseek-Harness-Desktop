@@ -617,6 +617,7 @@ class DshManager extends EventEmitter {
   /**
    * @param {object} [options] 窄依赖注入；不传任何选项时全部使用生产默认实现。
    *   可注入：loadConfig、ensurePackagedHarness、spawnHarness、isReachable、
+   *   probeHarnessReady、
    *   sleep、readPidFile、writePidFile、clearPidFile、killTree、
    *   buildLaunch（测试需要绕过 electron 依赖时按需注入）、ensureGhosttyAssetsInHarness。
    */
@@ -640,7 +641,8 @@ class DshManager extends EventEmitter {
       loadConfig: options.loadConfig || loadConfig,
       ensurePackagedHarness: options.ensurePackagedHarness || ensurePackagedHarness,
       spawnHarness: options.spawnHarness || spawnHarness,
-      isReachable: options.isReachable || ((url) => this.isReachable(url)),
+      isReachable: options.isReachable || ((url, guard) => this.isReachable(url, guard)),
+      probeHarnessReady: options.probeHarnessReady || probeHarnessReady,
       sleep: options.sleep || sleep,
       readPidFile: options.readPidFile || readPidFile,
       writePidFile: options.writePidFile || writePidFile,
@@ -701,8 +703,11 @@ class DshManager extends EventEmitter {
     this.emit('log', entry);
   }
 
-  async isReachable(baseUrl) {
-    const probed = await probeHarnessReady(baseUrl, { fetchImpl: fetch, timeoutMs: 1500 });
+  async isReachable(baseUrl, guard) {
+    const probed = await this._deps.probeHarnessReady(baseUrl, { fetchImpl: fetch, timeoutMs: 1500 });
+    if (typeof guard === 'function' && guard() !== true) {
+      return false;
+    }
     if (probed.cookie) {
       this.sessionCookie = probed.cookie;
     }
@@ -886,7 +891,10 @@ class DshManager extends EventEmitter {
       }
     }
 
-    const config = this._loadConfig();
+    // A start may carry the one config snapshot its caller read, so the port,
+    // workspace, plugin switches, and CLI flags all come from the same read
+    // even if a Settings save lands while the child is being prepared.
+    const config = options.configSnapshot || this._loadConfig();
     if (!config.workspace || !fs.existsSync(config.workspace)) {
       throw new Error(`工作区不存在：${config.workspace || '(空)'}`);
     }
@@ -1037,7 +1045,12 @@ class DshManager extends EventEmitter {
         throw new Error(this.error || `dsh 已退出（code ${child.exitCode}）`);
       }
       const target = this.baseUrl || baseUrl;
-      if (this.webReady && await this._isReachable(target)) {
+      const stillCurrent = () => gen === this.generation && this.child === child;
+      if (this.webReady && await this._isReachable(target, stillCurrent)) {
+        // 注入的探活实现可能忽略 guard：发布 URL 前必须再次校验代际与 child。
+        if (!stillCurrent()) {
+          throw cancelledError();
+        }
         this.baseUrl = target;
         return target;
       }
@@ -1110,8 +1123,8 @@ class DshManager extends EventEmitter {
     return this._deps.spawnHarness(command, args, options);
   }
 
-  _isReachable(url) {
-    return this._deps.isReachable(url);
+  _isReachable(url, guard) {
+    return this._deps.isReachable(url, guard);
   }
 
   _sleep(ms) {

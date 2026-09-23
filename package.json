@@ -86,7 +86,8 @@
           "dsh-usage-panel/**",
           "dsh-im/**",
           "dshbot/**",
-          "dsh-whale/**"
+          "dsh-whale/**",
+          "dsh-remote/**"
         ]
       },
       {

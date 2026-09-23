@@ -42,6 +42,8 @@ class HarnessController extends EventEmitter {
     this.isBootLoaded = options.isBootLoaded || (() => false);
     this.getHarnessWebContents = options.getHarnessWebContents || (() => null);
     this.resolveLaunchTarget = options.resolveLaunchTarget;
+    this.readConfigSnapshot = options.readConfigSnapshot || (() => ({ config: this.loadConfig(), revision: undefined }));
+    this.currentConfigRevision = options.currentConfigRevision || (() => undefined);
     this.stripDroppedPlugins = options.stripDroppedPlugins;
     this.ensureDesktopInstallPlugin = options.ensureDesktopInstallPlugin || (() => {});
     this.removeDshMarketPreset = options.removeDshMarketPreset
@@ -55,6 +57,8 @@ class HarnessController extends EventEmitter {
     this.ensureDshbotPlugin = options.ensureDshbotPlugin
       || (async () => ({ ok: true, added: false }));
     this.ensureDshWhalePlugin = options.ensureDshWhalePlugin
+      || (async () => ({ ok: true, added: false }));
+    this.ensureDshRemotePlugin = options.ensureDshRemotePlugin
       || (async () => ({ ok: true, added: false }));
     this.ensureDesktopMarket = options.ensureDesktopMarket
       || (async () => ({ ok: true, added: false }));
@@ -456,7 +460,23 @@ class HarnessController extends EventEmitter {
     }
     this.assertOperationCurrent(generation);
     this.dsh.setState('starting', { error: '', failure: null });
-    const target = await this.resolveLaunchTarget();
+    // One config read for the whole start. Port, disabled list, and every
+    // built-in toggle read the *same* snapshot, so a Settings save landing
+    // mid-start cannot produce a start that mixes two config versions. If a
+    // save does land while the port is being resolved, take a fresh snapshot
+    // instead of spawning a child against half-applied settings.
+    let snapshot = this.readConfigSnapshot();
+    let startConfig = snapshot?.config || this.loadConfig();
+    let target = await this.resolveLaunchTarget(snapshot);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      this.assertOperationCurrent(generation);
+      const revision = snapshot?.revision;
+      if (typeof revision !== 'number' || this.currentConfigRevision?.() === revision) break;
+      snapshot = this.readConfigSnapshot();
+      startConfig = snapshot?.config || this.loadConfig();
+      target = await this.resolveLaunchTarget(snapshot);
+    }
+    this.assertOperationCurrent(generation);
     try {
       this.stripDroppedPlugins();
     } catch (error) {
@@ -605,7 +625,7 @@ class HarnessController extends EventEmitter {
     // (desktop runtime damage, skip cannot fix it).
     try {
       const bots = await this.ensureDshbotPlugin({
-        enabled: (this.loadConfig() || {}).dshbotEnabled === true,
+        enabled: startConfig.dshbotEnabled === true,
       });
       this.assertOperationCurrent(generation);
       if (bots && bots.ok === false) {
@@ -632,7 +652,7 @@ class HarnessController extends EventEmitter {
     // list never applies; a missing vendor copy fails the start.
     try {
       const whale = await this.ensureDshWhalePlugin({
-        enabled: (this.loadConfig() || {}).whaleAssistantEnabled === true,
+        enabled: startConfig.whaleAssistantEnabled === true,
       });
       this.assertOperationCurrent(generation);
       if (whale && whale.ok === false) {
@@ -653,8 +673,36 @@ class HarnessController extends EventEmitter {
       }
       throw new Error(`桌面内置 dsh-whale 失败：${errorMessage(error)}`);
     }
+    // dsh-remote is the desktop built-in SSH remote-workspace host — same
+    // contract as dshbot/dsh-whale: its overlay rides --patch on every start
+    // (including skipUserPlugins recovery) while `remoteWorkspaceEnabled` is on in
+    // 界面设置 (default ON); the disable list never applies; a missing
+    // vendor copy fails start (desktop runtime damage, skip cannot fix it).
     try {
-      const disabled = this.applyDisabledBundles((this.loadConfig() || {}).disabledPlugins);
+      const remotePlugin = await this.ensureDshRemotePlugin({
+        enabled: startConfig.remoteWorkspaceEnabled !== false,
+      });
+      this.assertOperationCurrent(generation);
+      if (remotePlugin && remotePlugin.ok === false) {
+        throw new Error(`桌面内置 dsh-remote 失败：${remotePlugin.error || 'unknown'}`);
+      }
+      if (remotePlugin?.overlayFile) {
+        patchFiles.push(remotePlugin.overlayFile);
+      }
+      if (remotePlugin && remotePlugin.ok && remotePlugin.disabled) {
+        this.dsh.log('桌面内置 dsh-remote 已按设置关闭', 'app');
+      } else if (remotePlugin && remotePlugin.ok) {
+        this.dsh.log(remotePlugin.added ? '已接入桌面内置 dsh-remote（远程工作区）' : '桌面内置 dsh-remote 已就绪', 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置 dsh-remote 失败：')) {
+        throw error;
+      }
+      throw new Error(`桌面内置 dsh-remote 失败：${errorMessage(error)}`);
+    }
+    try {
+      const disabled = this.applyDisabledBundles(startConfig.disabledPlugins);
       if (disabled && disabled.changed) {
         this.dsh.log('已按启动器禁用名单更新插件 bundles', 'app');
       } else if (disabled && disabled.ok === false && disabled.reason) {
@@ -665,6 +713,7 @@ class HarnessController extends EventEmitter {
     }
     const startOptions = {
       ...target,
+      configSnapshot: startConfig,
       skipUserPlugins,
       patchFiles,
     };

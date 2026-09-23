@@ -144,12 +144,12 @@ describe('Chat inject API', () => {
     // Files stay in the product: the desktop surfaces intercept wraps this one
     // shared opener (Files tab, Browser for html/pdf), so the call site hands
     // it a workspace-absolute path, not an address.
-    expect(b.openPath).toHaveBeenCalledWith('/proj/src/a.ts', undefined)
+    expect(b.openPath).toHaveBeenCalledWith('/proj/src/a.ts', { sessionId: ROOT })
     expect(b.openWorkspacePath).not.toHaveBeenCalled()
 
     // A line travels as an option beside the path, so the opened file can jump.
     await injected.openFile('src/a.ts', { line: 7 })
-    expect(b.openPath).toHaveBeenLastCalledWith('/proj/src/a.ts', { line: 7 })
+    expect(b.openPath).toHaveBeenLastCalledWith('/proj/src/a.ts', { line: 7, sessionId: ROOT })
 
     b.openPath.mockRejectedValueOnce(new RemoteError(
       'gateway/internal', 'workspace preview is not available', {},
@@ -214,7 +214,7 @@ describe('Chat inject API', () => {
     // The Host resolves the relative path against the root it holds for the
     // Session; the Client need not know it.
     await injected.openFile('src/a.ts')
-    expect(b.openPath).toHaveBeenCalledWith('src/a.ts', undefined)
+    expect(b.openPath).toHaveBeenCalledWith('src/a.ts', { sessionId: NO_CWD })
     await b.runtime.dispose()
   })
 

@@ -6,6 +6,7 @@
 | **status** | `active` |
 | **last verified (restart)** | 2026-09-08 — 105 项 controller/window/IPC 检查通过；延迟 boot 导航回归及隔离 Electron 内置重启恢复可见 Bot 界面通过 |
 | **last verified** | 2026-09-18 — 用户提供的 `assets/whale-spin.svg` 原样用作 112px 中区旋转加载动画，减少动态效果时换 `assets/whale-head.png`；Electron 两帧验证旋转/静态切换，32 项定向与全量 1775 项通过（2 跳过）；源码预启动构建受已有 openNoDirectory 类型错误阻塞。 |
+| **last verified (IPC auth, B2)** | 2026-09-20 — boot 角色授权边界复核：`ipcSenderRole` 仅在 sender 属于主窗 boot webContents、frame 为其**顶层 frame**、URL 通过 `isLocalAppNavigationUrl` 且 sender 未销毁时才返回 `IPC_ROLES.BOOT`；子 frame、已销毁 sender、导航离开 boot 页、被替换的 webContents 一律 `null`，`assertIpcSender` 抛 `ERR_DSH_IPC_SENDER`。`ipc-authorization.test.js` 7/7。boot 页动作面仍限定为 `shell:restart` / `shell:open-launcher` 等既有通道，本轮未新增 boot 侧 IPC，也未改 `--boot-*` 作用域。 |
 
 ## User paths
 

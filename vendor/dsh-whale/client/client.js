@@ -179,20 +179,20 @@ window.__ModuleLoader__.load({
     // Footer fallback for hosts without sidebar region tabs: a single
     // button that opens the assistant session directly.
     function WhaleFooterEntry(props) {
-      const { rpc, sessions, t, wide } = props;
+      const { rpc, openSession, t, wide } = props;
       const [busy, setBusy] = useState(false);
       const open = useCallback(async () => {
         setBusy(true);
         try {
           const ensured = await rpc("assistant/ensure");
           const sessionId = ensured?.sessionId;
-          if (sessionId && typeof sessions?.open === "function") await sessions.open(sessionId);
+          if (sessionId) await openSession(sessionId);
         } catch {
           // Surface nothing in the rail; the page path reports errors.
         } finally {
           setBusy(false);
         }
-      }, [rpc, sessions]);
+      }, [rpc, openSession]);
       return h("button", {
         type: "button",
         "aria-label": t("tab"),
@@ -210,7 +210,7 @@ window.__ModuleLoader__.load({
     // entry exists only to satisfy selectPanel(id) — it immediately hands off
     // to the conversation panel with the whale session selected.
     function WhaleRedirect(props) {
-      const { rpc, sessions, layout, settingsNavigation, t } = props;
+      const { rpc, openSession, layout, settingsNavigation, t } = props;
       const [error, setError] = useState("");
       useEffect(() => {
         let cancelled = false;
@@ -219,15 +219,14 @@ window.__ModuleLoader__.load({
             const ensured = await rpc("assistant/ensure");
             const sessionId = ensured?.sessionId;
             if (!sessionId) throw new Error("no-session");
-            if (typeof sessions?.open !== "function") throw new Error("sessions service unavailable");
-            await sessions.open(sessionId);
+            await openSession(sessionId);
             if (!cancelled) layout?.selectPanel?.(null);
           } catch (err) {
             if (!cancelled) setError(err?.message || String(err));
           }
         })();
         return () => { cancelled = true; };
-      }, [rpc, sessions, layout]);
+      }, [rpc, openSession, layout]);
       const openSettings = useCallback(() => {
         try { settingsNavigation?.open?.("pet"); } catch { /* not mounted */ }
       }, [settingsNavigation]);
@@ -593,12 +592,34 @@ window.__ModuleLoader__.load({
       const t = ctx.locale.bind(NS);
       const connection = ctx.connection ?? ctx.get?.("connection");
       const sessions = ctx.sessions ?? ctx.get?.("sessions");
+      // View selection left the Session Controller: since the 0.1.6 client the
+      // `sessions` service carries catalog/retention only — no `open()`. The
+      // main view is replaced through the workspace navigation service, which
+      // also clears the selected panel. `sessions.open` stays as the
+      // pre-0.1.6 fallback so an older host keeps working.
+      let uiWorkspace = ctx.uiWorkspace;
+      if (!uiWorkspace) {
+        try { uiWorkspace = ctx.get?.("uiWorkspace"); } catch { uiWorkspace = undefined; }
+      }
+      const openSession = async (sessionId) => {
+        const id = String(sessionId ?? "").trim();
+        if (!id) throw new Error("no-session");
+        if (uiWorkspace && typeof uiWorkspace.openSession === "function") {
+          uiWorkspace.openSession(id);
+          return;
+        }
+        if (typeof sessions?.open === "function") {
+          await sessions.open(id);
+          return;
+        }
+        throw new Error("sessions service unavailable");
+      };
       const remote = ctx.remote ?? ctx.get?.("remote");
       const settingsNavigation = ctx.settingsNavigation;
       const layout = ctx.layout;
       const rpc = async (endpoint, input = {}) =>
         rpcValue(await connection.rpc.call("/dsh-whale", endpoint, input));
-      const injectFace = () => ({ rpc, sessions, remote, layout, settingsNavigation, t });
+      const injectFace = () => ({ rpc, sessions, uiWorkspace, openSession, remote, layout, settingsNavigation, t });
 
       // Her fields mount inside the desktop Pet section's 助理 group
       // (`settings.pet.item`) — the assistant and the pet share one page.
@@ -678,8 +699,8 @@ window.__ModuleLoader__.load({
         window.__dshWhaleOpen = async () => {
           const ensured = await rpc("assistant/ensure");
           const sessionId = ensured?.sessionId;
-          if (sessionId && typeof sessions?.open === "function") {
-            await sessions.open(sessionId);
+          if (sessionId) {
+            await openSession(sessionId);
             layout?.selectPanel?.(null);
           }
           return sessionId || null;
@@ -700,7 +721,7 @@ window.__ModuleLoader__.load({
     }
 
     exports.name = "dsh-whale";
-    exports.inject = ["slots", "locale", "sessions", "connection", "remote", "remote.session", "settingsNavigation", "layout"];
+    exports.inject = ["slots", "locale", "sessions", "uiWorkspace", "connection", "remote", "remote.session", "settingsNavigation", "layout"];
     exports.apply = apply;
     return module.exports;
   },

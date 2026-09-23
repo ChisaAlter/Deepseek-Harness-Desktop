@@ -129,6 +129,7 @@ function harnessApi(renderer, remoteFeature) {
     gitCreateBranch: invoke(renderer, 'shell:git-create-branch'),
     ptyCreate: invoke(renderer, 'shell:pty-create'),
     ptyWrite: invoke(renderer, 'shell:pty-write'),
+    ptyAck: invoke(renderer, 'shell:pty-ack'),
     ptyResize: invoke(renderer, 'shell:pty-resize'),
     ptyKill: invoke(renderer, 'shell:pty-kill'),
     onPtyData: subscribe(renderer, 'shell:pty-data'),

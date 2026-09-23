@@ -15,11 +15,18 @@ const ctx2d = canvas.getContext('2d');
 const bubbleStyle = getComputedStyle(document.documentElement);
 
 const MODEL_URL = 'pet://pet/pet-live2d/avatar/model.onnx';
+const MODEL_HD_URL = 'pet://pet/pet-live2d/avatar/model_hd.onnx';
 const CHARACTER_URL = 'pet://pet/pet-live2d/avatar/character.png';
-const FRAME = 512;
-// Region of the 512x512 output frame that contains the character, drawn into
-// the canvas at PET_W x PET_H.
-const CROP = { x: 60, y: 20, w: 390, h: 492 };
+const CHARACTER_HD_URL = 'pet://pet/pet-live2d/avatar/character_hd.png';
+// The distilled student is resolution-agnostic: the SIREN morphers are
+// per-pixel coordinate MLPs and the body morpher emits a normalized-space
+// deformation field, so the SAME trained weights render at any density —
+// model_hd samples the grids 2x and warps a 1024² texture (the Real-ESRGAN
+// master), producing a genuinely HD frame with no retraining.
+let FRAME = 512;
+// Region of the FRAME² output that contains the character, drawn into the
+// canvas at PET_W x PET_H. Scales with FRAME.
+let CROP = { x: 60, y: 20, w: 390, h: 492 };
 const PET_W = 240;
 const PET_H = 260;
 // Persisted pet settings (live2dPet.settings) — defaults mirror
@@ -243,6 +250,7 @@ function stepPose() {
     pose[40] += 0.18 * Math.sin(idle.t * 9);
     pose[42] -= 0.12;
   }
+  applyLiveState();
   idle.lastDrawX = drawPos.x;
 }
 
@@ -252,21 +260,33 @@ async function createSession() {
   ort.env.wasm.numThreads = 1;
   ort.env.logLevel = 'warning';
   for (const ep of ['webnn', 'webgpu']) {
-    try {
-      const s = await ort.InferenceSession.create(MODEL_URL, {
-        executionProviders: [ep],
-        enableGraphCapture: ep === 'webgpu',
-        preferredOutputLocation: ep === 'webgpu' ? 'gpu-buffer' : undefined,
-      });
-      console.log(`pet: session on ${ep}`);
-      sessionOnGpu = ep === 'webgpu' && !!ort.env.webgpu?.device;
-      return s;
-    } catch (error) {
-      console.warn(`pet: ${ep} session failed`, error);
+    // The 1024² HD export renders all-white under the WebGPU EP — stick to the
+    // proven 512² model until that graph is fixed.
+    for (const [url, frame] of [[MODEL_URL, 512]]) {
+      // The HD graph has ops that don't partition to JSEP under capture —
+      // retry it without capture (slightly slower launches, still WebGPU).
+      for (const capture of ep === 'webgpu' ? [true, false] : [false]) {
+        try {
+          const s = await ort.InferenceSession.create(url, {
+            executionProviders: [ep],
+            enableGraphCapture: capture,
+            preferredOutputLocation: ep === 'webgpu' ? 'gpu-buffer' : undefined,
+          });
+          const k = frame / 512;
+          FRAME = frame;
+          CROP = { x: 60 * k, y: 20 * k, w: 390 * k, h: 492 * k };
+          sessionOnGpu = ep === 'webgpu' && !!ort.env.webgpu?.device;
+          console.log(`pet: session on ${ep} @${frame}² capture=${capture}`);
+          return s;
+        } catch (error) {
+          console.warn(`pet: ${ep} session failed @${frame} capture=${capture}`, error);
+        }
+      }
     }
   }
+  // WASM: SD only — a 1024² SIREN frame is ~2s on CPU, not a usable fallback.
   const s = await ort.InferenceSession.create(MODEL_URL, { executionProviders: ['wasm'] });
-  console.log('pet: session on wasm');
+  console.log('pet: session on wasm @512²');
   return s;
 }
 
@@ -275,7 +295,7 @@ async function loadImageTensor() {
   await new Promise((resolve, reject) => {
     img.onload = resolve;
     img.onerror = reject;
-    img.src = CHARACTER_URL;
+    img.src = FRAME === 1024 ? CHARACTER_HD_URL : CHARACTER_URL;
   });
   const off = document.createElement('canvas');
   off.width = off.height = FRAME;
@@ -305,10 +325,83 @@ async function loadImageTensor() {
   return new ort.Tensor('float32', tensor, [1, 4, FRAME, FRAME]);
 }
 
-const outCanvas = document.createElement('canvas');
-outCanvas.width = outCanvas.height = FRAME;
-const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
-const outImage = outCtx.createImageData(FRAME, FRAME);
+// Output buffers are sized by FRAME, which is only known once the session
+// picks HD (1024²) or SD (512²) — allocate lazily after createSession().
+let outCanvas = null;
+let outCtx = null;
+let outImage = null;
+function allocOutput() {
+  outCanvas = document.createElement('canvas');
+  outCanvas.width = outCanvas.height = FRAME;
+  outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+  outImage = outCtx.createImageData(FRAME, FRAME);
+}
+
+// ── live SR stage (Anime4K CNN, WebGL) ──
+// THA4 renders painterly-soft at 512²; Anime4K restores the line art at 2×
+// per frame — real-time GLSL, no per-frame readback. The net only sees RGB:
+// transparent-black surroundings would smear a dark halo inward, so the
+// crop's RGB is bleed-filled (destination-over with a blurred copy) before
+// upscale, and alpha comes from a plain bilinear upscale composited
+// destination-in afterwards — edges stay soft because alpha is smooth.
+let srUp = null;        // Anime4KJS.ImageUpscaler
+let srCrop = null;      // 2d canvas CROP.w × CROP.h — RGB-bleeded net input
+let srBlur = null;      // scratch for the bleed pass
+let srGL = null;        // WebGL canvas the upscaler renders into
+let srOut = null;       // 2d canvas: SR rgb + alpha composited → drawn frame
+let srReady = false;
+
+function initSr() {
+  if (typeof Anime4KJS === 'undefined' || !Anime4KJS.ImageUpscaler?.isSupported()) {
+    return;
+  }
+  try {
+    srCrop = document.createElement('canvas');
+    srCrop.width = CROP.w; srCrop.height = CROP.h;
+    srBlur = document.createElement('canvas');
+    srBlur.width = CROP.w; srBlur.height = CROP.h;
+    srGL = document.createElement('canvas');
+    srUp = new Anime4KJS.ImageUpscaler(Anime4KJS.ANIME4KJS_SIMPLE_M_2X);
+    srUp.attachSource(srCrop, srGL);
+    srOut = document.createElement('canvas');
+    srOut.width = srGL.width; srOut.height = srGL.height;
+    srReady = true;
+    console.log('pet: anime4k SR ready', srGL.width, 'x', srGL.height);
+  } catch (e) {
+    console.warn('pet: anime4k init failed', e);
+    srUp = null;
+    srReady = false;
+  }
+}
+
+// One inference frame → SR'd display frame. Runs inside renderFrame after
+// putImageData; all steps are GPU-side draws (no readback).
+function srFrame() {
+  if (!srReady) {
+    return;
+  }
+  const c = srCrop.getContext('2d');
+  c.clearRect(0, 0, CROP.w, CROP.h);
+  c.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, CROP.w, CROP.h);
+  // Two blur-bleed passes flood RGB ~20px past the silhouette.
+  const b = srBlur.getContext('2d');
+  for (let i = 0; i < 2; i += 1) {
+    b.clearRect(0, 0, CROP.w, CROP.h);
+    b.filter = 'blur(10px)';
+    b.drawImage(srCrop, 0, 0);
+    b.filter = 'none';
+    c.globalCompositeOperation = 'destination-over';
+    c.drawImage(srBlur, 0, 0);
+    c.globalCompositeOperation = 'source-over';
+  }
+  srUp.upscale(); // re-uploads srCrop, runs the CNN chain into srGL
+  const o = srOut.getContext('2d');
+  o.clearRect(0, 0, srOut.width, srOut.height);
+  o.drawImage(srGL, 0, 0);
+  o.globalCompositeOperation = 'destination-in';
+  o.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, srOut.width, srOut.height);
+  o.globalCompositeOperation = 'source-over';
+}
 
 // Bounding box of the character in PET-LOCAL coordinates (0..PET_W/PET_H),
 // measured from the alpha channel of the rendered frame once — petBounds()
@@ -412,9 +505,19 @@ async function loadStill(name) {
   return entry;
 }
 
+const LIVE_ENTRY = { live: true }; // marker — live mode renders states itself
+
 function setStill(name) {
   stillCtl.name = name;
   stillCtl.target = 1;
+  rigStateT0 = rigT;
+  if (session || rig.ready) {
+    // Live and rig engines both render states procedurally — the marker
+    // entry keeps the alpha envelope and entry-gated code paths (bounds,
+    // drag physics) working unchanged.
+    stillCtl.entry = session ? LIVE_ENTRY : RIG_ENTRY;
+    return;
+  }
   stillCtl.entry = stills.get(name) || null;
   if (name && !stillCtl.entry) {
     void loadStill(name).then((entry) => {
@@ -433,6 +536,532 @@ function clearStill() {
 function playStill(name, durMs) {
   setStill(name);
   action = { until: performance.now() + durMs };
+}
+
+// ── HD part rig ──
+// The character is assembled from parts split off one 2048² master —
+// body, tail, and per-expression heads — so idle and every action share
+// the same pixels and the art style can never drift between states.
+// stillCtl.name stays the state holder (same FSM, same callers); the
+// 45-dim pose channels feed rig params, so blink / gaze / micro-acts /
+// yawn / sleepiness all carry over untouched. The ONNX live render only
+// runs as the fallback when the rig assets fail to load.
+const RIG_URL = (f) => `pet://pet/pet-live2d/rig/${f}`;
+const rig = { ready: false, mf: null, imgs: {} };
+// Anchor points in master-image px (2048² canvas coordinates).
+const RIG_NECK = [1018, 621];
+const RIG_TAIL_ROOT = [1152, 741];
+const RIG_FEET = [1018, 955];
+const RIG_GRAB = [1018, 330];
+const RIG_NUM_KEYS = ['bodyRot', 'bodySx', 'bodySy', 'headRot', 'headDx', 'headDy',
+  'tailRot', 'allRot', 'allDx', 'allDy'];
+let rigT = 0;
+let rigStateT0 = 0; // rigT when the current rig state was entered
+// Head-expression crossfade: expression-category swaps blend the outgoing
+// head out over ~140ms instead of hard-cutting (the stillCtl alpha envelope
+// only lerps numeric pose params, so the face would pop at the discrete
+// flip). Blink-band steps (open/half/closed) are excluded — the three bands
+// already are the in-between frames, and a 140ms dissolve over the ~20ms
+// ramp steps just smears her eyes instead of snapping the lid.
+const BLINK_BANDS = new Set(['neutral', 'half-closed', 'eyes-closed']);
+let rigShell = { cur: null, prev: null, swapT: 0 };
+let rigSwing = 0.3;
+let rigSwingV = 0;
+const RIG_ENTRY = { rig: true }; // non-null stillCtl.entry marker
+
+async function loadRig() {
+  const mf = await (await fetch(RIG_URL('manifest.json'))).json();
+  const imgs = {};
+  const jobs = [];
+  const load = (key, file) => jobs.push(new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => { imgs[key] = img; resolve(); };
+    img.onerror = () => resolve();
+    img.src = RIG_URL(file);
+  }));
+  load('body', mf.body.file);
+  load('tail', mf.tail.file);
+  // shells = whole-character expression variants (head+body fused as one
+  // opaque piece — there is no neck seam to hide). shell.png is also
+  // mf.body.file (the neutral shell); variants only differ inside the
+  // baked face rect, so swaps/crossfades can never seam at the outline.
+  for (const v of Object.keys(mf.shells || {})) {
+    load(`shell:${v}`, mf.shells[v].file);
+  }
+  await Promise.all(jobs);
+  rig.mf = mf;
+  rig.imgs = imgs;
+  rig.ready = !!(imgs.body && imgs.tail && imgs['shell:neutral']);
+}
+
+function rigScale() {
+  const b = rig.mf.char_bbox;
+  return (petH() * 0.96) / Math.max(1, b[3] - b[1]);
+}
+
+// Idle program: pose channels + cursor gaze + breathing → part params.
+// State programs override selected fields; stillCtl.alpha blends them in.
+function rigBase() {
+  const t = rigT;
+  const breathe = Math.sin((t * 2 * Math.PI) / 3.6);
+  const P = {
+    expr: 'neutral', pivot: null, body: null,
+    bodyRot: 0.008 * Math.sin(t * 1.1),
+    bodySx: 1 - 0.010 * breathe, bodySy: 1 + 0.016 * breathe,
+    headRot: 0.02 * Math.sin(t * 1.7),
+    headDx: 0, headDy: 1.8 * breathe,
+    tailRot: 0.14 * Math.sin(t * 2.4) + 0.05 * Math.sin(t * 5.1),
+    allRot: 0, allDx: 0, allDy: 0,
+  };
+  if (pointer.x || pointer.y) {
+    const gx = Math.max(-1, Math.min(1,
+      (pointer.x - (drawPos.x + petW() / 2)) / (petW() * 0.9)));
+    const gy = Math.max(-1, Math.min(1,
+      (pointer.y - (drawPos.y + petH() * 0.25)) / (petH() * 0.9)));
+    P.headRot += 0.06 * gx;
+    P.headDx += 5 * gx;
+    P.headDy += 2.5 * gy;
+  }
+  // Micro-acts / taps / yawn ride the pose channels — mapped to the
+  // nearest head variant + head offsets.
+  P.headRot += pose[41] * 0.035 + pose[39] * 0.02;
+  P.headDx += pose[40] * 4;
+  P.headDy += pose[38] * 2.5 - pose[42] * 6;
+  P.allDy -= pose[42] * 5;
+  // Blink channel is analog (60ms ramp each way): three bands give the
+  // blink a real closing phase instead of a one-frame snap.
+  const eyeV = Math.max(pose[12], pose[13]);
+  if (eyeV > 0.78) { P.expr = 'eyes-closed'; } else if (eyeV > 0.35) { P.expr = 'half-closed'; } else if (pose[14] > 0.55 || pose[15] > 0.55 || pose[20] > 0.5) { P.expr = 'happy'; } else if (pose[26] > 0.35 || pose[18] > 0.5 || pose[19] > 0.5 || pose[16] > 0.6 || pose[17] > 0.6) { P.expr = 'mouth-open'; } else if (pose[0] > 0.5 && pose[1] > 0.5) { P.expr = 'angry'; }
+  const s = smooth(idle.sleepy || 0);
+  if (s > 0) {
+    P.headRot += 0.14 * s;
+    P.headDy += 9 * s;
+    if (s > 0.55) { P.expr = 'eyes-closed'; } else if (s > 0.3) { P.expr = 'half-closed'; }
+  }
+  return P;
+}
+
+// Per-state motion programs. Each mutates a params object: expression
+// head, part transforms, and the global pivot ('feet' rotates the whole
+// rig about the foot line; 'grab' hangs her from RIG_GRAB at physPoint).
+const RIG_STATES = {
+  'sleep': (P, t) => {
+    P.expr = 'eyes-closed';
+    P.pivot = 'feet';
+    P.allRot = -1.0;
+    P.allDy = 12;
+    P.headRot += 0.05 + 0.03 * Math.sin(t * 1.2);
+    P.bodySy = 1 + 0.030 * Math.sin((t * 2 * Math.PI) / 4.4);
+    // Tail curls forward across her front — sells "curled up asleep"
+    // without needing a dedicated torso asset.
+    P.tailRot = 0.55 + 0.04 * Math.sin(t * 1.1);
+  },
+  'pick-up': (P, t, dt) => {
+    P.pivot = 'grab';
+    // Raised-arms torso drops in as manifest `bodies.pickup` — a no-op
+    // (default body) until the asset lands.
+    P.body = 'pickup';
+    // Grab arc: a surprised gasp in the first ~0.7s, then worried with
+    // periodic wails (squeezed eyes + open mouth).
+    const heldFor = t - rigStateT0;
+    P.expr = heldFor < 0.7 ? 'surprised'
+      : (Math.sin(t * 1.3) > 0.93 ? 'wail' : 'worried');
+    rigSwingV += (-16 * rigSwing) * dt - rigSwingV * 1.7 * dt;
+    rigSwing += rigSwingV * dt;
+    if (!dragging && Math.abs(rigSwing) < 0.02 && Math.abs(rigSwingV) < 0.02) {
+      rigSwingV = 2.4;
+    }
+    P.allRot = rigSwing * 0.45;
+    // Held by the scruff: body hangs slightly stretched, chin drops,
+    // head does a small scared wobble, tail trails limply.
+    P.headRot += 0.12 + 0.06 * Math.sin(t * 9);
+    P.headDy += 5 + 2 * Math.sin(t * 8);
+    P.bodySy = 1.07 + 0.012 * Math.sin(t * 3.1);
+    P.tailRot = 0.15 * Math.sin(t * 2.5) - 0.08;
+  },
+  'eat': (P, t) => {
+    // Food arriving gets a brief delighted gasp before she starts chewing.
+    P.expr = (t - rigStateT0) < 0.8 ? 'surprised'
+      : (Math.sin(t * 7) > 0 ? 'mouth-open' : 'neutral');
+    P.headRot += 0.05 * Math.sin(t * 2.2) + 0.03;
+    P.headDy += 3 * Math.abs(Math.sin(t * 7));
+    P.tailRot = 0.10 * Math.sin(t * 3);
+    // Lean her head toward the bowl while it's on screen.
+    if (feed) {
+      const dir = Math.sign(feed.bowlX - (drawPos.x + petW() / 2)) || 1;
+      P.headRot += dir * 0.07;
+      P.headDx += dir * 4;
+    }
+  },
+  'running': (P, t) => {
+    P.expr = 'happy';
+    P.pivot = 'feet';
+    P.allRot = 0.07;
+    P.allDy = -6 * Math.abs(Math.sin(t * 9));
+    P.bodySy = 1 + 0.03 * Math.sin(t * 18);
+    P.headRot += 0.04 * Math.sin(t * 9);
+    P.headDy += 2.5 * Math.sin(t * 18);
+    P.tailRot = 0.35 * Math.sin(t * 9);
+  },
+  'react-head': (P, t) => {
+    // A pat lands as a tiny "oh!" before melting into the happy wobble.
+    P.expr = (t - rigStateT0) < 0.45 ? 'surprised'
+      : (Math.sin(t * 5) > 0.7 ? 'mouth-open' : 'happy');
+    P.headRot += 0.10 * Math.sin(t * 5);
+    P.headDx += (patTrack.dir || 0) * 7;
+    P.bodySy = 1 + 0.02 * Math.sin(t * 5);
+    P.tailRot = 0.3 * Math.sin(t * 5.5);
+  },
+  'angry': (P, t) => {
+    // Mostly furious, with brief squeezed-eye frustration beats.
+    P.expr = Math.sin(t * 0.9) > 0.94 ? 'eyes-closed' : 'angry';
+    P.allDx = 2.5 * Math.sin(t * 22);
+    P.headRot += 0.06 * Math.sin(t * 14);
+    P.tailRot = 0.1 * Math.sin(t * 11);
+  },
+  'celebrate': (P, t) => {
+    // Mouth opens at the top of each bounce — cheering, not a frozen grin.
+    P.expr = Math.abs(Math.sin(t * 5.2)) > 0.6 ? 'mouth-open' : 'happy';
+    P.allDy = -14 * Math.abs(Math.sin(t * 5.2));
+    P.bodySy = 1 + 0.03 * Math.sin(t * 10.4);
+    P.headRot += 0.05 * Math.sin(t * 5.2);
+    P.tailRot = 0.25 * Math.sin(t * 6.5);
+  },
+  'star': (P, t) => {
+    P.expr = 'mouth-open'; // open eyes + mouth, star pupils drawn on top
+    P.allDy = -8 * Math.abs(Math.sin(t * 4.4));
+    P.headRot += 0.09 * Math.sin(t * 3.1);
+    P.tailRot = 0.4 * Math.sin(t * 5.5);
+  },
+  'greet': (P, t) => {
+    // Alternating open mouth — waving hello reads as actually saying it —
+    // plus a playful wink once per wave cycle.
+    const winkPh = t % 5;
+    P.expr = (winkPh > 1 && winkPh < 1.5) ? 'wink'
+      : (Math.sin(t * 2.4) > 0.3 ? 'mouth-open' : 'happy');
+    P.pivot = 'feet';
+    P.allRot = 0.06 * Math.sin(t * 2.4);
+    P.headRot += 0.10 * Math.sin(t * 2.4);
+    P.allDy = -5 * Math.abs(Math.sin(t * 2.4));
+    P.tailRot = 0.2 * Math.sin(t * 4);
+  },
+  'startle': (P, t) => {
+    // Jolt awake: surprised face, rapid little hops, tail flicks up.
+    P.expr = 'surprised';
+    P.pivot = 'feet';
+    P.allDy = -9 * Math.abs(Math.sin(t * 8));
+    P.headRot += 0.05 * Math.sin(t * 16);
+    P.tailRot = 0.45;
+  },
+  'tail-swing': (P, t) => {
+    P.expr = 'happy';
+    P.tailRot = 0.45 * Math.sin(t * 7);
+    P.headRot += 0.03 * Math.sin(t * 2.4);
+    P.bodyRot += 0.02 * Math.sin(t * 3.5);
+  },
+};
+
+// ── live-mode state programs ──
+// The THA4 render path animates every pixel continuously, so states need no
+// sprite swap: a program writes pose channels (face/expression) and whole-
+// frame fx (rotation, offset, squash). `a` = stillCtl.alpha smoothed — state
+// overrides lerp in over ~140ms, and because pose space is continuous the
+// face morphs between expressions instead of crossfading textures.
+// S.set(ch, v): pose[ch] blends toward v by a. S.fx fields are absolute
+// targets, scaled by `a` when composed in drawLive.
+const liveFx = { rot: 0, dx: 0, dy: 0, sx: 1, sy: 1, pivot: null, stars: false };
+const LIVE_STATES = {
+  sleep(S, t) {
+    S.set(12, 1); S.set(13, 1);          // eyes closed
+    S.set(39, 0.16);                     // head sags
+    S.mul(44, 1.5);                      // slower, deeper breath
+    S.fx.rot = -1.0;                     // lies on her side
+    S.fx.dy = 14;
+  },
+  'pick-up'(S, t, dt) {
+    // Pendulum swing about the grab point, same spring as the rig path.
+    rigSwingV += (-16 * rigSwing) * dt - rigSwingV * 1.7 * dt;
+    rigSwing += rigSwingV * dt;
+    if (!dragging && Math.abs(rigSwing) < 0.02 && Math.abs(rigSwingV) < 0.02) {
+      rigSwingV = 2.4;
+    }
+    S.fx.pivot = 'grab';
+    S.fx.rot = rigSwing * 0.45;
+    S.fx.sy = 1.06;                      // hanging stretch
+    const held = t - rigStateT0;
+    if (held < 0.7) {
+      S.set(16, 1); S.set(17, 1);        // wide eyes — the grab surprise
+      S.set(22, 0.5);
+    } else {
+      S.set(2, 1); S.set(3, 1);          // troubled brows
+      S.set(12, 0.85); S.set(13, 0.85);  // squeezed
+      S.set(26, Math.sin(t * 1.3) > 0.93 ? 0.9 : 0.1); // wail beats
+    }
+    S.set(40, 0.12 + 0.06 * Math.sin(t * 9));
+  },
+  eat(S, t) {
+    if (t - rigStateT0 < 0.8) {
+      S.set(16, 1); S.set(17, 1);        // food arrives — delight gasp
+      S.set(22, 0.5);
+    } else {
+      S.set(26, Math.sin(t * 7) > 0 ? 0.8 : 0.05); // chewing
+    }
+    S.set(39, 0.04 + 0.03 * Math.sin(t * 2.2));
+    if (feed) {
+      const dir = Math.sign(feed.bowlX - (drawPos.x + petW() / 2)) || 1;
+      S.set(40, dir * 0.3);              // face the bowl
+      S.set(37, dir * 0.4);
+      S.fx.rot = dir * 0.04;
+    }
+  },
+  running(S, t) {
+    S.set(14, 1); S.set(15, 1);          // happy eyes
+    S.set(30, 0.7); S.set(31, 0.7);
+    S.set(39, 0.05);
+    S.fx.rot = 0.07;
+  },
+  'react-head'(S, t) {
+    if (t - rigStateT0 < 0.45) {
+      S.set(16, 1); S.set(17, 1);        // "oh!"
+      S.set(22, 0.4);
+    } else {
+      S.set(14, 1); S.set(15, 1);        // melt into happy
+      S.set(30, 0.8); S.set(31, 0.8);
+    }
+    S.fx.rot = 0.08 * Math.sin(t * 5);
+  },
+  angry(S, t) {
+    S.set(0, 1); S.set(1, 1);            // angry brows
+    S.set(24, 0.5);                      // puffed mouth
+    if (Math.sin(t * 0.9) > 0.94) { S.set(12, 1); S.set(13, 1); }
+    S.fx.dx = 2.5 * Math.sin(t * 22);    // fuming shake
+  },
+  celebrate(S, t) {
+    S.set(14, 1); S.set(15, 1);
+    S.set(26, Math.abs(Math.sin(t * 5.2)) > 0.6 ? 0.8 : 0.15);
+    S.set(30, 0.7); S.set(31, 0.7);
+    S.fx.dy = -14 * Math.abs(Math.sin(t * 5.2));
+    S.fx.sy = 1 + 0.03 * Math.sin(t * 10.4);
+  },
+  star(S, t) {
+    S.set(16, 1); S.set(17, 1);          // wide eyes
+    S.set(26, 0.8);
+    S.fx.dy = -8 * Math.abs(Math.sin(t * 4.4));
+    S.fx.stars = true;                   // sparkle pupils drawn in drawLive
+  },
+  greet(S, t) {
+    const winkPh = t % 5;
+    if (winkPh > 1 && winkPh < 1.5) { S.set(12, 1); } // wink beat
+    S.set(14, 0.9); S.set(15, 0.9);
+    S.set(30, 0.8); S.set(31, 0.8);
+    S.set(26, Math.sin(t * 2.4) > 0.3 ? 0.7 : 0.1);
+    S.fx.rot = 0.06 * Math.sin(t * 2.4); // wave lean
+    S.fx.dy = -5 * Math.abs(Math.sin(t * 2.4));
+  },
+  startle(S, t) {
+    S.set(16, 1); S.set(17, 1);
+    S.set(22, 0.6);
+    S.fx.dy = -9 * Math.abs(Math.sin(t * 8));
+  },
+  'tail-swing'(S, t) {
+    S.set(14, 1); S.set(15, 1);
+    S.set(30, 0.7); S.set(31, 0.7);
+    S.set(43, 0.25 * Math.sin(t * 7));   // body channel sways the tail region
+    S.fx.rot = 0.04 * Math.sin(t * 3.5);
+  },
+};
+
+// Apply the live-state program for stillCtl.name after the base pose math —
+// overrides are weighted by the state alpha envelope.
+function applyLiveState() {
+  liveFx.rot = 0; liveFx.dx = 0; liveFx.dy = 0;
+  liveFx.sx = 1; liveFx.sy = 1; liveFx.pivot = null; liveFx.stars = false;
+  const prog = stillCtl.name && LIVE_STATES[stillCtl.name];
+  if (!prog) {
+    return;
+  }
+  const a = smooth(clamp01(stillCtl.alpha));
+  const S = {
+    fx: liveFx,
+    a,
+    set(ch, v) { pose[ch] += (v - pose[ch]) * a; },
+    mul(ch, v) { pose[ch] *= 1 + (v - 1) * a; },
+  };
+  prog(S, rigT, 1 / 60);
+}
+
+// ── live-mode draw ──
+// The SR'd THA4 frame is one seamless image — poses come from rotating /
+// offsetting / squashing that single frame while the model keeps every
+// pixel alive inside it. Anchor modes: feet pivot on the ground line, or
+// the grab point pinned to the cursor while carried.
+const GRAB_FRAC = 0.085; // grab point (top of head) as a fraction of frame h
+function drawLive() {
+  const t = rigT;
+  const opacity = Math.max(0.3, Math.min(1, settings.opacity || 1));
+  const src = srReady ? srOut : outCanvas; // SR 2× when the pipeline is up
+  const a = smooth(clamp01(stillCtl.alpha));
+  const rot = fx.rot + liveFx.rot * a;
+  const dx = fx.dx + liveFx.dx * a;
+  const dy = fx.dy + liveFx.dy * a;
+  const sx = fx.sx * (1 + (liveFx.sx - 1) * a);
+  const sy = fx.sy * (1 + (liveFx.sy - 1) * a);
+  const hanging = liveFx.pivot === 'grab' && a > 0.4 && (dragging || thrown) && physPoint;
+  const w = petW(); const h = petH();
+  ctx2d.save();
+  ctx2d.globalAlpha = opacity;
+  if (hanging) {
+    ctx2d.translate(physPoint.x + dx, physPoint.y + dy);
+    ctx2d.rotate(rot);
+    ctx2d.scale(sx, sy);
+    ctx2d.drawImage(src, -w / 2, -h * GRAB_FRAC, w, h);
+  } else {
+    ctx2d.translate(drawPos.x + w / 2 + dx, drawPos.y + h - 2 + dy);
+    ctx2d.rotate(rot);
+    ctx2d.scale(sx * (facing < 0 ? -1 : 1), sy);
+    ctx2d.drawImage(src, -w / 2, -h, w, h);
+  }
+  // Star-pupil sparkles ride the live face (only state the model can't say).
+  if (liveFx.stars && a > 0.4) {
+    const tw = 0.8 + 0.2 * Math.sin(t * 14);
+    drawSparkle(-24, -h + 116, 7 * tw);
+    drawSparkle(24, -h + 116, 7 * tw);
+  }
+  ctx2d.restore();
+}
+
+function drawRigPart(img, bb, pivot, o) {
+  if (!img || !img.naturalWidth) {
+    return;
+  }
+  ctx2d.save();
+  ctx2d.translate(pivot[0] + (o.dx || 0), pivot[1] + (o.dy || 0));
+  ctx2d.rotate(o.rot || 0);
+  ctx2d.scale(o.sx || 1, o.sy || 1);
+  ctx2d.drawImage(img, bb[0] - pivot[0], bb[1] - pivot[1]);
+  ctx2d.restore();
+}
+
+// Four-pointed sparkle (star-pupil overlay), in current transform space.
+function drawSparkle(x, y, r) {
+  ctx2d.beginPath();
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i * Math.PI) / 4;
+    const rr = i % 2 === 0 ? r : r * 0.32;
+    const px = x + Math.cos(a) * rr;
+    const py = y + Math.sin(a) * rr;
+    if (i === 0) { ctx2d.moveTo(px, py); } else { ctx2d.lineTo(px, py); }
+  }
+  ctx2d.closePath();
+  ctx2d.fillStyle = '#ffdf6b';
+  ctx2d.fill();
+  ctx2d.beginPath();
+  ctx2d.arc(x, y, r * 0.22, 0, Math.PI * 2);
+  ctx2d.fillStyle = '#fff';
+  ctx2d.fill();
+}
+
+function drawRig() {
+  const mf = rig.mf;
+  const box = mf.char_bbox;
+  const cw = box[2] - box[0];
+  const S = rigScale();
+  const base = rigBase();
+  const P = { ...base };
+  const prog = stillCtl.name && RIG_STATES[stillCtl.name];
+  if (prog && stillCtl.alpha > 0.01) {
+    const over = { ...base };
+    prog(over, rigT, 1 / 60);
+    const a = smooth(clamp01(stillCtl.alpha));
+    for (const k of RIG_NUM_KEYS) {
+      P[k] = base[k] + (over[k] - base[k]) * a;
+    }
+    if (a > 0.4) {
+      P.expr = over.expr;
+      P.pivot = over.pivot;
+      P.body = over.body;
+    }
+  }
+  P.allRot += fx.rot;
+  P.allDy += fx.dy / S;
+  const opacity = Math.max(0.3, Math.min(1, settings.opacity || 1));
+  ctx2d.globalAlpha = opacity;
+  const hanging = P.pivot === 'grab' && (dragging || thrown) && physPoint;
+  ctx2d.save();
+  if (hanging) {
+    // GRAB sits at the physics point; the rig swings about it.
+    ctx2d.translate(physPoint.x, physPoint.y);
+    ctx2d.scale(S, S);
+    ctx2d.rotate(P.allRot);
+    ctx2d.translate(P.allDx - RIG_GRAB[0], P.allDy - RIG_GRAB[1]);
+  } else {
+    // Feet anchored to the pet's bottom line, centered in the draw box.
+    ctx2d.translate(drawPos.x + petW() / 2, drawPos.y + petH() - 2);
+    ctx2d.scale(S * (facing < 0 ? -1 : 1), S);
+    const pv = RIG_FEET;
+    // Parts draw at absolute master coords — pre-subtract pv so the feet
+    // pivot (not the master 0,0) lands on the anchor.
+    ctx2d.translate(P.allDx - pv[0], P.allDy - pv[1]);
+    ctx2d.translate(pv[0], pv[1]);
+    ctx2d.rotate(P.allRot);
+    ctx2d.scale(fx.sx, fx.sy);
+    ctx2d.translate(-pv[0], -pv[1]);
+  }
+  drawRigPart(rig.imgs.tail, mf.tail.bbox_in_master, RIG_TAIL_ROOT, { rot: P.tailRot });
+  // Expression = whole-shell variant swap (head+body are fused — there is
+  // no neck seam). Head tilt/bob channels fold into the shell transform;
+  // blink-band swaps stay instant because blink shells are pixel-identical
+  // outside the baked face rect.
+  // P.body (state programs) may name a manifest `shells` variant that
+  // replaces the expression shell wholesale (e.g. a raised-arms pickup
+  // pose) — the extension hook for future pose assets.
+  const shellKey = (P.body && mf.shells && mf.shells[P.body]) ? P.body
+    : (mf.shells && mf.shells[P.expr] ? P.expr : 'neutral');
+  if (shellKey !== rigShell.cur) {
+    const bandStep = BLINK_BANDS.has(shellKey) && BLINK_BANDS.has(rigShell.cur);
+    rigShell.prev = bandStep ? null : rigShell.cur;
+    rigShell.cur = shellKey;
+    rigShell.swapT = rigT;
+  }
+  const shellBlend = rigShell.prev ? Math.min(1, (rigT - rigShell.swapT) / 0.14) : 1;
+  const prevImg = rigShell.prev ? rig.imgs[`shell:${rigShell.prev}`] : null;
+  const shellCand = rig.imgs[`shell:${shellKey}`];
+  const shellDflt = rig.imgs['shell:neutral'];
+  const shellImg = (shellCand && shellCand.naturalWidth) ? shellCand
+    : (shellDflt && shellDflt.naturalWidth ? shellDflt : rig.imgs.body);
+  const shellBb = ((mf.shells && mf.shells[shellKey]) || mf.body).bbox_in_master;
+  const pvX = RIG_NECK[0], pvY = RIG_NECK[1] + 280;
+  ctx2d.save();
+  ctx2d.translate(pvX + P.headDx, pvY + P.headDy);
+  ctx2d.rotate(P.bodyRot + P.headRot * 0.7);
+  ctx2d.scale(P.bodySx, P.bodySy);
+  if (prevImg && prevImg.naturalWidth && shellBlend < 1) {
+    const pb = ((mf.shells && mf.shells[rigShell.prev]) || mf.body).bbox_in_master;
+    ctx2d.globalAlpha = opacity * (1 - shellBlend);
+    ctx2d.drawImage(prevImg, pb[0] - pvX, pb[1] - pvY);
+  }
+  ctx2d.globalAlpha = opacity * shellBlend;
+  ctx2d.drawImage(shellImg, shellBb[0] - pvX, shellBb[1] - pvY);
+  ctx2d.globalAlpha = opacity;
+  // 'star' draws literal star pupils over the happy face — the only
+  // expression whose marker can't come from the model's own vocabulary.
+  if (stillCtl.name === 'star' && stillCtl.alpha > 0.4) {
+    const tw = 0.8 + 0.2 * Math.sin(rigT * 14);
+    for (const ex of [912, 1012]) {
+      drawSparkle(ex - pvX, 550 - pvY, 20 * tw);
+    }
+  }
+  ctx2d.restore();
+  ctx2d.restore();
+  ctx2d.globalAlpha = 1;
+  // Hit-test box in drawPos-local coords (idle pose; states widen it via
+  // stillDrawRect).
+  charRect = {
+    x: petW() / 2 + (box[0] - RIG_FEET[0]) * S,
+    right: petW() / 2 + (box[2] - RIG_FEET[0]) * S,
+    y: petH() - 2 + (box[1] - RIG_FEET[1]) * S,
+    bottom: petH() - 2 + (box[3] - RIG_FEET[1]) * S,
+  };
 }
 
 // ── speech bubble + dialogue library ──
@@ -653,8 +1282,20 @@ function drawBubble(now) {
     }
   }
   if (line) { lines.push(line); }
-  const bw = Math.ceil(Math.max(...lines.map((l) => ctx2d.measureText(l).width))) + 18;
-  const bh = lines.length * 16 + 12;
+  // Sticker bubbles paint the image above the name caption. Until the Image
+  // finishes decoding the bubble falls back to the caption alone.
+  const sticker = bubble.image && bubble.image.complete && bubble.image.naturalWidth
+    ? bubble.image : null;
+  let iw = 0;
+  let ih = 0;
+  if (sticker) {
+    const cap = Math.min(112, host.width - 32, host.height - 48);
+    const k = Math.min(1, cap / Math.max(sticker.naturalWidth, sticker.naturalHeight));
+    iw = Math.max(1, Math.round(sticker.naturalWidth * k));
+    ih = Math.max(1, Math.round(sticker.naturalHeight * k));
+  }
+  const bw = Math.ceil(Math.max(iw, ...lines.map((l) => ctx2d.measureText(l).width))) + 18;
+  const bh = lines.length * 16 + 12 + (ih ? ih + 4 : 0);
   const bx = Math.min(Math.max(headX - bw / 2, host.x + 4), host.x + host.width - bw - 4);
   let by = bounds.y - 12 - bh - 8;
   let below = false;
@@ -694,9 +1335,12 @@ function drawBubble(now) {
   ctx2d.closePath();
   ctx2d.fill();
   ctx2d.stroke();
+  if (sticker) {
+    ctx2d.drawImage(sticker, bx + (bw - iw) / 2, by + 6, iw, ih);
+  }
   ctx2d.fillStyle = bubbleStyle.getPropertyValue('--dsw-alias-label-primary');
   ctx2d.textBaseline = 'middle';
-  const textMidY = by + bh / 2 - ((lines.length - 1) * 16) / 2;
+  const textMidY = by + bh / 2 - ((lines.length - 1) * 16) / 2 + ih / 2;
   lines.forEach((l, i) => ctx2d.fillText(l, bx + 9, textMidY + i * 16));
   // Pinned bubbles (whale_notify) never time out — the ✕ in the top-right
   // corner is the only way off the stage. It lives inside the bubble's own
@@ -1057,6 +1701,26 @@ function chatAppend(role, text) {
     const node = document.createElement('div');
     node.className = `pc-msg pc-${role}`;
     node.textContent = part;
+    thread.appendChild(node);
+  }
+  chatRenderEmpty();
+  chatScrollDown();
+}
+
+// A sticker while the card is open lands inside the thread like any of her
+// replies — the ambient bubble stays the closed-card surface.
+function chatAppendImage(src, alt) {
+  chatLog.push({ role: 'her', text: alt || '[表情包]' });
+  if (chatLog.length > CHAT_LOG_MAX) { chatLog.shift(); }
+  const thread = chatPart('#pc-thread');
+  if (thread) {
+    const node = document.createElement('div');
+    node.className = 'pc-msg pc-her';
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = alt || '表情包';
+    img.className = 'pc-sticker';
+    node.appendChild(img);
     thread.appendChild(node);
   }
   chatRenderEmpty();
@@ -1873,7 +2537,7 @@ function sleepEnter() {
 function wake() {
   if (!sleeping) { return; }
   sleeping = false;
-  clearStill();
+  playStill('startle', 900);
   const now = performance.now();
   idle.lastInteract = now;
   idle.sleepy = 0;
@@ -1975,6 +2639,21 @@ function drawBowl(x, y, alpha) {
 // (overdamped ζ≈1.06 — trails fast drags without overshoot); once thrown she
 // flies ballistically, bounces off the screen edges, and friction settles
 // her on the floor where the live model lands.
+// Rig entries have no still ink box — synthesize one from the manifest's
+// char bbox for the code paths that scale e.box to display size.
+function rigCharBox() {
+  if (!rig.ready || !rig.mf || !rig.mf.char_bbox) {
+    return null;
+  }
+  const cb = rig.mf.char_bbox;
+  return { x: cb[0], y: cb[1], right: cb[2], bottom: cb[3] };
+}
+
+// Live-mode entries draw the whole crop — its box is just the crop rect.
+function liveCharBox() {
+  return session ? { x: 0, y: 0, right: CROP.w, bottom: CROP.h } : null;
+}
+
 function tickPhysics(now) {
   const dt = physLastT ? Math.min((now - physLastT) / 1000, 0.05) : 0;
   physLastT = now;
@@ -1995,7 +2674,13 @@ function tickPhysics(now) {
       landFromPhys(now, true);
       return;
     }
-    const b = e.box;
+    // Rig entries carry no still ink box — the assembled character's
+    // master-space bbox plays the same role (s scales it to display).
+    const b = e.box || rigCharBox() || liveCharBox();
+    if (!b) {
+      landFromPhys(now, true);
+      return;
+    }
     const ch = charRect ? charRect.bottom - charRect.y : petH();
     const s = ch / Math.max(1, b.bottom - b.y);
     const w = (b.right - b.x) * s;
@@ -2017,6 +2702,14 @@ function tickPhysics(now) {
 // particles, and the action FSM — feed, come-here, timed stills, sleep.
 function tickStill(now) {
   const dt = 0.05;
+  // Rig states redraw the character in different shapes at the same anchor
+  // (sleep rotates her horizontal, pick-up jumps to the cursor). A state
+  // change leaves the old pose's ink outside the new draw box — force the
+  // next paint's full-canvas sweep so it can't linger.
+  if (stillCtl.name !== tickStill._rigName) {
+    tickStill._rigName = stillCtl.name;
+    lastFullClear = 0;
+  }
   stillCtl.alpha += (stillCtl.target - stillCtl.alpha) * Math.min(dt * STILL_FADE, 1);
   if (stillCtl.target === 0 && stillCtl.alpha < 0.005) {
     stillCtl.alpha = 0;
@@ -2071,7 +2764,15 @@ function tickStill(now) {
   if (sleeping) {
     if (!tickStill._nextZzz || now > tickStill._nextZzz) {
       tickStill._nextZzz = now + rng(1400, 2200);
-      spawn('zzz', drawPos.x + petW() * 0.62, drawPos.y + petH() * 0.18);
+      // Sleep lies her down with the head left of the feet anchor —
+      // the Zzz must rise from where her head actually is.
+      const zzx = (session || rig.ready) && stillCtl.name === 'sleep'
+        ? drawPos.x + petW() * 0.08
+        : drawPos.x + petW() * 0.62;
+      const zzy = (session || rig.ready) && stillCtl.name === 'sleep'
+        ? drawPos.y + petH() * 0.42
+        : drawPos.y + petH() * 0.18;
+      spawn('zzz', zzx, zzy);
     }
     if (overPet(pointer.x, pointer.y)) {
       wake();
@@ -2255,9 +2956,10 @@ let lastFeedRect = null;
 let lastParticleRect = null;
 let lastBubbleRect = null;
 let lastPanelRect = null;
+let lastRigRect = null;
 let lastFullClear = 0;
 function paint() {
-  const liveAlpha = 1 - stillCtl.alpha;
+  const liveAlpha = (session || rig.ready) ? 1 : 1 - stillCtl.alpha;
   if (!painted && liveAlpha <= 0.01) {
     return;
   }
@@ -2267,7 +2969,11 @@ function paint() {
   // otherwise stay on this layered window forever — the sweep bounds every
   // leak's lifetime to ~1.5s regardless of which painter missed.
   const nowMs = performance.now();
-  if (nowMs - lastFullClear > 1500) {
+  // Rig path: always full-clear. Dirty rects leaked ghosts whenever ink
+  // escaped a tracked rect (fast throws, pose swaps, half-faded tails) —
+  // on a transparent layered window each miss persisted as a splice mark.
+  // One clearRect is ~free at this canvas size and makes ghosts impossible.
+  if (rig.ready || nowMs - lastFullClear > 1500) {
     lastFullClear = nowMs;
     ctx2d.clearRect(0, 0, canvas.width, canvas.height);
   }
@@ -2288,6 +2994,18 @@ function paint() {
     const uy = Math.min(rect.y, Math.floor(sb.y) - 4);
     rect.w = Math.max(rect.x + rect.w, Math.ceil(sb.right) + 4) - ux;
     rect.h = Math.max(rect.y + rect.h, Math.ceil(sb.bottom) + 4) - uy;
+    rect.x = ux;
+    rect.y = uy;
+  }
+  // Rig states can reshape the drawn box between frames (sleep swaps the
+  // upright box for a horizontal one, pick-up jumps to the cursor) — the
+  // PREVIOUS state's ink sits outside the new rect, so union the last
+  // state box into the clear region or the old pose smears.
+  if (rig.ready && lastRigRect) {
+    const ux = Math.min(rect.x, lastRigRect.x);
+    const uy = Math.min(rect.y, lastRigRect.y);
+    rect.w = Math.max(rect.x + rect.w, lastRigRect.right) - ux;
+    rect.h = Math.max(rect.y + rect.h, lastRigRect.bottom) - uy;
     rect.x = ux;
     rect.y = uy;
   }
@@ -2345,24 +3063,34 @@ function paint() {
   if (feed) {
     (feed.kind === 'token' ? drawToken : drawBowl)(feed.bowlX, feed.bowlY, 1);
   }
-  if (painted && liveAlpha > 0.01) {
-    const opacity = Math.max(0.3, Math.min(1, settings.opacity || 1));
-    ctx2d.globalAlpha = liveAlpha * opacity;
-    if (facing < 0) {
-      // Wander facing: mirror her about the draw rect's own center.
-      ctx2d.save();
-      ctx2d.translate(drawPos.x + petW(), drawPos.y);
-      ctx2d.scale(-1, 1);
-      ctx2d.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, petW(), petH());
-      ctx2d.restore();
-    } else {
-      ctx2d.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, drawPos.x, drawPos.y, petW(), petH());
+  if (session) {
+    // Live path: every state rides the THA4 frame — face deforms for real,
+    // poses are whole-frame transforms, and there is no seam to show.
+    if (painted) {
+      drawLive();
     }
-    ctx2d.globalAlpha = 1;
-  }
-  if (stillCtl.entry && stillCtl.alpha > 0.01) {
-    drawStill(stillCtl.entry, stillCtl.alpha * Math.max(0.3, Math.min(1, settings.opacity || 1)),
-      performance.now() / 1000);
+  } else if (rig.ready) {
+    drawRig();
+  } else {
+    if (painted && liveAlpha > 0.01) {
+      const opacity = Math.max(0.3, Math.min(1, settings.opacity || 1));
+      ctx2d.globalAlpha = liveAlpha * opacity;
+      if (facing < 0) {
+        // Wander facing: mirror her about the draw rect's own center.
+        ctx2d.save();
+        ctx2d.translate(drawPos.x + petW(), drawPos.y);
+        ctx2d.scale(-1, 1);
+        ctx2d.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, 0, 0, petW(), petH());
+        ctx2d.restore();
+      } else {
+        ctx2d.drawImage(outCanvas, CROP.x, CROP.y, CROP.w, CROP.h, drawPos.x, drawPos.y, petW(), petH());
+      }
+      ctx2d.globalAlpha = 1;
+    }
+    if (stillCtl.entry && stillCtl.entry.img && stillCtl.alpha > 0.01) {
+      drawStill(stillCtl.entry, stillCtl.alpha * Math.max(0.3, Math.min(1, settings.opacity || 1)),
+        performance.now() / 1000);
+    }
   }
   if (particles.length) {
     drawParticles(performance.now());
@@ -2370,21 +3098,30 @@ function paint() {
   lastBubbleRect = drawBubble(performance.now()) || null;
   lastPanelRect = drawPanel() || null;
   lastPaintRect = rect;
+  lastRigRect = rig.ready && stillCtl.entry && stillCtl.alpha > 0.01
+    ? stillDrawRect()
+    : null;
 }
 
+let poseCpuTensor = null; // reused pose input on the non-graph-capture path —
+                          // a fresh ort.Tensor per frame leaked WASM memory.
+
 async function renderFrame() {
-  if (inferBusy) {
+  if (inferBusy || !session) {
     return;
   }
   inferBusy = true;
   try {
-    stepPose();
     let results;
     if (sessionOnGpu) {
       ort.env.webgpu.device.queue.writeBuffer(poseGpuBuffer, 0, pose);
       results = await session.run({ image: imageTensor, pose: poseTensor });
     } else {
-      results = await session.run({ image: imageTensor, pose: new ort.Tensor('float32', pose, [1, 45]) });
+      if (!poseCpuTensor) {
+        poseCpuTensor = new ort.Tensor('float32', new Float32Array(45), [1, 45]);
+      }
+      poseCpuTensor.data.set(pose);
+      results = await session.run({ image: imageTensor, pose: poseCpuTensor });
     }
     const out = results.rgba_f || results.rgba;
     const raw = sessionOnGpu ? await out.getData() : out.data; // CHW
@@ -2395,6 +3132,11 @@ async function renderFrame() {
       px[i * 4 + 1] = raw[n + i];
       px[i * 4 + 2] = raw[n * 2 + i];
       px[i * 4 + 3] = raw[n * 3 + i];
+    }
+    // Every run() output tensor owns wasm/webgpu memory — dispose them all or
+    // the renderer leaks ~1MB per frame forever.
+    for (const k of Object.keys(results)) {
+      results[k]?.dispose?.();
     }
     // Skip a fully-transparent frame (a bad readback would blank her out for
     // a frame, which reads as flicker); keep the previous frame instead.
@@ -2413,6 +3155,7 @@ async function renderFrame() {
       charRect = measureCharRect() || charRect;
     }
     outCtx.putImageData(outImage, 0, 0);
+    srFrame();
     painted = true;
     paint();
   } catch (error) {
@@ -2454,6 +3197,25 @@ function stillDrawRect() {
   if (!e) {
     return null;
   }
+  if (session || rig.ready) {
+    // Live/rig geometry: every state pivots the frame about an anchor —
+    // feet on the ground line, or GRAB at the physics point while carried.
+    // The ink always lands inside the disc of radius ~char-height around
+    // the anchor, so the clear box is that disc's bounding square (a bit
+    // over-large is free — it only clears transparent canvas).
+    const h = session ? petH() : (rig.mf.char_bbox[3] - rig.mf.char_bbox[1]) * rigScale();
+    const hanging = stillCtl.name === 'pick-up' && (dragging || thrown);
+    const a = hanging
+      ? (physPoint || { x: pointer.x, y: pointer.y + 12 })
+      : { x: drawPos.x + petW() / 2, y: drawPos.y + petH() - 2 };
+    const r = h * 1.05 + 12;
+    return {
+      x: a.x - r,
+      y: a.y - r,
+      right: a.x + r,
+      bottom: a.y + r,
+    };
+  }
   const b = e.box;
   const ch = charRect ? charRect.bottom - charRect.y : petH();
   const s = ch / Math.max(1, b.bottom - b.y);
@@ -2488,9 +3250,44 @@ function stillDrawRect() {
 // Just her body — no cards. Chat anchoring must use THIS: the chat rect
 // joins petBounds below, and anchoring to the union would self-feed (the
 // card's own rect would drag the card's anchor).
+// Tight body rect under the rig — the clear box (stillDrawRect) is a
+// generously oversized disc, far too big for a hover hit area.
+function rigBodyRect() {
+  const S = rigScale();
+  const b = rig.mf.char_bbox;
+  const w = (b[2] - b[0]) * S;
+  const h = (b[3] - b[1]) * S;
+  if (stillCtl.name === 'pick-up' && (dragging || thrown)) {
+    const a = physPoint || { x: pointer.x, y: pointer.y + 12 };
+    return {
+      x: a.x - w / 2 - 40,
+      y: a.y - 10,
+      right: a.x + w / 2 + 40,
+      bottom: a.y + h + 10,
+    };
+  }
+  const cx = drawPos.x + petW() / 2;
+  const fy = drawPos.y + petH() - 2;
+  if (stillCtl.name === 'sleep') {
+    // Lying: head points left of the feet anchor.
+    return {
+      x: cx - h - 10,
+      y: fy - w - 20,
+      right: cx + 50,
+      bottom: fy + w * 0.5 + 12,
+    };
+  }
+  return {
+    x: cx - w / 2 - 8,
+    y: fy - h - 8,
+    right: cx + w / 2 + 8,
+    bottom: fy + 8,
+  };
+}
+
 function petBodyBounds() {
   if (stillCtl.alpha > 0.5) {
-    const sb = stillDrawRect();
+    const sb = rig.ready ? rigBodyRect() : stillDrawRect();
     if (sb) {
       return {
         x: sb.x - HOVER_PADDING,
@@ -2785,7 +3582,19 @@ window.addEventListener('pointermove', (event) => {
 // where the hanging still settled, feet on the same bottom line — no snap.
 function landFromPhys(now, fromThrow = false) {
   const e = stillCtl.entry;
-  if (e && STILL_ANCHOR[stillCtl.name] === 'hang' && physPoint) {
+  if (session && stillCtl.name === 'pick-up' && physPoint) {
+    // Live hang: the grab point sat at physPoint; feet land GRAB_FRAC·h
+    // below it — same geometry the draw uses, so she doesn't snap.
+    drawPos.x = physPoint.x - petW() / 2;
+    drawPos.y = physPoint.y - GRAB_FRAC * petH() + 2;
+    clampDrawPos();
+  } else if (rig.ready && stillCtl.name === 'pick-up' && physPoint) {
+    // Rig hang: GRAB at physPoint, feet at GRAB + (FEET-GRAB)·S below it.
+    const S = rigScale();
+    drawPos.x = physPoint.x - petW() / 2;
+    drawPos.y = physPoint.y + (RIG_FEET[1] - RIG_GRAB[1]) * S - petH() + 2;
+    clampDrawPos();
+  } else if (e && e.img && STILL_ANCHOR[stillCtl.name] === 'hang' && physPoint) {
     const b = e.box;
     const ch = charRect ? charRect.bottom - charRect.y : petH();
     const s = ch / Math.max(1, b.bottom - b.y);
@@ -3100,34 +3909,74 @@ async function mount() {
   petShell.onDsh?.((ev) => onDshEvent(ev));
   petShell.onAlert?.((al) => onDshAlert(al));
   bindChatDom();
-  session = await createSession();
-  imageTensor = await loadImageTensor();
-  console.log('pet: avatar model ready');
+  // Live engine first: THA4 renders every pixel continuously (the liveliness
+  // the part rig could only fake), and Anime4K restores the line art so it
+  // is not blurry. The part rig stays as the fallback when the ONNX model
+  // or WebGPU is missing.
+  try {
+    session = await createSession();
+    allocOutput();
+    imageTensor = await loadImageTensor();
+    if (FRAME === 512) {
+      // HD frames already supersample the 240px display 4x — SR only pays
+      // on the 512² pipeline.
+      initSr();
+    }
+    console.log('pet: avatar model ready (live engine)');
+  } catch (error) {
+    session = null;
+    console.warn('pet: live engine unavailable, falling back to rig', error);
+  }
+  if (!session) {
+    try {
+      await loadRig();
+    } catch (error) {
+      console.warn('pet: rig load failed', error);
+    }
+    if (rig.ready) {
+      painted = true;
+      console.log('pet: HD part rig ready');
+    }
+  }
   setTimeout(() => say('greet'), 1200);
   reportRoam(); // seed the main-side hover rect with the real size/origin
   // Pace inference on a steady cadence: an irregular rate (chasing max
   // speed) reads as flicker.
   let lastFrameAt = 0;
   const loop = (now) => {
-    tickPhysics(now);
-    tickStill(now);
-    // Roam rect rides along whenever her BODY bounds move (wander legs,
-    // come, feed run — and stills, which swing her visible box around a
-    // fixed drawPos) — the main process needs the CURRENT screen rect for
-    // hover hit-testing, throttled to ~10Hz.
-    const bb = petBodyBounds();
-    const bk = `${bb.x | 0},${bb.y | 0},${bb.right | 0},${bb.bottom | 0}`;
-    if (bk !== loop._bk) {
-      loop._bk = bk;
-      reportRoam();
-    }
-    if (chatOpen) { syncChatPos(); }
-    // Skip inference while a still fully covers her — saves the GPU and
-    // the cross-fade guarantees no live frame peeks through anyway.
-    const gap = powerSaving(now) ? 110 : 50;
-    if (now - lastFrameAt >= gap && stillCtl.alpha < 0.98) {
-      lastFrameAt = now;
-      void renderFrame();
+    try {
+      tickPhysics(now);
+      tickStill(now);
+      // Roam rect rides along whenever her BODY bounds move (wander legs,
+      // come, feed run — and stills, which swing her visible box around a
+      // fixed drawPos) — the main process needs the CURRENT screen rect for
+      // hover hit-testing, throttled to ~10Hz.
+      const bb = petBodyBounds();
+      const bk = `${bb.x | 0},${bb.y | 0},${bb.right | 0},${bb.bottom | 0}`;
+      if (bk !== loop._bk) {
+        loop._bk = bk;
+        reportRoam();
+      }
+      if (chatOpen) { syncChatPos(); }
+      rigT = now / 1000;
+      stepPose();
+      if (session || !rig.ready) {
+        // Live path: pose math every rAF (transforms tween at display rate);
+        // inference itself is paced — the SR'd frame refreshes ~20fps.
+        const gap = powerSaving(now) ? 110 : 50;
+        if (now - lastFrameAt >= gap) {
+          lastFrameAt = now;
+          void renderFrame();
+        }
+        paint();
+      } else {
+        // Rig fallback: pure canvas — pose math + paint every rAF, no ONNX.
+        paint();
+      }
+    } catch (err) {
+      // A bad frame must never kill the rAF chain — one throw used to
+      // freeze the whole pet until reload.
+      console.error('pet: frame error', err);
     }
     requestAnimationFrame(loop);
   };
@@ -3156,17 +4005,34 @@ function onDshEvent(ev) {
   // text (priority 2 alert), not a dialogue-pool lookup.
   if (ev.category === 'dshWhale') {
     const text = String(ev.summary || '').trim();
-    if (text) {
+    // sticker lines carry a data-URL image — the pet page cannot reach disk
+    // paths itself, so the watcher ships the bytes. With the card open the
+    // picture joins the thread; otherwise it takes the ambient bubble.
+    const image = typeof ev.image === 'string' && ev.image.startsWith('data:image/')
+      ? ev.image : '';
+    if (image && chatOpen) {
+      chatAppendImage(image, text);
+      return;
+    }
+    if (text || image) {
       // whale_notify pins: the message holds the stage with a ✕ until the
       // user dismisses it — a done line can no longer knock a result off.
       const pinned = ev.kind === 'notify';
-      pushBubble({
+      const entry = {
         text,
         until: pinned ? Infinity
           : performance.now() + Math.min(2200 + Array.from(text).length * 90, 8000),
         priority: 2,
         pinned,
-      });
+      };
+      if (image) {
+        const img = new Image();
+        img.onload = () => paint();
+        img.src = image;
+        entry.image = img;
+        entry.until = performance.now() + 8000; // a picture reads slower than a line
+      }
+      pushBubble(entry);
     }
     return;
   }

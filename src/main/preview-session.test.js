@@ -8,6 +8,8 @@ const {
   PREVIEW_PARTITION_PREFIX,
   configurePreviewSession,
   createPreviewSessionCache,
+  isPreviewPermissionAllowed,
+  isTrustedPreviewOrigin,
   previewGuestPreloadPath,
   previewGuestWebPreferences,
   previewPartitionForScope,
@@ -19,7 +21,7 @@ const BRIEF_UA = `Mozilla/5.0 Electron/43.0.0 ${leftoverUaBrand}/1.0 Safari`;
 
 function fakeSession(ua = BRIEF_UA) {
   let userAgent = ua;
-  return {
+  const ses = {
     requestHandler: null,
     checkHandler: null,
     requestHandlerCount: 0,
@@ -49,6 +51,19 @@ function fakeSession(ua = BRIEF_UA) {
       return Promise.resolve();
     },
   };
+  return ses;
+}
+
+function fakeContents(ses, url, isDestroyed = false) {
+  return {
+    session: ses,
+    isDestroyed() {
+      return isDestroyed;
+    },
+    getURL() {
+      return url;
+    },
+  };
 }
 
 test('previewPartitionForScope uses persist:dshd-preview- plus 20 hex chars', () => {
@@ -74,28 +89,168 @@ test('stripPreviewUserAgent removes Electron and leftover migrated UA tokens', (
   assert.equal(stripped, 'Mozilla/5.0 Safari');
 });
 
-test('configurePreviewSession strips UA and allow-lists only the four permissions', () => {
+const BINDING_TEST_ALLOWLIST = new Set([
+  'clipboard-read',
+  'clipboard-sanitized-write',
+  'notifications',
+  'geolocation',
+]);
+
+test('configurePreviewSession strips UA and denies every permission by default', () => {
   const ses = fakeSession();
   configurePreviewSession(ses);
   assert.equal(ses.getUserAgent().includes('Electron/'), false);
   assert.equal(ses.getUserAgent().includes(`${leftoverUaBrand}/`), false);
 
-  const granted = (name) => {
+  const wc = fakeContents(ses, 'http://127.0.0.1:5173/');
+  const granted = (name, details = { isMainFrame: true, requestingUrl: 'http://127.0.0.1:5173/' }) => {
     let result;
-    ses.requestHandler(null, name, (ok) => { result = ok; });
+    ses.requestHandler(wc, name, (ok) => { result = ok; }, details);
     return result;
   };
-  assert.equal(granted('clipboard-read'), true);
-  assert.equal(granted('clipboard-sanitized-write'), true);
-  assert.equal(granted('notifications'), true);
-  assert.equal(granted('geolocation'), true);
-  assert.equal(granted('clipboard-write'), false);
-  assert.equal(granted('local-fonts'), false);
-  assert.equal(ses.checkHandler(null, 'clipboard-sanitized-write'), true);
-  assert.equal(ses.checkHandler(null, 'clipboard-write'), false);
-  assert.equal(ses.checkHandler(null, 'local-fonts'), false);
-  assert.equal(ALLOWED_PREVIEW_PERMISSIONS.has('clipboard-write'), false);
+  // Decide-by-default = deny. Even a loopback main frame gets nothing while the
+  // allow-list is empty; the four legacy grants are gone deliberately.
+  for (const name of [
+    'clipboard-read',
+    'clipboard-sanitized-write',
+    'notifications',
+    'geolocation',
+    'clipboard-write',
+    'local-fonts',
+    'media',
+    'unknown-permission',
+  ]) {
+    assert.equal(granted(name), false, `${name} must be denied by default`);
+    assert.equal(
+      ses.checkHandler(wc, name, 'http://127.0.0.1:5173/', { isMainFrame: true }),
+      false,
+      `${name} check must be denied by default`,
+    );
+  }
+  assert.equal(ALLOWED_PREVIEW_PERMISSIONS.size, 0);
+  assert.equal(ALLOWED_PREVIEW_PERMISSIONS.has('clipboard-read'), false);
   assert.equal(ALLOWED_PREVIEW_PERMISSIONS.has('local-fonts'), false);
+});
+
+test('AUD-02: public-origin and cross-origin-frame requests are denied', () => {
+  const ses = fakeSession();
+  configurePreviewSession(ses);
+
+  const evilMain = fakeContents(ses, 'https://evil.example/');
+  let result;
+  ses.requestHandler(
+    evilMain,
+    'clipboard-read',
+    (ok) => { result = ok; },
+    { isMainFrame: true, requestingUrl: 'https://evil.example/' },
+  );
+  assert.equal(result, false, 'public main-frame clipboard-read must be denied');
+
+  const evilFrame = fakeContents(ses, 'https://evil.example/frame');
+  ses.requestHandler(
+    evilFrame,
+    'geolocation',
+    (ok) => { result = ok; },
+    { isMainFrame: false, requestingUrl: 'https://evil.example/frame' },
+  );
+  assert.equal(result, false, 'public iframe geolocation must be denied');
+
+  const loopbackTop = fakeContents(ses, 'http://127.0.0.1:5173/app');
+  ses.requestHandler(
+    loopbackTop,
+    'geolocation',
+    (ok) => { result = ok; },
+    { isMainFrame: false, requestingUrl: 'https://evil.example/frame' },
+  );
+  assert.equal(result, false, 'cross-origin frame under a loopback top must be denied');
+});
+
+test('AUD-02: even with an entry allow-listed, grants stay bound to session and webContents', () => {
+  const ses = fakeSession();
+  configurePreviewSession(ses);
+  const trusted = fakeContents(ses, 'http://localhost:3000/');
+  assert.equal(isPreviewPermissionAllowed(
+    ses,
+    trusted,
+    'notifications',
+    'http://localhost:3000/',
+    { isMainFrame: true },
+    BINDING_TEST_ALLOWLIST,
+  ), true);
+
+  // Fail closed when the requester is opaque, ownerless, or already destroyed.
+  for (const [label, contents, origin] of [
+    ['missing session', { getURL: () => 'http://localhost:3000/' }, 'http://localhost:3000/'],
+    ['opaque frame origin', trusted, 'data:text/html,<h1>x</h1>'],
+    ['malformed frame origin', trusted, 'not a url'],
+    ['destroyed contents', fakeContents(ses, 'http://localhost:3000/', true), 'http://localhost:3000/'],
+  ]) {
+    assert.equal(isPreviewPermissionAllowed(
+      ses,
+      contents,
+      'notifications',
+      origin,
+      { isMainFrame: true },
+      BINDING_TEST_ALLOWLIST,
+    ), false, `${label} must be denied`);
+  }
+
+  // Without an explicit allow-list entry the binding logic still denies.
+  assert.equal(isPreviewPermissionAllowed(ses, trusted, 'notifications', 'http://localhost:3000/', {
+    isMainFrame: true,
+  }), false);
+
+  const foreignSession = fakeSession();
+  assert.equal(isPreviewPermissionAllowed(
+    ses,
+    fakeContents(foreignSession, 'http://localhost:3000/'),
+    'notifications',
+    'http://localhost:3000/',
+    { isMainFrame: true },
+    BINDING_TEST_ALLOWLIST,
+  ), false, 'webContents from another session must be denied');
+
+  for (const foreign of [
+    undefined,
+    null,
+    {},
+    fakeContents(ses, 'file:///etc/passwd'),
+    fakeContents(ses, 'data:text/html,<h1>x</h1>'),
+    fakeContents(ses, ''),
+  ]) {
+    assert.equal(isPreviewPermissionAllowed(
+      ses,
+      foreign,
+      'clipboard-read',
+      '',
+      { isMainFrame: true },
+      BINDING_TEST_ALLOWLIST,
+    ), false);
+  }
+  assert.equal(isTrustedPreviewOrigin(null), false);
+  assert.equal(isTrustedPreviewOrigin(new URL('http://[::1]:3000/')), true);
+  assert.equal(isTrustedPreviewOrigin(new URL('https://evil.example/')), false);
+});
+
+test('AUD-02: same-origin loopback frames only pass with an allow-list entry', () => {
+  const ses = fakeSession();
+  configurePreviewSession(ses);
+  const top = fakeContents(ses, 'http://127.0.0.1:5173/app');
+  assert.equal(isPreviewPermissionAllowed(
+    ses,
+    top,
+    'clipboard-read',
+    'http://127.0.0.1:5173/embed',
+    { isMainFrame: false },
+    BINDING_TEST_ALLOWLIST,
+  ), true);
+  assert.equal(isPreviewPermissionAllowed(
+    ses,
+    top,
+    'clipboard-read',
+    'http://127.0.0.1:5173/embed',
+    { isMainFrame: false },
+  ), false, 'same-origin is necessary but not sufficient without an entry');
 });
 
 test('createPreviewSessionCache configures each partition once', () => {
