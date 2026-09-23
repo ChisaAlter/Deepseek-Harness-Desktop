@@ -87,6 +87,7 @@ test('renderer config patch only accepts safe typed fields', () => {
     harnessRestartMaxAttempts: 4,
     githubToken: ' token ',
     dshbotEnabled: true,
+    remoteWorkspaceEnabled: false,
   }), {
     closeToTray: false,
     autoStartDesktop: true,
@@ -94,6 +95,7 @@ test('renderer config patch only accepts safe typed fields', () => {
     harnessRestartMaxAttempts: 4,
     githubToken: 'token',
     dshbotEnabled: true,
+    remoteWorkspaceEnabled: false,
   });
   for (const patch of [
     { dshBin: 'C:\\malware.cmd' },
@@ -102,6 +104,7 @@ test('renderer config patch only accepts safe typed fields', () => {
     { baseUrl: 'https://attacker.invalid' },
     { closeToTray: 'yes' },
     { dshbotEnabled: 'yes' },
+    { remoteWorkspaceEnabled: 'yes' },
     { harnessRestartMaxAttempts: 99 },
   ]) {
     assert.throws(() => normalizeRendererConfigPatch(patch));
@@ -368,16 +371,33 @@ test('launcher defaults auto-start desktop, ask on update, and quit after a succ
   assert.deepEqual(DEFAULTS.disabledPlugins, []);
 });
 
-test('normalizeDisabledPlugins strips desktop built-in dsh-im and usage-panel aliases', () => {
+test('normalizeDisabledPlugins strips desktop built-in dsh-im, usage-panel, and remote aliases', () => {
   const before = loadConfig();
   saveConfig({
-    disabledPlugins: ['@xmanrui/dsh-im', 'dsh-im', 'dsh-usage-panel', 'user-pack'],
+    disabledPlugins: ['@xmanrui/dsh-im', 'dsh-im', 'dsh-usage-panel', 'dsh-remote', 'user-pack'],
   });
   try {
     const loaded = loadConfig();
     assert.deepEqual(loaded.disabledPlugins, ['user-pack']);
   } finally {
     saveConfig({ disabledPlugins: before.disabledPlugins });
+  }
+});
+
+test('remote workspace is enabled by default and its boolean setting persists to public config', () => {
+  const before = loadConfig();
+  try {
+    assert.equal(DEFAULTS.remoteWorkspaceEnabled, true);
+    assert.equal(before.remoteWorkspaceEnabled, true);
+    const saved = saveConfig({ remoteWorkspaceEnabled: false });
+    assert.equal(saved.remoteWorkspaceEnabled, false);
+    assert.equal(loadConfig().remoteWorkspaceEnabled, false);
+    assert.equal(publicConfig(saved).remoteWorkspaceEnabled, false);
+    assert.deepEqual(normalizeRendererConfigPatch({ remoteWorkspaceEnabled: true }), {
+      remoteWorkspaceEnabled: true,
+    });
+  } finally {
+    saveConfig({ remoteWorkspaceEnabled: before.remoteWorkspaceEnabled });
   }
 });
 

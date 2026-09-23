@@ -514,21 +514,26 @@ test('a failed session-search ensure never contributes a stale overlay path', as
   assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay]);
 });
 
-test('dsh-im and usage-panel and market and dshbot overlays ride --patch on both full and skip starts', async () => {
+test('dsh-im, usage-panel, market, dshbot, and remote overlays ride --patch on full and skip starts', async () => {
   const installOverlay = 'C:/profiles/web/desktop-plugins/install-dsh-plugin/desktop-install.patch.yml';
   const usageOverlay = 'C:/profiles/web/desktop-plugins/dsh-usage-panel/desktop-usage-panel.patch.yml';
   const imOverlay = 'C:/profiles/web/desktop-plugins/dsh-im/desktop-dsh-im.patch.yml';
   const marketOverlay = 'C:/profiles/web/desktop-plugins/dsh-market/desktop-dsh-market.patch.yml';
   const botOverlay = 'C:/profiles/web/desktop-plugins/dshbot/desktop-dshbot.patch.yml';
+  const remoteOverlay = 'C:/profiles/web/desktop-plugins/dsh-remote/desktop-dsh-remote.patch.yml';
   const f = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
     ensureUsagePanelPlugin: async () => ({ ok: true, added: false, overlayFile: usageOverlay }),
     ensureDshImPlugin: async () => ({ ok: true, added: false, overlayFile: imOverlay }),
     ensureDesktopMarket: async () => ({ ok: true, added: false, overlayFile: marketOverlay }),
     ensureDshbotPlugin: async () => ({ ok: true, added: false, overlayFile: botOverlay }),
+    ensureDshRemotePlugin: async (options) => {
+      assert.deepEqual(options, { enabled: true });
+      return { ok: true, added: false, overlayFile: remoteOverlay };
+    },
   });
   await f.controller.start();
-  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay, botOverlay]);
+  assert.deepEqual(f.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay, botOverlay, remoteOverlay]);
 
   const skipped = fixture({
     ensureDesktopInstallPlugin: () => ({ ok: true, overlayFile: installOverlay }),
@@ -536,11 +541,80 @@ test('dsh-im and usage-panel and market and dshbot overlays ride --patch on both
     ensureDshImPlugin: async () => ({ ok: true, added: false, overlayFile: imOverlay }),
     ensureDesktopMarket: async () => ({ ok: true, added: false, overlayFile: marketOverlay }),
     ensureDshbotPlugin: async () => ({ ok: true, added: false, overlayFile: botOverlay }),
+    ensureDshRemotePlugin: async (options) => {
+      assert.deepEqual(options, { enabled: true });
+      return { ok: true, added: false, overlayFile: remoteOverlay };
+    },
   });
   skipped.controller.writePluginSkip(new Error('recovery'));
   await skipped.controller.start();
   assert.equal(skipped.dsh.startOptions[0].skipUserPlugins, true);
-  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay, botOverlay]);
+  assert.deepEqual(skipped.dsh.startOptions[0].patchFiles, [installOverlay, usageOverlay, imOverlay, marketOverlay, botOverlay, remoteOverlay]);
+});
+
+test('remote workspace can be disabled without mounting its overlay', async () => {
+  const remoteOverlay = 'C:/profiles/web/desktop-plugins/dsh-remote/desktop-dsh-remote.patch.yml';
+  let args;
+  const f = fixture({
+    initialConfig: { remoteWorkspaceEnabled: false },
+    ensureDshRemotePlugin: async (options) => {
+      args = options;
+      return { ok: true, added: false, disabled: true };
+    },
+  });
+  await f.controller.start();
+  assert.deepEqual(args, { enabled: false });
+  assert.equal(f.dsh.startCalls, 1);
+  assert.ok(!f.dsh.startOptions[0].patchFiles.includes(remoteOverlay));
+  assert.ok(f.dsh.logs.some((line) => /dsh-remote 已按设置关闭/.test(line)));
+});
+
+test('remote workspace is ensured before disabled bundles and Harness spawn', async () => {
+  const events = [];
+  const remoteOverlay = 'C:/profiles/web/desktop-plugins/dsh-remote/desktop-dsh-remote.patch.yml';
+  const f = fixture({
+    ensureDshRemotePlugin: async () => {
+      events.push('remote');
+      return { ok: true, overlayFile: remoteOverlay };
+    },
+    applyDisabledBundles: () => {
+      events.push('disabled-bundles');
+      return { ok: true, changed: false };
+    },
+  });
+  const start = f.dsh.start.bind(f.dsh);
+  f.dsh.start = async (options) => {
+    events.push('start');
+    return start(options);
+  };
+  await f.controller.start();
+  assert.ok(events.indexOf('remote') >= 0);
+  assert.ok(events.indexOf('remote') < events.indexOf('disabled-bundles'));
+  assert.ok(events.indexOf('disabled-bundles') < events.indexOf('start'));
+  assert.ok(f.dsh.startOptions[0].patchFiles.includes(remoteOverlay));
+});
+
+test('broken enabled remote runtime fails closed on full and skip starts', async () => {
+  for (const skipUserPlugins of [false, true]) {
+    const f = fixture({
+      ensureDshRemotePlugin: async () => ({
+        ok: false,
+        error: 'missing-source:package.json',
+        overlayFile: 'C:/stale/remote.patch.yml',
+      }),
+    });
+    if (skipUserPlugins) f.controller.writePluginSkip(new Error('recovery'));
+    await assert.rejects(
+      () => f.controller.start(),
+      (error) => {
+        assert.match(String(error.message), /桌面内置 dsh-remote 失败/);
+        assert.match(String(error.message), /missing-source:package.json/);
+        return true;
+      },
+    );
+    assert.equal(f.dsh.startCalls, 0);
+    assert.equal(f.dsh.startOptions.length, 0);
+  }
 });
 
 test('a failed usage-panel ensure blocks Harness start and never passes a stale overlay', async () => {

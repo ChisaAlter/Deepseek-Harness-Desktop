@@ -4,11 +4,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { stubSettingsScope, TestRemote, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm, TestRemote, usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-general/client'
 import { CloseBehaviorRow } from '../src/client/CloseBehaviorRow.tsx'
 import { AutoStartDesktopRow } from '../src/client/AutoStartDesktopRow.tsx'
 import { DshbotRow } from '../src/client/DshbotRow.tsx'
+import { RemoteWorkspaceRow } from '../src/client/RemoteWorkspaceRow.tsx'
 import { PetSection } from '../src/client/PetSection.tsx'
 import type { PetSectionInjected } from '../src/client/PetSection.tsx'
 
@@ -32,9 +33,7 @@ async function bench() {
     session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) },
   })
   remote.$host = { home: undefined, isLoopback: false }
-  // apply() injects `settingsScope` (the ui-settings domain service); the
-  // stub stands in for the binder the real settings plugin would provide.
-  ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
+  ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
   return { ctx, slots: ctx.get('slots') as SlotRegistry }
 }
 
@@ -78,16 +77,23 @@ describe('ui-settings-general desktop close-behavior row', () => {
     expect(botRow.component).toBe(DshbotRow)
     expect(botRow.options).toMatchObject({ id: 'dshbot', order: 80 })
     expect(botRow.locale).toBe('settings')
+    const remoteWorkspaceRow = b.slots.entries('settings.interface.item')
+      .find(row => row.options.id === 'remote-workspace')!
+    expect(remoteWorkspaceRow.component).toBe(RemoteWorkspaceRow)
+    expect(remoteWorkspaceRow.options).toMatchObject({ id: 'remote-workspace', order: 81 })
+    expect(remoteWorkspaceRow.locale).toBe('settings')
     await fiber.dispose()
     expect(b.slots.entries('settings.general.item')).toEqual([])
     expect(b.slots.entries('settings.interface.item')).toEqual([])
+    expect(b.slots.entries('settings.interface.item').find(row => row.options.id === 'remote-workspace')).toBeUndefined()
   })
 
   it('withholds the row without a persistable desktop shell', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
-    expect(b.slots.entries('settings.general.item')).toEqual([])
+    expect(b.slots.entries('settings.general.item').some(row =>
+      row.options.id === 'close-behavior' || row.options.id === 'auto-start-desktop')).toBe(false)
     expect(b.slots.entries('settings.interface.item')).toEqual([])
   })
 })

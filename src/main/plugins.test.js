@@ -15,6 +15,7 @@ const {
   DESKTOP_INSTALL_END,
   LEGACY_DESKTOP_INSTALL_BEGIN,
   LEGACY_DESKTOP_INSTALL_END,
+  isDroppedPluginName,
 } = require('./plugins');
 const { setDesktopDshHome, clearDesktopDshHome } = require('../shared/dsh-home');
 
@@ -27,6 +28,12 @@ test('webProfileDir lives under the desktop home, not ~/.dsh', () => {
     clearDesktopDshHome();
     fs.rmSync(home, { recursive: true, force: true });
   }
+});
+
+test('dsh-remote is reserved from user plugin composition, including renamed scopes', () => {
+  assert.equal(isDroppedPluginName('dsh-remote'), true);
+  assert.equal(isDroppedPluginName('@acme/dsh-remote'), true);
+  assert.equal(isDroppedPluginName('@acme/dsh-remote-extra'), false);
 });
 
 test('healDanglingBundles removes only unresolved user bundles and preserves dependencies', () => {
