@@ -185,6 +185,23 @@ test('desktop built-in usage-panel suspects are flagged as desktop runtime damag
   assert.equal(row.preset, true);
 });
 
+test('desktop built-in remote-workspace suspects are reserved and flagged as runtime damage', () => {
+  assert.equal(isPresetPlugin('dsh-remote'), true);
+  assert.equal(isInBoxPackageName('dsh-remote'), true);
+  assert.equal(isInBoxPackageName('dsh-remote/client'), true);
+
+  const inspected = inspectPlugins({
+    logs: "Cannot find package 'dsh-remote' imported from /profiles/web/",
+    pluginTreeFailure: true,
+    plugins: [{ name: 'good', spec: '1.0.0' }],
+    bundles: ['good'],
+  });
+  assert.equal(inspected.desktopRuntimeDamage, true);
+  const row = inspected.orphanSuspects.find((item) => item.name === 'dsh-remote');
+  assert.equal(row.inBox, true);
+  assert.equal(row.preset, true);
+});
+
 test('desktop install overlay path suspects are flagged as desktop runtime damage', () => {
   assert.equal(
     isInBoxPackageName('file:///dsh-home/profiles/web/desktop-plugins/install-dsh-plugin/install-dsh-plugin.mjs'),

@@ -14,6 +14,7 @@
 | `mcp` | MCP 服务器 | `IconServerOutline16` | QA `TC-EXT-006` |
 | `market` | 插件市场 | `IconBrowseOutline16` | 桌面自有 fork；无独立 BrowserWindow |
 | `remote` | 远程 | `IconDeviceOutline16` | 网关 + 预置 dsh-im 渠道 |
+| `remote-workspace` | 远程工作区 | 未登记专用图标时回退齿轮 | 内置 `dsh-remote`；与手机配对的 `remote` 分区分开 |
 | `about` | 关于、更新、打开运行目录 | `IconInfoOutline16` | 运行目录是桌面 `dsh-home` |
 | `usage-stats` | 用量统计 | `IconChartOutline16` | 预置改版；跨会话 Token，无余额 |
 

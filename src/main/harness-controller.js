@@ -56,6 +56,8 @@ class HarnessController extends EventEmitter {
       || (async () => ({ ok: true, added: false }));
     this.ensureDshWhalePlugin = options.ensureDshWhalePlugin
       || (async () => ({ ok: true, added: false }));
+    this.ensureDshRemotePlugin = options.ensureDshRemotePlugin
+      || (async () => ({ ok: true, added: false }));
     this.ensureDesktopMarket = options.ensureDesktopMarket
       || (async () => ({ ok: true, added: false }));
     this.removeLegacyDshbotPreset = options.removeLegacyDshbotPreset
@@ -652,6 +654,28 @@ class HarnessController extends EventEmitter {
         throw error;
       }
       throw new Error(`桌面内置 dsh-whale 失败：${errorMessage(error)}`);
+    }
+    // The SSH workspace overlay is part of the desktop runtime on full and
+    // skip starts. A disabled feature removes it; a broken enabled copy fails
+    // the start instead of silently dropping remote workspaces.
+    try {
+      const remote = await this.ensureDshRemotePlugin({
+        enabled: (this.loadConfig() || {}).remoteWorkspaceEnabled !== false,
+      });
+      this.assertOperationCurrent(generation);
+      if (remote && remote.ok === false) {
+        throw new Error(`桌面内置 dsh-remote 失败：${remote.error || 'unknown'}`);
+      }
+      if (remote?.overlayFile) patchFiles.push(remote.overlayFile);
+      if (remote?.disabled) {
+        this.dsh.log('桌面内置 dsh-remote 已按设置关闭', 'app');
+      } else if (remote?.ok) {
+        this.dsh.log(remote.added ? '已接入桌面内置 dsh-remote（远程工作区）' : '桌面内置 dsh-remote 已就绪', 'app');
+      }
+    } catch (error) {
+      if (isCancellation(error)) throw error;
+      if (error instanceof Error && error.message.startsWith('桌面内置 dsh-remote 失败：')) throw error;
+      throw new Error(`桌面内置 dsh-remote 失败：${errorMessage(error)}`);
     }
     try {
       const disabled = this.applyDisabledBundles((this.loadConfig() || {}).disabledPlugins);

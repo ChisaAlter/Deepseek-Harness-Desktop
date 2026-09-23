@@ -1,0 +1,88 @@
+{
+  "name": "dsh-remote",
+  "version": "0.8.21",
+  "description": "Remote-work assistant for DeepSeek Harness: connect SSH (password/key/agent/keyboard-interactive/proxy jump), pick a remote workspace, operate on it with 20 rw_* tools (incl. rw_edit/rw_stat/rw_mkdir/rw_remove/rw_move/rw_forward), conflict-aware mirror sync, port forwarding, optional side-bar remote file editing, audit log, keychain passwords.",
+  "license": "MIT",
+  "author": "flymysql <flyphp@outlook.com>",
+  "homepage": "https://github.com/flymysql/dsh-remote",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flymysql/dsh-remote.git"
+  },
+  "bugs": {
+    "url": "https://github.com/flymysql/dsh-remote/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "remote",
+    "ssh",
+    "tunnel",
+    "plugin"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-directory-picker-browse",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-commands": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-host-webserver": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-host-webserver": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-agent": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-attachment": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-brand": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-code-runtime": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-invariants": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-scope": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-session": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-timeout": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.8",
+    "@deepseek-ai/dsh-user-approval": "^0.1.0-rc.8",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "iconv-lite": "^0.6.3",
+    "ssh2": "^1.16.0"
+  },
+  "scripts": {
+    "build": "node plugin-src/client/build.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9"
+  }
+}

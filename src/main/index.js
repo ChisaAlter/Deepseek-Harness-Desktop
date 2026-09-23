@@ -11,6 +11,7 @@ const { ensureSessionSearchOverlay } = require('./session-search-overlay');
 const { ensureDshImPlugin } = require('./dsh-im-desktop');
 const { ensureDshbotPlugin } = require('./dshbot-desktop');
 const { ensureDesktopDshWhale } = require('./dsh-whale-desktop');
+const { ensureDesktopDshRemote } = require('./dsh-remote-desktop');
 const { ensureDesktopMarket } = require('./dsh-market-desktop');
 const { removeLegacyDshbotPreset } = require('./legacy-dshbot-preset');
 const { ensureWorkspace } = require('./workspace-rpc');
@@ -333,6 +334,7 @@ const harness = new HarnessController({
   ensureDshImPlugin,
   ensureDshbotPlugin,
   ensureDshWhalePlugin: ensureDesktopDshWhale,
+  ensureDshRemotePlugin: ensureDesktopDshRemote,
   ensureDesktopMarket,
   removeLegacyDshbotPreset,
   applyDisabledBundles,

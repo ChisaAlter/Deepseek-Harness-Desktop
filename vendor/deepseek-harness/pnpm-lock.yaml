@@ -3292,9 +3292,18 @@ importers:
       '@deepseek-ai/dsh-api-remotes':
         specifier: workspace:^
         version: link:../../api/remotes
+      '@deepseek-ai/dsh-api-session-controller':
+        specifier: workspace:^
+        version: link:../../api/session-controller
+      '@deepseek-ai/dsh-api-workspace-controller':
+        specifier: workspace:^
+        version: link:../../api/workspace-controller
       '@deepseek-ai/dsh-client-locale':
         specifier: workspace:^
         version: link:../locale
+      '@deepseek-ai/dsh-client-store':
+        specifier: workspace:^
+        version: link:../store
       '@deepseek-ai/dsh-client-test-runtime':
         specifier: workspace:^
         version: link:../../test-support/client-runtime
@@ -3304,6 +3313,9 @@ importers:
       '@deepseek-ai/dsh-client-ui-renderer':
         specifier: workspace:^
         version: link:../ui-renderer
+      '@deepseek-ai/dsh-client-ui-session':
+        specifier: workspace:^
+        version: link:../ui-session
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:^
         version: link:../ui-slots
@@ -14278,7 +14290,7 @@ packages:
     os: [linux]
 
   '@deepseek-ai/libreoffice-kit-win32-arm64@0.0.1':
-    resolution: {integrity: sha512-9G7YxXHEFaVn5iFM6IaHusWuXAd3cEprwTYSA1OsYMUREliHzdcmJEqcEyePDpX1y39KNKWQgowYeSpFbfrbgg==, tarball: https://registry.npmjs.org/@deepseek-ai/libreoffice-kit-win32-arm64/-/libreoffice-kit-win32-arm64-0.0.1.tgz}
+    resolution: {integrity: sha512-9G7YxXHEFaVn5iFM6IaHusWuXAd3cEprwTYSA1OsYMUREliHzdcmJEqcEyePDpX1y39KNKWQgowYeSpFbfrbgg==}
     engines: {node: '>=22.19.0'}
     cpu: [arm64]
     os: [win32]

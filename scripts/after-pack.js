@@ -170,6 +170,68 @@ function assertVendoredPluginRuntimeDeps(resources, packageName) {
   }
 }
 
+/** Remove dsh-remote source, docs, tests, and build-only dependencies from the packaged runtime. */
+function pruneVendoredPluginBuildDeps(resources, packageName) {
+  const packageDir = path.join(resources, 'vendor', packageName);
+  const nodeModules = path.join(packageDir, 'node_modules');
+  const removed = [];
+  const remove = (base, entry) => {
+    const target = path.join(base, entry);
+    if (!fs.existsSync(target)) return;
+    fs.rmSync(target, { recursive: true, force: true });
+    removed.push(path.relative(packageDir, target));
+  };
+
+  for (const entry of [
+    'esbuild',
+    '@esbuild',
+    '.bin',
+    '.package-lock.json',
+    'cpu-features',
+    'buildcheck',
+    'nan',
+  ]) {
+    remove(nodeModules, entry);
+  }
+
+  // The client bundle is built from these sources before packaging; the shipped
+  // package only needs lib/*.js, its patch manifest, package metadata, and license.
+  for (const entry of [
+    'plugin-src',
+    'examples',
+    '.github',
+    'README.md',
+    'README.zh.md',
+    'CHANGELOG.md',
+    'DESKTOP-FORK.md',
+    'package-lock.json',
+  ]) {
+    remove(packageDir, entry);
+  }
+  let libEntries = [];
+  try {
+    libEntries = fs.readdirSync(path.join(packageDir, 'lib'), { withFileTypes: true });
+  } catch {
+    // Runtime validation below reports a missing package; pruning stays idempotent.
+  }
+  for (const entry of libEntries) {
+    if (entry.isFile() && /\.test\.[cm]?js$/i.test(entry.name)) {
+      remove(path.join(packageDir, 'lib'), entry.name);
+    }
+  }
+
+  // ssh2's tests and examples (including fixture keys) are not runtime code.
+  // Keep util/pagent.exe: ssh2's Windows Pageant agent resolves it at runtime.
+  const ssh2Dir = path.join(nodeModules, 'ssh2');
+  for (const entry of ['.github', 'examples', 'test', 'README.md', 'SFTP.md']) {
+    remove(ssh2Dir, entry);
+  }
+  for (const entry of ['pagent.c', 'build_pagent.bat']) {
+    remove(path.join(ssh2Dir, 'util'), entry);
+  }
+  return { removed };
+}
+
 async function assertDshdRemoteRuntime(resources) {
   const root = path.join(resources, 'vendor', 'dshd-remote');
   const serverExport = path.join(root, 'node_modules', '@chisacode', 'server', 'dist', 'server', 'server', 'exports.js');
@@ -1000,6 +1062,10 @@ module.exports = async function afterPack(context) {
   restoreVendoredPluginNodeModules(projectDir, resources, 'dsh-whale');
   installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-whale'), { skipIfComplete: true });
   assertVendoredPluginRuntimeDeps(resources, 'dsh-whale');
+  restoreVendoredPluginNodeModules(projectDir, resources, 'dsh-remote');
+  installPluginRuntimeDeps(path.join(resources, 'vendor', 'dsh-remote'), { skipIfComplete: true });
+  pruneVendoredPluginBuildDeps(resources, 'dsh-remote');
+  assertVendoredPluginRuntimeDeps(resources, 'dsh-remote');
   await assertDshdRemoteRuntime(resources);
   const harnessDest = path.join(resources, 'vendor', 'deepseek-harness');
   const deployDir = resolveDeployDir(process.env.DSH_DEPLOY_DIR);
@@ -1069,6 +1135,7 @@ module.exports.assertNodePtyPrebuild = assertNodePtyPrebuild;
 module.exports.assertVendoredPluginRuntimeDeps = assertVendoredPluginRuntimeDeps;
 module.exports.assertDshdRemoteRuntime = assertDshdRemoteRuntime;
 module.exports.installPluginRuntimeDeps = installPluginRuntimeDeps;
+module.exports.pruneVendoredPluginBuildDeps = pruneVendoredPluginBuildDeps;
 module.exports.nodePtyPrebuildRelative = nodePtyPrebuildRelative;
 module.exports.restoreVendoredPluginNodeModules = restoreVendoredPluginNodeModules;
 module.exports.ensureGhosttyAssetsInHarness = ensureGhosttyAssetsInHarness;

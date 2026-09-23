@@ -9,7 +9,7 @@
 
 - 安装即可用：本机起官方 Web UI，无需用户手跑 `dsh web`。桌面 Harness **不读** 官方 `~/.dsh`；数据在 `userData/dsh-home`（见 [dsh-home.md](dsh-home.md)）。
 - 主框：对话 + 工具审批 + 侧栏会话；`Ctrl+\` 右栏 Surfaces；`` Ctrl+` `` 底栏终端；`Ctrl+,` 设置。
-- 桌面增强：冷启动启动器（更新询问、导入、版本、插件问诊）、Git 标题栏、工作区文件、内嵌 Browser 预览、壁纸图库、设置内市场、设置内用量统计、托盘/更新、插件恢复、手机远程（侧栏入口；默认关、开才监听）。
+- 桌面增强：冷启动启动器（更新询问、导入、版本、插件问诊）、Git 标题栏、工作区文件、内嵌 Browser 预览、壁纸图库、设置内市场、设置内用量统计、托盘/更新、插件恢复、SSH 远程工作区、手机远程（侧栏入口；默认关、开才监听）。
 
 ## 架构要点
 
@@ -19,6 +19,7 @@
 
 - 产品说明：[../../../README.md](../../../README.md)
 - 壳入口：`src/main/index.js`
+- SSH 远程工作区的当前行为与入口：[remote-workspaces.md](remote-workspaces.md)
 - 上游钉：`vendor/harness-upstream.json`
 
 ## 不变量

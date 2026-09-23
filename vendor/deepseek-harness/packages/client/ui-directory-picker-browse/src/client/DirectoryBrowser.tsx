@@ -34,18 +34,23 @@
  * the crumbs name where the walk ended, and Open's fallback target follows
  * them.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconCheckOutline16, IconChevronRightOutline14, IconEditOutline16, IconFolderClose16, IconFolderOpen16,
-  IconPlusOutline16, Modal,
+  IconPlusOutline16, Modal, Pill,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { DirectoryEntry, DirectoryListing } from '@deepseek-ai/dsh-api-remotes/client'
 import type { Translate } from '@deepseek-ai/dsh-client-locale/client'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './DirectoryBrowser.module.css'
+import type { RemoteFlowOwnerProps } from './contract/slots.ts'
+
+type HeroRemoteSlot = 'conversation.hero.workspace.directoryFlow.remote'
+type SidebarRemoteSlot = 'sidebar.workspaces.directoryFlow.remote'
 
 /** Owner-supplied browser props: browse calls, pick semantics, and copy. */
-export interface DirectoryBrowserProps {
+type DirectoryBrowserBaseProps = {
   /** Dialog visibility (owner-local; closed unmounts nothing but resets on reopen). */
   open: boolean
   /**
@@ -69,6 +74,41 @@ export interface DirectoryBrowserProps {
   busy: boolean
   /** Localized copy. */
   t: Translate
+}
+
+type RemoteChildProps =
+  | (PropsRenderSlots<HeroRemoteSlot> & {
+    remoteAvailable: boolean
+    remoteSlot: HeroRemoteSlot
+    onError: RemoteFlowOwnerProps['onError']
+  })
+  | (PropsRenderSlots<SidebarRemoteSlot> & {
+    remoteAvailable: boolean
+    remoteSlot: SidebarRemoteSlot
+    onError: RemoteFlowOwnerProps['onError']
+  })
+  | {
+    remoteAvailable?: false
+    remoteSlot?: undefined
+    onError?: undefined
+    renderSlot?: never
+    __renders?: never
+  }
+
+/** Owner-supplied browser props plus an optional, registered remote child slot. */
+export type DirectoryBrowserProps = DirectoryBrowserBaseProps & RemoteChildProps
+
+function renderRemotePane(
+  props: DirectoryBrowserProps,
+  owner: Omit<RemoteFlowOwnerProps, 'onError'>,
+) {
+  if (props.remoteSlot === 'conversation.hero.workspace.directoryFlow.remote') {
+    return props.renderSlot(props.remoteSlot, { ...owner, onError: props.onError })
+  }
+  if (props.remoteSlot === 'sidebar.workspaces.directoryFlow.remote') {
+    return props.renderSlot(props.remoteSlot, { ...owner, onError: props.onError })
+  }
+  return null
 }
 
 /** Failure text from the injected directory operation. */
@@ -285,7 +325,16 @@ function LevelColumn({ entries, selectedPath, busy, onPick, showHidden, filterPr
  * @param props - owner-controlled browser props.
  * @returns the dialog element (null while closed, via Modal).
  */
-export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen, onClose, busy, t }: DirectoryBrowserProps) {
+export function DirectoryBrowser(props: DirectoryBrowserProps) {
+  const { open, listDirectory, createDirectory, onOpen, onClose, busy, t } = props
+  const remoteAvailable = props.remoteAvailable === true
+  // The local/remote tab strip (rendered only while a remote flow occupies
+  // the hole). `remoteVisited` turns the first remote pick into a permanent
+  // mount: the occupant keeps its SSH/machine state alive across tab
+  // switches and dialog closes, hidden rather than unmounted.
+  const [tab, setTab] = useState<'local' | 'remote'>('local')
+  const [remoteVisited, setRemoteVisited] = useState(false)
+  const tabsId = useId()
   // Miller state: the listed level, the selected row in it, and the selected
   // folder's own listing (the right column; null while nothing is selected).
   const [parent, setParent] = useState<DirectoryListing | null>(null)
@@ -597,6 +646,7 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
       setChild(null)
       setCreatingFolder(false)
       setShowHidden(false)
+      setTab('local')
       navigate()
       return
     }
@@ -770,7 +820,41 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
     }
   })
 
-  if (!open) return null
+  // The occupant can unload mid-interaction (its flow entry releases the
+  // remote hole on HMR/dispose): `remote` flips to undefined while `tab`
+  // still says remote. Deriving the ACTIVE pane (instead of trusting the
+  // raw state) is what keeps the local pane reachable in that case —
+  // an unoccupied hole must never blank the dialog.
+  const activeTab = remoteAvailable && tab === 'remote' ? 'remote' : 'local'
+  // The remote pane renders from its first visit on — hidden while the
+  // local tab shows AND while the dialog is closed — so the occupant's
+  // machine and connection state survives every switch and close; the
+  // `open`/`active` flags in its owner share are what it keys chrome on.
+  const remoteNode = remoteAvailable && remoteVisited
+    ? renderRemotePane(props, {
+      open,
+      active: open && activeTab === 'remote',
+      busy,
+      onPicked: onOpen,
+      onCancel: onClose,
+    })
+    : null
+
+  /**
+   * Switch the visible pane. An open path draft belongs to the local pane:
+   * its Escape/blur guards observe the local card only, so switching away
+   * abandons the draft rather than letting it linger under the remote pane.
+   */
+  const pickTab = (next: 'local' | 'remote'): void => {
+    if (next === 'remote') setRemoteVisited(true)
+    if (next === tab) return
+    if (pathDraft !== null) cancelPathEdit()
+    setTab(next)
+  }
+
+  if (!open) {
+    return remoteNode === null ? null : <div className={css.paneHidden}>{remoteNode}</div>
+  }
   const twoPane = selected !== null
   // The nested create dialog owns the interaction while open: Modal has no
   // focus trap, so every parent control goes inert (Shift-Tab or AT must not
@@ -841,202 +925,251 @@ export function DirectoryBrowser({ open, listDirectory, createDirectory, onOpen,
         <div className={css.header}>
           <div className={css.titleRow}>
             <h2 className={css.title}>{t('browser.title')}</h2>
-            <button
-              type="button"
-              className={css.homeJump}
-              aria-label={t('browser.goHome')}
-              title={t('browser.goHome')}
-              disabled={parentInert}
-              onClick={() => { navigate(parent?.home) }}
-            >
-              {t('browser.home')}
-            </button>
+            {remoteAvailable && (
+              <span className={css.tabBar} role="tablist" aria-label={t('browser.title')}>
+                <Pill
+                  role="tab"
+                  id={`${tabsId}-tab-local`}
+                  aria-selected={activeTab === 'local'}
+                  aria-controls={`${tabsId}-panel-local`}
+                  active={activeTab === 'local'}
+                  disabled={parentInert}
+                  onClick={() => { pickTab('local') }}
+                >
+                  {t('browser.tabLocal')}
+                </Pill>
+                <Pill
+                  role="tab"
+                  id={`${tabsId}-tab-remote`}
+                  aria-selected={activeTab === 'remote'}
+                  aria-controls={`${tabsId}-panel-remote`}
+                  active={activeTab === 'remote'}
+                  disabled={parentInert}
+                  onClick={() => { pickTab('remote') }}
+                >
+                  {t('browser.tabRemote')}
+                </Pill>
+              </span>
+            )}
+            {activeTab === 'local' && (
+              <button
+                type="button"
+                className={css.homeJump}
+                aria-label={t('browser.goHome')}
+                title={t('browser.goHome')}
+                disabled={parentInert}
+                onClick={() => { navigate(parent?.home) }}
+              >
+                {t('browser.home')}
+              </button>
+            )}
           </div>
-          <div className={css.crumbBar}>
-            {pathDraft === null
-              ? (
-                <>
-                  <span className={css.crumbTrail} role="navigation" ref={crumbTrailRef}>
-                    {crumbs.map((crumb, index) => (
-                      <span key={crumb.path} className={css.crumbSeat}>
-                        {index > 0 && <IconChevronRightOutline14 size={12} className={css.crumbChevron} />}
-                        <button
-                          type="button"
-                          className={css.crumb}
-                          disabled={parentInert}
-                          onClick={() => { navigate(crumb.path) }}
-                        >
-                          {crumb.name}
-                        </button>
-                      </span>
-                    ))}
-                  </span>
-                  {/* The empty zone right of the crumbs is the path-edit
+          {activeTab === 'local' && (
+            <div className={css.crumbBar}>
+              {pathDraft === null
+                ? (
+                  <>
+                    <span className={css.crumbTrail} role="navigation" ref={crumbTrailRef}>
+                      {crumbs.map((crumb, index) => (
+                        <span key={crumb.path} className={css.crumbSeat}>
+                          {index > 0 && <IconChevronRightOutline14 size={12} className={css.crumbChevron} />}
+                          <button
+                            type="button"
+                            className={css.crumb}
+                            disabled={parentInert}
+                            onClick={() => { navigate(crumb.path) }}
+                          >
+                            {crumb.name}
+                          </button>
+                        </span>
+                      ))}
+                    </span>
+                    {/* The empty zone right of the crumbs is the path-edit
                     * affordance: the whole remainder of the bar clicks into
                     * the editor, and the pencil glyph parked at its right
                     * edge (with the same tooltip) is what says so — an
                     * invisible target the operator must guess at is the one
                     * way into typing a path. */}
-                  <button
-                    type="button"
-                    className={css.crumbEditZone}
+                    <button
+                      type="button"
+                      className={css.crumbEditZone}
+                      aria-label={t('browser.editPath')}
+                      title={t('browser.editPath')}
+                      // Stays available with no listed level: when the home
+                      // listing itself fails, typing an absolute path is the one
+                      // remaining way forward.
+                      disabled={parentInert}
+                      ref={editZoneRef}
+                      onClick={() => {
+                        // Opening the editor supersedes any pending listing: a
+                        // settlement landing before the first keystroke would
+                        // otherwise close the editor via navigate's draft reset.
+                        supersede()
+                        setLoading(false)
+                        previewSuspended.current = false
+                        // Seed with a trailing separator so typing immediately
+                        // continues into child names (and prefix-filters below).
+                        // No listed level means nothing to seed from (the editor
+                        // is the recovery path for a failed home listing).
+                        if (parent === null) {
+                          setPathDraft('')
+                          return
+                        }
+                        const base = selected?.path ?? parent.path
+                        const sep = separatorOf(parent)
+                        setPathDraft(base.endsWith(sep) ? base : `${base}${sep}`)
+                      }}
+                    >
+                      <IconEditOutline16 size={14} className={css.crumbEditGlyph} />
+                    </button>
+                  </>
+                )
+                : (
+                  <input
+                    className={css.pathInput}
+                    value={pathDraft}
                     aria-label={t('browser.editPath')}
-                    title={t('browser.editPath')}
-                    // Stays available with no listed level: when the home
-                    // listing itself fails, typing an absolute path is the one
-                    // remaining way forward.
+                    autoFocus
+                    ref={pathInputRef}
                     disabled={parentInert}
-                    ref={editZoneRef}
-                    onClick={() => {
-                    // Opening the editor supersedes any pending listing: a
-                    // settlement landing before the first keystroke would
-                    // otherwise close the editor via navigate's draft reset.
+                    onChange={(event) => {
+                      // Editing the draft supersedes any in-flight navigation:
+                      // its completion must neither clear the newer text nor
+                      // repopulate the view with the older path.
                       supersede()
                       setLoading(false)
+                      // A fresh edit releases the submission hold: the panes
+                      // may follow the new text wherever it points.
                       previewSuspended.current = false
-                      // Seed with a trailing separator so typing immediately
-                      // continues into child names (and prefix-filters below).
-                      // No listed level means nothing to seed from (the editor
-                      // is the recovery path for a failed home listing).
-                      if (parent === null) {
-                        setPathDraft('')
-                        return
-                      }
-                      const base = selected?.path ?? parent.path
-                      const sep = separatorOf(parent)
-                      setPathDraft(base.endsWith(sep) ? base : `${base}${sep}`)
+                      setPathDraft(event.target.value)
                     }}
-                  >
-                    <IconEditOutline16 size={14} className={css.crumbEditGlyph} />
-                  </button>
-                </>
-              )
-              : (
-                <input
-                  className={css.pathInput}
-                  value={pathDraft}
-                  aria-label={t('browser.editPath')}
-                  autoFocus
-                  ref={pathInputRef}
-                  disabled={parentInert}
-                  onChange={(event) => {
-                  // Editing the draft supersedes any in-flight navigation:
-                  // its completion must neither clear the newer text nor
-                  // repopulate the view with the older path.
-                    supersede()
-                    setLoading(false)
-                    // A fresh edit releases the submission hold: the panes
-                    // may follow the new text wherever it points.
-                    previewSuspended.current = false
-                    setPathDraft(event.target.value)
-                  }}
-                  {...compositionGuard}
-                  // Escape and focus-leave cancellation live on the card-scope
-                  // wrapper above (they must work after focus Tabs onto the
-                  // rows); this handler owns only submission.
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !composingRef.current) {
-                      event.preventDefault()
-                      // Trim only detects a blank draft; the Host gets the
-                      // original text — a real directory name may end in
-                      // whitespace, and trimming would list its sibling.
-                      if (pathDraft.trim() !== '') {
+                    {...compositionGuard}
+                    // Escape and focus-leave cancellation live on the card-scope
+                    // wrapper above (they must work after focus Tabs onto the
+                    // rows); this handler owns only submission.
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !composingRef.current) {
+                        event.preventDefault()
+                        // Trim only detects a blank draft; the Host gets the
+                        // original text — a real directory name may end in
+                        // whitespace, and trimming would list its sibling.
+                        if (pathDraft.trim() !== '') {
                         // Success will unmount the still-focused input; park
                         // focus on the returning crumb edit zone (a failure
                         // keeps the editor, so the flag waits until close).
-                        refocusEditZone.current = true
-                        // The submitted path owns the view now: a debounce
-                        // timer still pending from these keystrokes would
-                        // otherwise supersede this navigation and land the
-                        // draft's parent directory instead.
-                        previewSuspended.current = true
-                        navigate(pathDraft)
+                          refocusEditZone.current = true
+                          // The submitted path owns the view now: a debounce
+                          // timer still pending from these keystrokes would
+                          // otherwise supersede this navigation and land the
+                          // draft's parent directory instead.
+                          previewSuspended.current = true
+                          navigate(pathDraft)
+                        }
                       }
-                    }
-                  }}
-                />
-              )}
-          </div>
+                    }}
+                  />
+                )}
+            </div>
+          )}
         </div>
-        <div className={css.content}>
-          <div className={css.millerRow} ref={millerRowRef}>
-            {parent !== null && (
-              <LevelColumn
-                entries={parent.entries}
-                selectedPath={selected?.path ?? null}
-                busy={parentInert}
-                onPick={select}
-                showHidden={showHidden}
-                filterPrefix={child === null ? typedPrefix : null}
-                pathEditing={draftPending}
-              />
-            )}
-            {twoPane && <span className={css.divider} />}
-            {twoPane && child !== null && (
-              <LevelColumn
-                entries={child.entries}
-                selectedPath={null}
-                busy={parentInert}
-                onPick={advance}
-                showHidden={showHidden}
-                filterPrefix={typedPrefix}
-                pathEditing={draftPending}
-              />
-            )}
-          </div>
-          {loading && slowScan
+        {activeTab === 'local' && (
+          <div
+            className={css.localPane}
+            role="tabpanel"
+            id={`${tabsId}-panel-local`}
+            aria-labelledby={`${tabsId}-tab-local`}
+          >
+            <div className={css.content}>
+              <div className={css.millerRow} ref={millerRowRef}>
+                {parent !== null && (
+                  <LevelColumn
+                    entries={parent.entries}
+                    selectedPath={selected?.path ?? null}
+                    busy={parentInert}
+                    onPick={select}
+                    showHidden={showHidden}
+                    filterPrefix={child === null ? typedPrefix : null}
+                    pathEditing={draftPending}
+                  />
+                )}
+                {twoPane && <span className={css.divider} />}
+                {twoPane && child !== null && (
+                  <LevelColumn
+                    entries={child.entries}
+                    selectedPath={null}
+                    busy={parentInert}
+                    onPick={advance}
+                    showHidden={showHidden}
+                    filterPrefix={typedPrefix}
+                    pathEditing={draftPending}
+                  />
+                )}
+              </div>
+              {loading && slowScan
           && <div className={clsx(css.status, css.loadingFloat)} role="status">{t('browser.loading')}</div>}
-          {/* The backend bounds a level at its complete-result limit; say so
+              {/* The backend bounds a level at its complete-result limit; say so
           * whenever a visible pane was cut instead of letting the tail of a
           * huge directory go silently missing. The note describes the panes
           * on screen, so an in-flight scan leaves it alone — hiding it while
           * the stale view still shows the cut level would shift the columns
           * on every navigation away from it. */}
-          {(parent?.truncated === true || child?.truncated === true)
+              {(parent?.truncated === true || child?.truncated === true)
           && <div className={css.status} role="status">{t('browser.truncated')}</div>}
-          {error !== null && <div className={css.error} role="alert">{error}</div>}
-        </div>
-        <div className={css.footerBar}>
-          <Button
-            variant="outline"
-            icon={<IconPlusOutline16 size={14} />}
-            disabled={parent === null || loading || parentInert || draftPending || volumePickerIdle}
-            onClick={() => {
-              setFolderDraft('')
-              setCreateError(null)
-            }}
-          >
-            {t('browser.newFolder')}
-          </Button>
-          <button
-            type="button"
-            className={clsx(css.showHiddenToggle, showHidden && css.showHiddenToggleActive)}
-            aria-pressed={showHidden}
-            disabled={parentInert}
-            // The toggle composes with the path editor (dot-led prefixes and
-            // this filter interleave): while editing, don't steal focus, so
-            // toggling never blur-cancels a draft mid-thought. Outside editing
-            // it keeps native focus behavior.
-            onMouseDown={draftPending ? (event) => { event.preventDefault() } : undefined}
-            onClick={() => { setShowHidden(prev => !prev) }}
-          >
-            {t('browser.showHidden')}
-            {/* Trailing check (Menu's selected vocabulary): the label never
+              {error !== null && <div className={css.error} role="alert">{error}</div>}
+            </div>
+            <div className={css.footerBar}>
+              <Button
+                variant="outline"
+                icon={<IconPlusOutline16 size={14} />}
+                disabled={parent === null || loading || parentInert || draftPending || volumePickerIdle}
+                onClick={() => {
+                  setFolderDraft('')
+                  setCreateError(null)
+                }}
+              >
+                {t('browser.newFolder')}
+              </Button>
+              <button
+                type="button"
+                className={clsx(css.showHiddenToggle, showHidden && css.showHiddenToggleActive)}
+                aria-pressed={showHidden}
+                disabled={parentInert}
+                // The toggle composes with the path editor (dot-led prefixes and
+                // this filter interleave): while editing, don't steal focus, so
+                // toggling never blur-cancels a draft mid-thought. Outside editing
+                // it keeps native focus behavior.
+                onMouseDown={draftPending ? (event) => { event.preventDefault() } : undefined}
+                onClick={() => { setShowHidden(prev => !prev) }}
+              >
+                {t('browser.showHidden')}
+                {/* Trailing check (Menu's selected vocabulary): the label never
               * shifts when the pressed state toggles. */}
-            {showHidden && <IconCheckOutline16 size={14} />}
-          </button>
-          <span className={css.footerGap} />
-          <Button variant="outline" className={clsx(css.footerAction)} disabled={parentInert} onClick={onClose}>{t('browser.cancel')}</Button>
-          <Button
-            variant="primary"
-            className={clsx(css.footerAction)}
-            disabled={confirmBlocked}
-            /* v8 ignore next -- narrowing guard: Open disables while no target exists. */
-            onClick={() => { if (targetPath !== null) onOpen(targetPath) }}
+                {showHidden && <IconCheckOutline16 size={14} />}
+              </button>
+              <span className={css.footerGap} />
+              <Button variant="outline" className={clsx(css.footerAction)} disabled={parentInert} onClick={onClose}>{t('browser.cancel')}</Button>
+              <Button
+                variant="primary"
+                className={clsx(css.footerAction)}
+                disabled={confirmBlocked}
+                /* v8 ignore next -- narrowing guard: Open disables while no target exists. */
+                onClick={() => { if (targetPath !== null) onOpen(targetPath) }}
+              >
+                {t('browser.open')}
+              </Button>
+            </div>
+          </div>
+        )}
+        {remoteNode !== null && (
+          <div
+            className={clsx(css.remotePane, activeTab !== 'remote' && css.paneHidden)}
+            role="tabpanel"
+            id={`${tabsId}-panel-remote`}
+            aria-labelledby={`${tabsId}-tab-remote`}
           >
-            {t('browser.open')}
-          </Button>
-        </div>
+            {remoteNode}
+          </div>
+        )}
       </div>
       {/* Nested create dialog (figma 813:23278): names one folder inside the target. */}
       <Modal

@@ -19,6 +19,7 @@ const {
   resolveResourcesDir,
   restoreVendoredPluginNodeModules,
   installPluginRuntimeDeps,
+  pruneVendoredPluginBuildDeps,
 } = require('../../scripts/after-pack');
 
 const RC7_PIN = { npm: '0.1.0-rc.7' };
@@ -507,6 +508,75 @@ test('restoreVendoredPluginNodeModules copies dropped plugin node_modules', (t) 
   );
 });
 
+test('pruneVendoredPluginBuildDeps removes dsh-remote source, docs, tests, and build-only deps while keeping runtime SSH files and licenses', (t) => {
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-prune-'));
+  t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));
+  const pluginDir = path.join(workspace, 'vendor', 'dsh-remote');
+  const nodeModules = path.join(pluginDir, 'node_modules');
+  for (const entry of ['esbuild', '@esbuild/win32-x64', '.bin', 'cpu-features', 'buildcheck', 'nan']) {
+    fs.mkdirSync(path.join(nodeModules, entry), { recursive: true });
+    fs.writeFileSync(path.join(nodeModules, entry, 'entry.txt'), 'build-only');
+  }
+  fs.writeFileSync(path.join(nodeModules, '.package-lock.json'), '{}\n');
+  for (const name of ['asn1', 'bcrypt-pbkdf']) {
+    fs.mkdirSync(path.join(nodeModules, name), { recursive: true });
+    fs.writeFileSync(path.join(nodeModules, name, 'package.json'), JSON.stringify({ name }) + '\n');
+    fs.writeFileSync(path.join(nodeModules, name, 'index.js'), 'module.exports = {};');
+  }
+  fs.mkdirSync(path.join(pluginDir, 'plugin-src', 'client'), { recursive: true });
+  fs.mkdirSync(path.join(pluginDir, 'examples'), { recursive: true });
+  fs.mkdirSync(path.join(pluginDir, 'lib'), { recursive: true });
+  for (const name of ['README.md', 'README.zh.md', 'CHANGELOG.md', 'DESKTOP-FORK.md', 'package-lock.json']) {
+    fs.writeFileSync(path.join(pluginDir, name), 'documentation or build metadata');
+  }
+  fs.writeFileSync(path.join(pluginDir, 'LICENSE'), 'plugin license');
+  fs.writeFileSync(path.join(pluginDir, 'lib', 'index.js'), 'export const runtime = true;\n');
+  fs.writeFileSync(path.join(pluginDir, 'lib', 'index.test.js'), 'test');
+
+  const ssh2Dir = path.join(nodeModules, 'ssh2');
+  for (const entry of ['test/fixtures', 'examples', 'lib/protocol', 'util']) {
+    fs.mkdirSync(path.join(ssh2Dir, entry), { recursive: true });
+  }
+  fs.writeFileSync(path.join(ssh2Dir, 'package.json'), '{"name":"ssh2"}\n');
+  fs.writeFileSync(path.join(ssh2Dir, 'LICENSE'), 'ssh2 license');
+  fs.writeFileSync(path.join(ssh2Dir, 'lib', 'client.js'), 'module.exports = {};\n');
+  fs.writeFileSync(path.join(ssh2Dir, 'lib', 'protocol', 'kex.js'), 'module.exports = {};\n');
+  fs.writeFileSync(path.join(ssh2Dir, 'test', 'fixtures', 'id_rsa'), 'fixture key');
+  fs.writeFileSync(path.join(ssh2Dir, 'examples', 'client.js'), 'example');
+  fs.writeFileSync(path.join(ssh2Dir, 'README.md'), 'ssh2 docs');
+  fs.writeFileSync(path.join(ssh2Dir, 'SFTP.md'), 'ssh2 SFTP docs');
+  fs.writeFileSync(path.join(ssh2Dir, 'util', 'pagent.c'), 'source');
+  fs.writeFileSync(path.join(ssh2Dir, 'util', 'build_pagent.bat'), 'build script');
+  fs.writeFileSync(path.join(ssh2Dir, 'util', 'pagent.exe'), 'Pageant runtime helper');
+
+  const result = pruneVendoredPluginBuildDeps(workspace, 'dsh-remote');
+  for (const entry of ['esbuild', '@esbuild', '.bin', '.package-lock.json', 'cpu-features', 'buildcheck', 'nan']) {
+    assert.equal(fs.existsSync(path.join(nodeModules, entry)), false, entry + ' should be removed');
+  }
+  for (const entry of [
+    'plugin-src', 'examples', 'README.md', 'README.zh.md', 'CHANGELOG.md',
+    'DESKTOP-FORK.md', 'package-lock.json', path.join('lib', 'index.test.js'),
+    path.join('node_modules', 'ssh2', 'test'), path.join('node_modules', 'ssh2', 'examples'),
+    path.join('node_modules', 'ssh2', 'README.md'), path.join('node_modules', 'ssh2', 'SFTP.md'),
+    path.join('node_modules', 'ssh2', 'util', 'pagent.c'),
+    path.join('node_modules', 'ssh2', 'util', 'build_pagent.bat'),
+  ]) {
+    assert.equal(fs.existsSync(path.join(pluginDir, entry)), false, entry + ' should be removed');
+  }
+  for (const entry of [
+    'LICENSE', path.join('lib', 'index.js'),
+    path.join('node_modules', 'ssh2', 'LICENSE'),
+    path.join('node_modules', 'ssh2', 'package.json'),
+    path.join('node_modules', 'ssh2', 'lib', 'client.js'),
+    path.join('node_modules', 'ssh2', 'lib', 'protocol', 'kex.js'),
+    path.join('node_modules', 'ssh2', 'util', 'pagent.exe'),
+    path.join('node_modules', 'asn1', 'package.json'),
+    path.join('node_modules', 'bcrypt-pbkdf', 'package.json'),
+  ]) {
+    assert.equal(fs.existsSync(path.join(pluginDir, entry)), true, entry + ' must remain for runtime/licensing');
+  }
+  assert.ok(result.removed.length > 0);
+});
 test('assertVendoredPluginRuntimeDeps rejects a packaged plugin without its dependencies', (t) => {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'after-pack-plugin-missing-'));
   t.after(() => fs.rmSync(workspace, { recursive: true, force: true }));

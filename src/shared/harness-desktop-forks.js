@@ -60,6 +60,12 @@ const FORK_FILE_MARKERS = [
   { file: 'packages/client/ui-settings-general/src/client/AutoStartDesktopRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-settings-general/src/client/HarnessRestartRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-settings-general/src/client/AboutSection.tsx', includes: ['openDshHome'] },
+  // The SSH workspace row is a desktop fork of the upstream settings shell.
+  { file: 'packages/client/ui-settings-general/src/client/RemoteWorkspaceRow.tsx', includes: ['remoteWorkspaceEnabled'] },
+  { file: 'packages/client/ui-settings-general/src/client/RemoteWorkspaceRow.module.css', includes: [] },
+  { file: 'packages/client/ui-settings-general/src/client/index.ts', includes: ['RemoteWorkspaceRow'] },
+  { file: 'packages/client/ui-settings-general/src/client/locales.ts', includes: ['remoteWorkspace.title'] },
+  { file: 'packages/client/ui-settings-general/src/client/desktop-shell.ts', includes: ['remoteWorkspaceEnabled'] },
   { file: 'packages/client/locale/src/client/LanguageRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-conversation/src/client/settings/EnterBehaviorRow.tsx', includes: ['SettingsSelect'] },
   { file: 'packages/client/ui-permission-presets/src/client/PermissionRow.tsx', includes: ['SettingsSelect'] },

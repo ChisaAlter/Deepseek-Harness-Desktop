@@ -93,8 +93,8 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 1. §1 安装/升级/卸载抽检（含 TC-INST-012 同版本 overlay、TC-INST-013 bundled node）→ §2 模型 → §3 工作区（含 TC-WS-006）  
 2. §4 附录多轮对话（最长，优先；在 TC-WS-006 仓库会话里）  
 3. §5～§8 会话 / 审批 / Git / Surfaces / 终端  
-4. §9 外观与壁纸 → §10 扩展与 dshbot → §11 托盘/关闭/更新  
-5. §12 负向与持久化 → §13 已知不测核对 → §16 签字  
+4. §9 外观与壁纸 → §10 扩展与 dshbot → §11 托盘/关闭/更新
+5. §12 负向、远程与韧性；SSH 用例需另备获准的隔离 fixture → §13 已知不测核对 → §16 签字
 
 ---
 
@@ -984,6 +984,72 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 
 **期望：** 审批不另开整页模态；桌面 pending 同步消失。
 
+### SSH 远程工作区验收约定
+
+`TC-RW-*` 验收对象同样必须是 §0.1 的已安装 CI Windows artifact。涉及 SSH 的用例必须使用获准的隔离测试机和专属临时目录；任何未获准的主机都不得尝试连接。输入凭据走安全通道，日志、截图、报告不得留下密码、私钥或 token。没有测试机时记录 **NOT RUN（not PASS）**，不得记 Pass 或 N/A。
+
+以下 SSH 生产用例当前均未执行（**NOT RUN**）。源码测试使用 fake SSH/SFTP client，不能代替这里的真实 SSH、端口转发或安装包 UI 验收。API runner 在缺少环境配置时也会输出 `NOT RUN (not PASS)`；只有带隔离 fixture 并确认清理完成，才能作为相应 API 步骤的证据。
+
+### TC-RW-001 · SSH 开关、默认值与挂载 · P1
+
+**步骤：** 在新安装 profile 中打开通用 → 界面设置，确认「远程工作区（SSH）」默认开启。关闭并等待 Harness 重启；打开「添加工作区」检查本机目录选择仍可用、远程入口不可用。重新打开开关并等待重启，确认设置 →「远程工作区」与远程 picker 恢复。再选择一次 skip-user-plugins 恢复启动，确认内置 remote 能力仍挂载。若可检查启动记录，确认没有把用户层 `cordis.patch.yml` 当内置 overlay 写入。
+
+**期望：** 开关状态重启后持久；开关关闭只关闭内置 SSH 插件，不影响 Harness 与本机目录选择；完整和 skip 启动均按开关状态挂载。
+
+### TC-RW-002 · 添加机器、保存凭据并测试连接 · P1
+
+**前置：** 获准的隔离 SSH fixture，具备验收用账号和可清理的测试目录。
+
+**步骤：** 设置 →「远程工作区」新增机器，保存 fixture host、port、user 与验收凭据；执行「测试连接」并把该机器设为当前。使用独立的临时机器记录测试一次错误凭据，再测试无法到达的 fixture 地址。检查密码加密选项与存储失败时的提示，不截取秘密或错误命令行；确认活动机器和数据位于桌面 `$DSH_HOME/remote-workspaces`。
+
+**期望：** 按保存机器的 `machineId` 测试并成功连接；错误能区分认证与网络问题，不泄露凭据；设为当前的机器状态可持久化。测试结束后删除临时机器记录与凭据。
+
+### TC-RW-003 · 远程目录 picker 与本机 picker · P1
+
+**步骤：** 在「添加工作区」打开远程 tab，选择测试机器，使用路径导航进入 fixture 目录；新建一个测试子目录并选中。记录生成的本地镜像路径，再在本机 tab 选择一个普通临时目录。
+
+**期望：** 远程选择收养 `$DSH_HOME/remote-workspaces/<host>-<user>-<port>/<basename>` 下的镜像为 workspace；本机 tab 继续使用页内浏览，行为不退回系统对话框。关闭 SSH 开关时 picker 仍可选本机目录。
+
+### TC-RW-004 · 远程上下文、工具操作与审计 · P1
+
+**前置：** 已完成 TC-RW-003；fixture 目录中只有可丢弃的测试文件。
+
+**步骤：** 在远程镜像 workspace 新建会话，确认 cwd 是镜像路径；让模型列目录、读取 fixture 文件，再用 `rw_write_file` 写入独有的临时文件。运行一次同步，然后在设置「远程工作区」中查看最近审计记录。
+
+**期望：** 远程上下文只出现在 cwd 位于已绑定镜像的会话；`rw_list_dir`、`rw_read_file` 与 `rw_write_file` 可作用于对应 fixture；临时远端文件出现且 audit 记录目标机器与写操作。非 fixture 目录不得读写。
+
+### TC-RW-005 · 镜像冲突与侧栏远程文件编辑 · P1
+
+**前置：** 已完成 TC-RW-003；运行一个会主动修改指定 fixture 文件的外部 SFTP 会话。
+
+**步骤：** 在镜像与远端同时修改同一路径，调用 `rw_sync` 或 `rw_push`。然后在右侧「远程文件」tab 打开另一个 fixture 文件；在桌面编辑尚未保存时，从外部 SFTP 修改该文件，再点保存。
+
+**期望：** 同步明确报告三路冲突，双方内容均保留；远程文件编辑因 mtime 变化拒绝覆盖并提示重读（409），重读后可重新编辑保存。不得用 `force=true` 把冲突记成通过。
+
+### TC-RW-006 · 主机指纹变更与 verify 策略 · P1
+
+**前置：** 测试 fixture 支持在两轮之间轮换 SSH host key，且其操作者授权该操作。
+
+**步骤：** 用 `accept-new` 首次连接并信任 fixture key；停止 fixture、换 key 后重启，再连接。另建一条使用 `verify` 策略且尚无已知 key 的机器记录尝试连接。
+
+**期望：** 已信任 key 变化后连接立即被拒绝，原 known-host 记录不被覆盖；`verify` 对未知 key 拒绝且不自动写入信任记录。
+
+### TC-RW-007 · 本地端口转发与审计 · P1
+
+**前置：** 已获准的 fixture 上运行一个仅供测试的 echo 服务；转发端口使用临时空闲端口。
+
+**步骤：** 在「远程工作区」创建并启动 local forward，连接本机 `127.0.0.1:<临时端口>` 请求 echo 服务；确认转发监听地址与 fixture 目标后停止并删除该规则。查看 audit log。
+
+**期望：** 本地转发只绑定 `127.0.0.1`，可到达授权 echo 服务；停止后端口不再监听；启动、停止或失败操作有目标机器审计记录。
+
+### TC-RW-008 · Skip-user-plugins 恢复保留内置远程能力 · P1（造障）
+
+**前置：** 独立 disposable profile、可恢复的已安装 CI 包和获准的隔离 SSH fixture。不得对日常 profile 造障。
+
+**步骤：** 在该 profile 安装一个无效的用户插件以触发插件树恢复；选择 skip-user-plugins 启动后，打开内置「远程工作区」并对 fixture 执行只读连接测试。随后移除无效用户插件并重试完整启动。
+
+**期望：** skip 模式跳过用户插件，但内置 `dsh-remote` 仍可用；恢复完整插件后连接仍可用。若无法安全隔离造障则记 Blocked 并说明原因，不得静默略过。
+
 ### TC-NEG-002 · Harness 崩溃恢复 · P0（造障）
 
 **步骤：** 结束 dsh/harness 子进程。
@@ -1041,6 +1107,7 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | `qa:composer` / `qa:appendix` / `qa:shell` | 同源码 Electron；附录即使五轮绿 | 不构成 TC-CHAT-* / 托盘 / 恢复的**安装包** Pass |
 | `smoke:packaged` | `dist/win-unpacked` + 单 Git 工作区 UI/PTY | 不是 CI artifact；捕不到兄弟仓 Git/PTY |
 | `qa:packaged` | 本机 `win-unpacked`：无戳 extract、预写 `workspace.json` 兄弟仓、`gitBranchList`、PTY、Ghostty 200、`--no-open` | rehearsal 可以；**GREEN 也不能**填本表 Pass，更不能把本机包当 CI 包发布 |
+| `node scripts/verify-remote-workspace-live.cjs --require-live` | 在配置 `DSHR_TEST_*` 后对真实 Harness / SSH fixture 执行 API 路由验收并清理临时状态；没配环境时明确输出 `NOT RUN (not PASS)` | 只有配置已获准 fixture 且记录该 CI artifact SHA 才能证明 API 级实机步骤；不覆盖安装包 picker、设置 toggle、侧栏文件 UI 或视觉验收 |
 | 本机 `npm run dist` | 本机 Node + afterPack `process.execPath` | 与 `release.yml` windows job **不是同一 SHA** |
 
 **源码套件缺陷（修 walker 的待办，不在走本表时改代码）：**
@@ -1173,6 +1240,14 @@ Pass 的证据种类只能是 `CI artifact SHA + 已装 exe`。
 | TC-REM-001 | P0 | N/A |  | 产品停放 | Auto | 2026-08-31 |
 | TC-REM-002 | P0 | N/A |  | 产品停放 | Auto | 2026-08-31 |
 | TC-REM-003 | P1 | N/A |  | 产品停放 | Auto | 2026-08-31 |
+| TC-RW-001 | P1 |  |  | NOT RUN；待已安装 CI artifact 与生产 UI 验收 |  |  |
+| TC-RW-002 | P1 |  |  | NOT RUN；需获准隔离 SSH fixture |  |  |
+| TC-RW-003 | P1 |  |  | NOT RUN；需获准隔离 SSH fixture |  |  |
+| TC-RW-004 | P1 |  |  | NOT RUN；需获准隔离 SSH fixture |  |  |
+| TC-RW-005 | P1 |  |  | NOT RUN；需获准隔离 SSH fixture |  |  |
+| TC-RW-006 | P1 |  |  | NOT RUN；需支持换 key 的获准 fixture |  |  |
+| TC-RW-007 | P1 |  |  | NOT RUN；需获准隔离 SSH fixture 与 echo 服务 |  |  |
+| TC-RW-008 | P1 |  |  | NOT RUN；需 disposable profile 与获准 fixture |  |  |
 | TC-NEG-002 | P0 造障 | Blocked |  | 未杀 dsh 造障 | Trent | 2026-08-31 |
 | TC-NEG-003 | P1 |  |  |  | Trent | 2026-08-31 |
 | TC-NEG-004 | P2 |  |  |  | Trent | 2026-08-31 |

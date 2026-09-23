@@ -54,6 +54,8 @@ const DEFAULTS = {
   // Whale assistant (R3) — off by default so it can never silently hijack
   // IM routing or spawn a session before the feature card ships.
   whaleAssistantEnabled: false,
+  // SSH workspace plugin is built in. This is separate from phone pairing.
+  remoteWorkspaceEnabled: true,
   pet: {
     enabled: true,
     xRatio: 0.82,
@@ -128,7 +130,7 @@ function normalizeRendererConfigPatch(patch) {
   }
   const next = {};
   for (const [key, value] of Object.entries(patch)) {
-    if (['closeToTray', 'openAtLogin', 'openDevTools', 'harnessAutoRestart', 'autoStartDesktop', 'dshbotEnabled', 'whaleAssistantEnabled'].includes(key)) {
+    if (['closeToTray', 'openAtLogin', 'openDevTools', 'harnessAutoRestart', 'autoStartDesktop', 'dshbotEnabled', 'whaleAssistantEnabled', 'remoteWorkspaceEnabled'].includes(key)) {
       if (typeof value !== 'boolean') {
         throw new TypeError(`${key} must be a boolean`);
       }
@@ -268,12 +270,13 @@ function normalizeDisabledPlugins(list) {
   const { withoutDshImAliases } = require('./dsh-im-desktop');
   const { withoutDshbotAliases } = require('./dshbot-desktop');
   const { withoutDshWhaleAliases } = require('./dsh-whale-desktop');
+  const { withoutDshRemoteAliases } = require('./dsh-remote-desktop');
   const { withoutUsagePanelAliases } = require('./usage-panel-preset');
-  return [...new Set(withoutDshWhaleAliases(withoutDshbotAliases(withoutUsagePanelAliases(withoutDshImAliases(
+  return [...new Set(withoutDshRemoteAliases(withoutDshWhaleAliases(withoutDshbotAliases(withoutUsagePanelAliases(withoutDshImAliases(
     (Array.isArray(list) ? list : [])
       .map((name) => String(name || '').trim())
       .filter(Boolean),
-  )))))];
+  ))))))];
 }
 
 function normalizeLauncherSettings(config) {

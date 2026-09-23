@@ -3,18 +3,25 @@
  * two directory-flow holes with the in-app Select Workspace Directory dialog
  * (figma `Harness` 813-23126 family), driving the node half's
  * `directoryPicker/list`/`directoryPicker/createDirectory` primitives.
- * Mounting this package therefore composes both sides of the browse
- * interaction with one cordis.yml row; no client code branches on a
- * capability kind. The dialog's copy is locale-registered here — the flow
- * package owns its own strings.
+ * Each flow entry also declares a `.remote` child hole so a remote-workspace
+ * plugin mounts a remote pane inside the same dialog, reached through the
+ * dialog's local/remote tab strip — an empty remote hole leaves the strip
+ * unrendered and the local pane alone. Mounting this package therefore
+ * composes both sides of the browse interaction with one cordis.yml row; no
+ * client code branches on a capability kind. The dialog's copy is
+ * locale-registered here — the flow package owns its own strings.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the SlotMap merge declaring the directory-flow holes.
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 // Type-only: pulls the SlotRegistry service merge (ctx.slots).
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
+import type {} from './contract/slots.ts'
 import type { BrowseFlowInjected } from './flow.ts'
-import { BrowseDirectoryFlow } from './flow.ts'
+import { BrowseDirectoryFlowHero, BrowseDirectoryFlowSidebar } from './flow.ts'
+import type { RemoteFlowSlotName } from './contract/slots.ts'
+export type { RemoteFlowOwnerProps, RemoteFlowSlotName } from './contract/slots.ts'
 
 /** Locale namespace owning the browser dialog's copy. */
 const LOCALE_NS = 'directory-browser'
@@ -51,6 +58,8 @@ export function apply(ctx: ClientContext): void {
         'browser.loading': '加载中…',
         'browser.truncated': '文件夹过多，仅显示开头部分。',
         'browser.showHidden': '显示隐藏文件',
+        'browser.tabLocal': '本机',
+        'browser.tabRemote': '远程',
       }],
       ['en', {
         'browser.title': 'Select Workspace Directory',
@@ -68,6 +77,8 @@ export function apply(ctx: ClientContext): void {
         'browser.loading': 'Loading…',
         'browser.truncated': 'Too many folders to list; only the beginning is shown.',
         'browser.showHidden': 'Show hidden files',
+        'browser.tabLocal': 'Local',
+        'browser.tabRemote': 'Remote',
       }],
     ]
     try {
@@ -79,21 +90,40 @@ export function apply(ctx: ClientContext): void {
     return () => { for (const dispose of disposers) dispose() }
   }, 'directory-picker-browse: dialog dictionaries')
 
-  const injected = (): BrowseFlowInjected => ({
+  // Each flow entry declares its own `.remote` child hole (the registry
+  // rejects a child key declared twice, so one shared key cannot serve both
+  // parents). The dialog renders the hole through its local/remote tab
+  // strip; an unoccupied hole leaves the strip unrendered and the local
+  // pane alone. Occupancy rides a HostObservable per hole, the same shape
+  // ui-workspace uses for the flow holes themselves.
+  const remoteFlowSource = (hole: RemoteFlowSlotName): HostObservable<boolean> => ({
+    getSnapshot: () => ctx.slots.entries(hole).length > 0,
+    subscribe: listener => ctx.slots.subscribe(hole, listener),
+  })
+  const injected = (remoteHole: RemoteFlowSlotName) => (): BrowseFlowInjected => ({
     listDirectory: (path, signal) => ctx.uiWorkspace.listDirectory(path, signal),
     createDirectory: (path, name) => ctx.uiWorkspace.createDirectory(path, name),
+    hooks: { remoteFlow: remoteFlowSource(remoteHole) },
     t: ctx.locale.bind(LOCALE_NS),
   })
-  // Both declaration lifetimes must be live before the pair installs; the
+  // All declaration lifetimes must be live before the pair installs; the
   // generator makes the two registrations one transactional effect. The
   // outer/inner nesting order is arbitrary; neither hole has precedence.
   ctx.slots.inject('conversation.hero.workspace.directoryFlow', () =>
     ctx.slots.inject('sidebar.workspaces.directoryFlow', function* () {
       yield ctx.slots.register({
-        name: 'conversation.hero.workspace.directoryFlow', inject: injected,
-      }, BrowseDirectoryFlow)
+        name: 'conversation.hero.workspace.directoryFlow',
+        children: {
+          'conversation.hero.workspace.directoryFlow.remote': { kind: 'single', scope: 'root' },
+        },
+        inject: injected('conversation.hero.workspace.directoryFlow.remote'),
+      }, BrowseDirectoryFlowHero)
       yield ctx.slots.register({
-        name: 'sidebar.workspaces.directoryFlow', inject: injected,
-      }, BrowseDirectoryFlow)
+        name: 'sidebar.workspaces.directoryFlow',
+        children: {
+          'sidebar.workspaces.directoryFlow.remote': { kind: 'single', scope: 'root' },
+        },
+        inject: injected('sidebar.workspaces.directoryFlow.remote'),
+      }, BrowseDirectoryFlowSidebar)
     }))
 }

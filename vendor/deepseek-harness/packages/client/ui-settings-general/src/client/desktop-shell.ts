@@ -127,6 +127,12 @@ export type DesktopConfig = {
    * the shell restarts Harness after this field changes.
    */
   whaleAssistantEnabled?: boolean
+  /**
+   * Whether the desktop mounts the built-in dsh-remote SSH remote-workspace
+   * plugin (default on); the shell restarts Harness after this field
+   * changes. Distinct from `remoteEnabled`, the phone/LAN pairing flag.
+   */
+  remoteWorkspaceEnabled?: boolean
   /** Desktop pet state — `settings` is written via saveLive2dPetSettings. */
   live2dPet?: Live2dPetConfig
   /**

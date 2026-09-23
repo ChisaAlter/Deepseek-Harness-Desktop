@@ -35,6 +35,7 @@ import { InterfaceSection } from './InterfaceSection.tsx'
 import { CloseBehaviorRow } from './CloseBehaviorRow.tsx'
 import { AutoStartDesktopRow } from './AutoStartDesktopRow.tsx'
 import { DshbotRow } from './DshbotRow.tsx'
+import { RemoteWorkspaceRow } from './RemoteWorkspaceRow.tsx'
 import { PetSection } from './PetSection.tsx'
 import type { PetSectionInjected } from './PetSection.tsx'
 import { AboutSection } from './AboutSection.tsx'
@@ -248,6 +249,12 @@ export function apply(ctx: ClientContext): void {
       order: 80,
       locale: NS,
     }, DshbotRow))
+    ctx.slots.inject('settings.interface.item', () => ctx.slots.register({
+      name: 'settings.interface.item',
+      id: 'remote-workspace',
+      order: 81,
+      locale: NS,
+    }, RemoteWorkspaceRow))
   }
   // The desktop-only Harness auto-recovery row: registered only when the
   // desktop bridge exposes both config directions — a plain browser has no

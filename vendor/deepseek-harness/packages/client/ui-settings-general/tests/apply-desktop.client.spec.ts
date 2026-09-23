@@ -9,6 +9,7 @@ import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-general/clien
 import { CloseBehaviorRow } from '../src/client/CloseBehaviorRow.tsx'
 import { AutoStartDesktopRow } from '../src/client/AutoStartDesktopRow.tsx'
 import { DshbotRow } from '../src/client/DshbotRow.tsx'
+import { RemoteWorkspaceRow } from '../src/client/RemoteWorkspaceRow.tsx'
 import { PetSection } from '../src/client/PetSection.tsx'
 import type { PetSectionInjected } from '../src/client/PetSection.tsx'
 
@@ -78,9 +79,15 @@ describe('ui-settings-general desktop close-behavior row', () => {
     expect(botRow.component).toBe(DshbotRow)
     expect(botRow.options).toMatchObject({ id: 'dshbot', order: 80 })
     expect(botRow.locale).toBe('settings')
+    const remoteWorkspaceRow = b.slots.entries('settings.interface.item')
+      .find(row => row.options.id === 'remote-workspace')!
+    expect(remoteWorkspaceRow.component).toBe(RemoteWorkspaceRow)
+    expect(remoteWorkspaceRow.options).toMatchObject({ id: 'remote-workspace', order: 81 })
+    expect(remoteWorkspaceRow.locale).toBe('settings')
     await fiber.dispose()
     expect(b.slots.entries('settings.general.item')).toEqual([])
     expect(b.slots.entries('settings.interface.item')).toEqual([])
+    expect(b.slots.entries('settings.interface.item').find(row => row.options.id === 'remote-workspace')).toBeUndefined()
   })
 
   it('withholds the row without a persistable desktop shell', async () => {

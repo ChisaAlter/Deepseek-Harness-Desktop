@@ -281,6 +281,12 @@ only navigation hosting, scanning/media capture, keyboard and lifecycle duties.
 Web and Android have separate acceptance evidence; historical exclusions are not
 passing results for the new delivery.
 
+## SSH remote workspace
+
+Remote Workspace adds flows within desktop settings and the directory picker. It uses the Harness Web UI settings rows, segmented controls, inputs, menus, modals, and sidebar file primitives. The picker's Local / Remote tabs share the existing local browser hierarchy; when the remote feature is off or the plugin is absent, only the existing local flow appears. Machine forms, path completion, file conflicts, and connection errors use `ui-primitives` and ordinary `--dsw-alias-*` state feedback. They do not introduce separate desktop chrome, a card grid, or another palette.
+
+The remote file page uses the existing sidebar tabs and file editor layout. The close control stays to the right of the title. Connection state, host-key rejection, and write conflicts must explain the issue in place and offer the corresponding action; failures must not appear as empty lists. This SSH mirror feature does not reuse the mobile pairing Remote settings section or its visual layer.
+
 ## Desktop boot page
 
 The boot page is one instrument canvas for the whole window. It is not a centered card, and the log is not locked in a bordered box. Sources: [`boot.html`](../src/renderer/boot.html), [`boot.css`](../src/renderer/boot.css), [`boot-tokens.css`](../src/renderer/boot-tokens.css), [`boot.js`](../src/renderer/boot.js).

@@ -8,7 +8,8 @@
 ## 用户路径
 
 - `Ctrl+,` 或菜单「设置」。  
-- `openSettings` / `settings-jump` 可深链到 section（如 `market`、`usage-stats`、`appearance`）。  
+- `openSettings` / `settings-jump` 可深链到 section（如 `market`、`usage-stats`、`appearance`）。
+- 设置 →「远程工作区」（`remote-workspace`）管理 SSH 机器与转发；「远程」（`remote`）仍是手机配对。通用 → 界面设置里的 SSH 远程工作区开关控制内置插件挂载，二者不是同一入口。
 - 设置 → 关于：「打开运行目录」打开桌面 `dsh-home`（见 [dsh-home.md](dsh-home.md)）。  
 - Section id 表：[../appendix/settings-sections.md](../appendix/settings-sections.md)
 
@@ -29,8 +30,8 @@
 
 ## 门槛
 
-- QA：`TC-EXT-001`、`TC-EXT-006`、`TC-EXT-008`；`TC-WS-002`、`TC-WS-003`
+- QA：`TC-EXT-001`、`TC-EXT-006`、`TC-EXT-008`；`TC-WS-002`、`TC-WS-003`；SSH 工作区见 `TC-RW-001`、`TC-RW-002`
 
 ## 延伸阅读
 
-- [marketplace.md](marketplace.md)、[usage-stats.md](usage-stats.md)、[wallpaper.md](wallpaper.md)
+- [marketplace.md](marketplace.md)、[usage-stats.md](usage-stats.md)、[remote-workspaces.md](remote-workspaces.md)、[wallpaper.md](wallpaper.md)

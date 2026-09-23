@@ -20,6 +20,7 @@ const { DSH_IM_ALIASES } = require('./dsh-im-desktop');
 const { DSHBOT_ALIASES } = require('./dshbot-desktop');
 const { DSH_MARKET_ALIASES } = require('./dsh-market-desktop');
 const { DSH_WHALE_ALIASES } = require('./dsh-whale-desktop');
+const { DSH_REMOTE_ALIASES } = require('./dsh-remote-desktop');
 const { USAGE_PANEL_ALIASES } = require('./usage-panel-preset');
 const { isPresetPlugin } = require('./plugin-forensics');
 
@@ -40,6 +41,7 @@ function pluginDisableGuardError(name) {
     || DSH_MARKET_ALIASES.includes(name)
     || DSHBOT_ALIASES.includes(name)
     || DSH_WHALE_ALIASES.includes(name)
+    || DSH_REMOTE_ALIASES.includes(name)
     || USAGE_PANEL_ALIASES.includes(name)) {
     return 'desktop-builtin';
   }
@@ -179,7 +181,8 @@ function applyRendererConfigPatch(patch, { app, applyAppTheme, harness, startHar
     harness
     && typeof startHarness === 'function'
     && (Object.prototype.hasOwnProperty.call(safePatch, 'dshbotEnabled')
-      || Object.prototype.hasOwnProperty.call(safePatch, 'whaleAssistantEnabled'))
+      || Object.prototype.hasOwnProperty.call(safePatch, 'whaleAssistantEnabled')
+      || Object.prototype.hasOwnProperty.call(safePatch, 'remoteWorkspaceEnabled'))
   ) {
     // The Bots / whale-assistant toggles change which overlays the next
     // start composes: return the saved config first, then restart Harness

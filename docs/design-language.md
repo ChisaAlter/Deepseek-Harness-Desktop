@@ -151,6 +151,12 @@ Web 独立操作命中区至少 44 CSS px，Android 至少 48dp；图标仍用�
 
 Android 保持稳定 asset origin 与同一 Web 源码，不平行实现聊天；原生只补返回、扫码、拍照/选择、键盘和生命周期。新一轮 Web 与 Android 分轨验收，不继承历史未测结论为 Pass。
 
+## SSH 远程工作区
+
+「远程工作区」是桌面设置与目录选择器里的新增工作流，沿用 Harness Web UI 的设置行、分段选择、输入、菜单、Modal 与侧栏文件页原语。目录选择器的「本机 / 远程」标签与现有本机浏览面共享同一层级；关闭远程功能或插件未挂载时，只显示既有本机流程。机器表单、路径补全、文件冲突和连接错误使用 `ui-primitives` 与 `--dsw-alias-*` 的普通状态反馈，不另建桌面 chrome、卡片网格或配色。
+
+远程文件页沿用现有侧栏标签与文件编辑排版，关闭按钮保持在标题右侧。连接状态、主机指纹拒绝和写入冲突必须在原位说明并提供对应操作；不以空列表伪装失败。此工作区的「远程」指 SSH 镜像，不复用手机配对的 Remote 设置分区或视觉层。
+
 ## 桌面启动页
 
 启动页是整窗一张仪器画布，不是中间再套卡片，也不是把日志关进带边框的盒子。源文件是 [`boot.html`](../src/renderer/boot.html)、[`boot.css`](../src/renderer/boot.css)、[`boot-tokens.css`](../src/renderer/boot-tokens.css)、[`boot.js`](../src/renderer/boot.js)。
