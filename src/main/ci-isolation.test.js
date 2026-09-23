@@ -228,7 +228,7 @@ test('publish workflow wires the release-asset validator before checksums and pu
   assert.match(yml, /actual_setup_sha256=.*sed/);
 
   // Existing safety rails stay intact.
-  assert.match(yml, /actions\/checkout@11d5960a326750d5838078e36cf38b85af677262/);
+  assert.match(yml, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1/);
   assert.match(yml, /actions\/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020/);
   assert.match(yml, /test\.yml\/runs\?head_sha=\$CANDIDATE_SHA/);
   assert.match(yml, /sha512sum/);
