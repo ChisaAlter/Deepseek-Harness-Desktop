@@ -15,7 +15,7 @@ divergence notes live in each tree's own `DESKTOP-FORK.md` / `AGENTS.md`.
 `harness-upstream.json` records the upstream pin (repo / ref / sha / npm version)
 that `sync:harness` and `setup:harness` operate against.
 
-The source baseline is `dsh-v0.1.7-alpha.2` (`00102833dfaee1da9f48a3a8eae9d34005a75218`). Desktop consumers use retained Session references and workspace navigation, including draft transfer before releasing the previous Session. Compatibility decisions and validation gates live in [harness-upstream-sync](../docs/features/harness-upstream-sync.md).
+The source baseline is `dsh-v0.1.7-rc.2` (`477b4f420553e8a52c2fbccc464d7561b239c443`). Desktop consumers use retained Session references and workspace navigation, including draft transfer before releasing the previous Session. Compatibility decisions and validation gates live in [harness-upstream-sync](../docs/features/harness-upstream-sync.md).
 
 Desktop New Session navigation additionally checks complete Host history before reusing a blank identity. Previously titled or plugin-owned Sessions keep their data and remain explicitly openable, but are never repurposed as new drafts. See the [blank Session reuse decision](../docs/decisions/implemented/bug-fix/2026-09-18-blank-session-reuse.md).
 
