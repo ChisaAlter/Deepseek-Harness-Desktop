@@ -1,37 +1,34 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {
-  TeamMemberView as TeamRosterMember,
+  TeamMemberProjection,
   TeamTaskView as TeamTask,
-  TeamView,
 } from '@deepseek-ai/dsh-experimental-agent-team/client'
-import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import {
-  IconCloseOutlineRegular, IconRefreshOutlineRegular, IconUserOutlineRegular, StateDot,
+  IconChevronDownOutlineRegular,
+  IconUserOutlineRegular, IconUsersOutlineRegular, StateDot, Tag, Tooltip,
   useAnchoredPosition, useDismissOnOutsidePointer, type StateDotState,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { NS, type TeamKey } from './locales.ts'
 import css from './TeamAction.module.css'
 
-/** Generated Remote result consumed directly by the Team UI. */
-export type TeamActionResult<T> = RemoteResult<T>
-
 /** Business actions injected by the browser plugin. */
 export interface TeamActionInjected {
-  load: (sessionId: SessionId) => Promise<TeamActionResult<TeamView>>
-  openTeammate: (sessionId: SessionId, member: TeamRosterMember) => void
+  /** Open a roster Session from the current conversation. */
+  openTeammate: (sessionId: SessionId, childSessionId: SessionId) => void
 }
+
+/** Durable lifecycle overlaid with the member Session's live turn activity. */
+type MemberStatus = 'running' | 'inactive' | 'provisioning' | 'failed'
 
 /** Full props of the Team conversation-header action. */
 export type TeamActionProps =
   PropsRuntime<'conversation.session.header.actions'> & TeamActionInjected & PropsLocale<typeof NS>
-
-function failureText(error: { readonly code: string; readonly message: string }): string {
-  return `${error.message} (${error.code})`
-}
 
 function statusKey(status: TeamTask['status']): TeamKey {
   switch (status) {
@@ -43,7 +40,7 @@ function statusKey(status: TeamTask['status']): TeamKey {
   }
 }
 
-function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
+function memberStatusKey(status: MemberStatus): TeamKey {
   switch (status) {
     case 'running': return 'memberStatus.running'
     case 'inactive': return 'memberStatus.inactive'
@@ -52,11 +49,10 @@ function memberStatusKey(status: TeamRosterMember['status']): TeamKey {
   }
 }
 
-function memberDotState(status: TeamRosterMember['status']): StateDotState {
+function memberDotState(status: Exclude<MemberStatus, 'inactive'>): StateDotState {
   switch (status) {
     case 'running':
     case 'provisioning': return 'ongoing'
-    case 'inactive': return 'idle'
     case 'failed': return 'error'
   }
 }
@@ -71,174 +67,289 @@ function taskDotState(task: TeamTask): StateDotState {
   }
 }
 
+type TeamMemberRowProps = Pick<TeamActionProps,
+  'sessionId' | 'useSessions' | 'useSessionStatus' | 'openTeammate' | 't'
+> & {
+  member: TeamMemberProjection
+  memberCount: number
+  onError: (message: string) => void
+}
+
+function TeamMemberRow({
+  member, memberCount, sessionId, useSessions, useSessionStatus, openTeammate, onError, t,
+}: TeamMemberRowProps) {
+  const model = useSessions(state => state.projectionsBySession[member.id]?.values.modelSelection?.next?.model)
+  const running = useSessionStatus(state => state.get(member.id)?.running)
+  const summaryRunning = useSessions(state => state.byId[member.id]?.running)
+  const status: MemberStatus = member.phase === 'active'
+    ? (running ?? summaryRunning) === true ? 'running' : 'inactive'
+    : member.phase
+  const isCurrent = member.id === sessionId
+  const highlightCurrent = isCurrent && memberCount > 1
+  const inert = isCurrent || status === 'failed' || status === 'provisioning'
+
+  return (
+    <Tooltip label={t('open')} side="bottom" gap={4} disabled={inert}>
+      <button
+        type="button"
+        className={highlightCurrent ? `${css.member} ${css.memberCurrent}` : css.member}
+        disabled={inert}
+        onClick={() => {
+          try {
+            openTeammate(sessionId, member.id)
+          } catch (reason) {
+            onError(String(reason))
+          }
+        }}
+      >
+        <span className={css.memberDot}>
+          {status === 'inactive'
+            ? <IconUserOutlineRegular size={14} className={css.inactiveIcon} />
+            : <StateDot state={memberDotState(status)} />}
+        </span>
+        <span className={css.memberText}>
+          <span className={css.memberName}>
+            <span className={css.memberNameText}>{member.name}</span>
+            {isCurrent && <Tag tone="info" className={css.currentTag}>{t('current')}</Tag>}
+          </span>
+          <small>
+            {t(memberStatusKey(status))}
+            {model !== undefined && (
+              <span className={css.memberModel}>{` · ${t('model')}: ${model}`}</span>
+            )}
+          </small>
+          {member.error !== undefined && <small className={css.diagnostic}>{member.error}</small>}
+        </span>
+      </button>
+    </Tooltip>
+  )
+}
+
+/** Task card with a two-line description clamp expanded from a toggle in the meta row. */
+function TaskCard({ task, t }: { task: TeamTask; t: TranslateNS<typeof NS> }) {
+  const [expanded, setExpanded] = useState(false)
+  const [clamped, setClamped] = useState(false)
+  const textRef = useRef<HTMLParagraphElement>(null)
+  useLayoutEffect(() => {
+    if (expanded) return
+    const paragraph = textRef.current
+    /* v8 ignore next -- the paragraph mounts in the same commit as the effect. */
+    if (paragraph === null) return
+    const measure = (): void => { setClamped(paragraph.scrollHeight > paragraph.clientHeight + 1) }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(paragraph)
+    return () => { observer.disconnect() }
+  }, [task.description, expanded])
+  return (
+    <article className={css.task}>
+      <div className={css.taskTitle}>
+        <strong>{task.subject}</strong>
+        <span className={css.taskState}>
+          <StateDot state={taskDotState(task)} />
+          <span>{t(statusKey(task.status))}</span>
+        </span>
+      </div>
+      <p ref={textRef} className={expanded ? undefined : css.clampedDescription}>{task.description}</p>
+      <div className={css.meta}>
+        {(clamped || expanded) && (
+          <button
+            type="button"
+            className={css.expandToggle}
+            aria-expanded={expanded}
+            onClick={() => { setExpanded(current => !current) }}
+          >
+            {t(expanded ? 'task.collapse' : 'task.expand')}
+            <IconChevronDownOutlineRegular size={12} className={expanded ? css.expandToggleOpen : undefined} />
+          </button>
+        )}
+        <span>{task.id}</span>
+        <span>{t('owner')}: {task.ownerName ?? t('unowned')}</span>
+        {task.status === 'pending' && <span>{task.ready ? t('ready') : t('blocked')}</span>}
+        {task.blockedBy.length > 0 && <span>{t('blockedBy')}: {task.blockedBy.join(', ')}</span>}
+        {task.writeScopes.length > 0 && <span>{t('writeScopes')}: {task.writeScopes.join(', ')}</span>}
+        {task.writeScopeWarnings.map(warning => <span key={warning} className={css.warning}>{warning}</span>)}
+      </div>
+    </article>
+  )
+}
+
 /** Render the Team roster and read-only task board. */
 export function TeamAction({
-  sessionId, load, openTeammate, t,
+  sessionId, useSession, useSessions, useSessionStatus, openTeammate, t,
 }: TeamActionProps) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [view, setView] = useState<TeamView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const triggerLabelRef = useRef<HTMLSpanElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const position = useAnchoredPosition({
     open, anchorRef: triggerRef, panelRef, gap: 5, margin: 16,
   })
   const positioned = position !== null
-  useDismissOnOutsidePointer(rootRef, open, setOpen, panelRef)
-  const sessionRef = useRef(sessionId)
-  const refreshGeneration = useRef(0)
-  sessionRef.current = sessionId
+  const leadSessionId = useSession(snapshot => snapshot.subagent?.address.parentSessionId) ?? sessionId
+  const team = useSessions(state => state.projectionsBySession[leadSessionId]?.values.agentTeam)
+  const opening = useSession(snapshot => snapshot.openState === 'loading')
+  const listing = useSessions(state => state.phase === 'pending')
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pinnedRef = useRef(false)
+
+  const cancelHoverChange = (): void => {
+    clearTimeout(hoverTimer.current)
+    hoverTimer.current = undefined
+  }
 
   useEffect(() => {
-    refreshGeneration.current += 1
+    cancelHoverChange()
+    pinnedRef.current = false
     setOpen(false)
-    setLoading(false)
-    setView(null)
     setError(null)
   }, [sessionId])
 
+  useEffect(() => cancelHoverChange, [])
+
   useLayoutEffect(() => {
-    if (open && positioned) panelRef.current?.focus()
+    if (open && positioned && pinnedRef.current) panelRef.current?.focus()
   }, [open, positioned])
 
-  const close = (): void => {
-    setOpen(false)
-    triggerRef.current?.focus()
+  const changeOpen = (next: boolean): void => {
+    cancelHoverChange()
+    if (!next) pinnedRef.current = false
+    setOpen(next)
   }
 
-  const refresh = useCallback(async (): Promise<void> => {
-    const requestedSession = sessionId
-    const generation = ++refreshGeneration.current
-    setLoading(true)
-    const result = await load(requestedSession)
-    if (sessionRef.current !== requestedSession || refreshGeneration.current !== generation) return
-    setLoading(false)
-    if (result.ok) {
-      setView(result.value)
-      setError(null)
-    } else {
-      setError(failureText(result.error))
-    }
-  }, [load, sessionId])
+  const scheduleHoverOpen = (): void => {
+    cancelHoverChange()
+    if (open) return
+    const label = triggerLabelRef.current
+    /* v8 ignore next -- the label mounts with the trigger that received the hover. */
+    if (label === null) return
+    // Icon-only trigger (label collapsed by the header container query):
+    // hover-open would surprise on such a small target, so only click opens.
+    if (getComputedStyle(label).display === 'none') return
+    hoverTimer.current = setTimeout(() => {
+      hoverTimer.current = undefined
+      changeOpen(true)
+    }, 150)
+  }
 
-  const teammates = view?.members.filter(member => member.role === 'teammate') ?? []
+  const scheduleHoverClose = (): void => {
+    cancelHoverChange()
+    if (pinnedRef.current) return
+    hoverTimer.current = setTimeout(() => {
+      hoverTimer.current = undefined
+      changeOpen(false)
+    }, 120)
+  }
+
+  useDismissOnOutsidePointer(rootRef, open, changeOpen, panelRef)
+
+  useEffect(() => {
+    if (!open) return
+    const dismiss = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      cancelHoverChange()
+      pinnedRef.current = false
+      setOpen(false)
+      if (panelRef.current?.contains(document.activeElement)) triggerRef.current?.focus()
+    }
+    document.addEventListener('keydown', dismiss)
+    return () => { document.removeEventListener('keydown', dismiss) }
+  }, [open])
+
+  const compact = team !== undefined && team.members.length === 1 && team.tasks.length === 0
 
   return (
-    <div ref={rootRef} className={css.root} data-team-action onKeyDown={(event) => {
-      if (event.key !== 'Escape' || !open) return
-      event.preventDefault()
-      close()
-    }} onBlur={(event) => {
-      const target = event.relatedTarget
-      if (target instanceof Node && !event.currentTarget.contains(target) && !panelRef.current?.contains(target)) {
-        setOpen(false)
-      }
-    }}>
+    <div
+      ref={rootRef}
+      className={css.root}
+      data-team-action
+      onMouseLeave={scheduleHoverClose}
+    >
       <button
         type="button"
         ref={triggerRef}
+        onMouseEnter={scheduleHoverOpen}
         className={css.trigger}
+        aria-label={t('trigger')}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {
-          const next = !open
-          setOpen(next)
-          if (next) void refresh()
+          cancelHoverChange()
+          pinnedRef.current = true
+          if (!open) changeOpen(true)
+          else panelRef.current?.focus()
         }}
       >
-        <IconUserOutlineRegular size={14} />
-        <span>{t('trigger')}</span>
-        {teammates.length > 0 && <span className={css.count}>{teammates.length}</span>}
+        <IconUsersOutlineRegular size={14} />
+        <span ref={triggerLabelRef} className={css.triggerLabel}>{t('trigger')}</span>
       </button>
       {open && createPortal(
         <div
           ref={panelRef}
-          className={css.panel}
+          className={compact ? `${css.panel} ${css.panelCompact}` : css.panel}
           style={position ?? { visibility: 'hidden', left: 0, top: 0 }}
           role="dialog"
           tabIndex={-1}
           aria-label={t('trigger')}
           data-team-panel
+          onMouseEnter={cancelHoverChange}
+          onMouseLeave={scheduleHoverClose}
         >
-          <div className={css.toolbar}>
-            <strong>{t('trigger')}</strong>
-            <span className={css.spacer} />
-            {loading && view !== null && (
-              <span role="status" aria-label={t('loading')}><StateDot state="ongoing" /></span>
+          <div className={css.body}>
+            {error !== null && (
+              <div className={css.error} role="alert"><StateDot state="error" />{error}</div>
             )}
-            <button type="button" className={css.iconButton} aria-label={t('refresh')} onClick={() => { void refresh() }}>
-              <IconRefreshOutlineRegular size={14} />
-            </button>
-            <button type="button" className={css.iconButton} aria-label={t('close')} onClick={close}>
-              <IconCloseOutlineRegular size={14} />
-            </button>
+            {team === undefined && (
+              <div className={css.notice} role="status">
+                <StateDot state={opening || listing ? 'ongoing' : 'warning'} />
+                {t(opening || listing ? 'loading' : 'unavailable')}
+              </div>
+            )}
+            {team !== undefined && (
+              <>
+                {team.failure !== undefined && (
+                  <div className={css.error} role="alert"><StateDot state="error" />{t('failure', { message: team.failure })}</div>
+                )}
+                <section>
+                  <h3>
+                    {t('roster')}
+                    {team.members.length > 1 && <span className={css.count}>{team.members.length}</span>}
+                  </h3>
+                  <div className={css.roster}>
+                    {team.members.map(member => (
+                      <TeamMemberRow
+                        key={member.id}
+                        member={member}
+                        memberCount={team.members.length}
+                        sessionId={sessionId}
+                        useSessions={useSessions}
+                        useSessionStatus={useSessionStatus}
+                        openTeammate={openTeammate}
+                        onError={setError}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                </section>
+                <section>
+                  {team.tasks.length === 0
+                    ? <p className={css.emptyNotice}>{t('empty')}</p>
+                    : (
+                      <>
+                        <h3>{t('tasks')}<span className={css.count}>{team.tasks.length}</span></h3>
+                        <div className={css.tasks}>
+                          {team.tasks.map(task => <TaskCard key={task.id} task={task} t={t} />)}
+                        </div>
+                      </>
+                    )}
+                </section>
+              </>
+            )}
           </div>
-          {error !== null && (
-            <div className={css.error} role="alert"><StateDot state="error" />{error}</div>
-          )}
-          {loading && view === null && (
-            <div className={css.notice} role="status"><StateDot state="ongoing" />{t('loading')}</div>
-          )}
-          {view !== null && (
-            <>
-              <section>
-                <h3>{t('roster')}</h3>
-                <div className={css.roster}>
-                  {view.members.map(member => (
-                    <button
-                      key={member.id}
-                      type="button"
-                      className={css.member}
-                      disabled={member.role === 'lead' || member.status === 'failed' || member.status === 'provisioning'}
-                      title={member.role === 'teammate' ? t('open') : undefined}
-                      onClick={() => {
-                        try {
-                          openTeammate(sessionId, member)
-                        } catch (reason) {
-                          setError(String(reason))
-                        }
-                      }}
-                    >
-                      <StateDot state={memberDotState(member.status)} />
-                      <span className={css.memberText}>
-                        <span>{member.name}</span>
-                        <small>{t(memberStatusKey(member.status))}{member.model === undefined ? '' : ` · ${t('model')}: ${member.model}`}</small>
-                        {member.diagnostics.map(diagnostic => <small key={diagnostic} className={css.diagnostic}>{diagnostic}</small>)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-              <section>
-                <h3>{t('tasks')}</h3>
-                {view.tasks.length === 0 && <div className={css.notice}>{t('empty')}</div>}
-                <div className={css.tasks}>
-                  {view.tasks.map(task => (
-                    <article key={task.id} className={css.task}>
-                      <div className={css.taskTitle}>
-                        <strong>{task.subject}</strong>
-                        <span className={css.taskState}>
-                          <StateDot state={taskDotState(task)} />
-                          <span>{t(statusKey(task.status))}</span>
-                        </span>
-                      </div>
-                      <p>{task.description}</p>
-                      <div className={css.meta}>
-                        <span>{task.id}</span>
-                        <span>{t('owner')}: {task.ownerName ?? t('unowned')}</span>
-                        {task.status === 'pending' && <span>{task.ready ? t('ready') : t('blocked')}</span>}
-                        {task.blockedBy.length > 0 && <span>{t('blockedBy')}: {task.blockedBy.join(', ')}</span>}
-                        {task.writeScopes.length > 0 && <span>{t('writeScopes')}: {task.writeScopes.join(', ')}</span>}
-                        {task.writeScopeWarnings.map(warning => <span key={warning} className={css.warning}>{warning}</span>)}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
         </div>,
         document.body,
       )}

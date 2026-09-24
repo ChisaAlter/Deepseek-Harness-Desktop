@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { JSDOM } from 'jsdom'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { installMandatoryUpdateOverlay } from '../src/preload-mandatory-overlay.ts'
 import { syncWindowsAppearance } from '../src/preload-windows.ts'
 import { DESKTOP_IPC, type DshDesktopProductApi } from '../src/ipc.ts'
@@ -15,7 +16,26 @@ vi.mock('../src/preload-theme.ts', () => ({ syncNativeTheme: vi.fn() }))
 vi.mock('../src/preload-windows.ts', () => ({ syncWindowsAppearance: vi.fn() }))
 vi.mock('../src/preload-mandatory-overlay.ts', () => ({ installMandatoryUpdateOverlay: vi.fn() }))
 
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules() })
+beforeEach(() => { vi.stubGlobal('process', { ...process, isMainFrame: true }) })
+afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.resetModules() })
+
+it('reads only native login API-key presence through the onboarding bridge', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  electron.ipcRenderer.invoke.mockResolvedValueOnce(true)
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshOnboarding')?.[1] as { hasApiKey(): Promise<boolean> }
+  expect(await api.hasApiKey()).toBe(true)
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.onboardingApiKey)
+})
+
+it('exposes onboarding size activation to the application document', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshOnboarding')?.[1] as { setActive(active: boolean): void }
+  api.setActive(true)
+  api.setActive(false)
+  expect(electron.ipcRenderer.send.mock.calls).toEqual([[DESKTOP_IPC.onboardingActive, true], [DESKTOP_IPC.onboardingActive, false]])
+})
 
 it('limits product documents to update status and a native confirmation action', async () => {
   vi.stubGlobal('location', new URL('dsh-app://app/index.html'))
@@ -121,7 +141,7 @@ it('moves welcome-entry focus to the document without changing keyboard tab orde
 })
 
 it.each(['win32', 'darwin'] as const)('installs the embedded mandatory UI only in the Windows app document (%s)', async (platform) => {
-  vi.spyOn(process, 'platform', 'get').mockReturnValue(platform)
+  vi.stubGlobal('process', { ...process, platform })
   for (const url of ['dsh-app://app/', 'dsh-app://shell/mandatory-update.html', 'https://example.com/']) {
     vi.resetModules()
     vi.mocked(installMandatoryUpdateOverlay).mockClear()
@@ -129,4 +149,93 @@ it.each(['win32', 'darwin'] as const)('installs the embedded mandatory UI only i
     await import('../src/preload-app.ts')
     expect(installMandatoryUpdateOverlay).toHaveBeenCalledTimes(platform === 'win32' && url === 'dsh-app://app/' ? 1 : 0)
   }
+})
+
+it('exposes constrained shortcut operations and releases configuration subscriptions', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  await api.shortcuts.get([])
+  expect(api.shortcuts).not.toHaveProperty('reload')
+  await api.shortcuts.recording(true)
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.shortcutsGet, [])
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledWith(DESKTOP_IPC.shortcutsRecording, true)
+  const listener = vi.fn()
+  const off = api.shortcuts.subscribe(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([name]) => name === DESKTOP_IPC.shortcutsChanged)![1] as
+    (event: unknown, state: unknown) => void
+  handler({}, { status: 'ready' })
+  expect(listener).toHaveBeenCalledWith({ status: 'ready' })
+  off(); expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.shortcutsChanged, handler)
+})
+
+it('withholds the product API from same-origin child frames', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  vi.stubGlobal('process', { ...process, isMainFrame: false })
+  await import('../src/preload-app.ts')
+  expect(electron.contextBridge.exposeInMainWorld).toHaveBeenCalledWith('dshDesktop', { protocolVersion: 1 })
+})
+
+it('forwards only the focused product iframe and releases native input subscriptions', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  const listener = vi.fn()
+  const off = api.keyboard.subscribe(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([name]) => name === DESKTOP_IPC.shortcutsInput)![1] as
+    (event: unknown, state: unknown) => void
+  const input = { kind: 'iframe', frameName: 'preview', revision: 'current' }
+  handler({}, input)
+  const frame = document.createElement('iframe')
+  document.body.append(frame)
+  frame.name = 'preview'
+  frame.focus()
+  handler({}, input)
+  expect(listener).not.toHaveBeenCalled()
+  frame.setAttribute('data-html-preview', '')
+  handler({}, { ...input, frameName: 'stale' })
+  handler({}, { ...input, frameName: '' })
+  expect(listener).not.toHaveBeenCalled()
+  handler({}, input)
+  expect(listener).toHaveBeenCalledExactlyOnceWith(input)
+  frame.remove()
+  handler({}, input)
+  expect(listener).toHaveBeenCalledTimes(1)
+  const menu = { kind: 'menu', commandId: 'page.close', revision: 'current' }
+  handler({}, menu)
+  expect(listener).toHaveBeenLastCalledWith(menu)
+  off()
+  expect(electron.ipcRenderer.off).toHaveBeenCalledWith(DESKTOP_IPC.shortcutsInput, handler)
+})
+
+it('forwards browser guest input only for the focused live webview lease', async () => {
+  vi.stubGlobal('location', new URL('dsh-app://app/'))
+  await import('../src/preload-app.ts')
+  const api = electron.contextBridge.exposeInMainWorld.mock.calls.find(([name]) => name === 'dshDesktop')?.[1] as DshDesktopProductApi
+  const listener = vi.fn()
+  const off = api.keyboard.subscribe(listener)
+  const handler = electron.ipcRenderer.on.mock.calls.find(([name]) => name === DESKTOP_IPC.shortcutsInput)![1] as
+    (event: unknown, state: unknown) => void
+  const input = { kind: 'webview', frameName: 'guest', revision: 'current' }
+  const frame = document.createElement('webview')
+  frame.tabIndex = 0
+  frame.setAttribute('name', 'guest')
+  document.body.append(frame)
+  frame.focus()
+  handler({}, input)
+  expect(listener).not.toHaveBeenCalled()
+  frame.setAttribute('data-sidebar-browser-frame', 'webview')
+  handler({}, { ...input, frameName: '' })
+  handler({}, { ...input, frameName: 'old' })
+  expect(listener).not.toHaveBeenCalled()
+  handler({}, input)
+  expect(listener).toHaveBeenCalledExactlyOnceWith(input)
+  const other = document.createElement('input')
+  document.body.append(other)
+  other.focus()
+  handler({}, input)
+  frame.remove()
+  handler({}, input)
+  expect(listener).toHaveBeenCalledOnce()
+  off()
 })

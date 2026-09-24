@@ -64,7 +64,7 @@
 | spawn | spawn | | | |
 | steering | steering | steering（中途引导） | | |
 | job id | job id | | 任务 id | 保留英文 |
-| subagent | subagent | | | |
+| subagent | subagent | | | 文档正文保留英文；中文 UI 中译作「子智能体」，不使用「子代理」 |
 | transcript | transcript | transcript（文本记录） | | 指会话渲染给用户或编辑器的完整文本，区别于事件日志 |
 | Typert | Typert | | TypeRT、typeRT、Type RT | DeepSeek Harness 类型图、生成器、loader 与运行时 registry 的产品拼写 |
 | waterfall | waterfall | waterfall（瀑布式事件） | | |
@@ -134,7 +134,7 @@
 | extension point | 扩展点 | | | 注意与 `seam` 区分 |
 | fail-fast | 快速失败 | | | |
 | fenced code block | 围栏代码块 | | | 沿用 MDN 中文翻译 |
-| fingerprint | 指纹 | | | 通用内容指纹；双语配对机制使用 sidecar record 记录两侧 blob hash |
+| fingerprint | 指纹 | | | 通用内容指纹；双语配对机制使用 sidecar record 按分节记录两侧 hash |
 | finish reason | 结束原因 | | | |
 | fold | 折叠区 | | | 配置界面语境：默认收起的字段分区（collapsed →「收起」）|
 | foreground run | 前台运行 | | | |

@@ -572,15 +572,15 @@ describe('web e2e: settings modal and General preferences', () => {
   }, 90_000)
 
   it.each([
-    ['detailed', '详细'], ['expanded', '完全展开'],
+    ['compact', '简洁'], ['detailed', '详细'], ['verbose', '完全展开'],
   ] as const)('persists the %s work-details mode across reload', async (mode, label) => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-settings-transcript-view'))
     await openSettings(page, 'zh')
     const dialog = page.getByRole('dialog', { name: '设置' })
     await dialog.waitFor({ timeout: 10_000 })
-    await dialog.getByText('工作过程展示', { exact: true }).waitFor({ timeout: 10_000 })
-    const details = dialog.getByText('工作过程展示', { exact: true }).locator('../..')
-    await details.getByRole('button', { name: '简洁', exact: true }).click()
+    await dialog.getByText('工作步骤展示', { exact: true }).waitFor({ timeout: 10_000 })
+    const details = dialog.getByText('工作步骤展示', { exact: true }).locator('../..')
+    await details.getByRole('button', { name: '标准', exact: true }).click()
     await page.getByRole('menuitem', { name: label, exact: true }).click()
     await details.getByRole('button', { name: label, exact: true }).waitFor({ timeout: 10_000 })
     await expect.poll(async () => readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8'), { timeout: 5_000 })
@@ -593,14 +593,14 @@ describe('web e2e: settings modal and General preferences', () => {
     acknowledgeReloadConnectionLoss(tripwire, warningStart)
     await openSettings(page, 'zh')
     const reloaded = page.getByRole('dialog', { name: '设置' })
-    const restoredDetails = reloaded.getByText('工作过程展示', { exact: true }).locator('../..')
+    const restoredDetails = reloaded.getByText('工作步骤展示', { exact: true }).locator('../..')
     await restoredDetails.getByRole('button', { name: label, exact: true }).waitFor({ timeout: 10_000 })
 
     await restoredDetails.getByRole('button', { name: label, exact: true }).click()
-    await page.getByRole('menuitem', { name: '简洁', exact: true }).click()
-    await restoredDetails.getByRole('button', { name: '简洁', exact: true }).waitFor({ timeout: 10_000 })
+    await page.getByRole('menuitem', { name: '标准', exact: true }).click()
+    await restoredDetails.getByRole('button', { name: '标准', exact: true }).waitFor({ timeout: 10_000 })
     await expect.poll(async () => readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8'), { timeout: 5_000 })
-      .toContain('transcriptView: compact')
+      .toContain('transcriptView: standard')
     await page.keyboard.press('Escape')
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)

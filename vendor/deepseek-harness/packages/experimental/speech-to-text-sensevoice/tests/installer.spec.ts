@@ -1,7 +1,7 @@
 /** ONNX preparation reuses verified files and honors explicit offline deployments. */
 import { writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -19,7 +19,7 @@ const asset = (name: string): Asset => ({ name, url: `https://huggingface.co/own
 const fake = vi.hoisted(() => ({ lock: {} }))
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
-  return { ...actual, access: vi.fn(actual.access) }
+  return { ...actual, access: vi.fn(actual.access), rename: vi.fn(actual.rename) }
 })
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
@@ -92,7 +92,7 @@ it('reports filesystem access errors instead of treating unreadable caches as ab
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'dsh-speech-onnx-')); roots.push(root)
   fake.lock = { models: { int8: asset('model.int8.onnx'), fp32: asset('model.onnx') }, tokens: asset('tokens.txt'), vad: asset('silero_vad.onnx') }
-  const fetcher = vi.fn(async (_url: string) => new Response(bytes)); vi.stubGlobal('fetch', fetcher)
+  const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => new Response(bytes)); vi.stubGlobal('fetch', fetcher)
   return { root, fetcher }
 }
 it.each(['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64'])('prepares only model files on %s', async (target) => {
@@ -142,4 +142,62 @@ it('rejects cached files changed before the final verification stage', async () 
   await expect(prepareRuntime(new Context(), Config({ dataRoot: root }), new AbortController().signal, (state) => {
     if (state.step === 'verify') writeFileSync(join(root, 'models', 'sensevoice-onnx', 'model.int8.onnx'), 'changed')
   })).rejects.toThrow('verification failed')
+})
+
+it('downloads missing assets from the first responsive mirror and reuses verified files without probes', async () => {
+  const { root, fetcher } = await fixture()
+  fetcher.mockImplementation(async (url, init) => init?.method === 'HEAD'
+    ? new Response(null, { status: url.startsWith('https://hf-mirror.com/') ? 200 : 503 }) : new Response(bytes))
+  const config = Config({ dataRoot: root })
+  await prepareRuntime(new Context(), config, new AbortController().signal)
+  const downloads = fetcher.mock.calls.filter(([, init]) => init?.method !== 'HEAD').map(([url]) => url)
+  expect(downloads).toEqual(['model.int8.onnx', 'tokens.txt', 'silero_vad.onnx']
+    .map(name => `https://hf-mirror.com/owner/model/resolve/revision/${name}`))
+  fetcher.mockClear()
+  await prepareRuntime(new Context(), config, new AbortController().signal)
+  expect(fetcher).not.toHaveBeenCalled()
+})
+
+it.each(['http', 'network', 'integrity'] as const)('falls back after a %s failure without accepting unverified bytes', async (reason) => {
+  const { root, fetcher } = await fixture()
+  fetcher.mockImplementation(async (url, init) => {
+    const mirror = url.startsWith('https://hf-mirror.com/')
+    if (init?.method === 'HEAD') return new Response(null, { status: mirror ? 200 : 503 })
+    if (!mirror) return new Response(bytes)
+    if (reason === 'network') throw new TypeError('fetch failed')
+    return reason === 'http' ? new Response('unavailable', { status: 503 }) : new Response('corrupt')
+  })
+  const paths = await prepareRuntime(new Context(), Config({ dataRoot: root }), new AbortController().signal)
+  expect(await readFile(paths.model)).toEqual(bytes)
+  const downloads = fetcher.mock.calls.filter(([, init]) => init?.method !== 'HEAD').map(([url]) => new URL(url).origin)
+  expect(downloads).toEqual(['https://hf-mirror.com', 'https://huggingface.co',
+    'https://hf-mirror.com', 'https://huggingface.co', 'https://hf-mirror.com', 'https://huggingface.co'])
+})
+
+it.each(['EACCES', 'unclassified'])('does not switch sources for a local publication failure (%s)', async (code) => {
+  const { root, fetcher } = await fixture()
+  vi.mocked(rename).mockRejectedValueOnce(Object.assign(new Error('cannot publish'), { code }))
+  await expect(prepareRuntime(new Context(), Config({ dataRoot: root }), new AbortController().signal)).rejects.toMatchObject({
+    download: { reason: code === 'EACCES' ? 'storage' : 'unknown' },
+  })
+  expect(fetcher.mock.calls.filter(([, init]) => init?.method !== 'HEAD')).toHaveLength(1)
+})
+
+it('does not switch sources after cancellation during a download', async () => {
+  const { root, fetcher } = await fixture(), abort = new AbortController(), reason = new Error('cancelled')
+  fetcher.mockImplementation(async (_url, init) => {
+    if (init?.method === 'HEAD') return new Response(null)
+    abort.abort(reason); throw reason
+  })
+  await expect(prepareRuntime(new Context(), Config({ dataRoot: root }), abort.signal)).rejects.toBe(reason)
+  expect(fetcher.mock.calls.filter(([, init]) => init?.method !== 'HEAD')).toHaveLength(1)
+})
+
+it('reports the final source when every download fails', async () => {
+  const { root, fetcher } = await fixture()
+  fetcher.mockResolvedValue(new Response(null, { status: 503 }))
+  await expect(prepareRuntime(new Context(), Config({ dataRoot: root }), new AbortController().signal)).rejects.toMatchObject({
+    download: { source: 'https://hf-mirror.com', reason: 'http', status: 503 },
+  })
+  expect(fetcher.mock.calls.filter(([, init]) => init?.method !== 'HEAD')).toHaveLength(2)
 })

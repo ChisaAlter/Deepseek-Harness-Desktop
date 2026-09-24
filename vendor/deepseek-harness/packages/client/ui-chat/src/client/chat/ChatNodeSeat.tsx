@@ -102,7 +102,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     foldable, interleavedInput, processOpen, processSpec, processPresentation?.hasExternalProcess, setOpen,
   ])
   const controllerInactive = routedNode?.kind === 'turn-process'
-    && !foldable
+    && foldCompleted && !foldable
   const compactAnswer = processAnswer
     && foldable
     && processPresentation.compactAnswer

@@ -22,8 +22,18 @@ export interface AgentPresetRow {
 export interface AgentPresetRoster {
   /** Every current declaration, including activation failures. */
   readonly presets: readonly AgentPresetRow[]
-  /** Whether visible mode selection is enabled for unnamed new sessions. */
-  readonly modeSelectionEnabled: boolean
+}
+
+/** One preset's declared composition, rendered for reading. */
+export interface AgentPresetDocument {
+  /** The preset the composition belongs to. */
+  readonly agentPreset: string
+  /** The declared child plugin list as entry-list YAML, `!!js` expressions included. */
+  readonly content: string
+  /** Display name the preset published. */
+  readonly name?: string
+  /** One sentence on what this preset is for. */
+  readonly description?: string
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {

@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-experimental-speech-to-text'
-import type { SpeechProviderId, SpeechSelectionPatch, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
+import type { SpeechPreparationOptions, SpeechProviderId, SpeechSelectionPatch, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
 import type { SpeechCatalog, TranscriptionRequest } from './types.ts'
 import { validateWave } from '@deepseek-ai/dsh-experimental-speech-to-text/wave'
 
@@ -66,9 +66,10 @@ export default class SpeechController extends TypertRemoteService {
   /**
    * Start or join one Host-owned preparation task.
    * @param providerId - selected recognizer.
+   * @param options - task-local source selection validated by the provider.
    */
   @Remote
-  prepare(providerId: SpeechProviderId): void { this.ctx.speechToText.prepare(providerId) }
+  prepare(providerId: SpeechProviderId, options?: SpeechPreparationOptions): void { this.ctx.speechToText.prepare(providerId, options) }
 
   /**
    * Explicitly cancel resource preparation.

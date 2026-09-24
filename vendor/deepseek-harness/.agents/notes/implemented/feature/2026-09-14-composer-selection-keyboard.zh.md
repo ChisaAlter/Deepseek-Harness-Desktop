@@ -20,6 +20,8 @@ composer 内有两个选择界面在打开期间持有焦点，两者都把 Tab 
 
 `ModelSelect` 的 `↑`／`↓` 仍是在所显示面板行间移动焦点（循环；焦点仍在触发器上时从近端进入）。Tab 执行接受：它激活键盘所在的那一行；焦点仍在触发器上时，改为进入菜单并把焦点放在正在使用的那一行。Escape 与 Shift+Tab 都先退出已下钻的面板，否则关闭并回到触发器。面板切换会替换持有焦点的那一行，因此每次切换都指明键盘的落点：下钻落在正在使用的值那一行（其选中行；没有标记行时为首行），返回根面板则落在打开该面板的那个格子上。没有这一步，已卸载的行留在页面 body 上的焦点就位于卡片自身子树之外，挂在那里的按键处理永远收不到键盘事件。
 
+在 `ModelSelect` 触发按钮或 portal 菜单按钮上按下鼠标时，阻止浏览器的默认焦点转移：否则 WebKit 可能先让聚焦行失焦，并在 `click` 前关闭菜单。选择和取消仍由原生 `click` 决定。打开菜单或通过触发按钮关闭菜单时，焦点落在触发按钮上。选择请求在禁用选项行前将焦点交回该按钮，因此请求被拒绝后仍可使用键盘导航。
+
 `Menu`——权限档位、预设芯片、文件卡与设置行背后的共享锚定下拉——沿用同一组配对：列表打开期间，Tab 选定聚焦行（键盘在锚点按钮上时，Tab 改为进入列表），Escape 或 Shift+Tab 关闭并把焦点还给锚点的第一个按钮。只拦截已经位于锚点或列表内的键盘，因此页面其它位置按下的 Tab 即使在菜单打开时也仍归浏览器。行的焦点填充就是行自己的焦点提示：浏览器默认轮廓会与之叠加，而这一填充与指针悬停时用的是同一个，视觉语言因此一态一义。选定一行会把键盘还给锚点——除非拥有者自己移动了焦点（例如文件卡把自己的预览按钮设为焦点）。`↑`／`↓` 与 Home／End 无论是否设置 `autoFocus` 都在列表中走位——该选项如今只决定打开时是否聚焦首行——键盘所在的那一行使用与悬停行相同的填充（否则键盘走位看不出当前行），而 Escape 或 Shift+Tab 关闭时，只要键盘原本在菜单里就把焦点归还锚点。
 
 被关闭的菜单保持关闭：`InputTriggerController` 记下用户关闭的那个命中（Escape／Shift+Tab、指针关闭或一次落定选定）的身份，同一 token 以同一查询重新 track 时菜单保持关闭，因此关闭后恢复光标、或已选定命令关闭它打开的界面，都无法把它召回来；新的查询或另一个 token 才会重新武装。
@@ -42,7 +44,7 @@ composer 内有两个选择界面在打开期间持有焦点，两者都把 Tab 
 
 ## 验证
 
-[模型位浏览器证据](../../../../apps/web/tests/declared-reasoning.e2e.ts) 用真实 Chromium 驱动已发布的 bundle：打开已下钻的等级面板，用 `↑` 走位，用 Tab 选定一档并断言保存下来的推理等级，随后重新打开该面板、断言键盘落在那一档而不是列表顶部，再用 Shift+Tab 退回被下钻的格子并关闭。[模型位键盘测试](../../../../packages/client/ui-model-selection/tests/model-select.client.spec.tsx) 覆盖下钻交接落在正在使用的值上（没有标记行时落在首行）、交回给该格子、`↑`／`↓` 的双向循环走位、Tab 选定聚焦行以及从触发器进入菜单、Shift+Tab 先退层再关闭，以及菜单关闭时 Tab 保持原生。[弹窗视图测试](../../../../packages/client/ui-commands/tests/popup-view.client.spec.tsx) 覆盖 Tab 接受停放的高亮并完成消费与焦点归还、Shift+Tab 关闭且不接受、行仍在加载时 Tab 被消费且焦点不离开卡片、方向键与原生左右光标互不干扰，以及 `↑`／`↓` 的循环。[触发流水线测试](../../../../packages/client/ui-input-trigger/tests/service.client.spec.ts) 覆盖关闭粘在它自己的命中上（Escape、指针关闭、落定选定三种）、同一命中重新 track 时保持关闭，以及查询改变后菜单重新武装。[Menu 测试](../../../../packages/client/ui-primitives/tests/atoms.client.spec.tsx) 覆盖不带 `autoFocus` 的方向键走位（从近端进入、两端循环、跳过禁用行）、Escape 把焦点还给锚点、Tab 选定聚焦行、Shift+Tab 关闭并把焦点还给锚点、Tab 从锚点进入列表，以及列表打开期间无关位置的 Tab 保持原生。[弹窗控制器测试](../../../../packages/client/ui-commands/tests/popup.client.spec.ts) 覆盖高亮的停放、没有标记行时退回首行、重试时在保留的搜索内重新停放，以及输入时重定到首行。弹窗面板的 Tab 只有单元覆盖：目前还没有 Web 场景驱动 `/model` 或 `/permission`。
+[模型位浏览器证据](../../../../apps/web/tests/declared-reasoning.e2e.ts) 用真实 Chromium 与 WebKit 驱动已发布的 bundle：两者都验证原生鼠标选择、取消、请求被拒绝后的焦点以及键盘导航。每种引擎都会打开已下钻的等级面板，用 `↑` 走位，用 Tab 选定一档并断言保存下来的推理等级，随后重新打开该面板、断言键盘落在那一档而不是列表顶部，再用 Shift+Tab 退回被下钻的格子并关闭。[模型位键盘测试](../../../../packages/client/ui-model-selection/tests/model-select.client.spec.tsx) 覆盖下钻交接落在正在使用的值上（没有标记行时落在首行）、交回给该格子、`↑`／`↓` 的双向循环走位、Tab 选定聚焦行以及从触发器进入菜单、Shift+Tab 先退层再关闭，以及菜单关闭时 Tab 保持原生。[弹窗视图测试](../../../../packages/client/ui-commands/tests/popup-view.client.spec.tsx) 覆盖 Tab 接受停放的高亮并完成消费与焦点归还、Shift+Tab 关闭且不接受、行仍在加载时 Tab 被消费且焦点不离开卡片、方向键与原生左右光标互不干扰，以及 `↑`／`↓` 的循环。[触发流水线测试](../../../../packages/client/ui-input-trigger/tests/service.client.spec.ts) 覆盖关闭粘在它自己的命中上（Escape、指针关闭、落定选定三种）、同一命中重新 track 时保持关闭，以及查询改变后菜单重新武装。[Menu 测试](../../../../packages/client/ui-primitives/tests/atoms.client.spec.tsx) 覆盖不带 `autoFocus` 的方向键走位（从近端进入、两端循环、跳过禁用行）、Escape 把焦点还给锚点、Tab 选定聚焦行、Shift+Tab 关闭并把焦点还给锚点、Tab 从锚点进入列表，以及列表打开期间无关位置的 Tab 保持原生。[弹窗控制器测试](../../../../packages/client/ui-commands/tests/popup.client.spec.ts) 覆盖高亮的停放、没有标记行时退回首行、重试时在保留的搜索内重新停放，以及输入时重定到首行。弹窗面板的 Tab 只有单元覆盖：目前还没有 Web 场景驱动 `/model` 或 `/permission`。
 
 ## 影响
 

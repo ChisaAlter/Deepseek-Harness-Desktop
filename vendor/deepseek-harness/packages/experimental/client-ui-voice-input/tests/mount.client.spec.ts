@@ -24,6 +24,7 @@ vi.mock('../src/client/readiness.ts', () => ({ observeReadiness: () => ({
 
 /** Narrow the erased registry payload before exercising its registered actions. */
 function assertVoiceActions(value: Record<string, unknown>): asserts value is Record<string, unknown> & VoiceInputInjected {
+  assert(typeof value.openSettings === 'function')
   assert(typeof value.createRecording === 'function')
   assert(typeof value.configure === 'function')
   assert(typeof value.prepare === 'function')
@@ -42,6 +43,8 @@ async function fixture(fail = false) {
     }
   }
   new Remote()
+  const openBundle = vi.fn()
+  ctx.provide('pluginNavigation', { openBundle })
   const configure = vi.fn(async () => ({ ok: true, value: {} }))
   const prepare = vi.fn(async () => ({ ok: true, value: {} }))
   const cancelPreparation = vi.fn(async () => ({ ok: true, value: {} }))
@@ -56,7 +59,7 @@ async function fixture(fail = false) {
   } } as never,
   () => null)
   if (fail) vi.spyOn(ctx.slots, 'inject').mockImplementationOnce(() => { throw new Error('slot failed') })
-  return { ctx, unmount, configure, prepare, cancelPreparation, transcribe }
+  return { ctx, unmount, openBundle, configure, prepare, cancelPreparation, transcribe }
 }
 
 it('withdraws its Remote, localized slot and microphone captures on disposal', async () => {
@@ -69,6 +72,8 @@ it('withdraws its Remote, localized slot and microphone captures on disposal', a
     expect(entry).toMatchObject({ locale: 'voice-input' })
     const actions = entry!.inject!()
     assertVoiceActions(actions)
+    actions.openSettings()
+    expect(b.openBundle).toHaveBeenCalledWith('@deepseek-ai/dsh-experimental-voice-input-bundle')
     const finished = actions.createRecording()
     assert(finished instanceof Recording)
     await finished.dispose()
@@ -77,6 +82,8 @@ it('withdraws its Remote, localized slot and microphone captures on disposal', a
     const dispose = vi.spyOn(pending, 'dispose')
     await actions.configure({ language: 'zh' })
     await actions.prepare('local' as SpeechProviderId)
+    await actions.prepare('local' as SpeechProviderId, { downloadSource: 'https://hf-mirror.com' })
+    expect(b.prepare).toHaveBeenLastCalledWith('local', { downloadSource: 'https://hf-mirror.com' })
     await actions.cancelPreparation('local' as SpeechProviderId)
     for (const slot of ['plugins.bundle.config', 'plugins.bundle.activation'] as const) {
       const item = b.ctx.slots.entries(slot)[0]!

@@ -5,7 +5,19 @@ import { describe, expect, it, vi } from 'vitest'
 import { createInstalledUpdateRun } from '../scripts/installed-update-qualification.ts'
 import { assertInstalledUpdateSigningClear, installedUpdatePackagingEnvironment, packageInstalledUpdate } from '../scripts/installed-update-packaging.ts'
 
-const state = vi.hoisted(() => ({ home: '', settings: {} as NodeJS.ProcessEnv, loads: 0 }))
+const state = vi.hoisted(() => ({ home: '', settings: {} as NodeJS.ProcessEnv, loads: 0,
+  sourceCommit: 'a'.repeat(40), dirtyFiles: '' }))
+// Other test processes create workspace probes; only this fixture controls its recorded Git inputs.
+vi.mock('node:child_process', async (original) => {
+  const actual = await original<typeof import('node:child_process')>()
+  return { ...actual, execFileSync: (...args: Parameters<typeof actual.execFileSync>) => {
+    if (args[0] !== 'git') return actual.execFileSync(...args)
+    const command = args[1]?.join(' ')
+    if (command === 'rev-parse HEAD') return state.sourceCommit
+    if (command === 'status --porcelain=v1 --untracked-files=normal') return state.dirtyFiles
+    throw new Error(`unexpected fixture Git command: ${String(command)}`)
+  } }
+})
 vi.mock('node:os', async original => ({ ...await original<typeof import('node:os')>(), homedir: () => state.home }))
 vi.mock('../scripts/desktop-package-environment.mjs', () => ({
   loadDesktopPackageEnvironment: () => { state.loads++; return state.settings },
@@ -118,17 +130,19 @@ describe('operator-driven packaging entry', () => {
     })
   })
 
-  it.runIf(process.platform === 'win32' && process.arch === 'x64').each(['output', 'source'] as const)(
+  it.runIf(process.platform === 'win32' && process.arch === 'x64').each(['output', 'source', 'git-head', 'git-status'] as const)(
     'refuses an intervening %s change before launching the builder', async (change) => {
       await fixture(async (manifest, root) => {
         await expect(packageInstalledUpdate(manifest, versions[0], { execute: true, confirm: async () => {
           if (change === 'source') await writeFile(join(root, 'certificate.cer'), 'changed certificate bytes')
+          else if (change === 'git-head') state.sourceCommit = 'b'.repeat(40)
+          else if (change === 'git-status') state.dirtyFiles = ' M apps/desktop/package.json'
           else {
             await mkdir(join(manifest, '..', versions[0], 'installer'))
             await writeFile(join(manifest, '..', versions[0], 'installer/owner.txt'), 'preserve')
           }
           return true
-        } })).rejects.toThrow()
+        } })).rejects.toThrow(change === 'output' ? 'EEXIST' : 'recorded source or tool inputs changed before packaging')
         const parent = join(manifest, '..', versions[0], 'packaging')
         const record = join(parent, (await readdir(parent))[0]!)
         expect(await readFile(join(record, 'events.jsonl'), 'utf8')).not.toContain('stage-spawn')

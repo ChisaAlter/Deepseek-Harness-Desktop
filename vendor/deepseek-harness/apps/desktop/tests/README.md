@@ -10,9 +10,23 @@ Installed qualification can opt into `DSH_DESKTOP_UPDATE_JOURNAL_DIR`, an absolu
 
 ## Table of Contents
 
+- [Native overlay visibility](#verification-overlay)
 - [Evidence](#verification-evidence)
 - [Manual walkthrough](#verification-interactive)
 - [Open verification](#verification-open)
+
+<a id="verification-overlay"></a>
+
+## Native overlay visibility
+
+On macOS, reuse the cached Electron runtime after compiling the Desktop Host sources:
+
+```sh
+pnpm exec tsc -b apps/desktop/tsconfig.host.json
+apps/desktop/.desktop-build/targets/mac-arm64/electron/Electron.app/Contents/MacOS/Electron apps/desktop/tests/fixtures/update-overlay-visibility.mjs
+```
+
+The fixture owns a unique profile and writes `result.json` under `.desktop-build/qualification/update-overlay-*`. It compares native visibility, unfiltered parent content, and listener cleanup with the owner-local expected output for parent hide/show and document readiness while the parent is hidden. It uses no network, product login, or dsh Host. This qualifies native window restoration rather than the full first-login flow.
 
 <a id="verification-interactive"></a>
 
@@ -27,6 +41,8 @@ With Host, client, and Desktop artifacts built, run `node --import tsx apps/desk
 ## Evidence
 
 The local command builds Desktop and executes Electron 44 with the actual HTTP updater, policy client, sandboxed preload, and mandatory renderer. It records each scenario and preserves its report under `.desktop-build/qualification/local-updater-*`. The installer call, external browser, and clipboard are observation substitutes; downloaded bytes are not an executable installer.
+
+Packaging supervision fixtures control their Git metadata and use real file hashes with inert child processes. Git-head and worktree changes still refuse packaging; concurrent tests cannot change the fixture’s recorded Git inputs.
 
 | Layer | Observed result |
 |---|---|

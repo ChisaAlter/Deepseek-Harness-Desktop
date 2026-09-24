@@ -3,8 +3,9 @@
 import { describe, expect, it } from 'vitest'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
-import { en } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
+import { en, zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { statusLine } from '@deepseek-ai/dsh-tool-jobs/src/render.ts'
 import { presentation } from '@deepseek-ai/dsh-tool-session-query/src/presentation.ts'
 import { renderList, renderRead, renderSpawn } from '@deepseek-ai/dsh-tool-terminal/src/render.ts'
@@ -51,6 +52,16 @@ describe('shared detail values', () => {
 })
 
 describe('control detail adapters', () => {
+  it.each([
+    [{ timedOut: false }, '子智能体状态 · 检测到变化'],
+    [{ timedOut: true }, '子智能体状态 · 等待超时'],
+    [{ timedOut: false, noProgress: { message: 'No pending work' } }, '没有正在运行的子智能体'],
+  ] as const)('names subagents in Chinese wait results (%j)', (value, summary) => {
+    const translate = makeTranslate(zh, commonZh)
+    expect(translate('tool.title.waitAgent')).toBe('等待子智能体')
+    expect(detailsCardModel(output('wait_agent', JSON.stringify(value)), translate, 'zh-CN')?.summary).toBe(summary)
+  })
+
   it('uses producer wording for agent, job, terminal, and LSP lists', () => {
     const agents = details('list_agents', 'a1 [running] — Build\na2 [ready] parent=a1 depth=1 — Review', { scope: 'descendants' })
     expect(agents?.summary).toBe('2 agents')
@@ -78,7 +89,7 @@ describe('control detail adapters', () => {
     expect(details('send_message', '{"status":"queued"}', { agent_id: 'a1', message: 'hello' })?.items[0]?.badge?.label).toBe('Queued')
     expect(details('send_message', 'message delivered to agent a1', { agent_id: 'a1', message: 'hello' })?.summary).toBe('a1 · Message delivered')
     expect(details('interrupt_agent', '{"previousStatus":"running"}', { agent_id: 'a1' })?.items[0]?.fields).toContainEqual({ label: 'Previous status', value: 'Running' })
-    expect(details('wait_agent', '{"timedOut":true}')?.summary).toBe('Teammate activity · Wait timed out')
+    expect(details('wait_agent', '{"timedOut":true}')?.summary).toBe('Subagent activity · Wait timed out')
     expect(details('wait_agent', '{"timedOut":false,"noProgress":{"message":"No peer"}}')?.items[0]?.description).toBe('No peer')
     expect(details('subagent', 'started background subagent job job-1', { prompt: 'Do work' })?.items[0]?.fields).toContainEqual({ label: 'Job ID', value: 'job-1' })
     expect(details('subagent', 'A useful reply', { prompt: 'Do work' })?.items[0]?.markdown).toBe('A useful reply')

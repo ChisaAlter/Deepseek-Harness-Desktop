@@ -52,7 +52,7 @@ export const InputBar = memo(function InputBar({
   useSession, useSessions, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
   retryFileUpload,
   toggleCommandMenu, stop, t,
-  renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher,
+  renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher, useStopShortcut,
   useComposerBeam, useComposerBeamStyle, useComposerResize, useComposerResizeHeight, useComposerResizeWidth,
   useTypingFx, useTypingFxStyle,
   setComposerResizeSize,
@@ -63,6 +63,7 @@ export const InputBar = memo(function InputBar({
   const input = useInput(s => s)
   const notice = useNotices(s => s)
   const busyEnter = useBusyEnter(s => s)
+  const stopKeys = useStopShortcut(keys => keys)
   void useLexicon // hook seat stays bound by the inject compartment; text-ref decoration rides the shell's editor transforms
   const commandMenuOpen = useMenuLauncher(source => source === 'command')
   const composerBeam = useComposerBeam(value => value)
@@ -577,7 +578,7 @@ export const InputBar = memo(function InputBar({
                 : (sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked }))}
               {!managed && <ContextMeter useProjection={useProjection} t={t} />}
               {interruptible && (
-                <Tooltip label={t('input.stop')} side="top" delayMs={500} disabled={stop === undefined}>
+                <Tooltip label={t('input.stop')} shortcutKeys={stopKeys} side="top" delayMs={500} disabled={stop === undefined}>
                   <button
                     type="button"
                     className={css.primary}
@@ -592,7 +593,7 @@ export const InputBar = memo(function InputBar({
                   </button>
                 </Tooltip>
               )}
-              <Tooltip label={primaryLabel} side="top" delayMs={500} disabled={primaryDisabled}>
+              <Tooltip label={primaryStops ? t('input.stop') : primaryLabel} shortcutKeys={primaryStops ? stopKeys : undefined} side="top" delayMs={500} disabled={primaryDisabled}>
                 <button
                   type="button"
                   className={css.primary}

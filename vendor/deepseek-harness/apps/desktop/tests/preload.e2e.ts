@@ -80,6 +80,9 @@ describe.skipIf(!existsSync(preload('preload-app')))('built sandboxed Desktop pr
       expect(send).toHaveBeenCalledWith('dsh-desktop:locale-changed', 'zh')
     } else {
       expect(exposed.has('dshWelcome')).toBe(true)
+      const bridge = exposed.get('dshWelcome') as { takeNotice(): Promise<unknown> }
+      void bridge.takeNotice()
+      expect(invoke).toHaveBeenCalledWith('dsh-welcome:take-notice')
     }
   })
 })

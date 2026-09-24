@@ -276,6 +276,12 @@ export type RemoteStreamServerMessage =
 | `end` 之后又收到 `item` | 任意 | 该流以 `gateway/protocol` 错误帧失败并中止；socket 不关闭 |
 | 未知 `streamId` 的 `item` / `end` | 任意 | 忽略，与 `cancel` 相同：Host 结束流并删除 id 后，客户端在途的上行帧属正常现象，不能连累同一 socket 上的其他流 |
 
+### 取消等待的生命周期
+
+`cancellableStream`、`UplinkDecoder.next()` 和 Client 上行泵各自为单次读取创建取消或停止 Promise。读取完成后，`Promise.race` 不会移除另一输入上的 reaction：复用流级未完成 Promise 会保留已完成的竞争及其读取结果，直到该 Promise 完成或不可达。单次读取的 Promise 使取消状态的保留量不随已交付项数增长。
+
+Host 下行在每次读取后清除当前拒绝回调，并在再次读取前检查取消状态。上行解码器只保留尚未完成的读取：取消时拒绝这些读取，正常关闭则以 `done` 唤醒全部读取，包括重叠的读取。Client 泵在每次读取后移除停止 Promise，停止后不再发起读取。源迭代器的释放仍由原有所有者负责；Host 仍先关闭上行，再返回方法迭代器。
+
 ### 顺序保证
 
 同一条 socket 上的帧全序到达：一条逻辑流的 `open`、`item`…、`end` 按发送顺序到达 Host；上行项进入 `uplink()` 的顺序就是 `send` 的顺序。上行与下行之间没有跨方向顺序保证；需要请求应答配对的协议自带序号。
@@ -538,6 +544,10 @@ for await (const reply of stream) replies.push(reply)   // ['> a', '> b']
 
 ## 考虑过的替代方案
 
+**三处读取循环共用一个取消控制器。** 每处循环已有自己的所有者和不同的关闭行为。单次读取的 Promise 能限制保留状态，不需要把这些职责迁入新抽象。
+
+**要求源迭代器自行取消 `next()`。** Gateway 接受任意 iterable，其待处理读取不一定响应取消或 `return()`。Gateway 仍需独立于源清理来唤醒自己的等待者。
+
 **独立的 `mode: 'duplex'` 加一个与 `signal` 同级的保留参数 `uplink: AsyncIterable<In>`。** 每一处都是特殊逻辑：analyzer 要认第二个保留参数及其位置规则，生成签名多一个参数，加载期要校验 `duplex ⟺ uplink`，mux 不知道方法模式所以网关要替 `'stream'` 方法拒绝上行帧。双工是传输层流的固有性质，不是方法的一种模式：载体本来就有 `streamId`、`open`、`cancel`，上行只是再加两种帧，任何流都能收，不用就不发。
 
 **用装饰器选项声明上行类型，`@Remote({ mode: 'stream', uplink: 'JobInputFrame' })`。** 字符串引用类型名不受编译器约束，重命名即断。返回类型别名把两个类型写在同一个编译器可见的位置。
@@ -571,6 +581,8 @@ for await (const reply of stream) replies.push(reply)   // ['> a', '> b']
 - **worker 隧道与 WebSocket 载体行为不同**：没有 inbox 上限，`end` 之后的项丢弃，因为页面到 worker 是同源可信边界。
 
 ## 测试
+
+`gateway-stream.host.spec.ts` 和 `gateway.client.spec.ts` 中的保留对象用例在流保持打开时进行全量 GC，再统计存活的迭代结果。生命周期用例覆盖正常关闭唤醒多个待处理上行读取、两次读取之间的取消、源同步取消后抛错，以及 Client 发送期间流结束。
 
 - `packages/api/gateway/tests/echo-stream.host.spec.ts`：同一个 echo 方法分别穿过 WebSocket 载体与进程内载体。
 - 网关 Host：帧解析的精确键校验；`UplinkInbox` 的 opening 缓冲、`end` 后 `item`、超限、未知 `streamId` 忽略、socket 关闭时的收尾；`UplinkDecoder` 有无 codec 两种交付与解码失败中止；`uplink()` 只能取一次；`extend({ invocation })` 视图与 `peer` 的来源；`cancellableStream` 先关 uplink 再 `return()`。

@@ -33,6 +33,25 @@ export function presetGuide(id: string, trust: string): PresetGuide | undefined 
   return trust === 'system' ? guides.get(id) : undefined
 }
 
+/** Keep keyboard focus inside a preset reader while Tab moves through its controls.
+ * @param event Keyboard event from the active reader.
+ */
+export function trapPresetReaderTab(event: KeyboardEvent<HTMLDivElement>): void {
+  if (event.key !== 'Tab') return
+  const targets = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
+    'button:not([disabled]):not([tabindex="-1"]), [tabindex="0"]',
+  )).filter(element => !element.closest('[hidden]'))
+  const first = targets[0]
+  const last = targets[targets.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last?.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first?.focus()
+  }
+}
+
 /** Curated usage dictionaries contain only level-three example sections. */
 function GuideUsage({ text, t }: {
   text: string
@@ -76,11 +95,7 @@ export function PresetGuideDialog({ guide, initialPage, t, onClose }: {
   const content = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
-    const previous = document.activeElement
     content.current?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus()
-    return () => {
-      if (previous instanceof HTMLElement) previous.focus()
-    }
   }, [])
 
   // This reader sits above Settings. Keep keyboard navigation in the reader,
@@ -90,20 +105,7 @@ export function PresetGuideDialog({ guide, initialPage, t, onClose }: {
       event.preventDefault()
       event.stopPropagation()
       onClose()
-    } else if (event.key === 'Tab') {
-      const targets = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
-        'button:not([disabled]):not([tabindex="-1"]), [tabindex="0"]',
-      )).filter(element => !element.closest('[hidden]'))
-      const first = targets[0]
-      const last = targets[targets.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last?.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first?.focus()
-      }
-    }
+    } else trapPresetReaderTab(event)
   }
 
   return (

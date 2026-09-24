@@ -23,6 +23,7 @@ import {
   installFailLoud,
   loadOverlayPatches,
   loadProfile,
+  reportSkippedBundles,
   PluginPackages,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
@@ -180,6 +181,7 @@ export function prepareProfile(
   if (options.userLayer !== undefined) loadOptions.userLayer = options.userLayer
   if (options.bundles !== undefined) loadOptions.bundles = options.bundles
   const profile = loadProfile(NAME, name, INSTALL_ANCHOR, undefined, loadOptions)
+  reportSkippedBundles(NAME, profile)
   writeFileSync(join(profile.dir, PROFILE_ROOT_FILENAME), PROFILE_ROOT_CONFIG)
   return profile
 }

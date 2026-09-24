@@ -27,6 +27,8 @@ This Service Definition selects named speech recognizers through `ctx.speechToTe
 
 Load through the [voice input bundle](../voice-input-bundle/README.md), or compose the service with a provider and consumer. `defaultProvider` is required and selects an exact registered id; the bundle supplies `sensevoice-local`. `language` supplies the omitted language hint. A missing or duplicate provider fails explicitly.
 
+Providers advertise preparation origins through `downloadSources`. `prepare(id, options)` forwards an optional `downloadSource` for one task; the provider validates the choice and refuses source changes during active preparation. Omission retains provider policy. Source choices are not persisted recognition preferences.
+
 -----
 
 <a id="understand-the-implementation"></a>

@@ -404,7 +404,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
   it('opens child history in the right Sidebar and releases it when closed', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-subagent-sidebar-chat'))
     await page.getByRole('button', { name: '2 subagents' }).hover()
-    await page.getByRole('button', { name: `Open ${LABEL} in sidebar` }).click()
+    await page.getByRole('treeitem', { name: new RegExp(LABEL) }).getByRole('button', { name: `Open ${LABEL} in sidebar`, exact: true }).click()
     const sidebarChat = page.locator('[data-sidebar-chat]')
     await sidebarChat.getByText(/^Explain event sourcing in one sentence\.Your parent agent id is /).waitFor({ timeout: 15_000 })
     await compareOrRefreshGolden(
@@ -416,7 +416,7 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     await sidebarChat.waitFor({ state: 'detached' })
 
     await page.getByRole('button', { name: '2 subagents' }).hover()
-    await page.getByRole('button', { name: `Open ${ONE_SHOT_LABEL} in sidebar` }).click()
+    await page.getByRole('treeitem', { name: new RegExp(ONE_SHOT_LABEL) }).getByRole('button', { name: `Open ${ONE_SHOT_LABEL} in sidebar`, exact: true }).click()
     await page.locator('[data-sidebar-chat]').getByText(
       'One-shot tasks do not accept follow-ups; review the full execution record here.',
     ).waitFor({ timeout: 15_000 })
@@ -532,16 +532,16 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
     expect(await nestedDisclosure.count()).toBe(0)
     const clickArea = nestedRow.locator(':scope > div')
     expect(await clickArea.count()).toBe(1)
-    const [treeBox, clickAreaBox] = await Promise.all([
-      tree.boundingBox(),
+    const [menuBox, clickAreaBox] = await Promise.all([
+      tree.locator('..').boundingBox(),
       clickArea.boundingBox(),
     ])
-    expect(treeBox).not.toBeNull()
+    expect(menuBox).not.toBeNull()
     expect(clickAreaBox).not.toBeNull()
     expect([
-      Math.round(clickAreaBox!.x - treeBox!.x),
-      Math.round(treeBox!.x + treeBox!.width - clickAreaBox!.x - clickAreaBox!.width),
-    // Compact menu padding alone insets the rows now that the border is gone.
+      Math.round(clickAreaBox!.x - menuBox!.x),
+      Math.round(menuBox!.x + menuBox!.width - clickAreaBox!.x - clickAreaBox!.width),
+    // The outer menu padding insets the scrollable tree rows.
     ]).toEqual([3, 3])
     await compareOrRefreshGolden(
       BRANCHLESS_EXPECTED,

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AccountClientMetadata } from '@deepseek-ai/dsh-deepseek-account/types'
 import { DesktopMandatoryUpdatePolicy, desktopPolicyPage, resolveDesktopPolicyConfig, type DesktopPolicyState } from '../src/mandatory-update-policy.ts'
 
-const identity = { platform: 'win32', arch: 'x64', version: '0.1.5-rc.1', bundledDshVersion: '0.1.5-rc.1',
-  bundleId: 'com.deepseek.dsh', locale: 'zh-CN' } as const
+const identity = { platform: 'win32', arch: 'x64', bundledDshVersion: '0.1.5-rc.1' } as const
+const client: AccountClientMetadata = { version: '1.2.3', locale: 'zh-CN', timezoneOffsetSeconds: 28_800 }
 const force = { code: 40005, data: { show_content: { title: '<b>Update</b>', detail: 'Required upgrade' },
   desktop_app_link: 'https://downloads.example.com/desktop?os=win' } }
 const clear = { code: 0, msg: '', data: { biz_code: 0, biz_msg: '', biz_data: null } }
@@ -10,11 +11,12 @@ const deployment = { origin: 'https://policy.example.com', allowedPageOrigins: [
   intervalMs: 10_000, timeoutMs: 1_000, maxBackoffMs: 80_000, jitter: 0 }
 const instances: DesktopMandatoryUpdatePolicy[] = []
 
-function fixture(authentication: 'anonymous' | 'feishu-test' = 'anonymous') {
+function fixture(authentication: 'anonymous' | 'feishu-test' = 'anonymous',
+  clientSource: () => AccountClientMetadata = () => client) {
   const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(clear))
   const publish = vi.fn<(state: DesktopPolicyState) => void>()
   const policy = new DesktopMandatoryUpdatePolicy(resolveDesktopPolicyConfig({ ...deployment, authentication, ...(authentication === 'feishu-test' ? { allowedAuthOrigins: ['https://login.example.com'] } : {}) })!,
-    identity, publish, request)
+    identity, publish, request, clientSource)
   instances.push(policy)
   return { policy, request, publish }
 }
@@ -58,10 +60,21 @@ describe('mandatory update policy', () => {
     expect(url).toBeInstanceOf(URL)
     expect((url as URL).href).toBe('https://policy.example.com/api/v0/check_client_update?scenario=launch')
     expect(options).toMatchObject({ credentials: 'omit', cache: 'no-store', redirect: 'error', headers: {
-      'x-client-platform': 'desktop-win', 'x-client-version': '0.1.5-rc.1', 'x-client-bundle-id': 'com.deepseek.dsh',
-      'x-client-locale': 'zh-CN', 'x-client-arch': 'x64', 'x-client-update-channel': 'nightly',
+      'x-client-platform': 'desktop-win', 'x-client-version': '1.2.3', 'x-client-bundle-id': '',
+      'x-client-locale': 'zh_CN', 'x-client-timezone-offset': '28800', 'x-client-arch': 'x64', 'x-client-update-channel': 'nightly',
       'x-client-bundled-dsh-version': '0.1.5-rc.1',
     } })
+  })
+
+  it('sends the language and UTC offset sampled for each check', async () => {
+    let current = { ...client, locale: 'en', timezoneOffsetSeconds: -18_000 }
+    const { policy, request } = fixture('anonymous', () => current)
+    await policy.check('launch')
+    current = { ...client, locale: 'zh-CN', timezoneOffsetSeconds: 28_800 }
+    await policy.check('manual', true)
+    const headers = request.mock.calls.map(call => (call[1]?.headers ?? {}) as Record<string, string>)
+    expect(headers[0]).toMatchObject({ 'x-client-locale': 'en_US', 'x-client-timezone-offset': '-18000' })
+    expect(headers[1]).toMatchObject({ 'x-client-locale': 'zh_CN', 'x-client-timezone-offset': '28800' })
   })
 
   it('coalesces manual checks and honors the interval on foreground/resume', async () => {

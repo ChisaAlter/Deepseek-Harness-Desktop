@@ -15,7 +15,6 @@
   - listitem:
     - text: Edited queue item
     - button "Edit queued message"
-    - tooltip "Edit queued message"
     - button "Remove queued message"
     - button "Steer queued message"
 - textbox "Cmd/Ctrl+Enter steers all queued messages"

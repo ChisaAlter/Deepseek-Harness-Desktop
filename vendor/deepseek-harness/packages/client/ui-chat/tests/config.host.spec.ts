@@ -17,7 +17,14 @@ describe('ui-chat Host settings', () => {
     expect(plainConfig(configuration.fiber.config)).toEqual({ transcriptView: DEFAULT_TRANSCRIPT_VIEW_MODE, performanceUsage: 'detailed', linkOpening: 'sidebar' })
     await configuration.update({ transcriptView: 'normal' })
     expect(plainConfig(configuration.fiber.config)).toEqual({ transcriptView: 'normal', performanceUsage: 'detailed', linkOpening: 'sidebar' })
-    await expect(configuration.update({ transcriptView: 'dense' })).rejects.toThrow()
+    for (const mode of ['expanded', 'compact', 'standard', 'detailed', 'verbose']) {
+      await configuration.update({ transcriptView: mode })
+      expect(plainConfig(configuration.fiber.config)).toMatchObject({ transcriptView: mode })
+    }
+    for (const mode of ['dense', '', 42, false, {}, null, undefined]) {
+      await configuration.update({ transcriptView: mode })
+      expect(plainConfig(configuration.fiber.config)).toMatchObject({ transcriptView: 'standard' })
+    }
     await configuration.update({ performanceUsage: 'compact' })
     expect(plainConfig(configuration.fiber.config)).toMatchObject({ performanceUsage: 'compact' })
     await expect(configuration.update({ performanceUsage: 'hidden' })).rejects.toThrow()

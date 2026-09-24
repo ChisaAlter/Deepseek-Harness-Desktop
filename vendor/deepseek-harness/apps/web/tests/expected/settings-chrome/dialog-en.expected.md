@@ -18,12 +18,15 @@
   - text: Font size Only affects conversation content 14
   - button "Increase font size"
   - button "Decrease font size"
-  - text: px Work details Controls how turns and steps expand by default
-  - button "Compact"
+  - text: px Work details Choose how much detail to show for tool calls
+  - button "Standard"
   - text: Performance & usage Choose how much performance and usage information to show
   - button "Detailed"
-  - text: Developer tools Show tools and information for debugging and troubleshooting
-  - switch "Developer tools"
+  - text: Coding Tools Shows trajectory, code diffs, and Agent preset switching in new chats
+  - switch "Coding Tools"
+  - text: Keyboard shortcuts
+  - paragraph: View and edit available shortcuts and input actions
+  - button "Edit shortcuts"
   - text: Send behavior while busy What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
   - button "Queue"
   - text: "Current version: {{version}}"

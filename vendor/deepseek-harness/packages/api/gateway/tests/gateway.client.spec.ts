@@ -1,3 +1,4 @@
+import { queryObjects } from 'node:v8'
 import { RemoteError, typertOwnedValue } from '@deepseek-ai/dsh-typert-protocol'
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Fiber } from '@deepseek-ai/cordis'
@@ -2804,6 +2805,81 @@ describe('Client Typert API', () => {
 })
 
 describe('Remote stream client carrier lifecycle', () => {
+  it('does not pull another uplink item when sending ends the stream', async () => {
+    await withFakeWebSocket('https://harness.example', async () => {
+      const client = new RemoteStreamMuxClient()
+      client.start()
+      const socket = FakeWebSocket.sockets[0]!
+      const send = socket.send.bind(socket)
+      const sent = vi.spyOn(socket, 'send').mockImplementation((text) => {
+        send(text)
+        const frame = parseRemoteStreamClientMessage(text)
+        if (frame.type === 'item') socket.receive({ type: 'end', streamId: frame.streamId })
+      })
+      const next = vi.fn(async (): Promise<IteratorResult<string>> => ({ done: false, value: 'item' }))
+      const returned = vi.fn(async (): Promise<IteratorResult<string>> => ({ done: true, value: undefined }))
+      try {
+        const iterator = client.open('probe/attach', {}, new AbortController().signal, {
+          [Symbol.asyncIterator]: () => ({ next, return: returned }),
+        })[Symbol.asyncIterator]()
+        await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
+        expect(next).toHaveBeenCalledOnce()
+        expect(returned).toHaveBeenCalledOnce()
+      } finally {
+        await client.close()
+        sent.mockRestore()
+      }
+    })
+  })
+
+  it('releases sent uplink read results while the stream stays open', async () => {
+    await withFakeWebSocket('https://harness.example', async () => {
+      class ReadResult implements IteratorYieldResult<string> {
+        readonly done = false
+        readonly value = 'item'
+      }
+      const blocked = Promise.withResolvers<undefined>()
+      const lastRead = Promise.withResolvers<IteratorResult<string>>()
+      let reads = 0
+      const uplink: AsyncIterable<string> = {
+        [Symbol.asyncIterator]: () => ({
+          next: () => {
+            if (reads++ < 256) return Promise.resolve(new ReadResult())
+            blocked.resolve(undefined)
+            return lastRead.promise
+          },
+          return: async () => {
+            lastRead.resolve({ done: true, value: undefined })
+            return { done: true, value: undefined }
+          },
+        }),
+      }
+      const client = new RemoteStreamMuxClient()
+      client.start()
+      const iterator = client.open('probe/attach', {}, new AbortController().signal, uplink)[Symbol.asyncIterator]()
+      const first = iterator.next()
+      // Closing the carrier during failed assertions can reject this pending read.
+      void first.catch(() => undefined)
+      try {
+        await blocked.promise
+        const socket = FakeWebSocket.sockets[0]!
+        expect(socket.sent).toHaveLength(257)
+        const opened = parseRemoteStreamClientMessage(socket.sent[0]!)
+        if (opened.type !== 'open') throw new Error('fixture expected an open frame')
+        socket.receive({ type: 'item', streamId: opened.streamId, value: 'ready' })
+        await expect(first).resolves.toEqual({ done: false, value: 'ready' })
+        // A full GC runs while the uplink pump is still waiting for its next item.
+        expect(queryObjects(ReadResult, { format: 'count' })).toBeLessThanOrEqual(2)
+        socket.receive({ type: 'end', streamId: opened.streamId })
+        await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
+      } finally {
+        await client.close()
+        await first.catch(() => undefined)
+        await iterator.return?.(undefined)
+      }
+    })
+  })
+
   it('connects to the shell-owned Host while the document uses a local asset origin', async () => {
     await withFakeWebSocket('dsh-app://app', async () => {
       vi.stubGlobal('__DSH_TRANSPORT__', { streamBaseUrl: 'http://127.0.0.1:43210' })

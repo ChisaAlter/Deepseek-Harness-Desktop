@@ -588,7 +588,7 @@ describe('the session-persistence Agent Note: AgentLoop factory create/resume', 
     expect(result).toMatchObject({ sourceEventSeqs: [3], data: {
       turn: 1,
       step: 1,
-      message: { source: { callId }, content: [{ content: [{ text: 'answered-7' }] }] },
+      message: { source: { callId }, content: [{ type: 'text', text: 'answered-7' }] },
     } })
     expect(events.some(event => event.type === 'turn/end'
       && event.data.turn === 1 && event.data.reason.kind === 'completed')).toBe(true)

@@ -1164,19 +1164,24 @@ async function *cancellableStream(
     ? Reflect.apply(asyncFactory, source, []) as AsyncIterator<unknown>
     : Reflect.apply(syncFactory as (...args: never[]) => Iterator<unknown>, source, [])
   let rejectAbort: ((error: unknown) => void) | undefined
-  const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
   const onAbort = (): void => {
     rejectAbort?.(streamAbortFailure(endpoint, signal.reason))
   }
   signal.addEventListener('abort', onAbort, { once: true })
   try {
-    if (signal.aborted) throw streamAbortFailure(endpoint, signal.reason)
     while (true) {
+      if (signal.aborted) throw streamAbortFailure(endpoint, signal.reason)
+      // Reusing a pending cancellation promise retains every completed race.
+      const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
+      // next() can abort and throw synchronously before the race subscribes.
+      void aborted.catch(() => undefined)
       const next = await Promise.race([Promise.resolve(iterator.next()), aborted])
+      rejectAbort = undefined
       if (next.done === true) return
       yield next.value
     }
   } finally {
+    rejectAbort = undefined
     signal.removeEventListener('abort', onAbort)
     // The uplink closes first so a method blocked on `uplink.next()` unwinds
     // before its iterator is asked to return.
@@ -1209,9 +1214,10 @@ function remoteCancelled(endpoint: string, cause: unknown): RemoteError<'gateway
  */
 class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
   private readonly source: AsyncIterator<unknown>
-  private readonly interrupted = Promise.withResolvers<IteratorResult<unknown>>()
+  private readonly interrupted = new Set<PromiseWithResolvers<IteratorResult<unknown>>>()
   private readonly onAbort = (): void => {
-    this.interrupted.reject(streamAbortFailure(this.endpoint, this.signal.reason))
+    const failure = streamAbortFailure(this.endpoint, this.signal.reason)
+    for (const read of this.interrupted) read.reject(failure)
   }
   private closed = false
 
@@ -1223,9 +1229,6 @@ class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
     private readonly abort: (reason: unknown) => void,
   ) {
     this.source = uplink[Symbol.asyncIterator]()
-    // The rejection settles the race inside next(); an abort with no read in
-    // flight must not surface as an unhandled rejection.
-    void this.interrupted.promise.catch(() => undefined)
     signal.addEventListener('abort', this.onAbort, { once: true })
   }
 
@@ -1237,7 +1240,17 @@ class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
     // A cancelled stream reports the cancellation on every read, closed or not.
     if (this.signal.aborted) throw streamAbortFailure(this.endpoint, this.signal.reason)
     if (this.closed) return UPLINK_DONE
-    const next = await Promise.race([this.source.next(), this.interrupted.promise])
+    // Only pending reads belong to the decoder; finish() must wake all of them.
+    const interrupted = Promise.withResolvers<IteratorResult<unknown>>()
+    this.interrupted.add(interrupted)
+    // The source can abort and throw synchronously before the race subscribes.
+    void interrupted.promise.catch(() => undefined)
+    let next: IteratorResult<unknown>
+    try {
+      next = await Promise.race([this.source.next(), interrupted.promise])
+    } finally {
+      this.interrupted.delete(interrupted)
+    }
     if (next.done === true) {
       this.finish()
       return UPLINK_DONE
@@ -1270,7 +1283,7 @@ class UplinkDecoder implements AsyncIterable<unknown>, AsyncIterator<unknown> {
   private finish(): void {
     this.closed = true
     this.signal.removeEventListener('abort', this.onAbort)
-    this.interrupted.resolve(UPLINK_DONE)
+    for (const read of this.interrupted) read.resolve(UPLINK_DONE)
   }
 }
 

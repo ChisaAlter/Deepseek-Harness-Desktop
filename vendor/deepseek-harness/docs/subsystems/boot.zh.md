@@ -16,7 +16,7 @@
 
 `PluginRegistries` 携带配置的第一个注册表（`null` 即 pnpm 自身配置指定的那个）、随后依次询问的备选注册表，以及 `resolved`——pnpm 自身配置指向的 URL，未读到时为 `null`。`InspectOptions.registry` 指定一次查询首先询问的注册表。
 
-`ChangeResult.changed` 报告磁盘修改，独立于 `application`：`applied`、`restart-required`、`overridden` 或 `failed`。可选的 `error` 包含可本地化的错误码和外部诊断。`packageResult` 记录 pnpm 退出码、有界输出、截断标志及完整诊断日志路径。`pendingBuilds` 列出整个 profile 尚未决定的包；`approvedBuilds` 记录本次操作授予权限的包名；`registries` 按顺序列出一次安装问过的注册表；`failedAt` 说明最后一次失败的运行连不上的是所问的注册表，还是 git 或 tarball spec 自身拉取的主机。
+`ChangeResult.changed` 报告磁盘修改，独立于 `application`：`applied`、`restart-required`、`overridden` 或 `failed`。可选的 `error` 包含可本地化的错误码和外部诊断。`packageResult` 记录 pnpm 退出码、有界输出、截断标志及完整诊断日志路径；当管理器终止了一个停止打印的运行，还记录 `timedOut`。被终止的运行不论信号留下什么退出状态都归类为 `timeout`，因此安装与删除都报告失败而非成功，也不会再询问下一个注册表。`pendingBuilds` 列出整个 profile 尚未决定的包；`approvedBuilds` 记录本次操作授予权限的包名；`registries` 按顺序列出一次安装问过的注册表；`failedAt` 说明最后一次失败的运行连不上的是所问的注册表，还是 git 或 tarball spec 自身拉取的主机。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -89,6 +89,21 @@ Source: [`packages/boot/hmr/src/index.ts`](../../packages/boot/hmr/src/index.ts)
 Manage profile files and apply their declared reload lifecycle.
 
 ```ts cordis-catalog
+/** Read exact plugin-version exemptions saved in this profile.
+ * @returns Accepted package-name@version keys with the runtime versions they may run on, and any
+ * record or file problem the reader rejected, which the caller reports instead of failing.
+ */
+@Remote listVersionExemptions(): { exemptions: Record<string, string[]>; warnings: string[] }
+
+/** Grant or revoke one exact plugin/runtime exemption and reevaluate live plugins.
+ * @param packageVersion Exact manifest package name followed by @ and its version; never an installation spec or alias.
+ * @param runtimeVersion Exact current DSH version for grants; revocation may name a previous runtime.
+ * @param enabled Whether to grant rather than revoke the exemption.
+ * @param acceptRisk Required true for grants after the user accepts possible crashes and data loss.
+ * @returns Saved and runtime outcomes. Startup-only profiles require restart.
+ */
+@Remote setVersionExemption(packageVersion: string, runtimeVersion: string, enabled: boolean, acceptRisk?: boolean): Promise<ChangeResult>
+
 /** Read current plugins, including why a row cannot be changed through the profile patch.
  * @returns Current runtime entries with persistent patch targets.
  */
@@ -129,7 +144,9 @@ Manage profile files and apply their declared reload lifecycle.
 @Remote setBundleEnabled(name: string, enabled: boolean): Promise<ChangeResult>
 
 /**
- * Install a package using the same pnpm implementation as dsh plugin. A run
+ * Install a package using the same pnpm implementation as dsh plugin. GitHub
+ * repositories get a connection check bounded by githubConnectionTimeoutMs before pnpm starts;
+ * only network failures or timeouts stop installation, while pnpm owns authentication and transport fallback. A run
  * that fails, is cancelled, or adds a package without a bundle patch restores
  * `package.json` and `pnpm-lock.yaml` as they were; downloaded files can stay.
  * @param spec One package spec, including local paths relative to the invocation directory.
@@ -148,7 +165,7 @@ Manage profile files and apply their declared reload lifecycle.
 
 /** Stop an installation this manager owns and wait until its files are back.
  * @param requestId The id the installation was started with.
- * @returns `cancelled` once pnpm exited and the files are restored, `too-late` once the bundle is being
+ * @returns `cancelled` once the Git check or pnpm exited and the files are restored, `too-late` once the bundle is being
  * applied, `not-running` for any other id.
  */
 @Remote async cancelInstall(requestId: PluginInstallRequestId): Promise<PluginInstallCancellation>

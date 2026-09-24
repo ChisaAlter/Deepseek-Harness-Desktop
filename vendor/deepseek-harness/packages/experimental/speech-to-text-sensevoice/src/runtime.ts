@@ -13,6 +13,7 @@ import type { Config } from './config.ts'
 import type { SpeechPreparationState } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
 import { timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { classifyDownloadFailure, SpeechDownloadError } from './download-error.ts'
+import { orderModelSources } from './model-sources.ts'
 
 /** Release-pinned downloadable file. */
 export interface Asset {
@@ -113,6 +114,7 @@ export async function downloadAsset(asset: Asset, root: string, signal: AbortSig
       const response = await fetch(asset.url, { signal })
       source = new URL(response.url || asset.url).origin
       if (!response.ok || !response.body) {
+        await response.body?.cancel()
         throw new SpeechDownloadError({ resource: asset.name, source, reason: 'http', status: response.status })
       }
       const digest = createHash('sha256')
@@ -148,7 +150,7 @@ export async function downloadAsset(asset: Asset, root: string, signal: AbortSig
 /**
  * Resolve the bundled native runtime and prepare verified ONNX models on demand.
  * @param _ctx - Host context owning the preparation task.
- * @param config - model paths, precision, and download origin.
+ * @param config - model paths, precision, and download source policy.
  * @param signal - preparation cancellation or deadline.
  * @param report - Host-owned progress publisher.
  * @returns verified model and worker paths.
@@ -157,9 +159,18 @@ export async function prepareRuntime(_ctx: Context, config: Config, signal: Abor
   report: (state: SpeechPreparationState) => void = () => {}): Promise<RuntimePaths> {
   const { lock, modelRoot, paths } = resolveRuntime(config)
   const download = async (asset: Asset, root: string, step: 'model' | 'vad'): Promise<void> => {
-    const url = new URL(asset.url)
-    const pinned = { ...asset, url: `${config.modelOrigin.replace(/\/$/, '')}${url.pathname}` }
-    await downloadAsset(pinned, root, signal, (state) => { report({ ...state, step }) })
+    if (await matchesAsset(join(root, asset.name), asset, signal)) return
+    const origins = config.modelOrigin === undefined ? config.modelOrigins : [config.modelOrigin]
+    const urls = await orderModelSources(asset.url, origins, config.modelProbeTimeoutMs, signal)
+    for (const [index, url] of urls.entries()) {
+      try {
+        await downloadAsset({ ...asset, url }, root, signal, (state) => { report({ ...state, step }) })
+        return
+      } catch (error) {
+        if (signal.aborted || !(error instanceof SpeechDownloadError) || error.download.reason === 'storage'
+          || error.download.reason === 'unknown' || index === urls.length - 1) throw error
+      }
+    }
   }
   if (config.modelDirectory === undefined) {
     report({ phase: 'checking', step: 'model', startedAt: Date.now() })

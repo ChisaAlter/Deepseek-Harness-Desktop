@@ -5,7 +5,7 @@ import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/u
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -27,8 +27,8 @@ const ARGS = '{"file_path":"notes/demo.txt","old_string":"hello","new_string":"h
 
 const DIFFS = [{ path: 'notes/demo.txt', oldText: 'hello', newText: 'hello fixture' }]
 
-const running = (over?: Partial<RunningToolCall>): RunningToolCall => ({
-  callId: 'c1', name: 'edit', argsRaw: ARGS,
+const running = (over?: Partial<StartedToolCall>): StartedToolCall => ({
+  phase: 'start' as const, callId: 'c1', name: 'edit', argsRaw: ARGS,
   turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
 })
 
@@ -159,9 +159,9 @@ describe('diffCardModel', () => {
 })
 
 describe('chat row diff body', () => {
-  const ownerProps = (block: RunningToolCall | ToolResultNode): GenericToolCardProps => ({
+  const ownerProps = (block: StartedToolCall | ToolResultNode): GenericToolCardProps => ({
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
-    useDisclosure, callId: 'c1', toolName: 'edit', block, openFile: vi.fn(), t,
+    useDisclosure, callId: 'c1', toolName: 'edit', ...('kind' in block ? { phase: 'result' as const, block: block } : { phase: block.phase, block: block }), openFile: vi.fn(), t,
   })
 
   it('the expanded body is the applied diff, capped tighter than the panel', () => {
@@ -187,7 +187,7 @@ describe('chat row diff body', () => {
     const view = render(<GenericToolCard {...{
       useDisclosure, callId: 'c1', toolName: 'some_tool', openFile: vi.fn(),
       loadImage: vi.fn(() => Promise.reject(new Error('not used'))), t,
-      block: settled({
+      phase: 'result' as const, block: settled({
         call: { name: 'some_tool', argsRaw: '{"foo":"bar"}' },
         meta: undefined,
       }),
@@ -206,8 +206,9 @@ describe('FileMutationRow diff card', () => {
     projectionsBySession: {},
   })
 
-  const rowProps = (block: RunningToolCall | ToolResultNode, toolName = 'edit'): FileMutationRowProps => ({
-    useDisclosure, callId: 'c1', toolName, block, openFile: vi.fn(), cwd: '/w/app',
+  const rowProps = (block: StartedToolCall | ToolResultNode, toolName = 'edit'): FileMutationRowProps => ({
+    useToolCallArgumentsPartial: () => { throw new Error('dispatched calls must not subscribe to preparing arguments') },
+    useDisclosure, callId: 'c1', toolName, ...('kind' in block ? { phase: 'result' as const, block: block } : { phase: block.phase, block: block }), openFile: vi.fn(), cwd: '/w/app',
     sessionId: SID, useSessions: bindSnapshotSelector(list()),
     t,
   } as FileMutationRowProps)

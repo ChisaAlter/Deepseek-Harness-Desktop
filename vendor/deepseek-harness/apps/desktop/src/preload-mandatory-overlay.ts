@@ -26,7 +26,7 @@ export function installMandatoryUpdateOverlay(): void {
     closing = undefined
     if (frame === undefined) {
       host = document.createElement('div')
-      host.style.cssText = `position:fixed;top:${WINDOWS_TITLEBAR_HEIGHT}px;left:0;right:0;bottom:0;z-index:2147483647;backdrop-filter:blur(2px)`
+      host.style.cssText = `position:fixed;top:${WINDOWS_TITLEBAR_HEIGHT}px;left:0;right:0;bottom:0;z-index:2147483647`
       const shadow = host.attachShadow({ mode: 'closed' })
       frame = document.createElement('iframe')
       frame.title = state.locale.messages.mandatoryTitle

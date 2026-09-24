@@ -18,6 +18,7 @@ vi.mock('../src/client/pdf/document.ts', () => ({ renderPdfPage: engine.render }
 import { PdfBody, type PdfBodyProps } from '../src/client/pdf/pdf.tsx'
 import { createPdfStore, type PdfState } from '../src/client/pdf/store.ts'
 import { en } from '../src/client/pdf/locales.ts'
+import { LoadingIndicator } from '../src/client/LoadingIndicator.tsx'
 import { PdfWorkerFailure } from '../src/client/pdf/errors.ts'
 import { ZoomViewport, zoomSurfaceClass } from '../src/client/zoom/ZoomViewport.tsx'
 
@@ -27,7 +28,10 @@ const loads: Array<{
 }> = []
 
 beforeEach(() => {
-  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100)
+  // Keep the 100px fixture pages at actual size inside the document gutters.
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(124)
+  const context: Pick<CanvasRenderingContext2D, 'drawImage'> = { drawImage: () => {} }
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as CanvasRenderingContext2D)
   loads.length = 0
   engine.open.mockReset().mockImplementation(() => {
     const deferred = Promise.withResolvers<PdfDocument>()
@@ -35,7 +39,10 @@ beforeEach(() => {
     loads.push({ deferred, dispose })
     return { document: deferred.promise, dispose }
   })
-  engine.render.mockReset().mockResolvedValue({ width: 100, height: 100 })
+  engine.render.mockReset().mockImplementation(async (_document, _page, canvas, _signal, ratio) => {
+    canvas.width = canvas.height = 100 * ratio
+    return { width: 100, height: 100 }
+  })
   overlay.create.mockReset()
   overlay.render.mockReset()
   overlay.cancel.mockReset()
@@ -88,7 +95,8 @@ function harness() {
       useTabInfo: () => ({ tab: { id: tabId, signal: controller.signal } }),
       useStore, actions: instance.actions, retainTab: vi.fn(), t: makeTranslate(en),
     } as unknown as PdfBodyProps
-    return <PdfBody {...props} scrollportRef={scrollportRef} ZoomViewport={ZoomViewport} zoomSurfaceClass={zoomSurfaceClass} />
+    return <PdfBody {...props} loading={<LoadingIndicator label={en.loading} />} scrollportRef={scrollportRef}
+      ZoomViewport={ZoomViewport} zoomSurfaceClass={zoomSurfaceClass} />
   }
   return { instance, controller, tabId, scrollportRef, View }
 }
@@ -113,7 +121,7 @@ describe('PDF body', () => {
   it('shows loading, adds zoom controls, and renders a continuous page sequence', async () => {
     const h = harness()
     const view = render(<h.View />)
-    expect(screen.getByRole('status').getAttribute('aria-label')).toBe('Reading…')
+    expect(screen.getByRole('status').getAttribute('aria-label')).toBe('Rendering document...')
     expect(screen.getByRole('status').hasAttribute('data-document-loading')).toBe(true)
     expect(screen.getByRole('status').querySelector('[data-state="ongoing"]')).not.toBeNull()
     await act(async () => { loads[0]!.deferred.resolve(documentOf()) })
@@ -188,11 +196,13 @@ describe('PDF body', () => {
     const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ctrlKey: true,
       deltaY: -10, clientX: 60, clientY: 70 })
     const controls = view.container.querySelector('[data-document-zoom-controls]') as HTMLElement
+    const rendersBeforeGesture = engine.render.mock.calls.length
     expect(controls.hasAttribute('data-document-zoom-visible')).toBe(false)
     expect(scrollport.dispatchEvent(event)).toBe(false)
     await act(async () => {})
     expect(controls.getAttribute('data-document-zoom-visible')).toBe('true')
     expect(h.instance.getSnapshot().byTab[h.tabId]?.zoom).toBeUndefined()
+    expect(engine.render).toHaveBeenCalledTimes(rendersBeforeGesture)
     expect(screen.getByRole('button', { name: 'Choose zoom' }).textContent).toContain('111%')
     expect((view.container.querySelector('[data-document-zoom-frame]') as HTMLElement)
       .style.getPropertyValue('--document-zoom')).toBe(String(Math.exp(0.1)))
@@ -208,6 +218,8 @@ describe('PDF body', () => {
     if (zoom?.kind !== 'fixed') throw new Error('pinch did not commit a fixed zoom')
     expect(zoom.scale).toBeCloseTo(Math.exp(0.1))
     const committed = zoom.scale
+    expect(engine.render).toHaveBeenCalledTimes(rendersBeforeGesture + 1)
+    expect(engine.render.mock.calls.at(-1)![4]).toBeCloseTo(window.devicePixelRatio * committed)
     await act(async () => { await vi.advanceTimersByTimeAsync(419) })
     expect(controls.getAttribute('data-document-zoom-visible')).toBe('true')
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
@@ -237,6 +249,62 @@ describe('PDF body', () => {
     expect(h.instance.getSnapshot().byTab[h.tabId]).toBeUndefined()
   })
 
+  it('redraws only nearby pages and refreshes a retained page when it returns at the new zoom', async () => {
+    IntersectionObserverStub.instances = []
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverStub)
+    const h = harness()
+    const view = render(<h.View />)
+    await act(async () => { loads[0]!.deferred.resolve(documentOf(3)) })
+    const first = view.container.querySelector('[data-pdf-page="1"]') as HTMLElement
+    const second = view.container.querySelector('[data-pdf-page="2"]') as HTMLElement
+    const firstCanvas = first.querySelector('canvas')!
+    const secondCanvas = second.querySelector('canvas')!
+    const firstObserver = IntersectionObserverStub.instances.find(instance => instance.observed.has(firstCanvas))!
+    const placeholderObserver = IntersectionObserverStub.instances.find(instance => instance.observed.has(second))!
+    await act(async () => { placeholderObserver.intersect(second, true) })
+    const secondObserver = IntersectionObserverStub.instances.find(instance => instance.observed.has(secondCanvas))!
+    act(() => { secondObserver.intersect(secondCanvas, false) })
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 2 }) })
+    expect(engine.render.mock.calls.map(([, page]) => page)).toEqual([1, 2, 1])
+    expect(first.querySelector('canvas')!.width).toBe(200 * window.devicePixelRatio)
+    expect(second.querySelector('canvas')!.width).toBe(100 * window.devicePixelRatio)
+    await act(async () => { firstObserver.intersect(firstCanvas, false); secondObserver.intersect(secondCanvas, true) })
+    expect(engine.render.mock.calls.map(([, page]) => page)).toEqual([1, 2, 1, 2])
+    expect(second.querySelector('canvas')!.width).toBe(200 * window.devicePixelRatio)
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 1 }) })
+    expect(second.querySelector('canvas')!.width).toBe(100 * window.devicePixelRatio)
+  })
+
+  it('retains the displayed page while cancelling and joining superseded zoom renders', async () => {
+    const h = harness()
+    const view = render(<h.View />)
+    await act(async () => { loads[0]!.deferred.resolve(documentOf(1)) })
+    const canvas = screen.getByRole('img') as HTMLCanvasElement
+    const obsolete = Promise.withResolvers<{ width: number; height: number }>()
+    const latest = Promise.withResolvers<{ width: number; height: number }>()
+    engine.render.mockImplementationOnce((_document, _page, buffer) => {
+      buffer.width = buffer.height = 200
+      return obsolete.promise
+    }).mockImplementationOnce((_document, _page, buffer) => {
+      buffer.width = buffer.height = 300
+      return latest.promise
+    })
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 2 }) })
+    expect(canvas.width).toBe(100)
+    expect(screen.getByRole('img')).toBe(canvas)
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 3 }) })
+    expect(engine.render.mock.calls[1]![3].aborted).toBe(true)
+    expect(engine.render).toHaveBeenCalledTimes(2)
+    await act(async () => { obsolete.resolve({ width: 100, height: 100 }) })
+    expect(engine.render).toHaveBeenCalledTimes(3)
+    expect(canvas.width).toBe(100)
+    await act(async () => { latest.resolve({ width: 100, height: 100 }) })
+    expect(canvas.width).toBe(300)
+    expect(canvas.style.getPropertyValue('--pdf-page-width')).toBe('100px')
+    expect(screen.queryByRole('alert')).toBeNull()
+    view.unmount()
+  })
+
   it('keeps the replacement document when the previous load settles late', async () => {
     const h = harness()
     const mounted = render(<h.View data="old" />)
@@ -254,7 +322,7 @@ describe('PDF body', () => {
     const viewport = { width: 100, height: 100, scale: 1 } as PageViewport
     overlay.render.mockReturnValue({ promise: Promise.resolve(), cancel: overlay.cancel })
     engine.render.mockImplementation(async (_document, _number, _canvas, _signal, _ratio, renderText) => {
-      await renderText!(pdfPage, viewport).promise
+      await renderText?.(pdfPage, viewport).promise
       return { width: viewport.width, height: viewport.height }
     })
     const h = harness()
@@ -263,6 +331,9 @@ describe('PDF body', () => {
     expect(overlay.create).toHaveBeenCalledExactlyOnceWith(view.container.querySelector('[data-pdf-text]'))
     expect(overlay.render).toHaveBeenCalledExactlyOnceWith(pdfPage, viewport)
     expect(screen.getByRole('img', { name: 'PDF page 1' })).toBeDefined()
+    expect(overlay.cancel).not.toHaveBeenCalled()
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 2 }) })
+    expect(overlay.render).toHaveBeenCalledOnce()
     expect(overlay.cancel).not.toHaveBeenCalled()
     view.unmount()
     expect(overlay.cancel).toHaveBeenCalledOnce()
@@ -306,6 +377,8 @@ describe('PDF body', () => {
     expect(screen.getByRole('img', { name: 'PDF page 2' })).toBeTruthy()
     view.unmount()
     expect(IntersectionObserverStub.instances.every(instance => instance.disconnected)).toBe(true)
+    act(() => { observer.intersect(second, true) })
+    expect(engine.render.mock.calls.map(([, page]) => page)).toEqual([1, 2])
   })
 
   it('ignores successful and failed page renders after their body unmounts', async () => {
@@ -359,5 +432,27 @@ describe('PDF body', () => {
     await act(async () => {})
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('img', { name: 'PDF page 1' })).toBeTruthy()
+  })
+
+  it('keeps the previous bitmap when canvas allocation fails and retries the zoom', async () => {
+    const h = harness()
+    render(<h.View />)
+    await act(async () => { loads[0]!.deferred.resolve(documentOf(1)) })
+    const canvas = screen.getByRole('img') as HTMLCanvasElement
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValueOnce(null)
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 2 }) })
+    expect(canvas.width).toBe(100)
+    expect(screen.getByRole('img')).toBe(canvas)
+    expect(screen.getByRole('alert').textContent).toContain('PDF canvas has no 2D context')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await act(async () => {})
+    expect(canvas.width).toBe(200)
+    expect(screen.queryByRole('alert')).toBeNull()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValueOnce(null)
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 3 }) })
+    expect(screen.getByRole('alert')).toBeTruthy()
+    await act(async () => { h.instance.actions.zoom(h.tabId, { kind: 'fixed', scale: 2 }) })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(canvas.width).toBe(200)
   })
 })

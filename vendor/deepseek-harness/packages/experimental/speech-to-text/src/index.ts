@@ -5,7 +5,7 @@ import z from '@deepseek-ai/schemastery'
 // entry and `loader/volatile-update` merges.
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
-import type { SpeechProvider, SpeechProviderId, SpeechProviderInfo, SpeechSnapshot, SpeechSelectionPatch, SpeechRequest, SpeechSpec, Transcript } from './types.ts'
+import type { SpeechPreparationOptions, SpeechProvider, SpeechProviderId, SpeechProviderInfo, SpeechSnapshot, SpeechSelectionPatch, SpeechRequest, SpeechSpec, Transcript } from './types.ts'
 
 export type * from './types.ts'
 
@@ -153,11 +153,12 @@ export default class SpeechToText extends Service {
   /**
    * Start or join provider-owned preparation.
    * @param id - exact registered provider identity.
+   * @param options - task-local source selection validated by the provider.
    */
-  prepare(id: SpeechProviderId): void {
+  prepare(id: SpeechProviderId, options?: SpeechPreparationOptions): void {
     const registration = this.providers.get(id)
     if (!registration) throw new Error(`Speech provider is unavailable: ${id}`)
-    registration.provider.preparation?.prepare()
+    registration.provider.preparation?.prepare(options)
   }
 
   /**

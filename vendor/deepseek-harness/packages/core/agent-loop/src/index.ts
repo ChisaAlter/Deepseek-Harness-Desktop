@@ -773,14 +773,16 @@ export class AgentLoop extends Service implements AgentFactory {
       await stored?.handle.close().catch(() => {})
       throw error
     }
-    return await this.initializeAgent(prepared, async () => {
+    const published = await this.initializeAgent(prepared, async () => {
       const setupCommit = await raceAbort(setup?.(prepared.agent.ctx, prepared.agent), prepared.signal, id)
       setupCommit?.commit()
       await this.appendUnstoredSuffix(stored, session)
-      const published = prepared.publish(source)
-      if (pendingInteraction !== undefined) prepared.agent.resumePendingInteraction(pendingInteraction)
-      return published
+      return prepared.publish(source)
     })
+    // The recovered call's driver must start after setup maintenance settles:
+    // inside runMaintenance its finally would clobber the running phase.
+    if (pendingInteraction !== undefined) prepared.agent.resumePendingInteraction(pendingInteraction)
+    return published
   }
 
   private async initializeAgent(prepared: PreparedAgent, initialize: () => Promise<AgentHandle>): Promise<AgentHandle> {

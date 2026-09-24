@@ -14,7 +14,9 @@ it.each(['int8', 'fp32'] as const)('registers %s lazily and joins inference befo
     await ctx.plugin(LocalSubprocess)
     await ctx.plugin(SpeechToText, { defaultProvider: 'sensevoice-local', language: 'auto' })
     const transcribe = vi.spyOn(SenseVoiceWorker.prototype, 'transcribe')
-    const fiber = ctx.plugin(Provider, { dataRoot: process.cwd(), precision })
+    const fiber = ctx.plugin(Provider, { dataRoot: process.cwd(), precision,
+      ...precision === 'fp32' ? { modelOrigin: 'https://private.example' } : {},
+    })
     await fiber
     expect(transcribe).not.toHaveBeenCalled()
     const speech = ctx.get('speechToText')!
@@ -37,4 +39,11 @@ it('refuses relative runtime, model and cache paths before registration', () => 
       .toThrow('absolute')
   }
   expect(() => Provider.Config({ dataRoot: process.cwd(), threads: 0 })).toThrow()
+})
+
+it.each([
+  { modelOrigins: [] }, { modelOrigins: ['https://example.com/path'] }, { modelOrigins: ['https://user:secret@example.com'] },
+  { modelOrigin: 'file:///models' }, { modelProbeTimeoutMs: 0 }, { modelProbeTimeoutMs: 2_147_483_648 },
+])('rejects invalid download source configuration %j', (config) => {
+  expect(() => Provider.Config({ dataRoot: process.cwd(), ...config })).toThrow()
 })

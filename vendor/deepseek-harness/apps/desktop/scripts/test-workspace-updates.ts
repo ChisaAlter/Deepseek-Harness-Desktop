@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { createDevelopmentProjectMetadata, createPluginProfile } from '../src/project-manager.ts'
 import { removeOwnedDirectory } from '../src/owned-directory.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
+import { desktopTargetPlatform, developmentRuntimeDirectory, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
 
 const repo = resolve(import.meta.dirname, '../../..')
 const interactive = process.argv.includes('--interactive')
@@ -27,10 +28,11 @@ try {
     nodeVersion: execFileSync(electron, ['-p', 'process.versions.node'],
       { encoding: 'utf8', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true }).trim(),
     pnpmVersion: pnpm.version, hostProtocolVersion: DESKTOP_HOST_PROTOCOL_VERSION }
+  const target = resolveDesktopBuildTarget()
   createDevelopmentProjectMetadata(project, release)
   createPluginProfile(profile)
   await writeFile(join(project, 'desktop-runtime.json'), JSON.stringify({
-    schemaVersion: 1, release, platform: process.platform, arch: process.arch, files: [],
+    schemaVersion: 1, release, ...desktopTargetPlatform(target), files: [],
     sharedPackages: ['@deepseek-ai/dsh', '@deepseek-ai/dsh-desktop-host']
       .map(name => ({ name, version: manifest.version, path: `node_modules/${name}` })),
   }))
@@ -43,7 +45,6 @@ try {
   for (const owner of [application, project]) {
     await symlink(join(repo, 'node_modules/.pnpm/node_modules'), join(owner, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir')
   }
-  const target = `${process.platform === 'darwin' ? 'mac' : 'win'}-${process.arch}`
   const targetRoot = join(application, '.desktop-build/targets', target)
   await mkdir(targetRoot, { recursive: true })
   await symlink(join(repo, 'apps/desktop/.desktop-build/targets', target, 'runtime'), join(targetRoot, 'runtime'),
@@ -61,7 +62,7 @@ try {
     ...(interactive ? ['--interactive'] : [])], {
     cwd: root, env: { ...environment, DSH_HOME: join(root, 'home'), USERPROFILE: root, HOME: root,
       TEMP: root, TMP: root, TMPDIR: root, DSH_WORKSPACE_UPDATE_ROOT: root, DSH_WORKSPACE_UPDATE_TOKEN: randomUUID(),
-      DSH_DESKTOP_OPEN_DEVTOOLS: '0' },
+      DSH_DESKTOP_PRIMARY_RUNTIME_DIR: developmentRuntimeDirectory(), DSH_DESKTOP_OPEN_DEVTOOLS: '0' },
     // Hiding the GUI process suppresses its first window and can suspend renderer frame callbacks.
     stdio: 'inherit', windowsHide: false,
   })

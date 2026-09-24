@@ -1,11 +1,11 @@
 /** Replay-stable view models for Cordis lifecycle Tool calls. */
 
-import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
+import type { StartedToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type {
   CordisDynamicPackageId, CordisDynamicPluginId, CordisDynamicPluginRunId, CordisDynamicRunMode,
 } from './events.ts'
 
-type Block = ToolCallViewProps['block']
+type Block = StartedToolCallViewProps['block']
 
 /** Lifecycle of the tool call itself. */
 export type CordisToolState = 'running' | 'ok' | 'error' | 'stopped'

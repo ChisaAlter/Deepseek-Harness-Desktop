@@ -13,6 +13,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ConnectionHandle } from '@deepseek-ai/dsh-client-connection/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
+import { closeTopModal } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the settings slot declarations plus the ctx.configForms Context
 // merge. Cross-plugin collaboration goes through the service, never a value
 // import (client bundle purity gate).
@@ -25,6 +26,8 @@ import type {
   SettingsOnboardingStep, SettingsRootInjected, SettingsSectionRow,
 } from './shell-contract.ts'
 import { SettingsNavigationService } from './settings-navigation.ts'
+import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
+import { createSettingsShellStore } from './shell-store.ts'
 import { SettingsRoot } from './SettingsRoot.tsx'
 import { DesktopUpdateBadge } from './DesktopUpdateIndicator.tsx'
 import type { DesktopUpdateBridge } from '../types.ts'
@@ -87,7 +90,7 @@ const NS = 'settings'
  * ui-settings' apply, whose activation order relative to this one is NOT
  * constrained; registrations depend on their slots through `slots.inject()`.
  */
-export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'remote.session', 'configForms']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'remote.settings', 'remote.session', 'configForms', 'shortcuts']
 
 /**
  * Register the `settings` dictionaries, the chrome content, and the General
@@ -148,6 +151,7 @@ export function apply(ctx: ClientContext): void {
     openSettings: sectionId => { settingsNavigation.open(sectionId) },
     closeSettings: () => { settingsNavigation.close() },
     hooks: {
+      shortcuts: ctx.shortcuts.catalog,
       desktopUpdate: desktopUpdate.store,
       connectionState: connection.state,
       navigation: settingsNavigation,
@@ -197,20 +201,83 @@ export function apply(ctx: ClientContext): void {
       },
     },
   })
-  ctx.slots.inject('sidebar.settings', () => ctx.slots.register({
-    name: 'sidebar.settings',
-    locale: NS,
-    children: {
-      'settings.launcher': { kind: 'single', scope: 'root' },
-      'settings.trigger': { kind: 'single', scope: 'root' },
-      'settings.header': { kind: 'single', scope: 'root' },
-      'settings.action': { kind: 'list', scope: 'root' },
-      'settings.close': { kind: 'single', scope: 'root' },
-      'settings.section': { kind: 'list', scope: 'root' },
-      'settings.onboarding': { kind: 'list', scope: 'root' },
-    },
-    inject: shellInjected,
-  }, SettingsRoot))
+  ctx.slots.inject('sidebar.settings', () => {
+    const shellHandle = createSettingsShellStore()
+    const shellInstance = shellHandle.create()
+    const shellStore: typeof shellHandle = { ...shellHandle, create: () => shellInstance }
+    // One dialog state, two surfaces: the SettingsNavigation service is the
+    // public open/close channel and the panel's render source, while the
+    // declared store is the command surface the settings.open shortcut
+    // resolves into. Mirror each direction so neither can drift.
+    let bridging = false
+    const mirrorFromStore = () => {
+      if (bridging) return
+      const state = shellInstance.getSnapshot()
+      bridging = true
+      try {
+        if (state.open) settingsNavigation.open(state.activeId)
+        else settingsNavigation.close()
+      } finally {
+        bridging = false
+      }
+    }
+    const mirrorToStore = () => {
+      if (bridging) return
+      const state = settingsNavigation.getSnapshot()
+      const current = shellInstance.getSnapshot()
+      bridging = true
+      try {
+        if (state.open) {
+          if (state.sectionId !== undefined) {
+            if (!current.open || current.activeId !== state.sectionId) {
+              shellInstance.actions.openSection(state.sectionId)
+            }
+          } else if (!current.open) shellInstance.actions.open()
+        } else if (current.open || current.activeId !== undefined) {
+          shellInstance.actions.close()
+        }
+      } finally {
+        bridging = false
+      }
+    }
+    const offStore = shellInstance.subscribe(mirrorFromStore)
+    const offNavigation = settingsNavigation.subscribe(mirrorToStore)
+    const disposeCommand = ctx.shortcuts.register({
+      id: 'settings.open' as ShortcutCommandId, label: () => t('shortcut.open'), aliases: ['settings', 'preferences'],
+      defaults: {
+        'desktop:macos': { code: 'Comma', modifiers: ['primary'] },
+        'desktop:windows': { code: 'Comma', modifiers: ['primary'] },
+        'desktop:linux': { code: 'Comma', modifiers: ['primary'] },
+        'web:macos': { code: 'Comma', modifiers: ['primary'] },
+        'web:windows': { code: 'Comma', modifiers: ['primary'] },
+      },
+      regions: ['page', 'editable', 'terminal'], modals: ['settings'],
+      resolve: ({ modal }) => {
+        if (modal !== null && modal !== 'settings') return { status: 'blocked', reason: 'modal' }
+        return { status: 'handled', run: () => {
+          if (modal === 'settings') closeTopModal(document)
+          else shellInstance.actions.open()
+        } }
+      },
+    })
+
+    const disposeSlot = ctx.slots.register({
+      name: 'sidebar.settings',
+      locale: NS,
+      store: shellStore,
+      children: {
+        'settings.launcher': { kind: 'single', scope: 'root' },
+        'settings.trigger': { kind: 'single', scope: 'root' },
+        'settings.header': { kind: 'single', scope: 'root' },
+        'settings.action': { kind: 'list', scope: 'root' },
+        'settings.close': { kind: 'single', scope: 'root' },
+        'settings.section': { kind: 'list', scope: 'root' },
+        'settings.onboarding': { kind: 'list', scope: 'root' },
+      },
+      inject: shellInjected,
+    }, SettingsRoot)
+    return () => { offStore(); offNavigation(); disposeCommand(); disposeSlot() }
+  })
 
   ctx.slots.inject('settings.trigger', () =>
     ctx.slots.register({ name: 'settings.trigger', locale: NS }, TriggerContent))

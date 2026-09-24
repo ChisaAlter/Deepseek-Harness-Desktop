@@ -63,7 +63,9 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
   const disposeHandlers = (): void => {
     if (!active) return
     active = false
-    for (const channel of [WELCOME_IPC.saveApiKey, WELCOME_IPC.skip, WELCOME_IPC.start, WELCOME_IPC.cancel, WELCOME_IPC.copyLink]) {
+    for (const channel of [
+      WELCOME_IPC.takeNotice, WELCOME_IPC.saveApiKey, WELCOME_IPC.skip, WELCOME_IPC.start, WELCOME_IPC.cancel, WELCOME_IPC.copyLink,
+    ]) {
       ipcMain.removeHandler(channel)
     }
     disposeActiveHandlers = undefined
@@ -74,6 +76,7 @@ export async function openWelcomeWindow(locale: DesktopLocale, operations: Welco
       throw new Error('desktop welcome: rejected action from an unowned frame')
     }
   }
+  ipcMain.handle(WELCOME_IPC.takeNotice, async (event) => { assertSender(event); return operations.takeNotice() })
   ipcMain.handle(WELCOME_IPC.saveApiKey, async (event, value: unknown) => {
     assertSender(event)
     if (typeof value !== 'string' || !/^[\x21-\x7e]+$/.test(value)) return { ok: false }

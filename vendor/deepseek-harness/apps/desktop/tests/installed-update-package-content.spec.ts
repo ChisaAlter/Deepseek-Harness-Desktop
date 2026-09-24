@@ -1,4 +1,6 @@
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import type { WriteStream } from 'node:fs'
+import { finished } from 'node:stream/promises'
 import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
@@ -30,8 +32,9 @@ afterEach(() => { external.archive.mockReset(); external.signature.mockReset(); 
 
 const require = createRequire(import.meta.url)
 const builderRequire = createRequire(require.resolve('app-builder-lib/package.json'))
-const { createPackageWithOptions } = builderRequire('@electron/asar') as {
-  createPackageWithOptions: (source: string, destination: string, options: { unpack: string }) => Promise<void>
+const { createPackageWithOptions, uncache } = builderRequire('@electron/asar') as {
+  createPackageWithOptions: (source: string, destination: string, options: { unpack: string }) => Promise<WriteStream>
+  uncache: (archive: string) => boolean
 }
 const versions = ['0.1.6-nightly.20260914.1', '0.1.6-nightly.20260914.2'] as const
 const publisher = 'CN=Fixture,O=Fixture,C=CN'
@@ -45,6 +48,7 @@ async function fixture(body: (context: {
   resealRuntime: () => Promise<void>
 }) => Promise<void>, version: string = versions[0]): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-package-content-'))
+  const archive = join(root, 'payload/resources/app.asar')
   try {
     const run = await createInstalledUpdateRun(root, versions, { version: '0.1.5-rc.2', commit: 'a'.repeat(40), dirtyFiles: [] })
     const manifest = join(run.root, 'run.json')
@@ -80,14 +84,20 @@ async function fixture(body: (context: {
       url: `${run.origin}/${run.feedKey.slice(0, -'nightly.yml'.length)}`, publisherName: [publisher],
       updaterCacheDirName: `dsh-update-test-${run.id}-updater` }))
     const seal = async () => {
-      await createPackageWithOptions(source, join(payload, 'resources/app.asar'), { unpack: '**/*.exe' })
+      // ASAR 3 returns the output stream after end(), before its writes finish.
+      const output = await createPackageWithOptions(source, archive, { unpack: '**/*.exe' })
+      await finished(output, { cleanup: true })
+      uncache(archive)
     }
     await seal()
     await body({ manifest, source, payload, version, seal, resealRuntime: async () => {
       reseal(join(source, 'dsh'))
       await seal()
     } })
-  } finally { await rm(root, { recursive: true, force: true }) }
+  } finally {
+    uncache(archive)
+    await rm(root, { recursive: true, force: true })
+  }
 }
 
 describe('installed update archive contents', () => {

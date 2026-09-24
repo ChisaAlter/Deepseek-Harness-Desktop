@@ -40,5 +40,14 @@ it('guides a newly enabled voice plugin to installation and lets the user postpo
   await page.getByRole('button', { name: 'Download and prepare', exact: true }).waitFor()
   expect(await dialog.count()).toBe(0)
   expect(await page.getByText('Local models will be downloaded to the machine running DSH. No Python or compiler is required.', { exact: true }).count()).toBe(1)
+  expect(await page.getByText('Audio is recognized on the machine running DSH. If models need downloading, that machine must be able to reach the selected source and its file services. Configure a proxy on that machine if needed.', { exact: true }).count()).toBe(1)
+  const source = page.getByLabel('Model download source', { exact: true })
+  expect(await source.inputValue()).toBe('')
+  expect(await source.getByRole('option').allTextContents()).toEqual(['Automatic (recommended)', 'Hugging Face', 'HF-Mirror (China mirror)'])
+  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/voice-source-auto.expected.md', import.meta.url)),
+    await captureStableAria(page, '[data-speech-provider]', scaffold.workspaceCwd), webSnapshotMode())
+  await source.selectOption('https://hf-mirror.com')
+  await compareOrRefreshGolden(fileURLToPath(new URL('./expected/voice-source-manual.expected.md', import.meta.url)),
+    await captureStableAria(page, '[data-speech-provider]', scaffold.workspaceCwd), webSnapshotMode())
   expect(tripwire.pageErrors).toEqual([])
 })

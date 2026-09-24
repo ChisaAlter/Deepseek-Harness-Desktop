@@ -20,3 +20,10 @@
       name: '@deepseek-ai/dsh-skill-office'
       config:
         assetRoot: !!js process.cwd() + '/office-skills'
+        cli: false
+
+- id: tool-bash
+  disabled: true
+
+- id: tool-pwsh
+  disabled: true

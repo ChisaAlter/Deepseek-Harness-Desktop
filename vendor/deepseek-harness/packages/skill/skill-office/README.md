@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Agents can load Word, PowerPoint, and Excel workflows that use the bundled Python environment by default and respect explicit user or AGENTS.md environment choices. The skills cover creation, focused edits, structural checks, and file delivery. Visual inspection is conditional on image-capable models and an available rendering tool; ordinary document delivery does not require installing a renderer.
+Agents can load Word, PowerPoint, and Excel workflows that use the bundled Python environment by default and respect explicit user or AGENTS.md environment choices. The skills cover creation, focused edits, structural checks, and file delivery. When supplied by the environment, the LibreOffice Kit CLI directly renders selected pages or worksheet ranges, converts requested PDFs, and recalculates workbooks into new files. Visual QA requires image input support, reuses unchanged-source previews, and ends when applicable checks pass; ordinary delivery does not require installing a renderer.
 
 ## Table of Contents
 
@@ -36,12 +36,18 @@ Mount this provider beside the skill registry and `dsh-tool-skill` to expose `of
 | Field | Default | Meaning |
 |---|---|---|
 | `assetRoot` | Packaged `assets/` | Absolute resource directory containing the three skill folders and shared `scripts/`; deployments can place it outside an application archive. |
+| `node` | Current standalone Node process | Absolute Node executable; Electron and SDK executables must supply a standalone Node. |
+| `cli` | Installed kit’s `lib/cli.js` | Absolute CLI entry; `false` explicitly disables the CLI. |
 
 Relative paths, missing resources, and skill files without a YAML frontmatter description reject activation. Disposing the plugin removes its candidates. Project and user skill precedence remains owned by the skill registry.
+
+Loaded skills append an `Installed LibreOffice Kit` section with absolute `libreofficeKit.node` and `libreofficeKit.cli` paths. Agents use the bundled binaries unless the user explicitly opts out, passing the CLI as Node’s first argument without relying on the working directory or searching PATH. A bundled CLI failure is reported rather than replaced with a system executable. Activation checks both paths are files. npm deployments use their installed kit by default; Desktop supplies standalone Node and the complete unpacked Office dependencies; the Python SDK supplies standalone Node and its adjacent Office directory. Custom Python-only deployments must set `cli: false` or supply standalone Node.
 
 ### Structural checks
 
 The shared Python checker reads DOCX, PPTX, or XLSX without modifying the source. It recognizes Transitional and Strict OOXML namespaces, validates ZIP/XML and internal package relationships, reports document structure, and optionally checks required text or slide/sheet count. DOCX text assertions cover the main body, section-referenced headers and footers, and body-referenced footnotes and endnotes; comments, glossary text, and unreferenced parts or notes do not satisfy them. It uses only the Python standard library. Invalid packages, corrupt or encrypted ZIP members, and report-file write failures produce a JSON failure report on stdout. A passing report does not establish appearance, feature preservation, or calculated formula results.
+
+Excel data and formula tasks skip visual inspection; formatting, layout, chart appearance, printing, or known display problems require checking relevant regions. Basic styling does not itself trigger inspection, and formula recalculation and requested exports remain independent operations. Blank or transparent previews do not pass visual inspection. A failed preview ends visual checking without diagnostic workbooks, PDF conversion, or unrequested print-setting changes; the usable workbook is delivered with the inspection limitation.
 
 -----
 
@@ -85,7 +91,7 @@ Mounting the provider adds three catalog entries; loading a skill adds its body 
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- The provider does not install Python, authoring libraries, or a rendering engine. The checker requires Python 3.9 or later.
+- The provider depends on LibreOffice Kit but does not install Python or authoring libraries. The checker requires Python 3.9 or later.
 - Structural checks do not judge pagination, clipping, fonts, chart appearance, or Excel recalculation.
 - The checker accepts DOCX, PPTX, and XLSX only; legacy, encrypted, and macro-enabled formats require an appropriate separate workflow.
 

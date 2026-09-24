@@ -49,11 +49,30 @@ export async function smokeDesktopRuntime(
     }))
     writeFileSync(join(plugin, 'index.js'), `
 import { Context } from '@deepseek-ai/cordis'
-import { inspect } from 'node:util'
+import { inspect, promisify } from 'node:util'
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 export function apply(ctx) {
   if (!(ctx instanceof Context)) throw new Error('desktop runtime: external plugin loaded another Cordis instance')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke',
     handler(_request, response) { response.end('plugin route ready') } }))
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-office-cli',
+    async handler(_request, response) {
+      try {
+        const skill = await ctx.skills.get('office-docx')
+        const json = skill?.content.match(/\\n(\\{\\n[\\s\\S]+)$/u)?.[1]
+        if (json === undefined) throw new Error('Office skill did not supply CLI paths')
+        const { libreofficeKit: { node, cli } } = JSON.parse(json)
+        const options = { cwd: ${JSON.stringify(home)}, env: { ...process.env, PATH: '' }, timeout: 120_000 }
+        const capabilities = await promisify(execFile)(node, [cli, 'capabilities'], options)
+        const output = ${JSON.stringify(join(home, 'cli.pdf'))}
+        await promisify(execFile)(node, [cli, 'convert', '--input', ${JSON.stringify(join(home, 'input.docx'))}, '--output', output], options)
+        response.end(JSON.stringify({ capabilities: JSON.parse(capabilities.stdout), pdf: (await readFile(output)).toString('base64') }))
+      } catch (error) {
+        response.statusCode = 500
+        response.end(inspect(error, { depth: 5 }))
+      }
+    } }))
   for (const input of ${JSON.stringify(inputs)}) {
     ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-office/' + input.extension,
       async handler(_request, response) {
@@ -71,7 +90,7 @@ export function apply(ctx) {
   }
 }
 `)
-    writeFileSync(join(plugin, 'bundle.yml'), '- insert:\n    - id: desktop-runtime-smoke-plugin\n      name: desktop-runtime-smoke-plugin\n      inject: [webServer, officeToPdf]\n')
+    writeFileSync(join(plugin, 'bundle.yml'), '- insert:\n    - id: desktop-runtime-smoke-plugin\n      name: desktop-runtime-smoke-plugin\n      inject: [webServer, officeToPdf, skills]\n')
     const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>
       dsh: { profile: { bundles: string[] } }
@@ -103,7 +122,15 @@ export function apply(ctx) {
         throw new Error(`desktop runtime: invalid ${extension} PDF output`)
       }
     }
-    console.log('desktop runtime: DOCX, XLSX, PPTX to PDF passed')
+    const cliResponse = await fetch(new URL('/desktop-smoke-office-cli', ready.url), {
+      headers: { cookie }, signal: AbortSignal.timeout(120_000),
+    })
+    if (!cliResponse.ok) throw new Error(`desktop runtime: skill CLI failed: ${await cliResponse.text()}`)
+    const cliResult = await cliResponse.json() as { capabilities: { runtime: { cliPath: string } }; pdf: string }
+    if (!cliResult.capabilities.runtime.cliPath.endsWith('cli.js') || Buffer.from(cliResult.pdf, 'base64').subarray(0, 5).toString() !== '%PDF-') {
+      throw new Error('desktop runtime: skill CLI did not return capabilities and a PDF')
+    }
+    console.log('desktop runtime: DOCX, XLSX, PPTX to PDF and skill CLI discovery passed')
   } finally {
     clearTimeout(timer)
     await host.stop()

@@ -5,17 +5,19 @@ import { createPortal } from 'react-dom'
 import { writeClipboard } from './clipboard.ts'
 import { usePointerGrace } from './pointer-grace.ts'
 import { overlayTopMargin } from './overlay-top-margin.ts'
+import { TooltipSuppression } from './Tooltip.tsx'
 import css from './HoverCard.module.css'
 
 /** Preview opacity transition and retained lifetime during dismissal. */
 const PREVIEW_FADE_MS = 100
 const PREVIEW_MAX_HEIGHT = 420
 const PREVIEW_INSET = 24
+const INLINE_PREVIEW_WIDTH = 300
 const ANCHOR_GAP = 8
 const VIEWPORT_MARGIN = 8
 
 /**
- * Render an anchor with a hover-triggered preview card.
+ * Render an anchor with a hover-triggered preview card, hidden while a tooltip within the anchor is visible.
  * @param props.anchor - the hover target (rendered in place inside a wrapper span).
  * @param props.content - card content; the pointer may rest on it, so it is
  * readable and selectable, but it carries no dismissal affordance of its own.
@@ -23,6 +25,7 @@ const VIEWPORT_MARGIN = 8
  * @param props.variant - compact card beside the anchor, or a preview above/below it
  * with 24px side insets, a 420px height cap, frame-top clearance, and 100ms opacity transitions.
  * @param props.widthAnchorRef - optional element whose width and horizontal position size the preview.
+ * @param props.inline - keep the anchor in prose; show a contained preview on hover or keyboard focus.
  * @param props.disabled - suppress opening; turning true dismisses an open card.
  * @param props.copyText - optional primary value copied by activation and
  * included in the card's accessible name.
@@ -32,9 +35,11 @@ const VIEWPORT_MARGIN = 8
  */
 export function HoverCard({
   anchor, content, openDelayMs = 500, disabled = false,
-  copyText, copyLabel, copiedLabel, variant = 'compact', widthAnchorRef,
+  copyText, copyLabel, copiedLabel, variant = 'compact', widthAnchorRef, inline = false,
 }: {
   anchor: ReactNode
+  /** Inline media preview using the shared menu material and keyboard focus. */
+  inline?: boolean
   content: ReactNode
   openDelayMs?: number
   disabled?: boolean
@@ -59,6 +64,7 @@ export function HoverCard({
   const [pos, setPos] = useState<{ left: number; top: number; width?: number; maxHeight?: number } | null>(null)
   const positioned = pos !== null
   const [copied, setCopied] = useState(false)
+  const [suppressed, setSuppressed] = useState(false)
 
   const clearCopied = useCallback(() => {
     if (copyTimerRef.current !== null) {
@@ -112,15 +118,17 @@ export function HoverCard({
   }, [])
 
   useEffect(() => {
-    if (!open || variant !== 'preview') return
+    if (!open || (variant !== 'preview' && !inline)) return
     const dismiss = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
+      if (inline) event.stopPropagation()
+      clearTimer()
       cancelClose()
       close()
     }
-    window.addEventListener('keydown', dismiss)
-    return () => { window.removeEventListener('keydown', dismiss) }
-  }, [open, variant, cancelClose, close])
+    window.addEventListener('keydown', dismiss, inline)
+    return () => { window.removeEventListener('keydown', dismiss, inline) }
+  }, [open, variant, inline, cancelClose, close])
 
   // Fixed-position from the anchor rect before paint; track the anchor while
   // open (capture-phase scroll catches nested panes), as in Menu portal mode.
@@ -148,11 +156,27 @@ export function HoverCard({
         })
         return
       }
+      if (inline) {
+        const height = Math.max(h, cardRef.current?.scrollHeight ?? 0)
+        const width = Math.max(0, Math.min(INLINE_PREVIEW_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2))
+        const topMargin = overlayTopMargin(VIEWPORT_MARGIN)
+        const belowTop = Math.max(topMargin, r.bottom + ANCHOR_GAP)
+        const above = Math.max(0, r.top - ANCHOR_GAP - topMargin)
+        const below = Math.max(0, window.innerHeight - belowTop - VIEWPORT_MARGIN)
+        const onTop = height > below && above > below
+        const maxHeight = onTop ? above : below
+        setPos({
+          left: Math.max(VIEWPORT_MARGIN, Math.min(r.left, window.innerWidth - width - VIEWPORT_MARGIN)),
+          top: onTop ? r.top - ANCHOR_GAP - Math.min(height, maxHeight) : belowTop,
+          width, maxHeight,
+        })
+        return
+      }
       const top = r.top + h > window.innerHeight - VIEWPORT_MARGIN ? window.innerHeight - h - VIEWPORT_MARGIN : r.top
       setPos({ left: r.right + ANCHOR_GAP, top })
     }
     place()
-    const observer = variant === 'preview' && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null
+    const observer = (variant === 'preview' || inline) && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null
     for (const element of [cardRef.current, rootRef.current, widthAnchorRef?.current]) {
       if (element !== null && element !== undefined) observer?.observe(element)
     }
@@ -163,19 +187,19 @@ export function HoverCard({
       window.removeEventListener('scroll', place, true)
       window.removeEventListener('resize', place)
     }
-  }, [open, variant, widthAnchorRef, positioned])
+  }, [open, variant, widthAnchorRef, positioned, inline])
 
   // The first placement ran before the card mounted (height read 0): once the
   // card's real height is measurable, correct the bottom-edge clamp. The
   // correction converges — a clamped top satisfies the guard, so it runs once.
   useLayoutEffect(() => {
-    if (!open || pos === null || variant === 'preview') return
+    if (!open || pos === null || variant === 'preview' || inline || suppressed) return
     /* v8 ignore next -- the card is mounted whenever pos is set, so the ref is attached here. */
     const h = cardRef.current?.offsetHeight ?? 0
     if (pos.top + h > window.innerHeight - VIEWPORT_MARGIN) {
       setPos({ left: pos.left, top: window.innerHeight - h - VIEWPORT_MARGIN })
     }
-  }, [open, pos, variant])
+  }, [open, pos, variant, inline, suppressed])
 
   const copy = async (text: string): Promise<void> => {
     if (copied || copyingRef.current) return
@@ -199,10 +223,10 @@ export function HoverCard({
     cancelClose()
     close()
   }
-  const card = open && pos !== null && (
+  const card = open && pos !== null && !suppressed && (
     <div
       ref={cardRef}
-      className={clsx(css.card, variant === 'preview' && css.preview, copyable && css.copyable, copied && css.feedback)}
+      className={clsx(css.card, variant === 'preview' && css.preview, inline && css.media, copyable && css.copyable, copied && css.feedback)}
       data-closing={closing || undefined}
       style={{
         ...pos, minHeight: copied && copyHeightRef.current !== null ? copyHeightRef.current : undefined,
@@ -237,9 +261,15 @@ export function HoverCard({
   return (
     <span
       ref={rootRef}
-      className={css.root}
-      onPointerEnter={() => {
-        if (disabled) return
+      className={clsx(css.root, inline && css.inline)}
+      onFocus={inline ? (event) => {
+        if (!disabled && event.target.matches(':focus-visible')) { cancelClose(); setPhase('open') }
+      } : undefined}
+      onBlur={inline ? (event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) { clearTimer(); cancelClose(); close() }
+      } : undefined}
+      onPointerEnter={(event) => {
+        if (disabled || (inline && event.pointerType === 'touch')) return
         // Coming back inside during the grace (the gap, or the card itself)
         // keeps the current card rather than restarting the dwell.
         cancelClose()
@@ -256,8 +286,8 @@ export function HoverCard({
       onPointerDownCapture={dismissFromAnchor}
       onClickCapture={dismissFromAnchor}
     >
-      {anchor}
-      {open && copyable && <span className={css.status} role="status">{copied ? copiedLabel : ''}</span>}
+      <TooltipSuppression.Provider value={setSuppressed}>{anchor}</TooltipSuppression.Provider>
+      {open && !suppressed && copyable && <span className={css.status} role="status">{copied ? copiedLabel : ''}</span>}
       {card !== false && createPortal(card, document.body)}
     </span>
   )

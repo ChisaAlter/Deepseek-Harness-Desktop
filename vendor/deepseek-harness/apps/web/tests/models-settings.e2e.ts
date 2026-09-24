@@ -437,7 +437,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       const picker = page.getByRole('dialog', { name: '选择要添加的模型' })
       await picker.getByRole('button', { name: '取消全选' }).click()
       await picker.getByRole('searchbox', { name: '搜索模型' }).fill('gpt-6-astra')
-      await picker.getByRole('checkbox', { name: 'GPT-6 Astra', exact: true }).check()
+      await picker.getByRole('checkbox', { name: 'gpt-6-astra', exact: true }).check()
       await picker.getByRole('button', { name: '添加所选' }).click()
       await dialog.getByRole('button', { name: '模型选项 1' }).click()
       expect(await image.isChecked()).toBe(true)

@@ -183,7 +183,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const node = useMemo(() => schema.nodeAtPath(root, settingsPath), [root, schema, settingsPath])
   const fallback = schema.getPath(namespace.value, settingsPath)
   const disabled = props.readOnly || busy
-  const layout = layoutOf(namespace.ns)
+  const accountProvider = props.provider === 'deepseek-account'
+  // Account settings use a configurable Cordis entry id.
+  const layout = accountProvider ? 'deepseek' : layoutOf(namespace.ns)
   const keyRef = refFor(schema, namespace, settingsPath, props.provider)
   // The same schema read the create card makes, so the choices offered here
   // and there cannot drift apart: both come from the adapter's own `Config`.
@@ -195,6 +197,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   )
 
   useEffect(() => {
+    if (accountProvider) return
     let stale = false
     setKeyState(undefined)
     // The key state is a placeholder hint, not a precondition for editing: a
@@ -204,7 +207,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       setKeyState(described)
     })
     return () => { stale = true }
-  }, [operations, keyRef])
+  }, [operations, keyRef, accountProvider])
 
   const stringAt = (source: unknown, key: string): string | undefined => {
     const value = schema.getPath(source, [key])
@@ -369,6 +372,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       },
       onReset: () => { setDraft(current => schema.deletePath(current, ['models'])) },
     }
+    if (accountProvider) return <DeepSeekModelsEditor {...catalogProps}
+      defaultContextWindow={typeof defaultContextWindow === 'number' ? defaultContextWindow : undefined}
+      defaultMaxTokens={typeof defaultMaxTokens === 'number' ? defaultMaxTokens : undefined} />
     return (
       <>
         <div className={styles['field']}>
@@ -376,7 +382,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           <input
             className={styles['input']}
             type="password"
-            autoComplete="off"
+            autoComplete="new-password"
             value={keyDraft}
             placeholder={keyPlaceholder}
             aria-label={t('keyInput')}

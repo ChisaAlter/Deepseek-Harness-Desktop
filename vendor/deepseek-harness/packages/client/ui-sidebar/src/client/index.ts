@@ -41,7 +41,7 @@ interface WorkspaceNavigation {
 }
 
 /** Services required by the sidebar plugin. */
-export const inject = ['slots', 'layout', 'uiWorkspace', 'locale']
+export const inject = ['slots', 'layout', 'uiWorkspace', 'locale', 'shortcuts']
 
 /** Registers the sidebar shell and its service callbacks.
  * @param ctx - Client root context.
@@ -104,6 +104,7 @@ export function apply(ctx: ClientContext): void {
         },
       },
       panels,
+      shortcuts: ctx.shortcuts.catalog,
     },
   })
   ctx.slots.inject('sidebar', () => ctx.slots.register({

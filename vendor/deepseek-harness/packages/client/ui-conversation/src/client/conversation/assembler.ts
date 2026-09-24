@@ -135,17 +135,10 @@ function mergeMatches(
 }
 
 function conversationMatch(
-  key: string,
   input: SessionEventLikeEntry,
   role: ConversationMatch['role'],
   location: ConversationMatch['location'],
 ): ConversationMatch {
-  if (role === 'start') {
-    if (input.type !== 'event') {
-      throw new Error(`conversation Context ${key} received a transient start Match`)
-    }
-    return { event: input.event, role, location }
-  }
   return { event: input.event, role, location }
 }
 
@@ -207,6 +200,17 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     private readonly groupDefinitions: ConversationGroupDefinitions = NO_GROUPS,
   ) {
     this.resetViewBuilders()
+  }
+
+  /**
+   * Read the current open turn without activating a View.
+   * @returns the latest turn number when its start is loaded and it remains open, otherwise undefined.
+   */
+  openTurn(): number | undefined {
+    const snapshot = this.locationIndex.snapshot()
+    const latest = snapshot.turnOrder.at(-1)
+    const turn = latest === undefined ? undefined : snapshot.turns.get(latest)
+    return turn?.status === 'open' && turn.start !== undefined ? turn.turn : undefined
   }
 
   /**
@@ -276,6 +280,8 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
 
   /**
    * Retire one Assistant attempt's transient matches and apply its optional durable settlement.
+   * Empty Contexts retain their keys and published nodes until the loaded window is rebuilt;
+   * Definitions may hide those nodes when no start remains instead of withdrawing their identities.
    * @param attemptId - process-local attempt whose transient presentation ended.
    * @param entry - durable message or attempt event committed for the stream.
    * @returns highest requested publication cadence.
@@ -483,7 +489,6 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   ): ConversationPublication {
     const key = conversationContextKey(definition.kind, id)
     const match = conversationMatch(
-      key,
       input,
       role,
       this.locationIndex.locationOf(input.event),
@@ -609,12 +614,9 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
   ): ConversationPublication {
     const key = conversationContextKey(definition.kind, id)
     let context = this.contexts.get(key)
-    if (role === 'start' && context?.start !== undefined) {
-      throw new Error(`conversation Context ${key} received more than one start Match`)
-    }
     context ??= this.createContext(definition, id, key)
+    const starting = role === 'start' && context.start === undefined
     const match = conversationMatch(
-      key,
       input,
       role,
       this.locationIndex.locationOf(input.event),
@@ -623,11 +625,11 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     if (previous !== undefined && previous.event.seq >= input.event.seq) {
       throw new Error(`conversation Context ${key} received non-appended Match ${input.event.seq}`)
     }
-    if (role === 'start' && context.matches.length > 0) {
+    if (starting && context.matches.length > 0) {
       throw new Error(`conversation Context ${key} received an update before its start Match`)
     }
     context.matches.push(match)
-    if (match.role === 'start') {
+    if (starting && match.role === 'start') {
       context.startSeq = input.event.seq
       context.start = match
       this.indexStartedContext(context)
@@ -636,7 +638,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     owners.add(context)
     this.contextsBySeq.set(input.event.seq, owners)
 
-    if (match.role === 'start') {
+    if (starting) {
       this.replayContext(context)
     } else if (context.state !== undefined) {
       const typed = contextSnapshot(context) as ConversationNodeContext & { readonly state: unknown }
@@ -652,23 +654,15 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     pending: ReadonlyMap<string, readonly PendingMatch[]>,
     affected: Set<InternalContext>,
   ): void {
-    const startsByKind = new Map<string, InternalContext[]>()
     for (const [key, entries] of pending) {
       const first = entries[0]
       if (first === undefined) continue
       let context = this.contexts.get(key)
       context ??= this.createContext(first.definition, first.id, key)
-      let discoveredStart: ConversationStartMatch | undefined
       const additions = entries
         .map((entry) => {
           if (entry.definition !== context.definition || entry.id !== context.id) {
             throw new Error(`conversation Context ${key} received inconsistent Definition identity`)
-          }
-          if (entry.match.role === 'start') {
-            if (discoveredStart !== undefined || context.start !== undefined) {
-              throw new Error(`conversation Context ${key} received more than one start Match`)
-            }
-            discoveredStart = entry.match
           }
           const owners = this.contextsBySeq.get(entry.match.event.seq) ?? new Set<InternalContext>()
           owners.add(context)
@@ -677,32 +671,45 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
         })
         .sort((left, right) => left.event.seq - right.event.seq)
       context.matches = mergeMatches(context.key, additions, context.matches)
-      if (discoveredStart !== undefined) {
-        context.start = discoveredStart
-        context.startSeq = discoveredStart.event.seq
-        const starts = startsByKind.get(context.kind) ?? []
-        starts.push(context)
-        startsByKind.set(context.kind, starts)
-      }
-      if (context.start !== undefined && context.matches[0] !== context.start) {
-        throw new Error(`conversation Context ${context.key} received an update before its start Match`)
-      }
       affected.add(context)
       this.markDirty(context)
     }
-    for (const [kind, contexts] of startsByKind) this.indexStartedContexts(kind, contexts)
   }
 
   private replayContexts(contexts: ReadonlySet<InternalContext>): void {
+    this.refreshStarts(contexts)
     const ordered = [...contexts].sort((left, right) =>
       (left.startSeq ?? Number.POSITIVE_INFINITY) - (right.startSeq ?? Number.POSITIVE_INFINITY))
     for (const context of ordered) {
       if (context.start === undefined) {
         context.state = undefined
+        this.replaceDependencies(context, new Map())
+        context.revision++
+        this.revised.add(context)
         this.markDirty(context)
         continue
       }
       this.replayContext(context)
+    }
+  }
+
+  private refreshStarts(contexts: ReadonlySet<InternalContext>): void {
+    const changed = new Set<InternalContext>()
+    const startsByKind = new Map<string, InternalContext[]>()
+    for (const context of contexts) {
+      const start = context.matches.find(match => match.role === 'start')
+      if (start === context.start) continue
+      context.start = start
+      context.startSeq = start?.event.seq
+      changed.add(context)
+      const starts = startsByKind.get(context.kind) ?? []
+      if (start !== undefined) starts.push(context)
+      startsByKind.set(context.kind, starts)
+    }
+    for (const [kind, starts] of startsByKind) {
+      const existing = this.contextsByKind.get(kind) ?? []
+      this.contextsByKind.set(kind, existing.filter(context => !changed.has(context)))
+      this.indexStartedContexts(kind, starts)
     }
   }
 
@@ -726,7 +733,7 @@ export class ConversationNodeAssembler implements ConversationViewSnapshotStore 
     this.replaceDependencies(context, dependencies)
     for (let index = 1; index < context.matches.length; index++) {
       const match = context.matches[index]
-      if (match === undefined || match.role !== 'update') continue
+      if (match === undefined) continue
       const typed = contextSnapshot(context) as ConversationNodeContext & { readonly state: unknown }
       context.state = requireState(
         context.definition,

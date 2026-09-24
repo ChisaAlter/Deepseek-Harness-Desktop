@@ -2,7 +2,8 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ToolCallOwnerProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { SkillRow } from '../src/client/SkillRow.tsx'
@@ -29,25 +30,37 @@ function settled(over: Partial<ToolResultNode> = {}): ToolResultNode {
   }
 }
 
-function running(argsRaw = '{"name":"dsh-manage-issues"}'): RunningToolCall {
+function running(argsRaw = '{"name":"dsh-manage-issues"}'): StartedToolCall {
   return {
-    callId: 'call-skill', name: 'skill', argsRaw, turn: 1, step: 1, time: 2_000, subCalls: [],
+    phase: 'start' as const, callId: 'call-skill', name: 'skill', argsRaw, turn: 1, step: 1, time: 2_000, subCalls: [],
   }
 }
 
 function props(block: SkillRowProps['block'], inspect?: () => void): SkillRowProps {
-  return {
+  const owner: ToolCallOwnerProps = {
     callId: block.callId,
     toolName: 'skill',
-    block,
-
+    ...('kind' in block ? { phase: 'result' as const, block }
+      : block.phase === 'preparing' ? { phase: 'preparing' as const, block } : { phase: 'start' as const, block }),
+    useDisclosure: () => ({ expanded: false, setExpanded: vi.fn(), toggle: vi.fn() }),
+    loadImage: vi.fn<ToolCallOwnerProps['loadImage']>(),
     openFile: vi.fn(),
     inspect,
-    t,
-  } as unknown as SkillRowProps
+  }
+  return { ...owner, t } as SkillRowProps
 }
 
 describe('SkillRow', () => {
+  it('shows preparation without arguments, instructions, or disclosure', () => {
+    const view = render(<SkillRow {...props({
+      phase: 'preparing', callId: 'call-skill', name: 'skill', turn: 1, step: 1, time: 1, subCalls: [],
+    })} />)
+    expect(view.getByText('准备加载技能')).toBeTruthy()
+    expect(view.container.querySelector('svg')).not.toBeNull()
+    expect(view.queryByRole('button')).toBeNull()
+    expect(view.container.querySelector('pre')).toBeNull()
+  })
+
   it('renders a compact Bash-shaped summary and discloses the exact instructions', () => {
     const inspect = vi.fn()
     const view = render(<SkillRow {...props(settled(), inspect)} />)

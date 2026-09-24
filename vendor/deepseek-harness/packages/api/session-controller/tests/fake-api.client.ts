@@ -265,6 +265,7 @@ export class FakeApiClient {
           this.onSelectModel(payload),
         ),
         rename: payload => this.record('session.rename', payload, this.onRename(payload)),
+        initializeDefaultModel: () => Promise.resolve(ok(undefined)),
         fork: payload => this.record('session.fork', payload, this.onFork(payload)),
         delete: payload => this.record('session.delete', payload, this.onDelete(payload)),
         prompt: payload => this.record('session.prompt', payload, this.onPrompt(payload)),

@@ -20,7 +20,7 @@ The [superseded-CI cancellation policy](2026-09-09-cancel-superseded-ci.md) gove
 
 ### What the in-house pool is
 
-`vm-backup`: one shared VM with multiple always-on systemd-managed runner instances. Registrations share its CPU, memory, and disk; their count is not a count of independent machines. Its image must preinstall Playwright Chromium's Linux system packages; CI downloads the lockfile-selected browser but never runs `apt` on this persistent shared host. Check the latest `serial / linux (self-hosted standby)` run before switching: its aggregate includes browser replay, so a green standby verifies both ordinary capacity and this browser prerequisite.
+`vm-backup`: one shared VM with multiple always-on systemd-managed runner instances. Registrations share its CPU, memory, and disk; their count is not a count of independent machines. Its image must preinstall the Linux system packages for Playwright Chromium and WebKit; CI downloads the lockfile-selected browsers but never runs `apt` on this persistent shared host. Check the latest `serial / linux (self-hosted standby)` run before switching: its aggregate includes browser replay, so a green standby verifies both ordinary capacity and this browser prerequisite.
 
 #### Windows pool
 

@@ -14,6 +14,8 @@ Client Session 既维护传输窗口、连接状态和待处理交互，也在�
 
 ## 决策
 
+start 的瞬态创建入口、同 ID 多次 start 及工具准备阶段以[工具调用三阶段](2026-09-22-tool-call-three-phases.zh.md)为准；本记录的其他节点组装职责继续适用。
+
 Client Runtime 提供 target-neutral 的 Conversation Node 组装引擎，业务插件注册 Event Definition，视图插件注册 per-Session View Builder。`ui-conversation` 注册第一批内建 Definition 和 `chat` builder；Session 只负责把当前连续 `SessionEventLikeEntry` window 送入引擎并发布它的 snapshot，且不解释具体 conversation 业务。entry 的外层 discriminator 区分标准与 packed record，两者都携带字段对齐的内部 `SessionEventLike`，供 Definition dispatch。
 
 本 Note 保留实现后仍有价值的方案推导、逐业务适配、职责、算法和取舍。

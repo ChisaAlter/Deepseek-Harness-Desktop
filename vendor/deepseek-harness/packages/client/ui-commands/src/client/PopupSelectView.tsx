@@ -10,6 +10,7 @@
  * null; the overlay slot stays mounted. The card height clamps to the space
  * above the composer.
  */
+import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import { useEffect, useRef, useState } from 'react'
 import { useSyncExternalStore } from 'react'
 import clsx from 'clsx'
@@ -140,7 +141,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
   return (
     <>
       {view.confirming === null && (
-        <div
+        <MenuSurface
           ref={cardRef}
           className={css.card}
           style={{ maxHeight }}
@@ -196,7 +197,7 @@ export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
               ))}
             </div>
           )}
-        </div>
+        </MenuSurface>
       )}
       {confirmation !== undefined && (
         <RiskConfirmation

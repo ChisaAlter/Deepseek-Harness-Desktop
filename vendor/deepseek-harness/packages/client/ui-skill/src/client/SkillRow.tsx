@@ -2,7 +2,7 @@ import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   IconChevronDownOutlineRegular, IconInspectOutlineRegular, IconSkillOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
+import type { StartedToolCallViewProps, ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './SkillRow.module.css'
 
@@ -42,7 +42,7 @@ function skillName(argsRaw: string, callId: string): string {
 
 /** Flatten durable result blocks under the generic Tool-row text contract.
  *  Keep aligned with ui-tool's models/tool-call-model.ts `resultText`. */
-function resultText(block: ToolCallViewProps['block']): string | null {
+function resultText(block: StartedToolCallViewProps['block']): string | null {
   if (!('kind' in block)) return null
   const parts: string[] = []
   for (const item of block.content) {
@@ -55,7 +55,7 @@ function resultText(block: ToolCallViewProps['block']): string | null {
 }
 
 /** Derive display state without consulting the live skill catalog. */
-function skillRowModel(block: ToolCallViewProps['block']): SkillRowModel {
+function skillRowModel(block: StartedToolCallViewProps['block']): SkillRowModel {
   const settled = 'kind' in block
   const argsRaw = (settled ? block.call?.argsRaw : block.argsRaw) ?? ''
   const state: SkillRowState = !settled
@@ -99,7 +99,18 @@ function stateStatus(state: SkillRowState, t: SkillRowProps['t']): string | null
  * @param props - keyed toolview payload plus the skill locale seat.
  * @returns the dedicated skill row.
  */
-export function SkillRow({ block, inspect, t }: SkillRowProps) {
+export function SkillRow(props: SkillRowProps) {
+  if (props.phase === 'preparing') return <div className={css.card} data-tool="skill" data-state="preparing">
+    <div className={css.row}>
+      <span className={css.leading}><IconSkillOutlineRegular size={14} /></span>
+      <span className={css.visuallyHidden}>{props.t('row.preparing')}</span>
+      <span className={css.title}>{props.t('row.title')}</span>
+    </div>
+  </div>
+  return <StartedSkillRow {...props} />
+}
+
+function StartedSkillRow({ block, inspect, t }: Exclude<SkillRowProps, { phase: 'preparing' }>) {
   const model = skillRowModel(block)
   const [expanded, setExpanded] = useState(false)
   const expandable = model.output !== null

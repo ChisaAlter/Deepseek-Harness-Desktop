@@ -1,4 +1,4 @@
-/** The preset settings page only selects a preset; creating one starts a Creator-mode task. */
+/** The preset settings page selects a preset and shows what it declares; creating one starts a Creator-mode task. */
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
@@ -27,13 +27,13 @@ describe('web e2e: preset roster guidance', () => {
   }, 120_000)
   afterAll(async () => { await browser?.close(); await scaffold?.close() })
 
-  it('shows the shipped roster with mode help and no editing actions', async () => {
+  it('shows the shipped roster with mode help and a read-only view, and no editing actions', async () => {
     onTestFailed(() => saveFailureShot(page, 'preset-roster-section'))
     await expect.poll(() => page.locator('[data-agent-preset-id]').count()).toBe(4)
     const snapshot = await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(join(EXPECTED, 'section.expected.md'), snapshot, mode)
     expect(snapshot).toContain('让 Agent 帮我创建预设模式')
-    expect(snapshot).not.toContain('查看配置')
+    expect(snapshot).toContain('查看配置: 标准模式')
     expect(snapshot).not.toContain('复制预设')
     expect(snapshot).not.toContain('编辑插件')
     expect(snapshot).not.toContain('打开目录')
@@ -52,6 +52,27 @@ describe('web e2e: preset roster guidance', () => {
     await guide.getByRole('tab', { name: '如何使用', exact: true }).press('Escape')
     await guide.waitFor({ state: 'detached' })
     expect(await trigger.evaluate(element => document.activeElement === element)).toBe(true)
+    expect(await settings.getByRole('button', { name: '新任务默认: 标准模式', exact: true }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('views a shipped composition read-only', async () => {
+    onTestFailed(() => saveFailureShot(page, 'preset-roster-view'))
+    const settings = page.getByRole('dialog', { name: '设置' })
+    await settings.getByRole('button', { name: '查看配置: PTC 模式', exact: true }).click()
+    const viewer = page.getByRole('dialog', { name: '查看配置 · PTC 模式', exact: true })
+    await viewer.waitFor({ timeout: 10_000 })
+    // The real shipped declaration, not a golden: the viewer shows whatever
+    // the deployment ships, and this lane only asserts it is shown read-only
+    // in the Loader's own dialect.
+    const shown = await viewer.locator('pre').textContent()
+    expect(shown).toContain("- id: persona\n  name: '@deepseek-ai/dsh-persona'\n")
+    expect(shown).toContain('- id: workflow-ptc\n')
+    expect(shown).toContain("disabled: !!js process.platform === 'win32'\n")
+    expect(shown).not.toContain('__jsExpr')
+    expect(await viewer.getByRole('textbox').count()).toBe(0)
+    // The header X and the footer button share the 关闭 name; the footer one is last.
+    await viewer.getByRole('button', { name: '关闭', exact: true }).last().click()
+    await viewer.waitFor({ state: 'detached', timeout: 10_000 })
     expect(await settings.getByRole('button', { name: '新任务默认: 标准模式', exact: true }).getAttribute('aria-pressed')).toBe('true')
   })
 

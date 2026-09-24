@@ -6,7 +6,7 @@ recording: live
 header:
   class: office-skills-no-renderer
   pin: true
-  systemPromptSource: text-turn
-  toolSchemasSource: text-turn
+  systemPromptSource: office-skills
+  toolSchemasSource: office-skills
 workspace:
   setup: office-skills

@@ -526,8 +526,8 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
                       checked={picked.has(candidate.id)}
                       onChange={() => { toggle(candidate.id) }}
                     />
-                    <span className={styles['candidateName']} title={candidate.name ?? candidate.id}>
-                      {candidate.name ?? candidate.id}
+                    <span className={styles['candidateId']} title={candidate.name ?? candidate.id}>
+                      {candidate.id}
                     </span>
                   </label>
                 </li>

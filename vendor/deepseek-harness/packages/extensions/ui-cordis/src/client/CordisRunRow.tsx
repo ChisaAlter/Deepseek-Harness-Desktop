@@ -12,6 +12,7 @@ import type { CordisRunCardFace } from './slots.ts'
 import { cordisVisibleStatus, type CordisVisibleStatus } from './status.ts'
 import type { CordisKey } from './locales.ts'
 import css from './CordisRunRow.module.css'
+import { CordisPreparingRow } from './CordisPreparingRow.tsx'
 
 /** Full Run-card props including its declared Package business-view child slot. */
 export type CordisRunRowProps = ToolCallViewProps
@@ -32,10 +33,17 @@ const READING_LABELS = {
 } as const satisfies Record<RunReading, CordisKey>
 
 /** Render one activation result and, when eligible, its Package-owned view. */
-export function CordisRunRow({
+export function CordisRunRow(props: CordisRunRowProps) {
+  if (props.phase === 'preparing') return <CordisPreparingRow {...props}
+    icon={<IconCodeOutlineRegular size={14} />} title={props.t('row.runTitle')}
+    className={css.card} rowClassName={css.row} titleClassName={css.title} />
+  return <StartedCordisRunRow {...props} />
+}
+
+function StartedCordisRunRow({
   callId, block, inspect, renderSlot, useInventory, useLoaded, useRunCards, useActiveRuns,
   onObserveRunCard, t,
-}: CordisRunRowProps) {
+}: Exclude<CordisRunRowProps, { phase: 'preparing' }>) {
   const card = cordisRunCard(block)
   const inventory = useInventory(snapshot => snapshot)
   const loaded = useLoaded(snapshot => snapshot)

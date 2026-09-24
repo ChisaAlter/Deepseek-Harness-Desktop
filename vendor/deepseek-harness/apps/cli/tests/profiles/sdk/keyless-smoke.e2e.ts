@@ -432,11 +432,11 @@ async function officeFixture(root: string, pythonOnly: boolean) {
   return { source, paths }
 }
 
-it.each(['unset', 'empty', 'bundled', 'full', 'python-only', 'missing-assets', 'wrong-type'] as const)('composes Office resources through the SDK profile (%s)', async (mode) => {
+it.each(['unset', 'empty', 'bundled', 'full', 'python-only', 'python-only-no-cli', 'missing-assets', 'wrong-type'] as const)('composes Office resources through the SDK profile (%s)', async (mode) => {
   const root = await mkdtemp(join(tmpdir(), 'sdk-office-'))
   onTestFinished(() => rm(root, { recursive: true, force: true }))
   const enabled = mode !== 'unset' && mode !== 'empty'
-  const { source, paths } = await officeFixture(root, mode === 'python-only')
+  const { source, paths } = await officeFixture(root, mode.startsWith('python-only'))
   if (mode === 'missing-assets') await rm(join(root, 'resources', 'office-skills'), { recursive: true })
   if (mode === 'wrong-type') {
     await rm(paths.python)
@@ -460,9 +460,11 @@ it.each(['unset', 'empty', 'bundled', 'full', 'python-only', 'missing-assets', '
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('model fixture did not bind')
   const home = join(root, 'home')
+  const cliPatch = join(root, 'cli.patch.yml')
+  await writeFile(cliPatch, JSON.stringify(mode === 'python-only-no-cli' ? [{ id: 'skill-office', config: { assetRoot: join(root, 'resources', 'office-skills'), cli: false } }] : []))
   const officeLaunch = resolveExampleLaunch({
     srcBin: fileURLToPath(new URL('../../../src/bin.ts', import.meta.url)), mode: 'lib',
-    configArgs: ['--profile', 'sdk'],
+    configArgs: ['--profile', 'sdk', '--patch', cliPatch],
     env: { DSH_HOME: home, DSH_PRIMARY_RUNTIME: mode === 'unset' || mode === 'bundled' ? undefined : mode === 'empty' ? '' : source + '/',
       DSH_BUNDLED_PRIMARY_RUNTIME: mode === 'unset' ? undefined : mode === 'bundled' || mode === 'empty' ? source : join(root, 'unused-default'),
       DSH_PERMISSION_MODE: 'danger-full-access', DSH_TELEMETRY_DISABLED: '1',
@@ -492,7 +494,7 @@ it.each(['unset', 'empty', 'bundled', 'full', 'python-only', 'missing-assets', '
   const names = (requests[0]!.tools as { name: string }[]).map(value => value.name)
   expect(names.includes('load_workspace_dependencies')).toBe(enabled)
   for (const name of ['office-docx', 'office-pptx', 'office-xlsx']) {
-    expect(JSON.stringify(requests[0]!.messages).includes(name)).toBe(enabled && mode !== 'missing-assets')
+    expect(JSON.stringify(requests[0]!.messages).includes(name)).toBe(enabled && mode !== 'missing-assets' && mode !== 'python-only')
   }
   if (mode === 'wrong-type') {
     expect(requests).toHaveLength(2)
@@ -521,6 +523,7 @@ it.each(['unset', 'empty', 'bundled', 'full', 'python-only', 'missing-assets', '
       expect.objectContaining({ role: 'user', content }),
     ]))
   }
+  if (mode === 'python-only') expect(stderr).toContain('node')
   if (mode === 'missing-assets') expect(stderr).toContain('check_office.py')
   await send(3, 'shutdown')
   const exit = await child

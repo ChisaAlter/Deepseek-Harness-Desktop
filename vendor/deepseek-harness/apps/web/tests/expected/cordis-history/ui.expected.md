@@ -14,9 +14,9 @@
 - status: Worked
 - button "Took {{duration}}" [expanded]
 - button "Called tools" [expanded]
-- button "Think"
+- button "Think I will inspect the current Session's dynamic Cordis Plugins before defining the snapshot Package."
 - button "Inspect plugins 0 dynamic plugins"
-- button "Think"
+- button "Think No dynamic Plugins are present, so I will define the requested Host and Client Package."
 - button "Register Cordis Plugin snapshot noop does nothing, for the snapshot Ready" [expanded]
 - tablist "Plugin source":
   - tab "Client"
@@ -28,11 +28,11 @@
   - code: "return { name: \"snapshot-noop\", apply(ctx) {} }"
 - text: Result Defined snap-1/pkg-1 (snapshot noop); it is not running yet. Use cordis_run to activate this Package. Run controls live in the Cordis panel above Settings
 - button "Inspect"
-- button "Think"
+- button "Think The Host returned snap-1/pkg-1, so I will request its first activation."
 - text: Run Cordis Plugin snap-1 · pkg-1 Ready
 - button "Inspect"
 - text: snap-1/pkg-1 is awaiting user approval (run-1).
-- button "Think"
+- button "Think The activation request has been submitted, so I will return the requested readiness marker."
 - paragraph: CORDIS_UI_READY
 - button "Copy"
 - button "Good response"

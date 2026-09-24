@@ -680,8 +680,8 @@ function isMissingExecutable(error: unknown): boolean {
  * Open one directory through the OS shell's open verb under the launch watch
  * window: the opener command completing inside the window decides the
  * outcome, and an opener still running when it closes counts as launched and
- * keeps running (a cold `powershell.exe` start can outlive the window; its
- * late settlement is swallowed because the request already answered).
+ * keeps running (a cold shell opener can outlive the window; its late
+ * settlement is swallowed because the request already answered).
  */
 function runShellOpen(
   path: string, watchMs: number, internals: ResolvedInternals,

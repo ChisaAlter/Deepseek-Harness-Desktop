@@ -16,7 +16,7 @@ import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, expectTooltipOnTop, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/queue-actions', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/live-interactions/session.v3.jsonl', import.meta.url))
@@ -83,7 +83,7 @@ describe('web e2e: queue row actions', () => {
     await expect.poll(() => row.getByRole('button', { name: 'Remove queued message' }).isEnabled()).toBe(true)
   }
 
-  it.skipIf(MODE === 'record')('edits and removes exact occurrences and preserves Queue across stop', async () => {
+  it.skipIf(MODE === 'record').each(['button', 'keyboard'] as const)('edits and removes exact occurrences and preserves Queue across %s stop', async (method) => {
     overrideDir = await mkdtemp(join(tmpdir(), 'dsh-web-queue-actions-'))
     const readyFile = join(overrideDir, '.hang-ready')
     const overridePath = join(overrideDir, 'replay.override.json')
@@ -201,6 +201,9 @@ describe('web e2e: queue row actions', () => {
     await save.hover()
     const saveTooltip = page.getByRole('tooltip', { name: 'Save queued message', exact: true })
     await saveTooltip.waitFor()
+    // The dock tucks under the input card, which paints later; the bubble must
+    // escape the panel's stacking context instead of landing behind it.
+    await expectTooltipOnTop(saveTooltip)
     const tooltipGeometry = await page.evaluate(() => {
       const element = document.querySelector<HTMLElement>('[role="tooltip"]')
       if (element === null) return null
@@ -227,7 +230,9 @@ describe('web e2e: queue row actions', () => {
     const remainingEdit = page.getByRole('button', { name: 'Edit queued message', exact: true })
     await expect.poll(() => remainingEdit.isEnabled(), { timeout: 10_000 }).toBe(true)
     await remainingEdit.hover()
-    await page.getByRole('tooltip', { name: 'Edit queued message', exact: true }).waitFor()
+    const editTooltip = page.getByRole('tooltip', { name: 'Edit queued message', exact: true })
+    await editTooltip.waitFor()
+    await expectTooltipOnTop(editTooltip)
 
     const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
@@ -290,8 +295,13 @@ describe('web e2e: queue row actions', () => {
 
     const stopButton = page.getByRole('button', { name: 'Stop generating' })
     await stopButton.hover()
-    await page.getByRole('tooltip', { name: 'Stop generating', exact: true }).waitFor()
-    await stopButton.click()
+    await page.getByRole('tooltip', { name: 'Stop generating Esc Esc', exact: true }).waitFor()
+    if (method === 'button') await stopButton.click()
+    else {
+      await input.focus()
+      await page.keyboard.press('Escape')
+      await page.keyboard.press('Escape')
+    }
     await firstSettled
     await expect.poll(() => page.getByRole('button', { name: 'Stop generating' }).count())
       .toBe(0)

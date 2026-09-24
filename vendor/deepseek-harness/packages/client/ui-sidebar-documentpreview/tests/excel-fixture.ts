@@ -95,3 +95,17 @@ export async function meetingMinutesFixture(): Promise<Uint8Array<ArrayBuffer>> 
   workbook.addWorksheet('填写说明')
   return new Uint8Array(await workbook.xlsx.writeBuffer())
 }
+
+/** Build scrollable sheets with each combination of frozen rows and columns. */
+export async function excelFreezeFixture(): Promise<Uint8Array<ArrayBuffer>> {
+  const workbook = new ExcelJS.Workbook()
+  for (const [name, xSplit, ySplit] of [['Both', 1, 2], ['Rows', 0, 2], ['Columns', 1, 0], ['None', 0, 0]] as const) {
+    const sheet = workbook.addWorksheet(name, { views: xSplit || ySplit ? [{ state: 'frozen', xSplit, ySplit }] : [] })
+    sheet.columns = Array.from({ length: 12 }, () => ({ width: 16 }))
+    for (let row = 1; row <= 80; row += 1) {
+      sheet.getRow(row).height = 24
+      sheet.getRow(row).values = Array.from({ length: 12 }, (_, column) => `R${row}C${column + 1}`)
+    }
+  }
+  return new Uint8Array(await workbook.xlsx.writeBuffer())
+}

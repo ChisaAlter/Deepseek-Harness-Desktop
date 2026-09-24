@@ -314,6 +314,7 @@ function mount(
           resolveDraftAttachments={() => []}
           toggleCommandMenu={vi.fn()}
           useBusyEnter={bindSnapshotSelector(createSnapshotStore<'queue' | 'steer'>('queue'))}
+          useStopShortcut={bindSnapshotSelector(createSnapshotStore<readonly string[]>([]))}
           useNotices={bindSnapshotSelector(wiring.notices)}
           useLexicon={bindSnapshotSelector(wiring.lexicon)}
           useMenuLauncher={bindSnapshotSelector(createSnapshotStore<string | null>(null))}
@@ -502,7 +503,7 @@ describe('ConversationRoot resident composer', () => {
     expect(b.slotCalls).not.toContain('conversation.session.header.lineage')
     expect(b.slotCalls).not.toContain('conversation.session.header.actions')
     expect(b.slotCalls).not.toContain('conversation.session.header.utilities')
-    expect(b.view.getByRole('button', { name: 'Managed room' })).toBeTruthy()
+    expect(b.view.getByText('Managed room').tagName).toBe('SPAN')
     expect(b.view.queryByRole('tablist')).toBeNull()
     expect(b.view.queryByRole('tab', { name: 'Trajectory' })).toBeNull()
     expect(b.view.getByRole('button', { name: '添加文件或调用指令' })).toBeTruthy()
@@ -515,7 +516,7 @@ describe('ConversationRoot resident composer', () => {
     })
     act(() => { b.store.actions.setView('trajectory') })
 
-    expect(b.view.getByRole('button', { name: 'Managed room' })).toBeTruthy()
+    expect(b.view.getByText('Managed room').tagName).toBe('SPAN')
     expect(b.view.getByTestId('view-chat')).toBeTruthy()
     expect(b.view.queryByTestId('view-trajectory')).toBeNull()
     expect(b.view.queryByRole('tab', { name: 'Trajectory' })).toBeNull()
@@ -554,14 +555,16 @@ describe('ConversationRoot resident composer', () => {
     expect(b.store.store.getSnapshot().draft).toBe('ordinary revised')
     fireEvent.keyDown(box, { key: 'Enter' })
     expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue', expect.any(AbortSignal))
-    expect(b.view.getByRole('button', { name: 'Child' }).hasAttribute('disabled')).toBe(true)
+    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
+    expect(b.view.getByText('Child').tagName).toBe('SPAN')
     expect(b.view.queryByText('Root')).toBeNull()
   })
 
   it('shows hierarchy only for subagents and opens their ordinary owner', () => {
     const b = mount(sessionSnapshotOf(), undefined, undefined, { summaryOrigin: 'subagent' })
     const root = b.view.getByRole('button', { name: 'Root' })
-    expect(b.view.getByRole('button', { name: 'Child' }).hasAttribute('disabled')).toBe(true)
+    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
+    expect(b.view.getByText('Child').tagName).toBe('SPAN')
     fireEvent.click(root)
     expect(b.open).toHaveBeenCalledWith(sid('root'))
   })
@@ -701,7 +704,7 @@ describe('ConversationRoot resident composer', () => {
     const header = b.view.container.querySelector('header')
     expect(header?.getAttribute('aria-hidden')).toBeNull()
     expect(header?.querySelector('[data-dshd-caption="title"]')).not.toBeNull()
-    expect(b.view.getByRole('button', { name: 'Bot room' })).toBeTruthy()
+    expect(b.view.getByText('Bot room')).toBeTruthy()
     expect(header?.querySelector('[data-dshd-caption="blank"]')).toBeNull()
     // Presentation ownership changes navigation chrome only; with no elected
     // body-chain occupant, the resident Conversation fallback remains visible.
@@ -961,6 +964,8 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.queryByTestId('view-new-view')).toBeNull()
     expect(b.view.getByRole('tab', { name: 'Chat' }).getAttribute('aria-selected')).toBe('true')
     expect(b.view.getByRole('tab', { name: 'New view' }).getAttribute('aria-selected')).toBe('false')
+    // The browser drag lane anchors its header tab-strip probe on this marker.
+    expect(b.view.getByRole('tablist').hasAttribute('data-conversation-tabs')).toBe(true)
   })
 
   it('hides the Chat/Trajectory tablist when view tabs are disabled', () => {

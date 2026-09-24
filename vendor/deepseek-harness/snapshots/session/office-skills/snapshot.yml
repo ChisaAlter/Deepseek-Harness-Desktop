@@ -6,7 +6,5 @@ recording: authored
 header:
   class: office-skills
   pin: true
-  systemPromptSource: text-turn
-  toolSchemasSource: text-turn
 workspace:
   setup: office-skills

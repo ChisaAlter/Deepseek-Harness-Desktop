@@ -9,6 +9,9 @@
   },
   "result": {
     "python": "{{python}}",
+    "node": "{{node}}",
+    "nodePackages": "{{nodePackages}}",
+    "pnpm": "{{pnpm}}",
     "pythonPackages": "{{site-packages}}",
     "pythonDistributions": {
       "numpy": "2.3.5",

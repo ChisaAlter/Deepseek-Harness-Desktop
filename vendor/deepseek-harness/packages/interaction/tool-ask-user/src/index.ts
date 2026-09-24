@@ -13,8 +13,7 @@ import '@deepseek-ai/dsh-user-questions'
 export const name = 'tool-ask-user'
 export const inject = ['tools', 'userQuestions']
 
-const description = 'Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding. '
-  + 'Send one or more questions, each with a stable id that will be echoed in the answer.'
+const description = 'Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding.'
 
 /** Preserve the provider-neutral answer as the tool's JSON result. */
 export function answerToToolResult(result: { answers: readonly { id: string; selected: readonly string[]; custom?: string }[] }) {

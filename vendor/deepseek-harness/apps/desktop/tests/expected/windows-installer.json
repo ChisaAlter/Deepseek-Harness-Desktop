@@ -10,8 +10,9 @@
     "registered-directory-with-trailing-separators",
     "registered-directory-and-checked-launch",
     "launch-failure-retry-and-prompt-dismissal",
-    "progress-remains-monotonic-across-native-resets",
-    "running-app-preserved-and-native-progress-hidden",
+    "running-app-rejected-before-welcome-and-extraction",
+    "silent-running-app-rejected-before-extraction",
+    "app-started-on-welcome-rejected-before-extraction",
     "silent-update-retains-directory-and-ignores-unrelated-process",
     "invalid-destination-rejection",
     "uninstall"

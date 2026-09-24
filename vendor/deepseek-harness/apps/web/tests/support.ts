@@ -167,8 +167,9 @@ export async function connectFreshWorkspace(page: Page, root: string, name = 'wo
  * @param page - the browser page under test.
  * @param root - workspace parent directory.
  * @param name - directory created under `root` and connected.
+ * @param modelAvailable - require an editable composer when the selected model is available.
  */
-export async function connectFreshWorkspaceZh(page: Page, root: string, name = 'workspace'): Promise<void> {
+export async function connectFreshWorkspaceZh(page: Page, root: string, name = 'workspace', modelAvailable = true): Promise<void> {
   mkdirSync(join(root, name), { recursive: true })
   await page.getByRole('textbox', { name: '选择工作区' }).click()
   await page.getByRole('menuitem', { name: '添加工作区…', exact: true }).click()
@@ -179,7 +180,8 @@ export async function connectFreshWorkspaceZh(page: Page, root: string, name = '
   await pathInput.fill(join(root, name))
   await pathInput.press('Enter')
   await dialog.getByRole('button', { name: '打开', exact: true }).click()
-  await page.locator('[data-composer-input][contenteditable="true"][data-placeholder="描述你想要构建的内容, / 调用指令, @ 文件或对话"]')
+  const editable = modelAvailable ? '[contenteditable="true"]' : ''
+  await page.locator(`[data-composer-input]${editable}[data-placeholder="描述你想要构建的内容, / 调用指令, @ 文件或对话"]`)
     .waitFor({ timeout: 15_000 })
 }
 
@@ -225,6 +227,30 @@ export async function saveFailureShot(page: Page, name: string): Promise<void> {
   } catch {
     // Best-effort evidence: a dead page/browser at failure time must not mask the real assertion error.
   }
+}
+
+/**
+ * Assert a visible tooltip paints above the element a user would read through
+ * it, at the bubble's center and bottom edge. The bubble ignores pointer events
+ * by design, so the measurement enables them for its own duration; each probe
+ * reports the bubble or the covering element, so a failure names its cover.
+ * @param tooltip - locator for the visible `[role="tooltip"]` bubble.
+ */
+export async function expectTooltipOnTop(tooltip: Locator): Promise<void> {
+  const probes = await tooltip.evaluate((bubble) => {
+    const rect = bubble.getBoundingClientRect()
+    const previous = bubble.style.pointerEvents
+    bubble.style.pointerEvents = 'auto'
+    const probe = (y: number): string => {
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, y)
+      if (hit === null) return 'none'
+      return bubble.contains(hit) ? 'tooltip' : `${hit.tagName}.${hit.classList.value}`.slice(0, 120)
+    }
+    const probes = { center: probe(rect.top + rect.height / 2), bottom: probe(rect.bottom - 1) }
+    bubble.style.pointerEvents = previous
+    return probes
+  })
+  expect(probes).toEqual({ center: 'tooltip', bottom: 'tooltip' })
 }
 
 /**

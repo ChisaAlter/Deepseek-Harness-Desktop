@@ -134,10 +134,10 @@ describe('apply', () => {
     ])
 
     // The root-session catalog seat registers in the actions band with the
-    // same business face, ordered after the task list.
+    // same business face, leading the band directly after the title crumbs.
     const actionEntry = ctx.slots.entries('conversation.session.header.actions')
       .find(entry => entry.options.id === 'subagent-catalog')!
-    expect(actionEntry.options.order).toBe(30)
+    expect(actionEntry.options.order).toBe(-30)
     expect(actionEntry.inject).toBe(catalogEntry.inject)
 
     const composerEntry = ctx.slots.entries('conversation.composer')

@@ -17,6 +17,7 @@ import type { WorkspaceId } from '@deepseek-ai/dsh-api-workspace-controller/clie
 // Type-only: pulls ui-layout's SlotMap merge (the 'sidebar' entry) and its
 // main-panel ids into every program that sees this contract, so
 // PropsRuntime<'sidebar'> resolves.
+import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { createSidebarNavStore, SidebarNavTabRow } from '../stores.ts'
 
@@ -172,6 +173,8 @@ export type SidebarRootInjected = {
     navTabs: HostObservable<readonly SidebarNavTabRow[]>
     /** Global panel metadata rows bound to usePanels. */
     panels: ObservableSnapshot<readonly SidebarPanelMetadata[]>
+    /** Shortcut catalog rows bound to useShortcuts. */
+    shortcuts: ObservableSnapshot<readonly ShortcutCatalogEntry[]>
   }
 }
 

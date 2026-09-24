@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { selectOfficeEngine } from './libreoffice-engine.ts'
+import { selectOfficeEngine } from './libreoffice-packages.mjs'
 
 it.each([
   ['darwin', 'arm64', 'darwin-arm64'], ['darwin', 'x64', 'darwin-x64'],

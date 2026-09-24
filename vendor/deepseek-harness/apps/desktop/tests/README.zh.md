@@ -10,9 +10,23 @@
 
 ## 目录
 
+- [原生浮层可见性](#verification-overlay)
 - [验证证据](#verification-evidence)
 - [手动演练](#verification-interactive)
 - [待验证事项](#verification-open)
+
+<a id="verification-overlay"></a>
+
+## 原生浮层可见性
+
+在 macOS 上，编译 Desktop Host 源码后复用缓存的 Electron 运行时：
+
+```sh
+pnpm exec tsc -b apps/desktop/tsconfig.host.json
+apps/desktop/.desktop-build/targets/mac-arm64/electron/Electron.app/Contents/MacOS/Electron apps/desktop/tests/fixtures/update-overlay-visibility.mjs
+```
+
+夹具使用独立 profile，在 `.desktop-build/qualification/update-overlay-*` 下写入 `result.json`。它对照所属测试目录中的预期输出，检查父窗口隐藏／显示、父窗口隐藏期间文档就绪两种顺序中的原生可见性、父页面不受模糊影响及监听清理。它不使用网络、产品登录或 dsh Host。这项验证覆盖原生窗口恢复，不覆盖完整的首次登录流程。
 
 <a id="verification-interactive"></a>
 
@@ -27,6 +41,8 @@ Host、客户端与 Desktop 产物构建完成后，在 Windows 仓库根目录�
 ## 验证证据
 
 本地命令构建 Desktop，并在 Electron 44 中运行真实 HTTP updater、策略客户端、沙箱预加载和强更页面。它记录每个场景，并把报告保存在 `.desktop-build/qualification/local-updater-*`。安装器调用、外部浏览器和剪贴板均替换为观测记录；下载字节不是可执行安装器。
+
+打包监督 fixture 控制自己的 Git 元数据，并使用真实文件哈希和无签名行为的子进程。Git 提交或工作区变化仍会拒绝打包；并发测试不会改变该 fixture 记录的 Git 输入。
 
 | 层次 | 观测结果 |
 |---|---|

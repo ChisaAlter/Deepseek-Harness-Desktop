@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   SessionEventLike, SessionEventLikeEntry, SessionLiveEventEntry,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import { LlmAttemptId } from '@deepseek-ai/dsh-llm/brand'
+import { LlmAttemptId, ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
@@ -658,14 +658,17 @@ describe('ConversationNodeAssembler', () => {
     })
   })
 
-  it('rejects a transient event classified as a Context start', () => {
-    const definition: ConversationNodeDefinition<null> = {
-      kind: 'invalid-transient-start',
+  it('initializes from a transient start and clears it when the attempt is withdrawn', () => {
+    const start = vi.fn((_context: ConversationNodeContext<number>, match: ConversationMatch) => match.event.seq)
+    const definition: ConversationNodeDefinition<number> = {
+      kind: 'transient-start',
       match: event => event.type === 'assistant/live-chunk'
         ? { id: 'one', role: 'start' }
         : null,
-      start: () => null,
+      start,
       update: context => context.state,
+      target: 'test',
+      buildViewNode: context => node(context, context.state ?? null),
     }
     const assembler = new ConversationNodeAssembler(
       new TestEventDefinitions([definition]),
@@ -673,9 +676,13 @@ describe('ConversationNodeAssembler', () => {
     )
     const delta = transientChunk(1, 1, 1, { type: 'text-delta', index: 0, text: 'abc' })
 
-    expect(() => assembler.replaceWindow([delta], false)).toThrow(
-      'conversation Context 23:invalid-transient-startone received a transient start Match',
-    )
+    assembler.replaceWindow([delta], false)
+    assembler.flush()
+    expect(start).toHaveBeenCalledOnce()
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBe(1)
+    assembler.settleAssistant(LlmAttemptId('test-attempt'))
+    assembler.flush()
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBeNull()
   })
 
   it('merges an older page and replays its affected Context once', () => {
@@ -1000,6 +1007,45 @@ describe('ConversationNodeAssembler', () => {
 
     expect(consumerStart).toHaveBeenCalledTimes(2)
     expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBe(-1)
+  })
+
+  it('reorders predecessor reads when durable calls replace transient starts after dispatch', () => {
+    const source: ConversationNodeDefinition<number> = {
+      kind: 'reindexed-source',
+      match: (event) => {
+        if (event.type === 'assistant/live-chunk' && event.data.chunk.type === 'tool-call-delta') {
+          return { id: String(event.data.chunk.id), role: 'start' }
+        }
+        return event.type === 'tool/call' ? { id: String(event.data.callId), role: 'start' } : null
+      },
+      start: (_context, match) => match.event.seq,
+      update: context => context.state,
+      target: 'test', buildViewNode: () => null,
+    }
+    const consumer: ConversationNodeDefinition<number> = {
+      kind: 'consumer',
+      match: event => event.type === 'step/end' ? { id: String(event.seq), role: 'start' } : null,
+      start: (_context, _match, reader) => reader.previous<number>('reindexed-source')?.state ?? -1,
+      update: context => context.state,
+      target: 'test', buildViewNode: context => node(context, context.state),
+    }
+    const assembler = new ConversationNodeAssembler(
+      new TestEventDefinitions([source, consumer]), new TestViewDefinitions([testView()]),
+    )
+    assembler.replaceWindow([], false)
+    for (const [index, id] of ['a', 'b'].entries()) {
+      assembler.append(transientChunk(1.1 + index / 10, 1, 1, {
+        type: 'tool-call-delta', index, id: ToolCallId(id), name: 'write', argumentsDelta: '',
+      }))
+    }
+    assembler.append(input(at(SessionSeq(3), 'tool/call', { turn: 1, step: 1, callId: ToolCallId('b'), name: 'write', arguments: '{}' })))
+    assembler.append(input(at(SessionSeq(4), 'tool/call', { turn: 1, step: 1, callId: ToolCallId('a'), name: 'write', arguments: '{}' })))
+    assembler.append(input(at(SessionSeq(5), 'step/end', { turn: 1, step: 1 })))
+    assembler.flush()
+    expect([...testSnapshot(assembler)!.nodes.values()][0]?.data).toBeCloseTo(1.2)
+    assembler.settleAssistant(LlmAttemptId('test-attempt'))
+    assembler.flush()
+    expect([...testSnapshot(assembler)!.nodes.values()][0]?.data).toBe(4)
   })
 
   it('replays direct dependents when an append revises their predecessor Context', () => {
@@ -1627,12 +1673,14 @@ describe('ConversationNodeAssembler', () => {
     )).toThrow(/Definition "undefined-update" returned undefined from update/)
   })
 
-  it('rejects a duplicate start before mutating the existing Context', () => {
-    const definition: ConversationNodeDefinition<number> = {
+  it('updates the same Context for later start matches and reselects an earlier prepended start', () => {
+    const start = vi.fn((_context: ConversationNodeContext<number[]>, match: ConversationMatch) => [match.event.seq])
+    const update = vi.fn((context: { state: number[] }, match: ConversationMatch) => [...context.state, match.event.seq])
+    const definition: ConversationNodeDefinition<number[]> = {
       kind: 'single-start',
       match: event => (event.type as string) === 'command/run' ? { id: 'one', role: 'start' } : null,
-      start: (_context, match) => match.event.seq,
-      update: context => context.state,
+      start,
+      update,
       target: 'test',
       buildViewNode: context => node(context, context.state),
     }
@@ -1645,10 +1693,16 @@ describe('ConversationNodeAssembler', () => {
     ], false)
     assembler.flush()
 
-    expect(() => assembler.append(
+    assembler.append(
       input(at(SessionSeq(2), 'command/run', { commandId: 'two', name: 'x' })),
-    )).toThrow(/received more than one start Match/)
+    )
     assembler.flush()
-    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBe(1)
+    expect(start).toHaveBeenCalledOnce()
+    expect(update).toHaveBeenCalledOnce()
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toEqual([1, 2])
+    assembler.prepend([input(at(SessionSeq(0), 'command/run', { commandId: 'zero', name: 'x' }))], false)
+    assembler.flush()
+    expect(start).toHaveBeenCalledTimes(2)
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toEqual([0, 1, 2])
   })
 })

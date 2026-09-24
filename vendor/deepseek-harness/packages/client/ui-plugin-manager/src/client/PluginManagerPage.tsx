@@ -21,11 +21,12 @@ import {
   StateDot, Switch, Tag, TerminalBlock, Toast, useAnchoredPosition, useDismissOnOutsidePointer,
   type IconProps, type StateDotState, type TerminalBlockLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type { createNavigationStore } from './navigation-store.ts'
 import { rowConfigKey, type OfficialItem } from './config-ledger.ts'
 import type { PluginManagerLocaleKey } from './locales.ts'
 import {
-  isInstallPending, offeredRegistries, rowKey,
+  asksMirror, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey,
   type InstallInputError, type InstallState, type InstallSubject, type PackageRow, type PackageView,
   type PluginManagerFace, type RegistryChoice,
 } from './manager-store.ts'
@@ -43,17 +44,11 @@ export type PluginManagerPageProps =
     | 'plugins.detail.actions' | 'plugins.detail.badge' | 'plugins.detail.section'
   >
   & InjectFace<PluginManagerFace>
+  & PropsStore<ReturnType<typeof createNavigationStore>>
 
 /** The page's slot renderer, narrowed to the configuration slots. */
 type RenderConfig = PluginManagerPageProps['renderSlot']
 type ResolveText = PluginManagerFace['resolveText']
-
-/** What the page shows: the cards, a bundle's page, an official plugin's page, or a row's configuration page. */
-type View =
-  | { readonly kind: 'list' }
-  | { readonly kind: 'package'; readonly name: string }
-  | { readonly kind: 'item'; readonly id: string }
-  | { readonly kind: 'row'; readonly name: string; readonly rowId: string }
 
 type RowPhase = NonNullable<PackageRow['phase']>
 
@@ -337,7 +332,7 @@ function DetailTop({ crumbLabel, crumbText, onBack, icon, actions }: {
   readonly actions?: ReactNode
 }): ReactNode {
   return (
-    <>
+    <div className={css.detailTop} data-window-drag>
       <button type="button" className={css.crumb} aria-label={crumbLabel} onClick={onBack}>
         <IconChevronDownOutlineRegular className={css.crumbIcon} aria-hidden="true" />
         <span>{crumbText}</span>
@@ -346,7 +341,7 @@ function DetailTop({ crumbLabel, crumbText, onBack, icon, actions }: {
         <span className={css.cardIcon} aria-hidden="true">{icon}</span>
         {actions}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -700,6 +695,10 @@ function registryOption(registry: Registry, t: Translate, resolved: string | nul
  */
 function failureText(failure: InstallState['failure'], t: Translate, install?: Pick<InstallState, 'attempts' | 'subject' | 'registries'>): string {
   if (failure === null) return t('installFailureGeneric')
+  // A compatibility refusal is the package's own answer, whatever pnpm's exit classified the run as.
+  if (failure.code === 'incompatible-version') {
+    return managementText({ code: failure.code, ...failure.incompatible === undefined ? {} : { incompatible: failure.incompatible } }, t)
+  }
   // Blocked scripts the Host could not name leave the person to allow them in the profile's pnpm settings by hand.
   if (failure.kind === 'build-blocked' && !failure.pendingBuilds?.length) return t('installFailureBuildBlockedManual')
   const host = install?.subject?.host
@@ -734,7 +733,7 @@ function SubjectCard({ subject, t }: { readonly subject: InstallSubject; readonl
  */
 function InstallDialog({
   install, t, onClose, onEditSpec, onRun, onCancel, onReconcile, onToggleDetails, onEnableNow, onApproveBuilds,
-  onToggleRegistry, onChooseRegistry, onChangeRegistry,
+  onToggleRegistry, onChooseRegistry, onChangeRegistry, onUseGithubMirror,
 }: {
   readonly install: InstallState
   readonly t: Translate
@@ -750,6 +749,7 @@ function InstallDialog({
   readonly onChooseRegistry: (choice: RegistryChoice) => void
   /** From the failed screen: back to the spec with the registry options unfolded. */
   readonly onChangeRegistry: () => void
+  readonly onUseGithubMirror: () => void
 }): ReactNode {
   const errorId = useId()
   const guideId = useId()
@@ -779,6 +779,34 @@ function InstallDialog({
     document.addEventListener('keydown', onKeyDown, true)
     return () => { document.removeEventListener('keydown', onKeyDown, true) }
   }, [registryShown, onToggleRegistry])
+  if (githubRecoveryRegistry(install) !== undefined) {
+    const anotherWay = asksMirror(install)
+    return (
+      <Modal
+        open={install.open}
+        onClose={onClose}
+        title={t(install.failure?.kind === 'timeout' ? 'installGithubTimeoutTitle' : 'installGithubFailedTitle')}
+        closeLabel={t('close')}
+        description={t('installGithubFailedDescription')}
+        footer={(
+          <>
+            <Button variant="outline" onClick={onClose}>{t('cancel')}</Button>
+            <Button
+              variant="primary"
+              autoFocus
+              onClick={() => {
+                // The mirror is already asked, so the form opens with the guide to the other kinds of spec.
+                if (anotherWay) setGuideOpen(true)
+                onUseGithubMirror()
+              }}
+            >
+              {t(anotherWay ? 'installTryAnotherWay' : 'installUseGithubMirror')}
+            </Button>
+          </>
+        )}
+      />
+    )
+  }
   if (phase === 'idle' || phase === 'checking') {
     const checking = phase === 'checking'
     const empty = install.spec.trim() === ''
@@ -799,7 +827,7 @@ function InstallDialog({
         onClose={onClose}
         title={t('installTitle')}
         closeLabel={t('close')}
-        description={t('installDescription')}
+        {...install.mirrorRecovery ? {} : { description: t('installDescription') }}
         className={css.installDialog as string}
         contentClassName={css.installContent as string}
         footer={(
@@ -813,10 +841,11 @@ function InstallDialog({
           <div className={css.installField}>
             <input
               type="text"
+              autoFocus={install.mirrorRecovery === true}
               value={install.spec}
               placeholder={t('installSpecPlaceholder')}
               disabled={checking}
-              aria-label={t('installSpecLabel')}
+              aria-label={t(install.mirrorRecovery ? 'installPackageLabel' : 'installSpecLabel')}
               aria-invalid={install.inputError !== null}
               aria-describedby={install.inputError === null ? undefined : errorId}
               onChange={(event) => { onEditSpec(event.currentTarget.value) }}
@@ -1127,7 +1156,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const state = props.usePluginManager(snapshot => snapshot)
   const ledger = props.useConfigLedger(snapshot => snapshot)
   // What is open; a package that leaves the list (uninstalled) drops back to the cards.
-  const [view, setView] = useState<View>({ kind: 'list' })
+  const view = props.useStore(state => state.view), { setView } = props.actions
   const [activation, setActivation] = useState<string | null>(null)
   useEffect(() => { ensure() }, [ensure])
   // A package an install just enabled: scroll it into view and mark it for a moment.
@@ -1198,7 +1227,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
     <section className={css.page} data-plugin-panel aria-busy={state.status === 'loading'}>
       {showsCards
         ? (
-          <header className={css.pageHead}>
+          <header className={css.pageHead} data-window-drag>
             <div>
               <h1 className={css.pageTitle}>{t('title')}</h1>
               <p className={css.pageIntro}>{t('intro')}</p>
@@ -1321,6 +1350,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
         onToggleRegistry={props.toggleRegistryOptions}
         onChooseRegistry={props.chooseRegistry}
         onChangeRegistry={props.changeRegistry}
+        onUseGithubMirror={props.useGithubMirror}
       />
       {state.confirm === null
         ? null

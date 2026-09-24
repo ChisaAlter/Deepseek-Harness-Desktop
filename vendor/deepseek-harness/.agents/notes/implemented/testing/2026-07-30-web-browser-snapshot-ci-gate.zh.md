@@ -12,13 +12,13 @@ Status: implemented
 
 Linux PR 的 `node 24 / snapshots and artifacts` 必须运行完整 Web 浏览器 replay/compare。配置 `DSH_WEB_SNAPSHOT_WORKERS` 后，`scripts/run-gates.ts` 把 `test:web:ci` 登记为 `ci-consumers` 门禁，并显式注入 `DSH_SNAPSHOT=replay`；CI 永不以 `record` 或 `refresh` 模式运行，因此提交的预期输出与当前组装应用不一致时测试直接失败，不会在 runner 内静默改写后通过。
 
-消费方 job 在[消费方独立构建](../../archived/process/2026-07-30-independent-ci-consumer-build.md)中负责唯一一次 Linux 构建，因此 `apps/web/dist` 和包的 `lib/` 目录会保留在其工作区中，供浏览器套件使用。在托管运行器上，CI 按锁文件中的 Playwright 版本安装 Chromium 及其系统依赖。在持久化故障切换 VM 上，镜像负责预装 Linux 系统软件包，CI 只安装 Chromium，避免每次运行都通过 `apt` 改动系统。PR 恢复以操作系统和锁文件为键的浏览器缓存，使必需路径无需承担压缩和上传开销，并可在锁文件变化时按操作系统前缀回退。没有任何 master 作业生成这些 hosted 缓存，因此恢复只能命中仍有归档的旧条目，直至其被逐出。自托管热备运行相同的比较，但不执行托管缓存操作。
+消费方 job 在[消费方独立构建](../../archived/process/2026-07-30-independent-ci-consumer-build.md)中负责唯一一次 Linux 构建，因此 `apps/web/dist` 和包的 `lib/` 目录会保留在其工作区中，供浏览器套件使用。Chromium 运行完整套件；模型与推理强度选择场景还在 WebKit 中运行，以覆盖原生鼠标焦点行为。在托管运行器上，CI 按锁文件中的 Playwright 版本安装这两种引擎及其系统依赖。在持久化故障切换 VM 上，镜像负责预装两种引擎的 Linux 系统软件包，CI 只安装浏览器程序，避免每次运行都通过 `apt` 改动系统。PR 恢复以操作系统和锁文件为键的浏览器缓存，使必需路径无需承担压缩和上传开销，并可在锁文件变化时按操作系统前缀回退。没有任何 master 作业生成这些 hosted 缓存，因此恢复只能命中仍有归档的旧条目，直至其被逐出。自托管热备运行相同的比较，但不执行托管缓存操作。
 
 本地 `pnpm run test:web` 仍先构建，再串行运行完整浏览器套件；`test:web:built` 是已有构建产物的串行执行入口。开发者只在确认用户可见输出有意变化后显式运行 `DSH_SNAPSHOT=refresh pnpm run test:web`，评审每一处预期输出 diff，再以 replay 模式复验不再写文件。
 
 CI 的 `scripts/run-web-snapshots.ts` 单独运行会修改构建产物的 `hmr-live.e2e.ts`。随后由一个六 worker Vitest 池运行其余文件，包括历史 Cordis 卡片渲染。所有子进程继承 stdio，由 `run-gates` 流式转发输出。
 
-对 PR 而言，门禁仅在 Linux 消费方 job 中运行：这些场景面向 POSIX，其他 PR job 不安装 Chromium。自托管的默认分支 Linux 串行热备也包含该比较，而 macOS 和 Windows 串行 job 仍不使用浏览器（不存在托管的 Linux 串行聚合）。PR 的 `all checks passed` 已依赖消费方 job，因此浏览器比较失败会阻止合并，无需新增 branch-protection check 名称。
+对 PR 而言，门禁仅在 Linux 消费方 job 中运行：这些场景面向 POSIX，其他 PR job 不会同时安装这两种引擎。自托管的默认分支 Linux 串行热备也包含该比较，而 macOS 和 Windows 串行 job 仍不使用浏览器（不存在托管的 Linux 串行聚合）。PR 的 `all checks passed` 已依赖消费方 job，因此浏览器比较失败会阻止合并，无需新增 branch-protection check 名称。
 
 完整本地 replay 中，6-worker 浏览器命令耗时约 65–71 秒。12-worker 对比约为 50 秒，因此把浏览器 worker 预算减半只增加约 15–20 秒，而不是让墙钟时间翻倍。门禁调度器会在 `built-package-invariants` 成功后立即启动浏览器快照，并发运行彼此独立的门禁，因此既不需要专用 job 超时，也不需要手动制定 YAML 顺序规则。
 
@@ -36,4 +36,4 @@ CI 的 `scripts/run-web-snapshots.ts` 单独运行会修改构建产物的 `hmr-
 
 ## 后果
 
-每个 PR 都在合并前证明当前 Web 组装与所有已提交的浏览器预期输出一致；漏刷会在改变该组装的同一个 PR 中失败。成本是消费方 job 需要安装 Chromium、串行运行 2 个场景并执行 1 个有界 6-worker 池；消费方独立构建与浏览器缓存避免重跑时重复构建和下载。并行文件的失败会立即流式显示，但 worker 预算的任何变化仍需要完整端到端测量，而不能依据运行中耗时猜测。门禁不声称跨平台浏览器一致性，Playwright/Chromium 升级若改变 ARIA 格式，升级 PR 必须显式 refresh 并评审 churn。
+每个 PR 都在合并前证明当前 Web 组装与所有已提交的浏览器预期输出一致；漏刷会在改变该组装的同一个 PR 中失败。成本是消费方 job 需要安装 Chromium 和 WebKit、串行运行 1 个场景并执行 1 个有界 6-worker 池；消费方独立构建与浏览器缓存避免重跑时重复构建和下载。并行文件的失败会立即流式显示，但 worker 预算的任何变化仍需要完整端到端测量，而不能依据运行中耗时猜测。门禁不声称跨平台浏览器一致性，Playwright 或浏览器升级若改变 ARIA 格式，升级 PR 必须显式 refresh 并评审 churn。

@@ -23,7 +23,7 @@ import type { JobId, JobRegistry, JobView } from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
-import { ESCALATION_TARGETS, approveEscalation, validateEscalationArgs } from '@deepseek-ai/dsh-sandbox'
+import { ESCALATION_TARGETS, approveEscalation, sandboxPermissionsDescription, validateEscalationArgs } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellExecution, ShellRunResult } from '@deepseek-ai/dsh-shell'
@@ -87,36 +87,12 @@ function validateBashArgs(args: BashToolArgs, effectiveMode: SandboxMode | undef
   validateEscalationArgs(args.sandbox_permissions, justification)
 }
 
-function bashDescription(
-  backgroundEnabled: boolean,
-  escalationModes: readonly SandboxMode[],
-  promoteOnTimeout: boolean,
-): string {
-  const background = backgroundEnabled
-    ? 'Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`.'
-      + (promoteOnTimeout
-        ? ' A foreground command that reaches its timeout is not killed: it moves to the background the same way, returning its job id and the output so far.'
-        : '')
-    : 'Background execution is not available; long-running commands must finish within the timeout.'
-  const base = 'Execute a bash command (`bash -c`) and return its stdout/stderr. '
-    + 'Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — '
-    + 'pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. '
-    + `Current harness environment facts are exposed through managed \`$${DSH_ENV_PREFIX}*\` variables; inspect them when needed. `
-    + 'Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. '
+function bashDescription(): string {
+  return 'Execute a bash command (`bash -c`) and return its stdout/stderr. '
+    + 'Each call runs in a fresh shell; pass `workdir` instead of using `cd`. '
+    + `Managed \`$${DSH_ENV_PREFIX}*\` variables expose current harness environment facts. `
     + 'Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. '
-    + background
-  if (escalationModes.length === 0) return base
-  return base + ' Attempting a command the sandbox may deny is safe and expected: run it and read the '
-    + 'marker rather than assuming the denial. When a command is denied and a wider mode would let it '
-    + 'succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry '
-    + 'the exact same command once with `sandbox_permissions` (the narrowest wider mode that suffices) '
-    + 'plus a one-sentence `justification`. Do not detour through chat to ask permission first — the '
-    + 'approval prompt raised by that retry is how the user consents. If the session states approval '
-    + 'prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. '
-    + 'Never escalate speculatively: ground the request in a real denial — normally the one this command '
-    + 'just hit; escalating up front is fine only when this session already denied the same access. '
-    + 'A rejected escalation is final for that command — stop and explain, never work around '
-    + 'it — but it does not forbid attempting or escalating other commands later.'
+    + 'Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]`, a policy denial: do not retry another way.'
 }
 
 /**
@@ -394,7 +370,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     }
     return defineTool({
       name: 'bash',
-      description: bashDescription(background, escalationModes, promote),
+      description: bashDescription(),
       parameters: {
         command: { type: 'string', required: true, description: 'The bash command to execute.' },
         description: {
@@ -418,11 +394,12 @@ export function apply(ctx: Context, config: Config = {}): void {
           sandbox_permissions: {
             type: 'string' as const,
             enum: [...escalationModes],
-            description: 'The wider sandbox mode this command needs. Only valid as a one-shot retry of a command the sandbox just denied; requires justification and user approval.',
+            description: sandboxPermissionsDescription('command'),
           },
           justification: {
             type: 'string' as const,
-            description: 'Required with sandbox_permissions: one sentence for the user explaining why this exact command needs the wider access.',
+            description: 'Required with sandbox_permissions: one sentence for the user explaining why this exact command needs the wider access. '
+              + 'Use the language of the user’s current request.',
           },
         } : {},
       },

@@ -3,7 +3,7 @@ import type { SessionLiveEventEntry } from '@deepseek-ai/dsh-api-session-control
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { isJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
-  ChatConversationViewNode, ChatSnapshot, ConversationNode, RunningToolCall, ToolResultNode,
+  ChatConversationViewNode, ChatSnapshot, ConversationNode, StartedToolCall, ToolResultNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 
 function jsonFixture(value: unknown): JsonValue {
@@ -14,7 +14,7 @@ function jsonFixture(value: unknown): JsonValue {
 /** Build the canonical Chat slice consumed by Tool rows and details tests. */
 export function toolChatSnapshot(
   settled: readonly ConversationNode[] = [],
-  running: readonly RunningToolCall[] = [],
+  running: readonly StartedToolCall[] = [],
 ): ChatSnapshot {
   const roots = [...settled.filter(node => node.kind === 'tool-result'), ...running]
   const nodes: ChatConversationViewNode[] = roots.map(root => ({

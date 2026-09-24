@@ -36,7 +36,7 @@ async function bench() {
   await ctx.plugin(AgentLoop, { agents: [] })
   const adapter = new MockAdapter(Array.from({ length: 8 }, (_, i) => textResponse(`reply-${i}`)))
   ctx.llm.registerAdapter(['mock'], adapter)
-  ctx.provide('workspaceRegistry', { list: () => [] } as never)
+  ctx.provide('workspaceRegistry', { list: () => [], archivedSessionIds: [] } as never)
   const remote = createSessionTestRemote(ctx, {
     cwd: '/workspace', defaultModelSelection: () => ({ provider: 'mock', model: 'mock' }),
   })

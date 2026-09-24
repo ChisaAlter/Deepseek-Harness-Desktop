@@ -24,8 +24,9 @@ export type TranscriptViewRowProps =
 
 const LABELS = {
   compact: 'settings.transcript.compact',
+  standard: 'settings.transcript.standard',
   detailed: 'settings.transcript.detailed',
-  expanded: 'settings.transcript.expanded',
+  verbose: 'settings.transcript.verbose',
 } as const satisfies Record<TranscriptViewMode, ChatKey>
 
 /**

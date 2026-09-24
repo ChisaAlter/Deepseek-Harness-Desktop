@@ -11,7 +11,7 @@
 - status: Worked
 - button "Took {{duration}}" [expanded]
 - button "Analysis completed" [expanded]
-- button "Think"
+- button "Think The user wants me to reply with a single word. Let me comply."
 - paragraph: LIGHTHOUSE
 - button "Copy"
 - button "Good response"

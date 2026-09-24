@@ -13,7 +13,7 @@ import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
+import { connectFreshWorkspace, expectTooltipOnTop, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/goal-bar', import.meta.url))
 const ACTIVE_EXPECTED = join(SNAPSHOT_DIR, 'active.expected.md')
@@ -58,6 +58,9 @@ describe('web e2e: goal bar clear convergence', () => {
     await pause.hover()
     const pauseTooltip = page.getByRole('tooltip', { name: 'Pause goal', exact: true })
     await pauseTooltip.waitFor()
+    // The strip rides directly above the input card, which paints later; the
+    // bubble must escape the strip's stacking context instead of landing under it.
+    await expectTooltipOnTop(pauseTooltip)
     const tooltipGeometry = await page.evaluate(() => {
       const element = document.querySelector<HTMLElement>('[role="tooltip"]')
       if (element === null) return null

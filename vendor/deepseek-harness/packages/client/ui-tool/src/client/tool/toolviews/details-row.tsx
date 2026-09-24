@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import {
   IconAgentPresetOutlineRegular, IconBranchOutlineRegular, IconChecklistOutlineRegular, IconClockOutlineRegular,
   IconCodeOutlineRegular, IconCordisPluginOutlineRegular, IconGoalOutlineRegular, IconSearchOutlineRegular,
+  IconUsersOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -13,44 +14,7 @@ import { detailsCardModel } from '../models/details-card-model.ts'
 import { parsedToolCall } from '../models/raw-tool-call.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 
-const TITLE_KEYS = {
-  create_goal: 'tool.title.createGoal',
-  get_goal: 'tool.title.getGoal',
-  update_goal: 'tool.title.updateGoal',
-  schedule_create: 'tool.title.createSchedule',
-  schedule_list: 'tool.title.listSchedules',
-  schedule_delete: 'tool.title.deleteSchedule',
-  cordis_inspect_list: 'tool.title.inspectProviders',
-  cordis_inspect_query: 'tool.title.queryRuntime',
-  cordis_inspect_self: 'tool.title.inspectPlugins',
-  workflow: 'tool.title.workflow',
-  ralph: 'tool.title.ralph',
-  session_event_read: 'tool.title.readEvent',
-  session_event_search: 'tool.title.searchEvents',
-  session_event_trace: 'tool.title.traceEvent',
-  session_search: 'tool.title.searchSessions',
-  session_trace: 'tool.title.traceSession',
-  list_subagent_models: 'tool.title.listModels',
-  subagent: 'tool.title.subagent',
-  list_agents: 'tool.title.listAgents',
-  send_message: 'tool.title.sendMessage',
-  interrupt_agent: 'tool.title.interruptAgent',
-  job_list: 'tool.title.listJobs',
-  job_output: 'tool.title.readJob',
-  job_kill: 'tool.title.killJob',
-  terminal_open: 'tool.title.openTerminal',
-  terminal_read: 'tool.title.readTerminal',
-  terminal_list: 'tool.title.listTerminals',
-  terminal_signal: 'tool.title.signalTerminal',
-  terminal_close: 'tool.title.closeTerminal',
-  lsp: 'tool.title.lsp',
-  spawn_teammate: 'tool.title.spawnTeammate',
-  team_task_create: 'tool.title.createTeamTask',
-  team_task_get: 'tool.title.getTeamTask',
-  team_task_update: 'tool.title.updateTeamTask',
-  team_task_list: 'tool.title.listTeamTasks',
-  wait_agent: 'tool.title.waitAgent',
-} as const
+type DetailsRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 
 const LSP_TITLE_KEYS = {
   goToDefinition: 'tool.title.findDefinition',
@@ -59,7 +23,11 @@ const LSP_TITLE_KEYS = {
   hover: 'tool.title.hoverSymbol',
 } as const
 
+/** Teammate-coordination tools presented with the two-person team icon. */
+const TEAMMATE_TOOLS = new Set(['spawn_teammate', 'list_agents', 'send_message', 'interrupt_agent', 'wait_agent'])
+
 function detailIcon(toolName: string) {
+  if (TEAMMATE_TOOLS.has(toolName)) return <IconUsersOutlineRegular size={14} />
   if (toolName.startsWith('schedule_')) return <IconClockOutlineRegular size={14} />
   if (toolName.endsWith('_goal')) return <IconGoalOutlineRegular size={14} />
   if (toolName.startsWith('cordis_')) return <IconCordisPluginOutlineRegular />
@@ -75,14 +43,14 @@ function detailIcon(toolName: string) {
  * @param props - Tool call, row actions, and locale supplied by the keyed slot.
  * @returns A Tool row with structured details or generic input/output.
  */
-export function DetailsRow({ toolName, block, cwd, home, openFile, inspect, useDisclosure, t }: ToolCallViewProps & PropsLocale<'conversation'>) {
+export function DetailsRow({ toolName, block, cwd, home, openFile, inspect, useDisclosure, t }: DetailsRowProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const locale = document.documentElement.lang
   const details = useMemo(() => detailsCardModel(block, t, locale), [block, t, locale])
   const operation = toolName === 'lsp' ? parsedToolCall(block)?.args.operation : undefined
   const titleKey = typeof operation === 'string' && Object.hasOwn(LSP_TITLE_KEYS, operation)
     ? LSP_TITLE_KEYS[operation as keyof typeof LSP_TITLE_KEYS]
-    : Object.hasOwn(TITLE_KEYS, toolName) ? TITLE_KEYS[toolName as keyof typeof TITLE_KEYS] : model.titleKey
+    : model.titleKey
   return (
     <ToolRow
       useDisclosure={useDisclosure}
@@ -115,6 +83,7 @@ export const detailsToolview = {
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_create', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_list', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_delete', locale: NS }, DetailsRow)
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'schedule_update', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'cordis_inspect_list', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'cordis_inspect_query', locale: NS }, DetailsRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'cordis_inspect_self', locale: NS }, DetailsRow)

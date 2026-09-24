@@ -244,8 +244,8 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
   }, 60_000)
 
   it.skipIf(MODE === 'record').each([
-    ['detailed', 'Detailed'], ['expanded', 'Expanded'],
-  ] as const)('preserves whole-Turn folding in %s mode', async (mode, label) => {
+    ['compact', 'Compact'], ['detailed', 'Detailed'], ['verbose', 'Verbose'],
+  ] as const)('applies whole-Turn presentation in %s mode', async (mode, label) => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-process-setting'))
     const { settled } = await sendPrompt()
@@ -259,31 +259,38 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     await openSettings(page, 'en')
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     await dialog.getByText('Work details', { exact: true }).locator('../..')
-      .getByRole('button', { name: 'Compact', exact: true }).click()
+      .getByRole('button', { name: 'Standard', exact: true }).click()
     await page.getByRole('menuitem', { name: label, exact: true }).click()
     await page.keyboard.press('Escape')
 
     expect(await process.count()).toBe(1)
-    expect(await process.getAttribute('aria-expanded')).toBe('false')
-    expect(await tool.isVisible()).toBe(false)
     await expect.poll(async () => readFile(join(scaffold!.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8'), { timeout: 5_000 })
       .toContain(`transcriptView: ${mode}`)
 
-    await process.click()
     const group = page.locator('[data-sample="bash"]').first().locator('xpath=ancestor::*[@data-chat-group-key]')
     const groupControl = group.locator('[data-process-activity]')
-    expect(await groupControl.isVisible()).toBe(true)
-    expect(await groupControl.getAttribute('aria-expanded')).toBe('false')
-    expect(await tool.isVisible()).toBe(false)
-    await groupControl.click()
-    expect(await tool.isVisible()).toBe(true)
-    await process.click()
+    if (mode === 'verbose') {
+      expect(await process.isDisabled()).toBe(true)
+      expect(await process.getAttribute('aria-expanded')).toBe('true')
+      expect(await groupControl.isVisible()).toBe(false)
+      expect(await tool.isVisible()).toBe(true)
+    } else {
+      expect(await process.getAttribute('aria-expanded')).toBe('false')
+      expect(await tool.isVisible()).toBe(false)
+      await process.click()
+      expect(await groupControl.isVisible()).toBe(true)
+      expect(await groupControl.getAttribute('aria-expanded')).toBe('false')
+      expect(await tool.isVisible()).toBe(false)
+      await groupControl.click()
+      expect(await tool.isVisible()).toBe(true)
+      await process.click()
+    }
 
     await openSettings(page, 'en')
     const restored = page.getByRole('dialog', { name: 'Settings' })
     await restored.getByText('Work details', { exact: true }).locator('../..')
       .getByRole('button', { name: label, exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Compact', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Standard', exact: true }).click()
     await page.keyboard.press('Escape')
     await process.waitFor({ timeout: 10_000 })
     expect(await process.getAttribute('aria-expanded')).toBe('false')

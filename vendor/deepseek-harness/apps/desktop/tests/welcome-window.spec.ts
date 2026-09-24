@@ -40,6 +40,7 @@ function createWindow() {
 beforeEach(() => { electron.create.mockReset(); electron.handlers.clear() })
 
 const operations = {
+  takeNotice: async () => undefined,
   startSignIn: async () => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out' as const, attempt: null }),
   cancelSignIn: async () => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out' as const, attempt: null }),
   copySignInLink: async () => undefined,
@@ -115,8 +116,14 @@ describe('desktop welcome window', () => {
     const saveApiKey = vi.fn(operations.saveApiKey)
     const skip = vi.fn(operations.skip)
     const copySignInLink = vi.fn(operations.copySignInLink)
-    await openWelcomeWindow(resolveDesktopLocale('en'), { ...operations, saveApiKey, skip, copySignInLink })
+    const takeNotice = vi.fn(async () => 'session-expired' as const)
+    await openWelcomeWindow(resolveDesktopLocale('en'), { ...operations, saveApiKey, skip, copySignInLink, takeNotice })
     const own = { sender: window.webContents, senderFrame: window.webContents.mainFrame }
+    const take = electron.handlers.get(WELCOME_IPC.takeNotice)!
+    await expect(take({ ...own, senderFrame: {} })).rejects.toThrow('unowned frame')
+    expect(takeNotice).not.toHaveBeenCalled()
+    expect(await take(own)).toBe('session-expired')
+    expect(takeNotice).toHaveBeenCalledOnce()
     const save = electron.handlers.get(WELCOME_IPC.saveApiKey)!
     await expect(save({ sender: {}, senderFrame: {} }, 'sk-test')).rejects.toThrow('unowned frame')
     await expect(save({ ...own, senderFrame: {} }, 'sk-test')).rejects.toThrow('unowned frame')

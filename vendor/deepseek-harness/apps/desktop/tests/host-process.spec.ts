@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError } from '../src/host-process.ts'
+import { DesktopHostFatalError, DesktopHostProcess, DesktopHostUncleanExitError, QUIT_INSPECTION_DEADLINE_MS } from '../src/host-process.ts'
 
 const roots: string[] = []
 const hosts: DesktopHostProcess[] = []
@@ -32,6 +32,12 @@ server.listen(0, '127.0.0.1', () => {
 process.on('message', message => {
   if (message.type === 'update-tasks') {
     process.send({ type: 'update-tasks', requestId: message.requestId, active: message.action === 'lock' })
+    return
+  }
+  if (message.type === 'quit-inspection') {
+    // Ids divisible by three never answer; the others report scheduled work for odd ids.
+    if (message.requestId % 3 === 0) return
+    process.send({ type: 'quit-inspection', requestId: message.requestId, activeTasks: false, scheduledTasks: message.requestId % 2 === 1 })
     return
   }
   if (message.type !== 'shutdown') return
@@ -76,6 +82,19 @@ describe('desktop host process', () => {
     await host.stop(true)
     await expect(host.updateTasks('inspect')).rejects.toThrow('Host is unavailable')
   })
+
+  it('correlates quit inspections with task requests and fails an unanswered one at its own deadline', async () => {
+    const host = hostProcess(projectWithHost())
+    await expect(host.inspectQuit()).rejects.toThrow('desktop quit: Host is unavailable')
+    await host.start()
+    // Request ids 1 and 2: the fixture answers by id parity, so both control kinds share one id space.
+    expect(await Promise.all([host.inspectQuit(), host.updateTasks('inspect')]))
+      .toEqual([{ activeTasks: false, scheduledTasks: true }, false])
+    const started = Date.now()
+    await expect(host.inspectQuit()).rejects.toThrow('desktop quit: inspection timed out')
+    expect(Date.now() - started).toBeGreaterThanOrEqual(QUIT_INSPECTION_DEADLINE_MS - 50)
+    expect(await host.inspectQuit()).toEqual({ activeTasks: false, scheduledTasks: false })
+  }, 15_000)
 
   it.each([
     'process.exit(17)',
@@ -197,13 +216,25 @@ describe('desktop host process', () => {
   })
 })
 
-it('carries Platform credentials over private IPC and clears them on shutdown', async () => {
-  const runtime = projectWithHost(HTTP_HOST.replace("process.send({ type: 'ready'", "process.send({ type: 'platform-session', session: { origin: 'https://platform.deepseek.com', token: 'fixture-secret', embeddedPageDist: 'feat/test' } }); process.send({ type: 'ready'"))
+it.each([null, 'stable-account'])('carries Platform identity %s over private IPC and clears credentials on shutdown', async (userId) => {
+  const runtime = projectWithHost(HTTP_HOST.replace("process.send({ type: 'ready'", "process.send({ type: 'platform-session', session: { origin: 'https://platform.deepseek.com', userId: " + JSON.stringify(userId) + ", token: 'fixture-secret', embeddedPageDist: 'feat/test' } }); process.send({ type: 'ready'"))
   const changed = vi.fn()
   const host = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env, undefined, undefined, undefined, changed)
   hosts.push(host)
   await host.start()
-  expect(changed).toHaveBeenCalledWith({ origin: 'https://platform.deepseek.com', token: 'fixture-secret', embeddedPageDist: 'feat/test' })
+  expect(changed).toHaveBeenCalledWith({ origin: 'https://platform.deepseek.com', userId, token: 'fixture-secret', embeddedPageDist: 'feat/test' })
   await host.stop()
   expect(changed).toHaveBeenLastCalledWith(null)
+})
+
+it.each([undefined, '', 7])('rejects malformed Platform account identity %s on private IPC', async (userId) => {
+  const session = { origin: 'https://platform.deepseek.com', token: 'fixture-secret', userId }
+  const runtime = projectWithHost(HTTP_HOST.replace("process.send({ type: 'ready'",
+    `process.send({ type: 'platform-session', session: ${JSON.stringify(session)} }); process.send({ type: 'ready'`))
+  const changed = vi.fn()
+  const host = new DesktopHostProcess(process.execPath, runtime, runtime, undefined, process.env, undefined, undefined, undefined, changed)
+  hosts.push(host)
+  await expect(host.start()).rejects.toThrow('invalid IPC event')
+  expect(changed.mock.calls).toEqual([[null]])
+  await host.stop()
 })

@@ -13,7 +13,7 @@ function workspacePackages(client: boolean): string[] {
   const patterns = [
     'vendor/*/package.json',
     'packages/*/*/package.json',
-    client ? 'apps/cli/package.json' : 'apps/{cli,desktop,desktop-host}/package.json',
+    client ? 'apps/cli/package.json' : 'apps/{cli,desktop-host}/package.json',
   ]
   return patterns.flatMap(pattern => globSync(pattern, { cwd: import.meta.dirname })
     .map(manifest => dirname(manifest).replaceAll('\\', '/'))).sort()
@@ -23,7 +23,10 @@ function workspacePackages(client: boolean): string[] {
  * The ordinary workspace build consumes JavaScript emitted by the Host
  * TypeScript project and runs Typert. The Client pass selects packages that
  * declare a browser bundle and lets their package-local configs emit both
- * their Node loader entry and browser artifact.
+ * their Node loader entry and browser artifact. `apps/desktop` bundles after
+ * this pass (root package.json `build:lib:host`): its main bundle inlines
+ * workspace devDependencies from their lib/ output, and tsdown builds
+ * workspace members concurrently without ordering them.
  */
 export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)

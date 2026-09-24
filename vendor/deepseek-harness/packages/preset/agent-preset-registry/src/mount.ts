@@ -1,6 +1,7 @@
 /** Runtime plugin trees shared by Agents selecting one preset revision. */
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { EntryTree, type EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
+import { prepareProfileEntries } from '@deepseek-ai/dsh-app-boot'
 import type { PresetDefinition } from './definition.ts'
 import { scopeOf, scopeParentOf, type ScopeKey } from '@deepseek-ai/dsh-scope'
 
@@ -246,6 +247,9 @@ function mountDetail(error: unknown): string {
  * Failed rows and root-realm service leaks reject the mount. Rows waiting for
  * a Host service stay mounted: they activate by themselves once the provider
  * finishes, and the registry re-audits them after the Host tree settles.
+ * Inside a profile, compatibility policy decides admission first: a row whose
+ * plugin the profile denies mounts disabled, so the audit reads it as
+ * intentionally inactive instead of reporting a failed import.
  * @param ctx Scope context inheriting the declaring Loader's resolution base.
  * @param id Preset identity.
  * @param plugins Declared Cordis entry list.
@@ -256,7 +260,7 @@ export async function mountPreset(ctx: Context, id: string, plugins: PresetDefin
   await ctx.fiber.await()
   const tree = new PresetTree(ctx)
   ctx.effect(() => () =>{  tree.root.stop() }, 'agent-preset.tree')
-  await tree.root.update(structuredClone(plugins) as EntryOptions[])
+  await tree.root.update(prepareProfileEntries(ctx, plugins as EntryOptions[], ctx.baseUrl))
   const audit = await auditRows(tree)
   const leaked = leakedServices(ctx, ctx.fiber)
   if (audit.failed.length > 0) throw new Error(audit.failed.join('\n'))

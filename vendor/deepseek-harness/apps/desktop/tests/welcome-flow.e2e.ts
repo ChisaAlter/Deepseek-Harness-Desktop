@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DesktopHostProcess } from '../src/host-process.ts'
 import { DesktopProjectManager } from '../src/project-manager.ts'
 import { resolveDesktopPaths } from '../src/paths.ts'
+import { desktopClientMetadata } from '../src/client-metadata.ts'
 import { connectDesktopWelcome, type DesktopWelcomeBackend } from '../src/welcome-backend.ts'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { prepareDevelopmentProject } from '../scripts/development-project.ts'
@@ -27,7 +28,15 @@ async function mockPlatform() {
   let init: Record<string, string> = {}
   let failExchange = false
   const server = createServer((req, res) => {
-    if (req.headers['x-client-platform'] !== (process.platform === 'win32' ? 'desktop-win' : 'desktop-mac')) { res.writeHead(400).end(); return }
+    // The real Host composition identifies every Platform request with the five client headers.
+    const expected = {
+      'x-client-bundle-id': '', 'x-client-platform': process.platform === 'win32' ? 'desktop-win' : 'desktop-mac',
+      'x-client-version': '1.2.3', 'x-client-locale': 'en_US',
+      'x-client-timezone-offset': String(-new Date().getTimezoneOffset() * 60),
+    }
+    for (const [name, value] of Object.entries(expected)) {
+      if (req.headers[name] !== value) { res.writeHead(400).end(); return }
+    }
     if (req.headers.cookie !== 'test_gate=synthetic') { res.writeHead(403).end(); return }
     if (req.url === '/auth-api/v0/users/logout' && req.method === 'POST') {
       if (req.headers['x-dsh-auth-token'] !== 'dsh_mock_composition_test') { res.writeHead(401).end(); return }
@@ -75,6 +84,7 @@ async function mockPlatform() {
 
 describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
   it('persists explicit API keys and browser account login independently across Host restarts', async () => {
+    vi.stubEnv('DSH_CLIENT_VERSION', '1.2.3')
     const root = mkdtempSync(join(tmpdir(), 'dsh-desktop-welcome-'))
     let host: DesktopHostProcess | undefined
     const platform = await mockPlatform()
@@ -98,8 +108,14 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
           nodeVersion: process.versions.node,
           hostProtocolVersion: DESKTOP_HOST_PROTOCOL_VERSION,
         },
+        // This suite assembles a synthetic project on hosts that prepare no Desktop target, and
+        // nothing it exercises compares the descriptor's platform/arch outside packaging.
+        target: 'mac-x64',
       })
       cpSync(join(repository, 'packages/skill/skill-office/assets'), join(root, 'runtime/office-skills'), { recursive: true })
+      const nodeBin = join(root, 'runtime/primary-runtime/dependencies/node/bin')
+      mkdirSync(nodeBin, { recursive: true })
+      cpSync(process.execPath, join(nodeBin, process.platform === 'win32' ? 'node.exe' : 'node'))
       const paths = resolveDesktopPaths(home)
       const manager = new DesktopProjectManager(paths, {
         dsh: project,
@@ -141,7 +157,7 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
       expect(await status()).toMatchObject({ hasApiKey: true, localePreference: 'zh' })
       await restart()
       expect(await status()).toMatchObject({ hasApiKey: true })
-      await backend!.account.start('en')
+      await backend!.account.start(desktopClientMetadata('en'))
       await expect.poll(async () => (await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
       expect(new URL(platform.callback()).origin).toBe(hostOrigin)
       platform.failExchange(true)
@@ -150,7 +166,7 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
       expect(await backend!.account.state()).toMatchObject({ status: 'signed-out', attempt: { phase: 'failed' } })
       expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: false })
       platform.failExchange(false)
-      await backend!.account.start('en')
+      await backend!.account.start(desktopClientMetadata('en'))
       await expect.poll(async () => (await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
       const response = await fetch(platform.callback(), { redirect: 'manual' })
       expect(response.status).toBe(302)
@@ -159,9 +175,9 @@ describe.skipIf(!existsSync(builtHost))('built Desktop welcome flow', () => {
       await restart()
       expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: true })
       // A failed remote logout must not block local sign-out through the real Host composition.
-      await backend!.account.signOut()
+      await backend!.account.signOut(desktopClientMetadata('en'))
       expect(await status()).toMatchObject({ hasApiKey: true, loggedIn: false })
-      await backend!.account.start('en')
+      await backend!.account.start(desktopClientMetadata('en'))
       await expect.poll(async () => (await backend!.account.state()).attempt?.phase).toBe('waiting-browser')
       const waiting = await backend!.account.state()
       const late = platform.callback()

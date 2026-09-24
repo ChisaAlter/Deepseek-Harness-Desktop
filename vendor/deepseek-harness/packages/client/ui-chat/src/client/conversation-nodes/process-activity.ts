@@ -5,9 +5,11 @@ import { isRunningTool } from '../contract/chat-nodes.ts'
 import type { ToolCallBlock } from '../contract/snapshot.ts'
 
 function activity(name: string): ProcessActivity {
-  if (['read', 'read_image', 'list_mcp_resources', 'list_mcp_resource_templates', 'read_mcp_resource'].includes(name)) return 'read'
+  if (name === 'read') return 'read'
+  if (name === 'read_image') return 'readImage'
   if (name === 'grep' || name === 'glob' || name.endsWith('_inspect')) return 'search'
-  if (['write', 'edit', 'apply_patch'].includes(name)) return 'edit'
+  if (name === 'write') return 'write'
+  if (name === 'edit' || name === 'apply_patch') return 'edit'
   if (['bash', 'pwsh', 'exec_command', 'write_stdin'].includes(name) || name.startsWith('terminal_')) return 'commands'
   if (name === 'run_code') return 'code'
   if (name === 'web_search') return 'webSearch'
@@ -95,6 +97,7 @@ export function processActivity(nodes: readonly ChatNode[]): ProcessActivitySumm
   let running: ProcessActivity | undefined
   let runningDetail = ''
   let runningTime = -Infinity
+  let preparing: boolean | undefined
   const visit = (tool: ToolCallBlock): void => {
     if (seen.has(tool.callId)) return
     seen.add(tool.callId)
@@ -103,7 +106,10 @@ export function processActivity(nodes: readonly ChatNode[]): ProcessActivitySumm
       const kind = activity(call.name)
       if (isRunningTool(tool) && tool.time >= runningTime) {
         running = kind
-        runningDetail = liveToolDetail(tool.name, tool.argsRaw)
+        preparing = tool.phase === 'preparing'
+        runningDetail = tool.phase === 'preparing'
+          ? kind === 'tools' ? tool.name : ''
+          : liveToolDetail(tool.name, tool.argsRaw)
         runningTime = tool.time
       }
       counts.set(kind, (counts.get(kind) ?? 0) + 1)
@@ -118,5 +124,6 @@ export function processActivity(nodes: readonly ChatNode[]): ProcessActivitySumm
     counts: [...counts].map(([kind, count]) => ({ kind, count })).sort((a, b) => b.count - a.count),
     running,
     runningDetail,
+    ...preparing ? { preparing: true } : {},
   }
 }

@@ -20,6 +20,8 @@ import { SurfaceManager, validateSessionEventData, validateSurfaceMetadata } fro
 import type { SessionSurface, SessionMessageProjection } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
 import { repairMalformedToolCalls } from './tool-transcript.ts'
+import { ToolHistoryProjection } from './tool-history.ts'
+import type { ToolHistory } from '@deepseek-ai/dsh-llm'
 
 import { buildForkSeed } from './fork.ts'
 
@@ -813,6 +815,22 @@ export class Session {
       this.contextFoldSeq = this.log.length
     }
     return this.contextFold
+  }
+
+  /** Cached historical tool definitions and updates for request projection. */
+  private readonly toolHistoryProjection = new ToolHistoryProjection()
+  /** Index of the next committed event not yet consumed by the tool-history fold. */
+  private toolHistorySeq = 0
+
+  /**
+   * Fold unseen committed events into capability-independent tool history.
+   * Initial access reconstructs inherited history; later reads consume only new events.
+   * @returns an immutable snapshot for LLM request projection, including historical addition definitions.
+   */
+  toolHistory(): ToolHistory {
+    for (const event of this.log.slice(this.toolHistorySeq)) this.toolHistoryProjection.apply(event)
+    this.toolHistorySeq = this.log.length
+    return this.toolHistoryProjection.snapshot()
   }
 
   /** The derived-message cache: frozen projections, extended per unseen node. */

@@ -44,6 +44,10 @@ def _resource_sidecars(executable: Path, native_targets: tuple[str, ...] = ("dar
     python.parent.mkdir(parents=True)
     python.touch()
     python.chmod(0o755)
+    node = resources / "primary-runtime/dependencies/node/bin" / ("node.exe" if tag.startswith("win-") else "node")
+    node.parent.mkdir(parents=True)
+    node.touch()
+    node.chmod(0o755)
     packages = python.parent if tag.startswith("win-") else python.parent.parent
     (packages / ("Lib/site-packages" if tag.startswith("win-") else "lib/python3.12/site-packages")).mkdir(parents=True)
     for file in ["scripts/check_office.py", *(f"office-{kind}/SKILL.md" for kind in ("docx", "pptx", "xlsx"))]:
@@ -59,13 +63,14 @@ def test_unknown_explicit_mode_fails_loud() -> None:
 
 
 @pytest.mark.parametrize("target", ["linux-x64", "linux-arm64", "macos-arm64", "macos-x64", "win-x64"])
-@pytest.mark.parametrize("invalid", [None, "manifest", "platform", "python", "skills", "packages", "mode"])
+@pytest.mark.parametrize("invalid", [None, "manifest", "platform", "python", "skills", "packages", "mode", "node", "node-mode"])
 def test_authoring_resources_validate_installed_and_wheel_payloads(tmp_path: Path, target: str, invalid: str | None) -> None:
     executable = tmp_path / f"deepseek-harness-sdk-runtime-{target}"
     _resource_sidecars(executable)
     root = tmp_path / target
     python = root / "primary-runtime/dependencies/python" / ("python.exe" if target == "win-x64" else "bin/python3")
-    if invalid == "mode" and target == "win-x64":
+    node = root / "primary-runtime/dependencies/node/bin" / ("node.exe" if target == "win-x64" else "node")
+    if invalid in ("mode", "node-mode") and target == "win-x64":
         pytest.skip("Windows executables do not require a POSIX executable bit")
     if invalid == "manifest":
         (root / "primary-runtime/runtime.json").unlink()
@@ -74,6 +79,10 @@ def test_authoring_resources_validate_installed_and_wheel_payloads(tmp_path: Pat
         manifest = json.loads(manifest_path.read_text())
         manifest["arch"] = "wrong"
         manifest_path.write_text(json.dumps(manifest))
+    elif invalid == "node":
+        node.unlink()
+    elif invalid == "node-mode":
+        node.chmod(0o644)
     elif invalid == "python":
         python.unlink()
     elif invalid == "skills":

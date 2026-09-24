@@ -10,12 +10,13 @@ afterEach(cleanup)
 
 describe('Chat presentation policy', () => {
   it.each([
-    ['compact', 'collapsed', false, false],
-    ['detailed', 'collapsed', true, true],
-    ['expanded', 'none', true, true],
-  ] as const)('maps %s to stable presentation capabilities', (mode, stepGrouping, settledReasoningPreview, liveProcessDetail) => {
+    ['compact', true, 'collapsed', false, false],
+    ['standard', true, 'collapsed', true, true],
+    ['detailed', true, 'history', true, true],
+    ['verbose', false, 'none', true, false],
+  ] as const)('maps %s to stable presentation capabilities', (mode, foldCompletedTurns, stepGrouping, settledReasoningPreview, liveProcessDetail) => {
     const policy = presentationPolicyFor(mode)
-    expect(policy).toEqual({ mode, foldCompletedTurns: true, stepGrouping, settledReasoningPreview, liveProcessDetail })
+    expect(policy).toEqual({ mode, foldCompletedTurns, stepGrouping, settledReasoningPreview, liveProcessDetail })
     expect(presentationPolicyFor(mode)).toBe(policy)
   })
 
@@ -29,7 +30,7 @@ describe('Chat presentation policy', () => {
     expect(listener).toHaveBeenCalledTimes(1)
     expect(policy.getSnapshot()).toBe(presentationPolicyFor('detailed'))
     dispose()
-    mode.set('expanded')
+    mode.set('verbose')
     expect(listener).toHaveBeenCalledTimes(1)
   })
 
@@ -54,7 +55,7 @@ describe('Chat presentation policy', () => {
     act(() => { mode.set('detailed') })
     expect(foldRender).toHaveBeenCalledTimes(1)
     expect(previewRender).toHaveBeenCalledTimes(2)
-    act(() => { mode.set('expanded') })
+    act(() => { mode.set('standard') })
     expect(foldRender).toHaveBeenCalledTimes(1)
     expect(previewRender).toHaveBeenCalledTimes(2)
     act(() => { mode.set('compact') })

@@ -1,5 +1,5 @@
 import type { ImagePreviewProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { ImageLightbox } from '../ImageLightbox.tsx'
+import { ImageLightbox } from '@deepseek-ai/dsh-client-ui-primitives'
 import { lightboxLabels } from './labels.ts'
 
 /** Markdown image preview slot entry: the shared original-image lightbox driven by chat owner props. */

@@ -107,7 +107,7 @@ describe('genericImageCardModel', () => {
 
   it('declines running, error, and image-free results', () => {
     expect(genericImageCardModel({
-      callId: 'c1', name: 'mcp_screenshot', argsRaw: '{}', turn: 1, step: 1, time: 1, subCalls: [],
+      phase: 'start', callId: 'c1', name: 'mcp_screenshot', argsRaw: '{}', turn: 1, step: 1, time: 1, subCalls: [],
     })).toBeNull()
     expect(genericImageCardModel(settled([{ type: 'text', text: 'failed' }], { isError: true }))).toBeNull()
     expect(genericImageCardModel(settled([{ type: 'text', text: 'no image' }]))).toBeNull()

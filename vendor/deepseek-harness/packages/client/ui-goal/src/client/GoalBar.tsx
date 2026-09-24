@@ -103,7 +103,7 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
           />
           {actionError !== null && <span className={css.error} role="alert">{actionError}</span>}
           <div className={css.actions}>
-            <Tooltip label={t('action.save')} side="bottom" delayMs={500}>
+            <Tooltip portal label={t('action.save')} side="bottom" delayMs={500}>
               <button
                 type="button"
                 className={css.iconBtn}
@@ -114,7 +114,7 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
                 <IconCheckOutlineRegular size={14} />
               </button>
             </Tooltip>
-            <Tooltip label={t('action.cancel')} side="bottom" delayMs={500}>
+            <Tooltip portal label={t('action.cancel')} side="bottom" delayMs={500}>
               <button
                 type="button"
                 className={css.iconBtn}
@@ -144,20 +144,20 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
         {actionError !== null && <span className={css.error} role="alert">{actionError}</span>}
         <div className={css.actions}>
           {goal.phase === 'active' && activation === 'armed' && (
-            <Tooltip label={t('action.pause')} side="bottom" delayMs={500}>
+            <Tooltip portal label={t('action.pause')} side="bottom" delayMs={500}>
               <button type="button" className={css.iconBtn} disabled={pending} onClick={() => { void runAction(onPause) }} aria-label={t('action.pause')}>
                 <IconPauseOutlineRegular size={14} />
               </button>
             </Tooltip>
           )}
           {showResume && (
-            <Tooltip label={t('action.resume')} side="bottom" delayMs={500}>
+            <Tooltip portal label={t('action.resume')} side="bottom" delayMs={500}>
               <button type="button" className={css.iconBtn} disabled={pending} onClick={() => { void runAction(onResume) }} aria-label={t('action.resume')}>
                 <IconPlayOutlineRegular size={14} />
               </button>
             </Tooltip>
           )}
-          <Tooltip label={t('action.edit')} side="bottom" delayMs={500}>
+          <Tooltip portal label={t('action.edit')} side="bottom" delayMs={500}>
             <button
               type="button"
               className={css.iconBtn}
@@ -168,7 +168,7 @@ export function GoalBar({ goal, activation, onEdit, onPause, onResume, onClear, 
               <IconEditOutlineRegular size={14} />
             </button>
           </Tooltip>
-          <Tooltip label={t('action.clear')} side="bottom" delayMs={500}>
+          <Tooltip portal label={t('action.clear')} side="bottom" delayMs={500}>
             <button type="button" className={css.iconBtn} disabled={pending} onClick={() => { void handleClear(goal.id) }} aria-label={t('action.clear')}>
               <IconTrashOutlineRegular size={14} />
             </button>

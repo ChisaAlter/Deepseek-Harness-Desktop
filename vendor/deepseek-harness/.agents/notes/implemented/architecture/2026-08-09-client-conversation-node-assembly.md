@@ -14,6 +14,8 @@ Business events also use different correlation models. Tool has call IDs, Assist
 
 ## Decision
 
+The [three-stage Tool lifecycle](2026-09-22-tool-call-three-phases.md) owns transient initialization, repeated start matches for one ID, and tool preparation; this record's other node-assembly responsibilities remain applicable.
+
 Client Runtime provides a target-neutral Conversation Node assembly engine. Business plugins register Event Definitions, and view plugins register per-Session View Builders. `ui-conversation` registers the first built-in Definitions and the `chat` builder; Session only submits the current contiguous `SessionEventLikeEntry` window to the engine and publishes its snapshot instead of interpreting individual conversation businesses. The entry's outer discriminator distinguishes standard and packed records, while both carry an aligned inner `SessionEventLike` for Definition dispatch.
 
 This Note retains the derivation, business-by-business validation, responsibilities, algorithms, and trade-offs that remain relevant after implementation.

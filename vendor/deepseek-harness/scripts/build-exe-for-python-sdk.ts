@@ -457,7 +457,7 @@ class SingleExeBuild {
     } else {
       const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string }
       await preparePrimaryRuntime({ target: runtimeTarget, output: resources,
-        cache: join(tmpdir(), 'dsh-primary-runtime-downloads'), version, pythonOnly: true })
+        cache: join(tmpdir(), 'dsh-primary-runtime-downloads'), version })
       smokePrimaryRuntime(join(resources, 'primary-runtime'))
     }
     if (target.platform !== 'macos') return [product, ripgrep, office, resources]

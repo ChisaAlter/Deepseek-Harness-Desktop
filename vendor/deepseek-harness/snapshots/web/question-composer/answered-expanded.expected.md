@@ -11,12 +11,12 @@
 - status: Worked
 - button "Took {{duration}}" [expanded]
 - button "Asked questions" [expanded]
-- button "Think"
+- button "Think The user wants me to use the ask_user_question tool with specific parameters. Let me do exactly that."
 - button "Ask question 1/1 answered" [expanded]
 - term: Which color do you prefer?
 - definition: Blue Include accessibility notes
 - button "Inspect"
-- button "Think"
+- button "Think The user answered \"Blue\". I should now reply with the single word DONE and stop."
 - paragraph: DONE
 - button "Copy"
 - button "Good response"

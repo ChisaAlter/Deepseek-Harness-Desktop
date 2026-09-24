@@ -94,20 +94,25 @@ export function ConversationSessionHeader({
               <nav className={css.crumbs} aria-label={t('session.hierarchy')}>
                 {ancestry.map((summary, index) => {
                   const last = index === ancestry.length - 1
-                  const title = (
-                    <button
-                      type="button"
-                      className={clsx(
-                        css.crumb,
-                        summary.subagent && css.crumbSubagent,
-                        last && css.crumbCurrent,
-                      )}
-                      disabled={last}
-                      onClick={() => { open(summary.id) }}
-                    >
-                      {summary.displayTitle}
-                    </button>
-                  )
+                  // The current crumb has no navigation, so it is plain text
+                  // rather than a disabled button: under a window drag region a
+                  // button would subtract itself from the header's drag row
+                  // (ui-web base.css) and leave the title inert for dragging too.
+                  const title = last
+                    ? (
+                      <span className={clsx(css.crumb, summary.subagent && css.crumbSubagent, css.crumbCurrent)}>
+                        {summary.displayTitle}
+                      </span>
+                    )
+                    : (
+                      <button
+                        type="button"
+                        className={clsx(css.crumb, summary.subagent && css.crumbSubagent)}
+                        onClick={() => { open(summary.id) }}
+                      >
+                        {summary.displayTitle}
+                      </button>
+                    )
                   const lineage = last || summary.subagent
                   const hideManagedLineage = last && summary.managed
                   const lineageOwner = {
@@ -161,7 +166,9 @@ export function ConversationSessionHeader({
         </div>
       </div>
       {!hideChrome && showTabStrip && (
-        <div className={css.tabs} role="tablist">
+        // data-conversation-tabs: marks the tab strip, which the window-chrome
+        // geometry and the browser coverage lane anchor on.
+        <div className={css.tabs} role="tablist" data-conversation-tabs="">
           {tabs.map(viewTab => (
             <button
               key={viewTab.id}

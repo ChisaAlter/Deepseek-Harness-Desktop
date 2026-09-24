@@ -11,13 +11,19 @@ export const WELCOME_IPC = {
   cancel: 'dsh-welcome:cancel',
   copyLink: 'dsh-welcome:copy-link',
   state: 'dsh-welcome:state',
+  takeNotice: 'dsh-welcome:take-notice',
 } as const
 
 /** Credential writes return a safe outcome without exposing Host diagnostics. */
 export type WelcomeSaveResult = { readonly ok: true } | { readonly ok: false }
 
+/** One-time notification retained by the main process until Welcome receives it. */
+export type WelcomeNotice = 'session-expired'
+
 /** Host-owned operations used by the welcome window. */
 export interface WelcomeOperations {
+  /** @returns the pending notification, clearing it before another renderer can receive it. */
+  takeNotice(): Promise<WelcomeNotice | undefined>
   /** @returns account state after starting a login attempt. */
   startSignIn(): Promise<AccountView>
   /** @param id - attempt to cancel. @returns the settled state. */

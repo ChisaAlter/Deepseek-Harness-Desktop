@@ -31,6 +31,17 @@
     - term: Status
     - definition: Scheduled
 - button "Inspect"
+- button "Update reminder Review the build and open the demo" [expanded]
+- list:
+  - listitem:
+    - text: Review the build and open the demo
+    - term: Scheduled for
+    - definition: Sep 11, 2099, {{clock}} GMT+8
+    - term: Repeat
+    - definition: Every day at {{clock}} (Asia/Shanghai)
+    - term: Status
+    - definition: Scheduled
+- button "Inspect"
 - button "View goal Ship compact tool cards" [expanded]
 - list:
   - listitem:
@@ -244,7 +255,7 @@
         - listitem:
           - paragraph: terminal_list
 - button "Inspect"
-- button "Run Ralph 已检查详情区域的换行和工具名称显示。" [expanded]
+- button "Run ralph loop 已检查详情区域的换行和工具名称显示。" [expanded]
 - text: Recorded result
 - list:
   - listitem:
@@ -383,7 +394,7 @@
     - text: deepseek/deepseek-reasoner
     - paragraph: DeepSeek Reasoner
 - button "Inspect"
-- button "Delegate task 检查工具卡片布局，并列出三个最值得改进的地方。" [expanded]
+- button "Create subagent 检查工具卡片布局，并列出三个最值得改进的地方。" [expanded]
 - text: Recorded result
 - list:
   - listitem:
@@ -391,7 +402,7 @@
     - term: Agent ID
     - definition: agent-demo-review
 - button "Inspect"
-- button "List agents 3 agents" [expanded]
+- button "List subagents 3 agents" [expanded]
 - text: Recorded result
 - list:
   - listitem:
@@ -574,7 +585,7 @@
     - term: Context
     - definition: fresh
 - button "Inspect"
-- button "List agents 3 agents" [expanded]
+- button "List subagents 3 agents" [expanded]
 - text: Recorded result
 - list:
   - listitem:
@@ -703,10 +714,10 @@
         - listitem:
           - paragraph: task-demo-1
 - button "Inspect"
-- button "Wait for teammates Teammate activity" [expanded]
+- button "Wait for subagent Subagent activity" [expanded]
 - text: Recorded result
 - list:
-  - listitem: Teammate activity Change detected
+  - listitem: Subagent activity Change detected
 - button "Inspect"
 - button "Interrupt agent ui-review" [expanded]
 - text: Recorded result

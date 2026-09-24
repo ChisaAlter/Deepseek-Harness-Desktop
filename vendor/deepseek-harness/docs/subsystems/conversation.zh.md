@@ -13,7 +13,7 @@ Session Controller 拥有连续的已加载逻辑 event window。每个 `Session
 | 概念 | Owner 与用途 |
 |---|---|
 | Event Definition | 业务包一次匹配一个持久 event 或 Client-only 瞬态 event，以稳定 `(kind, id)` 关联输入、折叠确定性 State，并可选择 materialize 一个 target node。 |
-| Context | Engine 为一个 `(kind, id)` 拥有的有序 Match 与当前 State。一个瞬态 event 只占一个 update Match；只有 update 的证据可以保持 pending，直到分页补齐其唯一持久 start。 |
+| Context | Engine 为一个 `(kind, id)` 拥有的有序 Match 与当前 State。持久和瞬态事件都可以作为 start。当前最早的 start 初始化 State，后续 Match 更新它。只有 update 的证据保持 pending，直到其 start 加载。 |
 | Location | Engine 根据持久 boundary event 推导的 Session、Turn 或 Step 坐标。Definition 可以向一个 Turn 或 Step 发布类型化数据。 |
 | View Definition | Target 包为每个 Session 创建一个增量 builder，并拥有该 target 的最终 snapshot 类型。 |
 | Group Definition | 业务包从物化后的 Node 派生一个目标的根引用和组快照，拥有成员归属、分段、摘要及增量缓存。 |
@@ -69,7 +69,7 @@ Group 存储在安装前校验完整提交结果：根 Group 引用与记录一�
 
 系统支持增量事件。如果生产方能以较低成本发出 whole-value checkpoint，应优先采用，因为 start 位于已加载窗口之外时它仍可直接使用。每条 delta 都必须携带稳定 id，并且按照日志 `seq` 升序回放时能够确定性地产生 State；它不能依赖只存在于实时内存中的状态。如果当前历史窗口只有 update，Assembler 会保留一个 pending Context，并在更早分页补齐 start 前不构造 State。如果产品必须在 start 尚未加载时渲染，terminal 或 checkpoint 事件就必须携带足够的完整 fallback 状态，让 Definition 能直接构造结果；不要通过扫描无关事件恢复它。
 
-实时 Assistant delta 作为 Client-only `assistant/live-chunk` update 到达。重连 baseline 会把活跃的进程内紧凑 stream 展开为相同的瞬态 event，持久 `assistant/message` 与 `assistant/attempt` event 则嵌入完整紧凑 stream 供历史回放。瞬态 event 只能充当 update；`start()` 只接收标准 `SessionEvent`。消费 Assistant 输出的 Definition 在同一组 `match()` 与 `update()` 方法里处理 live chunk 与持久 settlement，其他 Definition 直接返回 `null`，无需展开 stream。
+实时 Assistant delta 作为 Client-only `assistant/live-chunk` event 到达。重连 baseline 会把活跃的进程内紧凑 stream 展开为相同的瞬态 event，持久 `assistant/message` 与 `assistant/attempt` event 则嵌入完整紧凑 stream 供历史回放。瞬态 event 可以初始化 Context。具名工具 delta 和后续 tool/call 可以按同一个 callId 匹配为 start；只有最早的 Match 调用 start()，后续 Match 调用 update()。历史分页不把已结束消息展开为实时 delta。消费 Assistant 输出的 Definition 在同一组 `match()` 与 `update()` 方法里处理 live chunk 与持久 settlement，其他 Definition 直接返回 `null`，无需展开 stream。
 
 ## Definition 与类型化 Chat payload
 
@@ -243,7 +243,7 @@ export function apply(ctx: ClientContext): void {
 }
 ```
 
-`match(event)` 是身份提取器，不是 fold：它只能收到当前 `SessionEventLike`，并返回 Definition 内部 id 与生命周期角色。命中后，Assembler 通过 `(kind, id)` 定位 Context；标准 event 可触发一次 `start`，标准或 packed event 可把当前 State 交给 `update`。两个函数都必须返回引擎随后采用的 State；推荐返回新的 immutable value，但函数原地修改后返回同一对象时，采用语义也相同。
+`match(event)` 是身份提取器，不是 fold：它只能收到当前 `SessionEventLike`，并返回 Definition 内部 id 与生命周期角色。命中后，Assembler 通过 `(kind, id)` 定位 Context；当前最早的 start 初始化 State，不论它是持久事件还是瞬态事件。后续所有 Match，包括其他 start，都调用 `update`。移除瞬态 Match 后，从剩余事件重新选择 start 并重算 State；没有剩余 start 时 State 为 undefined。两个函数都必须返回引擎随后采用的 State；推荐返回新的 immutable value，但函数原地修改后返回同一对象时，采用语义也相同。
 
 `buildLocationData(context, scope)` 可以把 Definition 拥有的数据发布到引擎拥有的 Turn 或 Step 上。通过 declaration merging 为每个 key 指定精确 value 类型。同一 Location 内的另一个 Node 可以使用受限 slot hook（例如 `useTurnData(key)`）读取该值，无须取得 Session，也无须扫描 `snapshot.chat.nodes`。
 
@@ -274,7 +274,7 @@ Assembler 会记录这项依赖。如果后续 older prepend 带来了更近的�
 添加聚焦测试，证明以下结果：
 
 1. 完整窗口通过 replace 后产生预期的最终 State、Location data、Node payload 与 `anchorSeq`。
-2. 只有 update 的尾部窗口保持 pending；prepend 唯一 start 后，结果与完整 replace 相同。
+2. 只有 update 的尾部窗口保持 pending；prepend 其 start 后，结果与完整 replace 相同。
 3. 初始历史后继续实时 append，与回放合并后的完整窗口得到相同结果。
 4. prepend 更早分页只增加更早的行；数据未变化的既有 keyed Node value 不被替换。
 5. 重复的可见 delta 保持 `context.key`，并在请求 `animation-frame` 时每帧最多发布一次。

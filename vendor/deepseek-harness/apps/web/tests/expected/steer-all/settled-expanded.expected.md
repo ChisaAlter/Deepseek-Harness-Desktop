@@ -11,7 +11,7 @@
 - status: Worked
 - button "Took {{duration}}" [disabled]
 - button "Asked questions" [expanded]
-- button "Think"
+- button "Think The user wants me to ask them a checkpoint question first, then continue with whatever they interject. Let me do exactly that."
 - button "Ask question 1/1 answered"
 - text: "Interjection: include the word BANANA in your final reply. {{clock}}"
 - button "Copy"

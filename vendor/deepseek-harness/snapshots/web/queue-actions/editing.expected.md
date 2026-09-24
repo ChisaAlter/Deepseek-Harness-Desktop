@@ -21,7 +21,6 @@
   - listitem:
     - textbox "Edit queued message": Edited queue item
     - button "Save queued message"
-    - tooltip "Save queued message"
     - button "Cancel editing"
 - textbox "Cmd/Ctrl+Enter steers all queued messages"
 - button "Add files or run commands"

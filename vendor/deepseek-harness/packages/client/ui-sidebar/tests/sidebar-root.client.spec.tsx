@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
+import type { ShortcutCatalogEntry, ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ReactNode } from 'react'
 import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
@@ -19,10 +21,7 @@ import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
-// English-dictionary translate stub: the shell renders the same copy the
-// assertions below query by accessible name.
-const t: SidebarRootComponentProps['t'] = key =>
-  (en as Record<string, string>)[key] ?? (commonEn as Record<string, string>)[key] ?? key
+const t: SidebarRootComponentProps['t'] = makeTranslate({ ...commonEn, ...en })
 
 afterEach(() => {
   cleanup()
@@ -46,7 +45,11 @@ function navShare() {
   }
 }
 
-function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; width?: number } = {}) {
+function mountShell({ collapsed = false, width = 300, shortcuts = [] }: {
+  collapsed?: boolean
+  width?: number
+  shortcuts?: readonly ShortcutCatalogEntry[]
+} = {}) {
   const startSession = vi.fn()
   const toggleSidebar = vi.fn()
   const nav = createSidebarNavStore().create()
@@ -60,9 +63,10 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
     <SidebarRoot
       collapsed={current.collapsed} width={current.width}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useShortcuts={selector => selector(shortcuts)}
       useResource={useResource} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
       useStore={bindSnapshotSelector(nav.store)} actions={nav.actions}
+
       startSession={startSession} toggleSidebar={toggleSidebar} t={t}
       renderSlot={((
         key: string,
@@ -108,6 +112,28 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
 }
 
 describe('SidebarRoot shell', () => {
+  it('advertises the effective new-session binding', () => {
+    const shortcut: ShortcutCatalogEntry = { id: 'session.new' as ShortcutCommandId, label: 'New', aliases: [],
+      binding: null, modified: true, conflicts: [], issue: null, keys: ['Ctrl', 'N'], aria: 'Control+N' }
+    mountShell({ shortcuts: [shortcut] })
+    for (const button of screen.getAllByRole('button', { name: 'New session' })) {
+      expect(button.getAttribute('aria-keyshortcuts')).toBe('Control+N')
+    }
+    const expanded = screen.getAllByRole('button', { name: 'New session' }).find(button => button.querySelector('kbd') !== null)!
+    fireEvent.mouseEnter(expanded)
+    fireEvent.focus(expanded)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(Array.from(expanded.querySelectorAll('kbd'), key => key.textContent)).toEqual(['Ctrl', 'N'])
+    cleanup()
+    render(<HeaderLeadingControls toggleSidebar={vi.fn()} startSession={vi.fn()} selectPanel={vi.fn()} t={t}
+      usePanelInfo={neverHook} useSessions={neverHook} useSessionStatus={neverHook}
+      useSessionRetainInfo={neverHook} useResource={useResource} useWorkspaces={neverHook}
+      usePanels={select => select([])} useNavTabs={select => select([])} useShortcuts={select => select([shortcut])} />)
+    const button = screen.getByRole('button', { name: 'New session' })
+    expect(button.getAttribute('aria-keyshortcuts')).toBe('Control+N')
+    fireEvent.focus(button)
+    expect(Array.from(screen.getByRole('tooltip').querySelectorAll('kbd'), key => key.textContent)).toEqual(['Ctrl', 'N'])
+  })
   it('routes New Session (capsule + wordmark) and the column toggle', () => {
     const b = mountShell()
     expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
@@ -128,9 +154,10 @@ describe('SidebarRoot shell', () => {
     const { container } = render(<SidebarRoot
       collapsed={false} width={300}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useShortcuts={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
       {...navShare()}
+
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
@@ -149,9 +176,10 @@ describe('SidebarRoot shell', () => {
     render(<SidebarRoot
       collapsed={false} width={300}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useShortcuts={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
       {...navShare()}
+
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
@@ -165,9 +193,10 @@ describe('SidebarRoot shell', () => {
     render(<SidebarRoot
       collapsed={false} width={300}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useShortcuts={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
       {...navShare()}
+
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((_key: string, _owner: unknown, options?: { fallback?: ReactNode }) =>
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
@@ -213,9 +242,10 @@ describe('SidebarRoot shell', () => {
     render(<SidebarRoot
       collapsed width={56}
       useSessions={neverHook} useSessionStatus={useSessionStatus} useSessionRetainInfo={neverHook}
-      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])}
+      usePanelInfo={usePanelInfo} selectPanel={() => {}} usePanels={selector => selector([])} useShortcuts={selector => selector([])}
       useResource={useResource} useWorkspaces={neverHook} useNavTabs={sel => sel([])}
       {...navShare()}
+
       startSession={vi.fn()} toggleSidebar={vi.fn()} t={t}
       renderSlot={((key: string) => key === 'sidebar.toggle.badge'
         ? <Tooltip label="Update — V1.2.3"><span data-testid="badge" /></Tooltip>
@@ -252,9 +282,8 @@ it('keeps the macOS sidebar toggle in its top strip', () => {
 it('wires the shell.leading controls to the shared sidebar actions', () => {
   const toggleSidebar = vi.fn()
   const startSession = vi.fn()
-  // This occupant only consumes its two actions and locale, not Session hooks;
-  // mounting is the frame's decision (ui-layout shell.leading seat).
-  const props = { toggleSidebar, startSession, t } as HeaderLeadingControlsProps
+  // This occupant only consumes its two actions and locale, not Session hooks.
+  const props = { toggleSidebar, startSession, t, useShortcuts: select => select([{ id: 'sidebar.left.toggle' as ShortcutCommandId, label: 'Toggle sidebar', aliases: [], binding: null, modified: false, conflicts: [], issue: null, keys: ['⌘', 'B'], aria: 'Meta+B' }]) } as HeaderLeadingControlsProps
   render(<HeaderLeadingControls {...props} />)
   fireEvent.click(screen.getByRole('button', { name: en['toggle.open'] }))
   fireEvent.click(screen.getByRole('button', { name: en['session.new.label'] }))
@@ -295,4 +324,13 @@ describe('Windows caption tooltips', () => {
     hover(screen.getByRole('button', { name: 'Open sidebar' }))
     expect(screen.getByRole('tooltip').getAttribute('data-side')).toBe('right')
   })
+})
+
+it('uses the same effective sidebar binding for hover/focus hints and ARIA', () => {
+  const shortcut = { id: 'sidebar.left.toggle' as ShortcutCommandId, label: 'Toggle sidebar', aliases: [], binding: null, modified: false, conflicts: [], issue: null, keys: ['⌘', 'B'], aria: 'Meta+B' }
+  mountShell({ shortcuts: [shortcut] })
+  const toggle = screen.getByRole('button', { name: en['toggle.collapse'] })
+  expect(toggle.getAttribute('aria-keyshortcuts')).toBe('Meta+B')
+  fireEvent.focus(toggle)
+  expect(Array.from(screen.getByRole('tooltip').querySelectorAll('kbd'), key => key.textContent)).toEqual(['⌘', 'B'])
 })

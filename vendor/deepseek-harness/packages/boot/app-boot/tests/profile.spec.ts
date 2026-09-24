@@ -15,14 +15,17 @@ import { afterAll, describe, expect, it, onTestFinished, vi } from 'vitest'
 import {
   composeEntries,
   createRuntimeResolution,
+  getDshRuntimeVersion,
   initProfile,
   loadProfile,
   loadProfileDirectory,
+  PROFILE_COMPATIBILITY_FILENAME,
   PROFILE_PATCH_FILENAME,
   PROFILE_TEMPLATES,
   readProfileManifest,
   readProfilePatches,
   removeLinkProjections,
+  reportSkippedBundles,
   resolveBundleDir,
   resolveProfileDir,
   writeProfileManifest,
@@ -78,7 +81,7 @@ function stageProfile(home: string, name: string, bundleAnchor: string): Profile
   const dir = resolveProfileDir(name, home)
   mkdirSync(dir, { recursive: true })
   const packageName = (JSON.parse(readFileSync(bundleAnchor, 'utf8')) as { name: string }).name
-  return {
+  return { skippedBundles: [],
     name,
     dir,
     layers: [{
@@ -317,9 +320,6 @@ describe('loadProfile', () => {
     const home = tmp()
     const dir = resolveProfileDir('demo', home)
     initProfile(dir, ['multi', 'broken'])
-    const warn = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
-    onTestFinished(() => { warn.mockRestore() })
-
     const profile = loadProfile('t', 'demo', anchor, home)
     expect(profile.layers.map(layer => ({ ...layer, patches: layer.patches.length }))).toEqual([{
       packageName: 'multi',
@@ -331,9 +331,9 @@ describe('loadProfile', () => {
       { id: 'a', name: pathToFileURL(join(bundleDir, 'local.js')).href, config: { v: 2 } },
       { id: 'b', name: pathToFileURL(join(bundleDir, 'layers', 'local.js')).href },
     ])
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining(
-      'skipping profile bundle "broken": Error: dsh.bundle.patch must be a file path or a list of file paths',
-    ))
+    expect(profile.skippedBundles).toEqual([
+      { packageName: 'broken', reason: 'Error: dsh.bundle.patch must be a file path or a list of file paths' },
+    ])
   })
 
   it('auto-initializes only shipped templates and fails loud otherwise', () => {
@@ -410,10 +410,14 @@ describe('loadProfile', () => {
       onTestFinished(() => { warn.mockRestore() })
 
       const profile = loadProfile('t', 'demo', anchor, home)
+      // Loading only records the skip; the launcher reports it once per start.
+      expect(warn).not.toHaveBeenCalled()
       expect(profile.layers.map(layer => layer.packageName)).toEqual(['before', 'after'])
       expect(composeEntries(profile.layers.map(layer => layer.patches)))
         .toEqual([{ id: 'a', name: 'pkg-a', config: { value: 'after' } }])
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('skipping profile bundle "broken":'))
+      expect(profile.skippedBundles.map(skipped => skipped.packageName)).toEqual(['broken'])
+      reportSkippedBundles('t', profile)
+      expect(warn.mock.calls).toEqual([[`t: skipping profile bundle "broken": ${profile.skippedBundles[0]?.reason}\n`]])
       expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(saved)
       const resolution = await createRuntimeResolution({ installAnchor: anchor, profile, home })
       const unavailable = failure === 'missing package' || failure === 'invalid manifest'
@@ -426,6 +430,26 @@ describe('loadProfile', () => {
         .toEqual(['before', 'broken', 'after'])
     },
   )
+
+  it('skips a bundle whose own dsh peers are incompatible until the profile exempts that exact pair', () => {
+    const anchor = stageInstallation({
+      guarded: { patch: '- insert: [{ id: a, name: pkg-a }]\n' },
+      kept: { patch: '- insert: [{ id: b, name: pkg-b }]\n' },
+    })
+    const manifestPath = join(anchor, '..', 'node_modules', 'guarded', 'package.json')
+    writeFileSync(manifestPath, JSON.stringify({
+      ...JSON.parse(readFileSync(manifestPath, 'utf8')) as object, peerDependencies: { '@deepseek-ai/dsh': '999.0.0' },
+    }))
+    const dir = resolveProfileDir('demo', tmp())
+    initProfile(dir, ['guarded', 'kept'])
+    const denied = loadProfileDirectory('dsh', dir, anchor)
+    expect(denied.layers.map(layer => layer.packageName)).toEqual(['kept'])
+    expect(denied.skippedBundles).toEqual([{ packageName: 'guarded', reason: expect.stringContaining(
+      `Error: Plugin guarded@0.0.0 is incompatible with dsh ${getDshRuntimeVersion()}`,
+    ) as string }])
+    writeFileSync(join(dir, PROFILE_COMPATIBILITY_FILENAME), JSON.stringify({ 'guarded@0.0.0': [getDshRuntimeVersion()] }))
+    expect(loadProfileDirectory('dsh', dir, anchor).layers.map(layer => layer.packageName)).toEqual(['guarded', 'kept'])
+  })
 
   it('still rejects invalid profile manifests and user patches', () => {
     const anchor = stageInstallation({})
@@ -530,7 +554,7 @@ describe('createRuntimeResolution', () => {
     mkdirSync(profileModules, { recursive: true })
     const bundleLink = join(profileModules, 'selected-bundle')
     symlinkSync(realBundle, bundleLink, 'junction')
-    const profile: Profile = {
+    const profile: Profile = { skippedBundles: [],
       name: 'symlinked',
       dir,
       layers: [{
@@ -580,7 +604,7 @@ describe('createRuntimeResolution', () => {
     }))
     writeFileSync(join(explicitOnly, 'package.json'), JSON.stringify({ name: 'explicit-only' }))
     const dir = resolveProfileDir('explicit-roots', home)
-    const profile: Profile = {
+    const profile: Profile = { skippedBundles: [],
       name: 'explicit-roots',
       dir,
       layers: ([['bundle-a', bundleA], ['bundle-b', bundleB]] as const).map(([packageName, packageDir]) => ({

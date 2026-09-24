@@ -45,14 +45,14 @@ describe('ReasoningRow', () => {
   it('retains summaries and expanded Markdown when the work-details mode changes', () => {
     const reset = createSnapshotStore(0)
     const useDisclosure = bindDisclosure(reset)
-    const mode = createSnapshotStore<TranscriptViewMode>('detailed')
+    const mode = createSnapshotStore<TranscriptViewMode>('standard')
     const usePresentation = bindSnapshotSelector(derivePresentationPolicy(mode))
     const view = render(<ReasoningRow useDisclosure={useDisclosure}
       text={'First line\n\nDetailed body'} running={false} usePresentation={usePresentation} t={t} />)
     const root = view.container.querySelector('[data-variant="think"]')!
     const summary = view.getByText('First line')
     const toggle = view.getByRole('button')
-    for (const next of ['compact', 'detailed', 'expanded', 'compact'] as const) {
+    for (const next of ['compact', 'standard', 'detailed', 'verbose', 'compact'] as const) {
       act(() => { mode.set(next) })
       expect(view.getByText('First line')).toBe(summary)
       expect(root.hasAttribute('data-preview')).toBe(next !== 'compact')
@@ -60,7 +60,7 @@ describe('ReasoningRow', () => {
     }
     fireEvent.click(toggle)
     const body = view.getByText('Detailed body')
-    for (const next of ['detailed', 'expanded', 'compact'] as const) {
+    for (const next of ['standard', 'detailed', 'verbose', 'compact'] as const) {
       act(() => { mode.set(next) })
       expect(view.getByText('Detailed body')).toBe(body)
       expect(toggle.getAttribute('aria-expanded')).toBe('true')

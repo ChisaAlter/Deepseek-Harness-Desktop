@@ -9,7 +9,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
-const css = readFileSync(fileURLToPath(new URL('../src/ImageLightbox.module.css', import.meta.url)), 'utf8')
+const css = readFileSync(
+  fileURLToPath(new URL('../../ui-primitives/src/ImageLightbox.module.css', import.meta.url)), 'utf8')
 
 describe('ImageLightbox.module.css caption clearance', () => {
   it('drops the close control below the desktop caption band', () => {

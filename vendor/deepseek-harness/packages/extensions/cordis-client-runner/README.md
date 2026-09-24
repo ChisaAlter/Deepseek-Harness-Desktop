@@ -66,6 +66,10 @@ The browser half is built on one principle: a dynamic package must ride the same
 | [`src/client/providers.ts`](src/client/providers.ts) | First-party client Inspect Providers (slots, theme, events) |
 | [`src/client/timer.ts`](src/client/timer.ts) | The client timer service dynamic packages inject |
 
+### Inspecting slot inputs
+
+The Slots provider's exact `listSubTree` lookup includes documented owner fields and top-level alias, intersection, and union declarations. Nested field-value types remain named references, so inspecting a Tool view exposes its shared callbacks and stage union without expanding the full Session graph.
+
 ### How a run is carried out
 
 A `cordis/request-run` event asks this page whether to run a definition. Whoever answers — the page after an approval, or the user pressing run — drives the orchestration: the host half first (so a host-half failure short-circuits before the browser has moved), then the source fetch, then the browser half, then one resolution carrying what happened. The browser half's source is evaluated as an async function body with the symbol surface as parameters, the returned plugin is guard-wrapped and mounted through the loader, and the resolution reports the loaded revision or the failing stage with the closure's, guard's, or fiber's message. `host.call` routes through the Remote namespace; an omitted argument travels as `null`, and a payload the generated codec refuses becomes a teaching error naming the call and the contract.

@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
@@ -48,15 +48,20 @@ describe('published document preview licenses', () => {
     expect(existsSync(pdfChunkPath)).toBe(true)
     const output = mkdtempSync(join(tmpdir(), 'dsh-document-preview-pack-'))
     try {
-      const packed = JSON.parse(runPnpm([
+      // pnpm emits an object; npm_execpath may resolve to npm, whose `pack --json`
+      // emits a single-element array instead.
+      const packedJson = JSON.parse(runPnpm([
         'pack', '--json', '--pack-destination', output,
-      ], packageRoot, task.timeout)) as { filename: string; files: { path: string }[] }
+      ], packageRoot, task.timeout)) as { filename: string; files: { path: string }[] }[] | { filename: string; files: { path: string }[] }
+      const packed = Array.isArray(packedJson) ? packedJson[0]! : packedJson
       expect(packed.files.map(file => file.path)).toContain('lib/client.js')
       expect(packed.files.map(file => file.path)).toContain('lib/client.pdf.js')
       expect(packed.files.some(file => file.path.endsWith('pdfjs-NOTICES.txt'))).toBe(false)
 
-      // Use a relative tarball path so Windows bsdtar does not interpret C: as a host.
-      const tarball = resolve(packageRoot, packed.filename)
+      // pnpm reports an absolute filename; npm reports a basename written inside
+      // the pack destination. Use a relative tarball path so Windows bsdtar does
+      // not interpret C: as a host.
+      const tarball = isAbsolute(packed.filename) ? packed.filename : join(output, packed.filename)
       const client = run('tar', ['-xOf', basename(tarball), 'package/lib/client.js'], dirname(tarball), task.timeout)
       const pdf = run('tar', ['-xOf', basename(tarball), 'package/lib/client.pdf.js'], dirname(tarball), task.timeout)
       expect([...client.matchAll(/require\.async\("(\.\/client[^"/]*\.js)"\)/gu)].map(match => match[1]))
@@ -67,7 +72,7 @@ describe('published document preview licenses', () => {
       expect(client).not.toContain('//! Bundled PDF.js license notices')
       expect(client).not.toContain('/pdfjs-dist/')
       expect(pdf).toContain('//! Bundled PDF.js license notices')
-      const excel = run('tar', ['-xOf', resolve(packageRoot, packed.filename), 'package/lib/client.excel.js'], packageRoot, task.timeout)
+      const excel = run('tar', ['-xOf', basename(tarball), 'package/lib/client.excel.js'], dirname(tarball), task.timeout)
       expect(excel).not.toMatch(/\brequire\("\.\/client[^"/]*\.js"\)/u)
       expect(client).not.toContain('FortuneSheet')
       expect(excel).toContain('//! Bundled spreadsheet license notices')

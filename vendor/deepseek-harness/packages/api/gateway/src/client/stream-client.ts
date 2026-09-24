@@ -158,7 +158,7 @@ export class RemoteStreamMuxClient {
     signal: AbortSignal,
     inbox: StreamInbox,
   ): UplinkPump {
-    const stopped = Promise.withResolvers<IteratorReturnResult<undefined>>()
+    let stopped: PromiseWithResolvers<IteratorReturnResult<undefined>> | undefined
     const interruption: IteratorReturnResult<undefined> = { value: undefined, done: true }
     const uplinkIterator = uplink[Symbol.asyncIterator]()
     const state = { stopping: false, exhausted: false, released: false }
@@ -171,7 +171,12 @@ export class RemoteStreamMuxClient {
     const done = (async (): Promise<void> => {
       try {
         while (true) {
+          const stoppingBeforeRead = state.stopping
+          if (stoppingBeforeRead) return
+          // A stop promise belongs to one read, not the whole uplink history.
+          stopped = Promise.withResolvers<IteratorReturnResult<undefined>>()
           const next = await Promise.race([uplinkIterator.next(), stopped.promise])
+          stopped = undefined
           if (state.stopping || next === interruption || signal.aborted || this.socket !== socket) return
           if (next.done === true) {
             state.exhausted = true
@@ -183,6 +188,7 @@ export class RemoteStreamMuxClient {
       } catch (error) {
         inbox.fail(error)
       } finally {
+        stopped = undefined
         release()
       }
     })()
@@ -191,7 +197,7 @@ export class RemoteStreamMuxClient {
       stop: () => {
         if (state.stopping) return
         state.stopping = true
-        stopped.resolve(interruption)
+        stopped?.resolve(interruption)
         release()
       },
     }

@@ -16,6 +16,9 @@ import type { SettingsNavigationSnapshot } from './settings-navigation.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 // Type-only: pulls the settings slot declarations the shell renders into.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { PropsStore } from '@deepseek-ai/dsh-client-store'
+import type { createSettingsShellStore } from './shell-store.ts'
+import type { ShortcutCatalogEntry } from '@deepseek-ai/dsh-client-shortcuts/client'
 import type { DesktopUpdateView } from '../types.ts'
 
 /** One nav row projected from a settings.section registration's options. */
@@ -46,6 +49,8 @@ export type SettingsRootInjected = {
   /** Close the Settings shell and clear its requested section. */
   closeSettings: () => void
   hooks: {
+    /** Effective command presentation, shared with the reference. */
+    shortcuts: HostObservable<readonly ShortcutCatalogEntry[]>
     /** Shared Electron status for both sidebar locations. */
     desktopUpdate: HostObservable<DesktopUpdateView>
     /** Connection-owned state for the current Host connection. */
@@ -62,9 +67,11 @@ export type SettingsRootInjected = {
 /**
  * Full component props of the settings shell root: the sidebar owner share
  * (wide/rail state) plus the declared render shares and the injected face
- * (hooks compartment bound to useSections and useNavigation). Navigation
- * state is owned by the SettingsNavigation service rather than by React
- * component state, so callers can issue requests before the shell mounts.
+ * (hooks compartment bound to useSections and useNavigation). The declared
+ * store shares modal visibility and section selection with application
+ * commands; navigation state is owned by the SettingsNavigation service
+ * rather than by React component state, so callers can issue requests before
+ * the shell mounts.
  */
 export type SettingsRootComponentProps =
   PropsRuntime<'sidebar.settings'>
@@ -79,3 +86,4 @@ export type SettingsRootComponentProps =
   >
   & InjectFace<SettingsRootInjected>
   & PropsLocale<'settings'>
+  & PropsStore<ReturnType<typeof createSettingsShellStore>>

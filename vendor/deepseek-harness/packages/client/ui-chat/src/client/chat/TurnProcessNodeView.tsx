@@ -11,23 +11,23 @@ export const TurnProcessNodeView = memo(function TurnProcessNodeView({
   node, turnProcess, t,
 }: ChatNodeViewProps<'turn-process'>) {
   if (turnProcess === undefined) throw new Error('turn-process node requires Turn process owner state')
-  const open = turnProcess.open
+  const open = !turnProcess.foldable || turnProcess.open
   const turn = node.location.kind === 'turn' || node.location.kind === 'step'
     ? node.location.turn
     : undefined
   const [now, setNow] = useState(Date.now)
-  const ticking = turnProcess.foldable && turn?.status === 'open'
+  const ticking = turn?.status === 'open' && turn.start !== undefined
   useEffect(() => {
     if (!ticking) return
     setNow(Date.now())
     const timer = setInterval(() => { setNow(Date.now()) }, LIVE_RUN_CLOCK_INTERVAL_MS)
     return () => { clearInterval(timer) }
   }, [ticking])
-  if (!turnProcess.foldable) return null
-  const canCollapse = turnProcess.hasContent && !turnProcessAlwaysOpen(node)
-  const running = turn?.status === 'open'
-  const reason = turn?.end?.data.reason.kind
-  const elapsedMs = turn?.start === undefined ? undefined
+  if (turn?.start === undefined && turn?.status !== 'closed') return null
+  const canCollapse = turnProcess.foldable && turnProcess.hasContent && !turnProcessAlwaysOpen(node)
+  const running = turn.status === 'open'
+  const reason = turn.end?.data.reason.kind
+  const elapsedMs = turn.start === undefined ? undefined
     : Math.max(1000, (turn.end?.time ?? now) - turn.start.time)
   const duration = elapsedMs === undefined ? undefined
     : running ? formatLiveRunDuration(elapsedMs, t) : formatRunDuration(elapsedMs, t)

@@ -56,6 +56,10 @@ describe('parseInstallSpec', () => {
 })
 
 describe('classifyInstallFailure', () => {
+  it.each([401, 403, 404])('leaves Git HTTP %s responses out of connection recovery', (status) => {
+    expect(classifyInstallFailure({ log: `fatal: unable to access 'https://github.com/acme/private.git/': The requested URL returned error: ${String(status)}` })).toBe('unknown')
+  })
+
   it('names the run\'s end before reading its output, then the most specific code in the output', () => {
     expect(classifyInstallFailure({ log: 'ENOSPC', timedOut: true })).toBe('timeout')
     expect(classifyInstallFailure({ log: '', cause: Object.assign(new Error('spawn pnpm ENOENT'), { code: 'ENOENT' }) })).toBe('pnpm-missing')

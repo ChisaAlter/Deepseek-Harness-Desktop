@@ -76,16 +76,11 @@ export class ModelDirectoryResolver extends Service {
    */
   private readonly catalogUnion = new Map<string, { provider: string; id: string }>()
 
-  /** Localized composer-block copy; this plugin owns the string it raises. */
-  private readonly blockReason: () => string
-
   /**
    * @param ctx - owning root context (the service registers itself as `models`).
-   * @param config - the bound translator for this plugin's own dictionary.
    */
-  constructor(ctx: Context, config: { blockReason: () => string }) {
+  constructor(ctx: Context) {
     super(ctx, 'modelDirectories')
-    this.blockReason = config.blockReason
     this.catalog = new ModelCatalogDirectory(ctx)
     void this.catalog.load().catch(() => { /* selectors expose the shared error */ })
     ctx.on('connection/reset', () => {
@@ -101,6 +96,7 @@ export class ModelDirectoryResolver extends Service {
     }
     ctx.remote.$on('llm/adapters-updated', refresh)
     ctx.remote.$on('settings/document-updated', refresh)
+    ctx.remote.$on('credentials/record-updated', refresh)
     ctx.remote.$on('credentials/reference-updated', refresh)
     void this.rememberHostCatalog()
   }
@@ -198,26 +194,18 @@ export class ModelDirectoryResolver extends Service {
       binding.session.projections.faceOf('modelSelection'),
     )
     live.directories.set(binding, directory)
-    // The composer cannot read this plugin (the dependency runs one way), so
-    // the block is pushed: the Host says whether an adapter serves the
-    // session's route, and only a definite `false` makes the input inert.
-    // `null` — before the first load, or after one failed — must not, or a
-    // slow or unreachable Host would lock a working composer.
     const conversation = this.ctx.get('conversation')
     if (conversation !== undefined) {
-      // One subscription publishes three faces: the composer block (input
-      // authority), the model fact (the current provider route for the
-      // composer-dock status row), and the model catalog (the advertised ids
-      // for the price panel's dropdown). Every directory change — load,
-      // select, adapters-updated, settings refresh, connection reset —
-      // republishes, so consumers never hold a stale route or a stale model
-      // list: additions and removals in the directory flow through.
+      // One subscription publishes two faces: the model fact (the current
+      // provider route for the composer-dock status row) and the model
+      // catalog (the advertised ids for the price panel's dropdown). Every
+      // directory change — load, select, adapters-updated, settings refresh,
+      // connection reset — republishes, so consumers never hold a stale route
+      // or a stale model list: additions and removals in the directory flow
+      // through.
       const publish = (): void => {
         if (sessions.binding(sessionId) !== binding) return
         const snapshot = directory.store.getSnapshot()
-        conversation.blocks.set(sessionId, directory.store.getSnapshot().routable === false
-          ? { reason: this.blockReason() }
-          : undefined)
         conversation.modelFacts.set(sessionId, { provider: snapshot.current?.provider ?? null })
         conversation.modelCatalog?.set(sessionId, catalogOf(snapshot))
         this.rememberCatalog(snapshot.groups, snapshot.current)
@@ -229,11 +217,10 @@ export class ModelDirectoryResolver extends Service {
           stop()
           const current = sessions.binding(sessionId)
           if (current !== undefined && current !== binding && live.directories.get(current) !== undefined) return
-          conversation.blocks.set(sessionId, undefined)
           conversation.modelFacts.set(sessionId, { provider: null })
           conversation.modelCatalog?.set(sessionId, [])
         }
-      }, 'ui-model-selection: composer block')
+      }, 'ui-model-selection: model facts')
     }
     actx.effect(() => () => {
       directory.dispose()

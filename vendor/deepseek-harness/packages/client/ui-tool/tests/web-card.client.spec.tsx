@@ -3,10 +3,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ToolCallOwnerProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import { IconGlobeOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import { webCardModel } from '../src/client/tool/models/web-card-model.ts'
+import { webCardModel, webFetchHref } from '../src/client/tool/models/web-card-model.ts'
 import { GenericToolCard } from '../src/client/tool/toolviews/GenericToolCard.tsx'
 import { WebRow, webToolview } from '../src/client/tool/toolviews/web-row.tsx'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -49,8 +49,8 @@ const fetchMeta = (over?: Partial<FetchMeta>): FetchMeta => ({
   url: 'https://example.com/page', statusCode: 200, truncated: false, ...over,
 })
 
-const runningSearch = (over?: Partial<RunningToolCall>): RunningToolCall => ({
-  callId: 'c1', name: 'web_search', argsRaw: SEARCH_ARGS,
+const runningSearch = (over?: Partial<StartedToolCall>): StartedToolCall => ({
+  phase: 'start' as const, callId: 'c1', name: 'web_search', argsRaw: SEARCH_ARGS,
   turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
 })
 
@@ -123,14 +123,28 @@ describe('webCardModel', () => {
   })
 })
 
+describe('webFetchHref', () => {
+  it('returns only an http(s) web_fetch URL', () => {
+    expect(webFetchHref(settledFetch())).toBe('https://example.com/page')
+    expect(webFetchHref(settledFetch({ call: { name: 'web_fetch', argsRaw: '{"url":"http://a.test/"}' } })))
+      .toBe('http://a.test/')
+    expect(webFetchHref(settledFetch({ call: { name: 'web_fetch', argsRaw: '{"url":"javascript:alert(1)"}' } })))
+      .toBeUndefined()
+    expect(webFetchHref(settledFetch({ call: { name: 'web_fetch', argsRaw: '{"url":"not a url"}' } }))).toBeUndefined()
+    expect(webFetchHref(settledFetch({ call: { name: 'web_fetch', argsRaw: '{"url":1}' } }))).toBeUndefined()
+    expect(webFetchHref(settledFetch({ call: null }))).toBeUndefined()
+    expect(webFetchHref(settledSearch())).toBeUndefined()
+  })
+})
+
 describe('chat row web body', () => {
-  const ownerProps = (block: RunningToolCall | ToolResultNode, toolName: string): ToolCallOwnerProps => ({
-    useDisclosure, callId: block.callId, toolName, block, openFile: vi.fn(), loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
+  const ownerProps = (block: StartedToolCall | ToolResultNode, toolName: string): ToolCallOwnerProps => ({
+    useDisclosure, callId: block.callId, toolName, ...('kind' in block ? { phase: 'result' as const, block: block } : { phase: block.phase, block: block }), openFile: vi.fn(), loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
   })
   // WebRow reads only toolName/block off the full runtime share plus the locale
   // seat; the standard kit is unused, so the cast supplies the owner slice and
   // `t` alone (as BashRow's tests do for the terminal card).
-  const rowProps = (block: RunningToolCall | ToolResultNode, toolName: string): Parameters<typeof WebRow>[0] =>
+  const rowProps = (block: StartedToolCall | ToolResultNode, toolName: string): Parameters<typeof WebRow>[0] =>
     ({ ...ownerProps(block, toolName), t } as unknown as Parameters<typeof WebRow>[0])
 
   /** The whole summary row is the expand toggle (ToolRow's unified interaction). */
@@ -163,6 +177,24 @@ describe('chat row web body', () => {
     const card = view.container.querySelector('[data-web="fetch"]')
     expect(card?.querySelector('a')?.getAttribute('href')).toBe('https://example.com/page')
     expect(view.getByText('HTTP 200')).toBeTruthy()
+  })
+
+  it('the collapsed WebRow summary opens the fetch URL in a new tab without expanding', () => {
+    const view = render(<WebRow {...rowProps(settledFetch(), 'web_fetch')} />)
+    const link = view.getByRole('link', { name: 'https://example.com/page' })
+    expect(link.getAttribute('href')).toBe('https://example.com/page')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    // jsdom does not implement navigation; cancel it after the row's handlers run.
+    link.addEventListener('click', (event) => { event.preventDefault() })
+    fireEvent.click(link)
+    fireEvent.keyDown(link, { key: 'Enter' })
+    expect(view.container.querySelector('[data-web]')).toBeNull()
+  })
+
+  it('a failed web fetch keeps its plain error summary', () => {
+    const view = render(<WebRow {...rowProps(settledFetch({ isError: true }), 'web_fetch')} />)
+    expect(view.queryByRole('link')).toBeNull()
   })
 
   it('a running web call is the summary row alone, with nothing to expand', () => {

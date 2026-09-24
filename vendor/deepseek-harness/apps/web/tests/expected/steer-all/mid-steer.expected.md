@@ -10,7 +10,7 @@
 - button "Copy"
 - status: Deep diving...
 - button "Deep diving for {{duration}}" [disabled] [expanded]
-- button "Analyzing the request"
+- button "Analyzing the request · The user wants me to ask them a checkpoint question first, then continue with whatever they interject. Let me do exactly that."
 - text: "Interjection: include the word BANANA in your final reply."
 - button "Copy"
 - text: "Interjection: include the word ORANGE in your final reply."

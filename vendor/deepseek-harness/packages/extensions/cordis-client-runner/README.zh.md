@@ -66,6 +66,10 @@ kind: "package-reference"
 | [`src/client/providers.ts`](src/client/providers.ts) | 第一方 client Inspect Provider（slots、theme、events） |
 | [`src/client/timer.ts`](src/client/timer.ts) | 动态包注入的 client 定时器服务 |
 
+### 查询槽位输入
+
+Slots provider 的精确 `listSubTree` 查询包含带说明的 owner 字段及顶层别名、交叉类型和联合类型声明。嵌套字段的值类型只列出引用名称，因此查询 Tool 视图可以获得共享回调和阶段联合，而不会展开完整 Session 类型图。
+
 ### 一次 run 如何执行
 
 一条 `cordis/request-run` 事件问这一页要不要运行某个定义。作答的一方——审批后的页面，或按下运行的用户——驱动编排：先 host 半（host 半失败会在浏览器动作之前短路），再取源码，再浏览器半，最后一次结算带上发生的一切。浏览器半源码作为 async 函数体求值，符号面就是参数；返回的插件经 guard 包装后通过 loader 挂载；结算报告已装载的 revision，或失败阶段加闭包、guard 或 fiber 的消息。`host.call` 经 Remote namespace 路由；省略的入参以 `null` 过线，而生成 codec 拒收的载荷会变成一条点名「哪次调用 + 约定是什么」的教学错误。

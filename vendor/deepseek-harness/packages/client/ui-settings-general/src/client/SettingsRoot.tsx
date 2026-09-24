@@ -5,16 +5,19 @@
  * close label, sections) arrives from registrants through slots; accessible
  * names resolve from localized content (trigger: shell locale; dialog:
  * aria-labelledby the title node; close: visually-hidden slot text). The
- * SettingsNavigation service owns modal visibility and requested section state;
+ * SettingsNavigation service owns modal visibility and requested section
+ * state, mirrored into the declared owner store for the shortcut command
+ * surface;
  * the onboarding coordinator mounts exactly one ordered registrant while the
  * sessions-derived empty-Hero fact is active. Visible dialog chrome belongs
  * to the step, so a mounted-but-deciding step paints nothing here. Callers can
  * open the shell before this component mounts.
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import {
-  ConnectionIndicator,
+  ConnectionIndicator, Tooltip, useModalLayer,
   IconAgentPresetOutline16, IconArchiveOutline20, IconBrowseOutline16, IconChartOutline16,
   IconCloseOutline16, IconDataOutline16, IconDeviceOutline16,
   IconInfoOutline16, IconLightOutline16, IconPanelLeftOutline16,
@@ -67,7 +70,7 @@ type PanelProps = {
 }
 
 /**
- * The modal layer: full-viewport mask + centered panel. Close paths: the
+ * Body-portaled modal layer: full-viewport mask + centered panel. Close paths: the
  * header button, a mask click, and document-level Escape (mounted only while
  * open, so the listener lifetime is the panel's).
  */
@@ -77,21 +80,14 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
   const active = rows.find(r => r.id === activeId)?.id ?? rows[0]?.id
   const titleId = useId()
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [onClose])
+  const panel = useRef<HTMLDivElement>(null)
+  useModalLayer(panel, true, onClose)
 
-  // Entering the dialog focuses the close button; the root restores its trigger on close.
-  const closeButton = useRef<HTMLButtonElement | null>(null)
-  useEffect(() => {
-    if (open) closeButton.current?.focus()
-  }, [open])
-
-  return (
+  // Portalled beside #root like the Modal primitive: a covering surface mounted
+  // inside the root would precede the columns' chrome in document order, so a
+  // chrome row that declares window drag after it would override its subtraction.
+  // Beside the root, base.css's `body > :not(#root)` rule subtracts it instead.
+  return createPortal((
     <div
       className={css.overlay}
       role="presentation"
@@ -100,9 +96,11 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
       aria-hidden={open ? undefined : true}
     >
       <div className={css.mask} data-dsh-motion-part="mask" aria-hidden="true" onClick={onClose} />
-      <div className={css.panel} data-dsh-motion-part="panel" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div ref={panel} tabIndex={-1} data-shortcut-modal="settings" className={css.panel}
+        data-dsh-motion-part="panel" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <nav className={css.nav}>
-          <div className={css.navTitle} id={titleId}>{renderSlot('settings.header', {})}</div>
+          <div className={css.navTitle} id={titleId} tabIndex={-1}
+            data-modal-autofocus={active === undefined ? '' : undefined}>{renderSlot('settings.header', {})}</div>
           <div className={css.navList}>
             {rows.map(row => (
               <button
@@ -111,6 +109,7 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
                 className={clsx(css.navCell, row.id === active && css.active)}
                 data-dsh-settings-section={row.id}
                 aria-current={row.id === active ? 'true' : undefined}
+                data-modal-autofocus={row.id === active ? '' : undefined}
                 onClick={() => { onSelect(row.id) }}
               >
                 {navIcon(row.id)}
@@ -122,7 +121,7 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
         <div className={css.content}>
           <div className={css.header}>
             <div className={css.actions}>{renderSlot('settings.action', {})}</div>
-            <button ref={closeButton} type="button" className={css.close} onClick={onClose}>
+            <button type="button" className={css.close} onClick={onClose}>
               <IconCloseOutline16 size={14} />
               <span className={css.hiddenLabel}>{renderSlot('settings.close', {})}</span>
             </button>
@@ -137,7 +136,7 @@ function SettingsPanel({ rows, renderSlot, activeId, motionState, open, onSelect
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 /**
@@ -149,8 +148,9 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   const {
     wide, reconnect, openSettings, closeSettings, useConnectionState, useNavigation,
     useSections, useOnboardingSteps, useSessions, renderSlot, t,
-    useDesktopUpdate, openDesktopUpdate,
+    useDesktopUpdate, openDesktopUpdate, useShortcuts,
   } = props
+  const shortcut = useShortcuts(rows => rows.find(row => row.id === 'settings.open'))
   const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set())
   const [explicitOnboarding, setExplicitOnboarding] = useState<string | undefined>()
   const [showRecovery, setShowRecovery] = useState(false)
@@ -164,7 +164,9 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   const { mounted, state } = usePresence(open)
   const launcher = renderSlot('settings.launcher', {
     wide,
+    settingsOpen: open,
     openSettings: () => { openSettings() },
+    ...(shortcut?.keys.length ? { settingsShortcut: { keys: shortcut.keys, aria: shortcut.aria } } : {}),
     openOnboarding: (id: string) => { setExplicitOnboarding(id) },
   })
   const close = useCallback(() => { closeSettings() }, [closeSettings])
@@ -202,6 +204,16 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     if (onboardingActive) return
     setCompletedOnboarding(new Set())
   }, [onboardingActive])
+
+  const onboardingStepSeen = useRef(onboardingStep)
+  // An onboarding step owns the viewport and marks `#root` inert. The panel portals
+  // beside `#root`, outside that mark, so a step that appears while the panel is open
+  // takes the panel down rather than leaving it focusable behind the onboarding mask.
+  useEffect(() => {
+    const appeared = onboardingStepSeen.current === undefined && onboardingStep !== undefined
+    onboardingStepSeen.current = onboardingStep
+    if (appeared && open) close()
+  }, [onboardingStep, open, close])
 
   useLayoutEffect(() => {
     const previous = previousConnectionState.current
@@ -266,18 +278,21 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
         aria-expanded={open} onClick={() => { openSettings() }} />}
       {launcher != null && <div ref={launcherRow} className={clsx(css.launcherRow, !wide && css.railLauncherRow)}>{launcher}</div>}
       <div className={clsx(css.triggerRow, !wide && css.railRow)}>
-        {launcher == null && <button
-          ref={triggerButton}
-          type="button"
-          className={clsx(css.trigger, !wide && css.rail)}
-          data-dsh-settings-trigger
-          aria-label={t('trigger')}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={() => { openSettings() }}
-        >
-          {renderSlot('settings.trigger', { wide })}
-        </button>}
+        {launcher == null && <Tooltip disabled={open} label={t('trigger')} shortcutKeys={shortcut?.keys}>
+          <button
+            ref={triggerButton}
+            type="button"
+            className={clsx(css.trigger, !wide && css.rail)}
+            data-dsh-settings-trigger
+            aria-label={t('trigger')}
+            aria-keyshortcuts={shortcut?.aria}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            onClick={() => { openSettings() }}
+          >
+            {renderSlot('settings.trigger', { wide })}
+          </button>
+        </Tooltip>}
         <UpdateAction wide={wide} t={t} />
         <ConnectionIndicator
           state={wide && desktopUpdate.presentation?.phase !== 'installing' ? connectionIndicator : undefined}

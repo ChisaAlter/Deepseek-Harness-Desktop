@@ -15,8 +15,11 @@
  * selected effort come from the Host rather than a client-owned vocabulary. A
  * rejected selection announces through the shared transient Toast anchored to
  * the composer card; the in-menu strip with Retry remains the catalog-load
- * surface.
+ * surface. While the directory's pending selection is unsettled, the trigger
+ * shows a spinner in place of its chevron, and each row whose value that
+ * selection carries shows one in place of its check mark.
  */
+import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore,
   type CSSProperties, type KeyboardEvent, type FocusEvent,
@@ -26,7 +29,7 @@ import clsx from 'clsx'
 import type { ModelReasoningEffort, ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   IconCheckOutlineRegular, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular,
-  IconDataOutlineRegular, IconWarningOutlineRegular, Toast, usePresence,
+  IconDataOutlineRegular, IconWarningOutlineRegular, StateDot, Toast, usePresence,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ModelSelectInjected } from './slots.ts'
@@ -82,7 +85,10 @@ export function ModelSelect(
     if (available) load()
   }, [available, load])
 
-  const choices = useMemo(() => state.groups.flatMap(group =>
+  const groups = useMemo(() => state.groups.toSorted((left, right) =>
+    (left.id === 'deepseek-account' ? 0 : left.id === 'deepseek-official' ? 1 : 2)
+      - (right.id === 'deepseek-account' ? 0 : right.id === 'deepseek-official' ? 1 : 2)), [state.groups])
+  const choices = useMemo(() => groups.flatMap(group =>
     group.models.map(model => ({
       group,
       model,
@@ -93,7 +99,7 @@ export function ModelSelect(
           ? {}
           : { reasoningEffort: model.reasoning.defaultEffort },
       } satisfies ModelSelection,
-    }))), [state.groups])
+    }))), [groups])
   const selectedIndex = state.current === null
     ? -1
     : choices.findIndex(c => c.selection.provider === state.current?.provider && c.selection.model === state.current.model)
@@ -101,7 +107,7 @@ export function ModelSelect(
   const reasoning = currentChoice?.model.reasoning
   const effectiveEffort = state.current?.reasoningEffort ?? reasoning?.defaultEffort
   const effortLabel = reasoning === undefined
-    ? undefined
+    ? state.retainedEffort
     : effectiveEffort === undefined
       ? t('effort.providerDefault')
       : reasoning.efforts.find(level => level.id === effectiveEffort)?.name ?? effectiveEffort
@@ -122,10 +128,11 @@ export function ModelSelect(
   // live reads would flash the dim/check/position changes mid-exit — the
   // same freeze PopupSelectView's lastOpen does. The trigger stays live:
   // its relabel IS the settle feedback.
-  const openFrame = useRef({ state, action: lastActionRef.current, effort: effectiveEffort, effortChoices })
-  if (open) openFrame.current = { state, action: lastActionRef.current, effort: effectiveEffort, effortChoices }
+  const openFrame = useRef({ state, action: lastActionRef.current, effort: effectiveEffort, effortChoices, groups })
+  if (open) openFrame.current = { state, action: lastActionRef.current, effort: effectiveEffort, effortChoices, groups }
   const view = openFrame.current
-  const viewBusy = view.state.status === 'selecting'
+  const viewBusy = view.state.pending !== null
+  const busy = state.pending !== null
 
   const reload = (): void => {
     lastActionRef.current = 'load'
@@ -213,7 +220,9 @@ export function ModelSelect(
   if (!available) return null
 
   const show = (): void => {
-    setPane('root')
+    triggerRef.current?.focus()
+    if (state.current === null) paneFocus.current = 'drill'
+    setPane(state.current === null ? 'model' : 'root')
     setOpen(true)
     reload()
   }
@@ -251,7 +260,7 @@ export function ModelSelect(
     if (event.key === 'Escape' && open) {
       event.preventDefault()
       // Escape backs out of a drilled pane first, then closes.
-      if (pane !== 'root') back(pane)
+      if (pane !== 'root' && state.current !== null) back(pane)
       else close(true)
       return
     }
@@ -262,7 +271,7 @@ export function ModelSelect(
     if (event.key === 'Tab') {
       if (event.shiftKey) {
         event.preventDefault()
-        if (pane !== 'root') back(pane)
+        if (pane !== 'root' && state.current !== null) back(pane)
         else close(true)
         return
       }
@@ -310,6 +319,7 @@ export function ModelSelect(
   const settleSelection = (result: Awaited<ReturnType<ModelSelectInjected['select']>>): void => {
     if (result === undefined) return
     if (result.ok) {
+      if (rootRef.current !== null) close(true)
       return
     }
     announceSelectionFailure(result.error)
@@ -320,14 +330,19 @@ export function ModelSelect(
     if (message !== null) announceSelectionFailure({ code: 'selection/rejected', message })
   }
 
+  const submit = (selection: ModelSelection): void => {
+    lastActionRef.current = 'select'
+    // Disabled option rows cannot retain focus while a selection is pending.
+    triggerRef.current?.focus()
+    void select(selection).then(settleSelection, rejectSelection)
+  }
+
   const choose = (selection: ModelSelection): void => {
     if (state.current?.provider === selection.provider && state.current.model === selection.model) {
       close(true)
       return
     }
-    lastActionRef.current = 'select'
-    void select(selection).then(settleSelection, rejectSelection)
-    close(true)
+    submit(selection)
   }
 
   const chooseEffort = (effort: string | undefined): void => {
@@ -341,9 +356,7 @@ export function ModelSelect(
       model: state.current.model,
       ...effort === undefined ? {} : { reasoningEffort: effort },
     }
-    lastActionRef.current = 'select'
-    void select(selection).then(settleSelection, rejectSelection)
-    close(true)
+    submit(selection)
   }
 
   const waiting = state.current === null && state.status === 'loading'
@@ -361,7 +374,16 @@ export function ModelSelect(
         : t('trigger.ariaEffort', { model: modelLabel, effort: effortLabel })
 
   return (
-    <div ref={rootRef} className={css.root} onKeyDown={onRootKeyDown} onBlur={onBlur}>
+    <div
+      ref={rootRef}
+      className={css.root}
+      onKeyDown={onRootKeyDown}
+      onBlur={onBlur}
+      onMouseDown={(event) => {
+        // WebKit blurs a focused row before click unless the button's mousedown keeps focus.
+        if (event.target instanceof Element && event.target.closest('button') !== null) event.preventDefault()
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -371,10 +393,11 @@ export function ModelSelect(
         aria-expanded={open}
         aria-controls={open ? `${id}-menu` : undefined}
         title={triggerLabel}
+        aria-busy={busy}
         disabled={locked}
         onClick={() => {
           if (open) {
-            close()
+            close(true)
           } else {
             show()
           }
@@ -383,14 +406,16 @@ export function ModelSelect(
         <IconDataOutlineRegular className={css.triggerIcon} size={16} />
         <span className={css.triggerLabel}>{modelLabel}</span>
         {effortLabel !== undefined && <span className={css.triggerEffort}>{effortLabel}</span>}
-        <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />
+        {busy
+          ? <StateDot state="ongoing" />
+          : <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
       </button>
 
       {/* Portaled to body (Menu primitive's portal mode) so the sidebar and
           column overflow clips cannot crop the card; synthetic events still
           bubble through this React subtree, keeping onKeyDown/onBlur live. */}
       {mounted && createPortal(
-        <div
+        <MenuSurface
           ref={menuRef}
           id={`${id}-menu`}
           className={css.menu}
@@ -432,16 +457,16 @@ export function ModelSelect(
               )}
               {view.state.failures.map(failure => (
                 <div className={css.warning} key={failure.id}>
-                  <span>{t('warning.groupLoad', { name: failure.name, message: failure.message })}</span>
+                  <span>{t('warning.groupLoad', { name: failure.id === 'deepseek-account' ? t('provider.account') : failure.name, message: failure.message })}</span>
                   <button type="button" className={css.retry} onClick={reload}>{t('retry')}</button>
                 </div>
               ))}
               <div className={clsx(css.groups, 'scrollable')}>
-                {view.state.groups.map((group) => {
+                {view.groups.map((group) => {
                   const headingId = `${id}-${group.id}`
                   return (
                     <section role="group" aria-labelledby={headingId} className={css.group} key={group.id}>
-                      <div className={css.groupTitle} id={headingId}>{group.name}</div>
+                      <div className={css.groupTitle} id={headingId}>{group.id === 'deepseek-account' ? t('provider.account') : group.name}</div>
                       {group.models.map((model) => {
                         const selected = view.state.current?.provider === group.id && view.state.current.model === model.id
                         return (
@@ -459,7 +484,9 @@ export function ModelSelect(
                               <span className={css.modelName}>{model.name}</span>
                             </span>
                             <span className={css.check}>
-                              {selected ? <IconCheckOutlineRegular /> : null}
+                              {view.state.pending?.provider === group.id && view.state.pending.model === model.id
+                                ? <StateDot state="ongoing" />
+                                : selected ? <IconCheckOutlineRegular /> : null}
                             </span>
                           </button>
                         )
@@ -498,13 +525,16 @@ export function ModelSelect(
                       <span className={css.modelName}>{level.label}</span>
                     </span>
                     <span className={css.check}>
-                      {effectiveEffort === level.effort ? <IconCheckOutlineRegular /> : null}
+                      {view.state.pending !== null && view.state.pending.provider === view.state.current?.provider
+                        && view.state.pending.model === view.state.current.model && view.state.pending.reasoningEffort === level.effort
+                        ? <StateDot state="ongoing" />
+                        : view.effort === level.effort ? <IconCheckOutlineRegular /> : null}
                     </span>
                   </button>
                 ))}
             </>
           )}
-        </div>,
+        </MenuSurface>,
         document.body,
       )}
       {toast !== null && (

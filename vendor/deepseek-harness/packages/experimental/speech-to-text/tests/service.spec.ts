@@ -35,6 +35,8 @@ it('shares Host preparation across observers and does not cancel work when obser
     expect((await stream.next()).value).toMatchObject({ providers: [{ id, preparation: { phase: 'unprepared' } }] })
     service.prepare(id)
     expect(prepare).toHaveBeenCalledOnce()
+    service.prepare(id, { downloadSource: 'https://mirror.example' })
+    expect(prepare).toHaveBeenLastCalledWith({ downloadSource: 'https://mirror.example' })
     const next = stream.next()
     state = { phase: 'downloading', resource: 'model', completedBytes: 638, totalBytes: 936 }; notify()
     expect((await next).value).toMatchObject({ providers: [{ preparation: state }] })

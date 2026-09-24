@@ -1,6 +1,6 @@
 ---
 name: office-pptx
-description: Create, read, edit, and check PowerPoint presentations (.pptx), including slide text, tables, images, and charts. Use when a PPTX file is an input or requested deliverable.
+description: Create, read, edit, and check PowerPoint presentations (.pptx), including slide text, tables, images, and charts. Use when a PPTX file is an input or requested deliverable. Load this skill before running Office commands. Use only bundled LibreOffice unless the user explicitly opts out; without that opt-out, do not search for another LibreOffice executable.
 ---
 
 # PowerPoint presentations
@@ -63,8 +63,19 @@ Run the shared checker with the selected Python executable; `<skill-directory>` 
 
 It checks ZIP/XML integrity and internal relationships and reports slide count and extracted text. Use repeated `--contains TEXT` arguments for required slide text and `--count N` for a requested slide count; `--contains` excludes chart text and speaker notes. Reopen the file to check the requested edits, chart data, and notes. Structural success does not establish text fit, alignment, readable contrast, or rendering fidelity.
 
-If `render_document` is available and visual inspection is useful, call it on the final PPTX, initially omitting `pages` to prepare page 1 and obtain `pageCount`. The tool checks the current main model's actual image capability; do not choose a second model. If `status` is `skipped`, complete structural and content checks and deliver the PPTX, briefly stating that visual layout was not inspected. If ready, call `read_image` on its returned `pages[].imagePath`, then inspect remaining slides in small batches such as `pages: [2, 3, 4]`. Check clipping, alignment, contrast, chart labels, and consistency with the requested design or supplied reference; fix the source and render the affected pages again.
+Render for requested images/PDFs or an actionable layout check. Before generating images only for inspection, establish that the current model accepts images. If it does not, finish structural and content checks and state that visual layout was not inspected; do not rasterize slides the model cannot read, retry `read_image`, or choose a second model.
 
-Use the available rendering tool for this check. Inspect `warnings`, especially missing fonts. LibreOffice previews do not certify pixel-identical PowerPoint or Keynote output, animation, or media playback. If the rendering tool is unavailable or fails, retain the usable source and report the inspection limit; do not require the user to install another tool.
+Use the bundled LibreOffice binaries unless the user explicitly asks not to use them. Without that explicit opt-out, never search for or invoke system LibreOffice, `soffice`, an application-installed binary, or a downloaded replacement. If the bundled CLI is unavailable or fails, report that failure instead of substituting another executable.
+
+Use the `libreofficeKit.node` and `libreofficeKit.cli` absolute paths supplied in the loaded skill's **Installed LibreOffice Kit** section. Run Node with the CLI entry as its first argument, then `capabilities --json` once. For the bundled runtime, these paths work from the task directory; do not search PATH, guess a package directory, use `npx`, or install a renderer. Quote each path separately; PowerShell also requires the `&` invocation operator. The examples below use `<node>` and `<cli>` for those two returned paths. Render slides directly:
+
+```sh
+"<node>" "<cli>" render --input report.pptx --output-dir preview-v1 --pages 1,3,4 --dpi 144
+"<node>" "<cli>" convert --input report.pptx --output report.pdf
+```
+
+Batch affected slides in one call; inspect every slide for a new deck or a whole-deck design review. Read the returned manifest and selected image paths, including missing-font diagnostics. Outputs must be new directories/files. Retain and reuse previews for the same saved source; rerender only after edits, for missing slides, or to diagnose a concrete failure. Check clipping, alignment, contrast, and chart labels. Do not substitute guessed geometry for visual evidence or repeat successful exports of unchanged slides.
+
+If this deployment explicitly disables the CLI but `render_document` is provided, call it without `pages` first and inspect images only on a ready result; `status: "skipped"` ends visual checking. If rendering is unavailable or fails, retain the usable source and report the inspection limit. Do not search for COM automation, install conversion packages, or build another renderer for routine QA. LibreOffice previews do not certify pixel-identical PowerPoint or Keynote output, animation, or media playback. Deliver once the requested content and applicable checks pass.
 
 Call `present({"files":[{"path":"report-edited.pptx"}]})` with the actual final PPTX path. It exposes the current source file without copying or preserving its bytes, so keep that file in place and leave intermediate images and reports out of delivery unless requested. If `present` is unavailable, use the session's supported file delivery method.

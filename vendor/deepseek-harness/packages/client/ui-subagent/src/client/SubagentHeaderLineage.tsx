@@ -7,7 +7,7 @@ import {
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
-  IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconRefreshOutlineRegular, StateDot,
+  IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconRefreshOutlineRegular, StateDot, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { NS } from './locales.ts'
@@ -351,16 +351,17 @@ function CatalogRows({
                   </span>
                 )}
                 {!isCurrent && (
-                  <button
-                    type="button"
-                    className={css.sidebarButton}
-                    aria-label={t('open.sidebar', { label })}
-                    title={t('open.sidebar', { label })}
-                    onClick={openAside}
-                    onKeyDown={(event) => { event.stopPropagation() }}
-                  >
-                    <IconChevronRightOutlineRegular />
-                  </button>
+                  <Tooltip label={t('open.sidebar')} side="bottom" align="end">
+                    <button
+                      type="button"
+                      className={css.sidebarButton}
+                      aria-label={t('open.sidebar.aria', { label })}
+                      onClick={openAside}
+                      onKeyDown={(event) => { event.stopPropagation() }}
+                    >
+                      <IconChevronRightOutlineRegular />
+                    </button>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -468,6 +469,8 @@ function CatalogDropdown({
   const menuRef = useRef<HTMLDivElement>(null)
   const hoverOpenTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hoverCloseTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // A click-opened (pinned) menu ignores hover-out; only explicit dismissal closes it.
+  const pinnedRef = useRef(false)
   const currentEntry = currentSessionId === undefined
     ? undefined
     : catalog?.entries.find(entry => entry.id === currentSessionId)
@@ -506,6 +509,7 @@ function CatalogDropdown({
       setMenuPosition(catalogMenuPosition(trigger))
     }
     else {
+      pinnedRef.current = false
       setOpen(false)
       setMenuPosition(undefined)
       setExpanded(new Set())
@@ -526,6 +530,7 @@ function CatalogDropdown({
   const scheduleHoverClose = (): void => {
     cancelHoverOpen()
     cancelHoverClose()
+    if (pinnedRef.current) return
     hoverCloseTimer.current = setTimeout(() => {
       hoverCloseTimer.current = undefined
       changeOpen(false)
@@ -602,6 +607,7 @@ function CatalogDropdown({
     cancelHoverOpen()
     cancelHoverClose()
     if (!open) return
+    pinnedRef.current = false
     setOpen(false)
     setExpanded(new Set())
   }, [visible, open])
@@ -640,11 +646,11 @@ function CatalogDropdown({
       className={`${css.root} ${variant === 'switcher' ? css.switcherRoot : ''}`}
       ref={rootRef}
       onKeyDown={navigate}
-      onMouseEnter={scheduleHoverOpen}
       onMouseLeave={scheduleHoverClose}
     >
       <button
         ref={triggerRef}
+        onMouseEnter={scheduleHoverOpen}
         type="button"
         className={variant === 'switcher'
           ? `${css.switcherTrigger} ${ancestorSwitcher ? css.ancestorSwitcherTrigger : ''}`
@@ -658,7 +664,12 @@ function CatalogDropdown({
             { count: runningCount > 0 ? runningCount : directCount },
           )}
         onClick={openTitle === undefined
-          ? undefined
+          ? () => {
+            cancelHoverOpen()
+            cancelHoverClose()
+            pinnedRef.current = true
+            if (!open) changeOpen(true)
+          }
           : () => {
             cancelHoverOpen()
             if (open) changeOpen(false)
@@ -692,26 +703,26 @@ function CatalogDropdown({
           ref={menuRef}
           className={css.menu}
           style={menuPosition}
-          role="tree"
-          aria-label={t('tree.aria')}
           onMouseEnter={cancelHoverClose}
           onMouseLeave={scheduleHoverClose}
         >
-          <CatalogRows
-            parentSessionId={rootSessionId}
-            currentSessionId={currentSessionId}
-            catalog={presentedCatalog}
-            catalogs={catalogs}
-            summaries={summaries}
-            expanded={expanded}
-            level={1}
-            openChild={openChild}
-            openChildAside={openChildAside}
-            refreshProjection={refreshProjection}
-            toggleBranch={toggleBranch}
-            closeCatalog={() => { changeOpen(false) }}
-            t={t}
-          />
+          <div className={css.menuBody} role="tree" aria-label={t('tree.aria')}>
+            <CatalogRows
+              parentSessionId={rootSessionId}
+              currentSessionId={currentSessionId}
+              catalog={presentedCatalog}
+              catalogs={catalogs}
+              summaries={summaries}
+              expanded={expanded}
+              level={1}
+              openChild={openChild}
+              openChildAside={openChildAside}
+              refreshProjection={refreshProjection}
+              toggleBranch={toggleBranch}
+              closeCatalog={() => { changeOpen(false) }}
+              t={t}
+            />
+          </div>
         </div>
       ), document.body)}
     </div>
@@ -724,7 +735,7 @@ export type SubagentCatalogActionProps =
 
 /**
  * Session-header catalog action for root sessions: the descendant count and
- * its dropdown, ordered after the task list. Child sessions render nothing
+ * its dropdown at the start of the header actions band. Child sessions render nothing
  * here — their breadcrumb switcher in the lineage slot owns the same
  * navigation.
  * @param props - Session standard props plus the catalog actions and translator.
@@ -769,7 +780,7 @@ export function SubagentHeaderLineage({
   })
   const shared = { useSessions, useSessionStatus, openChild, openChildAside, refreshProjection, t }
   // Root sessions carry no breadcrumb; their descendant count lives in the
-  // header actions band (SubagentCatalogAction), after the task list.
+  // header actions band (SubagentCatalogAction).
   if (parentId === undefined) return null
   return (
     <>

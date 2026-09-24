@@ -25,8 +25,9 @@
 .stepProgress { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .stepProgress small { font-size: 11px; color: var(--dsw-alias-label-tertiary); overflow-wrap: anywhere; }
 .preferences { display: grid; gap: 12px; font-size: 13px; margin: 18px 0; }
-.preferences label { display: grid; grid-template-columns: 100px minmax(120px, 280px); align-items: center; gap: 12px; }
-.preferences select { border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; font: inherit; }
+.preferences label, .sourceChoice label { display: grid; grid-template-columns: 100px minmax(120px, 280px); align-items: center; gap: 12px; }
+.preferences select, .sourceChoice select { border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; font: inherit; }
+.sourceChoice { display: grid; gap: 6px; }
 .preferences p { margin: 0; }
 .settingsCard { list-style: none; padding: 16px; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 10px; }
 .settingsCard > p { font-size: 13px; color: var(--dsw-alias-label-secondary); margin: 8px 0 0; }

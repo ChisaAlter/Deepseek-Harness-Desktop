@@ -34,7 +34,7 @@ function noPendingInteraction() {
 // The resource hook the resources plugin merges into GlobalStandardProps; this row reads no address.
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
 
-function mount(mode: TranscriptViewMode = 'compact', dictionary: typeof en | typeof zh = en) {
+function mount(mode: TranscriptViewMode = 'standard', dictionary: typeof en | typeof zh = en) {
   const source = createSnapshotStore<TranscriptViewMode>(mode)
   const setTranscriptView = vi.fn((next: TranscriptViewMode) => { source.set(next) })
   const props: TranscriptViewRowProps = {
@@ -53,20 +53,22 @@ function mount(mode: TranscriptViewMode = 'compact', dictionary: typeof en | typ
 }
 
 describe('TranscriptViewRow', () => {
-  it('explains the preference and shows Compact by default', () => {
+  it('explains the preference and shows Standard by default', () => {
     mount()
     expect(screen.getByText('Work details')).toBeDefined()
-    expect(screen.getByText('Controls how turns and steps expand by default')).toBeDefined()
-    expect(screen.getByRole('button', { name: /Compact/ }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByText('Choose how much detail to show for tool calls')).toBeDefined()
+    expect(screen.getByRole('button', { name: /Standard/ }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it.each([
+    ['compact', 'Compact'],
     ['detailed', 'Detailed'],
-    ['expanded', 'Expanded'],
+    ['verbose', 'Verbose'],
   ] as const)('selects %s and follows the mirrored value', (mode, label) => {
     const b = mount()
-    fireEvent.click(screen.getByRole('button', { name: /Compact/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Standard/ }))
     expect(screen.queryByRole('menuitem', { name: 'Normal' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: 'Expanded' })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: label }))
     expect(b.setTranscriptView).toHaveBeenCalledWith(mode)
     const trigger = screen.getByRole('button', { name: label })
@@ -76,21 +78,25 @@ describe('TranscriptViewRow', () => {
     expect(screen.queryByRole('menuitem', { name: 'Compact' })).toBeNull()
   })
 
-  it('shows all three work-detail values in Chinese', () => {
+  it('shows all four work-detail values in Chinese', () => {
     const b = mount('compact', zh)
-    expect(screen.getByText('工作过程展示')).toBeDefined()
+    expect(screen.getByText('工作步骤展示')).toBeDefined()
+    expect(screen.getByText('选择希望看到多少工具调用细节')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: '简洁' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '标准' }))
+    expect(b.setTranscriptView).toHaveBeenLastCalledWith('standard')
+    fireEvent.click(screen.getByRole('button', { name: '标准' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '详细' }))
     expect(b.setTranscriptView).toHaveBeenLastCalledWith('detailed')
     fireEvent.click(screen.getByRole('button', { name: '详细' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '完全展开' }))
-    expect(b.setTranscriptView).toHaveBeenLastCalledWith('expanded')
+    expect(b.setTranscriptView).toHaveBeenLastCalledWith('verbose')
     expect(screen.getByRole('button', { name: '完全展开' })).toBeDefined()
   })
 
   it('returns focus before publishing a mode change without refocusing after the menu closes', async () => {
     const b = mount()
-    const trigger = screen.getByRole('button', { name: /Compact/ })
+    const trigger = screen.getByRole('button', { name: /Standard/ })
     fireEvent.click(trigger)
     const item = screen.getByRole('menuitem', { name: 'Detailed' })
     item.focus()
@@ -173,7 +179,7 @@ describe('PerformanceUsageRow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Detailed' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Compact' }))
     expect(setPerformanceUsage).toHaveBeenCalledWith('compact')
-    expect(screen.getAllByRole('button', { name: 'Compact' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Compact' })).toHaveLength(1)
     expect(b.setTranscriptView).not.toHaveBeenCalled()
   })
 })

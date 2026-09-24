@@ -364,6 +364,22 @@ describe('QueueDock', () => {
     expect(view.queryByText('second')).toBeNull()
   })
 
+  it('portals a row action tooltip out of the panel, where the input card cannot cover it', () => {
+    vi.useFakeTimers()
+    try {
+      const single = snapshotWith([row('i-tip', 'queued draft')])
+      const source = liveSession(single)
+      const view = render(<QueueDock {...kitFor(single)} useSession={source.useSession} useProjection={source.useProjection} />)
+      fireEvent.mouseEnter(view.getByLabelText('删除排队消息'))
+      act(() => { vi.advanceTimersByTime(500) })
+      const tooltip = view.getByRole('tooltip')
+      expect(tooltip.textContent).toBe('删除排队消息')
+      expect(tooltip.parentElement).toBe(document.body)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps an in-flight row action visible when another item arrives', async () => {
     const single = snapshotWith([row('i-remove', 'remove me')])
     const source = liveSession(single)

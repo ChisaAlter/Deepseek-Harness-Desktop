@@ -21,12 +21,12 @@ export function apply(ctx: Context, config: Config): void {
   for (const path of [config.dataRoot, config.modelDirectory, config.vadModelPath]) {
     if (path !== undefined && !isAbsolute(path)) throw new Error(`SenseVoice paths must be absolute: ${path}`)
   }
-  new URL(config.modelOrigin)
+  for (const origin of config.modelOrigin === undefined ? config.modelOrigins : [config.modelOrigin]) new URL(origin)
   const worker = new SenseVoiceWorker(ctx, config)
   const estimatedBytes = config.precision === 'int8' ? 1_000_000_000 : 2_000_000_000
   ctx.effect(() => {
     const unregister = ctx.speechToText.register({
-      info: { id: config.providerId as SpeechProviderId, name: `SenseVoiceSmall (${config.precision.toUpperCase()})`, location: 'host-local', languages,
+      info: { id: config.providerId as SpeechProviderId, name: `SenseVoiceSmall (${config.precision.toUpperCase()})`, location: 'host-local', languages, downloadSources: worker.downloadSources,
         setupEstimate: { recommendedDiskBytes: estimatedBytes, expectedMemoryBytes: estimatedBytes,
           minimumMinutes: 1, maximumMinutes: 10 } },
       preparation: worker,

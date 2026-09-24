@@ -7,6 +7,30 @@ import { clientInspectProviders } from '../src/client/providers.ts'
 const Component = () => null
 
 describe('Client inspect providers', () => {
+  it('exposes Tool owner fields and phases through the live slot lookup', async () => {
+    const ctx = new Context()
+    const fiber = ctx.plugin(SlotRegistry)
+    try {
+      await fiber
+      const slots = ctx.slots as { registerFactory(options: object, component: unknown): () => void }
+      slots.registerFactory({
+        name: 'provider.tool-owner', scope: 'root',
+        children: { 'tool.call.toolview': { kind: 'keyed', scope: 'session' } },
+      }, Component)
+      const provider = clientInspectProviders(ctx).find(item => item.manifest.id === 'Slots')!
+      const result = await provider.query('listSubTree', { root: 'tool.call.toolview' }, {} as never)
+      const selected = result as { selected: { catalog: { ownerProps: string[] } } }
+      const owner = selected.selected.catalog.ownerProps.join('\n')
+      for (const field of ['callId', 'toolName', 'useDisclosure', 'cwd', 'home', 'openFile', 'loadImage', 'inspect']) {
+        expect(owner).toMatch(new RegExp(`\\b${field}\\??:`))
+      }
+      for (const phase of ['preparing', 'start', 'result']) expect(owner).toContain(`phase: '${phase}'`)
+      expect(owner).not.toContain('truncated')
+    } finally {
+      await fiber.dispose()
+    }
+  })
+
   it('reports strictly discriminated Slot and Factory topology nodes', async () => {
     const ctx = new Context()
     const fiber = ctx.plugin(SlotRegistry)

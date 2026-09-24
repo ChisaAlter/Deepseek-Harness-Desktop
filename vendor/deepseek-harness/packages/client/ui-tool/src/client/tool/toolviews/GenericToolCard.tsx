@@ -26,10 +26,11 @@ const VARIANT_ICONS: Record<ToolRowVariant, ReactNode> = {
 }
 
 /** Card props: the owner payload plus the render site's locale seat (plain prop). */
-export interface GenericToolCardProps extends ToolCallOwnerProps {
+export type GenericToolCardProps = ToolCallOwnerProps & {
   t: ToolTreeProps['t']
 }
 
+/** @param props - current tool stage and locale. @returns its preparation or dispatched card. */
 export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect, useDisclosure, loadImage, renderToolImages, t }: GenericToolCardProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const autoReview = model.autoReviewDenial === null

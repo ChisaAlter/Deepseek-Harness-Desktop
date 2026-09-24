@@ -14,8 +14,12 @@ export interface Config {
   vadModelPath?: string | undefined
   /** Weight precision; INT8 minimizes first-use download and model storage. */
   precision: 'int8' | 'fp32'
-  /** Hugging Face-compatible origin for pinned model URLs, including private mirrors. */
-  modelOrigin: string
+  /** Explicit Hugging Face-compatible origin; bypasses automatic selection and public fallback. */
+  modelOrigin?: string | undefined
+  /** Hugging Face-compatible origins compared before downloading each missing asset. */
+  modelOrigins: string[]
+  /** Deadline for concurrent HEAD probes, including redirects to the actual asset. */
+  modelProbeTimeoutMs: number
   /** CPU intra-operation thread count. */
   threads: number
   /** Maximum speech segment length passed to the recognizer. */
@@ -53,7 +57,10 @@ export const Config: z<Partial<Config>, Config> = z.object({
   modelDirectory: z.union([z.string().min(1), z.const(undefined)]),
   vadModelPath: z.union([z.string().min(1), z.const(undefined)]),
   precision: z.union(['int8', 'fp32']).default('int8'),
-  modelOrigin: z.string().pattern(/^https?:\/\/[^/\s?#@]+\/?$/).default('https://huggingface.co'),
+  modelOrigin: z.union([z.string().pattern(/^https?:\/\/[^/\s?#@]+\/?$/), z.const(undefined)]),
+  modelOrigins: z.array(z.string().pattern(/^https?:\/\/[^/\s?#@]+\/?$/)).min(1)
+    .default(['https://huggingface.co', 'https://hf-mirror.com']),
+  modelProbeTimeoutMs: z.natural().min(1).max(MAX_TIMER_DELAY_MS).default(3000),
   threads: z.natural().min(1).default(2),
   segmentSeconds: z.number().min(1).max(120).default(30),
   vadThreshold: z.number().min(0).max(1).default(0.5),

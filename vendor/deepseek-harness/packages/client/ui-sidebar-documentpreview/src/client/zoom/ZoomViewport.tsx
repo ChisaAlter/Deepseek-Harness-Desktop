@@ -42,6 +42,8 @@ export interface ZoomViewportProps {
   readonly signal: AbortSignal
   readonly scrollportRef: RefCallback<HTMLElement>
   readonly onPreference: (preference: ZoomPreference) => void
+  /** Resolved scale after a gesture settles or fit-width measurement changes. */
+  readonly onRenderZoom?: (zoom: number) => void
   readonly children: ReactNode
 }
 
@@ -164,7 +166,8 @@ export function ZoomViewport(props: ZoomViewportProps): ReactNode {
     frame.current?.setAttribute('data-document-zoom-mode', props.preference.kind)
     frame.current?.style.setProperty('--document-zoom', String(zoom))
     controls.current?.showZoom(zoom)
-  }, [props.preference.kind, zoom])
+    props.onRenderZoom?.(zoom)
+  }, [props.onRenderZoom, props.preference.kind, zoom])
   useEffect(() => {
     const node = scrollport.current as HTMLDivElement
     const clearPendingPinch = (): void => {

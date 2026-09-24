@@ -6,7 +6,7 @@ import { cleanup, render } from '@testing-library/react'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { GenericToolCard, type GenericToolCardProps } from '../src/client/tool/toolviews/GenericToolCard.tsx'
@@ -33,9 +33,9 @@ function listStore() {
   })
 }
 
-function bashProps(block: RunningToolCall | ToolResultNode): BashRowProps {
+function bashProps(block: StartedToolCall | ToolResultNode): BashRowProps {
   return {
-    useDisclosure, callId: 'c1', toolName: 'bash', block, openFile: vi.fn(),
+    useDisclosure, callId: 'c1', toolName: 'bash', ...('kind' in block ? { phase: 'result' as const, block: block } : { phase: block.phase, block: block }), openFile: vi.fn(),
     sessionId: SID, useSessions: bindSnapshotSelector(listStore()),
     t,
   } as BashRowProps
@@ -61,7 +61,7 @@ describe('Tool presentation tails', () => {
     }
     const props: GenericToolCardProps = {
       loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
-      useDisclosure, callId: 'c5', toolName: 'todo_write', block: settled, openFile: vi.fn(), t,
+      useDisclosure, callId: 'c5', toolName: 'todo_write', phase: 'result' as const, block: settled, openFile: vi.fn(), t,
     }
     const view = render(<GenericToolCard {...props} />)
     expect(view.container.querySelector('[data-variant="others"] svg')).not.toBeNull()
@@ -83,8 +83,8 @@ describe('Tool presentation tails', () => {
   })
 
   it('BashRow retains its business icon for failed and stopped states', () => {
-    const running: RunningToolCall = {
-      callId: 'c1', name: 'bash', argsRaw: '{"command":"ls","description":"List"}',
+    const running: StartedToolCall = {
+      phase: 'start' as const, callId: 'c1', name: 'bash', argsRaw: '{"command":"ls","description":"List"}',
       turn: 1, step: 1, time: 1_000, subCalls: [],
     }
     const errorResult: ToolResultNode = {

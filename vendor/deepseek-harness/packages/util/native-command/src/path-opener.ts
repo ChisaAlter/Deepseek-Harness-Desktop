@@ -5,7 +5,10 @@
  * The default intent prefers the default browser for documents it renders when
  * the platform can name one, then falls back to the default application. WSL
  * translates every path for the Windows desktop instead of assuming a Linux
- * GUI. The text-editor intent never consults the browser.
+ * GUI. The text-editor intent never consults the browser. Windows hands every
+ * intent to Explorer: the shell's own default-application resolution, the one
+ * a double-click uses, selects the application, while a process that resolves
+ * the association itself reads a narrower record and reports none.
  * @module @deepseek-ai/dsh-native-command/path-opener
  */
 
@@ -82,11 +85,6 @@ async function openInBrowser(
 /** Native path-open intent; macOS distinguishes text editing from file association. */
 type PathOpenIntent = 'default' | 'association' | 'text-editor'
 
-/** PowerShell single-quoted literal (doubles embedded quotes). */
-function powershellLiteral(path: string): string {
-  return `'${path.replace(/'/g, "''")}'`
-}
-
 /** Whether one environment marker is set to a non-empty value. */
 function present(value: string | undefined): boolean {
   return value !== undefined && value !== ''
@@ -99,13 +97,61 @@ function isWsl(internals: PathOpenerInternals): boolean {
   return (internals.osRelease ?? osRelease()).toLowerCase().includes('microsoft')
 }
 
-/** Open one Windows-resolvable path through its registered desktop application. */
+/**
+ * Encode one Windows path as the target Explorer can receive intact.
+ *
+ * Explorer parses its own command line and splits fields at commas and equals
+ * signs, so a raw path loses everything after the first separator and the shell
+ * opens a different target without reporting it; both separators are escaped.
+ * Nothing else is: Explorer rejects percent-encoded non-ASCII in a file URI and
+ * opens the user's Documents folder instead, while it resolves the literal
+ * characters, so Node's non-ASCII escapes are decoded back and its ASCII escapes
+ * stand. Node resolves the path before encoding it, so a verbatim `\\?\` or
+ * `\\?\UNC\` prefix reaches Explorer as the ordinary drive or UNC URI; a `\\.\`
+ * device path keeps that same UNC handling and names a device rather than a
+ * shell item, which this opener does not open.
+ * @param windowsPath - path already translated for the Windows desktop.
+ * @returns the target for an open, or the object of a `/select,` reveal.
+ */
+function explorerTarget(windowsPath: string): string {
+  const href = pathToFileURL(windowsPath, { windows: true }).href
+  // A run of escapes whose every byte starts above ASCII is one non-ASCII character.
+  return href
+    .replace(/(?:%[89A-F][0-9A-F])+/gi, escaped => decodeURIComponent(escaped))
+    .replaceAll(',', '%2C')
+    .replaceAll('=', '%3D')
+}
+
+/**
+ * Hand one target to Explorer, accepting its delegated-handoff exit code.
+ *
+ * Explorer exits 1 after handing the request to the desktop process already
+ * running, so exit 1 means the shell took it. Every other failure still
+ * rejects, and cancellation wins over a delegate's exit 1.
+ * @param args - Explorer argv: the encoded target alone to open it, or `/select,<encoded target>` to reveal it.
+ * @param signal - caller lifetime; abort terminates the command.
+ * @param run - shell-free command runner.
+ * @throws The runner's failure unless it is Explorer's delegate exit 1.
+ */
+async function runExplorer(args: readonly string[], signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
+  try {
+    await run('explorer.exe', args, signal)
+  } catch (error: unknown) {
+    signal.throwIfAborted()
+    // Explorer can exit 1 after delegating to the existing desktop process.
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 1) throw error
+  }
+}
+
+/**
+ * Open one Windows-resolvable path through Explorer, the shell that owns the
+ * default-application resolution a double-click uses.
+ * @param path - Windows-resolvable path; Explorer receives its encoded file URI as one argv element, never a command string.
+ * @param signal - caller lifetime; abort terminates the command.
+ * @param run - shell-free command runner.
+ */
 async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
-  await run('powershell.exe', [
-    '-NoProfile',
-    '-Command',
-    `Invoke-Item -LiteralPath ${powershellLiteral(path)}`,
-  ], signal)
+  await runExplorer([explorerTarget(path)], signal, run)
 }
 
 /** Translate a WSL path before handing it to the Windows desktop. */
@@ -257,15 +303,8 @@ export async function revealNativePath(
       windowsPath = translated.stdout.replace(/[\r\n]+$/, '')
       if (windowsPath === '') throw new Error('wslpath returned no Windows path')
     }
-    // Explorer parses commas itself; a file URI preserves commas and whitespace in the path.
-    const target = pathToFileURL(windowsPath, { windows: true }).href.replaceAll(',', '%2C')
-    try {
-      await (internals.run ?? runNativeVisibleCommand)('explorer.exe', ['/select,', target], signal)
-    } catch (error) {
-      signal.throwIfAborted()
-      // Explorer can exit 1 after delegating to the existing desktop process.
-      if (!(error instanceof Error) || !('code' in error) || error.code !== 1) throw error
-    }
+    await runExplorer(['/select,', explorerTarget(windowsPath)], signal,
+      internals.run ?? runNativeVisibleCommand)
     return
   }
   if (manager === 'directory') {

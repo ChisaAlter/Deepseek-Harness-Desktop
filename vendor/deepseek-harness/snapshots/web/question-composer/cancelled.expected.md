@@ -10,7 +10,7 @@
 - status: Worked
 - button "Took {{duration}}" [expanded]
 - button "Asked questions" [expanded]
-- button "Think"
+- button "Think The user wants me to use the ask_user_question tool with specific parameters. Let me do exactly that."
 - button "Ask question cancelled" [expanded]
 - paragraph: This question set was cancelled before answers were submitted.
 - list:

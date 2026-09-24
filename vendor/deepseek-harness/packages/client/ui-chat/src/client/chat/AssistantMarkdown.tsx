@@ -1,4 +1,5 @@
 import { Fragment, memo, useMemo } from 'react'
+import { fileMediaUrl } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ReactNode } from 'react'
 import { JsonBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownFileMentions, MarkdownPathImages } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -10,16 +11,20 @@ import { useSearchableHidden } from './searchable-hidden.ts'
 import css from './AssistantMarkdown.module.css'
 
 /**
- * Resolve an authored POSIX image path against the document's file API.
+ * Standalone fallback for image destinations (query/fragment suffixes are ignored).
+ * Chat fileImages resolves decoded file references against cwd; pathImages also
+ * serves this component outside that provider and accepts legacy image URL suffixes.
+ * Resolve an authored absolute image path against the document's file API.
  * @param base - canonical `document.baseURI` at render time.
- * @param value - authored markdown destination.
- * @returns an absolute HTTP(S) file-API URL, or undefined for unsupported
+ * @param value - authored Markdown destination; URL escapes are decoded once.
+ * @returns an absolute Web or Desktop file-API URL, or undefined for unsupported
  * protocols and non-local paths.
  */
 export function localPathMediaUrl(base: string, value: string): string | undefined {
-  if (!value.startsWith('/') || value.startsWith('//')) return undefined
-  if (!base.startsWith('http:') && !base.startsWith('https:')) return undefined
-  return new URL(`api/file?path=${encodeURIComponent(value)}`, base).href
+  let path: string
+  try { path = decodeURIComponent(value.split(/[?#]/u)[0] ?? '') }
+  catch { return undefined } // Malformed URL escapes cannot identify a file.
+  return fileMediaUrl(base, path)
 }
 
 export interface AssistantMarkdownProps {

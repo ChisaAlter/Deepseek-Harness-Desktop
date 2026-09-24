@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HoverCard, PRESENCE_EXIT_MS } from '@deepseek-ai/dsh-client-ui-primitives'
+import { HoverCard, PRESENCE_EXIT_MS, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import { POINTER_GRACE_MS } from '../src/pointer-grace.ts'
 
 afterEach(cleanup)
 beforeEach(() => { vi.useFakeTimers() })
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 /** Anchor wrapper rect: the card positions from this (jsdom rects are all-zero by default). */
 function stubAnchorRect(anchor: HTMLElement, rect: { top: number; right: number }): void {
@@ -54,6 +54,47 @@ function installClipboard(writeText: (text: string) => Promise<void>): () => voi
 }
 
 describe('HoverCard', () => {
+  it.each(['disabled', 'unmounted'] as const)('restores its preview after a nested tooltip is %s', (released) => {
+    const markup = (state: 'active' | 'disabled' | 'unmounted') => (
+      <HoverCard
+        anchor={<div>row{state !== 'unmounted' && (
+          <Tooltip label="Create" disabled={state === 'disabled'}><button type="button">action</button></Tooltip>
+        )}</div>}
+        content={<div>card body</div>}
+        copyLabel="Copy"
+        copiedLabel="Copied"
+      />
+    )
+    const view = render(markup('active'))
+    fireEvent.pointerEnter(screen.getByText('row').parentElement as HTMLElement)
+    act(() => { vi.advanceTimersByTime(500) })
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'action' }))
+    expect(screen.getByRole('tooltip').textContent).toBe('Create')
+    expect(screen.queryByText('card body')).toBeNull()
+
+    view.rerender(markup(released))
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(screen.getByText('card body')).toBeTruthy()
+  })
+
+  it('keeps card content mounted while its own tooltip is visible', () => {
+    render(<HoverCard
+      anchor={<span>row</span>}
+      content={<div>card body<Tooltip label="Details"><button type="button">card action</button></Tooltip></div>}
+      copyLabel="Copy"
+      copiedLabel="Copied"
+    />)
+    fireEvent.pointerEnter(screen.getByText('row').parentElement as HTMLElement)
+    act(() => { vi.advanceTimersByTime(500) })
+    const card = screen.getByText('card body')
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'card action' }))
+    expect(card.isConnected).toBe(true)
+    expect(screen.getByRole('tooltip').textContent).toBe('Details')
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(card.isConnected).toBe(true)
+    expect(screen.getByRole('tooltip').textContent).toBe('Details')
+  })
+
   it('opens after the dwell delay, positioned right of the anchor', () => {
     const { wrapper } = mount()
     fireEvent.pointerEnter(wrapper)
@@ -569,4 +610,76 @@ describe('HoverCard', () => {
     act(() => { vi.advanceTimersByTime(1000) })
     expect(screen.queryByText('card body')).toBeNull()
   })
+})
+
+it('opens inline previews only for keyboard focus and closes when focus leaves the anchor', () => {
+  const anchor = <><button>first</button><button>second</button></>
+  const view = render(<HoverCard inline anchor={anchor} content={<span>thumbnail</span>} />)
+  const first = screen.getByRole('button', { name: 'first' })
+  const second = screen.getByRole('button', { name: 'second' })
+  const matches = vi.spyOn(first, 'matches').mockReturnValue(false)
+  fireEvent.focus(first)
+  expect(screen.queryByText('thumbnail')).toBeNull()
+  matches.mockReturnValue(true)
+  fireEvent.focus(first)
+  expect(screen.getByText('thumbnail')).toBeTruthy()
+  fireEvent.blur(first, { relatedTarget: second })
+  expect(screen.getByText('thumbnail')).toBeTruthy()
+  fireEvent.blur(second, { relatedTarget: document.body })
+  expect(screen.queryByText('thumbnail')).toBeNull()
+  view.rerender(<HoverCard inline disabled anchor={anchor} content={<span>thumbnail</span>} />)
+  fireEvent.focus(first)
+  expect(screen.queryByText('thumbnail')).toBeNull()
+  matches.mockRestore()
+})
+
+it('dismisses an inline hover without anchor focus and lets the next Escape reach the owner', () => {
+  const ownerKey = vi.fn()
+  render(<div onKeyDown={ownerKey}>
+    <button>outside</button>
+    <HoverCard inline anchor={<button>image link</button>} content={<span>thumbnail</span>} />
+  </div>)
+  const outside = screen.getByRole('button', { name: 'outside' })
+  outside.focus()
+  const wrapper = screen.getByRole('button', { name: 'image link' }).parentElement!
+  // jsdom lacks PointerEvent; preserve its pointerType through a regular DOM event.
+  const touch = new Event('pointerover', { bubbles: true })
+  Object.defineProperty(touch, 'pointerType', { value: 'touch' })
+  fireEvent(wrapper, touch)
+  act(() => { vi.advanceTimersByTime(500) })
+  expect(screen.queryByText('thumbnail')).toBeNull()
+  fireEvent.pointerEnter(wrapper)
+  act(() => { vi.advanceTimersByTime(500) })
+  expect(document.activeElement).toBe(outside)
+  fireEvent.keyDown(outside, { key: 'a' })
+  expect(screen.getByText('thumbnail')).toBeTruthy()
+  ownerKey.mockClear()
+  fireEvent.keyDown(outside, { key: 'Escape' })
+  expect(screen.queryByText('thumbnail')).toBeNull()
+  expect(ownerKey).not.toHaveBeenCalled()
+  fireEvent.keyDown(outside, { key: 'Escape' })
+  expect(ownerKey).toHaveBeenCalledOnce()
+})
+
+it('flips inline media above a bottom link and constrains it without covering the anchor', () => {
+  render(<HoverCard inline anchor={<button>image link</button>} content={<span>thumbnail</span>} />)
+  const wrapper = screen.getByRole('button').parentElement!
+  wrapper.getBoundingClientRect = () => DOMRect.fromRect({ x: window.innerWidth - 100, y: window.innerHeight - 60, width: 80, height: 24 })
+  fireEvent.pointerEnter(wrapper)
+  act(() => { vi.advanceTimersByTime(500) })
+  const card = screen.getByText('thumbnail').parentElement!
+  Object.defineProperty(card, 'offsetHeight', { configurable: true, value: 28 })
+  Object.defineProperty(card, 'scrollHeight', { configurable: true, value: 220 })
+  fireEvent.resize(window)
+  expect(Number.parseFloat(card.style.top) + 220).toBe(window.innerHeight - 68)
+  expect(Number.parseFloat(card.style.left) + Number.parseFloat(card.style.width)).toBe(window.innerWidth - 8)
+  // Neither side fits: constrain the larger side and keep the link unobstructed.
+  Object.defineProperty(card, 'offsetHeight', { configurable: true, value: 1000 })
+  fireEvent.resize(window)
+  expect(card.style.top).toBe('8px')
+  expect(Number.parseFloat(card.style.maxHeight)).toBe(window.innerHeight - 76)
+  wrapper.getBoundingClientRect = () => DOMRect.fromRect({ x: 30, y: 10, width: 80, height: 24 })
+  fireEvent.resize(window)
+  expect(card.style.top).toBe('42px')
+  expect(Number.parseFloat(card.style.maxHeight)).toBe(window.innerHeight - 50)
 })

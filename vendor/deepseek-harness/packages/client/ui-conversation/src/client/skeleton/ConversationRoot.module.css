@@ -189,6 +189,12 @@
 
 .titleRow {
   grid-column: 2;
+  /* Anonymous inline-size container (CSS modules hash container-names per
+     module, so occupants match the nearest container): header occupants such
+     as the preset label and slot actions shed their text at row-width
+     breakpoints. The minmax(0, 1fr) column sizes the row, so inline-size
+     containment cannot collapse it. */
+  container-type: inline-size;
   display: flex;
   /* The title row's content box already excludes AppFrame's measured trailing
      reserve. Query this width for local action priority; changing these
@@ -252,7 +258,7 @@
   overflow: hidden;
   padding: 4px 8px;
   border: none;
-  border-radius: 12px;
+  border-radius: var(--dsw-radius-md);
   background: transparent;
   font-size: 14px;
   line-height: 20px;

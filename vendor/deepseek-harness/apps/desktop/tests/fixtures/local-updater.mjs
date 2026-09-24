@@ -240,8 +240,9 @@ async function main() {
       const config = resolveDesktopPolicyConfig({ origin: server.url, allowedPageOrigins: ['https://downloads.example.com'],
         intervalMs: 600_000, timeoutMs: 1000 }, true)
       let modal
-      const policy = new DesktopMandatoryUpdatePolicy(config, { platform: 'win32', arch: 'x64',
-        version: '1.0.0', bundledDshVersion: '1.0.0', bundleId: 'com.deepseek.dsh', locale: 'zh-CN' }, () => { modal?.sync() })
+      const policy = new DesktopMandatoryUpdatePolicy(config, { platform: 'win32', arch: 'x64', bundledDshVersion: '1.0.0' },
+        () => { modal?.sync() }, undefined,
+        () => ({ version: '1.0.0', locale: 'zh-CN', timezoneOffsetSeconds: -new Date().getTimezoneOffset() * 60 }))
       modal = new DesktopMandatoryUpdateWindow({
         preload: fileURLToPath(new URL('../../lib/preload-mandatory.cjs', import.meta.url)),
         locale: resolveDesktopLocale('zh-CN'), allowedPageOrigins: config.allowedPageOrigins,

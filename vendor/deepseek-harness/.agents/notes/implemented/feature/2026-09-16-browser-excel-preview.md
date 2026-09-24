@@ -24,7 +24,7 @@ The pinned FortuneSheet React dependency carries a [patch](../../../../patches/@
 
 The read-only formula bar takes formulas from raw `cell.f` and writes formulas and cell text through `textContent`. FortuneSheet's formula formatter emits HTML spans containing document text, and its HTML helper passes formulas and strings starting with `<span` through unchanged. Neither read-only mode nor the parser Worker isolates this DOM. The [core patch](../../../../patches/@fortune-sheet__core@1.0.4.patch) HTML-escapes copied cell contents, including literal strings and saved formula results, while preserving the clipboard table and formatting.
 
-The ESM and CommonJS entries receive the same patches. Recheck worksheet switching, complete initial selections, literal formula-bar text, and escaped table copying when upgrading FortuneSheet.
+The core patch also skips drawing freeze dividers when `allowEdit === false`, retaining the frozen-pane calculations and editable-mode dividers. These dividers are Canvas strokes, so scoped CSS cannot change them. Preview-scoped CSS hides the row and column freeze drag handles. The ESM and CommonJS entries receive the same patches. Recheck worksheet switching, complete initial selections, literal formula-bar text, escaped table copying, and frozen-pane rendering and scrolling when upgrading FortuneSheet.
 
 ## Alternatives considered
 

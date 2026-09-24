@@ -60,7 +60,7 @@ describe('runProfile with an application-owned profile', () => {
       throw failure
     })
     if (stage === 'composition') vi.mocked(createRuntimeResolution).mockRejectedValueOnce(failure)
-    const profile: Profile = {
+    const profile: Profile = { skippedBundles: [],
       name: 'desktop', dir: home, patchPath: join(home, 'cordis.patch.yml'),
       patches: [], layers: [],
     }
@@ -121,7 +121,7 @@ describe('runProfile with an application-owned profile', () => {
     writeFileSync(profilePatch, '- id: target\n  config: { profile: true, priority: profile }\n')
     writeFileSync(overlay, '- id: target\n  config: { overlay: true, priority: overlay }\n')
     writeFileSync(join(home, 'cordis.yml'), '- id: stale\n')
-    const profile: Profile = {
+    const profile: Profile = { skippedBundles: [],
       name: 'desktop', dir: home, patchPath: profilePatch,
       patches: [{ id: 'target', config: { profile: true, priority: 'profile' } }],
       layers: [{

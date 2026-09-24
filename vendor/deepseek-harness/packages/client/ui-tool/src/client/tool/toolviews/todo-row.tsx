@@ -27,7 +27,8 @@ interface RowSummary {
   extra: number
 }
 
-function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
+function summarize(argsRaw: string | null, t: TodoRowProps['t']): RowSummary | null {
+  if (argsRaw === null) return null
   let parsed: unknown
   try {
     parsed = JSON.parse(argsRaw)
@@ -54,8 +55,7 @@ export function TodoRow({ toolName, block, inspect, useDisclosure, useTodoHistor
   const hasMore = useSession(snapshot => snapshot.hasMore)
   const diff = useMemo(() => todoDiffModel(block, baseline, hasMore, t), [block, baseline, hasMore, t])
   const model = toolRowModel(toolName, block)
-  const argsRaw = ('kind' in block ? block.call?.argsRaw : block.argsRaw) ?? ''
-  const summary = summarize(argsRaw, t) ?? { text: model.summary, extra: 0 }
+  const summary = summarize(model.bodyRaw, t) ?? { text: model.summary, extra: 0 }
   return (
     <ToolRow
       useDisclosure={useDisclosure}
@@ -63,7 +63,7 @@ export function TodoRow({ toolName, block, inspect, useDisclosure, useTodoHistor
       variant={model.variant}
       toolName={toolName}
       icon={<IconChecklistOutlineRegular />}
-      title={t('todo.rowTitle')}
+      title={t(model.titleKey)}
       summary={summary.text}
       summarySuffix={[diff?.summary, summary.extra > 0 ? `+${summary.extra}` : null]
         .filter((part): part is string => part !== null && part !== undefined).join(' · ') || null}

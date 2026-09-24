@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 def validate_resources(root: Path | zipfile.Path, target: str) -> None:
-    """Reject a missing or wrong-target Python environment or bundled Office skill tree."""
+    """Reject a missing or wrong-target Python/Node environment or bundled Office skill tree."""
     manifest_path = root / "primary-runtime/runtime.json"
     if not manifest_path.is_file():
         raise FileNotFoundError(f"runtime authoring resources are missing: {manifest_path}")
@@ -27,7 +27,8 @@ def validate_resources(root: Path | zipfile.Path, target: str) -> None:
     python_root = root / "primary-runtime/dependencies/python"
     executable = python_root / ("python.exe" if platform == "win32" else "bin/python3")
     packages = python_root / ("Lib/site-packages" if platform == "win32" else f"lib/python{version.rsplit('.', 1)[0]}/site-packages")
-    required = [executable, root / "office-skills/scripts/check_office.py"]
+    node = root / "primary-runtime/dependencies/node/bin" / ("node.exe" if platform == "win32" else "node")
+    required = [executable, node, root / "office-skills/scripts/check_office.py"]
     required.extend(root / f"office-skills/office-{kind}/SKILL.md" for kind in ("docx", "pptx", "xlsx"))
     for path in required:
         if not path.is_file():
@@ -35,7 +36,8 @@ def validate_resources(root: Path | zipfile.Path, target: str) -> None:
     if not packages.is_dir():
         raise FileNotFoundError(f"runtime Python site-packages is missing: {packages}")
     if platform != "win32":
-        mode = (executable.root.getinfo(executable.at).external_attr >> 16
-                if isinstance(executable, zipfile.Path) else executable.stat().st_mode)
-        if mode & stat.S_IXUSR == 0:
-            raise ValueError(f"runtime Python lost its executable bit: {executable}")
+        for binary in (executable, node):
+            mode = (binary.root.getinfo(binary.at).external_attr >> 16
+                    if isinstance(binary, zipfile.Path) else binary.stat().st_mode)
+            if mode & stat.S_IXUSR == 0:
+                raise ValueError(f"runtime interpreter lost its executable bit: {binary}")

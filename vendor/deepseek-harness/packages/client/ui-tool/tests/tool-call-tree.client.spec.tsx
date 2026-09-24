@@ -61,6 +61,31 @@ function props(
 }
 
 describe('ToolCallTree', () => {
+  it('dispatches only the parent and changed child among 100 sibling calls', () => {
+    const children = Array.from({ length: 100 }, (_, index) => root(`child-${index}`, { name: 'custom_child', argsRaw: '{}' }))
+    const block = { ...root('parent', { name: 'custom_parent', argsRaw: '{}' }), subCalls: children }
+    const owners: ToolCallOwnerProps[] = []
+    const initial = props(block, undefined, owners)
+    const view = render(<ToolCallTree {...initial} />)
+    expect(owners).toHaveLength(101)
+    owners.length = 0
+    const changed = { ...children[42]!, isError: true }
+    const next = { ...block, subCalls: children.map((child, index) => index === 42 ? changed : child) }
+    view.rerender(<ToolCallTree {...initial} node={{ ...initial.node, data: { root: next } }} />)
+    expect(owners.map(owner => owner.callId)).toEqual(['parent', 'child-42'])
+  })
+
+  it('dispatches preparation through the existing keyed toolview with no argument fields', () => {
+    const owners: ToolCallOwnerProps[] = []
+    const view = render(<ToolCallTree {...props({
+      phase: 'preparing', callId: 'preparing', name: 'write', turn: 1, step: 1, time: 1, subCalls: [],
+    }, undefined, owners)} />)
+    expect(owners[0]).toMatchObject({ phase: 'preparing', callId: 'preparing', toolName: 'write' })
+    expect(owners[0]?.block).not.toHaveProperty('argsRaw')
+    expect(view.container.querySelector('[data-chat-call-id="preparing"] [data-state="preparing"]')).not.toBeNull()
+    expect(view.queryByRole('button')).toBeNull()
+  })
+
   it('forwards one stable disclosure Hook to nested calls and resets only their open state', () => {
     const reset = createSnapshotStore(0)
     const useDisclosure = bindDisclosure(reset)
@@ -139,13 +164,14 @@ describe('ToolCallTree', () => {
   it('dispatches a running call by its wire name and forwards inspect', () => {
     const owners: ToolCallOwnerProps[] = []
     const block: ToolCallBlock = {
-      callId: 'running', name: 'bash', argsRaw: '{"command":"pwd"}',
+      phase: 'start' as const, callId: 'running', name: 'bash', argsRaw: '{"command":"pwd"}',
       turn: 1, step: 0, time: 1_000, subCalls: [],
     }
     const treeProps = props(block, undefined, owners)
     render(<ToolCallTree {...treeProps} />)
 
     expect(owners[0]?.toolName).toBe('bash')
+    expect(owners[0]?.phase).toBe('start')
     const inspect = owners[0]?.inspect
     expect(inspect).toBeDefined()
     inspect?.()

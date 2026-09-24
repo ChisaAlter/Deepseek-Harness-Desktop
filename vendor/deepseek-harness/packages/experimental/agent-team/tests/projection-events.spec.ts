@@ -4,7 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionEventMap, SessionEventType } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import { teamProjectionDefinition } from '../src/projection.ts'
+import { teamProjectionDefinition, teamProjectionView } from '../src/projection.ts'
 import type { TeamProjectionState, TeamState } from '../src/projection.ts'
 import { TeamId, TeamMessageId, TeamTaskId } from '../src/types.ts'
 import type { TeamMemberSnapshot, TeamMessageSnapshot, TeamTaskSnapshot } from '../src/types.ts'
@@ -423,5 +423,162 @@ describe('Agent Teams projection events', () => {
       },
     } as unknown as SessionEvent
     expect(isEmptyState(projectTeam(ROOT, [inherited]))).toBe(true)
+  })
+
+  describe('copy-on-write state and client view', () => {
+    const memberEvent = event('team/member', { version: 2, teamId: TEAM, member: member() }, SessionSeq(0))
+    const taskEvent = event('team/task', { version: 2, teamId: TEAM, task: task() }, SessionSeq(1))
+    const queuedEvent = event('team/message/queued', { version: 2, teamId: TEAM, message: message() }, SessionSeq(2))
+    const deliveredEvent = event('team/message/delivered', {
+      version: 2, teamId: TEAM, messageId: TeamMessageId('message-1'), targetId: CHILD,
+    }, SessionSeq(3))
+
+    it('returns the same state for unrelated events and a new state that replaces only the touched collection', () => {
+      const initial = project(ROOT, [])
+      expect(teamProjectionDefinition.apply(initial, { type: 'turn/start', data: { turn: 1 }, seq: 0, time: 0 } as SessionEvent)).toBe(initial)
+      expect(teamProjectionDefinition.apply(initial, event('team/member', {
+        version: 2, teamId: TeamId('ancestor'), member: member(),
+      }, SessionSeq(0)))).toBe(initial)
+
+      const withMember = teamProjectionDefinition.apply(initial, memberEvent)
+      expect(withMember).not.toBe(initial)
+      expect(initial.members).toEqual([])
+      expect(withMember.members).toHaveLength(1)
+      expect(withMember.tasks).toBe(initial.tasks)
+
+      const withTask = teamProjectionDefinition.apply(withMember, taskEvent)
+      expect(withTask.members).toBe(withMember.members)
+      expect(withTask.tasks).not.toBe(withMember.tasks)
+      expect(withMember.tasks).toEqual([])
+
+      const withMail = teamProjectionDefinition.apply(withTask, queuedEvent)
+      expect(withMail.members).toBe(withTask.members)
+      expect(withMail.tasks).toBe(withTask.tasks)
+      expect(withMail.messages).not.toBe(withTask.messages)
+      expect(withTask.messages).toEqual([])
+
+      const withReceipt = teamProjectionDefinition.apply(withMail, deliveredEvent)
+      expect(withReceipt.delivered).not.toBe(withMail.delivered)
+      expect(withMail.delivered).toEqual([])
+      expect(teamProjectionDefinition.apply(withReceipt, { ...deliveredEvent, seq: SessionSeq(4) })).not.toBe(withReceipt)
+    })
+
+    it('enters failure through a new state that keeps the last valid collections', () => {
+      const valid = project(ROOT, [memberEvent, taskEvent])
+      const failed = teamProjectionDefinition.apply(valid, event('team/task', {
+        version: 1 as 2, teamId: TEAM, task: task(),
+      }, SessionSeq(2)))
+      expect(failed).not.toBe(valid)
+      expect(valid.failure).toBeUndefined()
+      expect(failed.failure).toMatch(/unsupported Agent Teams event version 1/)
+      expect(failed.members).toBe(valid.members)
+      expect(failed.tasks).toBe(valid.tasks)
+      expect(teamProjectionDefinition.apply(failed, queuedEvent)).toBe(failed)
+    })
+
+    it('views durable roster and non-deleted derived tasks and reuses the view across mailbox-only changes', () => {
+      const activeMember = event('team/member', { version: 2, teamId: TEAM, member: member({ phase: 'active' }) }, SessionSeq(1))
+      const claimed = event('team/task', {
+        version: 2, teamId: TEAM, task: task({ revision: 2, status: 'in_progress', ownerId: CHILD, writeScopes: ['src'] }),
+      }, SessionSeq(2))
+      const blocked = event('team/task', {
+        version: 2, teamId: TEAM, task: task({ id: TeamTaskId('task-2'), blockedBy: [TeamTaskId('task-1')], writeScopes: ['src/web'] }),
+      }, SessionSeq(3))
+      const leadOwned = event('team/task', {
+        version: 2, teamId: TEAM, task: task({ id: TeamTaskId('task-3'), revision: 1, status: 'in_progress', ownerId: ROOT }),
+      }, SessionSeq(4))
+      const deleted = event('team/task', {
+        version: 2, teamId: TEAM, task: task({ id: TeamTaskId('task-3'), revision: 2, status: 'deleted', ownerId: ROOT }),
+      }, SessionSeq(5))
+      const state = project(ROOT, [memberEvent, activeMember, taskEvent, claimed, blocked, leadOwned, deleted])
+      const view = teamProjectionView(state)
+      expect(teamProjectionDefinition.wire.viewSchema.parse(view)).toEqual(view)
+      expect(view).toEqual({
+        members: [
+          { id: ROOT, name: 'lead', role: 'lead', phase: 'active' },
+          { id: CHILD, name: 'worker-a', role: 'teammate', phase: 'active' },
+        ],
+        tasks: [
+          {
+            id: 'task-1', revision: 2, subject: 'subject', description: 'description', status: 'in_progress',
+            blockedBy: [], writeScopes: ['src'], ownerName: 'worker-a', ready: false, writeScopeWarnings: [],
+          },
+          {
+            id: 'task-2', revision: 1, subject: 'subject', description: 'description', status: 'pending',
+            blockedBy: ['task-1'], writeScopes: ['src/web'], ready: false, writeScopeWarnings: ['write scopes overlap with task-1'],
+          },
+        ],
+      })
+      expect(view).not.toHaveProperty('failure')
+      expect(teamProjectionView(state)).toBe(view)
+
+      const withMail = teamProjectionDefinition.apply(state, { ...queuedEvent, seq: SessionSeq(6) })
+      expect(teamProjectionView(withMail)).toBe(view)
+      const withMember = teamProjectionDefinition.apply(withMail, event('team/member', {
+        version: 2, teamId: TEAM, member: member({ id: SessionId('child-b'), name: 'worker-b' }),
+      }, SessionSeq(7)))
+      const memberView = teamProjectionView(withMember)
+      expect(memberView).not.toBe(view)
+      expect(memberView.members.at(-1)).toEqual({
+        id: 'child-b', name: 'worker-b', role: 'teammate', phase: 'provisioning',
+      })
+
+      const failedMember = event('team/member', {
+        version: 2, teamId: TEAM, member: member({ id: SessionId('child-b'), name: 'worker-b', phase: 'failed', error: 'provider failed' }),
+      }, SessionSeq(8))
+      expect(teamProjectionView(teamProjectionDefinition.apply(withMember, failedMember)).members.at(-1))
+        .toMatchObject({ phase: 'failed', error: 'provider failed' })
+    })
+
+    it('publishes the failure with the last valid roster and tasks', () => {
+      const state = project(ROOT, [memberEvent, taskEvent, event('team/task', {
+        version: 1 as 2, teamId: TEAM, task: task(),
+      }, SessionSeq(2))])
+      const view = teamProjectionView(state)
+      expect(view.failure).toMatch(/unsupported Agent Teams event version 1/)
+      expect(view.members).toHaveLength(2)
+      expect(view.tasks).toHaveLength(1)
+      expect(teamProjectionDefinition.wire.viewSchema.parse(view)).toEqual(view)
+    })
+
+    it('drives live agentTeam publications per Session through the projection registry', async () => {
+      const ctx = new Context()
+      onTestFinished(() => ctx.fiber.dispose())
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(SessionProjectionRegistry)
+      ctx.effect(() => ctx.sessionProjections.register(teamProjectionDefinition))
+      const published: Array<{ session: SessionId; key: string; value: unknown }> = []
+      ctx.sessionProjections.onChanged((session, key, value) => {
+        published.push({ session: session.id, key, value })
+      })
+      const lead = ctx.sessions.create(ROOT)
+      const other = ctx.sessions.create(SessionId('other-root'))
+      expect(ctx.sessionProjections.snapshot(lead).values['agentTeam']).toEqual({
+        members: [{ id: ROOT, name: 'lead', role: 'lead', phase: 'active' }],
+        tasks: [],
+      })
+
+      lead.append('team/task', taskEvent.data)
+      expect(published).toHaveLength(1)
+      expect(published[0]).toMatchObject({
+        session: ROOT,
+        key: 'agentTeam',
+        value: { tasks: [{ id: 'task-1', ready: true }] },
+      })
+
+      lead.append('team/message/queued', queuedEvent.data)
+      lead.append('turn/start', { turn: 1 })
+      expect(published).toHaveLength(1)
+
+      other.append('team/task', { version: 2, teamId: TeamId(other.id), task: task() })
+      expect(published).toHaveLength(2)
+      expect(published[1]).toMatchObject({
+        session: other.id,
+        value: { members: [{ id: other.id, name: 'lead', role: 'lead', phase: 'active' }] },
+      })
+      expect(ctx.sessionProjections.snapshot(lead).values['agentTeam']).toMatchObject({
+        tasks: [{ id: 'task-1' }],
+      })
+    })
   })
 })

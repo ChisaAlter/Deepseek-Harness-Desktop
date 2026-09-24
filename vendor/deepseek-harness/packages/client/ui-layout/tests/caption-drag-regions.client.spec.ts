@@ -73,7 +73,7 @@ describe('caption drag regions across client stylesheets', () => {
       .map(block => `${file.path} :: ${block.selector}`))
     expect(dragBlocks).toEqual([
       'packages/client/ui-layout/src/client/AppFrame.module.css :: .captionDrag',
-      "packages/client/ui-sidebar/src/client/SidebarRoot.module.css :: :global([data-platform='darwin']) .logoRow",
+      "packages/client/web/src/base.css :: html[data-platform='darwin'] [data-window-drag]",
     ])
   })
 

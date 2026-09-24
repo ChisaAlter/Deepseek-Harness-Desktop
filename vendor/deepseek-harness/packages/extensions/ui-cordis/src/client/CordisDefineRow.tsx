@@ -11,6 +11,7 @@ import type { CordisCardFace } from './slots.ts'
 import { cordisVisibleStatus, type CordisVisibleStatus } from './status.ts'
 import type { CordisKey } from './locales.ts'
 import css from './CordisDefineRow.module.css'
+import { CordisPreparingRow } from './CordisPreparingRow.tsx'
 
 /** Full card props composed by the keyed Tool slot. */
 export type CordisDefineRowProps = ToolCallViewProps & InjectFace<CordisCardFace> & PropsLocale<'cordis'>
@@ -35,9 +36,16 @@ function stateStatus(state: CordisToolState): CordisKey | null {
 }
 
 /** Render one immutable Package definition. */
-export function CordisDefineRow({
+export function CordisDefineRow(props: CordisDefineRowProps) {
+  if (props.phase === 'preparing') return <CordisPreparingRow {...props}
+    icon={<IconCodeOutlineRegular size={14} />} title={props.t('row.defineTitle')}
+    className={css.card} rowClassName={css.row} titleClassName={css.title} />
+  return <StartedCordisDefineRow {...props} />
+}
+
+function StartedCordisDefineRow({
   callId, block, inspect, useInventory, useLoaded, t,
-}: CordisDefineRowProps) {
+}: Exclude<CordisDefineRowProps, { phase: 'preparing' }>) {
   const card = cordisDefineCard(block)
   const inventory = useInventory(snapshot => snapshot)
   const loaded = useLoaded(snapshot => snapshot)

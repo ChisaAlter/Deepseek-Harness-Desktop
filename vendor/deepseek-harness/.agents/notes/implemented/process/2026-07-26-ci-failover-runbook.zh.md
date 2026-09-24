@@ -20,7 +20,7 @@ Status: implemented
 
 ### 自有池是什么
 
-`vm-backup`：一台共享虚拟机，运行多个常驻 systemd 管理的运行器实例。注册实例共享 CPU、内存和磁盘；实例数量不代表独立机器数量。其镜像必须预装 Playwright Chromium 的 Linux 系统软件包；CI 会下载锁文件选定的浏览器，但绝不在这台持久化共享主机上运行 `apt`。切换前先看 `serial / linux (self-hosted standby)` 最近一次运行：其聚合流程包含浏览器回放，因此绿色热备同时验证常规容量和这项浏览器先决条件。
+`vm-backup`：一台共享虚拟机，运行多个常驻 systemd 管理的运行器实例。注册实例共享 CPU、内存和磁盘；实例数量不代表独立机器数量。其镜像必须预装 Playwright Chromium 和 WebKit 所需的 Linux 系统软件包；CI 会下载锁文件选定的浏览器，但绝不在这台持久化共享主机上运行 `apt`。切换前先看 `serial / linux (self-hosted standby)` 最近一次运行：其聚合流程包含浏览器回放，因此绿色热备同时验证常规容量和这项浏览器先决条件。
 
 #### Windows 池
 

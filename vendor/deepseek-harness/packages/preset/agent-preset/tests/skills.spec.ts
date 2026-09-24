@@ -46,6 +46,16 @@ describe('the shipped creator skills', () => {
     }
   })
 
+  it('keep whole-file plugin references below the pruner threshold with read line numbers', () => {
+    const references = join(skills, 'cordis-plugin-development', 'references')
+    for (const file of readdirSync(references)) {
+      const lines = readFileSync(join(references, file), 'utf8').split('\n')
+      // The read tool renders each line as `${number}: ${text}`.
+      const numbered = lines.map((text, index) => `${String(index + 1)}: ${text}`).join('\n')
+      expect(codePointLength(numbered), file).toBeLessThan(PRUNER_THRESHOLD_CHARS)
+    }
+  })
+
   it('ship templates whose manifest, patch, and JavaScript parse', () => {
     const templates = join(skills, 'cordis-plugin-development', 'templates')
     for (const name of readdirSync(templates)) {

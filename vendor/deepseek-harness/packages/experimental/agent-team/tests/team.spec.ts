@@ -22,17 +22,19 @@ import { TestSessionQuery } from './test-session-query.ts'
 
 const SIGNAL = new AbortController().signal
 const roots: string[] = []
+const contexts: Context[] = []
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers()
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 /** Detached durable Team read through the same projection definition as the service. */
 function durable(agent: Agent): {
-  members: TeamMemberSnapshot[]
-  tasks: TeamTaskSnapshot[]
-  pendingMessages: TeamMessageSnapshot[]
+  members: readonly TeamMemberSnapshot[]
+  tasks: readonly TeamTaskSnapshot[]
+  pendingMessages: readonly TeamMessageSnapshot[]
 } {
   let projected = teamProjectionDefinition.init(agent.session.header)
   for (const event of agent.session.snapshotEvents()) projected = teamProjectionDefinition.apply(projected, event)
@@ -60,6 +62,7 @@ async function setup(
   config: ConstructorParameters<typeof TeamService>[1] = {},
 ) {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-'))
   roots.push(storageRoot)
@@ -167,6 +170,7 @@ describe('Team identity and provisioning', () => {
 
   it('supports direct-constructor defaults and recovers roots that already exist', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-direct-'))
     roots.push(storageRoot)
@@ -873,24 +877,6 @@ describe('Team shared task DAG', () => {
   })
 })
 
-describe('Team Remote API', () => {
-  it('reads tasks created and updated by Team agents', async () => {
-    const { ctx, lead } = await setup([])
-    expect(ctx.agentTeams.typertRemote).toMatchObject({ serviceKey: 'agentTeams', namespace: 'agentTeams' })
-    expect(ctx.agentTeams.remoteView(lead)).toEqual({
-      members: [expect.objectContaining({ name: 'lead', role: 'lead', status: 'inactive' })],
-      tasks: [],
-    })
-    const created = await ctx.agentTeams.createTask(lead, {
-      subject: 'Agent task', description: 'Created by the Team Lead',
-    })
-    const updated = await ctx.agentTeams.updateTask(lead, {
-      taskId: created.id, expectedRevision: 1, action: 'claim',
-    })
-    expect(ctx.agentTeams.remoteView(lead).tasks).toEqual([updated])
-  })
-})
-
 describe('Team mailbox and waiting', () => {
   it('steers a message addressed to the Lead and checkpoints its receipt', async () => {
     const { ctx, lead } = await setup(['hang'])
@@ -1364,6 +1350,7 @@ describe('Team mailbox and waiting', () => {
 
   it('waits for one change, supports cancellation, times out, and releases waiters on HMR disposal', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-wait-'))
     roots.push(storageRoot)

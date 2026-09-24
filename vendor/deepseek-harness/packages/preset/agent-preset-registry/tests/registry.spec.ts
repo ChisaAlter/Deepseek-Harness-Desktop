@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import { entryListProblem, livePresetMounts } from '../src/index.ts'
-import { currentKey, harness, declare, contribution, agentOn, liveRegistries } from './harness.ts'
+import { currentKey, harness, declare, contribution, agentOn, liveRegistries, plugin } from './harness.ts'
 import { omitsGeneratedPage } from '../../../settings/settings/tests/live-config.ts'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -74,7 +74,6 @@ describe('declarative preset revisions', () => {
     await expect(ctx.agentPresets.mount(scope.ctx, 'broken')).rejects.toThrow()
     expect(await ctx.agentPresets.mount(scope.ctx)).toEqual({ id: 'standard' })
     const roster = await ctx.agentPresets.remoteExportList()
-    expect(roster.modeSelectionEnabled).toBe(true)
     expect(roster.presets.find(row => row.id === 'standard')?.isDefault).toBe(true)
   })
 
@@ -120,6 +119,27 @@ describe('declarative preset revisions', () => {
       expect.objectContaining({ id: 'standard', name: 'Standard', isDefault: true, rows: expect.any(Array) as unknown[] }),
       expect.objectContaining({ id: 'empty', rows: [expect.objectContaining({ moduleName: 'missing', enabled: false })] }),
     ]))
+  })
+
+  it('renders a declaration as entry-list YAML for reading, conditions included', async () => {
+    const ctx = await setup()
+    await declare(ctx, {
+      ...contribution('standard'), name: 'Standard', description: 'General',
+      plugins: [
+        { id: 'contribute', name: plugin('contribute'), config: { tool: 'standard' } },
+        { id: 'windows-only', name: 'missing', disabled: { __jsExpr: "process.platform !== 'win32'" } },
+      ],
+    })
+    const document = await ctx.agentPresets.readDocument('standard')
+    expect(document).toMatchObject({ agentPreset: 'standard', name: 'Standard', description: 'General' })
+    expect(document.content.startsWith('- id: contribute\n  name: ')).toBe(true)
+    expect(document.content).toContain("\n  config:\n    tool: standard\n- id: windows-only\n  name: missing\n  disabled: !!js process.platform !== 'win32'\n")
+    expect(document.content).not.toContain('__jsExpr')
+    await declare(ctx, contribution('minimal'))
+    expect(await ctx.agentPresets.readDocument('minimal')).toEqual({
+      agentPreset: 'minimal', content: expect.any(String) as string,
+    })
+    await expect(ctx.agentPresets.readDocument('absent')).rejects.toThrow('Unknown agent preset: absent')
   })
 })
 
@@ -196,18 +216,28 @@ it('allows an isolated service and resolves it through the Agent composition', a
   expect(ctx.agentPresets.serviceFor({ ctx: scope.ctx }, 'loader')).toBeUndefined()
 })
 
-it('keeps policy preferences while hiding and restoring the chooser', async () => {
+it('resolves the saved default over the deployment default, and drops a removed override', async () => {
   const ctx = await harness({ live: true })
   contexts.push(ctx)
   const live = liveRegistries.get(ctx)!
-  await live.update({ selectedDefault: 'minimal', modeSelectionEnabled: true })
-  expect(ctx.agentPresets.defaultId).toBe('minimal')
-  await live.update({ modeSelectionEnabled: false })
-  expect(ctx.agentPresets.defaultId).toBe('standard')
-  await live.update({ modeSelectionEnabled: true })
+  await live.update({ selectedDefault: 'minimal' })
   expect(ctx.agentPresets.defaultId).toBe('minimal')
   await live.replace({ default: 'standard' })
   expect(ctx.agentPresets.defaultId).toBe('standard')
+})
+
+it('ignores a retired modeSelectionEnabled field in the user patch', async () => {
+  const ctx = await harness({ live: true })
+  contexts.push(ctx)
+  const live = liveRegistries.get(ctx)!
+  await declare(ctx, contribution('minimal'))
+  // A patch written before Developer tools became the only gate still carries
+  // this key; the Loader's declared fields simply do not include it.
+  await live.update({ selectedDefault: 'minimal', modeSelectionEnabled: false })
+  expect(ctx.agentPresets.defaultId).toBe('minimal')
+  expect((await ctx.agentPresets.remoteExportList()).presets.find(row => row.id === 'minimal')?.isDefault).toBe(true)
+  // Neither read nor rewritten: the raw entry keeps the key it was loaded with.
+  expect(live.entry.options.config).toMatchObject({ selectedDefault: 'minimal', modeSelectionEnabled: false })
 })
 
 it('keeps its own instance off the generated Settings pages', () => omitsGeneratedPage(async (ctx) => {

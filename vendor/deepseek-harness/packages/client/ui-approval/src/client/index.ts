@@ -7,6 +7,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { PendingInteractionPublisher } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TypertClientEventListener } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
 import { ApprovalPanel } from './ApprovalPanel.tsx'
 import { PendingApproval } from './contract/slots.ts'
 import { en, zh } from './locales.ts'
@@ -48,6 +49,7 @@ async function answerApproval(
       ? {}
       : { callId: request.callId }),
     ...(request.reason === undefined ? {} : { reason: request.reason }),
+    ...(request.displayReason === undefined ? {} : { displayReason: request.displayReason }),
     ...(request.signal === undefined ? {} : { signal: request.signal }),
   })
   const completed = Promise.withResolvers<void>()
@@ -75,6 +77,15 @@ async function answerApproval(
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-approval: dictionaries')
+  ctx.inject(['shortcuts'], (scope) => {
+    const t = ctx.locale.bind(NS)
+    scope.effect(() => scope.shortcuts.registerFixed({
+      id: 'approval.allow' as ShortcutCommandId, label: () => t('allowOnce'), keys: ['Enter'], bindings: [{ code: 'Enter', modifiers: [] }], group: 'approval',
+    }), 'ui-approval: fixed allow reference')
+    scope.effect(() => scope.shortcuts.registerFixed({
+      id: 'approval.reject' as ShortcutCommandId, label: () => t('reject'), keys: ['Esc'], bindings: [{ code: 'Escape', modifiers: [] }], group: 'approval',
+    }), 'ui-approval: fixed reject reference')
+  })
   const registerPendingInteraction = ctx.uiSession.registerPendingInteraction<PendingApproval>(
     () => 0,
   )
@@ -84,6 +95,9 @@ export function apply(ctx: ClientContext): void {
     select: ({ pendingInteraction }: ComposerChainProps): PendingApproval | null =>
       pendingInteraction instanceof PendingApproval ? pendingInteraction : null,
     locale: NS,
+    inject: () => ({
+      resolveReason: (reason: NonNullable<PendingApproval['displayReason']>) => ctx.locale.resolveText(reason),
+    }),
     children: {
       'conversation.approval.detail': { kind: 'single', scope: 'session' },
     },

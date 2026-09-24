@@ -22,6 +22,7 @@ function distinct(index: number): OfficeToPdfRequest {
 let ctx: Context
 let render: ReturnType<typeof vi.fn<Converter['render']>>
 let dispose: ReturnType<typeof vi.fn<Converter['dispose']>>
+let converter: Converter
 
 beforeEach(() => {
   ctx = new Context()
@@ -30,7 +31,13 @@ beforeEach(() => {
     return { backend: 'native', missingFonts: ['Missing Serif'] }
   })
   dispose = vi.fn<Converter['dispose']>().mockResolvedValue(undefined)
-  kit.create.mockReset().mockImplementation(async () => ({ backend: 'native', render, dispose }))
+  converter = {
+    backend: 'native', render, dispose,
+    renderImages: vi.fn<Converter['renderImages']>().mockRejectedValue(new Error('Unexpected Converter.renderImages call')),
+    convert: vi.fn<Converter['convert']>().mockRejectedValue(new Error('Unexpected Converter.convert call')),
+    recalculate: vi.fn<Converter['recalculate']>().mockRejectedValue(new Error('Unexpected Converter.recalculate call')),
+  }
+  kit.create.mockReset().mockImplementation(async () => ({ ...converter }))
 })
 afterEach(async () => { await ctx.fiber.dispose() })
 
@@ -214,7 +221,7 @@ it('joins initialization during disposal and never starts a render after cancell
   const rejected = expect(work).rejects.toMatchObject({ code: 'unavailable' })
   await entered.promise
   const closing = ctx.fiber.dispose()
-  release.resolve({ backend: 'wasm', render, dispose })
+  release.resolve({ ...converter, backend: 'wasm' })
   await rejected
   await closing
   expect(render).not.toHaveBeenCalled()
@@ -255,8 +262,8 @@ it('joins every converter disposal before reporting an engine cleanup failure', 
   })
   const failed = new Error('engine cleanup failed')
   kit.create.mockReset()
-    .mockResolvedValueOnce({ backend: 'native', render, dispose: async () => { throw failed } })
-    .mockResolvedValueOnce({ backend: 'native', render, dispose: async () => { cleanupEntered.resolve(undefined); await cleanupRelease.promise } })
+    .mockResolvedValueOnce({ ...converter, dispose: async () => { throw failed } })
+    .mockResolvedValueOnce({ ...converter, dispose: async () => { cleanupEntered.resolve(undefined); await cleanupRelease.promise } })
   const work = [provider.convert(distinct(1)), provider.convert(distinct(2))]
   try { await entered.promise } finally { released.resolve(undefined); await Promise.all(work) }
   let disposed = false

@@ -201,6 +201,7 @@ async function scopedBench(register?: (inputTriggers: InputTriggerService) => vo
     setComposerResizeSize: () => {},
     renderSlot: (() => null) as InputBarProps['renderSlot'],
     stop: vi.fn(),
+    useStopShortcut: bindSnapshotSelector(createSnapshotStore<readonly string[]>([])),
     t: makeTranslate(zh, commonZh),
     variant: 'composer',
   }

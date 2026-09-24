@@ -39,6 +39,20 @@ it('lists limits without inference and forwards explicit provider and language',
   expect(recognize).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'auto' }), expect.any(AbortSignal))
 })
 
+it('forwards an explicit download source to the registered preparation owner', async () => {
+  const ctx = new Context(); roots.push(ctx)
+  const speech = new SpeechToText(ctx, SpeechToText.Config({ defaultProvider: id }))
+  const prepare = vi.fn()
+  speech.register({ info: { id, name: 'local', location: 'host-local', languages: ['auto'], downloadSources: ['https://hf-mirror.com'] },
+    preparation: { snapshot: () => ({ phase: 'unprepared' }), subscribe: () => () => {}, prepare, cancel: async () => {} },
+    transcribe: async () => ({ text: '', audioSeconds: 0, inferenceSeconds: 0 }),
+  })
+  const api = new SpeechController(ctx, { maxAudioBytes: 32044, maxDurationSeconds: 1 })
+  expect(api.catalog().providers[0]?.downloadSources).toEqual(['https://hf-mirror.com'])
+  api.prepare(id, { downloadSource: 'https://hf-mirror.com' })
+  expect(prepare).toHaveBeenCalledWith({ downloadSource: 'https://hf-mirror.com' })
+})
+
 it('rejects oversized, noncanonical, malformed and overlong audio without inference', async () => {
   const { api, recognize } = fixture()
   for (const audioBase64 of ['x'.repeat(50000), 'AAAA?', '', 'QQ==', recording() + '\n']) {

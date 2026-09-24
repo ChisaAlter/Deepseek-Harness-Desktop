@@ -9,7 +9,7 @@
 - button "Copy"
 - status: Worked
 - button "Took {{duration}}" [expanded]
-- button "Edited files, called tools, searched code, etc." [expanded]
+- button "Wrote files, called tools, searched code, etc." [expanded]
 - button "Write site/report.html +1 -0":
   - text: Write
   - button "site/report.html"
@@ -83,7 +83,10 @@
     - text: One cursor token, one focus ring.
   - listitem: Mirror spec (non-http) A non-http source renders inert.
 - button "Inspect"
-- button "Fetch https://docs.example.test/tokens" [expanded]
+- button "Fetch https://docs.example.test/tokens" [expanded]:
+  - text: Fetch
+  - link "https://docs.example.test/tokens":
+    - /url: https://docs.example.test/tokens
 - link "https://docs.example.test/tokens":
   - /url: https://docs.example.test/tokens
 - text: HTTP 200
@@ -137,7 +140,8 @@
   - code: notes.md
   - text: untouched.
 - paragraph:
-  - img "Token preview"
+  - 'button "View full image: Token preview"':
+    - img "Token preview"
 - text: css
 - button "Wrap lines" [pressed]
 - button "Copy"

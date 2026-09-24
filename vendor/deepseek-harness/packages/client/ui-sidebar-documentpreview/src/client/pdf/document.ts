@@ -35,7 +35,7 @@ export type RenderPdfText = (page: PDFPageProxy, viewport: PageViewport) => {
  * @param pageNumber - 1-based selected page.
  * @param canvas - canvas owned by this render only.
  * @param signal - render lifetime.
- * @param pixelRatio - display pixel ratio.
+ * @param pixelRatio - device pixel ratio multiplied by the settled document zoom.
  * @param renderText - optional selectable text layer sharing this page and viewport.
  * @returns the page's CSS dimensions after rendering completes.
  */
