@@ -149,6 +149,7 @@
     "tests/feedback-command.e2e.ts",
     "tests/feedback-release.e2e.ts",
     "tests/agent-team-panel.e2e.ts",
+    "tests/titlebar-fit.e2e.ts",
     "tests/sidebar-right.e2e.ts",
     "tests/sidebar-terminal.e2e.ts",
     "tests/startup-auto-selection.e2e.ts",

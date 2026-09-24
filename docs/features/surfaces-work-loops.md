@@ -4,6 +4,7 @@
 | --- | --- |
 | **id** | `surfaces-work-loops` |
 | **status** | `active` |
+| **last verified (source launch)** | 2026-09-24 — `titlebar-fit.e2e.ts` 归入 host 类型检查并从 client Web 项目排除；清理失效的 TypeScript 增量记录后，`apps/web` 定向类型构建和 `npm start` 的 host/client/web 全量构建通过，源码 Electron 已启动。 |
 | **last verified** | 2026-09-23 — 交付卡片经桌面 CDP 指针点击后在右栏打开 Files 与 HTML Browser；切换文件页签后“悬浮预览”按钮可见，实机打开单独的 `pelican-bike.html` 窗口；交付卡片的文件定位动作实机打开可见 Explorer 并选中同一文件，定向测试通过。同日右栏展开后的标题行几何复现：1440px 实机窗口中 Agent Team 与打开方式重叠约 11px；按真实标题余量收起次级动作并将尾簇实测宽度向上取整后，源码 Electron 重启与 CDP 几何门禁通过（utilities 与尾簇间距约 8.44px），浏览器集成回归 1/1（侧栏展开/收起两态各开合右栏三轮）、CSS 定向测试 9/9、`ui-layout` 小数取整测试 1/1 通过。受影响模块的定向类型检查、打包及 Web 构建通过；全量官方构建被工作区其他 `ui-settings-account` 类型错误阻断。此前同日恢复旧版 DSHD `ui-surfaces` 右栏：顶部页签、文件树、居中两列方形空态、标题栏开合与会话内文件/Browser 路由；桌面实机画面已核对，相关 client 单测与构建已通过；`qa:source` 仍按退役的原生右栏断言，待 QA 脚本同步。同日行内代码底色改为低对比透明 token，官方客户端构建、源码应用重启和 governance 门禁通过。Browser 移除空白页与 guest 容器的重复半透明填充，保留空态文案和禁用图标对比度；官方构建、文档配对、治理门禁与重启后截图均已核对。 |
 
 ## User paths
