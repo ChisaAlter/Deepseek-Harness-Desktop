@@ -1,0 +1,99 @@
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 48px;
+  padding: 0 8px;
+  /* Margin, not padding: a drag box that included the control pad would steal
+     minimize / maximize / close. AppFrame owns the caption rectangle. */
+  margin-right: var(--dshd-wco-controls, 8px);
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+.interactive,
+.tab,
+.add,
+.close,
+.label {
+  -webkit-app-region: no-drag;
+}
+
+.tab {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  max-width: 144px;
+  height: 24px;
+  padding: 0 6px 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+.tab:hover:not(.active) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.active {
+  background: var(--dsw-alias-button-ghost-active-fill);
+  color: var(--dsw-alias-label-primary);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.close,
+.add {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.add {
+  width: 24px;
+  height: 24px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.close:hover,
+.add:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.contextAnchor {
+  position: fixed;
+  -webkit-app-region: no-drag;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}

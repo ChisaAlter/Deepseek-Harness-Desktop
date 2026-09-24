@@ -11,6 +11,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { appendToDraft } from './draft.ts'
 import { formatTerminalDraft } from './selection.ts'
 import { TerminalDrawer } from './TerminalDrawer.tsx'
+import { TerminalSurface } from './TerminalSurface.tsx'
 import { en, NS, zh, type TerminalKey } from './locales.ts'
 import { bindPtyListeners } from './pty-bridge.ts'
 import { readPtyShell, type TerminalShellInjected } from './shell.ts'
@@ -32,6 +33,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 
 /** Services required by the user-terminal plugin. */
 export const inject = ['slots', 'layout', 'locale']
+const OPEN_SURFACE_EVENT = 'dshd-open-surface'
+const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 
 interface WorkspacesFace {
   openPath?: (path: string, options?: { line?: number }) => Promise<void>
@@ -103,6 +106,12 @@ function workflowFace(
       else void workspaces?.openPath?.(absolutePath, options)
     },
     openLocalUrl: (url) => {
+      if (typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function') {
+        try { sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url) } catch { /* The event still reaches an open Browser. */ }
+        window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, { detail: { kind: 'preview', url, sessionId } }))
+        ctx.layout.openSurfaces()
+        return
+      }
       // The Session showing when the link was activated owns the tab; never
       // fall back to whichever Session the main view happens to be on.
       if (sessionId === undefined) return
@@ -134,9 +143,10 @@ function workflowFace(
 export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-user-terminal: dictionaries')
   const drawerStore = createTerminalSessionStore()
+  const surfaceStore = createTerminalSessionStore()
   const t = ctx.locale.bind(NS)
   ctx.effect(
-    () => bindPtyListeners([drawerStore], readPtyShell()),
+    () => bindPtyListeners([drawerStore, surfaceStore], readPtyShell()),
     'ui-user-terminal: pty bridge',
   )
   const injected = (sessionId: SessionId | undefined): TerminalShellInjected => ({
@@ -151,4 +161,8 @@ export function apply(ctx: Context): void {
     locale: NS,
     inject: injected,
   }, TerminalDrawer))
+
+  ctx.slots.inject('surfaces.terminal', () => ctx.slots.register({
+    name: 'surfaces.terminal', store: surfaceStore, locale: NS, inject: injected,
+  }, TerminalSurface))
 }

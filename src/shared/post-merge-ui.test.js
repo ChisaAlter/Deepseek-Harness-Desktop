@@ -24,9 +24,9 @@ const UI_FEATURES = [
     includes: ['shell.titlebar.trailing'],
   },
   {
-    name: 'single visible right Sidebar navigation adapter',
+    name: 'single visible right surfaces mode',
     file: 'packages/client/ui-surfaces/src/client/apply.ts',
-    includes: ['closeSurfaces', 'openInRightSidebar'],
+    includes: ['openClassicSurfaces', 'ctx.layout.closeRightbar()', 'ctx.layout.openSurfaces()'],
   },
   {
     name: 'Files search work loop',

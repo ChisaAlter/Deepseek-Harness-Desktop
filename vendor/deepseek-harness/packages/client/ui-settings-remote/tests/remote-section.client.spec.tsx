@@ -78,6 +78,17 @@ describe('relay-copy', () => {
 })
 
 describe('RemoteSection', () => {
+  it('opens the same pairing popup from an account-menu action without a sidebar trigger', async () => {
+    const onClose = vi.fn()
+    renderRemote({ menuMode: true, onClose, getRemote: vi.fn(async () => snap({ relayConnected: true })) })
+    expect(screen.queryByRole('button', { name: en.trigger })).toBeNull()
+    const dialog = await screen.findByRole('dialog', { name: en.heading })
+    expect(screen.getByRole('img', { name: en.qr })).toBeTruthy()
+    fireEvent.click(dialog.parentElement!.firstElementChild!)
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: en.heading })).toBeNull()
+  })
+
   it('keeps the Remote trigger dim until remote is on, then lights it', async () => {
     const props = renderRemote({
       getRemote: vi.fn(async () => snap({ enabled: false, listening: false, urls: [] })),

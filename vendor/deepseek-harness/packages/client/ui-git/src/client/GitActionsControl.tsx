@@ -229,7 +229,8 @@ export function GitActionsControl({
   })
   const showChrome = useTitlebarGit(value => value)
   const [status, setStatus] = useState<VcsStatus | null>(null)
-  const [loaded, setLoaded] = useState(false)
+  const [loadedCwd, setLoadedCwd] = useState<string | null>(null)
+  const loaded = cwd !== undefined && loadedCwd === cwd
   const [busy, setBusy] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [commitOpen, setCommitOpen] = useState(false)
@@ -311,7 +312,7 @@ export function GitActionsControl({
         ? { ...next, pr: next.pr ?? prev.pr ?? null }
         : next
     ))
-    setLoaded(true)
+    setLoadedCwd(target)
     void fetchStatusOrNull(target).then((fresh) => {
       if (token !== refreshSeq.current || !fresh) return
       setStatus(prev => (
@@ -337,7 +338,7 @@ export function GitActionsControl({
         ? { ...local, pr: local.pr ?? prev.pr ?? null }
         : local
     ))
-    setLoaded(true)
+    setLoadedCwd(target)
     const [fresh, prResult] = await Promise.all([
       fetchStatusOrNull(target),
       readPullRequestOrFailure(target),
@@ -352,10 +353,10 @@ export function GitActionsControl({
   useEffect(() => {
     if (cwd === undefined) {
       setStatus(null)
-      setLoaded(true)
+      setLoadedCwd(null)
       return
     }
-    setLoaded(false)
+    setLoadedCwd(null)
     void refresh(cwd)
     return () => { refreshSeq.current += 1 }
   }, [cwd, gitStatus, gitFetchForStatus, gitReadPullRequest])
@@ -801,7 +802,7 @@ export function GitActionsControl({
 
   return managedSession ? null : (
     <>
-      {showChrome ? (showInit ? initButton : (
+      {showChrome && loaded && cwd !== undefined && status !== null ? (showInit ? initButton : (
         <div className={css.split}>
           <BranchMenu
             cwd={cwd}

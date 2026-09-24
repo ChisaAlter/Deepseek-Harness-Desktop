@@ -278,6 +278,11 @@ export function createAssembledRemote(options: AssembledRemoteOptions = {}): Ass
     mock.streams.push('$events', { type: 'emit', event: 'api-session/added', args: [structuredClone(summary)] })
     return ok({ sessionId })
   })
+  mock.unary('session/blankReuse', (request: unknown) => {
+    const sessionId = recordString(recordValue(request, 'request'), 'sessionId')
+    const summary = sessions.find(candidate => candidate.sessionId === sessionId)
+    return ok({ reusable: summary?.blank === true && (records.get(sessionId)?.length ?? 0) === 0 })
+  })
   mock.unary('session/attachment', (request: unknown) => {
     request = recordValue(request, 'request')
     const attachmentId = recordString(request, 'attachmentId')

@@ -6,7 +6,7 @@ Desktop-only **Remote** surfaces:
 
 Connection choices are LAN / Server. Server (`relay`) is selected when no mode is saved; an explicit LAN choice remains available. This default does not enable pairing or change relay endpoints.
 
-1. Sidebar footer phone control (`sidebar.footer.action` id `remote`) — on/off, pairing QR, bound devices with inline rename.
+1. Account menu Remote action (`settings.launcher.action` id `remote`) — on/off, pairing QR, bound devices with inline rename. When the account launcher is absent, the sidebar footer control (`sidebar.footer.action`) provides the same popup.
 2. Settings section id `remote` with tabs (`settings.remote.tab`) — **gateway** (LAN/relay mode, port, bind, LAN TLS, relay URL/token, rotate pairing token) and **channels** (preset `@xmanrui/dsh-im`).
 
 Registration requires Electron `window.shell` `getRemote` / `saveRemote` / `rotateRemoteToken` / `unbindRemoteDevice` / `renameRemoteDevice`. Plain `dsh web` has neither surface.

@@ -6,12 +6,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { AccountView, AccountDetails } from '@deepseek-ai/dsh-deepseek-account/types'
+import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PlatformBridge } from './PlatformOverlay.tsx'
 import { Config, CONTACT_CONFIG_GLOBAL } from '../contact-config.ts'
 import { contactUrl } from './contact-url.ts'
 import { AccountOnboarding } from './AccountOnboarding.tsx'
 import { AccountMenu } from './AccountMenu.tsx'
-import { AccountSection, type AccountSnapshot, type AccountSectionInjected } from './AccountSection.tsx'
+import { AccountSection, type AccountSnapshot, type AccountSectionInjected, type AccountLauncherActionRow } from './AccountSection.tsx'
 import { en, zh, type AccountKey } from './locales.ts'
 export type { AccountSectionInjected, AccountSectionProps } from './AccountSection.tsx'
 export type { AccountMenuProps } from './AccountMenu.tsx'
@@ -23,9 +24,16 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 /** Services required by account settings. */
 export const inject = ['slots', 'locale', 'remote', 'remote.account', 'theme']
+function isDesktopAccountHost(): boolean {
+  if ('dshDesktop' in globalThis) return true
+  const shell = (globalThis as typeof globalThis & {
+    shell?: { getConfig?: unknown; saveConfig?: unknown }
+  }).shell
+  return typeof shell?.getConfig === 'function' && typeof shell.saveConfig === 'function'
+}
 /** Register account UI only in the Desktop renderer. @param ctx - client plugin context. */
 export function apply(ctx: Context): void {
-  if (!('dshDesktop' in globalThis)) return
+  if (!isDesktopAccountHost()) return
   ctx.effect(() => ctx.locale.register('settings.account', { en, zh }), 'account: dictionaries')
   const t = ctx.locale.bind('settings.account')
   const page = globalThis as Partial<Record<typeof CONTACT_CONFIG_GLOBAL, unknown>>
@@ -35,6 +43,9 @@ export function apply(ctx: Context): void {
   const publish = (value: AccountSnapshot) => { snapshot = value; for (const listener of listeners) listener() }
   let revision = 0
   let refreshing: Promise<void> | undefined
+  let actionsVersion = -1
+  let actionsRevision = -1
+  let launcherActions: readonly AccountLauncherActionRow[] = []
   const refresh = (): Promise<void> => {
     if (snapshot.view?.status !== 'credential-stored') return Promise.resolve()
     if (refreshing !== undefined) return refreshing
@@ -100,6 +111,30 @@ export function apply(ctx: Context): void {
         getSnapshot: () => ctx.theme.getTheme(),
         subscribe: listener => ctx.on('theme/change', listener),
       },
+      launcherActions: {
+        getSnapshot: () => {
+          const version = ctx.slots.getVersion('settings.launcher.action')
+          const localeRevision = ctx.locale.getSnapshot().revision
+          if (version !== actionsVersion || localeRevision !== actionsRevision) {
+            actionsVersion = version
+            actionsRevision = localeRevision
+            launcherActions = ctx.slots.entries('settings.launcher.action')
+              .map(entry => ({
+                /* v8 ignore next -- list-slot registration requires id */
+                id: entry.options.id ?? '',
+                order: entry.options.order ?? 0,
+                label: resolveSlotLabel(entry.options.label) ?? '',
+              }))
+              .sort((a, b) => a.order - b.order)
+          }
+          return launcherActions
+        },
+        subscribe: listener => {
+          const offLedger = ctx.slots.subscribe('settings.launcher.action', listener)
+          const offLocale = ctx.locale.subscribe(listener)
+          return () => { offLedger(); offLocale() }
+        },
+      },
     },
     async start() {
       publish({ ...snapshot, loginVisible: true, loginFailed: false })
@@ -124,6 +159,7 @@ export function apply(ctx: Context): void {
   }, AccountOnboarding))
   ctx.slots.inject('settings.launcher', () => ctx.slots.register({
     name: 'settings.launcher', locale: 'settings.account', inject: () => operations,
+    children: { 'settings.launcher.action': { kind: 'list', scope: 'root' } },
   }, AccountMenu))
   ctx.slots.inject('settings.section', () => {
     let unregister: (() => void) | undefined

@@ -4,12 +4,12 @@
 | --- | --- |
 | **id** | `background-gradient` |
 | **status** | `active` |
-| **last verified** | 2026-09-17 — 轨迹页画布改透明（`.root` / `.split` / `.table` / 工具栏），壁纸与特效透出到轨迹 tab，与对话画布一致；同日终端 pane 加入混色（保底 `TERMINAL_PANE_MIN_SOLIDITY`=75），Ghostty 画布改 `{alpha:true}` 并清屏回 DOM 填充。此前 2026-09-14 — 安装默认改为开：预设 `aurora` + 极光色板、速度 190%；`DEFAULT_BACKGROUND_EFFECT_SPEED` 归位产品默认，`NEUTRAL_BACKGROUND_EFFECT_SPEED=100` 作 `--dsh-gradient-speed` 除数基准 |
+| **last verified** | 2026-09-23 — 弹窗预览复用画布光斑规则，草稿在无关主题发布期间保留；真实 Electron 窗口验证混沌 / 300% / 1 个的预览、保存、重开持久值，并恢复原设置；ui-theme 定向测试通过。此前 2026-09-17 — 轨迹页画布改透明，终端 pane 混色；2026-09-14 — 安装默认开（极光色板、190% 速度） |
 
 ## User paths
 
 1. 设置 → 外观 →「背景特效」行：标题 + 说明 + 齿轮 + Switch（与「输入特效」同款收束行），安装默认开（极光方案）。无背景图时界面后铺缓慢流动的渐变光斑。
-2. 齿轮打开「背景特效」弹窗：实时预览 + 方案卡片（跟随主题 / 极光 / 晚霞 / 海洋 / 樱花 / 自定义）+ 重置 / 取消 / 保存。预设只写配色；7 色槽、速度 20–300%、光斑 1–5、光斑形态四组控件常显可调，改任何一项即进入自定义方案，保存一次性写回。
+2. 齿轮打开「背景特效」弹窗：实时预览 + 方案卡片（跟随主题 / 极光 / 晚霞 / 海洋 / 樱花 / 自定义）+ 重置 / 取消 / 保存。预览共用画布光斑规则，随草稿配色、速度、数量、形态变化；预设只写配色；7 色槽、速度 20–300%、光斑 1–5、光斑形态四组控件常显可调，改任何一项即进入自定义方案，保存一次性写回。
 3. 已设背景图：特效值保留但暂停绘制，行内提示背景图期间不生效；清除背景图后特效自动回到界面。
 4. 关闭开关恢复无特效底；`prefers-reduced-motion` 下光斑动画全停。
 5. 特效生效时聊天区右侧滚动条滑块默认隐藏，指针悬停到滑块命中区或拖动时才显示；输入框底部的渐变压暗带对特效同样放开（与壁纸一致）。
@@ -20,7 +20,8 @@
 - 持久化字段是 Host `ui-theme`：`backgroundEffect`（`'none' | 'gradient'`，默认 `gradient`）、`backgroundEffectColors`（≤7 槽 `#rrggbb` 或空，空回主题 token，尾空裁剪；默认极光色板 `DEFAULT_BACKGROUND_EFFECT_COLORS`）、`backgroundEffectSpeed`（20–300，默认 190；`NEUTRAL_BACKGROUND_EFFECT_SPEED=100` 是 `--dsh-gradient-speed` 除数基准，等于基准时省略内联变量）、`backgroundEffectCount`（1–5，默认 5）、`backgroundEffectPreset`（`BACKGROUND_EFFECT_PRESETS` 之一：default / aurora / sunset / ocean / sakura / custom，默认 `aurora`；运行期写入非法 id 回退 `custom`）、`backgroundEffectVariant`（`BACKGROUND_EFFECT_VARIANTS` 之一：orbs / aurora / chaos / rays，默认 orbs；运行期写入非法值回退 `orbs`）。全部走 `ThemeSettingsSchema`，运行期写入 sanitize/clamp；schema 非严格模式透传存量未知键，故旧字段 `backgroundEffectPointer` 已整字段移除、无兼容残留。
 - 预设定义在 `src/client/effect-presets.ts`（id + 色槽的纯配色包，不写速度 / 数量 / 形态）；运行时只消费色槽/速度/数量/形态四个 tunables，preset id 是纯 UI 态。
 - 光斑形态经 `#dsh-gradient[data-variant]` 切换：`orbs` 是默认光球；`aurora` 横向漂移的椭圆飘带；`chaos` 小光斑多轴乱序 + scale 脉动；`rays` conic-gradient 楔形光束绕中心旋转。全部变体仍只动 transform。
-- 共享光斑几何与变体规则都作用 `[data-blob]`（`#dsh-gradient-blobs > [data-blob]`）；变体的逐光斑选择器必须带 `#dsh-gradient-blobs` 前缀拉平优先级，否则被变体共享规则（双 ID）压过、逐光斑位置错开全部失效。
+- 弹窗预览使用独立 ID 复用画布光斑选择器；弹窗开启期间，其他主题状态发布不得重置已编辑的草稿。保存才写入 Host，取消不落盘。
+- 共享光斑几何与变体规则都作用 `[data-blob]`（画布和预览各有独立容器 ID）；变体的逐光斑选择器必须带容器 ID 前缀拉平优先级，否则被变体共享规则（双 ID）压过、逐光斑位置错开全部失效。
 - DOM：复用 `#dsh-wallpaper` 固定层（不新开第二层），特效挂 `#dsh-gradient`；与图片壁纸共享透明底、`--dsw-alias-bg-mask-1` 压暗、`#root` 抬层规则。
 - 颜色默认值只来自主题表 `--dsw-specific-gradient-*` token（`design-platform.css` 明、暗两半各一份）；用户覆盖写成 `#dsh-gradient` 内联 `--dsh-gradient-*` 变量，功能 CSS 用 `var(--dsh-*, var(--dsw-*))` 回退链，不写颜色字面量、不写明暗分支。速度覆盖是 `--dsh-gradient-speed` 除数。
 - 动效只动 transform：光斑循环位移（20–40s 基准 ÷ 速度系数，设计值不进 token 表，登记在 motion.md 指示器家族）；`prefers-reduced-motion` 下光斑动画全停。
@@ -59,7 +60,7 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [背景特效预览复用画布规则](../decisions/implemented/bug-fix/2026-09-23-background-effect-preview.md)
 
 - Reference: <https://ayase.cn/motion/#/component/background-gradient-animation>（Aceternity `BackgroundGradientAnimation` 移植；hard-light 循环光斑）
 - Design language: [../design-language.md](../design-language.md)；motion: [../motion.md](../motion.md)

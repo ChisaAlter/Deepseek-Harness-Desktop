@@ -27,6 +27,7 @@ import {
 import {
   WHALE_PRESET_ID,
   ensureWhalePreset,
+  whalePresetDefinition,
   ensureWhaleHome,
   listWhaleSkills,
   setWhaleSkillEnabled,
@@ -35,21 +36,24 @@ import {
 } from './preset.js';
 
 export const name = 'dsh-whale';
-export const inject = ['settings', 'systemPrompt'];
+export const inject = ['systemPrompt', 'connection', 'webServer'];
 
-export const Config = z.object({});
+// This vendored schemastery version predates `.volatile()`, but the current
+// SettingsForms service reads the same `meta.volatile` bit from Config.
+const live = (field) => { field.meta.volatile = true; return field; };
 
 const WhaleSchema = z.object({
-  name: z.string().default('鲸鱼娘'),
-  personality: z.string().default('natural'),
-  userTitle: z.string().default(''),
-  personaText: z.string().default(''),
-  modelProvider: z.string().default(''),
-  modelModel: z.string().default(''),
-  modelReasoningEffort: z.string().default(''),
-  imDefault: z.boolean().default(false),
-  sessionId: z.string().default(''),
+  name: live(z.string().default('鲸鱼娘')),
+  personality: live(z.string().default('natural')),
+  userTitle: live(z.string().default('')),
+  personaText: live(z.string().default('')),
+  modelProvider: live(z.string().default('')),
+  modelModel: live(z.string().default('')),
+  modelReasoningEffort: live(z.string().default('')),
+  imDefault: live(z.boolean().default(false)),
+  sessionId: live(z.string().default('')),
 });
+export const Config = WhaleSchema;
 
 const PRESENTATION_OWNER = 'dsh-whale:assistant';
 const MEMORY_MAX_CHARS = 40000;
@@ -98,7 +102,20 @@ function whaleDisplayName(settings) {
  * or dead session id falls through to a fresh create exactly once, under
  * the same stable-id contract the dshbot room sessions use.
  */
-async function ensureAssistantSession(ctx, scope, controller) {
+const pendingEnsures = new WeakMap();
+
+function ensureAssistantSession(ctx, scope, controller) {
+  const pending = pendingEnsures.get(scope);
+  if (pending) return pending;
+  const operation = createOrReuseAssistantSession(ctx, scope, controller);
+  pendingEnsures.set(scope, operation);
+  void operation.finally(() => {
+    if (pendingEnsures.get(scope) === operation) pendingEnsures.delete(scope);
+  }).catch(() => {});
+  return operation;
+}
+
+async function createOrReuseAssistantSession(ctx, scope, controller) {
   const home = dshHomeDir();
   if (!home) return { ok: false, error: 'missing-home' };
   ensureWhaleHome(home);
@@ -142,7 +159,7 @@ async function ensureAssistantSession(ctx, scope, controller) {
   }
   if (snap.sessionId !== sessionId) {
     const latest = scope.get() ?? {};
-    await scope.set({ ...latest, sessionId }, latest).catch(() => {});
+    await scope.set({ ...latest, sessionId }, latest);
   }
   if (created && snap.modelProvider && snap.modelModel
     && typeof controller.selectModel === 'function') {
@@ -721,19 +738,15 @@ function registerRpc(ctx, scope) {
         return { ok: false, error: `unknown-endpoint:${String(endpoint)}` };
     }
   };
-  // `connection.rpc.handle` mounts its Fetch route via `owner.webServer`
-  // resolved on a shadow context bound to the connection provider's own
-  // fiber — for plugin consumers that fiber lacks `webServer` inject, so
-  // the call fails with "cannot get property webServer without inject".
-  // Register the prefix route on this fiber's own `webServer` instead (the
-  // `/dshbot-hook` pattern) and replicate the client-request envelope so
-  // `connection.rpc.call('/dsh-whale', endpoint, payload)` works unmodified.
-  ctx.inject?.(['connection', 'webServer'], (host) => {
-    return host.effect(() => host.webServer.register({
+  // The RPC route is required for every enabled whale instance. Register it
+  // on this plugin's fiber after its declared connection and webServer
+  // dependencies activate, so a missing route cannot leave the client with
+  // a working panel that only receives the static server's 405 fallback.
+  ctx.effect(() => ctx.webServer.register({
       kind: 'prefix',
       path: '/dsh-whale',
       async handler(req, res) {
-        const rejection = host.connection.requestRejection(req);
+        const rejection = ctx.connection.requestRejection(req);
         if (rejection !== undefined) {
           res.writeHead(rejection);
           res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
@@ -783,20 +796,20 @@ function registerRpc(ctx, scope) {
           fail(body.rpcId, String(error?.message ?? error));
         }
       },
-    }));
-  });
+  }));
 }
 
 export function apply(ctx) {
-  const scope = createWhaleScope(ctx.settings, WhaleSchema);
+  const scope = createWhaleScope(dshHomeDir());
 
   const home = dshHomeDir();
   if (home) {
     ensureWhaleHome(home);
     const preset = ensureWhalePreset(home);
     if (!preset.ok) ctx.logger?.warn?.(`dsh-whale preset ensure failed: ${preset.error}`);
-    const snap = scope.get() ?? {};
-    if (snap.imDefault) applyImDefault(home, true);
+    if (scope.get().imDefault === true) {
+      applyImDefault(home, true);
+    }
   }
 
   // Persona resolves from the live catalog per assemble — renaming or
@@ -814,15 +827,15 @@ export function apply(ctx) {
 
   registerRpc(ctx, scope);
 
-  // Create-or-reuse the persistent assistant session once the session
-  // services are up, then start the pulse: watches and schedules wake her
-  // by queueing a real prompt into that same session.
-  ctx.inject?.(['sessionController'], (host) => {
+  // Current Harness has no `.agent-presets` directory scanner. Register her
+  // composition before attempting to create or reopen her session.
+  ctx.inject?.(['agentPresets', 'sessionController'], (host) => host.effect(async () => {
+    const unregister = await host.agentPresets.register(whalePresetDefinition(home));
     void ensureAssistantSession(ctx, scope, host.sessionController).catch((error) => {
       ctx.logger?.warn?.(`dsh-whale assistant ensure failed: ${error?.message ?? error}`);
     });
     if (home) {
-      startPulse(ctx, {
+      startPulse(host, {
         home: whaleHomeDir(home),
         getSelfId: () => String(scope.get()?.sessionId ?? ''),
         wake: async (text) => {
@@ -838,5 +851,6 @@ export function apply(ctx) {
         logger: ctx.logger,
       });
     }
-  });
+    return unregister;
+  }));
 }

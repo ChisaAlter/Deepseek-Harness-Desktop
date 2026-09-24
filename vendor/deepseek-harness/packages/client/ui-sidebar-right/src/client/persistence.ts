@@ -71,7 +71,16 @@ export function readSidebarLayout(sessionId: string): SurfaceState | undefined {
     if (saved === undefined) return undefined
     const parsed = surface.parse(saved)
     validateReferences(parsed)
-    return { layout: parsed.layout as unknown as LayoutState, minted: parsed.minted, history: EMPTY_HISTORY }
+    const restored = parsed.layout as unknown as LayoutState
+    // DSHD restored its original right-panel track. A saved native Sidebar
+    // expansion from the interim shell must not cover that track on startup.
+    const desktop = typeof window !== 'undefined'
+      && typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function'
+    return {
+      layout: desktop ? { ...restored, expanded: false } : restored,
+      minted: parsed.minted,
+      history: EMPTY_HISTORY,
+    }
   } catch (_invalidLayout) {
     clearSidebarLayout(sessionId)
     return undefined

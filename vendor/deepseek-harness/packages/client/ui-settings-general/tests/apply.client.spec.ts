@@ -99,7 +99,7 @@ function setPageUrl(url: string): void {
 
 describe('ui-settings-general apply', () => {
   it('declares the services it uses', () => {
-    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'configForms'])
+    expect(inject).toEqual(['slots', 'locale', 'connection', 'remote', 'remote.settings', 'remote.session', 'configForms'])
   })
 
   it('fills the seats of the shell it declares, with locale-following section labels', async ({ mock, start }) => {
@@ -245,7 +245,8 @@ describe('ui-settings-general apply', () => {
     shellRef.shell = { getConfig }
     try {
       const { c: partial } = await client(mock, start)
-      expect(ownEntries(partial, 'settings.general.item')).toEqual([])
+      expect(ownEntries(partial, 'settings.general.item').map(item => item.options.id))
+        .toEqual(['developer-tools', 'current-version'])
       await partial.dispose()
 
       shellRef.shell = { getConfig, saveConfig: vi.fn() }

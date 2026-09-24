@@ -32,7 +32,9 @@ describe('web e2e: draft composer transition', () => {
     const scaffold = await launchWebScaffold({
       replayFixture: join(dir, 'override-only.jsonl'), replayOverride,
     })
-    const browser = await chromium.launch()
+    const browser = await chromium.launch(process.env.DSH_WEB_HEADED === '1'
+      ? { headless: false, channel: 'msedge' }
+      : {})
     const page = await newEnglishPage(browser)
     let failed = false
     try {
@@ -73,6 +75,7 @@ describe('web e2e: draft composer transition', () => {
         // The entering marker outlives the load-throttled rAF cadence here; a
         // mutation observer catches it even when no mid-glide frame is sampled.
         let sawEntering = false
+        let sawCompositedMotion = false
         const marker = new MutationObserver(() => {
           if (card.closest('[data-composer-entering]') !== null) sawEntering = true
         })
@@ -81,12 +84,19 @@ describe('web e2e: draft composer transition', () => {
         })
         const measure = () => {
           const rect = card.getBoundingClientRect()
+          const entering = card.closest<HTMLElement>('[data-composer-entering]')
+          const effect = entering?.getAnimations()[0]?.effect
+          if (effect instanceof KeyframeEffect) {
+            const keyframes = effect.getKeyframes()
+            sawCompositedMotion ||= keyframes.some(frame => typeof frame.transform === 'string')
+              && keyframes.every(frame => !Object.hasOwn(frame, 'top'))
+          }
           return {
             top: rect.top, bottom: rect.bottom, height: rect.height,
             phase: card.closest('[data-phase]')?.getAttribute('data-phase'),
             sameInput: document.querySelector('[data-composer-input]') === input,
             scrollTop: host.scrollTop,
-            entering: card.closest('[data-composer-entering]') !== null,
+            entering: entering !== null,
             time: performance.now(),
           }
         }
@@ -97,11 +107,11 @@ describe('web e2e: draft composer transition', () => {
           samples.push(measure())
         }
         marker.disconnect()
-        return { samples, sawEntering }
+        return { samples, sawEntering, sawCompositedMotion }
       })
       if (scenario.enter) await composer.press('Enter')
       else await page.getByRole('button', { name: 'Send message', exact: true }).click()
-      const { samples: frames, sawEntering } = await capture
+      const { samples: frames, sawEntering, sawCompositedMotion } = await capture
       await writeFile(join(dir, 'frames.json'), JSON.stringify(frames, null, 2))
       await page.screenshot({ path: join(dir, 'settled.png') })
       const last = frames.at(-1)!
@@ -117,8 +127,11 @@ describe('web e2e: draft composer transition', () => {
       const intermediate = frames.some(frame => frame.phase === 'active'
         && frame.top > frames[0]!.top + 1 && frame.top < last.top - 8)
       expect(scenario.reduced ? !intermediate : sawEntering).toBe(true)
+      if (!scenario.reduced) expect(sawCompositedMotion).toBe(true)
       expect(last.bottom).toBeLessThanOrEqual(scenario.height)
       expect(last.entering).toBe(false)
+      expect(await page.locator('[data-composer-card]').evaluate(card =>
+        getComputedStyle(card.parentElement!).transform)).toBe('none')
       await composer.fill('Respond with SECOND-REPLY.')
       await composer.press('Enter')
       await page.getByText('SECOND-REPLY', { exact: true }).waitFor({ timeout: 20_000 })

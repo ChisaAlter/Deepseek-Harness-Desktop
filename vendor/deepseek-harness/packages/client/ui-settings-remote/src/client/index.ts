@@ -1,5 +1,5 @@
 /**
- * Desktop-gated Remote surfaces — sidebar pairing popup plus Settings → Remote
+ * Desktop-gated Remote surfaces — account-menu pairing popup (sidebar fallback) plus Settings → Remote
  * (gateway advanced knobs; IM channels arrive via settings.remote.tab).
  */
 
@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { desktopShell, hasRemoteApi } from './desktop-shell.ts'
 import { GatewaySettingsTab } from './GatewaySettingsTab.tsx'
-import { RemoteSection, type RemoteSectionInjected } from './RemoteSection.tsx'
+import { RemoteMenuAction, RemoteSection, type RemoteSectionInjected } from './RemoteSection.tsx'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import {
   RemoteSettingsSection,
@@ -39,7 +39,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'settings.remote'
 
-/** Services required by the sidebar and settings registrations. */
+/** Services required by the menu, sidebar fallback, and settings registrations. */
 export const inject = ['slots', 'locale']
 
 /**
@@ -63,13 +63,30 @@ export function apply(ctx: Context): void {
     renameRemoteDevice: (id, name) => shell.renameRemoteDevice(id, name),
   })
 
-  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
-    name: 'sidebar.footer.action',
-    id: 'remote',
-    order: 80,
-    locale: NS,
-    inject: popupInjected,
-  }, RemoteSection))
+  ctx.slots.inject('settings.launcher.action', () => ctx.slots.register({
+    name: 'settings.launcher.action', id: 'remote', order: 50, label: () => t('trigger'),
+    locale: NS, inject: popupInjected,
+  }, RemoteMenuAction))
+
+  ctx.slots.inject('sidebar.footer.action', () => {
+    let unregister: (() => void) | undefined
+    let disposed = false
+    const sync = () => {
+      if (disposed) return
+      if (ctx.slots.entries('settings.launcher').length > 0) {
+        unregister?.()
+        unregister = undefined
+      } else {
+        unregister ??= ctx.slots.register({
+          name: 'sidebar.footer.action', id: 'remote', order: 80,
+          locale: NS, inject: popupInjected,
+        }, RemoteSection)
+      }
+    }
+    const off = ctx.slots.subscribe('settings.launcher', sync)
+    sync()
+    return () => { disposed = true; off(); unregister?.() }
+  })
 
   let tabsVersion = -1
   let tabsRevision = -1

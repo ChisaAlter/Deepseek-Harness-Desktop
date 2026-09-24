@@ -2,9 +2,8 @@
 import type {} from '@deepseek-ai/dsh-settings'
 
 import type { Volatile, Context } from '@deepseek-ai/cordis'
-import type { BusyEnterBehavior } from './submission-settings.ts'
+import type { ConversationSettings } from './submission-settings.ts'
 import z from '@deepseek-ai/schemastery'
-import { BUSY_ENTER_FIELD } from './submission-settings.ts'
 
 import { ConversationSettingsFields } from './submission-settings.ts'
 
@@ -32,15 +31,27 @@ export {
   type TypingFxPresets, type TypingFxStyle,
 } from './submission-settings.ts'
 
-/** Runtime preferences projected to the browser. */
-export interface Config {
-  /** Enter key behavior while a turn is running. */
-  busyEnter: Volatile<BusyEnterBehavior>
-}
+/** Every browser-editable preference is a live Host configuration field. */
+export type Config = { [K in keyof ConversationSettings]: Volatile<ConversationSettings[K]> }
 
 /** Live preferences projected to the browser. */
 export const Config = z.object({
-  [BUSY_ENTER_FIELD]: ConversationSettingsFields[BUSY_ENTER_FIELD].volatile(),
+  busyEnter: ConversationSettingsFields.busyEnter.volatile(),
+  composerBeam: ConversationSettingsFields.composerBeam.volatile(),
+  composerBeamStyle: ConversationSettingsFields.composerBeamStyle.volatile(),
+  composerBeamPresets: ConversationSettingsFields.composerBeamPresets.volatile(),
+  composerResize: ConversationSettingsFields.composerResize.volatile(),
+  composerResizeHeight: ConversationSettingsFields.composerResizeHeight.volatile(),
+  composerResizeWidth: ConversationSettingsFields.composerResizeWidth.volatile(),
+  statsLine: ConversationSettingsFields.statsLine.volatile(),
+  officialPeakValley: ConversationSettingsFields.officialPeakValley.volatile(),
+  sessionCost: ConversationSettingsFields.sessionCost.volatile(),
+  sessionCostPrices: ConversationSettingsFields.sessionCostPrices.volatile(),
+  viewTabs: ConversationSettingsFields.viewTabs.volatile(),
+  typingFx: ConversationSettingsFields.typingFx.volatile(),
+  typingFxStyle: ConversationSettingsFields.typingFxStyle.volatile(),
+  typingFxPresets: ConversationSettingsFields.typingFxPresets.volatile(),
+  customInstructions: ConversationSettingsFields.customInstructions.volatile(),
 })
 
 /** Host preferences are consumed through the configuration form projection.

@@ -43,6 +43,23 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* The directory action sits beside the Session-log and Git titlebar capsules. */
+.split[data-open-target='directory'] {
+  height: 32px;
+  border-color: var(--dsw-alias-border-l2);
+  border-radius: 18px;
+}
+
+.split[data-open-target='directory'] .main {
+  padding: 6px 10px;
+}
+
+.split[data-open-target='directory'] .chevron {
+  width: 28px;
+  padding: 0;
+  border-left-color: var(--dsw-alias-border-l2);
+}
+
 .main:hover:not(:disabled),
 .main:focus-visible,
 .chevron:hover:not(:disabled),

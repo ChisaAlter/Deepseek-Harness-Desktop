@@ -39,13 +39,20 @@ describe('ConversationRoot.module.css titlebar crowding', () => {
     expect(declarations(":global([data-titlebar-density='compact']) .headerActions")?.get('display')).toBe('none')
   })
 
+  it('uses the reserved title-row width to protect utilities when surfaces opens', () => {
+    expect(declarations('.titleRow')?.get('container-type')).toBe('inline-size')
+    expect(css).toMatch(/@container \(max-width: 520px\)\s*\{\s*\.headerActions\s*\{\s*display: none;/)
+    expect(declarations('.headerActions')?.get('flex')).toBe('0 1 auto')
+    expect(declarations('.headerActions')?.get('overflow')).toBe('hidden')
+  })
+
   it('marks interactive chrome no-drag and leaves caption rows without a second drag region', () => {
     expect(declarations('.titleRow')?.get('-webkit-app-region')).toBeUndefined()
     expect(declarations('.blankCaption')?.get('-webkit-app-region')).toBeUndefined()
-    expect(declarations('.crumb:not(:disabled)')?.get('-webkit-app-region')).toBe('no-drag')
+    expect(declarations('.crumbs')?.get('-webkit-app-region')).toBe('no-drag')
     expect(declarations('.headerActions')?.get('-webkit-app-region')).toBe('no-drag')
     expect(declarations('.headerUtilities')?.get('-webkit-app-region')).toBe('no-drag')
-    expect(declarations('.tabs')?.get('-webkit-app-region')).toBe('no-drag')
+    expect(declarations('.tabs')?.get('-webkit-app-region')).toBeUndefined()
     expect(declarations('.header')?.get('-webkit-app-region')).toBeUndefined()
   })
 

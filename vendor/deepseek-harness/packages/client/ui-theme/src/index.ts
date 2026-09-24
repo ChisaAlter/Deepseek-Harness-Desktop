@@ -2,14 +2,14 @@
 import type {} from '@deepseek-ai/dsh-settings'
 
 import type { Volatile } from '@deepseek-ai/cordis'
-import type { ThemePreference } from './theme-settings.ts'
+import type { ThemeSettings } from './theme-settings.ts'
 import z from '@deepseek-ai/schemastery'
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { bootThemeInjections } from './boot-theme.ts'
 import {
-  DEFAULT_FONT_SIZE, DEFAULT_PREFERENCE, FONT_SIZE_MIN, FONT_SIZE_MAX, THEME_PREFERENCES,
+  ThemeSettingsFields,
 } from './theme-settings.ts'
 
 export {
@@ -20,18 +20,46 @@ export {
 export { bootThemeInjection, bootThemeInjections, buildThemeBootPayload, injectBootTheme } from './boot-theme.ts'
 export type { ThemeBootPayload } from './boot-theme.ts'
 
-/** Runtime preferences projected to the browser. */
-export interface Config {
-  /** Browser palette preference. */
-  preference: Volatile<ThemePreference>
-  /** Browser font size in pixels. */
-  fontSize: Volatile<number>
-}
+/** Every Appearance preference is editable through the live Host form. */
+export type Config = { [K in keyof ThemeSettings]: Volatile<ThemeSettings[K]> }
 
-/** Live theme and typography preferences. */
+/** Live preferences projected to the browser, using the durable field schema. */
 export const Config = z.object({
-  preference: z.union([...THEME_PREFERENCES]).default(DEFAULT_PREFERENCE).volatile(),
-  fontSize: z.number().step(1).min(FONT_SIZE_MIN).max(FONT_SIZE_MAX).default(DEFAULT_FONT_SIZE).volatile(),
+  preference: ThemeSettingsFields.preference.volatile(),
+  fontSize: ThemeSettingsFields.fontSize.volatile(),
+  activeLightThemeId: ThemeSettingsFields.activeLightThemeId.volatile(),
+  activeDarkThemeId: ThemeSettingsFields.activeDarkThemeId.volatile(),
+  customThemes: ThemeSettingsFields.customThemes.volatile(),
+  glassOpacity: ThemeSettingsFields.glassOpacity.volatile(),
+  terminalOpacity: ThemeSettingsFields.terminalOpacity.volatile(),
+  transparentTheme: ThemeSettingsFields.transparentTheme.volatile(),
+  sidebarMaskHidden: ThemeSettingsFields.sidebarMaskHidden.volatile(),
+  wallpaperImage: ThemeSettingsFields.wallpaperImage.volatile(),
+  wallpaperBlur: ThemeSettingsFields.wallpaperBlur.volatile(),
+  wallpaperPixelate: ThemeSettingsFields.wallpaperPixelate.volatile(),
+  wallpaperBingEnabled: ThemeSettingsFields.wallpaperBingEnabled.volatile(),
+  wallpaperCatalogUrls: ThemeSettingsFields.wallpaperCatalogUrls.volatile(),
+  wallpaperSources: ThemeSettingsFields.wallpaperSources.volatile(),
+  wallpaperFavorites: ThemeSettingsFields.wallpaperFavorites.volatile(),
+  backgroundEffect: ThemeSettingsFields.backgroundEffect.volatile(),
+  backgroundEffectColors: ThemeSettingsFields.backgroundEffectColors.volatile(),
+  backgroundEffectSpeed: ThemeSettingsFields.backgroundEffectSpeed.volatile(),
+  backgroundEffectCount: ThemeSettingsFields.backgroundEffectCount.volatile(),
+  backgroundEffectPreset: ThemeSettingsFields.backgroundEffectPreset.volatile(),
+  backgroundEffectVariant: ThemeSettingsFields.backgroundEffectVariant.volatile(),
+  cursorEffectEnabled: ThemeSettingsFields.cursorEffectEnabled.volatile(),
+  cursorEffect: ThemeSettingsFields.cursorEffect.volatile(),
+  cursorEffectColors: ThemeSettingsFields.cursorEffectColors.volatile(),
+  cursorEffectSpeed: ThemeSettingsFields.cursorEffectSpeed.volatile(),
+  cursorEffectSize: ThemeSettingsFields.cursorEffectSize.volatile(),
+  cursorEffectPreset: ThemeSettingsFields.cursorEffectPreset.volatile(),
+  metallicPaintEnabled: ThemeSettingsFields.metallicPaintEnabled.volatile(),
+  fontFamilySans: ThemeSettingsFields.fontFamilySans.volatile(),
+  fontFamilyCode: ThemeSettingsFields.fontFamilyCode.volatile(),
+  fontSizeInterface: ThemeSettingsFields.fontSizeInterface.volatile(),
+  fontSizeCode: ThemeSettingsFields.fontSizeCode.volatile(),
+  fontFamilyComposer: ThemeSettingsFields.fontFamilyComposer.volatile(),
+  fontFamilyTerminal: ThemeSettingsFields.fontFamilyTerminal.volatile(),
 })
 
 /** Supply the current palette before browser plugins start.

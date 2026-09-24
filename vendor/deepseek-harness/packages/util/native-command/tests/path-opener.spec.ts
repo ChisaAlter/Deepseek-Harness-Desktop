@@ -379,6 +379,15 @@ it('uses the native runner for a file-manager handoff when none is injected', as
   expect(execFileMock).toHaveBeenCalled()
 })
 
+it('launches Windows Explorer visibly when selecting a file', async () => {
+  execFileMock.mockImplementation((_command, _args, _options, callback) => { callback(null, '', '') })
+  await revealNativePath('C:\\work\\report.txt', signal(), { platform: 'win32' })
+  expect(execFileMock).toHaveBeenCalledWith(
+    'explorer.exe', ['/select,', 'file:///C:/work/report.txt'],
+    expect.objectContaining({ windowsHide: false }), expect.any(Function),
+  )
+})
+
 
 it.each(['win32', 'linux'] as const)('accepts Explorer delegate exit 1 through the native runner on %s', async (platform) => {
   execFileMock.mockImplementation((command, _args, _options, callback) => {

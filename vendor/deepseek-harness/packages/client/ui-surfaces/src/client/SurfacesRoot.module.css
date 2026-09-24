@@ -1,0 +1,26 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  /* AppFrame already paints `--dsw-alias-bg-base` and the column hairline. */
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  position: relative;
+}
+
+.occupant {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.occupant[hidden] {
+  display: none;
+}

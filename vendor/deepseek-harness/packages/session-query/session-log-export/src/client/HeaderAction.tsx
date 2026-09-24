@@ -44,7 +44,7 @@ export function SessionLogDownloadHeaderAction(props: SessionLogDownloadDialogPr
           }}
         >
           {compact ? null : <span>{t('menu.download')}</span>}
-          <IconDownloadOutline16 size={12} />
+          <IconDownloadOutline16 size={14} />
         </button>
       )}
       {sessionId !== undefined && <SessionLogDownloadDialog {...props} sessionId={sessionId} />}

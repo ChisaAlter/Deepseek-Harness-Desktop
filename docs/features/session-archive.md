@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `session-archive` |
 | **status** | `active` |
-| **last verified** | 2026-09-17 — 核心契约套件 4729 项全绿（workspace 55、session-controller 删除路径 5）；alpha.1 合并吞掉的未知 unarchive id 拒绝已恢复，幂等用例改以已知未归档 id 断言（见 2026-09-17 漂移裁定记录）。尚未替换安装版验证。 |
+| **last verified** | 2026-09-23 — 保留新版 Harness 后恢复侧栏独立归档分区、默认折叠及界面设置显示开关；ui-workspace 包内 367/367 通过，源码桌面待重启验收。此前 2026-09-17 — 核心契约套件 4729 项全绿（workspace 55、session-controller 删除路径 5）；alpha.1 合并吞掉的未知 unarchive id 拒绝已恢复，幂等用例改以已知未归档 id 断言（见 2026-09-17 漂移裁定记录）。尚未替换安装版验证。 |
 
 ## User paths
 
@@ -19,7 +19,7 @@
 - 恢复与销毁只出现在「已归档」⋯ 菜单；点已归档行标题/整行不恢复、不打开。
 - 不得以归档态打开主视图；须先菜单取消归档，再从活列表打开。
 - 「已归档」每次加载默认折叠；展开仅当次会话有效，不写入 persist。
-- 显示开关默认开，持久化在 `dsh.workspace.view.v6`；关只藏侧栏分区，不改 `archivedSessionIds`。
+- 显示开关默认开，沿用合并前的 `dsh.workspace.view.v5` 持久化键及 `showArchivedList` 字段；关只藏侧栏分区，不改 `archivedSessionIds`。归档会话不混入工作区或平铺列表，也不由「视图选项」绕过此开关。
 - 桌面不另做会话浏览器；走官方 `ui-workspace`。
 - 删除只接受已归档的请求根；子 agent（`origin === 'subagent'`）随根删除；fork 不随根删除。
 - 删除成功：先发 `api-session/deleted`，再 unarchive；unary ok 时装归档回声并 `applyDeleted`；对话框仍仅当归档集不再含该 id 时关闭。

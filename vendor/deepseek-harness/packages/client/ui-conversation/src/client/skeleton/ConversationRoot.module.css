@@ -48,6 +48,8 @@
    inset, plus the 1px transparent reserve border — so no row below may grow
    past its figure. */
 .header {
+  position: relative;
+  grid-row: 1;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   flex: none;
@@ -62,6 +64,12 @@
      baseline, so the reach keeps its designed padding only there. */
   padding-right: max(28px, calc(var(--dshd-titlebar-conversation-reserve, 0px) + 8px + 16px));
   border-bottom: 1px solid transparent;
+}
+
+/* The resident header owns the grid and padding. The Session header is a
+   semantic child; flatten its box so its title and tabs use those same tracks. */
+.header .header {
+  display: contents;
 }
 
 /* Desktop caption controls: when the surfaces column is closed the trailing
@@ -132,6 +140,10 @@
   padding-bottom: 10px;
 }
 
+.header:where(:not(:has(.tabs)))::after {
+  display: none;
+}
+
 /* Blank Sessions retain navigation controls without conversation title or tabs. */
 .headerBlank {
   min-height: 0;
@@ -152,17 +164,14 @@
   min-height: 0;
 }
 
-/* macOS hiddenInset titlebar: window dragging comes from ui-layout's
-   .leadingBand (the frame's first child), never from this header. Electron
-   composes app-regions in document order ignoring stacking, so a drag rule
-   here would keep eating clicks through overlays mounted earlier in the DOM
-   (the settings modal lives in the sidebar column). The title-row clusters
-   overlap the band and subtract their whole boxes; individual controls are
-   covered by the base.css interactive-element rule. */
-:global([data-platform='darwin']) .headerLeading,
-:global([data-platform='darwin']) .headerActions,
-:global([data-platform='darwin']) .headerUtilities,
-:global([data-platform='darwin']) .headerCorner {
+/* AppFrame's caption band spans the first 48px on desktop. Its drag region
+   must leave the Session header's actual content clickable on every platform;
+   the empty space between these seats remains available for window dragging. */
+.headerLeading,
+.crumbs,
+.headerActions,
+.headerUtilities,
+.headerCorner {
   -webkit-app-region: no-drag;
 }
 
@@ -181,6 +190,10 @@
 .titleRow {
   grid-column: 2;
   display: flex;
+  /* The title row's content box already excludes AppFrame's measured trailing
+     reserve. Query this width for local action priority; changing these
+     actions cannot change the trailing cluster's measured width. */
+  container-type: inline-size;
   align-items: center;
   gap: 0;
   min-height: 30px;
@@ -266,9 +279,20 @@ button.crumb:hover {
 
 .headerActions {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* A wide conversation column can still have a narrow title row after the
+   Session log / Git cluster reserves its real width (notably with surfaces
+   open). Hide the secondary Agent actions before they reach utilities. */
+@container (max-width: 520px) {
+  .headerActions {
+    display: none;
+  }
 }
 
 :global([data-titlebar-density='cozy']) .headerActions,
@@ -458,21 +482,20 @@ button.crumb:hover {
   gap: var(--dsh-composer-stack-gap);
 }
 
-/* Relative top preserves viewport positioning for fixed menus and dialogs.
-   The animation starts paused: the first-send commit mounts the transcript,
-   running chrome, and dock projections on the same frames a layout-driven
-   `top` would lose to that work. ConversationRoot releases the glide once the
-   burst is quiet, so the slide always runs on frames that can actually paint. */
+/* The first-send hold starts paused while transcript and dock structure settle.
+   The moving stack then gets a compositor-driven transform; built-in fixed
+   overlays live in page portals, outside its temporary containing block. */
 .composerStack[data-composer-entering] {
   position: relative;
   animation: composer-enter var(--ds-transition-duration-slow) var(--ds-ease-in-out);
   animation-fill-mode: backwards;
   animation-play-state: paused;
+  will-change: transform;
 }
 
 @keyframes composer-enter {
-  from { top: var(--dsh-composer-enter-offset); }
-  to { top: 0; }
+  from { transform: translateY(var(--dsh-composer-enter-offset)); }
+  to { transform: translateY(0); }
 }
 
 /* Common seat for the composer chain (fallback + elected overlay siblings). */
@@ -667,9 +690,8 @@ button.crumb:hover {
 }
 
 /* Hero phase: the composer stack (hero chrome + workspace row + card) is
-   flex-centered in the column; composer phase docks it at the bottom. Flex,
-   NOT absolute+transform: a transform would make this box the containing
-   block for position:fixed descendants (pickers/modals), shrinking them. */
+   flex-centered in the column; composer phase docks it at the bottom. The
+   static Hero layout uses no transform, so its pickers keep viewport bounds. */
 .composerHero {
   align-self: center;
   /* figma 75:8208 drew 12 between all three rows; the workspace row now sits

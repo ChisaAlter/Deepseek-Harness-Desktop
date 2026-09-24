@@ -13,18 +13,19 @@ export type NativeCommandRunner = (
 ) => Promise<{ stdout: string; stderr: string }>
 
 /**
- * Run a host command with utf8 stdio, abort propagation, and Windows hide.
+ * Run a host command with utf8 stdio, abort propagation, and selected Windows visibility.
  * @param command - executable path or PATH name.
  * @param args - argv (never a shell string).
  * @param signal - caller/connection lifetime; abort terminates the child.
+ * @param windowsHide - whether Windows should hide the launched program's window.
  * @returns captured stdout/stderr on exit 0.
  */
-export const runNativeCommand: NativeCommandRunner = (command, args, signal) =>
-  new Promise((resolve, reject) => {
+function runCommand(command: string, args: readonly string[], signal: AbortSignal, windowsHide: boolean): ReturnType<NativeCommandRunner> {
+  return new Promise((resolve, reject) => {
     execFile(
       command,
       [...args],
-      { encoding: 'utf8', signal, windowsHide: true },
+      { encoding: 'utf8', signal, windowsHide },
       (error, stdout, stderr) => {
         if (error !== null) {
           const failure = Object.assign(new Error(error.message, { cause: error }), {
@@ -39,3 +40,12 @@ export const runNativeCommand: NativeCommandRunner = (command, args, signal) =>
       },
     )
   })
+}
+
+/** Hide native background commands on Windows. */
+export const runNativeCommand: NativeCommandRunner = (command, args, signal) =>
+  runCommand(command, args, signal, true)
+
+/** Launch a desktop GUI command without hiding its window on Windows. */
+export const runNativeVisibleCommand: NativeCommandRunner = (command, args, signal) =>
+  runCommand(command, args, signal, false)

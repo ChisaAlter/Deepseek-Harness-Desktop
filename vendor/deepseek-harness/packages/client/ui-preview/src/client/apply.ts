@@ -2,12 +2,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { en, NS, zh, type PreviewKey } from './locales.ts'
-import { SidebarPreviewPanel, SidebarPreviewTitle } from './PreviewPanel.tsx'
+import { PreviewPanel, SidebarPreviewPanel, SidebarPreviewTitle } from './PreviewPanel.tsx'
 import { appendToDraft } from './draft.ts'
 import { readPreviewShell, type PreviewShellInjected } from './shell.ts'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
 import { DshdMiniPlayer } from './DshdMiniPlayer.tsx'
 
 export type { PreviewPanelProps } from './PreviewPanel.tsx'
@@ -35,10 +36,6 @@ interface SidebarRightTabsFace {
     title: () => string
     guide: readonly { id: string; order: number; title: () => string; description: () => string }[]
   }) => () => void
-}
-
-interface SidebarRightFace {
-  openTab: (kind: string, options: { params: { url: string } }) => void
 }
 
 interface KeyedSlotsFace {
@@ -89,10 +86,9 @@ export function apply(ctx: Context): void {
     }, SidebarPreviewTitle)), 'ui-preview: sidebar browser title')
   }
 
-  ctx.effect(() => shell.subscribeOpenPreviewUrl((url) => {
-    const sidebarRight = ctx.get('sidebarRight') as SidebarRightFace | undefined
-    sidebarRight?.openTab(BROWSER_KIND, { params: { url } })
-  }), 'ui-preview: open preview URL')
+  ctx.slots.inject('surfaces.browser', () => ctx.slots.register({
+    name: 'surfaces.browser', locale: NS, inject,
+  }, PreviewPanel))
 
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',

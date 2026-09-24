@@ -7,14 +7,15 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
+import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
 import {
   DESKTOP_FILE_ID,
   DESKTOP_FILES_ID,
   desktopFileDefinition,
   desktopFilesDefinition,
 } from './desktop-files.ts'
-import { SidebarFilePreview } from './FilePreview.tsx'
-import { SidebarFilesPanel } from './FilesPanel.tsx'
+import { FilePreview, SidebarFilePreview } from './FilePreview.tsx'
+import { FilesPanel, SidebarFilesPanel } from './FilesPanel.tsx'
 import { hasFloatingPreview } from './floating-preview.ts'
 import { readFilesShell, type FilesShellInjected } from './shell.ts'
 import { appendToDraft } from './draft.ts'
@@ -79,6 +80,13 @@ export function apply(ctx: Context): void {
     locale: NS,
     inject: (): FilesShellInjected => injected(),
   }, SidebarFilePreview)), 'ui-files: desktop file body')
+
+  ctx.slots.inject('surfaces.files', () => ctx.slots.register({
+    name: 'surfaces.files', locale: NS, inject: injected,
+  }, FilesPanel))
+  ctx.slots.inject('surfaces.file', () => ctx.slots.register({
+    name: 'surfaces.file', locale: NS, inject: injected,
+  }, FilePreview))
 
   ctx.slots.inject('sidebar.right.tab.document.actions', () => {
     if (!hasFloatingPreview()) return () => {}

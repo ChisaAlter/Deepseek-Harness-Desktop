@@ -34,6 +34,22 @@ it('keeps account UI and account RPC inactive in a plain browser, including afte
   }
 }, 60_000)
 
+it('registers account and sign-in UI through the DSHD shell preload', async ({ start, mock }) => {
+  vi.stubGlobal('shell', { getConfig: vi.fn(), saveConfig: vi.fn() })
+  const c = await start()
+  expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(1)
+  expect(c.ctx.slots.entries('settings.models.sign-in')).toHaveLength(1)
+  expect(mock.log.streams().some(stream => stream.endpoint === 'account/watch')).toBe(true)
+  expect(operations(c).hooks.account.getSnapshot().loginVisible).toBe(false)
+}, 60_000)
+
+it('ignores a partial shell bridge outside the desktop settings host', async ({ start, mock }) => {
+  vi.stubGlobal('shell', { getConfig: vi.fn() })
+  const c = await start()
+  expect(c.ctx.slots.entries('settings.launcher')).toHaveLength(0)
+  expect(mock.log.streams().filter(stream => stream.endpoint.startsWith('account/'))).toEqual([])
+}, 60_000)
+
 it('shares account actions across seats, publishes dialog ownership, and opens contextual support', async ({ start }) => {
   vi.stubGlobal(CONTACT_CONFIG_GLOBAL, { contactFormUrl: 'https://example.test/form/', contactSource: 'harness' })
   const open = vi.spyOn(window, 'open').mockReturnValue(null)

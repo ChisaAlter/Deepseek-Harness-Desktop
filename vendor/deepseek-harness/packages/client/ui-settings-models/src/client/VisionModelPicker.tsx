@@ -1,7 +1,7 @@
 /**
  * Vision-model picker: one dropdown over catalog models that advertise image
- * input, persisting the designated vision route into the `vision-fallback`
- * settings namespace.
+ * input, persisting the designated vision route into the live
+ * `llm-vision-fallback` configuration entry.
  * The host-side vision-fallback plugin reads that namespace; when the main
  * model cannot read images, it calls the designated model to describe them.
  * The control renders only when the host exposes the namespace (the plugin
@@ -44,8 +44,8 @@ export interface VisionPickerApi {
   }
 }
 
-/** The settings namespace the host-side vision-fallback plugin registers. */
-export const VISION_FALLBACK_NS = 'vision-fallback'
+/** Live configuration entry id for the host-side vision-fallback plugin. */
+export const VISION_FALLBACK_NS = 'llm-vision-fallback'
 
 /** One selectable route flattened from the model catalog. */
 interface RouteOption {

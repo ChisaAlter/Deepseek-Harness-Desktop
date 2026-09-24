@@ -4,7 +4,7 @@
  * or a custom scheme). The stored values survive a wallpaper being set —
  * the image always wins — and the effect resumes when the image is cleared.
  */
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   Button, IconSettingsOutline16, Modal, SettingsSelect, Switch, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -95,7 +95,7 @@ function schemeSwatchStyle(colors: readonly string[]): CSSProperties {
 /**
  * Scheme dialog: preset cards carry color bundles only — speed, count, and
  * the bloom variant stay user-adjustable for every scheme. Editing a color
- * slot marks the scheme custom. Save writes the draft as one settings patch.
+ * slot or tunable marks the scheme custom. Save writes the draft as one settings patch.
  * @param props - open state, stored values, dialog callbacks, copy.
  * @returns the settings modal.
  */
@@ -107,10 +107,14 @@ function BackgroundEffectModal({ open, values, onClose, onSave, t }: {
   t: (key: ThemeKey) => string
 }) {
   const [draft, setDraft] = useState<SchemeDraft>(values)
+  const latestValues = useRef(values)
+  latestValues.current = values
 
+  // A theme publish may rerender the parent while the dialog is open. Only a
+  // new open replaces unsaved edits with the latest stored values.
   useEffect(() => {
-    if (open) setDraft(values)
-  }, [open, values])
+    if (open) setDraft(latestValues.current)
+  }, [open])
 
   const markCustom = { preset: 'custom' as const }
   const setColor = (index: number, color: string): void => {
@@ -162,11 +166,22 @@ function BackgroundEffectModal({ open, values, onClose, onSave, t }: {
     >
       <div className={css.effectDialog}>
         <div
+          id="dsh-gradient-preview"
           className={css.effectPreview}
-          style={overrideVars(draft.colors)}
+          data-variant={draft.variant}
+          style={{
+            ...overrideVars(draft.colors),
+            '--dsh-gradient-speed': `${draft.speed / 100}`,
+          } as CSSProperties}
           role="img"
           aria-label={t('effect.gradient')}
-        />
+        >
+          <div id="dsh-gradient-preview-blobs">
+            {Array.from({ length: MAX_BACKGROUND_EFFECT_COUNT }, (_, index) => (
+              <i key={index} data-blob={index + 1} hidden={index >= draft.count} />
+            ))}
+          </div>
+        </div>
         <div className={css.schemeGrid} role="radiogroup" aria-label={t('effect.scheme')}>
           {EFFECT_PRESETS.map(preset => (
             <button
@@ -229,7 +244,7 @@ function BackgroundEffectModal({ open, values, onClose, onSave, t }: {
               aria-label={t('effect.speed')}
               onChange={(event) => {
                 const speed = Number(event.currentTarget.value)
-                setDraft(current => ({ ...current, speed }))
+                setDraft(current => ({ ...current, ...markCustom, speed }))
               }}
             />
           </label>
@@ -252,7 +267,7 @@ function BackgroundEffectModal({ open, values, onClose, onSave, t }: {
               aria-label={t('effect.count')}
               onChange={(event) => {
                 const count = Number(event.currentTarget.value)
-                setDraft(current => ({ ...current, count }))
+                setDraft(current => ({ ...current, ...markCustom, count }))
               }}
             />
           </label>
@@ -268,7 +283,7 @@ function BackgroundEffectModal({ open, values, onClose, onSave, t }: {
               }))}
               onChange={(id) => {
                 const variant = id as ThemeSettings['backgroundEffectVariant']
-                setDraft(current => ({ ...current, variant }))
+                setDraft(current => ({ ...current, ...markCustom, variant }))
               }}
             />
           </label>

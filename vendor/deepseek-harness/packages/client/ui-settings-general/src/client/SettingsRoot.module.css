@@ -1,3 +1,25 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+}
+
+.root.railRoot {
+  width: 36px;
+}
+
+.launcherRow {
+  display: flex;
+  width: calc(100% + 4px);
+  margin: 4px -2px 0;
+}
+
+.launcherRow.railLauncherRow {
+  width: 36px;
+  margin: 8px 0 0;
+}
+
 .triggerRow {
   position: relative;
   flex: none;
@@ -11,6 +33,10 @@
 .triggerRow.railRow {
   width: 36px;
   margin: 8px 0 10px;
+}
+
+.triggerRow:empty {
+  display: none;
 }
 
 .trigger {
@@ -162,8 +188,13 @@
 }
 
 .navCell.active {
-  background: var(--dsw-specific-sidebar-nav-item-active-accent);
+  background: var(--dsw-specific-sidebar-nav-item-active);
   font-weight: 500;
+}
+
+.navCell:focus-visible {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: -2px;
 }
 
 .navIcon {

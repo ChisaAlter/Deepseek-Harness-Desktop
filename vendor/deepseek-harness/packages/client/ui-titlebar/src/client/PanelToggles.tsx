@@ -33,7 +33,7 @@ export type PanelTogglesProps =
  * @returns the two icon toggles.
  */
 export function PanelToggles({
-  rightbarShown,
+  surfaces,
   terminalDrawer,
   useWorkspaces,
   useTerminalToggle,
@@ -98,9 +98,9 @@ export function PanelToggles({
         >
           <button
             type="button"
-            className={clsx(css.toggle, rightbarShown && css.pressed)}
+            className={clsx(css.toggle, surfaces > 0 && css.pressed)}
             aria-label={t('surfaces.toggle')}
-            aria-pressed={rightbarShown}
+            aria-pressed={surfaces > 0}
             onClick={() => { toggleRightPanel() }}
           >
             <IconPanelRightOutline16 size={14} />

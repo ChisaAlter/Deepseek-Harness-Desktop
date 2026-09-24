@@ -100,7 +100,7 @@ function visionPickerApi(ctx: ClientContext): VisionPickerApi {
  * constrained; registration depends on each slot through `slots.inject()`.
  */
 export const inject = [
-  'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings',
+  'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.session', 'remote.settings',
   'configForms', 'settingsSchema',
 ]
 

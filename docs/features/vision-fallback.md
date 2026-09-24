@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `vision-fallback` |
 | **status** | `active` |
-| **last verified** | 2026-09-05 — 核心集合 173 文件 / 3668 通过 / 3 跳过；识图集成追加覆盖取消、缺失描述拒绝、工具图片与超时；宿主构建通过。真实 API 和安装包待验收。 |
+| **last verified** | 2026-09-23 — 适配 0.1.7 配置表单：识图路由 live 字段、Models 控件写入条目与旧 `settings.yaml` 导入恢复；实机发现并修复模型目录读取缺少 `remote.session` 注入。显式 profile override 优先于旧备份的 5 个定向用例、settings 包 tsc 通过。真实 API 和安装包待验收。此前 2026-09-05 核心集合 173 文件 / 3668 通过 / 3 跳过。 |
 
 ## User paths
 
@@ -16,12 +16,14 @@
 
 - 原始图片和事件不改写；识图描述先记录再进入主请求。
 - 识图失败、超时或取消不伪装为成功，不用占位文本替代失败的识图调用。
-- 配置保留 vision-fallback namespace，不要求用户重填已有 API Key。
+- 模型设置始终提供识图模型选择器；新版配置表单使用 `llm-vision-fallback` 条目中的 live `provider` / `model` 字段。合并前 `settings.yaml` 的 `vision-fallback` 节在一次性导入时映射到该条目；已被旧版改名为 `settings.yaml.imported` 但未导入的选择也只补录一次，已有任何显式 profile override（包括关闭识图的空值）优先于备份，不在用户随后关闭识图时复活。已有选择与 API Key 不要求用户重填。
 - 保留附件格式、大小、权限以及模型路由检查。
 
 ## Allowed touch
 
 - vendor/deepseek-harness/packages/llm/llm-vision-fallback/ 与相关依赖声明
+- vendor/deepseek-harness/packages/settings/settings/（仅旧 `vision-fallback` 键的一次性导入映射）
+- vendor/deepseek-harness/packages/client/ui-settings-models/（仅识图模型控件及测试）
 - vendor/deepseek-harness/packages/core/agent-loop/ 请求组装和测试
 - vendor/deepseek-harness/packages/api/session-controller/ 图片准入和测试
 - vendor/deepseek-harness/packages/fs/tool-fs/ 图片准入和测试

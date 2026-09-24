@@ -17,8 +17,7 @@
 import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  Button, IconArchiveCheckOutlineRegular, IconArchiveOutlineRegular,
-  IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
+  Button, IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
   IconWorkspaceTreeOutlineRegular, Menu, Modal, Tooltip,
@@ -31,10 +30,13 @@ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WorkspaceBrowserProps } from '../contract/slots.ts'
 import type { ArchivedFilter, GroupNode, SessionNode, SessionOrderBy, SessionRowState } from '../tree.ts'
 import {
-  currentGroupKey, deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, owningGroupKey, owningParentFolder,
+  currentGroupKey, deriveArchived, deriveFlat, deriveGroups, deriveSearchResults, orderByRecency, owningGroupKey, owningParentFolder,
   pinCurrentBlank, reconcileManualOrder, sessionMemberIds, UNGROUPED_KEY,
 } from '../tree.ts'
-import { GroupSessionRun, ProjectRowItem, SearchResultItem, SessionNodeItem, TasksSectionHeader } from './Rows.tsx'
+import {
+  ArchivedSectionHeader, ArchivedSessionNodeItem, GroupSessionRun, ProjectRowItem,
+  SearchResultItem, SessionNodeItem, TasksSectionHeader,
+} from './Rows.tsx'
 import { AnimatedRows } from './AnimatedRows.tsx'
 import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
 import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
@@ -100,14 +102,12 @@ function useNativeDragAcceptance(active: boolean): void {
   }, [active])
 }
 
-/** Grouping, ordering, and archived-filter menu; own open state so it resets with the wide chrome. */
-function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrderPick, onArchivedFilterPick, t }: {
+/** Grouping and ordering menu; archived Sessions keep their own section below the list. */
+function ViewOptionsMenu({ groupBy, orderBy, onGroupPick, onOrderPick, t }: {
   groupBy: SessionGroupBy
   orderBy: SessionOrderBy
-  archivedFilter: ArchivedFilter
   onGroupPick: (mode: SessionGroupBy) => void
   onOrderPick: (mode: SessionOrderBy) => void
-  onArchivedFilterPick: (filter: ArchivedFilter) => void
   t: WorkspaceBrowserProps['t']
 }) {
   const [open, setOpen] = useState(false)
@@ -124,24 +124,11 @@ function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrde
         { type: 'label' as const, id: 'order-by', text: t('orderBy.label') },
         { id: 'manual', label: t('orderBy.manual'), icon: <IconChevronsUpDownOutlineRegular /> },
         { id: 'updated', label: t('orderBy.updated'), icon: <IconClockOutlineRegular /> },
-        { type: 'separator' as const, id: 'archived-filter-separator' },
-        { type: 'label' as const, id: 'filter-by', text: t('filterBy.label') },
-        { id: 'show-archived', label: t('viewOptions.showArchived'), icon: <IconArchiveOutlineRegular /> },
-        { id: 'only-archived', label: t('viewOptions.onlyArchived'), icon: <IconArchiveCheckOutlineRegular /> },
       ]}
-      selectedIds={[
-        groupBy,
-        orderBy,
-        ...archivedFilter === 'show' ? ['show-archived'] : [],
-        ...archivedFilter === 'only' ? ['only-archived'] : [],
-      ]}
+      selectedIds={[groupBy, orderBy]}
       onSelect={(id) => {
         if (id === 'workspace' || id === 'workspace-tree' || id === 'flat') onGroupPick(id)
         else if (id === 'manual' || id === 'updated') onOrderPick(id)
-        // The two archived items are mutually exclusive; re-picking the
-        // selected one returns to the default hide-archived view.
-        else if (id === 'show-archived') onArchivedFilterPick(archivedFilter === 'show' ? 'default' : 'show')
-        else if (id === 'only-archived') onArchivedFilterPick(archivedFilter === 'only' ? 'default' : 'only')
         setOpen(false)
       }}
       align="end"
@@ -229,6 +216,36 @@ function workspaceGroupHalf(e: { clientY: number; currentTarget: HTMLElement }):
   return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
 }
 
+/** One inert, session-local collapsed archive section shared by grouped and flat views. */
+function ArchivedSessionSection({ nodes, currentId, now, expanded, onToggle, onUnarchive, onDelete, t }: {
+  nodes: readonly SessionNode[]
+  currentId: SessionId | undefined
+  now: number
+  expanded: boolean
+  onToggle: () => void
+  onUnarchive: (id: SessionNode['id']) => void
+  onDelete: (id: SessionNode['id'], title: string) => void
+  t: WorkspaceBrowserProps['t']
+}) {
+  if (nodes.length === 0) return null
+  return (
+    <div className={css.groupSection} data-row-key="archived-section">
+      <ArchivedSectionHeader expanded={expanded} onToggle={onToggle} t={t} />
+      {expanded && nodes.map(node => (
+        <ArchivedSessionNodeItem
+          key={node.id}
+          node={node}
+          currentId={currentId}
+          now={now}
+          onUnarchive={onUnarchive}
+          onDelete={onDelete}
+          t={t}
+        />
+      ))}
+    </div>
+  )
+}
+
 
 type SessionTreeProps = Pick<
   WorkspaceBrowserProps,
@@ -247,8 +264,13 @@ type SessionTreeProps = Pick<
   ungroupedSessionIds: readonly SessionId[]
   /** Whether the current Workspace stream has a complete Host baseline. */
   workspaceReady: boolean
-  /** Grouping, ordering, and filter changes replace the view without row motion. */
+  /** Grouping and ordering changes replace the view without row motion. */
   animationResetKey: string
+  /** Desktop archive rows stay in their own bottom section. */
+  archivedNodes: readonly SessionNode[]
+  archivedExpanded: boolean
+  onToggleArchived: () => void
+  onSessionUnarchive: (sessionId: SessionNode['id']) => void
   /** Nest Workspaces under their nearest registered ancestors. */
   nestWorkspaces: boolean
   /** Explicit persisted group expansion, including descendants in tree mode. */
@@ -257,7 +279,7 @@ type SessionTreeProps = Pick<
   setGroupExpanded: (key: string, expanded: boolean) => void
   /** Apply a drag to one shared order. */
   setSessionOrder: (accountKey: string, order: readonly string[]) => void
-  /** Registry-global pin and archive sets plus the archived-visibility choice. */
+  /** Registry-global pin and archive sets; ordinary rows hide archives. */
   rowState: SessionRowState
   /** Open the browser-owned rename dialog for a real Workspace group. */
   onRenameRequest: (workspaceId: WorkspaceId, currentTitle: string) => void
@@ -276,7 +298,7 @@ type SessionTreeProps = Pick<
 /** The scrolling session tree; unmounting drops the sessions subscription and local row limits. */
 function SessionTree({
   list, useSessionStatus, startSession, connectNoDirectory, open, workspaces, scratchCwd, ungroupedSessionIds,
-  rowState,
+  rowState, archivedNodes, archivedExpanded, onToggleArchived, onSessionUnarchive,
   workspaceReady, animationResetKey, usePanelInfo,
   onRenameRequest, onDeleteRequest, onSessionRenameRequest, onSessionDeleteRequest,
   renderSlot,
@@ -405,7 +427,7 @@ function SessionTree({
     && workspaceDrag?.over?.id === rootGroups[0].workspaceId
     && workspaceDrag.over.half === 'before'
 
-  const rowKeys: string[] = groups.length === 0 ? ['empty'] : []
+  const rowKeys: string[] = groups.length === 0 && archivedNodes.length === 0 ? ['empty'] : []
   const renderGroup = (group: GroupNode, depth: number): ReactNode => {
     const workspaceId = group.workspaceId
     const children = childrenByParent.get(group.key) ?? []
@@ -611,6 +633,7 @@ function SessionTree({
   }
 
   const groupRows = rootGroups.map(group => renderGroup(group, 0))
+  if (archivedNodes.length > 0) rowKeys.push('archived-section')
   return (
     <div className={clsx(css.treeBody, css.wide)}>
       {workspaceDropAtListStart && <span className={css.listTopDropIndicator} aria-hidden="true" />}
@@ -621,10 +644,20 @@ function SessionTree({
         ready={list.phase === 'ready' && workspaceReady && !nativeDragActive}
         resetKey={JSON.stringify([animationResetKey, sessionLimits])}
       >
-        {groups.length === 0 && (
+        {groups.length === 0 && archivedNodes.length === 0 && (
           <div className={css.empty} data-row-key="empty">{t('empty.none')}</div>
         )}
         {groupRows}
+        <ArchivedSessionSection
+          nodes={archivedNodes}
+          currentId={current}
+          now={now}
+          expanded={archivedExpanded}
+          onToggle={onToggleArchived}
+          onUnarchive={onSessionUnarchive}
+          onDelete={onSessionDeleteRequest}
+          t={t}
+        />
       </AnimatedRows>
       <span className={css.fade} />
     </div>
@@ -634,7 +667,7 @@ function SessionTree({
 /** The flat "In one list" body: every session is one draggable top-level row. */
 function FlatList({
   list, sessionIds, rowState, useSessionStatus, open, onSessionRenameRequest, onSessionDeleteRequest,
-  renderSlot,
+  archivedNodes, archivedExpanded, onToggleArchived, onSessionUnarchive, renderSlot,
   usePanelInfo, setSessionOrder, workspaceReady, animationResetKey,
   revealSessionId, onSessionRevealed, t,
 }: Pick<
@@ -652,6 +685,10 @@ function FlatList({
   | 'revealSessionId'
   | 'onSessionRevealed'
   | 'rowState'
+  | 'archivedNodes'
+  | 'archivedExpanded'
+  | 'onToggleArchived'
+  | 'onSessionUnarchive'
   | 't'
 > & {
   /** Ordered flat members, including any pinned blank. */
@@ -682,11 +719,14 @@ function FlatList({
       <AnimatedRows
         className={clsx(css.list, css.flatList)}
         label={t('section.sessions')}
-        rowKeys={rows.length === 0 ? ['empty'] : rows.map(row => `session:${row.id}`)}
+        rowKeys={[
+          ...rows.length === 0 && archivedNodes.length === 0 ? ['empty'] : rows.map(row => `session:${row.id}`),
+          ...archivedNodes.length > 0 ? ['archived-section'] : [],
+        ]}
         ready={list.phase === 'ready' && workspaceReady && drag === null}
         resetKey={animationResetKey}
       >
-        {rows.length === 0 && (
+        {rows.length === 0 && archivedNodes.length === 0 && (
           <div className={css.empty} data-row-key="empty">{t('empty.none')}</div>
         )}
         {rows.map((node) => {
@@ -728,6 +768,16 @@ function FlatList({
             />
           )
         })}
+        <ArchivedSessionSection
+          nodes={archivedNodes}
+          currentId={currentId}
+          now={now}
+          expanded={archivedExpanded}
+          onToggle={onToggleArchived}
+          onUnarchive={onSessionUnarchive}
+          onDelete={onSessionDeleteRequest}
+          t={t}
+        />
       </AnimatedRows>
       <span className={css.fade} />
     </div>
@@ -883,9 +933,8 @@ export function WorkspaceBrowser({
   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
   const groupBy = useStore(s => s.groupBy)
   const orderBy = useStore(s => s.orderBy)
-  // Persisted view blobs written before the archived filter existed rehydrate
-  // without the field; they read as the default hide-archived view.
-  const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
+  const showArchivedList = useStore(s => s.showArchivedList ?? true)
+  const [archivedExpanded, setArchivedExpanded] = useState(false)
   const groupExpansion = useStore(s => s.groupExpansion)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
   // Archived sessions are not openable: the row stays visible under the
@@ -914,8 +963,14 @@ export function WorkspaceBrowser({
     [archivedSessionIds, pinnedSessionIds],
   )
   const rowState = useMemo<SessionRowState>(
-    () => ({ ...orderState, archivedFilter }),
-    [orderState, archivedFilter],
+    () => ({ ...orderState, archivedFilter: 'default' }),
+    [orderState],
+  )
+  const archivedNodes = useMemo(
+    () => showArchivedList
+      ? deriveArchived(list, workspaces, archivedSessionIds, scratchCwd, t('archived.missingTitle'))
+      : [],
+    [showArchivedList, list, workspaces, archivedSessionIds, scratchCwd, t],
   )
   const flatMemberIds = useMemo(() => sessionMemberIds(list, workspaces, scratchCwd), [list, workspaces, scratchCwd])
   const orderedWorkspaces = useMemo(() => workspaces.map((workspace) => {
@@ -1284,10 +1339,8 @@ export function WorkspaceBrowser({
             <ViewOptionsMenu
               groupBy={groupBy}
               orderBy={orderBy}
-              archivedFilter={archivedFilter}
               onGroupPick={actions.setGroupBy}
               onOrderPick={(mode) => { actions.setOrderBy(mode, activeSessionOrders) }}
-              onArchivedFilterPick={actions.setArchivedFilter}
               t={t}
             />
           )}
@@ -1361,7 +1414,7 @@ export function WorkspaceBrowser({
               workspaces={workspaces}
               scratchCwd={scratchCwd}
               archivedSessionIds={archivedSessionIds}
-              archivedFilter={archivedFilter}
+              archivedFilter="default"
               query={normalizedQuery}
               remote={remoteSearch}
               resultLimit={searchResultLimit}
@@ -1376,7 +1429,11 @@ export function WorkspaceBrowser({
                 sessionIds={orderedFlatSessionIds}
                 rowState={rowState}
                 workspaceReady={workspaceReady}
-                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                animationResetKey={`${groupBy}/${orderBy}`}
+                archivedNodes={archivedNodes}
+                archivedExpanded={archivedExpanded}
+                onToggleArchived={() => { setArchivedExpanded(value => !value) }}
+                onSessionUnarchive={onSessionUnarchive}
                 useSessionStatus={useSessionStatus}
                 open={guardedOpen}
                 onSessionRenameRequest={requestSessionRename}
@@ -1402,7 +1459,11 @@ export function WorkspaceBrowser({
                 ungroupedSessionIds={orderedUngroupedSessionIds}
                 workspaceReady={workspaceReady}
                 nestWorkspaces={groupBy === 'workspace-tree'}
-                animationResetKey={`${groupBy}/${orderBy}/${archivedFilter}`}
+                animationResetKey={`${groupBy}/${orderBy}`}
+                archivedNodes={archivedNodes}
+                archivedExpanded={archivedExpanded}
+                onToggleArchived={() => { setArchivedExpanded(value => !value) }}
+                onSessionUnarchive={onSessionUnarchive}
                 groupExpansion={groupExpansion}
                 setGroupExpanded={actions.setGroupExpanded}
                 setSessionOrder={saveSessionOrder}

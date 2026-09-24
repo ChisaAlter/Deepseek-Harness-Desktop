@@ -30,17 +30,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Services required by the titlebar plugin. */
 export const inject = ['slots', 'layout', 'locale', 'connection', 'remote', 'configForms']
 
-/** The Sidebar write is best-effort: a composition without it keeps the settings row. */
+/** The DSHD panel button owns the classic surfaces track. */
 function toggleRightPanel(ctx: Context): void {
   const sidebarRight = ctx.get('sidebarRight')
-  if (sidebarRight === undefined) return
-  try {
-    sidebarRight.toggleExpanded()
-  } catch (error) {
-    // A write before the session surface mounts has nothing to toggle.
-    if (error instanceof Error && error.message === 'sidebarRight: no session surface is mounted') return
-    throw error
-  }
+  if (sidebarRight?.isExpanded()) sidebarRight.toggleExpanded()
+  ctx.layout.toggleSurfaces()
 }
 
 /**

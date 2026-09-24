@@ -120,7 +120,7 @@ describe('ui-settings-models apply', () => {
 
   it('declares the services it uses', () => {
     expect(inject).toEqual([
-      'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings',
+      'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.session', 'remote.settings',
       'configForms', 'settingsSchema',
     ])
   })

@@ -276,7 +276,9 @@ export function AppFrame({
       const trailing = trailingRef.current
       /* v8 ignore next -- the trailing cluster mounts unconditionally with the frame. */
       if (trailing !== null) {
-        setTrailingWidth(Math.max(0, Math.round(trailing.getBoundingClientRect().width)))
+        // Ceil the measured box: rounding down loses subpixel clearance
+        // between the conversation utilities and this cluster.
+        setTrailingWidth(Math.max(0, Math.ceil(trailing.getBoundingClientRect().width)))
       }
     }
     function apply(): void {
@@ -318,7 +320,7 @@ export function AppFrame({
     const trailing = trailingRef.current
     /* v8 ignore next -- the trailing cluster mounts unconditionally with the frame. */
     if (trailing === null) return
-    setTrailingWidth(Math.max(0, Math.round(trailing.getBoundingClientRect().width)))
+    setTrailingWidth(Math.max(0, Math.ceil(trailing.getBoundingClientRect().width)))
   })
 
   // Narrow viewports auto-collapse the sidebar; the store mirror keeps

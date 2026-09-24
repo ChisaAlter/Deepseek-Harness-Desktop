@@ -181,11 +181,21 @@ describe('GitActionsControl', () => {
     expect(await screen.findByRole('button', { name: 'Commit' })).toBeTruthy()
   })
 
-  it('disables the main button when the current session has no cwd', () => {
+  it('hides the entire Git group when the current session has no cwd', () => {
     const b = mount({ cwd: undefined })
-    const main = screen.getByRole<HTMLButtonElement>('button', { name: 'Commit' })
-    expect(main.disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Switch branch' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Git actions' })).toBeNull()
     expect(b.gitStatus).not.toHaveBeenCalled()
+  })
+
+  it('keeps the Git group hidden until a status read resolves', async () => {
+    let resolveStatus!: (value: VcsStatus) => void
+    const gitStatus = vi.fn(() => new Promise<VcsStatus>(resolve => { resolveStatus = resolve }))
+    mount({ cwd: '/work', gitStatus })
+    expect(screen.queryByRole('button', { name: 'Git actions' })).toBeNull()
+    await act(async () => { resolveStatus(status()) })
+    expect(await screen.findByRole('button', { name: 'Git actions' })).toBeTruthy()
   })
 
   it('uses the main-view retained cwd when a background session is also retained', async () => {
@@ -206,14 +216,13 @@ describe('GitActionsControl', () => {
     expect(b.gitStatus).not.toHaveBeenCalledWith('/background')
   })
 
-  it('disables the main button and shows the unavailable hint when status is null', async () => {
+  it('hides the entire Git group when status is null', async () => {
     mount({ cwd: '/work', git: null })
-    const main = await screen.findByRole<HTMLButtonElement>('button', { name: 'Commit' })
-    expect(main.disabled).toBe(true)
-    fireEvent.focus(main)
-    expect(await screen.findByText('Git status is unavailable.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Git actions' }))
-    expect(screen.queryByRole('menuitem', { name: 'Publish repository' })).toBeNull()
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Switch branch' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Git actions' })).toBeNull()
+    })
   })
 
   it('treats a rejected status read like a null snapshot instead of rejecting refresh', async () => {
@@ -223,10 +232,11 @@ describe('GitActionsControl', () => {
       gitFetchForStatus: vi.fn(async () => { throw new Error('fetch ipc dropped') }),
       gitReadPullRequest: vi.fn(async () => { throw new Error('pr ipc dropped') }),
     })
-    const main = await screen.findByRole<HTMLButtonElement>('button', { name: 'Commit' })
-    expect(main.disabled).toBe(true)
-    fireEvent.focus(main)
-    expect(await screen.findByText('Git status is unavailable.')).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Switch branch' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Git actions' })).toBeNull()
+    })
   })
 
   it('keeps the local snapshot when the background fetch and PR refresh reject', async () => {
@@ -321,8 +331,11 @@ describe('GitActionsControl', () => {
     await waitFor(() => { expect(b.gitPush).toHaveBeenCalledWith('/work', expect.any(Number)) })
   })
 
-  it('keeps a stable useSessions hook count when a session cwd appears', async () => {
-    const gitStatus = vi.fn(async () => status({ aheadCount: 2 }))
+  it('keeps a stable hook count and hides stale Git controls when cwd changes', async () => {
+    let resolveOther!: (value: VcsStatus) => void
+    const gitStatus = vi.fn((target: string) => target === '/other'
+      ? new Promise<VcsStatus>(resolve => { resolveOther = resolve })
+      : Promise.resolve(status({ aheadCount: 2 })))
     const shared = {
       surfaces: 0,
       terminalDrawer: 0,
@@ -356,12 +369,18 @@ describe('GitActionsControl', () => {
     const { rerender } = render(
       <GitActionsControl {...shared} useSessions={useSessionsStub(sessionList(undefined))} />,
     )
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Commit' }).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull()
     expect(gitStatus).not.toHaveBeenCalled()
     rerender(
       <GitActionsControl {...shared} useSessions={useSessionsStub(sessionList('/work'))} />,
     )
     expect(await screen.findByRole('button', { name: 'Push & create PR' })).toBeTruthy()
+    rerender(
+      <GitActionsControl {...shared} useSessions={useSessionsStub(sessionList('/other'))} />,
+    )
+    expect(screen.queryByRole('button', { name: 'Git actions' })).toBeNull()
+    await act(async () => { resolveOther(status({ refName: 'other' })) })
+    expect(await screen.findByRole('button', { name: 'Git actions' })).toBeTruthy()
   })
 
   it('shows the IPC failure on the same progress toast', async () => {
@@ -444,8 +463,8 @@ describe('GitActionsControl', () => {
     const gitStatus = vi.fn(async () => (registered ? status({ refName: 'feature/late' }) : null))
     const gitFetchForStatus = vi.fn(async () => (registered ? status({ refName: 'feature/late' }) : null))
     mount({ cwd: '/work', gitStatus, gitFetchForStatus, onWorkspacesChanged })
-    const main = await screen.findByRole<HTMLButtonElement>('button', { name: 'Commit' })
-    expect(main.disabled).toBe(true)
+    await waitFor(() => { expect(gitStatus).toHaveBeenCalled() })
+    expect(screen.queryByRole('button', { name: 'Commit' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Switch branch' })?.textContent ?? '').not.toContain('feature/late')
     registered = true
     act(() => { notify?.() })

@@ -7,95 +7,50 @@ const test = require('node:test');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const vendorRoot = path.join(repoRoot, 'vendor', 'deepseek-harness');
-const clientRoot = path.join(vendorRoot, 'packages', 'client');
-
-/** Desktop fork packages that own the single visible right panel. */
-const DESKTOP_CLIENT_PACKAGES = [
-  'ui-agents-panel',
-  'ui-diff',
-  'ui-files',
-  'ui-preview',
-  'ui-surfaces',
-  'ui-titlebar',
-  'ui-user-terminal',
-];
-
-function sourceFiles(packageName) {
-  const root = path.join(clientRoot, packageName, 'src');
-  const found = [];
-  const walk = (dir) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const next = path.join(dir, entry.name);
-      if (entry.isDirectory()) walk(next);
-      else if (/\.(ts|tsx)$/.test(entry.name)) found.push(next);
-    }
-  };
-  walk(root);
-  return found;
-}
 
 function read(relative) {
   return fs.readFileSync(path.join(vendorRoot, relative), 'utf8');
 }
 
-test('no desktop package registers a legacy surfaces occupant', () => {
-  for (const packageName of DESKTOP_CLIENT_PACKAGES) {
-    for (const file of sourceFiles(packageName)) {
-      const text = fs.readFileSync(file, 'utf8');
-      const relative = path.relative(vendorRoot, file).split(path.sep).join('/');
-      assert.equal(
-        /slots\.register\(\s*\{\s*name:\s*'surfaces(?:\.|')/.test(text),
-        false,
-        `${relative} must not register a legacy surfaces occupant`,
-      );
-      assert.equal(
-        /slots\.inject\(\s*'surfaces(?:\.|')/.test(text),
-        false,
-        `${relative} must not inject into the legacy surfaces track`,
-      );
-    }
-  }
-});
-
-test('no desktop package reopens the legacy surfaces track', () => {
-  for (const packageName of DESKTOP_CLIENT_PACKAGES) {
-    for (const file of sourceFiles(packageName)) {
-      const text = fs.readFileSync(file, 'utf8');
-      const relative = path.relative(vendorRoot, file).split(path.sep).join('/');
-      for (const call of ['openSurfaces(', 'toggleSurfaces(']) {
-        // The retired visual shell is kept on disk as dormant upstream code.
-        if (relative.includes('/src/client/SurfacesRoot.tsx')) continue;
-        if (relative.includes('/src/client/SurfaceTabs.tsx')) continue;
-        assert.equal(
-          text.includes(call),
-          false,
-          `${relative} must not call ${call}`,
-        );
-      }
-    }
-  }
-});
-
-test('ui-surfaces normalizes the legacy width and registers no shell', () => {
+test('DSHD registers its classic right-panel shell and work surfaces', () => {
   const text = read('packages/client/ui-surfaces/src/client/apply.ts');
-  assert.match(text, /ctx\.layout\.closeSurfaces\(\)/);
-  assert.doesNotMatch(text, /name:\s*'surfaces'/);
-  assert.doesNotMatch(text, /openSurfaces\(\)/);
+  assert.match(text, /name:\s*'surfaces'/);
+  assert.match(text, /createSurfacesStore/);
+  assert.match(text, /SurfacesRoot/);
+  for (const [pkg, slot] of [
+    ['ui-files', 'files'],
+    ['ui-preview', 'browser'],
+    ['ui-user-terminal', 'terminal'],
+    ['ui-diff', 'diff'],
+    ['ui-agents-panel', 'agents'],
+  ]) {
+    assert.match(read(`packages/client/${pkg}/src/client/apply.ts`), new RegExp(`surfaces\\.${slot}`));
+  }
 });
 
-test('titlebar targets the native right Sidebar', () => {
+test('the classic and native right panels hand off visibility', () => {
+  const classic = read('packages/client/ui-surfaces/src/client/apply.ts');
+  const native = read('packages/client/ui-sidebar-right/src/client/index.ts');
+  const seat = read('packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx');
+  assert.match(classic, /native\?\.isExpanded\(\)/);
+  assert.match(classic, /native\.toggleExpanded\(\)/);
+  assert.match(classic, /ctx\.layout\.openSurfaces\(\)/);
+  assert.match(native, /layout\.closeSurfaces\(\)/);
+  assert.match(seat, /restoreClassic/);
+});
+
+test('titlebar targets the DSHD surfaces track', () => {
   const apply = read('packages/client/ui-titlebar/src/client/apply.ts');
   const toggles = read('packages/client/ui-titlebar/src/client/PanelToggles.tsx');
-  assert.match(apply, /toggleExpanded\(\)/);
-  assert.doesNotMatch(apply, /layout\.toggleSurfaces/);
-  assert.match(toggles, /rightbarShown/);
+  assert.match(apply, /layout\.toggleSurfaces\(\)/);
+  assert.match(toggles, /surfaces > 0/);
 });
 
-test('ui-layout forwards rightbarShown to the titlebar owner contract', () => {
+test('ui-layout forwards surfaces width to the titlebar owner contract', () => {
   const contract = read('packages/client/ui-layout/src/client/index.ts');
   const frame = read('packages/client/ui-layout/src/client/AppFrame.tsx');
-  assert.match(contract, /rightbarShown: boolean/);
-  assert.match(frame, /rightbarShown: layoutInfo\.rightbarShown/);
+  assert.match(contract, /surfaces: number/);
+  assert.match(frame, /surfaces: layoutInfo\.surfaces/);
 });
 
 test('desktop providers register native right Sidebar types', () => {

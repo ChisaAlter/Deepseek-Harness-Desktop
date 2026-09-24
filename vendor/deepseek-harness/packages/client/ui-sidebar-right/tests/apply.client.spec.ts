@@ -60,7 +60,7 @@ async function boot() {
       return () => { dictionaries.delete(ns) }
     }),
   }
-  const layout = { openRightbar: vi.fn(), closeRightbar: vi.fn() }
+  const layout = { openRightbar: vi.fn(), closeRightbar: vi.fn(), closeSurfaces: vi.fn() }
   const resources = { pin: vi.fn<(address: string, signal: AbortSignal) => void>() }
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)

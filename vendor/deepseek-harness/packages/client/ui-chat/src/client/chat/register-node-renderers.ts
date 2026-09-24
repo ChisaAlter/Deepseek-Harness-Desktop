@@ -7,7 +7,7 @@ import { AssistantNodeView } from './AssistantNodeView.tsx'
 import { CommandNodeView, ManualCompactionNodeView } from './CommandNodeView.tsx'
 import {
   CompactionNodeView, ContextMessageNodeView, RetryNodeView, TurnErrorNodeView,
-  TurnMaxTokensNodeView, UnknownNodeView, SteeringMessageNodeView,
+  TurnMaxTokensNodeView, UnknownNodeView, SteeringMessageNodeView, UserMessageNodeView,
 } from './MessageItem.tsx'
 import { SystemPromptNodeView } from './SystemPromptRow.tsx'
 import { TurnProcessNodeView } from './TurnProcessNodeView.tsx'
@@ -27,6 +27,15 @@ export function registerChatNodeRenderers(
   performanceUsage: ObservableSnapshot<PerformanceUsageMode>,
   presentation: ObservableSnapshot<ChatPresentationPolicy>,
 ): void {
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
+    name: 'conversation.chat.node',
+    key: 'user',
+    locale: NS,
+    children: {
+      'conversation.chat.user-actions': { kind: 'list', scope: 'session' },
+      'conversation.chat.user-editor': { kind: 'single', scope: 'session' },
+    },
+  }, UserMessageNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'steering', locale: NS }, SteeringMessageNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(

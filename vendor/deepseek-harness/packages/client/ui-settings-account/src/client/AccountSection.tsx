@@ -27,6 +27,13 @@ export interface AccountSnapshot {
   onboarding?: boolean
 }
 
+/** One optional action contributed to the account launcher menu. */
+export interface AccountLauncherActionRow {
+  id: string
+  order: number
+  label: string
+}
+
 /** Host operations injected into the Cordis-free account component. */
 export interface AccountSectionInjected {
   /** Desktop-only commands; absent in ordinary browsers. */
@@ -37,6 +44,8 @@ export interface AccountSectionInjected {
     account: HostObservable<AccountSnapshot>
     /** Palette the Platform login pages follow. */
     theme: HostObservable<ThemeSnapshot>
+    /** Live optional account-menu actions from the child slot ledger. */
+    launcherActions: HostObservable<readonly AccountLauncherActionRow[]>
   }
   /** @returns after account details are refreshed; concurrent refreshes share a request. */
   refresh: () => Promise<void>

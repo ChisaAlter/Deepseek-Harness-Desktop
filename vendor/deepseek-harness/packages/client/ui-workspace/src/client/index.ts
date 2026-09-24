@@ -221,7 +221,7 @@ export function apply(ctx: Context): void {
     hooks: { toast: rowToast },
     dismissToast: () => { rowToast.set(null) },
     undoArchive: unarchiveSession,
-    showArchived: () => { viewInstance.actions.setArchivedFilter('show') },
+    showArchived: () => { viewInstance.actions.setShowArchivedList(true) },
   })
   const browserInjected = (): WorkspaceBrowserInjected => ({
     // Explicit group actions keep their target; unscoped New Session inherits

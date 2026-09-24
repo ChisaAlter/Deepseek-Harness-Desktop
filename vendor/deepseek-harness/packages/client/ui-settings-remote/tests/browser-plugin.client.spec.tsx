@@ -7,6 +7,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '../src/client/index.ts'
 import { RemoteSection } from '../src/client/RemoteSection.tsx'
+import { RemoteMenuAction } from '../src/client/RemoteSection.tsx'
 import type { RemoteSectionInjected } from '../src/client/RemoteSection.tsx'
 
 usePinnedBrowserLanguages('zh-CN')
@@ -26,7 +27,10 @@ async function bench() {
 function declare(slots: SlotRegistry): () => void {
   return slots.register({
     name: 'root',
-    children: { 'sidebar.footer.action': { kind: 'list', scope: 'root' } },
+    children: {
+      'sidebar.footer.action': { kind: 'list', scope: 'root' },
+      'settings.launcher': { kind: 'single', scope: 'root' },
+    },
   } as never, () => null)
 }
 
@@ -83,6 +87,56 @@ describe('ui-settings-remote browser plugin', () => {
     stop()
     expect(b.slots.entries('sidebar.footer.action')).toHaveLength(0)
     await fiber.dispose()
+    await b.ctx.fiber.dispose()
+  })
+
+  it('moves Remote into a late account launcher and restores the footer fallback when it leaves', async () => {
+    const b = await bench()
+    declare(b.slots)
+    ;(window as Window & { shell?: unknown }).shell = {
+      getRemote: async () => ({ enabled: false, urls: [] }),
+      saveRemote: async () => ({ enabled: false, urls: [] }),
+      rotateRemoteToken: async () => ({ enabled: false, urls: [] }),
+      unbindRemoteDevice: async () => ({ enabled: false, urls: [], devices: [] }),
+      renameRemoteDevice: async () => ({ enabled: false, urls: [], devices: [] }),
+    }
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    expect(b.slots.entries('sidebar.footer.action')).toHaveLength(1)
+    const stopAccount = b.slots.register({
+      name: 'settings.launcher',
+      children: { 'settings.launcher.action': { kind: 'list', scope: 'root' } },
+    } as never, (() => null) as never)
+    await vi.waitFor(() => {
+      expect(b.slots.entries('sidebar.footer.action')).toHaveLength(0)
+      expect(b.slots.entries('settings.launcher.action')).toHaveLength(1)
+    })
+    const action = b.slots.entries('settings.launcher.action')[0]!
+    expect(action.component).toBe(RemoteMenuAction)
+    expect(action.options).toMatchObject({ id: 'remote', order: 50 })
+    stopAccount()
+    await vi.waitFor(() => { expect(b.slots.entries('sidebar.footer.action')).toHaveLength(1) })
+    await b.ctx.fiber.dispose()
+  })
+
+  it('registers only the account action when the launcher is already present', async () => {
+    const b = await bench()
+    declare(b.slots)
+    const stopAccount = b.slots.register({
+      name: 'settings.launcher',
+      children: { 'settings.launcher.action': { kind: 'list', scope: 'root' } },
+    } as never, (() => null) as never)
+    ;(window as Window & { shell?: unknown }).shell = {
+      getRemote: async () => ({ enabled: false, urls: [] }),
+      saveRemote: async () => ({ enabled: false, urls: [] }),
+      rotateRemoteToken: async () => ({ enabled: false, urls: [] }),
+      unbindRemoteDevice: async () => ({ enabled: false, urls: [], devices: [] }),
+      renameRemoteDevice: async () => ({ enabled: false, urls: [], devices: [] }),
+    }
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    expect(b.slots.entries('sidebar.footer.action')).toHaveLength(0)
+    expect(b.slots.entries('settings.launcher.action').map(entry => entry.options.id)).toEqual(['remote'])
+    stopAccount()
+    await vi.waitFor(() => { expect(b.slots.entries('sidebar.footer.action')).toHaveLength(1) })
     await b.ctx.fiber.dispose()
   })
 })

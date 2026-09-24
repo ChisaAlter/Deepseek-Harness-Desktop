@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `mobile-remote` |
 | **status** | `active` |
-| **last verified** | 2026-09-08 — 外出默认链路已迁移并部署为 `https://ayase.cn/dshd/` + `ayase.cn:443` TLS relay；公网资源目录与本地 fixture 一致，真实 daemon + 公网 relay + 公网 SPA 的配对、进入会话、坏 offer、无 hash、断线与清理 E2E 10/10。服务器容器 `healthy` / 0 restart。此前 2026-09-07 Ardot `Desktop-aligned v2` 的 Web 292 项、资源/QA 20 项、Android `test assembleDebug`、APK 资源审计及 debug 覆盖安装结论不变；本轮未执行真机相机、Android WebView、正式签名或安装包保留数据升级。 |
+| **last verified** | 2026-09-23 — 远程弹窗收束到账户菜单；源码应用 CDP 确认旧侧栏入口为 0、菜单入口可打开原弹窗并由 Esc 关闭。相关测试 76/76、两个插件类型检查通过；未改动或复测移动端配对链路。此前 2026-09-08 — 外出默认链路已迁移并部署为 `https://ayase.cn/dshd/` + `ayase.cn:443` TLS relay；公网资源目录与本地 fixture 一致，真实 daemon + 公网 relay + 公网 SPA 的配对、进入会话、坏 offer、无 hash、断线与清理 E2E 10/10。服务器容器 `healthy` / 0 restart。此前 2026-09-07 Ardot `Desktop-aligned v2` 的 Web 292 项、资源/QA 20 项、Android `test assembleDebug`、APK 资源审计及 debug 覆盖安装结论不变；本轮未执行真机相机、Android WebView、正式签名或安装包保留数据升级。 |
 
 ## 当前改造轮次（2026-09-06）
 
@@ -14,7 +14,7 @@
 
 **入口已开放，默认关闭配对：** `REMOTE_FEATURE_ENABLED=true`；远程服务只在用户开启后启动，未配置时默认服务器模式。以下路径仍须针对最终 CI 安装包验收，不能继承历史停放期的 N/A。
 
-1. 桌面开启配对且中继已连接 → 侧栏 `#offer=` v2 二维码（局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `https://ayase.cn/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经 `ayase.cn:443` TLS 中继完成 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
+1. 桌面开启配对且中继已连接 → 账户菜单「远程」打开 `#offer=` v2 二维码弹窗（账户入口未注册时从原侧栏「远程」行打开；局域网 `http://<LAN>:3180/` 本机 `mobile/web` SPA；外出 `DEFAULT_PUBLIC_APP_BASE_URL` 公网 nginx `https://ayase.cn/dshd/`）。系统相机打开浏览器公网页；App 内扫走 APK 内置 SPA（`appassets.androidplatform.net`），不加载公网 origin。`DaemonClient` 经 `ayase.cn:443` TLS 中继完成 E2EE 握手 → `deviceSecret` 落盘（sticky）→ 已配对态。中继未连接时弹窗只显示状态，不展示二维码 / 复制链接 / 刷新配对码。
 2. 再次打开手机 SPA（无 hash）：用最近一台已存 `deviceSecret` sticky 重连。「已保存的电脑」点选 / 忘记。跨 origin（公网 `/dshd`、LAN `:3180`、APK asset）不互通 sticky。
 3. Android：原生扫码或粘贴完整配对 URL → 应用内 WebView 打开 **同一份** SPA。聊天 / 会话列表 / Git / composer **不得**再做一套 Compose。
 4. 配对之后 SPA 是正在跑的 `dsh web` 第二客户端（与桌面 BrowserView 同一进程）。LAN 与外出都走隧道（公网页碰不到 loopback）。Harness 未就绪：抽屉明示「桌面端未启动」，禁止画空的「新会话」假装已对齐。
@@ -118,7 +118,7 @@
 - **sticky 三 origin 不互通**。外出配对页使用 HTTPS，fragment 不发送到服务器；LAN `http://<LAN>:3180` 仍是明文，同网段 MITM 可读完整导航链接中的 `#offer=`。
 - **一码两入口**：同一张 QR——Android App 内扫＝链接设备；相机 / 浏览器扫＝打开落地页自动连入 web 端。
 - Offer v1 / `POST /__remote__/login` / RemoteGateway 配对 **退役**。
-- 侧栏弹窗 QR 闸门只认 `[data-dsh-remote-qr]`；仅 `enabled && relayConnected && pairingUrl` 时提供二维码、复制与刷新。
+- 远程弹窗 QR 闸门只认 `[data-dsh-remote-qr]`；仅 `enabled && relayConnected && pairingUrl` 时提供二维码、复制与刷新。
 - Android Compose 只负责扫码/粘贴；会话走 APK 内置同一 Web SPA。
 - 助手 Markdown 禁止 `innerHTML` 注入：结构化 block → createElement；链接仅 http/https。
 - 时间线向上分页按 seq 去重并保持滚动锚点。打开会话失败必须清掉上一会话 rows。
@@ -136,6 +136,7 @@
 - `mobile/web/`（含 `host/`、`chisacode/`、`conversation/`、`git/`）、`scripts/bundle-chisacode-mobile-client.mjs`、`scripts/prepare-dshd-remote.mjs`
 - `src/main/dshd-remote.js`、`src/main/dshd-daemon-runner.mjs`、`src/main/dshd-daemon-hooks.mjs`、`src/main/dshd-git-dispatch.js`、`src/main/dshd-git-tunnel.js`、`src/main/mobile-web-server.js`、`src/shared/dshd-host-tunnel.js`、`src/shared/dshd-mux-sse.js`、`src/shared/lan.js`
 - `vendor/chisacode-remote/`（线协议 `dshd.host.rpc.*` / `dshd.git.rpc.*` / `dshd.host.mux.*`）、`ui-settings-remote`、本卡、QA 远程条
+- `vendor/deepseek-harness/packages/client/ui-settings/src/client/contract/slots.ts`、`ui-settings-account`、`docs/design-language*`、`docs/handbook/modules/settings.md`、`docs/decisions/` — 账户菜单远程入口与缺席回退
 - `tools/mobile-web-qa/`、`tools/remote-web-qa/`
 - `mobile/android/`（扫码 handoff、同源 WebView 生命周期、内置 SPA 打包与回归；2026-09-05 用户明确要求同步 Android 修复）
 
@@ -157,7 +158,7 @@
 
 ## Sources
 
-- Decision: none
+- Decision: [远程入口收束到账户菜单](../decisions/implemented/product/2026-09-23-remote-account-menu.md)
 
 - 2026-09-08 新域名部署与公网 E2E：[远程服务器迁移记录](../qa/results/2026-09-08/remote-ayase-deployment.md)。
 

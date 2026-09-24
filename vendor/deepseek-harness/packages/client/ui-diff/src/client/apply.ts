@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { DiffPanel, type DiffPanelInjected } from './DiffPanel.tsx'
@@ -79,4 +80,8 @@ export function apply(ctx: Context): void {
       },
     }),
   }, DiffPanel)), 'ui-diff: page body')
+
+  ctx.effect(() => ctx.slots.inject('surfaces.diff', () => ctx.slots.register({
+    name: 'surfaces.diff', locale: NS, inject: readDiffShell,
+  }, DiffPanel)), 'ui-diff: DSHD surface')
 }

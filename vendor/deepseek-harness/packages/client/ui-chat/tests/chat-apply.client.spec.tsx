@@ -101,6 +101,8 @@ describe('Chat apply wiring', () => {
     expect(resolveSlotLabel(views[0]?.options.label)).toBe('对话')
     expect(b.runtime.slots.spec('conversation.chat.node'))
       .toMatchObject({ kind: 'keyed', scope: 'session' })
+    expect(b.runtime.slots.entries('conversation.chat.node').map(row => row.options.key))
+      .toContain('user')
     expect(b.runtime.slots.entries('conversation.composer.dock').map(row => row.options.id))
       .toEqual(['stats', 'peak-valley'])
     expect(b.runtime.slots.entries('settings.general.item').map(row => row.options.id))

@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type {} from '@deepseek-ai/dsh-client-ui-surfaces/client'
 import { AgentsPanel } from './AgentsPanel.tsx'
 import type { AgentsPanelInjected } from './AgentsPanel.tsx'
 import { en, NS, zh, type AgentsKey } from './locales.ts'
@@ -65,4 +66,16 @@ export function apply(ctx: Context): void {
       },
     }),
   }, AgentsPanel)), 'ui-agents-panel: page body')
+
+  ctx.effect(() => ctx.slots.inject('surfaces.agents', () => ctx.slots.register({
+    name: 'surfaces.agents', locale: NS,
+    inject: (): AgentsPanelInjected => ({
+      jobs: ctx.jobs.state,
+      watchJobs: id => ctx.jobs.watchRows(id),
+      openAgent: (id: SessionId) => {
+        const address = ctx.sessions.subagentAddress(id)
+        ctx.uiWorkspace.openSession(address ?? id)
+      },
+    }),
+  }, AgentsPanel)), 'ui-agents-panel: DSHD surface')
 }

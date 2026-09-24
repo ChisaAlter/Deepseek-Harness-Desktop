@@ -7,6 +7,7 @@ import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { DEFAULT_THEME_SETTINGS } from '@deepseek-ai/dsh-client-ui-theme/src/theme-settings.ts'
 import type { PlatformBridge } from '../src/client/PlatformOverlay.tsx'
 import { AccountSection, type AccountSectionInjected, type AccountSnapshot } from '../src/client/AccountSection.tsx'
+import type { AccountMenuProps } from '../src/client/AccountMenu.tsx'
 import type {} from '../src/client/index.ts'
 import { en, zh, type AccountKey } from '../src/client/locales.ts'
 
@@ -19,7 +20,8 @@ const themeOf = (colorScheme: 'light' | 'dark'): ThemeSnapshot => ({
   families: [],
 })
 
-function operationsOf(state: Omit<AccountView, 'links'>, details?: Partial<AccountDetails>, platform?: PlatformBridge): AccountSectionInjected {
+function operationsOf(state: Omit<AccountView, 'links'>, details?: Partial<AccountDetails>, platform?: PlatformBridge):
+  AccountSectionInjected & Pick<AccountMenuProps, 'useLauncherActions' | 'renderSlot'> {
   return {
     ...platform === undefined ? {} : { platform },
     hooks: {
@@ -28,12 +30,41 @@ function operationsOf(state: Omit<AccountView, 'links'>, details?: Partial<Accou
         subscribe: () => () => {},
       },
       theme: { getSnapshot: () => themeOf('light'), subscribe: () => () => {} },
+      launcherActions: { getSnapshot: () => [], subscribe: () => () => {} },
     },
+    useLauncherActions: selector => selector([]),
+    renderSlot: (() => null) as AccountMenuProps['renderSlot'],
     contactUs: vi.fn(), showLogin: vi.fn(), setOnboarding: vi.fn(),
     refresh: vi.fn(() => Promise.resolve()),
     start: vi.fn(() => Promise.resolve()), cancel: vi.fn(() => Promise.resolve()), signOut: vi.fn(() => Promise.resolve()),
   }
 }
+
+it('opens the contributed Remote action from the account menu and restores focus on close', async () => {
+  const operations = operationsOf({ status: 'signed-out', attempt: null })
+  const recordSlot = vi.fn()
+  const renderSlot: AccountMenuProps['renderSlot'] = (key, owner, options) => {
+    recordSlot(key, owner, options)
+    return <div data-testid="remote-popup" />
+  }
+  const { AccountMenu } = await import('../src/client/AccountMenu.tsx')
+  render(<AccountMenu {...({} as GlobalStandardProps)} {...operations}
+    useAccount={selector => selector(operations.hooks.account.getSnapshot())}
+    useTheme={selector => selector(operations.hooks.theme.getSnapshot())}
+    useLauncherActions={selector => selector([{ id: 'remote', order: 50, label: 'Remote' }])}
+    renderSlot={renderSlot} wide openOnboarding={() => {}} openSettings={() => {}}
+    t={key => key in en ? en[key as AccountKey] : key} />)
+  const accountButton = screen.getByRole('button', { name: en.menu })
+  fireEvent.click(accountButton)
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([en.settings, 'Remote', en.contactUs, en.signIn])
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Remote' }))
+  expect(screen.getByTestId('remote-popup')).toBeTruthy()
+  const call = recordSlot.mock.calls.at(-1)!
+  expect(call[0]).toBe('settings.launcher.action')
+  expect(call[2]).toEqual({ only: 'remote' })
+  act(() => { (call[1] as { close: () => void }).close() })
+  expect(document.activeElement).toBe(accountButton)
+})
 
 function mount(state: Omit<AccountView, 'links'>, copy: typeof en | typeof zh = en, details?: Partial<AccountDetails>, platform?: PlatformBridge) {
   const operations = operationsOf(state, details, platform)

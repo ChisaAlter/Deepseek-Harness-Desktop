@@ -73,6 +73,9 @@ html[data-dsh-gradient] #root {
 #dsh-gradient {
   position: absolute;
   inset: 0;
+}
+
+:is(#dsh-gradient, #dsh-gradient-preview) {
   overflow: hidden;
   background: linear-gradient(
     40deg,
@@ -82,13 +85,13 @@ html[data-dsh-gradient] #root {
 }
 
 /* The blur isolates the hard-light blooms into one composited group. */
-#dsh-gradient-blobs {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) {
   position: absolute;
   inset: 0;
-  filter: blur(64px);
+  filter: blur(var(--dsh-preview-blur, 64px));
 }
 
-#dsh-gradient-blobs > [data-blob] {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob] {
   position: absolute;
   top: calc(50% - 40%);
   left: calc(50% - 40%);
@@ -99,14 +102,14 @@ html[data-dsh-gradient] #root {
   opacity: 0.8;
 }
 
-#dsh-gradient-blobs > [data-blob='1'] {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='1'] {
   top: calc(40% - 40%);
   left: calc(45% - 40%);
   background: radial-gradient(circle at center, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 50%);
   animation: dsh-gradient-vertical calc(30s / var(--dsh-gradient-speed, 1)) ease infinite;
 }
 
-#dsh-gradient-blobs > [data-blob='2'] {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='2'] {
   top: calc(55% - 40%);
   left: calc(38% - 40%);
   transform-origin: calc(50% - 400px);
@@ -114,7 +117,7 @@ html[data-dsh-gradient] #root {
   animation: dsh-gradient-circle calc(20s / var(--dsh-gradient-speed, 1)) reverse infinite;
 }
 
-#dsh-gradient-blobs > [data-blob='3'] {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='3'] {
   top: calc(48% - 40%);
   left: calc(62% - 40%);
   transform-origin: calc(50% + 400px);
@@ -122,7 +125,7 @@ html[data-dsh-gradient] #root {
   animation: dsh-gradient-circle calc(40s / var(--dsh-gradient-speed, 1)) linear infinite;
 }
 
-#dsh-gradient-blobs > [data-blob='4'] {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='4'] {
   top: calc(62% - 40%);
   left: calc(55% - 40%);
   transform-origin: calc(50% - 200px);
@@ -131,7 +134,7 @@ html[data-dsh-gradient] #root {
   opacity: 0.7;
 }
 
-#dsh-gradient-blobs > [data-blob='5'] {
+:is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='5'] {
   top: calc(35% - 40%);
   left: calc(58% - 40%);
   transform-origin: calc(50% - 800px) calc(50% - 800px);
@@ -143,11 +146,11 @@ html[data-dsh-gradient] #root {
  * Variant: aurora ribbons (极光带) — wide elliptical blooms drifting
  * horizontally at staggered heights.
  */
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs {
-  filter: blur(44px);
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) {
+  filter: blur(var(--dsh-preview-blur, 44px));
 }
 
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob] {
   top: calc(50% - 18%);
   left: calc(50% - 70%);
   width: 140%;
@@ -156,31 +159,31 @@ html[data-dsh-gradient] #root {
   transform-origin: center;
 }
 
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='1'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='1'] {
   top: calc(38% - 18%);
   background: radial-gradient(ellipse at center, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 55%);
   animation: dsh-gradient-drift calc(36s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
 }
 
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='2'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='2'] {
   top: calc(55% - 18%);
   background: radial-gradient(ellipse at center, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 0%, transparent 55%);
   animation: dsh-gradient-drift calc(44s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
 }
 
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='3'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='3'] {
   top: calc(30% - 18%);
   background: radial-gradient(ellipse at center, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 0%, transparent 55%);
   animation: dsh-gradient-drift calc(30s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
 }
 
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='4'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='4'] {
   top: calc(66% - 18%);
   background: radial-gradient(ellipse at center, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 0%, transparent 55%);
   animation: dsh-gradient-drift calc(48s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
 }
 
-#dsh-gradient[data-variant='aurora'] #dsh-gradient-blobs > [data-blob='5'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='aurora'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='5'] {
   top: calc(48% - 18%);
   background: radial-gradient(ellipse at center, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 0%, transparent 55%);
   animation: dsh-gradient-drift calc(40s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
@@ -190,11 +193,11 @@ html[data-dsh-gradient] #root {
  * Variant: chaos (混沌) — smaller blooms on erratic multi-axis paths with
  * pulsing scale and mixed directions.
  */
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs {
-  filter: blur(30px);
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) {
+  filter: blur(var(--dsh-preview-blur, 30px));
 }
 
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob] {
   top: calc(50% - 30%);
   left: calc(50% - 30%);
   width: 60%;
@@ -203,35 +206,35 @@ html[data-dsh-gradient] #root {
   transform-origin: center;
 }
 
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='1'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='1'] {
   top: calc(40% - 40%);
   left: calc(45% - 40%);
   background: radial-gradient(circle at center, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 55%);
   animation: dsh-gradient-chaos calc(14s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
 }
 
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='2'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='2'] {
   top: calc(38% - 30%);
   left: calc(60% - 30%);
   background: radial-gradient(circle at center, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 0%, transparent 55%);
   animation: dsh-gradient-chaos calc(18s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
 }
 
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='3'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='3'] {
   top: calc(62% - 30%);
   left: calc(42% - 30%);
   background: radial-gradient(circle at center, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 0%, transparent 55%);
   animation: dsh-gradient-chaos calc(11s / var(--dsh-gradient-speed, 1)) ease-in-out infinite;
 }
 
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='4'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='4'] {
   top: calc(30% - 30%);
   left: calc(55% - 30%);
   background: radial-gradient(circle at center, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 0%, transparent 55%);
   animation: dsh-gradient-chaos calc(16s / var(--dsh-gradient-speed, 1)) ease-in-out infinite reverse;
 }
 
-#dsh-gradient[data-variant='chaos'] #dsh-gradient-blobs > [data-blob='5'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='chaos'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='5'] {
   top: calc(56% - 30%);
   left: calc(34% - 30%);
   background: radial-gradient(circle at center, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 0%, transparent 55%);
@@ -242,11 +245,11 @@ html[data-dsh-gradient] #root {
  * Variant: rays (光束) — conic-gradient wedges sweeping around the layer
  * center like soft light beams.
  */
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs {
-  filter: blur(18px);
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) {
+  filter: blur(var(--dsh-preview-blur, 18px));
 }
 
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob] {
   top: calc(50% - 75%);
   left: calc(50% - 75%);
   width: 150%;
@@ -255,29 +258,29 @@ html[data-dsh-gradient] #root {
   transform-origin: center;
 }
 
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='1'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='1'] {
   top: calc(40% - 40%);
   left: calc(45% - 40%);
   background: conic-gradient(from 0deg at 50% 50%, transparent 0deg, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 40deg, transparent 80deg);
   animation: dsh-gradient-circle calc(30s / var(--dsh-gradient-speed, 1)) linear infinite;
 }
 
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='2'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='2'] {
   background: conic-gradient(from 90deg at 50% 50%, transparent 0deg, var(--dsh-gradient-2, var(--dsw-specific-gradient-2)) 35deg, transparent 70deg);
   animation: dsh-gradient-circle calc(40s / var(--dsh-gradient-speed, 1)) linear infinite reverse;
 }
 
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='3'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='3'] {
   background: conic-gradient(from 180deg at 50% 50%, transparent 0deg, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 50deg, transparent 100deg);
   animation: dsh-gradient-circle calc(24s / var(--dsh-gradient-speed, 1)) linear infinite;
 }
 
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='4'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='4'] {
   background: conic-gradient(from 270deg at 50% 50%, transparent 0deg, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 30deg, transparent 60deg);
   animation: dsh-gradient-circle calc(36s / var(--dsh-gradient-speed, 1)) linear infinite reverse;
 }
 
-#dsh-gradient[data-variant='rays'] #dsh-gradient-blobs > [data-blob='5'] {
+:is(#dsh-gradient, #dsh-gradient-preview)[data-variant='rays'] :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob='5'] {
   background: conic-gradient(from 45deg at 50% 50%, transparent 0deg, var(--dsh-gradient-5, var(--dsw-specific-gradient-5)) 45deg, transparent 90deg);
   animation: dsh-gradient-circle calc(28s / var(--dsh-gradient-speed, 1)) linear infinite;
 }
@@ -317,7 +320,7 @@ html[data-dsh-gradient] #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #dsh-gradient-blobs > [data-blob] {
+  :is(#dsh-gradient-blobs, #dsh-gradient-preview-blobs) > [data-blob] {
     animation: none;
   }
 }

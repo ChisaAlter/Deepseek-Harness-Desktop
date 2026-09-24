@@ -197,6 +197,12 @@ export function apply(ctx: Context): void {
             ctx.get('inputTriggers')?.sessionOf(scope).openReference('skill', { ref: `/${name}` })
           },
           openExternalLink: (url) => {
+            const desktopShell = (window as Window & { shell?: { previewOpen?: unknown } }).shell
+            if (linkOpening.getSnapshot() === 'sidebar' && typeof desktopShell?.previewOpen === 'function') {
+              try { sessionStorage.setItem('dshd-pending-preview-url', url) } catch { /* Browser also receives the event. */ }
+              window.dispatchEvent(new CustomEvent('dshd-open-surface', { detail: { kind: 'preview', url, sessionId } }))
+              return
+            }
             if (linkOpening.getSnapshot() === 'sidebar' && ctx.get('sidebarRightTabs')?.get('browser') !== undefined) {
               ctx.sidebarRight.openTab('browser', { params: { url } })
             } else {

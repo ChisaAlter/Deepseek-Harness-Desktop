@@ -152,7 +152,10 @@ export function apply(ctx: ClientContext): void {
     const layout: ILayout = ctx.layout
     const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence' | 'closeTab'> = {
       syncPresentation({ shown, track, fullscreen }) {
-        if (shown) layout.openRightbar(track, fullscreen)
+        if (shown) {
+          layout.closeSurfaces()
+          layout.openRightbar(track, fullscreen)
+        }
         else layout.closeRightbar()
       },
       bindService: binding => controller.bind(binding),

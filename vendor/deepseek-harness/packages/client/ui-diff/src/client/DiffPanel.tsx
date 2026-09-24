@@ -11,13 +11,14 @@ import {
 import css from './DiffPanel.module.css'
 
 export type DiffPanelProps =
-  & PropsRuntime<'sidebar.right.pane.tab'>
+  & Pick<PropsRuntime<'surfaces.diff'>, 'sessionId' | 'useSessions'>
   & PropsLocale<typeof NS>
-  & InjectFace<DiffPanelInjected>
+  & InjectFace<DiffShellInjected>
+  & { openFile: (relativePath: string) => void | Promise<void> }
 
 /** The git probes plus the session-bound workspace path opener. */
 export interface DiffPanelInjected extends DiffShellInjected {
-  openFile: (relativePath: string) => Promise<void>
+  openFile: (relativePath: string) => void | Promise<void>
 }
 
 function marker(kind: 'context' | 'add' | 'del'): string {
@@ -61,7 +62,8 @@ export function DiffPanel({
   t,
 }: DiffPanelProps): ReactNode {
   const cwd = useSessions((state) => {
-    const next = state.byId[sessionId]?.cwd
+    const id = sessionId ?? Object.values(state.byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id
+    const next = id === undefined ? undefined : state.byId[id]?.cwd
     return next ? next : undefined
   })
   const [available, setAvailable] = useState(false)

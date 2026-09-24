@@ -152,18 +152,27 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     useDesktopUpdate, openDesktopUpdate,
   } = props
   const [completedOnboarding, setCompletedOnboarding] = useState<ReadonlySet<string>>(() => new Set())
+  const [explicitOnboarding, setExplicitOnboarding] = useState<string | undefined>()
   const [showRecovery, setShowRecovery] = useState(false)
   const [holdConnecting, setHoldConnecting] = useState(false)
   const connectingShownAt = useRef<number | undefined>(undefined)
   const triggerButton = useRef<HTMLButtonElement | null>(null)
+  const launcherRow = useRef<HTMLDivElement | null>(null)
   const navigation = useNavigation(state => state)
   const { open, sectionId: activeId } = navigation
   const wasOpen = useRef(open)
   const { mounted, state } = usePresence(open)
+  const launcher = renderSlot('settings.launcher', {
+    wide,
+    openSettings: () => { openSettings() },
+    openOnboarding: (id: string) => { setExplicitOnboarding(id) },
+  })
   const close = useCallback(() => { closeSettings() }, [closeSettings])
   // Restore after the close commit, when the dialog can no longer own focus.
   useEffect(() => {
-    if (wasOpen.current && !open) triggerButton.current?.focus()
+    if (wasOpen.current && !open) {
+      (launcherRow.current?.querySelector('button') ?? triggerButton.current)?.focus()
+    }
     wasOpen.current = open
   }, [open])
   const openSection = useCallback((id: string) => {
@@ -183,9 +192,11 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
       .find(session => (session.retainedBy.mainView ?? 0) > 0)
     return state.phase === 'ready' && (main === undefined || main.blank)
   })
-  const onboardingStep = onboardingActive
-    ? onboardingSteps.find(step => !completedOnboarding.has(step.id))
-    : undefined
+  const onboardingStep = explicitOnboarding !== undefined
+    ? onboardingSteps.find(step => step.id === explicitOnboarding)
+    : onboardingActive
+      ? onboardingSteps.find(step => !completedOnboarding.has(step.id))
+      : undefined
 
   useEffect(() => {
     if (onboardingActive) return
@@ -230,11 +241,15 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   }, [connectionState])
 
   const completeOnboardingStep = useCallback((id: string) => {
+    if (explicitOnboarding === id) {
+      setExplicitOnboarding(undefined)
+      return
+    }
     setCompletedOnboarding((previous) => {
       if (previous.has(id)) return previous
       return new Set([...previous, id])
     })
-  }, [])
+  }, [explicitOnboarding])
 
   let connectionIndicator: ConnectionIndicatorState | undefined
   if (connectionState === 'connecting' || holdConnecting) {
@@ -246,9 +261,12 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
   }
 
   return (
-    <>
+    <div className={clsx(css.root, !wide && css.railRoot)}>
+      {launcher != null && <button type="button" hidden data-dsh-settings-trigger
+        aria-expanded={open} onClick={() => { openSettings() }} />}
+      {launcher != null && <div ref={launcherRow} className={clsx(css.launcherRow, !wide && css.railLauncherRow)}>{launcher}</div>}
       <div className={clsx(css.triggerRow, !wide && css.railRow)}>
-        <button
+        {launcher == null && <button
           ref={triggerButton}
           type="button"
           className={clsx(css.trigger, !wide && css.rail)}
@@ -259,7 +277,7 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           onClick={() => { openSettings() }}
         >
           {renderSlot('settings.trigger', { wide })}
-        </button>
+        </button>}
         <UpdateAction wide={wide} t={t} />
         <ConnectionIndicator
           state={wide && desktopUpdate.presentation?.phase !== 'installing' ? connectionIndicator : undefined}
@@ -289,9 +307,10 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
           renders null, so nothing paints or blocks while it decides. */}
       {onboardingStep !== undefined && renderSlot('settings.onboarding', {
         stepId: onboardingStep.id,
+        explicit: explicitOnboarding === onboardingStep.id,
         complete: () => { completeOnboardingStep(onboardingStep.id) },
         openSection,
       }, { only: onboardingStep.id })}
-    </>
+    </div>
   )
 }

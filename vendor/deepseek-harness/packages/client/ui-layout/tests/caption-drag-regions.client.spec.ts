@@ -1,12 +1,13 @@
 /**
  * Desktop caption drag invariant across every client stylesheet. Chromium
  * builds the window's draggable region as a geometric union of `drag` rects
- * minus `no-drag` rects — stacking order does not matter — so exactly one
- * `drag` rectangle may exist (AppFrame's `.captionDrag`), and every
+ * minus `no-drag` rects — stacking order does not matter — so only the
+ * frame caption band and macOS logo row may declare `drag`, and every
  * `position: fixed` layer must declare `no-drag`: a floating layer that can
  * cover the band's top 48px without a hole gets its clicks swallowed by
- * window dragging. The wallpaper background is the one allowed exception; it
- * is `pointer-events: none` and a `no-drag` there would subtract the whole
+ * window dragging. Both drag regions remain behind content. The wallpaper
+ * background is the one allowed fixed-layer exception; it is
+ * `pointer-events: none` and a `no-drag` there would subtract the whole
  * viewport from the band.
  */
 import { readdirSync, readFileSync } from 'node:fs'
@@ -26,7 +27,6 @@ const FIXED_NO_DRAG_EXEMPT = new Set([
   // pointer-events: none background layer behind #root; a no-drag hole here
   // would cover the viewport and delete the caption band geometrically.
   'packages/client/ui-theme/src/styles/wallpaper.css :: #dsh-wallpaper',
-  'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.module.css :: .floatHost',
 ])
 
 /* Manual walk: fs recursive readdir follows pnpm's cyclic node_modules
@@ -67,11 +67,36 @@ describe('caption drag regions across client stylesheets', () => {
     expect(files.length).toBeGreaterThan(20)
   })
 
-  it('keeps AppFrame .captionDrag as the only drag rectangle', () => {
+  it('keeps drag rectangles in the frame band and macOS logo row', () => {
     const dragBlocks = files.flatMap(file => blocks(file.text)
       .filter(block => /-webkit-app-region:\s*drag/.test(block.body))
       .map(block => `${file.path} :: ${block.selector}`))
-    expect(dragBlocks).toEqual(['packages/client/ui-layout/src/client/AppFrame.module.css :: .captionDrag'])
+    expect(dragBlocks).toEqual([
+      'packages/client/ui-layout/src/client/AppFrame.module.css :: .captionDrag',
+      "packages/client/ui-sidebar/src/client/SidebarRoot.module.css :: :global([data-platform='darwin']) .logoRow",
+    ])
+  })
+
+  it('keeps every Session header action seat clickable above the caption band on all platforms', () => {
+    const conversation = files.find(file => file.path === 'packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css')
+    expect(conversation).toBeDefined()
+    const noDragSelectors = blocks(conversation!.text)
+      .filter(block => /-webkit-app-region:\s*no-drag/.test(block.body))
+      .filter(block => !block.selector.includes(':global('))
+      .flatMap(block => block.selector.split(',').map(selector => selector.trim()))
+    expect(noDragSelectors).toEqual(expect.arrayContaining([
+      '.headerLeading', '.crumbs', '.headerActions', '.headerUtilities', '.headerCorner',
+    ]))
+  })
+
+  it('subtracts native and custom interactive controls from drag regions on every platform', () => {
+    const base = files.find(file => file.path === 'packages/client/web/src/base.css')
+    expect(base).toBeDefined()
+    const interactive = blocks(base!.text).find(block => block.selector.startsWith(':is(')
+      && /-webkit-app-region:\s*no-drag/.test(block.body))
+    expect(interactive?.selector).toContain('button')
+    expect(interactive?.selector).toContain("[role='button']")
+    expect(interactive?.selector).toContain('[tabindex]')
   })
 
   it('punches a no-drag hole in every position: fixed layer', () => {

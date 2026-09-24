@@ -340,7 +340,10 @@ export function RightbarSeat({
   // adopted stores instead.
   const surfaces = useStore(state => state.bySession)
   const surface = surfaces[sessionId]
-  const shown = active && surface !== undefined && surface.layout.expanded
+  const firstDesktopSeat = useRef(true)
+  const restoreClassic = firstDesktopSeat.current && active && surface !== undefined
+    && typeof (window as Window & { shell?: { listDir?: unknown } }).shell?.listDir === 'function'
+  const shown = active && surface !== undefined && surface.layout.expanded && !restoreClassic
   const autoFullscreen = viewportWidth < 768
   const fullscreen = autoFullscreen || surface?.layout.mode === 'fullscreen'
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -353,6 +356,12 @@ export function RightbarSeat({
   useEffect(() => {
     if (active && surface === undefined) actions.open(sessionId)
   }, [actions, sessionId, surface, active])
+
+  useLayoutEffect(() => {
+    if (!active || surface === undefined || !firstDesktopSeat.current) return
+    firstDesktopSeat.current = false
+    if (restoreClassic && surface.layout.expanded) actions.setExpanded(sessionId, false)
+  }, [active, actions, restoreClassic, sessionId, surface])
 
   useLayoutEffect(() => {
     if (shown && !fullscreen && !canShow) actions.setExpanded(sessionId, false)

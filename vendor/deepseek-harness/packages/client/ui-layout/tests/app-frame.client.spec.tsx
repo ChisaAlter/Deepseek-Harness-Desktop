@@ -886,6 +886,14 @@ describe('AppFrame — titlebar density and conversation reserve', () => {
     expect(frame.style.getPropertyValue('--dshd-titlebar-conversation-reserve')).toBe('400px')
   })
 
+  it('rounds fractional trailing width up so the 8px clearance is never short', () => {
+    trailingClusterWidth = 459.27
+    const { frame, instance } = mountFrame()
+    act(() => { instance.actions.openSurfaces() })
+    act(() => { resize(frameWidth) })
+    expect(frame.style.getPropertyValue('--dshd-titlebar-conversation-reserve')).toBe('460px')
+  })
+
   it('drops the conversation reserve when the rightbar track is at least as wide as the cluster', () => {
     trailingClusterWidth = 300
     const { frame, instance } = mountFrame()

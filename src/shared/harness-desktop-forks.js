@@ -125,13 +125,16 @@ const FORK_FILE_MARKERS = [
   // Desktop fork: the shipped web-app composition carries the browse rows, so
   // the scaffold's upstream -auto disable+insert pair must stay removed (it
   // duplicates the shipped client browse row and fails every boot sweep).
-  // Desktop keeps the upstream rightbar and leaves the legacy surfaces track
-  // dormant. The titlebar consumes the owner fact instead of reopening it.
-  { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['rightbarShown: boolean'] },
-  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['rightbarShown: layoutInfo.rightbarShown'] },
-  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ['closeSurfaces', 'openInRightSidebar'], excludes: ["name: 'surfaces'", 'openSurfaces()'] },
-  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['toggleExpanded'], excludes: ['layout.toggleSurfaces'] },
-  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['rightbarShown'] },
+  // The original DSHD surfaces track owns the desktop right panel; the native
+  // Sidebar remains available only through an exclusive compatibility handoff.
+  { file: 'packages/client/ui-layout/src/client/index.ts', includes: ['surfaces: number'] },
+  { file: 'packages/client/ui-layout/src/client/AppFrame.tsx', includes: ['surfaces: layoutInfo.surfaces'] },
+  { file: 'packages/client/ui-surfaces/src/client/apply.ts', includes: ["name: 'surfaces'", 'openClassicSurfaces', 'if (cwd === undefined) return false'], excludes: ['openInRightSidebar'] },
+  { file: 'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx', includes: ['SurfaceTabs', 'EmptyState'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/index.ts', includes: ['layout.closeSurfaces()'] },
+  { file: 'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx', includes: ['restoreClassic'] },
+  { file: 'packages/client/ui-titlebar/src/client/apply.ts', includes: ['layout.toggleSurfaces()'] },
+  { file: 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', includes: ['surfaces > 0'] },
   { file: 'apps/web/tests/scaffold.ts', excludes: ['directory-picker-browse'] },
   { file: 'apps/web/tests/models-settings.e2e.ts', includes: ['llm.discoverModels'] },
   // Desktop fork: input.dock panels follow the drag-resized composer card.

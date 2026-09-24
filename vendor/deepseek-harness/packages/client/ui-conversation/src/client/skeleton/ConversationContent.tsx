@@ -159,7 +159,10 @@ export function ConversationContent(props: ConversationContentProps) {
         // Text edits (the reply streaming in, typing into the live editor)
         // are light enough to paint through; only structural churn extends
         // the hold.
-        if (live && records.some(record => record.type !== 'characterData')) rearm()
+        if (live && records.some(record => record.type !== 'characterData'
+          && !(record.type === 'attributes' && record.target === stack && record.attributeName === 'style'))) {
+          rearm()
+        }
       }
       const mutations = new MutationObserver(onMutations)
       const resizes = new ResizeObserver(signal)

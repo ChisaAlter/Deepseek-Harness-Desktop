@@ -1,10 +1,10 @@
 /** Config-schema projection and form edits over Cordis profile patches. */
 import { existsSync } from 'node:fs'
-import { readFile, rename } from 'node:fs/promises'
+import { readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { Context, FiberState, Service, resolveConfig, type Fiber } from '@deepseek-ai/cordis'
-import type z from '@deepseek-ai/schemastery'
+import z from '@deepseek-ai/schemastery'
 import { interpolate, type Entry } from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-config-editor'
 import type {} from '@deepseek-ai/dsh-app-boot'
@@ -199,6 +199,7 @@ function member(node: unknown, key: string, own = false): unknown {
 
 /** Entry ids of the removed `settings.yaml` sections whose owning entry carries another id. */
 const LEGACY_SECTION_ENTRIES: Record<string, string> = {
+  'vision-fallback': 'llm-vision-fallback',
   'session-log-export': 'session-log-download',
   'ui-developer-tools': 'ui-settings',
   'ui-onboarding': 'ui-settings-general',
@@ -242,8 +243,12 @@ export class SettingsForms extends Service {
   private async importLegacyDocument(): Promise<void> {
     const profile = this.ownerContext.profileContext
     const path = join(profile.home, 'settings.yaml')
-    if (!existsSync(path)) return
     const imported = `${path}.imported`
+    if (!existsSync(path)) {
+      await this.importLegacyVisionBackup(imported)
+      await this.importLegacyClientSettingsBackup(imported)
+      return
+    }
     await rename(path, imported)
     const sections = parse(await readFile(imported, 'utf8')) as Record<string, object> | null
     for (const [section, values] of Object.entries(sections ?? {})) {
@@ -256,6 +261,64 @@ export class SettingsForms extends Service {
       }
     }
     this.ownerContext.logger.info('settings: imported %s into profile %s', imported, profile.name)
+    await this.importLegacyVisionBackup(imported)
+    await this.importLegacyClientSettingsBackup(imported)
+  }
+
+  /** Recover a vision selection skipped by a prior version's one-time settings import.
+   * An explicit profile override wins over the backup, even when its selected route is empty.
+   * The marker prevents a later deliberate "Off" selection from resurrecting the backup. */
+  private async importLegacyVisionBackup(imported: string): Promise<void> {
+    const marker = `${imported}.vision-fallback-migrated`
+    if (existsSync(marker) || !existsSync(imported)) return
+    const sections = parse(await readFile(imported, 'utf8')) as Record<string, object> | null
+    const legacy = sections?.['vision-fallback']
+    if (legacy === undefined) return
+    const current = this.describe().find(view => view.ns === 'llm-vision-fallback')
+    if (current === undefined) return
+    const selection = current.value as { provider?: unknown; model?: unknown } | undefined
+    const override = this.ownerContext.configEditor.configuration().find(
+      ({ entry }) => entry.options.id === 'llm-vision-fallback',
+    )?.override
+    if (selection?.provider === undefined && selection?.model === undefined
+      && Object.keys(override ?? {}).length === 0) {
+      await this.update('llm-vision-fallback', legacy)
+    }
+    await writeFile(marker, '', { flag: 'wx' })
+  }
+
+  /** Recover appearance and conversation fields omitted by the first profile importer.
+   * A form's explicit user keys win even when their values are false or empty;
+   * a marker prevents later intentional resets from resurrecting old values. */
+  private async importLegacyClientSettingsBackup(imported: string): Promise<void> {
+    if (!existsSync(imported)) return
+    const sections: unknown = parse(await readFile(imported, 'utf8'))
+    if (!isPlainObject(sections)) return
+    const recover = [
+      { ns: 'ui-theme', excluded: ['preference', 'fontSize'] },
+      { ns: 'ui-conversation', excluded: ['busyEnter'] },
+    ] as const
+    for (const { ns, excluded } of recover) {
+      const marker = `${imported}.${ns}-migrated`
+      if (existsSync(marker)) continue
+      const legacy = sections[ns]
+      if (!isPlainObject(legacy)) continue
+      try {
+        const current = this.describe().find(view => view.ns === ns)
+        if (current === undefined || !isPlainObject(current.schema)) continue
+        const fields = new z(current.schema as unknown as ReturnType<z['toJSON']>).dict ?? {}
+        const excludedFields: readonly string[] = excluded
+        const user = isPlainObject(current.user) ? current.user : {}
+        const patch = Object.fromEntries(Object.entries(legacy).filter(([key]) =>
+          Object.hasOwn(fields, key) && !excludedFields.includes(key)
+          && !Object.hasOwn(user, key)))
+        if (Object.keys(patch).length) await this.update(ns, patch, current.revision)
+        await writeFile(marker, '', { flag: 'wx' })
+      } catch (error) {
+        this.ownerContext.logger.warn('settings: legacy section %s of %s could not be recovered', ns, imported)
+        this.ownerContext.logger.warn(error)
+      }
+    }
   }
 
   /** Register the calling plugin instance's page policy without changing its Config.

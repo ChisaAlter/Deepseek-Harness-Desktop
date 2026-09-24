@@ -30,7 +30,7 @@ async function boot() {
   const slots = {
     inject: vi.fn((name: string, register: () => () => void) => {
       injectedSlots.push(name)
-      return register()
+      return ctx.effect(register)
     }),
     register: vi.fn((options: Omit<Recorded, 'component'>, component: unknown) => {
       const entry = { ...options, component }
@@ -82,9 +82,9 @@ describe('ui-agents-panel apply', () => {
     expect(b.dictionaries.get('agents')).toEqual({ zh, en })
     expect(b.registered.map(entry => [entry.name, entry.key, entry.locale, entry.component])).toEqual([
       ['sidebar.right.pane.tab', AGENTS_ID, 'agents', AgentsPanel],
+      ['surfaces.agents', undefined, 'agents', AgentsPanel],
     ])
-    expect(b.injectedSlots).toEqual(['sidebar.right.pane.tab'])
-    expect(b.injectedSlots.some(name => name.startsWith('surfaces.'))).toBe(false)
+    expect(b.injectedSlots).toEqual(['sidebar.right.pane.tab', 'surfaces.agents'])
     expect(b.registered[0]?.inject().jobs).toBe(b.jobs.state)
     const release = b.registered[0]!.inject().watchJobs('parent' as SessionId)
     expect(b.jobs.watchRows).toHaveBeenCalledWith('parent')

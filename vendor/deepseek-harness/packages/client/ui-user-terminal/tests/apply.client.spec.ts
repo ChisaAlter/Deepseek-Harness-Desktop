@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** User-terminal plugin injects only the drawer; the right panel owns its own Terminal tab type. */
+/** User-terminal plugin injects the drawer and classic DSHD Terminal occupant. */
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -8,6 +8,7 @@ import { apply, inject } from '../src/client/index.ts'
 import type { TerminalShellInjected } from '../src/client/shell.ts'
 import { en } from '../src/client/locales.ts'
 import { TerminalDrawer } from '../src/client/TerminalDrawer.tsx'
+import { TerminalSurface } from '../src/client/TerminalSurface.tsx'
 import { bindPtyListeners } from '../src/client/pty-bridge.ts'
 
 const SID = 'session-term'
@@ -17,23 +18,22 @@ function declare(slots: SlotRegistry): () => void {
     name: 'root',
     children: {
       'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },
+      'surfaces.terminal': { kind: 'single', scope: 'session-maybe' },
     },
   } as never, () => null)
 }
 
-async function bench(sidebarRightOverride?: { openTabIn: ReturnType<typeof vi.fn> } | null) {
+async function bench() {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
-  const layout = { toggleTerminalDrawer: vi.fn(), setTerminalDrawer: vi.fn() }
-  const sidebarRight = sidebarRightOverride === undefined ? { openTabIn: vi.fn(() => true) } : sidebarRightOverride
+  const layout = { toggleTerminalDrawer: vi.fn(), setTerminalDrawer: vi.fn(), openSurfaces: vi.fn() }
   ctx.provide('layout', layout)
   ctx.provide('locale', new LocaleRuntime(ctx))
-  if (sidebarRight !== null) ctx.provide('sidebarRight', sidebarRight)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, slots, declaration, fiber, layout, sidebarRight }
+  return { ctx, slots, declaration, fiber, layout }
 }
 
 describe('ui-user-terminal apply', () => {
@@ -41,38 +41,39 @@ describe('ui-user-terminal apply', () => {
     expect(inject).toEqual(['slots', 'layout', 'locale'])
   })
 
-  it('injects only the drawer and leaves surfaces.terminal unoccupied', async () => {
+  it('injects both the drawer and DSHD Terminal', async () => {
     const b = await bench()
     expect(b.slots.entries('shell.terminalDrawer')[0]?.component).toBe(TerminalDrawer)
-    expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
+    expect(b.slots.entries('surfaces.terminal')[0]?.component).toBe(TerminalSurface)
     await b.fiber.dispose()
     expect(b.slots.entries('shell.terminalDrawer')).toHaveLength(0)
+    expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
   })
 
-  it('re-registers the drawer after the declaring slot collapses and returns', async () => {
+  it('re-registers after the declaring slots collapse and return', async () => {
     const b = await bench()
     b.declaration()
     expect(b.slots.entries('shell.terminalDrawer')).toHaveLength(0)
+    expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
     const redeclare = declare(b.slots)
     await Promise.resolve()
     expect(b.slots.entries('shell.terminalDrawer')[0]?.component).toBe(TerminalDrawer)
-    expect(b.slots.entries('surfaces.terminal')).toHaveLength(0)
+    expect(b.slots.entries('surfaces.terminal')[0]?.component).toBe(TerminalSurface)
     redeclare()
     await b.fiber.dispose()
   })
 
-  it('routes a loopback URL to the originating Session Sidebar Browser', async () => {
+  it('mentions a fenced selection and opens a workspace path', async () => {
     const b = await bench()
     const setDraft = vi.fn()
     b.ctx.provide('conversation', {
       input: { for: () => ({ setDraft, state: { getSnapshot: () => ({ draft: '' }) } }) },
     })
-    b.ctx.provide('sessions', { scope: () => ({}), list: { getSnapshot: () => ({ byId: {} }) } })
+    b.ctx.provide('sessions', { scope: () => ({}) })
     const openPath = vi.fn(async () => {})
     b.ctx.provide('workspaces', { openPath })
-    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as (
-      sessionId: string,
-    ) => TerminalShellInjected)('sess')
+    const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
+      (sessionId: string) => TerminalShellInjected)(SID)
     injected.mentionTerminal('sess', '\n')
     expect(setDraft).not.toHaveBeenCalled()
     injected.mentionTerminal('sess', 'ls\n')
@@ -81,12 +82,6 @@ describe('ui-user-terminal apply', () => {
     expect(openPath).toHaveBeenCalledWith('/tmp/proj/a.ts')
     injected.openWorkspacePath('/tmp/proj/src/a.ts', { line: 10 })
     expect(openPath).toHaveBeenCalledWith('/tmp/proj/src/a.ts', { line: 10 })
-    injected.openLocalUrl('http://127.0.0.1:5173')
-    expect(b.sidebarRight?.openTabIn).toHaveBeenCalledWith(
-      'sess',
-      'browser',
-      { params: { url: 'http://127.0.0.1:5173' } },
-    )
     const openExternal = vi.fn(async () => {})
     Object.defineProperty(window, 'shell', { configurable: true, value: { openExternal } })
     injected.openExternal('https://example.com/docs')
@@ -97,18 +92,22 @@ describe('ui-user-terminal apply', () => {
   })
 
   it('opens a loopback URL as a Browser tab in the originating Session', async () => {
+    const b = await bench()
     const openTabIn = vi.fn(() => true)
-    const b = await bench({ openTabIn })
+    b.ctx.provide('sidebarRight', { openTabIn })
     const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
       (sessionId: string) => TerminalShellInjected)(SID)
     injected.openLocalUrl('http://127.0.0.1:5173')
     expect(openTabIn).toHaveBeenCalledWith(SID, 'browser', { params: { url: 'http://127.0.0.1:5173' } })
+    // The retired surfaces shell's layout handoff is gone.
+    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
   it('reports a refused Browser open without dispatching the legacy event', async () => {
+    const b = await bench()
     const openTabIn = vi.fn(() => false)
-    const b = await bench({ openTabIn })
+    b.ctx.provide('sidebarRight', { openTabIn })
     const notify = vi.fn()
     b.ctx.provide('conversation', { input: { for: () => ({ notify }) } })
     b.ctx.provide('sessions', { scope: () => ({}) })
@@ -117,11 +116,12 @@ describe('ui-user-terminal apply', () => {
     injected.openLocalUrl('http://127.0.0.1:5173')
     expect(openTabIn).toHaveBeenCalledWith(SID, 'browser', { params: { url: 'http://127.0.0.1:5173' } })
     expect(notify).toHaveBeenCalledWith('error', en['error.openLink'])
+    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
   it('keeps the drawer usable when the Sidebar plugin is absent', async () => {
-    const b = await bench(null)
+    const b = await bench()
     const notify = vi.fn()
     b.ctx.provide('conversation', { input: { for: () => ({ notify }) } })
     b.ctx.provide('sessions', { scope: () => ({}) })
@@ -129,16 +129,19 @@ describe('ui-user-terminal apply', () => {
       (sessionId: string) => TerminalShellInjected)(SID)
     expect(() => { injected.openLocalUrl('http://127.0.0.1:5173') }).not.toThrow()
     expect(notify).toHaveBeenCalledWith('error', en['error.openLink'])
+    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 
   it('does not route a URL when the drawer has no Session', async () => {
+    const b = await bench()
     const openTabIn = vi.fn(() => true)
-    const b = await bench({ openTabIn })
+    b.ctx.provide('sidebarRight', { openTabIn })
     const injected = (b.slots.entries('shell.terminalDrawer')[0]?.inject as unknown as
       (sessionId: undefined) => TerminalShellInjected)(undefined)
     injected.openLocalUrl('http://127.0.0.1:5173')
     expect(openTabIn).not.toHaveBeenCalled()
+    expect(b.layout.openSurfaces).not.toHaveBeenCalled()
     await b.fiber.dispose()
   })
 })

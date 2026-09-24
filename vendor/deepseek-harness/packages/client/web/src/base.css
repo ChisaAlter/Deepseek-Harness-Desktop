@@ -61,15 +61,15 @@ html[data-platform='darwin'] body > :not(#root) {
   -webkit-app-region: no-drag;
 }
 
-/* Inside #root, interactive controls and raised surfaces (dialogs, menus)
-   subtract themselves from any drag band they overlap, wherever they render.
+/* Interactive controls and raised surfaces (dialogs, menus) subtract
+   themselves from any Electron drag band they overlap on every platform.
    Electron composes app-regions from geometry in document order, so this works
    only because the bands are declared before all content (AppFrame's first
    child; the sidebar rows that precede the column's overlay slots) — a drag
    rule on a content container would override every overlay mounted earlier in
    the DOM. One selector on the native elements, ARIA roles, and tabindexed
    custom widgets replaces per-component no-drag opt-outs. */
-html[data-platform='darwin'] :is(
+:is(
   button, a, input, select, textarea, summary, [contenteditable='true'], [tabindex],
   [role='dialog'], [role='alertdialog'], [role='menu'], [role='listbox'], [role='tooltip'],
   [role='button'], [role='link'], [role='tab'], [role='menuitem'], [role='menuitemcheckbox'],

@@ -171,7 +171,7 @@ function dshCustomProviderCard(root) {
   let node = route.parentElement;
   while (node && node !== document.body) {
     const hasCreate = Array.from(node.querySelectorAll('button')).some((btn) =>
-      /创建提供方|create provider/i.test(dshLabel(btn)));
+      /创建提供商|create provider/i.test(dshLabel(btn)));
     if (hasCreate) return node;
     node = node.parentElement;
   }
@@ -254,7 +254,8 @@ const QA_REQUIRED_STEPS = [
   'titlebar.gitMenu',
   'terminal.drawer',
   'terminal.new',
-  'surfaces.open',
+  'rightbar.open',
+  'rightbar.legacyDormant',
   'files.panel',
   'files.tabCloseRight',
   'files.search',
@@ -269,6 +270,8 @@ const QA_REQUIRED_STEPS = [
   'browser.panel',
   'browser.url',
   'terminal.surface',
+  'account.launcher',
+  'account.signedOutMenu',
   'settings.trigger',
   'models.heading',
   'models.customAdd',
@@ -295,7 +298,8 @@ const QA_REQUIRED_STEPS = [
   'market.discover',
   'market.installed',
   'usage-stats.section',
-  'plugin.dshbot.tab',
+  'interface.dshbotSwitch',
+  'plugin.dshbot.defaultOff',
 ];
 
 function gitHeadSubject(workspacePath) {
@@ -956,11 +960,31 @@ async function runReleaseUiWalk(wc, helpers) {
     }
   };
 
-  const openSurface = async (kind) => {
-    await pageScript(wc, `
-      window.dispatchEvent(new CustomEvent('dshd-open-surface', { detail: { kind: args.kind } }));
+  const openRightTab = async (kind) => {
+    // DockKit's add control opens the native guide; its entries navigate the
+    // actual Sidebar controller. The legacy dshd-open-surface event is dormant.
+    const guide = await pageEval(wc, () => {
+      const panel = document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]');
+      if (!panel) return false;
+      const existing = panel.querySelector('[data-sidebar-right-guide]');
+      if (existing && dshShown(existing)) return true;
+      const add = Array.from(panel.querySelectorAll('[data-dockkit-add-tab]'))
+        .find((el) => dshShown(el) && !el.disabled);
+      if (!add) return false;
+      add.click();
       return true;
-    `, { kind });
+    });
+    if (!guide) return false;
+    const entry = await waitUntil(() => pageEval(wc, (wanted) => {
+      const panel = document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]');
+      const node = panel && panel.querySelector(`[data-sidebar-right-guide-entry="${wanted}"]`);
+      if (!node || !dshShown(node)) return false;
+      const trigger = node.matches('button') ? node : node.querySelector('button');
+      if (!trigger || trigger.disabled) return false;
+      trigger.click();
+      return true;
+    }, kind), 5_000);
+    return Boolean(entry);
   };
 
   const openSettings = async (section) => {
@@ -1004,7 +1028,7 @@ async function runReleaseUiWalk(wc, helpers) {
     return {
       card: dshShown(card),
       textarea: Boolean(card && dshComposerReady()),
-      commands: Boolean(dshFind('^commands$|^命令$|^指令$')),
+      commands: Boolean(dshFind('add files or run commands|添加文件或调用指令', card)),
       send: Boolean(dshFind('send message|发送消息')),
       access: Boolean(dshFind('access mode|访问模式')),
     };
@@ -1103,7 +1127,7 @@ async function runReleaseUiWalk(wc, helpers) {
     remoteFooter || (REMOTE_FEATURE_ENABLED ? 'remote trigger missing' : 'parked hidden'),
   );
 
-  const commandsClicked = await clickNamed(wc, '^commands$|^命令$|^指令$');
+  const commandsClicked = await clickNamed(wc, 'add files or run commands|添加文件或调用指令');
   if (commandsClicked) {
     const menu = await waitUntil(() => pageEval(wc, () =>
       Boolean(document.querySelector('[role="listbox"], [role="menu"]'))), 3_000);
@@ -1189,48 +1213,29 @@ async function runReleaseUiWalk(wc, helpers) {
     await sleep(250);
   }
 
-  const surfacesOpen = await pageEval(wc, () => {
-    const frameEl = document.querySelector('[class*="frame"]');
-    return Boolean(frameEl && frameEl.getAttribute('data-surfaces-collapsed') !== 'true');
-  });
-  if (!surfacesOpen) {
+  const rightbarOpen = await pageEval(wc, () => Boolean(
+    document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]')));
+  if (!rightbarOpen) {
     await helpers.clickTitlebarButton(wc, helpers.surfacesPattern);
   }
-  const surfaces = await waitUntil(() => pageEval(wc, () => {
-    const frameEl = document.querySelector('[class*="frame"]');
-    if (!frameEl || frameEl.getAttribute('data-surfaces-collapsed') === 'true') return null;
-    const empty = document.querySelector('[data-surfaces-empty]');
-    const cards = empty && dshShown(empty)
-      ? Array.from(empty.querySelectorAll('button')).map((el) => ({
-        label: dshLabel(el).slice(0, 60),
-        disabled: el.disabled,
-      }))
-      : [];
-    return { empty: Boolean(empty && dshShown(empty)), cards };
+  const rightbar = await waitUntil(() => pageEval(wc, () => {
+    const panel = document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]');
+    return panel && dshShown(panel) && panel.getBoundingClientRect().width > 8;
   }), 10_000);
-  rec('surfaces.open', Boolean(surfaces), surfaces ? '' : 'surfaces column stayed collapsed');
-
-  if (surfaces?.empty) {
-    const labels = (surfaces.cards || []).map((c) => c.label).join(' | ');
-    const enabled = (re) => (surfaces.cards || []).some((c) => re.test(c.label) && !c.disabled);
-    rec('surfaces.emptyCards', (surfaces.cards || []).length >= 5, labels, true);
-    rec('surfaces.browserEnabled', enabled(/browser|浏览器/i), '', true);
-    rec('surfaces.diffEnabled', enabled(/diff|差异/i), '', true);
-    const clickedFiles = await pageEval(wc, () => {
-      const empty = document.querySelector('[data-surfaces-empty]');
-      const btn = empty && Array.from(empty.querySelectorAll('button')).find((el) =>
-        /^(files|文件)(\s|$)/i.test(dshLabel(el)) && !el.disabled);
-      if (!btn) return false;
-      btn.click();
-      return true;
-    });
-    if (!clickedFiles) await openSurface('files');
-  } else {
-    rec('surfaces.emptyCards', true, 'already occupied', true);
-    rec('surfaces.browserEnabled', true, 'already occupied', true);
-    rec('surfaces.diffEnabled', true, 'already occupied', true);
-    await openSurface('files');
-  }
+  rec('rightbar.open', Boolean(rightbar), rightbar ? '' : 'native right Sidebar stayed collapsed');
+  const legacy = await pageEval(wc, () => {
+    const frame = document.querySelector('[data-surfaces-collapsed]');
+    const column = frame && Array.from(frame.children).find((el) =>
+      /surfacesCol/.test(el.className || ''));
+    return {
+      collapsed: Boolean(frame),
+      width: column ? column.getBoundingClientRect().width : null,
+      occupied: Boolean(document.querySelector('[data-surfaces-tab], [data-surfaces-empty]')),
+    };
+  });
+  rec('rightbar.legacyDormant', Boolean(legacy?.collapsed && legacy?.width <= 1 && !legacy?.occupied),
+    `legacy width=${legacy?.width ?? 'missing'} occupied=${legacy?.occupied}`);
+  const filesOpened = await openRightTab('files');
 
   const files = await waitUntil(() => pageEval(wc, () => {
     const panel = document.querySelector('[data-files-panel]');
@@ -1257,19 +1262,19 @@ async function runReleaseUiWalk(wc, helpers) {
       text: text.slice(0, 160),
     };
   });
-  rec('files.panel', Boolean(filesSnap), filesSnap ? '' : 'files panel missing');
+  rec('files.panel', Boolean(filesOpened && filesSnap), filesSnap ? '' : 'native Files tab missing');
   const tabClose = await pageEval(wc, () => {
-    const tab = document.querySelector('[data-surfaces-tab]');
+    const panel = document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]');
+    const tab = panel && Array.from(panel.querySelectorAll('[data-dockkit-tab]'))
+      .find((el) => dshShown(el) && /files|文件/i.test(dshLabel(el)));
     if (!tab) return null;
-    const buttons = Array.from(tab.querySelectorAll('button'));
-    const close = buttons.find((el) => /关闭|close/i.test(el.getAttribute('aria-label') || ''));
-    const label = buttons.find((el) => el !== close);
-    if (!label || !close) return null;
-    const labelBox = label.getBoundingClientRect();
+    const close = tab.querySelector('[data-dockkit-tab-close]');
+    if (!close) return null;
+    const tabBox = tab.getBoundingClientRect();
     const closeBox = close.getBoundingClientRect();
     return {
-      closeRight: closeBox.left >= labelBox.right - 1,
-      labelLeft: Math.round(labelBox.left),
+      closeRight: closeBox.left >= tabBox.left + tabBox.width / 2,
+      labelLeft: Math.round(tabBox.left),
       closeLeft: Math.round(closeBox.left),
     };
   });
@@ -1327,14 +1332,17 @@ async function runReleaseUiWalk(wc, helpers) {
     commitDialog = await waitUntil(() => pageEval(wc, () => {
       const dialog = dshDialogNamed('commit changes|提交更改');
       if (!dialog || !dshShown(dialog)) return null;
+      const note = Array.from(dialog.querySelectorAll('li')).some((el) => /note\.md/i.test(el.textContent || ''));
+      if (!note) return null;
       return {
         message: Boolean(dialog.querySelector('textarea')),
         submit: Boolean(dshFind('^commit$|^提交$', dialog)),
+        note,
       };
-    }), 4_000);
+    }), 8_000);
     if (!commitDialog) await dismiss();
   }
-  rec('git.commitDialog', Boolean(commitDialog), commitDialog ? '' : 'commit dialog did not open', true);
+  rec('git.commitDialog', Boolean(commitDialog), commitDialog ? 'note.md listed' : 'commit dialog did not list note.md', true);
   const commitMessage = `qa: commit note.md ${Date.now()}`;
   if (commitDialog) {
     await pageScript(wc, `
@@ -1375,7 +1383,7 @@ async function runReleaseUiWalk(wc, helpers) {
     rec('files.searchFilter', Boolean(filtered), filtered ? 'note.md' : 'filter missed note.md', true);
   }
 
-  await openSurface('agents');
+  await openRightTab('agents');
   const agents = await waitUntil(() => pageEval(wc, () => {
     const panel = document.querySelector('[data-agents-panel]');
     if (!panel || !dshShown(panel)) return null;
@@ -1385,7 +1393,7 @@ async function runReleaseUiWalk(wc, helpers) {
   rec('agents.panel', Boolean(agents), '');
   rec('agents.empty', Boolean(agents?.empty), agents?.empty ? '' : 'empty copy missing');
 
-  await openSurface('diff');
+  await openRightTab('diff');
   const diff = await waitUntil(() => pageEval(wc, () => {
     const panel = document.querySelector('[data-diff-panel]');
     if (!panel || !dshShown(panel)) return null;
@@ -1399,7 +1407,7 @@ async function runReleaseUiWalk(wc, helpers) {
   });
   rec('diff.panel', Boolean(diffSnap) && !/差异仅适用于|only available in Git/i.test(diffSnap?.text || ''), diffSnap?.text || '');
 
-  await openSurface('preview');
+  const browserOpened = await openRightTab('browser');
   const browser = await waitUntil(() => pageEval(wc, () => {
     const panel = document.querySelector('[data-preview-panel]');
     if (!panel || !dshShown(panel)) return null;
@@ -1415,16 +1423,41 @@ async function runReleaseUiWalk(wc, helpers) {
       url,
     };
   }), 10_000);
-  rec('browser.panel', Boolean(browser) && !browser.unavailable, browser?.unavailable ? 'preview unavailable' : '');
+  const browserDiagnostic = !browser ? await pageEval(wc, () => {
+    const panel = document.querySelector('[data-sidebar-right-panel][data-sidebar-right-open]');
+    return {
+      guide: Array.from(panel?.querySelectorAll('[data-sidebar-right-guide-entry]') || [])
+        .map((el) => el.getAttribute('data-sidebar-right-guide-entry')),
+      tabs: Array.from(panel?.querySelectorAll('[data-dockkit-tab]') || [])
+        .map((el) => dshLabel(el).slice(0, 35)),
+    };
+  }) : null;
+  rec('browser.panel', Boolean(browserOpened && browser) && !browser.unavailable,
+    browser?.unavailable ? 'preview unavailable' : `open=${browserOpened} ${JSON.stringify(browserDiagnostic || {})}`);
   rec('browser.url', Boolean(browser?.url || browser?.toolbar), '');
 
-  await openSurface('terminal');
+  const terminalOpened = await openRightTab('terminal');
   const termSurface = await waitUntil(() => pageEval(wc, () => {
-    const root = document.querySelector('[data-terminal-owner="surface"]');
+    const root = document.querySelector('[data-sidebar-terminal]');
     return Boolean(root && dshShown(root) && root.getBoundingClientRect().height > 8);
   }), 10_000);
-  rec('terminal.surface', Boolean(termSurface), '');
+  rec('terminal.surface', Boolean(terminalOpened && termSurface),
+    `open=${terminalOpened} body=${Boolean(termSurface)}`);
 
+  await dismiss();
+  const accountLauncher = await pageEval(wc, () => Boolean(dshFind('^account menu|^账号菜单')));
+  rec('account.launcher', accountLauncher, accountLauncher ? '' : 'desktop account launcher missing');
+  if (accountLauncher) await clickNamed(wc, '^account menu|^账号菜单');
+  const accountMenu = accountLauncher ? await waitUntil(() => pageEval(wc, () => {
+    const menu = Array.from(document.querySelectorAll('[role="menu"]')).find(dshShown);
+    if (!menu) return null;
+    return {
+      signIn: Boolean(dshFind('^sign in$|^登录$', menu)),
+      feedback: Boolean(dshFind('^feedback$|^意见反馈$', menu)),
+    };
+  }), 5_000) : null;
+  rec('account.signedOutMenu', Boolean(accountMenu?.signIn && accountMenu?.feedback),
+    accountMenu ? `signIn=${accountMenu.signIn} feedback=${accountMenu.feedback}` : 'account menu missing');
   await dismiss();
   const settingsTrigger = await pageEval(wc, () =>
     Boolean(document.querySelector('[data-dsh-settings-trigger]')));
@@ -1599,26 +1632,41 @@ async function runReleaseUiWalk(wc, helpers) {
   const modelsOpened = await openSettings('models');
   const models = await waitUntil(() => pageEval(wc, () => {
     const dialog = dshDialog();
-    if (!dialog) return null;
+    const nav = document.querySelector('[data-dsh-settings-section="models"]');
+    if (!dialog || nav?.getAttribute('aria-current') !== 'true') return null;
     const text = dialog.innerText || '';
+    const customAdd = Boolean(dshFind('add model provider|添加模型提供商', dialog));
+    if (!customAdd) return null;
     return {
       heading: Boolean(dshHeading('^models$|^模型$', dialog) || /模型|models/i.test(text)),
-      customAdd: Boolean(dshFind('add a custom provider|添加自定义提供方', dialog)),
-      vision: Boolean(dshFind('vision model|识图模型', dialog) || /识图模型|vision model/i.test(text)),
+      customAdd,
       thinking: /supported thinking intensity|思考强度/i.test(text),
     };
   }), 10_000);
+  const vision = await waitUntil(() => pageEval(wc, () => {
+    const dialog = dshDialog();
+    return Boolean(dialog && dshFind('vision model|识图模型', dialog));
+  }), 10_000);
   rec('models.heading', Boolean(modelsOpened && models?.heading), modelsOpened ? '' : 'models section missing');
-  rec('models.customAdd', Boolean(models?.customAdd), models?.customAdd ? '' : 'custom provider control missing');
-  rec('models.visionPicker', Boolean(models?.vision), models?.vision ? '' : 'vision fallback picker missing');
+  rec('models.customAdd', Boolean(models?.customAdd), models?.customAdd ? '' : 'add model provider control missing');
+  rec('models.visionPicker', Boolean(vision), vision ? '' : 'vision fallback picker missing');
   rec('models.thinking', Boolean(models?.thinking), models?.thinking ? '' : 'thinking intensity editor not shown', true);
 
   let customFormOk = false;
   if (models?.customAdd) {
-    await clickNamed(wc, 'add a custom provider|添加自定义提供方');
+    await clickNamed(wc, 'add model provider|添加模型提供商');
+    const customMode = await waitUntil(() => pageEval(wc, () => {
+      const dialog = dshDialog();
+      const tab = dialog && Array.from(dialog.querySelectorAll('[role="tab"]'))
+        .find((el) => dshShown(el) && /custom model api|自定义模型 api/i.test(dshLabel(el)));
+      if (!tab || tab.disabled) return false;
+      tab.click();
+      return true;
+    }), 8_000);
     const form = await waitUntil(() => pageEval(wc, () => {
       const dialog = dshDialog();
-      return dialog && dshField('^provider id$', dialog) ? true : null;
+      const route = dialog && dshField('^provider id$', dialog);
+      return route && dshShown(route) ? true : null;
     }), 8_000);
     if (form) {
       const filled = {
@@ -1646,14 +1694,14 @@ async function runReleaseUiWalk(wc, helpers) {
       const createReady = await waitUntil(() => pageEval(wc, () => {
         const dialog = dshDialogNamed('^设置$|^settings$') || dshDialog();
         const card = dialog && dshCustomProviderCard(dialog);
-        const btn = card && dshFind('创建提供方|create provider', card);
+        const btn = card && dshFind('创建提供商|create provider', card);
         return btn && !btn.disabled ? true : null;
       }), 8_000);
       if (createReady) {
         await pageEval(wc, () => {
           const dialog = dshDialogNamed('^设置$|^settings$') || dshDialog();
           const card = dialog && dshCustomProviderCard(dialog);
-          const btn = card && dshFind('创建提供方|create provider', card);
+          const btn = card && dshFind('创建提供商|create provider', card);
           if (!btn || btn.disabled) return false;
           btn.click();
           return true;
@@ -1681,7 +1729,7 @@ async function runReleaseUiWalk(wc, helpers) {
         saved?.leak ? 'key echoed' : (customFormOk ? 'provider saved without plaintext key' : `form did not persist dshdqa (${fillDetail}) ${inventory || ''}`.slice(0, 400)),
       );
     } else {
-      rec('models.customForm', false, 'custom provider form did not open');
+      rec('models.customForm', false, `custom provider form did not open (mode=${Boolean(customMode)})`);
     }
   } else {
     rec('models.customForm', false, 'custom add missing');
@@ -1773,14 +1821,33 @@ async function runReleaseUiWalk(wc, helpers) {
   await dismiss();
   await sleep(300);
 
-  // dshbot is a desktop built-in (overlay-mounted on every start): the Bots
-  // sidebar tab must be present without any user install.
+  // The source-QA fixture uses the desktop default (dshbotEnabled: false).
+  // Prove that the Interface setting exposes the opt-in switch and that the
+  // disabled plugin has not silently mounted a Bots sidebar tab.
+  const interfaceOpened = await openSettings('interface');
+  const botsSetting = await waitUntil(() => pageEval(wc, () => {
+    const dialog = dshDialog();
+    const nav = document.querySelector('[data-dsh-settings-section="interface"]');
+    const control = dialog && Array.from(dialog.querySelectorAll('[role="switch"]'))
+      .find((el) => /(bots|机器人)/i.test(dshLabel(el)));
+    if (!dialog || !nav || !control) return null;
+    return {
+      nav: Boolean(nav && nav.getAttribute('aria-current') === 'true'),
+      switchPresent: Boolean(control && dshShown(control)),
+      off: control?.getAttribute('aria-checked') === 'false',
+      beta: Boolean(dialog && /测试中|beta/i.test(dialog.innerText || '')),
+    };
+  }), 10_000);
+  rec('interface.dshbotSwitch', Boolean(interfaceOpened && botsSetting?.nav
+    && botsSetting?.switchPresent && botsSetting?.off && botsSetting?.beta),
+  `nav=${botsSetting?.nav} switch=${botsSetting?.switchPresent} off=${botsSetting?.off} beta=${botsSetting?.beta}`);
+  await dismiss();
   const botsTab = await pageEval(wc, () => {
     const tab = Array.from(document.querySelectorAll('[role="tab"]')).find((el) =>
       dshShown(el) && /(bots|机器人)/i.test(dshLabel(el)));
     return Boolean(tab);
   });
-  rec('plugin.dshbot.tab', botsTab, botsTab ? '' : 'built-in dshbot did not render the Bots tab');
+  rec('plugin.dshbot.defaultOff', !botsTab, botsTab ? 'Bots tab mounted while default switch is off' : 'Bots tab absent');
 
   } catch (error) {
     rec('walk.uncaught', false, error && error.stack ? error.stack : String(error));

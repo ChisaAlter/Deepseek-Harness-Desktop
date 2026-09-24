@@ -28,7 +28,7 @@ async function boot() {
   const slots = {
     inject: vi.fn((name: string, register: () => () => void) => {
       injectedSlots.push(name)
-      return register()
+      return ctx.effect(register)
     }),
     register: vi.fn((options: Omit<Recorded, 'component'>, component: unknown) => {
       const entry = { ...options, component }
@@ -78,9 +78,9 @@ describe('ui-diff apply', () => {
     expect(b.dictionaries.get('diff')).toEqual({ zh, en })
     expect(b.registered.map(entry => [entry.name, entry.key, entry.locale, entry.component])).toEqual([
       ['sidebar.right.pane.tab', DIFF_ID, 'diff', DiffPanel],
+      ['surfaces.diff', undefined, 'diff', DiffPanel],
     ])
-    expect(b.injectedSlots).toEqual(['sidebar.right.pane.tab'])
-    expect(b.injectedSlots.some(name => name.startsWith('surfaces.'))).toBe(false)
+    expect(b.injectedSlots).toEqual(['sidebar.right.pane.tab', 'surfaces.diff'])
   })
 
   it('opens a diff path through the tab session workspace opener', async () => {

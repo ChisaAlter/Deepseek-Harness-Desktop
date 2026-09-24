@@ -3,7 +3,6 @@ import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject } from '../src/client/index.ts'
 import type { PanelTogglesInjected } from '../src/client/PanelToggles.tsx'
 import { PanelToggles } from '../src/client/PanelToggles.tsx'
@@ -23,7 +22,12 @@ function declare(slots: SlotRegistry): () => void {
 function provideSettings(ctx: Context): void {
   ctx.provide('connection', { api: { settings: {} }, isLoopback: false })
   ctx.provide('remote', { $on: () => () => {} })
-  ctx.provide('configForms', { get: () => stubConfigForm().scope } as never)
+  const host = {
+    getSnapshot: () => ({ value: { terminalToggle: true, surfacesToggle: true }, writable: true }),
+    subscribe: () => () => {},
+    set: vi.fn(async () => {}),
+  }
+  ctx.provide('configForms', { get: () => host } as never)
 }
 
 async function bench() {
@@ -31,8 +35,8 @@ async function bench() {
   await ctx.plugin(SlotRegistry).await()
   const slots = ctx.get('slots') as SlotRegistry
   const declaration = declare(slots)
-  const layout = { toggleTerminalDrawer: vi.fn() }
-  const sidebarRight = { toggleExpanded: vi.fn() }
+  const layout = { toggleTerminalDrawer: vi.fn(), toggleSurfaces: vi.fn() }
+  const sidebarRight = { isExpanded: vi.fn(() => false), toggleExpanded: vi.fn() }
   ctx.provide('layout', layout)
   ctx.provide('sidebarRight', sidebarRight as never)
   ctx.provide('locale', new LocaleRuntime(ctx))
@@ -56,7 +60,8 @@ describe('ui-titlebar apply', () => {
     injected.toggleTerminalDrawer()
     injected.toggleRightPanel()
     expect(b.layout.toggleTerminalDrawer).toHaveBeenCalledOnce()
-    expect(b.sidebarRight.toggleExpanded).toHaveBeenCalledOnce()
+    expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
+    expect(b.sidebarRight.toggleExpanded).not.toHaveBeenCalled()
     const rows = b.slots.entries('settings.interface.item')
     expect(rows.map(row => row.options.id)).toEqual(['terminal-toggle', 'surfaces-toggle'])
     expect(rows[0]?.component).toBe(TerminalToggleRow)
@@ -73,14 +78,15 @@ describe('ui-titlebar apply', () => {
     expect(b.slots.entries('settings.interface.item')).toHaveLength(0)
   })
 
-  it('treats a missing session surface as a harmless no-op', async () => {
+  it('collapses an expanded native panel before toggling DSHD surfaces', async () => {
     const b = await bench()
-    b.sidebarRight.toggleExpanded.mockImplementation(() => {
-      throw new Error('sidebarRight: no session surface is mounted')
-    })
+    b.sidebarRight.isExpanded.mockReturnValue(true)
     const entry = b.slots.entries('shell.titlebar.trailing')[0]
     const injected = (entry?.inject as unknown as () => PanelTogglesInjected)()
-    expect(() => { injected.toggleRightPanel() }).not.toThrow()
+    injected.toggleRightPanel()
+    expect(b.sidebarRight.toggleExpanded).toHaveBeenCalledOnce()
+    expect(b.layout.toggleSurfaces).toHaveBeenCalledOnce()
+    await b.fiber.dispose()
   })
 
   it('re-registers after the declaring titlebar slot collapses and returns', async () => {

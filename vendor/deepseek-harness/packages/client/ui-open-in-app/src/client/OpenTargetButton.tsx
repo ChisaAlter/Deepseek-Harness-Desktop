@@ -133,7 +133,7 @@ export function OpenTargetButton(props: OpenTargetButtonProps): ReactNode {
                 setMenuOpen(value => !value)
               }}
             >
-              <IconChevronDownOutlineRegular size={props.prominent ? 14 : 10} />
+              <IconChevronDownOutlineRegular size={props.prominent || kind === 'directory' ? 14 : 10} />
             </button>}
           </div>
         )}

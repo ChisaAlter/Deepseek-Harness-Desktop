@@ -3,7 +3,7 @@
  * attachments so a text-only main model can act on them.
  *
  * The Models settings page stores the designated route in the
- * `vision-fallback` settings namespace. When the agent loop assembles a
+ * live `llm-vision-fallback` configuration entry. When the agent loop assembles a
  * request for a model whose declared `inputModalities` excludes `'image'`,
  * it asks this service to rewrite the messages: each image block is replaced
  * by a text block carrying a description generated once by the designated
@@ -18,6 +18,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type { Volatile } from '@deepseek-ai/cordis'
 import { BlockAssembler, contentHasImage, createUserMessage, LlmError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, ImageBlock, Message } from '@deepseek-ai/dsh-llm'
 import type { Session } from '@deepseek-ai/dsh-session'
@@ -56,10 +57,10 @@ declare module '@deepseek-ai/dsh-session/types' {
   }
 }
 
-/** Settings namespace carrying the designated vision-model route. */
+/** Legacy settings.yaml section key retained for import compatibility. */
 export const VISION_FALLBACK_SETTINGS_NAMESPACE = 'vision-fallback'
 
-/** Stored designated vision-model route; both fields absent means disabled. */
+/** Shape of the legacy section; both fields absent meant disabled. */
 export interface VisionFallbackSettings {
   /** Registered provider route. */
   provider?: string
@@ -67,21 +68,21 @@ export interface VisionFallbackSettings {
   model?: string
 }
 
-/** Schema of the vision-fallback settings section. */
+/** Schema of the legacy vision-fallback section. */
 export const VISION_FALLBACK_SETTINGS_SCHEMA: z<VisionFallbackSettings> = z.object({
   provider: z.string(),
   model: z.string(),
 })
 
-/** Composition entry: auxiliary-call limits (the route itself lives in settings). */
+/** Composition entry: auxiliary-call limits plus live, user-selected route. */
 export interface Config {
   /** Vision-call output-token cap. */
   maxOutputTokens: number
   /** End-to-end vision-call deadline in milliseconds. */
   timeoutMs: number
   /** Optional model route selected in the Models settings page. */
-  provider?: string
-  model?: string
+  provider: Volatile<string | undefined>
+  model: Volatile<string | undefined>
 }
 
 /** Capability-owned timeout reason code for auxiliary vision requests. */
@@ -111,11 +112,11 @@ function substitutionText(name: string | undefined, description: string): string
  * unconfigured and rewriting passes messages through untouched.
  */
 export class VisionFallback extends Service {
-  static Config: z<Config> = z.object({
+  static Config = z.object({
     maxOutputTokens: z.number().step(1).min(1).required(),
     timeoutMs: z.number().step(1).min(1).max(MAX_TIMER_DELAY_MS).required(),
-    provider: z.string().required(false),
-    model: z.string().required(false),
+    provider: z.string().volatile(),
+    model: z.string().volatile(),
   })
 
   static inject = ['llm']
@@ -129,10 +130,10 @@ export class VisionFallback extends Service {
    * @returns the designated route, or undefined while unset (disabled).
    */
   selection(): { provider: string; model: string } | undefined {
-    const stored = this.config
-    if (stored.provider === undefined || stored.provider === ''
-      || stored.model === undefined || stored.model === '') return undefined
-    return { provider: stored.provider, model: stored.model }
+    const provider = this.config.provider.get()
+    const model = this.config.model.get()
+    if (provider === undefined || provider === '' || model === undefined || model === '') return undefined
+    return { provider, model }
   }
 
   /**

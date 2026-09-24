@@ -1,22 +1,24 @@
-/**
- * Desktop navigation adapter: route workspace file opens into the native
- * right Sidebar. The upstream `surfaces` track stays declared but dormant.
- */
+/** Registers the right-panel surfaces shell into the layout-owned column. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import { en, NS, zh, type SurfacesKey } from './locales.ts'
 import { ensureBaseOpenPath, wrapOpenPath, type OpenPathService } from './openpath-intercept.ts'
 import { relativeTo } from './paths.ts'
+import { createSurfacesStore } from './stores.ts'
+import type { SurfacesRootInjected } from './SurfacesRoot.tsx'
+import { SurfacesRoot } from './SurfacesRoot.tsx'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar-browser/client'
-// The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
-import { fileAddressFor, isAbsoluteWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
+
+export type { SurfacesRootInjected, SurfacesRootProps } from './SurfacesRoot.tsx'
+export type { SurfacesKey } from './locales.ts'
+export type { OpenableKind, Surface, SurfaceKind, SurfacesState } from './stores.ts'
+export { createSurfacesStore } from './stores.ts'
 
 /** Owner props the Files occupant receives so it can open a file surface. */
 export interface FilesOwnerProps {
@@ -50,74 +52,58 @@ export interface BrowserOwnerProps {
   occluded?: boolean
 }
 
-/**
- * Dormant upstream seat contracts. Desktop registers no occupant; the
- * declarations stay so the existing fork packages keep type-checking.
- */
 declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** Right-panel surfaces copy. */
+    surfaces: SurfacesKey
+  }
   interface SlotMap {
     /**
-     * The upstream surfaces-column Browser seat. A registrant passes the
-     * component that drives its own native guest and receives
-     * {@link BrowserOwnerProps} so the renderer chrome can hide that guest
-     * while chrome overlaps the hit-test area. As a `single` slot, a new
-     * registration replaces the previous occupant. Desktop registers nobody:
-     * the seat stays declared only so the fork packages keep type-checking,
-     * and absence leaves the dormant surfaces track empty (it is held at zero
-     * width, and Browser now lives in the native right Sidebar).
+     * Browser / preview occupant. ui-preview injects here.
      */
     'surfaces.browser': { kind: 'single'; scope: 'session-maybe'; owner: BrowserOwnerProps }
     /**
-     * The upstream surfaces-column terminal seat, whose component takes no
-     * owner props. A `single` registration replaces any previous occupant.
-     * Desktop registers nobody: the bottom terminal drawer owns this surface
-     * instead, and absence simply leaves the dormant track empty.
+     * Terminal occupant. ui-user-terminal already injects here; kind and
+     * scope must stay `single` + `session-maybe` so that inject attaches.
      */
     'surfaces.terminal': { kind: 'single'; scope: 'session-maybe'; owner: {} }
     /**
-     * The upstream surfaces-column Workspace file-tree seat. A registrant
-     * passes its tree component and receives {@link FilesOwnerProps} (the
-     * session-scoped shell face plus the open callback). A `single`
-     * registration replaces the previous occupant. Desktop registers nobody,
-     * so absence leaves the dormant track empty; Files is served by the
-     * native right Sidebar tab of the same name.
+     * Workspace files occupant. ui-files injects here.
      */
     'surfaces.files': { kind: 'single'; scope: 'session-maybe'; owner: FilesOwnerProps }
     /**
-     * The upstream single-file preview seat. A registrant passes the preview
-     * component and receives {@link FileOwnerProps} — the active-file
-     * identity, dirty/save plumbing, and the buffer memory that survives
-     * occupant remounts. A `single` registration replaces the previous
-     * occupant. Desktop registers nobody; absence leaves the dormant track
-     * empty, and single-file preview belongs to the Sidebar Document Preview.
+     * Single-file preview occupant. ui-files injects here.
      */
     'surfaces.file': { kind: 'single'; scope: 'session-maybe'; owner: FileOwnerProps }
     /**
-     * The upstream surfaces-column Diff seat. A registrant passes its diff
-     * component and receives the same {@link FilesOwnerProps} shell face the
-     * file tree uses. A `single` registration replaces the previous occupant.
-     * Desktop registers nobody: absence leaves the dormant track empty, and
-     * Diff is served by the native right Sidebar tab.
+     * Git diff occupant. ui-diff injects here.
      */
     'surfaces.diff': { kind: 'single'; scope: 'session-maybe'; owner: FilesOwnerProps }
     /**
-     * The upstream surfaces-column Agents seat, whose component takes no
-     * owner props. A `single` registration replaces any previous occupant.
-     * Desktop registers nobody: absence leaves the dormant track empty, and
-     * the Agents panel is served by the native right Sidebar tab.
+     * Running-agents occupant. ui-agents-panel injects here.
      */
     'surfaces.agents': { kind: 'single'; scope: 'session-maybe'; owner: {} }
   }
 }
 
+const OPEN_SURFACE_EVENT = 'dshd-open-surface'
+const PENDING_PREVIEW_URL_KEY = 'dshd-pending-preview-url'
 const BROWSER_DOCUMENTS = new Set(['.html', '.htm', '.xhtml', '.pdf'])
 
 interface DesktopShell {
+  gitStatus?: (cwd: string) => Promise<unknown>
+  previewOpen?: (input: { url: string }) => Promise<unknown>
   listDir?: (cwd: string, relativePath?: string) => Promise<unknown>
   previewWorkspaceFile?: (input: {
     cwd: string
     relativePath: string
   }) => Promise<{ ok?: boolean, url?: string } | null | undefined>
+  onOpenPreviewUrl?: (handler: (payload: { url?: string }) => void) => () => void
+}
+
+interface SurfacesStoreActions {
+  open: (sessionId: string, kind: 'files') => void
+  openFile: (sessionId: string, relativePath: string, options?: { revealLine?: number }) => void
 }
 
 /**
@@ -130,6 +116,26 @@ function readWindowShell(): DesktopShell | undefined {
 }
 
 /**
+ * Bind desktop gitStatus when `window.shell` is present.
+ * @returns a probe that resolves null outside the desktop app or when git is missing.
+ */
+function readDesktopShell(): Pick<SurfacesRootInjected, 'gitStatus' | 'previewAvailable'> {
+  const shell = readWindowShell()
+  return {
+    previewAvailable: typeof shell?.previewOpen === 'function',
+    gitStatus: cwd => shell?.gitStatus?.(cwd) ?? Promise.resolve(null),
+  }
+}
+
+/** Show the classic DSHD panel as the only visible right column. */
+function openClassicSurfaces(ctx: Context): void {
+  const native = ctx.get('sidebarRight')
+  if (native?.isExpanded()) native.toggleExpanded()
+  ctx.layout.closeRightbar()
+  ctx.layout.openSurfaces()
+}
+
+/**
  * @param relative - workspace-relative path using `/` separators.
  * @returns the lowercased extension including the leading dot, or empty.
  */
@@ -139,6 +145,21 @@ function documentExtension(relative: string): string {
   const dot = base.lastIndexOf('.')
   if (dot <= 0) return ''
   return base.slice(dot).toLowerCase()
+}
+
+/**
+ * Write the pending preview URL and open the Browser surface, matching terminal.
+ * @param url - loopback http(s) the guest should load.
+ */
+function openPreviewSurface(url: string, sessionId?: string): void {
+  try {
+    sessionStorage.setItem(PENDING_PREVIEW_URL_KEY, url)
+  } catch {
+    // Quota / SecurityError: Preview still listens for the event when mounted.
+  }
+  window.dispatchEvent(new CustomEvent(OPEN_SURFACE_EVENT, {
+    detail: { kind: 'preview', url, ...(sessionId === undefined ? {} : { sessionId }) },
+  }))
 }
 
 /**
@@ -162,46 +183,29 @@ async function browserDocumentUrl(cwd: string, relative: string): Promise<string
 }
 
 /**
- * Route a desktop file open to the current right Sidebar.
- * @returns false when the Sidebar is absent or its Session has no adopted
- *   store, so the caller falls back to the legacy surfaces column.
+ * After Files opens, load a browser-renderable workspace file in Browser.
+ * Missing or failing IPC leaves Files in place and does not throw.
+ * @param cwd - session workspace root, or undefined when the client summary has no cwd.
+ * @param relative - path inside cwd.
  */
-async function openInRightSidebar(
-  ctx: Context,
-  sessionId: string,
-  cwd: string | undefined,
-  path: string,
-  options?: { line?: number },
-): Promise<boolean> {
-  const sidebarRight = ctx.get('sidebarRight')
-  if (sidebarRight === undefined) return false
+async function previewBrowserDocument(cwd: string | undefined, relative: string, sessionId: string): Promise<void> {
+  if (cwd === undefined) return
+  const url = await browserDocumentUrl(cwd, relative)
+  if (url !== undefined) openPreviewSurface(url, sessionId)
+}
 
-  const relative = cwd === undefined ? undefined : relativeTo(cwd, path)
-  if (cwd !== undefined && relative === undefined) return false
-  const target = relative ?? (isAbsoluteWorkspacePath(path) ? path : undefined)
-  if (target === undefined) return false
-
-  if (target === '') {
-    if (!sidebarRight.openTabIn(sessionId as SessionId, 'files')) {
-      throw new Error('surfaces: Files target is unavailable')
+/**
+ * Forward main-process loopback popups into the same preview event as terminal.
+ * @returns a disposer; a no-op when `onOpenPreviewUrl` is absent.
+ */
+function subscribeOpenPreviewUrl(): () => void {
+  const subscribe = readWindowShell()?.onOpenPreviewUrl
+  if (typeof subscribe !== 'function') return () => {}
+  return subscribe((payload) => {
+    if (typeof payload?.url === 'string' && payload.url.length > 0) {
+      openPreviewSurface(payload.url)
     }
-    return true
-  }
-
-  const address = fileAddressFor(sessionId, cwd, target)
-  const opened = options?.line === undefined
-    ? sidebarRight.openResourceIn(sessionId as SessionId, address)
-    : sidebarRight.openResourceIn(sessionId as SessionId, address, { params: { line: options.line } })
-  if (!opened) throw new Error('surfaces: file target is unavailable')
-
-  if (BROWSER_DOCUMENTS.has(documentExtension(target)) && cwd !== undefined && relative !== undefined) {
-    const url = await browserDocumentUrl(cwd, relative)
-    if (url !== undefined) {
-      const openedBrowser = sidebarRight.openTabIn(sessionId as SessionId, 'browser', { params: { url } })
-      if (!openedBrowser) throw new Error('surfaces: Browser target is unavailable')
-    }
-  }
-  return true
+  })
 }
 
 /**
@@ -215,18 +219,65 @@ export function desktopListingAvailable(): boolean {
 
 /** Services required by the surfaces plugin. */
 export const inject = [
-  'slots', 'layout', 'locale', 'workspaces', 'sessions', 'remote', 'remote.session',
+  'slots', 'layout', 'locale', 'workspaces', 'sessions', 'uiSession', 'remote', 'remote.session',
 ]
 
 /**
- * Normalize the retired surfaces width, then intercept `workspaces.openPath`
- * into the native right Sidebar on desktop.
+ * Register dictionaries, occupy the layout `surfaces` column, and intercept
+ * `workspaces.openPath` into Files (and Browser for html/htm/xhtml/pdf)
+ * on desktop.
  * @param ctx - Client root context.
  */
 export function apply(ctx: Context): void {
-  // The native Sidebar owns the visible right panel; normalize any stale
-  // legacy width before the first frame.
-  ctx.layout.closeSurfaces()
+  ctx.layout.closeRightbar()
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-surfaces: dictionaries')
+  ctx.effect(() => subscribeOpenPreviewUrl(), 'ui-surfaces: open-preview-url')
+  ctx.effect(() => {
+    if (desktopListingAvailable()) {
+      const key = 'dshd-classic-right-panel-v1'
+      try {
+        if (localStorage.getItem(key) === null) {
+          openClassicSurfaces(ctx)
+          localStorage.setItem(key, 'restored')
+        }
+      } catch {
+        // Storage denial still allows the user to open the classic panel manually.
+      }
+    }
+    return () => {}
+  }, 'ui-surfaces: restore desktop panel')
+
+  const live: {
+    open?: SurfacesStoreActions['open']
+    openFile?: SurfacesStoreActions['openFile']
+  } = {}
+
+  ctx.slots.inject('surfaces', () => ctx.slots.register({
+    name: 'surfaces',
+    locale: NS,
+    store: createSurfacesStore,
+    children: {
+      'surfaces.browser': { kind: 'single', scope: 'session-maybe' },
+      'surfaces.terminal': { kind: 'single', scope: 'session-maybe' },
+      'surfaces.files': { kind: 'single', scope: 'session-maybe' },
+      'surfaces.file': { kind: 'single', scope: 'session-maybe' },
+      'surfaces.diff': { kind: 'single', scope: 'session-maybe' },
+      'surfaces.agents': { kind: 'single', scope: 'session-maybe' },
+    },
+    inject: (_sessionId, actions): SurfacesRootInjected => {
+      if (actions !== undefined) {
+        live.open = (sessionId, kind) => { actions.open(sessionId, kind) }
+        live.openFile = (sessionId, relativePath, options) => {
+          if (options === undefined) actions.openFile(sessionId, relativePath)
+          else actions.openFile(sessionId, relativePath, options)
+        }
+      }
+      return {
+        openSurfaces: () => { openClassicSurfaces(ctx) },
+        ...readDesktopShell(),
+      }
+    },
+  }, SurfacesRoot))
 
   ctx.effect(() => {
     const workspaces = ctx.workspaces as Partial<OpenPathService>
@@ -241,7 +292,21 @@ export function apply(ctx: Context): void {
       openInSurfaces: async (path, sessionId, options) => {
         const summary = ctx.sessions.list.getSnapshot().byId[sessionId as SessionId]
         const cwd = typeof summary?.cwd === 'string' && summary.cwd.length > 0 ? summary.cwd : undefined
-        return openInRightSidebar(ctx, sessionId, cwd, path, options)
+        if (cwd === undefined) return false
+        const relative = relativeTo(cwd, path)
+        if (relative === undefined) return false
+        if (relative === '') {
+          if (live.open === undefined) throw new Error('surfaces: Files page is unavailable')
+          live.open(sessionId, 'files')
+          openClassicSurfaces(ctx)
+          return true
+        }
+        if (live.openFile === undefined) throw new Error('surfaces: file preview is unavailable')
+        if (options?.line !== undefined) live.openFile(sessionId, relative, { revealLine: options.line })
+        else live.openFile(sessionId, relative)
+        openClassicSurfaces(ctx)
+        await previewBrowserDocument(cwd, relative, sessionId)
+        return true
       },
     })
     return () => {

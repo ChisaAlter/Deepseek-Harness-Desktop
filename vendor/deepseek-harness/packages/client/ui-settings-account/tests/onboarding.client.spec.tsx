@@ -30,6 +30,7 @@ it('claims onboarding while loading, offers API key fallback, and completes afte
     complete: vi.fn(), useApiKey: vi.fn(), setOnboarding: vi.fn(), showLogin: vi.fn(),
     useAccount: <T,>(select: (snapshot: AccountSnapshot) => T) => select(account),
     useTheme: <T,>(select: (snapshot: ThemeSnapshot) => T) => select(theme),
+    useLauncherActions: <T,>(select: (actions: readonly []) => T) => select([]),
     start: vi.fn(async () => {}), cancel: vi.fn(async () => {}), signOut: vi.fn(async () => {}),
     refresh: vi.fn(async () => {}), contactUs: vi.fn(), t: makeTranslate(en),
   }

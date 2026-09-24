@@ -68,6 +68,7 @@ function mount({
   onboardingActive = true,
   navigation = createNavigation(),
   mainView = true,
+  launcher = false,
   rows = [
     { id: 'general', order: 0, label: 'General' },
     { id: 'models', order: 10, label: 'Models' },
@@ -85,6 +86,7 @@ function mount({
   onboardingActive?: boolean
   navigation?: TestNavigation
   mainView?: boolean
+  launcher?: boolean
   rows?: Row[]
   steps?: Step[]
 } = {}) {
@@ -98,6 +100,7 @@ function mount({
   const renderSlot = vi.fn(
     ((key: string, _owner: unknown, opts?: { only?: string; fallback?: import('react').ReactNode }) => {
       if (key === 'settings.section') return <div data-testid={`section-${opts?.only ?? 'all'}`} />
+      if (key === 'settings.launcher' && launcher) return <button type="button">Account</button>
       return SEAT_CONTENT[key] ?? opts?.fallback
     }) as SettingsRootComponentProps['renderSlot'],
   )
@@ -186,6 +189,25 @@ function openPanel() {
 }
 
 describe('SettingsRoot trigger', () => {
+  it.each([true, false])('uses the account launcher as the only Settings entry when wide is %s', async (wide) => {
+    const { renderSlot, navigation, setConnectionState } = mount({ wide, launcher: true })
+    const accountButton = screen.getByRole('button', { name: 'Account' })
+    expect(screen.queryByRole('button', { name: 'Settings' })).toBeNull()
+    expect(renderSlot.mock.calls.some(call => call[0] === 'settings.trigger')).toBe(false)
+    const deepLinkTrigger = document.querySelector<HTMLButtonElement>('[data-dsh-settings-trigger]')
+    expect(deepLinkTrigger?.hidden).toBe(true)
+    act(() => { deepLinkTrigger?.click() })
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: undefined })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    const launcherCall = renderSlot.mock.calls.find(call => call[0] === 'settings.launcher')!
+    act(() => { (launcherCall[1] as { openSettings: () => void }).openSettings() })
+    expect(navigation.getSnapshot()).toEqual({ open: true, sectionId: undefined })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await vi.waitFor(() => { expect(document.activeElement).toBe(accountButton) })
+    setConnectionState('disconnected')
+    if (wide) expect(screen.getByRole('button', { name: 'Disconnected, reconnect now' })).toBeTruthy()
+  })
+
   it('shows installation instead of expected backend reconnection and restores connection feedback after failure', () => {
     const presentation = { phase: 'installing' as const, version: '1.0.1' }
     const f = mount({ dictionary: zh, connectionState: 'connecting',

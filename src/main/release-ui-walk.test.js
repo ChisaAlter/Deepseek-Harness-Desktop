@@ -46,8 +46,11 @@ test('release walk helpers stay injectable into the harness page', () => {
   assert.ok(QA_REQUIRED_STEPS.includes('gallery.sources'));
   assert.ok(QA_REQUIRED_STEPS.includes('market.discover'));
   assert.ok(QA_REQUIRED_STEPS.includes('browser.url'));
-  // dshbot is a desktop built-in again — the walk must prove the Bots tab renders.
-  assert.ok(QA_REQUIRED_STEPS.includes('plugin.dshbot.tab'));
+  // Source QA uses default-off config: the switch must be present and the tab absent.
+  assert.ok(QA_REQUIRED_STEPS.includes('interface.dshbotSwitch'));
+  assert.ok(QA_REQUIRED_STEPS.includes('plugin.dshbot.defaultOff'));
+  assert.ok(QA_REQUIRED_STEPS.includes('rightbar.open'));
+  assert.ok(QA_REQUIRED_STEPS.includes('rightbar.legacyDormant'));
   assert.ok(QA_REQUIRED_STEPS.includes('market.installed'));
   assert.ok(QA_REQUIRED_STEPS.includes('usage-stats.section'));
   assert.ok(QA_REQUIRED_STEPS.includes('files.mentionAppended'));
@@ -59,6 +62,8 @@ test('release walk helpers stay injectable into the harness page', () => {
   assert.ok(QA_REQUIRED_STEPS.includes('remote.footerPresent'));
   assert.ok(QA_REQUIRED_STEPS.includes('titlebar.windowControls'));
   assert.ok(QA_REQUIRED_STEPS.includes('files.tabCloseRight'));
+  assert.ok(QA_REQUIRED_STEPS.includes('account.launcher'));
+  assert.ok(QA_REQUIRED_STEPS.includes('account.signedOutMenu'));
   assert.ok(QA_REQUIRED_STEPS.includes('git.commit'));
   assert.ok(QA_REQUIRED_STEPS.includes('models.heading'));
   assert.ok(QA_REQUIRED_STEPS.includes('models.customAdd'));
@@ -92,6 +97,14 @@ test('release walk source clicks Mention and asserts the composer markdown link'
   assert.match(walk, /parked hidden/);
   assert.match(walk, /titlebar\.windowControls/);
   assert.match(walk, /files\.tabCloseRight/);
+  assert.match(walk, /data-sidebar-right-panel/);
+  assert.match(walk, /data-sidebar-right-guide-entry/);
+  assert.match(walk, /data-dockkit-tab-close/);
+  assert.match(walk, /data-sidebar-terminal/);
+  assert.match(walk, /account\.signedOutMenu/);
+  assert.match(walk, /add model provider\|添加模型提供商/);
+  assert.match(walk, /custom model api\|自定义模型 api/);
+  assert.doesNotMatch(walk, /dshd-open-surface', \{ detail/);
   assert.match(walk, /git\.commitDialog/);
   assert.match(walk, /gitHeadSubject/);
   assert.match(walk, /dirtyQaNote/);
@@ -146,7 +159,7 @@ test('release walk types into Lexical composer and matches 0.1.2 chrome copy', (
   assert.match(walk, /Session 日志/);
   assert.match(walk, /\^\(discover\|发现\)\$/);
   assert.match(walk, /识图模型/);
-  assert.match(walk, /\^指令\$/);
+  assert.match(walk, /add files or run commands\|添加文件或调用指令/);
   assert.match(PAGE_HELPERS, /function composerModelTrigger/);
   assert.match(PAGE_HELPERS, /选择模型\|select model/);
   assert.match(PAGE_HELPERS, /selectNodeContents/);

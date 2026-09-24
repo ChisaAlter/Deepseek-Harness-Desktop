@@ -494,6 +494,30 @@ function sessionNode(
   }
 }
 
+/** Keep archived rows in one separate section, including recoverable ids whose summaries are missing. */
+export function deriveArchived(
+  list: SessionListState,
+  workspaces: readonly WorkspaceView[],
+  archivedSessionIds: readonly SessionId[],
+  scratchCwd: string | undefined,
+  missingTitle = 'Missing session',
+): SessionNode[] {
+  const accounted = accountedIds(workspaces)
+  const archived = new Set(archivedSessionIds)
+  const statuses: SessionStatuses = new Map()
+  const rows: SessionNode[] = []
+  for (const id of archivedSessionIds) {
+    const summary = list.byId[id]
+    if (summary?.origin === 'subagent') continue
+    if (summary !== undefined && !listed(summary, accounted, scratchCwd)) continue
+    const session: SessionSummary = summary ?? {
+      id, displayTitle: missingTitle, running: false, retainedBy: {}, blank: false, updatedAt: 0,
+    }
+    rows.push(sessionNode(session, list, statuses, new Set(), archived))
+  }
+  return rows
+}
+
 /**
  * Derive the workspace browser groups with every session as a top-level row.
  *

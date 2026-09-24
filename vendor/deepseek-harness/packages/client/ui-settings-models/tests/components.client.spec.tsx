@@ -355,9 +355,9 @@ describe('ModelsSection', () => {
     expect(document.body.textContent).toBe('')
   })
 
-  it('renders the vision-model picker when vision-fallback is in the snapshot', async () => {
+  it('renders the vision-model picker when the live vision-fallback entry is in the snapshot', async () => {
     const visionNs: SettingsNamespaceView = {
-      ns: 'vision-fallback',
+      ns: 'llm-vision-fallback',
       schema: {},
       value: {},
       autoGenerate: true,

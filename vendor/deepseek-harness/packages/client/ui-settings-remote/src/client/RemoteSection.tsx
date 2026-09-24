@@ -26,6 +26,16 @@ export type RemoteSectionProps =
   PropsRuntime<'sidebar.footer.action'>
   & PropsLocale<'settings.remote'>
   & InjectFace<RemoteSectionInjected>
+  & { menuMode?: boolean; onClose?: () => void }
+
+/** Account-menu action mounts the same pairing popup without a sidebar row. */
+export type RemoteMenuActionProps = PropsRuntime<'settings.launcher.action'>
+  & PropsLocale<'settings.remote'> & InjectFace<RemoteSectionInjected>
+
+/** Render the existing Remote popup for a selected account-menu action. */
+export function RemoteMenuAction({ close, ...props }: RemoteMenuActionProps): ReactNode {
+  return <RemoteSection {...props} wide menuMode onClose={close} />
+}
 
 const EMPTY: RemoteSnapshot = { urls: [], devices: [] }
 const REFRESH_MS = 2000
@@ -59,17 +69,20 @@ export function RemoteSection({
   rotateRemoteToken,
   unbindRemoteDevice,
   renameRemoteDevice,
+  menuMode = false,
+  onClose,
 }: RemoteSectionProps): ReactNode {
   const [snap, setSnap] = useState<RemoteSnapshot | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(menuMode)
   const [devicesOpen, setDevicesOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const [healFired, setHealFired] = useState(false)
   const healAttemptedRef = useRef(false)
+  const closePopup = useCallback((): void => { setOpen(false); onClose?.() }, [onClose])
 
   const applySnap = useCallback((next: RemoteSnapshot | null) => {
     const value = next ?? EMPTY
@@ -119,11 +132,11 @@ export function RemoteSection({
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
       if (devicesOpen) setDevicesOpen(false)
-      else setOpen(false)
+      else closePopup()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
-  }, [open, devicesOpen])
+  }, [open, devicesOpen, closePopup])
 
   const save = useCallback(async (patch: RemotePatch) => {
     setBusy(true)
@@ -209,7 +222,7 @@ export function RemoteSection({
 
   return (
     <div className={wide ? css.layer : `${css.layer} ${css.rail}`}>
-      <button
+      {!menuMode && <button
         type="button"
         className={css.trigger}
         data-dsh-remote-trigger=""
@@ -221,10 +234,10 @@ export function RemoteSection({
       >
         <PhoneIcon size={wide ? 16 : 18} />
         {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}
-      </button>
+      </button>}
       {open ? (
         <div className={css.overlay} role="presentation">
-          <div className={css.mask} aria-hidden="true" onClick={() => { setOpen(false) }} />
+          <div className={css.mask} aria-hidden="true" onClick={closePopup} />
           <div
             className={css.panel}
             role="dialog"

@@ -531,18 +531,14 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Static approximation of the ambient gradient backdrop (same tokens; the
-   user's stored overrides arrive as inline --dsh-gradient-* variables). */
+/* The preview shares wallpaper.css's bloom geometry and variant rules. */
 .effectPreview {
+  position: relative;
   width: 100%;
-  height: 88px;
+  height: 112px;
+  --dsh-preview-blur: 8px;
   border-radius: 12px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  background:
-    radial-gradient(circle at 22% 65%, var(--dsh-gradient-1, var(--dsw-specific-gradient-1)) 0%, transparent 42%),
-    radial-gradient(circle at 68% 25%, var(--dsh-gradient-3, var(--dsw-specific-gradient-3)) 0%, transparent 42%),
-    radial-gradient(circle at 82% 72%, var(--dsh-gradient-4, var(--dsw-specific-gradient-4)) 0%, transparent 38%),
-    linear-gradient(40deg, var(--dsh-gradient-start, var(--dsw-specific-gradient-start)), var(--dsh-gradient-end, var(--dsw-specific-gradient-end)));
 }
 
 /* Pointer-effect dialog: two kind cards above the live preview. */

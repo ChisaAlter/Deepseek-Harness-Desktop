@@ -2,15 +2,15 @@
 
 English | [中文](README.zh.md)
 
-Desktop navigation adapter: the visible right panel is `@deepseek-ai/dsh-client-ui-sidebar-right`. This package registers no `surfaces` occupant and publishes no empty state; at apply it synchronously calls `ctx.layout.closeSurfaces()` so a persisted legacy width cannot create a second column, then wraps `workspaces.openPath`. Contract: the [single visible right sidebar decision](../../../docs/decisions/proposed/architecture/2026-09-22-single-visible-right-sidebar.md).
+The original DSHD right-panel shell. This package registers `SurfacesRoot` in the layout's `surfaces` column with the original top tab strip, empty picker, persisted tabs, and file drafts. Files, Browser, Terminal, Diff, and Agents register their bodies under `surfaces.*`. The [DSHD restoration decision](../../../../../docs/decisions/implemented/product/2026-09-23-right-sidebar-dshd-guide.md) owns the visual choice.
 
-When the pinned Workspace Controller lacks `openPath`, this package installs a Host-RPC-backed base method before wrapping it. On desktop the wrapper resolves the originating Session (an explicit Chat `sessionId`, otherwise the retained main-view Session) and routes into the native Sidebar: the root opens its Files page, ordinary files open through `sidebarRight.openResourceIn(sessionId, fileAddressFor(...))` with a line carried as `{ params: { line } }`, and `.html`, `.htm`, `.xhtml`, and `.pdf` keep that file resource before awaiting `previewWorkspaceFile` and opening the token URL in the Sidebar Browser. When the Sidebar service is absent, or the target Session has no adopted store and no matching live binding, the original Host opener runs. Once a Sidebar target is selected, a navigation exception propagates instead of silently changing route. Non-desktop or out-of-workspace paths use the base Host operation.
+When the pinned Workspace Controller lacks `openPath`, this package first installs a Host-RPC-backed base method, then wraps it. On desktop the wrapper resolves the originating Session (an explicit Chat `sessionId`, otherwise the retained main-view Session). A workspace root opens Files, an ordinary file opens its DSHD file tab with an optional line reveal, and `.html`, `.htm`, `.xhtml`, and `.pdf` also open the token URL in Browser. Paths without a known cwd, non-desktop paths, and out-of-workspace paths use the base Host operation.
 
-The dormant `surfaces.*` slot declarations and their owner-prop types stay in this package only so the upstream layout contract and the fork packages still type-check; nothing registers into them and no UI renders. The `/client` surface exports the plugin body (`apply`/`inject`) and `desktopListingAvailable` only.
+Opening the classic panel collapses the native Sidebar. Native resources exclusive to that Sidebar can still open it; its presentation closes the classic track, so only one right panel is visible. The titlebar button controls the classic track. The `/client` export includes the plugin body, store, surface types, and availability probe.
 
 ## Model Experience
 
-None, as this adapter only routes opens into the right Sidebar; nothing here reaches a model request.
+None; the panel and file navigation do not reach a model request.
 
 #### KV Cache effect
 
@@ -18,6 +18,4 @@ None; this package neither assembles nor sends a provider request.
 
 ## Known Limitations and Deferred Work
 
-- **The legacy shell is retired** — Files, Diff, Browser, and Agents own their native `ui-sidebar-right` tab types in their own packages. The dormant slot declarations exist for compatibility only.
-
-No runtime invariant companion is published; this package owns no independent durable event relationship, and focused package tests cover its routing behavior.
+- A Session without a cwd uses the Host path opener until the DSHD file surface supports absolute addresses.

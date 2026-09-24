@@ -847,6 +847,24 @@ describe('ConversationRoot resident composer', () => {
     }
   })
 
+  it('does not extend the first-send hold for its own pin style', async () => {
+    const b = mount(sessionSnapshotOf({ blank: true }))
+    vi.useFakeTimers()
+    try {
+      act(() => { b.session.set(sessionSnapshotOf({ blank: true, promptAttempted: true })) })
+      const entering = b.view.container.querySelector<HTMLElement>('[data-composer-entering]')!
+      await act(async () => {})
+      act(() => { vi.advanceTimersByTime(60) })
+      await act(async () => {
+        entering.style.setProperty('--dsh-composer-enter-offset', '-1px')
+      })
+      act(() => { vi.advanceTimersByTime(20) })
+      expect(entering.style.getPropertyValue('animation-play-state')).toBe('running')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('releases the hold pin when the transition clears before the glide', async () => {
     const b = mount(sessionSnapshotOf({ blank: true }))
     const card = b.view.container.querySelector<HTMLElement>('[data-composer-card]')!

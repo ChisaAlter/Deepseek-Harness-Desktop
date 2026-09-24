@@ -37,6 +37,26 @@ export function whaleSkillsDir(homeDir) {
   return path.join(whaleHomeDir(homeDir), 'skills');
 }
 
+/** Current Harness registers presets explicitly; it no longer scans `.agent-presets`. */
+export function whalePresetDefinition(homeDir) {
+  return {
+    id: WHALE_PRESET_ID,
+    name: '鲸鱼娘助理',
+    description: '桌面鲸鱼娘助理会话用的内置预设',
+    order: 90,
+    plugins: [
+      { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { includeRuntimeContext: false, complete: true, prefix: '' } },
+      { id: 'agent-instructions', name: '@deepseek-ai/dsh-agent-instructions', config: { maxBytes: 65536 } },
+      { id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs' },
+      { id: 'tool-fs-search', name: '@deepseek-ai/dsh-tool-fs-search', config: { sampleOverCapGlobResults: false } },
+      { id: 'skill-filesystem', name: '@deepseek-ai/dsh-skill-filesystem', config: { includeDefaultRoots: false, customSkillDirs: [whaleSkillsDir(homeDir)] } },
+      { id: 'tool-skill', name: '@deepseek-ai/dsh-tool-skill' },
+      { id: 'tool-ask-user', name: '@deepseek-ai/dsh-tool-ask-user' },
+      { id: 'whale-tools', name: 'dsh-whale/tools' },
+    ],
+  };
+}
+
 export function whaleDisabledSkillsDir(homeDir) {
   return path.join(whaleHomeDir(homeDir), 'skills-disabled');
 }

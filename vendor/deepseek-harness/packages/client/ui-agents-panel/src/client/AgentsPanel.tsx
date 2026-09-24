@@ -16,7 +16,7 @@ export interface AgentsPanelInjected {
 }
 
 export type AgentsPanelProps =
-  & PropsRuntime<'sidebar.right.pane.tab'>
+  & Pick<PropsRuntime<'surfaces.agents'>, 'sessionId' | 'useSessions'>
   & PropsLocale<typeof NS>
   & InjectFace<AgentsPanelInjected>
 
@@ -35,11 +35,13 @@ const JOB_STATUS_KEY = {
  * @returns the agents surface.
  */
 export function AgentsPanel({ sessionId, useSessions, openAgent, jobs: jobsSource, watchJobs, t }: AgentsPanelProps): ReactNode {
+  const activeSessionId = useSessions(state => sessionId ?? Object.values(state.byId).find(row => (row.retainedBy.mainView ?? 0) > 0)?.id)
   const agents = useSessions(state => listSessionAgents(state, sessionId))
-  useEffect(() => watchJobs(sessionId), [sessionId, watchJobs])
+  useEffect(() => activeSessionId === undefined ? undefined : watchJobs(activeSessionId), [activeSessionId, watchJobs])
   const subscribeJobs = useCallback((listener: () => void) => jobsSource.subscribe(listener), [jobsSource])
   const getJobsSnapshot = useCallback(() => jobsSource.getSnapshot(), [jobsSource])
-  const jobs = useSyncExternalStore(subscribeJobs, getJobsSnapshot).rows[sessionId] ?? []
+  const jobsBySession = useSyncExternalStore(subscribeJobs, getJobsSnapshot).rows
+  const jobs = activeSessionId === undefined ? [] : jobsBySession[activeSessionId] ?? []
 
   return (
     <div className={css.root} data-agents-panel>

@@ -758,6 +758,69 @@ describe('AppearanceSection', () => {
     })
   })
 
+  it('previews the draft shape, speed, and count before saving', () => {
+    const b = mount('system', { backgroundEffect: 'gradient' })
+    const effectSection = screen.getByRole('heading', { name: COPY['effect.title'] }).closest('section')!
+    fireEvent.click(within(effectSection).getByRole('button', { name: COPY['effect.configure'] }))
+    fireEvent.click(screen.getByRole('radio', { name: COPY['effect.preset.sunset'] }))
+    fireEvent.change(screen.getByRole('slider', { name: COPY['effect.speed'] }), { target: { value: '300' } })
+    fireEvent.change(screen.getByRole('slider', { name: COPY['effect.count'] }), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: COPY['effect.variant'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: COPY['effect.variant.rays'] }))
+
+    const preview = screen.getByRole('img', { name: COPY['effect.gradient'] })
+    expect(preview.id).toBe('dsh-gradient-preview')
+    expect(preview.style.getPropertyValue('--dsh-gradient-1')).toBe('#fb923c')
+    expect(preview.dataset.variant).toBe('rays')
+    expect(preview.style.getPropertyValue('--dsh-gradient-speed')).toBe('3')
+    expect([...preview.querySelectorAll<HTMLElement>('[data-blob]')].map(blob => blob.hidden))
+      .toEqual([false, true, true, true, true])
+    expect(screen.getByRole('radio', { name: COPY['effect.preset.custom'] }).getAttribute('aria-checked')).toBe('true')
+    expect(b.setWallpaper).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: COPY['effect.cancel'] }))
+    expect(b.setWallpaper).not.toHaveBeenCalled()
+  })
+
+  it('keeps background effect draft edits across unrelated theme publishes', () => {
+    const b = mount('system', { backgroundEffect: 'gradient' })
+    const effectSection = screen.getByRole('heading', { name: COPY['effect.title'] }).closest('section')!
+    fireEvent.click(within(effectSection).getByRole('button', { name: COPY['effect.configure'] }))
+    fireEvent.change(screen.getByRole('slider', { name: COPY['effect.speed'] }), { target: { value: '300' } })
+    fireEvent.change(screen.getByRole('slider', { name: COPY['effect.count'] }), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: COPY['effect.variant'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: COPY['effect.variant.rays'] }))
+
+    act(() => { b.store.actions.sync(snap({ glassOpacity: 61 }), 1) })
+
+    const preview = screen.getByRole('img', { name: COPY['effect.gradient'] })
+    expect(preview.dataset.variant).toBe('rays')
+    expect(preview.style.getPropertyValue('--dsh-gradient-speed')).toBe('3')
+    expect([...preview.querySelectorAll<HTMLElement>('[data-blob]')].map(blob => blob.hidden))
+      .toEqual([false, true, true, true, true])
+    expect(b.setWallpaper).not.toHaveBeenCalled()
+  })
+
+  it('reloads stored background effect values when the dialog reopens', () => {
+    const b = mount('system', { backgroundEffect: 'gradient' })
+    const effectSection = screen.getByRole('heading', { name: COPY['effect.title'] }).closest('section')!
+    fireEvent.click(within(effectSection).getByRole('button', { name: COPY['effect.configure'] }))
+    fireEvent.change(screen.getByRole('slider', { name: COPY['effect.speed'] }), { target: { value: '300' } })
+    fireEvent.click(screen.getByRole('button', { name: COPY['effect.cancel'] }))
+    act(() => {
+      b.store.actions.sync(snap({
+        backgroundEffect: 'gradient', backgroundEffectSpeed: 120,
+        backgroundEffectCount: 2, backgroundEffectVariant: 'aurora',
+      }), 1)
+    })
+    fireEvent.click(within(effectSection).getByRole('button', { name: COPY['effect.configure'] }))
+    const preview = screen.getByRole('img', { name: COPY['effect.gradient'] })
+    expect(preview.dataset.variant).toBe('aurora')
+    expect(preview.style.getPropertyValue('--dsh-gradient-speed')).toBe('1.2')
+    expect([...preview.querySelectorAll<HTMLElement>('[data-blob]')].map(blob => blob.hidden))
+      .toEqual([false, false, true, true, true])
+    expect(b.setWallpaper).not.toHaveBeenCalled()
+  })
+
   it('toggles the pointer effect through setCursorFx', () => {
     const b = mount('system')
     fireEvent.click(screen.getByRole('switch', { name: COPY['cursorFx.title'] }))

@@ -4,7 +4,7 @@
 | --- | --- |
 | **id** | `harness-upstream-sync` |
 | **status** | `active` |
-| **last verified** | 2026-09-23 — 将 `dsh-v0.1.7-alpha.2` 三方合并至桌面树：原始本地修改已另行提交；官方构建通过；桌面 `npm test` 2215 通过/2 跳过；vendor `ui-primitives` 1226/1226、`ui-workspace` + `ui-files` 558/558、聊天与代理定向测试 577/577、设置定向测试 340/340、Web E2E 15/15；`smoke:source` 的 UI、标题栏及 PTY 探针通过；`check:governance` 6/6、`doc-sync` 8/8。`npm start` 预构建通过，但已安装版持有单实例锁，未替换其窗口；独立数据目录下的源码启动已由冒烟验证。 |
+| **last verified** | 2026-09-23 — 会话头部交互座位、通用交互元素与顶部固定浮层从 48px 拖拽带扣除；样式测试 11/11、源码构建、重启后顶部按钮命中区与 Agent Team / 打开方式 / Git 菜单点击复核通过。此前 2026-09-23 — 设置侧栏键盘焦点轮廓改用设计语言规定的中性描边；CDP 实测鼠标选中无轮廓、键盘聚焦为深色 2px 内描边，源码构建通过。此前 2026-09-23 — 设置侧栏选中底色恢复上游中性 token；源码构建和重启成功，治理门禁 6/6；设置页定向测试 27/29，另 2 例在侧栏入口测试处失败。此前 2026-09-23 — 同步后回归修复：会话 header 双层网格压缩使右栏顶部下移约 29px，合并为单层后 CDP 实测恢复；Host `Config` 漏登记会话偏好 volatile 导致输入框大小开关被 `settings/rejected` 回退，补齐所有字段后真实 RPC 成功，开/关两态均经页面重载持久。定向测试与官方构建通过。此前 2026-09-23 — 将 `dsh-v0.1.7-alpha.2` 三方合并至桌面树：原始本地修改已另行提交；官方构建通过；桌面 `npm test` 2215 通过/2 跳过；vendor `ui-primitives` 1226/1226、`ui-workspace` + `ui-files` 558/558、聊天与代理定向测试 577/577、设置定向测试 340/340、Web E2E 15/15；`smoke:source` 的 UI、标题栏及 PTY 探针通过；`check:governance` 6/6、`doc-sync` 8/8。`npm start` 预构建通过，但已安装版持有单实例锁，未替换其窗口；独立数据目录下的源码启动已由冒烟验证。 |
 
 ## User paths
 
@@ -18,6 +18,7 @@
 - pin 仅在合并树成功应用后更新；未完成验证不得称为可发布版本。
 - 不创建分支或发布；仅在用户明确要求时提交同步结果。保留任务开始时本地修改的原始快照及其他任务后续的独立更新。
 - 设计语言、关闭按钮在标题右侧、独立桌面家目录和插件恢复契约保持。
+- 新槽位拆出的常驻会话 header 与 Session header 共用一层网格和内边距，不能让右栏起点因重复标题容器而下移；`ui-conversation` 的所有浏览器可编辑设置字段须在 Host `Config` 中声明 volatile，以便 `ConfigForm` 写入真正持久化。
 
 ## Allowed touch
 
@@ -45,4 +46,5 @@
 - Spec / plan: [上游同步方案](../superpowers/plans/2026-08-18-harness-rc7-vendor-pin.md)
 - Decision: [alpha.2 桌面适配](../decisions/implemented/architecture/2026-09-18-harness-alpha2-desktop-adaptation.md)
 - Decision: [0.1.7-alpha.2 桌面适配](../decisions/implemented/architecture/2026-09-23-harness-017-desktop-adaptation.md)
+- Decision: [标题栏点击区域](../decisions/implemented/bug-fix/2026-09-23-titlebar-click-regions.md)
 - Implementation entry: [harness-sync.js](../../src/shared/harness-sync.js)

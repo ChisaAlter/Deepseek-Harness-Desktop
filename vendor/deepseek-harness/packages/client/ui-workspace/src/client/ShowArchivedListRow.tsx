@@ -18,7 +18,7 @@ export type ShowArchivedListRowProps =
  * @returns the preference row.
  */
 export function ShowArchivedListRow({ useStore, actions, t }: ShowArchivedListRowProps) {
-  const show = useStore(state => state.archivedFilter === 'show' || state.archivedFilter === 'only')
+  const show = useStore(state => state.showArchivedList ?? true)
   const titleId = useId()
   const title: WorkspaceKey = 'settings.showArchived.title'
   const description: WorkspaceKey = 'settings.showArchived.description'
@@ -32,7 +32,7 @@ export function ShowArchivedListRow({ useStore, actions, t }: ShowArchivedListRo
       <Switch
         checked={show}
         aria-labelledby={titleId}
-        onChange={(event) => { actions.setArchivedFilter(event.target.checked ? 'show' : 'default') }}
+        onChange={(event) => { actions.setShowArchivedList(event.target.checked) }}
       />
     </div>
   )

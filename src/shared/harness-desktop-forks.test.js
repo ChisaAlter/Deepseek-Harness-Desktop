@@ -51,7 +51,7 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
     .join('\n');
   writeFile(root, 'packages/bundle/web-app/cordis.patch.yml', `- insert:\n${webRows}\n`);
   writeFile(root, 'packages/client/ui-layout/src/client/index.ts', [
-    "export interface TitlebarTrailingOwnerProps { rightbarShown: boolean }",
+    "export interface TitlebarTrailingOwnerProps { surfaces: number }",
     "    'surfaces': { kind: 'single', scope: 'session-maybe' },",
     "    'shell.titlebar.trailing': { kind: 'list', scope: 'root' },",
     "    'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },",
@@ -59,16 +59,17 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
   ].join('\n'));
   writeFile(root, 'packages/client/ui-layout/src/client/AppFrame.tsx', [
     'return <div className={css.mainPanel} data-main-panel>{panel}</div>',
-    'rightbarShown: layoutInfo.rightbarShown,',
+    'surfaces: layoutInfo.surfaces,',
     '',
   ].join('\n'));
   writeFile(root, 'packages/client/ui-surfaces/src/client/apply.ts', [
-    'ctx.layout.closeSurfaces()',
-    'openInRightSidebar',
+    "name: 'surfaces'",
+    'openClassicSurfaces',
+    'if (cwd === undefined) return false',
     '',
   ].join('\n'));
-  writeFile(root, 'packages/client/ui-titlebar/src/client/apply.ts', 'sidebarRight.toggleExpanded()\n');
-  writeFile(root, 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', 'rightbarShown\n');
+  writeFile(root, 'packages/client/ui-titlebar/src/client/apply.ts', 'ctx.layout.toggleSurfaces()\n');
+  writeFile(root, 'packages/client/ui-titlebar/src/client/PanelToggles.tsx', 'surfaces > 0\n');
   writeFile(root, 'packages/client/ui-renderer/src/client/scoped-slots.tsx', [
     "  const scopedStoreBinding = scope === 'session-maybe' && scopeBinding?.key === undefined ? { key: '' } : scopeBinding",
     '',
@@ -126,11 +127,14 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'tsconfig.base.json': '{"paths":{"@deepseek-ai/dsh-host-mcp-servers":[],"@deepseek-ai/dsh-host-skill-inventory":[],"@deepseek-ai/dsh-llm-vision-fallback":[],"@deepseek-ai/dsh-mcp-servers-file":[]}}\n',
       'apps/cli/tests/web-agent-presets.e2e.ts': "    { insert: [\n      { id: 'directory-picker-browse', name: '@deepseek-ai/dsh-host-directory-picker-browse' },\n    ] },\n",
       'apps/web/tests/settings-chrome.e2e.ts': "const loading = page.getByText(/正在加载插件/)\n",
-      'packages/client/ui-layout/src/client/index.ts': "rightbarShown: boolean\nsurfaces: { kind: 'single', scope: 'session-maybe' }\nshell.titlebar.trailing\nshell.terminalDrawer\n",
-      'packages/client/ui-layout/src/client/AppFrame.tsx': 'return <div className={css.mainPanel} data-main-panel>{panel}</div>\nrightbarShown: layoutInfo.rightbarShown,\n',
-      'packages/client/ui-surfaces/src/client/apply.ts': 'ctx.layout.closeSurfaces()\nopenInRightSidebar\n',
-      'packages/client/ui-titlebar/src/client/apply.ts': 'sidebarRight.toggleExpanded()\n',
-      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'rightbarShown\n',
+      'packages/client/ui-layout/src/client/index.ts': "surfaces: number\nsurfaces: { kind: 'single', scope: 'session-maybe' }\nshell.titlebar.trailing\nshell.terminalDrawer\n",
+      'packages/client/ui-layout/src/client/AppFrame.tsx': 'return <div className={css.mainPanel} data-main-panel>{panel}</div>\nsurfaces: layoutInfo.surfaces,\n',
+      'packages/client/ui-surfaces/src/client/apply.ts': `name: 'surfaces'\nopenClassicSurfaces\nif (cwd === undefined) return false\n`,
+      'packages/client/ui-titlebar/src/client/apply.ts': 'ctx.layout.toggleSurfaces()\n',
+      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'surfaces > 0\n',
+      'packages/client/ui-surfaces/src/client/SurfacesRoot.tsx': 'SurfaceTabs EmptyState\n',
+      'packages/client/ui-sidebar-right/src/client/index.ts': 'layout.closeSurfaces()\n',
+      'packages/client/ui-sidebar-right/src/client/shell/SidebarRight.tsx': 'restoreClassic\n',
       'apps/web/tests/models-settings.e2e.ts': "await page.route('**/api/llm.discoverModels', async (route) => {\n",
       'apps/web/tests/composer-resize-dock.e2e.ts': "describe('desktop fork: input.dock panels follow the composer drag width', () => {\n",
       'apps/web/tsconfig.json': '{\n  "exclude": ["tests/composer-resize-dock.e2e.ts"]\n}\n',
@@ -156,13 +160,13 @@ function makeFixture(t, npmVersion = '0.1.0-rc.5') {
       'packages/host/directory-picker/src/index.ts': "export const WINDOWS_VOLUME_ROOT = '\\\\.\\\\dsh-computer'\n",
       'packages/host/directory-picker-browse/src/index.ts': 'async function volumeListing() {}\nconst sentinel = WINDOWS_VOLUME_ROOT\n',
       'packages/host/directory-picker-browse/tests/service.spec.ts': 'WINDOWS_VOLUME_ROOT\n',
-      'packages/client/ui-layout/src/client/AppFrame.tsx': 'return <div className={css.mainPanel} data-main-panel>{panel}</div>\nrightbarShown: layoutInfo.rightbarShown,\n',
+      'packages/client/ui-layout/src/client/AppFrame.tsx': 'return <div className={css.mainPanel} data-main-panel>{panel}</div>\nsurfaces: layoutInfo.surfaces,\n',
       'packages/client/ui-layout/src/client/AppFrame.module.css': '.mainPanel { grid-row: 2; }\n',
       'packages/client/ui-attachment/src/ImageLightbox.module.css': '.close { top: calc(20px + var(--dshd-wco-caption, 0px)); }\n',
-      'packages/client/ui-layout/src/client/index.ts': "rightbarShown: boolean\n    'surfaces': { kind: 'single', scope: 'session-maybe' },\n    'shell.titlebar.trailing': { kind: 'list', scope: 'root' },\n    'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },\n    // every other key renders inside the content row only\n",
-      'packages/client/ui-surfaces/src/client/apply.ts': 'ctx.layout.closeSurfaces()\nopenInRightSidebar\n',
-      'packages/client/ui-titlebar/src/client/apply.ts': 'sidebarRight.toggleExpanded()\n',
-      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'rightbarShown\n',
+      'packages/client/ui-layout/src/client/index.ts': "surfaces: number\n    'surfaces': { kind: 'single', scope: 'session-maybe' },\n    'shell.titlebar.trailing': { kind: 'list', scope: 'root' },\n    'shell.terminalDrawer': { kind: 'single', scope: 'session-maybe' },\n    // every other key renders inside the content row only\n",
+      'packages/client/ui-surfaces/src/client/apply.ts': `name: 'surfaces'\nopenClassicSurfaces\nif (cwd === undefined) return false\n`,
+      'packages/client/ui-titlebar/src/client/apply.ts': 'ctx.layout.toggleSurfaces()\n',
+      'packages/client/ui-titlebar/src/client/PanelToggles.tsx': 'surfaces > 0\n',
     };
     writeFile(root, marker.file, content[marker.file] ?? 'export {}\n');
   }

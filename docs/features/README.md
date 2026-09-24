@@ -56,6 +56,7 @@ Gate: <卡上 gates>
 | [boot-page](boot-page.md) | 仪器启动画布 + 插件进度/恢复 | `boot.*` / harness-controller | TC-INST-003…007、012、013 |
 | [terminal-drawer](terminal-drawer.md) | 底栏 PTY 工作环 | `pty.js` / ui-user-terminal | TC-TERM-001…004（TC-WS-006 仓） |
 | [settings-select](settings-select.md) | 设置内值选择统一为官方胶囊 + Menu | `SettingsSelect` | vendor client spec |
+| [account-settings-entry](account-settings-entry.md) | 设置与远程配对收束到账户菜单，缺席时保留原入口 | `ui-settings-account` / `settings.launcher` | 定向测试、官方构建、桌面复核 |
 | [mobile-remote](mobile-remote.md) | 侧栏远程弹窗 + `mobile/web` SPA；入口开放，配对默认关闭 | `DshdRemote` / `ui-settings-remote` | 以卡内实机矩阵为准；0.3.1 不将 Web/Android 排除项记为 Pass |
 | [remote-settings](remote-settings.md) | 设置→远程双标签（网关 + dsh-im）；未配置时默认服务器模式 | `ui-settings-remote` / `dsh-im-desktop` | 桌面装配回归；真实账号绑定/收发按卡内门槛验收 |
 | [remote-workspace](remote-workspace.md) | SSH 机器管理、远程目录选择与镜像工作区 | `dsh-remote-desktop` / `vendor/dsh-remote` / picker fork | ensure/overlay/skip-compose + 远程负路径测试；实机验收单独记录 |

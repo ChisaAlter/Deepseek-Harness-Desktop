@@ -7,6 +7,7 @@ import { plainConfig } from '../../../settings/settings/src/schema.ts'
 import {
   DEFAULT_PREFERENCE, Config, apply,
 } from '@deepseek-ai/dsh-client-ui-theme'
+import { ThemeSettingsFields } from '../src/theme-settings.ts'
 
 
 /** Collect the injection table the way an index render or boot payload does. */
@@ -27,9 +28,22 @@ describe('ui-theme host', () => {
     const ctx = new Context()
     const configuration = await liveConfig(ctx, { Config, apply })
     const { fiber } = configuration
-    expect(plainConfig(configuration.fiber.config)).toEqual({ preference: DEFAULT_PREFERENCE, fontSize: 14 })
-    await configuration.update({ preference: 'dark', fontSize: 16 })
-    expect(plainConfig(configuration.fiber.config)).toEqual({ preference: 'dark', fontSize: 16 })
+    const initial = plainConfig(configuration.fiber.config)
+    expect(initial).toMatchObject({ preference: DEFAULT_PREFERENCE, fontSize: 14 })
+    expect(Object.keys(initial as Record<string, unknown>).sort()).toEqual(Object.keys(ThemeSettingsFields).sort())
+    await configuration.update({
+      preference: 'dark', fontSize: 16, activeDarkThemeId: 'custom-night',
+      glassOpacity: 72, terminalOpacity: 83, transparentTheme: true,
+      wallpaperImage: 'data:image/png;base64,AA==', backgroundEffectSpeed: 135,
+      cursorEffectEnabled: true, metallicPaintEnabled: true, fontFamilyTerminal: 'Consolas',
+    })
+    expect(plainConfig(configuration.fiber.config)).toMatchObject({
+      preference: 'dark', fontSize: 16, activeDarkThemeId: 'custom-night',
+      glassOpacity: 72, terminalOpacity: 83, transparentTheme: true,
+      wallpaperImage: 'data:image/png;base64,AA==', backgroundEffectSpeed: 135,
+      cursorEffectEnabled: true, metallicPaintEnabled: true, fontFamilyTerminal: 'Consolas',
+    })
+    await expect(configuration.update({ glassOpacity: 101 })).rejects.toThrow()
     await expect(configuration.update({ preference: 'sepia' })).rejects.toThrow()
     await expect(configuration.update({ fontSize: 11 })).rejects.toThrow()
     await expect(configuration.update({ fontSize: 18 })).rejects.toThrow()

@@ -383,8 +383,8 @@ function arrayWithoutDefault(inner: z): z {
   return schema
 }
 
-/** Durable theme schema; also the wire envelope the browser scope validates against. */
-export const ThemeSettingsSchema: z<ThemeSettings> = z.object({
+/** Shared field definitions for durable theme settings and live Host config. */
+export const ThemeSettingsFields = {
   [THEME_PREFERENCE_FIELD]: z.union([...THEME_PREFERENCES]).default(DEFAULT_PREFERENCE),
   [FONT_SIZE_FIELD]: z.number().step(1).min(FONT_SIZE_MIN).max(FONT_SIZE_MAX).default(DEFAULT_FONT_SIZE),
   [THEME_LIGHT_FAMILY_FIELD]: z.string().default(DEFAULT_FAMILY_ID),
@@ -436,7 +436,10 @@ export const ThemeSettingsSchema: z<ThemeSettings> = z.object({
     .default(DEFAULT_CODE_FONT_SIZE),
   fontFamilyComposer: z.string().default(''),
   fontFamilyTerminal: z.string().default(''),
-}) as z<ThemeSettings>
+}
+
+/** Durable theme schema; also the wire envelope the browser form validates against. */
+export const ThemeSettingsSchema: z<ThemeSettings> = z.object(ThemeSettingsFields)
 
 /**
  * Narrow one wire or registry value to a persistable preference.

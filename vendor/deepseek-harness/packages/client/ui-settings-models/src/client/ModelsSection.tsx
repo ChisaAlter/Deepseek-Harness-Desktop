@@ -33,7 +33,7 @@ import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
-import { VisionModelPicker, type VisionPickerApi } from './VisionModelPicker.tsx'
+import { VISION_FALLBACK_NS, VisionModelPicker, type VisionPickerApi } from './VisionModelPicker.tsx'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -679,7 +679,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
           <VisionModelPicker
             api={visionApi}
             t={t}
-            namespace={state.namespaces.get('vision-fallback')}
+            namespace={state.namespaces.get(VISION_FALLBACK_NS)}
             writable={state.writable}
             onSaved={() => { void controller.load() }}
           />

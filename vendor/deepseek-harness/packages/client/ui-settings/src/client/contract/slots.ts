@@ -15,6 +15,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Optional sidebar account launcher; opens the shell-owned settings panel. */
     'settings.launcher': { kind: 'single'; scope: 'root'; owner: SettingsLauncherOwnerProps }
+    /** Optional account-menu action; the registrant owns the content opened by its menu item. */
+    'settings.launcher.action': { kind: 'list'; scope: 'root'; owner: SettingsLauncherActionOwnerProps }
 
     /**
      * The sidebar-foot trigger row content: icon + label, supplied as slot
@@ -150,6 +152,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface SettingsGeneralItemOwnerProps {
   /** Marker field: item owner props are intentionally empty. */
   children?: never
+}
+
+/** Owner share of a menu action's mounted content. */
+export interface SettingsLauncherActionOwnerProps {
+  /** Close the action content and return focus to the account launcher. */
+  close: () => void
 }
 
 /** Owner share of an Interface preference row (the section supplies nothing). */

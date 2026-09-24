@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
-/** Preview plugin registers the Desktop Browser provider for the native right Sidebar. */
+/** Preview plugin registers the classic DSHD Browser occupant and compatibility provider. */
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { SidebarRightTabRegistry } from '../../ui-sidebar-right/src/client/tab-registry.ts'
 import { apply, inject } from '../src/client/index.ts'
-import { SidebarPreviewPanel, SidebarPreviewTitle } from '../src/client/PreviewPanel.tsx'
+import { PreviewPanel, SidebarPreviewPanel, SidebarPreviewTitle } from '../src/client/PreviewPanel.tsx'
 import { DshdMiniPlayer } from '../src/client/DshdMiniPlayer.tsx'
 
 const PREVIEW_ID = '@deepseek-ai/dsh-client-ui-preview/browser'
@@ -18,6 +18,7 @@ function declare(slots: SlotRegistry): () => void {
       'sidebar.right.pane.tab': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: () => () => ({}) } } },
       'sidebar.right.pane.tab.title': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: () => () => ({}) } } },
       'shell.overlay': { kind: 'list', scope: 'root' },
+      'surfaces.browser': { kind: 'single', scope: 'session-maybe' },
     },
   } as never, () => null)
 }
@@ -70,6 +71,7 @@ describe('ui-preview apply', () => {
     expect(definition?.guide?.[0]).toMatchObject({ id: 'new', order: 30 })
     expect(b.slots.entries('sidebar.right.pane.tab')[0]?.component).toBe(SidebarPreviewPanel)
     expect(b.slots.entries('sidebar.right.pane.tab.title')[0]?.component).toBe(SidebarPreviewTitle)
+    expect(b.slots.entries('surfaces.browser')[0]?.component).toBe(PreviewPanel)
     expect(b.slots.entries('shell.overlay')[0]?.component).toBe(DshdMiniPlayer)
     await b.fiber.dispose()
     expect(b.tabs.entries()).toHaveLength(0)
@@ -77,7 +79,7 @@ describe('ui-preview apply', () => {
     expect(b.slots.entries('shell.overlay')).toHaveLength(0)
   })
 
-  it('opens main-process preview URLs in the bound Sidebar Browser', async () => {
+  it('leaves main-process preview URL events to the classic surfaces owner', async () => {
     let listener: ((payload: { url?: string }) => void) | undefined
     enableShell((fn) => {
       listener = fn
@@ -85,9 +87,9 @@ describe('ui-preview apply', () => {
     })
     const b = await bench()
     listener?.({ url: 'http://127.0.0.1:5173/' })
-    expect(b.sidebarRight.openTab).toHaveBeenCalledWith('browser', { params: { url: 'http://127.0.0.1:5173/' } })
+    expect(listener).toBeUndefined()
     listener?.({})
-    expect(b.sidebarRight.openTab).toHaveBeenCalledTimes(1)
+    expect(b.sidebarRight.openTab).not.toHaveBeenCalled()
     await b.fiber.dispose()
     expect(listener).toBeUndefined()
   })
